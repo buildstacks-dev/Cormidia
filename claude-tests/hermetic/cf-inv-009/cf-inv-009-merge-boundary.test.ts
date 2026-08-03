@@ -72,7 +72,7 @@ describe("CF-INV-009 — merge boundary refuses stale, guessed, forged, and agen
     cleanups.push(() => github.dispose());
     const gh = new GhCliOps(github.repo, github.exec);
     const issue = await gh.createIssue({ title: "Merge boundary", body: BODY, labels: ["op:ready"] });
-    const root = await mkdtemp(join(tmpdir(), "operon-cf-inv-009-"));
+    const root = await mkdtemp(join(tmpdir(), "cormidia-cf-inv-009-"));
     cleanups.push(() => rm(root, { recursive: true, force: true }));
     const base = baseRevisionForBranch(resolveRemoteDefaultBranch("origin", { cwd: repo.dir }));
     const item = await claimTicket(issue, {
@@ -171,7 +171,7 @@ describe("CF-INV-009 — merge boundary refuses stale, guessed, forged, and agen
   });
 
   it("builder identity cannot own a merge operation or manufacture a human approval", async () => {
-    const root = await mkdtemp(join(tmpdir(), "operon-cf-inv-009-gate-"));
+    const root = await mkdtemp(join(tmpdir(), "cormidia-cf-inv-009-gate-"));
     cleanups.push(() => rm(root, { recursive: true, force: true }));
     const store = new ApprovalStore(root);
     const gate = composeGate(defaultGate, store, { app: "merge-app", role: "builder" });

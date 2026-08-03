@@ -28,7 +28,7 @@ export async function resolveReviewAuthorizationSecret(
 ): Promise<string | undefined> {
   if (options.environmentSecret !== undefined) {
     if (options.environmentSecret.trim().length === 0) {
-      throw new Error("OPERON_SELF_APPROVAL_SECRET is set but empty");
+      throw new Error("CORMIDIA_SELF_APPROVAL_SECRET is set but empty");
     }
     return options.environmentSecret;
   }

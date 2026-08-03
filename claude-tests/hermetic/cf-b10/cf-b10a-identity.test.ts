@@ -11,13 +11,13 @@
 // Two clauses below started as `it.fails` tripwires against product defects
 // and were PROMOTED to plain detectors on 2026-07-31 when the fixes landed:
 // findExistingOrg (src/org/apps.ts) now refuses a symlinked org-home path
-// with a typed OrgIdentityError, and resolveOperonHomes (src/org/home.ts)
+// with a typed OrgIdentityError, and resolveCormidiaHomes (src/org/home.ts)
 // validates the state-home pairing against the org-identity marker that
 // `org init` records (legacy marker-less state homes are adopted, never
 // stopped).
 //
 // Layer: 2 (temp org homes + the real pointer file). Zero network, zero
-// tokens; the operator's real ~/.operon is never touched (fixture homeDir).
+// tokens; the operator's real ~/.cormidia is never touched (fixture homeDir).
 
 import { mkdtemp, rename, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   NoActiveOrgError,
-  resolveOperonHomes,
+  resolveCormidiaHomes,
   writeActiveOrgPointer,
 } from "../../../src/org/home.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
@@ -51,7 +51,7 @@ async function tempDir(prefix: string): Promise<string> {
 describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", () => {
   it("control: the active pointer resolves the fixture's coherent (org, state, name) triple", async () => {
     const a = await orgHomeFixture("org-a");
-    const homes = await resolveOperonHomes(a.resolveOptions);
+    const homes = await resolveCormidiaHomes(a.resolveOptions);
     expect(homes.orgHome).toBe(a.orgHome);
     expect(homes.stateHome).toBe(a.stateHome);
     expect(homes.appsFile.org.name).toBe("org-a");
@@ -61,16 +61,16 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
     const a = await orgHomeFixture("org-a");
     const b = await orgHomeFixture("org-b");
     // env beats the pointer…
-    const viaEnv = await resolveOperonHomes({
-      env: { OPERON_ORG_HOME: b.orgHome },
+    const viaEnv = await resolveCormidiaHomes({
+      env: { CORMIDIA_ORG_HOME: b.orgHome },
       homeDir: a.homeDir,
       pointerPath: a.pointerPath,
     });
     expect(viaEnv.orgHome).toBe(b.orgHome);
     // …and the explicit option beats env.
-    const viaOption = await resolveOperonHomes({
+    const viaOption = await resolveCormidiaHomes({
       orgHome: a.orgHome,
-      env: { OPERON_ORG_HOME: b.orgHome },
+      env: { CORMIDIA_ORG_HOME: b.orgHome },
       homeDir: a.homeDir,
       pointerPath: a.pointerPath,
     });
@@ -83,10 +83,10 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
     const previousCwd = process.cwd();
     try {
       process.chdir(a.orgHome); // a fully valid org home as cwd
-      const attempt = resolveOperonHomes({
+      const attempt = resolveCormidiaHomes({
         env: {},
         homeDir: emptyHome,
-        pointerPath: join(emptyHome, ".operon", "config"),
+        pointerPath: join(emptyHome, ".cormidia", "config"),
       });
       await expect(attempt).rejects.toThrow(NoActiveOrgError);
       await expect(attempt).rejects.toMatchObject({ code: "no_active_org" });
@@ -99,12 +99,12 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
     const a = await orgHomeFixture("org-a");
     const b = await orgHomeFixture("org-b");
     await rename(a.orgHome, join(a.root, "org-moved-away"));
-    // OPERON_HOME names a perfectly valid different org. Resolution must
+    // CORMIDIA_HOME names a perfectly valid different org. Resolution must
     // still stop on the stale pointer identity — silently proceeding with
     // org B here would be exactly "correct config from the wrong org".
     await expect(
-      resolveOperonHomes({
-        env: { OPERON_HOME: b.orgHome },
+      resolveCormidiaHomes({
+        env: { CORMIDIA_HOME: b.orgHome },
         homeDir: a.homeDir,
         pointerPath: a.pointerPath,
       }),
@@ -114,7 +114,7 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
   it("a pointer to a deleted org stops with the identity named, not a fallback", async () => {
     const a = await orgHomeFixture("org-a");
     await rm(a.orgHome, { recursive: true, force: true });
-    await expect(resolveOperonHomes(a.resolveOptions)).rejects.toThrow(/not a complete org home/);
+    await expect(resolveCormidiaHomes(a.resolveOptions)).rejects.toThrow(/not a complete org home/);
   });
 
   it("override disagreement: resolving org B never adopts org A's pointer-recorded state home", async () => {
@@ -122,16 +122,16 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
     const b = await orgHomeFixture("org-b");
     await assertNonEmptyWalk(b.orgHome);
     // Pointer (under A's homeDir) names org A + state A; env selects org B.
-    const homes = await resolveOperonHomes({
-      env: { OPERON_ORG_HOME: b.orgHome },
+    const homes = await resolveCormidiaHomes({
+      env: { CORMIDIA_ORG_HOME: b.orgHome },
       homeDir: a.homeDir,
       pointerPath: a.pointerPath,
     });
     expect(homes.orgHome).toBe(b.orgHome);
     expect(homes.stateHome).not.toBe(a.stateHome);
     // The pairing rule: a state home recorded for a DIFFERENT org home is
-    // ignored and org B derives its own (~/.operon/<org-name>).
-    expect(homes.stateHome).toBe(join(a.homeDir, ".operon", "org-b"));
+    // ignored and org B derives its own (~/.cormidia/<org-name>).
+    expect(homes.stateHome).toBe(join(a.homeDir, ".cormidia", "org-b"));
   });
 
   // contracts/B-10-config-resolver.md §2: "a pairing mismatch (… symlinked
@@ -147,7 +147,7 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
     const linkPath = join(linkRoot, "org-alias");
     await symlink(a.orgHome, linkPath);
     await writeActiveOrgPointer(a.pointerPath, linkPath, a.stateHome);
-    await expect(resolveOperonHomes(a.resolveOptions)).rejects.toThrow();
+    await expect(resolveCormidiaHomes(a.resolveOptions)).rejects.toThrow();
   });
 
   // contracts/B-10-config-resolver.md §2: "a pairing mismatch (state home
@@ -155,7 +155,7 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
   // org' is an identity failure". PROMOTED from an `it.fails` tripwire
   // 2026-07-31: `org init` now records an identity marker
   // (org-identity.json: org name + org-home realpath + created_at) in the
-  // state home, and resolveOperonHomes (src/org/home.ts
+  // state home, and resolveCormidiaHomes (src/org/home.ts
   // ensureStateHomeIdentity) validates the pairing whenever the marker
   // exists — a marker naming a different org is a typed OrgIdentityError
   // (code "state_home_org_mismatch"); a marker-less legacy state home is
@@ -164,8 +164,8 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
     const a = await orgHomeFixture("org-a");
     const b = await orgHomeFixture("org-b");
     await expect(
-      resolveOperonHomes({
-        env: { OPERON_ORG_HOME: b.orgHome, OPERON_STATE_HOME: a.stateHome },
+      resolveCormidiaHomes({
+        env: { CORMIDIA_ORG_HOME: b.orgHome, CORMIDIA_STATE_HOME: a.stateHome },
         homeDir: b.homeDir,
         pointerPath: b.pointerPath,
       }),

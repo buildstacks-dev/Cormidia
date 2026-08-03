@@ -2,7 +2,7 @@
 // day-files are never swept while re-settlement is possible (HB-020).
 //
 // Design: case-catalog §1 CF-J08-A (oracle: evid, risk E3); invariants.md
-// OPERON-INV-006 ("the ledger is the sole durable spend fact; overlays and
+// CORMIDIA-INV-006 ("the ledger is the sole durable spend fact; overlays and
 // reports derive from it and never replace it"; "unknown usage never rendered
 // as zero"); system-map §2.2 cost-ledger row. Readers under test, all real:
 //   - readTurnRecords (src/runtime/telemetry.ts) — the telemetry CLI's ledger
@@ -60,8 +60,8 @@ const APPS: AppsFile = {
   org: { name: "cf-j08-a", maxConcurrentTurns: 1 },
   defaults: { budgetUsdMonth: 100 },
   apps: [
-    { name: APP_A, repo: "operon-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} },
-    { name: APP_B, repo: "operon-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} },
+    { name: APP_A, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} },
+    { name: APP_B, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} },
   ],
 };
 

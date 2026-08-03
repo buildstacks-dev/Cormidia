@@ -1,6 +1,6 @@
 // CF-J07-R — a paused app (either source: registry status or budget overlay)
 // cannot claim spend; manual `loop --once` is refused too (L2; HB-022;
-// case-catalog §CF-J07; OPERON-INV-007 seeds (a)/(b); architecture §7).
+// case-catalog §CF-J07; CORMIDIA-INV-007 seeds (a)/(b); architecture §7).
 
 import { afterEach, describe, expect, it } from "vitest";
 import { join } from "node:path";

@@ -55,7 +55,7 @@ export type ScriptedUsageReport = ScriptedUsage | "absent";
 /** Which provider channel consults the gate for a tool step.
  *  - "hook": the provider's primary pre-tool channel (Claude: PreToolUse
  *    hook; Codex: the PreToolUse hook bridge over the per-turn Unix socket —
- *    the compensating enforcement boundary of OPERON-C-B03-001, which sees
+ *    the compensating enforcement boundary of CORMIDIA-C-B03-001, which sees
  *    the auto-approved reads the approval callback misses; pi: the gating
  *    extension).
  *  - "permission": the secondary/backstop channel where the provider has one
@@ -292,7 +292,7 @@ export class AdapterContractViolation extends Error {
 }
 
 /**
- * OPERON-INV-006 / core §2: when the provider reported no usage for a turn,
+ * CORMIDIA-INV-006 / core §2: when the provider reported no usage for a turn,
  * the envelope must render it as UNKNOWN (quality "unavailable") — never as
  * an authoritative figure, zero included. Fires on any other rendering.
  */

@@ -4,8 +4,8 @@
 
 ## What this corpus is — and is not
 
-This is the ratified **design and implementation index** for Operon's replacement
-validation harness (campaign operon-2026-07-31, validation-harness-design skill,
+This is the ratified **design and implementation index** for Cormidia's replacement
+validation harness (campaign cormidia-2026-07-31, validation-harness-design skill,
 Phases 0–8). The executable implementation lives under `../claude-tests/`; current
 machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not**:
 
@@ -13,7 +13,7 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   installed or an app is live *right now* (finding F-PT-002 — resolved 2026-07-31 with
   a dated snapshot, see ratification-package.md §9; live state still comes from the
   product). For live state, use
-  the product: `operon scheduler status`, `operon status`, `operon doctor` — documented
+  the product: `cormidia scheduler status`, `cormidia status`, `cormidia doctor` — documented
   in the product's `docs/`, not here.
 - **A substitute for the operator runbook.** HB-080 is complete: use
   `operator-triage-runbook.md`, which points to the packaged canonical mapping at
@@ -28,7 +28,7 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 
 1. `scope-and-module-map.md` — what's in scope, module map M1–M16.
 2. `system-map.md` — journeys J-01…J-19, state ownership, criticality tier (§5).
-3. `invariants.md` — OPERON-INV-001…015 (what must never break).
+3. `invariants.md` — CORMIDIA-INV-001…015 (what must never break).
 4. `boundary-map.md` — B-01…B-19, failure modes, honest-fake verdicts.
 5. `contracts/` — per-boundary + operation contracts, journey acceptance criteria.
 6. `risk-allocation.md` — E-1/E-2/E-3 exhaustive families, thin lanes, spend/soak.
@@ -86,9 +86,9 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 | `M1…M16` | modules | scope-and-module-map.md §2 |
 | `J-01…J-19` | journeys | system-map.md §1.3 |
 | `T-1…T-12` | C3 control points (function-scoped risk) | system-map.md §5.2 |
-| `OPERON-INV-001…015` (alias INV-NNN) | invariants | invariants.md |
+| `CORMIDIA-INV-001…015` (alias INV-NNN) | invariants | invariants.md |
 | `B-01…B-19` (B-09a/b split) | boundaries | boundary-map.md |
-| `OPERON-C-…-001` (aliases B-NN, C-OP-*) | contracts | contracts/ headers + journey-acceptance.md alias table |
+| `CORMIDIA-C-…-001` (aliases B-NN, C-OP-*) | contracts | contracts/ headers + journey-acceptance.md alias table |
 | `S-1…S-9` | LLM call sites (S-8 added by comparative-execution revision) | llm-eval-plan.md §1 |
 | `E-1/E-2/E-3, STD, THIN, FLOOR, L4Q` | risk allocation vocabulary | risk-allocation.md §2, case-catalog.md header |
 | `CF-*` | case families | case-catalog.md |

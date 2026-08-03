@@ -10,7 +10,7 @@
 // rollback of the latest version cut.
 //
 // Two learning roots exist (spec §1): the committed org home's `learning/`
-// (scopes `org` and `roles/<role>`) and an app repo's `.operon/learning/`
+// (scopes `org` and `roles/<role>`) and an app repo's `.cormidia/learning/`
 // (scopes `apps/<app>` and `apps/<app>/roles/<role>`). Everything here takes
 // a LearningRoot so the two trees cannot drift.
 //
@@ -46,7 +46,7 @@ export type LearningRootKind = "org" | "app";
 
 export interface LearningRoot {
   kind: LearningRootKind;
-  /** The `learning/` directory itself (org home) or `.operon/learning/`
+  /** The `learning/` directory itself (org home) or `.cormidia/learning/`
    *  (app repo). */
   dir: string;
 }
@@ -56,7 +56,7 @@ export function orgLearningRoot(orgHome: string): LearningRoot {
 }
 
 export function appLearningRoot(appWorkdir: string): LearningRoot {
-  return { kind: "app", dir: join(appWorkdir, ".operon", "learning") };
+  return { kind: "app", dir: join(appWorkdir, ".cormidia", "learning") };
 }
 
 /** Which root a scope's concepts live in (spec §1): `org` and `roles/<role>`
@@ -195,7 +195,7 @@ export async function loadConceptDir(
       throw new Error(`learning: ${first.path}: ${first.message}`);
     }
     for (const error of bundle.errors) {
-      process.stderr.write(`operon: skipping malformed governed concept — ${error.message}\n`);
+      process.stderr.write(`cormidia: skipping malformed governed concept — ${error.message}\n`);
     }
   }
   const out: LoadedConcept[] = [];
@@ -208,7 +208,7 @@ export async function loadConceptDir(
     } catch (error) {
       if (onError === "throw") throw error;
       process.stderr.write(
-        `operon: skipping misplaced governed concept — ${(error as Error).message}\n`,
+        `cormidia: skipping misplaced governed concept — ${(error as Error).message}\n`,
       );
     }
   }
@@ -444,7 +444,7 @@ export async function cutManifestVersion(
     throw new Error(
       `learning: ${manifestPath(root)} has an active canary (${manifest.canary}) — ` +
         `a version cut mid-trial would corrupt the trial population; ` +
-        `\`operon learn canary promote|stop --root ${root.kind}\` first`,
+        `\`cormidia learn canary promote|stop --root ${root.kind}\` first`,
     );
   }
   const entry: ManifestHistoryEntry = {
@@ -568,7 +568,7 @@ export async function rollbackRoot(
     throw new Error(
       `learning: the latest cut (${last.version}${last.note !== undefined ? `, "${last.note}"` : ""}) ` +
         `has no still-active concepts — nothing to roll back; ` +
-        `use \`operon learn disable <concept-id>\` for individual concepts`,
+        `use \`cormidia learn disable <concept-id>\` for individual concepts`,
     );
   }
   const cut = await cutManifestVersion(root, {
@@ -729,7 +729,7 @@ export async function assertNoActiveCanary(root: LearningRoot, action: string): 
   if (manifest !== null && manifest.canary !== null) {
     throw new Error(
       `learning: ${manifestPath(root)} has an active canary (${manifest.canary}) — ` +
-        `cannot ${action} mid-trial; \`operon learn canary promote|stop --root ${root.kind}\` first`,
+        `cannot ${action} mid-trial; \`cormidia learn canary promote|stop --root ${root.kind}\` first`,
     );
   }
 }

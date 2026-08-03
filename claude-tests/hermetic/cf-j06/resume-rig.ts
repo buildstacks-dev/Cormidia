@@ -336,7 +336,7 @@ export function blockedLoopItem(input: {
     ticketRef: `#${input.issueNumber}`,
     title: "cf-j06 paused ticket",
     body: "## Goal\nContinuation/resume fingerprint suite walk.\n",
-    targetRepo: input.targetRepo ?? "operon-double/cf-j06",
+    targetRepo: input.targetRepo ?? "cormidia-double/cf-j06",
     labels: ["op:blocked"],
     phase: "blocked",
     tier: "standard",

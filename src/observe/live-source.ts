@@ -131,7 +131,7 @@ export class ObserveService {
     await this.rebuild(false);
   }
 
-  /** Close only observer streams. Durable Operon work is not consulted or
+  /** Close only observer streams. Durable Cormidia work is not consulted or
    * changed; browsers reconnect with their cursor. Useful for controlled
    * maintenance and reconnect verification. */
   disconnectClients(): void {

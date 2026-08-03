@@ -1,5 +1,5 @@
 # Contract — B-11 Learning capture ↔ governed substrate (publisher seam)
-Canonical ID: **OPERON-C-B11-001 (alias: B-11)**
+Canonical ID: **CORMIDIA-C-B11-001 (alias: B-11)**
 
 Status: DRAFT (Phase 4). Defends INV-001/012/013, T-3/T-10. Journey J-12.
 

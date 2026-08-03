@@ -293,7 +293,7 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
   else request.signal.addEventListener("abort", abort, { once: true });
   try {
     await client.request("initialize", {
-      clientInfo: { name: "operon-readiness", title: "Operon readiness", version: "0.1.0" },
+      clientInfo: { name: "cormidia-readiness", title: "Cormidia readiness", version: "0.1.0" },
       capabilities: {
         experimentalApi: true,
         requestAttestation: false,

@@ -5,7 +5,7 @@
     "scripted_scenario_ref": "claude-tests/hermetic/cf-s2-traj/cf-s2-trajectory.test.ts#route budget",
     "telemetry_expectations": ["route budget detector fires", "terminal outcome is typed", "settled usage is retained"],
     "decision_status": "ratified",
-    "provenance": { "source_refs": ["docs/episodes/contract.md", "OPERON-INV-006"] }
+    "provenance": { "source_refs": ["docs/episodes/contract.md", "CORMIDIA-INV-006"] }
   },
   {
     "schema_version": 1,

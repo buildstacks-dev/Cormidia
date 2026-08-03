@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cormidia"
+  short_description: "Operate and onboard apps with Cormidia"
+  default_prompt: "Use $cormidia to inspect the active org and safely onboard or operate an application."

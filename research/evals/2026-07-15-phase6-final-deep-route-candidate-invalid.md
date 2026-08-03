@@ -36,7 +36,7 @@ returned `qualified` with three passes and no product, infrastructure,
 harness, safety, budget, missing-attempt, or retry result.
 
 The private GitHub lifecycle passed in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260716-8d0111ceac1d`
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260716-8d0111ceac1d`
 (repository `R_kgDOTZ16Ew`), retaining issue 1, pull request 2, and content
 commit `7f25ef4ccc554f9dd80ca81cfbaa1e689942823c`. The identical second
 execution created no duplicate remote state. Source-evidence SHA-256 is
@@ -50,7 +50,7 @@ and the portable report SHA-256 is
 `f9c6d8052b68e76a2d708022847786380df24c1d913012f665fc0a5e7285fd10`.
 Both reproduced byte-for-byte. The verified 91-file
 `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260716-8d0111ceac1d-08634952-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260716-8d0111ceac1d-08634952-evidence-v2`;
 its archive-manifest SHA-256 is
 `4023e3d9b2cef66f060351081294947dba3c3fe25ff6b01a8aaa7fb38b7723e3`.
 The local archive-receipt SHA-256 is
@@ -60,7 +60,7 @@ Cleanup was previewed only.
 ## Candidate result and accounting
 
 The candidate GitHub lifecycle passed in
-`buildstacks-dev/operon-eval-candidate-qualification-v1-20260716-8d0111ceac1d`
+`buildstacks-dev/cormidia-eval-candidate-qualification-v1-20260716-8d0111ceac1d`
 (repository `R_kgDOTZ2F5w`), retaining issue 1, pull request 2, and content
 commit `32f002019f72ef297fc6192b7525bc5937d4cb89`. Its identical rerun
 created no duplicate remote state. Source-evidence SHA-256 is
@@ -202,7 +202,7 @@ provider-workflow tests. The two failed fixture runs are not relabelled green.
 
 The pre-governance 662-file `sanitized-evidence/v3` candidate archive is
 permanently retained at
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260716-8d0111ceac1d-e0c8c1bf-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260716-8d0111ceac1d-e0c8c1bf-evidence-v2`;
 its archive-manifest SHA-256 is
 `2e2aadbf25760be74dabd75b47b1e94723e58dd56e91cdaeda8931166253f6fc`.
 The local archive-receipt SHA-256 is

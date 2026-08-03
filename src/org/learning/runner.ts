@@ -99,7 +99,7 @@ export async function runExperiment(
     throw new Error(
       `learning: ${experimentId} declares layer "${experiment.trials.layer}" — the runner ` +
         `executes replay experiments; deterministic checks run in CI and canary trials run ` +
-        `live through \`operon learn canary\``,
+        `live through \`cormidia learn canary\``,
     );
   }
   if (Date.parse(efficacy.declared_at) >= clock().getTime()) {
@@ -161,7 +161,7 @@ export async function runExperiment(
   if (fixtures.length === 0) {
     throw new Error(
       `learning: no trusted fixtures for ${experiment.eligibility.episodes} — ` +
-        `convert and independently validate a capsule first (operon learn fixture)`,
+        `convert and independently validate a capsule first (cormidia learn fixture)`,
     );
   }
   if (efficacy.hidden_guardrail_commitment.fixture_refs.length === 0) {

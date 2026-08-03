@@ -9,18 +9,18 @@ afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { rec
 
 describe("L4 reviewed authorization config", () => {
   it("refuses an absent opt-in instead of skipping", async () => {
-    await expect(loadEvalConfig({})).rejects.toThrow(/OPERON_EVAL=1/);
+    await expect(loadEvalConfig({})).rejects.toThrow(/CORMIDIA_EVAL=1/);
   });
 
   it("negative control: refuses unknown widening fields", async () => {
     const { path, value } = await fixture();
     await writeFile(path, JSON.stringify({ ...value, allow_external_publication: true }), "utf8");
-    await expect(loadEvalConfig({ OPERON_EVAL: "1", OPERON_EVAL_CONFIG: path })).rejects.toThrow(/unknown eval config field/);
+    await expect(loadEvalConfig({ CORMIDIA_EVAL: "1", CORMIDIA_EVAL_CONFIG: path })).rejects.toThrow(/unknown eval config field/);
   });
 
   it("accepts an exact reviewed envelope", async () => {
     const { path, value } = await fixture(); await writeFile(path, JSON.stringify(value), "utf8");
-    await expect(loadEvalConfig({ OPERON_EVAL: "1", OPERON_EVAL_CONFIG: path })).resolves.toEqual(value);
+    await expect(loadEvalConfig({ CORMIDIA_EVAL: "1", CORMIDIA_EVAL_CONFIG: path })).resolves.toEqual(value);
   });
 });
 

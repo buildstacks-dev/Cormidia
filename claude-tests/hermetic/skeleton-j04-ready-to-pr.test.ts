@@ -160,9 +160,9 @@ describe("CF-J04-S skeleton — ready → claim → scripted build → PR on the
       labels: ["op:ready"],
     });
 
-    const worktreeRoot = await mkdtemp(join(tmpdir(), "operon-hb005-worktrees-"));
+    const worktreeRoot = await mkdtemp(join(tmpdir(), "cormidia-hb005-worktrees-"));
     cleanups.push(() => rm(worktreeRoot, { recursive: true, force: true }));
-    const runlogRoot = await mkdtemp(join(tmpdir(), "operon-hb005-runlog-"));
+    const runlogRoot = await mkdtemp(join(tmpdir(), "cormidia-hb005-runlog-"));
     cleanups.push(() => rm(runlogRoot, { recursive: true, force: true }));
 
     const dbl = claudeDouble([
@@ -327,7 +327,7 @@ describe("CF-J04-S skeleton — ready → claim → scripted build → PR on the
       baseRefName: DEFAULT_BRANCH,
     });
     expect(pr?.closingIssueNumbers).toEqual([issue.number]);
-    expect(pr?.body).toContain("<!-- operon:gate-evidence:start -->");
+    expect(pr?.body).toContain("<!-- cormidia:gate-evidence:start -->");
     expect(pr?.body).toContain(built.sha); // gate evidence bound to the exact revision
 
     // Label only after the artifact: the PR create precedes the op:in-review

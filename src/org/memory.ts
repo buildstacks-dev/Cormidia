@@ -142,7 +142,7 @@ export async function selectAttributedExcerpts(
     if (remaining <= 0) break;
     const bundle = await loadBundle(dir);
     for (const error of bundle.errors) {
-      process.stderr.write(`operon: skipping malformed memory doc — ${error.message}\n`);
+      process.stderr.write(`cormidia: skipping malformed memory doc — ${error.message}\n`);
     }
     if (bundle.index.trim() !== "") {
       remaining = appendAttributedCapped(

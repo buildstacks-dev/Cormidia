@@ -10,8 +10,8 @@ import { actionHash, ApprovalStore, type ApprovalItem } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { grantScopeText } from "./gate-compose.js";
 
-export const GITHUB_ISSUE_CREATE_TOOL = "operon.github.issue.create";
-export const GITHUB_ISSUE_COMMENT_TOOL = "operon.github.issue.comment";
+export const GITHUB_ISSUE_CREATE_TOOL = "cormidia.github.issue.create";
+export const GITHUB_ISSUE_COMMENT_TOOL = "cormidia.github.issue.comment";
 
 export interface DurableGitHubIssueCreateInput {
   schema_version: 1;
@@ -287,7 +287,7 @@ async function executeGitHubAction(gh: GhOps, action: DurableGitHubAction): Prom
   if (action.tool === GITHUB_ISSUE_CREATE_TOOL) {
     for (const label of action.input.labels) {
       if (label === "op:incident") {
-        await gh.ensureLabel({ name: label, color: "d73a4a", description: "Operon incident requiring response" });
+        await gh.ensureLabel({ name: label, color: "d73a4a", description: "Cormidia incident requiring response" });
       }
     }
     const issue = await gh.createIssue({
@@ -380,7 +380,7 @@ async function failWithoutRemote(
 }
 
 function deliveryMarker(key: string): string {
-  return `<!-- operon:delivery id=${key} -->`;
+  return `<!-- cormidia:delivery id=${key} -->`;
 }
 
 function withMarker(body: string, key: string): string {

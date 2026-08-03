@@ -1,8 +1,8 @@
-// `operon roles [path]` — validate roles.yaml and print the org chart.
-// `operon roles set <role> ...` — the journaled write path (ENH-004).
+// `cormidia roles [path]` — validate roles.yaml and print the org chart.
+// `cormidia roles set <role> ...` — the journaled write path (ENH-004).
 
 import { loadRoles } from "../org/roles.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { join, resolve } from "node:path";
 import { extractHomeFlags } from "./home-flags.js";
 import {
@@ -27,7 +27,7 @@ export async function cmdRoles(args: string[] = []): Promise<number> {
   }
   const path = pathArgument
     ? resolve(pathArgument)
-    : join((await resolveOperonHomes(common)).orgHome, "roles.yaml");
+    : join((await resolveCormidiaHomes(common)).orgHome, "roles.yaml");
   const { roles, defaults, roleTurnBudgets } = await loadRoles(path);
   const budgetsByRole = new Map(roleTurnBudgets.map((budget) => [budget.name, budget]));
   const rows = roles.map((role) => {
@@ -96,12 +96,12 @@ export async function cmdRoles(args: string[] = []): Promise<number> {
 }
 
 /**
- * `operon roles set <role> [--runtime r] [--model m] [--effort e]
+ * `cormidia roles set <role> [--runtime r] [--model m] [--effort e]
  *  [--turn-budget usd] [--reason text] [--by identity] [--execute] [--json]`
  *
  * Preview by default. Execution is deliberately two-key: an explicit
  * `--execute` plus an attributable `--by`, matching the ratified-surface rule
- * in `.operon/config.yaml`. Without `--by` the command still validates and
+ * in `.cormidia/config.yaml`. Without `--by` the command still validates and
  * prints the exact diff, which is the proposal an agent hands to its operator.
  */
 export async function cmdRolesSet(args: string[] = []): Promise<number> {
@@ -129,10 +129,10 @@ export async function cmdRolesSet(args: string[] = []): Promise<number> {
     else throw new Error("roles set: expected exactly one role name");
   }
   if (role === undefined) {
-    throw new Error("roles set: role name required — operon roles set <role> [--model ...]");
+    throw new Error("roles set: role name required — cormidia roles set <role> [--model ...]");
   }
 
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const plan = await applyRoleAssignmentChange({
     orgHome: homes.orgHome,
     stateHome: homes.stateHome,
@@ -150,9 +150,9 @@ export async function cmdRolesSet(args: string[] = []): Promise<number> {
   // looking for modelCatalog.verified to learn that nothing checked this id.
   if (plan.executed && isUnverifiedModelIdChange(plan) && plan.modelCatalog !== undefined) {
     console.error(
-      `operon roles set: WARNING — ${plan.role} now runs ` +
+      `cormidia roles set: WARNING — ${plan.role} now runs ` +
         `${plan.modelCatalog.runtime}/${plan.modelCatalog.model}, an id no token-free roster ` +
-        `could verify (${plan.modelCatalog.reason}). Run \`operon doctor\` to probe the adapter ` +
+        `could verify (${plan.modelCatalog.reason}). Run \`cormidia doctor\` to probe the adapter ` +
         "before the next turn spends on it.",
     );
   }

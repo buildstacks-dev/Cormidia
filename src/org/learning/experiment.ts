@@ -503,7 +503,7 @@ export async function readExperimentRecord(
     experimentPath(orgHome, experimentId),
     validateExperimentRecord,
     `learning: no experiment ${experimentId} under ${experimentsDir(orgHome)} — ` +
-      `operon learn report lists declared experiments`,
+      `cormidia learn report lists declared experiments`,
   );
 }
 

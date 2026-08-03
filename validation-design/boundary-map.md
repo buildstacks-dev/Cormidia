@@ -1,4 +1,4 @@
-# Boundary map — Operon (product scope)
+# Boundary map — Cormidia (product scope)
 
 Status: rev 4, CONFIRMED at the Phase 3 gate (2026-07-31); human-ratified 2026-07-31
 (ratification-package.md §9). <!-- AUD-105 --> (rev 1 corrected per elicitation —
@@ -86,9 +86,9 @@ both fake and real dependency to prevent drift.
 
 ### B-04 — pi SDK `[doc]`
 - **Boundary test:** PASS.
-- **Failure modes:** as B-02, plus: no native approval flow — Operon installs the gating
+- **Failure modes:** as B-02, plus: no native approval flow — Cormidia installs the gating
   extension at runtime; **extension not loaded = gate hole**, and conformance must prove
-  an actual forbidden tool attempt **reaches and is denied by Operon's gate** — observing
+  an actual forbidden tool attempt **reaches and is denied by Cormidia's gate** — observing
   "extension loaded" proves very little `[elicited]`; no intra-turn fan-out (documented
   degradation). **Correlation note:** pi's Anthropic-native path shares an upstream
   outage domain with B-02 even though the adapter integration fails independently
@@ -106,14 +106,14 @@ both fake and real dependency to prevent drift.
   "works"** `[elicited]` — the definition file on disk is the comforting fake of health;
   stale definition; duplicate/orphan definitions; machine asleep through windows
   (compound with B-06/B-07).
-- **Honest fake:** PARTIAL — tick invocation trivially fakeable (invoke `operon
+- **Honest fake:** PARTIAL — tick invocation trivially fakeable (invoke `cormidia
   dispatch`; the dispatcher cannot tell); install/status/uninstall logic against a faked
   host-command surface is hermetic. **Actual load-and-fire is unfakeable.**
 - **Unproven real (L3):** **launchd only, today** — a launchd proof does not prove
   systemd; systemd gains its own proof when the droplet shape becomes supported
   `[elicited]`. The proof uses a uniquely identifiable test definition, proves loaded
   identity and attributable tick evidence, then removes exactly that definition —
-  sandbox orgs make the *Operon work* disposable, not careless host-scheduler mutation.
+  sandbox orgs make the *Cormidia work* disposable, not careless host-scheduler mutation.
 - **Layer:** 2 (dominant) + one named L3 lifecycle proof (launchd).
 
 ### B-06 — Clock & calendar time `[PROPOSED]` (nondeterminism seam)
@@ -193,12 +193,14 @@ both fake and real dependency to prevent drift.
   was convenient `[elicited]`, INV-015); mid-edit torn read; app narrowing wider than
   org (refuse, INV-001); **config changing between preview and execution** `[elicited]`.
 - **B-10a — active-org identity resolution (explicit sub-boundary)** `[elicited]`:
-  the active pointer, `OPERON_ORG_HOME`/`OPERON_STATE_HOME` overrides, resolved org
+  the active pointer, `CORMIDIA_ORG_HOME`/`CORMIDIA_STATE_HOME` overrides, resolved org
   home, and resolved state home can disagree **while every individual file is valid**.
   "Correct config from the wrong org" is an identity-boundary failure, not a parser
   failure (F-PT-002 already warns here). Failure modes: stale active pointer; override
   disagreement; symlinked org home; pointer to a deleted/moved org; state home from a
-  different org than the org home.
+  different org than the org home; first-run default-root relocation interrupted after
+  the atomic move; both retired and current roots present (typed refusal, never merge);
+  migrated lifecycle or git-worktree paths still naming the retired root.
 - **Honest fake:** YES — fixture org homes covering every skew/corruption/identity
   class.
 - **Layer:** 1/2.
@@ -254,9 +256,9 @@ both fake and real dependency to prevent drift.
 - **Layer:** 2.
 
 ### B-14 — Human checkout ↔ managed workspace `[elicited]` (was wrongly "not a boundary")
-- **Why it is a boundary:** bootstrap deliberately writes `.operon/**` and the marked
+- **Why it is a boundary:** bootstrap deliberately writes `.cormidia/**` and the marked
   instruction blocks into the human's checkout, while the build loop and recovery must
-  use org-managed clones/worktrees. Two writers (human, Operon-lifecycle), independent
+  use org-managed clones/worktrees. Two writers (human, Cormidia-lifecycle), independent
   failure, containment consequences (INV-010, T-6/T-8).
 - **Boundary test:** the human can edit/dirty/move their checkout at any moment while
   managed clones proceed — and vice versa. PASS.
@@ -264,8 +266,9 @@ both fake and real dependency to prevent drift.
   remote; path overlap between generated artifacts and existing content; **concurrent
   human edits during a lifecycle command**; **a lifecycle command touching more than its
   authorized generated paths** (marked-block containment; byte-preservation of existing
-  content); bootstrap re-run idempotency; checkout owned by a different Operon checkout
-  (link ownership refusal).
+  content); bootstrap re-run idempotency; checkout owned by a different Cormidia checkout
+  (link ownership refusal); retired and current app-artifact roots coexisting or being
+  split across reads and writes.
 - **Honest fake:** YES — real temp git checkouts with scripted human interference.
 - **Layer:** 2.
 
@@ -284,14 +287,14 @@ both fake and real dependency to prevent drift.
 - **Layer:** 2.
 
 ### B-16 — Gate/command-runner ↔ app toolchain `[elicited]`
-- **Why it is a boundary:** the gate engine is Operon code; `setup`, test, lint, e2e,
+- **Why it is a boundary:** the gate engine is Cormidia code; `setup`, test, lint, e2e,
   and release commands are **app-owned subprocesses** — not inside the pass executor's
   failure domain. (Executor ↔ gate engine ↔ verdict parsing stay together — §2.)
 - **Failure modes:** hang; fork bombs / runaway children; output flood; **worktree
   mutation by the gate command**; required tool unavailable; nonzero-exit semantics vs
   misleading success — **exit 0 while producing misleading evidence**; timeout kill
   leaving droppings; `PNPM_CONFIG_IGNORE_SCRIPTS` / dependency-build opt-in semantics.
-- **Boundary test:** PASS (app toolchain broken while Operon healthy, and vice versa).
+- **Boundary test:** PASS (app toolchain broken while Cormidia healthy, and vice versa).
 - **Honest fake:** YES — scripted gate commands (fixture apps with commands that hang,
   flood, mutate, lie).
 - **Layer:** 2.
@@ -304,7 +307,7 @@ both fake and real dependency to prevent drift.
   B-01.
 - **Journeys / tier:** J-05, J-11, J-17; T-12 is the control point this boundary
   carries.
-- **Boundary test:** the target can be down/slow/half-applied while Operon and the
+- **Boundary test:** the target can be down/slow/half-applied while Cormidia and the
   toolchain are healthy. PASS.
 - **Failure modes:** lost response (effect applied, reply lost — execution ambiguity);
   **asynchronous acceptance vs completion** (202-accepted ≠ deployed); idempotency-marker
@@ -379,7 +382,7 @@ both fake and real dependency to prevent drift.
 - Ledger append within a turn — same process; crash-mid-step is a B-07/B-15 modifier,
   covered by INV-006/013 cases.
 - CLI/JSON/Live-UI surfaces — adapters over behavior (system-map §1.4).
-- Standalone `operon compare` versus EpisodePlan entry — two adapters over J-19 and
+- Standalone `cormidia compare` versus EpisodePlan entry — two adapters over J-19 and
   M16, not two comparison behaviors.
 - Selection judge transport — reuses B-02/B-03/B-04; its quality and calibration are
   S-8 layer-4 obligations, not a new provider boundary.
@@ -400,7 +403,7 @@ flowchart LR
         TOOL[App toolchain cmds]
         HCO[Human checkout]
     end
-    subgraph OPERON[Operon runtime]
+    subgraph CORMIDIA[Cormidia runtime]
         TICK[Dispatcher tick]
         TURN[Detached turn]
         APPR[Approvals store]
@@ -422,17 +425,17 @@ flowchart LR
     TURN -- B-04 --> PI
     TURN -- B-01 --> GH
     TICK -- B-01 --> GH
-    OBS -- B-12 local --> OPERON
+    OBS -- B-12 local --> CORMIDIA
     OBS -- via B-01 --> GH
     OS -- B-05 --> TICK
-    CLK -. B-06 .-> OPERON
-    PROC -. B-07 .-> OPERON
-    FSGIT -. B-15 .-> OPERON
+    CLK -. B-06 .-> CORMIDIA
+    PROC -. B-07 .-> CORMIDIA
+    FSGIT -. B-15 .-> CORMIDIA
     TURN -- B-16 --> TOOL
     EXTT[Non-GitHub effect targets]
     APPR -- B-17 typed executor --> EXTT
     HUM -- edits --> HCO
-    OPERON -- B-14 --> HCO
+    CORMIDIA -- B-14 --> HCO
     LRN -- B-11 --> ORGH
     INBX -- B-13 --> TICK
     CMP -- B-18 --> CAND

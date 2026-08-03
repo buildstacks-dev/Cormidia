@@ -63,7 +63,7 @@ export interface SchedulerCommand {
 
 export interface SchedulerDefinitionMetadata {
   schema_version: typeof SCHEDULER_SCHEMA_VERSION;
-  owner: "operon";
+  owner: "cormidia";
   scheduler_id: string;
   org_id: string;
   org_name: string;
@@ -89,7 +89,7 @@ export function schedulerOrgId(orgName: string, orgHome: string): string {
 
 export function schedulerIdentity(orgName: string, orgHome: string): string {
   const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "org";
-  return `dev.operon.dispatch.${slug}.${digest(resolve(orgHome)).slice(0, 12)}`;
+  return `dev.cormidia.dispatch.${slug}.${digest(resolve(orgHome)).slice(0, 12)}`;
 }
 
 export function cadenceWindow(at: Date, cadenceMinutes = DEFAULT_SCHEDULER_CADENCE_MINUTES): string {

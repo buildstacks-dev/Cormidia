@@ -88,7 +88,7 @@ function makeRepoHandle(dir: string, defaultBranch: string, roots: string[]): Te
       return git(["rev-parse", "HEAD"]);
     },
     async addFileRemote(name = "origin") {
-      const bareRoot = await mkdtemp(join(tmpdir(), "operon-fixture-git-remote-"));
+      const bareRoot = await mkdtemp(join(tmpdir(), "cormidia-fixture-git-remote-"));
       roots.push(bareRoot);
       const bareDir = join(bareRoot, "remote.git");
       // A bare clone preserves refs and points HEAD at the source's current
@@ -117,13 +117,13 @@ function makeRepoHandle(dir: string, defaultBranch: string, roots: string[]): Te
 
 export async function makeTempGitRepo(options: MakeTempGitRepoOptions = {}): Promise<TempGitRepo> {
   const defaultBranch = options.defaultBranch ?? "main";
-  const root = await mkdtemp(join(tmpdir(), "operon-fixture-git-"));
+  const root = await mkdtemp(join(tmpdir(), "cormidia-fixture-git-"));
   const roots = [root];
   const dir = join(root, "repo");
   await mkdir(dir);
   runGit(root, ["init", "-b", defaultBranch, dir]);
-  runGit(dir, ["config", "user.name", "Operon Fixture"]);
-  runGit(dir, ["config", "user.email", "fixture@operon.invalid"]);
+  runGit(dir, ["config", "user.name", "Cormidia Fixture"]);
+  runGit(dir, ["config", "user.email", "fixture@cormidia.invalid"]);
   runGit(dir, ["config", "commit.gpgsign", "false"]);
   const repo = makeRepoHandle(dir, defaultBranch, roots);
   const seeds = options.seedFiles ?? [
@@ -143,12 +143,12 @@ export async function makeTempClone(
   options: { defaultBranch?: string } = {},
 ): Promise<TempGitRepo> {
   const sourcePath = typeof source === "string" ? source : source.dir;
-  const root = await mkdtemp(join(tmpdir(), "operon-fixture-git-clone-"));
+  const root = await mkdtemp(join(tmpdir(), "cormidia-fixture-git-clone-"));
   const roots = [root];
   const dir = join(root, "clone");
   runGit(root, ["clone", sourcePath, dir]);
-  runGit(dir, ["config", "user.name", "Operon Fixture Clone"]);
-  runGit(dir, ["config", "user.email", "fixture-clone@operon.invalid"]);
+  runGit(dir, ["config", "user.name", "Cormidia Fixture Clone"]);
+  runGit(dir, ["config", "user.email", "fixture-clone@cormidia.invalid"]);
   runGit(dir, ["config", "commit.gpgsign", "false"]);
   const defaultBranch =
     options.defaultBranch ??
@@ -169,7 +169,7 @@ export async function makeTempWorktree(
   repo: TempGitRepo,
   options: { branch: string; startPoint?: string },
 ): Promise<TempWorktree> {
-  const root = await mkdtemp(join(tmpdir(), "operon-fixture-worktree-"));
+  const root = await mkdtemp(join(tmpdir(), "cormidia-fixture-worktree-"));
   const dir = join(root, options.branch.replace(/[^A-Za-z0-9._-]+/g, "-"));
   repo.git([
     "worktree",

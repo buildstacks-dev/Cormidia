@@ -30,11 +30,11 @@ export class RealGithubConformanceSurface implements GithubConformanceSurface {
   }
 
   static async create(repo: string): Promise<RealGithubConformanceSurface> {
-    const root = await mkdtemp(join(tmpdir(), "operon-live-github-"));
+    const root = await mkdtemp(join(tmpdir(), "cormidia-live-github-"));
     const checkout = join(root, "checkout");
     await run(root, "gh", ["repo", "clone", repo, checkout, "--", "--filter=blob:none"]);
-    await run(checkout, "git", ["config", "user.name", "Operon Validation"]);
-    await run(checkout, "git", ["config", "user.email", "validation@operon.invalid"]);
+    await run(checkout, "git", ["config", "user.name", "Cormidia Validation"]);
+    await run(checkout, "git", ["config", "user.email", "validation@cormidia.invalid"]);
     await run(checkout, "git", ["config", "commit.gpgsign", "false"]);
     return new RealGithubConformanceSurface(repo, root, checkout);
   }
@@ -45,11 +45,11 @@ export class RealGithubConformanceSurface implements GithubConformanceSurface {
 
   async prepareBranch(prefix: string): Promise<{ branch: string; headOid: string }> {
     const base = await this.resolveDefaultBranch();
-    const branch = `operon-conformance/${prefix}-${Date.now().toString(36)}-${++this.sequence}`;
+    const branch = `cormidia-conformance/${prefix}-${Date.now().toString(36)}-${++this.sequence}`;
     await run(this.checkout, "git", ["fetch", "origin", base]);
     await run(this.checkout, "git", ["switch", "--force-create", branch, `origin/${base}`]);
-    const rel = `.operon-conformance/${branch.replaceAll("/", "-")}.txt`;
-    await mkdir(join(this.checkout, ".operon-conformance"), { recursive: true });
+    const rel = `.cormidia-conformance/${branch.replaceAll("/", "-")}.txt`;
+    await mkdir(join(this.checkout, ".cormidia-conformance"), { recursive: true });
     await writeFile(join(this.checkout, rel), `${branch}\n`, "utf8");
     await run(this.checkout, "git", ["add", "--", rel]);
     await run(this.checkout, "git", ["commit", "--no-gpg-sign", "-m", `test(validation): ${prefix}`]);
@@ -60,7 +60,7 @@ export class RealGithubConformanceSurface implements GithubConformanceSurface {
 
   async advanceBranch(branch: string): Promise<string> {
     await run(this.checkout, "git", ["switch", branch]);
-    const rel = `.operon-conformance/advance-${++this.sequence}.txt`;
+    const rel = `.cormidia-conformance/advance-${++this.sequence}.txt`;
     await writeFile(join(this.checkout, rel), `${branch} advance ${this.sequence}\n`, "utf8");
     await run(this.checkout, "git", ["add", "--", rel]);
     await run(this.checkout, "git", ["commit", "--no-gpg-sign", "-m", "test(validation): advance conformance branch"]);

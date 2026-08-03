@@ -1,5 +1,5 @@
 # Contract — B-09b Human/CLI ↔ approval store (decision-entry seam)
-Canonical ID: **OPERON-C-B09B-001 (alias: B-09b)**
+Canonical ID: **CORMIDIA-C-B09B-001 (alias: B-09b)**
 
 Status: DRAFT (Phase 4). Defends INV-003, T-2. Journey J-05.
 

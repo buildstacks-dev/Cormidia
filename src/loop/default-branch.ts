@@ -1,4 +1,4 @@
-// The one place Operon answers "what branch does this remote call default?",
+// The one place Cormidia answers "what branch does this remote call default?",
 // and the value the execution paths carry instead of re-deriving an answer.
 //
 // Before #101 three layers each had their own idea of the base branch: the

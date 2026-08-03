@@ -1,7 +1,7 @@
 # claude-tests/ — the replacement validation harness
 
 Implementation of the ratified design in `validation-design/` (campaign
-operon-2026-07-31). `validation-design/validation-policy.yaml` is the contract
+cormidia-2026-07-31). `validation-design/validation-policy.yaml` is the contract
 (tighten-only); `validation-design/harness-backlog.md` is the build plan;
 AGENTS.md → "Validation harness" holds the binding standing rules. This README
 covers only what an implementer needs to write or read a test here.
@@ -14,9 +14,9 @@ covers only what an implementer needs to write or read a test here.
 | `hermetic/` | L2 composition on owned fakes + real temp git/state homes | every commit (`pnpm test`) |
 | `fixtures/` | fixture kit + owned doubles (each with self-tests) | self-tests run per commit |
 | `policy/` | policy loader + artifact/CI-lane pins | every commit |
-| `live/` | L3 opt-in lane (`pnpm test:live`, gated on `OPERON_LIVE=1`) | never per commit |
+| `live/` | L3 opt-in lane (`pnpm test:live`, gated on `CORMIDIA_LIVE=1`) | never per commit |
 | `campaign/` | shared durable report + spend/coverage accounting | imported by triggered lanes |
-| `eval-runner/` | L4 hand-rolled runner (`pnpm test:eval`, gated on `OPERON_EVAL=1`) | per-site cadence |
+| `eval-runner/` | L4 hand-rolled runner (`pnpm test:eval`, gated on `CORMIDIA_EVAL=1`) | per-site cadence |
 | `ops/` | L5 contention, soak collector, and threat-model admission gate | per obligation |
 
 Case families live in specs named for their catalog IDs, e.g.
@@ -89,11 +89,11 @@ to be tracked and byte-identical at the authorized HEAD; absolute paths are loca
 not authority to substitute uncommitted evidence.
 
 ```bash
-OPERON_LIVE=1 OPERON_LIVE_CONFIG=/absolute/live.json pnpm test:live
-OPERON_EVAL=1 OPERON_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
-OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
-OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- checkpoint --id day-1
-OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finish
+CORMIDIA_LIVE=1 CORMIDIA_LIVE_CONFIG=/absolute/live.json pnpm test:live
+CORMIDIA_EVAL=1 CORMIDIA_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
+CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
+CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- checkpoint --id day-1
+CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finish
 ```
 
 Sleep checkpoints add both `--slept-at <ISO>` and `--woke-at <ISO>`. A natural Codex

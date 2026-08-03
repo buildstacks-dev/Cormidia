@@ -1,5 +1,5 @@
 # Contract — B-03 Codex App Server adapter
-Canonical ID: **OPERON-C-B03-001 (alias: B-03)**
+Canonical ID: **CORMIDIA-C-B03-001 (alias: B-03)**
 
 Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
 
@@ -9,7 +9,7 @@ Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
   protocol-version skew with the pinned CLI is a typed, terminal config error.
 - Known upstream gap: the `untrusted` policy may auto-run trusted read-only commands
   without an App Server approval request (issue #20). **The documented hook bridge is
-  the compensating enforcement boundary: the constrained Operon hook must still see and
+  the compensating enforcement boundary: the constrained Cormidia hook must still see and
   classify supported reads.** A forbidden **read** escaping that hook is an
   INV-002/INV-011 violation — reads can cross worktree and secret boundaries — not a
   degradation; a forbidden write escaping is likewise INV-002.

@@ -9,7 +9,7 @@ import {
 import { loadApps } from "../org/apps.js";
 import { defaultLearningPolicy, loadLearningPolicy } from "../org/learning/policy.js";
 import { loadRoles } from "../org/roles.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdBudget(args: string[]): Promise<number> {
@@ -25,7 +25,7 @@ export async function cmdBudget(args: string[]): Promise<number> {
     else throw new Error(`budget: unknown argument "${arg}"`);
   }
 
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const effectiveAppsPath = appsPath ? resolve(appsPath) : join(homes.orgHome, "apps.yaml");
   const apps = await loadApps(effectiveAppsPath);
   const now = new Date();
@@ -100,7 +100,7 @@ export async function cmdBudget(args: string[]): Promise<number> {
     unmeasured: [...unmeasured.entries()].sort(([a], [b]) => a.localeCompare(b))
       .map(([app, sessions]) => ({ app, sessions })),
     notes: [
-      "subscription-backed provider spend is an Operon-computed equivalent-cost estimate, not a provider invoice",
+      "subscription-backed provider spend is a Cormidia-computed equivalent-cost estimate, not a provider invoice",
     ],
   } as const;
   if (json) {

@@ -1,4 +1,4 @@
-# Ratification package — Operon validation harness design (campaign operon-2026-07-31)
+# Ratification package — Cormidia validation harness design (campaign cormidia-2026-07-31)
 
 **This entire design is a DRAFT until a real human works through this file.** The
 product-owner seat this campaign was held by an AI stakeholder agent grounded in the
@@ -108,7 +108,7 @@ for yours.
 11. **Unattended test-mode profile** (policy `unattended_test_mode_profile`): sandbox
     orgs only; zero human decisions on the allowed path; never forge human
     decisions; publication/non-sandbox stays hard-gated; evidence requirements. This
-    is also a **product surface that must be designed and ratified in Operon itself**
+    is also a **product surface that must be designed and ratified in Cormidia itself**
     before HB-054 can run.
 12. **Tooling selection** (policy `tooling`, incl. gitleaks conditions and the
     rejected alternatives).
@@ -252,20 +252,20 @@ are distinguished below. Adoption items are individually reversible later via
   **human-authored** and sits on the **critical path to release-gating
   reactivation**.
 - **§3 item 11 (unattended sandbox test-mode profile) — CONFIRMED as shaped.** Still
-  pending product implementation in Operon before HB-054 can run.
+  pending product implementation in Cormidia before HB-054 can run.
   **Post-ratification implementation note (2026-07-31):** the product profile and
   detector are now implemented; HB-054's campaign evidence remains pending explicit
   human initiation. This note updates implementation state without rewriting the
   historical ratification decision above.
 - **F-PT-002 (deployed state) — RESOLVED** with these facts, verified read-only on
-  2026-07-31: the active org selector `~/.operon/config` points
-  `org_home=/Users/bikram/Build/sonnet1-org`, `state_home=~/.operon/Buildstacks`
+  2026-07-31: the active org selector `~/.cormidia/config` points
+  `org_home=/Users/bikram/Build/sonnet1-org`, `state_home=~/.cormidia/Buildstacks`
   (recorded 2026-07-24); that org has exactly one registered app,
   `sonnet8-buildstack-dev` (repo `buildstacks-dev/sonnet8-buildstack-dev`), status
-  live; the scheduler is **NOT installed** (no scheduler state dir, no operon
+  live; the scheduler is **NOT installed** (no scheduler state dir, no cormidia
   launchd jobs), so all turns are human-invoked; two residual partial state homes
-  exist (`~/.operon/operon` — dogfood-era invocations/state residue;
-  `~/.operon/questionnaire` — partial onboarding lifecycle residue) and are not
+  exist (`~/.cormidia/cormidia` — dogfood-era invocations/state residue;
+  `~/.cormidia/questionnaire` — partial onboarding lifecycle residue) and are not
   active orgs.
 - **rambling.txt — reviewed and confirmed by the owner as his voice.** It was
   channeled by Claude from the owner's recorded directives at his request; the §2
@@ -289,7 +289,7 @@ fail-closed, canary-proven, no broad allowlists.**
   the owner's request; confirmed by the owner 2026-07-31).
 - The two implementation-time IOUs (§6) became real backlog tickets: **HB-080**
   (operator triage runbook, alert→action mapping, owed once harness reporting
-  exists) and **HB-081** (product-side change in the Operon repo: report/observe
+  exists) and **HB-081** (product-side change in the Cormidia repo: report/observe
   surfaces must state that an `inconclusive` verdict is not a pass — a product
   change, not a harness change).
 
@@ -312,6 +312,6 @@ is being landed in AGENTS.md/CLAUDE.md (binding once landed). Wave 0 of
 `harness-backlog.md` (HB-001…HB-007) may begin. HB-P1/HB-P2/HB-P4 are unparked and
 implement their ratified contracts. The unattended sandbox campaign and the soak may
 be scheduled per policy — HB-054 still additionally gated on the test-mode profile
-being implemented in Operon. **Release gating remains SUSPENDED** until the
+being implemented in Cormidia. **Release gating remains SUSPENDED** until the
 replacement qualification (llm-eval-plan §5's nine obligations) is built and the
 human-authored threat model exists.

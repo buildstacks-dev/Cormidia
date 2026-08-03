@@ -1,4 +1,4 @@
-// fixtures/state-home.ts — the ~/.operon/<org> high-churn state home shape
+// fixtures/state-home.ts — the ~/.cormidia/<org> high-churn state home shape
 // (system-map §2.2 durable-state table; boundary-map B-10a/B-15).
 //
 // Discovered from src, not assumed: the product creates state-home
@@ -50,14 +50,14 @@ export interface TempStateHome {
 }
 
 export interface MakeTempStateHomeOptions {
-  /** Directory-name hint, mirroring ~/.operon/<org>. */
+  /** Directory-name hint, mirroring ~/.cormidia/<org>. */
   name?: string;
 }
 
 export async function makeTempStateHome(
   options: MakeTempStateHomeOptions = {},
 ): Promise<TempStateHome> {
-  const root = await mkdtemp(join(tmpdir(), "operon-fixture-state-"));
+  const root = await mkdtemp(join(tmpdir(), "cormidia-fixture-state-"));
   const stateHome = join(root, options.name ?? "fixture-org");
   for (const dir of STATE_HOME_DIRS) {
     await mkdir(join(stateHome, dir), { recursive: true });

@@ -225,7 +225,7 @@ export interface TicketEpisodeInvocationInspection {
 
 /**
  * Construct the two org-owned callbacks consumed by the provider-backed loop.
- * Both autonomous dispatch and `operon loop` use this factory so ticket
+ * Both autonomous dispatch and `cormidia loop` use this factory so ticket
  * planning/execution cannot drift between entry points.
  */
 export function createTicketEpisodeRuntime(
@@ -1825,7 +1825,7 @@ function ticketRuntimeCapabilities(step: ProviderTurnStep): RuntimeCapability[] 
 }
 
 function ticketStepMarker(execution: EpisodeStepExecutionContext): string {
-  return `<!-- operon:ticket-episode-step execution-id=${execution.executionId} plan-version=${execution.planVersion} step-id=${execution.stepId} -->`;
+  return `<!-- cormidia:ticket-episode-step execution-id=${execution.executionId} plan-version=${execution.planVersion} step-id=${execution.stepId} -->`;
 }
 
 function ticketReviewMarker(
@@ -1840,7 +1840,7 @@ function ticketReviewMarker(
     reviewedCommit,
     verdict,
   });
-  return `<!-- operon:ticket-review execution-id=${execution.executionId} reviewed-commit=${reviewedCommit} content-sha256=${contentSha256} -->`;
+  return `<!-- cormidia:ticket-review execution-id=${execution.executionId} reviewed-commit=${reviewedCommit} content-sha256=${contentSha256} -->`;
 }
 
 function resolvePrGateEvidenceFindings(
@@ -1856,7 +1856,7 @@ function resolvePrGateEvidenceFindings(
     review: {
       rationale: [
         review.review.rationale,
-        `Operon deterministically resolved ${review.findings.length} PR-evidence-only finding(s) ` +
+        `Cormidia deterministically resolved ${review.findings.length} PR-evidence-only finding(s) ` +
           "by attaching the already-green gate capture; no command reran and the reviewed commit did not change.",
       ].join(" "),
       evidence: [
@@ -1930,7 +1930,7 @@ function publishedReviewBodyMatches(actual: string, expected: string): boolean {
   const prefix = expected.trimEnd();
   if (!actual.startsWith(prefix)) return false;
   const suffix = actual.slice(prefix.length);
-  return /^\n\n<!-- operon:self-(?:approval|changes-requested)-fallback(?: sig=[a-f0-9]{64})? -->\n$/.test(suffix);
+  return /^\n\n<!-- cormidia:self-(?:approval|changes-requested)-fallback(?: sig=[a-f0-9]{64})? -->\n$/.test(suffix);
 }
 
 async function returnTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {

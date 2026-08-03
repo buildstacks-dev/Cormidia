@@ -10,7 +10,7 @@
 //
 // Covered contract clauses:
 // §1  ordinary bootstrap accepts a dirty/staged/detached checkout;
-// §2  containment — only `.operon/**` + the marked instruction block; existing
+// §2  containment — only `.cormidia/**` + the marked instruction block; existing
 //     bytes preserved outside the marker (byte-for-byte);
 // §3  path overlap with generated artifacts → typed refusal before mutation;
 //     symlinked paths → typed refusal before mutation (fixed with HB-P4;
@@ -107,7 +107,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
 
     const result = await walk.run();
 
-    expect(result.created).toContain(".operon/TASTE.md");
+    expect(result.created).toContain(".cormidia/TASTE.md");
     expect(result.updated).toContain("AGENTS.md");
     // The human's in-flight work is untouched (clobber detector, green path).
     assertHumanBytesPreserved(join(walk.repo.dir, "README.md"), dirtyReadme);
@@ -153,6 +153,22 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     expect(diff.changed.sort()).toEqual([...result.updated].sort());
   });
 
+  it("§3 refuses a retired app-artifact root before creating a parallel Cormidia tree", async () => {
+    const walk = await makeWalk();
+    mkdirSync(join(walk.repo.dir, ".operon"));
+    writeFileSync(join(walk.repo.dir, ".operon", "config.yaml"), "legacy app authority\n");
+    const before = await snapshotTree(walk.repo.dir);
+
+    await expect(walk.run()).rejects.toThrow(/retired app artifact directory.*rename it to \.cormidia/);
+
+    expect(diffSnapshots(before, await snapshotTree(walk.repo.dir))).toEqual({
+      added: [],
+      removed: [],
+      changed: [],
+    });
+    expect(existsSync(join(walk.repo.dir, ".cormidia"))).toBe(false);
+  });
+
   it("negative control: a lifecycle command touching more than its authorized generated paths — the containment detector FIRES", async () => {
     const walk = await makeWalk();
     const before = await snapshotTree(walk.repo.dir);
@@ -191,7 +207,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
   // -------------------------------------------------------------------------
 
   it("§4 replaces a pre-existing marked block in place — never duplicated, surrounding bytes untouched", async () => {
-    const staleBlock = `${AUTHORITY_BLOCK_START}\nstale operon content\n${AUTHORITY_BLOCK_END}`;
+    const staleBlock = `${AUTHORITY_BLOCK_START}\nstale cormidia content\n${AUTHORITY_BLOCK_END}`;
     const seeded = `pre-block human text\n${staleBlock}\npost-block human text\n`;
     const walk = await makeWalk({ seedAgents: seeded });
     await walk.run();
@@ -199,7 +215,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     const composed = readFileSync(join(walk.repo.dir, "AGENTS.md"), "utf8");
     expect(countOccurrences(composed, AUTHORITY_BLOCK_START)).toBe(1);
     expect(countOccurrences(composed, AUTHORITY_BLOCK_END)).toBe(1);
-    expect(composed).not.toContain("stale operon content");
+    expect(composed).not.toContain("stale cormidia content");
     const startIdx = composed.indexOf(AUTHORITY_BLOCK_START);
     const endIdx = composed.indexOf(AUTHORITY_BLOCK_END) + AUTHORITY_BLOCK_END.length;
     expect(composed.slice(0, startIdx)).toBe("pre-block human text\n");
@@ -207,7 +223,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
   });
 
   it("compose seam is idempotent: composing the same block twice is byte-identical to composing it once", () => {
-    const block = projectAuthorityBlock(".operon/AUTHORITY.md", {
+    const block = projectAuthorityBlock(".cormidia/AUTHORITY.md", {
       version: "delegated-operator/v1",
       sha256: "0".repeat(64),
       text: "charter projection",
@@ -218,7 +234,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
   });
 
   it("negative control: seeded malformed or duplicated markers — the compose guard FIRES instead of merging", () => {
-    const block = projectAuthorityBlock(".operon/AUTHORITY.md", {
+    const block = projectAuthorityBlock(".cormidia/AUTHORITY.md", {
       version: "delegated-operator/v1",
       sha256: "0".repeat(64),
       text: "charter projection",
@@ -232,7 +248,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     ];
     for (const existing of malformed) {
       expect(() => composeProjectInstructions(existing, block)).toThrow(
-        /malformed Operon authority block/,
+        /malformed Cormidia authority block/,
       );
     }
   });
@@ -243,19 +259,19 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
 
   it("§3 refuses before mutation when a generated-artifact path already exists (path overlap)", async () => {
     const walk = await makeWalk();
-    const humanTaste = "# Human file that happens to live at .operon/TASTE.md\n";
-    mkdirSync(join(walk.repo.dir, ".operon"), { recursive: true });
-    writeFileSync(join(walk.repo.dir, ".operon", "TASTE.md"), humanTaste);
+    const humanTaste = "# Human file that happens to live at .cormidia/TASTE.md\n";
+    mkdirSync(join(walk.repo.dir, ".cormidia"), { recursive: true });
+    writeFileSync(join(walk.repo.dir, ".cormidia", "TASTE.md"), humanTaste);
     const appsBefore = readFileSync(join(walk.org.orgHome, "apps.yaml"), "utf8");
     const agentsBefore = readFileSync(join(walk.repo.dir, "AGENTS.md"), "utf8");
 
-    await expect(walk.run()).rejects.toThrow(/\.operon\/TASTE\.md already exists .* refusing to overwrite/);
+    await expect(walk.run()).rejects.toThrow(/\.cormidia\/TASTE\.md already exists .* refusing to overwrite/);
 
     // Refusal preceded every mutation: human bytes intact, no sibling
     // artifacts, no registration in the org home.
-    assertHumanBytesPreserved(join(walk.repo.dir, ".operon", "TASTE.md"), humanTaste);
+    assertHumanBytesPreserved(join(walk.repo.dir, ".cormidia", "TASTE.md"), humanTaste);
     assertHumanBytesPreserved(join(walk.repo.dir, "AGENTS.md"), agentsBefore);
-    expect(existsSync(join(walk.repo.dir, ".operon", "config.yaml"))).toBe(false);
+    expect(existsSync(join(walk.repo.dir, ".cormidia", "config.yaml"))).toBe(false);
     expect(readFileSync(join(walk.org.orgHome, "apps.yaml"), "utf8")).toBe(appsBefore);
   });
 
@@ -265,7 +281,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
 
   it("§4 re-run never duplicates the marked block and never silently overwrites — refused or regenerated, byte-stable either way", async () => {
     // AMBIGUITY, deliberately not decided here: contract §4 says a re-run is
-    // "idempotent; marked block replaced in place; .operon/ regenerated
+    // "idempotent; marked block replaced in place; .cormidia/ regenerated
     // deterministically with preserved user-owned edits refused or reported".
     // The product today refuses a re-run outright (assertNotExists). Whether
     // §4 requires the re-run to SUCCEED (regenerate) or refusing satisfies it
@@ -317,7 +333,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     if (failed) {
       // Refusal leg: full rollback — original bytes, no org registration.
       assertHumanBytesPreserved(join(walk.repo.dir, "AGENTS.md"), trailing);
-      expect(existsSync(join(walk.repo.dir, ".operon", "TASTE.md"))).toBe(false);
+      expect(existsSync(join(walk.repo.dir, ".cormidia", "TASTE.md"))).toBe(false);
       expect(readFileSync(join(walk.org.orgHome, "apps.yaml"), "utf8")).toBe(appsBefore);
     } else {
       // Acceptance leg: human bytes preserved outside the marker.
@@ -334,14 +350,14 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
   // refuses at the validation phase (src/org/bootstrap.ts —
   // planProjectInstructionFiles lstats each instruction file;
   // assertNotSymlinked walks every generated-path segment, catching a
-  // symlinked `.operon` that existsSync-based checks would follow) and
+  // symlinked `.cormidia` that existsSync-based checks would follow) and
   // re-checks at write time. These started life as it.fails defect tripwires
   // and were promoted to plain tests in the same change as the fix
   // (detector-deposit rule, AGENTS.md / policy case_sourcing).
 
   it("§3 an instruction file that is a symlink out of the checkout → typed refusal, link target untouched", async () => {
     const walk = await makeWalk({ seedAgents: false });
-    const outside = await mkdtemp(join(tmpdir(), "operon-cf-b14-outside-"));
+    const outside = await mkdtemp(join(tmpdir(), "cormidia-cf-b14-outside-"));
     cleanups.push(() => rm(outside, { recursive: true, force: true }));
     const outsideFile = join(outside, "instructions.md");
     const outsideBytes = "# Human instructions that live OUTSIDE the checkout\n";
@@ -355,11 +371,11 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     expect(lstatSync(join(walk.repo.dir, "AGENTS.md")).isSymbolicLink()).toBe(true);
   });
 
-  it("§3 .operon as a symlink to a directory outside the checkout → typed refusal, outside directory untouched", async () => {
+  it("§3 .cormidia as a symlink to a directory outside the checkout → typed refusal, outside directory untouched", async () => {
     const walk = await makeWalk();
-    const outside = await mkdtemp(join(tmpdir(), "operon-cf-b14-outside-dir-"));
+    const outside = await mkdtemp(join(tmpdir(), "cormidia-cf-b14-outside-dir-"));
     cleanups.push(() => rm(outside, { recursive: true, force: true }));
-    symlinkSync(outside, join(walk.repo.dir, ".operon"));
+    symlinkSync(outside, join(walk.repo.dir, ".cormidia"));
 
     // Ratified clause: typed refusal before mutation…
     await expect(walk.run()).rejects.toThrow(/sym(?:bolic ?)?link|refus/i);

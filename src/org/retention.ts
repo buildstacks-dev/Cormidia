@@ -13,7 +13,7 @@
 // Fail-safe rules, in the spirit of pruneRuns (never delete what cannot be
 // proven terminal):
 // - The ledger (`telemetry/`) respects the reconciliation window twice over:
-//   day-files must be older than every evidence window `operon budget
+//   day-files must be older than every evidence window `cormidia budget
 //   --reconcile` can back-fill from (runs/ envelopes and efficiency provider
 //   steps, clamped with a margin), AND no row in the file may still be
 //   re-settleable from surviving evidence on disk. Files from the current UTC
@@ -159,7 +159,7 @@ export interface StateSweepResult {
 
 /** Sweep every state subtree once, immediately, with no daily claim. The
  *  scheduler path goes through `runScheduledRetentionSweep`; this is the
- *  manual surface (`operon prune-runs --sweep`) and the test seam. */
+ *  manual surface (`cormidia prune-runs --sweep`) and the test seam. */
 export async function sweepStateRetention(
   stateHome: string,
   now: Date,

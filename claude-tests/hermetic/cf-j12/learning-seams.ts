@@ -344,8 +344,8 @@ export function gitInitOrgHome(orgHome: string): OrgHomeGit {
       timeout: 15_000,
     }).trim();
   git(["init", "-b", "main", "."]);
-  git(["config", "user.name", "Operon Learning Spec"]);
-  git(["config", "user.email", "learning-spec@operon.invalid"]);
+  git(["config", "user.name", "Cormidia Learning Spec"]);
+  git(["config", "user.email", "learning-spec@cormidia.invalid"]);
   git(["config", "commit.gpgsign", "false"]);
   git(["add", "-A"]);
   git(["commit", "--no-gpg-sign", "-m", "baseline: org home before publish"]);

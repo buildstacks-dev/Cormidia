@@ -7,7 +7,7 @@
 | Candidate | `a9694529fc7cfca0c72b52e04ce9368bb3109486+dirty` |
 | Candidate package SHA-256 | `sha256:d396a0255f84228f451b753f3fdb1fdcc8e8cdcc087fdf203fca3f5767760148` |
 | Suite SHA-256 | `sha256:72cadfa9431f18a5652f33a3a7886538a959d63477433b5bfcceb73e7cfbeff3` |
-| GitHub substrate | Private `buildstacks-dev/operon-eval-pre-transformation-baseline`; idempotent closed probe issues #1–2 |
+| GitHub substrate | Private `buildstacks-dev/cormidia-eval-pre-transformation-baseline`; idempotent closed probe issues #1–2 |
 | Authentication | Claude Max and ChatGPT Pro subscriptions; non-billable readiness passed |
 | Campaign cap | $250 equivalent cost; unchanged per-case bounds |
 | Actual equivalent cost | Product $8.596205; evaluator $0.133766 |

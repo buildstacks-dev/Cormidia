@@ -2,7 +2,7 @@
 //
 // ISSUE-010: a turn that stopped at its per-turn budget cap left a complete,
 // uncommitted migration in the managed clone, and nothing in the product said
-// so. `operon status` reports runs, `operon analyze` reports anomalies, and
+// so. `cormidia status` reports runs, `cormidia analyze` reports anomalies, and
 // neither looks at the working tree the next turn will inherit. The condition
 // is knowable from local git alone, so `doctor` — which already proves state
 // health before work starts — is where it belongs.
@@ -27,7 +27,7 @@ const GIT_ENV = {
 export interface ManagedCloneHealth {
   app: string;
   path: string;
-  /** False when Operon has not cloned this app yet — not a problem. */
+  /** False when Cormidia has not cloned this app yet — not a problem. */
   present: boolean;
   branch?: string;
   head?: string;

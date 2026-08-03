@@ -1,4 +1,4 @@
-# Independent design-conformance audit — Operon replacement validation harness (campaign operon-2026-07-31)
+# Independent design-conformance audit — Cormidia replacement validation harness (campaign cormidia-2026-07-31)
 
 Audited object: the design corpus under `./validation-design/` (16 registered artifacts, 23 contract files, 11 golden-set scaffolds), in the validation-harness-audit skill's design-conformance capacity. No harness exists; no code was run. Findings are ordered most-severe first.
 

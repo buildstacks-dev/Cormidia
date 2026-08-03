@@ -1,11 +1,11 @@
 # Contract — B-16 Gate/command-runner ↔ app toolchain
-Canonical ID: **OPERON-C-B16-001 (alias: B-16)**
+Canonical ID: **CORMIDIA-C-B16-001 (alias: B-16)**
 
 Status: DRAFT (Phase 4). Defends INV-008/012, T-9. Journey J-04 (mechanical gates).
 
 ## 1. Valid inputs
-- Gate commands come from `.operon/config.yaml` top-level gate keys (never under
-  `apps.<name>`) `[doc]`; risk-tiering per `.operon/policy.yaml`.
+- Gate commands come from `.cormidia/config.yaml` top-level gate keys (never under
+  `apps.<name>`) `[doc]`; risk-tiering per `.cormidia/policy.yaml`.
 - Commands run in the turn's worktree with the non-interactive environment overlay;
   dependency builds denied by default (`PNPM_CONFIG_IGNORE_SCRIPTS`); a ticket opts in
   via `setup_command` `[doc]`.

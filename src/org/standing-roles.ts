@@ -673,7 +673,7 @@ async function queueIncidentFiling(input: {
     body: [
       input.draft,
       "",
-      "## Operon source",
+      "## Cormidia source",
       `Event: ${input.event.key}`,
       `Payload SHA-256: ${input.payloadHash}`,
       `Artifact: ${input.artifactId}`,

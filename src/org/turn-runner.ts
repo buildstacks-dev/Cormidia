@@ -218,8 +218,8 @@ export async function runDispatchedTurn(
   const orgRoot = resolve(options.orgRoot ?? process.cwd());
   const runtimeHome = resolve(
     options.runtimeHome ??
-      process.env.OPERON_STATE_HOME ??
-      join(homedir(), ".operon", options.appsFile.org.name),
+      process.env.CORMIDIA_STATE_HOME ??
+      join(homedir(), ".cormidia", options.appsFile.org.name),
   );
   const store = new ApprovalStore(runtimeHome);
   const actorEvents: TurnEvent[] = [];
@@ -245,7 +245,7 @@ export async function runDispatchedTurn(
             ? { processStartIdentity: turnLock.processStartIdentity }
             : {}),
           ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
-          ...(process.env.OPERON_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
+          ...(process.env.CORMIDIA_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
         });
 
     await writeJournalPatch(runtimeHome, options.turnId, {
@@ -257,7 +257,7 @@ export async function runDispatchedTurn(
         ? { processStartIdentity: turnLock.processStartIdentity }
         : {}),
       ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
-      ...(process.env.OPERON_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
+      ...(process.env.CORMIDIA_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
     });
 
     await store.reconcile();
@@ -619,7 +619,7 @@ function actorRetryReconciliationSummary(
       ? "the provider turn cannot be reported complete until this effect is reconciled. "
       : "no provider turn was started. ") +
     `Reconcile with ` +
-    `\`operon approvals disposition ${item.id} (--executed|--failed) ` +
+    `\`cormidia approvals disposition ${item.id} (--executed|--failed) ` +
     `--reason <text> --confirm ${item.id}\`.`
   );
 }
@@ -667,7 +667,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
   if (isBudgetBlocking(budget.status)) {
     throw new Error(
       budget.status === "unknown"
-        ? `${options.app.name} budget total is unverifiable; run \`operon budget --reconcile\` before planning`
+        ? `${options.app.name} budget total is unverifiable; run \`cormidia budget --reconcile\` before planning`
         : `${options.app.name} has exhausted its monthly budget`,
     );
   }
@@ -1113,7 +1113,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   if (persistedIntent === undefined && isBudgetBlocking(appBudget.status)) {
     throw new Error(
       appBudget.status === "unknown"
-        ? `${options.app.name} budget total is unverifiable; run \`operon budget --reconcile\` before executing ${options.pipelineName}`
+        ? `${options.app.name} budget total is unverifiable; run \`cormidia budget --reconcile\` before executing ${options.pipelineName}`
         : `${options.app.name} has exhausted its monthly budget`,
     );
   }
@@ -1653,7 +1653,7 @@ async function executeM6Pipeline<K extends "learning-distill" | "learning-review
   if (persistedIntent === undefined && isBudgetBlocking(budget.status)) {
     throw new Error(
       budget.status === "unknown"
-        ? `${options.app.name} budget total is unverifiable; run \`operon budget --reconcile\` before ${flow.kind}`
+        ? `${options.app.name} budget total is unverifiable; run \`cormidia budget --reconcile\` before ${flow.kind}`
         : `${options.app.name} has exhausted its monthly budget`,
     );
   }
@@ -1895,11 +1895,11 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     roleNames: rolesFile.roles.map((role) => role.name),
     promptsDir: join(options.orgRoot, "prompts"),
   });
-  const policy = await loadPolicy(join(options.localRepo, ".operon", "policy.yaml"));
+  const policy = await loadPolicy(join(options.localRepo, ".cormidia", "policy.yaml"));
   const selfApprovalSecret = await resolveReviewAuthorizationSecret(options.runtimeHome, {
-    ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
+    ...(process.env["CORMIDIA_SELF_APPROVAL_SECRET"] === undefined
       ? {}
-      : { environmentSecret: process.env["OPERON_SELF_APPROVAL_SECRET"] }),
+      : { environmentSecret: process.env["CORMIDIA_SELF_APPROVAL_SECRET"] }),
   });
   if (selfApprovalSecret === undefined) {
     throw new Error("review authorization secret resolution unexpectedly returned no live secret");
@@ -2039,7 +2039,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
         if (isBudgetBlocking(budgetRow.status)) {
           const reason =
             budgetRow.status === "unknown"
-              ? `${budgetRow.app} budget total could not be computed this month (malformed ledger row) — refusing to spend; run \`operon budget --reconcile\` to repair the ledger`
+              ? `${budgetRow.app} budget total could not be computed this month (malformed ledger row) — refusing to spend; run \`cormidia budget --reconcile\` to repair the ledger`
               : `${budgetRow.app} spent $${budgetRow.spentUsd.toFixed(2)} of $${budgetRow.budgetUsd.toFixed(2)} this month`;
           return { allowed: false, reason };
         }
@@ -2605,10 +2605,10 @@ function git(cwd: string, ...args: string[]): string {
     encoding: "utf8",
     env: {
       ...process.env,
-      GIT_AUTHOR_NAME: "Operon",
-      GIT_AUTHOR_EMAIL: "operon@localhost",
-      GIT_COMMITTER_NAME: "Operon",
-      GIT_COMMITTER_EMAIL: "operon@localhost",
+      GIT_AUTHOR_NAME: "Cormidia",
+      GIT_AUTHOR_EMAIL: "cormidia@localhost",
+      GIT_COMMITTER_NAME: "Cormidia",
+      GIT_COMMITTER_EMAIL: "cormidia@localhost",
       GIT_TERMINAL_PROMPT: "0",
     },
     stdio: ["ignore", "pipe", "pipe"],

@@ -1,5 +1,5 @@
 # Contract — B-08 Dispatcher tick ↔ detached turn
-Canonical ID: **OPERON-C-B08-001 (alias: B-08)**
+Canonical ID: **CORMIDIA-C-B08-001 (alias: B-08)**
 
 Status: DRAFT (Phase 4). Defends INV-005/007/014, T-5/T-6. Journeys J-09/J-13/J-18.
 

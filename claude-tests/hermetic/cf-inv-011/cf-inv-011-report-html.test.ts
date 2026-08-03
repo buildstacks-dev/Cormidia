@@ -1,7 +1,7 @@
 // CF-INV-011 — the portable HTML report carries no secret and no L3: L2
 // composition on a temp state home (HB-016, FLOOR).
 //
-// OPERON-INV-011 adversarial seed (b) (validation-design/invariants.md):
+// CORMIDIA-INV-011 adversarial seed (b) (validation-design/invariants.md):
 // "secret in output → portable HTML report". B-12 contract §2: "portable
 // HTML carries no L3, no external requests, hash-restricted CSP (INV-011)";
 // journey J-15: no secret-pattern match crosses any export.
@@ -70,7 +70,7 @@ function appsFile(): AppsFile {
     apps: [
       {
         name: APP,
-        repo: "operon-double/sandbox-report",
+        repo: "cormidia-double/sandbox-report",
         status: "live",
         budgetUsdMonth: 100,
         cadence: {},
@@ -139,7 +139,7 @@ async function seedStateHome(state: TempStateHome, seeds: readonly SyntheticSecr
       promptRef: "prompt.md",
       promptSha256: "0".repeat(64),
       requiredStages: ["build"],
-      executionMode: "operon_loop",
+      executionMode: "cormidia_loop",
       fallbackEvents: [],
       status: "completed",
       startedAt: "2026-07-31T11:58:00.000Z",

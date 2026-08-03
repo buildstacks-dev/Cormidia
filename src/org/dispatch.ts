@@ -119,7 +119,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   const appsFile = await loadApps(appsPath);
   const rolesFile = await loadRoles(rolesPath);
   const runtimeHome = resolve(
-    options.runtimeHome ?? process.env.OPERON_STATE_HOME ?? join(homedir(), ".operon", appsFile.org.name),
+    options.runtimeHome ?? process.env.CORMIDIA_STATE_HOME ?? join(homedir(), ".cormidia", appsFile.org.name),
   );
   const spawn = options.spawn ?? ((input) => spawnDetached(input, orgRoot));
   const schedule = new ScheduleStore(runtimeHome);
@@ -430,7 +430,7 @@ async function computeDueTurns(input: {
     if (app.status !== "live") {
       // Named skip, not a silent continue: a non-live app's pending events
       // stay in the inbox unpolled, and the operator must be able to see why
-      // from `operon dispatch` output alone (review finding L-002).
+      // from `cormidia dispatch` output alone (review finding L-002).
       input.result.skipped.push(`${app.name}: skipped, app not live (status: ${app.status})`);
       continue;
     }
@@ -901,7 +901,7 @@ async function spawnDetached(input: {
     cwd: orgRoot,
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, OPERON_OWNED_PROCESS_GROUP: "1" },
+    env: { ...process.env, CORMIDIA_OWNED_PROCESS_GROUP: "1" },
   });
   child.unref();
 }

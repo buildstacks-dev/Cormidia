@@ -37,7 +37,7 @@ invalidity, harness error, safety stop, budget stop, missing attempt, or
 retry.
 
 The private GitHub lifecycle passed in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260715-c6b9b4885527`
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260715-c6b9b4885527`
 (repository `R_kgDOTZeiZA`), retaining issue 1, pull request 2, and content
 commit `7d7cb87ea9ff2873bc8e39c28f0740865ac822b7`. The pull request was
 squash-merged, the issue was closed, and the branch was deleted while the
@@ -54,7 +54,7 @@ and its portable report SHA-256 is
 `27db346565687c806832947fabe585b7813b44507e37434b3a63f0305f31c705`.
 Both reproduced byte-for-byte. The verified 91-file
 `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260715-c6b9b4885527/adapter-harness-calibration-v1-20260715-c6b9b4885527-d48af843-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260715-c6b9b4885527/adapter-harness-calibration-v1-20260715-c6b9b4885527-d48af843-evidence-v2`;
 its archive-manifest SHA-256 is
 `6119de3eb4c365cec592370c71391463d57d368e84e9400932152978c9186761`.
 Cleanup was previewed only.
@@ -62,7 +62,7 @@ Cleanup was previewed only.
 ## Candidate result and accounting
 
 The candidate GitHub lifecycle passed in
-`buildstacks-dev/operon-eval-candidate-qualification-v1-20260715-c6b9b4885527`
+`buildstacks-dev/cormidia-eval-candidate-qualification-v1-20260715-c6b9b4885527`
 (repository `R_kgDOTZe2-Q`), retaining issue 1, pull request 2, and content
 commit `4686b96d1aa34fa52f1f830a3f3939ab77ccd868`. Its identical rerun
 created no duplicate remote state. The source evidence SHA-256 is
@@ -184,7 +184,7 @@ and the portable report SHA-256 is
 `ead5e78fc32b0d1d6fc62f5d5cc904d9dcb6765dcc2aa015063a1c2f880751d3`.
 Both reproduced byte-for-byte. The 648-file `sanitized-evidence/v3` archive
 is permanently retained at
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260715-c6b9b4885527/candidate-qualification-v1-20260715-c6b9b4885527-d32dd989-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260715-c6b9b4885527/candidate-qualification-v1-20260715-c6b9b4885527-d32dd989-evidence-v2`;
 its archive-manifest SHA-256 is
 `bbd047b21faca294b6ae1b52a36c73af07df712bb8b2eacd7ffb01860c60a474`.
 The manifest excludes provider scratch and raw L3 `state/runs/**` evidence.

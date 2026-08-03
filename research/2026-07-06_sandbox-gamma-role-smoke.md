@@ -12,7 +12,7 @@ input material.
 - Local checkout: `~/Build/operon-sandbox-gamma`
 - Initial commit: `7daca53 Create gamma sandbox service`
 - Release tag: `v0.1.0`
-- Operon registration: `apps.yaml` entry `operon-sandbox-gamma`, status
+- Cormidia registration: `apps.yaml` entry `operon-sandbox-gamma`, status
   `onboarding`
 
 ## App shape
@@ -24,7 +24,7 @@ Gamma is a tiny Node HTTP service:
 - `scripts/deploy-local.sh` is intentionally deploy-shaped but dry-run only.
 - `fixtures/events/` seeds support-feedback, adoption-signal, health-alert,
   and launch-calendar payloads.
-- `.operon/**` was emitted by `operon bootstrap` and committed in the gamma
+- `.cormidia/**` was emitted by `cormidia bootstrap` and committed in the gamma
   repo.
 
 ## Verification
@@ -37,7 +37,7 @@ Gamma commands:
 - `npm run smoke:support` passed.
 - `npm run smoke:marketing` passed.
 
-Operon checks:
+Cormidia checks:
 
 - `GH_SANDBOX_REPO=bikramgupta/operon-sandbox-gamma pnpm e2e:sandbox:setup`
   passed and created/verified the standard labels.

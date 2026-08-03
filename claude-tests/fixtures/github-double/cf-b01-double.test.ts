@@ -210,7 +210,7 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
 
     handle.script({ op: "issue.view", stale: true });
     expect((await gh.readIssue(issue.number)).body).toBe("v1");
-    // The next re-read converges — modeling "Operon re-reads before relying".
+    // The next re-read converges — modeling "Cormidia re-reads before relying".
     expect((await gh.readIssue(issue.number)).body).toBe("v2");
     handle.assertScenarioDrained();
   });

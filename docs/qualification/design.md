@@ -21,15 +21,15 @@ absolute file cannot substitute for reviewed repository truth.
 
 ```bash
 # L3: one exact campaign kind (changed adapter, GitHub, launchd, or release)
-OPERON_LIVE=1 OPERON_LIVE_CONFIG=/absolute/live.json pnpm test:live
+CORMIDIA_LIVE=1 CORMIDIA_LIVE_CONFIG=/absolute/live.json pnpm test:live
 
 # L4: per-tuple data collection over committed golden sets
-OPERON_EVAL=1 OPERON_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
+CORMIDIA_EVAL=1 CORMIDIA_EVAL_CONFIG=/absolute/eval.json pnpm test:eval
 
 # L5: human-started, resumable seven-day laptop soak
-OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
-OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- checkpoint --id <id>
-OPERON_SOAK=1 OPERON_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finish
+CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- start
+CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- checkpoint --id <id>
+CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finish
 ```
 
 The L3 config schema is `claude-tests/live/config.ts` and admits only four exact
@@ -88,7 +88,7 @@ suite, and release-currency lane) is frozen under `archive-do-not-read/` and mus
 be read or run. The historical text is retained as an acceptance floor and provenance
 record; the replacement policy above is the current executable contract.
 
-*Historically, how Operon itself earned the right to ship. A release candidate was proved by
+*Historically, how Cormidia itself earned the right to ship. A release candidate was proved by
 **campaigns** — predeclared, immutable batches of evaluation runs — and this
 document defines the rules those campaigns obey: what must be pinned before
 the first model call, what attempts and outcomes may claim, how development
@@ -129,7 +129,7 @@ retried under the same attempt identity.
 
 A template's cap is not authority to run. Live execution needs either an
 exact campaign authorization or a content-bound standing development grant,
-plus `OPERON_EVAL_LIVE=1`, a validated immutable campaign identity, an
+plus `CORMIDIA_EVAL_LIVE=1`, a validated immutable campaign identity, an
 explicit `--max-usd`, the exact `--confirm <campaign-id>`, non-billable
 readiness, the applicable disposable-GitHub proof, and production-path
 separation. Under a standing grant, the environment switch and exact
@@ -199,18 +199,18 @@ sandbox qualification. The token-free views are
 `pnpm test:transformation:future-soak-strict` for `future_soak`.
 
 Completing the current scope may be reported as **"Phase 6 efficiency
-qualification complete; future real-time soak pending."** Operon must not be
+qualification complete; future real-time soak pending."** Cormidia must not be
 described as a fully proven "highly efficient organization" until
 `I-LIVE-01` passes the genuine future campaign. Phase 6 completion and that
 broader organizational claim are deliberately distinct.
 
 ## Isolation and qualification
 
-Eval actors run in fresh synthetic homes, an `Operon-Eval-<campaign-id>`
+Eval actors run in fresh synthetic homes, an `Cormidia-Eval-<campaign-id>`
 org, immutable content-addressed sparse/library/service templates, and
 managed clones. Hidden graders, answer keys, reference patches, and mutants
 stay outside actor context and tool-visible paths. GitHub writes are limited
-to predeclared private `operon-eval-*` repositories. No eval publishes,
+to predeclared private `cormidia-eval-*` repositories. No eval publishes,
 sends, changes DNS or cloud infrastructure, deploys to production, or
 performs an irreversible data operation.
 

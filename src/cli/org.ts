@@ -1,15 +1,17 @@
-// `operon org init|show|use|list|archive|upgrade` — explicit organization-home
+// `cormidia org init|show|use|list|archive|upgrade` — explicit organization-home
 // lifecycle.
 
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import {
+  CORMIDIA_HOME_DIRNAME,
   executeOrgInit,
+  migrateLegacyStateRoot,
   ORG_HOME_DEFINITION,
   planOrgInit,
   readActiveOrgPointer,
-  resolveOperonHomes,
+  resolveCormidiaHomes,
   STATE_HOME_DEFINITION,
   validateOrgHome,
   writeActiveOrgPointer,
@@ -49,6 +51,13 @@ export interface OrgCommandOptions {
 
 export async function cmdOrg(args: string[], options: OrgCommandOptions = {}): Promise<number> {
   const subcommand = args[0];
+  if (
+    options.pointerPath === undefined &&
+    subcommand !== undefined &&
+    !(subcommand === "init" && args.includes("--dry-run"))
+  ) {
+    await migrateLegacyStateRoot(options.homeDir ?? homedir());
+  }
   if (subcommand === "init") return init(args.slice(1), options);
   if (subcommand === "show") return show(args.slice(1), options);
   if (subcommand === "use") return use(args.slice(1), options);
@@ -56,12 +65,12 @@ export async function cmdOrg(args: string[], options: OrgCommandOptions = {}): P
   if (subcommand === "list") return list(args.slice(1), options);
   if (subcommand === "archive") return archive(args.slice(1), options);
   throw new Error(
-    'org: expected "init", "show", "use", "list", "archive", or "upgrade" — run `operon org --help`',
+    'org: expected "init", "show", "use", "list", "archive", or "upgrade" — run `cormidia org --help`',
   );
 }
 
 function activePointerPath(options: OrgCommandOptions): string {
-  return options.pointerPath ?? join(options.homeDir ?? homedir(), ".operon", "config");
+  return options.pointerPath ?? join(options.homeDir ?? homedir(), CORMIDIA_HOME_DIRNAME, "config");
 }
 
 async function list(args: string[], options: OrgCommandOptions): Promise<number> {
@@ -83,7 +92,7 @@ async function list(args: string[], options: OrgCommandOptions): Promise<number>
 async function archive(args: string[], options: OrgCommandOptions): Promise<number> {
   const org = args[0];
   if (org === undefined || org.startsWith("--")) {
-    throw new Error("org archive: org name required — operon org archive <org> (see operon org list)");
+    throw new Error("org archive: org name required — cormidia org archive <org> (see cormidia org list)");
   }
   let execute = false;
   let dryRun = false;
@@ -203,7 +212,7 @@ async function upgrade(args: string[], options: OrgCommandOptions): Promise<numb
     else throw new Error(`org upgrade: unknown argument "${arg}"`);
   }
   const homeDir = options.homeDir ?? homedir();
-  const pointerPath = options.pointerPath ?? join(homeDir, ".operon", "config");
+  const pointerPath = options.pointerPath ?? join(homeDir, CORMIDIA_HOME_DIRNAME, "config");
   const orgHome = orgHomeFlag
     ? resolve(orgHomeFlag)
     : await findExistingOrg({ homeDir, pointerPath });
@@ -211,7 +220,7 @@ async function upgrade(args: string[], options: OrgCommandOptions): Promise<numb
   const rawApps = await loadApps(join(orgHome, "apps.yaml"));
   const pointer = await readActiveOrgPointer(pointerPath);
   const pointerStateHome = pointer.orgHome === resolve(orgHome) ? pointer.stateHome : undefined;
-  const stateHome = resolve(stateHomeFlag ?? pointerStateHome ?? join(homeDir, ".operon", rawApps.org.name));
+  const stateHome = resolve(stateHomeFlag ?? pointerStateHome ?? join(homeDir, CORMIDIA_HOME_DIRNAME, rawApps.org.name));
   const authorityCustomText = authorityFile ? await readFile(resolve(authorityFile), "utf8") : undefined;
   const input = {
     orgHome,
@@ -251,7 +260,7 @@ function printUpgradePlan(plan: Awaited<ReturnType<typeof planOrgUpgrade>>): voi
 async function init(args: string[], options: OrgCommandOptions): Promise<number> {
   const target = args[0];
   if (!target || target.startsWith("--")) {
-    throw new Error("org init: local target path required — operon org init <path> --name <name>");
+    throw new Error("org init: local target path required — cormidia org init <path> --name <name>");
   }
   let name: string | undefined;
   let stateHome: string | undefined;
@@ -312,8 +321,8 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
   }
 
   const result = await executeOrgInit(plan);
-  // Keep the org home discoverable from its state home, so `operon org list`
-  // and `operon org archive` still work after the active pointer moves on.
+  // Keep the org home discoverable from its state home, so `cormidia org list`
+  // and `cormidia org archive` still work after the active pointer moves on.
   await recordOrgBacklink(result.stateHome, result.orgHome);
   reportCliInvocation({
     org: result.appsFile.org.name,
@@ -322,7 +331,7 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
   });
   printHomes(result, json, "created and selected");
   if (!json) {
-    console.log("Next: run `operon doctor`, then onboard an app with `operon bootstrap <local-repo-path>`.");
+    console.log("Next: run `cormidia doctor`, then onboard an app with `cormidia bootstrap <local-repo-path>`.");
   }
   return 0;
 }
@@ -386,7 +395,7 @@ async function show(args: string[], options: OrgCommandOptions): Promise<number>
     if (arg === "--json") json = true;
     else throw new Error(`org show: unknown argument "${arg}"`);
   }
-  const homes = await resolveOperonHomes({
+  const homes = await resolveCormidiaHomes({
     ...(options.homeDir !== undefined ? { homeDir: options.homeDir } : {}),
     ...(options.pointerPath !== undefined ? { pointerPath: options.pointerPath } : {}),
   });
@@ -414,8 +423,8 @@ async function use(args: string[], options: OrgCommandOptions): Promise<number> 
   await validateOrgHome(resolvedOrgHome);
   const appsFile = await loadApps(join(resolvedOrgHome, "apps.yaml"));
   const homeDir = options.homeDir ?? homedir();
-  const pointerPath = options.pointerPath ?? join(homeDir, ".operon", "config");
-  const selectedStateHome = resolve(stateHome ?? join(homeDir, ".operon", appsFile.org.name));
+  const pointerPath = options.pointerPath ?? join(homeDir, CORMIDIA_HOME_DIRNAME, "config");
+  const selectedStateHome = resolve(stateHome ?? join(homeDir, CORMIDIA_HOME_DIRNAME, appsFile.org.name));
   await bindCliInvocationStateHome(selectedStateHome, { org: appsFile.org.name });
   // Record the state home this selection actually resolved to, not only the
   // flag. A pointer carrying org_home alone forces every later reader to
@@ -423,7 +432,7 @@ async function use(args: string[], options: OrgCommandOptions): Promise<number> 
   // `org archive`'s pointer clearing — disagreed with the state home the
   // command was really using, which is how a retired org came back.
   await writeActiveOrgPointer(pointerPath, resolvedOrgHome, selectedStateHome);
-  const homes = await resolveOperonHomes({
+  const homes = await resolveCormidiaHomes({
     orgHome: resolvedOrgHome,
     stateHome: selectedStateHome,
     homeDir,

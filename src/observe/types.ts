@@ -576,7 +576,7 @@ export interface CompletionIntegrityView {
   reviewer: "completed" | "missing" | "not_required" | "unknown";
   manual_fallback: "none" | "present" | "not_recorded";
   durable_outcome: string;
-  operon_end_to_end_complete: boolean;
+  cormidia_end_to_end_complete: boolean;
   reasons: string[];
 }
 

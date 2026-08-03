@@ -43,9 +43,9 @@ report SHA-256 is
 
 The disposable private GitHub exercise and identical idempotency rerun passed
 in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260716-9b1f4ac4dc90`.
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260716-9b1f4ac4dc90`.
 The verified sanitized archive is
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260716-9b1f4ac4dc90-dbfc6043-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260716-9b1f4ac4dc90-dbfc6043-evidence-v2`;
 its archive-manifest SHA-256 is
 `14bfac28ae7c460ecf223a9c6d9d51f3ade0f849f4d200b84cd3585fd793cc3f`.
 Cleanup was preview-only.

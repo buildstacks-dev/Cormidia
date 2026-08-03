@@ -1,7 +1,7 @@
 // CF-INV-011 — exactly ONE pattern-policy source: structural sweep over src/
 // (HB-016, FLOOR — non-discretionary).
 //
-// OPERON-INV-011 falsifying shape (validation-design/invariants.md): "an
+// CORMIDIA-INV-011 falsifying shape (validation-design/invariants.md): "an
 // egress path importing its own pattern list"; adversarial seed (e):
 // "structural check: exactly one pattern-policy source". src/runtime/
 // AGENTS.md pins the same rule: "`secret-patterns.ts` is the ONE

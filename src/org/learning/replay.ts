@@ -1641,7 +1641,7 @@ async function runReplayGates(
   seedCommit: string,
   brief: string,
 ): Promise<GateRunResult> {
-  const policyPath = join(worktree, ".operon", "policy.yaml");
+  const policyPath = join(worktree, ".cormidia", "policy.yaml");
   const policy = existsSync(policyPath) ? await loadPolicy(policyPath) : DEFAULT_LOOP_POLICY;
   const changed = gitIn(worktree, "diff", "--name-only", seedCommit, "HEAD")
     .split("\n")

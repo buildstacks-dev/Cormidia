@@ -1,5 +1,5 @@
 # Contract — Provider adapter core (shared by B-02, B-03, B-04)
-Canonical ID: **OPERON-C-CORE-001 (alias: adapter core)**
+Canonical ID: **CORMIDIA-C-CORE-001 (alias: adapter core)**
 
 Status: DRAFT (Phase 4 propose-then-correct). `[doc]` unless marked. Per-adapter deltas
 live in B-02/B-03/B-04 files, which reference this core and never restate it.

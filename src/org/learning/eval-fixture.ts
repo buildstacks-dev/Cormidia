@@ -147,7 +147,7 @@ export async function convertCapsuleToEvalFixture(
   if (capsule === undefined) {
     throw new Error(
       `learning: no capsule ${options.capsuleId} in the store — ` +
-        `operon learn inspect <episode-id> assembles capsules for closed build episodes`,
+        `cormidia learn inspect <episode-id> assembles capsules for closed build episodes`,
     );
   }
   if (capsule.observed_outcome === null) {

@@ -1,6 +1,6 @@
-# Operon Architecture
+# Cormidia Architecture
 
-*v1.8 — last aligned 2026-07-27. This is the implementation map: how Operon
+*v1.8 — last aligned 2026-07-27. This is the implementation map: how Cormidia
 actually runs, and where each subsystem's full contract lives. Decisions and
 their history belong to `docs/PURPOSE.md` → Decided; numeric budgets, routes,
 and measurement definitions live only in `docs/episodes/contract.md`;
@@ -10,9 +10,9 @@ human ratification.*
 
 ## 0. Overview
 
-Operon is an installable **org runtime**: a standing AI company that develops
+Cormidia is an installable **org runtime**: a standing AI company that develops
 and operates a portfolio of independent software products. One human leads by
-setting goals and guardrails and by making the critical decisions. Operon
+setting goals and guardrails and by making the critical decisions. Cormidia
 handles the day-to-day work that turns that direction into software outcomes.
 
 ```mermaid
@@ -20,7 +20,7 @@ flowchart TB
     subgraph LEADERSHIP[" "]
         direction LR
         HUMAN["Human<br/><b>Direction · final authority</b>"]
-        COMPANY["Operon<br/><b>The standing AI company</b>"]
+        COMPANY["Cormidia<br/><b>The standing AI company</b>"]
 
         HUMAN ==>|goals and guardrails| COMPANY
         COMPANY -->|outcomes and consequential decisions| HUMAN
@@ -66,7 +66,7 @@ The runtime execution path:
 launchd (now) / systemd timer (droplet later)
       │  fires every ~5 min
       ▼
-operon dispatch  ── reads ──►  roles.yaml · apps.yaml · schedule state · events
+cormidia dispatch  ── reads ──►  roles.yaml · apps.yaml · schedule state · events
       │
       │  for each due episode: acquire lock, gather deterministic facts
       ▼
@@ -161,11 +161,11 @@ Four explicit paths, one rule: **durable, curated artifacts live in git;
 high-churn operational state stays outside git.** No command infers an org
 home from the current working directory.
 
-### Package root (installed Operon implementation)
+### Package root (installed Cormidia implementation)
 
 ```
-src/operon.cjs           packaged pre-ESM cwd guard (`operon` bin)
-src/operon-local.cjs     source-backed pre-ESM cwd guard
+src/cormidia.cjs           packaged pre-ESM cwd guard (`cormidia` bin)
+src/cormidia-local.cjs     source-backed pre-ESM cwd guard
 dist/                    compiled package CLI behind the preflight
 src/**/*.ts              TypeScript source in a development checkout
 TASTE.md                 org-init template, not an active org instance
@@ -173,12 +173,12 @@ roles.yaml               org-init template
 pipelines.yaml           org-init template
 prompts/                 org-init protocol templates
 taste/                   org-init role craft templates
-agent-skills/operon/     packaged coding-agent operating guide
+agent-skills/cormidia/     packaged coding-agent operating guide
 ```
 
 `pnpm link:local` creates a source-backed pre-ESM launcher, so a development
-checkout's next `operon` invocation reads the latest TypeScript source. Packed
-installs use the parallel `src/operon.cjs` launcher before loading
+checkout's next `cormidia` invocation reads the latest TypeScript source. Packed
+installs use the parallel `src/cormidia.cjs` launcher before loading
 `dist/cli.js`. Both absolute CommonJS entries check `process.cwd()` before any
 ESM import, reject a removed caller directory with one actionable line, and
 resolve templates relative to the installed package rather than the caller's
@@ -201,7 +201,7 @@ skills/                  promoted skills (Agent Skills standard)
 retro/<date>.md          weekly retro notes (§6)
 ```
 
-`operon org init <path> --name <name>` creates a complete org home from the
+`cormidia org init <path> --name <name>` creates a complete org home from the
 packaged templates. With `--dry-run` it is a read-only preflight that prints
 exactly what execution would do — the resolved org/state/pointer paths, every
 file it would generate, the authority summary, and the packaged role chart —
@@ -211,17 +211,17 @@ exclusive file creation and exact rollback, leaving unrelated files
 untouched. Any collision — a generated path that already exists, a nested
 org, a non-directory, a symlink — fails before anything is mutated, and a
 directory that already holds a complete org just points the operator at
-`operon org use <path>`. Success creates the state home and records the
-active org in `~/.operon/config`.
+`cormidia org use <path>`. Success creates the state home and records the
+active org in `~/.cormidia/config`.
 
 Onboarding also picks an authority profile: `delegated-operator` (the
 default), `conservative`, or an attributable custom file — previewing which
 actions will run automatically and which will wait for a human. An older org
 with no `AUTHORITY.md` fails closed to the built-in legacy-conservative
 profile; it never silently inherits the newer delegated default.
-`OPERON_ORG_HOME` overrides the active pointer for a single process.
+`CORMIDIA_ORG_HOME` overrides the active pointer for a single process.
 
-`operon org upgrade` migrates a legacy org, spending no tokens. By default it
+`cormidia org upgrade` migrates a legacy org, spending no tokens. By default it
 only prints a byte-stable plan of the schema changes it would make. Execution
 copies only the packaged surfaces that are missing (including nested
 prompt/taste files newly introduced inside an existing tree), adds the
@@ -241,7 +241,7 @@ Token-free lifecycle commands for repeatable onboarding and readiness —
 ### App repo (target product repo)
 
 ```
-.operon/
+.cormidia/
   TASTE.md               app charter ("what this product is; what good means")
   AUTHORITY.md           session-readable org snapshot + app-only narrowing
   LABELS.md              generated canonical GitHub label reference
@@ -250,27 +250,32 @@ Token-free lifecycle commands for repeatable onboarding and readiness —
   memory/<role>/         per-(role, app) domain bundles
   onboarding-report.md   deterministic setup/documentation inventory
   bootstrap/             initial issue and operator next steps for new apps
-AGENTS.md                existing content + one marked Operon authority block
-CLAUDE.md                existing content + one marked Operon authority block
+AGENTS.md                existing content + one marked Cormidia authority block
+CLAUDE.md                existing content + one marked Cormidia authority block
 ```
 
-**Containment invariant.** Operon's owned app artifacts live under `.operon/`,
+**Containment invariant.** Cormidia's owned app artifacts live under `.cormidia/`,
 with one deliberately narrow exception: onboarding composes an idempotent,
 marked authority pointer into root `AGENTS.md` and `CLAUDE.md` so Codex and
 Claude Code see the charter when launched directly. Existing content outside
 that marker is preserved byte-for-byte. The remaining transient surface is
 GitHub (`op/*` branches,
-`op:*` labels) that closes out as work merges. Nothing Operon-specific is
+`op:*` labels) that closes out as work merges. Nothing Cormidia-specific is
 scattered through the app's source tree, so contributors who don't run
-Operon can ignore exactly one directory — the same social contract as
+Cormidia can ignore exactly one directory — the same social contract as
 `.github/` or `.vscode/`. Under that invariant the directory is safe to
-keep in the app repo regardless of whether the Operon tool itself is ever
+keep in the app repo regardless of whether the Cormidia tool itself is ever
 open-sourced or stays private: it holds app-owned configuration and memory
 (which a reader may freely see — it documents how the app is managed),
-never tool source. If Operon is published, the `.operon/config.yaml` schema
+never tool source. If Cormidia is published, the `.cormidia/config.yaml` schema
 becomes a public contract, so it carries a `schema_version` field from day one.
 
-### Runtime state (`~/.operon/<org>/`, outside git entirely)
+An app repository with the retired app-artifact directory must move it to
+`.cormidia/` in one reviewed repository commit before onboarding. Bootstrap
+fails before mutation when the retired and current layouts could otherwise
+coexist; Cormidia never reads one app-policy root while writing the other.
+
+### Runtime state (`~/.cormidia/<org>/`, outside git entirely)
 
 ```
 repos/<app>/             org-managed clone per app (worktree source, §3)
@@ -307,12 +312,12 @@ learning/**              learning-loop capture/episode/activation state;
                          their governed meanings (docs/learning-loop/)
 ```
 
-The org id `<org>` comes from org-home config. `OPERON_STATE_HOME` overrides
-this location explicitly and independently of `OPERON_ORG_HOME`. Note
-`~/.operon` is not TCC-protected on macOS, unlike `~/Documents` — launchd jobs
+The org id `<org>` comes from org-home config. `CORMIDIA_STATE_HOME` overrides
+this location explicitly and independently of `CORMIDIA_ORG_HOME`. Note
+`~/.cormidia` is not TCC-protected on macOS, unlike `~/Documents` — launchd jobs
 can read it freely (same reasoning that keeps repos at `~/Build`).
 
-### Read-only Live UI (`operon observe`)
+### Read-only Live UI (`cormidia observe`)
 
 `src/observe/` is a presentation-only leaf over durable state and bounded
 GitHub reads: loopback-only bind, per-process capability, no workflow mutation.
@@ -322,9 +327,9 @@ Reports and narrative are sibling presentation leaves (`docs/reporting/design.md
 
 ## 2. Dispatcher & scheduler
 
-Operon has no daemon. The "scheduler" is the operating system's own timer —
+Cormidia has no daemon. The "scheduler" is the operating system's own timer —
 launchd on macOS today, a systemd user timer later on a server — firing the
-ordinary `operon dispatch` command every ~5 minutes. Each tick is a fresh,
+ordinary `cormidia dispatch` command every ~5 minutes. Each tick is a fresh,
 stateless process: it reads configuration and durable state, decides what is
 due, spawns one detached turn per due (role, app), and exits.
 
@@ -364,7 +369,7 @@ journal is rewritten synchronously at every phase change, which makes it the
 crash-recovery source of truth: whatever the journal last said is where
 recovery begins.
 
-Isolation is physical. Operon keeps its own clone of each app under the
+Isolation is physical. Cormidia keeps its own clone of each app under the
 state home and cuts worktrees from that clone; it never touches the human's
 personal checkouts of the same repositories — GitHub is the only place where
 human and org work meet.
@@ -382,7 +387,7 @@ label flips, and non-git writes are append-only keyed by turnId.
 
 ### Build-loop state machine (`src/loop`) — see `docs/loop/design.md`
 
-The loop is Operon's center of gravity: a framework-agnostic TypeScript
+The loop is Cormidia's center of gravity: a framework-agnostic TypeScript
 re-engineering of the predecessor orchestrator (`docs/loop/design.md` §0).
 Its founding thesis is control and gates, never "throw a ticket at an agent"
 — it is not a thin state machine over opaque role turns.
@@ -398,7 +403,7 @@ there. In summary:
   extra adapter invocation is always its own provider turn with its own
   settlement (`docs/loop/design.md` §§2–4).
 - **Mechanical quality gates** — setup, tests, lint, e2e, secret scan,
-  completeness, review freshness, risk-tiered by `.operon/policy.yaml` — run
+  completeness, review freshness, risk-tiered by `.cormidia/policy.yaml` — run
   as orchestrator subprocesses after build passes and twice at ship. They are
   distinct from the safety gate, and no agent prose ever drives a side
   effect (`docs/loop/design.md` §5).
@@ -412,7 +417,7 @@ there. In summary:
 ## 4. Approval surface (CLI queue)
 
 When the gate blocks a critical operation, the turn ends and the operation
-queues for a human. The queue is a CLI (`operon approvals`): one item at a
+queues for a human. The queue is a CLI (`cormidia approvals`): one item at a
 time, approve or deny with a reason, every decision persisted to an audit
 trail. Items are tagged by app, but there is a single queue for the whole
 org — budget overruns (§7) land in it too, as synthetic `budget-exceeded`
@@ -425,7 +430,7 @@ allowlisted actions, recording
 `approved → executing → executed | failed | ambiguous` durably. Four things
 are never grantable at any scope: self-merge, production deploys, external
 publication, and writes to protocol surfaces. The classifier also reads
-Operon's *own* command line as an effect surface — self-approval by CLI is
+Cormidia's *own* command line as an effect surface — self-approval by CLI is
 still self-approval.
 
 [`docs/approvals/design.md`](approvals/design.md) is the authoritative
@@ -454,7 +459,7 @@ nothing assembled ever lands in a commit.
 
 Memory lives in two committed bundle partitions: what a role has learned
 about its craft (org home, cross-app) and what it knows about one product
-(`<app>/.operon/`). Both are indexed, keyword-selected, and size-capped into
+(`<app>/.cormidia/`). Both are indexed, keyword-selected, and size-capped into
 the context's excerpt layer. Agents may write only *candidate* notes — the
 governed learning surfaces are publisher- and human-only, enforced by the
 `learning-surface-tamper` gate rule — and curation belongs to the governed
@@ -480,14 +485,14 @@ approval item for the human.
 Budget threshold and admission pause are related but distinct durable facts:
 the ledger computes `ok`/`warning`/`exceeded`, while
 `state/budget-overlay.json` records whether admission is actually paused.
-`operon budget`, `operon status`, reports, and the observer project both facts
+`cormidia budget`, `cormidia status`, reports, and the observer project both facts
 from the same readers; none may substitute the threshold for the overlay or
 mutate admission state while presenting it.
 [`docs/org/apps.md`](org/apps.md) is the full contract.
 
 ## 8. Product co-planning and the EpisodePlanner boundary
 
-`operon plan` is the product-facing planning surface. Its token-free
+`cormidia plan` is the product-facing planning surface. Its token-free
 `--dry-run` assembles the Planner's context (§5) without constructing a
 runtime; the live form, `--auto --goal`, runs a real episode through the
 shared EpisodePlanner boundary (`src/org/episode-planner/`): bounded intent,
@@ -502,10 +507,10 @@ assignment norms are `docs/episodes/contract.md`; pass transport stays in
 
 Every entry point — dispatch, tickets, product planning, release flows —
 uses the same three functions: `previewEpisode`, `orchestrateEpisode`, and
-`explainEpisode` (surfaced as the read-only `operon episode explain`). The
+`explainEpisode` (surfaced as the read-only `cormidia episode explain`). The
 only way to skip the planner's provider turn is a complete,
 provenance-bearing creator scope; labels, lifecycle stage, or short prose
-never authorize the bypass, and bare `operon plan <app>` fails closed,
+never authorize the bypass, and bare `cormidia plan <app>` fails closed,
 directing the operator to `--auto --goal`.
 
 Published tickets carry a `Planned-by:` trailer, a provenance-scoped
@@ -526,7 +531,7 @@ continue with exactly one selected artifact. The episode remains one route and o
 outcome; comparison does not duplicate the whole episode or bypass its later review
 and ship gates.
 
-The same core is proposed behind a preview-first, org-free `operon compare` adapter
+The same core is proposed behind a preview-first, org-free `cormidia compare` adapter
 for a local git repository. This is a design, not deployed behavior; the candidate
 isolation, selection/judge trust boundary, standalone safety posture, recovery rules,
 and phased delivery contract live in
@@ -534,9 +539,9 @@ and phased delivery contract live in
 
 ## 9. Greenfield creation and Bootstrap
 
-An app enters the org one of two ways. `operon new-app` builds a fresh
+An app enters the org one of two ways. `cormidia new-app` builds a fresh
 product from a deterministic local skeleton plus starter product truth;
-`operon bootstrap` onboards an existing repo with an agent-free scan and an
+`cormidia bootstrap` onboards an existing repo with an agent-free scan and an
 operator questionnaire. Both require a complete active org, both register
 the app as `onboarding`, and neither spends a token. From there the
 token-free `app reset` / `verify` / `promote` commands own the path to

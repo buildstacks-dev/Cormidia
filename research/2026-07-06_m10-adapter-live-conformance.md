@@ -15,8 +15,8 @@ Result:
 - Reported total cost: `$2.4374`.
 - Auth source reported by the SDK init stream: `none`.
 - `test/runtime/codex-app-server.live.test.ts`: skipped because
-  `OPERON_CODEX_LIVE=1` was not set.
-- `test/runtime/pi-sdk.live.test.ts`: skipped because `OPERON_PI_LIVE=1`
+  `CORMIDIA_CODEX_LIVE=1` was not set.
+- `test/runtime/pi-sdk.live.test.ts`: skipped because `CORMIDIA_PI_LIVE=1`
   was not set.
 
 Notes:

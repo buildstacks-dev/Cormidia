@@ -1,5 +1,5 @@
 # Contract — B-06 Clock & calendar time (sealed seam)
-Canonical ID: **OPERON-C-B06-001 (alias: B-06)**
+Canonical ID: **CORMIDIA-C-B06-001 (alias: B-06)**
 
 Status: DRAFT (Phase 4). Defends INV-013/014/015 branches, T-5/T-9. All time-driven journeys.
 

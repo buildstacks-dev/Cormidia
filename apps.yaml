@@ -11,30 +11,30 @@
 #     support: []                          # disable support here
 #     planner: [{schedule: "daily 08:00"}] # replace planner's triggers
 #
-# `.operon/config.yaml` in an app repo shares this schema, so the version
+# `.cormidia/config.yaml` in an app repo shares this schema, so the version
 # field is carried from day one (architecture.md §1).
 
 schema_version: 1
 
 org:
-  name: operon
+  name: cormidia
   max_concurrent_turns: 2       # org-level WIP limit (architecture.md §2)
 
 defaults:
   budget_usd_month: 1000        # decided 2026-07-04; configurable per app
 
 apps:
-  # Historical self-registration from the dogfood period. The Operon source
+  # Historical self-registration from the dogfood period. The Cormidia source
   # repo never doubles as the active org (docs/PURPOSE.md v1.5) — the active
   # org home's apps.yaml is authoritative; this packaged copy is a template.
-  operon:
-    repo: buildstacks-dev/Operon
+  cormidia:
+    repo: cormidia/Cormidia
     status: onboarding
     cadence: {}
   # Public front door (homepage, install docs, community issues, release
-  # notes; never source) — self-hosting decision, docs/PURPOSE.md v2.11.
-  operon-web:
-    repo: buildstacks-dev/operon-web
+  # notes; never source) — self-hosting decision, docs/PURPOSE.md v2.11/v2.12.
+  cormidia-web:
+    repo: cormidia/cormidia-web
     status: onboarding
     budget_usd_month: 1000
     cadence: {}
@@ -43,8 +43,8 @@ apps:
     status: live
     budget_usd_month: 1000
     cadence: {}
-  operon-sandbox-beta:
-    repo: bikramgupta/operon-sandbox-beta
+  cormidia-sandbox-beta:
+    repo: bikramgupta/cormidia-sandbox-beta
     status: onboarding
     budget_usd_month: 1000
     cadence: {}
@@ -53,8 +53,8 @@ apps:
     status: onboarding
     budget_usd_month: 1000
     cadence: {}
-  operon-sandbox-delta:
-    repo: bikramgupta/operon-sandbox-delta
+  cormidia-sandbox-delta:
+    repo: bikramgupta/cormidia-sandbox-delta
     status: onboarding
     budget_usd_month: 1000
     cadence: {}

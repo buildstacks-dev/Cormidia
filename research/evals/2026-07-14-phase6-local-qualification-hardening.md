@@ -24,7 +24,7 @@ The immutable manifest retained its lower $15 cap even though the human allowed
 a $25 ceiling.
 
 The private repository
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260715-00530744c9ae`
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260715-00530744c9ae`
 used issue 1 and pull request 2. Its first lifecycle passed; the identical
 rerun reused the exact evidence, left the issue closed, pull request merged,
 and branch deleted, and recorded source-evidence SHA-256
@@ -39,7 +39,7 @@ byte-stable at SHA-256
 `a48e89215ccf308a100390ca589be4f5668fb497327669442c03ca8c4b6d798e`.
 
 The first external archive attempt is deliberately retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260715-00530744c9ae/adapter-harness-calibration-v1-20260715-00530744c9ae-ae94c975-evidence-v2`.
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260715-00530744c9ae/adapter-harness-calibration-v1-20260715-00530744c9ae-ae94c975-evidence-v2`.
 It contains 230 files and archive-manifest SHA-256
 `eb9982b20d1791ecab9059f8e251db18ac09af71acf89fd51cfc7bc855b4f208`.
 Verification found raw L3 `state/runs/**` prompts, outputs, and session logs in

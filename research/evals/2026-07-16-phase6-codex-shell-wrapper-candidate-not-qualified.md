@@ -71,7 +71,7 @@ The read-only qualifier reproduced byte-for-byte. Qualification SHA-256 is
 report SHA-256 is
 `8a5e951ca389eb5d255cc1e4d90668ed9b9f26de14f9fde53abb9176e4a69cf3`.
 The 350-file `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260716-c309f15ecafc-ac3317bf-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260716-c309f15ecafc-ac3317bf-evidence-v2`;
 its archive-manifest SHA-256 is
 `0095b69c5c16a7b1bfb50aa23f926f700ce80946cfcaa278c54a807526bb4977`.
 The local archive-receipt SHA-256 is
@@ -90,7 +90,7 @@ the wrong arity, so SQLite raised `wrong number of arguments to function
 api_key_fingerprint()` before the intended `invalid API-key fingerprints`
 guard. The visible and hidden gates correctly remained red.
 
-The in-process Operon gate classifies raw `npm test` as routine and allowed.
+The in-process Cormidia gate classifies raw `npm test` as routine and allowed.
 The rejection instead came from the approval callback representation. Codex
 App Server 0.144.4 wraps an untrusted command as `/bin/zsh -lc 'npm test'`.
 `makeEvalActorGate` scanned the absolute transport launcher `/bin/zsh` as if

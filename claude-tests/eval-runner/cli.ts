@@ -46,7 +46,7 @@ async function main(): Promise<number> {
     maxEquivUsd: config.max_equiv_usd,
     decisionStatus: "proposed",
   });
-  const workdir = await mkdtemp(join(tmpdir(), "operon-eval-"));
+  const workdir = await mkdtemp(join(tmpdir(), "cormidia-eval-"));
   await campaign.start();
   let executionFailed = false;
   try {

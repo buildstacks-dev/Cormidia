@@ -3,7 +3,7 @@
 // the store seam, and replayed stimuli.
 //
 // Design: case-catalog §2 CF-SM-APPR row; contracts/B-09a §3-§4;
-// contracts/B-09b §1-§4; OPERON-INV-003. Time is injected through the store's
+// contracts/B-09b §1-§4; CORMIDIA-INV-003. Time is injected through the store's
 // per-call `now` parameters via fixtures/clock.ts — the store has no ambient
 // wall-clock dependency on these paths.
 //

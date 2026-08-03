@@ -24,7 +24,7 @@ const execFileAsync = promisify(execFile);
 export interface PlanningContextRequest {
   /** Org home root (contains TASTE.md). */
   orgHome: string;
-  /** App repo checkout/worktree (may contain .operon/TASTE.md). */
+  /** App repo checkout/worktree (may contain .cormidia/TASTE.md). */
   appWorkdir: string;
   app: string;
   role: RoleConfig;
@@ -139,7 +139,7 @@ export async function createPlanningWorktree(
 
 async function mkPlanTempDir(): Promise<string> {
   const { mkdtemp } = await import("node:fs/promises");
-  return mkdtemp(join(tmpdir(), "operon-plan-"));
+  return mkdtemp(join(tmpdir(), "cormidia-plan-"));
 }
 
 export async function cleanupPlanningWorktree(worktree: PlanningWorktree): Promise<void> {
@@ -176,7 +176,7 @@ export interface PreparePlanSessionOptions {
   appsPath?: string;
   /** Org home root; defaults to cwd. */
   orgHome?: string;
-  /** High-churn runtime state root; defaults to ~/.operon/<org>. */
+  /** High-churn runtime state root; defaults to ~/.cormidia/<org>. */
   runtimeHome?: string;
   /** roles.yaml path; defaults to `${orgHome}/roles.yaml`. */
   rolesPath?: string;
@@ -214,7 +214,7 @@ export async function preparePlanSession(
 
   const appWorkdir = resolveAppWorkdir(app, {
     orgRoot: orgHome,
-    runtimeHome: options.runtimeHome ?? join(homedir(), ".operon", appsFile.org.name),
+    runtimeHome: options.runtimeHome ?? join(homedir(), ".cormidia", appsFile.org.name),
     ...(options.workdir !== undefined ? { explicitWorkdir: options.workdir } : {}),
   });
 

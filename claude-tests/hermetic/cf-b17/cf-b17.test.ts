@@ -1,5 +1,5 @@
 // CF-B17-* — typed critical-effect executor against a scripted external
-// target (contracts/B-17-typed-executor.md §1–§5; OPERON-INV-003/008/014;
+// target (contracts/B-17-typed-executor.md §1–§5; CORMIDIA-INV-003/008/014;
 // system-map T-12; risk E-1): accept-vs-complete split, lost response,
 // marker disagreement, target-auth failure with the grant consumed and the
 // evidence in audit, and at-most-once execution per grant.
@@ -43,7 +43,7 @@ import {
 const APP = "publisher-app";
 const ROLE = "marketing";
 const ACTION: ToolAction = {
-  tool: "operon.external.publish",
+  tool: "cormidia.external.publish",
   input: {
     schema_version: 1,
     destination: "registry.example.invalid",

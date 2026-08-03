@@ -12,17 +12,17 @@ export function renderReportHtml(report: ReportSnapshotV1): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'sha256-${styleHash}'; script-src 'sha256-${scriptHash}'; img-src data:; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-<title>Operon report — ${esc(scope)}</title>
+<title>Cormidia report — ${esc(scope)}</title>
 <style>${CSS}</style>
 </head>
 <body>
 <a class="skip" href="#main">Skip to report</a>
-<header><div><strong class="wordmark">OPERON REPORTS</strong><span class="marker">READ ONLY · TOKEN FREE · AS OF</span></div><p>${esc(scope)} · ${esc(report.generated_at)}</p></header>
+<header><div><strong class="wordmark">CORMIDIA REPORTS</strong><span class="marker">READ ONLY · TOKEN FREE · AS OF</span></div><p>${esc(scope)} · ${esc(report.generated_at)}</p></header>
 <main id="main" class="scroll">
 <p class="confidential"><strong>Confidential operational metadata.</strong> Portable local projection; no external requests. Equivalent cost is not a provider invoice.</p>
 ${quality(report)}
 ${validationCampaigns(report)}
-<section aria-labelledby="headline"><h1 id="headline">Usage overview</h1><div class="metrics">${metric("Known input", formatInt(report.headline.known_input_tokens))}${metric("Known output", formatInt(report.headline.known_output_tokens))}${metric("Known total", formatInt(report.headline.known_total_tokens))}${metric("Equivalent cost", money(report.headline.recorded_equivalent_cost_usd), `reported ${money(report.headline.provider_reported_cost_usd)} · estimated ${money(report.headline.operon_estimated_cost_usd)} · partial ${money(report.headline.partial_recorded_cost_usd)}`)}${metric("Provider turns", String(report.headline.provider_turns), `${report.headline.unknown_usage_turns} unknown usage`)}${metric("Sessions", String(report.headline.sessions), `${report.headline.completed_sessions} completed`)}</div></section>
+<section aria-labelledby="headline"><h1 id="headline">Usage overview</h1><div class="metrics">${metric("Known input", formatInt(report.headline.known_input_tokens))}${metric("Known output", formatInt(report.headline.known_output_tokens))}${metric("Known total", formatInt(report.headline.known_total_tokens))}${metric("Equivalent cost", money(report.headline.recorded_equivalent_cost_usd), `reported ${money(report.headline.provider_reported_cost_usd)} · estimated ${money(report.headline.cormidia_estimated_cost_usd)} · partial ${money(report.headline.partial_recorded_cost_usd)}`)}${metric("Provider turns", String(report.headline.provider_turns), `${report.headline.unknown_usage_turns} unknown usage`)}${metric("Sessions", String(report.headline.sessions), `${report.headline.completed_sessions} completed`)}</div></section>
 ${efficiency(report)}
 ${budget(report)}
 ${trend(report)}
@@ -82,7 +82,7 @@ function trend(report: ReportSnapshotV1): string {
     const total = (row.known_input_tokens ?? 0) + (row.known_output_tokens ?? 0);
     return `<div class="bar-row"><span>${esc(row.start.slice(0, 10))}</span><progress max="${maximum}" value="${Math.max(0, total)}">${Math.max(0, total)}</progress><span>${row.source_quality === "gap" ? "source gap" : formatInt(total)}</span></div>`;
   }).join("");
-  const table = `<table><thead><tr><th>Bucket UTC</th><th>Input</th><th>Output</th><th>Reported</th><th>Estimated</th><th>Partial</th><th>Turns</th><th>Quality</th></tr></thead><tbody>${report.trend.map((row) => `<tr><td>${esc(row.start)} – ${esc(row.end)}</td><td>${nullable(row.known_input_tokens)}</td><td>${nullable(row.known_output_tokens)}</td><td>${nullableMoney(row.provider_reported_cost_usd)}</td><td>${nullableMoney(row.operon_estimated_cost_usd)}</td><td>${nullableMoney(row.partial_recorded_cost_usd)}</td><td>${row.provider_turns}</td><td>${row.source_quality}</td></tr>`).join("")}</tbody></table>`;
+  const table = `<table><thead><tr><th>Bucket UTC</th><th>Input</th><th>Output</th><th>Reported</th><th>Estimated</th><th>Partial</th><th>Turns</th><th>Quality</th></tr></thead><tbody>${report.trend.map((row) => `<tr><td>${esc(row.start)} – ${esc(row.end)}</td><td>${nullable(row.known_input_tokens)}</td><td>${nullable(row.known_output_tokens)}</td><td>${nullableMoney(row.provider_reported_cost_usd)}</td><td>${nullableMoney(row.cormidia_estimated_cost_usd)}</td><td>${nullableMoney(row.partial_recorded_cost_usd)}</td><td>${row.provider_turns}</td><td>${row.source_quality}</td></tr>`).join("")}</tbody></table>`;
   return `<section><h2>Usage over time</h2><div class="chart" role="img" aria-label="Known input plus output tokens by ${esc(report.range.bucket)}">${bars || `<p class="empty">No buckets.</p>`}</div><details><summary>Accessible trend data table</summary><div class="scroll">${table}</div></details></section>`;
 }
 
@@ -117,7 +117,7 @@ function planEvidence(turn: ReportSessionDetailV1["activities"][number]): string
 function metric(label: string, value: string, note = ""): string { return `<div class="metric"><small>${esc(label)}</small><strong>${esc(value)}</strong>${note ? `<span>${esc(note)}</span>` : ""}</div>`; }
 function simpleDistribution(rows: Array<[string, number]>): string { return `<table><tbody>${rows.map(([key, value]) => `<tr><th>${esc(key)}</th><td>${value}</td></tr>`).join("")}</tbody></table>`; }
 function percentile(value: { median: number | null; p90: number | null; n: number }, moneyValue = false): string { const render = (v: number | null) => v === null ? "—" : moneyValue ? money(v) : `${Math.round(v)} ms`; return `median ${render(value.median)} · p90 ${render(value.p90)} · n=${value.n}`; }
-function regenerationCommand(report: ReportSnapshotV1): string { const scope = report.scope.app === null ? "" : ` --app ${shellQuote(report.scope.app)}`; return `operon report${scope} --since ${report.range.from_inclusive.slice(0, 10)} --until ${new Date(new Date(report.range.to_exclusive).getTime() - 1).toISOString().slice(0, 10)} --bucket ${report.range.bucket} --html report.html`; }
+function regenerationCommand(report: ReportSnapshotV1): string { const scope = report.scope.app === null ? "" : ` --app ${shellQuote(report.scope.app)}`; return `cormidia report${scope} --since ${report.range.from_inclusive.slice(0, 10)} --until ${new Date(new Date(report.range.to_exclusive).getTime() - 1).toISOString().slice(0, 10)} --bucket ${report.range.bucket} --html report.html`; }
 function shellQuote(value: string): string { return `'${value.replace(/'/g, `'"'"'`)}'`; }
 function safeJson(value: unknown): string { return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (char) => ({ "<": "\\u003c", ">": "\\u003e", "&": "\\u0026", "\u2028": "\\u2028", "\u2029": "\\u2029" })[char]!); }
 function esc(value: string): string { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!); }

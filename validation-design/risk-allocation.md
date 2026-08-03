@@ -1,4 +1,4 @@
-# Risk tiers, coverage allocation, and layer-5 obligations — Operon
+# Risk tiers, coverage allocation, and layer-5 obligations — Cormidia
 
 Status: CONFIRMED at the Phase 6 hard stop (weighting, 2026-07-31, round 3); human-ratified 2026-07-31 — release-campaign spend amended at ratification, see §5 (ratification-package.md §9). <!-- AUD-105 -->
 Provenance: probability judgments and allocation calls `[elicited]` (Phase 6 ramble);

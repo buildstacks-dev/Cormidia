@@ -5,7 +5,7 @@ import { toolUseEvent } from "../tool-events.js";
 
 // Factory identity is a stronger precondition than "some extension loaded".
 // A custom ResourceLoader used by an embedding can accidentally discard inline
-// factories; this WeakSet records that the exact Operon gate factory was
+// factories; this WeakSet records that the exact Cormidia gate factory was
 // actually invoked while loading resources, before a tool-capable session is
 // created.
 const activatedPiGateExtensions = new WeakSet<object>();

@@ -1,4 +1,4 @@
-# Round-2 audit report — Operon validation harness design (campaign operon-2026-07-31)
+# Round-2 audit report — Cormidia validation harness design (campaign cormidia-2026-07-31)
 
 ## Disposition verification
 

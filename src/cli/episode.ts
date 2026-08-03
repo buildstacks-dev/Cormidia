@@ -3,7 +3,7 @@ import {
   type EpisodeExplanation,
   type ExplainedEpisodeStep,
 } from "../org/episode-planner/orchestrator.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 /** Read-only durable EpisodePlan explanation. Planning and delivery remain at
@@ -16,14 +16,14 @@ export async function cmdEpisode(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "episode");
   const [verb, episodeId, ...rest] = common.rest;
   if (verb !== "explain" || episodeId === undefined) {
-    throw new Error("episode: usage: operon episode explain <episode-id> [--json]");
+    throw new Error("episode: usage: cormidia episode explain <episode-id> [--json]");
   }
   let json = false;
   for (const arg of rest) {
     if (arg === "--json") json = true;
     else throw new Error(`episode: unknown flag ${JSON.stringify(arg)}`);
   }
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const explanation = await explainEpisode(homes.stateHome, episodeId);
   if (json) {
     console.log(JSON.stringify(explanation, null, 2));

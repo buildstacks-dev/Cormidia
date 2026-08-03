@@ -60,9 +60,9 @@ export function composeGate(
             reason:
               claim.status === "not-actor-retry"
                 ? `approval ${claim.item.id} is owned by ${execution?.executor ?? "a sanctioned executor"}; ` +
-                  `run \`operon dispatch\` or inspect \`operon approvals status\``
+                  `run \`cormidia dispatch\` or inspect \`cormidia approvals status\``
                 : `approval ${claim.item.id} actor retry is ${execution?.state ?? "untracked"}; ` +
-                  `resolve it with \`operon approvals disposition ${claim.item.id} ` +
+                  `resolve it with \`cormidia approvals disposition ${claim.item.id} ` +
                   `(--executed|--failed|--retry) --reason <text> --confirm ${claim.item.id}\``,
             escalate: false,
           };
@@ -93,7 +93,7 @@ export function composeGate(
           reason:
             `approval ${stalled.id} actor retry is ${stalled.execution?.state ?? "untracked"}; ` +
             `no new approval was raised. Reconcile it with ` +
-            `\`operon approvals disposition ${stalled.id} (--executed|--failed|--retry) ` +
+            `\`cormidia approvals disposition ${stalled.id} (--executed|--failed|--retry) ` +
             `--reason <text> --confirm ${stalled.id}\``,
           escalate: false,
         };

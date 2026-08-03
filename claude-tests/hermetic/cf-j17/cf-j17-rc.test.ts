@@ -1,7 +1,7 @@
 // CF-J17-RC — typed idempotency-marker reconciliation of a crashed release
 // attempt (contracts/B-17-typed-executor.md §4 "markers typed by what they
 // prove"; contracts/journey-acceptance.md J-17 "exactly once only where
-// completion evidence proves the effect"; OPERON-INV-003; T-12; risk E-1).
+// completion evidence proves the effect"; CORMIDIA-INV-003; T-12; risk E-1).
 //
 // The durable ReleaseExecutionRecord IS this executor's idempotency marker:
 //   - `completed`/`failed` records are COMPLETION-typed evidence — they
@@ -39,7 +39,7 @@ function mergedItem(): LoopItem {
     ticketRef: "#7",
     title: "Deployable milestone",
     body: "Release-kind: deploy\n",
-    targetRepo: "operon-double/unused",
+    targetRepo: "cormidia-double/unused",
     labels: [],
     phase: "merged",
     tier: "standard",
@@ -80,7 +80,7 @@ describe("CF-J17-RC — completion-typed markers convert a crashed attempt; acce
     const appsFile: AppsFile = {
       org: { name: "cf-j17-rc", maxConcurrentTurns: 1 },
       defaults: { budgetUsdMonth: 100 },
-      apps: [{ name: APP, repo: "operon-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
     };
     let calls = 0;
     const run = () =>

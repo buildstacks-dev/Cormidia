@@ -3,7 +3,7 @@
 // Ratified S-3 contract layer (validation-design/llm-eval-plan.md §2, S-3):
 // exactly one structured verdict marker parses; the parser refuses zero
 // markers; APPROVE-prose without a marker yields NO review artifact — a model
-// cannot authenticate its own approval by assertion (OPERON-INV-012). The
+// cannot authenticate its own approval by assertion (CORMIDIA-INV-012). The
 // parser under test is the REAL product grammar (src/loop/verdicts.ts
 // parseVerdict/"review"), whose marker vocabulary is `Verdict: approve |
 // findings`; both transports (text grammar and native structured JSON) are

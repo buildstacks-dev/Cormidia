@@ -1,4 +1,4 @@
-# Journey acceptance criteria — Operon (product scope)
+# Journey acceptance criteria — Cormidia (product scope)
 
 Status: DRAFT (Phase 4). Given/when/then at behavior level; each criterion traces to an
 invariant or contract (trace in brackets). These are ticket-shaped: they travel with the
@@ -6,24 +6,24 @@ feature/change that touches the journey. Compact by design — 2–4 per journey
 catalog (Phase 6) expands them mechanically.
 
 **Trace resolution.** Bracketed traces use short aliases; every alias resolves to a
-canonical `OPERON-` ID via this table (each contract file carries its canonical ID in
+canonical `CORMIDIA-` ID via this table (each contract file carries its canonical ID in
 its header):
 
 | Alias | Canonical ID | | Alias | Canonical ID |
 |---|---|---|---|---|
-| core adapter | OPERON-C-CORE-001 | | B-10 (incl. B-10a) | OPERON-C-B10-001 |
-| B-01 | OPERON-C-B01-001 | | B-11 | OPERON-C-B11-001 |
-| B-02 | OPERON-C-B02-001 | | B-12 | OPERON-C-B12-001 |
-| B-03 | OPERON-C-B03-001 | | B-13 | OPERON-C-B13-001 |
-| B-04 | OPERON-C-B04-001 | | B-14 | OPERON-C-B14-001 |
-| B-05 | OPERON-C-B05-001 | | B-15 | OPERON-C-B15-001 |
-| B-06 | OPERON-C-B06-001 | | B-16 | OPERON-C-B16-001 |
-| B-07 | OPERON-C-B07-001 | | B-17 | OPERON-C-B17-001 |
-| B-18 | OPERON-C-B18-001 | | B-19 | OPERON-C-B19-001 |
-| B-08 | OPERON-C-B08-001 | | C-OP-LIFE | OPERON-C-OPLIFE-001 |
-| B-09a | OPERON-C-B09A-001 | | C-OP-PLAN | OPERON-C-OPPLAN-001 |
-| B-09b | OPERON-C-B09B-001 | | C-OP-LOOP | OPERON-C-OPLOOP-001 |
-| INV-NNN | OPERON-INV-NNN | | T-NN | system-map §5.2 control point (not a contract ID) |
+| core adapter | CORMIDIA-C-CORE-001 | | B-10 (incl. B-10a) | CORMIDIA-C-B10-001 |
+| B-01 | CORMIDIA-C-B01-001 | | B-11 | CORMIDIA-C-B11-001 |
+| B-02 | CORMIDIA-C-B02-001 | | B-12 | CORMIDIA-C-B12-001 |
+| B-03 | CORMIDIA-C-B03-001 | | B-13 | CORMIDIA-C-B13-001 |
+| B-04 | CORMIDIA-C-B04-001 | | B-14 | CORMIDIA-C-B14-001 |
+| B-05 | CORMIDIA-C-B05-001 | | B-15 | CORMIDIA-C-B15-001 |
+| B-06 | CORMIDIA-C-B06-001 | | B-16 | CORMIDIA-C-B16-001 |
+| B-07 | CORMIDIA-C-B07-001 | | B-17 | CORMIDIA-C-B17-001 |
+| B-18 | CORMIDIA-C-B18-001 | | B-19 | CORMIDIA-C-B19-001 |
+| B-08 | CORMIDIA-C-B08-001 | | C-OP-LIFE | CORMIDIA-C-OPLIFE-001 |
+| B-09a | CORMIDIA-C-B09A-001 | | C-OP-PLAN | CORMIDIA-C-OPPLAN-001 |
+| B-09b | CORMIDIA-C-B09B-001 | | C-OP-LOOP | CORMIDIA-C-OPLOOP-001 |
+| INV-NNN | CORMIDIA-INV-NNN | | T-NN | system-map §5.2 control point (not a contract ID) |
 
 **Journey aliases** (`J-04/05/07/08` in J-18's composite trace) are not contract IDs:
 they are **intra-document references** to this file's own journey sections, whose
@@ -38,6 +38,9 @@ Phase 3 boundary owns them.
   executes, then nothing is mutated and the collision is named. [C-OP-LIFE §1, INV-010/013]
 - Given an interrupted upgrade, when rerun, then it converges with the archived bytes
   restorable and ratified surfaces unreplaced. [C-OP-LIFE §3, INV-013, B-10]
+- Given only the retired default state root, when Cormidia first resolves an org, then
+  it atomically relocates the root and repairs active path identities; given both roots,
+  it refuses before mutation rather than merging state authorities. [B-10, INV-004/013]
 
 ## J-02 Onboarding / evidence ladder
 - Given a successful bootstrap, when any surface reports state, then the claim is at
@@ -161,7 +164,7 @@ Phase 3 boundary owns them.
 - Given the unattended sandbox profile, then zero human decision rows exist, profile
   identity + sandbox target are in evidence, and publication/non-sandbox effects
   remained blocked. [B-09b; `validation-policy.yaml` `unattended_test_mode_profile` —
-  human-ratified as shaped and implemented in Operon 2026-07-31; no green claim can
+  human-ratified as shaped and implemented in Cormidia 2026-07-31; no green claim can
   rest on the implementation before an authorized CF-J18-A campaign produces complete
   evidence]
   <!-- changelog 2026-07-31: pointed to the existing draft policy (final-gate fix). -->
@@ -184,7 +187,7 @@ Phase 3 boundary owns them.
   materialization runs, then exactly the content-bound selected artifact continues;
   losing artifacts perform no outward effect and ordinary downstream review/ship gates
   remain mandatory. [B-18/B-19, INV-002/009/010/013]
-- Given standalone `operon compare`, when preview, execution, and materialization are
+- Given standalone `cormidia compare`, when preview, execution, and materialization are
   used, then no org or GitHub is required, preview spends no tokens, candidates mutate
   only external comparison worktrees, and materialization creates only a new local
   winner branch without touching the active branch. [B-18/B-19, INV-004/010/013]

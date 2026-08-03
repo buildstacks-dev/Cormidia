@@ -102,7 +102,7 @@ describe("claude-double fixture self-test", () => {
   });
 });
 
-describe("CF-C-CORE — OPERON-C-CORE-001 clauses against the scripted Anthropic adapter", () => {
+describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthropic adapter", () => {
   it("§1 threads the atomic tuple, workdir, budget cap, resume, maxTurns, and a multi-hundred-KB brief into provider construction unchanged (hermetic settingSources)", async () => {
     const bigBrief = "B".repeat(300_000); // briefs transport intact — no ARG_MAX-style loss
     const dbl = claudeDouble([
@@ -591,7 +591,7 @@ describe("CF-C-CORE — OPERON-C-CORE-001 clauses against the scripted Anthropic
   });
 });
 
-describe("CF-B02 — OPERON-C-B02-001 deltas and scripted B-02 failure modes", () => {
+describe("CF-B02 — CORMIDIA-C-B02-001 deltas and scripted B-02 failure modes", () => {
   it("tool events carry no outcome fields even when the script carries terminal outcomes (pre-execution surface)", async () => {
     const dbl = claudeDouble([
       script.turn({

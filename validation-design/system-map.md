@@ -1,4 +1,4 @@
-# System map — Operon (product scope)
+# System map — Cormidia (product scope)
 
 Status: synthesized from the ratified docs and the stakeholder's Phase 1 walk; CONFIRMED
 at the Phase 1 gate (2026-07-31, round 4) alongside the criticality tier; human-ratified
@@ -21,7 +21,7 @@ input), or `[PROPOSED]`.
   real provider tokens, with one human gating critical operations. `[doc]`
 - **Deployment shape:** solo-operator, laptop-first; OS-timer-driven (launchd; systemd
   later) **when installed**; one org runtime over N registered apps; org home in git,
-  high-churn state under `~/.operon/<org>/`. Autonomous scheduling is an evidence claim,
+  high-churn state under `~/.cormidia/<org>/`. Autonomous scheduling is an evidence claim,
   not a default state (F-PT-002 — resolved 2026-07-31: on the active org the scheduler
   is NOT installed; all turns are human-invoked; see §4).
   `[doc]` + stakeholder correction.
@@ -40,10 +40,10 @@ input), or `[PROPOSED]`.
 | Actor / initiator | Enters via |
 |---|---|
 | Human operator | CLI commands (incl. approvals decisions); GitHub (manual labels, reviews); file-drop event inbox |
-| OS timer (launchd/systemd) | `operon dispatch` tick (~5 min) |
+| OS timer (launchd/systemd) | `cormidia dispatch` tick (~5 min) |
 | GitHub (as event source) | polled events: `ticket-ready`, `pr-opened`, `ci-failed`, `release-shipped` |
 | Company-event producers | `state/events/inbox/*.json` (closed kind registry; typed file-drop events incl. `health-alert`, `support-feedback`, `adoption-signal`, `launch-calendar`) |
-| Operon's own roles (Planner, loop re-arm) | published tickets, label flips — internal initiators of later work |
+| Cormidia's own roles (Planner, loop re-arm) | published tickets, label flips — internal initiators of later work |
 | Recovery | journals/locks/plan journal read at tick start; reconciliation stimuli |
 
 ### 1.2 Stimulus taxonomy
@@ -67,7 +67,7 @@ sole write exception `[doc]`):
 - Observation: `status`, `budget [--reconcile]`, `report`, `telemetry`, `observe`,
   `analyze`, `episode explain`, `narrative`, `capabilities`, `context`, `doctor`, `roles`,
   `apps`, `pipelines`, `learn <verbs>`, `task begin|fallback|finish`
-- GitHub-side human acts: label edits, manual reviews, merges outside Operon (observed,
+- GitHub-side human acts: label edits, manual reviews, merges outside Cormidia (observed,
   never assumed)
 
 **Time events:**
@@ -103,7 +103,7 @@ sole write exception `[doc]`):
 | J-16 | Scheduler lifecycle | Install/uninstall preview-then-execute with identity confirm; status = joined evidence (ownership/hash/cadence/ticks/duplicates/settlement agreement) — a definition file alone is never "healthy" |
 | J-17 | Release handoff (A4) | Declared `release:` mechanism; deploy is a fresh content-bound critical op post-merge; handoff executed exactly once by later dispatch; (release *gating* itself: suspended — see policy obligation) |
 | J-18 | **Unattended scheduled delivery (composite; highest-hurt)** | OS due window → one durable dispatch decision → valid EpisodePlan → bounded provider turns → gate-classified actions → correct GitHub artifacts (right repo, right base branch) → exact review/merge boundary → exactly-once settlement → **truthful morning status**. Failure mode that matters: seven mornings of plausible green over wrong reality `[walk]` |
-| J-19 | **Per-turn comparative execution** `[stated+PROPOSED]` | One frozen provider-step intent → bounded exact candidate assignments/samples in isolated workspaces → operation-specific evidence → deterministic eligibility → admissible selection or explicit inconclusive outcome → exactly one content-bound winner materialized for ordinary continuation. Every candidate and judge turn settles separately; losing candidates perform no outward effect. Standalone `operon compare` enters the same behavior without an org and never mutates the active branch or contacts GitHub through an orchestrator-owned path. |
+| J-19 | **Per-turn comparative execution** `[stated+PROPOSED]` | One frozen provider-step intent → bounded exact candidate assignments/samples in isolated workspaces → operation-specific evidence → deterministic eligibility → admissible selection or explicit inconclusive outcome → exactly one content-bound winner materialized for ordinary continuation. Every candidate and judge turn settles separately; losing candidates perform no outward effect. Standalone `cormidia compare` enters the same behavior without an org and never mutates the active branch or contacts GitHub through an orchestrator-owned path. |
 
 ### 1.4 Entry and observation surfaces (adapters, not behaviors)
 
@@ -115,9 +115,9 @@ sole write exception `[doc]`):
 | Portable HTML report | observation | self-contained; hash-restricted CSP; no external requests; no L3 |
 | GitHub | entry + observation + substrate | conventions (labels/branches/trailers); polling boundedness; artifact-before-label |
 | File-drop event inbox | entry | closed kind registry; schema validation; retention semantics |
-| OS timer | stimulus source | fires the same `operon dispatch` the human can run — one behavior, two initiators |
-| Agent Skill (`$operon`) + `capabilities --json` | entry (for coding agents) | discovery accuracy |
-| Standalone `operon compare` (proposed) | entry + observation adapter over J-19 | token-free preview; exact operator-declared tuples; execute/confirm binding; no-org authority; terminal/JSON/HTML agreement; explicit local winner materialization only |
+| OS timer | stimulus source | fires the same `cormidia dispatch` the human can run — one behavior, two initiators |
+| Agent Skill (`$cormidia`) + `capabilities --json` | entry (for coding agents) | discovery accuracy |
+| Standalone `cormidia compare` (proposed) | entry + observation adapter over J-19 | token-free preview; exact operator-declared tuples; execute/confirm binding; no-org authority; terminal/JSON/HTML agreement; explicit local winner materialization only |
 
 ## 2. Structural view
 
@@ -138,7 +138,7 @@ named explicitly and the component writes under it.
 | Durable fact | Location | State owner · authorized write paths |
 |---|---|---|
 | Accepted EpisodePlan + versions + DAG journal | `efficiency/episodes/<hash>/` | episode-planner/loop (plan validation path) |
-| TurnComparison journal, candidate/evidence records, selection and materialization acknowledgement (proposed) | episode: comparison subtree beneath the accepted step; standalone: `~/.operon/standalone/<repo-fingerprint>/comparisons/<comparison-id>/` | M16 comparison coordinator; candidates write only their namespaces, selector writes one immutable selection, materializer records the content-bound local/episode continuation |
+| TurnComparison journal, candidate/evidence records, selection and materialization acknowledgement (proposed) | episode: comparison subtree beneath the accepted step; standalone: `~/.cormidia/standalone/<repo-fingerprint>/comparisons/<comparison-id>/` | M16 comparison coordinator; candidates write only their namespaces, selector writes one immutable selection, materializer records the content-bound local/episode continuation |
 | Ticket claim / allowance / re-arm | `tickets/<app>/<issue>.json` | loop (atomic claim transactions) |
 | Product artifacts (issues, PRs, reviews, merges, labels, branches) | GitHub | GitHub, via gate-classified actions; orchestrator-only merge |
 | Run evidence L1–L3 | `runs/<app>/<runId>/` | runtime runlog (per pass) |
@@ -157,9 +157,9 @@ named explicitly and the component writes under it.
 | Self-approval HMAC key | `state/self-approval-secret` | orchestrator only (owner-only perms; fail closed) |
 | Learning state-home stores | `learning/**` (state home) | capture/projection/publisher per store |
 | Learning committed substrate | org-home `learning/**` | **deterministic publisher + humans only**; agents: candidates/proposals only |
-| Org/app config + authority surfaces (`TASTE.md`, `AUTHORITY.md`, `roles.yaml`, `pipelines.yaml`, `prompts/**`, `.operon/*`) | org home, `.operon/` | **Authority:** human ratification only. **Authorized write paths, per artifact:** `org init`/`org upgrade` emit generated org-home artifacts from packaged templates (never replacing existing ratified surfaces); `bootstrap` emits app-owned `.operon/` artifacts plus the marked root `AGENTS.md`/`CLAUDE.md` pointer. Registry writes: registry row above. Verification evidence: lifecycle-record row above. Agents: proposal-only, on every surface |
-| Active org pointer | `~/.operon/config` | `org init`/`org use` |
-| Reset archives | `~/.operon/archives/` | app reset execution |
+| Org/app config + authority surfaces (`TASTE.md`, `AUTHORITY.md`, `roles.yaml`, `pipelines.yaml`, `prompts/**`, `.cormidia/*`) | org home, `.cormidia/` | **Authority:** human ratification only. **Authorized write paths, per artifact:** `org init`/`org upgrade` emit generated org-home artifacts from packaged templates (never replacing existing ratified surfaces); `bootstrap` emits app-owned `.cormidia/` artifacts plus the marked root `AGENTS.md`/`CLAUDE.md` pointer. Registry writes: registry row above. Verification evidence: lifecycle-record row above. Agents: proposal-only, on every surface |
+| Active org pointer | `~/.cormidia/config` | `org init`/`org use` |
+| Reset archives | `~/.cormidia/archives/` | app reset execution |
 
 ### 2.3 Deliberately multi-source facts (authority order, not a single field) `[walk]`
 
@@ -234,7 +234,7 @@ per candidate and add no permission to the wrapped turn.
 | ID | Kind | Statement | Status |
 |---|---|---|---|
 | F-PT-001 | product truth | Redaction scope: rambling's "everything redacts" vs docs' verbatim L3 (`brief.md`, `prompt.md`, `output.md`, `session.log`); shared secret-pattern list governs scanning/scrubbing/bounded previews/exports/capture-time redaction | Resolved-by-docs; recorded |
-| F-PT-002 | product truth | Actual active-org registry + scheduler state unknown from corpus; packaged `apps.yaml` is a template | **Resolved 2026-07-31** (ratification): active org selector `~/.operon/config` → org_home=/Users/bikram/Build/sonnet1-org, state_home=~/.operon/Buildstacks; one registered app sonnet8-buildstack-dev (live); scheduler NOT installed — all turns human-invoked; two residual partial state homes (~/.operon/operon, ~/.operon/questionnaire) are not active orgs. Facts in ratification-package.md §9 |
+| F-PT-002 | product truth | Actual active-org registry + scheduler state unknown from corpus; packaged `apps.yaml` is a template | **Resolved 2026-07-31** (ratification): active org selector `~/.cormidia/config` → org_home=/Users/bikram/Build/sonnet1-org, state_home=~/.cormidia/Buildstacks; one registered app sonnet8-buildstack-dev (live); scheduler NOT installed — all turns human-invoked; two residual partial state homes (~/.cormidia/cormidia, ~/.cormidia/questionnaire) are not active orgs. Facts in ratification-package.md §9 |
 | F-PT-003 | product truth | No ratified crash transaction joining budget-overlay write and `budget-exceeded` approval-item creation; expected outcome (app cannot claim spend; human converges to exactly one item, not zero, not five) is owner expectation, not documented contract | **Resolved-ratified 2026-07-31**: pause holds; exactly one budget-exceeded item eventually — contract truth; cases unparked (HB-P1) |
 | F-PT-004 | product truth | Boundary between restart-clean disposable scratch and protected uncommitted builder work in managed worktrees is unratified; owner's proposed judgment: preserve-and-inspect ambiguous bytes `[simulated]` | **Resolved-ratified 2026-07-31**: preserve-and-inspect, never reset — contract truth; cases unparked (HB-P2) |
 

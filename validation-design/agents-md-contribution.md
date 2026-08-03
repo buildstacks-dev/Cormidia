@@ -1,6 +1,6 @@
 # Proposed AGENTS.md section — validation harness routing
 
-Status: RATIFIED 2026-07-31 (ratification-package.md §9) for the Operon repo's
+Status: RATIFIED 2026-07-31 (ratification-package.md §9) for the Cormidia repo's
 human-ratified `AGENTS.md` (and mirrored in `CLAUDE.md`) — the section below is
 being landed. AGENTS.md is a ratified surface; this section carries the owner's
 ratification. Present verbatim below the marker.
@@ -35,7 +35,7 @@ golden sets are never weakened to make a change pass.
 
 **Feature changes** start from the affected journey's acceptance criteria
 (`contracts/journey-acceptance.md`) and the affected boundary's contract
-(`contracts/B-*.md`, `contracts/OP-*.md`, canonical `OPERON-C-*` IDs). Derive the
+(`contracts/B-*.md`, `contracts/OP-*.md`, canonical `CORMIDIA-C-*` IDs). Derive the
 change's cases with the derivation grammar rows (journey / state machine / invariant /
 boundary / contract / interface / LLM site / ops), land each at the cheapest layer
 that can falsify it, and update `case-catalog.md` traceability in the same change.

@@ -11,7 +11,7 @@
 // Port notes (predecessor `orchestrator/gates.py`, run_gate_tests /
 // run_gate_lint / run_gate_e2e_tests):
 // - Commands are shell strings (the app's `test_command` / `lint_command` /
-//   `e2e_test_command` from `.operon/config.yaml` — the loader lives with
+//   `e2e_test_command` from `.cormidia/config.yaml` — the loader lives with
 //   the app registry, not here; callers pass a plain `GateCommands`). They
 //   run with cwd = the worktree, stdout+stderr captured together, exit 0 =
 //   pass.
@@ -88,11 +88,11 @@ export interface SecretMatch {
   pattern: string;
 }
 
-/** The app's gate commands — the camelCase mirror of `.operon/config.yaml`'s
+/** The app's gate commands — the camelCase mirror of `.cormidia/config.yaml`'s
  *  `test_command` / `lint_command` / `e2e_test_command` (predecessor schema,
  *  loop.md §5 table). */
 export interface GateCommands {
-  /** App-owned dependency-install/setup step (`.operon/config.yaml`'s
+  /** App-owned dependency-install/setup step (`.cormidia/config.yaml`'s
    *  `setup_command`), run in the worktree once before the scheduled gates.
    *  A fresh clone/worktree has no `node_modules`, so a lint or test command
    *  that shells out to an installed tool (e.g. `eslint .`) would otherwise
@@ -736,7 +736,7 @@ function errorMessage(error: unknown): string {
 interface ProcessGateSpec {
   gate: GateId;
   command: string | undefined;
-  /** The `.operon/config.yaml` key — named in messages so the fix is obvious. */
+  /** The `.cormidia/config.yaml` key — named in messages so the fix is obvious. */
   configKey: string;
   unconfigured: "fail" | "skip";
   defaultTimeoutMs: number;
@@ -761,8 +761,8 @@ async function runProcessGate(
       status: "fail",
       detail:
         `no ${spec.configKey} configured — the scheduled ${spec.gate} gate cannot run ` +
-        `(set ${spec.configKey} in .operon/config.yaml or remove "${spec.gate}" ` +
-        `from the tier's gate set in .operon/policy.yaml)`,
+        `(set ${spec.configKey} in .cormidia/config.yaml or remove "${spec.gate}" ` +
+        `from the tier's gate set in .cormidia/policy.yaml)`,
       durationMs: 0,
     };
   }

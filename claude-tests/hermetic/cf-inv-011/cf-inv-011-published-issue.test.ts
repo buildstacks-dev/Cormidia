@@ -1,7 +1,7 @@
 // CF-INV-011 — published issue bodies carry no secret: L2 composition on the
 // gh double (HB-016, FLOOR — non-discretionary).
 //
-// OPERON-INV-011 adversarial seed (a) (validation-design/invariants.md):
+// CORMIDIA-INV-011 adversarial seed (a) (validation-design/invariants.md):
 // "secret in ticket body → published issue". The invariant's ratified
 // statement names published tickets as a lower-sensitivity surface that
 // secret-bearing content must never cross into, with a guardrail at each

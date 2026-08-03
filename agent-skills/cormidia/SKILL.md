@@ -1,14 +1,14 @@
 ---
-name: operon
-description: Operate the Operon org runtime through its installed CLI. Use when Codex needs to create, select, or upgrade an Operon org; onboard, reset, verify, or promote an app; inspect roles/apps/pipelines; run dry-run planning or loop diagnostics; start live Operon work; review approvals; or diagnose Operon configuration and runtime state.
+name: cormidia
+description: Operate the Cormidia org runtime through its installed CLI. Use when Codex needs to create, select, or upgrade a Cormidia org; onboard, reset, verify, or promote an app; inspect roles/apps/pipelines; run dry-run planning or loop diagnostics; start live Cormidia work; review approvals; or diagnose Cormidia configuration and runtime state.
 ---
 
-# Operon
+# Cormidia
 
-Use the installed `operon` command as the source of truth. Do not inspect the
-Operon implementation repository merely to discover commands.
+Use the installed `cormidia` command as the source of truth. Do not inspect the
+Cormidia implementation repository merely to discover commands.
 
-Operon's `AUTHORITY.md` defines the human's versioned delegation grant;
+Cormidia's `AUTHORITY.md` defines the human's versioned delegation grant;
 `TASTE.md` and `taste/<role>.md` define how the organization and its roles
 behave. App policy and the current task may narrow authority, never broaden
 it, and no charter bypasses critical-operation approvals. This skill is the
@@ -20,20 +20,20 @@ restate those records.
 Run:
 
 ```bash
-command -v operon
-operon capabilities --json
-operon context --json
+command -v cormidia
+cormidia capabilities --json
+cormidia context --json
 ```
 
-If `operon` is missing, report that the local package link is not installed.
+If `cormidia` is missing, report that the local package link is not installed.
 For a source checkout, `pnpm link:local` creates a source-backed command whose
 next invocation sees source edits without an update, rebuild, or relink.
 If no active org exists, create one only when the user asked to initialize an
 organization:
 
 ```bash
-operon org init <local-org-path> --name <org-name> --authority delegated-operator
-operon doctor
+cormidia org init <local-org-path> --name <org-name> --authority delegated-operator
+cormidia doctor
 ```
 
 Keep these locations distinct:
@@ -41,33 +41,33 @@ Keep these locations distinct:
 - Org home: committed roles, apps, pipelines, prompts, authority, taste, and curated memory.
 - State home: local clones, worktrees, locks, approvals, telemetry, and run logs.
 - App repo: the independent product checkout being operated on.
-- Package root: the installed Operon implementation; never use it as org home.
+- Package root: the installed Cormidia implementation; never use it as org home.
 
 ## Onboard an existing app
 
 Pass a local checkout path, never a GitHub URL:
 
 ```bash
-operon bootstrap <local-repo-path> --scan-only
-operon bootstrap <local-repo-path> --answers <answers.json>
-operon apps
-operon doctor
+cormidia bootstrap <local-repo-path> --scan-only
+cormidia bootstrap <local-repo-path> --answers <answers.json>
+cormidia apps
+cormidia doctor
 ```
 
 The bare command opens the questionnaire only in an interactive terminal.
 Coding-agent and other non-interactive runs require `--answers`; if the user
 has not supplied those product choices, ask rather than infer them. Review the
-generated `.operon/` files before committing them.
+generated `.cormidia/` files before committing them.
 The answers may select `authority.mode` as `inherit`, `conservative`, or
 `custom` (with restrictions). Bootstrap preserves existing root `AGENTS.md`
 and `CLAUDE.md` content while composing one marked pointer to
-`.operon/AUTHORITY.md` for top-level sessions.
+`.cormidia/AUTHORITY.md` for top-level sessions.
 
 For reset recovery, reuse the normalized non-secret record rather than
 reconstructing answers:
 
 ```bash
-operon bootstrap <local-repo-path> --answers-from <reset-archive-or-app> --json
+cormidia bootstrap <local-repo-path> --answers-from <reset-archive-or-app> --json
 ```
 
 This creates the onboarding commit only in the managed clone and preserves the
@@ -79,22 +79,22 @@ branch before verification.
 Preview first:
 
 ```bash
-operon new-app <name> --target-dir <local-path> --repo <owner/repo> --goal <goal> --dry-run
+cormidia new-app <name> --target-dir <local-path> --repo <owner/repo> --goal <goal> --dry-run
 ```
 
 Remove `--dry-run` only after the target, repository slug, and goal are correct.
-Follow the generated `.operon/bootstrap/next-commands.md` for GitHub creation
+Follow the generated `.cormidia/bootstrap/next-commands.md` for GitHub creation
 and the first ticket.
 
 `new-app` cannot write the app's lifecycle record — at scaffold time there is
 no commit or remote yet. Once you have pushed the scaffold, run
-`operon app verify <name>`: it synthesizes the lifecycle record from the pushed
-remote, and `operon app promote <name> --to live --execute` then transitions the
+`cormidia app verify <name>`: it synthesizes the lifecycle record from the pushed
+remote, and `cormidia app promote <name> --to live --execute` then transitions the
 app to `status: live` (required for SRE/Support/Marketing dispatch). If
-`operon app verify` reports a `blocked` `lifecycle-record` check, its
+`cormidia app verify` reports a `blocked` `lifecycle-record` check, its
 remediation names the missing step (usually: push the scaffold to the remote
 default branch). An app onboarded before record synthesis existed recovers the
-same way — just re-run `operon app verify <name>`; do not hand-edit
+same way — just re-run `cormidia app verify <name>`; do not hand-edit
 `apps.yaml`.
 
 ## Reset one app for another test iteration
@@ -103,34 +103,34 @@ Use the plan first; it reads the app's managed state and GitHub work surface
 but changes nothing:
 
 ```bash
-operon app reset <app-name>
+cormidia app reset <app-name>
 ```
 
 It reports its archive destination and any active runs, journals, locks, or
 pending approvals that make reset unsafe. Execution closes only planned
-Operon-managed GitHub work, removes the app from `apps.yaml`, and clears its
+Cormidia-managed GitHub work, removes the app from `apps.yaml`, and clears its
 managed state after first writing an archive outside the state home:
 
 ```bash
-operon app reset <app-name> --execute --confirm <app-name> [--force]
+cormidia app reset <app-name> --execute --confirm <app-name> [--force]
 ```
 
 Never run `--execute` unless the human explicitly asked to reset that named
 app and has reviewed the plan. It does **not** delete the GitHub repository,
 its default branch, closed-history records, or a human checkout. Re-onboard
-with `operon bootstrap <local-repo> --answers <answers.json>` after a reset.
+with `cormidia bootstrap <local-repo> --answers <answers.json>` after a reset.
 `--force` is limited to stale running envelopes (no heartbeat for ten minutes)
 and never overrides a fresh run, journal, lock, or pending approval.
 
 ## Retire a whole org
 
-`operon org list` enumerates every org discoverable from `~/.operon`, with its
+`cormidia org list` enumerates every org discoverable from `~/.cormidia`, with its
 state home, org home, footprint, app count, and last activity. An org whose org
-home is not recorded shows as an orphan; `operon doctor` reports the same.
+home is not recorded shows as an orphan; `cormidia doctor` reports the same.
 
 ```bash
-operon org list --json
-operon org archive <org-name>
+cormidia org list --json
+cormidia org archive <org-name>
 ```
 
 The plan reports the state home it would remove, the archive destination, and
@@ -138,7 +138,7 @@ anything that makes retirement unsafe (a held role lock, an undecided approval,
 an interrupted lifecycle transaction). Execution requires the exact token:
 
 ```bash
-operon org archive <org-name> --execute --confirm <org-name>
+cormidia org archive <org-name> --execute --confirm <org-name>
 ```
 
 It writes one verified archive outside the state home, re-reads every archived
@@ -155,8 +155,8 @@ recorded in the invoking org's invocation ledger, named by
 that ledger is being deleted, so the terminal row goes to
 `<archive-root>/retirement-ledger` instead — the row is still written, and it
 is written outside the tree that was removed. After `--execute` returns the
-state home does not exist and nothing re-creates it: check with `operon org
-list` and `operon doctor`, both of which will now report no active org.
+state home does not exist and nothing re-creates it: check with `cormidia org
+list` and `cormidia doctor`, both of which will now report no active org.
 
 Retiring the same org twice from the same paths is normal after a recovery, and
 is safe: the second archive lands in a numbered sibling directory and the first
@@ -168,7 +168,7 @@ one's bytes are never touched.
 diff to the human:
 
 ```bash
-operon roles set <role> --effort xhigh --turn-budget 15 --json
+cormidia roles set <role> --effort xhigh --turn-budget 15 --json
 ```
 
 The preview validates the resulting harness/model/effort tuple against what the
@@ -182,21 +182,21 @@ the human's diff is the size of the change. The plan also states whether the
 resulting model id was proven against the harness's own roster, or names why
 that harness publishes none — read that line before handing the diff over.
 
-Only pi publishes a roster Operon can read without a credential, so only a pi
+Only pi publishes a roster Cormidia can read without a credential, so only a pi
 model id is refused here when the harness will not serve it. Setting a model or
 runtime on `claude` or `codex` prints an UNVERIFIED warning on stdout and
 stderr and records the same fact in the journal, because nothing short of a
 live turn can check the id. Treat that warning as a real one: hand the human
-the diff, and run `operon doctor` before the role's next turn spends on it.
+the diff, and run `cormidia doctor` before the role's next turn spends on it.
 
 ## Upgrade, verify, and promote without providers
 
 Preview every lifecycle mutation first:
 
 ```bash
-operon org upgrade --authority delegated-operator --json
-operon app verify <app-name> --json
-operon app promote <app-name> --to live --json
+cormidia org upgrade --authority delegated-operator --json
+cormidia app verify <app-name> --json
+cormidia app promote <app-name> --to live --json
 ```
 
 Upgrade execution requires the reviewed authority choice and `--execute`.
@@ -211,14 +211,14 @@ locks are crash-resumable; rerun the same command after an interruption.
 Prefer token-free inspection before a live turn:
 
 ```bash
-operon plan <app> --dry-run
-operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready --dry-run
-operon loop --app <app> --once --dry-run
-operon dispatch --dry-run
-operon run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run
-operon scheduler install --json
-operon scheduler status --json
-operon scheduler uninstall --json
+cormidia plan <app> --dry-run
+cormidia plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready --dry-run
+cormidia loop --app <app> --once --dry-run
+cormidia dispatch --dry-run
+cormidia run-role <role> --app <app> --turn <invocation-id> --template <bounded-scope.md> --dry-run
+cormidia scheduler install --json
+cormidia scheduler status --json
+cormidia scheduler uninstall --json
 ```
 
 Scheduler install/uninstall are preview-only without `--execute`; preview and
@@ -226,8 +226,8 @@ status are token-free. Execute only when the user explicitly authorizes the
 exact org-scoped identity printed by preview:
 
 ```bash
-operon scheduler install --execute --confirm <scheduler-id-or-exact-org-name>
-operon scheduler uninstall --execute --confirm <scheduler-id-or-exact-org-name>
+cormidia scheduler install --execute --confirm <scheduler-id-or-exact-org-name>
+cormidia scheduler uninstall --execute --confirm <scheduler-id-or-exact-org-name>
 ```
 
 Never infer scheduler health from a definition file. `scheduler status` joins
@@ -236,10 +236,10 @@ duplicates/orphans, and provider-settlement agreement. `doctor --config-only`
 cannot claim execution health. A real launchd/systemd mutation always needs
 separate explicit authorization.
 
-Bare `operon plan <app>` fails closed because the retired native interactive
+Bare `cormidia plan <app>` fails closed because the retired native interactive
 child could not preserve durable plan and execution evidence. Live planning
-must use `operon plan <app> --auto --goal <text>` or an explicit
-`operon plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready`;
+must use `cormidia plan <app> --auto --goal <text>` or an explicit
+`cormidia plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready`;
 the manual `--dry-run` form is only a token-free context/worktree preview.
 Use repeatable `--source <file-or-dir>` for required design/product-truth
 inputs and `--optional-source <file-or-dir>` only when deterministic
@@ -254,9 +254,9 @@ is preserved verbatim, and the remedy is the human-gated verb — never
 `--stage`, which asserts repository maturity and must stay honest:
 
 ```bash
-operon plan ratify-ticket-budget --app <app> --decomposition <id> \
+cormidia plan ratify-ticket-budget --app <app> --decomposition <id> \
   --actor <identity> --reason "<why>" --from-budget <stage-budget> --to-budget <ticket-count>
-operon plan ratify-ticket-budget --app <app> --decomposition <id> ... --execute --confirm <app>@<id>
+cormidia plan ratify-ticket-budget --app <app> --decomposition <id> ... --execute --confirm <app>@<id>
 ```
 
 It previews by default, `--to-budget` must equal that decomposition's own
@@ -270,7 +270,7 @@ including `planningDisposition: execution_ready`, creator provenance,
 objective and exclusions, acceptance criteria, expected artifacts, declared
 constraints, safety facts, and exactly one explicit step DAG or governed
 workflow template. The file flag and `--execution-ready` are required together;
-Operon never infers readiness. Fixed mode resolves configured assignments;
+Cormidia never infers readiness. Fixed mode resolves configured assignments;
 adaptive steps must carry exact approved assignments. An invalid or incomplete
 scope fails before provider construction rather than falling back to
 EpisodePlanner. A valid scope skips only the dedicated design turn, then
@@ -280,7 +280,7 @@ validation, accounting, TicketPlan projection, and publication boundaries.
 Live `plan --auto`, `loop`, `dispatch`, `run-role`, and `learn experiment run`
 operations can spend tokens and modify GitHub or worktrees; `learn canary
 start` begins a live trial that shapes subsequent turns. Critical operations
-stop in the durable approval queue; inspect it with `operon approvals` and
+stop in the durable approval queue; inspect it with `cormidia approvals` and
 never bypass that boundary.
 
 For a fresh standalone `run-role`, preview and live modes both require
@@ -299,17 +299,17 @@ standalone turn then executes in a durable per-turn worktree cut from that exact
 resolved base. Reusing the same invocation identity rediscovers that worktree
 without resetting or deleting preserved WIP.
 
-In fixed assignment mode both forms must omit `--assignment`; Operon resolves
+In fixed assignment mode both forms must omit `--assignment`; Cormidia resolves
 the role's configured atomic tuple. In adaptive mode both forms require exactly
 `--assignment <approved-candidate-id>@<effort>` and reject omission, unknown
-candidates, unsupported efforts, or a selector in fixed mode. Use `operon
-roles` and `operon apps` to inspect the effective catalog and app narrowing
+candidates, unsupported efforts, or a selector in fixed mode. Use `cormidia
+roles` and `cormidia apps` to inspect the effective catalog and app narrowing
 before selecting it. A durable resume may reuse its persisted creator scope
 without a mutable template. Governed scheduled, event, and ticket routes keep
 their governed scope and existing checkout ownership, and reject standalone
 overrides.
 
-`operon learn` read subcommands (`report`, `inspect`, `show`) are fine for
+`cormidia learn` read subcommands (`report`, `inspect`, `show`) are fine for
 diagnosis. `report` is read-only by default; use `report --refresh` only when
 the user asks to update derived capture/episode projections. The write
 subcommands — `emit`, `review`, `publish`, `resolve`,
@@ -318,7 +318,7 @@ operator's governed-activation window: never invoke them as an agent (`emit`
 records a human-attributed observation; `review`/`publish` activate learned
 behavior).
 
-`operon learn distill --dry-run [--app <name>]` runs only the deterministic
+`cormidia learn distill --dry-run [--app <name>]` runs only the deterministic
 precheck and is safe for diagnosis. The live form writes governed candidate
 artifacts and spends tokens only when an actionable, unsuppressed evidence
 cluster survives policy caps; do not invoke the live form unless the human
@@ -327,13 +327,13 @@ the same ordinary ledger and learning-budget overlay as every provider turn.
 
 ## Platform-development boundary
 
-This packaged skill operates an org; it must not build or maintain Operon
-itself. Do not turn the Operon repository into an app managed by an Operon org,
+This packaged skill operates an org; it must not build or maintain Cormidia
+itself. Do not turn the Cormidia repository into an app managed by a Cormidia org,
 and do not use org authority, approvals, state, memory, learning, scheduler, or
 budgets as platform-development authority. Conversely, developer campaigns and
 CI evidence never authorize an org operation.
 
-If the user asks to change the Operon platform from its source repository,
+If the user asks to change the Cormidia platform from its source repository,
 leave this operating workflow and follow that repository's root developer
 instructions and human-ratified development policy. Those developer-only
 instructions, eval tools, grants, raw evidence, and release workflow are
@@ -342,9 +342,9 @@ or target app.
 
 ## Diagnose
 
-Run `operon doctor --json`, `operon org show --json`, and `operon context
+Run `cormidia doctor --json`, `cormidia org show --json`, and `cormidia context
 --json`. Report the resolved org home and state home with failures. Use
-`operon <command> --help` for current argument semantics instead of relying on
+`cormidia <command> --help` for current argument semantics instead of relying on
 memorized flags.
 
 `doctor` performs bounded, non-billable initialize/account/auth probes for

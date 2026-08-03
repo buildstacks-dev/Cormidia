@@ -103,7 +103,7 @@ export async function runEnvPreflight(
     problems.push(
       `setup ("${commands.setupCommand}") must install dependencies into a worktree with no ` +
         `node_modules, but the runtime sandbox is offline — grant network for this ticket ` +
-        `(operon loop --allow-network) or pre-populate the store`,
+        `(cormidia loop --allow-network) or pre-populate the store`,
     );
   }
 

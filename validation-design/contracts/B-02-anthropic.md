@@ -1,5 +1,5 @@
 # Contract — B-02 Anthropic adapter (Claude Agent SDK)
-Canonical ID: **OPERON-C-B02-001 (alias: B-02)**
+Canonical ID: **CORMIDIA-C-B02-001 (alias: B-02)**
 
 Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
 

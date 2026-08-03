@@ -217,8 +217,8 @@ import {
 } from ${JSON.stringify(productModuleUrl("src/loop/efficiency.ts"))};
 import { recordTurnOnce, toRecord } from ${JSON.stringify(productModuleUrl("src/runtime/telemetry.ts"))};
 
-const root = process.env.OPERON_KP_STATE_HOME;
-if (root === undefined || root.length === 0) throw new Error("OPERON_KP_STATE_HOME not set");
+const root = process.env.CORMIDIA_KP_STATE_HOME;
+if (root === undefined || root.length === 0) throw new Error("CORMIDIA_KP_STATE_HOME not set");
 const app = ${JSON.stringify(APP)};
 const runId = "kill-run-1";
 const operation = "sre-health/analyze";
@@ -415,7 +415,7 @@ describe("CF-J04-RC/CF-INV-006 skeleton — dispatch tick → claim → scripted
     const res: KillPointResult = await runKillPointScenario({
       source: killPointScenarioSource(),
       killAt: "provider_returned",
-      env: { OPERON_KP_STATE_HOME: state.stateHome },
+      env: { CORMIDIA_KP_STATE_HOME: state.stateHome },
       timeoutMs: 25_000,
     });
     cleanups.push(() => res.cleanup());
@@ -459,7 +459,7 @@ describe("CF-J04-RC/CF-INV-006 skeleton — dispatch tick → claim → scripted
 
     const res = await runKillPointScenario({
       source: killPointScenarioSource(),
-      env: { OPERON_KP_STATE_HOME: state.stateHome },
+      env: { CORMIDIA_KP_STATE_HOME: state.stateHome },
       timeoutMs: 25_000,
     });
     cleanups.push(() => res.cleanup());

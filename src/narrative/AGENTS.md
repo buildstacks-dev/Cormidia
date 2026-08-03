@@ -2,7 +2,7 @@
 
 ## Scope
 `src/narrative/**` and `src/cli/narrative.ts` — the human-level causal
-timeline (`operon narrative`). Root AGENTS.md rules still apply; this file
+timeline (`cormidia narrative`). Root AGENTS.md rules still apply; this file
 adds the local ones.
 
 ## Purpose

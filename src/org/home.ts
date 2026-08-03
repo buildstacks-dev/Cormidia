@@ -1,7 +1,8 @@
-// Operon's four-path boundary: installed package, committed org config,
+// Cormidia's four-path boundary: installed package, committed org config,
 // high-churn runtime state, and app repos. CLI commands resolve these paths
 // once instead of treating process.cwd() as an implicit org home.
 
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants, existsSync } from "node:fs";
 import {
@@ -21,6 +22,7 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { parse, stringify } from "yaml";
 import { loadPipelines } from "../loop/pipelines.js";
 import { findExistingOrg, loadApps, OrgIdentityError, type AppsFile } from "./apps.js";
@@ -28,6 +30,20 @@ import { writeFileAtomic } from "./atomic.js";
 import { stableJson } from "./lifecycle.js";
 import { resolveAppAssignments } from "./execution-assignments.js";
 import { loadRoles } from "./roles.js";
+import { buildSchedulerExpectation } from "./scheduler/definition.js";
+import {
+  schedulerInstallationPath,
+  schedulerTransactionPath,
+  type SchedulerInstallationRecord,
+} from "./scheduler/lifecycle.js";
+import { PlatformSchedulerManager, type SchedulerManager } from "./scheduler/manager.js";
+import {
+  canonicalJson,
+  schedulerIdentity,
+  schedulerOrgId,
+  sha256 as schedulerSha256,
+  type SchedulerBackend,
+} from "./scheduler/model.js";
 import {
   authorityPreview,
   composeProjectInstructions,
@@ -47,21 +63,538 @@ export const STATE_HOME_DEFINITION =
 
 export const ORG_REQUIRED_FILES = ["TASTE.md", "roles.yaml", "apps.yaml", "pipelines.yaml"] as const;
 export const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+export const CORMIDIA_HOME_DIRNAME = ".cormidia";
 
-export interface OperonHomeOptions {
-  orgHome?: string;
-  stateHome?: string;
-  env?: Partial<Pick<NodeJS.ProcessEnv, "OPERON_ORG_HOME" | "OPERON_STATE_HOME" | "OPERON_HOME">>;
-  homeDir?: string;
-  pointerPath?: string;
+// This is the sole retained legacy product path outside frozen history and
+// the explicitly preserved external repository slugs. It exists only so the
+// first Cormidia invocation can move an installation forward atomically.
+const LEGACY_STATE_ROOT_DIRNAME = ".operon";
+const execFileAsync = promisify(execFile);
+
+export type StateRootMigrationStatus = "not_needed" | "migrated" | "repaired";
+
+export interface StateRootMigrationResult {
+  status: StateRootMigrationStatus;
+  legacyRoot: string;
+  currentRoot: string;
+  pointerRewritten: boolean;
+  lifecycleRecordsRewritten: number;
+  turnJournalsRewritten: number;
+  repositoriesRepaired: number;
+  schedulersRepaired: number;
 }
 
-export interface OperonHomes {
+export interface StateRootMigrationOptions {
+  schedulerManager?: (backend: SchedulerBackend) => SchedulerManager;
+}
+
+export class StateRootMigrationError extends Error {
+  constructor(
+    readonly code:
+      | "state_root_migration_collision"
+      | "legacy_state_root_invalid"
+      | "current_state_root_invalid"
+      | "state_root_migration_record_invalid"
+      | "state_root_migration_git_repair_failed"
+      | "state_root_migration_scheduler_invalid"
+      | "state_root_migration_scheduler_repair_failed",
+    message: string,
+  ) {
+    super(message);
+    this.name = "StateRootMigrationError";
+  }
+}
+
+export interface CormidiaHomeOptions {
+  orgHome?: string;
+  stateHome?: string;
+  env?: Partial<Pick<NodeJS.ProcessEnv, "CORMIDIA_ORG_HOME" | "CORMIDIA_STATE_HOME" | "CORMIDIA_HOME">>;
+  homeDir?: string;
+  pointerPath?: string;
+  /** Hermetic seam for the first-run host-scheduler repair. Production callers
+   * use the platform manager rooted at homeDir. */
+  migration?: StateRootMigrationOptions;
+}
+
+export interface CormidiaHomes {
   packageRoot: string;
   orgHome: string;
   stateHome: string;
   appsFile: AppsFile;
   pointerPath: string;
+}
+
+/**
+ * Move the retired default state root to Cormidia exactly once.
+ *
+ * The directory rename is atomic on the user's home filesystem. If both
+ * roots exist, nothing is changed: combining them would make authority and
+ * accounting ambiguous. Post-rename repairs are deliberately idempotent so a
+ * process killed after the directory move converges on its next invocation.
+ */
+export async function migrateLegacyStateRoot(
+  homeDirIn: string = homedir(),
+  options: StateRootMigrationOptions = {},
+): Promise<StateRootMigrationResult> {
+  const homeDir = resolve(homeDirIn);
+  const legacyRoot = join(homeDir, LEGACY_STATE_ROOT_DIRNAME);
+  const currentRoot = join(homeDir, CORMIDIA_HOME_DIRNAME);
+  const legacyStat = await lstatMaybe(legacyRoot);
+  let currentStat = await lstatMaybe(currentRoot);
+
+  if (legacyStat !== undefined && currentStat !== undefined) {
+    throw new StateRootMigrationError(
+      "state_root_migration_collision",
+      `cormidia: both the retired state root (${legacyRoot}) and Cormidia state root (${currentRoot}) exist; ` +
+        "refusing to merge them automatically — move one aside after identifying the authoritative org state",
+    );
+  }
+  if (legacyStat !== undefined && (legacyStat.isSymbolicLink() || !legacyStat.isDirectory())) {
+    throw new StateRootMigrationError(
+      "legacy_state_root_invalid",
+      `cormidia: retired state root is not a real directory: ${legacyRoot}; refusing first-run migration`,
+    );
+  }
+  if (currentStat !== undefined && (currentStat.isSymbolicLink() || !currentStat.isDirectory())) {
+    throw new StateRootMigrationError(
+      "current_state_root_invalid",
+      `cormidia: state root is not a real directory: ${currentRoot}`,
+    );
+  }
+
+  let moved = false;
+  if (legacyStat !== undefined) {
+    await rename(legacyRoot, currentRoot);
+    moved = true;
+    currentStat = legacyStat;
+  }
+  if (currentStat === undefined) {
+    return {
+      status: "not_needed",
+      legacyRoot,
+      currentRoot,
+      pointerRewritten: false,
+      lifecycleRecordsRewritten: 0,
+      turnJournalsRewritten: 0,
+      repositoriesRepaired: 0,
+      schedulersRepaired: 0,
+    };
+  }
+
+  const pointerRewritten = await repairMigratedActivePointer(currentRoot, legacyRoot);
+  const repairs = await repairMigratedStateHomes(currentRoot, legacyRoot, homeDir, options);
+  return {
+    status: moved
+      ? "migrated"
+      : pointerRewritten || repairs.lifecycleRecords > 0 || repairs.turnJournals > 0 || repairs.schedulers > 0
+        ? "repaired"
+        : "not_needed",
+    legacyRoot,
+    currentRoot,
+    pointerRewritten,
+    lifecycleRecordsRewritten: repairs.lifecycleRecords,
+    turnJournalsRewritten: repairs.turnJournals,
+    repositoriesRepaired: repairs.repositories,
+    schedulersRepaired: repairs.schedulers,
+  };
+}
+
+async function repairMigratedActivePointer(
+  currentRoot: string,
+  legacyRoot: string,
+): Promise<boolean> {
+  const pointerPath = join(currentRoot, "config");
+  const pointer = await readActiveOrgPointer(pointerPath);
+  const orgHome = relocateLegacyPath(pointer.orgHome, legacyRoot, currentRoot);
+  const stateHome = relocateLegacyPath(pointer.stateHome, legacyRoot, currentRoot);
+  if (orgHome === pointer.orgHome && stateHome === pointer.stateHome) return false;
+  if (orgHome === undefined) {
+    throw new StateRootMigrationError(
+      "state_root_migration_record_invalid",
+      `cormidia: migrated active pointer ${pointerPath} names state without a valid org home; repair it manually`,
+    );
+  }
+  await writeActiveOrgPointer(pointerPath, orgHome, stateHome);
+  return true;
+}
+
+async function repairMigratedStateHomes(
+  currentRoot: string,
+  legacyRoot: string,
+  homeDir: string,
+  options: StateRootMigrationOptions,
+): Promise<{ lifecycleRecords: number; turnJournals: number; repositories: number; schedulers: number }> {
+  let lifecycleRecords = 0;
+  let turnJournals = 0;
+  let repositories = 0;
+  let schedulers = 0;
+  for (const entry of await readdir(currentRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+    const stateHome = join(currentRoot, entry.name);
+    lifecycleRecords += await repairMigratedLifecycleRecords(stateHome, legacyRoot, currentRoot);
+    turnJournals += await repairMigratedTurnJournals(stateHome, legacyRoot, currentRoot);
+    repositories += await repairMigratedGitWorktrees(stateHome);
+    schedulers += await repairMigratedScheduler(
+      stateHome,
+      legacyRoot,
+      currentRoot,
+      options.schedulerManager ?? ((backend) => new PlatformSchedulerManager({ backend, homeDir })),
+    );
+  }
+  return { lifecycleRecords, turnJournals, repositories, schedulers };
+}
+
+async function repairMigratedLifecycleRecords(
+  stateHome: string,
+  legacyRoot: string,
+  currentRoot: string,
+): Promise<number> {
+  const appsRoot = join(stateHome, "lifecycle", "apps");
+  const appsStat = await lstatMaybe(appsRoot);
+  if (appsStat === undefined) return 0;
+  if (appsStat.isSymbolicLink() || !appsStat.isDirectory()) {
+    throw new StateRootMigrationError(
+      "state_root_migration_record_invalid",
+      `cormidia: migrated lifecycle app root is not a real directory: ${appsRoot}`,
+    );
+  }
+  let rewritten = 0;
+  for (const app of await readdir(appsRoot, { withFileTypes: true })) {
+    if (!app.isDirectory() || app.isSymbolicLink()) continue;
+    const recordPath = join(appsRoot, app.name, "record.json");
+    const recordStat = await lstatMaybe(recordPath);
+    if (recordStat === undefined) continue;
+    if (recordStat.isSymbolicLink() || !recordStat.isFile()) {
+      throw new StateRootMigrationError(
+        "state_root_migration_record_invalid",
+        `cormidia: migrated lifecycle record is not a regular file: ${recordPath}`,
+      );
+    }
+    let record: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(await readFile(recordPath, "utf8")) as unknown;
+      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+      record = parsed as Record<string, unknown>;
+    } catch (error) {
+      throw new StateRootMigrationError(
+        "state_root_migration_record_invalid",
+        `cormidia: migrated lifecycle record is unreadable: ${recordPath} — ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const before = typeof record["managed_clone"] === "string" ? record["managed_clone"] : undefined;
+    const after = relocateLegacyPath(before, legacyRoot, currentRoot);
+    if (before === after) continue;
+    record["managed_clone"] = after;
+    await writeFileAtomic(recordPath, `${stableJson(record).trimEnd()}\n`);
+    rewritten += 1;
+  }
+  return rewritten;
+}
+
+async function repairMigratedTurnJournals(
+  stateHome: string,
+  legacyRoot: string,
+  currentRoot: string,
+): Promise<number> {
+  const turnsRoot = join(stateHome, "state", "turns");
+  const turnsStat = await lstatMaybe(turnsRoot);
+  if (turnsStat === undefined) return 0;
+  if (turnsStat.isSymbolicLink() || !turnsStat.isDirectory()) {
+    throw new StateRootMigrationError(
+      "state_root_migration_record_invalid",
+      `cormidia: migrated turn-journal root is not a real directory: ${turnsRoot}`,
+    );
+  }
+
+  let rewritten = 0;
+  for (const entry of await readdir(turnsRoot, { withFileTypes: true })) {
+    if (!entry.name.endsWith(".json")) continue;
+    const path = join(turnsRoot, entry.name);
+    if (!entry.isFile() || entry.isSymbolicLink()) {
+      throw new StateRootMigrationError(
+        "state_root_migration_record_invalid",
+        `cormidia: migrated turn journal is not a regular file: ${path}`,
+      );
+    }
+    const record = await readMigrationJsonRecord(path, "turn journal");
+    let changed = false;
+    if (typeof record["worktree"] === "string") {
+      const relocated = relocateLegacyPath(record["worktree"], legacyRoot, currentRoot);
+      if (relocated !== record["worktree"]) {
+        record["worktree"] = relocated;
+        changed = true;
+      }
+    }
+    const recovery = record["recovery"];
+    if (recovery !== null && typeof recovery === "object" && !Array.isArray(recovery)) {
+      const row = recovery as Record<string, unknown>;
+      if (typeof row["path"] === "string") {
+        const relocated = relocateLegacyPath(row["path"], legacyRoot, currentRoot);
+        if (relocated !== row["path"]) {
+          row["path"] = relocated;
+          row["recoveryCommand"] = `git -C ${JSON.stringify(relocated)} status --short --branch`;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) continue;
+    await writeFileAtomic(path, `${stableJson(record).trimEnd()}\n`);
+    rewritten += 1;
+  }
+  return rewritten;
+}
+
+const RETIRED_SCHEDULER_OWNER = LEGACY_STATE_ROOT_DIRNAME.slice(1);
+const RETIRED_SCHEDULER_MARKER = `${RETIRED_SCHEDULER_OWNER}-scheduler-metadata-v1:`;
+
+async function repairMigratedScheduler(
+  stateHome: string,
+  legacyRoot: string,
+  currentRoot: string,
+  managerFor: (backend: SchedulerBackend) => SchedulerManager,
+): Promise<number> {
+  const installationPath = schedulerInstallationPath(stateHome);
+  const installationStat = await lstatMaybe(installationPath);
+  if (installationStat === undefined) return 0;
+  if (installationStat.isSymbolicLink() || !installationStat.isFile()) {
+    throw new StateRootMigrationError(
+      "state_root_migration_scheduler_invalid",
+      `cormidia: migrated scheduler installation record is not a regular file: ${installationPath}`,
+    );
+  }
+  if (await lstatMaybe(schedulerTransactionPath(stateHome)) !== undefined) {
+    throw new StateRootMigrationError(
+      "state_root_migration_scheduler_invalid",
+      `cormidia: scheduler lifecycle transaction is interrupted at ${schedulerTransactionPath(stateHome)}; ` +
+        "finish or reconcile it before retrying state-root migration",
+    );
+  }
+
+  const record = await readMigrationJsonRecord(installationPath, "scheduler installation");
+  if (!validSchedulerInstallationRecord(record)) {
+    throw new StateRootMigrationError(
+      "state_root_migration_scheduler_invalid",
+      `cormidia: migrated scheduler installation record has an invalid schema: ${installationPath}`,
+    );
+  }
+  const relocatedStateHome = relocateLegacyPath(record.state_home, legacyRoot, currentRoot);
+  if (relocatedStateHome !== stateHome) {
+    throw new StateRootMigrationError(
+      "state_root_migration_scheduler_invalid",
+      `cormidia: scheduler installation ${installationPath} belongs to ${record.state_home}, not ${stateHome}`,
+    );
+  }
+  const relocatedOrgHome = relocateLegacyPath(record.org_home, legacyRoot, currentRoot) ?? record.org_home;
+  const manager = managerFor(record.backend);
+  if (manager.backend !== record.backend || !manager.supported) {
+    throw new StateRootMigrationError(
+      "state_root_migration_scheduler_invalid",
+      `cormidia: cannot repair ${record.backend} scheduler ${record.scheduler_id} on ${manager.platform}`,
+    );
+  }
+  const expected = buildSchedulerExpectation({
+    backend: record.backend,
+    orgName: record.org_name,
+    orgHome: relocatedOrgHome,
+    stateHome,
+    packageEntryPath: record.package_entry_path,
+    executablePath: record.executable_path,
+    cadenceMinutes: record.cadence_minutes,
+  });
+
+  const currentDefinition = await manager.readDefinition(expected.metadata.scheduler_id);
+  if (record.scheduler_id === expected.metadata.scheduler_id && record.state_home === stateHome) {
+    if (
+      currentDefinition !== expected.definition ||
+      record.org_id !== expected.metadata.org_id ||
+      record.org_home !== expected.metadata.org_home ||
+      resolve(record.definition_path) !== resolve(manager.definitionPath(record.scheduler_id)) ||
+      record.rendered_definition_hash !== expected.definitionHash
+    ) {
+      throw new StateRootMigrationError(
+        "state_root_migration_scheduler_invalid",
+        `cormidia: scheduler ${record.scheduler_id} is already named for Cormidia but its definition or installation record is not current`,
+      );
+    }
+    return 0;
+  }
+  const expectedRetiredId = schedulerIdentity(record.org_name, record.org_home).replace(
+    "dev.cormidia.dispatch.",
+    `dev.${RETIRED_SCHEDULER_OWNER}.dispatch.`,
+  );
+  if (
+    record.scheduler_id !== expectedRetiredId ||
+    record.org_id !== schedulerOrgId(record.org_name, record.org_home) ||
+    resolve(record.definition_path) !== resolve(manager.definitionPath(record.scheduler_id))
+  ) {
+    throw new StateRootMigrationError(
+      "state_root_migration_scheduler_invalid",
+      `cormidia: scheduler installation ${installationPath} does not match its recorded org identity`,
+    );
+  }
+  if (currentDefinition !== undefined && currentDefinition !== expected.definition) {
+    throw new StateRootMigrationError(
+      "state_root_migration_scheduler_invalid",
+      `cormidia: refusing to replace non-matching scheduler definition at ${manager.definitionPath(expected.metadata.scheduler_id)}`,
+    );
+  }
+
+  const retiredDefinition = await manager.readDefinition(record.scheduler_id);
+  if (retiredDefinition !== undefined) {
+    const metadata = parseRetiredSchedulerMetadata(retiredDefinition);
+    if (
+      metadata === undefined ||
+      !retiredSchedulerMetadataMatches(metadata, record) ||
+      schedulerSha256(retiredDefinition) !== record.rendered_definition_hash
+    ) {
+      throw new StateRootMigrationError(
+        "state_root_migration_scheduler_invalid",
+        `cormidia: scheduler definition ${manager.definitionPath(record.scheduler_id)} cannot be proven owned by the retired installation`,
+      );
+    }
+  }
+
+  try {
+    await manager.disable(record.scheduler_id);
+    if (currentDefinition === undefined) {
+      await manager.writeDefinition(expected.metadata.scheduler_id, expected.definition);
+    }
+    await manager.enable(expected.metadata.scheduler_id);
+    if (record.scheduler_id !== expected.metadata.scheduler_id) {
+      await manager.removeDefinition(record.scheduler_id);
+    }
+    const repaired: SchedulerInstallationRecord = {
+      schema_version: 1,
+      scheduler_id: expected.metadata.scheduler_id,
+      org_id: expected.metadata.org_id,
+      org_name: expected.metadata.org_name,
+      backend: expected.metadata.backend,
+      cadence_minutes: expected.metadata.cadence_minutes,
+      executable_path: expected.metadata.executable_path,
+      package_entry_path: expected.metadata.package_entry_path,
+      org_home: expected.metadata.org_home,
+      state_home: expected.metadata.state_home,
+      definition_path: manager.definitionPath(expected.metadata.scheduler_id),
+      rendered_definition_hash: expected.definitionHash,
+      installed_at: record.installed_at,
+    };
+    await writeFileAtomic(installationPath, canonicalJson(repaired));
+    return 1;
+  } catch (error) {
+    throw new StateRootMigrationError(
+      "state_root_migration_scheduler_repair_failed",
+      `cormidia: could not repair migrated scheduler ${record.scheduler_id}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function validSchedulerInstallationRecord(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & SchedulerInstallationRecord {
+  return value["schema_version"] === 1 &&
+    typeof value["scheduler_id"] === "string" &&
+    typeof value["org_id"] === "string" &&
+    typeof value["org_name"] === "string" &&
+    (value["backend"] === "launchd" || value["backend"] === "systemd") &&
+    Number.isInteger(value["cadence_minutes"]) &&
+    typeof value["executable_path"] === "string" &&
+    typeof value["package_entry_path"] === "string" &&
+    typeof value["org_home"] === "string" &&
+    typeof value["state_home"] === "string" &&
+    typeof value["definition_path"] === "string" &&
+    typeof value["rendered_definition_hash"] === "string" &&
+    typeof value["installed_at"] === "string";
+}
+
+function parseRetiredSchedulerMetadata(definition: string): Record<string, unknown> | undefined {
+  const line = definition.split("\n").find((value) => value.includes(RETIRED_SCHEDULER_MARKER));
+  if (line === undefined) return undefined;
+  const encoded = line
+    .slice(line.indexOf(RETIRED_SCHEDULER_MARKER) + RETIRED_SCHEDULER_MARKER.length)
+    .replace(/\s*(?:-->|$)/, "")
+    .trim();
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as unknown;
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function retiredSchedulerMetadataMatches(
+  metadata: Record<string, unknown>,
+  record: SchedulerInstallationRecord,
+): boolean {
+  return metadata["schema_version"] === 1 &&
+    metadata["owner"] === RETIRED_SCHEDULER_OWNER &&
+    metadata["scheduler_id"] === record.scheduler_id &&
+    metadata["org_id"] === record.org_id &&
+    metadata["org_name"] === record.org_name &&
+    metadata["backend"] === record.backend &&
+    metadata["cadence_minutes"] === record.cadence_minutes &&
+    metadata["executable_path"] === record.executable_path &&
+    metadata["package_entry_path"] === record.package_entry_path &&
+    metadata["org_home"] === record.org_home &&
+    metadata["state_home"] === record.state_home &&
+    typeof metadata["command_sha256"] === "string";
+}
+
+async function readMigrationJsonRecord(path: string, kind: string): Promise<Record<string, unknown>> {
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    throw new StateRootMigrationError(
+      "state_root_migration_record_invalid",
+      `cormidia: migrated ${kind} is unreadable: ${path} — ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function repairMigratedGitWorktrees(stateHome: string): Promise<number> {
+  const reposRoot = join(stateHome, "repos");
+  const reposStat = await lstatMaybe(reposRoot);
+  if (reposStat === undefined || reposStat.isSymbolicLink() || !reposStat.isDirectory()) return 0;
+  let repaired = 0;
+  for (const app of await readdir(reposRoot, { withFileTypes: true })) {
+    if (!app.isDirectory() || app.isSymbolicLink()) continue;
+    const repo = join(reposRoot, app.name);
+    if (!existsSync(join(repo, ".git"))) continue;
+    const worktreesRoot = join(stateHome, "worktrees", app.name);
+    const worktreesStat = await lstatMaybe(worktreesRoot);
+    const worktrees = worktreesStat !== undefined && worktreesStat.isDirectory() && !worktreesStat.isSymbolicLink()
+      ? (await readdir(worktreesRoot, { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
+        .map((entry) => join(worktreesRoot, entry.name))
+      : [];
+    try {
+      await execFileAsync("git", ["-C", repo, "worktree", "repair", ...worktrees], {
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1" },
+      });
+    } catch (error) {
+      throw new StateRootMigrationError(
+        "state_root_migration_git_repair_failed",
+        `cormidia: could not repair migrated git worktrees for ${repo}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    repaired += 1;
+  }
+  return repaired;
+}
+
+function relocateLegacyPath(
+  value: string | undefined,
+  legacyRoot: string,
+  currentRoot: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const rel = relative(legacyRoot, resolve(value));
+  if (rel === "") return currentRoot;
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return value;
+  return join(currentRoot, rel);
 }
 
 /**
@@ -73,12 +606,12 @@ export class NoActiveOrgError extends Error {
   readonly code = "no_active_org" as const;
   readonly publicMessage = "no active org home";
   readonly remediation =
-    "Run `operon org init <path> --name <name>` or set OPERON_ORG_HOME to a complete org home.";
+    "Run `cormidia org init <path> --name <name>` or set CORMIDIA_ORG_HOME to a complete org home.";
 
   constructor() {
     super(
-      "operon: no active org home — create one with `operon org init <path> --name <name>` " +
-        "or select one with OPERON_ORG_HOME",
+      "cormidia: no active org home — create one with `cormidia org init <path> --name <name>` " +
+        "or select one with CORMIDIA_ORG_HOME",
     );
     this.name = "NoActiveOrgError";
   }
@@ -89,7 +622,7 @@ export class NoActiveOrgError extends Error {
 export { OrgIdentityError, type OrgIdentityStopCode } from "./apps.js";
 
 /**
- * Identity marker `operon org init` records inside the state home so every
+ * Identity marker `cormidia org init` records inside the state home so every
  * later resolve can validate the (org home, state home, org id) pairing
  * (contracts/B-10-config-resolver.md §2). See ensureStateHomeIdentity for
  * the validation and legacy-adoption rules.
@@ -155,7 +688,7 @@ async function readStateHomeIdentity(stateHome: string): Promise<StateHomeIdenti
  * B-10 §2 (B-10a): validate that the state home belongs to the resolved org.
  *
  * Marker + adoption rules:
- * - `operon org init` records the identity marker (STATE_HOME_IDENTITY_FILE:
+ * - `cormidia org init` records the identity marker (STATE_HOME_IDENTITY_FILE:
  *   org name, org-home realpath, created_at) in the state home it creates or
  *   reuses — init is the pairing-establishment operation.
  * - When the marker exists, the pairing is validated on every resolve: a
@@ -186,7 +719,7 @@ async function ensureStateHomeIdentity(
       remediation:
         `Inspect ${markerPath}; restore it, or remove it to re-adopt the state home for the org it belongs to.`,
       message:
-        `operon: state home identity marker is unreadable: ${markerPath} — cannot prove ${stateHome} ` +
+        `cormidia: state home identity marker is unreadable: ${markerPath} — cannot prove ${stateHome} ` +
         `belongs to org "${orgName}"; inspect the file, or remove it to re-adopt this state home for the current org`,
     });
   }
@@ -200,10 +733,10 @@ async function ensureStateHomeIdentity(
       code: "state_home_org_mismatch",
       publicMessage: "state home belongs to a different org",
       remediation:
-        "Use the state home created for this org (re-run `operon org use` with the right --state-home), " +
+        "Use the state home created for this org (re-run `cormidia org use` with the right --state-home), " +
         `or remove ${markerPath} if the pairing genuinely changed.`,
       message:
-        `operon: state home ${stateHome} belongs to org "${marker.orgName}" (org home ${marker.orgHome}), ` +
+        `cormidia: state home ${stateHome} belongs to org "${marker.orgName}" (org home ${marker.orgHome}), ` +
         `not to org "${orgName}" (org home ${orgHomeReal}) — refusing to mix org state; use the state home ` +
         `created for this org, or remove ${markerPath} if the pairing genuinely changed`,
     });
@@ -220,9 +753,17 @@ async function readFileMaybe(path: string): Promise<string | undefined> {
   }
 }
 
-export async function resolveOperonHomes(options: OperonHomeOptions = {}): Promise<OperonHomes> {
+export async function resolveCormidiaHomes(options: CormidiaHomeOptions = {}): Promise<CormidiaHomes> {
   const homeDir = options.homeDir ?? homedir();
-  const pointerPath = options.pointerPath ?? join(homeDir, ".operon", "config");
+  const env = options.env ?? process.env;
+  if (
+    options.pointerPath === undefined &&
+    options.stateHome === undefined &&
+    env.CORMIDIA_STATE_HOME === undefined
+  ) {
+    await migrateLegacyStateRoot(homeDir, options.migration);
+  }
+  const pointerPath = options.pointerPath ?? join(homeDir, CORMIDIA_HOME_DIRNAME, "config");
   const orgHome = await findExistingOrg({
     ...(options.orgHome !== undefined ? { orgHome: options.orgHome } : {}),
     ...(options.env !== undefined ? { env: options.env } : {}),
@@ -234,14 +775,13 @@ export async function resolveOperonHomes(options: OperonHomeOptions = {}): Promi
   }
   await validateOrgHome(orgHome);
   const appsFile = await loadApps(join(orgHome, "apps.yaml"));
-  const env = options.env ?? process.env;
   const pointer = await readActiveOrgPointer(pointerPath);
   const pointerStateHome = pointer.orgHome === resolve(orgHome) ? pointer.stateHome : undefined;
   const stateHome = resolve(
     options.stateHome ??
-      env.OPERON_STATE_HOME ??
+      env.CORMIDIA_STATE_HOME ??
       pointerStateHome ??
-      join(homeDir, ".operon", appsFile.org.name),
+      join(homeDir, CORMIDIA_HOME_DIRNAME, appsFile.org.name),
   );
   // B-10 §2: the (org home, state home, org id) triple must be coherent
   // before anything uses it — see ensureStateHomeIdentity for the rules.
@@ -254,13 +794,13 @@ export async function validateOrgHome(orgHomeIn: string): Promise<void> {
   for (const rel of ORG_REQUIRED_FILES) {
     if (!existsSync(join(orgHome, rel))) {
       throw new Error(
-        `operon: ${orgHome} is not a complete org home — missing ${rel}; ` +
-          "create a new one with `operon org init <path> --name <name>`",
+        `cormidia: ${orgHome} is not a complete org home — missing ${rel}; ` +
+          "create a new one with `cormidia org init <path> --name <name>`",
       );
     }
   }
   if (!existsSync(join(orgHome, "prompts"))) {
-    throw new Error(`operon: ${orgHome} is not a complete org home — missing prompts/`);
+    throw new Error(`cormidia: ${orgHome} is not a complete org home — missing prompts/`);
   }
   const roles = await loadRoles(join(orgHome, "roles.yaml"));
   const apps = await loadApps(join(orgHome, "apps.yaml"));
@@ -288,7 +828,7 @@ export interface InitOrgHomeOptions {
   authorityGrantedBy?: string;
 }
 
-export interface InitOrgHomeResult extends OperonHomes {
+export interface InitOrgHomeResult extends CormidiaHomes {
   created: string[];
   authority: AuthorityContext;
   authorityPreview: ReturnType<typeof authorityPreview>;
@@ -379,8 +919,8 @@ export async function planOrgInit(options: InitOrgHomeOptions): Promise<InitOrgH
   const name = sanitizeOrgName(options.name);
   const templateRoot = resolve(options.templateRoot ?? PACKAGE_ROOT);
   const homeDir = options.homeDir ?? homedir();
-  const pointerPath = options.pointerPath ?? join(homeDir, ".operon", "config");
-  const stateHome = resolve(options.stateHome ?? join(homeDir, ".operon", name));
+  const pointerPath = options.pointerPath ?? join(homeDir, CORMIDIA_HOME_DIRNAME, "config");
+  const stateHome = resolve(options.stateHome ?? join(homeDir, CORMIDIA_HOME_DIRNAME, name));
   const authorityProfile = options.authorityProfile ?? "delegated-operator";
   const authorityText = createOrgAuthorityDocument(
     authorityProfile,
@@ -474,7 +1014,7 @@ export async function executeOrgInit(plan: InitOrgHomePlan): Promise<InitOrgHome
   const target = preview.org_home;
   const parent = dirname(target);
   await mkdir(parent, { recursive: true });
-  const staged = await mkdtemp(join(parent, `.${basename(target)}.operon-init-`));
+  const staged = await mkdtemp(join(parent, `.${basename(target)}.cormidia-init-`));
   let stageExists = true;
   let installed = false;
   let populatedEntries: InitOrgDestination[] = [];
@@ -496,7 +1036,7 @@ export async function executeOrgInit(plan: InitOrgHomePlan): Promise<InitOrgHome
     if (rechecked.blockers.length > 0) throw new Error(rechecked.blockers[0]!.detail);
     if (rechecked.targetAction !== preview.effects.org_home.action) {
       throw new Error(
-        `operon org init: target changed during initialization: ${target}; no org files were installed`,
+        `cormidia org init: target changed during initialization: ${target}; no org files were installed`,
       );
     }
 
@@ -627,7 +1167,7 @@ function canonicalInitPlanRelative(value: string): string {
 }
 
 function initPlanIntegrityError(detail: string): Error {
-  return new Error(`operon org init: plan integrity check failed: ${detail}; no changes were made`);
+  return new Error(`cormidia org init: plan integrity check failed: ${detail}; no changes were made`);
 }
 
 export async function initOrgHome(options: InitOrgHomeOptions): Promise<InitOrgHomeResult> {
@@ -659,7 +1199,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
       blockers.push({
         code: "target_not_directory",
         path: input.target,
-        detail: `operon org init: target is not a directory: ${input.target}`,
+        detail: `cormidia org init: target is not a directory: ${input.target}`,
         remediation: "Choose an absent path or an existing real directory.",
       });
     } else {
@@ -669,9 +1209,9 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
           code: "existing_org",
           path: input.target,
           detail:
-            `operon org init: an Operon org already exists at ${input.target}; ` +
-            `use \`operon org use ${input.target}\` to select it`,
-          remediation: `Run operon org use ${input.target}.`,
+            `cormidia org init: a Cormidia org already exists at ${input.target}; ` +
+            `use \`cormidia org use ${input.target}\` to select it`,
+          remediation: `Run cormidia org use ${input.target}.`,
         });
       }
     }
@@ -681,7 +1221,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
       blockers.push({
         code: "target_ancestor_invalid",
         path: invalidAncestor,
-        detail: `operon org init: target has a non-directory or symlink ancestor: ${invalidAncestor}`,
+        detail: `cormidia org init: target has a non-directory or symlink ancestor: ${invalidAncestor}`,
         remediation: "Choose a target whose existing ancestors are real directories.",
       });
     }
@@ -697,10 +1237,10 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
       code: "nested_org",
       path: enclosingOrg,
       detail:
-        `operon org init: target is nested inside an existing Operon org home: ${enclosingOrg}; ` +
+        `cormidia org init: target is nested inside an existing Cormidia org home: ${enclosingOrg}; ` +
         "nested orgs are not allowed",
       remediation:
-        `Choose a target outside ${enclosingOrg}, or select that org with \`operon org use ${enclosingOrg}\`.`,
+        `Choose a target outside ${enclosingOrg}, or select that org with \`cormidia org use ${enclosingOrg}\`.`,
     });
   }
 
@@ -732,9 +1272,9 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
           code: symlink ? "generated_path_symlink" : "generated_path_collision",
           path: entry.path,
           detail: symlink
-            ? `operon org init: generated path is a symlink and will not be followed: ${entry.path}`
-            : `operon org init: generated destination already exists and will not be overwritten: ${entry.path}`,
-          remediation: "Move the colliding path aside or choose another org home; Operon never overwrites it.",
+            ? `cormidia org init: generated path is a symlink and will not be followed: ${entry.path}`
+            : `cormidia org init: generated destination already exists and will not be overwritten: ${entry.path}`,
+          remediation: "Move the colliding path aside or choose another org home; Cormidia never overwrites it.",
         });
       }
     }
@@ -748,7 +1288,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
     blockers.push({
       code: "effect_path_collision",
       path: input.stateHome,
-      detail: `operon org init: org and state homes must not overlap: ${input.target} and ${input.stateHome}`,
+      detail: `cormidia org init: org and state homes must not overlap: ${input.target} and ${input.stateHome}`,
       remediation: "Choose separate org-home and state-home paths with neither containing the other.",
     });
   }
@@ -756,7 +1296,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
     blockers.push({
       code: "state_home_not_directory",
       path: input.stateHome,
-      detail: `operon org init: state home is not a real directory: ${input.stateHome}`,
+      detail: `cormidia org init: state home is not a real directory: ${input.stateHome}`,
       remediation: "Choose an absent state-home path or an existing real directory.",
     });
   } else if (stateStat === undefined) {
@@ -765,7 +1305,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
       blockers.push({
         code: "state_home_ancestor_invalid",
         path: invalidAncestor,
-        detail: `operon org init: state home has a non-directory or symlink ancestor: ${invalidAncestor}`,
+        detail: `cormidia org init: state home has a non-directory or symlink ancestor: ${invalidAncestor}`,
         remediation: "Choose a state-home path whose existing ancestors are real directories.",
       });
     }
@@ -780,7 +1320,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
     blockers.push({
       code: "effect_path_collision",
       path: input.pointerPath,
-      detail: `operon org init: active pointer path overlaps the ${effect}: ${input.pointerPath}`,
+      detail: `cormidia org init: active pointer path overlaps the ${effect}: ${input.pointerPath}`,
       remediation: "Keep the active pointer outside the org and state homes.",
     });
   }
@@ -788,7 +1328,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
     blockers.push({
       code: "pointer_path_invalid",
       path: input.pointerPath,
-      detail: `operon org init: active pointer path is not a regular file: ${input.pointerPath}`,
+      detail: `cormidia org init: active pointer path is not a regular file: ${input.pointerPath}`,
       remediation: "Move the colliding path aside or pass a safe pointer path.",
     });
   } else if (pointerStat === undefined) {
@@ -797,7 +1337,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
       blockers.push({
         code: "pointer_ancestor_invalid",
         path: invalidAncestor,
-        detail: `operon org init: active pointer has a non-directory or symlink ancestor: ${invalidAncestor}`,
+        detail: `cormidia org init: active pointer has a non-directory or symlink ancestor: ${invalidAncestor}`,
         remediation: "Choose a pointer path whose existing ancestors are real directories.",
       });
     }
@@ -876,7 +1416,7 @@ async function populateExistingTarget(
         await mkdir(entry.path);
         created.push(entry);
       } else if (current.isSymbolicLink() || !current.isDirectory()) {
-        throw new Error(`operon org init: generated directory collided during installation: ${entry.path}`);
+        throw new Error(`cormidia org init: generated directory collided during installation: ${entry.path}`);
       }
     }
     for (const entry of destinations) {
@@ -911,7 +1451,7 @@ class InitManifestBuilder {
     const source = join(templateRoot, safeRelative(rel));
     const sourceStat = await lstat(source);
     if (sourceStat.isSymbolicLink() || !sourceStat.isFile()) {
-      throw new Error(`operon org init: packaged template file is not a regular file: ${source}`);
+      throw new Error(`cormidia org init: packaged template file is not a regular file: ${source}`);
     }
     this.addFile(rel, await readFile(source));
   }
@@ -921,11 +1461,11 @@ class InitManifestBuilder {
     const source = join(templateRoot, safe);
     const sourceStat = await lstatMaybe(source);
     if (sourceStat === undefined) {
-      if (required) throw new Error(`operon org init: packaged template tree is missing: ${source}`);
+      if (required) throw new Error(`cormidia org init: packaged template tree is missing: ${source}`);
       return;
     }
     if (sourceStat.isSymbolicLink() || !sourceStat.isDirectory()) {
-      throw new Error(`operon org init: packaged template tree is not a real directory: ${source}`);
+      throw new Error(`cormidia org init: packaged template tree is not a real directory: ${source}`);
     }
     this.addDirectory(safe);
     await this.addPackagedTreeEntries(templateRoot, safe);
@@ -972,7 +1512,7 @@ class InitManifestBuilder {
     for (const entry of entries) {
       const child = safeRelative(join(rel, entry.name));
       if (entry.isSymbolicLink()) {
-        throw new Error(`operon org init: packaged template tree contains a symlink: ${join(templateRoot, child)}`);
+        throw new Error(`cormidia org init: packaged template tree contains a symlink: ${join(templateRoot, child)}`);
       }
       if (entry.isDirectory()) {
         this.addDirectory(child);
@@ -980,7 +1520,7 @@ class InitManifestBuilder {
       } else if (entry.isFile()) {
         this.addFile(child, await readFile(join(templateRoot, child)));
       } else {
-        throw new Error(`operon org init: packaged template entry is unsupported: ${join(templateRoot, child)}`);
+        throw new Error(`cormidia org init: packaged template entry is unsupported: ${join(templateRoot, child)}`);
       }
     }
   }
@@ -990,7 +1530,7 @@ class InitManifestBuilder {
     const parent = dirname(safe);
     if (parent !== ".") this.addDirectory(parent);
     if (this.#directories.has(safe) || this.#files.has(safe)) {
-      throw new Error(`operon org init: duplicate generated destination: ${safe}`);
+      throw new Error(`cormidia org init: duplicate generated destination: ${safe}`);
     }
     this.#files.set(safe, Buffer.from(contents));
   }
@@ -1000,7 +1540,7 @@ class InitManifestBuilder {
     const safe = safeRelative(rel);
     const parent = dirname(safe);
     if (parent !== ".") this.addDirectory(parent);
-    if (this.#files.has(safe)) throw new Error(`operon org init: generated path is both file and directory: ${safe}`);
+    if (this.#files.has(safe)) throw new Error(`cormidia org init: generated path is both file and directory: ${safe}`);
     this.#directories.add(safe);
   }
 }
@@ -1013,7 +1553,7 @@ function safeRelative(value: string): string {
     normalized === ".." ||
     normalized.startsWith(`..${sep}`)
   ) {
-    throw new Error(`operon org init: unsafe generated relative path: ${value}`);
+    throw new Error(`cormidia org init: unsafe generated relative path: ${value}`);
   }
   return normalized;
 }
@@ -1095,14 +1635,14 @@ export interface ActiveOrgSelection {
  * Which org home AND which state home the active pointer selects.
  *
  * A pointer written before `org use` recorded `state_home` carries only
- * `org_home`, and `resolveOperonHomes` silently derives the state home from
+ * `org_home`, and `resolveCormidiaHomes` silently derives the state home from
  * the org name — so every surface that read `pointer.state_home` directly
  * disagreed with the state home the rest of the CLI was actually using. That
  * is how `org list` stopped marking the active org active and `org archive`
  * left the pointer behind, resurrecting a removed state home on the next
  * command. Pointer-only consumers resolve the pair here instead of reading
  * `state_home` raw; the derivation is anchored on the pointer's own directory,
- * which is the `~/.operon/<org>` that `resolveOperonHomes` falls back to.
+ * which is the `~/.cormidia/<org>` that `resolveCormidiaHomes` falls back to.
  */
 export async function resolveActiveOrgSelection(
   pointerPathIn: string,
@@ -1133,7 +1673,7 @@ export async function resolveActiveOrgSelection(
 
 function sanitizeOrgName(value: string): string {
   const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
-  if (cleaned.length === 0) throw new Error("operon org init: --name must contain a letter or number");
+  if (cleaned.length === 0) throw new Error("cormidia org init: --name must contain a letter or number");
   return cleaned;
 }
 

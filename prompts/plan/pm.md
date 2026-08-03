@@ -15,8 +15,8 @@ to propose a milestone plan optimized for user value and sequencing clarity.
 ## Output
 
 Your artifact is the PM-A roadmap. If you write a file, write only
-`.operon/planning/pm-a.md`; the competing PM pass owns
-`.operon/planning/pm-b.md`.
+`.cormidia/planning/pm-a.md`; the competing PM pass owns
+`.cormidia/planning/pm-b.md`.
 
 Emit exactly these headings:
 

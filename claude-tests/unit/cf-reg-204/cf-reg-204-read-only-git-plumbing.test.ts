@@ -1,7 +1,7 @@
 // CF-REG-204 — read-only git plumbing classifies as a READ, and every write
 // against the same sensitive paths still classifies CRITICAL.
 //
-// Defect source: buildstacks-dev/Operon#204, found by the august-org live run
+// Defect source: cormidia/Cormidia#204, found by the august-org live run
 // 2026-08-01. The Reviewer ran the command that PROVES the secret-protection
 // criterion —
 //
@@ -9,7 +9,7 @@
 //   git status --ignored --porcelain -- .env.example 2>&1 | head
 //
 // — and the classifier recorded `operation: "write"`, matched
-// `secrets-or-auth`, and queued an approval that blocked `operon app verify`
+// `secrets-or-auth`, and queued an approval that blocked `cormidia app verify`
 // at 16/17 checks green. Its own adjacent evidence fields contradicted it in
 // the same record: `redirections: []`, `destination: null`, `effect: null`.
 //
@@ -54,7 +54,7 @@ const bash = (command: string): ToolAction => ({ tool: "bash", input: { command 
  *
  *  The pin is a BASELINE, captured from `main` before this change and verified
  *  byte-identical after it. Some of these are `routine` today because no
- *  critical RULE covers their target (`git clean -fd`, `rm -rf .operon`,
+ *  critical RULE covers their target (`git clean -fd`, `rm -rf .cormidia`,
  *  `git config` writes) — that is pre-existing rule coverage, unrelated to
  *  this fix, and pinning it here means any future widening OR weakening of
  *  those rules shows up as a deliberate edit to this table rather than as
@@ -68,10 +68,10 @@ const STILL_WRITES: ReadonlyArray<{
 }> = [
   // git subcommands that are NOT reports, against the same protocol/secret paths
   { name: "git checkout -- .gitignore (overwrites the file being 'read')", command: "git checkout -- .gitignore", cls: "routine", rule: null },
-  { name: "git restore .operon/config.yaml", command: "git restore .operon/config.yaml", cls: "routine", rule: null },
+  { name: "git restore .cormidia/config.yaml", command: "git restore .cormidia/config.yaml", cls: "routine", rule: null },
   { name: "git apply on a protocol path", command: "git apply protocol.patch -- roles.yaml", cls: "critical", rule: "protocol-self-edit" },
   { name: "git clean -fd", command: "git clean -fd", cls: "routine", rule: null },
-  { name: "git stash push -- .operon/config.yaml", command: "git stash push -- .operon/config.yaml", cls: "critical", rule: "protocol-self-edit" },
+  { name: "git stash push -- .cormidia/config.yaml", command: "git stash push -- .cormidia/config.yaml", cls: "critical", rule: "protocol-self-edit" },
 
   // the conditional-read subcommands, in their WRITING forms
   { name: "git config sets a value (no --get/--list)", command: "git config user.email attacker@example.invalid", cls: "routine", rule: null },
@@ -83,16 +83,16 @@ const STILL_WRITES: ReadonlyArray<{
   { name: "git remote remove", command: "git remote remove origin", cls: "routine", rule: null },
 
   // the global-option fix must not let a write hide behind -C/-c/--git-dir
-  { name: "git -C <dir> commit (write behind a global option)", command: "git -C /tmp/app commit -m x -- .operon/config.yaml", cls: "critical", rule: "protocol-self-edit" },
+  { name: "git -C <dir> commit (write behind a global option)", command: "git -C /tmp/app commit -m x -- .cormidia/config.yaml", cls: "critical", rule: "protocol-self-edit" },
   { name: "git -c core.hooksPath=/tmp checkout -- .gitignore", command: "git -c core.hooksPath=/tmp checkout -- .gitignore", cls: "routine", rule: null },
   { name: "git --git-dir=/tmp/g checkout -- roles.yaml", command: "git --git-dir=/tmp/g checkout -- roles.yaml", cls: "critical", rule: "protocol-self-edit" },
 
   // a read PROGRAM in a command that nonetheless writes
   { name: "read program with a real redirection into a secret path", command: "git check-ignore .env > .env.local", cls: "critical", rule: "secrets-or-auth" },
-  { name: "read program piped into a mutating one", command: "git status --porcelain | tee .operon/config.yaml", cls: "critical", rule: "protocol-self-edit" },
-  { name: "read program alongside rm", command: "git check-ignore .env; rm -rf .operon", cls: "routine", rule: null },
+  { name: "read program piped into a mutating one", command: "git status --porcelain | tee .cormidia/config.yaml", cls: "critical", rule: "protocol-self-edit" },
+  { name: "read program alongside rm", command: "git check-ignore .env; rm -rf .cormidia", cls: "routine", rule: null },
   { name: "sed -i against a protocol file (mutating flag beats the allowlist)", command: "sed -i 's/x/y/' roles.yaml", cls: "critical", rule: "protocol-self-edit" },
-  { name: "find -delete against the scaffold", command: "find .operon -name '*.yaml' -delete", cls: "routine", rule: null },
+  { name: "find -delete against the scaffold", command: "find .cormidia -name '*.yaml' -delete", cls: "routine", rule: null },
   { name: "command substitution smuggling a secret read", command: "git commit -m \"$(cat .env)\"", cls: "critical", rule: "secrets-or-auth" },
 ];
 
@@ -110,8 +110,8 @@ const NOW_ROUTINE_READS: ReadonlyArray<{ name: string; command: string }> = [
   {
     name: "the exact protocol-self-edit record that blocked promotion (#204, 20260801T083514Z-r3qm)",
     command:
-      "git check-ignore .gitignore; find . -name .operon; " +
-      "grep -n secret_locations .operon/config.yaml; git config --get user.name",
+      "git check-ignore .gitignore; find . -name .cormidia; " +
+      "grep -n secret_locations .cormidia/config.yaml; git config --get user.name",
   },
   { name: "git check-ignore -v on a scaffold path", command: "git check-ignore -v .gitignore" },
   { name: "git check-attr on a protocol path", command: "git check-attr diff -- roles.yaml" },
@@ -120,11 +120,11 @@ const NOW_ROUTINE_READS: ReadonlyArray<{ name: string; command: string }> = [
   { name: "git remote get-url origin", command: "git remote get-url origin" },
   { name: "git remote -v", command: "git remote -v" },
   { name: "git -C <dir> status (global option before the subcommand)", command: "git -C /tmp/app status --porcelain" },
-  { name: "git -c color.ui=false diff -- .operon/config.yaml", command: "git -c color.ui=false diff -- .operon/config.yaml" },
+  { name: "git -c color.ui=false diff -- .cormidia/config.yaml", command: "git -c color.ui=false diff -- .cormidia/config.yaml" },
   { name: "git merge-base --is-ancestor", command: "git merge-base --is-ancestor origin/HEAD HEAD" },
   { name: "git rev-list --count", command: "git rev-list --count HEAD" },
-  { name: "grep over the scaffold", command: "grep -rn secret_locations .operon/config.yaml" },
-  { name: "find without an acting predicate", command: "find .operon -name '*.yaml'" },
+  { name: "grep over the scaffold", command: "grep -rn secret_locations .cormidia/config.yaml" },
+  { name: "find without an acting predicate", command: "find .cormidia -name '*.yaml'" },
 ];
 
 describe("CF-REG-204 — read-only git plumbing is a read; writes on the same paths stay critical (#204, INV-002/T-1)", () => {

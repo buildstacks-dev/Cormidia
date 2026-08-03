@@ -42,7 +42,7 @@ export type RunlogEventType =
   | "telemetry.settle_skipped"
   /** A provider settle threw (e.g. a settlement-lock timeout) after the paid
    *  turn returned. The durable execution step is preserved so
-   *  `operon budget --reconcile` back-fills the ledger row; the turn is never
+   *  `cormidia budget --reconcile` back-fills the ledger row; the turn is never
    *  discarded and the pipeline is never crashed by it (F-002 / L-005). */
   | "telemetry.settle_failed";
 

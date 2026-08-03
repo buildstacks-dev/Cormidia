@@ -4,10 +4,10 @@
 //
 // L2 at the real process seam: the actual `scripts/link-local.mjs` runs as a
 // subprocess with every install location redirected into a temp sandbox via
-// its own env seams (OPERON_BIN_DIR, CODEX_HOME, CLAUDE_CONFIG_DIR,
+// its own env seams (CORMIDIA_BIN_DIR, CODEX_HOME, CLAUDE_CONFIG_DIR,
 // PI_CODING_AGENT_DIR) — the operator's real ~/.local, ~/.codex, ~/.claude,
 // ~/.pi are never touched. The script's link SOURCE is this checkout
-// (src/operon-local.cjs, agent-skills/operon), read-only.
+// (src/cormidia-local.cjs, agent-skills/cormidia), read-only.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
@@ -19,8 +19,8 @@ import { fileURLToPath } from "node:url";
 import { assertHumanBytesPreserved } from "./helpers.js";
 
 const SCRIPT = fileURLToPath(new URL("../../../scripts/link-local.mjs", import.meta.url));
-const BINARY_SOURCE = fileURLToPath(new URL("../../../src/operon-local.cjs", import.meta.url));
-const SKILL_SOURCE = fileURLToPath(new URL("../../../agent-skills/operon", import.meta.url));
+const BINARY_SOURCE = fileURLToPath(new URL("../../../src/cormidia-local.cjs", import.meta.url));
+const SKILL_SOURCE = fileURLToPath(new URL("../../../agent-skills/cormidia", import.meta.url));
 
 interface Sandbox {
   root: string;
@@ -40,7 +40,7 @@ describe("CF-B14-* — link ownership: link:local-class operations refuse foreig
   });
 
   async function makeSandbox(): Promise<Sandbox> {
-    const root = await mkdtemp(join(tmpdir(), "operon-cf-b14-link-"));
+    const root = await mkdtemp(join(tmpdir(), "cormidia-cf-b14-link-"));
     cleanups.push(() => rm(root, { recursive: true, force: true }));
     const binDir = join(root, "bin");
     const codexHome = join(root, "codex");
@@ -49,15 +49,15 @@ describe("CF-B14-* — link ownership: link:local-class operations refuse foreig
     return {
       root,
       binDir,
-      claudeSkill: join(claudeHome, "skills", "operon"),
-      codexSkill: join(codexHome, "skills", "operon"),
-      piSkill: join(piHome, "skills", "operon"),
+      claudeSkill: join(claudeHome, "skills", "cormidia"),
+      codexSkill: join(codexHome, "skills", "cormidia"),
+      piSkill: join(piHome, "skills", "cormidia"),
       run: () => {
         try {
           const output = execFileSync(process.execPath, [SCRIPT], {
             env: {
               ...process.env,
-              OPERON_BIN_DIR: binDir,
+              CORMIDIA_BIN_DIR: binDir,
               CODEX_HOME: codexHome,
               CLAUDE_CONFIG_DIR: claudeHome,
               PI_CODING_AGENT_DIR: piHome,
@@ -83,7 +83,7 @@ describe("CF-B14-* — link ownership: link:local-class operations refuse foreig
 
     const first = sandbox.run();
     expect(first.status).toBe(0);
-    expect(readlinkSync(join(sandbox.binDir, "operon"))).toBe(BINARY_SOURCE);
+    expect(readlinkSync(join(sandbox.binDir, "cormidia"))).toBe(BINARY_SOURCE);
     for (const skill of [sandbox.claudeSkill, sandbox.codexSkill, sandbox.piSkill]) {
       expect(readlinkSync(skill)).toBe(SKILL_SOURCE);
     }
@@ -92,21 +92,21 @@ describe("CF-B14-* — link ownership: link:local-class operations refuse foreig
     // its own links and upgrades (here: keeps) them rather than refusing.
     const second = sandbox.run();
     expect(second.status).toBe(0);
-    expect(readlinkSync(join(sandbox.binDir, "operon"))).toBe(BINARY_SOURCE);
+    expect(readlinkSync(join(sandbox.binDir, "cormidia"))).toBe(BINARY_SOURCE);
     expect(readlinkSync(sandbox.claudeSkill)).toBe(SKILL_SOURCE);
   });
 
   it("§2 refuses a foreign REGULAR FILE at the binary target — refused untouched, and no partial linking proceeds past the refusal", async () => {
     const sandbox = await makeSandbox();
-    const foreignBytes = "#!/bin/sh\necho the human's own operon shim\n";
+    const foreignBytes = "#!/bin/sh\necho the human's own cormidia shim\n";
     mkdirSync(sandbox.binDir, { recursive: true });
-    writeFileSync(join(sandbox.binDir, "operon"), foreignBytes);
+    writeFileSync(join(sandbox.binDir, "cormidia"), foreignBytes);
 
     const result = sandbox.run();
     expect(result.status).not.toBe(0);
-    expect(result.output).toMatch(/refusing to replace existing path: .*\/bin\/operon/);
+    expect(result.output).toMatch(/refusing to replace existing path: .*\/bin\/cormidia/);
     // Untouched: the human's file survives byte-for-byte, still a regular file.
-    assertHumanBytesPreserved(join(sandbox.binDir, "operon"), foreignBytes);
+    assertHumanBytesPreserved(join(sandbox.binDir, "cormidia"), foreignBytes);
     // The refusal stopped the run before any skill link was created.
     expect(existsSync(sandbox.claudeSkill)).toBe(false);
     expect(existsSync(sandbox.codexSkill)).toBe(false);
@@ -124,7 +124,7 @@ describe("CF-B14-* — link ownership: link:local-class operations refuse foreig
 
     const result = sandbox.run();
     expect(result.status).not.toBe(0);
-    expect(result.output).toMatch(/refusing to replace existing path: .*codex\/skills\/operon/);
+    expect(result.output).toMatch(/refusing to replace existing path: .*codex\/skills\/cormidia/);
     // The foreign link still points where its owner left it.
     expect(readlinkSync(sandbox.codexSkill)).toBe(foreignTarget);
   });

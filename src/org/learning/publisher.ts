@@ -78,7 +78,7 @@ import {
 import { readReviewerVerdict, reviewDisposition, reviewerVerdictHash, type ReviewerVerdict } from "./review.js";
 
 export const LEARNING_TICKET_LABEL = "op:learning";
-const FINGERPRINT_MARKER = "operon:candidate-fingerprint";
+const FINGERPRINT_MARKER = "cormidia:candidate-fingerprint";
 
 export interface PublisherDeps {
   orgHome: string;
@@ -138,7 +138,7 @@ export async function publishCandidate(
       status: "refused",
       reason:
         `${candidateId} has no reviewer verdict — review fails closed; ` +
-        `record one with: operon learn review ${candidateId}`,
+        `record one with: cormidia learn review ${candidateId}`,
     };
   }
   const candidateAuthor = ["generated_by", "emitted_by", "author"]
@@ -310,7 +310,7 @@ export async function publishCandidate(
       status: "refused",
       reason:
         `pending approval ${pending.id} no longer matches current bytes — ` +
-        `deny it (operon approvals) and re-run publish to raise a fresh one`,
+        `deny it (cormidia approvals) and re-run publish to raise a fresh one`,
     };
   }
 
@@ -671,7 +671,7 @@ async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise
         reason:
           `the ${input.destRoot.kind} root has an active canary (${trialManifest.canary}) — ` +
           `activation mid-trial would contaminate the population under measurement; ` +
-          `\`operon learn canary promote|stop --root ${input.destRoot.kind}\`, then re-run publish`,
+          `\`cormidia learn canary promote|stop --root ${input.destRoot.kind}\`, then re-run publish`,
       };
     }
   }

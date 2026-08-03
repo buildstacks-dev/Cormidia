@@ -1,4 +1,4 @@
-# Elicitation log — Operon validation harness design
+# Elicitation log — Cormidia validation harness design
 
 Near-verbatim record of stakeholder input per phase/concept, with what was dropped and why.
 Stakeholder = AI product-owner agent grounded in ./docs/ and ./rambling.txt (no live human;
@@ -49,7 +49,7 @@ now **M14**. The stakeholder quotes below used the rev-1 numbers.)
 
 Confirmed unchallenged: `product` mode, clean-slate greenfield,
 `archive-do-not-read/**` protected no-read path, `claude-tests/` implementation root,
-`OPERON-` namespace.
+`CORMIDIA-` namespace.
 
 Dropped: nothing dropped; all rev-1 content either survived or was corrected as above.
 
@@ -69,10 +69,10 @@ corrections, all accepted):
 ## Phase 1 — system map (beat 3: the product walk)
 
 Stakeholder's walk, near-verbatim (2026-07-31). Framing offered: "walk me through how
-Operon gets work and what must be observably different when it's done"; focusing question:
+Cormidia gets work and what must be observably different when it's done"; focusing question:
 "which journey, if it silently went wrong for a week, would hurt you most?"
 
-> I don't experience Operon as fifteen modules. I experience it as a pile of promises
+> I don't experience Cormidia as fifteen modules. I experience it as a pile of promises
 > about what happens after I stop watching.
 >
 > [Onboarding] generated is not registered, registered is not runtime-ready, runtime-ready
@@ -410,8 +410,8 @@ halfway through?" Stakeholder ramble, near-verbatim highlights:
 > it. Do not choose the cleaner test fixture and accidentally make policy. → F-PT-005
 > (docs partially answer: removal case explicit, addition case mechanism-derived)
 >
-> [Fail-closed] uncertainty may reduce what Operon can do, but it must never increase
-> what Operon is permitted to do or what it claims has happened. That one is probably
+> [Fail-closed] uncertainty may reduce what Cormidia can do, but it must never increase
+> what Cormidia is permitted to do or what it claims has happened. That one is probably
 > doing more work in my head than half the detailed rules above. → INV-015 (apex)
 
 Dropped/pushed down: "one ticket-status field" (owner-rejected), "secrets never written"
@@ -441,15 +441,15 @@ use beyond cap, or missing per-use audit; statement says neither shape becomes u
 or agent-widenable permission (scoped grants intentionally multi-use within bounds).
 
 **Phase 2 confirmation, round 3: CONFIRMED (2026-07-31)** — invariants.md
-OPERON-INV-001…015 ratified as the Phase 2 baseline.
+CORMIDIA-INV-001…015 ratified as the Phase 2 baseline.
 *(Entry restored at audit iteration 1, AUD-107: the confirmation occurred in-campaign —
 mirrored in harness-design-state — but this log had no entry for the confirming round.)*
 
 ## Phase 3 — boundaries (correction round on rev-1 draft)
 
 Five structural objections, all accepted:
-1. Human checkout is a boundary (B-14), not "outside Operon's write domain" — bootstrap
-   writes .operon/** + marked blocks there; loop/recovery use managed clones. Failure
+1. Human checkout is a boundary (B-14), not "outside Cormidia's write domain" — bootstrap
+   writes .cormidia/** + marked blocks there; loop/recovery use managed clones. Failure
    modes: dirty files, symlinks, wrong remote, path overlap, concurrent human edits,
    lifecycle commands exceeding authorized generated paths.
 2. Local storage and git substrates were missing → B-15 (FS full/read-only/permissions/
@@ -597,7 +597,7 @@ owner-ratified). PROPOSED register added to harness-design-state.md.
 
 **Phase 4 round-2 gate: REFUSED** — five contradictions + one traceability violation,
 all accepted:
-1. Canonical IDs added: every contract file header now carries an OPERON-C-…-001 ID
+1. Canonical IDs added: every contract file header now carries an CORMIDIA-C-…-001 ID
    (aliases retained); journey-acceptance gains an alias→canonical resolution table.
 2. B-09a grant-expiry "item re-decidable" parked → **F-PT-008** (expiry transition —
    fresh item vs reopen vs explicit operation — unratified; decisions immutable).
@@ -614,7 +614,7 @@ all accepted:
    merge/external effects only on their own preconditions.
 
 **Phase 4 round-3 gate: REFUSED** — three items, all accepted:
-1. Trace table: range/slash notation (OPERON-C-B01…B08-001) expanded into explicit
+1. Trace table: range/slash notation (CORMIDIA-C-B01…B08-001) expanded into explicit
    per-alias rows; journey aliases (J-04/05/07/08) classified as intra-document
    references that never satisfy traceability alone; T-NN marked not-a-contract-ID.
 2. J-10: "at most once" → each eligible current subscriber eventually runs exactly once
@@ -1027,9 +1027,9 @@ scope unchanged); prior §7 renumbered §8.
 
 ### Owner input (close to verbatim)
 
-> Imagine a setting in episode planner that enables operon to run a permutation of
+> Imagine a setting in episode planner that enables cormidia to run a permutation of
 > harness+model+effort on the same episode and finally rank the quality of work using
-> a mix of deterministic validation and llm as a judge. Sometimes it can be operon's
+> a mix of deterministic validation and llm as a judge. Sometimes it can be cormidia's
 > own sampling.
 
 After the first synthesis, the owner corrected two important assumptions:
@@ -1037,8 +1037,8 @@ After the first synthesis, the owner corrected two important assumptions:
 > Besides deterministic checks, you also have things like docs update, validate, etc.
 > I almost think the comparison is per agent turn, not entire episode.
 
-> Even if someone is not using operon, can this feature work standalone given a repo
-> and operon binary? It will help showcase the power of operon.
+> Even if someone is not using cormidia, can this feature work standalone given a repo
+> and cormidia binary? It will help showcase the power of cormidia.
 
 The owner then requested: "Please build the design doc and epic. Commit and merge."
 
@@ -1058,12 +1058,12 @@ The owner then requested: "Please build the design doc and epic. Commit and merg
 - S-8 is registered as a new call site and placed under the existing F-PT-011 umbrella.
   Its scores are advisory/inconclusive and inadmissible for automatic promotion until
   calibration data, thresholds, and sampling design are human-ratified.
-- Standalone `operon compare` is a first-class adapter over the same coordinator, not a
+- Standalone `cormidia compare` is a first-class adapter over the same coordinator, not a
   second engine. It requires only a binary, a safe local git repo, exact tuples,
   credentials, task/policy, budget, and confirmation; it needs no org, scheduler, or
   GitHub. It never mutates the active branch and only materializes an explicitly
   selected local branch.
-- V1 is explicit and sequential. Planner activation, sticky Operon-owned sampling,
+- V1 is explicit and sequential. Planner activation, sticky Cormidia-owned sampling,
   governed cross-episode learning, and parallel candidate execution are later phases.
 - Harness revision introduced M16/J-19/B-18/B-19/S-8 and associated contracts/cases.
   Existing invariants, risk vocabulary, control points, and tooling remain sufficient.

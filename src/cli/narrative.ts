@@ -1,4 +1,4 @@
-// `operon narrative` (#129) — the human-level causal timeline.
+// `cormidia narrative` (#129) — the human-level causal timeline.
 //
 // Renders one markdown story per episode plus a per-app INDEX.md under the
 // state home's narrative/ subtree. Deterministic and token-free: fold the
@@ -9,7 +9,7 @@
 import { existsSync } from "node:fs";
 import { readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { writeLoopFileAtomic } from "../loop/durable.js";
 import {
   listCapturedStories,
@@ -33,7 +33,7 @@ interface NarrativeArgs {
 export async function cmdNarrative(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "narrative");
   const parsed = parseNarrativeArgs(common.rest);
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const stateHome = homes.stateHome;
 
   const apps = await resolveApps(stateHome, homes.appsFile.apps.map((app) => app.name), parsed.app);
@@ -96,7 +96,7 @@ export async function cmdNarrative(args: string[]): Promise<number> {
     printed = true;
   }
 
-  // One parseable document, like `operon report --json` — never a
+  // One parseable document, like `cormidia report --json` — never a
   // concatenated stream of per-app objects.
   if (parsed.json && parsed.episode === undefined) console.log(JSON.stringify(summaries, null, 2));
 

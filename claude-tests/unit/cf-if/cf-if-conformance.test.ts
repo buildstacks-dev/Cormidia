@@ -38,7 +38,7 @@ describe("CF-IF-CLI / CF-IF-JSON — parsing, failures, confirmation, and canoni
       error: {
         code: "no_active_org",
         message: "no active org home",
-        remediation: expect.stringContaining("operon org init"),
+        remediation: expect.stringContaining("cormidia org init"),
       },
     });
     expect(result.out[0]).not.toContain("partial prose");
@@ -72,13 +72,13 @@ describe("CF-IF-CLI / CF-IF-JSON — parsing, failures, confirmation, and canoni
   });
 });
 
-describe("CF-IF-SKILL — packaged Operon skill discovers only real CLI command families", () => {
-  it("every operon command shown by the skill maps to the runtime capability catalog", async () => {
+describe("CF-IF-SKILL — packaged Cormidia skill discovers only real CLI command families", () => {
+  it("every cormidia command shown by the skill maps to the runtime capability catalog", async () => {
     const capture = await captured(() => cmdCapabilities(["--json"]));
     const catalog = JSON.parse(capture.out.join("\n")) as { commands: Array<{ command: string }> };
     const prefixes = catalog.commands.map((row) => row.command).sort((a, b) => b.length - a.length);
-    const skill = await readFile("agent-skills/operon/SKILL.md", "utf8");
-    const examples = [...skill.matchAll(/^operon\s+([^\n]+)$/gm)].map((match) => match[1]!.trim());
+    const skill = await readFile("agent-skills/cormidia/SKILL.md", "utf8");
+    const examples = [...skill.matchAll(/^cormidia\s+([^\n]+)$/gm)].map((match) => match[1]!.trim());
     expect(examples.length).toBeGreaterThan(10);
     const unknown = examples.filter((example) => {
       const words = example.replace(/<[^>]+>|\[[^\]]+\]|\.{3}/g, "value");

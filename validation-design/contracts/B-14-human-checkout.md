@@ -1,5 +1,5 @@
 # Contract — B-14 Human checkout ↔ managed workspace
-Canonical ID: **OPERON-C-B14-001 (alias: B-14)**
+Canonical ID: **CORMIDIA-C-B14-001 (alias: B-14)**
 
 Status: DRAFT (Phase 4). Defends INV-004/010, T-6/T-8. Journeys J-02/J-14.
 
@@ -12,7 +12,7 @@ Status: DRAFT (Phase 4). Defends INV-004/010, T-6/T-8. Journeys J-02/J-14.
   set (INV-010).
 
 ## 2. Output guarantees
-- Bootstrap writes only `.operon/**` plus one marked, idempotent authority pointer
+- Bootstrap writes only `.cormidia/**` plus one marked, idempotent authority pointer
   block in root `AGENTS.md`/`CLAUDE.md`; existing content preserved byte-for-byte
   outside the marker `[doc]` (containment invariant).
 - The build loop and recovery operate exclusively in org-managed clones/worktrees; the
@@ -24,6 +24,9 @@ Status: DRAFT (Phase 4). Defends INV-004/010, T-6/T-8. Journeys J-02/J-14.
 ## 3. Error behavior
 - Symlinked paths, wrong remote, path overlap with generated artifacts: typed refusals
   before mutation.
+- Bootstrap refuses before mutation when the retired app-artifact directory still
+  exists. The operator moves it to `.cormidia/` in one reviewed repository commit;
+  Cormidia never creates or adopts parallel app-policy roots.
 - Concurrent human edits during a lifecycle command: **exclusive-creation + exact
   rollback is documented for `org init` only** — it is not generalized to every
   lifecycle command by analogy. For bootstrap-owned markers/generated paths edited by
@@ -36,7 +39,7 @@ Status: DRAFT (Phase 4). Defends INV-004/010, T-6/T-8. Journeys J-02/J-14.
 
 ## 4. Idempotency
 - Bootstrap re-run: idempotent; marked block replaced in place, never duplicated;
-  `.operon/` regenerated deterministically with preserved user-owned edits refused or
+  `.cormidia/` regenerated deterministically with preserved user-owned edits refused or
   reported, never silently overwritten (INV-008/010).
 
 ## 5. Timing

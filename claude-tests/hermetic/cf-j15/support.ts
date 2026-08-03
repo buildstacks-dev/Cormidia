@@ -16,7 +16,7 @@ export const J15_APPS: AppsFile = {
   defaults: { budgetUsdMonth: 100 },
   apps: [{
     name: J15_APP,
-    repo: "operon-double/evidence-app",
+    repo: "cormidia-double/evidence-app",
     status: "live",
     budgetUsdMonth: 100,
     cadence: {},

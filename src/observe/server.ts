@@ -88,7 +88,7 @@ async function route(
     return;
   }
   const cookie = url.searchParams.get("token") === options.token
-    ? { "Set-Cookie": `operon_observe=${encodeURIComponent(options.token)}; HttpOnly; SameSite=Strict; Path=/` }
+    ? { "Set-Cookie": `cormidia_observe=${encodeURIComponent(options.token)}; HttpOnly; SameSite=Strict; Path=/` }
     : undefined;
 
   if (url.pathname === "/" || url.pathname === "/index.html") {
@@ -152,12 +152,12 @@ async function route(
   }
   if (url.pathname === "/api/v1/reports/export.json") {
     const service = requireReportService(options);
-    sendDownload(response, method, "application/json; charset=utf-8", await service.exportJson(reportQuery(url)), "operon-report.json");
+    sendDownload(response, method, "application/json; charset=utf-8", await service.exportJson(reportQuery(url)), "cormidia-report.json");
     return;
   }
   if (url.pathname === "/api/v1/reports/export.html") {
     const service = requireReportService(options);
-    sendDownload(response, method, "text/html; charset=utf-8", await service.exportHtml(reportQuery(url)), "operon-report.html");
+    sendDownload(response, method, "text/html; charset=utf-8", await service.exportHtml(reportQuery(url)), "cormidia-report.html");
     return;
   }
   if (url.pathname === "/api/v1/events") {
@@ -272,7 +272,7 @@ function authorized(request: IncomingMessage, url: URL, expected: string): boole
   const bearer = request.headers.authorization?.startsWith("Bearer ")
     ? request.headers.authorization.slice("Bearer ".length)
     : undefined;
-  const cookie = parseCookie(request.headers.cookie ?? "")["operon_observe"];
+  const cookie = parseCookie(request.headers.cookie ?? "")["cormidia_observe"];
   for (const candidate of [query, bearer, cookie]) {
     if (candidate !== undefined && candidate !== null && secureEqual(candidate, expected)) return true;
   }

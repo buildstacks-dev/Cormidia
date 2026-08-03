@@ -93,7 +93,7 @@ guardrails. If and only if the measured outcome is improved, preview
 `pnpm eval:learning-activation -- --campaign <prepared-file>`. The preview
 reports the exact learning-candidate and action hashes. Execution requires a
 separate human authorization for both hashes and uses
-`OPERON_EVAL_LEARNING_ACTIVATION=1` with `--execute`, `--confirm-campaign`,
+`CORMIDIA_EVAL_LEARNING_ACTIVATION=1` with `--execute`, `--confirm-campaign`,
 `--confirm-candidate`, and `--confirm-action`. It spends no provider tokens,
 touches no production path, and performs exactly one isolated governed
 activation followed by rollback. Never infer this authorization from L5.
@@ -178,9 +178,9 @@ retained rejection text are in
 
 | Metric | Episode | Target | Measured by |
 | --- | --- | --- | --- |
-| Passes for the milestone | 55 | ≤ 8 | `operon telemetry --app <bench>` |
-| Estimated spend | $266 | ≤ $40 | `operon budget` / telemetry totals |
-| Human decisions | 42+ | ≤ 5 | `operon approvals` log + park digests |
+| Passes for the milestone | 55 | ≤ 8 | `cormidia telemetry --app <bench>` |
+| Estimated spend | $266 | ≤ $40 | `cormidia budget` / telemetry totals |
+| Human decisions | 42+ | ≤ 5 | `cormidia approvals` log + park digests |
 | Wall clock (active) | ~7.5 h | ≤ 90 min | telemetry trace timings |
 | Merged to `main` | 0 | 1 PR, gates green, declared release disposition executed | GitHub + ship gate |
 
@@ -195,34 +195,34 @@ milestone exercises none of it by design).
 ```bash
 # 0. Fresh, fully isolated org — "clean" means no existing branch, PR,
 #    dependency cache, worktree, ledger, or approval state.
-operon org init ~/Build/bench-org --name Bench-Org
+cormidia org init ~/Build/bench-org --name Bench-Org
 
 # 1. Disposable seeded repo (idempotent; force-resets to the pinned seed).
-GH_BENCH_REPO=<owner>/operon-bench-$(date +%Y%m%d) \
+GH_BENCH_REPO=<owner>/cormidia-bench-$(date +%Y%m%d) \
   bash scripts/seed-benchmark-repo.sh
 
 # 2. Clone locally and onboard (answers file keeps it non-interactive).
-git clone https://github.com/<owner>/operon-bench-<date>.git ~/Build/operon-bench
-operon bootstrap ~/Build/operon-bench --answers <answers.json>
+git clone https://github.com/<owner>/cormidia-bench-<date>.git ~/Build/cormidia-bench
+cormidia bootstrap ~/Build/cormidia-bench --answers <answers.json>
 #    Register the app in ~/Build/bench-org/apps.yaml (status: onboarding,
 #    budget_usd_month: 50) — proposal etiquette applies to the org repo.
 
 # 3. Stage 4 exit criterion + benchmark first half: one non-interactive
 #    planning turn; the orchestrator publishes a validated 1-3 ticket plan.
-operon plan operon-bench --auto --goal "Meridian: the founder's personal site (see docs/product.md)"
+cormidia plan cormidia-bench --auto --goal "Meridian: the founder's personal site (see docs/product.md)"
 #    Expect: exit 0, 1-3 tickets, at least one op:ready, canonical labels.
 
 # 4. The loop, to merge. --allow-network because the scaffold installs deps.
-operon loop --app operon-bench --once --allow-network
+cormidia loop --app cormidia-bench --once --allow-network
 #    Repeat --once ticks until the ticket merges (or use --follow. Stage 2
 #    continuation means interrupted ticks resume from artifacts; Stage 3
 #    preflight/honest-stop means environment problems cost $0 and stopped
 #    turns re-arm themselves, bounded by the claim cap).
 
 # 5. Measure.
-operon telemetry --app operon-bench --html bench-report.html
-operon budget
-operon approvals   # decision count; expect ≤ 5, ideally 0-1
+cormidia telemetry --app cormidia-bench --html bench-report.html
+cormidia budget
+cormidia approvals   # decision count; expect ≤ 5, ideally 0-1
 ```
 
 ## Rules

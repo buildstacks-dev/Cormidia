@@ -1,4 +1,4 @@
-// .operon/policy.yaml schema, loader, tier resolution (build plan M4.2;
+// .cormidia/policy.yaml schema, loader, tier resolution (build plan M4.2;
 // docs/loop/design.md §5 table + defaults, §4 tiering axes).
 //
 // Risk tiering is a pure, provable function: the app's policy maps
@@ -30,7 +30,7 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 
-/** Risk tier (changed-file globs in `.operon/policy.yaml`) selects only
+/** Risk tier (changed-file globs in `.cormidia/policy.yaml`) selects only
  * deterministic gates. `op:tier-*` is retained as metadata for historical
  * readers; live provider-step selection comes from the accepted EpisodePlan. */
 export type RiskTier = "low" | "medium" | "high";

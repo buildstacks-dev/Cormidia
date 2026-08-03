@@ -1,4 +1,4 @@
-# Narrative V1 — human-level causal observability (`operon narrative`)
+# Narrative V1 — human-level causal observability (`cormidia narrative`)
 
 Status: implemented (#129, workstream:narrative). This file is the surface's
 authoritative contract, following the observe/report/scheduler precedent.
@@ -123,7 +123,7 @@ imports it except its CLI):
   are surfaced and never overwritten
 - `render.ts` — deterministic markdown for stories and the INDEX; no
   wall-clock ("as of" derives from the capture's newest source timestamp)
-- `src/cli/narrative.ts` — `operon narrative [--app <app>] [--episode <id>]
+- `src/cli/narrative.ts` — `cormidia narrative [--app <app>] [--episode <id>]
   [--json]`; one registry line in cli.ts. Default renders all apps found in
   apps.yaml ∪ runs/ ∪ narrative/; `--episode` prints one story without
   writing.

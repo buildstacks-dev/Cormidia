@@ -224,7 +224,7 @@ export interface Reg202Home {
 }
 
 export async function makeReg202Home(): Promise<Reg202Home> {
-  const root = await mkdtemp(join(tmpdir(), "operon-reg202-state-"));
+  const root = await mkdtemp(join(tmpdir(), "cormidia-reg202-state-"));
   await mkdir(efficiencyEpisodeDir(root, REG202_EPISODE), { recursive: true });
 
   return {

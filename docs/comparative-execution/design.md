@@ -3,17 +3,17 @@
 *Status: proposed implementation contract — product direction confirmed by the owner
 2026-08-01; no command or runtime behavior described here exists yet. Ratified product
 truth remains in `docs/PURPOSE.md`. Implementation is tracked by
-[epic #219](https://github.com/buildstacks-dev/Operon/issues/219).*
+[epic #219](https://github.com/cormidia/Cormidia/issues/219).*
 
 Comparative execution lets one planned provider turn produce several independently
 executed candidate artifacts from the same frozen input, evaluate them under one
 operation-specific policy, and continue with exactly one selected artifact. It also
 exposes the same engine as a standalone local-repository workflow so a person can use
-Operon's native harness, accounting, isolation, and evaluation without creating an
-Operon org.
+Cormidia's native harness, accounting, isolation, and evaluation without creating an
+Cormidia org.
 
 The feature is deliberately not a Cartesian harness × model × effort runner. Every
-candidate is one exact, explicit, atomic assignment tuple. Operon never invents a
+candidate is one exact, explicit, atomic assignment tuple. Cormidia never invents a
 combination, widens a role, or calls an unavailable or unapproved tuple "qualified."
 
 ## 1. Outcomes and non-goals
@@ -26,7 +26,7 @@ combination, widens a role, or calls an unavailable or unapproved tuple "qualifi
   fans out, and one selected artifact feeds the next step.
 - Make assignment quality and unit economics observable per operation without hiding
   candidate, evaluator, or judge spend.
-- Give non-Operon users a preview-first `operon compare` workflow over a local git
+- Give non-Cormidia users a preview-first `cormidia compare` workflow over a local git
   repository, with no org, scheduler, or GitHub dependency.
 - Produce governed evidence that may later inform adaptive assignment policy without
   allowing one favorable draw to rewrite that policy.
@@ -230,14 +230,14 @@ The selected artifact continues under the original step's expected-output contra
 Every later gate, Reviewer turn, PR, and merge remains part of the ordinary episode.
 Losing artifacts never become plan outputs.
 
-## 7. Activation modes and Operon-owned sampling
+## 7. Activation modes and Cormidia-owned sampling
 
 An app policy may authorize one or more of:
 
 - `explicit`: a human or execution-ready creator requests a named candidate set;
 - `planner`: EpisodePlanner requests comparison because declared uncertainty,
   consequence, or expected value justifies the extra budget;
-- `sampled`: Operon deterministically selects a small fraction of eligible planned
+- `sampled`: Cormidia deterministically selects a small fraction of eligible planned
   steps for comparison under a predeclared exploration budget.
 
 Sampled activation is sticky on `hash(episode_id, step_id, policy_version)`. Restart,
@@ -253,7 +253,7 @@ episode is an observation, not a model-swap decision.
 
 ## 8. Standalone repository mode
 
-`operon compare` is an adapter over the same comparison coordinator, journals,
+`cormidia compare` is an adapter over the same comparison coordinator, journals,
 candidate executor, evidence bundler, selector, and reports. It does not create a
 shadow implementation.
 
@@ -261,7 +261,7 @@ shadow implementation.
 
 V1 requires:
 
-- an installed Operon binary;
+- an installed Cormidia binary;
 - a local git repository with a resolved, clean base commit;
 - exact candidate assignment tuples supplied by the operator;
 - provider credentials and harness availability for those tuples;
@@ -278,7 +278,7 @@ capability may be verified, but the binary never labels them org-approved or qua
 Illustrative UX:
 
 ```bash
-operon compare . \
+cormidia compare . \
   --task "Implement account deletion with tests and documentation" \
   --operation builder-change \
   --policy builder-change-v1 \
@@ -295,11 +295,11 @@ no winner will touch the active branch.
 Execution requires the preview's comparison identity:
 
 ```bash
-operon compare . ... --execute --confirm cmp_a18f42
+cormidia compare . ... --execute --confirm cmp_a18f42
 ```
 
 Durable state defaults outside the repository under
-`~/.operon/standalone/<repo-fingerprint>/comparisons/<comparison-id>/`. Candidate
+`~/.cormidia/standalone/<repo-fingerprint>/comparisons/<comparison-id>/`. Candidate
 worktrees are likewise external. Provider transport is allowed; candidate tool egress
 is denied unless the invocation explicitly narrows and records an allowance. Candidate
 processes cannot push or contact GitHub through an orchestrator-owned path.
@@ -318,7 +318,7 @@ The terminal command produces equivalent terminal, JSON, and portable HTML repor
 Standalone mode never mutates the active branch automatically. Once selection is
 admissible—or the human explicitly chooses among retained valid candidates—a separate
 content-bound command materializes the artifact as a local
-`operon/compare/<comparison-id>/winner` branch. It does not push, open a PR, or merge.
+`cormidia/compare/<comparison-id>/winner` branch. It does not push, open a PR, or merge.
 Dirty or moved-base destinations fail before mutation; no force option overrides that
 identity check.
 
@@ -361,13 +361,13 @@ different operation families or hides builder/judge pairing.
 1. **Contracts and hermetic skeleton:** durable identities/state machines, candidate
    isolation, no-effect guardrail, settlement/accounting, fake candidate executor,
    selection policy contract, and negative controls.
-2. **Standalone Builder slice:** preview-first `operon compare`, sequential isolated
+2. **Standalone Builder slice:** preview-first `cormidia compare`, sequential isolated
    worktrees, operation-specific evidence, JSON/HTML report, explicit local winner
    branch. Judge remains advisory until calibration.
 3. **EpisodePlan integration:** adaptive candidate sets, admission arithmetic,
    selected-artifact continuation, explain/report projection, and recovery.
 4. **Planner activation:** planner may propose a comparison inside app-narrowed policy.
-5. **Operon-owned sampling and governed learning:** episode-step-sticky exploration,
+5. **Cormidia-owned sampling and governed learning:** episode-step-sticky exploration,
    aggregate evidence, and learning candidates; no automatic assignment mutation.
 6. **Optional parallel execution:** only after sequential semantics, workspace
    isolation, settlement, and contention have independent evidence.
@@ -375,7 +375,7 @@ different operation families or hides builder/judge pairing.
 ## 12. Validation obligations
 
 The corresponding harness revision lives in `validation-design/` as J-19, B-18/B-19,
-contracts `OPERON-C-B18-001`/`OPERON-C-B19-001`, call site S-8, and traced `CF-*`
+contracts `CORMIDIA-C-B18-001`/`CORMIDIA-C-B19-001`, call site S-8, and traced `CF-*`
 families. Existing invariants remain sufficient: authority, total gating, settlement,
 evidence truth, merge integrity, containment, self-promotion prohibition, durable
 writes, non-vanishing work, and uncertainty-narrows all apply. No new global invariant

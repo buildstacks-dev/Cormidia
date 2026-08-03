@@ -4,7 +4,7 @@
 // surfaced as "validated"; B-11 §2 output guarantee: the states are separate
 // recorded facts).
 //
-// Surface under test: the REAL `operon learn` CLI (cmdLearn, src/cli/
+// Surface under test: the REAL `cormidia learn` CLI (cmdLearn, src/cli/
 // learn.ts) run in-process against the temp homes via its --org-home/
 // --state-home flags, output captured from the console seam. Nothing is
 // mocked below the CLI: the same readers, validators, and claimLabel

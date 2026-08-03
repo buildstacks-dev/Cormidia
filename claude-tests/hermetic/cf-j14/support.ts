@@ -6,9 +6,9 @@
 // seeded state home holding attributable state for BOTH apps, a human
 // checkout, and the scripted GitHub double (fixtures/github-double) carrying
 // identifiable `op:*` work. TEMP-FS ONLY — never the operator checkout or
-// the real ~/.operon.
+// the real ~/.cormidia.
 //
-// The oracle (OPERON-INV-010): a full-state bit-identical diff across org
+// The oracle (CORMIDIA-INV-010): a full-state bit-identical diff across org
 // home + state home + human checkout; every changed/added/removed path must
 // sit inside the AUTHORIZED DESTRUCTIVE SET for the named app (the
 // operation's legitimate non-destructive writes — intent journal, role
@@ -42,7 +42,7 @@ export const TARGET_APP = "alpha";
 export const SIBLING_APP = "beta";
 export const DOUBLE_DEFAULT_BRANCH = "trunk"; // deliberately not main (#101)
 
-export const OP_LABELS = [{ name: "op:task", color: "1d76db", description: "operon-managed work" }];
+export const OP_LABELS = [{ name: "op:task", color: "1d76db", description: "cormidia-managed work" }];
 
 /** gh double ops that mutate remote state (reads are always permitted). */
 const MUTATING_GH_OPS = new Set([
@@ -86,12 +86,12 @@ export interface MakeResetWorldOptions {
 }
 
 export async function makeResetWorld(options: MakeResetWorldOptions = {}): Promise<ResetWorld> {
-  const root = await mkdtemp(join(tmpdir(), "operon-cf-j14-"));
+  const root = await mkdtemp(join(tmpdir(), "cormidia-cf-j14-"));
   await writeFile(join(root, "sentinel.txt"), "world sentinel — walks are never empty\n", "utf8");
   const orgHome = join(root, "org");
   const stateHome = join(root, "state");
   const homeDir = join(root, "home");
-  const pointerPath = join(homeDir, ".operon", "config");
+  const pointerPath = join(homeDir, ".cormidia", "config");
   const humanCheckout = join(root, "human-checkout");
   const archiveRoot = join(root, "reset-archives");
 
@@ -213,7 +213,7 @@ export async function makeResetWorld(options: MakeResetWorldOptions = {}): Promi
     "utf8",
   );
 
-  // The human checkout Operon must never touch.
+  // The human checkout Cormidia must never touch.
   await mkdir(join(humanCheckout, "src"), { recursive: true });
   await writeFile(join(humanCheckout, "README.md"), "human project — hands off\n", "utf8");
   await writeFile(join(humanCheckout, "src", "app.ts"), "export const human = true;\n", "utf8");
@@ -221,7 +221,7 @@ export async function makeResetWorld(options: MakeResetWorldOptions = {}): Promi
   // Identifiable op:* GitHub work: one labeled issue, one op/ PR + branch.
   const issue = await gh.createIssue({
     title: "Managed work item",
-    body: "Operon-managed ticket.",
+    body: "Cormidia-managed ticket.",
     labels: ["op:task"],
   });
   const opBranch = `op/${issue.number}-managed-work`;

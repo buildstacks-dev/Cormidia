@@ -2,8 +2,8 @@
 // untrusted-read bypass (issue #20) generalized to a write". Codex's App Server
 // approval callback does not see auto-approved reads such as `cat .env`; the
 // documented compensating boundary is the PreToolUse hook → per-turn Unix
-// socket → Operon's in-process GateFn (src/runtime/adapters/codex-gate-bridge.ts
-// + codex-gate-hook.ts). Per the ratified B-03 contract (OPERON-C-B03-001): "A
+// socket → Cormidia's in-process GateFn (src/runtime/adapters/codex-gate-bridge.ts
+// + codex-gate-hook.ts). Per the ratified B-03 contract (CORMIDIA-C-B03-001): "A
 // forbidden READ escaping that hook is an INV-002/INV-011 violation ... a
 // forbidden WRITE escaping is likewise INV-002." The bridge fails closed.
 //

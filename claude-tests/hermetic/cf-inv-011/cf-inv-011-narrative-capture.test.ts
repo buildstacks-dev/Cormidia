@@ -1,7 +1,7 @@
 // CF-INV-011 — narrative capture applies the shared secret policy at capture
 // time: L2 composition on a temp state home (HB-016, FLOOR).
 //
-// OPERON-INV-011 adversarial seed (c) (validation-design/invariants.md):
+// CORMIDIA-INV-011 adversarial seed (c) (validation-design/invariants.md):
 // "secret in run log → narrative capture (years-durable)". B-12 contract §5:
 // "narrative capture applies the shared secret policy at capture time
 // (INV-011 — years-durable records)". The capture outlives its L3 sources by

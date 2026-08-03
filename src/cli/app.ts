@@ -4,7 +4,7 @@
 
 import { GhCliOps } from "../loop/github.js";
 import { executeAppReset, finalizeInterruptedAppReset, planAppReset, type AppResetPlan } from "../org/app-reset.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { executeAppPromotion, planAppPromotion, verifyApp } from "../org/app-lifecycle.js";
 import { latestResetArchiveForApp } from "../org/onboarding-answers.js";
 import { stableJson } from "../org/lifecycle.js";
@@ -17,7 +17,7 @@ export interface AppCommandOptions {
   ghFactory?: (repo: string) => GhOps;
   /** Test seam for the non-billable runtime-readiness probe used by `verify`
    * and `promote`. Unset in production so verify runs the real
-   * `probeRuntimeReadiness` (agreeing with `operon doctor`); tests inject a
+   * `probeRuntimeReadiness` (agreeing with `cormidia doctor`); tests inject a
    * deterministic fake so they never contact a real adapter. */
   readinessProbe?: RuntimeReadinessProbe;
 }
@@ -60,7 +60,7 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
   }
   if (execute && dryRun) throw new Error("app reset: choose either --dry-run or --execute, not both");
 
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const app = homes.appsFile.apps.find((entry) => entry.name === appName);
   if (app === undefined) {
     const root = resolve(archiveRoot ?? join(dirname(homes.stateHome), "archives", safeSegment(homes.appsFile.org.name)));
@@ -110,7 +110,7 @@ async function verify(
   const parsed = parseAppVerifyArgs([appName, ...args]);
   appName = parsed.appName;
   const { json } = parsed;
-  const homes = await resolveOperonHomes(homesFlags);
+  const homes = await resolveCormidiaHomes(homesFlags);
   const app = homes.appsFile.apps.find((entry) => entry.name === appName);
   if (app === undefined) throw new Error(`app verify: unknown app "${appName}"`);
   const report = await verifyApp({
@@ -165,7 +165,7 @@ async function promote(
     else throw new Error(`app promote: unknown flag "${arg}"`);
   }
   if (to !== "live") throw new Error("app promote: --to live is required");
-  const homes = await resolveOperonHomes(homesFlags);
+  const homes = await resolveCormidiaHomes(homesFlags);
   const app = homes.appsFile.apps.find((entry) => entry.name === appName);
   if (app === undefined) throw new Error(`app promote: unknown app "${appName}"`);
   const input = {
@@ -225,7 +225,7 @@ function printPlan(plan: AppResetPlan, execute: boolean, force: boolean): void {
   }
   if (!execute) {
     console.log(
-      `No changes made to app state (dispatched CLI: invocation audit only). To execute: operon app reset ${plan.app.name} --execute --confirm ${plan.app.name}` +
+      `No changes made to app state (dispatched CLI: invocation audit only). To execute: cormidia app reset ${plan.app.name} --execute --confirm ${plan.app.name}` +
         (plan.staleRuns.length > 0 ? " --force" : ""),
     );
   }

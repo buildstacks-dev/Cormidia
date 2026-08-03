@@ -1,6 +1,6 @@
 // CF-INV-011 — the family's shared egress detector (HB-016).
 //
-// OPERON-INV-011 (validation-design/invariants.md): verbatim L3 evidence
+// CORMIDIA-INV-011 (validation-design/invariants.md): verbatim L3 evidence
 // stays inside its permitted local evidence boundary; secret-bearing content
 // never crosses into lower-sensitivity surfaces, and every surface that
 // scans, scrubs, previews, exports, or captures does so through the ONE

@@ -19,7 +19,7 @@ Campaign identity:
   `f36be1749c3c4f6156c2bbc19a24d5f37d575bd0f18ca7dea04396fd45ec9434`;
 - suite SHA-256:
   `8bf7527a64a6edb834518a6b9cd100aabc6ac9cd3624d26ed14f72cad25d855f`;
-- private repository: `buildstacks-dev/operon-eval-adapter-calibration`;
+- private repository: `buildstacks-dev/cormidia-eval-adapter-calibration`;
 - L4 evidence: issue #3, PR #4, commit
   `21286ad97fc9f4db4d6c7cc0e5b7893c0f5e513c`, non-approving review,
   squash-merge, issue closure, branch deletion, then exact idempotent replay;
@@ -39,7 +39,7 @@ The fresh, exactly authorized campaign
 with manifest SHA-256
 `80dab924f2d952708179d9f17a799eaad198078c72d111f4c86b7552c05edda0`.
 It targeted the private repository
-`buildstacks-dev/operon-eval-adapter-calibration` under a $15 equivalent-cost
+`buildstacks-dev/cormidia-eval-adapter-calibration` under a $15 equivalent-cost
 cap. Candidate package SHA-256 was
 `ad37cb4e32dc32a6688ba09ffc832783f69396f70e38e82e078e69ee795379b1` and
 suite SHA-256 was
@@ -108,10 +108,10 @@ readiness/result/run/ledger disagreement is diagnostic evidence, not a pass.
   observed turn.
 - Codex starts a per-turn fail-closed Unix-socket bridge. Supported simple Bash,
   `apply_patch` (every changed file), and MCP `PreToolUse` calls reach the real
-  Operon gate; approval callbacks remain a backstop. The launch disables
+  Cormidia gate; approval callbacks remain a backstop. The launch disables
   `unified_exec`, apps, plugins, in-app browser, web search, and image viewing.
 - Live provider work runs with allowlisted authentication/model-cache files and
-  campaign-local provider, temp/XDG, and Operon homes. Codex and pi also use a
+  campaign-local provider, temp/XDG, and Cormidia homes. Codex and pi also use a
   campaign-local `HOME`. On macOS, only the Claude child retains the source
   `HOME` needed for Keychain lookup, with the protected-home controls described
   below. Ambient API keys, GitHub credentials, histories, instructions,
@@ -130,7 +130,7 @@ The authorized rerun exposed four additional defects, now repaired offline:
   key is `unauthenticated` before any provider turn.
 - Codex CLI 0.142.5 parses `--dangerously-bypass-hook-trust`, but its
   `app-server` command path drops that global flag instead of forwarding it to
-  effective config. Operon now also sets the equivalent
+  effective config. Cormidia now also sets the equivalent
   `-c bypass_hook_trust=true` session override. A token-free real App Server
   `config/read` plus `hooks/list` check confirms a `sessionFlags` origin, the
   intended enabled `PreToolUse` matcher, and no warnings or errors.
@@ -193,7 +193,7 @@ scratch. On macOS only, the Claude child receives the source `HOME` with
 receives a sanitized environment; disables project/user settings, skills,
 plugins, and session persistence; and uses a fail-closed Claude tool sandbox
 that denies source-home reads while explicitly re-allowing the turn worktree
-and confines writes to that cwd. The Operon actor gate independently rejects
+and confines writes to that cwd. The Cormidia actor gate independently rejects
 absolute, tilde, `$HOME`, and `${HOME}` paths outside that worktree for every
 tool.
 
@@ -423,10 +423,10 @@ cost:
 
 All three token-free mechanical boundary artifacts passed. The immutable
 qualifier correctly returned `not_qualified` solely because Claude was a
-`budget_stop`; this was a harness allocation miss, not a failed Operon gate or
+`budget_stop`; this was a harness allocation miss, not a failed Cormidia gate or
 adapter budget boundary. The terminal campaign was rendered to
 `report-final.html` and preserved as a 142-file schema-v2 sanitized archive at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260713-72690b61e12b-6f5134a6-evidence-v2`.
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260713-72690b61e12b-6f5134a6-evidence-v2`.
 Provider scratch and credential files were structurally excluded.
 
 The live campaign exposed four additional evidence/accounting defects, now
@@ -501,7 +501,7 @@ invalidations, harness errors, or missing attempts.
 The final report is retained at
 `.eval-artifacts/adapter-harness-calibration-v1-20260713-9c3b336d6842/report-final.html`.
 A 150-file schema-v2 sanitized archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260713-9c3b336d6842-f63518ae-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260713-9c3b336d6842-f63518ae-evidence-v2`;
 provider scratch was structurally excluded. The verified cleanup preview can
 remove only campaign `world/` and `provider-scratch/` while preserving all
 canonical evidence, but destructive cleanup was not executed without a

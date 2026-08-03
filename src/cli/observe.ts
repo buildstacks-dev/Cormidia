@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { ObserveService } from "../observe/live-source.js";
 import { startObserveServer } from "../observe/server.js";
 import type { ObserveFiltersV1 } from "../observe/types.js";
@@ -19,7 +19,7 @@ interface ObserveArgs {
 export async function cmdObserve(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "observe");
   const parsed = parseArgs(common.rest);
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   if (parsed.app !== undefined && !homes.appsFile.apps.some((app) => app.name === parsed.app)) {
     throw new Error(`observe: unknown registered app "${parsed.app}"`);
   }
@@ -48,7 +48,7 @@ export async function cmdObserve(args: string[]): Promise<number> {
   });
 
   const observerUrl = initialViewUrl(started.url, parsed);
-  console.log(`Operon observer: ${observerUrl}`);
+  console.log(`Cormidia observer: ${observerUrl}`);
   console.log(`Package root: ${homes.packageRoot}`);
   console.log(`Org home:     ${homes.orgHome}`);
   console.log(`State home:   ${homes.stateHome}`);

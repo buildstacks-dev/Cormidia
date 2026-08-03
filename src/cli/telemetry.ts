@@ -11,7 +11,7 @@
 //
 // One report shape feeds three renderers (terminal, --json, --html). The
 // HTML file must be fully self-contained (inline CSS, zero external
-// requests) because operators open it from machines with no operon install;
+// requests) because operators open it from machines with no cormidia install;
 // every interpolated string is HTML-escaped because envelope previews carry
 // arbitrary model output.
 
@@ -30,7 +30,7 @@ import {
 } from "../runtime/cost.js";
 import { readTurnRecords, settlementIdentity, type TurnRecord } from "../runtime/telemetry.js";
 import { listParentTasks, type ParentTaskRecord } from "../org/parent-task.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { readReportDetails } from "../report/detail-source.js";
 import { buildEfficiencyReport } from "../report/efficiency.js";
 import { earliestLedgerDay, readLedgerRange } from "../report/ledger-source.js";
@@ -42,7 +42,7 @@ import { extractHomeFlags } from "./home-flags.js";
 export async function cmdTelemetry(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "telemetry");
   const parsed = parseArgs(common.rest);
-  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
+  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveCormidiaHomes(common)).stateHome;
 
   const rows = await readStatusRows(stateHome, parsed.app !== undefined ? { app: parsed.app } : {});
   const parentTasks = await listParentTasks(stateHome);
@@ -191,7 +191,7 @@ interface ParentTaskView {
   deployments: string[];
   observedStages: string[];
   missingRequiredStages: string[];
-  operonEndToEndComplete: boolean;
+  cormidiaEndToEndComplete: boolean;
   evidenceFiles?: string[];
 }
 
@@ -440,7 +440,7 @@ function completionIntegrity(
     manualFallback:
       parentTasks.length === 0
         ? "not_recorded"
-        : parentTasks.some((task) => task.record.executionMode !== "operon")
+        : parentTasks.some((task) => task.record.executionMode !== "cormidia")
           ? "present"
           : "none",
     prState: parentPrState(parentTasks),
@@ -497,9 +497,9 @@ function buildParentTaskViews(
         deployments,
         observedStages,
         missingRequiredStages,
-        operonEndToEndComplete:
+        cormidiaEndToEndComplete:
           record.status === "completed" &&
-          record.executionMode === "operon" &&
+          record.executionMode === "cormidia" &&
           missingRequiredStages.length === 0 &&
           allTracesComplete,
       };
@@ -522,7 +522,7 @@ function leastCompleteQuality(left: UsageQuality, right: UsageQuality): UsageQua
 // shared formatting
 // ---------------------------------------------------------------------------
 
-/** "~" marks an estimated (non-provider-reported) cost, matching `operon
+/** "~" marks an estimated (non-provider-reported) cost, matching `cormidia
  *  status` — the operator must never read a heuristic as a real charge. */
 function formatCost(costUsd: number, estimated: boolean, quality?: UsageQuality): string {
   const resolved = quality ?? (estimated ? "estimated" : "complete");
@@ -581,7 +581,7 @@ function renderTerminal(report: TelemetryReport): string {
       `  execution mode: ${task.record.executionMode}`,
       `  required stages: ${task.record.requiredStages.join(", ") || "none"}`,
       `  observed stages: ${task.observedStages.join(", ") || "none"}`,
-      `  Operon end-to-end complete: ${task.operonEndToEndComplete ? "yes" : "no"}`,
+      `  Cormidia end-to-end complete: ${task.cormidiaEndToEndComplete ? "yes" : "no"}`,
       `  traces: ${task.traces.join(", ") || "none"}; tickets: ${task.tickets.join(", ") || "none"}; PRs: ${task.prs.join(", ") || "none"}`,
     );
   }
@@ -750,7 +750,7 @@ function parentTaskToJson(task: ParentTaskView): unknown {
     required_stages: task.record.requiredStages,
     observed_stages: task.observedStages,
     missing_required_stages: task.missingRequiredStages,
-    operon_end_to_end_complete: task.operonEndToEndComplete,
+    cormidia_end_to_end_complete: task.cormidiaEndToEndComplete,
     resulting: {
       tickets: task.tickets,
       traces: task.traces,
@@ -841,7 +841,7 @@ function renderHtml(report: TelemetryReport, evidenceDir: string): string {
   const subtitle = `${report.passCount} pass(es)${filters.length > 0 ? ` — ${filters.join(", ")}` : ""}`;
 
   const body = [
-    `<h1>Operon telemetry</h1>`,
+    `<h1>Cormidia telemetry</h1>`,
     `<p class="muted">${esc(subtitle)} · source run state was read-only; linked artifacts are copies in <code>${esc(evidenceDir)}</code></p>`,
     renderParentTasks(report, evidenceDir),
     ...report.tickets.map((ticket) => renderTicketSection(ticket)),
@@ -858,7 +858,7 @@ function renderHtml(report: TelemetryReport, evidenceDir: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Operon telemetry</title>
+<title>Cormidia telemetry</title>
 <style>${CSS}</style>
 </head>
 <body>
@@ -889,8 +889,8 @@ function renderParentTasks(report: TelemetryReport, evidenceDir: string): string
 <dt>Repository</dt><dd><code>${esc(task.record.repository?.workdir ?? "not recorded")}</code> · ${esc(task.record.repository?.branch ?? "unknown branch")} · <code>${esc(task.record.repository?.head ?? "unknown HEAD")}</code></dd>
 <dt>Execution mode</dt><dd>${esc(task.record.executionMode)}${task.record.fallbackEvents.length > 0 ? ` — ${esc(task.record.fallbackEvents.map((event) => event.reason).join("; "))}` : ""}</dd>
 <dt>Required / observed stages</dt><dd>${esc(task.record.requiredStages.join(", ") || "none")} / ${esc(task.observedStages.join(", ") || "none")}</dd>
-<dt>Operon end-to-end complete?</dt><dd>${task.operonEndToEndComplete ? "yes" : `no${task.missingRequiredStages.length > 0 ? ` — missing ${esc(task.missingRequiredStages.join(", "))}` : ""}`}</dd>
-<dt>Lifecycle state</dt><dd>${esc(task.record.completionState === undefined ? "not recorded" : `implementation ${task.record.completionState.implementation}; CI ${task.record.completionState.ci}; Operon review ${task.record.completionState.operonReview}; human review ${task.record.completionState.humanReview}; PR ${task.record.completionState.pr}; issues close on merge ${task.record.completionState.issuesCloseOnMerge.join(", ") || "none"}`)}</dd>
+<dt>Cormidia end-to-end complete?</dt><dd>${task.cormidiaEndToEndComplete ? "yes" : `no${task.missingRequiredStages.length > 0 ? ` — missing ${esc(task.missingRequiredStages.join(", "))}` : ""}`}</dd>
+<dt>Lifecycle state</dt><dd>${esc(task.record.completionState === undefined ? "not recorded" : `implementation ${task.record.completionState.implementation}; CI ${task.record.completionState.ci}; Cormidia review ${task.record.completionState.cormidiaReview}; human review ${task.record.completionState.humanReview}; PR ${task.record.completionState.pr}; issues close on merge ${task.record.completionState.issuesCloseOnMerge.join(", ") || "none"}`)}</dd>
 <dt>Results</dt><dd>tickets ${esc(task.tickets.join(", ") || "none")}; traces ${esc(task.traces.join(", ") || "none")}; branches ${esc(task.branches.join(", ") || "none")}; PRs ${esc(task.prs.join(", ") || "none")}; reviews ${esc(task.reviews.join(", ") || "none")}; deployments ${esc(task.deployments.join(", ") || "none")}</dd>
 </dl></section>`;
   }).join("\n");
@@ -1065,7 +1065,7 @@ function renderCompletionIntegrity(report: TelemetryReport): string {
 <dt>Unexpected workdir changes within a trace</dt><dd>${esc(integrity.inconsistentWorkdirs.join(", ") || "none observed")}</dd>
 <dt>Stale envelopes</dt><dd>${esc(integrity.staleEnvelopes.join(", ") || "none")}</dd>
 <dt>Are recorded cost totals complete?</dt><dd>${esc(integrity.costTotals)}</dd>
-<dt>Did an Operon Reviewer pass complete?</dt><dd>${esc(integrity.reviewerPass)}</dd>
+<dt>Did a Cormidia Reviewer pass complete?</dt><dd>${esc(integrity.reviewerPass)}</dd>
 <dt>Manual/external fallback</dt><dd>${esc(integrity.manualFallback)}</dd>
 <dt>PR approval / merge / issue-close state</dt><dd>${esc(integrity.prState)}</dd>
 </dl></section>`;

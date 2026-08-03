@@ -302,7 +302,7 @@ export class CodexRuntime implements Runtime {
     try {
       if (req.signal?.aborted) return stoppedCodexResult(req, state, escalations, startTime);
       await client.request("initialize", {
-        clientInfo: { name: "operon", title: "Operon", version: "0.1.0" },
+        clientInfo: { name: "cormidia", title: "Cormidia", version: "0.1.0" },
         capabilities: {
           experimentalApi: true,
           requestAttestation: false,
@@ -422,7 +422,7 @@ export class CodexRuntime implements Runtime {
             });
             // Running per-turn budget guard on the ACCUMULATED estimate. The
             // App Server exposes no native budget knob (unlike Claude's
-            // --max-budget-usd), so Operon enforces the cap itself: once the
+            // --max-budget-usd), so Cormidia enforces the cap itself: once the
             // estimated running spend crosses role.maxTurnBudgetUsd we stop
             // consuming and let the finally-block close the client (terminating
             // the App Server turn). Reading the accumulated total (not `.last`)
@@ -455,7 +455,7 @@ export class CodexRuntime implements Runtime {
         return;
       default:
         if (message.id !== undefined) {
-          await client.respond(message.id, { error: `Operon does not implement App Server request ${message.method}` });
+          await client.respond(message.id, { error: `Cormidia does not implement App Server request ${message.method}` });
           state.status = "failed";
           state.finalSummary = `Unsupported Codex App Server request: ${message.method}`;
         }
@@ -879,7 +879,7 @@ function usageFromTokenNotification(
     tokensInUncached: inputTokens,
     cacheReadTokens: cachedInputTokens,
     tokensOut,
-    // App Server reports no dollar cost, so Operon estimates it from token
+    // App Server reports no dollar cost, so Cormidia estimates it from token
     // counts and documented list prices (see estimateCodexCostUsd). This is
     // an estimate — flagged as such — but it is what stops a codex turn from
     // spending $0 in the budget rollups and gives the per-turn cap something
@@ -899,13 +899,13 @@ interface CodexPrice {
 // Documented OpenAI list prices, USD per million tokens (input / output),
 // from research/2026-07-05_model-id-verification.md and
 // research/2026-07-15_model-assignment-refresh.md. These are the ONLY prices
-// Operon asserts; no figure here is invented.
+// Cormidia asserts; no figure here is invented.
 //
 // Two deliberate conservative choices keep the estimate fail-safe (it may
 // over- but must never silently under-count spend, because it also backs the
 // hard budget cap):
 //  - Cached input tokens are priced at the FULL input rate. The cited source
-//    does not publish codex's cached-input discount, so Operon does not guess
+//    does not publish codex's cached-input discount, so Cormidia does not guess
 //    one; charging cached tokens at full rate over-estimates slightly.
 //  - Output covers reasoning tokens (OpenAI bills reasoning at the output
 //    rate), which is why tokensOut already folds reasoningOutputTokens in.
@@ -998,7 +998,7 @@ function budgetOverrunNote(threadId: string, estimatedCostUsd: number, req: Turn
       `Budget overrun: turn stopped at the per-turn cap — estimated spend ` +
       `$${estimatedCostUsd.toFixed(4)} against maxTurnBudgetUsd ` +
       `$${req.role.maxTurnBudgetUsd} (role ${req.role.name}). Codex cost is an ` +
-      `Operon estimate (App Server reports no dollar cost). ` +
+      `Cormidia estimate (App Server reports no dollar cost). ` +
       `Overrun = incident note, not silent spend (roles.yaml).`,
   };
 }

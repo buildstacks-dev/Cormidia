@@ -79,7 +79,7 @@ export interface ClaudeRuntimeOptions {
   /** Optional host home needed only for macOS Keychain-backed authentication.
    * Bash reads are sandbox-denied from this path while the turn worktree is
    * explicitly re-allowed. Writes remain confined to the SDK sandbox's cwd,
-   * and the Operon gate applies the same worktree boundary to every tool. */
+   * and the Cormidia gate applies the same worktree boundary to every tool. */
   protectedHome?: string;
 }
 

@@ -2,7 +2,7 @@
 
 ## Scope
 `src/observe/**` and `src/cli/observe.ts` — the read-only Live UI
-(`operon observe`). Root AGENTS.md rules still apply; this file adds the
+(`cormidia observe`). Root AGENTS.md rules still apply; this file adds the
 local ones.
 
 ## Purpose

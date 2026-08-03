@@ -1,6 +1,6 @@
 // CF-J07-S — per-turn cap stop at the adapter observation point; 80% warning;
 // 100% pause + item on the documented path (L2; HB-022; case-catalog §CF-J07;
-// contracts/provider-adapter-core.md §5; OPERON-INV-006/007;
+// contracts/provider-adapter-core.md §5; CORMIDIA-INV-006/007;
 // docs: architecture §7 budget overlay).
 //
 // The adapter observation point is asserted per the capability-matrix

@@ -1,12 +1,12 @@
 import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { resolve } from "node:path";
 
 export async function cmdAnalyze(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "analyze");
   const parsed = parseArgs(common.rest);
-  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveOperonHomes(common)).stateHome;
+  const stateHome = common.stateHome ? resolve(common.stateHome) : (await resolveCormidiaHomes(common)).stateHome;
   const rows = await analyzeRunlogs(stateHome, parsed.app !== undefined ? { app: parsed.app } : {});
   const report = {
     schema_version: 1,

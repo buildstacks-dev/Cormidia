@@ -36,7 +36,7 @@ returned `qualified` with three passes and no product, infrastructure,
 harness, safety, budget, missing-attempt, or retry result.
 
 The private GitHub exercise retained issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-adapter-harness-calibration-v1-20260715-21420753e162`.
+`buildstacks-dev/cormidia-eval-adapter-harness-calibration-v1-20260715-21420753e162`.
 Repository ID `R_kgDOTZqRnQ` and content commit
 `6f5db5fea862b6437c10126e7d90b3f85253c3d4` are bound in the evidence. The
 identical second execution reused the first evidence and created no duplicate
@@ -51,7 +51,7 @@ and the immutable qualification JSON SHA-256 is
 `b0a9345f000a3fc533ab76609a4700fefcbe1e47d83b7b6f4a510634025a35d7`.
 Both reproduced byte-for-byte. The verified 91-file
 `sanitized-evidence/v3` archive is retained at
-`/Users/bikram/Build/operon-eval-archives/adapter-harness-calibration-v1-20260715-21420753e162/adapter-harness-calibration-v1-20260715-21420753e162-d583f8a5-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/adapter-harness-calibration-v1-20260715-21420753e162/adapter-harness-calibration-v1-20260715-21420753e162-d583f8a5-evidence-v2`;
 its archive-manifest SHA-256 is
 `31c4be400f489f36e5e71f270a38cdeae2e7777b89ab996f25f1012f4f950b08`.
 The separately retained local archive-receipt SHA-256 is
@@ -61,7 +61,7 @@ Cleanup was previewed only.
 ## Candidate result and accounting
 
 The candidate GitHub exercise retained issue 1 and pull request 2 in
-`buildstacks-dev/operon-eval-candidate-qualification-v1-20260715-21420753e162`.
+`buildstacks-dev/cormidia-eval-candidate-qualification-v1-20260715-21420753e162`.
 Repository ID `R_kgDOTZqfMQ` and content commit
 `c43d69c0306e1b892c2ba8618d7b9a67207bad9d` are bound in the evidence. Its
 identical rerun reused source evidence SHA-256
@@ -157,7 +157,7 @@ and the immutable qualification JSON SHA-256 is
 `0c572d8dc3b7a09437f2b7ad8381a44a0f8b345b22bcf921d35d01c9845ab16b`.
 Both reproduced byte-for-byte. The verified 661-file
 `sanitized-evidence/v3` archive is permanently retained at
-`/Users/bikram/Build/operon-eval-archives/candidate-qualification-v1-20260715-21420753e162/candidate-qualification-v1-20260715-21420753e162-4c07bd84-evidence-v2`;
+`/Users/bikram/Build/cormidia-eval-archives/candidate-qualification-v1-20260715-21420753e162/candidate-qualification-v1-20260715-21420753e162-4c07bd84-evidence-v2`;
 its archive-manifest SHA-256 is
 `ebef18b32e40b79eba3ef545388319181acd0e49f6c6b25adf633835e75cf930`.
 The separately retained local archive-receipt SHA-256 is

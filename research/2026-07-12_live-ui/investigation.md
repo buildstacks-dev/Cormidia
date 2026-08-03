@@ -1,10 +1,10 @@
-# Operon Live UI implementation and acceptance evidence — 2026-07-12
+# Cormidia Live UI implementation and acceptance evidence — 2026-07-12
 
 ## Scope and environment
 
-- Host execution (`/.dockerenv` absent); repository `/Users/bikram/Build/Operon`.
-- Installed CLI `/Users/bikram/.local/bin/operon`, source-linked to this checkout.
-- Org `Bikram-Org`; org home `/Users/bikram/Build/Bikram-Org`; state home `/Users/bikram/.operon/Bikram-Org`.
+- Host execution (`/.dockerenv` absent); repository `/Users/bikram/Build/Cormidia`.
+- Installed CLI `/Users/bikram/.local/bin/cormidia`, source-linked to this checkout.
+- Org `Bikram-Org`; org home `/Users/bikram/Build/Bikram-Org`; state home `/Users/bikram/.cormidia/Bikram-Org`.
 - App `buildstacks.dev`, checkout `/Users/bikram/Build/buildstacks.dev`, repository `buildstacks-dev/buildstacks.dev`, lifecycle left `onboarding`.
 - Original operator prompt SHA-256: `07104971c270a7ade0451c488d3ec259339ab86b1c2e30369b3d3457b17b5b4f`.
 - Correlated parent task: `live-ui-buildstacks-20260712`.
@@ -12,7 +12,7 @@
 
 ## Offline disposable sandbox proof
 
-State was isolated under `/tmp/operon-live-ui-sandbox-proof-20260712`; the app repository was read-only input.
+State was isolated under `/tmp/cormidia-live-ui-sandbox-proof-20260712`; the app repository was read-only input.
 
 - Initial snapshot and browser render succeeded.
 - A new run became live from durable envelope/events only; no CLI output was piped into the UI.
@@ -31,8 +31,8 @@ Screenshots: `screenshots/sandbox-{initial,live,stale,failure,restarted}.png`.
 Observer startup preceded planning. Planning command:
 
 ```sh
-OPERON_PARENT_TASK_ID=live-ui-buildstacks-20260712 \
-  operon plan buildstacks.dev --auto \
+CORMIDIA_PARENT_TASK_ID=live-ui-buildstacks-20260712 \
+  cormidia plan buildstacks.dev --auto \
   --goal 'Establish a bounded implementation slice from the approved buildstacks design' \
   --stage bootstrap --depth standard --risk low --ambiguity low \
   --coupling medium --reversibility reversible --external-consequence none \
@@ -52,7 +52,7 @@ Ticket #30 used three bounded claims:
 
 1. Offline Codex sandbox: npm registry `ENOTFOUND`; returned.
 2. Same result after host cache recovery; returned.
-3. Normal `operon loop --allow-network`: install/check passed, then `format:check` scanned the sandbox-created `.pnpm-store/`; returned at the claim cap.
+3. Normal `cormidia loop --allow-network`: install/check passed, then `format:check` scanned the sandbox-created `.pnpm-store/`; returned at the claim cap.
 
 Ticket #30 remains open with `op:returned`; it was never represented as complete.
 
@@ -63,13 +63,13 @@ The normal Planner publication path then ran with trace `plan-buildstacks.dev-17
 - Initial quick-tier #32 claim committed `5c6b8b5a408cc4a60a2508cb36ba338183d5137e`; its completeness gate correctly failed because quick routing had no contract criterion map. A redundant fix pass was cancelled, durable work preserved, and the ticket was reclassified to standard rather than weakening the gate.
 - Standard re-claim ran contract and implement, then all quality gates. PR #33 opened.
 - First complete review approved, but the bare same-account fallback was intentionally untrusted because no merge HMAC secret was present. A redundant review was cancelled.
-- The explicitly authorized merge-only re-claim used a fresh, non-persisted per-process `OPERON_SELF_APPROVAL_SECRET`; no secret value was printed or stored.
+- The explicitly authorized merge-only re-claim used a fresh, non-persisted per-process `CORMIDIA_SELF_APPROVAL_SECRET`; no secret value was printed or stored.
 - Independent review found two actionable issues: PR base `main` made the apparent two-file change a 53-file diff, and the PR body lacked pasted acceptance evidence.
 - Builder pushed the existing integration branch `build/buildstacks-v1`, retargeted PR #33 to it, pasted the pre-fix and ordered green evidence, and left the code head unchanged.
 - Fresh verify + security-deep review approved exact head `5c6b8b5` with zero findings. GitHub `validate` was green.
-- Operon squash-merged PR #33 into `build/buildstacks-v1` at `263b79dc88b68edebb5a51f468c428e9c85b4291` on `2026-07-12T10:49:16Z`.
-- Because the PR base is non-default, GitHub did not apply `Closes #32`. Operon had already removed the workflow label and checked all acceptance boxes, then cleanup targeted a newer snapshot clone and failed. Manual fallback closed only the already-merged #32 and pruned the stale worktree registration from its owning snapshot.
-- Parent task finished `completed`, `execution_mode: mixed`, implementation complete, CI green, Operon review approved, PR merged. Completion integrity intentionally remains false for pure Operon end-to-end because the manual finalization and interrupted gate/review envelopes are durable.
+- Cormidia squash-merged PR #33 into `build/buildstacks-v1` at `263b79dc88b68edebb5a51f468c428e9c85b4291` on `2026-07-12T10:49:16Z`.
+- Because the PR base is non-default, GitHub did not apply `Closes #32`. Cormidia had already removed the workflow label and checked all acceptance boxes, then cleanup targeted a newer snapshot clone and failed. Manual fallback closed only the already-merged #32 and pruned the stale worktree registration from its owning snapshot.
+- Parent task finished `completed`, `execution_mode: mixed`, implementation complete, CI green, Cormidia review approved, PR merged. Completion integrity intentionally remains false for pure Cormidia end-to-end because the manual finalization and interrupted gate/review envelopes are durable.
 - #31 remains open and dependency-blocked. Eight `production-deploy` / `secrets-or-auth` approvals remain pending and untouched.
 - Final budget: `$51.60 / $1000.00`; telemetry records 28 passes, including 8 Planner, 9 Builder, 7 Reviewer, and 4 Orchestrator gate records.
 
@@ -85,12 +85,12 @@ GitHub evidence:
 Commands:
 
 ```sh
-operon telemetry --app buildstacks.dev --date 2026-07-12 --json
-operon telemetry --app buildstacks.dev --date 2026-07-12 --html research/2026-07-12_live-ui/buildstacks-telemetry.html
-operon status
-operon analyze --app buildstacks.dev
-operon budget
-operon approvals
+cormidia telemetry --app buildstacks.dev --date 2026-07-12 --json
+cormidia telemetry --app buildstacks.dev --date 2026-07-12 --html research/2026-07-12_live-ui/buildstacks-telemetry.html
+cormidia status
+cormidia analyze --app buildstacks.dev
+cormidia budget
+cormidia approvals
 gh issue view 30 --repo buildstacks-dev/buildstacks.dev --json number,state,labels,url
 gh issue view 31 --repo buildstacks-dev/buildstacks.dev --json number,state,labels,url
 gh issue view 32 --repo buildstacks-dev/buildstacks.dev --json number,state,labels,url
@@ -99,7 +99,7 @@ gh pr view 33 --repo buildstacks-dev/buildstacks.dev --json state,mergedAt,merge
 
 The final observer snapshot agrees on #30 returned, #31 backlog/dependency-blocked, #32 merged, PR #33 head/merge/check state, 8 pending approvals, `$51.599868` recorded cost, and parent-task mixed fallback. The observer deliberately reports signed same-account GitHub review integrity as `unknown`: it does not possess the ephemeral HMAC secret and therefore does not convert an unverifiable comment marker into approval. Local Reviewer run evidence remains explicit and complete.
 
-`operon analyze` reports the expected incomplete artifacts: stale running gate envelope `20260712-100738-gates-quality-gates`, cancelled fix/review runs, long review passes, and shell-heavy remediation. These are preserved rather than rewritten.
+`cormidia analyze` reports the expected incomplete artifacts: stale running gate envelope `20260712-100738-gates-quality-gates`, cancelled fix/review runs, long review passes, and shell-heavy remediation. These are preserved rather than rewritten.
 
 Artifacts:
 
@@ -121,12 +121,12 @@ Selected SHA-256 hashes:
 1. GitHub polling cold start is bounded but sequential per historical PR for reviews/checks; the live repo took about 24–27 seconds for an initial 50-PR projection.
 2. A cancelled remediation left a gate wrapper with `status: running` and no terminal timestamp; telemetry/analyze and the UI expose it as incomplete rather than repairing history.
 3. Exact-head signed same-account review is not asserted by an observer that lacks the HMAC secret; the PR card says review `unknown`, while local structured review passes and the parent task record approval separately.
-4. PR merge into a non-default integration branch required manual issue close because GitHub closing keywords apply on the default branch. This is recorded as mixed execution, not a pure Operon completion.
+4. PR merge into a non-default integration branch required manual issue close because GitHub closing keywords apply on the default branch. This is recorded as mixed execution, not a pure Cormidia completion.
 5. The app remains `onboarding`; no release/deployment action occurred.
 
 ## Final offline and packaging verification
 
-Executed from `/Users/bikram/Build/Operon` after the final live-correlation fix:
+Executed from `/Users/bikram/Build/Cormidia` after the final live-correlation fix:
 
 | Command | Result |
 | --- | --- |

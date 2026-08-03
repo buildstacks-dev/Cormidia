@@ -1,4 +1,4 @@
-// `operon run-role <role> --app <app> --turn <id> --template <path>`
+// `cormidia run-role <role> --app <app> --turn <id> --template <path>`
 // [--assignment <candidate-id>@<effort>] [--allow-network] [--dry-run]`.
 // Both modes first traverse the same read-only argument/template/assignment/
 // creator-scope inspection. --dry-run then prints that execution intent and
@@ -14,7 +14,7 @@ import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { assembleContext } from "../org/context.js";
 import { runDispatchedTurn, turnWorktreeIdentity } from "../org/turn-runner.js";
 import type { ContextBundle, RoleConfig } from "../runtime/types.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
@@ -58,7 +58,7 @@ export async function cmdRunRole(
     else if (arg !== undefined && !arg.startsWith("--") && name === undefined) name = arg;
     else throw new Error(`run-role: unknown argument "${arg}"`);
   }
-  if (name === undefined) throw new Error("run-role: role name required — operon run-role <role>");
+  if (name === undefined) throw new Error("run-role: role name required — cormidia run-role <role>");
   if (app === undefined) {
     throw new Error("run-role: --app <app> is required for both dry-run and live turns");
   }
@@ -73,7 +73,7 @@ export async function cmdRunRole(
     );
   }
 
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   const parentTaskId = await resolveParentTaskId(homes.stateHome, parentTaskInput);
   const rolesPath = join(homes.orgHome, "roles.yaml");
   const { roles } = await loadRoles(rolesPath);

@@ -52,7 +52,7 @@ export interface BriefInput {
   maxAttempts?: number;
   /** OKF excerpts — selected once per pipeline execution by the caller. */
   memory?: string[];
-  /** App conventions: build/test commands from .operon/config.yaml. */
+  /** App conventions: build/test commands from .cormidia/config.yaml. */
   repo?: string;
 }
 

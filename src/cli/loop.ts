@@ -1,4 +1,4 @@
-// `operon loop --app <app> [--once|--follow] [--dry-run] [--allow-network]`
+// `cormidia loop --app <app> [--once|--follow] [--dry-run] [--allow-network]`
 // for the build-loop state machine (M5.9).
 
 import { join } from "node:path";
@@ -27,7 +27,7 @@ import {
 import { createExistingTicketApprovalHandler } from "../org/ticket-episode-approval.js";
 import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation, waitForDelay } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
@@ -63,8 +63,8 @@ export function loopDriverExitCode(result: LoopDriverResult): 0 | 1 {
 /**
  * Persist the scorecard events one loop tick produced into the org scorecard
  * ledger, mirroring the autonomous dispatch path (org/turn-runner.ts). Without
- * this the manual `operon loop` driver dropped every scorecard event, so
- * `operon retro` was blind to the real build loop — it only ever saw the
+ * this the manual `cormidia loop` driver dropped every scorecard event, so
+ * `cormidia retro` was blind to the real build loop — it only ever saw the
  * dispatched-turn path. review_cycles is attributed to the builder (it counts
  * the rework cycles the builder needed before the ticket merged). Returns the
  * number of newly-appended rows (dedupe drops replays).
@@ -94,10 +94,10 @@ export async function persistLoopScorecards(
   return appended;
 }
 
-/** Manual `operon loop` must use the same durable approval boundary as the
+/** Manual `cormidia loop` must use the same durable approval boundary as the
  * autonomous dispatcher. The previous raw defaultGate wiring denied critical
  * actions but never created an approval item, leaving tickets stranded with
- * no possible `operon approvals review` recovery path. */
+ * no possible `cormidia approvals review` recovery path. */
 export function createLoopGateForRole(
   stateHome: string,
   app: string,
@@ -194,7 +194,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "loop");
   args = common.rest;
   if (args[0] === "rearm") {
-    return cmdClaimRearm(args.slice(1), await resolveOperonHomes(common));
+    return cmdClaimRearm(args.slice(1), await resolveCormidiaHomes(common));
   }
   const parsed = parseLoopRunArgs(args);
   const {
@@ -209,7 +209,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
   } = parsed;
   let { once, follow } = parsed;
 
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
   if (explainEpisode !== undefined) {
     if (resumeEpisode !== undefined || appName !== undefined || once || follow || dryRun || repoDir !== undefined || worktreeRoot !== undefined || allowNetwork) {
       throw new Error("loop: --explain-context is a token-free standalone read");
@@ -223,7 +223,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
     }
     // L-005: this flag is a read-only PREVIEW of the durable resume plan — it
     // does not execute the resume. Say so plainly so an operator does not
-    // believe work happened. Actual continuation is `operon loop --app <app>`,
+    // believe work happened. Actual continuation is `cormidia loop --app <app>`,
     // which claims the ticket and resumes from these durable artifacts. The
     // JSON carries an explicit `preview: true` for machine readers, and the
     // human-facing note goes to stderr so stdout stays parseable.
@@ -234,7 +234,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
     });
     console.error(
       "loop: --resume-episode is a read-only preview of the durable resume plan; it does not execute. " +
-        "Continue the ticket with `operon loop --app <app>`, which resumes from these artifacts.",
+        "Continue the ticket with `cormidia loop --app <app>`, which resumes from these artifacts.",
     );
     console.log(JSON.stringify({ preview: true, resume: decision }, null, 2));
     return 0;
@@ -255,9 +255,9 @@ export async function cmdLoop(args: string[]): Promise<number> {
   const localRepo = repoDir ?? join(homes.stateHome, "repos", selectedApp.name);
   const worktrees = worktreeRoot ?? join(homes.stateHome, "worktrees", selectedApp.name);
   const selfApprovalSecret = await resolveReviewAuthorizationSecret(homes.stateHome, {
-    ...(process.env["OPERON_SELF_APPROVAL_SECRET"] === undefined
+    ...(process.env["CORMIDIA_SELF_APPROVAL_SECRET"] === undefined
       ? {}
-      : { environmentSecret: process.env["OPERON_SELF_APPROVAL_SECRET"] }),
+      : { environmentSecret: process.env["CORMIDIA_SELF_APPROVAL_SECRET"] }),
     dryRun,
   });
   const inputs = await defaultLoopInputs(selectedApp.repo, localRepo, {
@@ -441,7 +441,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
                 budgetRow.status === "unknown"
                   ? `${budgetRow.app} budget total could not be computed this month ` +
                     `(malformed ledger row) — refusing to spend; run ` +
-                    `\`operon budget --reconcile\` to repair the ledger`
+                    `\`cormidia budget --reconcile\` to repair the ledger`
                   : `${budgetRow.app} spent $${budgetRow.spentUsd.toFixed(2)} of its ` +
                     `$${budgetRow.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
                     `or wait for the month to reset`,
@@ -488,7 +488,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       for (const queued of queuedReleases) {
         console.log(
           `release: ${queued.kind} for ${queued.ticketRef} queued as critical op ` +
-            `${queued.approvalId} (owner: ${queued.owner}) — decide with \`operon approvals\``,
+            `${queued.approvalId} (owner: ${queued.owner}) — decide with \`cormidia approvals\``,
         );
       }
     }

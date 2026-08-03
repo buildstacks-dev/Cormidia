@@ -1,7 +1,7 @@
 // CF-INV-011 — observe snapshot/SSE carries no verbatim L3 and no secret:
 // L1 projection guardrail (HB-016, FLOOR — non-discretionary).
 //
-// OPERON-INV-011 adversarial seed (d) (validation-design/invariants.md):
+// CORMIDIA-INV-011 adversarial seed (d) (validation-design/invariants.md):
 // "SSE stream carrying L3 content"; journey J-15
 // (contracts/journey-acceptance.md): "Given any snapshot/SSE/export, then no
 // L3 content and no secret-pattern match crosses the boundary."
@@ -112,7 +112,7 @@ function seededInput(seeds: readonly SyntheticSecret[]): ObserveProjectionInput 
     promptRef: "prompt.md",
     promptSha256: "0".repeat(64),
     requiredStages: ["build"],
-    executionMode: "operon",
+    executionMode: "cormidia",
     fallbackEvents: [],
     status: "running",
     startedAt: "2026-07-31T11:58:00.000Z",
@@ -149,7 +149,7 @@ function seededInput(seeds: readonly SyntheticSecret[]): ObserveProjectionInput 
     apps: [
       {
         name: APP,
-        repo: "operon-double/sandbox-observe",
+        repo: "cormidia-double/sandbox-observe",
         status: "live",
         budgetUsdMonth: 100,
         cadence: {},
@@ -169,7 +169,7 @@ function seededInput(seeds: readonly SyntheticSecret[]): ObserveProjectionInput 
     github: [
       {
         app: APP,
-        repo: "operon-double/sandbox-observe",
+        repo: "cormidia-double/sandbox-observe",
         issues: [
           {
             number: 12,

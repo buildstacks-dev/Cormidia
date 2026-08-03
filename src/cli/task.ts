@@ -1,5 +1,5 @@
-// `operon task` — explicit parent delegated-task lifecycle. A top-level
-// Codex/Claude harness begins one record, exports OPERON_PARENT_TASK_ID while
+// `cormidia task` — explicit parent delegated-task lifecycle. A top-level
+// Codex/Claude harness begins one record, exports CORMIDIA_PARENT_TASK_ID while
 // invoking Planner/Builder/Reviewer commands, records any external fallback,
 // and finishes only when the delegated outcome is terminal.
 
@@ -15,7 +15,7 @@ import {
   type ParentTaskCompletionState,
   type ParentTaskStatus,
 } from "../org/parent-task.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { authorityEvidence, resolveAuthority } from "../org/authority.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
@@ -24,7 +24,7 @@ export async function cmdTask(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "task");
   const [verb, ...rest] = common.rest;
   if (verb === undefined) throw new Error("task: expected begin | fallback | finish | show");
-  const homes = await resolveOperonHomes(common);
+  const homes = await resolveCormidiaHomes(common);
 
   if (verb === "begin") {
     const parsed = parseBegin(rest);
@@ -67,7 +67,7 @@ export async function cmdTask(args: string[]): Promise<number> {
       ),
     });
     printTask(record);
-    console.log(`next: export OPERON_PARENT_TASK_ID=${shellQuote(record.taskId)}`);
+    console.log(`next: export CORMIDIA_PARENT_TASK_ID=${shellQuote(record.taskId)}`);
     return 0;
   }
 
@@ -179,7 +179,7 @@ function parseFinish(args: string[]): {
 } {
   const multi = parseMultiFlags(args, new Set([
     "--id", "--status", "--result", "--ticket", "--trace", "--branch", "--pr", "--review", "--deployment",
-    "--implementation", "--ci", "--operon-review", "--human-review", "--pr-state", "--issue-closes-on-merge",
+    "--implementation", "--ci", "--cormidia-review", "--human-review", "--pr-state", "--issue-closes-on-merge",
   ]));
   const status = requiredMulti(multi, "--status", "task finish");
   if (!(["completed", "failed", "cancelled", "timed_out"] as string[]).includes(status)) {
@@ -200,9 +200,9 @@ function parseFinish(args: string[]): {
     completionState: {
       implementation: enumValue(multi, "--implementation", ["complete", "incomplete", "unknown"], "unknown"),
       ci: enumValue(multi, "--ci", ["green", "red", "pending", "unknown"], "unknown"),
-      operonReview: enumValue(
+      cormidiaReview: enumValue(
         multi,
-        "--operon-review",
+        "--cormidia-review",
         ["approved", "changes_requested", "awaiting", "bypassed", "not_required", "unknown"],
         "unknown",
       ),

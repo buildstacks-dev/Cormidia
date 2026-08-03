@@ -7,7 +7,7 @@
 #
 # Two tiering axes, deliberately orthogonal (docs/loop/design.md §4):
 #   - ticket tier (Planner label op:tier-quick|standard|deep) selects PASSES
-#   - risk tier (.operon/policy.yaml changed-file globs) selects GATES
+#   - risk tier (.cormidia/policy.yaml changed-file globs) selects GATES
 # Tiering makes the loop cheaper, never less safe: a quick ticket touching
 # auth/** still gets high-tier gates.
 #

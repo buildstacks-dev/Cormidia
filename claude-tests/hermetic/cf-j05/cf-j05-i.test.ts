@@ -1,6 +1,6 @@
 // CF-J05-I — process death inside the approval-execution journey
 // (contracts/journey-acceptance.md J-05; contracts/B-17-typed-executor.md §3;
-// OPERON-INV-003 falsifier (c) "kill between remote effect and
+// CORMIDIA-INV-003 falsifier (c) "kill between remote effect and
 // acknowledgement, observe next tick's behavior"; system-map T-12; risk E-1):
 //   leg 1 — SIGKILL between the human decision and the execution continuation:
 //           nothing is lost and nothing runs twice — the next dispatch
@@ -33,7 +33,7 @@ const CRITICAL_COMMAND = "rm -rf /var/data/legacy-exports";
 const APPS_FILE: AppsFile = {
   org: { name: "cf-j05-i", maxConcurrentTurns: 1 },
   defaults: { budgetUsdMonth: 100 },
-  apps: [{ name: APP, repo: "operon-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+  apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
 };
 
 /** The child walks gate-block → raise → approve, then (unless killed first)
@@ -70,7 +70,7 @@ await executeApprovedCommands({
   appsFile: {
     org: { name: "cf-j05-i", maxConcurrentTurns: 1 },
     defaults: { budgetUsdMonth: 100 },
-    apps: [{ name: ${JSON.stringify(APP)}, repo: "operon-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+    apps: [{ name: ${JSON.stringify(APP)}, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
   },
   runner: async () => {
     appendFileSync(join(scratch, "effect.log"), "EFFECT\\n");

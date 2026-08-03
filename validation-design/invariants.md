@@ -1,7 +1,7 @@
-# Invariants — Operon (product scope)
+# Invariants — Cormidia (product scope)
 
 Status: CONFIRMED at the Phase 2 gate (2026-07-31, round 3); human-ratified 2026-07-31 (ratification-package.md §9). <!-- AUD-105 -->
-Namespace: `OPERON-INV-NNN`. Product scope — no parent, nothing inherited.
+Namespace: `CORMIDIA-INV-NNN`. Product scope — no parent, nothing inherited.
 
 Provenance per item: `[elicited]` = stakeholder's Phase 2 ramble (elicitation-log.md);
 `[doc]` = derivable from ./docs/; `[rambling]` = ./rambling.txt (cited); `[simulated]` =
@@ -23,7 +23,7 @@ contracts B-18/B-19 and J-19 acceptance criteria rather than masquerading as INV
 
 ---
 
-## OPERON-INV-001 — Authority never grows by accident
+## CORMIDIA-INV-001 — Authority never grows by accident
 `[elicited+doc: architecture §5, org/context, TASTE "never do"]`
 **Statement.** The effective authority of any turn is never broader than the ratified org
 grant as narrowed by app configuration. Narrower layers only narrow. No agent-writable
@@ -40,7 +40,7 @@ protocol surface and a subsequent turn honoring it.
 text asserting new permissions changes gate outcome; (c) label or prior approval treated
 as standing authority; (d) learning publish path used to alter a role's toolset.
 
-## OPERON-INV-002 — The gate is total over critical effects
+## CORMIDIA-INV-002 — The gate is total over critical effects
 `[elicited+doc: architecture §0/§4, approvals design]`
 **Statement.** Every action whose effect is critical meets the same classifier and
 approval boundary before execution, regardless of route: shell nesting, encoded or
@@ -54,7 +54,7 @@ a new tool type the classifier has never seen (must fail closed, not default-all
 (c) direct GitHub mutation from a turn bypassing the tool channel; (d) the known Codex
 untrusted-read bypass class (issue #20) generalized to a write.
 
-## OPERON-INV-003 — Approval is never execution; grants stay inside their ratified shape
+## CORMIDIA-INV-003 — Approval is never execution; grants stay inside their ratified shape
 `[elicited+doc: approvals design, PURPOSE 2026-07-18]`
 **Statement.** At every moment, an approved item and an executed operation are distinct
 durable facts. Grants have exactly two ratified shapes, and neither drifts beyond its
@@ -81,7 +81,7 @@ post-revocation / at cap+1 — each must be refused with the grant intact in aud
 (c) kill between remote effect and acknowledgement, observe next tick's behavior;
 (d) attempt to represent a self-approval via the CLI effect surface.
 
-## OPERON-INV-004 — One turn, one app, coherently
+## CORMIDIA-INV-004 — One turn, one app, coherently
 `[elicited+doc: PURPOSE "one turn one app", architecture §7]`
 **Statement.** Every turn binds exactly one app, and all its facets agree on that
 identity: plan, authority, context, memory bundles, repository, worktree, approval scope,
@@ -94,7 +94,7 @@ app's memory; a settlement row attributed to a different app than the worktree m
 (b) memory selection pulling sibling-app bundle; (c) approval scoped to app A consumed by
 app B's turn; (d) reset of app A observed from app B's clone (ties to INV-010).
 
-## OPERON-INV-005 — Ticket claims are unique, durable, and stable
+## CORMIDIA-INV-005 — Ticket claims are unique, durable, and stable
 `[elicited+doc: PURPOSE 2026-07-18 sagas, loop design §7]`
 **Statement.** At every moment a ticket has at most one active claim. A claim never
 silently disappears while its work continues; a crash before the first provider turn
@@ -108,7 +108,7 @@ approval wait.
 flip, before claim persist (and the reverse); (c) approval pause → resume → assert claim
 identity; (d) re-arm without the transaction (must be refused).
 
-## OPERON-INV-006 — Settlement conservation
+## CORMIDIA-INV-006 — Settlement conservation
 `[elicited+doc: episodes contract, README observability]`
 **Statement.** Every provider turn creates exactly one settlement obligation and settles
 exactly once — succeeded, failed, cancelled, malformed, or gate-stopped alike. Mechanical
@@ -122,7 +122,7 @@ settling; an unavailable-usage turn shown as $0 headroom.
 `budget --reconcile`; (b) same providerTurnId settled twice; (c) provider returns no
 usage — assert "unknown", not 0; (d) blocked-on-gate turn still settles.
 
-## OPERON-INV-007 — Paused means no new spend, decided once
+## CORMIDIA-INV-007 — Paused means no new spend, decided once
 `[elicited+doc: architecture §7]`
 **Statement.** If either the human registry policy or the dispatcher's budget overlay
 says an app is paused, no new provider work claims spend for that app. The two facts stay
@@ -139,7 +139,7 @@ the same state.
 pause + manual `loop --once`; (c) cap crossed mid-turn (per-turn stop) vs next-claim
 admission; (d) divergent duplicated admission logic detected structurally.
 
-## OPERON-INV-008 — Evidence never outruns reality
+## CORMIDIA-INV-008 — Evidence never outruns reality
 `[elicited+doc: loop conventions, scheduler health, reporting design]` `[rambling: PR #182]`
 **Statement.** No observable state claims more than its evidence: no label without its
 artifact; "reviewed" only via an authorized review bound to the exact HEAD; "merged" only
@@ -158,9 +158,9 @@ unavailable → queue must not render empty; (c) usage unavailable → spend mus
 $0; (d) scheduler definition present but no tick evidence → not "healthy"; (e) contradictory
 claim file vs GitHub state → reader must surface contradiction, not pick the greener.
 
-## OPERON-INV-009 — No merge escapes the reviewed boundary
+## CORMIDIA-INV-009 — No merge escapes the reviewed boundary
 `[elicited+doc: loop design §7, github-conventions]` `[rambling: default-branch scar]`
-**Statement.** Every merge Operon performs satisfies, at merge time: the authorized
+**Statement.** Every merge Cormidia performs satisfies, at merge time: the authorized
 review's `commit_id` **equals the current candidate/branch HEAD at merge time** — any
 commit pushed after the review invalidates the approval (ancestry alone is not freshness);
 required checks are fresh for that exact candidate; the remote default branch was
@@ -174,10 +174,10 @@ review); (b) repoint/guess default branch → diff/merge must resolve remote tru
 (c) HMAC review-authorization bytes bound to different commit; (d) agent attempts merge
 directly.
 
-## OPERON-INV-010 — Destruction stays inside its named scope
+## CORMIDIA-INV-010 — Destruction stays inside its named scope
 `[elicited+doc: PURPOSE app-reset, README reset]`
 **Statement.** No operation destroys state outside its explicitly named scope. App reset
-touches only the named app's Operon-managed state and identifiable `op:*` GitHub work —
+touches only the named app's Cormidia-managed state and identifiable `op:*` GitHub work —
 never a sibling app, a human checkout, the repository, its default branch, or closed
 history. Archive creation precedes destructive local mutation. `--force` crosses only the
 narrow stale-heartbeat condition it was designed for, never identity or scope checks.
@@ -189,7 +189,7 @@ check); destruction proceeding with the archive write failed.
 the archive write → destruction must not begin; (c) `--force` against a fresh heartbeat /
 pending approval; (d) reset targeting a repo whose remote moved (wrong-remote guard).
 
-## OPERON-INV-011 — Secrets are confined, one policy governs
+## CORMIDIA-INV-011 — Secrets are confined, one policy governs
 `[elicited+doc: F-PT-001 resolution; live-ui/reporting contracts]`
 **Statement.** Verbatim L3 evidence (`brief.md`, `prompt.md`, `output.md`, `session.log`)
 stays inside its permitted local evidence boundary; secret-bearing content never crosses
@@ -204,7 +204,7 @@ surface; an egress path importing its own pattern list.
 portable HTML report; (c) secret in run log → narrative capture (years-durable); (d) SSE
 stream carrying L3 content; (e) structural check: exactly one pattern-policy source.
 
-## OPERON-INV-012 — Model claims never authenticate or promote themselves
+## CORMIDIA-INV-012 — Model claims never authenticate or promote themselves
 `[elicited+doc: TASTE evidence-over-claims, learning-loop design]` `[rambling: PR #182,
 "evidence over assertion"]`
 **Statement.** No model output becomes a mechanical fact by assertion: a model cannot
@@ -221,7 +221,7 @@ authorization; "authorized" surfaced as "validated".
 artifact; (b) "tests passed" text with no check run → ship gate must refuse; (c) candidate
 file placed to be directly resolvable; (d) self-report feeding promotion/canary metrics.
 
-## OPERON-INV-013 — Durable writes have an integrity story
+## CORMIDIA-INV-013 — Durable writes have an integrity story
 `[elicited+doc: system-map §2.5, loop/turns]`
 **Statement.** For every durable store, readers expose only the old valid state, the new
 valid state, or a *recognized* intermediate logical state with an unambiguous recovery
@@ -237,7 +237,7 @@ bytes as valid state.
 class; (b) truncated JSON accepted by a reader; (c) journal present + dead process →
 reconciled, not ignored.
 
-## OPERON-INV-014 — Considered work never vanishes
+## CORMIDIA-INV-014 — Considered work never vanishes
 `[elicited+doc: scheduler reason codes, event retirement, settlement]`
 **Statement.** Everything the system considered leaves a durable account: every dispatch
 candidate terminates in a named reason from the ratified vocabulary; an event retires
@@ -251,11 +251,11 @@ crashed-effect gap with neither acknowledgement nor ambiguity record.
 deleted by sweep without full marks; (c) spawn failure after decision commit; (d) tick
 dies between spawn and bookkeeping (`post_spawn_bookkeeping_failure` must appear).
 
-## OPERON-INV-015 — Uncertainty narrows capability, never widens permission or claims
+## CORMIDIA-INV-015 — Uncertainty narrows capability, never widens permission or claims
 `[elicited]` (apex invariant; `[simulated]` in its generality — the direction is doc-
 consistent everywhere but stated as a universal rule only here)
 **Statement.** Under any uncertainty — missing state, unreadable config, ambiguous
-outcome, unavailable dependency, unknown usage, torn write — Operon may do less, but
+outcome, unavailable dependency, unknown usage, torn write — Cormidia may do less, but
 never becomes permitted to do more, and never claims more has happened than the evidence
 supports. Fail-closed accepts availability damage to protect authority, containment,
 money, and irreversible effects; it does not mean every error blocks everything forever.

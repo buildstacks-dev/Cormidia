@@ -14,17 +14,17 @@ authorization behavior, not a separate efficiency budget. The system map is
 
 ## The queue
 
-The classifier reads Operon's own command line as an effect surface, not just
-third-party tools: `operon app reset`/`prune-runs` are
-`destructive-or-irreversible`, `operon org init|use|upgrade` is
-`protocol-self-edit`, `operon plan ratify-ticket-budget` and `operon bootstrap
-publish` are `external-publishing`, and `operon approvals
+The classifier reads Cormidia's own command line as an effect surface, not just
+third-party tools: `cormidia app reset`/`prune-runs` are
+`destructive-or-irreversible`, `cormidia org init|use|upgrade` is
+`protocol-self-edit`, `cormidia plan ratify-ticket-budget` and `cormidia bootstrap
+publish` are `external-publishing`, and `cormidia approvals
 review|revoke|disposition` is `approval-store-tamper` — self-approval by CLI is
 still self-approval. Read-only invocations (`roles`, `apps`, `status`,
 `doctor`, `budget`, `context`, `episode explain`, `approvals show|status`)
 stay routine.
 
-### Storage (`~/.operon/<org>/approvals/`)
+### Storage (`~/.cormidia/<org>/approvals/`)
 
 ```
 pending/<id>.json     one file per open item
@@ -85,29 +85,29 @@ Item schema:
 ### CLI
 
 ```
-operon approvals              pending table plus approved executions that
+cormidia approvals              pending table plus approved executions that
                               still need acknowledgement (app-tagged)
-operon approvals review       one-by-one: full item, then [a]pprove (with
+cormidia approvals review       one-by-one: full item, then [a]pprove (with
                               optional scope: `a ticket [path]` / `a app
                               [path]`) / [d]eny (reason required) / [s]kip;
                               approving may also re-arm the parked ticket
                               (op:blocked → op:ready) so the next tick
                               continues from artifacts
-operon approvals review --batch   group pending items with identical
+cormidia approvals review --batch   group pending items with identical
                               (rule, app); one decision, per-item audit rows
-operon approvals show <id>    full detail incl. turn-event context
-operon approvals status       decision/execution state, attempts, actor,
+cormidia approvals show <id>    full detail incl. turn-event context
+cormidia approvals status       decision/execution state, attempts, actor,
                               result, remote reference, and next action
-operon approvals disposition <id> (--executed|--failed|--retry)
+cormidia approvals disposition <id> (--executed|--failed|--retry)
                               --reason <text> --confirm <id>
                               explicit reconciliation for failed/ambiguous work
-operon approvals revoke <grant-id>   immediate revocation of a live grant
+cormidia approvals revoke <grant-id>   immediate revocation of a live grant
 ```
 
 Decision writes materialize the grant before the decision log and atomic item
 move, so a logged approval cannot lack its authorization file; log-vs-file
 reconciliation repairs an interrupted move or missing grant at the next
-`operon approvals` run. Execution item rewrites are atomic and transition rows
+`cormidia approvals` run. Execution item rewrites are atomic and transition rows
 remain append-only evidence.
 
 Budget escalations (`../architecture.md` §7) enter this same queue as synthetic items
@@ -126,7 +126,7 @@ may instead choose a wider scope — the agent never chooses:
   expiry.
 
 Semantics: TTL default 24h (existing default), use-count cap default 20,
-`operon approvals revoke <grant-id>` for immediate revocation, and **every
+`cormidia approvals revoke <grant-id>` for immediate revocation, and **every
 use** of a multi-use grant appends its own audit row (grant id, action
 hash, timestamp) to `approvals/log.jsonl` — the audit trail stays
 per-action even when the decision was per-scope.
@@ -212,14 +212,14 @@ the attempt, actor, result, remote reference when known, failure cause, and next
 action. Generic provider tool calls remain `actor-retry`; they are not replayed
 as arbitrary shell outside a provider session.
 
-A later `operon dispatch` may execute only an explicit, typed,
+A later `cormidia dispatch` may execute only an explicit, typed,
 orchestrator-owned allowlist. The first general actions are content-bound GitHub
 issue create/comment operations; A4 retains its specialized release executor.
 The executor claims the exact approved action, consumes its matching single-use
 grant, searches for its stable remote idempotency marker, performs the effect
 once, and persists acknowledgement. A crash after the remote response is
 reconciled from that marker. A crash or API response whose effect cannot be
-proved becomes `ambiguous`; dispatch never guesses and retries it. `operon
+proved becomes `ambiguous`; dispatch never guesses and retries it. `cormidia
 approvals disposition` is the explicit human reconciliation/retry boundary.
 
 External publication joins `NEVER_SCOPEABLE_RULES`: a broad rule grant cannot
@@ -232,7 +232,7 @@ pending, failed, or ambiguous; those claims are never collapsed.
 
 ## Batched same-rule decisions (A3)
 
-`operon approvals review --batch` may group pending items with
+`cormidia approvals review --batch` may group pending items with
 identical (rule, app); the human decides the group in one action. Every
 item still gets its own persisted decision record — the audit trail is
 unchanged; only the human's keystrokes are batched. One-by-one remains the
@@ -240,7 +240,7 @@ default.
 
 ## Release ownership and execution (A4)
 
-Every app declares its release mechanism in `.operon/config.yaml`:
+Every app declares its release mechanism in `.cormidia/config.yaml`:
 
 ```yaml
 release:
@@ -254,14 +254,14 @@ release:
 
 - `tag` (default when no `command` is declared): the milestone declares a
   `Release-version` (a `vX.Y.Z` trailer alongside `Release-kind`), and on merge
-  Operon derives a governed git tag push —
+  Cormidia derives a governed git tag push —
   `git tag vX.Y.Z … && git push origin refs/tags/vX.Y.Z` — as the release
   command. The app's deploy workflow listens on `push: tags`, so **only** the
-  approved release fires it; ordinary pushes (a PR merge, `operon app promote`)
+  approved release fires it; ordinary pushes (a PR merge, `cormidia app promote`)
   never do. The declared version is validated to a strict `vX.Y.Z` shape before
   it reaches the shell, so it cannot inject command syntax. P7 fails a tag
   milestone that declares no valid `Release-version`.
-- `command`: the pre-tag mechanism — Operon runs the app's declared `command`
+- `command`: the pre-tag mechanism — Cormidia runs the app's declared `command`
   after merge. Inferred when a `command` is present without an explicit
   `trigger`, so pre-trigger apps keep working unchanged.
 - `branch`: planned; rejected at config load until implemented.
@@ -281,7 +281,7 @@ grant, and execution machinery below — there is no separate release path.
   but unowned" is unfinished, mechanically.
 
 Execution preserves A2's later-retry boundary: the approval decision only
-mints the single-use grant. A later `operon dispatch` tick claims the approved
+mints the single-use grant. A later `cormidia dispatch` tick claims the approved
 release. `owner: orchestrator` runs the exact command in the managed clone
 with `CI=1`; `owner: sre` routes the exact command through one SRE role turn.
 Both paths consume the grant, write an idempotent `releases/<approval>.json`
@@ -290,7 +290,7 @@ the terminal outcome. An ambiguous `running` record is never auto-retried.
 
 ## Denial lessons are durable (A5)
 
-Every human denial reason is persisted as Operon-owned role memory for the
+Every human denial reason is persisted as Cormidia-owned role memory for the
 (app, role) pair and assembled into subsequent briefs, so the same denial
 is never re-litigated eight times. Lessons are curated memory (existing OKF
 rules apply: evidence attached, wrong lessons deleted).
@@ -302,7 +302,7 @@ rules apply: evidence attached, wrong lessons deleted).
 - **Claim cap:** N=3 per ticket, all tiers; acquisition remains provisional
   until a provider turn starts, approval continuations retain the original
   claim number, and cap exhaustion requires the park digest plus the exact
-  `operon loop rearm` command. A label-only re-arm has no effect on the
+  `cormidia loop rearm` command. A label-only re-arm has no effect on the
   durable allowance.
 - **Plan pipeline depth is stage-dependent:** one-pass `plan-bootstrap` for
   new apps, five-pass `plan` for mature ones.

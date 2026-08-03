@@ -1,5 +1,5 @@
 # Contract — B-17 Typed critical-effect executor ↔ non-GitHub external target
-Canonical ID: **OPERON-C-B17-001 (alias: B-17)**
+Canonical ID: **CORMIDIA-C-B17-001 (alias: B-17)**
 
 Status: DRAFT (Phase 4). Defends INV-003/014, T-12. Journeys J-05/J-11/J-17.
 

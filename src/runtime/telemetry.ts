@@ -79,7 +79,7 @@ export interface TurnRecord {
   parentTaskId?: string;
   pipeline?: string;
   pass?: string;
-  /** True when costUsd is an Operon-computed equivalent-cost estimate for a
+  /** True when costUsd is a Cormidia-computed equivalent-cost estimate for a
    *  subscription-backed provider, not a provider-invoiced charge. */
   costEstimated?: boolean;
   /** Legacy/historical marker for sessions whose usage was unobservable (the
@@ -432,7 +432,7 @@ export async function readSettledKeys(orgDir: string): Promise<Set<string>> {
 const SETTLEMENT_LOCK_TIMEOUT_MS = 5_000;
 const SETTLEMENT_LOCK_STALE_MS = 30_000;
 
-/** Serialize the read+append settlement transaction across Operon processes.
+/** Serialize the read+append settlement transaction across Cormidia processes.
  * O_EXCL makes acquisition atomic; a dead/stale owner is reclaimable.
  * Exported for the retention sweep (src/org/retention.ts), which must not
  * delete ledger day-files in the middle of another process's read+append

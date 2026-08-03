@@ -2,7 +2,7 @@
 
 Target: `bikramgupta/operon-sandbox-alpha`
 
-Result: **merged**. Operon took issue
+Result: **merged**. Cormidia took issue
 https://github.com/bikramgupta/operon-sandbox-alpha/issues/1 through real
 Claude Builder/Reviewer passes and merged PR
 https://github.com/bikramgupta/operon-sandbox-alpha/pull/2 as squash commit
@@ -24,18 +24,18 @@ Evidence:
 
 Live-run findings fixed during M6:
 
-1. `loadGateCommands()` returned early when `.operon/config.yaml` existed
+1. `loadGateCommands()` returned early when `.cormidia/config.yaml` existed
    without explicit `test_command` / `lint_command`, so alpha gates could not
    see package scripts. Fixed by merging config overrides with `package.json`
    fallback commands; covered in `test/driver.test.ts`.
 2. GitHub rejects same-account `APPROVE` reviews. During the laptop pilot the
    same authenticated user creates the PR and records the review, so
    `GhCliOps` now falls back only for that exact GitHub error to a real
-   COMMENTED PR review carrying `<!-- operon:self-approval-fallback -->`.
+   COMMENTED PR review carrying `<!-- cormidia:self-approval-fallback -->`.
    The loop accepts only that marked structured `Verdict: approve` review as
    approval and still requires freshness. Covered in `test/github.test.ts` and
    `test/loop.test.ts`. Replace this with a real bot/GitHub App reviewer
    identity when M7/M10 harden operations.
 
 Run log artifacts live under:
-`~/.operon/operon/runs/operon-sandbox-alpha/`.
+`~/.cormidia/cormidia/runs/operon-sandbox-alpha/`.

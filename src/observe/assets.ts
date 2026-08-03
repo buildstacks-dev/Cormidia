@@ -5,13 +5,13 @@ export const OBSERVE_HTML = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Operon Live UI</title>
+  <title>Cormidia Live UI</title>
   <link rel="stylesheet" href="/assets/observe.css">
 </head>
 <body>
   <a class="skip" href="#main">Skip to live overview</a>
   <header class="global-header">
-    <div><span class="wordmark">OPERON</span><span class="readonly">READ ONLY</span><nav class="primary" aria-label="Primary"><a href="/" aria-current="page">Live</a><a href="/reports">Reports</a></nav></div>
+    <div><span class="wordmark">CORMIDIA</span><span class="readonly">READ ONLY</span><nav class="primary" aria-label="Primary"><a href="/" aria-current="page">Live</a><a href="/reports">Reports</a></nav></div>
     <div class="health-line" aria-live="polite">
       <span id="connection" class="status unknown">connecting</span>
       <span id="identity">Loading observer…</span>
@@ -532,7 +532,7 @@ export const OBSERVE_JS = String.raw`(() => {
   // ambiguous whenever two apps share one (invariant 3).
   //
   // The two filter classes are reported SEPARATELY because they do different
-  // things. A snapshot filter (operon observe --app/--ticket/--since/…) narrowed
+  // things. A snapshot filter (cormidia observe --app/--ticket/--since/…) narrowed
   // what the server delivered, so the totals already exclude everything it
   // dropped; reading only activeFacets() printed 'filters: none' under
   // --ticket 42, affirmatively denying a narrowing that had occurred. A

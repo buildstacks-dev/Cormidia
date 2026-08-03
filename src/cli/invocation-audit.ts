@@ -8,7 +8,7 @@ import {
   type RunningCliInvocation,
 } from "../runtime/invocation-ledger.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
-import { resolveOperonHomes } from "../org/home.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 
 interface InvocationAuditState {
   readonly startedAt: Date;
@@ -114,7 +114,7 @@ export async function runAuditedCliInvocation(
       // into a retry signal would invite duplicate effects. The next command
       // reconciles this stable invocation identity.
       console.error(
-        `operon: invocation audit append failed for ${state.invocationId}; ` +
+        `cormidia: invocation audit append failed for ${state.invocationId}; ` +
           `terminal recovery evidence remains under ${state.stateHome}/state/invocation-journal: ` +
           `${error instanceof Error ? error.message : String(error)}`,
       );
@@ -271,8 +271,8 @@ export function redactArgv(argv: readonly string[]): string[] {
 async function safelyResolveInitialHome(
   argv: string[],
 ): Promise<{ stateHome: string; org?: string } | undefined> {
-  const explicitState = valueAfter(argv, "--state-home") ?? valueAfter(argv, "--home") ?? process.env["OPERON_STATE_HOME"];
-  const explicitOrg = valueAfter(argv, "--org-home") ?? process.env["OPERON_ORG_HOME"];
+  const explicitState = valueAfter(argv, "--state-home") ?? valueAfter(argv, "--home") ?? process.env["CORMIDIA_STATE_HOME"];
+  const explicitOrg = valueAfter(argv, "--org-home") ?? process.env["CORMIDIA_ORG_HOME"];
 
   // org init/use select a new state home. Even an explicit path is not enough
   // to create it here: let the lifecycle command validate its complete plan,
@@ -283,7 +283,7 @@ async function safelyResolveInitialHome(
   if (explicitState !== undefined) {
     if (explicitOrg !== undefined) {
       try {
-        const org = (await resolveOperonHomes({
+        const org = (await resolveCormidiaHomes({
           stateHome: explicitState,
           orgHome: explicitOrg,
         })).appsFile.org.name;
@@ -300,7 +300,7 @@ async function safelyResolveInitialHome(
   }
 
   try {
-    const homes = await resolveOperonHomes({
+    const homes = await resolveCormidiaHomes({
       ...(explicitOrg === undefined ? {} : { orgHome: explicitOrg }),
     });
     return { stateHome: homes.stateHome, org: homes.appsFile.org.name };

@@ -133,7 +133,7 @@ describe("CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (
   it("killed after the registry write: the idempotent finalizer completes the terminal cleanup (twice, safely)", async () => {
     const w = await makeKilledWorld("after_registry_write");
     // The app is gone from the registry: a fresh dispatch (which reloads
-    // apps.yaml, as resolveOperonHomes does) reports unknown app — the
+    // apps.yaml, as resolveCormidiaHomes does) reports unknown app — the
     // resume path is the finalizer over the latest archive pointer, exactly
     // what the dispatched CLI does.
     const reloaded = await loadApps(join(w.orgHome, "apps.yaml"));

@@ -93,10 +93,10 @@ describe("durable campaign runner", () => {
     const campaign = await runner();
     await campaign.start();
     await campaign.runCase("CASE-1", { providerTurns: 1, maxEquivUsd: 1 }, async () => ({
-      providerTurns: 1, equivUsd: 0.1, violationIds: ["OPERON-INV-002"], evidenceRefs: ["evidence/denial.json"],
+      providerTurns: 1, equivUsd: 0.1, violationIds: ["CORMIDIA-INV-002"], evidenceRefs: ["evidence/denial.json"],
     }));
     expect(await campaign.finish()).toMatchObject({
-      outcome: { completeness: "incomplete", verdict: "fail", violation_ids: ["OPERON-INV-002"] },
+      outcome: { completeness: "incomplete", verdict: "fail", violation_ids: ["CORMIDIA-INV-002"] },
     });
   });
 

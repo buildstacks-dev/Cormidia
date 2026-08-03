@@ -1,7 +1,7 @@
 // CF-J17-S — declared release: mechanism → fresh content-bound approval →
 // at-most-once execution; acceptance vs completion recorded separately
 // (contracts/journey-acceptance.md J-17; contracts/B-17-typed-executor.md §2/§4;
-// OPERON-INV-003; system-map T-12, risk E-1).
+// CORMIDIA-INV-003; system-map T-12, risk E-1).
 //
 // L2 walk on real product code end to end: `queueReleaseApprovals` raises the
 // production-deploy critical op from the merged milestone's declared trigger,
@@ -68,7 +68,7 @@ function mergedItem(issueNumber: number): LoopItem {
     ticketRef: `#${issueNumber}`,
     title: "Ship the deployable milestone",
     body: "## Goal\nDeploy.\n\nRelease-kind: deploy\n",
-    targetRepo: "operon-double/unused",
+    targetRepo: "cormidia-double/unused",
     labels: [],
     phase: "merged",
     tier: "standard",
@@ -232,7 +232,7 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
 
     // The ticket carries the outcome comment (external acknowledgement).
     const comments = await new GhCliOps(walk.handle.repo, walk.handle.exec).listIssueComments(walk.issueNumber);
-    const outcomeComments = comments.filter((comment) => comment.body.includes("Operon release outcome"));
+    const outcomeComments = comments.filter((comment) => comment.body.includes("Cormidia release outcome"));
     expect(outcomeComments).toHaveLength(1);
     expect(outcomeComments[0]!.body).toContain(approvalId);
     expect(outcomeComments[0]!.body).toContain("**completed**");
@@ -242,7 +242,7 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     expect(again).toEqual([]);
     expect(runnerCalls).toHaveLength(1);
     const commentsAfter = await new GhCliOps(walk.handle.repo, walk.handle.exec).listIssueComments(walk.issueNumber);
-    expect(commentsAfter.filter((comment) => comment.body.includes("Operon release outcome"))).toHaveLength(1);
+    expect(commentsAfter.filter((comment) => comment.body.includes("Cormidia release outcome"))).toHaveLength(1);
   });
 
   it("negative control: post-decision tamper of the approved command — the content-binding detector FIRES and nothing runs", async () => {

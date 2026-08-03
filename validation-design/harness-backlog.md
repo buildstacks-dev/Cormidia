@@ -1,4 +1,4 @@
-# Harness backlog — Operon replacement harness (ticket-shaped)
+# Harness backlog — Cormidia replacement harness (ticket-shaped)
 
 Status: Phase 8 deliverable. Implementation root: `claude-tests/` (docs v2.9). Every
 ticket carries acceptance criteria, the invariant/contract it defends, its layer, and a
@@ -7,7 +7,7 @@ live target, an unpassed eval threshold, or unauthorized CI parks only its own l
 tickets, never L1/L2 implementation. Catalog derivation is already complete
 (case-catalog.md); these tickets implement it.
 
-Executors: `build-agent` = the standing coding agent working in the Operon repo under
+Executors: `build-agent` = the standing coding agent working in the Cormidia repo under
 AGENTS.md routing; `human` = Bikram; `campaign` = a scheduled/authorized validation
 campaign run.
 
@@ -62,7 +62,7 @@ claude-tests/unit/s3-verdict-marker.test.ts). -->
   against it; usage-absent renders unknown (INV-006 seed red-then-green). *Layer:*
   1–2. *Executor:* build-agent.
 - **HB-005 — Skeleton test per layer (one each, with negative controls).**
-  (a) L1: OPERON-INV-006 exactly-once settlement guardrail test + seeded
+  (a) L1: CORMIDIA-INV-006 exactly-once settlement guardrail test + seeded
   double-settle violation (red-then-green). (b) L2: one composition test — dispatch
   tick → claim → scripted adapter turn → settlement on the fixture kit, including one
   boundary failure mode (kill between provider return and ledger append). (c) journey
@@ -202,7 +202,7 @@ blocked exactly as designed. -->
 - **HB-053** CF-J16-A launchd proof. *Gate: operator machine session.* Executor:
   human + build-agent script.
 - **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile.
-  *Gate: the profile surface must first be ratified + implemented in Operon (policy
+  *Gate: the profile surface must first be ratified + implemented in Cormidia (policy
   `unattended_test_mode_profile`) — a product change, tracked as its own product
   ticket, not a harness ticket.* Executor: campaign. **Implementation dependency
   satisfied 2026-07-31; authorized campaign evidence still pending.**
@@ -290,16 +290,16 @@ BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed
   exists. **Status: COMPLETE 2026-07-31** — canonical runbook at
   `docs/qualification/validation-triage.md`, validation-design pointer committed,
   and report/observe/status surfaces link it.
-- **HB-081 — Product change (Operon repo, NOT harness): `inconclusive` is not a
+- **HB-081 — Product change (Cormidia repo, NOT harness): `inconclusive` is not a
   pass on report/observe surfaces.** The product's report/observe surfaces must state
   that an `inconclusive` verdict is not a pass (ratification-package.md §6 IOU,
-  converted at ratification). This is a product-side change in the Operon repo,
+  converted at ratification). This is a product-side change in the Cormidia repo,
   tracked here for visibility only — like HB-054's profile dependency, it lands via
   its own product ticket under the product's own rules (including its
   detector-deposit obligation). *Acceptance:* every product surface rendering
   campaign verdicts distinguishes `inconclusive` from `pass` and never renders it
   green or as release evidence. *Defends:* INV-008; eval decision-status rule.
-  *Layer:* product. *Executor:* build-agent in the Operon repo (own ticket); human
+  *Layer:* product. *Executor:* build-agent in the Cormidia repo (own ticket); human
   schedules. **Status: COMPLETE 2026-07-31** — durable campaign reports are projected
   through status, terminal/HTML Reports, and Observe; `inconclusive` is rendered as
   not-a-pass/not-release-evidence and corrupt reports remain visibly incomplete.
@@ -310,7 +310,7 @@ BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed
 epic. These tickets are DESIGN-ONLY: none is implemented by this document change, and
 the pre-revision green gate is not evidence for them. Sequence and acceptance derive
 from docs/comparative-execution/design.md, J-19, B-18/B-19, and S-8. Tracked by
-GitHub epic [#219](https://github.com/buildstacks-dev/Operon/issues/219). -->
+GitHub epic [#219](https://github.com/cormidia/Cormidia/issues/219). -->
 
 - **HB-090 — Comparison contracts and hermetic skeleton.** Implement immutable
   comparison/candidate identities, the CF-SM-COMP state machine, sequential candidate
@@ -322,7 +322,7 @@ GitHub epic [#219](https://github.com/buildstacks-dev/Operon/issues/219). -->
   no double spend for a settled turn; no deterministic failure can be outweighed by a
   judge; exactly one content-bound eligible artifact, or none, may cross B-19.
   *Layer:* 1/2. *Executor:* build-agent.
-- **HB-091 — Standalone Builder slice.** Add preview-first `operon compare` over a
+- **HB-091 — Standalone Builder slice.** Add preview-first `cormidia compare` over a
   local git repo with exact operator-declared tuples, provider/capability checks,
   execute/confirm identity binding, external state/worktrees, Builder-specific
   validation evidence, terminal/JSON/portable-HTML results, and a separate explicit
@@ -349,7 +349,7 @@ GitHub epic [#219](https://github.com/buildstacks-dev/Operon/issues/219). -->
   governed. *Layer:* 1/2 envelope + 4 quality. *Executor:* human + build-agent.
 - **HB-094 — Planner activation, sampling, and optional parallelism.** After HB-090…093,
   allow planner-proposed comparisons inside app policy; then separately design sticky
-  Operon-owned sampling and governed aggregate learning. Parallel candidates are last.
+  Cormidia-owned sampling and governed aggregate learning. Parallel candidates are last.
   *Gate:* sampling or parallelism re-enters risk allocation and may activate
   CF-OPS-COMP at L5; no single comparison mutates routing/qualification policy.
   *Executor:* human + build-agent.

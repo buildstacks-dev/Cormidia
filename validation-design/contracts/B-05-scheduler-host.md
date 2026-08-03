@@ -1,5 +1,5 @@
 # Contract — B-05 OS scheduler host (launchd today)
-Canonical ID: **OPERON-C-B05-001 (alias: B-05)**
+Canonical ID: **CORMIDIA-C-B05-001 (alias: B-05)**
 
 Status: DRAFT (Phase 4). Defends INV-008/014, T-9. Journeys J-09/J-16/J-18.
 

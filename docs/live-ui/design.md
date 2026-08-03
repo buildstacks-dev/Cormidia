@@ -1,4 +1,4 @@
-# Operon Live UI — observability design
+# Cormidia Live UI — observability design
 
 *Status: ratified and implemented; this is the authoritative V1 contract.*
 
@@ -8,26 +8,26 @@
 
 ## 1. Executive summary
 
-Operon should remain **agent-operated and human-observable**. A human gives
-work to Operon through a coding agent or the CLI; a local, read-only Live UI
+Cormidia should remain **agent-operated and human-observable**. A human gives
+work to Cormidia through a coding agent or the CLI; a local, read-only Live UI
 shows what the org is doing, what is waiting, why a pass is running, whether it
 is healthy, what evidence it has produced, and what needs attention.
 
 The proposed command is:
 
 ```sh
-operon observe --app <app> --open
+cormidia observe --app <app> --open
 ```
 
 It starts a loopback-only HTTP server, reconstructs current state from
-Operon's existing durable artifacts, and streams changes to a browser using
+Cormidia's existing durable artifacts, and streams changes to a browser using
 Server-Sent Events (SSE). It owns no workflow state and offers no configuration
-or mutation controls. Stopping the server cannot stop or alter Operon work;
+or mutation controls. Stopping the server cannot stop or alter Cormidia work;
 restarting it reconstructs the same view from disk and GitHub.
 
 The UI unifies live and historical telemetry. A running trace continues to
 update; once it ends, the same page becomes its permanent recorded snapshot and
-forensic record. The existing `operon telemetry` terminal, JSON, and portable HTML
+forensic record. The existing `cormidia telemetry` terminal, JSON, and portable HTML
 outputs remain supported views over the same underlying facts.
 
 The queue decision is:
@@ -54,7 +54,7 @@ It follows the existing decisions that:
 
 - GitHub is the source of truth for tickets, PRs, and delivery state.
 - The dispatcher is a stateless tick rather than a supervised daemon.
-- Operon state is durable in git plus files.
+- Cormidia state is durable in git plus files.
 - Human approval is required only for critical operations.
 - The CLI and coding-agent interface are the primary control surfaces.
 - Dashboards read structured run state; they do not infer truth from model
@@ -72,14 +72,14 @@ implementing it.
 The preferred path remains:
 
 ```text
-human → coding agent or Operon CLI → Operon runtime → GitHub/app artifacts
+human → coding agent or Cormidia CLI → Cormidia runtime → GitHub/app artifacts
 ```
 
 The Live UI is a projection alongside that path:
 
 ```text
                              ┌─ runs / tasks / approvals / ledger
-Operon runtime ──────────────┼─ GitHub issues / PRs / reviews
+Cormidia runtime ──────────────┼─ GitHub issues / PRs / reviews
                              └─ scheduler / locks / event state
                                            │
                                            ▼
@@ -110,7 +110,7 @@ The UI must let an operator answer, without opening multiple terminals:
     unavailable?
 11. Which branch, commit, PR, review, issue, or deployment is the durable
     result?
-12. Did every required Operon stage actually complete?
+12. Did every required Cormidia stage actually complete?
 
 ### 3.3 Non-goals for the first release
 
@@ -130,7 +130,7 @@ The first release must not provide:
 
 Links may open GitHub, a native provider session, or a local evidence artifact.
 Copying identifiers and filtering the view are safe UI interactions; they do
-not mutate Operon.
+not mutate Cormidia.
 
 ## 4. Vocabulary and the queue model
 
@@ -139,7 +139,7 @@ The UI must use these terms precisely.
 | Term | Meaning | Authoritative source |
 | --- | --- | --- |
 | App lifecycle | `onboarding`, `live`, or `paused` | org `apps.yaml` |
-| Onboarding | Create/bootstrap/register an app and produce enough product truth to begin planning | app `.operon/**`, org registry, planning artifacts |
+| Onboarding | Create/bootstrap/register an app and produce enough product truth to begin planning | app `.cormidia/**`, org registry, planning artifacts |
 | Intake signal | Human request, support feedback, adoption signal, alert, schedule, or another event that wakes a role | parent task, file-drop event, GitHub event, schedule state |
 | Product-delivery queue | Open GitHub issues carrying `op:ready` | GitHub |
 | Delivery work item | One GitHub issue moving through the build-loop state machine | GitHub labels plus loop artifacts |
@@ -232,7 +232,7 @@ the operator to delegate the decision workflow to an agent.
 
 Every page carries a compact header:
 
-- Operon org name and resolved state-home identity;
+- Cormidia org name and resolved state-home identity;
 - a top-right session chooser with **Live org** plus historical parent tasks
   and standalone traces from the current org;
 - selected app or “all apps”;
@@ -371,7 +371,7 @@ Use grouped columns or a compact list:
 - **Reviewing** — `op:in-review`;
 - **Waiting approval** — `op:blocked`;
 - **Returned** — `op:returned`;
-- **Recently completed** — merged/closed outcomes with Operon evidence.
+- **Recently completed** — merged/closed outcomes with Cormidia evidence.
 
 Each card shows issue number/title, priority/tier, dependencies, age, current
 phase, active role/pass, branch/PR when known, and latest meaningful event.
@@ -754,7 +754,7 @@ The statement reports the two filter classes **separately**, because they do
 different things:
 
 - **snapshot filters** — `totals.scope_statement.filters`, the server-side
-  narrowing (`operon observe --app/--ticket/…`). The totals already exclude
+  narrowing (`cormidia observe --app/--ticket/…`). The totals already exclude
   everything it dropped. Rendering only the client dropdowns printed
   `filters: none` under `--ticket 42`, affirmatively denying a narrowing that
   had occurred.
@@ -787,10 +787,10 @@ The historical page also shows completion integrity:
 - interrupted and stale passes;
 - workdir/branch/HEAD consistency;
 - usage/cost completeness;
-- exact-HEAD Operon review status;
+- exact-HEAD Cormidia review status;
 - manual fallback;
 - PR/merge/issue-close outcome;
-- Operon end-to-end completeness separately from product completion.
+- Cormidia end-to-end completeness separately from product completion.
 
 ## 6. Authoritative data and projection rules
 
@@ -799,7 +799,7 @@ The historical page also shows completion integrity:
 | Source | UI use | Authority/freshness rule |
 | --- | --- | --- |
 | Org `apps.yaml` | app identity, status, WIP, budget, cadence/channels | authoritative configuration; read only |
-| App `.operon/**` | onboarding/config/policy context | display provenance; org registry governs operation |
+| App `.cormidia/**` | onboarding/config/policy context | display provenance; org registry governs operation |
 | GitHub issues/labels | delivery queue and ticket intent | authoritative for queue labels; an advanced delivery state additionally requires its backing artifact |
 | GitHub PR/review/check state | review and completion outcome | authoritative external delivery evidence |
 | `tasks/<taskId>/` | parent objective, exact outer prompt, fallback, result refs | authoritative parent-task record |
@@ -990,7 +990,7 @@ export type Liveness = "live" | "stalled" | "terminal" | "unknown";
 
 Every entity includes stable identity, source references, `observed_at`, and a
 quality/unknown reason where evidence is incomplete. JSON field names use
-snake_case, consistent with `operon telemetry --json`.
+snake_case, consistent with `cormidia telemetry --json`.
 
 ### 6.4 Identity and correlation
 
@@ -1044,7 +1044,7 @@ must distinguish:
 
 - `complete`: final provider usage is available;
 - `partial`: a lower bound from an interrupted/running turn;
-- `estimated`: Operon-computed equivalent cost, not a provider invoice;
+- `estimated`: Cormidia-computed equivalent cost, not a provider invoice;
 - `unavailable`: a provider turn ran and its usage was not observable;
 - `none`: no provider was invoked at all — a deterministic orchestration pass
   (provision/setup, quality gates, the merge state machine). Its zero cost is
@@ -1067,7 +1067,7 @@ known cost. Aggregates are projected from the settled ledger through the shared
 subtotal, a separately counted unknown component with drill-down references, and
 a coverage verdict of `none` / `complete` / `partial` / `unavailable`. A single
 unobservable turn downgrades an aggregate to `partial` — it does not collapse it
-to "unavailable". Header totals, app cards, Reports, and `operon telemetry` all
+to "unavailable". Header totals, app cards, Reports, and `cormidia telemetry` all
 project the same object for the same scope and filters, and
 `test/report/cost-reconciliation.test.ts` fails when any two disagree.
 
@@ -1089,7 +1089,7 @@ project the same object for the same scope and filters, and
 Proposed usage:
 
 ```text
-operon observe [--app <name>] [--parent-task <id>] [--ticket <number>]
+cormidia observe [--app <name>] [--parent-task <id>] [--ticket <number>]
                [--port <number>] [--open] [--no-open]
                [--org-home <path>] [--state-home <path>]
 ```
@@ -1102,13 +1102,13 @@ Defaults:
 - print the exact local URL and resolved org/state homes;
 - remain in the foreground until interrupted;
 - do not open a browser unless `--open` is supplied;
-- make SIGINT/SIGTERM stop only the observer, never an Operon turn;
+- make SIGINT/SIGTERM stop only the observer, never a Cormidia turn;
 - perform no provider turn and spend no tokens;
 - perform only read operations against GitHub.
 
-The command should be listed by `operon capabilities --json` as read-only and
+The command should be listed by `cormidia capabilities --json` as read-only and
 token-free. An outer coding agent can start it in a managed background shell
-and hand the URL to the human. Operon should not silently auto-start a server
+and hand the URL to the human. Cormidia should not silently auto-start a server
 for every task.
 
 ### 7.2 Process and module boundary
@@ -1190,7 +1190,7 @@ render.
 ### 7.5 Frontend technology
 
 The first implementation should use semantic HTML, CSS, and a small
-TypeScript/JavaScript client with no runtime UI framework. Operon is one CLI
+TypeScript/JavaScript client with no runtime UI framework. Cormidia is one CLI
 package, and a React/Vite application would add build and packaging machinery
 before the interaction model justifies it.
 
@@ -1255,7 +1255,7 @@ loopback server is preferable to adding unauthenticated network binding.
 
 ## 9. Reliability and operational behavior
 
-- Observer startup failure never blocks `operon loop` or `operon dispatch`.
+- Observer startup failure never blocks `cormidia loop` or `cormidia dispatch`.
 - Observer shutdown never cancels a pass.
 - Browser disconnection never changes durable state.
 - Restart reconstructs active passes, queue state, and history.
@@ -1275,7 +1275,7 @@ loopback server is preferable to adding unauthenticated network binding.
 
 ### Phase 0 — ratify contracts
 
-- Confirm the command name `operon observe`.
+- Confirm the command name `cormidia observe`.
 - Ratify the read-only/local-only boundary.
 - Ratify GitHub `op:ready` as the delivery queue and the separate Activity,
   Onboarding, and Approvals concepts.
@@ -1302,7 +1302,7 @@ home and fake GitHub source with zero server/UI code.
   and allowlisted artifact routes.
 - Package static assets in source-backed and packed installations.
 
-Exit: `operon observe` renders a complete historical snapshot and survives
+Exit: `cormidia observe` renders a complete historical snapshot and survives
 packaging/onboarding smoke tests.
 
 ### Phase 3 — live updates
@@ -1327,7 +1327,7 @@ trace without reading raw state files.
 
 ### Phase 5 — convergence and live proof
 
-- Reuse the projection in `operon telemetry` where doing so preserves its
+- Reuse the projection in `cormidia telemetry` where doing so preserves its
   stable JSON contract.
 - Add links from the Live UI to portable telemetry/evidence export.
 - Complete sandbox proof, then the authorized buildstacks.dev acceptance run.
@@ -1455,7 +1455,7 @@ npm pack --dry-run
 
 The last two are required because a new CLI command and bundled browser assets
 change discovery/packaging. Also verify from a neutral working directory that
-the observer resolves the active org rather than treating the Operon package
+the observer resolves the active org rather than treating the Cormidia package
 checkout as an org home.
 
 No live provider test replaces this offline suite.
@@ -1464,7 +1464,7 @@ No live provider test replaces this offline suite.
 
 ### 12.1 Purpose
 
-The live acceptance test should exercise a genuine Operon flow while the UI is
+The live acceptance test should exercise a genuine Cormidia flow while the UI is
 already open:
 
 ```text
@@ -1478,7 +1478,7 @@ existing buildstacks.dev design
 
 This proves both sides:
 
-- Operon can execute normally with the observer present.
+- Cormidia can execute normally with the observer present.
 - The observer shows enough live evidence to understand and troubleshoot that
   execution without becoming part of it.
 
@@ -1494,14 +1494,14 @@ The design source currently available on this machine is:
 This is a snapshot to verify, not an instruction to mutate or a guarantee that
 the state remains unchanged:
 
-- Installed `operon context --json` resolves org `Bikram-Org`, org home
-  `~/Build/Bikram-Org`, and state home `~/.operon/Bikram-Org`.
+- Installed `cormidia context --json` resolves org `Bikram-Org`, org home
+  `~/Build/Bikram-Org`, and state home `~/.cormidia/Bikram-Org`.
 - `~/Build/Bikram-Org/apps.yaml` currently has no registered apps.
-- The buildstacks.dev checkout contains `.operon/config.yaml` with
+- The buildstacks.dev checkout contains `.cormidia/config.yaml` with
   `status: onboarding` plus the design artifacts above.
 - The checkout was clean at commit `14f7fbb624335406a9c7044f32a24e932287c7e8`
   on branch `build/buildstacks-v1`.
-- Installed `operon status --app buildstacks.dev` showed no current run rows.
+- Installed `cormidia status --app buildstacks.dev` showed no current run rows.
 - The org approval list was empty, and GitHub showed no open issues or PRs in
   `buildstacks-dev/buildstacks.dev`.
 
@@ -1521,23 +1521,23 @@ reviews, and merges. Before the live portion, the human must confirm:
 - the token/budget ceiling;
 - whether any existing app state should be reset.
 
-Never run `operon app reset ... --execute` as an inferred test setup step. Its
+Never run `cormidia app reset ... --execute` as an inferred test setup step. Its
 non-mutating plan is safe; execution requires the explicit reset authorization
-and confirmation already defined by Operon.
+and confirmation already defined by Cormidia.
 
 ### 12.4 Preflight
 
 Run and preserve exact output:
 
 ```sh
-command -v operon
-operon capabilities --json
-operon context --json
-operon org show --json
-operon doctor --json
-operon apps
-operon approvals list
-operon budget
+command -v cormidia
+cormidia capabilities --json
+cormidia context --json
+cormidia org show --json
+cormidia doctor --json
+cormidia apps
+cormidia approvals list
+cormidia budget
 
 git -C ~/Build/buildstacks.dev status --short
 git -C ~/Build/buildstacks.dev branch --show-current
@@ -1553,22 +1553,22 @@ capability/context discovery from a neutral directory:
 ```sh
 pnpm link:local
 cd /tmp
-operon capabilities --json
-operon context --json
+cormidia capabilities --json
+cormidia context --json
 ```
 
 If buildstacks.dev is not registered, follow the installed skill's existing-app
 bootstrap procedure: scan the local checkout first, use a human-reviewed
-answers file, review emitted `.operon/**`, and confirm the resulting org
+answers file, review emitted `.cormidia/**`, and confirm the resulting org
 registry entry. Do not hand-edit human-ratified configuration just to make the
 test convenient.
 
 Before spending tokens:
 
 ```sh
-operon plan buildstacks.dev --dry-run
-operon loop --app buildstacks.dev --once --dry-run
-operon dispatch --dry-run
+cormidia plan buildstacks.dev --dry-run
+cormidia loop --app buildstacks.dev --once --dry-run
+cormidia dispatch --dry-run
 ```
 
 An onboarding app can be exercised with an explicitly invoked manual loop once
@@ -1581,25 +1581,25 @@ Create an exact prompt file describing the design slice, non-deploy boundary,
 completion criteria, and UI assertions. Begin one parent task before planning:
 
 ```sh
-operon task begin \
+cormidia task begin \
   --id live-ui-buildstacks-<date> \
   --app buildstacks.dev \
   --prompt-file <exact-prompt-file>
 
-export OPERON_PARENT_TASK_ID=live-ui-buildstacks-<date>
+export CORMIDIA_PARENT_TASK_ID=live-ui-buildstacks-<date>
 ```
 
 The task ID must stamp planning and loop passes so the UI and final report can
 filter out historical buildstacks.dev work. If any implementation or review
-continues outside Operon, record `operon task fallback` immediately; do not let
-the UI claim end-to-end Operon completion.
+continues outside Cormidia, record `cormidia task fallback` immediately; do not let
+the UI claim end-to-end Cormidia completion.
 
 ### 12.6 Start observation before work
 
 In a separate managed process:
 
 ```sh
-operon observe \
+cormidia observe \
   --app buildstacks.dev \
   --parent-task live-ui-buildstacks-<date> \
   --open
@@ -1618,14 +1618,14 @@ preflight. The intended sequence is:
    only after confirming the live-test authorization permits GitHub writes.
 2. Confirm dependency-free published issues receive canonical tier, priority,
    and `op:ready` labels; dependent issues do not become ready early.
-3. Run `operon loop --app buildstacks.dev --once` for bounded ticks, or
+3. Run `cormidia loop --app buildstacks.dev --once` for bounded ticks, or
    `--follow` only when the operator explicitly wants the continuous driver.
 4. Allow the normal Builder → gates → Reviewer → fix/ship state machine to
    operate. Do not bypass approvals or quality gates for the UI demo.
 5. Do not deploy buildstacks.dev. A release approval, if the ticket declares a
    deployable milestone, is an expected safety stop rather than a UI failure.
 
-Keep the observer in a separate process. Do not pipe Operon output into the UI;
+Keep the observer in a separate process. Do not pipe Cormidia output into the UI;
 the proof is that the UI reconstructs the flow from durable sources.
 
 ### 12.8 Live assertions by phase
@@ -1650,7 +1650,7 @@ During one active pass:
 1. Refresh the browser and confirm state reconstructs.
 2. Disconnect/reconnect the browser network or SSE connection and confirm
    cursor recovery without duplicated events.
-3. Stop and restart only the observer; confirm the Operon pass continues and
+3. Stop and restart only the observer; confirm the Cormidia pass continues and
    the new server reconstructs it.
 4. Open prompt, output, event stream, and activity-log evidence; verify the
    activity log is not labeled transcript.
@@ -1663,18 +1663,18 @@ recovery. Cover that deterministically in fixtures or a disposable sandbox.
 After the flow reaches its authorized stopping point:
 
 ```sh
-operon telemetry \
+cormidia telemetry \
   --app buildstacks.dev \
   --json
 
-operon telemetry \
+cormidia telemetry \
   --app buildstacks.dev \
   --html /tmp/live-ui-buildstacks-<date>.html
 
-operon status --app buildstacks.dev
-operon analyze --app buildstacks.dev
-operon budget
-operon approvals list
+cormidia status --app buildstacks.dev
+cormidia analyze --app buildstacks.dev
+cormidia budget
+cormidia approvals list
 ```
 
 Compare the final Live UI projection with:
@@ -1695,7 +1695,7 @@ do not mark it complete for a successful UI demonstration.
 
 The buildstacks.dev test passes only if:
 
-- Operon behavior and durable artifacts are unchanged by observer presence;
+- Cormidia behavior and durable artifacts are unchanged by observer presence;
 - every observed pass appears exactly once under `(app, runId)`;
 - local live changes appear within 2 seconds at p95 in captured measurements;
 - GitHub changes appear within the documented poll interval;
@@ -1740,13 +1740,13 @@ tickets.
 Implementation is complete only when:
 
 - the product/queue/read-only decisions are ratified;
-- `operon observe` is discoverable, packaged, local-only, token-free, and
+- `cormidia observe` is discoverable, packaged, local-only, token-free, and
   reconstructable;
 - overview, delivery, activity, execution graph, pass evidence, cost, source
   health, and completion integrity meet this contract;
 - deterministic unit, integration, browser, failure, security, accessibility,
   packaging, and neutral-CWD tests pass;
-- existing `operon telemetry --json` compatibility is preserved or deliberately
+- existing `cormidia telemetry --json` compatibility is preserved or deliberately
   versioned;
 - a sandbox live run proves failure/recovery cases;
 - the authorized buildstacks.dev/Bikram-Org run meets the live acceptance
@@ -1759,7 +1759,7 @@ Implementation is complete only when:
 
 1. Read `docs/PURPOSE.md`, this document, `docs/architecture.md` §§2/9/10,
    `docs/loop/design.md` §§7/9, and the prior buildstacks telemetry investigation.
-2. Run the Operon skill discovery commands; verify the active org and state
+2. Run the Cormidia skill discovery commands; verify the active org and state
    home.
 3. Check current Git status and preserve unrelated user changes.
 4. Confirm Phase 0 decisions before editing human-ratified surfaces or adding

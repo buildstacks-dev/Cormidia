@@ -98,10 +98,10 @@ describe("CF-B14-* — publish-only refusals (bootstrap publish planning, contra
     const files = plan.repos[0]!.files;
     // Owned paths only — bootstrap output plus the two instruction docs it
     // composed; nothing the human owns is swept in.
-    expect(files).toContain(".operon/TASTE.md");
+    expect(files).toContain(".cormidia/TASTE.md");
     expect(files).toContain("AGENTS.md");
     expect(files).toContain("CLAUDE.md");
-    expect(files.every((rel) => rel.startsWith(".operon/") || rel === "AGENTS.md" || rel === "CLAUDE.md")).toBe(true);
+    expect(files.every((rel) => rel.startsWith(".cormidia/") || rel === "AGENTS.md" || rel === "CLAUDE.md")).toBe(true);
     expect(plan.repos[0]!.base.defaultBranch).toBe("trunk"); // resolved from the remote, never guessed
   });
 
@@ -168,7 +168,7 @@ describe("CF-B14-* — publish-only refusals (bootstrap publish planning, contra
     expect(plan.blockers.join("\n")).toMatch(/unrelated staged changes.*human-work\.txt.*unstage them/s);
   });
 
-  it("refuses an instruction file whose pending change goes beyond the marked block — a file Operon did not write is not Operon's to commit", async () => {
+  it("refuses an instruction file whose pending change goes beyond the marked block — a file Cormidia did not write is not Cormidia's to commit", async () => {
     const walk = await makeBootstrappedWalk();
     // Baseline: bootstrap's own AGENTS.md change is block-only → publishable.
     expect((await walk.plan()).blockers).toEqual([]);
@@ -182,7 +182,7 @@ describe("CF-B14-* — publish-only refusals (bootstrap publish planning, contra
 
     const plan = await walk.plan();
     expect(plan.repos).toEqual([]);
-    expect(plan.blockers.join("\n")).toMatch(/beyond the Operon authority block.*commit or stash/s);
+    expect(plan.blockers.join("\n")).toMatch(/beyond the Cormidia authority block.*commit or stash/s);
   });
 
   it("wrong remote (implemented leg): no resolvable origin → typed refusal before mutation", async () => {
@@ -222,7 +222,7 @@ describe("CF-B14-* — publish-only refusals (bootstrap publish planning, contra
       publishOrgHome: false,
     });
     expect(plan.repos).toEqual([]);
-    expect(plan.blockers.join("\n")).toMatch(/"never-bootstrapped" is not registered .*run `operon bootstrap`/s);
+    expect(plan.blockers.join("\n")).toMatch(/"never-bootstrapped" is not registered .*run `cormidia bootstrap`/s);
   });
 
   it("a blocked plan can never be executed — the library seam refuses too", async () => {

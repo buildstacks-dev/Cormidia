@@ -36,7 +36,7 @@ export function onboardingAnswersPath(stateHome: string, app: string): string {
   return join(resolve(stateHome), "lifecycle", "apps", app, "answers.json");
 }
 
-/** Where a greenfield app was scaffolded, recorded so `operon app verify` can
+/** Where a greenfield app was scaffolded, recorded so `cormidia app verify` can
  * synthesize a lifecycle record from the checkout's pushed remote. `new-app`
  * cannot write the full lifecycle record itself: at scaffold time there is no
  * commit, remote, or managed clone yet. This pointer captures the inputs verify
@@ -149,7 +149,7 @@ export async function readOnboardingRecoverySource(
     }
     if (!info.isDirectory()) throw new Error(`bootstrap --answers-from: unsupported source: ${source}`);
     await assertDirectoryNoSymlink(source, "bootstrap answers source");
-    const appOwned = join(source, ".operon", "onboarding-answers.json");
+    const appOwned = join(source, ".cormidia", "onboarding-answers.json");
     if (existsSync(appOwned)) {
       await assertRegularFile(appOwned, "app onboarding answers");
       const record = parseStoredAnswers(await readFile(appOwned, "utf8"), appOwned);

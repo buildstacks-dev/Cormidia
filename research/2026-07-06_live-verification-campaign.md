@@ -2,7 +2,7 @@
 
 Date: 2026-07-06
 
-A full functional-verification pass over Operon against real providers and real
+A full functional-verification pass over Cormidia against real providers and real
 GitHub side effects (private sandbox repos under github.com/bikramgupta). Real
 token spend authorized. This note records what was exercised live, what broke,
 and every fix committed.
@@ -16,8 +16,8 @@ multi-file gate / strict-schema path, gate.ts, and secret-patterns.
 | Suite | Result | Cost |
 | --- | --- | --- |
 | Claude live conformance (`claude-sdk.live`) | **3 passed**, 11 live turns, model `claude-sonnet-5`, auth source `none` (subscription) | $3.1296 (first run; re-ran at $2.4180 and $2.4176 under the codex/pi invocations) |
-| Codex live App Server smoke (`OPERON_CODEX_LIVE=1`) | **1 passed** — no-tool turn returns a Codex thread handle | negligible (no-tool turn) |
-| pi live smoke (`OPERON_PI_LIVE=1`) | **skipped** — `model auth not configured or model not found: anthropic/claude-haiku-4-5-20251001` (acceptable per AGENTS.md) | $0 |
+| Codex live App Server smoke (`CORMIDIA_CODEX_LIVE=1`) | **1 passed** — no-tool turn returns a Codex thread handle | negligible (no-tool turn) |
+| pi live smoke (`CORMIDIA_PI_LIVE=1`) | **skipped** — `model auth not configured or model not found: anthropic/claude-haiku-4-5-20251001` (acceptable per AGENTS.md) | $0 |
 
 The key proof — the subagent-critical-op gate case
 (`claude-live — subagent critical op escalates`) — passed live in every run: a
@@ -29,7 +29,7 @@ Known documented caveat (capability-matrix.md gate cell): the codex read-bypass
 — an auto-approved read not reaching the gate — remains a follow-up and did not
 surface as a new issue here.
 
-## (b) Live build loop on operon-sandbox-delta
+## (b) Live build loop on cormidia-sandbox-delta
 
 The centerpiece: the autonomous build loop taking real planted-bug and feature
 tickets through Builder / gates / Reviewer / squash-merge on the "Ledgerette"
@@ -57,7 +57,7 @@ response header`, ratified (acceptance criteria checked, `op:ready` applied):
   implement, gates (setup/tests/lint/completeness/review-freshness), review-verify
   — **where it previously crashed on the very first tick** on a malformed memory
   doc. This is the live proof of fix 5 (`3ab6d79`); the stderr line
-  `operon: skipping malformed memory doc — …money-report-rounding.okf.md:
+  `cormidia: skipping malformed memory doc — …money-report-rounding.okf.md:
   missing YAML frontmatter` appears and the loop proceeds.
 - **It did NOT merge.** The review phase oscillated: `review-verify` (verdict
   approve, 0 findings) → `review-security-deep` (approve) → `review-verify` →
@@ -69,11 +69,11 @@ Because the autonomous merge did not complete, the scorecard-persistence fix
 (fix 6) was verified through its real code path directly rather than via an
 organic merge: `persistLoopScorecards` (the exported helper `cmdLoop` now calls)
 is covered by unit tests, and appending the exact `review_cycles → builder`
-event it writes into the real org home then running `operon retro --date
+event it writes into the real org home then running `cormidia retro --date
 2026-07-07` produced a populated section:
 
 ```
-## operon-sandbox-delta / builder
+## cormidia-sandbox-delta / builder
 Scorecard events: 1
 - review_cycles: 1
 ```
@@ -101,16 +101,16 @@ follow-up: bound the approved-but-stale and no-actionable-review branches of
 loop unboundedly, and reconcile the worktree HEAD with the pushed PR head before
 the freshness comparison.
 
-### Merge authorization / OPERON_SELF_APPROVAL_SECRET (f)
+### Merge authorization / CORMIDIA_SELF_APPROVAL_SECRET (f)
 
 In this single-token sandbox the builder and reviewer both act as gh user
 `bikramgupta`, so a plain reviewer APPROVE is rejected by GitHub as a
 self-approval and by `isIndependentApproval` as non-independent. The intended
 single-maintainer path is the HMAC self-approval marker: with
-`OPERON_SELF_APPROVAL_SECRET` set in the loop env, `cli/loop.ts` passes
+`CORMIDIA_SELF_APPROVAL_SECRET` set in the loop env, `cli/loop.ts` passes
 `authorization.selfApprovalSecret`, the reviewing phase falls back to a COMMENT
 carrying an HMAC-signed marker
-(`<!-- operon:self-approval-fallback sig=... -->`), and `verifiedSelfApprovalMarker`
+(`<!-- cormidia:self-approval-fallback sig=... -->`), and `verifiedSelfApprovalMarker`
 verifies it against the same secret before `authorizeMerge` permits the merge.
 No static/forgeable bypass exists — without the secret the loop fails closed.
 The hardening does **not** over-block the legitimate autonomous flow, so no
@@ -128,7 +128,7 @@ change to the security property was needed. Observed live on the delta merges.
 
 The codex adapter reports cost from a static price table and marks it estimated.
 Runlog envelope for the implement pass on delta #7
-(`runs/operon-sandbox-delta/20260707-014421-build-implement/envelope.json`):
+(`runs/cormidia-sandbox-delta/20260707-014421-build-implement/envelope.json`):
 
 ```json
 "model": "gpt-5.5",
@@ -168,7 +168,7 @@ Stage 2 (this sub-session), each uncovered by live loop verification:
    `parseOkfDocument` and all writers stay strict. This is what unwedged the
    live loop mid-campaign.
 6. `d13456d` fix(cli): persist scorecard events from the manual loop driver —
-   `operon retro` was blind to the real build loop. `cmdLoop` never passed a
+   `cormidia retro` was blind to the real build loop. `cmdLoop` never passed a
    turnId (so the driver emitted zero scorecard events) and dropped
    `result.scorecardEvents` anyway; only the autonomous dispatch path recorded
    them. cmdLoop now stamps a per-tick turnId and persists the events
@@ -177,30 +177,30 @@ Stage 2 (this sub-session), each uncovered by live loop verification:
    dashboard — `toEnvelopeUsage` dropped `costEstimated`, so a codex heuristic
    estimate ($3.21/implement) was written and shown identically to a real
    provider charge. Now persisted on `EnvelopeUsage.cost_estimated` and rendered
-   with a leading `~` (e.g. `~$3.21` vs `$0.02`) in `operon status`.
+   with a leading `~` (e.g. `~$3.21` vs `$0.02`) in `cormidia status`.
 
 ## Observability CLIs exercised against today's real data
 
-- `operon status` — real delta+alpha runs with per-pass cost, tokens, duration,
+- `cormidia status` — real delta+alpha runs with per-pass cost, tokens, duration,
   and ESC (escalation) counts; the review-verify passes show ESC 1 (the
   self-approval escalation).
-- `operon budget` — monthly rollup. **Documented gap (not a new bug):** the
-  `operon loop` CLI path writes per-pass runlog envelopes but not the org
+- `cormidia budget` — monthly rollup. **Documented gap (not a new bug):** the
+  `cormidia loop` CLI path writes per-pass runlog envelopes but not the org
   telemetry ledger (`telemetry/<day>.jsonl`) that `budget`/`retro`'s telemetry
   section read, so budget shows $0 for loop-only spend. Only the autonomous
   dispatch path (org/turn-runner.ts → recordTurn) feeds that ledger. Per-pass
-  spend is fully visible in `operon status` and the envelopes.
-- `operon analyze` — reported "No anomaly flags" earlier in the day (no pass had
+  spend is fully visible in `cormidia status` and the envelopes.
+- `cormidia analyze` — reported "No anomaly flags" earlier in the day (no pass had
   yet exceeded the 300s single_turn threshold; `tool_counts` is empty because
   adapters do not yet emit tool_use TurnEvents, a documented limitation). After
   the #9 run's long deep-review passes, it correctly **fired on real executor
   output**:
   ```
-  operon-sandbox-delta …review-security-deep single_turn_long_run: 513s single pass
-  operon-sandbox-delta …review-verify         single_turn_long_run: 358s single pass
+  cormidia-sandbox-delta …review-security-deep single_turn_long_run: 513s single pass
+  cormidia-sandbox-delta …review-verify         single_turn_long_run: 358s single pass
   ```
   The detectors run against real envelopes and flag genuinely long passes.
-- `operon retro --date 2026-07-06` — empty, because the delta runs are timestamped
+- `cormidia retro --date 2026-07-06` — empty, because the delta runs are timestamped
   **2026-07-07 UTC** (local evening of the 6th) and fall outside the July-6
   window; `--date 2026-07-07` is the correct window and shows the data. Before
   fix 6 the report had no scorecard section for the loop at all; after fix 6 the

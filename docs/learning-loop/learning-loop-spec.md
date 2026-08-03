@@ -29,9 +29,9 @@ lives under the state home.
 
 ### Committed Org Home
 
-The org home is the **committed org directory created by `operon org init`**
+The org home is the **committed org directory created by `cormidia org init`**
 (the ratified package/org/state/app separation, `docs/PURPOSE.md`; resolution
-in `src/org/home.ts`). It is not the Operon source checkout, and it is not the
+in `src/org/home.ts`). It is not the Cormidia source checkout, and it is not the
 state home.
 
 ```text
@@ -58,7 +58,7 @@ learning/
 ### App Repo
 
 ```text
-.operon/learning/
+.cormidia/learning/
   manifest.yaml
   candidates/
   quarantine/
@@ -78,10 +78,10 @@ committed org home `learning/evals/**`, for app scopes too
 The resolver treats these as one logical bundle for a turn:
 
 ```text
-org home learning/ + current app .operon/learning/
+org home learning/ + current app .cormidia/learning/
 ```
 
-Existing `memory/roles/**` and `.operon/memory/**` trees are read-only legacy
+Existing `memory/roles/**` and `.cormidia/memory/**` trees are read-only legacy
 seed: they resolve at lowest precedence with `trust: legacy` and promote into
 `learning/bundle/**` individually through the candidate path (design §7.1). All
 new governed concepts land under `learning/bundle/**`.
@@ -89,7 +89,7 @@ new governed concepts land under `learning/bundle/**`.
 ### State Home
 
 ```text
-~/.operon/<org>/
+~/.cormidia/<org>/
   learning/
     events/<date>/*.jsonl                # stream file = turn id, else emitter
     episodes/<episode_id>.json           # EpisodeRecord projections (flat)
@@ -117,11 +117,11 @@ Writes to any of the following are critical ops (same shape as
 and humans write inside them:
 
 ```text
-learning/bundle/**          .operon/learning/bundle/**
-learning/manifest.yaml      .operon/learning/manifest.yaml
+learning/bundle/**          .cormidia/learning/bundle/**
+learning/manifest.yaml      .cormidia/learning/manifest.yaml
 learning/policy.yaml
-learning/quarantine/**      .operon/learning/quarantine/**
-learning/evals/**           .operon/learning/evals/**
+learning/quarantine/**      .cormidia/learning/quarantine/**
+learning/evals/**           .cormidia/learning/evals/**
 learning/reviews/**
 learning/rejections.jsonl
 learning/experiments/**
@@ -513,7 +513,7 @@ configurations share one fingerprint.
 ```json
 {
   "fingerprint_id": "sys_01ABC",
-  "operon": { "version": "0.9.3", "commit": "5f6bfd8" },
+  "cormidia": { "version": "0.9.3", "commit": "5f6bfd8" },
   "org": { "commit": "aa10c2", "taste_hash": "sha256:...", "roles_hash": "sha256:...", "pipelines_hash": "sha256:...", "prompts_hash": "sha256:..." },
   "app": { "name": "buildstacks-dev", "commit": "abc123", "config_hash": "sha256:..." },
   "bundle_versions": { "org": "2026.07.07-1", "app": "2026.07.07-bsd-1" },
@@ -959,7 +959,7 @@ learning_budget:
   max_experiments_per_month: 4
   require_benefit_justification: true
 distiller:
-  # Operon's schedule grammar (src/org/schedule.ts) supports
+  # Cormidia's schedule grammar (src/org/schedule.ts) supports
   # hourly | every Nh/Nm | daily HH:MM | weekly <day> HH:MM — not cron.
   # These run as roles.yaml triggers through the launchd dispatch tick.
   schedule: "daily 06:00"
@@ -1053,7 +1053,7 @@ writer inside gate-protected learning paths.
   "duplicates": [],
   "eval_required": false,
   "eval_present": false,
-  "rationale": "This is runtime behavior, so it should become an Operon ticket rather than OKF memory."
+  "rationale": "This is runtime behavior, so it should become a Cormidia ticket rather than OKF memory."
 }
 ```
 
@@ -1078,7 +1078,7 @@ Non-clean injection screens escalate. Reviewer outage fails closed.
 
 ## 16. Internal Interfaces
 
-These are internal Operon boundaries first, extraction candidates later.
+These are internal Cormidia boundaries first, extraction candidates later.
 
 ```typescript
 interface LearningEventSink {
@@ -1140,7 +1140,7 @@ interface LearningMetrics {
 Implementation notes binding these interfaces to existing code:
 
 - **Human approval** routes through the existing approvals store
-  (`src/org/approvals.ts`: pending/decided/grants + `operon approvals`) as the
+  (`src/org/approvals.ts`: pending/decided/grants + `cormidia approvals`) as the
   `learning_publish` item kind (§14) — not a second inbox. Reviewer verdict
   JSON is stored under `learning/reviews/` as evidence; the decision lives in
   the one queue.
@@ -1157,7 +1157,7 @@ Implementation notes binding these interfaces to existing code:
   `src/org/learning/distillation.ts` plus the `learning-distill` and
   `learning-review` pipelines: deterministic prechecks gate provider turns,
   candidate/review writes route through the existing stores, and durable M6
-  records carry skip/cap reasons. `operon learn review` remains the human
+  records carry skip/cap reasons. `cormidia learn review` remains the human
   review surface; scheduled reviewer verdicts use the same fail-closed schema
   and publisher flow.
 - **Gate rules**: the full protected-path list in §1, same shape as
@@ -1172,21 +1172,21 @@ CLI surface (as built it spans `src/cli/learn.ts`, `learn-activation.ts`, and
 dispatch-table pattern):
 
 ```text
-operon learn inspect <episode-id>       # full episode: turns, gates, artifacts, outcome
-operon learn emit [--episode <id>]      # human observation (interactive or from file)
-operon learn emit --late-outcome <kind> --ref <ref> --episode <id>
-operon learn show <event|candidate|experiment|eval|intervention-id>
-operon learn report [--json] [--refresh] # default read-only; --refresh projects first
-operon learn fixture <episode-id> --set <scope>/<set> [--validate --by <name>]
-operon learn review <candidate-id> --verdict <v> --rationale <text> --by <name>
-operon learn publish <candidate-id> [--waiver <text>]
-operon learn resolve --app <app> --role <role>
-operon learn disable <concept-id>
-operon learn rollback --root org|app [--app <name>]
-operon learn provisional --scope <s> --name <n> --ttl-days N --by <name>
-operon learn experiment declare|run|list
-operon learn canary start|status|promote|stop
-operon learn distill [--app <app>] [--dry-run]
+cormidia learn inspect <episode-id>       # full episode: turns, gates, artifacts, outcome
+cormidia learn emit [--episode <id>]      # human observation (interactive or from file)
+cormidia learn emit --late-outcome <kind> --ref <ref> --episode <id>
+cormidia learn show <event|candidate|experiment|eval|intervention-id>
+cormidia learn report [--json] [--refresh] # default read-only; --refresh projects first
+cormidia learn fixture <episode-id> --set <scope>/<set> [--validate --by <name>]
+cormidia learn review <candidate-id> --verdict <v> --rationale <text> --by <name>
+cormidia learn publish <candidate-id> [--waiver <text>]
+cormidia learn resolve --app <app> --role <role>
+cormidia learn disable <concept-id>
+cormidia learn rollback --root org|app [--app <name>]
+cormidia learn provisional --scope <s> --name <n> --ttl-days N --by <name>
+cormidia learn experiment declare|run|list
+cormidia learn canary start|status|promote|stop
+cormidia learn distill [--app <app>] [--dry-run]
 ```
 
 ## 17. Lifecycle

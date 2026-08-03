@@ -13,10 +13,10 @@ defaults):
 
 ```
 [0] effective delegated authority    org AUTHORITY.md, optionally narrowed
-                                      by <app>/.operon/AUTHORITY.md
+                                      by <app>/.cormidia/AUTHORITY.md
 [1] org TASTE.md                      values + engineering constitution
 [2] taste/<role>.md                   role craft (when it exists)
-[3] <app>/.operon/TASTE.md            product charter (when it exists)
+[3] <app>/.cormidia/TASTE.md            product charter (when it exists)
 [4] role turn protocol                generated: expected outputs, GitHub
                                       conventions (../loop/github-conventions.md), end-of-turn learning
                                       note instruction, approval etiquette
@@ -89,7 +89,7 @@ The assembler produces `ContextBundle.authority` (effective text, profile,
 version, SHA-256, and source paths), then layers [1]–[4] in `taste: string[]`
 and layer [5] in `memoryExcerpts`. Every pass envelope copies the authority
 provenance without duplicating its full prose. Parent delegated-task records
-capture the same evidence at `operon task begin`.
+capture the same evidence at `cormidia task begin`.
 
 This section covers the *system context* a pass runs under. The *task
 payload* — ticket, spec excerpts, contract, findings, attempt history — is

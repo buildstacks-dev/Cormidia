@@ -57,7 +57,7 @@ Not proven:
 ISSUE-046 (GitHub #179) recurs: the builder implements a ticket, passes its
 gates, and is denied at the atomic commit — after the paid pass. The
 provision-time preflight added by this PR does **not** cover that case: it runs
-in the Operon host process, where the lock was always writable (ISSUE-035
+in the Cormidia host process, where the lock was always writable (ISSUE-035
 established the host filesystem permissions are ordinary and the denial is a
 sandbox-policy boundary). The preflight guards stale locks and real filesystem
 damage, not a sandbox misconfiguration.

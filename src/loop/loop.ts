@@ -171,7 +171,7 @@ export interface ReviewAuthorization {
 export interface ShippingPhaseOptions extends GatePhaseOptions {
   localRepo: string;
   gateRunner?: (item: LoopItem, stage: "entry" | "pre-merge") => Promise<GateRunResult>;
-  /** The app's declared release mechanism (`release:` in `.operon/config.yaml`
+  /** The app's declared release mechanism (`release:` in `.cormidia/config.yaml`
    *  / apps.yaml), when it declares one. advanceShipping enforces P7 against
    *  it: a milestone whose ticket declares `Release-kind: deploy|package`
    *  with no matching declared mechanism is unfinished, mechanically. */
@@ -276,7 +276,7 @@ async function blockedOnApproval(
   };
   await options.gh.commentIssue(
     item.issueNumber,
-    `${stopped}Waiting on the pending approval (\`operon approvals review\`). ` +
+    `${stopped}Waiting on the pending approval (\`cormidia approvals review\`). ` +
       `The exact ${last.result.session.runtime} session and content fingerprints are checkpointed; ` +
       "the approval decision resumes this pass without repeating completed passes.",
   );
@@ -572,7 +572,7 @@ function provisionGitIndexFailedComment(
     "",
     "**Result:**",
     "The ticket was returned before any implementation provider turn started, so no",
-    "paid builder work was stranded. Operon did not stage, commit, reset, or remove",
+    "paid builder work was stranded. Cormidia did not stage, commit, reset, or remove",
     "the checkout.",
     "",
     "**Recovery:**",
@@ -621,7 +621,7 @@ function provisionSetupFailedComment(result: GateResult): string {
           "baseline check could only fail for lack of dependencies.",
           "",
           "**Assessment:**",
-          "Fix `setup_command` in `.operon/config.yaml` (or the environment it needs)",
+          "Fix `setup_command` in `.cormidia/config.yaml` (or the environment it needs)",
           "and re-arm the ticket.",
         ]),
     "",
@@ -1192,7 +1192,7 @@ export async function advanceShipping(
     const declared = options.release;
     const problem =
       declared === undefined
-        ? `the app declares no release mechanism (no \`release:\` block in .operon/config.yaml)`
+        ? `the app declares no release mechanism (no \`release:\` block in .cormidia/config.yaml)`
         : declared.kind !== requiredKind
           ? `the app declares \`release.kind: ${declared.kind}\`, not \`${requiredKind}\``
           : declared.trigger === "tag"
@@ -1210,7 +1210,7 @@ export async function advanceShipping(
           "",
           `This milestone's plan declares \`Release-kind: ${requiredKind}\`, but ${problem}.`,
           "A deployable milestone with no owned mechanism is not done: declare the mechanism in",
-          "the app's `.operon/config.yaml` `release:` block (kind, owner, and a command for",
+          "the app's `.cormidia/config.yaml` `release:` block (kind, owner, and a command for",
           "`trigger: command`) or, for `trigger: tag`, a `Release-version` on the milestone —",
           "or re-plan the milestone as merge-only. The PR is left open; no merge was attempted.",
         ].join("\n"),
@@ -1921,8 +1921,8 @@ function prBody(item: LoopItem): string {
   ].join("\n");
 }
 
-const PR_GATE_EVIDENCE_START = "<!-- operon:gate-evidence:start -->";
-const PR_GATE_EVIDENCE_END = "<!-- operon:gate-evidence:end -->";
+const PR_GATE_EVIDENCE_START = "<!-- cormidia:gate-evidence:start -->";
+const PR_GATE_EVIDENCE_END = "<!-- cormidia:gate-evidence:end -->";
 const PR_GATE_EVIDENCE_OUTPUT_BOUND = 8_000;
 
 interface RenderedPrGateEvidence {
@@ -1962,7 +1962,7 @@ function renderPrGateEvidence(item: LoopItem): RenderedPrGateEvidence | undefine
     const digest = createHash("sha256")
       .update(artifactContent)
       .digest("hex");
-    const artifact = `operon-pr-gate-evidence:${gate.gate}:sha256:${digest}`;
+    const artifact = `cormidia-pr-gate-evidence:${gate.gate}:sha256:${digest}`;
     artifactReferences.push(artifact);
     return [
       `### ${gate.gate}`,
@@ -2398,10 +2398,10 @@ function git(cwd: string, ...args: string[]): string {
       encoding: "utf8",
       env: {
         ...process.env,
-        GIT_AUTHOR_NAME: "Operon Loop",
-        GIT_AUTHOR_EMAIL: "loop@operon.invalid",
-        GIT_COMMITTER_NAME: "Operon Loop",
-        GIT_COMMITTER_EMAIL: "loop@operon.invalid",
+        GIT_AUTHOR_NAME: "Cormidia Loop",
+        GIT_AUTHOR_EMAIL: "loop@cormidia.invalid",
+        GIT_COMMITTER_NAME: "Cormidia Loop",
+        GIT_COMMITTER_EMAIL: "loop@cormidia.invalid",
         GIT_TERMINAL_PROMPT: "0",
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -2567,7 +2567,7 @@ function capExhaustionComment(
       : "**Any durable work is preserved.** No additional provider turn was authorized.",
     "",
     "The ticket is returned for a human decision: accept the durable work if sufficient, or " +
-      "reassess/raise the route budget and re-run `operon loop`.",
+      "reassess/raise the route budget and re-run `cormidia loop`.",
     "",
     "Routed to `op:returned` rather than automatically re-arming another provider turn.",
   ];

@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import type { OperonHomes } from "../org/home.js";
+import type { CormidiaHomes } from "../org/home.js";
 import { GhCliOps } from "../loop/github.js";
 import type { GhOps } from "../loop/github.js";
 import { executeTicketRearm, planTicketRearm } from "../loop/claim-recovery.js";
@@ -17,7 +17,7 @@ export interface ClaimRearmDependencies {
 
 export async function cmdClaimRearm(
   args: string[],
-  homes: OperonHomes,
+  homes: CormidiaHomes,
   io: ClaimRearmIo = defaultIo(),
   dependencies: ClaimRearmDependencies = {},
 ): Promise<number> {

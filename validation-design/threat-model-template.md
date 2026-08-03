@@ -1,4 +1,4 @@
-# Operon validation threat model — human authoring template
+# Cormidia validation threat model — human authoring template
 
 Status: **AWAITING HUMAN AUTHOR AND REVIEW**. This scaffold is not a threat model,
 does not resolve HB-072, and cannot reactivate release gating or the abuse lane.

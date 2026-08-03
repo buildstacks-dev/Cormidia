@@ -52,7 +52,7 @@ export interface AdaptiveAssignmentCandidate {
 export interface Trigger {
   schedule?: string;
   event?: string;
-  /** Human-initiated invocation (e.g. `operon plan`, docs/architecture.md
+  /** Human-initiated invocation (e.g. `cormidia plan`, docs/architecture.md
    *  §8). The dispatcher must NEVER auto-fire a manual trigger (build plan
    *  M7.8 encodes that) — it exists so a role can declare the manual entry
    *  point and telemetry can attribute the turn to it. */
@@ -189,7 +189,7 @@ export interface TurnUsage {
   cacheReadTokens?: number;
   tokensOut: number;
   costUsd: number;
-  /** True when `costUsd` is an Operon-computed estimate from documented
+  /** True when `costUsd` is a Cormidia-computed estimate from documented
    *  per-token list prices rather than a provider-reported figure. Codex's
    *  App Server does not report dollar cost, so its `costUsd` is estimated
    *  from token counts (src/runtime/adapters/codex.ts). Consumers that need

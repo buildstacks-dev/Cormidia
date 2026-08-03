@@ -9,7 +9,7 @@
 
 *For agents and humans working on this repo. A **harness** (interchangeably:
 runtime adapter) is what turns one provider's agent product — Claude Agent
-SDK, Codex App Server, pi SDK — into an Operon `Runtime`. This doc is the
+SDK, Codex App Server, pi SDK — into a Cormidia `Runtime`. This doc is the
 procedure: what a harness must implement, where it registers, what proves it,
 and what an update obligates. The per-capability contract itself lives in
 [`capability-matrix.md`](capability-matrix.md); accounting rules live in
@@ -102,7 +102,7 @@ blocker if skipped:
    not label a post-turn degradation note as a working fan-out surface.
 5. **`src/runtime/readiness.ts`** — add a readiness implementation. Readiness
    means **usable request authentication**, never configuration or account
-   presence (`operon doctor` runs this; an expired credential must fail here,
+   presence (`cormidia doctor` runs this; an expired credential must fail here,
    not inside a paid model turn).
 6. **Tests** — all three tiers plus the budget pin (§4).
 7. **`docs/harness/capability-matrix.md`** — add the adapter's column with honest
@@ -139,8 +139,8 @@ Rules that keep the tiers meaningful:
   isolates to the adapter, never the contract.
 - No role goes live on an adapter before it passes the conformance suite
   end-to-end, including the subagent case (AGENTS.md working rule).
-- Codex and pi live smokes are opt-in (`OPERON_CODEX_LIVE=1`,
-  `OPERON_PI_LIVE=1`) because they spend provider quota and need local auth;
+- Codex and pi live smokes are opt-in (`CORMIDIA_CODEX_LIVE=1`,
+  `CORMIDIA_PI_LIVE=1`) because they spend provider quota and need local auth;
   `pnpm test` never runs any `*.live.test.ts`.
 
 ## 5. Updating an existing harness
@@ -182,7 +182,7 @@ the role and atomic harness/model/effort assignment, then renders every
 machine-profile surface with its honest tier:
 
 - `native` — the harness exposes the surface directly;
-- `adapter-built` — Operon's adapter supplies it;
+- `adapter-built` — Cormidia's adapter supplies it;
 - `fallback (degraded)` — a weaker deterministic fallback exists; and
 - `unsupported` — the turn is told not to rely on the surface.
 
@@ -209,7 +209,7 @@ slash commands, plugins, MCP servers, or user settings; Claude remains
 hermetic with `settingSources: []`. Gates, role-shaping denies, and approval
 boundaries remain the enforcement, and `prompts/**` stay runtime-agnostic.
 This mechanism implements the repository side of
-[#116](https://github.com/buildstacks-dev/Operon/issues/116); publication is
+[#116](https://github.com/cormidia/Cormidia/issues/116); publication is
 still required before the issue can be called completed.
 
 ## 7. Command reference
@@ -219,5 +219,5 @@ still required before the issue can be called completed.
 | Offline suite (all three tiers, mocked) | `pnpm test` |
 | Typecheck | `pnpm typecheck` |
 | Live conformance (spends tokens; Codex/pi opt-in) | `pnpm test:live` |
-| Adapter readiness without a model turn | `operon doctor` / `pnpm dev doctor` |
-| Capability profiles as the org sees them | `operon capabilities` |
+| Adapter readiness without a model turn | `cormidia doctor` / `pnpm dev doctor` |
+| Capability profiles as the org sees them | `cormidia capabilities` |

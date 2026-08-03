@@ -1,5 +1,5 @@
 // CF-J17-R — refusal legs of the release handoff (contracts/journey-acceptance.md
-// J-17; contracts/B-17-typed-executor.md §1; OPERON-INV-003; risk E-1):
+// J-17; contracts/B-17-typed-executor.md §1; CORMIDIA-INV-003; risk E-1):
 // a deployable milestone with no declared `release:` mechanism fails the ship
 // gate (A4/P7) before any merge side effect, and `production-deploy` — a
 // never-broadly-scopeable rule — refuses a human scope-widening attempt.
@@ -70,7 +70,7 @@ describe("CF-J17-R — undeclared mechanism fails the ship gate; scoped grants r
       body: DEPLOYABLE_BODY,
       labels: ["op:in-review"],
     });
-    const localRepo = await mkdtemp(join(tmpdir(), "operon-cf-j17-r-"));
+    const localRepo = await mkdtemp(join(tmpdir(), "cormidia-cf-j17-r-"));
     cleanups.push(() => rm(localRepo, { recursive: true, force: true }));
     const item: LoopItem = {
       issueNumber: issue.number,
@@ -85,7 +85,7 @@ describe("CF-J17-R — undeclared mechanism fails the ship gate; scoped grants r
       remediationAttempts: 0,
       gateResults: [],
       findings: [],
-      branch: "operon/issue-1",
+      branch: "cormidia/issue-1",
       worktree: join(localRepo, "worktree-placeholder"),
       prNumber: 1,
     };
@@ -156,7 +156,7 @@ describe("CF-J17-R — undeclared mechanism fails the ship gate; scoped grants r
           ticketRef: "#7",
           title: "Deployable milestone",
           body: DEPLOYABLE_BODY,
-          targetRepo: "operon-double/unused",
+          targetRepo: "cormidia-double/unused",
           labels: [],
           phase: "merged",
           tier: "standard",

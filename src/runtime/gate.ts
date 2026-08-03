@@ -206,9 +206,9 @@ const effectText = (a: ToolAction): string => asText(a);
 
 /**
  * The org runtime's OWN command line is an effect surface, and its
- * human-gated verbs were invisible here: `operon app reset --execute` removes
- * an app's managed state and closes its tracked GitHub work, `operon org
- * upgrade --execute` rewrites the ratified org surfaces, and `operon plan
+ * human-gated verbs were invisible here: `cormidia app reset --execute` removes
+ * an app's managed state and closes its tracked GitHub work, `cormidia org
+ * upgrade --execute` rewrites the ratified org surfaces, and `cormidia plan
  * ratify-ticket-budget --execute` publishes GitHub issues — all three
  * classified routine, while `rm -rf`, an `echo > roles.yaml` and a
  * `gh issue create` with exactly those effects are critical. An agent that can
@@ -216,19 +216,19 @@ const effectText = (a: ToolAction): string => asText(a);
  * belongs to rather than to a new catch-all: the executor allowlist, the
  * never-scopeable list and role shaping all key off the rule name.
  *
- * Read-only invocations (`operon roles`, `status`, `doctor`, `budget`,
+ * Read-only invocations (`cormidia roles`, `status`, `doctor`, `budget`,
  * `context`, `episode explain`, a `--dry-run`) are deliberately absent: the
  * point is the boundary, not friction on inspection.
  */
-const OPERON_VERB = {
+const CORMIDIA_VERB = {
   /** Rewrites or re-points the org's ratified protocol surfaces. */
-  protocolWrite: /\boperon\s+org\s+(?:upgrade|init|use)\b/,
+  protocolWrite: /\bcormidia\s+org\s+(?:upgrade|init|use)\b/,
   /** Archives and removes managed state, or deletes durable run records. */
-  destructive: /\boperon\s+(?:app\s+reset|prune-runs)\b/,
+  destructive: /\bcormidia\s+(?:app\s+reset|prune-runs)\b/,
   /** Publishes to GitHub: bootstrap draft PRs, ratified ticket issues. */
-  publish: /\boperon\s+(?:plan\s+ratify-ticket-budget|bootstrap\s+publish)\b/,
+  publish: /\bcormidia\s+(?:plan\s+ratify-ticket-budget|bootstrap\s+publish)\b/,
   /** Decides, revokes or dispositions approvals — the gate's root of trust. */
-  approvalWrite: /\boperon\s+approvals\s+(?:review|revoke|disposition)\b/,
+  approvalWrite: /\bcormidia\s+approvals\s+(?:review|revoke|disposition)\b/,
 } as const;
 
 /** The canonical `gh api` projection built by ghApiVerbParts, as it appears in
@@ -241,7 +241,7 @@ type GhApiRoute = "self-merge-or-approve" | "external-publishing" | "destructive
  *  --method PUT repos/o/r/pulls/7/merge` performs the same merge as
  *  `gh pr merge`, reached by a route the subcommand patterns never see
  *  (HB-010; INV-002 requires the gate to be total over direct API calls).
- *  Mirroring OPERON_VERB, each MUTATING call routes to the rule its EFFECT
+ *  Mirroring CORMIDIA_VERB, each MUTATING call routes to the rule its EFFECT
  *  belongs to rather than a new catch-all — the executor allowlist, the
  *  never-scopeable list and role shaping all key off the rule name:
  *   - `pulls/{n}/merge` and `…/reviews` are the raw-API spellings of
@@ -311,7 +311,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
         return true;
       }
       if (/\bgit\s+push\s+(?:--force(?:-with-lease)?|-f)\b/.test(t)) return true;
-      if (OPERON_VERB.destructive.test(t)) return true;
+      if (CORMIDIA_VERB.destructive.test(t)) return true;
       // The raw-API default: a mutating `gh api` whose endpoint no tighter
       // rule recognizes (and every `gh api graphql`, fail closed) is an
       // arbitrary remote mutation — see ghApiRoutesTo.
@@ -366,9 +366,9 @@ export const CRITICAL_RULES: CriticalRule[] = [
         // The raw-API spellings of the same publications: a mutating `gh api`
         // against releases/issues/comments (see ghApiRoutesTo, HB-010).
         ghApiRoutesTo(t, "external-publishing") ||
-        OPERON_VERB.publish.test(t) ||
-        a.tool.toLowerCase() === "operon.github.issue.create" ||
-        a.tool.toLowerCase() === "operon.github.issue.comment"
+        CORMIDIA_VERB.publish.test(t) ||
+        a.tool.toLowerCase() === "cormidia.github.issue.create" ||
+        a.tool.toLowerCase() === "cormidia.github.issue.comment"
       );
     },
   },
@@ -425,10 +425,10 @@ export const CRITICAL_RULES: CriticalRule[] = [
     name: "protocol-self-edit", // agents don't rewrite their own rules
     matches: (a) => {
       const t = asText(a);
-      // `operon org upgrade|init|use` writes/re-points those same surfaces
+      // `cormidia org upgrade|init|use` writes/re-points those same surfaces
       // through the org runtime's own CLI, where no file path appears in the
       // action for isProtocolSurface to see.
-      return OPERON_VERB.protocolWrite.test(t) || (isWrite(a) && isProtocolSurface(t));
+      return CORMIDIA_VERB.protocolWrite.test(t) || (isWrite(a) && isProtocolSurface(t));
     },
   },
   {
@@ -441,7 +441,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // The learning loop's governance surfaces (docs/learning-loop/ spec §1):
     // active bundles, manifests, policy, quarantine, evals, reviews, the
     // rejection ledger, experiments, and interventions — in the org home
-    // (learning/**) and the app repo (.operon/learning/**) alike. Only the
+    // (learning/**) and the app repo (.cormidia/learning/**) alike. Only the
     // deterministic publisher and humans write inside them; an agent write is
     // active-context self-modification (a prompt-injection persistence
     // channel, design §11). learning/candidates/** and learning/proposals/**
@@ -469,7 +469,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
       // Deciding an approval from inside a turn is self-approval by CLI: the
       // same forged grant, reached through the supported command instead of a
       // file write.
-      return OPERON_VERB.approvalWrite.test(t) ||
+      return CORMIDIA_VERB.approvalWrite.test(t) ||
         (isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(t));
     },
   },
@@ -503,7 +503,7 @@ function isWrite(a: ToolAction): boolean {
 const WRITE_VERB_NAME = /\b(write|edit|create|replace|append|mv|cp\b|tee\b|rm|sed -i)/;
 
 /** Exact protocol filenames, matched anywhere in the repo tree (e.g. root
- *  `roles.yaml`, an app's `.operon/TASTE.md`, a nested `apps.yaml`). */
+ *  `roles.yaml`, an app's `.cormidia/TASTE.md`, a nested `apps.yaml`). */
 const PROTOCOL_FILENAMES =
   /\b(taste\.md|roles\.yaml|agents\.md|purpose\.md|pipelines\.yaml|apps\.yaml)\b/;
 
@@ -515,9 +515,9 @@ const PROTOCOL_FILENAMES =
  *  "taste.md" substring. */
 const PROTOCOL_DIRS = /\b(taste|prompts)\/[^\s"']+/;
 
-/** `.operon/config.yaml` (app bootstrap config) doesn't share a basename with
+/** `.cormidia/config.yaml` (app bootstrap config) doesn't share a basename with
  *  any of the above, so it gets its own exact match. */
-const PROTOCOL_CONFIG_FILE = /\.operon\/config\.yaml\b/;
+const PROTOCOL_CONFIG_FILE = /\.cormidia\/config\.yaml\b/;
 
 function isProtocolSurface(text: string): boolean {
   return (
@@ -641,7 +641,7 @@ const FILE_ARGUMENT_TOOLS = new Set([
 /** Utilities whose invocation READS the paths it names, whatever those paths
  *  are (ISSUE-027 rule 1). This is the set that had to exist: the classifier
  *  inferred `operation` from "this command has file arguments", so counting
- *  lines in `AGENTS.md` and `.operon/config.yaml` — the literal instruction a
+ *  lines in `AGENTS.md` and `.cormidia/config.yaml` — the literal instruction a
  *  bare-template builder is given on its first ticket — recorded a write and
  *  raised `protocol-self-edit`, a rule the orchestrator may never discharge
  *  mechanically. Membership here is not a licence: a read-only program in a
@@ -1061,12 +1061,12 @@ function relevantArguments(executable: string, args: string[]): { verb: string; 
   if (FILE_ARGUMENT_TOOLS.has(executable)) {
     return { verb: "", targets: args.filter((arg) => !arg.startsWith("-") && arg !== "-") };
   }
-  // `operon` and `npx` are multiplexers too. Without the verb, every `operon`
+  // `cormidia` and `npx` are multiplexers too. Without the verb, every `cormidia`
   // invocation projected to the bare executable plus its flags, so
-  // `operon app reset --execute` and `operon roles` were the same action to
+  // `cormidia app reset --execute` and `cormidia roles` were the same action to
   // every rule — which is how the CLI's own human-gated verbs classified
   // routine while the shell equivalents of the same effects did not.
-  if (["kubectl", "doctl", "npm", "pnpm", "npx", "operon", "helm", "terraform", "docker", "gcloud", "aws", "curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"].includes(executable)) {
+  if (["kubectl", "doctl", "npm", "pnpm", "npx", "cormidia", "helm", "terraform", "docker", "gcloud", "aws", "curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"].includes(executable)) {
     return {
       verb: leadingSubcommands(args).join(" "),
       targets: args.filter(looksLikePathOrUrl),

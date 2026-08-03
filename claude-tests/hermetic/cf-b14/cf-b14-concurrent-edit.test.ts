@@ -87,7 +87,7 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
 
     // Template root whose policy template is a FIFO: the product's
     // readPolicyTemplate blocks on it after validation, before any write.
-    const templateRoot = await mkdtemp(join(tmpdir(), "operon-cf-b14-tpl-"));
+    const templateRoot = await mkdtemp(join(tmpdir(), "cormidia-cf-b14-tpl-"));
     cleanups.push(() => rm(templateRoot, { recursive: true, force: true }));
     await mkdir(join(templateRoot, "docs"), { recursive: true });
     const fifoPath = join(templateRoot, "docs", "policy.yaml.template");
@@ -147,26 +147,26 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
     // While held: validation AND org registration are behind us…
     expect(readFileSync(join(held.org.orgHome, "apps.yaml"), "utf8")).toContain(APP);
     // …but not one byte has been written into the human checkout.
-    expect(existsSync(join(held.repo.dir, ".operon"))).toBe(false);
+    expect(existsSync(join(held.repo.dir, ".cormidia"))).toBe(false);
     expect(readFileSync(join(held.repo.dir, "AGENTS.md"), "utf8")).toBe(AGENTS_SEED);
 
     // No interference this time: released, the command completes normally —
     // proving the hold sits on the ordinary success path, not an error path.
     await held.release();
     const result = await held.run;
-    expect(result.created).toContain(".operon/TASTE.md");
-    expect(existsSync(join(held.repo.dir, ".operon", "TASTE.md"))).toBe(true);
+    expect(result.created).toContain(".cormidia/TASTE.md");
+    expect(existsSync(join(held.repo.dir, ".cormidia", "TASTE.md"))).toBe(true);
   });
 
-  it("RATIFIED (generated path): human creates .operon/TASTE.md mid-window → compare-and-refuse, human bytes intact — never overwritten", async () => {
+  it("RATIFIED (generated path): human creates .cormidia/TASTE.md mid-window → compare-and-refuse, human bytes intact — never overwritten", async () => {
     const held = await startHeldRun();
 
     // THE CONCURRENT HUMAN EDIT — made while the command is provably parked
     // between its validation (both assertNotExists checks passed: no
-    // .operon/TASTE.md existed) and its write.
+    // .cormidia/TASTE.md existed) and its write.
     const humanBytes = "# MY taste file — the human wrote this mid-command\n";
-    mkdirSync(join(held.repo.dir, ".operon"), { recursive: true });
-    writeFileSync(join(held.repo.dir, ".operon", "TASTE.md"), humanBytes);
+    mkdirSync(join(held.repo.dir, ".cormidia"), { recursive: true });
+    writeFileSync(join(held.repo.dir, ".cormidia", "TASTE.md"), humanBytes);
 
     await held.release();
 
@@ -180,7 +180,7 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
     }
     expect(refusal).toBeInstanceOf(Error); // fixed: emit() re-checks absence at write time
     // …and the human's bytes survive, never overwritten.
-    assertHumanBytesPreserved(join(held.repo.dir, ".operon", "TASTE.md"), humanBytes);
+    assertHumanBytesPreserved(join(held.repo.dir, ".cormidia", "TASTE.md"), humanBytes);
   });
 
   it("RATIFIED (instruction file): human edits AGENTS.md mid-window → compare-and-refuse — never merged silently", async () => {
@@ -218,14 +218,14 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
     // after compare-and-refuse lands.
     const held = await startHeldRun();
     const humanBytes = "# human bytes written mid-window\n";
-    mkdirSync(join(held.repo.dir, ".operon"), { recursive: true });
-    writeFileSync(join(held.repo.dir, ".operon", "TASTE.md"), humanBytes);
+    mkdirSync(join(held.repo.dir, ".cormidia"), { recursive: true });
+    writeFileSync(join(held.repo.dir, ".cormidia", "TASTE.md"), humanBytes);
 
     // SEEDED VIOLATION: a clobbering writer replaces the human's bytes with
     // generated content while the command is still held.
-    writeFileSync(join(held.repo.dir, ".operon", "TASTE.md"), "# generated charter content\n");
+    writeFileSync(join(held.repo.dir, ".cormidia", "TASTE.md"), "# generated charter content\n");
     expect(() =>
-      assertHumanBytesPreserved(join(held.repo.dir, ".operon", "TASTE.md"), humanBytes),
+      assertHumanBytesPreserved(join(held.repo.dir, ".cormidia", "TASTE.md"), humanBytes),
     ).toThrow(/clobber detector: human bytes .* were altered/);
 
     await held.release();

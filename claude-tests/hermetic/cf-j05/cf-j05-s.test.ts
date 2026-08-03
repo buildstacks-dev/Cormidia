@@ -1,6 +1,6 @@
 // CF-J05-S — gate block → item → approve → typed execution → executed with
 // acknowledgement (contracts/journey-acceptance.md J-05; contracts/
-// B-17-typed-executor.md §1/§2; OPERON-INV-003/008; system-map T-2/T-12;
+// B-17-typed-executor.md §1/§2; CORMIDIA-INV-003/008; system-map T-2/T-12;
 // risk E-1).
 //
 // L2 walk on real product code: the composed gate (composeGate + defaultGate)
@@ -63,7 +63,7 @@ describe("CF-J05-S — gate block → item → approve → typed execution → e
     const appsFile: AppsFile = {
       org: { name: "cf-j05-s", maxConcurrentTurns: 1 },
       defaults: { budgetUsdMonth: 100 },
-      apps: [{ name: APP, repo: "operon-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
     };
     return { home, repo, store: new ApprovalStore(home.stateHome), clock, appsFile };
   }

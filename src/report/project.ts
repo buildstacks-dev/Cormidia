@@ -139,7 +139,7 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
     cache_read_tokens: observable.reduce((sum, turn) => sum + (turn.cache_read_tokens ?? 0), 0),
     cache_creation_tokens: observable.reduce((sum, turn) => sum + (turn.cache_creation_tokens ?? 0), 0),
     provider_reported_cost_usd: sumCost(reported),
-    operon_estimated_cost_usd: sumCost(estimated),
+    cormidia_estimated_cost_usd: sumCost(estimated),
     partial_recorded_cost_usd: sumCost(partial),
     recorded_equivalent_cost_usd: sumCost(costKnown),
     unknown_cost_turns: allTurns.filter((turn) => turn.cost_usd === null).length,
@@ -244,7 +244,7 @@ function buildTrend(turns: ReportTurnV1[], range: ReportSnapshotV1["range"], unr
       known_input_tokens: gap && selected.length === 0 ? null : sumTurns(observable, "tokens_in"),
       known_output_tokens: gap && selected.length === 0 ? null : sumTurns(observable, "tokens_out"),
       provider_reported_cost_usd: gap && selected.length === 0 ? null : sumCost(selected.filter((turn) => turn.cost_usd !== null && !turn.cost_estimated && turn.usage_quality !== "partial")),
-      operon_estimated_cost_usd: gap && selected.length === 0 ? null : sumCost(selected.filter((turn) => turn.cost_usd !== null && turn.cost_estimated && turn.usage_quality !== "partial")),
+      cormidia_estimated_cost_usd: gap && selected.length === 0 ? null : sumCost(selected.filter((turn) => turn.cost_usd !== null && turn.cost_estimated && turn.usage_quality !== "partial")),
       partial_recorded_cost_usd: gap && selected.length === 0 ? null : sumCost(selected.filter((turn) => turn.cost_usd !== null && turn.usage_quality === "partial")),
       provider_turns: selected.length,
       unknown_usage_turns: selected.filter((turn) => turn.tokens_in === null || turn.tokens_out === null).length,
@@ -274,7 +274,7 @@ function breakdown(turns: ReportTurnV1[], sessions: ReportSessionDetailV1[], key
       known_total_tokens: knownInput + knownOutput,
       recorded_equivalent_cost_usd: sumCost(values.filter((turn) => turn.cost_usd !== null)),
       provider_reported_cost_usd: sumCost(values.filter((turn) => turn.cost_usd !== null && !turn.cost_estimated && turn.usage_quality !== "partial")),
-      operon_estimated_cost_usd: sumCost(values.filter((turn) => turn.cost_usd !== null && turn.cost_estimated && turn.usage_quality !== "partial")),
+      cormidia_estimated_cost_usd: sumCost(values.filter((turn) => turn.cost_usd !== null && turn.cost_estimated && turn.usage_quality !== "partial")),
       partial_recorded_cost_usd: sumCost(values.filter((turn) => turn.cost_usd !== null && turn.usage_quality === "partial")),
       turns: values.length,
       sessions: sessionCount,
@@ -361,7 +361,7 @@ function qualityNotices(turns: ReportTurnV1[], diagnostics: number, missing: num
   const notices: string[] = [];
   if (turns.some((turn) => turn.usage_quality === "unavailable")) notices.push("Known token and cost totals exclude turns whose usage was unavailable or unmeasured.");
   if (turns.some((turn) => turn.usage_quality === "partial")) notices.push("Partial usage is a recorded lower bound and is split from complete/estimated cost.");
-  if (turns.some((turn) => turn.cost_estimated)) notices.push("Operon-estimated equivalent cost is not a provider invoice.");
+  if (turns.some((turn) => turn.cost_estimated)) notices.push("Cormidia-estimated equivalent cost is not a provider invoice.");
   if (diagnostics > 0) notices.push("One or more ledger source records was corrupt, torn, unreadable, concurrent, invalid, or future-dated.");
   if (missing > 0) notices.push("Some settled rows have no readable run envelope; accounting remains available but execution detail was retained incompletely.");
   if (unsettled > 0) notices.push("Envelope-only activity is shown outside authoritative ledger totals.");

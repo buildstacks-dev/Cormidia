@@ -34,7 +34,7 @@ const errors: string[] = [];
 beforeAll(async () => {
   ({ config } = await loadLiveCampaignConfig());
   await assertCampaignRepositoryBinding({ commit: config.commit, policyPath: config.policy_path });
-  workdir = await mkdtemp(join(tmpdir(), "operon-live-adapter-"));
+  workdir = await mkdtemp(join(tmpdir(), "cormidia-live-adapter-"));
   await mkdir(join(workdir, ".git"), { recursive: true });
   decidedBefore = new Set((await new ApprovalStore(config.state_home).listDecidedReadOnly()).map((row) => row.id));
   const required = [
@@ -110,7 +110,7 @@ describe("authorized L3 campaign", () => {
         return {
           providerTurns: 0,
           equivUsd: 0,
-          violationIds: report.failures.map((failure) => `OPERON-C-B01-001:${failure.id}`),
+          violationIds: report.failures.map((failure) => `CORMIDIA-C-B01-001:${failure.id}`),
           reasonCodes: report.failures.map((failure) => `github_clause_failed:${failure.id}`),
           evidenceRefs: [`github:${config.github.repo}:clauses:${report.passed.length}/${report.total}`],
         };
@@ -126,7 +126,7 @@ describe("authorized L3 campaign", () => {
 
   it("installs, inspects and removes a uniquely identified real launchd definition", async () => {
     if (!config.launchd.enabled) return;
-    const root = await mkdtemp(join(tmpdir(), "operon-live-launchd-"));
+    const root = await mkdtemp(join(tmpdir(), "cormidia-live-launchd-"));
     const orgHome = join(root, "org");
     const stateHome = join(root, "state");
     await mkdir(orgHome, { recursive: true }); await mkdir(stateHome, { recursive: true });
@@ -154,8 +154,8 @@ describe("authorized L3 campaign", () => {
         const afterRemoval = await schedulerDefinitionStatus(input);
         const exactRemoval = removed.changed && !afterRemoval.installed && afterRemoval.loaded === false;
         const violations = [
-          ...(!(installed.changed && status.installed && status.loaded === true && attributableTick) ? ["OPERON-C-B05-001:launchd-not-loaded"] : []),
-          ...(!exactRemoval ? ["OPERON-C-B05-001:launchd-not-removed"] : []),
+          ...(!(installed.changed && status.installed && status.loaded === true && attributableTick) ? ["CORMIDIA-C-B05-001:launchd-not-loaded"] : []),
+          ...(!exactRemoval ? ["CORMIDIA-C-B05-001:launchd-not-removed"] : []),
         ];
         return { providerTurns: 0, equivUsd: 0, violationIds: violations, evidenceRefs: [`launchd:${expected.metadata.scheduler_id}:loaded=${String(status.loaded)}:tick=${String(attributableTick)}:removed=${String(exactRemoval)}`] };
       });
@@ -177,9 +177,9 @@ describe("authorized L3 campaign", () => {
       const publication = authorizeUnattendedValidationAction(profile, config.sandbox, { kind: "external_publication", target: config.sandbox.repo });
       const decidedAfter = (await new ApprovalStore(config.state_home).listDecidedReadOnly()).filter((row) => !decidedBefore.has(row.id));
       const violations = [
-        ...(!budget.authorized ? ["OPERON-C-B09B-001:profile-budget-not-authorized"] : []),
-        ...(publication.authorized ? ["OPERON-C-B09B-001:publication-widened"] : []),
-        ...(decidedAfter.length > 0 ? ["OPERON-C-B09B-001:human-decision-row-created"] : []),
+        ...(!budget.authorized ? ["CORMIDIA-C-B09B-001:profile-budget-not-authorized"] : []),
+        ...(publication.authorized ? ["CORMIDIA-C-B09B-001:publication-widened"] : []),
+        ...(decidedAfter.length > 0 ? ["CORMIDIA-C-B09B-001:human-decision-row-created"] : []),
       ];
       return { providerTurns: 0, equivUsd: 0, violationIds: violations, evidenceRefs: [`profile:${profile.identity}:human-decisions:${decidedAfter.length}`] };
     });

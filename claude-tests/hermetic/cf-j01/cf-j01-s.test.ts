@@ -5,10 +5,11 @@
 // own validator accepts it), a state home, and an atomic active pointer; the
 // chosen authority profile lands in AUTHORITY.md and resolves back; a legacy
 // org upgrades additively behind a checksummed archive; `org use` re-points
-// the selection. All on temp worlds — never the operator's ~/.operon.
+// the selection. All on temp worlds — never the operator's ~/.cormidia.
 
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { cmdOrg } from "../../../src/cli/org.js";
@@ -21,20 +22,81 @@ import {
 import {
   executeOrgInit,
   initOrgHome,
+  migrateLegacyStateRoot,
   ORG_REQUIRED_FILES,
   planOrgInit,
   readActiveOrgPointer,
-  resolveOperonHomes,
+  resolveCormidiaHomes,
   validateOrgHome,
 } from "../../../src/org/home.js";
 import { executeOrgUpgrade, planOrgUpgrade } from "../../../src/org/org-upgrade.js";
+import { buildSchedulerExpectation } from "../../../src/org/scheduler/definition.js";
+import type {
+  SchedulerManager,
+  SchedulerManagerInspection,
+} from "../../../src/org/scheduler/manager.js";
 import {
+  schedulerIdentity,
+  schedulerOrgId,
+  sha256 as schedulerSha256,
+} from "../../../src/org/scheduler/model.js";
+import {
+  diffIsEmpty,
+  diffSnapshots,
   makeInitWorld,
   makeUpgradeWorld,
   snapshotTree,
   HUMAN_RATIFIED_MARKER,
   type InitWorld,
 } from "./support.js";
+
+class MigrationSchedulerManager implements SchedulerManager {
+  readonly backend = "launchd" as const;
+  readonly platform = "darwin" as const;
+  readonly supported = true;
+  readonly definitions = new Map<string, string>();
+  readonly enabled = new Set<string>();
+  readonly operations: string[] = [];
+
+  constructor(private readonly root: string) {}
+
+  definitionPath(schedulerId: string): string {
+    return join(this.root, `${schedulerId}.plist`);
+  }
+
+  async readDefinition(schedulerId: string): Promise<string | undefined> {
+    return this.definitions.get(schedulerId);
+  }
+
+  async writeDefinition(schedulerId: string, definition: string): Promise<void> {
+    this.operations.push(`write:${schedulerId}`);
+    this.definitions.set(schedulerId, definition);
+  }
+
+  async removeDefinition(schedulerId: string): Promise<void> {
+    this.operations.push(`remove:${schedulerId}`);
+    this.definitions.delete(schedulerId);
+  }
+
+  async enable(schedulerId: string): Promise<void> {
+    this.operations.push(`enable:${schedulerId}`);
+    this.enabled.add(schedulerId);
+  }
+
+  async disable(schedulerId: string): Promise<void> {
+    this.operations.push(`disable:${schedulerId}`);
+    this.enabled.delete(schedulerId);
+  }
+
+  async inspect(schedulerId: string): Promise<SchedulerManagerInspection> {
+    return {
+      installed: this.definitions.has(schedulerId),
+      loaded: this.enabled.has(schedulerId),
+      active: this.enabled.has(schedulerId),
+      detail: "migration fixture",
+    };
+  }
+}
 
 describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () => {
   let cleanups: Array<() => Promise<void>> = [];
@@ -86,10 +148,10 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
       expect(existsSync(join(w.target, "memory", "roles", role.name, "INDEX.md"))).toBe(true);
     }
 
-    // Active pointer selects the pair; resolveOperonHomes agrees end to end.
+    // Active pointer selects the pair; resolveCormidiaHomes agrees end to end.
     const pointer = await readActiveOrgPointer(w.pointerPath);
     expect(pointer).toEqual({ orgHome: w.target, stateHome: w.stateHome });
-    const homes = await resolveOperonHomes({ env: {}, homeDir: w.homeDir, pointerPath: w.pointerPath });
+    const homes = await resolveCormidiaHomes({ env: {}, homeDir: w.homeDir, pointerPath: w.pointerPath });
     expect(homes.orgHome).toBe(w.target);
     expect(homes.stateHome).toBe(w.stateHome);
     expect(existsSync(w.stateHome)).toBe(true);
@@ -203,9 +265,168 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
     expect(code).toBe(0);
     const pointer = await readActiveOrgPointer(w.pointerPath);
     expect(pointer).toEqual({ orgHome: w.target, stateHome: w.stateHome });
-    const homes = await resolveOperonHomes({ env: {}, homeDir: w.homeDir, pointerPath: w.pointerPath });
+    const homes = await resolveCormidiaHomes({ env: {}, homeDir: w.homeDir, pointerPath: w.pointerPath });
     expect(homes.orgHome).toBe(w.target);
     expect(homes.stateHome).toBe(w.stateHome);
+  });
+
+  it("first Cormidia resolution atomically migrates the retired default state root and converges", async () => {
+    const w = await world();
+    const legacyRoot = join(w.homeDir, ".operon");
+    const legacyState = join(legacyRoot, "migrating-org");
+    const legacyPointer = join(legacyRoot, "config");
+    await initOrgHome({
+      target: w.target,
+      name: "migrating-org",
+      stateHome: legacyState,
+      homeDir: w.homeDir,
+      pointerPath: legacyPointer,
+    });
+    await writeFile(join(legacyState, "preserved.txt"), "state bytes survive the move\n", "utf8");
+
+    const legacyRepo = join(legacyState, "repos", "demo");
+    const legacyWorktree = join(legacyState, "worktrees", "demo", "ticket-1");
+    await mkdir(legacyRepo, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "trunk", legacyRepo]);
+    execFileSync("git", ["-C", legacyRepo, "config", "user.name", "Cormidia Test"]);
+    execFileSync("git", ["-C", legacyRepo, "config", "user.email", "cormidia@example.invalid"]);
+    await writeFile(join(legacyRepo, "README.md"), "fixture\n", "utf8");
+    execFileSync("git", ["-C", legacyRepo, "add", "README.md"]);
+    execFileSync("git", ["-C", legacyRepo, "commit", "-q", "-m", "fixture"]);
+    await mkdir(join(legacyState, "worktrees", "demo"), { recursive: true });
+    execFileSync("git", ["-C", legacyRepo, "worktree", "add", "-q", "-b", "op/test", legacyWorktree]);
+
+    const lifecycleRecord = join(legacyState, "lifecycle", "apps", "demo", "record.json");
+    await mkdir(join(legacyState, "lifecycle", "apps", "demo"), { recursive: true });
+    await writeFile(
+      lifecycleRecord,
+      `${JSON.stringify({ schema_version: 1, kind: "app-lifecycle", managed_clone: legacyRepo }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const turnJournal = join(legacyState, "state", "turns", "turn-1.json");
+    await mkdir(join(legacyState, "state", "turns"), { recursive: true });
+    await writeFile(
+      turnJournal,
+      `${JSON.stringify({
+        turnId: "turn-1",
+        role: "builder",
+        app: "demo",
+        phase: "failed",
+        attempt: 1,
+        startedAt: "2026-08-02T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:01:00.000Z",
+        worktree: legacyWorktree,
+        recovery: {
+          reasonCode: "error_ambiguous_worktree",
+          path: legacyWorktree,
+          branch: "op/test",
+          dirty: false,
+          statusEntries: 0,
+          recoveryCommand: `git -C ${JSON.stringify(legacyWorktree)} status --short --branch`,
+        },
+      }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const schedulerManager = new MigrationSchedulerManager(join(w.root, "scheduler-definitions"));
+    const retiredOwner = ["ope", "ron"].join("");
+    const currentIdentity = schedulerIdentity("migrating-org", w.target);
+    const retiredIdentity = currentIdentity.replace("dev.cormidia.dispatch.", `dev.${retiredOwner}.dispatch.`);
+    const retiredMetadata = {
+      schema_version: 1,
+      owner: retiredOwner,
+      scheduler_id: retiredIdentity,
+      org_id: schedulerOrgId("migrating-org", w.target),
+      org_name: "migrating-org",
+      backend: "launchd",
+      cadence_minutes: 5,
+      executable_path: "/usr/bin/node",
+      package_entry_path: join(w.root, "dist", "cli.js"),
+      org_home: w.target,
+      state_home: legacyState,
+      command_sha256: "sha256:retired-command",
+    };
+    const retiredDefinition =
+      `<!-- ${retiredOwner}-scheduler-metadata-v1:` +
+      `${Buffer.from(JSON.stringify(retiredMetadata), "utf8").toString("base64url")} -->\n`;
+    schedulerManager.definitions.set(retiredIdentity, retiredDefinition);
+    schedulerManager.enabled.add(retiredIdentity);
+    await mkdir(join(legacyState, "scheduler"), { recursive: true });
+    await writeFile(
+      join(legacyState, "scheduler", "installation.json"),
+      `${JSON.stringify({
+        schema_version: 1,
+        scheduler_id: retiredIdentity,
+        org_id: retiredMetadata.org_id,
+        org_name: retiredMetadata.org_name,
+        backend: retiredMetadata.backend,
+        cadence_minutes: retiredMetadata.cadence_minutes,
+        executable_path: retiredMetadata.executable_path,
+        package_entry_path: retiredMetadata.package_entry_path,
+        org_home: retiredMetadata.org_home,
+        state_home: retiredMetadata.state_home,
+        definition_path: schedulerManager.definitionPath(retiredIdentity),
+        rendered_definition_hash: schedulerSha256(retiredDefinition),
+        installed_at: "2026-08-02T00:00:00.000Z",
+      }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const homes = await resolveCormidiaHomes({
+      env: {},
+      homeDir: w.homeDir,
+      migration: { schedulerManager: () => schedulerManager },
+    });
+    const currentRoot = join(w.homeDir, ".cormidia");
+    const currentState = join(currentRoot, "migrating-org");
+    const currentRepo = join(currentState, "repos", "demo");
+    const currentWorktree = join(currentState, "worktrees", "demo", "ticket-1");
+    expect(existsSync(legacyRoot)).toBe(false);
+    expect(homes.stateHome).toBe(currentState);
+    expect(await readFile(join(currentState, "preserved.txt"), "utf8")).toBe("state bytes survive the move\n");
+    expect(await readActiveOrgPointer(join(currentRoot, "config"))).toEqual({
+      orgHome: w.target,
+      stateHome: currentState,
+    });
+    expect(JSON.parse(await readFile(join(currentState, "lifecycle", "apps", "demo", "record.json"), "utf8")))
+      .toMatchObject({ managed_clone: currentRepo });
+    const repairedJournal = JSON.parse(
+      await readFile(join(currentState, "state", "turns", "turn-1.json"), "utf8"),
+    ) as { worktree: string; recovery: { path: string; recoveryCommand: string } };
+    expect(repairedJournal).toMatchObject({
+      worktree: currentWorktree,
+      recovery: { path: currentWorktree },
+    });
+    expect(repairedJournal.recovery.recoveryCommand).toContain(JSON.stringify(currentWorktree));
+    expect(execFileSync("git", ["-C", currentWorktree, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim())
+      .toBe(await realpath(currentWorktree));
+
+    const expectedScheduler = buildSchedulerExpectation({
+      backend: "launchd",
+      orgName: "migrating-org",
+      orgHome: w.target,
+      stateHome: currentState,
+      packageEntryPath: retiredMetadata.package_entry_path,
+      executablePath: retiredMetadata.executable_path,
+      cadenceMinutes: retiredMetadata.cadence_minutes,
+    });
+    expect(schedulerManager.definitions.has(retiredIdentity)).toBe(false);
+    expect(schedulerManager.definitions.get(expectedScheduler.metadata.scheduler_id)).toBe(expectedScheduler.definition);
+    expect(schedulerManager.enabled.has(expectedScheduler.metadata.scheduler_id)).toBe(true);
+    expect(
+      JSON.parse(await readFile(join(currentState, "scheduler", "installation.json"), "utf8")),
+    ).toMatchObject({
+      scheduler_id: expectedScheduler.metadata.scheduler_id,
+      org_id: expectedScheduler.metadata.org_id,
+      state_home: currentState,
+      rendered_definition_hash: expectedScheduler.definitionHash,
+    });
+
+    const before = await snapshotTree(currentRoot);
+    const again = await migrateLegacyStateRoot(w.homeDir, { schedulerManager: () => schedulerManager });
+    expect(again.status).toBe("not_needed");
+    expect(diffIsEmpty(diffSnapshots(before, await snapshotTree(currentRoot)))).toBe(true);
   });
 
   it("negative control: a required surface removed from a 'complete' home — the completeness detector FIRES", async () => {
@@ -222,7 +443,7 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
     await rm(join(w.target, "pipelines.yaml"));
     await expect(validateOrgHome(w.target)).rejects.toThrow(/missing pipelines\.yaml/);
     await expect(
-      resolveOperonHomes({ env: {}, homeDir: w.homeDir, pointerPath: w.pointerPath }),
+      resolveCormidiaHomes({ env: {}, homeDir: w.homeDir, pointerPath: w.pointerPath }),
     ).rejects.toThrow(/not a complete org home/);
   });
 });

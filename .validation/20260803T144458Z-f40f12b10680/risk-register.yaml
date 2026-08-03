@@ -1,0 +1,152 @@
+schema_version: "1.0"
+assessment_id: "20260803T144458Z-f40f12b10680"
+target_revision: "f6bb61123d2f7e3b74c6b0e93c27367fc3e93003"
+
+risks:
+  - id: "RSK-001"
+    title: "Duplicate paid run in one due window"
+    scenario: "Repeated, concurrent, or restarted host ticks reinterpret one schedule slot as fresh work."
+    affected_claim_ids: ["CLM-231"]
+    affected_component_ids: ["COMP-SCHED"]
+    initiating_causes: ["lost derived schedule cursor", "concurrent ticks", "process death"]
+    consequence: "Duplicate actions and provider spend."
+    consequence_rating: "high"
+    exposure: "every scheduled window"
+    likelihood: "low after control"
+    detectability: "high"
+    recoverability: "medium"
+    evidence_weakness: "no real-host soak"
+    current_controls: ["content-bound claim", "exclusive file lock", "claim-commit-settle boundary", "pre-commit journal recovery", "terminal receipt reconciliation", "bounded explicit retry"]
+    control_evidence: ["CF-REG-231", "CF-SCHED-CLAIM"]
+    residual_risk: "low for deterministic filesystem seams; host-specific long-duration risk remains"
+    disposition: "controlled"
+    required_action: "Run separately authorized host qualification before unattended activation."
+    owner: "Cormidia operator"
+    acceptance_authority: "Human operator"
+    finding_ids: ["FND-003", "FND-005"]
+  - id: "RSK-002"
+    title: "Action admitted beyond turn budget"
+    scenario: "Post-hoc tool counting or delayed usage observation lets another action start outside the effective bound."
+    affected_claim_ids: ["CLM-229"]
+    affected_component_ids: ["COMP-BUDGET"]
+    initiating_causes: ["post-execution accounting", "chunked provider usage"]
+    consequence: "Unauthorized action or additional cost exposure."
+    consequence_rating: "high"
+    exposure: "every provider pass"
+    likelihood: "low after control"
+    detectability: "high for tool/time; medium for chunked cost"
+    recoverability: "low after external effect"
+    evidence_weakness: "no live adapter qualification"
+    current_controls: ["zero-allowance refusal before runtime construction", "synchronous admission before safety gate", "terminal abort and native-cap normalization", "full provider-turn reserve", "partial settlement"]
+    control_evidence: ["CF-REG-229", "run-envelope inspection"]
+    residual_risk: "provider cost can arrive in jumps; documentation refuses a zero-overshoot claim"
+    disposition: "controlled_with_limitation"
+    required_action: "Run adapter qualification only under separate authorization; retain limitation."
+    owner: "Cormidia runtime maintainer"
+    acceptance_authority: "Repository owner"
+    finding_ids: ["FND-002", "FND-004"]
+  - id: "RSK-003"
+    title: "Paid turn without actionable input"
+    scenario: "Clock time alone constructs a standing-role provider turn."
+    affected_claim_ids: ["CLM-228"]
+    affected_component_ids: ["COMP-SCHED"]
+    initiating_causes: ["due arithmetic treated as work evidence"]
+    consequence: "Repeated wasted spend and noise."
+    consequence_rating: "high"
+    exposure: "every scheduled standing role"
+    likelihood: "low after control"
+    detectability: "high"
+    recoverability: "high"
+    evidence_weakness: "extension roles need explicit adapters"
+    current_controls: ["role-specific deterministic preflight", "unknown roles fail closed", "typed no_actionable_input"]
+    control_evidence: ["CF-REG-228"]
+    residual_risk: "new scheduled role is inert until its preflight is added"
+    disposition: "controlled"
+    required_action: "Preserve fail-closed extension rule."
+    owner: "Scheduler maintainer"
+    acceptance_authority: "Repository owner"
+    finding_ids: []
+  - id: "RSK-004"
+    title: "Scheduled environment differs from manual shell"
+    scenario: "Host scheduler cannot find gh or resolves a different executable."
+    affected_claim_ids: ["CLM-211"]
+    affected_component_ids: ["COMP-HOST"]
+    initiating_causes: ["minimal launchd/systemd environment", "binary removed or replaced"]
+    consequence: "Unattended workflow fails while manual verification appears healthy."
+    consequence_rating: "medium"
+    exposure: "scheduled dispatch"
+    likelihood: "low after control"
+    detectability: "high"
+    recoverability: "high"
+    evidence_weakness: "real host load/readback unrun"
+    current_controls: ["absolute executable mapping", "explicit PATH", "status/doctor drift", "pre-org dispatch refusal"]
+    control_evidence: ["CF-REG-211"]
+    residual_risk: "definition-manager quoting/propagation requires host exercise"
+    disposition: "pending_external_qualification"
+    required_action: "Qualify on the target host before install/start."
+    owner: "Cormidia operator"
+    acceptance_authority: "Human operator"
+    finding_ids: []
+  - id: "RSK-005"
+    title: "Scheduler health lies about backpressure or child failure"
+    scenario: "Normal capacity controls alert as failures, or failed child receipts do not alert/resolve."
+    affected_claim_ids: ["CLM-209"]
+    affected_component_ids: ["COMP-SCHED"]
+    initiating_causes: ["tick/decision outcome conflation", "receipt bypasses alert lifecycle", "post-spawn bookkeeping terminalizes before receipt"]
+    consequence: "Operator alert fatigue or hidden failure."
+    consequence_rating: "high"
+    exposure: "every scheduler status cycle"
+    likelihood: "low after control"
+    detectability: "high"
+    recoverability: "high"
+    evidence_weakness: "no live scheduler history replay"
+    current_controls: ["typed decision classification", "pending-until-receipt including bookkeeping failure", "executed-only matching alert resolution", "stopped-state projection"]
+    control_evidence: ["CF-REG-209", "CF-J16 stopped-state detector"]
+    residual_risk: "operational alert presentation awaits real-host qualification"
+    disposition: "controlled"
+    required_action: "Inspect first separately authorized live scheduler evidence."
+    owner: "Scheduler maintainer"
+    acceptance_authority: "Repository owner"
+    finding_ids: ["FND-001", "FND-006"]
+  - id: "RSK-006"
+    title: "Planner unsafe or ambiguous readiness publication"
+    scenario: "Planner omits work, labels risky/incomplete work, or loses a GitHub response after mutation."
+    affected_claim_ids: ["CLM-230"]
+    affected_component_ids: ["COMP-PLAN"]
+    initiating_causes: ["ready-only intake", "untrusted model output", "GitHub partial/lost response"]
+    consequence: "Unsafe work enters Builder or publication outcome is uncertain."
+    consequence_rating: "high"
+    exposure: "scheduled grooming"
+    likelihood: "medium until external recovery work"
+    detectability: "medium"
+    recoverability: "medium"
+    evidence_weakness: "real GitHub and #232 recovery unverified"
+    current_controls: ["bounded unfiltered intake", "content hash", "schema/membership/completeness/risk guards", "label readback"]
+    control_evidence: ["CF-REG-230", "Planner golden cases"]
+    residual_risk: "general ambiguous publication recovery is intentionally deferred to #232"
+    disposition: "deferred_to_issue_232"
+    required_action: "Keep #230 open and complete #232/live GitHub qualification separately."
+    owner: "Planner/GitHub integration maintainer"
+    acceptance_authority: "Repository owner"
+    finding_ids: []
+  - id: "RSK-007"
+    title: "Assurance overstates unrun external seams"
+    scenario: "Offline fakes or same-session review are described as production qualification."
+    affected_claim_ids: ["CLM-211", "CLM-230", "CLM-SCOPE"]
+    affected_component_ids: ["COMP-VAL"]
+    initiating_causes: ["green offline suite", "missing I3/host evidence"]
+    consequence: "Unsafe scheduler activation or false issue closure."
+    consequence_rating: "high"
+    exposure: "merge and activation decisions"
+    likelihood: "low with scoped verdict"
+    detectability: "high"
+    recoverability: "medium"
+    evidence_weakness: "I2 only; CI initially pending"
+    current_controls: ["scoped merge-only target", "explicit limitations", "open issues", "separate activation authorization"]
+    control_evidence: ["release-assessment.md", "PR body and issue status after merge"]
+    residual_risk: "external qualification remains necessary"
+    disposition: "controlled_by_scope"
+    required_action: "Do not install/start or claim live qualification from this assessment."
+    owner: "Cormidia repository owner"
+    acceptance_authority: "Human operator"
+    finding_ids: []

@@ -1,0 +1,5 @@
+
+> cormidia@0.1.1 prepack
+> pnpm build
+
+cormidia-0.1.1.tgz

@@ -1,0 +1,2 @@
+$ pnpm build && node scripts/smoke-onboarding.mjs
+$ tsc && chmod +x dist/cli.js

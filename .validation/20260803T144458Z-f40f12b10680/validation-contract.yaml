@@ -1,0 +1,152 @@
+schema_version: "1.0"
+assessment_id: "20260803T144458Z-f40f12b10680"
+target_revision: "f6bb61123d2f7e3b74c6b0e93c27367fc3e93003"
+
+source_precedence:
+  - "approved requirements, policies, and obligations"
+  - "public contracts, schemas, protocols, and user documentation"
+  - "architectural, data, security, safety, and operational invariants"
+  - "existing tests and incident-derived requirements"
+  - "current implementation behavior"
+
+claims:
+  - id: "CLM-209"
+    category: "operational"
+    component_ids: ["COMP-SCHED"]
+    statement: "Normal backpressure does not fail or alert a scheduler tick; spawned work remains pending until a terminal receipt measures it; matching later success resolves child and invocation alerts."
+    negative_requirement: true
+    source_class: "approved requirement and production defect"
+    source_references: ["issue #209", "CORMIDIA-C-B05-001", "CF-REG-209"]
+    criticality: "C3"
+    failure_consequence: "Permanently false-red health, hidden real failures, or invalid provider settlement denominators."
+    assumptions: []
+    required_evidence:
+      classes: ["test", "inspection"]
+      minimum_independence: "I2"
+      environments: ["offline L2"]
+      acceptance_criteria: ["mixed and fresh-lock ticks complete without alerts", "post-spawn bookkeeping failure remains pending until receipt", "receipts populate denominators", "blocked/skipped decisions cannot resolve prior failure", "failed-child alert resolves only after executed recovery", "uninstall suppresses stale current reasons"]
+    current_evidence: ["CF-REG-209", "CF-J16 stopped-state case", "focused and full suite logs"]
+    status: "verified"
+    limitations: ["No real host scheduler run"]
+    owner_or_authority: "Cormidia repository owner"
+  - id: "CLM-211"
+    category: "reliability"
+    component_ids: ["COMP-HOST", "COMP-SCHED"]
+    statement: "Scheduler install records absolute required executables and explicit PATH; status and scheduled dispatch fail closed when that environment drifts."
+    negative_requirement: true
+    source_class: "approved requirement and production defect"
+    source_references: ["issue #211", "CORMIDIA-C-B05-001", "CF-REG-211"]
+    criticality: "C2"
+    failure_consequence: "Manual operation appears healthy while unattended dispatch cannot reach required tools."
+    assumptions: ["Host manager preserves rendered environment syntax"]
+    required_evidence:
+      classes: ["test", "inspection", "operational_exercise"]
+      minimum_independence: "I2 offline; I3/host exercise for activation"
+      environments: ["offline L2", "real launchd/systemd before activation"]
+      acceptance_criteria: ["absolute mapping rendered", "missing/mismatched tool is typed unhealthy", "dispatch refuses before org load"]
+    current_evidence: ["CF-REG-211", "definition/lifecycle inspection"]
+    status: "partially_verified"
+    limitations: ["Real launchd/systemd propagation not executed"]
+    owner_or_authority: "Cormidia operator"
+  - id: "CLM-228"
+    category: "financial"
+    component_ids: ["COMP-SCHED"]
+    statement: "A scheduled role without actionable input records a typed successful no-op before child/provider construction, while one declared actionable input admits exactly one bounded turn."
+    negative_requirement: true
+    source_class: "approved requirement and production defect"
+    source_references: ["issue #228", "CORMIDIA-C-B08-001", "CF-REG-228"]
+    criticality: "C3"
+    failure_consequence: "Repeated provider spend with no operational value."
+    assumptions: []
+    required_evidence:
+      classes: ["test", "analysis"]
+      minimum_independence: "I2"
+      environments: ["offline L2"]
+      acceptance_criteria: ["SRE/Support/Marketing no-op before spawn", "Planner ignores active lifecycle issues", "diagnostics distinguish configuration", "repeated ticks do not alert"]
+    current_evidence: ["CF-REG-228", "dispatch source inspection"]
+    status: "verified"
+    limitations: []
+    owner_or_authority: "Cormidia repository owner"
+  - id: "CLM-229"
+    category: "safety"
+    component_ids: ["COMP-BUDGET"]
+    statement: "Hard turn enforcement refuses the next disallowed tool/provider continuation before execution, retains partial usage, and never escalates or mutates the budget-exceeded approval vocabulary."
+    negative_requirement: true
+    source_class: "approved requirement and production defect"
+    source_references: ["issue #229", "CORMIDIA-C-CORE-001", "CF-REG-229", "docs/PURPOSE.md token-dimension decision"]
+    criticality: "C3"
+    failure_consequence: "An action begins outside the authorized turn bound or local exhaustion collides with safety approvals."
+    assumptions: ["Adapter progress is the best available cost observation; non-native caps reserve full exposure"]
+    required_evidence:
+      classes: ["test", "inspection", "analysis"]
+      minimum_independence: "I2"
+      environments: ["offline L2"]
+      acceptance_criteria: ["zero active-time refuses before runtime construction", "tool 41 denied before execution", "cost continuation denied at ceiling", "native terminal cap emits central stop evidence", "partial settlement retained", "escalate is false", "frozen approvals unchanged"]
+    current_evidence: ["CF-REG-229", "focused/full suite", "frozen-path diff inspection"]
+    status: "verified"
+    limitations: ["Chunk-reported cost is not claimed as a mathematical no-overshoot ceiling", "Input tokens are intentionally not a budget dimension under PURPOSE"]
+    owner_or_authority: "Cormidia repository owner"
+  - id: "CLM-230"
+    category: "functional"
+    component_ids: ["COMP-PLAN"]
+    statement: "Planner sees bounded untriaged issues while Builder remains ready-only; only complete routine issues may gain op:ready and every risky/incomplete item remains unready with an explicit reason."
+    negative_requirement: false
+    source_class: "approved requirement and production defect"
+    source_references: ["issue #230", "CORMIDIA-C-OPPLAN", "CF-REG-230"]
+    criticality: "C2"
+    failure_consequence: "Readiness becomes circular or unsafe work enters Builder."
+    assumptions: ["GitHub label add/readback is the deterministic publication seam in this slice"]
+    required_evidence:
+      classes: ["test", "inspection", "operational_exercise"]
+      minimum_independence: "I2 offline; real GitHub exercise for complete issue closure"
+      environments: ["offline L2", "disposable GitHub L3"]
+      acceptance_criteria: ["unfiltered bounded intake", "schema/membership/completeness guards", "routine-only label", "typed unavailable states", "no parallel recovery state machine"]
+    current_evidence: ["CF-REG-230", "Planner golden cases", "prompt/contract inspection"]
+    status: "partially_verified"
+    limitations: ["Disposable real-GitHub exercise unrun", "General ambiguous publication recovery remains #232"]
+    owner_or_authority: "Cormidia repository owner"
+  - id: "CLM-231"
+    category: "recovery"
+    component_ids: ["COMP-SCHED"]
+    statement: "One `(org, app, role, trigger, due-window)` has one durable settlement identity; ordinary repeated/concurrent ticks do not create another independent run; crash recovery and one explicit bounded retry preserve identity."
+    negative_requirement: true
+    source_class: "approved requirement and production defect"
+    source_references: ["issue #231", "CORMIDIA-C-B06-001", "CORMIDIA-C-B08-001", "CF-REG-231"]
+    criticality: "C3"
+    failure_consequence: "Duplicate autonomous work and duplicate provider spend."
+    assumptions: ["Exclusive-create filesystem locking and process identity probes behave as modeled"]
+    required_evidence:
+      classes: ["test", "analysis", "inspection"]
+      minimum_independence: "I2"
+      environments: ["offline L1/L2"]
+      acceptance_criteria: ["five-minute ticks produce one run", "concurrent ticks serialize", "pre-journal, post-journal/pre-commit, and post-provider crashes converge", "settlement requires durable commit", "fresh lock blocks", "retry is explicit and exhausted after bound", "claim primitive is domain-neutral"]
+    current_evidence: ["CF-REG-231", "CF-SCHED-CLAIM", "focused/full suite"]
+    status: "verified"
+    limitations: ["No long-running real host soak"]
+    owner_or_authority: "Cormidia repository owner"
+  - id: "CLM-SCOPE"
+    category: "evidence-integrity"
+    component_ids: ["COMP-VAL"]
+    statement: "The change does not modify frozen approval/safety files, does not implement #232 recovery or #233/#234, and carries deterministic red/green regression families with seeded negative controls and catalog traceability."
+    negative_requirement: true
+    source_class: "current human authorization and repository policy"
+    source_references: ["user parallel-session boundary", "validation-policy.yaml", "validation-design/case-catalog.md §10"]
+    criticality: "C3"
+    failure_consequence: "Cross-session collision, test weakening, or unsupported assurance claim."
+    assumptions: []
+    required_evidence:
+      classes: ["inspection", "test", "process_control"]
+      minimum_independence: "I2"
+      environments: ["git diff", "offline suite", "CI"]
+      acceptance_criteria: ["frozen diff empty", "no parallel publication vocabulary", "44 focused cases pass", "full suite populated", "CI green"]
+    current_evidence: ["implementation diff", "case catalog", "recorded focused/full suite"]
+    status: "partially_verified"
+    limitations: ["CI pending until PR publication"]
+    owner_or_authority: "Cormidia repository owner"
+
+conflicts: []
+unsupported_or_excluded_behaviors:
+  - "Budget escalation/human request for more budget"
+  - "General lost-response Planner publication recovery (#232)"
+  - "Scheduler installation/start or production qualification"
+  - "Any conclusion about #233/#234 ratification"

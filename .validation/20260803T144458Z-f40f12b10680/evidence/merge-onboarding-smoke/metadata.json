@@ -1,0 +1,19 @@
+{
+  "command": [
+    "pnpm",
+    "smoke:onboarding"
+  ],
+  "cwd": "/Users/bikram/Build/Cormidia-epic-227",
+  "duration_seconds": 14.348592,
+  "ended_at_utc": "2026-08-03T15:29:49Z",
+  "environment_variables_recorded": false,
+  "exit_code": 0,
+  "name": "merge-onboarding-smoke",
+  "redaction_patterns_applied": 0,
+  "schema_version": "1.0",
+  "started_at_utc": "2026-08-03T15:29:35Z",
+  "stderr_sha256": "fbbedda5bc108934ac53a5c4a510c3ee570e3d5afaa18d2631a971b0fb42004c",
+  "stdout_sha256": "fa3a7565b6f1018acce60b932e42de1ed524ef73175910ef1ddf86dca6322504",
+  "timed_out": false,
+  "timeout_seconds": 180.0
+}

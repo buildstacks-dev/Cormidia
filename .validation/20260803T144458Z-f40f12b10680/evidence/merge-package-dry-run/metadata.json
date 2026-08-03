@@ -1,0 +1,20 @@
+{
+  "command": [
+    "npm",
+    "pack",
+    "--dry-run"
+  ],
+  "cwd": "/Users/bikram/Build/Cormidia-epic-227",
+  "duration_seconds": 3.812129,
+  "ended_at_utc": "2026-08-03T15:30:01Z",
+  "environment_variables_recorded": false,
+  "exit_code": 0,
+  "name": "merge-package-dry-run",
+  "redaction_patterns_applied": 0,
+  "schema_version": "1.0",
+  "started_at_utc": "2026-08-03T15:29:57Z",
+  "stderr_sha256": "a2036ca461361afccc7f887f6a7bb0d366d21c735acfc40fbfc292e1a644d824",
+  "stdout_sha256": "b46b68d15d6078b1faa487ab92cdac8b5d3cb33e5caeca02d318166215bdd507",
+  "timed_out": false,
+  "timeout_seconds": 180.0
+}

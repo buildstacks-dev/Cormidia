@@ -20,10 +20,14 @@ state machine that consumes them is [`design.md`](design.md) §7.*
 | `op:blocked`       | waiting on approval-queue decision           | loop, on `blocked_on_gate`                          |
 | `op:incident`      | SRE incident note                            | SRE                                                 |
 | `p1` / `p2` / `p3` | priority (dispatch order within events)      | Planner                                             |
+| `routing:human-only` | excluded from autonomous readiness/claim   | Human, after the PR-level self-hosting routing call |
 
 
 Transitions follow the artifact-before-label rule ([`turns.md`](turns.md)); ticket close comes from
 the squash-merge's `Closes #N`, never a manual state.
+`routing:human-only` is not a state label: it survives every transition, blocks
+both Planner readiness and Builder claim, and only a human re-routing the whole
+PR scope removes it.
 
 ### Ticket format (what the Planner emits)
 

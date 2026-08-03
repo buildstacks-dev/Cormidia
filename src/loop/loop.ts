@@ -69,7 +69,13 @@ import type {
   TicketTier,
 } from "./types.js";
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
-import { parseReleaseKind, parseReleaseVersion, resolveReleaseCommand, STATE_LABELS } from "./plan-tickets.js";
+import {
+  AUTONOMOUS_EXECUTION_EXCLUSION_LABEL,
+  parseReleaseKind,
+  parseReleaseVersion,
+  resolveReleaseCommand,
+  STATE_LABELS,
+} from "./plan-tickets.js";
 import { parseDependsOn } from "./scheduling.js";
 import {
   recordExecutionBoundary,
@@ -100,6 +106,50 @@ export class LoopPhaseTransitionError extends Error {
     super(`error_illegal_loop_phase_transition: ${operation} requires ${expected.join("|")}, received ${phase}`);
     this.name = "LoopPhaseTransitionError";
   }
+}
+
+export type AutonomousRoutingErrorCode =
+  | "autonomous_routing_human_only"
+  | "autonomous_routing_state_unreadable";
+
+/** Typed fail-closed refusal shared by the live driver and the atomic claim
+ * seam. It is intentionally not a phase-transition error: the ticket may be
+ * perfectly op:ready while still being ineligible for autonomous execution. */
+export class AutonomousRoutingExclusionError extends Error {
+  constructor(
+    readonly code: AutonomousRoutingErrorCode,
+    readonly issueNumber: number,
+    message: string,
+  ) {
+    super(`${code}: #${issueNumber} ${message}`);
+    this.name = "AutonomousRoutingExclusionError";
+  }
+}
+
+/** Re-read GitHub immediately before autonomous work. A list/read snapshot is
+ * not authority because a human may add the routing label after readiness. */
+export async function readAutonomousClaimIssue(
+  issue: Pick<GhIssue, "number">,
+  gh: Pick<GhOps, "readIssue">,
+): Promise<GhIssue> {
+  let observed: GhIssue;
+  try {
+    observed = await gh.readIssue(issue.number);
+  } catch (error) {
+    throw new AutonomousRoutingExclusionError(
+      "autonomous_routing_state_unreadable",
+      issue.number,
+      `label state is unreadable; refusing autonomous claim (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+  if (observed.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+    throw new AutonomousRoutingExclusionError(
+      "autonomous_routing_human_only",
+      issue.number,
+      `carries ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL}; only a human-routed coding agent may deliver this PR scope`,
+    );
+  }
+  return observed;
 }
 
 function requireLoopPhase(
@@ -328,17 +378,38 @@ export async function claimTicket(
   issue: GhIssue,
   options: ClaimTicketOptions,
 ): Promise<LoopItem> {
-  const stateLabels = issue.labels.filter((label) =>
+  const observedIssue = await readAutonomousClaimIssue(issue, options.gh);
+  const stateLabels = observedIssue.labels.filter((label) =>
     (STATE_LABELS as readonly string[]).includes(label),
   );
   if (stateLabels.length !== 1 || stateLabels[0] !== "op:ready") {
-    throw new LoopPhaseTransitionError("claimTicket", phaseFromLabels(issue.labels), ["ready"]);
+    throw new LoopPhaseTransitionError("claimTicket", phaseFromLabels(observedIssue.labels), ["ready"]);
   }
-  const item = itemFromIssue(issue, options.targetRepo);
-  const branch = branchNameForIssue(issue);
+  const item = itemFromIssue(observedIssue, options.targetRepo);
+  const branch = branchNameForIssue(observedIssue);
 
-  await options.gh.swapLabel(issue.number, "op:ready", "op:building");
+  await options.gh.swapLabel(observedIssue.number, "op:ready", "op:building");
   await options.afterLabelTransition?.();
+
+  // Close the remaining human-routing race after the phase transition. The
+  // fault hook intentionally stays before this read: a simulated/process
+  // crash still exercises the existing claim-recovery saga exactly where the
+  // real crash boundary lives.
+  try {
+    await readAutonomousClaimIssue(observedIssue, options.gh);
+  } catch (error) {
+    if (!(error instanceof AutonomousRoutingExclusionError)) throw error;
+    try {
+      await options.gh.swapLabel(observedIssue.number, "op:building", "op:ready");
+    } catch (rollbackError) {
+      throw new AutonomousRoutingExclusionError(
+        error.code,
+        observedIssue.number,
+        `${error.message}; claim rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+      );
+    }
+    throw error;
+  }
   const worktree = createWorktree(
     options.localRepo,
     options.worktreeRoot,

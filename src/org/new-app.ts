@@ -1286,8 +1286,9 @@ function labelsMd(): string {
     tier: "Derived Tier",
     priority: "Priority",
     domain: "Sensitive Domain",
+    routing: "Autonomous Routing",
   };
-  const sections = (["state", "tier", "priority", "domain"] as const).map((kind) => {
+  const sections = (["state", "tier", "priority", "domain", "routing"] as const).map((kind) => {
     const rows = CANONICAL_LABELS
       .filter((label) => label.kind === kind)
       .map((label) =>

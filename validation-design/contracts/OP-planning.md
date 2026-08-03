@@ -74,6 +74,8 @@ J-03. Interfaces with B-01/B-02..04/B-10/B-20/B-21.
   application admits only fully specified, validation-complete, routing-eligible work
   and leaves risky, blocked, truncated, human-only, or incomplete work unready with a
   typed reason. If any member of a delivery unit is ineligible, the unit is ineligible.
+  GitHub routing labels are re-read immediately before readiness publication; an
+  unreadable routing state refuses rather than becoming eligible.
 
 ## §2a Defects discovered inside delivery
 - Builder/Reviewer/SRE-discovered defects may deposit a high-information backlog item

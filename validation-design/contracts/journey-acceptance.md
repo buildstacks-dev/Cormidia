@@ -76,7 +76,8 @@ Phase 3 boundary owns them.
   is not an artifact. [INV-012]
 - Given scheduled grooming, Planner receives bounded provenance-bearing open issues
   without an `op:ready` filter while Builder remains ready-only; only complete routine
-  issues gain `op:ready`, and risky/incomplete issues remain unready with typed reasons.
+  issues gain `op:ready`, and risky/incomplete/human-only issues remain unready with
+  typed reasons; unreadable routing state never becomes eligible.
   [C-OP-PLAN §2/§5, B-01, INV-008/012]
 
 ## J-04 Delivery loop
@@ -92,6 +93,9 @@ Phase 3 boundary owns them.
   §4, INV-009/016]
 - Given remediation or review cycles 1–3 have been exhausted, when a fourth cycle would
   be required, then the ticket returns (`returned`) rather than looping. [C-OP-LOOP §3]
+- Given `routing:human-only`, when Builder considers the ticket even with `op:ready`,
+  then no claim occurs and a typed routing refusal names the ticket; the routing label
+  survives every lifecycle transition. [C-OP-LOOP §2, B-01, INV-001/008/015]
 
 ## J-05 Critical-op approval → execution
 - Given a gate block, when the turn ends, then it ends `blocked_on_gate` with the exact

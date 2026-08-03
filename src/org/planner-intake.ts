@@ -2,7 +2,10 @@
 // application for scheduled Planner work (#230).
 
 import type { GhIssue, GhOps, ListIssueOptions } from "../loop/github.js";
-import { STATE_LABELS } from "../loop/plan-tickets.js";
+import {
+  AUTONOMOUS_EXECUTION_EXCLUSION_LABEL,
+  STATE_LABELS,
+} from "../loop/plan-tickets.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
 
 export const PLANNER_ISSUE_BATCH_MAX = 100;
@@ -45,7 +48,9 @@ export type PlannerReadinessReasonCode =
   | "validation_incomplete"
   | "blocked_dependency"
   | "needs_information"
-  | "not_buildable";
+  | "not_buildable"
+  | "autonomous_execution_excluded"
+  | "routing_state_unreadable";
 
 export interface PlannerReadinessDecision {
   issue_number: number;
@@ -193,20 +198,76 @@ export function plannerIssueIntakeBrief(intake: PlannerIssueIntake): string {
 }
 
 export async function applyPlannerReadinessDecisions(input: {
-  gh: Pick<GhOps, "addLabel" | "readIssue">;
+  gh: Pick<GhOps, "addLabel" | "removeLabel" | "readIssue">;
   intake: PlannerIssueIntake;
   decisions: readonly PlannerReadinessDecision[];
   fault?: (boundary: "after_remote") => void | Promise<void>;
 }): Promise<PlannerReadinessApplication> {
   const outcomes = validateReadinessDecisions(input.intake, input.decisions);
-  const issueNumbers = outcomes
-    .filter((outcome) => outcome.disposition === "ready")
-    .map((outcome) => outcome.issue_number);
   const appliedIssueNumbers: number[] = [];
-  for (const issueNumber of issueNumbers) {
+  for (let index = 0; index < outcomes.length; index += 1) {
+    const outcome = outcomes[index]!;
+    if (outcome.disposition !== "ready") continue;
+    const issueNumber = outcome.issue_number;
+
+    // The intake is a bounded snapshot, not authority. A human may route the
+    // ticket after Planner read it, so re-read immediately before publication.
+    // If GitHub cannot supply label state, uncertainty narrows capability:
+    // nothing is readied and the typed outcome says why.
+    let before: GhIssue;
+    try {
+      before = await input.gh.readIssue(issueNumber);
+    } catch (error) {
+      outcomes[index] = routingOutcome(
+        outcome,
+        "routing_state_unreadable",
+        `autonomous readiness excluded because GitHub label state is unreadable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      continue;
+    }
+    if (before.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+      outcomes[index] = routingOutcome(
+        outcome,
+        "autonomous_execution_excluded",
+        `ticket carries ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL}; only a human may route this PR scope`,
+      );
+      continue;
+    }
+
     await input.gh.addLabel(issueNumber, "op:ready");
     await input.fault?.("after_remote");
-    const observed = await input.gh.readIssue(issueNumber);
+    let observed: GhIssue;
+    try {
+      observed = await input.gh.readIssue(issueNumber);
+    } catch (error) {
+      // Publication is not complete until the routing state and the new phase
+      // are both observable. Retract readiness when that proof is unavailable
+      // so a later Builder cannot inherit an uncertified Planner decision.
+      try {
+        await input.gh.removeLabel(issueNumber, "op:ready");
+      } catch (rollbackError) {
+        throw new Error(
+          `Planner could not verify routing state or retract op:ready on issue #${issueNumber}: ` +
+            `${error instanceof Error ? error.message : String(error)}; rollback failed: ` +
+            `${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+        );
+      }
+      outcomes[index] = routingOutcome(
+        outcome,
+        "routing_state_unreadable",
+        `autonomous readiness excluded because routing state became unreadable during publication; op:ready was removed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      continue;
+    }
+    if (observed.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+      if (observed.labels.includes("op:ready")) await input.gh.removeLabel(issueNumber, "op:ready");
+      outcomes[index] = routingOutcome(
+        outcome,
+        "autonomous_execution_excluded",
+        `ticket acquired ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL} while readiness was publishing; op:ready was removed`,
+      );
+      continue;
+    }
     if (!observed.labels.includes("op:ready")) {
       throw new Error(`GitHub did not acknowledge op:ready on issue #${issueNumber}`);
     }
@@ -261,7 +322,16 @@ function validateReadinessDecisions(
   });
 }
 
-function readinessGuard(issue: PlannerIssueInput): { code: "high_risk" | "validation_incomplete"; detail: string } | undefined {
+function readinessGuard(issue: PlannerIssueInput): {
+  code: "high_risk" | "validation_incomplete" | "autonomous_execution_excluded";
+  detail: string;
+} | undefined {
+  if (issue.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+    return {
+      code: "autonomous_execution_excluded",
+      detail: `ticket carries ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL}; only a human may route this PR scope`,
+    };
+  }
   if (issue.labels.includes("op:tier-deep") || issue.labels.some((label) => label.startsWith("domain:"))) {
     return { code: "high_risk", detail: "high-risk/deep work requires human-signed criteria before op:ready" };
   }
@@ -319,5 +389,21 @@ function isReadinessReasonCode(value: unknown): value is PlannerReadinessReasonC
     "blocked_dependency",
     "needs_information",
     "not_buildable",
+    "autonomous_execution_excluded",
+    "routing_state_unreadable",
   ].includes(String(value));
+}
+
+function routingOutcome(
+  outcome: PlannerReadinessOutcome,
+  reasonCode: "autonomous_execution_excluded" | "routing_state_unreadable",
+  reason: string,
+): PlannerReadinessOutcome {
+  return {
+    ...outcome,
+    requested_disposition: outcome.requested_disposition,
+    disposition: "unready",
+    reason_code: reasonCode,
+    reason,
+  };
 }

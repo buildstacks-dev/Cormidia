@@ -8,7 +8,7 @@ Status: DRAFT (Phase 4). Defends INV-008/009/014, T-7/T-9. Journeys J-02/03/04/0
   a local remote (INV-004, B-10a).
 - Refs: base/default branch **resolved from the remote at use time**, never guessed or
   cached across operations (INV-009); branch names `op/<issue>-<slug>`; labels from the
-  canonical `op:*`/priority set.
+  canonical `op:*`/priority set plus the orthogonal `routing:human-only` exclusion.
 - Invalid classes: unknown repo/permission → typed terminal error; malformed ref →
   refusal before any write.
 
@@ -22,6 +22,9 @@ Status: DRAFT (Phase 4). Defends INV-008/009/014, T-7/T-9. Journeys J-02/03/04/0
   Poll age and poll failure are always exposed to readers (INV-008; B-12).
 - No cross-entity ordering guarantee; per-entity read-after-write is NOT assumed —
   Cormidia re-reads before relying on a just-written state.
+- A Planner readiness snapshot is not routing authority and a Builder selection snapshot
+  is not claim authority: each re-reads current issue labels at its mutation seam. A
+  failed read narrows capability and refuses autonomous work (INV-001/015).
 
 ## 3. Error behavior
 - Typed: rate-limit (retry with backoff, bounded); 5xx (retryable, bounded); 4xx

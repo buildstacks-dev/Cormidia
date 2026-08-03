@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { AppsFile } from "./apps.js";
-import { ApprovalStore } from "./approvals.js";
+import { ApprovalStore, type ApprovalItem } from "./approvals.js";
 import { withFileLock } from "../runtime/file-lock.js";
 import {
   readSettledKeys,
@@ -259,6 +259,164 @@ async function enforceBudgetOverlayLocked(
 
 export async function isOverlayPaused(orgHome: string, app: string): Promise<boolean> {
   return (await readOverlay(orgHome)).pausedApps.includes(app);
+}
+
+// --- Per-turn budget escalation (epic #236 "Budget-exhaustion suspend") ------
+//
+// `budget-exceeded` above is APP-MONTHLY: one item per app per month, keyed on
+// the calendar month, answering "this app is over its monthly cap". A soft-ring
+// turn suspension asks a different question about a different subject — "this
+// ticket's next provider turn needs authorizing, and here is what resuming
+// costs before any new work happens" — so it is its own rule.
+//
+// It is NOT a second queue. "One inbox, never two" (docs/approvals/design.md)
+// stands: this is a synthetic item in the same ApprovalStore, drained by the
+// same `cormidia approvals review`, decided by the same verbs.
+
+export const TURN_BUDGET_RULE = "turn-budget-exceeded";
+
+/** Rules whose approval is a SPEND decision rather than authorization of a
+ * critical operation. They are excluded from #244's suppression record: a turn
+ * that ran out of money suppressed nothing. */
+export function isBudgetEscalationRule(rule: string): boolean {
+  return rule === TURN_BUDGET_RULE || rule === "budget-exceeded";
+}
+
+/** What resuming a suspended turn costs BEFORE it does any new work.
+ *
+ * All three adapter profiles declare `cache.observable: true`, so the parked
+ * turn's cache-read and cache-creation token counts are real, not modelled.
+ * A human approving "+$10" is entitled to know how much of it re-establishes
+ * context that already existed. `usd` is null when the suspended turn reported
+ * no cache split at all — an honest absence beats an invented estimate. */
+export interface ResumeCostEstimate {
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  /** Cost of the parked turn's context re-establishment, when derivable. */
+  usd: number | null;
+  basis: "observed_cache_tokens" | "unavailable";
+}
+
+export interface TurnBudgetEscalationInput {
+  app: string;
+  role: string;
+  ticketRef: string;
+  turnId?: string;
+  episodeId: string;
+  /** Run of the suspended turn — the join to its envelope and evidence. */
+  runId: string;
+  pipeline: string;
+  pass: string;
+  /** Sandbox cwd the suspended turn held, so the human sees which tree waits. */
+  workdir?: string;
+  stop: {
+    dimension: string;
+    cap: number;
+    observed: number;
+    costMeasurement: string;
+    episodeRemaining: number | null;
+  };
+  spentUsd: number;
+  resume: ResumeCostEstimate;
+}
+
+/** Stable identity of one suspended turn. Re-raising for the same parked turn
+ * must find the existing item rather than mint a second: a crash between the
+ * durable suspension and the queue write is expected, and convergence is the
+ * whole point of raising after the pause is durable (the F-PT-003 ordering
+ * `enforceBudgetOverlay` already uses above). */
+export function turnBudgetEscalationKey(input: {
+  app: string;
+  ticketRef: string;
+  episodeId: string;
+  runId: string;
+  pass: string;
+}): string {
+  return `turn-budget:${input.app}:${input.ticketRef}:${input.episodeId}:${input.runId}:${input.pass}`;
+}
+
+/** Raise (or find) the one queue item whose decision releases this pause.
+ * Returns the item either way, so the caller can bind its id to the durable
+ * continuation and a replay resolves to the same decision. */
+export async function raiseTurnBudgetEscalation(
+  stateHome: string,
+  input: TurnBudgetEscalationInput,
+  now: Date = new Date(),
+): Promise<ApprovalItem> {
+  const store = new ApprovalStore(stateHome);
+  const key = turnBudgetEscalationKey(input);
+  const existing = [...(await store.listPending()), ...(await store.listDecided())].find(
+    (item) => item.rule === TURN_BUDGET_RULE && item.justification === key,
+  );
+  if (existing !== undefined) return existing;
+  return store.raise({
+    app: input.app,
+    role: input.role,
+    rule: TURN_BUDGET_RULE,
+    ticketRef: input.ticketRef,
+    ...(input.turnId === undefined ? {} : { turnId: input.turnId }),
+    ...(input.workdir === undefined ? {} : { workdir: input.workdir }),
+    action: {
+      tool: "budget",
+      description:
+        `Authorize one more provider turn for ${input.ticketRef} ` +
+        `(${input.pipeline}/${input.pass}); resume re-establishes context first`,
+      input: {
+        kind: "turn-budget-grant",
+        app: input.app,
+        ticketRef: input.ticketRef,
+        episodeId: input.episodeId,
+        runId: input.runId,
+        pipeline: input.pipeline,
+        pass: input.pass,
+        stoppedDimension: input.stop.dimension,
+        cap: input.stop.cap,
+        observed: input.stop.observed,
+        costMeasurement: input.stop.costMeasurement,
+        episodeRemainingUsd: input.stop.episodeRemaining,
+        spentUsd: input.spentUsd,
+        resumeCostUsd: input.resume.usd,
+        resumeCostBasis: input.resume.basis,
+        resumeCacheReadTokens: input.resume.cacheReadTokens,
+        resumeCacheCreationTokens: input.resume.cacheCreationTokens,
+      },
+    },
+    justification: key,
+    now,
+  });
+}
+
+/** Derive the resume-cost estimate from the parked turn's own cache split and
+ * the settled cost of the tokens it actually paid for. Deliberately arithmetic
+ * over OBSERVED numbers, never a price table: an estimate the human cannot
+ * check is worse than an honest `unavailable`. */
+export function resumeCostEstimate(usage: {
+  tokensIn: number;
+  costUsd: number;
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
+}): ResumeCostEstimate {
+  const cacheCreationTokens = usage.cacheCreationTokens ?? 0;
+  const cacheReadTokens = usage.cacheReadTokens ?? 0;
+  const contextTokens = cacheCreationTokens + cacheReadTokens;
+  if (
+    (usage.cacheCreationTokens === undefined && usage.cacheReadTokens === undefined) ||
+    contextTokens === 0 ||
+    !Number.isFinite(usage.costUsd) ||
+    !Number.isFinite(usage.tokensIn) ||
+    usage.tokensIn <= 0
+  ) {
+    return { cacheCreationTokens, cacheReadTokens, usd: null, basis: "unavailable" };
+  }
+  // Share of the parked turn's settled cost attributable to the context it had
+  // to hold. Resuming re-establishes at most that much before new work starts.
+  const share = Math.min(1, contextTokens / usage.tokensIn);
+  return {
+    cacheCreationTokens,
+    cacheReadTokens,
+    usd: Math.round(usage.costUsd * share * 10_000) / 10_000,
+    basis: "observed_cache_tokens",
+  };
 }
 
 export interface ReconcileResult {

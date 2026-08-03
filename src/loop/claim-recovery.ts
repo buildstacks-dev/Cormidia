@@ -24,7 +24,12 @@ import {
   type TicketClaimState,
   type TicketRearmRecord,
 } from "./rehydrate.js";
-import type { LoopContinuation, LoopItem } from "./types.js";
+import type {
+  LoopContinuation,
+  LoopContinuationDecision,
+  LoopItem,
+  SuppressedOperation,
+} from "./types.js";
 import { currentProcessStartIdentity, processIdentityStatus } from "../runtime/process-identity.js";
 
 const LOCK_STALE_MS = 10 * 60_000;
@@ -204,8 +209,13 @@ export async function finishTicketClaim(input: ClaimMutation & {
       const prior = state.continuation;
       const pauseCostUsd = input.item.continuation.pauseCostUsd ?? 0;
       const pauseNumber = (prior?.pauseCount ?? 0) + 1;
+      // Both triggers land here, and the accounting rule is the same for both:
+      // a pause is not a merit failure, so it never consumes a claim (#104's
+      // $14.62 duplicated spend is the cost of getting this wrong). The kind
+      // only changes what the operator reads.
+      const pauseKind = input.item.continuation.pauseKind ?? "approval";
       const pauseOutcome =
-        `claim ${active.claimNumber}: approval pause ${pauseNumber} at ` +
+        `claim ${active.claimNumber}: ${pauseKind} pause ${pauseNumber} at ` +
         `${input.item.continuation.pipeline}/${input.item.continuation.pass} ` +
         `(cost $${pauseCostUsd.toFixed(2)}, repeated $0.00; session ${input.item.continuation.session.id})`;
       const { active: _active, ...withoutActive } = state;
@@ -224,8 +234,8 @@ export async function finishTicketClaim(input: ClaimMutation & {
           kind: "approval_paused",
           claimNumber: active.claimNumber,
           detail:
-            `${input.item.continuation.pipeline}/${input.item.continuation.pass} paused; ` +
-            `session=${input.item.continuation.session.id}`,
+            `${input.item.continuation.pipeline}/${input.item.continuation.pass} paused ` +
+            `(${pauseKind}); session=${input.item.continuation.session.id}`,
           costUsd: pauseCostUsd,
           repeatedCostUsd: 0,
         }),
@@ -246,7 +256,18 @@ export async function finishTicketClaim(input: ClaimMutation & {
 }
 
 /** Record a human approval decision before changing the label. If the process
- * dies between those writes, recoverInterruptedClaims repairs the projection. */
+ * dies between those writes, recoverInterruptedClaims repairs the projection.
+ *
+ * Three outcomes, decided by the pause's trigger:
+ *  - approved (either trigger)     -> the exact session resumes; op:ready.
+ *  - denied, `approval` pause      -> the exact session resumes WITHOUT the
+ *                                     operation (PURPOSE v2.15 (1)), and the
+ *                                     suppression is recorded for #244.
+ *  - denied, `budget` pause        -> there is nothing to resume with. Resuming
+ *                                     would start a paid turn that re-suspends
+ *                                     on the same cap, so the ticket
+ *                                     terminalizes at op:returned instead.
+ * In every case the claim count is untouched: a pause is not a merit failure. */
 export async function continueAfterApproval(input: {
   root: string;
   app: string;
@@ -255,41 +276,134 @@ export async function continueAfterApproval(input: {
   decision: "approved" | "denied";
   reason?: string;
   decidedAt?: string;
+  /** Present only for CRITICAL-OPERATION items. A budget escalation is a spend
+   * refusal, not a suppressed critical op, and must never manufacture a #244
+   * record; the caller decides by rule and simply omits this. */
+  suppression?: Pick<SuppressedOperation, "rule" | "actionSha256" | "tool">;
   gh: GhOps;
-}): Promise<void> {
+}): Promise<ContinueAfterApprovalResult> {
   const at = input.decidedAt ?? new Date().toISOString();
-  await withClaimState(input.root, input.app, input.issueNumber, async (state) => {
-    if (state.continuation === undefined) {
-      throw new Error(`claim recovery: ${input.app}#${input.issueNumber} has no approval continuation`);
-    }
-    if (state.continuation.decisions.some((decision) => decision.approvalId === input.approvalId)) {
-      return { value: undefined, state };
-    }
-    const next: TicketClaimState = {
-      ...state,
-      continuation: {
-        ...state.continuation,
-        status: "ready",
-        decisions: [
-          ...state.continuation.decisions,
-          {
-            approvalId: input.approvalId,
-            decision: input.decision,
-            ...(input.reason !== undefined ? { reason: input.reason } : {}),
-            decidedAt: at,
+  const outcome = await withClaimState<ContinueAfterApprovalResult>(
+    input.root,
+    input.app,
+    input.issueNumber,
+    async (state) => {
+      const suppressed = recordedSuppression(state, input, at);
+      if (state.continuation === undefined) {
+        // The raising turn is already gone — reconciled, expired, or decided
+        // after it ended. There is nothing to resume, but the SUPPRESSION still
+        // has to land: an approval outliving its requester is precisely the
+        // orphan case #244 was filed for, and "no record" is the failure mode,
+        // not an acceptable outcome. Report it distinctly so the caller does
+        // not describe an unparked ticket as resumed.
+        if (suppressed.suppressed === undefined) return { value: "unparked", state };
+        return { value: "unparked", state: { ...state, ...suppressed } };
+      }
+      if (state.continuation.decisions.some((decision) => decision.approvalId === input.approvalId)) {
+        // Replay: the decision is already durable. Report what it resolved to
+        // so the caller repairs the same label projection it would have made.
+        return {
+          value: state.continuation.status === "ready" ? "resumed" : "terminalized",
+          state,
+        };
+      }
+      const decisions: LoopContinuationDecision[] = [
+        ...state.continuation.decisions,
+        {
+          approvalId: input.approvalId,
+          decision: input.decision,
+          ...(input.reason !== undefined ? { reason: input.reason } : {}),
+          decidedAt: at,
+        },
+      ];
+      const terminalizes =
+        input.decision === "denied" && (state.continuation.pauseKind ?? "approval") === "budget";
+      if (terminalizes) {
+        const detail =
+          `claim ${state.continuation.claimNumber}: budget grant ${input.approvalId} denied; ` +
+          `${state.continuation.pipeline}/${state.continuation.pass} returned with artifacts ` +
+          "preserved and no failure-claim consumption";
+        const { continuation: _continuation, ...withoutContinuation } = state;
+        return {
+          value: "terminalized",
+          state: {
+            ...withoutContinuation,
+            ...suppressed,
+            outcomes: [...state.outcomes.slice(-9), detail],
+            events: appendEvent(state, {
+              at,
+              kind: "claim_terminal",
+              claimNumber: state.continuation.claimNumber,
+              detail,
+              repeatedCostUsd: 0,
+            }),
           },
-        ],
-      },
-      events: appendEvent(state, {
-        at,
-        kind: "approval_resumed",
-        claimNumber: state.continuation.claimNumber,
-        detail: `${input.decision} ${input.approvalId}; exact session ready`,
-      }),
-    };
-    return { value: undefined, state: next };
-  });
+        };
+      }
+      return {
+        value: "resumed",
+        state: {
+          ...state,
+          ...suppressed,
+          continuation: { ...state.continuation, status: "ready", decisions },
+          events: appendEvent(state, {
+            at,
+            kind: "approval_resumed",
+            claimNumber: state.continuation.claimNumber,
+            detail: `${input.decision} ${input.approvalId}; exact session ready`,
+          }),
+        },
+      };
+    },
+  );
+  if (outcome === "unparked") return outcome;
+  if (outcome === "terminalized") {
+    await projectReturnedLabel(input.gh, input.issueNumber);
+    return outcome;
+  }
   await projectReadyLabel(input.gh, input.issueNumber, "op:blocked");
+  return outcome;
+}
+
+/** `unparked` = the decision was durable but no turn was waiting on it; the
+ * #244 record still landed. */
+export type ContinueAfterApprovalResult = "resumed" | "terminalized" | "unparked";
+
+/** The #244 deposit, idempotent by (approvalId, disposition) so a replayed
+ * decision cannot inflate the record. */
+function recordedSuppression(
+  state: TicketClaimState,
+  input: {
+    approvalId: string;
+    decision: "approved" | "denied";
+    reason?: string;
+    suppression?: Pick<SuppressedOperation, "rule" | "actionSha256" | "tool">;
+  },
+  at: string,
+): Pick<TicketClaimState, "suppressed"> | Record<string, never> {
+  if (input.decision !== "denied" || input.suppression === undefined) return {};
+  const existing = state.suppressed ?? [];
+  if (
+    existing.some(
+      (record) => record.approvalId === input.approvalId && record.disposition === "denied",
+    )
+  ) {
+    return {};
+  }
+  return {
+    suppressed: [
+      ...existing,
+      {
+        approvalId: input.approvalId,
+        rule: input.suppression.rule,
+        actionSha256: input.suppression.actionSha256,
+        tool: input.suppression.tool,
+        disposition: "denied",
+        ...(input.reason !== undefined ? { reason: input.reason } : {}),
+        at,
+      },
+    ],
+  };
 }
 
 /** Recover exceptions at the label/selection/lock/pipeline-start boundaries.
@@ -569,6 +683,19 @@ async function clearOrphan(
       },
     };
   });
+}
+
+/** Park a denied budget pause. Idempotent, and deliberately tolerant of any
+ * surviving claim label: the durable decision is already committed, so the
+ * label is a projection to repair rather than a precondition to enforce. */
+async function projectReturnedLabel(gh: GhOps, issueNumber: number): Promise<void> {
+  const issue = await gh.readIssue(issueNumber);
+  if (issue.labels.includes("op:returned")) return;
+  const from = issue.labels.find((label) =>
+    ["op:blocked", "op:building", "op:in-review", "op:ready"].includes(label),
+  );
+  if (from === undefined) await gh.addLabel(issueNumber, "op:returned");
+  else await gh.swapLabel(issueNumber, from, "op:returned");
 }
 
 async function projectReadyLabel(gh: GhOps, issueNumber: number, priorLabel: string): Promise<void> {

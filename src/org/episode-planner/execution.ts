@@ -44,6 +44,7 @@ import {
   type EpisodeStepCompletedOutcome,
   type EpisodeStepExecutionContext,
   type EpisodeStepFailedOutcome,
+  type ProviderStepOutcome,
 } from "../../loop/episode-plan-executor.js";
 import {
   publishEpisodePlanRevision,
@@ -108,7 +109,7 @@ export interface ExecuteAcceptedEpisodePlanOptions {
   provider?: (
     step: ProviderTurnStep,
     execution: EpisodeStepExecutionContext,
-  ) => Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome>;
+  ) => Promise<ProviderStepOutcome>;
   /** Domain answer to "can this provider step reach a terminal outcome from
    * durable evidence, without spending a new turn?" Consulted only by the
    * adopted-revision halt below: a step whose preserved prior material event

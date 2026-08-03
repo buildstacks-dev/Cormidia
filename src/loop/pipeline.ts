@@ -63,7 +63,10 @@ import { gitSnapshotOf } from "../runtime/git.js";
 import { worstUsageQuality } from "../runtime/cost.js";
 import {
   costEnforcementFor,
+  ERROR_TURN_BUDGET_EXHAUSTED,
+  ERROR_TURN_BUDGET_SUSPENDED,
   HardTurnBudget,
+  type EpisodeAllowance,
   type TurnBudgetStop,
 } from "../runtime/turn-budget.js";
 import {
@@ -1005,13 +1008,20 @@ async function runPass(
         events.append({
           type: "turn.budget_stopped",
           severity: "warn",
-          errorCode: "error_turn_budget_exhausted",
+          errorCode:
+            stop.ring === "per_turn"
+              ? ERROR_TURN_BUDGET_SUSPENDED
+              : ERROR_TURN_BUDGET_EXHAUSTED,
           detail: {
             dimension: stop.dimension,
             cap: stop.cap,
             observed: stop.observed,
             prevented_next_action: stop.prevented_next_action,
             cost_measurement: stop.cost_measurement,
+            ring: stop.ring,
+            ...(stop.episode_remaining === null
+              ? {}
+              : { episode_remaining: stop.episode_remaining }),
           },
         }),
       ]);
@@ -1135,6 +1145,7 @@ async function runPass(
         },
         now: clock,
         initialToolActions: providerToolCalls,
+        episodeAllowance: episodeAllowanceFor(allowance),
       });
       await updateEnvelope(root, app, runId, { effectiveBounds });
       queueBudgetStop(activeBudget.stopActiveTime(0));
@@ -1215,6 +1226,7 @@ async function runPass(
       },
       now: clock,
       initialToolActions: providerToolCalls,
+      episodeAllowance: episodeAllowanceFor(allowance),
     });
     await updateEnvelope(root, app, runId, {
       providerTurnIds: [started.providerTurnId],
@@ -1680,6 +1692,23 @@ async function flushBridgedEvents(
 function toolNameFromDetail(detail: string): string {
   const token = detail.trim().split(/[\s:(]/, 1)[0];
   return token !== undefined && token.length > 0 ? token : "unknown";
+}
+
+/** Project the episode's remaining allowance into the shape HardTurnBudget
+ * derives a stop's ring from. One projection, both construction sites: the two
+ * rings must never disagree about what the episode still allows. */
+function episodeAllowanceFor(allowance: {
+  activeTimeMs: number;
+  equivalentCostUsd: number;
+  providerTurns: number;
+  toolCalls: number | null;
+}): EpisodeAllowance {
+  return {
+    equivalent_cost_usd: allowance.equivalentCostUsd,
+    active_time_ms: allowance.activeTimeMs,
+    tool_calls: allowance.toolCalls,
+    provider_turns: allowance.providerTurns,
+  };
 }
 
 function envelopeStatus(result: TurnResult): Exclude<EnvelopeStatus, "running"> {

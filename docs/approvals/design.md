@@ -4,7 +4,8 @@
 later execution, and app release ownership. CLI queue decided 2026-07-04;
 Stage 5 amendments A1–A5 ratified 2026-07-10; continuation and typed delivery
 (A2/A2.1) ratified 2026-07-18; content-bound grant identity (A-002)
-implemented 2026-07-17 — ratification history in `docs/PURPOSE.md` → Decided.
+implemented 2026-07-17; uniform fresh approval for every app release clarified
+2026-08-02 — ratification history in `docs/PURPOSE.md` → Decided.
 Approval efficiency and human-decision accounting use the canonical
 definitions in `docs/episodes/contract.md`: approval precision and recurrence are
 measured at the semantic action/scope level, and only authority- or
@@ -271,8 +272,10 @@ grant, and execution machinery below — there is no separate release path.
 
 - **orchestrator** (default): after a squash-merge of a milestone whose plan
   declared a deploy disposition, the orchestrator triggers the declared
-  mechanism as a **critical op** through the approval queue (a standing A1
-  `app`-scoped grant may cover it once the human has ratified that scope).
+  mechanism as a **critical op** through the approval queue. Every release
+  requires its own fresh, content-bound, single-use human approval; production
+  deploy and external publication are never eligible for a widened ticket- or
+  app-scoped grant.
 - **sre**: the SRE role runs the deploy pipeline behind the same gate.
 - Either way SRE owns post-deploy smoke checks and rollback (existing
   runbook assignment).

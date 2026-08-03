@@ -274,7 +274,7 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-IF-JSON | schema stability + canonical key-sorting where claimed; no-active-org → `no_active_org` | 2 | evid | STD |
 | CF-IF-UI | Live UI shell conformance: PRUNE-thin for pixels; confidentiality/truth slices covered CF-J15-* (not thin) | 2 | evid | THIN/E3 |
 | CF-IF-HTML | portable report conformance: self-contained, CSP, no external requests, no L3 | 2 | evid | E3 |
-| CF-IF-SKILL | `$cormidia` skill + capabilities/context discovery accuracy vs actual CLI surface | 2 | evid | STD |
+| CF-IF-SKILL | `$cormidia` skill + capabilities/context discovery accuracy vs actual CLI surface; self-hosting and human-approved-release agreement across PURPOSE, developer policy, root instructions, and packaged skill | 2 | evid | STD |
 | CF-IF-COMPARE | standalone `cormidia compare` parsing, preview/confirm hash, exact tuple preservation, safe repo preconditions, terminal/JSON result schema, external state root, and explicit local-branch materialization; no org or GitHub required | 1/2 | refusal+evid+diff | E1/E3 (design-only) |
 | CF-IF-XSURF | one cross-surface agreement check: same fixture truth via CLI text, `--json`, observe snapshot, portable HTML (extends CF-J15-A to non-report ops), plus EpisodePlan/standalone comparison-result agreement for J-19 | 2 | evid | E3 (J-19 slice design-only) |
 

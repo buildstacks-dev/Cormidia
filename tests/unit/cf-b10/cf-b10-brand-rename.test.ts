@@ -112,9 +112,16 @@ describe("CF-B10-* (L1) Cormidia is the sole product identity", () => {
       name: string;
       bin: Record<string, string>;
       files: string[];
+      private?: boolean;
+      publishConfig?: { access?: string };
     };
     expect(manifest.name).toBe("cormidia");
     expect(manifest.bin).toEqual({ cormidia: "./src/cormidia.cjs" });
+    // The manifest must stay publishable and public: `private: true` blocks the
+    // publish outright, and without an explicit public access the registry can
+    // default to restricted. Both are silent — they surface only at publish time.
+    expect(manifest.private).toBe(false);
+    expect(manifest.publishConfig).toEqual({ access: "public" });
     expect(manifest.files).toEqual(
       expect.arrayContaining([
         "src/cormidia.cjs",

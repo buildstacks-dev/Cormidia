@@ -67,9 +67,21 @@ the operator outcome; `docs/episodes/contract.md` is the normative plan-derived
 budget, route, and measurement contract; `docs/qualification/design.md`
 owns qualification and release gating.
 
-## Install locally
+## Install
 
-Cormidia requires **Node.js >= 26** and the pnpm version pinned in
+Cormidia requires **Node.js >= 26**. Install the published command globally:
+
+```bash
+npm install -g cormidia
+cormidia --version
+```
+
+This exposes the packaged `cormidia` executable through npm's global bin
+directory.
+
+### Install locally from source
+
+For development from a source checkout, use the pnpm version pinned in
 `packageManager`. Node 26 does not bundle Corepack, so install/enable it once
 if `pnpm --version` does not match the pin.
 

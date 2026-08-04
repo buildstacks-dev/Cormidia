@@ -25,9 +25,10 @@ cormidia capabilities --json
 cormidia context --json
 ```
 
-If `cormidia` is missing, report that the local package link is not installed.
-For a source checkout, `pnpm link:local` creates a source-backed command whose
-next invocation sees source edits without an update, rebuild, or relink.
+If `cormidia` is missing, install the public command with
+`npm install -g cormidia`. For a source checkout, `pnpm link:local` creates a
+source-backed command whose next invocation sees source edits without an
+update, rebuild, or relink.
 If no active org exists, create one only when the user asked to initialize an
 organization:
 

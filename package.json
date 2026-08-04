@@ -1,7 +1,7 @@
 {
   "name": "cormidia",
   "version": "0.1.1",
-  "private": true,
+  "private": false,
   "description": "Org runtime: a standing team of AI agents developing a product via a private GitHub repo, human-gated on critical ops only",
   "homepage": "https://github.com/cormidia/cormidia-web",
   "bugs": {
@@ -10,6 +10,9 @@
   "type": "module",
   "bin": {
     "cormidia": "./src/cormidia.cjs"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "src/cormidia.cjs",

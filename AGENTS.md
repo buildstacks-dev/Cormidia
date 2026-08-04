@@ -6,15 +6,19 @@ Applies to the whole repo. Nested AGENTS.md files specialize local rules in
 read the nearest one when working there. `docs/PURPOSE.md` is the decision log; on conflict its
 Decided section wins and this file is stale — fix this file.
 
-This file governs **building and maintaining the Cormidia platform**, not
-operating an org with Cormidia. Read `docs/DEVELOPMENT.md` before development
-campaigns. Self-hosting is ratified with carve-outs (PURPOSE.md → Decided,
-2026-08-02): the standing org may operate `cormidia-web` (the public front
-door) and, once proven there, this repo — but release authority (npm
-publish, version tags, release handoff) stays human, and root instructions,
-developer grants, and eval state must never enter a Cormidia org's prompts,
-state, learning, or approvals. The packaged `agent-skills/cormidia/` skill is
-the separate org-operation guide.
+This file governs **building and maintaining the Cormidia platform**, including
+when the standing Cormidia org operates this repository as an app. Read
+`docs/DEVELOPMENT.md` before development campaigns. Self-hosting is ratified
+(PURPOSE.md → Decided, 2026-08-02): the standing org may register, onboard, and
+operate both `cormidia-web` (the public front door) and this repository. Every
+release-shaped action for every app — including npm publish, version tags,
+release handoff, deployment, and external publication — requires explicit
+human approval; after approval, Cormidia may execute only the exact approved
+action through its durable release path. Repository instructions and linked
+developer policy remain app-scoped development context. Development grants,
+raw eval state, and outer-session instructions must never be copied into the
+org home, org-global prompts, learning, or approvals. The packaged
+`agent-skills/cormidia/` skill is the separate org-operation guide.
 
 ## What this repo is
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,

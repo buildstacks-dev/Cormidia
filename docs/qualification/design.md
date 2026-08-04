@@ -7,7 +7,10 @@
 > implementation change, reviewer/planner human references and thresholds remain
 > pending, the human-authored threat model does not yet exist, and required-check
 > enforcement remains blocked by F-PT-018. Implemented machinery is not release
-> evidence.
+> evidence. PURPOSE v2.14 records one narrow owner-ratified exception permitting
+> publication of exactly `cormidia@0.1.1` after the complete token-free suite,
+> build, packaging, and installed-command checks pass. It does not reactivate
+> this gate or authorize any later release.
 
 ## Replacement campaign contract
 

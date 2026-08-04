@@ -431,9 +431,10 @@ items, so the human has one inbox, never two.
 single-use by default; the human may widen its scope, the agent never
 chooses — and a later dispatch tick performs only typed, orchestrator-owned,
 allowlisted actions, recording
-`approved → executing → executed | failed | ambiguous` durably. Four things
-are never grantable at any scope: self-merge, production deploys, external
-publication, and writes to protocol surfaces. The classifier also reads
+`approved → executing → executed | failed | ambiguous` durably. Self-merge is
+never grantable. Production deploys, external publication, and writes to
+protocol surfaces may receive only fresh, exact, single-use approvals; they are
+never eligible for widened ticket- or app-scoped grants. The classifier also reads
 Cormidia's *own* command line as an effect surface — self-approval by CLI is
 still self-approval.
 

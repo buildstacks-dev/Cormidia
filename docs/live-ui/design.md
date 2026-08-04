@@ -807,6 +807,7 @@ The historical page also shows completion integrity:
 | `runs/**/events.jsonl` | live structured timeline and spans | append-only L2; a torn trailing line is rejected and degrades the source rather than being reported healthy |
 | `brief.md`, `prompt.md`, `output.md`, `session.log` | explicit local forensic evidence | verbatim L3; never preload into overview |
 | Ticket journals/worktrees | recovery and phase evidence | supporting process-owned state; do not override GitHub labels |
+| `state/planning/apps/<app>/` | RoadmapPlan, validation-contract, delivery-readiness, execution-batch/unit, fast-path, cache and recovery explanations | versioned artifacts and journals are authority; labels are non-authoritative projections and cache evidence affects cost/affinity only |
 | `telemetry/<date>.jsonl` | settled per-turn cost and budget attribution | ledger truth after settlement; run envelope may show partial checkpoint first |
 | `invocations/<date>.jsonl` | CLI commands plus distinct internal release execution | invocation history, not provider-turn history |
 | `locks/` | active role/app ownership | fresh lock is supporting liveness; pass heartbeat is still shown separately |
@@ -829,6 +830,15 @@ a correlated non-completed pass, `op:in-review` requires an open PR,
 otherwise non-completed pass. Without that artifact the delivery projection is
 `closed_unknown` with a reason. Merged delivery requires the exact PR/merge
 evidence defined by the loop contract; a label alone never upgrades the rung.
+
+Roadmap-delivery explanations are projected once by the read-only product helper and
+shared byte-for-structure with Status and Reports. The UI shows RoadmapPlan,
+validation-contract, delivery-unit and batch refs as artifact authority while marking
+labels as projections. Batch `complete` means every admitted unit has a terminal
+disposition; `every_unit_success` is a separate nullable fact. Fast-path reasons never
+imply workflow bypass, and absent provider cache telemetry is `unknown`, never zero.
+Unreadable planning artifacts degrade the `roadmap_delivery` source and name the claims
+whose explanation is affected; they do not yield an empty healthy section.
 
 ### 6.2 No second store
 
@@ -871,6 +881,7 @@ export interface ObserveSnapshotV1 {
   totals: TotalsView;
   attention: AttentionItemView[];
   attention_groups: AttentionGroupView[];
+  roadmap_explanation: RoadmapExplanationV1;
 }
 
 // Every ordered or capped collection declares scope, ordering, and

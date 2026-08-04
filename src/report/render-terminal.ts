@@ -36,6 +36,22 @@ export function renderReportTerminal(report: ReportSnapshotV1): string {
     }
     lines.push("  Triage: docs/qualification/validation-triage.md");
   }
+  if (report.roadmap_explanation.apps.length > 0) {
+    lines.push("", "Roadmap / validation / delivery");
+    for (const app of report.roadmap_explanation.apps) {
+      lines.push(`  ${app.app} · source ${app.source.status} · roadmap ${app.roadmap_plan?.durable_ref ?? "unavailable"}`);
+      if (app.source.affected_claims.length > 0) lines.push(`    affected claims: ${app.source.affected_claims.join(", ")}`);
+      for (const batch of app.batches) {
+        lines.push(`    batch ${batch.batch_id} · complete ${batch.complete} · every-unit-success ${batch.every_unit_success ?? "unknown"}`);
+      }
+      for (const unit of app.delivery_units) {
+        lines.push(
+          `    unit ${unit.unit_id} · ${unit.kind} · fast-path ${unit.fast_path.reason} · cache ${unit.cache_evidence.measurement} · ` +
+          `routing-excluded ${unit.routing_exclusion.excluded ?? "unknown"} · recovery ${unit.recovery.state} · labels projection-only`,
+        );
+      }
+    }
+  }
   lines.push("", "Efficiency evidence");
   for (const [name, metric] of Object.entries(report.efficiency.metrics)) {
     lines.push(

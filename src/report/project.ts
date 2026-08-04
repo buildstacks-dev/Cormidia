@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import type { AppsFile } from "../org/apps.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 import { readValidationCampaignReports } from "../org/validation-campaign.js";
+import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
 import { settlementIdentity, settlementKey } from "../runtime/telemetry.js";
 import { aggregateCost, providerPassRef } from "../runtime/cost.js";
 import { classifyEnvelopeUsage } from "../runtime/runlog/envelope.js";
@@ -63,6 +64,10 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
     duplicateKeys: duplicate.keys,
   });
   const allCampaigns = await readValidationCampaignReports(options.stateHome);
+  const roadmapExplanation = await readRoadmapExplanation(
+    options.stateHome,
+    query.app === undefined ? options.appsFile.apps.map((app) => app.name) : [query.app],
+  );
   const validationCampaigns = {
     reports: allCampaigns.reports.filter((campaign) => {
       const started = Date.parse(campaign.started_at);
@@ -162,6 +167,7 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
     .update(JSON.stringify(detailsFingerprint(details)))
     .update(JSON.stringify(efficiency))
     .update(JSON.stringify(validationCampaigns))
+    .update(JSON.stringify(roadmapExplanation))
     .digest("hex");
   return {
     schema_version: REPORT_SCHEMA_VERSION,
@@ -211,6 +217,7 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
     health: buildHealth(sessions),
     efficiency,
     validation_campaigns: validationCampaigns,
+    roadmap_explanation: roadmapExplanation,
     apps: buildAppRows(options.appsFile, budgetRows, budgetPaused, sessions, allTurns, headline.known_total_tokens, query.app),
     sessions: {
       total: sessions.length,

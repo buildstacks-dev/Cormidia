@@ -7,6 +7,7 @@ import type { TurnLock } from "../org/locks.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 import { readParentTask, type ParentTaskRecord } from "../org/parent-task.js";
 import { readValidationCampaignReports } from "../org/validation-campaign.js";
+import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { readEvents } from "../runtime/runlog/events.js";
 import { runPaths } from "../runtime/runlog/paths.js";
@@ -52,6 +53,12 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
   const locks = await indexLocks(join(options.stateHome, "locks"));
   const inbox = await indexInbox(join(options.stateHome, "state", "events", "inbox"));
   const validationCampaigns = await readValidationCampaignReports(options.stateHome);
+  const roadmapExplanation = await readRoadmapExplanation(
+    options.stateHome,
+    options.filters.app === undefined
+      ? options.appsFile.apps.map((app) => app.name)
+      : [options.filters.app],
+  );
   errors.push(...validationCampaigns.corrupt.map((item) => `validation campaign ${item.campaign_id}: ${item.detail}`));
   errors.push(...ledger.errors.map((error) => `ledger: ${error}`));
   errors.push(...invocations.errors.map((error) => `invocations: ${error}`));
@@ -71,6 +78,18 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
         locks.errors.join("; ") ||
         "Scheduler operational health is not measured by local definition, lock, or inbox readability"
       ),
+    ),
+    source(
+      "roadmap_delivery",
+      roadmapExplanation.apps.some((app) => app.source.status === "degraded")
+        ? "degraded"
+        : roadmapExplanation.apps.some((app) => app.source.status === "unavailable")
+          ? "unavailable"
+          : "healthy",
+      observedAt,
+      roadmapExplanation.apps.map((app) =>
+        `${app.app}: ${app.source.detail}${app.source.affected_claims.length === 0 ? "" : ` Affected claims: ${app.source.affected_claims.join(", ")}`}`,
+      ).join("; ") || "No app planning scope was selected",
     ),
   ];
 
@@ -96,6 +115,7 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
     inbox,
     source_health: sourceHealth,
     validation_campaigns: validationCampaigns,
+    roadmap_explanation: roadmapExplanation,
   };
 }
 

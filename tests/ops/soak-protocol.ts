@@ -17,6 +17,10 @@ import {
 } from "../../src/org/validation-campaign.js";
 import { indexLocalSources } from "../../src/observe/file-index.js";
 import { readTurnRecords } from "../../src/runtime/telemetry.js";
+import {
+  readRoadmapExplanation,
+  type UnitRecoveryState,
+} from "../../src/org/roadmap-explanation.js";
 
 export const SOAK_REQUIRED_CASES = ["CF-OPS-SOAK", "CF-OPS-ROT"] as const;
 export const SOAK_MAX_PROVIDER_TURNS = 24;
@@ -77,6 +81,20 @@ export interface SoakCheckpointV1 {
   state_growth: { files: number; bytes: number };
   retention: { completed_sweeps: number; sweeps_with_errors: number };
   source_health: Array<{ id: string; status: "healthy" | "degraded" | "unavailable" }>;
+  roadmap_delivery: {
+    batches_observed: number;
+    batches_complete: number;
+    batches_every_unit_successful: number;
+    units_observed: number;
+    stale_frontier_refusals: number;
+    session_reuse: {
+      consider_exact_reuse: number;
+      rerun_without_session: number;
+      no_cross_unit_reuse: number;
+    };
+    cache_evidence: { hit: number; miss: number; unknown: number };
+    recovery_states: Record<UnitRecoveryState, number>;
+  };
   human_decision_rows: number;
 }
 
@@ -196,6 +214,10 @@ export async function captureSoakCheckpoint(
     retentionHealth(config.state_home),
     countFiles(join(config.state_home, "locks"), ".lock"),
   ]);
+  const roadmapExplanation = await readRoadmapExplanation(
+    config.state_home,
+    config.sandbox.apps,
+  );
   const campaignRows = providerRows(ledger).slice(state.baseline.provider_turns);
   const sleepCycle = input.sleptAt === undefined && input.wokeAt === undefined
     ? undefined
@@ -226,6 +248,11 @@ export async function captureSoakCheckpoint(
     state_growth: growth,
     retention,
     source_health: local.source_health.map((source) => ({ id: source.id, status: source.status })),
+    roadmap_delivery: summarizeRoadmapDelivery(
+      roadmapExplanation,
+      (summary.reason_counts["frontier_stale"] ?? 0) +
+        (summary.reason_counts["batch_frontier_stale"] ?? 0),
+    ),
     human_decision_rows: decided.length - state.baseline.human_decision_rows,
   };
   return recordSoakCheckpoint(config, checkpoint, now);
@@ -269,6 +296,10 @@ export function evaluateSoak(state: SoakStateV1, now: Date): SoakEvaluation {
     if (item.scheduler.provider_settlement_agreement === false) violations.add("CF-OPS-SOAK:settlement_disagreement");
     if (item.retention.sweeps_with_errors > 0) violations.add("CF-OPS-SOAK:retention_error");
     if (item.source_health.some((source) => source.status === "degraded")) violations.add("CF-OPS-SOAK:source_degraded");
+    if (item.roadmap_delivery.batches_complete > item.roadmap_delivery.batches_observed) violations.add("CF-OPS-SOAK:batch_completion_exceeds_observed");
+    if (item.roadmap_delivery.batches_every_unit_successful > item.roadmap_delivery.batches_complete) violations.add("CF-OPS-SOAK:batch_success_exceeds_completion");
+    if (Object.values(item.roadmap_delivery.cache_evidence).reduce((sum, count) => sum + count, 0) !== item.roadmap_delivery.units_observed) violations.add("CF-OPS-SOAK:cache_evidence_accounting_mismatch");
+    if (Object.values(item.roadmap_delivery.recovery_states).reduce((sum, count) => sum + count, 0) !== item.roadmap_delivery.units_observed) violations.add("CF-OPS-SOAK:recovery_state_accounting_mismatch");
     if (item.human_decision_rows !== 0) violations.add("CF-OPS-SOAK:sleep_permission_delta");
   }
   const soakComplete = ![...missing].some((code) => code !== "natural_codex_rotation_unobserved") && violations.size === 0;
@@ -371,7 +402,60 @@ function validateCheckpoint(value: SoakCheckpointV1): void {
   required(value.checkpoint_id, "checkpoint_id"); instant(value.captured_at, "captured_at");
   if (value.sleep_cycle !== undefined) { instant(value.sleep_cycle.slept_at, "slept_at"); instant(value.sleep_cycle.woke_at, "woke_at"); if (typeof value.sleep_cycle.overnight !== "boolean") throw new Error("overnight must be boolean"); }
   if (value.rotation !== undefined) validateRotation(value.rotation);
-  for (const amount of [value.spend.provider_turns, value.spend.equiv_usd, value.spend.partial_usage_rows, value.state_growth.files, value.state_growth.bytes, value.human_decision_rows]) if (!Number.isFinite(amount) || amount < 0) throw new Error("soak checkpoint counters must be non-negative");
+  for (const amount of [
+    value.spend.provider_turns,
+    value.spend.equiv_usd,
+    value.spend.partial_usage_rows,
+    value.state_growth.files,
+    value.state_growth.bytes,
+    value.human_decision_rows,
+    value.roadmap_delivery.batches_observed,
+    value.roadmap_delivery.batches_complete,
+    value.roadmap_delivery.batches_every_unit_successful,
+    value.roadmap_delivery.units_observed,
+    value.roadmap_delivery.stale_frontier_refusals,
+    ...Object.values(value.roadmap_delivery.session_reuse),
+    ...Object.values(value.roadmap_delivery.cache_evidence),
+    ...Object.values(value.roadmap_delivery.recovery_states),
+  ]) if (!Number.isFinite(amount) || amount < 0) throw new Error("soak checkpoint counters must be non-negative");
+}
+
+function summarizeRoadmapDelivery(
+  explanation: Awaited<ReturnType<typeof readRoadmapExplanation>>,
+  staleFrontierRefusals: number,
+): SoakCheckpointV1["roadmap_delivery"] {
+  const batches = explanation.apps.flatMap((app) => app.batches);
+  const units = explanation.apps.flatMap((app) => app.delivery_units);
+  const cache = { hit: 0, miss: 0, unknown: 0 };
+  const recoveryStates: Record<UnitRecoveryState, number> = {
+    not_started: 0,
+    in_progress: 0,
+    rerun_without_session: 0,
+    consider_exact_session_reuse: 0,
+    no_cross_unit_reuse: 0,
+    terminal_completed: 0,
+    terminal_returned: 0,
+    terminal_failed: 0,
+    unavailable: 0,
+  };
+  for (const unit of units) {
+    cache[unit.cache_evidence.measurement] += 1;
+    recoveryStates[unit.recovery.state] += 1;
+  }
+  return {
+    batches_observed: batches.length,
+    batches_complete: batches.filter((batch) => batch.complete).length,
+    batches_every_unit_successful: batches.filter((batch) => batch.every_unit_success === true).length,
+    units_observed: units.length,
+    stale_frontier_refusals: staleFrontierRefusals,
+    session_reuse: {
+      consider_exact_reuse: recoveryStates.consider_exact_session_reuse,
+      rerun_without_session: recoveryStates.rerun_without_session,
+      no_cross_unit_reuse: recoveryStates.no_cross_unit_reuse,
+    },
+    cache_evidence: cache,
+    recovery_states: recoveryStates,
+  };
 }
 
 function assertSandboxMatches(config: SoakConfigV1, org: string, apps: string[], repos: string[]): void {

@@ -729,6 +729,7 @@ interface ReportSnapshotV1 {
     by_usage_quality: ReportBreakdownV1[];
   };
   health: ReportHealthV1;
+  roadmap_explanation: RoadmapExplanationV1;
   apps: ReportAppRowV1[];
   sessions: {
     total: number;
@@ -742,6 +743,13 @@ interface ReportSnapshotV1 {
 
 The JSON schema should use `null` for unavailable numeric facts. Zero means a
 measured zero.
+
+`roadmap_explanation` is the same read-only product projection consumed by Status and
+Observe, scoped to the report's selected apps. Its artifact refs are authoritative;
+label lists are explicitly non-authoritative projections. Batch `complete` is rendered
+separately from nullable `every_unit_success`, cache `unknown` is never rendered as zero,
+and fast-path reason is displayed without implying the delivery workflow was bypassed.
+Because this field is additive, `REPORT_SCHEMA_VERSION` remains 1.
 
 ### Cost aggregation and the `none` quality
 

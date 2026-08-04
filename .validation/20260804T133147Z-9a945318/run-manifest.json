@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "assessment_id": "hb-108-110-20260804",
+  "mode": "full-hardening",
+  "started_at": "2026-08-04T13:31:47Z",
+  "repository": "cormidia/Cormidia",
+  "branch": "codex/hb-108-110",
+  "base_revision": "86f0727326d17063e23878d0c846b52154c8f3dd",
+  "target_tree": "9a9453188e6a2fb51bedf9e74059f40f8968f758",
+  "environment": {
+    "kind": "developer-host",
+    "worktree": "/tmp/cormidia-hb-108-110.JwI65i",
+    "networked_validation": false,
+    "provider_backed_validation": false
+  },
+  "scope": [
+    "CF-REG-251",
+    "HB-108",
+    "HB-109 machinery",
+    "HB-110"
+  ],
+  "excluded_actions": [
+    "provider-backed validation",
+    "live validation",
+    "eval campaigns",
+    "soak campaign execution",
+    "publication",
+    "deployment",
+    "release"
+  ],
+  "evidence_index": "commands.md",
+  "assessment": "conditionally_sufficient_for_stated_target"
+}

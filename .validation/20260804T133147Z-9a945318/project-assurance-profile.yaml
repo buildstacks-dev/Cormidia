@@ -1,0 +1,26 @@
+schema_version: 1
+assessment_id: hb-108-110-20260804
+base_criticality: C2
+change_materiality: L2
+intended_use: >-
+  Offline implementation and validation of CF-REG-251, HB-108, HB-109
+  machinery, and HB-110 before ordinary pull-request integration.
+elevated_control_points:
+  - id: T-9
+    criticality: C3
+    reason: Durable claims, batch disposition, and recovery projections can affect ownership and retry safety.
+  - id: T-7
+    criticality: C3
+    reason: Validation catalog authority and pre-tuning corpus lineage constrain later qualification decisions.
+assurance_depth:
+  source_review: complete
+  deterministic_testing: complete
+  seeded_negative_controls: complete
+  cross_surface_conformance: complete
+  external_seam_evidence: not_in_scope
+  human_golden_review: pending
+  seven_day_soak: not_started
+independence:
+  local: I1_same_agent
+  github_ci: pending_separate_environment
+release_claim: none

@@ -4,8 +4,10 @@ Canonical ID: **CORMIDIA-C-OPBATCH-001 (alias: C-OP-BATCH)**
 Status: ACCEPTED implementation contract (2026-08-03); HB-104's execution-unit
 authority, deterministic bounded admission, lazy plans, and isolated journals/budgets/
 outcomes are implemented. HB-106/HB-107 add the local direct-effect continuation and
-shared context/session/cache slices; the full failure matrix, operator surfaces and live
-B-17 round trip remain pending under HB-108…111 and BLOCKED:B-17-L3.
+shared context/session/cache slices. HB-108 closes the deterministic catalog family,
+HB-109 closes the contention and soak-collector machinery, and HB-110 implements the
+shared Status/Report/Observe explanation. The seven-day campaign, HB-111 protected-
+surface proposal and live B-17 round trip remain pending/BLOCKED:B-17-L3.
 Defends INV-001/004/005/006/008/014/015/016, M5/M6/M17. Journeys J-20/J-04/J-18.
 Interfaces with B-20/B-21/B-22.
 
@@ -94,7 +96,7 @@ Interfaces with B-20/B-21/B-22.
   every unit merged. Reports expose per-unit outcomes, provider usage quality and actual
   cache evidence; missing measurements are unknown, never zero savings.
 
-## Implementation evidence (HB-106/HB-107, 2026-08-03)
+## Implementation evidence (HB-106…HB-110, 2026-08-04)
 
 - `src/org/direct-operational-campaign.ts` implements the complete local direct-campaign
   authority, seven content-bound approval joins, acknowledgement/evidence projection,
@@ -108,3 +110,10 @@ Interfaces with B-20/B-21/B-22.
   Builder→Reviewer, cache-lure and façade-bypass negative controls. No external effect,
   connector mutation, L3 adapter proof, live/eval/soak campaign or scheduler install is
   claimed by this evidence.
+- `tests/ops/contention-rig.ts` covers overlapping batches, duplicate stimuli,
+  all-or-none multi-ticket claims, per-unit terminal settlement, sibling isolation and
+  stale frontiers with seeded violations. `tests/ops/soak-protocol.ts` records the same
+  dimensions without starting or simulating elapsed seven-day evidence.
+- `src/org/roadmap-explanation.ts` is the shared read-only Status/JSON/Report/Observe
+  projection. It distinguishes batch disposition completeness from every-unit success,
+  artifact authority from label projections, and unknown cache evidence from zero.

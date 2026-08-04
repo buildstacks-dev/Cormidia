@@ -2,7 +2,9 @@
 
 Boundary: **B-20 RoadmapPlan authority ↔ ready-frontier and delivery admission**.
 Status: ACCEPTED implementation contract (2026-08-03); HB-100/HB-101 and the
-HB-102 readiness/hash guard are implemented, with later batch families still pending.
+HB-102 readiness/hash guard are implemented. HB-108 closes the complete deterministic
+catalog/detector family; HB-109 closes the batch-contention machinery while external
+soak evidence remains pending.
 
 ## Inputs
 - One schema/versioned RoadmapPlan with content hash and predecessor reference.

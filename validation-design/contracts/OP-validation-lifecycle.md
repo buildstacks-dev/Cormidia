@@ -3,7 +3,10 @@ Canonical ID: **CORMIDIA-C-OPVALIDATION-001 (alias: C-OP-VALIDATION)**
 
 Status: ACCEPTED implementation contract (2026-08-03); HB-102's deterministic
 schema/catalog/lifecycle/readiness handoff and HB-103…105's production delivery-unit
-integration are implemented, while the S-10 qualification campaign remains pending.
+integration are implemented. HB-108 expands and content-pins the full accepted catalog,
+walks each deterministic family to a seeded detector, and integrates the pre-tuning
+S-10 corpus. Its rows remain `human_validation=pending`; the unrun threshold-dependent
+qualification remains inconclusive under F-PT-011.
 Defends INV-008/012/015/016, M4/M17. Journeys J-03/J-04/J-18. Interfaces with
 B-20/B-21/B-22 and the affected product boundary contracts.
 

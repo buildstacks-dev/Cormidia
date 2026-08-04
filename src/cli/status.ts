@@ -9,6 +9,7 @@ import { readEfficiencyEvidence } from "../loop/efficiency.js";
 import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 import { readValidationCampaignReports } from "../org/validation-campaign.js";
+import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
@@ -93,6 +94,12 @@ export async function cmdStatus(args: string[]): Promise<number> {
     })),
   );
   const validationCampaigns = await readValidationCampaignReports(stateHome);
+  const roadmapExplanation = await readRoadmapExplanation(
+    stateHome,
+    parsed.app !== undefined
+      ? [parsed.app]
+      : homes?.appsFile.apps.map((app) => app.name) ?? [],
+  );
   const report = {
     schema_version: 1,
     kind: "status",
@@ -105,6 +112,7 @@ export async function cmdStatus(args: string[]): Promise<number> {
     episodeReplans,
     budget,
     validationCampaigns,
+    roadmapExplanation,
   } as const;
   if (parsed.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -168,6 +176,25 @@ export async function cmdStatus(args: string[]): Promise<number> {
       console.log(`${corrupt.campaign_id} CORRUPT (EVIDENCE INCOMPLETE) ${corrupt.detail}`);
     }
     console.log("Triage: docs/qualification/validation-triage.md");
+  }
+  if (report.roadmapExplanation.apps.length > 0) {
+    console.log("\nROADMAP / VALIDATION / DELIVERY");
+    for (const app of report.roadmapExplanation.apps) {
+      console.log(`${app.app} source=${app.source.status} roadmap=${app.roadmap_plan?.durable_ref ?? "unavailable"}`);
+      if (app.source.affected_claims.length > 0) {
+        console.log(`  affected=${app.source.affected_claims.join(",")} detail=${app.source.detail}`);
+      }
+      for (const batch of app.batches) {
+        console.log(`  batch=${batch.batch_id} complete=${batch.complete} every-unit-success=${batch.every_unit_success ?? "unknown"}`);
+      }
+      for (const unit of app.delivery_units) {
+        console.log(
+          `  unit=${unit.unit_id} kind=${unit.kind} validation=${unit.artifact_authority.validation_contract?.durable_ref ?? "unavailable"} ` +
+          `fast-path=${unit.fast_path.reason} cache=${unit.cache_evidence.measurement} ` +
+          `routing-excluded=${unit.routing_exclusion.excluded ?? "unknown"} recovery=${unit.recovery.state} labels=projection-only`,
+        );
+      }
+    }
   }
   return 0;
 }

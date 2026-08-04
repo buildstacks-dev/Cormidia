@@ -2,6 +2,7 @@ import type { AppStatus } from "../org/apps.js";
 import type { ValidationCampaignReadResult } from "../org/validation-campaign.js";
 import type { CostAggregate } from "../runtime/cost.js";
 import type { TurnAssignmentSource } from "../runtime/types.js";
+import type { RoadmapExplanationV1 } from "../org/roadmap-explanation.js";
 
 export const REPORT_SCHEMA_VERSION = 1 as const;
 
@@ -357,6 +358,7 @@ export interface ReportSnapshotV1 {
   /** Triggered validation evidence is distinct from normal product sessions.
    * Corrupt rows remain explicit so their absence can never look green. */
   validation_campaigns: ValidationCampaignReadResult;
+  roadmap_explanation: RoadmapExplanationV1;
   apps: ReportAppRowV1[];
   sessions: {
     total: number;

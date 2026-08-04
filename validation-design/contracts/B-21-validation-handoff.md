@@ -2,8 +2,9 @@
 
 Boundary: **B-21 validation contract authority ↔ readiness, Builder evidence, and
 Reviewer verdict**. Status: ACCEPTED implementation contract (2026-08-03);
-HB-102 deterministic authority/readiness enforcement is implemented; the broader
-delivery/batch campaign remains in progress.
+HB-102 deterministic authority/readiness enforcement and HB-108's complete accepted
+catalog/detector walk are implemented. The pre-tuning S-10 corpus remains
+`human_validation=pending`, so threshold-dependent results remain inconclusive.
 
 ## Inputs
 - Exact RoadmapPlan and delivery-unit versions.
@@ -16,8 +17,8 @@ delivery/batch campaign remains in progress.
 - The installed catalog binds the ratified harness revision; successor catalogs are
   forward-only and tighten-only. Existing IDs/aliases, floors, shared detectors,
   negative controls, templates and waiver bounds cannot be weakened or removed.
-  The implemented HB-100…102 catalog slice is content-pinned by SHA-256; additions are
-  refused until HB-108 expands the pin through an accepted harness revision.
+  The implemented HB-100…108 catalog is content-pinned by SHA-256; successors that do
+  not preserve the ratified registry, detector duties and bounds are refused.
 - Readiness, EpisodePlan creator provenance, Builder output, Reviewer verdict and claim
   settlement bind the same contract ref+hash/unit membership. Evidence binds the exact
   HEAD and case/gate identities.

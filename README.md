@@ -823,10 +823,12 @@ the validation rebuild — see Testing above.)
   per-unit journals/budgets, strict provenance-bearing zero-turn normalization,
   complete seven-destination campaign authority, and exact role-safe context/session/
   cache evidence. Product-roadmap planning and ticket delivery now share the
-  `orchestrateEpisode` façade without collapsing RoadmapPlan into EpisodePlan.
-  HB-108…111 still owe the complete deterministic/golden matrices, contention/soak
-  evidence, operator surfaces, and the separately human-ratified protocol-surface
-  proposal.
+  `orchestrateEpisode` façade without collapsing RoadmapPlan into EpisodePlan. HB-108
+  closes the deterministic catalog and integrates the still-human-pending pre-tuning
+  corpora; HB-109 closes contention/collector machinery without running the seven-day
+  soak; HB-110 adds shared Status/JSON/Report/Observe explanations. External evidence,
+  human reference review, and HB-111's separately approved protocol-surface proposal
+  remain outstanding.
 
 - **Release gating remains suspended.** L3/L4/L5 runners exist, but no authorized
   external campaign or seven-day soak was executed in this implementation change;

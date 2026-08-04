@@ -44,11 +44,18 @@ export interface LearningWorld {
   cleanup(): Promise<void>;
 }
 
-export async function makeLearningWorld(name = "learning-world"): Promise<LearningWorld> {
+export async function makeLearningWorld(
+  name = "learning-world",
+  options: { approvalId?: string } = {},
+): Promise<LearningWorld> {
   const org = await makeTempOrgHome({ name });
   const state = await makeTempStateHome({ name });
   const clock = makeTestClock("2026-07-31T12:00:00.000Z");
-  const approvals = new ApprovalStore(state.stateHome);
+  const approvals = new ApprovalStore(state.stateHome, {
+    ...(options.approvalId !== undefined
+      ? { idSource: () => options.approvalId! }
+      : {}),
+  });
   const policy = defaultLearningPolicy();
   const deps: PublisherDeps = {
     orgHome: org.orgHome,

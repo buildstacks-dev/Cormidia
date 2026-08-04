@@ -1,0 +1,35 @@
+schema_version: 1
+assessment_id: hb-108-110-20260804
+claims:
+  - id: CF-REG-251
+    claim: An approval ID ending in a hyphen cannot create a trailing-hyphen journal filename.
+    evidence: tests/hermetic/cf-j12/cf-j12-i.test.ts
+    status: verified_offline
+  - id: HB-108-catalog
+    claim: Every accepted deterministic 2026-08-03 family has an exact catalog row, executable detector, and seeded negative control.
+    evidence: tests/hermetic/cf-hb108/deterministic-catalog-closure.test.ts
+    status: verified_offline
+  - id: HB-108-corpora
+    claim: Planner and Validation Designer pre-tuning corpora load without converting pending human review into a threshold verdict.
+    evidence: tests/hermetic/cf-eval-runner/eval-runner.test.ts
+    status: verified_offline_human_review_pending
+  - id: HB-109-contention
+    claim: Overlap, duplicate stimulus, atomic multi-ticket claims, per-unit settlement, sibling isolation, and stale frontiers have deterministic machinery and red controls.
+    evidence: tests/hermetic/cf-ops-cont/contention-rig.test.ts
+    status: verified_offline
+  - id: HB-109-soak
+    claim: The soak collector can record the new batch, cache, recovery, and stale-frontier dimensions and reject inconsistent summaries.
+    evidence: tests/hermetic/cf-ops-soak/soak-protocol.test.ts
+    status: collector_verified_campaign_not_started
+  - id: HB-110
+    claim: Status, Report, and Observe consume one exact explanation projection and distinguish authority, labels, completion, success, routing, cache, fast path, and recovery state.
+    evidence: tests/hermetic/cf-hb110/cross-surface-roadmap-explanation.test.ts
+    status: verified_offline
+  - id: repository-gates
+    claim: The complete offline suite, strict typecheck, build, and whitespace checks pass for the assessed tree.
+    evidence: commands.md
+    status: verified_offline
+verdict_rules:
+  missing_human_review: inconclusive
+  unrun_soak_campaign: incomplete
+  threshold_dependent_results: inconclusive

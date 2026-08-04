@@ -467,6 +467,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
     attention: attention.items,
     attention_groups: attention.groups,
     validation_campaigns: input.validation_campaigns ?? { reports: [], corrupt: [] },
+    roadmap_explanation: input.roadmap_explanation ?? { schema_version: 1, apps: [] },
   };
   // Skew is data on the snapshot, not an attention item: #91 owns the attention
   // surface, and a header warning is the right place for a clock fact.

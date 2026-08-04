@@ -43,7 +43,7 @@ not be copied into org prompts, state, learning, or approvals. Conversely,
 development campaign results never authorize an org operation.
 
 Root `AGENTS.md`, this guide, `docs/PURPOSE.md`, `docs/episodes/contract.md`,
-`docs/qualification/design.md`, `claude-tests/**`, and everything under
+`docs/qualification/design.md`, `tests/**`, and everything under
 `archive-do-not-read/**` are developer-only package surfaces and are excluded
 from the npm package. They may still govern source-app work from the repository
 checkout; exclusion from the package is not exclusion from app-scoped

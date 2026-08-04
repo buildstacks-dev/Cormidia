@@ -2,7 +2,7 @@
   {
     "schema_version": 1,
     "id": "GS-TRAJ-BUDGET-001",
-    "scripted_scenario_ref": "claude-tests/hermetic/cf-s2-traj/cf-s2-trajectory.test.ts#route budget",
+    "scripted_scenario_ref": "tests/hermetic/cf-s2-traj/cf-s2-trajectory.test.ts#route budget",
     "telemetry_expectations": ["route budget detector fires", "terminal outcome is typed", "settled usage is retained"],
     "decision_status": "ratified",
     "provenance": { "source_refs": ["docs/episodes/contract.md", "CORMIDIA-INV-006"] }
@@ -10,7 +10,7 @@
   {
     "schema_version": 1,
     "id": "GS-TRAJ-ANOMALY-001",
-    "scripted_scenario_ref": "claude-tests/hermetic/cf-s2-traj/cf-s2-trajectory.test.ts#runlog anomaly families",
+    "scripted_scenario_ref": "tests/hermetic/cf-s2-traj/cf-s2-trajectory.test.ts#runlog anomaly families",
     "telemetry_expectations": ["each documented anomaly detector fires on its seed", "clean control remains clean"],
     "decision_status": "ratified",
     "provenance": { "source_refs": ["llm-eval-plan.md §2 S-2"] }
@@ -18,7 +18,7 @@
   {
     "schema_version": 1,
     "id": "GS-TRAJ-RESUME-001",
-    "scripted_scenario_ref": "claude-tests/fixtures/adapters/codex-double.test.ts#resume",
+    "scripted_scenario_ref": "tests/fixtures/adapters/codex-double.test.ts#resume",
     "telemetry_expectations": ["exact session identity restored", "paid checkpoint retained", "fresh-session fallback refused"],
     "decision_status": "ratified",
     "provenance": { "source_refs": ["contracts/provider-adapter-core.md §4", "contracts/B-03-codex.md"] }
@@ -26,7 +26,7 @@
   {
     "schema_version": 1,
     "id": "GS-TRAJ-REPEAT-OBS-001",
-    "scripted_scenario_ref": "claude-tests/hermetic/cf-s2-traj/cf-s2-trajectory.test.ts#repeat signature",
+    "scripted_scenario_ref": "tests/hermetic/cf-s2-traj/cf-s2-trajectory.test.ts#repeat signature",
     "telemetry_expectations": ["repeat count is reported", "no threshold-dependent pass/fail is emitted"],
     "decision_status": "proposed:F-PT-011",
     "provenance": { "source_refs": ["validation-policy.yaml proposed_register item 11"] }

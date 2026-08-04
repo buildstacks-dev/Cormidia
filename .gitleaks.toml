@@ -3,8 +3,8 @@
 # .github/workflows/core-checks.yml, version + checksum pinned there).
 #
 # Default rules, NO fixture allowlists: synthetic test secrets in the ACTIVE
-# harness are generated at runtime by claude-tests/fixtures/synthetic-secret.ts
-# and never committed (claude-tests/README.md convention 5). Tighten-only —
+# harness are generated at runtime by tests/fixtures/synthetic-secret.ts
+# and never committed (tests/README.md convention 5). Tighten-only —
 # adding an allowlist here to make a commit pass is a policy violation.
 #
 # The single path exclusion below is NOT a fixture allowlist: it is the frozen

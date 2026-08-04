@@ -1,6 +1,6 @@
 # Harness backlog — Cormidia replacement harness (ticket-shaped)
 
-Status: Phase 8 deliverable. Implementation root: `claude-tests/` (docs v2.9). Every
+Status: Phase 8 deliverable. Implementation root: `tests/` (docs v2.9). Every
 ticket carries acceptance criteria, the invariant/contract it defends, its layer, and a
 named executor. Per skill rule: **expansion gates are scoped per layer** — a missing
 live target, an unpassed eval threshold, or unauthorized CI parks only its own layer's
@@ -31,17 +31,17 @@ inline because their tickets cross layers.
 
 ## Wave 0 — Walking skeleton (before mass case implementation)
 
-<!-- implementation status 2026-07-31: HB-001..HB-006 LANDED (claude-tests/
+<!-- implementation status 2026-07-31: HB-001..HB-006 LANDED (tests/
 walking skeleton; 134 specs green; CI lane wired with pinned fail-closed
 gitleaks + canary). HB-007 **COMPLETE 2026-07-31**: owner said "ratify
 recommendations"; items 1–8 and 13 are recorded ratified/adjusted-ratified in
 validation-policy.yaml. Items 9–12 remain PROPOSED and inconclusive-only.
 Defect fixed with deposited detector this wave: S-3 conflicting verdict
 markers (src/loop/verdicts.ts extractKeywordValueStrict;
-claude-tests/unit/s3-verdict-marker.test.ts). -->
+tests/unit/s3-verdict-marker.test.ts). -->
 
 
-- **HB-001 — Harness root + CI lane.** Create `claude-tests/` structure (unit/,
+- **HB-001 — Harness root + CI lane.** Create `tests/` structure (unit/,
   hermetic/, live/ opt-in config, eval-runner/, fixtures/), wire `pnpm test`
   (vitest) to it, add the GitHub Actions lane running L1+L2+gitleaks per commit.
   *Acceptance:* CI runs the lane on a PR; an intentionally failing spec turns it red
@@ -378,7 +378,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   joins. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* accepted Phase 8 package
   and #239.
   *Implementation:* `src/org/roadmap-delivery.ts` plus
-  `claude-tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts`. The three
+  `tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts`. The three
   executable cases prove the two-ticket provider-free join, one durable all-member
   claim under a race, persistence-before-projection, label-without-artifact refusal,
   whole-unit human-only exclusion, exact contract/HEAD negative controls, and verdict-
@@ -399,7 +399,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   completeness/pagination, exact issue accounting, dependency/WIP/priority/frontier,
   current-plan CAS, stable membership IDs, append-only issue moves, bounded-delta and
   deterministic projection reconciliation. Five executable cases at
-  `claude-tests/hermetic/cf-hb101/roadmap-authority.test.ts` include 125-issue and
+  `tests/hermetic/cf-hb101/roadmap-authority.test.ts` include 125-issue and
   120-plus-two-delta fixtures. They prove incomplete snapshots, unaccounted/duplicate
   issues, stale frontiers and unexplained ID/membership moves turn red; untouched and
   non-admitted work creates no EpisodePlan. Provider-authored roadmap planning and the

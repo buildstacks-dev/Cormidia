@@ -7,6 +7,6 @@
   "include": [
     "src/**/*.ts",
     "scripts/**/*.ts",
-    "claude-tests/**/*.ts"
+    "tests/**/*.ts"
   ]
 }

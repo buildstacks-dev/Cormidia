@@ -3,7 +3,7 @@ name: Core checks
 # Per-commit CI lane for the replacement validation harness
 # (validation-design/validation-policy.yaml → ci: per_commit [L1, L2, gitleaks];
 # blocking, fail-closed). The lane's shape is pinned by
-# claude-tests/policy/ — removing a gate here without a policy change is a
+# tests/policy/ — removing a gate here without a policy change is a
 # policy violation (policy `ci.rule`).
 #
 # Release gating remains SUSPENDED (docs/PURPOSE.md v2.9) — do not add a
@@ -56,7 +56,7 @@ jobs:
     # config, fail-closed invocation, and a generated temporary canary proving
     # the scanner can fire (skill rule 16 — a detector that has never fired is
     # an assumption). No fixture allowlists: synthetic test secrets are
-    # runtime-generated, never committed (claude-tests/README.md convention 5).
+    # runtime-generated, never committed (tests/README.md convention 5).
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

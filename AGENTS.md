@@ -38,7 +38,7 @@ tracker (`gh issue list`).
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table — new subcommand = new file + one registry line |
 | `agent-skills/cormidia/` | Packaged `$cormidia` Agent Skill (org operation, not development) |
 | `validation-design/` | Ratified harness design (2026-07-31): `validation-policy.yaml` is the contract, `harness-backlog.md` the build plan — see "Validation harness" section below |
-| `claude-tests/` | Implemented replacement validation harness plus explicitly authorized L3/L4/L5 campaign runners (per `validation-design/`) |
+| `tests/` | Implemented replacement validation harness plus explicitly authorized L3/L4/L5 campaign runners (per `validation-design/`) |
 | `archive-do-not-read/` | Frozen pre-rebuild validation corpus (old `test/`, `eval/`, `docs/testing/`, eval/CI scripts) — **never read, cite, run, or take design cues from it** |
 | `research/` | Dated decision records (adapter facts, caching economics, live evidence) |
 | `scripts/` | Link/smoke/packaging scripts |
@@ -50,7 +50,7 @@ rewrite; legacy test/eval scripts removed with the archive move).
   `npm install -g corepack && corepack enable` once per Node install.
 - Install: `pnpm install` — pnpm pinned via `packageManager`. Deliberately NOT
   a workspace; `pnpm-workspace.yaml` is per-repo pnpm config only.
-- Test: `pnpm test` (offline L1/L2 vitest over `claude-tests/`; passWithNoTests
+- Test: `pnpm test` (offline L1/L2 vitest over `tests/`; passWithNoTests
   disabled) · typecheck: `pnpm typecheck` · build: `pnpm build`
 - Triggered validation (human authorization + reviewed absolute config required):
   `pnpm test:live` · `pnpm test:eval` · `pnpm test:soak -- <start|checkpoint|finish>`;
@@ -76,9 +76,9 @@ rewrite; legacy test/eval scripts removed with the archive move).
   resolved base be *cached* across claims: `runLoopOnce` re-resolves per
   ticket, because a `--follow` run merges into the default branch while it
   runs and a stale base has exactly the same effect as a guessed one (#203).
-  Re-guarded by `claude-tests/unit/cf-inv-009/` (source literals — all of
+  Re-guarded by `tests/unit/cf-inv-009/` (source literals — all of
   `src/`, every reserved branch name, git-argument positions) and
-  `claude-tests/hermetic/cf-reg-203/` (per-claim freshness).
+  `tests/hermetic/cf-reg-203/` (per-claim freshness).
 - **Human-ratified surfaces:** `TASTE.md`, `roles.yaml`, `docs/PURPOSE.md`,
   `pipelines.yaml`, `prompts/**`. Propose changes with rationale; never
   silently rewrite.
@@ -86,7 +86,7 @@ rewrite; legacy test/eval scripts removed with the archive move).
   soften one. The builder ≠ reviewer cross-provider pairing in roles.yaml
   encodes uncorrelated review blind spots — do not collapse it to one provider.
 - **Every defect fix deposits its detector.** Fix and offline test that
-  reproduces the defect land in the same change (in `claude-tests/` once the
+  reproduces the defect land in the same change (in `tests/` once the
   harness exists); if the failure is not offline-reproducible, guard the
   nearest deterministic seam (provision/preflight) and say so in the PR. A fix
   without a guard is incomplete — a live run is not a regression test.
@@ -106,7 +106,7 @@ unanchored from the incumbent suite. The replacement design was **ratified
 2026-07-31**: `validation-design/validation-policy.yaml` is the contract
 (tighten-only), `validation-design/harness-backlog.md` the build plan, and the
 "Validation harness" section at the end of this file the standing rules; the
-implementation lands under `claude-tests/` by backlog wave.
+implementation lands under `tests/` by backlog wave.
 
 The minimum for any change is `pnpm test && pnpm typecheck`; this is a populated
 offline gate, not green-by-absence. Release gating is **suspended**: the
@@ -144,7 +144,7 @@ represent their gates as already existing in CI.
 
 **Where truth lives.** The design artifacts are at the paths in
 `validation-policy.yaml` → `artifacts:` (start at `validation-design/README.md`; the
-set moves with the harness into `claude-tests/`). The policy file is the contract:
+set moves with the harness into `tests/`). The policy file is the contract:
 layer lanes, gates, spend bounds, verdict semantics, and open findings. **The policy
 is tighten-only** — narrow a requirement if you must, never loosen one; gates and
 golden sets are never weakened to make a change pass.

@@ -48,7 +48,7 @@ now **M14**. The stakeholder quotes below used the rev-1 numbers.)
   I know the product; I am not going to pretend I already know your validation framework."
 
 Confirmed unchallenged: `product` mode, clean-slate greenfield,
-`archive-do-not-read/**` protected no-read path, `claude-tests/` implementation root,
+`archive-do-not-read/**` protected no-read path, `tests/` implementation root,
 `CORMIDIA-` namespace.
 
 Dropped: nothing dropped; all rev-1 content either survived or was corrected as above.

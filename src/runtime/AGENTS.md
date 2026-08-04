@@ -40,7 +40,7 @@ Interim during the validation rebuild (root AGENTS.md → Testing expectations):
   until the replacement harness restores live conformance, obtain that proof
   through deliberate sandbox-app runs and say so in the record.
 - `gate.ts` changes: deposit critical-side and routine-near-miss cases in the
-  replacement harness (`claude-tests/`) once it exists.
+  replacement harness (`tests/`) once it exists.
 
 ## References
 `docs/harness/capability-matrix.md` · `docs/harness/adding-updating.md` ·

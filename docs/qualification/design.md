@@ -1,7 +1,7 @@
 # Qualification and release gating
 
 > **Status 2026-07-31:** the replacement per-commit harness and the bounded
-> L3/L4/L5 runners are implemented under `claude-tests/`, with the current
+> L3/L4/L5 runners are implemented under `tests/`, with the current
 > contract in `validation-design/validation-policy.yaml`. Release gating remains
 > **SUSPENDED**: no authorized external campaign or seven-day soak was run in the
 > implementation change, reviewer/planner human references and thresholds remain
@@ -32,7 +32,7 @@ CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- check
 CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finish
 ```
 
-The L3 config schema is `claude-tests/live/config.ts` and admits only four exact
+The L3 config schema is `tests/live/config.ts` and admits only four exact
 campaign shapes: one changed adapter; one sandbox-GitHub smoke; one launchd proof; or
 a release campaign containing all three adapters, sandbox GitHub, and the unattended
 profile (launchd is additionally selected when its release trigger applies). A partial
@@ -46,7 +46,7 @@ runner conservatively debits the entire reservation; unknown partial spend can r
 remaining campaign capacity, but can never disappear and make the hard ceiling
 exceedable.
 
-The L4 config schema is `claude-tests/eval-runner/cli.ts`: exact tuples, absolute
+The L4 config schema is `tests/eval-runner/cli.ts`: exact tuples, absolute
 committed golden-set files, a token ceiling, provider-turn/equivalent-cost ceilings,
 and an optional dated rotating shard. Results never pool tuples. The reviewer and
 planner sets are build-agent authored but still carry `human_validation=pending`.
@@ -54,7 +54,7 @@ F-PT-009/010/011 and decision-register items 9–12 remain proposed, so
 threshold-dependent results are always `inconclusive`; the command exits 2 rather than
 misrepresenting data collection as a pass.
 
-The L5 soak config schema is `claude-tests/ops/soak-protocol.ts`: exact sandbox
+The L5 soak config schema is `tests/ops/soak-protocol.ts`: exact sandbox
 org/apps/repos, commit, local time zone, and the same human authorization envelope.
 The start command binds canonical config and policy digests into durable state; every
 checkpoint and finalization refuses drift, and the CLI refuses a checked-out commit

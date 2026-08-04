@@ -4,7 +4,7 @@
 > (offline conformance, budget units, `pnpm test:live`) is frozen under
 > `archive-do-not-read/` during the validation rebuild (docs/PURPOSE.md →
 > Decided, v2.9). The contract and obligations below remain canonical; the
-> replacement harness (`claude-tests/`) must restore equivalent proof before
+> replacement harness (`tests/`) must restore equivalent proof before
 > a new or updated adapter ships.
 
 *For agents and humans working on this repo. A **harness** (interchangeably:

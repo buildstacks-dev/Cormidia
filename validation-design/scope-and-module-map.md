@@ -19,7 +19,7 @@ used only on the owner-confirmed 2026-08-01 comparative-execution direction.
   design cue. There is no coexistence posture; instead `archive-do-not-read/**` is a
   **protected no-read path**, ratified in `validation-policy.yaml`. `[doc]`
 - **Artifact roots:** design artifacts in `./validation-design/` (this campaign);
-  eventual implementation root `claude-tests/` (PURPOSE v2.9) — specified in
+  eventual implementation root `tests/` (PURPOSE v2.9) — specified in
   `harness-backlog.md`, not built here. `[doc]`
 - **ID namespace:** `CORMIDIA-` (`CORMIDIA-INV-NNN`, `CORMIDIA-B-NNN`, `CORMIDIA-C-<boundary>-NNN`).
   A later module-scope deep pass mints its own prefix and inherits by reference. `[PROPOSED, accepted by stakeholder]`

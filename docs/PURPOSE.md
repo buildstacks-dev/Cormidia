@@ -944,7 +944,7 @@ will resolve them.
   take design cues from that tree, so the replacement is unanchored from the
   incumbent suite's structure. The Validation-Design-Agent
   (validation-harness-design skill, five-layer allocation) designs the
-  replacement harness, which lands under `claude-tests/` with its own
+  replacement harness, which lands under `tests/` with its own
   validation-policy.yaml as the ratifiable contract. Consequences accepted
   explicitly: release gating (release-currency lane, attestation, Phase 6
   campaigns) is SUSPENDED until the replacement rebuilds an equivalent — do
@@ -958,7 +958,7 @@ will resolve them.
 - 2026-07-31 — v2.10: the owner ratified the harness recommendations and approved
   their complete implementation in an isolated worktree/PR workflow. The replacement
   L1/L2 suite, bounded L3 live runner, L4 data-collection runner, L5 contention/soak
-  collectors, and operator triage surfaces now live under `claude-tests/` and
+  collectors, and operator triage surfaces now live under `tests/` and
   `validation-design/`. Two product surfaces are permanent: versioned validation
   campaign reports under `<stateHome>/validation/campaigns/<campaign-id>/report.json`,
   projected read-only through status/Report/Observe; and the sandbox-only unattended

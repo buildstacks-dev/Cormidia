@@ -50,6 +50,12 @@ import type { LoopItem, ReleaseConfig, SuppressedOperation } from "../loop/types
 import { resolveReleaseCommand } from "../loop/plan-tickets.js";
 import { createRoadmapLoopRuntime } from "./roadmap-loop-runtime.js";
 import {
+  createExecutionContextAffinityManifest,
+  prepareExecutionAffinityTurn,
+  readExecutionAffinityRecord,
+  settleExecutionAffinityTurn,
+} from "./execution-affinity.js";
+import {
   EPISODE_PLAN_EXECUTION_PIPELINE,
   planRouteLabel,
 } from "../loop/episode-route.js";
@@ -66,9 +72,6 @@ import {
   type TicketMechanicalGateKind,
   type TicketProviderOperationDefinition,
 } from "../loop/ticket-episode-plan.js";
-import {
-  executeAcceptedEpisodePlan,
-} from "./episode-planner/execution.js";
 import {
   createProviderEpisodePlanRevisionProposer,
 } from "./episode-planner/runtime.js";
@@ -534,32 +537,32 @@ async function executeTicketEpisode(
     plannerRole,
     options.remainingBudgetUsd,
   );
+  const inspected = await inspectTicketEpisodeInvocation(options, input.request);
+  const workflowTemplates = ticketWorkflowTemplates(options);
   let item = structuredClone(input.item);
-  const execution = await executeAcceptedEpisodePlan({
+  const orchestrated = await orchestrateEpisode({
+    mode: "execute",
     root: options.root,
-    intent: input.accepted.intent,
-    plan: input.accepted.plan,
+    app: options.app,
     roles: options.roles,
-    workdir,
-    hooks: options.hooks,
-    runtimeForAssignment: options.runtimeForAssignment,
+    facts: inspected.facts,
     assignmentReadinessProbe: options.assignmentReadinessProbe ?? probeRuntimeReadiness,
     ...(options.assignmentReadinessTimeoutMs === undefined
       ? {}
       : { assignmentReadinessTimeoutMs: options.assignmentReadinessTimeoutMs }),
-    proposeRevision: async (request) => createProviderEpisodePlanRevisionProposer({
-      root: options.root,
-      app: options.app,
-      roles: options.roles,
-      promptText: await resolvePlannerPrompt(options),
+    planner: {
+      // Delivery already has an accepted durable plan. Keep planner prompt I/O
+      // lazy: only a real revision request resolves the protected template.
+      promptText: "",
       context: options.plannerContext,
-      workdir,
+      workdir: input.request.localRepo,
       hooks: plannerHooks(options, plannerRole),
       runtimeForAssignment: options.runtimeForAssignment,
       policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
       providerOperations: TICKET_PROVIDER_OPERATIONS,
       mechanicalGates: TICKET_MECHANICAL_GATE_KINDS,
       topologyContract: TICKET_EPISODE_TOPOLOGY_CONTRACT,
+      workflowTemplates,
       limits: plannerLimits,
       independentReview: {
         subjectRoles: ["builder"],
@@ -567,13 +570,43 @@ async function executeTicketEpisode(
       },
       safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
       validateAcceptedPlan: assertTicketEpisodePlanValid,
-      traceId: `${input.request.ticket.ticketRef}:episode-planner-revision`,
+      traceId: `${input.request.ticket.ticketRef}:episode-planner`,
       ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
       ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       now: clock,
-    })(request),
-    contextForProviderStep: async ({ step }) => {
+    },
+    execution: {
+      workdir,
+      hooks: options.hooks,
+      runtimeForAssignment: options.runtimeForAssignment,
+      proposeRevision: async (request) => createProviderEpisodePlanRevisionProposer({
+        root: options.root,
+        app: options.app,
+        roles: options.roles,
+        promptText: await resolvePlannerPrompt(options),
+        context: options.plannerContext,
+        workdir,
+        hooks: plannerHooks(options, plannerRole),
+        runtimeForAssignment: options.runtimeForAssignment,
+        policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
+        providerOperations: TICKET_PROVIDER_OPERATIONS,
+        mechanicalGates: TICKET_MECHANICAL_GATE_KINDS,
+        topologyContract: TICKET_EPISODE_TOPOLOGY_CONTRACT,
+        limits: plannerLimits,
+        independentReview: {
+          subjectRoles: ["builder"],
+          reviewerRoles: ["reviewer"],
+        },
+        safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
+        validateAcceptedPlan: assertTicketEpisodePlanValid,
+        traceId: `${input.request.ticket.ticketRef}:episode-planner-revision`,
+        ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
+        ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+        now: clock,
+      })(request),
+      contextForProviderStep: async ({ step }) => {
       const role = requireRole(options.roles, step.role);
       return options.contextForProviderStep?.({
         request: input.request,
@@ -581,7 +614,7 @@ async function executeTicketEpisode(
         step: structuredClone(step),
         role,
       }) ?? options.plannerContext;
-    },
+      },
     // Asked before an adopted revision would re-enter the exact step it was
     // authored to repair. The ticket domain can settle such a step from a
     // preserved prior material event, so it answers from the same evidence
@@ -589,7 +622,7 @@ async function executeTicketEpisode(
     // Evidence that fails its own integrity checks is not "completable": the
     // step is withheld here and enters normally on the next tick, where the
     // executor turns the same error into that step's typed failure.
-    providerStepCompletableWithoutNewTurn: async (step, plan) => {
+      providerStepCompletableWithoutNewTurn: async (step, plan) => {
       const definition = ticketProviderOperation(step.operation);
       if (definition === undefined || definition.role !== step.role) return false;
       try {
@@ -597,8 +630,8 @@ async function executeTicketEpisode(
       } catch {
         return false;
       }
-    },
-    provider: async (step, context) => {
+      },
+      provider: async (step, context) => {
       const plan = await ticketExecutionPlan(
         options.root,
         input.accepted.plan.episodeId,
@@ -614,8 +647,8 @@ async function executeTicketEpisode(
       });
       item = outcome.item;
       return outcome.outcome;
-    },
-    mechanical: async (step, context) => {
+      },
+      mechanical: async (step, context) => {
       const plan = await ticketExecutionPlan(
         options.root,
         input.accepted.plan.episodeId,
@@ -631,8 +664,8 @@ async function executeTicketEpisode(
       });
       item = outcome.item;
       return outcome.outcome;
-    },
-    approval: async (step, context) => {
+      },
+      approval: async (step, context) => {
       if (options.approval === undefined) {
         return {
           status: "failed",
@@ -646,14 +679,19 @@ async function executeTicketEpisode(
         structuredClone(item),
         structuredClone(input.accepted),
       );
+      },
+      ...(options.gateForRole === undefined ? {} : { gateForRole: options.gateForRole }),
+      ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
+      ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.networkAccess === true ? { networkAccess: true } : {}),
+      now: clock,
     },
-    ...(options.gateForRole === undefined ? {} : { gateForRole: options.gateForRole }),
-    ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
-    ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
-    ...(options.signal === undefined ? {} : { signal: options.signal }),
-    ...(options.networkAccess === true ? { networkAccess: true } : {}),
-    now: clock,
   });
+  if (orchestrated.execution === null) {
+    throw new Error("shared episode orchestrator returned no ticket delivery result in execute mode");
+  }
+  const execution = orchestrated.execution;
   if (execution.replan !== undefined) {
     item = {
       ...item,
@@ -707,6 +745,85 @@ export interface TicketProviderExecutionInput extends Omit<TicketProviderEvidenc
   context: EpisodeStepExecutionContext;
 }
 
+/** Build the batch-affinity manifest from exact accepted authority and the
+ * context bytes this provider turn will actually receive. Shared role/app
+ * material stays ordered in the immutable prefix; ticket/plan/dependency
+ * material is an appended unit delta. */
+function ticketExecutionAffinityManifest(
+  input: TicketProviderExecutionInput,
+  context: ContextBundle,
+  dependencyOutputs: readonly unknown[],
+) {
+  const shared = (context.components ?? []).filter((component) => component.category !== "memory");
+  const memory = (context.components ?? []).filter((component) => component.category === "memory");
+  const unitId = input.input.request.deliveryUnit?.unitId ?? input.input.request.ticket.ticketRef;
+  const planRef = `episode-plan:${input.plan.episodeId}:v${input.plan.version}`;
+  const unitRef = input.input.request.deliveryUnit === undefined
+    ? `ticket:${input.input.request.ticket.ticketRef}`
+    : `delivery-unit:${input.input.request.deliveryUnit.unitId}:` +
+      input.input.request.deliveryUnit.membershipHash;
+  return createExecutionContextAffinityManifest({
+    unitId,
+    compatibility: {
+      app: input.options.app.name,
+      role: input.step.role,
+      assignment: input.step.assignment,
+      operation: input.step.operation,
+    },
+    immutablePrefix: [
+      {
+        id: "app-role-assignment",
+        kind: "shared_context",
+        sourceRef: `execution:${input.options.app.name}:${input.step.role}`,
+        sha256: stableHash({
+          app: input.options.app.name,
+          role: input.step.role,
+          assignment: input.step.assignment,
+        }),
+      },
+      ...shared.map((component, index) => ({
+        id: `shared-${index}`,
+        kind: component.category === "authority" ? "authority" as const : "shared_context" as const,
+        sourceRef: component.source,
+        sha256: stableHash(component.rendered),
+      })),
+    ],
+    unitDelta: [
+      {
+        id: "episode-plan",
+        kind: "authority",
+        sourceRef: planRef,
+        sha256: episodePlanHash(input.plan),
+      },
+      {
+        id: "delivery-unit",
+        kind: "validation",
+        sourceRef: unitRef,
+        sha256: stableHash(input.input.request.deliveryUnit ?? input.input.request.ticket),
+      },
+      ...memory.map((component, index) => ({
+        id: `memory-${index}`,
+        kind: "unit_delta" as const,
+        sourceRef: component.source,
+        sha256: stableHash(component.rendered),
+      })),
+      {
+        id: "dependency-outputs",
+        kind: "unit_delta",
+        sourceRef: `plan-dependencies:${input.context.executionId}`,
+        sha256: stableHash(dependencyOutputs),
+      },
+    ],
+    requiredAuthorityRefs: [...new Set([
+      ...shared
+        .filter((component) => component.category === "authority")
+        .map((component) => component.source),
+      planRef,
+      unitRef,
+    ])],
+  });
+}
+
 interface TicketStepResult {
   item: LoopItem;
   outcome: EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome;
@@ -731,6 +848,9 @@ async function executeTicketProviderStep(
   }
   const role = requireRole(input.options.roles, input.step.role);
   let evidence = await completableProviderEvidence(input, definition);
+  if (evidence !== undefined) {
+    await reconcileTicketExecutionAffinity(input, evidence);
+  }
   if (evidence === undefined) {
     const routeAuthority = await exactProviderAuthorization(input, role);
     const context = await providerContext(input, role);
@@ -746,6 +866,18 @@ async function executeTicketProviderStep(
     const dependencyOutputs = await requiredPlanOutputs(input);
     let pipelineError: unknown;
     let run: PipelineRunResult | undefined;
+    const affinityRecordId = `${input.context.executionId}:provider-affinity`;
+    const affinityManifest = ticketExecutionAffinityManifest(input, context, dependencyOutputs);
+    await prepareExecutionAffinityTurn({
+      root: input.options.root,
+      recordId: affinityRecordId,
+      batchId: input.input.request.deliveryUnit?.unitId ?? input.input.request.ticket.ticketRef,
+      episodeId: input.plan.episodeId,
+      planVersion: input.plan.version,
+      stepId: input.step.id,
+      manifest: affinityManifest,
+      preparedAt: (input.options.now?.() ?? new Date()).toISOString(),
+    });
     // A continuation is consumed only by the exact step that parked. The
     // driver hands the ticket its durable continuation; if it targets a
     // different pass, this step starts a fresh session as usual.
@@ -847,12 +979,35 @@ async function executeTicketProviderStep(
     // `requireTicketProviderEvidence` would raise a misleading hard failure.
     const parked = suspendedPass(run);
     if (parked !== undefined) {
+      await settleExecutionAffinityTurn({
+        root: input.options.root,
+        recordId: affinityRecordId,
+        providerTurnId: parked.runId,
+        settlementId: `${input.context.executionId}:suspended`,
+        providerOutcome: "suspended",
+        session: parked.result.session,
+        usage: parked.result.usage,
+        settledAt: (input.options.now?.() ?? new Date()).toISOString(),
+      });
       return suspendTicketProvider(input, parked);
     }
     evidence = await ticketProviderEvidence(input, definition);
     if (evidence === undefined) {
       if (pipelineError !== undefined) throw pipelineError;
       evidence = await requireTicketProviderEvidence(input, definition);
+    }
+    const pass = run?.passes.find((candidate) => candidate.pass.id === input.step.id);
+    if (pass !== undefined && evidence.reconciledFromPlanVersion === undefined) {
+      await settleExecutionAffinityTurn({
+        root: input.options.root,
+        recordId: affinityRecordId,
+        providerTurnId: evidence.record.provider_turn_id ?? pass.runId,
+        settlementId: evidence.record.execution_step_id,
+        providerOutcome: evidence.record.status === "completed" ? "completed" : "failed",
+        session: pass.result.session,
+        usage: pass.result.usage,
+        settledAt: evidence.record.finished_at,
+      });
     }
   }
 
@@ -930,6 +1085,43 @@ async function executeTicketProviderStep(
     };
   }
   return { item: applied.item, outcome: { status: "completed", artifact: output } };
+}
+
+/** A crash can land the provider execution record and run envelope before the
+ * affinity settlement. Recovery joins those durable facts; it never repeats a
+ * completed provider turn merely to rediscover cache state. */
+async function reconcileTicketExecutionAffinity(
+  input: TicketProviderExecutionInput,
+  evidence: ProviderEvidence,
+): Promise<void> {
+  if (evidence.reconciledFromPlanVersion !== undefined) return;
+  const recordId = `${input.context.executionId}:provider-affinity`;
+  const affinity = await readExecutionAffinityRecord(input.options.root, recordId);
+  if (affinity === undefined || affinity.state === "settled") return;
+  let envelope;
+  try {
+    envelope = await readEnvelope(
+      input.options.root,
+      input.options.app.name,
+      evidence.record.run_id,
+    );
+  } catch {
+    // Retained provider evidence without its expired run envelope cannot prove
+    // a session. Leave the prepared record explicitly non-reusable; missing
+    // cache/session evidence is never converted to a hit or a safe resume.
+    return;
+  }
+  if (envelope.session === undefined) return;
+  await settleExecutionAffinityTurn({
+    root: input.options.root,
+    recordId,
+    providerTurnId: evidence.record.provider_turn_id ?? evidence.record.run_id,
+    settlementId: evidence.record.execution_step_id,
+    providerOutcome: evidence.record.status === "completed" ? "completed" : "failed",
+    session: { runtime: envelope.session.runtime, id: envelope.session.id },
+    ...(evidence.record.usage === null ? {} : { usage: evidence.record.usage }),
+    settledAt: evidence.record.finished_at,
+  });
 }
 
 export interface ProviderEvidence {

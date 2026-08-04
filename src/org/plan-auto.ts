@@ -30,6 +30,7 @@ import type {
 import {
   assessCreatorScope,
   episodePlanHash,
+  readCurrentEpisodePlan,
   readEpisodePlanVersion,
   stableHash,
 } from "../loop/episode-plan.js";
@@ -111,18 +112,15 @@ import {
   readPersistedEpisodeIntent,
 } from "./episode-planner/coordinator.js";
 import {
-  executeAcceptedEpisodePlan,
-} from "./episode-planner/execution.js";
-import {
   buildEpisodeIntent,
   createEpisodePlanningPolicy,
   type EpisodeSafetyFloorMapping,
 } from "./episode-planner/policy.js";
 import {
   createProviderEpisodePlanRevisionProposer,
-  prepareEpisodePlanWithRuntime,
 } from "./episode-planner/runtime.js";
 import { probeApprovedAssignmentReadiness } from "./episode-planner/assignment-readiness.js";
+import { orchestrateEpisode } from "./episode-planner/orchestrator.js";
 import { safetyFactsFromPlanningRequest } from "./episode-safety-facts.js";
 import { composeGate } from "./gate-compose.js";
 import {
@@ -419,10 +417,8 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       };
     }
   }
-  const intent = existingIntent ?? buildEpisodeIntent({
+  const episodeFacts = {
     episodeId,
-    app: options.app,
-    roles: rolesFile.roles,
     trigger: {
       kind: "manual_product_planning",
       sourceRef: options.parentTaskId ?? `cli:plan:${options.app.name}`,
@@ -460,7 +456,6 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       maxHumanDecisions: 0,
     },
     requiredSafetyFacts: safetyFactsFromPlanningRequest(options.planning),
-    ...(readiness === undefined ? {} : { assignmentAvailable: readiness.available }),
     responsibilityByRole: Object.fromEntries(rolesFile.roles.map((role) => [
       role.name,
       role.name === "planner"
@@ -468,6 +463,12 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         : `Configured ${role.name} responsibility; unavailable to product-planning operations`,
     ])),
     ...(options.creatorScope === undefined ? {} : { creatorScope: options.creatorScope }),
+  };
+  const intent = existingIntent ?? buildEpisodeIntent({
+    ...episodeFacts,
+    app: options.app,
+    roles: rolesFile.roles,
+    ...(readiness === undefined ? {} : { assignmentAvailable: readiness.available }),
   });
 
   if (options.requireExecutionReadyCreatorScope) {
@@ -541,55 +542,20 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     ? ""
     : renderPlanningSourceBrief(resolvedSources.manifest, resolvedSources.documents);
 
-  let prepared;
+  let prepared: Awaited<ReturnType<typeof orchestrateEpisode>>["prepared"];
+  let execution: EpisodePlanExecutionResult;
   try {
-    prepared = await prepareEpisodePlanWithRuntime({
+    const orchestrated = await orchestrateEpisode({
+      mode: "execute",
       root: options.stateHome,
       app: options.app,
       roles: rolesFile.roles,
-      intent,
-      promptText,
-      context,
-      workdir: localRepo,
-      hooks,
-      runtimeForAssignment,
-      policyVersion: PRODUCT_PLANNING_EPISODE_POLICY_VERSION,
-      providerOperations: PLANNING_PROVIDER_OPERATIONS,
-      limits,
-      safetyFloorMapping: PRODUCT_PLANNING_SUBJECT_SAFETY_MAPPING,
-      validateAcceptedPlan: (plan) => assertPlanningEpisodePlanValid(plan, stage),
-      traceId,
-      ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-      telemetry: { orgDir: options.stateHome, trigger: "manual" },
-      now: clock,
-    });
-  } catch (error) {
-    return failedResult(error, {
-      episodeId,
-      stageResolution,
-      ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
-    });
-  }
-
-  let execution: EpisodePlanExecutionResult;
-  try {
-    execution = await executeAcceptedEpisodePlan({
-      root: options.stateHome,
-      intent,
-      plan: prepared.plan,
-      roles: rolesFile.roles,
-      workdir: localRepo,
-      hooks,
-      runtimeForAssignment,
+      facts: episodeFacts,
       assignmentReadinessProbe,
       ...(options.assignmentReadinessTimeoutMs === undefined
         ? {}
         : { assignmentReadinessTimeoutMs: options.assignmentReadinessTimeoutMs }),
-      proposeRevision: createProviderEpisodePlanRevisionProposer({
-        root: options.stateHome,
-        app: options.app,
-        roles: rolesFile.roles,
+      planner: {
         promptText,
         context,
         workdir: localRepo,
@@ -600,66 +566,101 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         limits,
         safetyFloorMapping: PRODUCT_PLANNING_SUBJECT_SAFETY_MAPPING,
         validateAcceptedPlan: (plan) => assertPlanningEpisodePlanValid(plan, stage),
-        traceId: `${traceId}:revision`,
+        traceId,
         ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
         ...(options.signal === undefined ? {} : { signal: options.signal }),
         telemetry: { orgDir: options.stateHome, trigger: "manual" },
         now: clock,
-      }),
-      contextForProviderStep: () => context,
-      provider: async (step, stepExecution) => {
-        const executionPlan = await resolvePlanningExecutionPlan(
-          options.stateHome,
-          prepared.plan,
-          stepExecution,
-        );
-        return executePlanningProviderStep({
-          options,
-          plan: executionPlan,
-          step,
-          execution: stepExecution,
-          planner,
-          pipelines,
-          workdir: localRepo,
+      },
+      execution: {
+        workdir: localRepo,
+        hooks,
+        runtimeForAssignment,
+        proposeRevision: createProviderEpisodePlanRevisionProposer({
+          root: options.stateHome,
+          app: options.app,
+          roles: rolesFile.roles,
+          promptText,
           context,
+          workdir: localRepo,
           hooks,
           runtimeForAssignment,
-          baseBrief,
-          sourceBrief,
-          ...(resolvedSources === undefined ? {} : { resolvedSources }),
-          ...(consumedSources === undefined ? {} : { consumedSources }),
-          stage,
-          clock,
-        });
+          policyVersion: PRODUCT_PLANNING_EPISODE_POLICY_VERSION,
+          providerOperations: PLANNING_PROVIDER_OPERATIONS,
+          limits,
+          safetyFloorMapping: PRODUCT_PLANNING_SUBJECT_SAFETY_MAPPING,
+          validateAcceptedPlan: (plan) => assertPlanningEpisodePlanValid(plan, stage),
+          traceId: `${traceId}:revision`,
+          ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+          telemetry: { orgDir: options.stateHome, trigger: "manual" },
+          now: clock,
+        }),
+        contextForProviderStep: () => context,
+        provider: async (step, stepExecution) => {
+          const executionPlan = await resolvePlanningExecutionPlan(
+            options.stateHome,
+            episodeId,
+            stepExecution,
+          );
+          return executePlanningProviderStep({
+            options,
+            plan: executionPlan,
+            step,
+            execution: stepExecution,
+            planner,
+            pipelines,
+            workdir: localRepo,
+            context,
+            hooks,
+            runtimeForAssignment,
+            baseBrief,
+            sourceBrief,
+            ...(resolvedSources === undefined ? {} : { resolvedSources }),
+            ...(consumedSources === undefined ? {} : { consumedSources }),
+            stage,
+            clock,
+          });
+        },
+        mechanical: async (step) => ({
+          status: "failed",
+          reasonCode: "error_product_planning_mechanical_step_unsupported",
+          summary: `planning EpisodePlan unexpectedly contained mechanical step ${step.id}`,
+        }),
+        approval: async (step) => ({
+          status: "failed",
+          reasonCode: "error_product_planning_approval_step_unsupported",
+          summary: `planning EpisodePlan unexpectedly contained approval step ${step.id}`,
+        }),
+        telemetry: { orgDir: options.stateHome, trigger: "manual" },
+        ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+        now: clock,
       },
-      mechanical: async (step) => ({
-        status: "failed",
-        reasonCode: "error_product_planning_mechanical_step_unsupported",
-        summary: `planning EpisodePlan unexpectedly contained mechanical step ${step.id}`,
-      }),
-      approval: async (step) => ({
-        status: "failed",
-        reasonCode: "error_product_planning_approval_step_unsupported",
-        summary: `planning EpisodePlan unexpectedly contained approval step ${step.id}`,
-      }),
-      telemetry: { orgDir: options.stateHome, trigger: "manual" },
-      ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-      now: clock,
     });
+    prepared = orchestrated.prepared;
+    if (orchestrated.execution === null) {
+      throw new Error("shared episode orchestrator returned no delivery result in execute mode");
+    }
+    execution = orchestrated.execution;
   } catch (error) {
+    const persistedPlan = await readCurrentEpisodePlan(options.stateHome, episodeId);
     return failedResult(error, {
       episodeId,
       stageResolution,
-      episodePlan: prepared.plan,
-      planningTurnSkipped: prepared.planningTurnSkipped,
+      ...(persistedPlan === undefined
+        ? {}
+        : {
+            episodePlan: persistedPlan,
+            planningTurnSkipped: persistedPlan.planningSource === "creator_scope",
+          }),
       ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
     });
   }
 
   const executedPlan = await resolvePlanningExecutionPlan(
     options.stateHome,
-    prepared.plan,
+    episodeId,
     execution,
   );
   let planningExecution: AutoPlanningExecutionResult = execution;
@@ -1245,18 +1246,12 @@ async function executePlanningProviderStep(
 
 async function resolvePlanningExecutionPlan(
   root: string,
-  initialPlan: EpisodePlan,
+  episodeId: string,
   execution: Pick<EpisodeStepExecutionContext, "planVersion" | "planHash">,
 ): Promise<EpisodePlan> {
-  if (
-    initialPlan.version === execution.planVersion &&
-    episodePlanHash(initialPlan) === execution.planHash
-  ) {
-    return initialPlan;
-  }
   const persisted = await readEpisodePlanVersion(
     root,
-    initialPlan.episodeId,
+    episodeId,
     execution.planVersion,
   );
   if (persisted === undefined || episodePlanHash(persisted) !== execution.planHash) {

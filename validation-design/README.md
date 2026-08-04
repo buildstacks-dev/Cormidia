@@ -61,8 +61,9 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 - **Roadmap/validation/delivery-unit/batching is an accepted 2026-08-03 implementation
   contract, not included in prior green evidence.** Phase 8 is closed; HB-100's local
   provider-free walking skeleton, HB-101's whole-backlog authority, HB-102's
-  validation-contract/readiness guard, and HB-103…105's production delivery-unit,
-  execution-batch, and strict zero-turn slices are executable. HB-106…111 remain.
+  validation-contract/readiness guard, and HB-103…107's production delivery-unit,
+  execution-batch, strict zero-turn, direct-campaign, shared-façade and role-safe
+  session/cache slices are executable. HB-108…111 remain.
   M17/J-20/INV-016/B-20…22/S-10 and the two new operation contracts are only as
   evidenced as their named landed cases; no live evidence is implied.
 - **Release gating is SUSPENDED** (product decision, PURPOSE v2.9) and **B-17's live

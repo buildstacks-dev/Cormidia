@@ -33,8 +33,14 @@
 # now consumes current RoadmapPlan/readiness/validation authority; delivery-unit claim,
 # PR/HEAD/evidence/review/merge projections are whole-unit; bounded token-free batches
 # own lazy plans, budgets, journals and outcomes; structured creator/direct authorities
-# alone qualify for zero-turn normalization. HB-106..111, protocol ratification and all
-# external campaigns remain pending.
+# alone qualify for zero-turn normalization.
+# changelog 2026-08-03 (HB-106/HB-107 implementation): complete direct campaign
+# authorities bind five Reddit, one LinkedIn and one Twitter destination to one content
+# turn but seven approval/acknowledgement/evidence/follow-up identities; planning and
+# delivery share orchestrateEpisode; ordered immutable-prefix/unit-delta manifests,
+# exact session compatibility and cache hit/miss/unknown telemetry are executable at
+# L1/L2. No connector, external effect or live/eval/soak campaign ran. HB-108..111 and
+# protocol ratification remain pending.
 # changelog 2026-08-03 (owner decision): exact manual-review independently excludes
 # autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
 # No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
@@ -56,12 +62,13 @@ active_revision:
   accepted_by: "product owner (human), in session; exact selected statement recorded in ratification-package.md section 10.7"
   scope: "combined #184/#233/#234/#240 Planner -> Validation Designer -> EpisodePlanner -> Builder -> Reviewer lifecycle"
   design_only: false
-  implementation_status: hb_100_hb_101_hb_102_complete_hb_103_pending
+  implementation_status: hb_100_through_hb_107_complete_hb_108_pending
   implementation_or_evidence_claim: >
-    HB-100 provider-free join, HB-101 whole-backlog roadmap authority and HB-102
-    validation-contract/readiness authority are executable at tests/hermetic/cf-hb100/,
-    cf-hb101/ and cf-hb102/; this is partial L1/L2 coverage, not full revision-family,
-    external-campaign or autonomous-loop readiness.
+    HB-100 through HB-107 have named local L1/L2 slices: provider-free authority joins,
+    whole-backlog roadmap and validation readiness, atomic delivery units, bounded lazy
+    batches, structured fast paths, complete direct campaign authority, the shared
+    orchestration facade, and exact role/session/cache evidence. This remains partial
+    revision-family coverage, not external-campaign or autonomous-loop readiness.
   unchanged_baseline: "2026-07-31 ratified policy, gates, spend bounds, findings and evidence ledger"
   registry:
     modules: [M17]
@@ -368,7 +375,7 @@ harness_self_tests:                          # skill rules 16-17
 
 modules:
   - id: M17
-    status: "accepted implementation contract; HB-100..HB-105 complete, HB-106..111 pending"
+    status: "accepted implementation contract; HB-100..HB-107 complete, HB-108..111 pending"
     subject: "roadmap and validation planning"
     contracts: [CORMIDIA-C-B20-001, CORMIDIA-C-B21-001,
       CORMIDIA-C-B22-001, CORMIDIA-C-OPBATCH-001,

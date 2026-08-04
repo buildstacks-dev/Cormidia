@@ -3,8 +3,9 @@ Canonical ID: **CORMIDIA-C-OPBATCH-001 (alias: C-OP-BATCH)**
 
 Status: ACCEPTED implementation contract (2026-08-03); HB-104's execution-unit
 authority, deterministic bounded admission, lazy plans, and isolated journals/budgets/
-outcomes are implemented. Direct-effect continuation and shared session/cache behavior
-remain pending under HB-106/HB-107.
+outcomes are implemented. HB-106/HB-107 add the local direct-effect continuation and
+shared context/session/cache slices; the full failure matrix, operator surfaces and live
+B-17 round trip remain pending under HB-108…111 and BLOCKED:B-17-L3.
 Defends INV-001/004/005/006/008/014/015/016, M5/M6/M17. Journeys J-20/J-04/J-18.
 Interfaces with B-20/B-21/B-22.
 
@@ -71,7 +72,7 @@ Interfaces with B-20/B-21/B-22.
 - Shared immutable inputs use stable ordered prefixes/references and content hashes;
   unit-specific context is appended as a delta. Required authority, validation and
   unresolved findings are never evicted merely to improve cache shape.
-- Session reuse is exact-role, exact-assignment, exact-app and compatible-operation only.
+- Session reuse is exact-role, exact-assignment, exact-app and exact-operation only.
   Builder and Reviewer never share or resume each other's private session. Reviewer may
   reuse its own immutable context across units while producing independent per-unit
   verdicts.
@@ -92,3 +93,18 @@ Interfaces with B-20/B-21/B-22.
 - Batch completion means every admitted unit has a terminal batch disposition—not that
   every unit merged. Reports expose per-unit outcomes, provider usage quality and actual
   cache evidence; missing measurements are unknown, never zero savings.
+
+## Implementation evidence (HB-106/HB-107, 2026-08-03)
+
+- `src/org/direct-operational-campaign.ts` implements the complete local direct-campaign
+  authority, seven content-bound approval joins, acknowledgement/evidence projection,
+  deterministic follow-up intent and new-unit continuation for unknown interactions.
+- `src/org/execution-affinity.ts` implements ordered immutable-prefix/unit-delta
+  manifests, crash-safe per-turn settlement, exact session compatibility and
+  hit/miss/unknown cache telemetry. Ticket provider turns persist that evidence through
+  `src/org/ticket-episode-runtime.ts`.
+- `tests/hermetic/cf-hb106/`, `tests/hermetic/cf-hb107/`, and
+  `tests/unit/cf-hb107/` contain the seeded broadened-grant, crash, incompatible-session,
+  Builder→Reviewer, cache-lure and façade-bypass negative controls. No external effect,
+  connector mutation, L3 adapter proof, live/eval/soak campaign or scheduler install is
+  claimed by this evidence.

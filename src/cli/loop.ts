@@ -30,6 +30,7 @@ import {
   inspectTicketEpisodeInvocation,
 } from "../org/ticket-episode-runtime.js";
 import { createExistingTicketApprovalHandler } from "../org/ticket-episode-approval.js";
+import { createRoadmapLoopRuntime } from "../org/roadmap-loop-runtime.js";
 import { queueReleaseApprovals } from "../org/release.js";
 import { composeGate } from "../org/gate-compose.js";
 import { resolveCormidiaHomes } from "../org/home.js";
@@ -306,6 +307,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
     const turnId = `loop-${selectedApp.name}-${Date.now()}`;
     let liveEngine: NonNullable<Parameters<typeof runLoopOnce>[0]["engine"]> | undefined;
     let ticketInspection: NonNullable<Parameters<typeof runLoopOnce>[0]["ticketInspection"]> | undefined;
+    let deliveryUnits: NonNullable<Parameters<typeof runLoopOnce>[0]["deliveryUnits"]> | undefined;
     if (dryRun) {
       // Preview must not call the mutating budget overlay. The read-only
       // rollup yields the same current remainder used to build live ticket
@@ -327,6 +329,11 @@ export async function cmdLoop(args: string[]): Promise<number> {
           }, request);
         },
       };
+      deliveryUnits = createRoadmapLoopRuntime({
+        root: homes.stateHome,
+        app: selectedApp,
+        gh: inputs.gh,
+      });
     }
     if (!dryRun) {
       const plannerRole = roles["planner"];
@@ -411,6 +418,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         ...(allowNetwork ? { networkAccess: true } : {}),
         ...(cancellation === undefined ? {} : { signal: cancellation.signal }),
       });
+      deliveryUnits = ticketEpisode.deliveryUnits;
       liveEngine = {
         pipelines,
         roles,
@@ -486,6 +494,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         ? { authorization: { selfApprovalSecret } }
         : {}),
       ...(liveEngine === undefined ? {} : { engine: liveEngine }),
+      ...(deliveryUnits === undefined ? {} : { deliveryUnits }),
     });
     await persistLoopScorecards(homes.stateHome, selectedApp.name, result.scorecardEvents);
     // A4: a merged deploy/package milestone queues its release as a critical

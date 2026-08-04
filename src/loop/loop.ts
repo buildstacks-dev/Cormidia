@@ -18,8 +18,10 @@ import {
   type GitIndexPreflightResult,
 } from "../runtime/git-worktree-sandbox.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
+import { stableHash } from "./episode-plan.js";
 import type { BaseRevision } from "./default-branch.js";
 import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
+import { issueContentHash } from "./issue-snapshot.js";
 import { contractMarker, hashTicketBody, renderFixResolutionsComment } from "./rehydrate.js";
 import { isMergeConflict } from "./github.js";
 import { verifiedSelfApprovalMarker } from "./github.js";
@@ -61,6 +63,7 @@ import {
   type VerdictTypes,
 } from "./verdicts.js";
 import type {
+  LoopDeliveryUnit,
   LoopItem,
   LoopPhase,
   ReleaseConfig,
@@ -347,7 +350,7 @@ async function blockedOnApproval(
       "the approval decision resumes this pass without repeating completed passes.",
   );
   const from = stateLabelForPhase(item.phase);
-  await options.gh.swapLabel(item.issueNumber, from, "op:blocked");
+  await swapDeliveryUnitLabel(item, options.gh, from, "op:blocked");
   return {
     ...item,
     continuation,
@@ -382,48 +385,109 @@ export function branchNameForIssue(issue: Pick<GhIssue, "number" | "title">): st
   return `op/${issue.number}-${slugify(issue.title)}`;
 }
 
+export function branchNameForDeliveryUnit(
+  unit: Pick<LoopDeliveryUnit, "unitId" | "membershipHash" | "members">,
+): string {
+  const first = unit.members[0];
+  if (first === undefined) throw new Error(`delivery unit ${unit.unitId} has no members`);
+  if (unit.members.length === 1 && unit.unitId === `ticket-${first.issueNumber}`) {
+    return branchNameForIssue({ number: first.issueNumber, title: first.title });
+  }
+  return `op/unit-${slugify(unit.unitId)}-${unit.membershipHash.slice(0, 12)}`;
+}
+
 export async function claimTicket(
   issue: GhIssue,
   options: ClaimTicketOptions,
 ): Promise<LoopItem> {
-  const observedIssue = await readAutonomousClaimIssue(issue, options.gh);
-  const stateLabels = observedIssue.labels.filter((label) =>
-    (STATE_LABELS as readonly string[]).includes(label),
-  );
-  if (stateLabels.length !== 1 || stateLabels[0] !== "op:ready") {
-    throw new LoopPhaseTransitionError("claimTicket", phaseFromLabels(observedIssue.labels), ["ready"]);
+  return claimDeliveryUnitIssues([issue], {
+    ...options,
+    unit: {
+      unitId: `ticket-${issue.number}`,
+      membershipHash: stableHash([issue.number]),
+      members: [issueMember(issue)],
+    },
+  });
+}
+
+/** All-member external projection with compensating rollback. */
+export async function claimDeliveryUnitIssues(
+  issues: readonly GhIssue[],
+  options: ClaimTicketOptions & { unit: LoopDeliveryUnit },
+): Promise<LoopItem> {
+  if (issues.length === 0) throw new Error(`delivery unit ${options.unit.unitId} has no issues`);
+  const expected = options.unit.members.map((member) => member.issueNumber);
+  if (stableHash(expected) !== options.unit.membershipHash) {
+    throw new Error(`delivery unit ${options.unit.unitId} membership hash is invalid`);
   }
-  const item = itemFromIssue(observedIssue, options.targetRepo);
-  const branch = branchNameForIssue(observedIssue);
-
-  await options.gh.swapLabel(observedIssue.number, "op:ready", "op:building");
-  await options.afterLabelTransition?.();
-
-  // Close the remaining human-routing race after the phase transition. The
-  // fault hook intentionally stays before this read: a simulated/process
-  // crash still exercises the existing claim-recovery saga exactly where the
-  // real crash boundary lives.
+  if (new Set(expected).size !== expected.length) {
+    throw new Error(`delivery unit ${options.unit.unitId} contains duplicate members`);
+  }
+  const supplied = new Map(issues.map((candidate) => [candidate.number, candidate]));
+  if (expected.some((number) => !supplied.has(number)) || supplied.size !== expected.length) {
+    throw new Error(`delivery unit ${options.unit.unitId} issue set differs from its authority`);
+  }
+  const observed: GhIssue[] = [];
+  for (const number of expected) {
+    const current = await readAutonomousClaimIssue(supplied.get(number)!, options.gh);
+    const authority = options.unit.members.find((member) => member.issueNumber === number)!;
+    if (issueContentHash(current) !== authority.contentHash) {
+      throw new Error(
+        `delivery unit ${options.unit.unitId} member #${number} changed after admission`,
+      );
+    }
+    const states = current.labels.filter((label) => (STATE_LABELS as readonly string[]).includes(label));
+    if (states.length !== 1 || states[0] !== "op:ready") {
+      throw new LoopPhaseTransitionError(
+        `claimDeliveryUnit(${options.unit.unitId})`,
+        phaseFromLabels(current.labels),
+        ["ready"],
+      );
+    }
+    observed.push(current);
+  }
+  const primary = observed[0]!;
+  const item: LoopItem = {
+    ...itemFromIssue(primary, options.targetRepo),
+    deliveryUnit: structuredClone(options.unit),
+  };
+  const branch = branchNameForDeliveryUnit(options.unit);
+  const transitioned: number[] = [];
   try {
-    await readAutonomousClaimIssue(observedIssue, options.gh);
+    for (const member of observed) {
+      await options.gh.swapLabel(member.number, "op:ready", "op:building");
+      transitioned.push(member.number);
+    }
+    await options.afterLabelTransition?.();
+    for (const member of observed) {
+      const current = await readAutonomousClaimIssue(member, options.gh);
+      if (!current.labels.includes("op:building")) {
+        throw new Error(`delivery unit member #${member.number} lost op:building during claim`);
+      }
+    }
   } catch (error) {
-    if (!(error instanceof AutonomousRoutingExclusionError)) throw error;
-    try {
-      await options.gh.swapLabel(observedIssue.number, "op:building", "op:ready");
-    } catch (rollbackError) {
-      throw new AutonomousRoutingExclusionError(
-        error.code,
-        observedIssue.number,
-        `${error.message}; claim rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+    const rollback = await rollbackLabels(options.gh, transitioned, "op:building", "op:ready");
+    if (rollback.length > 0) {
+      throw new Error(
+        `delivery unit ${options.unit.unitId} claim failed and rollback was incomplete: ${rollback.join("; ")}`,
+        { cause: error },
       );
     }
     throw error;
   }
-  const worktree = createWorktree(
-    options.localRepo,
-    options.worktreeRoot,
-    branch,
-    options.base.ref,
-  );
+  let worktree: string;
+  try {
+    worktree = createWorktree(options.localRepo, options.worktreeRoot, branch, options.base.ref);
+  } catch (error) {
+    const rollback = await rollbackLabels(options.gh, transitioned, "op:building", "op:ready");
+    if (rollback.length > 0) {
+      throw new Error(
+        `delivery unit ${options.unit.unitId} worktree creation failed and rollback was incomplete: ${rollback.join("; ")}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 
   return {
     ...item,
@@ -432,6 +496,67 @@ export async function claimTicket(
     branch,
     worktree,
   };
+}
+
+function issueMember(issue: GhIssue): LoopDeliveryUnit["members"][number] {
+  return {
+    issueNumber: issue.number,
+    ticketRef: `#${issue.number}`,
+    contentHash: issueContentHash(issue),
+    title: issue.title,
+    body: issue.body,
+    labels: [...issue.labels],
+  };
+}
+
+export async function swapDeliveryUnitLabel(
+  item: LoopItem,
+  gh: GhOps,
+  from: string,
+  to: string,
+): Promise<void> {
+  const transitioned: number[] = [];
+  try {
+    for (const issueNumber of deliveryUnitIssueNumbers(item)) {
+      await gh.swapLabel(issueNumber, from, to);
+      transitioned.push(issueNumber);
+    }
+    if (item.deliveryUnit !== undefined) {
+      for (const member of item.deliveryUnit.members) {
+        member.labels = replaceLabel(member.labels, from, to);
+      }
+    }
+  } catch (error) {
+    const rollback = await rollbackLabels(gh, transitioned, to, from);
+    if (rollback.length > 0) {
+      throw new Error(
+        `delivery-unit label transaction ${from}->${to} failed and rollback was incomplete: ${rollback.join("; ")}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+}
+
+async function rollbackLabels(
+  gh: GhOps,
+  issueNumbers: readonly number[],
+  from: string,
+  to: string,
+): Promise<string[]> {
+  const failures: string[] = [];
+  for (const issueNumber of [...issueNumbers].reverse()) {
+    try {
+      await gh.swapLabel(issueNumber, from, to);
+    } catch (error) {
+      failures.push(`#${issueNumber}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return failures;
+}
+
+export function deliveryUnitIssueNumbers(item: LoopItem): number[] {
+  return item.deliveryUnit?.members.map((member) => member.issueNumber) ?? [item.issueNumber];
 }
 
 export async function advanceGates(
@@ -472,7 +597,7 @@ export async function advanceGates(
         number: pr.number,
         head: headSha(worktree),
       });
-      await options.gh.swapLabel(current.issueNumber, "op:building", "op:in-review");
+      await swapDeliveryUnitLabel(current, options.gh, "op:building", "op:in-review");
       await rec?.transition("op:building", "op:in-review");
       await rec?.finalize("completed");
       return {
@@ -515,7 +640,7 @@ export async function advanceGates(
     const comment = blockedWithEvidenceComment(reason, result);
     await options.gh.commentIssue(current.issueNumber, comment);
     const fromLabel = stateLabelForPhase(current.phase);
-    await options.gh.swapLabel(current.issueNumber, fromLabel, "op:returned");
+    await swapDeliveryUnitLabel(current, options.gh, fromLabel, "op:returned");
     await rec?.transition(fromLabel, "op:returned");
     await rec?.finalize("blocked");
     await journalStop(
@@ -593,7 +718,7 @@ export async function advanceProvisionSetup(
       item.issueNumber,
       provisionGitIndexFailedComment(worktree, indexPreflight),
     );
-    await options.gh.swapLabel(item.issueNumber, fromLabel, "op:returned");
+    await swapDeliveryUnitLabel(item, options.gh, fromLabel, "op:returned");
     await rec?.transition(fromLabel, "op:returned");
     await rec?.finalize("blocked");
     return {
@@ -636,7 +761,7 @@ export async function advanceProvisionSetup(
 
   const fromLabel = stateLabelForPhase(item.phase);
   await options.gh.commentIssue(item.issueNumber, provisionSetupFailedComment(setupResult));
-  await options.gh.swapLabel(item.issueNumber, fromLabel, "op:returned");
+  await swapDeliveryUnitLabel(item, options.gh, fromLabel, "op:returned");
   await rec?.transition(fromLabel, "op:returned");
   await rec?.finalize("blocked");
   return {
@@ -788,7 +913,7 @@ export async function advanceReviewing(
         item.issueNumber,
         returnedFindingsComment(cycles, findings),
       );
-      await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+      await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:returned");
       return {
         ...item,
         cycles,
@@ -797,7 +922,7 @@ export async function advanceReviewing(
         phase: "returned",
       };
     }
-    await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:building");
+    await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:building");
     return {
       ...item,
       cycles,
@@ -853,7 +978,7 @@ async function stalledReviewing(
   const cycles = item.cycles + 1;
   if (cycles > (options.maxCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
     await options.gh.commentIssue(item.issueNumber, reviewStalledComment(cycles, reason));
-    await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+    await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:returned");
     return {
       ...item,
       cycles,
@@ -984,7 +1109,7 @@ export async function runBuilderPipeline(
         `${stopped}Re-armed \`op:ready\`: the next claim continues from these artifacts ` +
           `(contract reused while the ticket body is unchanged; open PR consulted before pipeline selection).`,
       );
-      await options.gh.swapLabel(item.issueNumber, stateLabelForPhase(item.phase), "op:ready");
+      await swapDeliveryUnitLabel(item, options.gh, stateLabelForPhase(item.phase), "op:ready");
       return {
         ...item,
         ...(contract !== undefined ? { contract } : {}),
@@ -1014,7 +1139,7 @@ export async function runBuilderPipeline(
   if (buildVerdict?.status === "blocked") {
     const comment = renderBuildBlockedComment(buildVerdict);
     await options.gh.commentIssue(item.issueNumber, comment);
-    await options.gh.swapLabel(item.issueNumber, stateLabelForPhase(item.phase), "op:returned");
+    await swapDeliveryUnitLabel(item, options.gh, stateLabelForPhase(item.phase), "op:returned");
     return {
       ...item,
       ...(contract !== undefined ? { contract } : {}),
@@ -1124,7 +1249,7 @@ export async function runReviewPipeline(
     const cycles = item.cycles + 1;
     if (cycles > (options.maxReviewCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
       await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
-      await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+      await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:returned");
       return {
         ...item,
         cycles,
@@ -1133,7 +1258,7 @@ export async function runReviewPipeline(
         phase: "returned",
       };
     }
-    await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:building");
+    await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:building");
     return {
       ...item,
       cycles,
@@ -1239,7 +1364,7 @@ export async function runShipCheckPipeline(
   const cycles = item.cycles + 1;
   if (cycles > (options.maxReviewCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
     await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
-    await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+    await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:returned");
     return {
       ...item,
       cycles,
@@ -1248,7 +1373,7 @@ export async function runShipCheckPipeline(
       phase: "returned",
     };
   }
-  await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:building");
+  await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:building");
   return {
     ...item,
     cycles,
@@ -1302,7 +1427,7 @@ export async function advanceShipping(
           "or re-plan the milestone as merge-only. The PR is left open; no merge was attempted.",
         ].join("\n"),
       );
-      await options.gh.swapLabel(item.issueNumber, "op:in-review", "op:returned");
+      await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:returned");
       return {
         ...item,
         labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
@@ -1333,7 +1458,7 @@ export async function advanceShipping(
   try {
     await options.gh.squashMerge(prNumber, {
       subject: squashSubject(item),
-      body: `Closes ${item.ticketRef}`,
+      body: deliveryUnitIssueNumbers(item).map((number) => `Closes #${number}`).join("\n"),
       ...(item.approvedCommitId !== undefined ? { matchHeadCommit: item.approvedCommitId } : {}),
     });
     await journalBoundary(options.journal, "merge", {
@@ -1354,13 +1479,20 @@ export async function advanceShipping(
   }
 
   await options.gh.deleteBranch(branch);
-  await options.gh.removeLabel(item.issueNumber, "op:in-review");
+  for (const issueNumber of deliveryUnitIssueNumbers(item)) {
+    await options.gh.removeLabel(issueNumber, "op:in-review");
+  }
   // Render done-ness: the merged ticket's acceptance boxes end checked, and
   // the orchestrator is the only party the design allows to write them
   // (criteria are never Builder-edited; publication renders them unchecked).
-  const checkedBody = checkAcceptanceBoxes(item.body);
-  if (checkedBody !== item.body) {
-    await options.gh.updateIssueBody(item.issueNumber, checkedBody);
+  for (const member of item.deliveryUnit?.members ?? [{
+    issueNumber: item.issueNumber,
+    body: item.body,
+  }]) {
+    const checkedBody = checkAcceptanceBoxes(member.body);
+    if (checkedBody !== member.body) {
+      await options.gh.updateIssueBody(member.issueNumber, checkedBody);
+    }
   }
   removeWorktree(options.localRepo, worktree);
 
@@ -1420,12 +1552,14 @@ export async function recoverAlreadyMergedTicket(
       error instanceof Error ? error.message : String(error),
     )) throw error;
   }
-  const issue = await options.gh.readIssue(item.issueNumber);
-  if (issue.labels.includes("op:in-review")) {
-    await options.gh.removeLabel(item.issueNumber, "op:in-review");
+  for (const issueNumber of deliveryUnitIssueNumbers(item)) {
+    const issue = await options.gh.readIssue(issueNumber);
+    if (issue.labels.includes("op:in-review")) {
+      await options.gh.removeLabel(issueNumber, "op:in-review");
+    }
+    const checkedBody = checkAcceptanceBoxes(issue.body);
+    if (checkedBody !== issue.body) await options.gh.updateIssueBody(issueNumber, checkedBody);
   }
-  const checkedBody = checkAcceptanceBoxes(issue.body);
-  if (checkedBody !== issue.body) await options.gh.updateIssueBody(item.issueNumber, checkedBody);
   if (item.worktree !== undefined && existsSync(item.worktree)) {
     removeWorktree(options.localRepo, item.worktree);
   }
@@ -1446,7 +1580,7 @@ export async function recoverAlreadyMergedTicket(
       : undefined;
   return {
     ...item,
-    labels: issue.labels.filter((label) => label !== "op:in-review"),
+    labels: item.labels.filter((label) => label !== "op:in-review"),
     phase: "merged",
     ...(releaseTrigger === undefined ? {} : { releaseTrigger }),
   };
@@ -2015,14 +2149,27 @@ async function ensurePr(
 }
 
 function prTitle(item: LoopItem): string {
+  if (item.deliveryUnit !== undefined && item.deliveryUnit.members.length > 1) {
+    return `build: ${item.deliveryUnit.unitId} (${item.deliveryUnit.members.length} tickets)`;
+  }
   return `build: ${item.title} (${item.ticketRef})`;
 }
 
 function prBody(item: LoopItem): string {
   const evidence = renderPrGateEvidence(item);
+  const members = item.deliveryUnit?.members ?? [{
+    issueNumber: item.issueNumber,
+    ticketRef: item.ticketRef,
+    title: item.title,
+    body: item.body,
+    labels: item.labels,
+  }];
+  const implementationLines = members.length === 1
+    ? [`Implements ${members[0]!.ticketRef}: ${members[0]!.title}`]
+    : members.map((member) => `- Implements ${member.ticketRef}: ${member.title}`);
   return [
     "## What",
-    `Implements ${item.ticketRef}: ${item.title}`,
+    ...implementationLines,
     "",
     "## Why",
     firstParagraph(headingSection(item.body, "Goal") ?? item.body),
@@ -2030,9 +2177,14 @@ function prBody(item: LoopItem): string {
     "## Evidence",
     evidence?.body ?? "- Quality gates passed before review.",
     "",
-    `Closes ${item.ticketRef}`,
+    ...deliveryUnitClosingReferences(item),
     "",
   ].join("\n");
+}
+
+export function deliveryUnitClosingReferences(item: LoopItem): string[] {
+  return (item.deliveryUnit?.members ?? [{ ticketRef: item.ticketRef }])
+    .map((member) => `Closes ${member.ticketRef}`);
 }
 
 const PR_GATE_EVIDENCE_START = "<!-- cormidia:gate-evidence:start -->";
@@ -2648,7 +2800,7 @@ async function returnedOnCapStop(
 ): Promise<LoopItem> {
   await options.gh.commentIssue(item.issueNumber, capExhaustionComment(pipelineName, last, item.prNumber));
   const fromLabel = stateLabelForPhase(item.phase);
-  await options.gh.swapLabel(item.issueNumber, fromLabel, "op:returned");
+  await swapDeliveryUnitLabel(item, options.gh, fromLabel, "op:returned");
   return {
     ...item,
     labels: replaceLabel(item.labels, fromLabel, "op:returned"),

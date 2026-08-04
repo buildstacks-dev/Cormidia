@@ -8,7 +8,18 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import { stableHash, type CreatorEpisodeScope } from "../../../src/loop/episode-plan.js";
+import {
+  readCurrentEpisodePlan,
+  stableHash,
+  type CreatorEpisodeScope,
+} from "../../../src/loop/episode-plan.js";
+import {
+  assertTicketEpisodePlanValid,
+  ticketGovernedWorkflowTemplates,
+  TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE,
+} from "../../../src/loop/ticket-episode-plan.js";
+import type { GhIssue, GhOps, GhPullRequest } from "../../../src/loop/github.js";
+import { issueContentHash } from "../../../src/loop/issue-snapshot.js";
 import type { RoleConfig, TurnAssignment } from "../../../src/runtime/types.js";
 import type { AppEntry } from "../../../src/org/apps.js";
 import {
@@ -22,15 +33,19 @@ import {
   admitExecutionBatch,
   assertReviewerVerdictAdmissible,
   batchAuthorityPath,
+  bindDeliveryUnitEpisodePlan,
   claimDeliveryUnit,
   commitDeliveryUnitClaim,
   deliveryClaimIdentity,
   deliveryClaimRecordPath,
   normalizeDeliveryUnitEpisode,
+  readDeliveryUnitClaim,
+  readExecutionUnitJournal,
   recordBuilderEvidence,
   recordReviewerVerdict,
   roadmapAuthorityPath,
   settleDeliveryUnitClaim,
+  transitionExecutionUnitJournal,
   unitMembershipHash,
   validationAuthorityPath,
   type AcceptedAuthority,
@@ -48,6 +63,10 @@ import {
   type RoutingSnapshotEntry,
   type ValidationContract,
 } from "../../../src/org/roadmap-delivery.js";
+import { createRoadmapLoopRuntime } from "../../../src/org/roadmap-loop-runtime.js";
+import { previewEpisode } from "../../../src/org/episode-planner/orchestrator.js";
+import { prepareEpisodePlan } from "../../../src/org/episode-planner/coordinator.js";
+import { buildEpisodeIntent } from "../../../src/org/episode-planner/policy.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import {
   VALIDATION_BASE_AFFECTED,
@@ -122,7 +141,12 @@ function backlogSnapshot(): BacklogSnapshot {
     pagination: { pagesObserved: 1, hasNextPage: false, unavailablePages: [] },
     issues: ISSUE_NUMBERS.map((issueNumber) => ({
       issueNumber,
-      contentHash: stableHash({ issueNumber, title: `HB-100 issue ${issueNumber}` }),
+      contentHash: issueContentHash({
+        title: `Recovery issue ${issueNumber}`,
+        body: "## Goal\nRecover atomically.",
+        labels: ["op:ready", "planning:preplanned"],
+        state: "OPEN",
+      }),
       lifecycle: "open",
       routing: "automated",
       observedLabels: ["planning:preplanned"],
@@ -160,7 +184,11 @@ function roadmapPlan(snapshotRef: AuthorityRef): RoadmapPlan {
   };
 }
 
-function validationContract(roadmap: AcceptedRoadmapPlan, catalogRef: AuthorityRef): ValidationContract {
+function validationContract(
+  roadmap: AcceptedRoadmapPlan,
+  catalogRef: AuthorityRef,
+  templateId: "routine" | "custom" = "routine",
+): ValidationContract {
   return {
     schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
     contractId: "validation-roadmap-delivery",
@@ -171,7 +199,7 @@ function validationContract(roadmap: AcceptedRoadmapPlan, catalogRef: AuthorityR
     roadmapRef: roadmap.ref,
     unitId: "unit-roadmap-validation",
     unitMembershipHash: unitMembershipHash(ISSUE_NUMBERS),
-    templateRef: { templateId: "routine", version: 1 },
+    templateRef: { templateId, version: 1 },
     affected: structuredClone(VALIDATION_BASE_AFFECTED),
     acceptanceCriteria: ["The exact two-ticket unit and candidate HEAD retain validation lineage."],
     requiresHarnessRevision: false,
@@ -265,6 +293,7 @@ function creatorScope(): CreatorEpisodeScope {
 async function acceptedPlanningAuthorities(
   home: TempStateHome,
   project?: (entry: Readonly<RoadmapDeliveryProjection>) => void | Promise<void>,
+  templateId: "routine" | "custom" = "routine",
 ): Promise<{
   roadmap: AcceptedRoadmapPlan;
   validation: AcceptedAuthority<ValidationContract>;
@@ -287,7 +316,7 @@ async function acceptedPlanningAuthorities(
   });
   const validation = await acceptValidationContract({
     root: home.stateHome,
-    contract: validationContract(roadmap, catalog.ref),
+    contract: validationContract(roadmap, catalog.ref, templateId),
     ...(project === undefined ? {} : { project }),
   });
   const readiness = await acceptDeliveryUnitReadiness({
@@ -518,6 +547,16 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
       now: new Date("2026-08-03T22:02:00.000Z"),
       project,
     });
+    await transitionExecutionUnitJournal({
+      root: home.stateHome,
+      app: APP.name,
+      batchRef: authorities.batch.ref,
+      unitId: "unit-roadmap-validation",
+      expectedStates: ["claimed"],
+      nextState: "running",
+      usageDelta: { providerTurns: 1 },
+      now: new Date("2026-08-03T22:02:01.000Z"),
+    });
 
     const manifest = evidenceManifest({ ...authorities, claim });
     // Seeded negative control: evidence for a different unit cannot cross the join.
@@ -740,3 +779,443 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     );
   });
 });
+
+describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
+  it("turns accepted routine roadmap/validation authority into the real governed zero-turn path", async () => {
+    const home = await makeTempStateHome({ name: "hb105-roadmap-fast-path" });
+    homes.push(home);
+    const authorities = await acceptedPlanningAuthorities(home);
+    const gh = new RecoveryGh(ISSUE_NUMBERS.map((number) => ({
+      ...recoveryIssue(number, "op:ready"),
+      labels: ["op:ready", "planning:preplanned"],
+    })));
+    const runtime = createRoadmapLoopRuntime({
+      root: home.stateHome,
+      app: APP,
+      gh: gh as unknown as GhOps,
+    });
+    const previewAdmission = await runtime.admit({ maxUnits: 1, planOnly: true, now: new Date(AT) });
+    expect(previewAdmission.units[0]?.creatorScope?.workflowTemplate)
+      .toEqual(TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE);
+    const admission = await runtime.admit({ maxUnits: 1, planOnly: false, now: new Date(AT) });
+
+    expect(admission.units, JSON.stringify(admission)).toHaveLength(1);
+    const scope = admission.units[0]?.creatorScope;
+    if (scope === undefined) throw new Error("accepted routine authority did not produce creator scope");
+    expect(scope).toMatchObject({
+      planningDisposition: "execution_ready",
+      workflowTemplate: TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE,
+      declaredConstraints: {
+        membershipHash: unitMembershipHash(ISSUE_NUMBERS),
+        onePullRequest: true,
+        exactHeadReview: true,
+      },
+    });
+    expect(scope.provenance.evidenceRefs).toContain(
+      `validation_contract:${authorities.validation.ref.id}@${authorities.validation.ref.version}#${authorities.validation.ref.sha256}`,
+    );
+    const workflows = ticketGovernedWorkflowTemplates({
+      contractUsd: 5,
+      implementationUsd: 5,
+      reviewUsd: 5,
+    });
+    const steps = workflows.get(
+      `${TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE.id}@${TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE.version}`,
+    )!;
+    expect(() => assertTicketEpisodePlanValid({ steps: [...steps] })).not.toThrow();
+    const facts = {
+      episodeId: admission.units[0]!.episodeId,
+      trigger: { kind: "roadmap_batch", sourceRef: authorities.roadmap.ref.sha256 },
+      goal: scope.objective,
+      lifecycle: "live",
+      appStage: "growth" as const,
+      repositoryFacts: { repo: APP.repo },
+      requestedConstraints: {},
+      hardBudget: {
+        maxProviderTurns: 3,
+        maxEquivalentCostUsd: 15,
+        maxMechanicalOverheadUsd: 0,
+      },
+      requiredSafetyFacts: [{
+        kind: "independent_review" as const,
+        evidenceRefs: ["accepted-validation-contract"],
+      }],
+    };
+    const normalized = await prepareEpisodePlan({
+      root: home.stateHome,
+      app: APP,
+      roles: ROLES,
+      intent: buildEpisodeIntent({ ...facts, app: APP, roles: ROLES, creatorScope: scope }),
+      workflowTemplates: workflows,
+      independentReview: { subjectRoles: ["builder"], reviewerRoles: ["reviewer"] },
+    });
+    expect(normalized).toMatchObject({
+      planningTurnSkipped: true,
+      plannerAttempts: 0,
+      plan: { planningSource: "creator_scope" },
+    });
+
+    // Seeded negative control: the same detailed goal/criteria without the
+    // accepted provenance-bearing scope must take the provider planning path.
+    expect(previewEpisode({
+      app: APP,
+      roles: ROLES,
+      facts,
+      planner: {
+        limits: {
+          maxAttempts: 2,
+          perAttempt: { equivalentCostUsd: 5, activeTimeMs: 120_000 },
+          aggregate: { providerTurns: 2, equivalentCostUsd: 10, activeTimeMs: 240_000 },
+        },
+        workflowTemplates: workflows,
+        independentReview: { subjectRoles: ["builder"], reviewerRoles: ["reviewer"] },
+      },
+    }).planningPath).toBe("episode_planner_provider_turn");
+
+    const customHome = await makeTempStateHome({ name: "hb105-custom-planning-path" });
+    homes.push(customHome);
+    await acceptedPlanningAuthorities(customHome, undefined, "custom");
+    const customAdmission = await createRoadmapLoopRuntime({
+      root: customHome.stateHome,
+      app: APP,
+      gh: new RecoveryGh(ISSUE_NUMBERS.map((number) => ({
+        ...recoveryIssue(number, "op:ready"),
+        labels: ["op:ready", "planning:preplanned"],
+      }))) as unknown as GhOps,
+    }).admit({ maxUnits: 1, planOnly: false, now: new Date(AT) });
+    expect(customAdmission.units).toHaveLength(1);
+    expect(customAdmission.units[0]?.creatorScope).toBeUndefined();
+
+    const changedHome = await makeTempStateHome({ name: "hb105-changed-member-refusal" });
+    homes.push(changedHome);
+    await acceptedPlanningAuthorities(changedHome);
+    const changedIssues = ISSUE_NUMBERS.map((number) => ({
+      ...recoveryIssue(number, "op:ready"),
+      labels: ["op:ready", "planning:preplanned"],
+    }));
+    changedIssues[1]!.body += "\nchanged after the accepted snapshot";
+    const changedAdmission = await createRoadmapLoopRuntime({
+      root: changedHome.stateHome,
+      app: APP,
+      gh: new RecoveryGh(changedIssues) as unknown as GhOps,
+    }).admit({ maxUnits: 1, planOnly: false, now: new Date(AT) });
+    expect(changedAdmission.units).toEqual([]);
+    expect(changedAdmission.refusals).toMatchObject([{
+      issueNumber: ISSUE_NUMBERS[1],
+      code: "roadmap_member_changed",
+    }]);
+  });
+
+  it("repairs a subset pre-provider claim projection for every member", async () => {
+    const home = await makeTempStateHome({ name: "hb103-claim-crash" });
+    homes.push(home);
+    const authorities = await acceptedEpisode({ home });
+    const claim = await claimDeliveryUnit({
+      root: home.stateHome,
+      app: APP.name,
+      episodeBindingRef: authorities.binding.ref,
+      readCurrentRouting: async () => AUTOMATED_ROUTING,
+      now: new Date(AT),
+    });
+    await commitDeliveryUnitClaim({
+      root: home.stateHome,
+      app: APP.name,
+      claim,
+      runId: "pre-provider-committed-run",
+      now: new Date(AT),
+    });
+    const plan = await readCurrentEpisodePlan(home.stateHome, authorities.binding.value.episodeId);
+    expect(plan).toBeDefined();
+    const replayedBinding = await bindDeliveryUnitEpisodePlan({
+      root: home.stateHome,
+      app: APP.name,
+      batchRef: authorities.batch.ref,
+      unitId: "unit-roadmap-validation",
+      plan: plan!,
+      now: new Date("2026-08-03T22:00:01.000Z"),
+    });
+    expect(replayedBinding.ref).toEqual(authorities.binding.ref);
+    expect(await readExecutionUnitJournal(
+      home.stateHome,
+      APP.name,
+      authorities.batch.ref.id,
+      "unit-roadmap-validation",
+    )).toMatchObject({ state: "claimed", usage: { providerTurns: 0 } });
+    const gh = new RecoveryGh([
+      recoveryIssue(ISSUE_NUMBERS[0], "op:building"),
+      recoveryIssue(ISSUE_NUMBERS[1], "op:ready"),
+    ]);
+
+    const lines = await createRoadmapLoopRuntime({
+      root: home.stateHome,
+      app: APP,
+      gh: gh as unknown as GhOps,
+    }).reconcile({ now: new Date(AT) });
+
+    expect(lines).toContain(
+      "unit-roadmap-validation: recovered pre-provider claim projection to op:ready for every member",
+    );
+    expect(gh.stateLabel(ISSUE_NUMBERS[0])).toBe("op:ready");
+    expect(gh.stateLabel(ISSUE_NUMBERS[1])).toBe("op:ready");
+  });
+
+  it("settles a consistent post-provider crash without lending a sibling outcome", async () => {
+    const home = await makeTempStateHome({ name: "hb104-running-crash" });
+    homes.push(home);
+    const authorities = await acceptedEpisode({ home });
+    const claim = await claimDeliveryUnit({
+      root: home.stateHome,
+      app: APP.name,
+      episodeBindingRef: authorities.binding.ref,
+      readCurrentRouting: async () => AUTOMATED_ROUTING,
+      now: new Date(AT),
+    });
+    await commitDeliveryUnitClaim({
+      root: home.stateHome,
+      app: APP.name,
+      claim,
+      runId: "crashed-delivery-run",
+      now: new Date(AT),
+    });
+    await transitionExecutionUnitJournal({
+      root: home.stateHome,
+      app: APP.name,
+      batchRef: authorities.batch.ref,
+      unitId: "unit-roadmap-validation",
+      expectedStates: ["claimed"],
+      nextState: "running",
+      usageDelta: { providerTurns: 1 },
+      now: new Date(AT),
+    });
+    const gh = new RecoveryGh(ISSUE_NUMBERS.map((number) => recoveryIssue(number, "op:building")));
+
+    await createRoadmapLoopRuntime({
+      root: home.stateHome,
+      app: APP,
+      gh: gh as unknown as GhOps,
+    }).reconcile({ now: new Date(AT) });
+
+    expect(gh.stateLabel(ISSUE_NUMBERS[0])).toBe("op:returned");
+    expect(gh.stateLabel(ISSUE_NUMBERS[1])).toBe("op:returned");
+    expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
+      status: "settled",
+      outcome: "returned",
+    });
+    expect(await readExecutionUnitJournal(
+      home.stateHome,
+      APP.name,
+      authorities.batch.ref.id,
+      "unit-roadmap-validation",
+    )).toMatchObject({ state: "returned", outcome: "returned" });
+  });
+
+  it("preserves one all-member approval continuation instead of terminalizing it", async () => {
+    const home = await makeTempStateHome({ name: "hb103-approval-continuation" });
+    homes.push(home);
+    const authorities = await acceptedEpisode({ home });
+    const claim = await claimDeliveryUnit({
+      root: home.stateHome,
+      app: APP.name,
+      episodeBindingRef: authorities.binding.ref,
+      readCurrentRouting: async () => AUTOMATED_ROUTING,
+      now: new Date(AT),
+    });
+    await commitDeliveryUnitClaim({
+      root: home.stateHome,
+      app: APP.name,
+      claim,
+      runId: "approval-continuation-run",
+      now: new Date(AT),
+    });
+    await transitionExecutionUnitJournal({
+      root: home.stateHome,
+      app: APP.name,
+      batchRef: authorities.batch.ref,
+      unitId: "unit-roadmap-validation",
+      expectedStates: ["claimed"],
+      nextState: "running",
+      usageDelta: { providerTurns: 1 },
+      now: new Date(AT),
+    });
+    const gh = new RecoveryGh(ISSUE_NUMBERS.map((number) => recoveryIssue(number, "op:blocked")));
+
+    const lines = await createRoadmapLoopRuntime({
+      root: home.stateHome,
+      app: APP,
+      gh: gh as unknown as GhOps,
+    }).reconcile({ now: new Date(AT) });
+
+    expect(lines).toContain("unit-roadmap-validation: preserved one all-member approval continuation");
+    expect(gh.stateLabel(ISSUE_NUMBERS[0])).toBe("op:blocked");
+    expect(gh.stateLabel(ISSUE_NUMBERS[1])).toBe("op:blocked");
+    expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
+      status: "committed",
+      outcome: null,
+    });
+  });
+
+  it("recovers an exact-HEAD merge crash to one completed member projection", async () => {
+    const home = await makeTempStateHome({ name: "hb103-merge-crash" });
+    homes.push(home);
+    const authorities = await acceptedEpisode({ home });
+    const claim = await claimDeliveryUnit({
+      root: home.stateHome,
+      app: APP.name,
+      episodeBindingRef: authorities.binding.ref,
+      readCurrentRouting: async () => AUTOMATED_ROUTING,
+      now: new Date(AT),
+    });
+    await commitDeliveryUnitClaim({
+      root: home.stateHome,
+      app: APP.name,
+      claim,
+      runId: "merged-crash-run",
+      now: new Date(AT),
+    });
+    await transitionExecutionUnitJournal({
+      root: home.stateHome,
+      app: APP.name,
+      batchRef: authorities.batch.ref,
+      unitId: "unit-roadmap-validation",
+      expectedStates: ["claimed"],
+      nextState: "running",
+      usageDelta: { providerTurns: 1 },
+      now: new Date(AT),
+    });
+    const builder = await recordBuilderEvidence({
+      root: home.stateHome,
+      manifest: evidenceManifest({ ...authorities, claim }),
+    });
+    const reviewer = await recordReviewerVerdict({
+      root: home.stateHome,
+      verdict: reviewerVerdict(builder),
+    });
+    await transitionExecutionUnitJournal({
+      root: home.stateHome,
+      app: APP.name,
+      batchRef: authorities.batch.ref,
+      unitId: "unit-roadmap-validation",
+      expectedStates: ["running"],
+      nextState: "approved",
+      evidenceRefs: [builder.ref, reviewer.ref],
+      candidateHead: builder.value.candidateHead,
+      pullRequestNumber: builder.value.pullRequestNumber,
+      now: new Date("2026-08-03T22:06:00.000Z"),
+    });
+    const gh = new RecoveryGh([
+      {
+        ...recoveryIssue(ISSUE_NUMBERS[0], "op:in-review"),
+        labels: ["op:tier-standard", "op:in-review"],
+        state: "CLOSED",
+      },
+      {
+        ...recoveryIssue(ISSUE_NUMBERS[1], "op:in-review"),
+        labels: ["op:tier-standard", "op:in-review"],
+        state: "CLOSED",
+      },
+    ], {
+      number: builder.value.pullRequestNumber,
+      title: "delivery unit",
+      body: "Closes #233\nCloses #240",
+      state: "MERGED",
+      headRefName: "op/unit-roadmap-validation",
+      baseRefName: "main",
+      headRefOid: builder.value.candidateHead,
+    }, ISSUE_NUMBERS[1]);
+
+    const runtime = createRoadmapLoopRuntime({
+      root: home.stateHome,
+      app: APP,
+      gh: gh as unknown as GhOps,
+    });
+    // Seeded crash boundary: one member projection lands, then cleanup fails.
+    // The exact merge remains approved/committed and the retry repairs the
+    // subset; it must never be rewritten as a returned unit.
+    await expect(runtime.reconcile({ now: new Date("2026-08-03T22:07:00.000Z") }))
+      .rejects.toThrow("seeded member cleanup crash");
+    expect(gh.stateLabel(ISSUE_NUMBERS[0])).toBeUndefined();
+    expect(gh.stateLabel(ISSUE_NUMBERS[1])).toBe("op:in-review");
+    expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
+      status: "committed",
+      outcome: null,
+    });
+    expect(await readExecutionUnitJournal(
+      home.stateHome,
+      APP.name,
+      authorities.batch.ref.id,
+      "unit-roadmap-validation",
+    )).toMatchObject({ state: "approved", outcome: null });
+
+    await runtime.reconcile({ now: new Date("2026-08-03T22:07:01.000Z") });
+
+    expect(gh.stateLabel(ISSUE_NUMBERS[0])).toBeUndefined();
+    expect(gh.stateLabel(ISSUE_NUMBERS[1])).toBeUndefined();
+    expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
+      status: "settled",
+      outcome: "approved",
+    });
+    expect(await readExecutionUnitJournal(
+      home.stateHome,
+      APP.name,
+      authorities.batch.ref.id,
+      "unit-roadmap-validation",
+    )).toMatchObject({ state: "completed", outcome: "completed" });
+  });
+});
+
+class RecoveryGh {
+  private readonly issues = new Map<number, GhIssue>();
+  private failRemoveOnceFor: number | undefined;
+
+  constructor(
+    issues: readonly GhIssue[],
+    private readonly pr?: GhPullRequest,
+    failRemoveOnceFor?: number,
+  ) {
+    for (const issue of issues) this.issues.set(issue.number, structuredClone(issue));
+    this.failRemoveOnceFor = failRemoveOnceFor;
+  }
+
+  async readIssue(number: number): Promise<GhIssue> {
+    const issue = this.issues.get(number);
+    if (issue === undefined) throw new Error(`missing recovery issue #${number}`);
+    return structuredClone(issue);
+  }
+
+  async swapLabel(number: number, from: string, to: string): Promise<void> {
+    const issue = this.issues.get(number)!;
+    if (!issue.labels.includes(from)) throw new Error(`#${number} lacks ${from}`);
+    issue.labels = issue.labels.map((label) => label === from ? to : label);
+  }
+
+  async removeLabel(number: number, label: string): Promise<void> {
+    if (this.failRemoveOnceFor === number) {
+      this.failRemoveOnceFor = undefined;
+      throw new Error("seeded member cleanup crash");
+    }
+    const issue = this.issues.get(number)!;
+    issue.labels = issue.labels.filter((candidate) => candidate !== label);
+  }
+
+  async readPR(number: number | string): Promise<GhPullRequest> {
+    if (this.pr === undefined || String(this.pr.number) !== String(number)) {
+      throw new Error(`missing recovery PR ${number}`);
+    }
+    return structuredClone(this.pr);
+  }
+
+  stateLabel(number: number): string | undefined {
+    return this.issues.get(number)?.labels.find((label) =>
+      ["op:ready", "op:building", "op:in-review", "op:returned", "op:blocked"].includes(label));
+  }
+}
+
+function recoveryIssue(number: number, stateLabel: string): GhIssue {
+  return {
+    number,
+    title: `Recovery issue ${number}`,
+    body: "## Goal\nRecover atomically.",
+    labels: [stateLabel, "op:tier-standard"],
+    state: "OPEN",
+  };
+}

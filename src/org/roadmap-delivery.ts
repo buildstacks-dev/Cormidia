@@ -1,4 +1,4 @@
-// Durable roadmap-to-delivery authority joins (HB-100/HB-101/HB-102).
+// Durable roadmap-to-delivery authority joins (HB-100 through HB-105).
 //
 // This module is deliberately provider-free until EpisodePlanner normalization:
 // roadmap admission, validation admission, batching, claims, and evidence review
@@ -7,10 +7,11 @@
 // other episode without constructing a runtime.
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   episodePlanHash,
+  readCurrentEpisodePlan,
   stableHash,
   type CreatorEpisodeScope,
   type EpisodePlan,
@@ -30,6 +31,7 @@ import type { AppEntry } from "./apps.js";
 import { ApprovalStore } from "./approvals.js";
 import {
   prepareEpisodePlan,
+  type EpisodePlannerProposer,
   type PreparedEpisodePlan,
 } from "./episode-planner/coordinator.js";
 import {
@@ -73,6 +75,11 @@ export type RoadmapDeliveryFailureCode =
   | "validation_incomplete"
   | "batch_unit_duplicate"
   | "batch_hard_constraint_failed"
+  | "batch_manifest_too_large"
+  | "batch_membership_active"
+  | "direct_unit_incomplete"
+  | "unit_budget_exhausted"
+  | "unit_journal_conflict"
   | "already_claimed"
   | "builder_evidence_missing"
   | "evidence_head_mismatch"
@@ -100,6 +107,8 @@ export interface AuthorityRef {
     | "validation_catalog"
     | "validation_contract"
     | "delivery_unit_readiness"
+    | "direct_execution_unit"
+    | "direct_episode_binding"
     | "execution_batch"
     | "delivery_episode_binding"
     | "builder_evidence"
@@ -609,11 +618,54 @@ export interface RoutingSnapshotEntry {
 }
 
 export interface ExecutionBatchUnit {
+  kind?: "roadmap_code";
   unitId: string;
+  issueNumbers?: number[];
   membershipHash: string;
   readinessRef: AuthorityRef;
   validationRef: AuthorityRef;
   validationContractHash: string;
+  priority?: number;
+  budget?: ExecutionUnitBudget;
+}
+
+export interface DirectExecutionUnitAuthority {
+  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
+  kind: "direct_operation";
+  unitId: string;
+  app: string;
+  objective: string;
+  inScope: string[];
+  outOfScope: string[];
+  acceptanceCriteria: string[];
+  expectedArtifacts: CreatorEpisodeScope["expectedArtifacts"];
+  declaredConstraints: CreatorEpisodeScope["declaredConstraints"];
+  safetyFacts: CreatorEpisodeScope["safetyFacts"];
+  workflowTemplate: NonNullable<CreatorEpisodeScope["workflowTemplate"]>;
+  provenance: CreatorEpisodeScope["provenance"];
+  dedupeKey: string;
+  admittedBudget: ExecutionUnitBudget;
+  createdAt: string;
+}
+
+export interface DirectExecutionBatchUnit {
+  kind: "direct_operation";
+  unitId: string;
+  authorityRef: AuthorityRef;
+  authorityHash: string;
+  dedupeKey: string;
+  priority: number;
+  budget: ExecutionUnitBudget;
+}
+
+export type ExecutionUnit = ExecutionBatchUnit | DirectExecutionBatchUnit;
+
+export interface ExecutionUnitBudget {
+  maxProviderTurns: number;
+  maxEquivalentCostUsd: number;
+  maxMechanicalOverheadUsd: number;
+  maxActiveTimeMs: number;
+  maxHumanDecisions: number;
 }
 
 export interface DeliveryUnitReadiness {
@@ -634,10 +686,61 @@ export interface ExecutionBatch {
   batchId: string;
   version: number;
   app: string;
-  roadmapRef: AuthorityRef;
-  frontierHash: string;
-  units: ExecutionBatchUnit[];
+  roadmapRef: AuthorityRef | null;
+  frontierHash: string | null;
+  units: ExecutionUnit[];
+  manifestLimits?: {
+    maxUnits: number;
+    maxManifestBytes: number;
+  };
   admittedAt: string;
+}
+
+export type ExecutionUnitJournalState =
+  | "admitted"
+  | "planning"
+  | "claimed"
+  | "running"
+  | "reviewing"
+  | "approved"
+  | "returned"
+  | "failed"
+  | "completed";
+
+export interface ExecutionUnitJournal {
+  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
+  app: string;
+  batchRef: AuthorityRef;
+  unitId: string;
+  unitIdentityHash: string;
+  state: ExecutionUnitJournalState;
+  budget: ExecutionUnitBudget;
+  usage: {
+    providerTurns: number;
+    equivalentCostUsd: number;
+    mechanicalOverheadUsd: number;
+    activeTimeMs: number;
+    humanDecisions: number;
+  };
+  episodeBindingRef: AuthorityRef | null;
+  claimSettlementId: string | null;
+  evidenceRefs: AuthorityRef[];
+  candidateHead: string | null;
+  pullRequestNumber: number | null;
+  outcome: "completed" | "returned" | "failed" | null;
+  updatedAt: string;
+}
+
+export interface ExecutionBatchDisposition {
+  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
+  app: string;
+  batchRef: AuthorityRef;
+  units: Array<{
+    unitId: string;
+    outcome: "completed" | "returned" | "failed";
+    journalHash: string;
+  }>;
+  completedAt: string;
 }
 
 export interface DeliveryEpisodeBinding {
@@ -649,6 +752,18 @@ export interface DeliveryEpisodeBinding {
   readinessRef: AuthorityRef;
   validationRef: AuthorityRef;
   validationContractHash: string;
+  batchRef: AuthorityRef;
+  episodeId: string;
+  episodePlanVersion: number;
+  episodePlanHash: string;
+  createdAt: string;
+}
+
+export interface DirectEpisodeBinding {
+  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
+  app: string;
+  unitId: string;
+  directAuthorityRef: AuthorityRef;
   batchRef: AuthorityRef;
   episodeId: string;
   episodePlanVersion: number;
@@ -748,6 +863,15 @@ type DeliveryEpisodeFacts = Omit<
 >;
 
 const CLAIM_NAMESPACE = "planning/delivery-unit-claims";
+export const DEFAULT_EXECUTION_BATCH_MAX_UNITS = 8;
+export const DEFAULT_EXECUTION_BATCH_MAX_MANIFEST_BYTES = 64 * 1024;
+export const DEFAULT_EXECUTION_UNIT_BUDGET: ExecutionUnitBudget = {
+  maxProviderTurns: 24,
+  maxEquivalentCostUsd: 100,
+  maxMechanicalOverheadUsd: 10,
+  maxActiveTimeMs: 2 * 60 * 60_000,
+  maxHumanDecisions: 2,
+};
 const ID = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const MACHINE_ID = /^[A-Za-z0-9][A-Za-z0-9._*:/-]{0,255}$/;
 const HASH = /^[a-f0-9]{64}$/;
@@ -1485,47 +1609,91 @@ export async function acceptDeliveryUnitReadiness(input: {
   return accepted;
 }
 
+/** Complete direct-work authority. Ordinary prose and labels cannot create it. */
+export async function acceptDirectExecutionUnit(input: {
+  root: string;
+  authority: DirectExecutionUnitAuthority;
+  project?: RoadmapDeliveryProjector;
+}): Promise<AcceptedAuthority<DirectExecutionUnitAuthority>> {
+  assertDirectExecutionUnit(input.authority);
+  const accepted = await persistAuthority(
+    input.root,
+    input.authority.app,
+    "direct_execution_unit",
+    input.authority.unitId,
+    1,
+    input.authority,
+  );
+  await projectAccepted(input.root, input.authority.app, accepted, input.project);
+  return accepted;
+}
+
 /** Token-free admission. This function neither builds an EpisodeIntent nor calls EpisodePlanner. */
 export async function admitExecutionBatch(input: {
   root: string;
   app: string;
   batchId: string;
-  roadmapRef: AuthorityRef;
-  expectedFrontierHash: string;
-  orderedUnitIds: string[];
-  readinessRefs: AuthorityRef[];
+  roadmapRef?: AuthorityRef;
+  expectedFrontierHash?: string;
+  orderedUnitIds?: string[];
+  readinessRefs?: AuthorityRef[];
+  directUnitRefs?: AuthorityRef[];
+  budgetsByUnit?: Readonly<Record<string, ExecutionUnitBudget>>;
+  maxUnits?: number;
+  maxManifestBytes?: number;
   routing: RoutingSnapshotEntry[];
   admittedAt: string;
   project?: RoadmapDeliveryProjector;
 }): Promise<AcceptedAuthority<ExecutionBatch>> {
   assertId(input.batchId, "batch id");
-  if (new Set(input.orderedUnitIds).size !== input.orderedUnitIds.length) {
+  const orderedUnitIds = input.orderedUnitIds ?? [];
+  if (new Set(orderedUnitIds).size !== orderedUnitIds.length) {
     throw new RoadmapDeliveryError("batch_unit_duplicate", "a batch contains a duplicate unit");
   }
-  const roadmap = await requireAuthority<RoadmapPlan>(
-    input.root,
-    input.app,
-    input.roadmapRef,
-    "roadmap_plan",
-    "roadmap_missing",
-  );
-  assertRoadmapPlan(roadmap.value);
-  const currentRoadmap = await readCurrentRoadmapPlan(input.root, input.app);
-  if (currentRoadmap === undefined || !sameAuthorityRef(currentRoadmap.ref, roadmap.ref)) {
+  const roadmap = input.roadmapRef === undefined
+    ? undefined
+    : await requireAuthority<RoadmapPlan>(
+        input.root,
+        input.app,
+        input.roadmapRef,
+        "roadmap_plan",
+        "roadmap_missing",
+      );
+  if (roadmap !== undefined) assertRoadmapPlan(roadmap.value);
+  const currentRoadmap = roadmap === undefined
+    ? undefined
+    : await readCurrentRoadmapPlan(input.root, input.app);
+  if (roadmap !== undefined &&
+      (currentRoadmap === undefined || !sameAuthorityRef(currentRoadmap.ref, roadmap.ref))) {
     throw new RoadmapDeliveryError(
       "frontier_stale",
       `${renderAuthorityRef(roadmap.ref)} is not the current accepted RoadmapPlan`,
     );
   }
-  const frontierHash = stableHash(roadmap.value.readyFrontier);
-  if (frontierHash !== input.expectedFrontierHash) {
+  const frontierHash = roadmap === undefined ? null : stableHash(roadmap.value.readyFrontier);
+  if (frontierHash !== (input.expectedFrontierHash ?? null)) {
     throw new RoadmapDeliveryError(
       "frontier_stale",
-      `expected ${input.expectedFrontierHash}, accepted frontier is ${frontierHash}`,
+      `expected ${input.expectedFrontierHash ?? "no frontier"}, accepted frontier is ${frontierHash ?? "none"}`,
     );
   }
+  if (roadmap === undefined && orderedUnitIds.length > 0) {
+    throw new RoadmapDeliveryError("roadmap_missing", "roadmap code units require a RoadmapPlan");
+  }
+  if (roadmap !== undefined) {
+    const positions = new Map(roadmap.value.readyFrontier.map((id, index) => [id, index]));
+    const deterministic = [...orderedUnitIds].sort((left, right) =>
+      (positions.get(left) ?? Number.MAX_SAFE_INTEGER) -
+        (positions.get(right) ?? Number.MAX_SAFE_INTEGER) || left.localeCompare(right));
+    if (stableHash(deterministic) !== stableHash(orderedUnitIds)) {
+      throw new RoadmapDeliveryError(
+        "batch_hard_constraint_failed",
+        "batch code units are not in deterministic accepted-frontier order",
+      );
+    }
+  }
   const readinessByUnit = new Map<string, AcceptedAuthority<DeliveryUnitReadiness>>();
-  for (const ref of input.readinessRefs) {
+  for (const ref of input.readinessRefs ?? []) {
     const readiness = await requireAuthority<DeliveryUnitReadiness>(
       input.root,
       input.app,
@@ -1562,7 +1730,10 @@ export async function admitExecutionBatch(input: {
     }
     validationByUnit.set(validation.value.unitId, validation);
   }
-  const units = await Promise.all(input.orderedUnitIds.map(async (unitId): Promise<ExecutionBatchUnit> => {
+  const codeUnits = await Promise.all(orderedUnitIds.map(async (unitId): Promise<ExecutionBatchUnit> => {
+    if (roadmap === undefined || frontierHash === null) {
+      throw new RoadmapDeliveryError("roadmap_missing", `${unitId} has no RoadmapPlan`);
+    }
     if (!roadmap.value.readyFrontier.includes(unitId)) {
       throw new RoadmapDeliveryError(
         "batch_hard_constraint_failed",
@@ -1614,33 +1785,99 @@ export async function admitExecutionBatch(input: {
       );
     }
     return {
+      kind: "roadmap_code",
       unitId,
+      issueNumbers: [...unit.issueNumbers],
       membershipHash,
       readinessRef: readiness.ref,
       validationRef: validation.ref,
       validationContractHash: validation.ref.sha256,
+      priority: unit.priority,
+      budget: normalizeExecutionUnitBudget(input.budgetsByUnit?.[unitId]),
     };
   }));
+  const directUnits: DirectExecutionBatchUnit[] = [];
+  for (const ref of input.directUnitRefs ?? []) {
+    const direct = await requireAuthority<DirectExecutionUnitAuthority>(
+      input.root,
+      input.app,
+      ref,
+      "direct_execution_unit",
+      "direct_unit_incomplete",
+    );
+    assertDirectExecutionUnit(direct.value);
+    if (direct.value.app !== input.app) {
+      throw new RoadmapDeliveryError("batch_hard_constraint_failed", "a batch cannot cross apps");
+    }
+    directUnits.push({
+      kind: "direct_operation",
+      unitId: direct.value.unitId,
+      authorityRef: direct.ref,
+      authorityHash: direct.ref.sha256,
+      dedupeKey: direct.value.dedupeKey,
+      priority: 0,
+      budget: normalizeExecutionUnitBudget(input.budgetsByUnit?.[direct.value.unitId] ?? direct.value.admittedBudget),
+    });
+  }
+  directUnits.sort((left, right) => left.priority - right.priority || left.unitId.localeCompare(right.unitId));
+  const units: ExecutionUnit[] = [...codeUnits, ...directUnits];
+  if (new Set(units.map((unit) => unit.unitId)).size !== units.length) {
+    throw new RoadmapDeliveryError("batch_unit_duplicate", "a batch contains a duplicate execution unit");
+  }
   if (units.length === 0) {
     throw new RoadmapDeliveryError("batch_hard_constraint_failed", "a batch must contain a unit");
+  }
+  const maxUnits = input.maxUnits ?? DEFAULT_EXECUTION_BATCH_MAX_UNITS;
+  const maxManifestBytes = input.maxManifestBytes ?? DEFAULT_EXECUTION_BATCH_MAX_MANIFEST_BYTES;
+  if (!Number.isInteger(maxUnits) || maxUnits <= 0 || units.length > maxUnits) {
+    throw new RoadmapDeliveryError(
+      "batch_manifest_too_large",
+      `batch admits ${units.length} units; maximum is ${maxUnits}`,
+    );
   }
   const batch: ExecutionBatch = {
     schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
     batchId: input.batchId,
     version: 1,
     app: input.app,
-    roadmapRef: roadmap.ref,
+    roadmapRef: roadmap?.ref ?? null,
     frontierHash,
     units,
+    manifestLimits: { maxUnits, maxManifestBytes },
     admittedAt: requireDateTime(input.admittedAt, "batch admittedAt"),
   };
-  const accepted = await persistAuthority(
-    input.root,
-    input.app,
-    "execution_batch",
-    batch.batchId,
-    batch.version,
-    batch,
+  if (Buffer.byteLength(JSON.stringify(batch), "utf8") > maxManifestBytes) {
+    throw new RoadmapDeliveryError(
+      "batch_manifest_too_large",
+      `batch manifest exceeds ${maxManifestBytes} bytes`,
+    );
+  }
+  const accepted = await withFileLock(
+    batchMutationLockPath(input.root, input.app),
+    ROADMAP_MUTATION_LOCK,
+    async () => {
+      const existingPath = batchAuthorityPath(input.root, input.app, batch.batchId, batch.version);
+      if (existsSync(existingPath)) {
+        const existing = await readAuthorityFile<ExecutionBatch>(existingPath);
+        const replay = { ...batch, admittedAt: existing.value.admittedAt };
+        if (stableHash(existing.value) !== stableHash(replay)) {
+          throw new RoadmapDeliveryError("authority_conflict", `batch ${batch.batchId} already differs`);
+        }
+        for (const unit of units) await ensureExecutionUnitJournal(input.root, existing, unit);
+        return existing;
+      }
+      await assertNoActiveExecutionUnitOverlap(input.root, input.app, units);
+      const persisted = await persistAuthority(
+        input.root,
+        input.app,
+        "execution_batch",
+        batch.batchId,
+        batch.version,
+        batch,
+      );
+      for (const unit of units) await ensureExecutionUnitJournal(input.root, persisted, unit);
+      return persisted;
+    },
   );
   await projectAccepted(input.root, input.app, accepted, input.project);
   return accepted;
@@ -1654,7 +1891,8 @@ export async function normalizeDeliveryUnitEpisode(input: {
   batchRef: AuthorityRef;
   unitId: string;
   facts: DeliveryEpisodeFacts;
-  creatorScope: CreatorEpisodeScope;
+  creatorScope?: CreatorEpisodeScope;
+  propose?: EpisodePlannerProposer;
   providerOperations?: readonly string[];
   workflowTemplates?: EpisodePlanningPolicyOptions["workflowTemplates"];
   independentReview?: EpisodePlanningPolicyOptions["independentReview"];
@@ -1679,6 +1917,15 @@ export async function normalizeDeliveryUnitEpisode(input: {
       "batch_hard_constraint_failed",
       `${input.unitId} is not admitted in ${batch.value.batchId}`,
     );
+  }
+  if (batchUnit.kind === "direct_operation") {
+    throw new RoadmapDeliveryError(
+      "batch_hard_constraint_failed",
+      `${input.unitId} is direct work; use normalizeDirectExecutionUnitEpisode`,
+    );
+  }
+  if (batch.value.roadmapRef === null || batch.value.frontierHash === null) {
+    throw new RoadmapDeliveryError("roadmap_missing", "roadmap code batch lost roadmap authority");
   }
   const roadmap = await requireAuthority<RoadmapPlan>(
     input.root,
@@ -1738,13 +1985,15 @@ export async function normalizeDeliveryUnitEpisode(input: {
     renderAuthorityRef(validation.ref),
     renderAuthorityRef(batch.ref),
   ];
-  const creatorScope = bindCreatorScope(input.creatorScope, authorityInputs);
+  const creatorScope = input.creatorScope === undefined
+    ? undefined
+    : bindCreatorScope(input.creatorScope, authorityInputs);
   const intent = buildEpisodeIntent({
     ...input.facts,
     episodeId,
     app: input.app,
     roles: input.roles,
-    creatorScope,
+    ...(creatorScope === undefined ? {} : { creatorScope }),
   });
   const prepared = await prepareEpisodePlan({
     root: input.root,
@@ -1760,16 +2009,14 @@ export async function normalizeDeliveryUnitEpisode(input: {
     ...(input.independentReview === undefined
       ? {}
       : { independentReview: input.independentReview }),
+    ...(input.propose === undefined ? {} : { propose: input.propose }),
     now: () => operationNow,
   });
-  if (!prepared.planningTurnSkipped || prepared.plannerAttempts !== 0) {
-    throw new RoadmapDeliveryError(
-      "batch_hard_constraint_failed",
-      "HB-100 normalization requires complete creator scope and zero planner turns",
-    );
-  }
   const validationLineage = renderAuthorityRef(validation.ref);
-  if (!prepared.plan.creatorProvenance?.evidenceRefs.includes(validationLineage)) {
+  if (
+    prepared.planningTurnSkipped &&
+    !prepared.plan.creatorProvenance?.evidenceRefs.includes(validationLineage)
+  ) {
     throw new RoadmapDeliveryError(
       "validation_contract_invalid",
       "EpisodePlan dropped the exact validation-contract ref and hash",
@@ -1798,6 +2045,198 @@ export async function normalizeDeliveryUnitEpisode(input: {
     prepared.plan.version,
     bindingValue,
   );
+  await markExecutionUnitPlanned(input.root, input.app.name, batch.ref, input.unitId, binding.ref, operationNow);
+  await projectAccepted(input.root, input.app.name, binding, input.project);
+  return { prepared, plan: prepared.plan, binding };
+}
+
+/** Bind an EpisodePlan produced by the production ticket planner to the exact
+ * admitted roadmap/validation join. This is the non-shortcut lazy path. */
+export async function bindDeliveryUnitEpisodePlan(input: {
+  root: string;
+  app: string;
+  batchRef: AuthorityRef;
+  unitId: string;
+  plan: EpisodePlan;
+  now: Date;
+  project?: RoadmapDeliveryProjector;
+}): Promise<AcceptedAuthority<DeliveryEpisodeBinding>> {
+  const batch = await requireAuthority<ExecutionBatch>(
+    input.root,
+    input.app,
+    input.batchRef,
+    "execution_batch",
+    "batch_hard_constraint_failed",
+  );
+  assertExecutionBatchShape(batch.value);
+  const batchUnit = batch.value.units.find((candidate) => candidate.unitId === input.unitId);
+  if (batchUnit === undefined || batchUnit.kind === "direct_operation") {
+    throw new RoadmapDeliveryError("batch_hard_constraint_failed", `${input.unitId} is not admitted code work`);
+  }
+  if (batch.value.roadmapRef === null || batch.value.frontierHash === null) {
+    throw new RoadmapDeliveryError("roadmap_missing", "code batch lost RoadmapPlan lineage");
+  }
+  const roadmap = await requireAuthority<RoadmapPlan>(
+    input.root,
+    input.app,
+    batch.value.roadmapRef,
+    "roadmap_plan",
+    "roadmap_missing",
+  );
+  await assertCurrentRoadmapRef(input.root, input.app, roadmap.ref, batch.value.frontierHash);
+  const unit = requireUnit(roadmap.value, input.unitId);
+  const readiness = await requireAuthority<DeliveryUnitReadiness>(
+    input.root,
+    input.app,
+    batchUnit.readinessRef,
+    "delivery_unit_readiness",
+    "validation_incomplete",
+  );
+  const validation = await requireAuthority<ValidationContract>(
+    input.root,
+    input.app,
+    batchUnit.validationRef,
+    "validation_contract",
+    "validation_contract_missing",
+  );
+  assertValidationWaiversCurrent(validation.value, input.now);
+  await assertValidationWaiverAuthorities(input.root, validation.value);
+  const currentValidation = await readCurrentValidationContract(input.root, input.app, input.unitId);
+  if (
+    currentValidation === undefined ||
+    !sameAuthorityRef(currentValidation.ref, validation.ref) ||
+    !sameAuthorityRef(readiness.value.validationRef, validation.ref) ||
+    batchUnit.validationContractHash !== validation.ref.sha256
+  ) {
+    throw new RoadmapDeliveryError("validation_contract_stale", "plan binding uses stale validation authority");
+  }
+  assertPlanWithinExecutionUnitBudget(input.plan, normalizeExecutionUnitBudget(batchUnit.budget));
+  const bindingValue: DeliveryEpisodeBinding = {
+    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
+    app: input.app,
+    unitId: input.unitId,
+    membershipHash: unitMembershipHash(unit.issueNumbers),
+    roadmapRef: roadmap.ref,
+    readinessRef: readiness.ref,
+    validationRef: validation.ref,
+    validationContractHash: validation.ref.sha256,
+    batchRef: batch.ref,
+    episodeId: input.plan.episodeId,
+    episodePlanVersion: input.plan.version,
+    episodePlanHash: episodePlanHash(input.plan),
+    createdAt: input.plan.createdAt,
+  };
+  const binding = await persistAuthority(
+    input.root,
+    input.app,
+    "delivery_episode_binding",
+    input.unitId,
+    input.plan.version,
+    bindingValue,
+  );
+  await markExecutionUnitPlanned(input.root, input.app, batch.ref, input.unitId, binding.ref, input.now);
+  await projectAccepted(input.root, input.app, binding, input.project);
+  return binding;
+}
+
+/** Direct work uses the same EpisodePlanner coordinator but needs no
+ * RoadmapPlan. Its accepted authority is itself the complete creator scope,
+ * so normalization is necessarily a strict zero-turn path. */
+export async function normalizeDirectExecutionUnitEpisode(input: {
+  root: string;
+  app: AppEntry;
+  roles: readonly RoleConfig[];
+  batchRef: AuthorityRef;
+  unitId: string;
+  facts: DeliveryEpisodeFacts;
+  providerOperations?: readonly string[];
+  workflowTemplates: EpisodePlanningPolicyOptions["workflowTemplates"];
+  independentReview?: EpisodePlanningPolicyOptions["independentReview"];
+  now?: () => Date;
+  project?: RoadmapDeliveryProjector;
+}): Promise<{
+  prepared: PreparedEpisodePlan;
+  plan: EpisodePlan;
+  binding: AcceptedAuthority<DirectEpisodeBinding>;
+}> {
+  const batch = await requireAuthority<ExecutionBatch>(
+    input.root,
+    input.app.name,
+    input.batchRef,
+    "execution_batch",
+    "batch_hard_constraint_failed",
+  );
+  assertExecutionBatchShape(batch.value);
+  const unit = batch.value.units.find((candidate) => candidate.unitId === input.unitId);
+  if (unit === undefined || unit.kind !== "direct_operation") {
+    throw new RoadmapDeliveryError("batch_hard_constraint_failed", `${input.unitId} is not direct work`);
+  }
+  const authority = await requireAuthority<DirectExecutionUnitAuthority>(
+    input.root,
+    input.app.name,
+    unit.authorityRef,
+    "direct_execution_unit",
+    "direct_unit_incomplete",
+  );
+  assertDirectExecutionUnit(authority.value);
+  const operationNow = input.now?.() ?? new Date();
+  const creatorScope: CreatorEpisodeScope = {
+    planningDisposition: "execution_ready",
+    provenance: {
+      ...authority.value.provenance,
+      evidenceRefs: [...authority.value.provenance.evidenceRefs, renderAuthorityRef(authority.ref), renderAuthorityRef(batch.ref)],
+    },
+    objective: authority.value.objective,
+    inScope: [...authority.value.inScope],
+    outOfScope: [...authority.value.outOfScope],
+    acceptanceCriteria: [...authority.value.acceptanceCriteria],
+    expectedArtifacts: structuredClone(authority.value.expectedArtifacts),
+    declaredConstraints: structuredClone(authority.value.declaredConstraints),
+    safetyFacts: structuredClone(authority.value.safetyFacts),
+    workflowTemplate: structuredClone(authority.value.workflowTemplate),
+  };
+  const episodeId = `direct-${stableHash({ app: input.app.name, authority: authority.ref }).slice(0, 32)}`;
+  const intent = buildEpisodeIntent({
+    ...input.facts,
+    episodeId,
+    app: input.app,
+    roles: input.roles,
+    creatorScope,
+  });
+  const prepared = await prepareEpisodePlan({
+    root: input.root,
+    app: input.app,
+    roles: input.roles,
+    intent,
+    workflowTemplates: input.workflowTemplates,
+    ...(input.providerOperations === undefined ? {} : { providerOperations: input.providerOperations }),
+    ...(input.independentReview === undefined ? {} : { independentReview: input.independentReview }),
+    now: () => operationNow,
+  });
+  if (!prepared.planningTurnSkipped || prepared.plannerAttempts !== 0) {
+    throw new RoadmapDeliveryError("direct_unit_incomplete", "complete direct authority did not normalize zero-turn");
+  }
+  assertPlanWithinExecutionUnitBudget(prepared.plan, unit.budget);
+  const value: DirectEpisodeBinding = {
+    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
+    app: input.app.name,
+    unitId: input.unitId,
+    directAuthorityRef: authority.ref,
+    batchRef: batch.ref,
+    episodeId,
+    episodePlanVersion: prepared.plan.version,
+    episodePlanHash: episodePlanHash(prepared.plan),
+    createdAt: prepared.plan.createdAt,
+  };
+  const binding = await persistAuthority(
+    input.root,
+    input.app.name,
+    "direct_episode_binding",
+    input.unitId,
+    prepared.plan.version,
+    value,
+  );
+  await markExecutionUnitPlanned(input.root, input.app.name, batch.ref, input.unitId, binding.ref, operationNow);
   await projectAccepted(input.root, input.app.name, binding, input.project);
   return { prepared, plan: prepared.plan, binding };
 }
@@ -1844,6 +2283,17 @@ export async function claimDeliveryUnit(input: {
   const store = deliveryClaimStore(input.root);
   const claimed = await store.claim({ identity, payload, maxAttempts: 1, now: input.now });
   if (claimed.disposition === "claimed" || claimed.disposition === "recovered_claim") {
+    await transitionExecutionUnitJournal({
+      root: input.root,
+      app: input.app,
+      batchRef: joined.batch.ref,
+      unitId: joined.unit.unitId,
+      expectedStates: ["planning", "claimed"],
+      nextState: "claimed",
+      episodeBindingRef: joined.binding.ref,
+      claimSettlementId: claimed.record.settlement_id,
+      now: input.now,
+    });
     await projectClaim(input.root, input.app, claimed.record.settlement_id, "delivery_unit_claimed", input.project);
   }
   return claimed;
@@ -1873,8 +2323,50 @@ export async function commitDeliveryUnitClaim(input: {
     runId: input.runId,
     now: input.now,
   });
+  await transitionExecutionUnitJournal({
+    root: input.root,
+    app: input.app,
+    batchRef: joined.batch.ref,
+    unitId: joined.unit.unitId,
+    expectedStates: ["claimed"],
+    nextState: "claimed",
+    episodeBindingRef: joined.binding.ref,
+    claimSettlementId: record.settlement_id,
+    now: input.now,
+  });
   await projectClaim(input.root, input.app, record.settlement_id, "delivery_unit_claim_committed", input.project);
   return record;
+}
+
+async function markExecutionUnitPlanned(
+  root: string,
+  app: string,
+  batchRef: AuthorityRef,
+  unitId: string,
+  episodeBindingRef: AuthorityRef,
+  now: Date,
+): Promise<void> {
+  const current = await readExecutionUnitJournal(root, app, batchRef.id, unitId);
+  if (
+    current?.state === "claimed" &&
+    current.episodeBindingRef !== null &&
+    sameAuthorityRef(current.episodeBindingRef, episodeBindingRef)
+  ) {
+    // A committed claim with no provider usage is still a pre-provider
+    // recovery point. Replaying the immutable plan/binding must not move the
+    // journal backwards or consume another claim allowance.
+    return;
+  }
+  await transitionExecutionUnitJournal({
+    root,
+    app,
+    batchRef,
+    unitId,
+    expectedStates: ["admitted", "planning"],
+    nextState: "planning",
+    episodeBindingRef,
+    now,
+  });
 }
 
 export async function recordBuilderEvidence(input: {
@@ -1889,6 +2381,7 @@ export async function recordBuilderEvidence(input: {
     input.manifest.episodeBindingRef,
   );
   assertEvidenceJoin(input.manifest, joined);
+  await assertEvidencePlanCurrent(input.root, input.manifest);
   assertValidationWaiversCurrent(joined.validation.value, input.manifest.recordedAt);
   const claim = await deliveryClaimStore(input.root).read(input.manifest.claimSettlementId);
   if (
@@ -1913,7 +2406,7 @@ export async function recordBuilderEvidence(input: {
     input.manifest.app,
     "builder_evidence",
     input.manifest.unitId,
-    1,
+    input.manifest.episodePlanVersion,
     input.manifest,
   );
   await projectAccepted(input.root, input.manifest.app, accepted, input.project);
@@ -2013,6 +2506,7 @@ export async function recordReviewerVerdict(input: {
     input.verdict.episodeBindingRef,
   );
   assertEvidenceJoin(evidence.value, joined);
+  await assertEvidencePlanCurrent(input.root, evidence.value);
   const currentValidation = await readCurrentValidationContract(
     input.root,
     input.verdict.app,
@@ -2036,7 +2530,7 @@ export async function recordReviewerVerdict(input: {
     input.verdict.app,
     "reviewer_verdict",
     input.verdict.unitId,
-    1,
+    evidence.ref.version,
     input.verdict,
   );
   await projectAccepted(input.root, input.verdict.app, accepted, input.project);
@@ -2070,6 +2564,14 @@ export async function settleDeliveryUnitClaim(input: {
   const joined = claim === undefined
     ? undefined
     : await loadDeliveryJoin(input.root, input.app, claim.payload.episodeBindingRef);
+  const builderEvidence = await requireAuthority<BuilderEvidenceManifest>(
+    input.root,
+    input.app,
+    verdict.value.builderEvidenceRef,
+    "builder_evidence",
+    "builder_evidence_missing",
+  );
+  await assertEvidencePlanCurrent(input.root, builderEvidence.value);
   if (
     claim === undefined ||
     verdict.value.disposition !== input.outcome ||
@@ -2118,8 +2620,88 @@ export async function settleDeliveryUnitClaim(input: {
     outcome: input.outcome,
     now: input.now,
   });
+  await transitionExecutionUnitJournal({
+    root: input.root,
+    app: input.app,
+    batchRef: joined.batch.ref,
+    unitId: joined.unit.unitId,
+    expectedStates: ["running", "reviewing", "approved", "returned"],
+    nextState: input.outcome === "approved" ? "approved" : "returned",
+    evidenceRefs: [builderEvidence.ref, verdict.ref],
+    candidateHead: verdict.value.candidateHead,
+    pullRequestNumber: builderEvidence.value.pullRequestNumber,
+    ...(input.outcome === "returned" ? { outcome: "returned" as const } : {}),
+    now: input.now,
+  });
   await projectClaim(input.root, input.app, record.settlement_id, "delivery_unit_settled", input.project);
   return record;
+}
+
+export async function completeDeliveryUnitMerge(input: {
+  root: string;
+  app: string;
+  batchRef: AuthorityRef;
+  unitId: string;
+  candidateHead: string;
+  pullRequestNumber: number;
+  now: Date;
+}): Promise<ExecutionUnitJournal> {
+  const journal = await readExecutionUnitJournal(input.root, input.app, input.batchRef.id, input.unitId);
+  if (
+    journal === undefined ||
+    journal.state !== "approved" ||
+    journal.candidateHead !== input.candidateHead ||
+    journal.pullRequestNumber !== input.pullRequestNumber ||
+    journal.evidenceRefs.length < 2
+  ) {
+    throw new RoadmapDeliveryError(
+      "reviewer_evidence_incomplete",
+      "merge completion requires exact-HEAD Builder evidence and Reviewer verdict",
+    );
+  }
+  return transitionExecutionUnitJournal({
+    root: input.root,
+    app: input.app,
+    batchRef: input.batchRef,
+    unitId: input.unitId,
+    expectedStates: ["approved"],
+    nextState: "completed",
+    candidateHead: input.candidateHead,
+    pullRequestNumber: input.pullRequestNumber,
+    outcome: "completed",
+    now: input.now,
+  });
+}
+
+export async function settleDeliveryUnitRefusal(input: {
+  root: string;
+  app: string;
+  claimSettlementId: string;
+  claimAttempt: number;
+  runId: string;
+  batchRef: AuthorityRef;
+  unitId: string;
+  reason: string;
+  now: Date;
+}): Promise<void> {
+  assertNonEmpty(input.reason, "delivery refusal reason");
+  await deliveryClaimStore(input.root).settle({
+    settlementId: input.claimSettlementId,
+    attempt: input.claimAttempt,
+    runId: input.runId,
+    outcome: "returned",
+    now: input.now,
+  });
+  await transitionExecutionUnitJournal({
+    root: input.root,
+    app: input.app,
+    batchRef: input.batchRef,
+    unitId: input.unitId,
+    expectedStates: ["claimed", "running", "reviewing", "approved"],
+    nextState: "returned",
+    outcome: "returned",
+    now: input.now,
+  });
 }
 
 export function roadmapAuthorityPath(
@@ -2208,9 +2790,205 @@ export function batchAuthorityPath(
   return authorityPath(root, app, "execution_batch", id, version);
 }
 
+export function executionUnitJournalPath(
+  root: string,
+  app: string,
+  batchId: string,
+  unitId: string,
+): string {
+  assertId(batchId, "execution batch id");
+  assertId(unitId, "execution unit id");
+  return join(planningAppDir(root, app), "execution-unit-journals", batchId, `${unitId}.json`);
+}
+
+export async function readExecutionUnitJournal(
+  root: string,
+  app: string,
+  batchId: string,
+  unitId: string,
+): Promise<ExecutionUnitJournal | undefined> {
+  const path = executionUnitJournalPath(root, app, batchId, unitId);
+  if (!existsSync(path)) return undefined;
+  const value = JSON.parse(await readFile(path, "utf8")) as ExecutionUnitJournal;
+  assertExecutionUnitJournal(value);
+  return value;
+}
+
+export async function transitionExecutionUnitJournal(input: {
+  root: string;
+  app: string;
+  batchRef: AuthorityRef;
+  unitId: string;
+  expectedStates: ExecutionUnitJournalState[];
+  nextState: ExecutionUnitJournalState;
+  usageDelta?: Partial<ExecutionUnitJournal["usage"]>;
+  episodeBindingRef?: AuthorityRef;
+  claimSettlementId?: string;
+  evidenceRefs?: AuthorityRef[];
+  candidateHead?: string;
+  pullRequestNumber?: number;
+  outcome?: "completed" | "returned" | "failed";
+  now: Date;
+}): Promise<ExecutionUnitJournal> {
+  return withFileLock(
+    executionUnitJournalLockPath(input.root, input.app, input.batchRef.id, input.unitId),
+    ROADMAP_MUTATION_LOCK,
+    async () => {
+      const batch = await requireAuthority<ExecutionBatch>(
+        input.root,
+        input.app,
+        input.batchRef,
+        "execution_batch",
+        "batch_hard_constraint_failed",
+      );
+      assertExecutionBatchShape(batch.value);
+      const unit = batch.value.units.find((candidate) => candidate.unitId === input.unitId);
+      if (unit === undefined) {
+        throw new RoadmapDeliveryError("unit_journal_conflict", `${input.unitId} is not in the batch`);
+      }
+      const current = await readExecutionUnitJournal(input.root, input.app, batch.ref.id, input.unitId) ??
+        initialExecutionUnitJournal(batch, unit);
+      if (!input.expectedStates.includes(current.state)) {
+        if (current.state === input.nextState && input.outcome === current.outcome) {
+          if (isTerminalJournalState(current.state)) {
+            await writeBatchDispositionIfComplete(input.root, batch, input.now);
+          }
+          return current;
+        }
+        throw new RoadmapDeliveryError(
+          "unit_journal_conflict",
+          `${input.unitId} is ${current.state}, expected ${input.expectedStates.join("|")}`,
+        );
+      }
+      const usage = addExecutionUnitUsage(current.usage, input.usageDelta ?? {});
+      assertUsageWithinBudget(usage, current.budget);
+      const next: ExecutionUnitJournal = {
+        ...current,
+        state: input.nextState,
+        usage,
+        ...(input.episodeBindingRef === undefined ? {} : { episodeBindingRef: input.episodeBindingRef }),
+        ...(input.claimSettlementId === undefined ? {} : { claimSettlementId: input.claimSettlementId }),
+        ...(input.evidenceRefs === undefined ? {} : { evidenceRefs: [...input.evidenceRefs] }),
+        ...(input.candidateHead === undefined ? {} : { candidateHead: input.candidateHead }),
+        ...(input.pullRequestNumber === undefined ? {} : { pullRequestNumber: input.pullRequestNumber }),
+        ...(input.outcome === undefined ? {} : { outcome: input.outcome }),
+        updatedAt: input.now.toISOString(),
+      };
+      assertExecutionUnitJournal(next);
+      await writeLoopFileAtomic(
+        executionUnitJournalPath(input.root, input.app, batch.ref.id, input.unitId),
+        `${JSON.stringify(next, null, 2)}\n`,
+      );
+      if (isTerminalJournalState(next.state)) {
+        await writeBatchDispositionIfComplete(input.root, batch, input.now);
+      }
+      return next;
+    },
+  );
+}
+
+export async function readExecutionBatch(
+  root: string,
+  app: string,
+  ref: AuthorityRef,
+): Promise<AcceptedAuthority<ExecutionBatch>> {
+  const batch = await requireAuthority<ExecutionBatch>(
+    root,
+    app,
+    ref,
+    "execution_batch",
+    "batch_hard_constraint_failed",
+  );
+  assertExecutionBatchShape(batch.value);
+  return batch;
+}
+
+export async function readBacklogSnapshotAuthority(
+  root: string,
+  app: string,
+  ref: AuthorityRef,
+): Promise<AcceptedAuthority<BacklogSnapshot>> {
+  const snapshot = await requireAuthority<BacklogSnapshot>(
+    root,
+    app,
+    ref,
+    "backlog_snapshot",
+    "backlog_incomplete",
+  );
+  assertBacklogSnapshot(snapshot.value);
+  return snapshot;
+}
+
+export async function findActiveExecutionUnit(
+  root: string,
+  app: string,
+  unitId: string,
+): Promise<ActiveExecutionUnit | undefined> {
+  return (await listActiveExecutionUnits(root, app)).find((entry) => entry.unit.unitId === unitId);
+}
+
+export interface ActiveExecutionUnit {
+  batch: AcceptedAuthority<ExecutionBatch>;
+  unit: ExecutionUnit;
+  journal: ExecutionUnitJournal;
+}
+
+export async function listActiveExecutionUnits(
+  root: string,
+  app: string,
+): Promise<ActiveExecutionUnit[]> {
+  const directory = join(planningAppDir(root, app), "execution_batchs");
+  if (!existsSync(directory)) return [];
+  const found = new Map<string, ActiveExecutionUnit>();
+  for (const batchId of (await readdir(directory)).sort()) {
+    const batchDir = join(directory, batchId);
+    let versions: string[];
+    try {
+      versions = await readdir(batchDir);
+    } catch {
+      continue;
+    }
+    for (const version of versions.filter((name) => /^v\d+\.json$/.test(name)).sort()) {
+      const batch = await readAuthorityFile<ExecutionBatch>(join(batchDir, version));
+      assertExecutionBatchShape(batch.value);
+      for (const unit of batch.value.units) {
+        const journal = await readExecutionUnitJournal(root, app, batch.ref.id, unit.unitId) ??
+          await ensureExecutionUnitJournal(root, batch, unit);
+        if (isTerminalJournalState(journal.state)) continue;
+        if (found.has(unit.unitId)) {
+          throw new RoadmapDeliveryError("batch_membership_active", `${unit.unitId} appears in multiple active batches`);
+        }
+        found.set(unit.unitId, { batch, unit, journal });
+      }
+    }
+  }
+  return [...found.values()].sort((a, b) => a.unit.unitId.localeCompare(b.unit.unitId));
+}
+
+export async function readCurrentDeliveryUnitReadiness(
+  root: string,
+  app: string,
+  unitId: string,
+): Promise<AcceptedAuthority<DeliveryUnitReadiness> | undefined> {
+  const validation = await readCurrentValidationContract(root, app, unitId);
+  if (validation === undefined) return undefined;
+  const path = readinessAuthorityPath(root, app, unitId, validation.ref.version);
+  if (!existsSync(path)) return undefined;
+  const readiness = await readAuthorityFile<DeliveryUnitReadiness>(path);
+  assertDeliveryUnitReadinessShape(readiness.value);
+  return readiness;
+}
+
 export function deliveryClaimRecordPath(root: string, identity: string): string {
   const settlementId = durableClaimSettlementId(identity);
   return join(resolve(root), CLAIM_NAMESPACE, "records", `${settlementId}.json`);
+}
+
+export async function readDeliveryUnitClaim(
+  root: string,
+  settlementId: string,
+): Promise<DurableClaimRecord<DeliveryUnitClaimPayload> | undefined> {
+  return deliveryClaimStore(root).read(settlementId);
 }
 
 export function deliveryClaimIdentity(payload: DeliveryUnitClaimPayload): string {
@@ -2278,6 +3056,9 @@ async function loadDeliveryJoin(root: string, app: string, bindingRef: Authority
     "batch_hard_constraint_failed",
   );
   assertExecutionBatchShape(batch.value);
+  if (batch.value.roadmapRef === null || batch.value.frontierHash === null) {
+    throw new RoadmapDeliveryError("evidence_unit_mismatch", "code delivery binding points at a direct-only batch");
+  }
   await assertCurrentRoadmapRef(root, app, roadmap.ref, batch.value.frontierHash);
   const unit = requireUnit(roadmap.value, binding.value.unitId);
   const currentValidation = await readCurrentValidationContract(root, app, unit.unitId);
@@ -2292,6 +3073,7 @@ async function loadDeliveryJoin(root: string, app: string, bindingRef: Authority
     currentValidation === undefined ||
     !sameAuthorityRef(currentValidation.ref, validation.ref) ||
     !batch.value.units.some((entry) =>
+      entry.kind !== "direct_operation" &&
       entry.unitId === unit.unitId &&
       entry.membershipHash === binding.value.membershipHash &&
       sameAuthorityRef(entry.readinessRef, readiness.ref) &&
@@ -2321,12 +3103,46 @@ function assertEvidenceJoin(
     !sameAuthorityRef(manifest.batchRef, joined.batch.ref) ||
     !sameAuthorityRef(manifest.episodeBindingRef, joined.binding.ref) ||
     manifest.episodeId !== joined.binding.value.episodeId ||
-    manifest.episodePlanVersion !== joined.binding.value.episodePlanVersion ||
-    manifest.episodePlanHash !== joined.binding.value.episodePlanHash
+    manifest.episodePlanVersion < joined.binding.value.episodePlanVersion
   ) {
     throw new RoadmapDeliveryError(
       "evidence_unit_mismatch",
       "Builder evidence does not bind the exact accepted unit/plan lineage",
+    );
+  }
+}
+
+async function assertEvidencePlanCurrent(
+  root: string,
+  manifest: Pick<BuilderEvidenceManifest, "episodeId" | "episodePlanVersion" | "episodePlanHash">,
+): Promise<void> {
+  const current = await readCurrentEpisodePlan(root, manifest.episodeId);
+  if (
+    current === undefined ||
+    current.version !== manifest.episodePlanVersion ||
+    episodePlanHash(current) !== manifest.episodePlanHash
+  ) {
+    throw new RoadmapDeliveryError(
+      "evidence_unit_mismatch",
+      "Builder evidence does not bind the current accepted delivery EpisodePlan",
+    );
+  }
+}
+
+function assertPlanWithinExecutionUnitBudget(
+  plan: EpisodePlan,
+  budget: ExecutionUnitBudget,
+): void {
+  const humanDecisions = plan.steps.filter((step) => step.kind === "approval").length;
+  if (
+    plan.estimatedBudget.providerTurns > budget.maxProviderTurns ||
+    plan.estimatedBudget.providerTurnBudgetUsd > budget.maxEquivalentCostUsd ||
+    plan.estimatedBudget.mechanicalOverheadUsd > budget.maxMechanicalOverheadUsd ||
+    humanDecisions > budget.maxHumanDecisions
+  ) {
+    throw new RoadmapDeliveryError(
+      "unit_budget_exhausted",
+      `EpisodePlan ${plan.episodeId}@${plan.version} exceeds the admitted unit budget`,
     );
   }
 }
@@ -3264,33 +4080,138 @@ function assertDeliveryUnitReadinessShape(readiness: DeliveryUnitReadiness): voi
   }
 }
 
+function assertDirectExecutionUnit(authority: DirectExecutionUnitAuthority): void {
+  assertExactObjectKeys(authority, [
+    "schemaVersion", "kind", "unitId", "app", "objective", "inScope", "outOfScope",
+    "acceptanceCriteria", "expectedArtifacts", "declaredConstraints", "safetyFacts",
+    "workflowTemplate", "provenance", "dedupeKey", "admittedBudget", "createdAt",
+  ], "direct execution unit", "direct_unit_incomplete");
+  if (authority.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION || authority.kind !== "direct_operation") {
+    throw new RoadmapDeliveryError("direct_unit_incomplete", "unsupported direct-unit schema");
+  }
+  assertId(authority.unitId, "direct unit id");
+  assertNonEmpty(authority.app, "direct unit app");
+  assertNonEmpty(authority.objective, "direct unit objective");
+  assertNonEmpty(authority.dedupeKey, "direct unit dedupe key");
+  requireDateTime(authority.createdAt, "direct unit createdAt");
+  for (const [name, values] of [
+    ["inScope", authority.inScope],
+    ["outOfScope", authority.outOfScope],
+    ["acceptanceCriteria", authority.acceptanceCriteria],
+    ["expectedArtifacts", authority.expectedArtifacts],
+    ["safetyFacts", authority.safetyFacts],
+  ] as const) {
+    if (!Array.isArray(values) || values.length === 0) {
+      throw new RoadmapDeliveryError("direct_unit_incomplete", `direct unit ${name} is empty`);
+    }
+  }
+  if (
+    authority.provenance === undefined ||
+    !["human", "agent"].includes(authority.provenance.source) ||
+    authority.provenance.creatorId.trim().length === 0 ||
+    Number.isNaN(Date.parse(authority.provenance.createdAt)) ||
+    authority.provenance.evidenceRefs.length === 0 ||
+    authority.provenance.evidenceRefs.some((ref) => ref.trim().length === 0) ||
+    authority.workflowTemplate === undefined ||
+    authority.workflowTemplate.id.trim().length === 0 ||
+    authority.workflowTemplate.version.trim().length === 0 ||
+    Object.keys(authority.declaredConstraints).length === 0
+  ) {
+    throw new RoadmapDeliveryError(
+      "direct_unit_incomplete",
+      "direct unit requires provenance, governed template, and declared constraints",
+    );
+  }
+  assertExecutionUnitBudget(authority.admittedBudget);
+}
+
+function normalizeExecutionUnitBudget(value: ExecutionUnitBudget | undefined): ExecutionUnitBudget {
+  const budget = structuredClone(value ?? DEFAULT_EXECUTION_UNIT_BUDGET);
+  assertExecutionUnitBudget(budget);
+  return budget;
+}
+
+function assertExecutionUnitBudget(budget: ExecutionUnitBudget): void {
+  if (
+    !Number.isInteger(budget.maxProviderTurns) || budget.maxProviderTurns < 0 ||
+    !Number.isFinite(budget.maxEquivalentCostUsd) || budget.maxEquivalentCostUsd < 0 ||
+    !Number.isFinite(budget.maxMechanicalOverheadUsd) || budget.maxMechanicalOverheadUsd < 0 ||
+    !Number.isInteger(budget.maxActiveTimeMs) || budget.maxActiveTimeMs < 0 ||
+    !Number.isInteger(budget.maxHumanDecisions) || budget.maxHumanDecisions < 0
+  ) {
+    throw new RoadmapDeliveryError("batch_hard_constraint_failed", "execution-unit budget is invalid");
+  }
+}
+
 function assertExecutionBatchShape(batch: ExecutionBatch): void {
-  assertExactObjectKeys(batch, [
-    "schemaVersion", "batchId", "version", "app", "roadmapRef", "frontierHash",
-    "units", "admittedAt",
-  ], "execution batch", "batch_hard_constraint_failed");
+  assertExactObjectKeys(batch, batch.manifestLimits === undefined
+    ? [
+        "schemaVersion", "batchId", "version", "app", "roadmapRef", "frontierHash",
+        "units", "admittedAt",
+      ]
+    : [
+        "schemaVersion", "batchId", "version", "app", "roadmapRef", "frontierHash",
+        "units", "manifestLimits", "admittedAt",
+      ], "execution batch", "batch_hard_constraint_failed");
   if (batch.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
     throw new RoadmapDeliveryError("batch_hard_constraint_failed", "unsupported execution-batch schema");
   }
   assertId(batch.batchId, "execution batch id");
   assertVersion(batch.version, "execution batch version");
   assertNonEmpty(batch.app, "execution batch app");
-  assertAuthorityRef(batch.roadmapRef, "roadmap_plan");
-  assertHash(batch.frontierHash, "execution batch frontier hash");
+  if ((batch.roadmapRef === null) !== (batch.frontierHash === null)) {
+    throw new RoadmapDeliveryError("batch_hard_constraint_failed", "batch roadmap/frontier lineage is partial");
+  }
+  if (batch.roadmapRef !== null) assertAuthorityRef(batch.roadmapRef, "roadmap_plan");
+  if (batch.frontierHash !== null) assertHash(batch.frontierHash, "execution batch frontier hash");
   requireDateTime(batch.admittedAt, "execution batch admittedAt");
+  if (batch.manifestLimits !== undefined && (
+    !Number.isInteger(batch.manifestLimits.maxUnits) ||
+    batch.manifestLimits.maxUnits <= 0 ||
+    !Number.isInteger(batch.manifestLimits.maxManifestBytes) ||
+    batch.manifestLimits.maxManifestBytes <= 0
+  )) {
+    throw new RoadmapDeliveryError("batch_hard_constraint_failed", "execution batch limits are invalid");
+  }
   if (!Array.isArray(batch.units) || batch.units.length === 0) {
     throw new RoadmapDeliveryError("batch_hard_constraint_failed", "execution batch has no units");
   }
   const unitIds = new Set<string>();
   for (const unit of batch.units) {
-    assertExactObjectKeys(unit, [
-      "unitId", "membershipHash", "readinessRef", "validationRef", "validationContractHash",
-    ], "execution batch unit", "batch_hard_constraint_failed");
+    if (unit.kind === "direct_operation") {
+      assertExactObjectKeys(unit, [
+        "kind", "unitId", "authorityRef", "authorityHash", "dedupeKey", "priority", "budget",
+      ], "direct execution batch unit", "batch_hard_constraint_failed");
+      assertId(unit.unitId, "direct execution batch unit id");
+      assertAuthorityRef(unit.authorityRef, "direct_execution_unit");
+      assertHash(unit.authorityHash, "direct execution authority hash");
+      assertNonEmpty(unit.dedupeKey, "direct execution dedupe key");
+      assertExecutionUnitBudget(unit.budget);
+      if (unit.authorityHash !== unit.authorityRef.sha256) {
+        throw new RoadmapDeliveryError("batch_hard_constraint_failed", "direct unit loses authority lineage");
+      }
+      if (unitIds.has(unit.unitId)) {
+        throw new RoadmapDeliveryError("batch_hard_constraint_failed", `duplicate unit ${unit.unitId}`);
+      }
+      unitIds.add(unit.unitId);
+      continue;
+    }
+    assertExactObjectKeys(unit, unit.kind === undefined
+      ? ["unitId", "membershipHash", "readinessRef", "validationRef", "validationContractHash"]
+      : [
+          "kind", "unitId", "membershipHash", "readinessRef", "validationRef",
+          "validationContractHash", "priority", "budget", "issueNumbers",
+        ], "execution batch unit", "batch_hard_constraint_failed");
     assertId(unit.unitId, "execution batch unit id");
+    if (unit.issueNumbers !== undefined &&
+        (unit.issueNumbers.length === 0 || unitMembershipHash(unit.issueNumbers) !== unit.membershipHash)) {
+      throw new RoadmapDeliveryError("batch_hard_constraint_failed", "batch unit membership is incomplete");
+    }
     assertHash(unit.membershipHash, "execution batch membership hash");
     assertAuthorityRef(unit.readinessRef, "delivery_unit_readiness");
     assertAuthorityRef(unit.validationRef, "validation_contract");
     assertHash(unit.validationContractHash, "execution batch validation-contract hash");
+    assertExecutionUnitBudget(unit.budget ?? DEFAULT_EXECUTION_UNIT_BUDGET);
     if (unitIds.has(unit.unitId) || unit.validationContractHash !== unit.validationRef.sha256) {
       throw new RoadmapDeliveryError(
         "batch_hard_constraint_failed",
@@ -4232,8 +5153,205 @@ function planningAppDir(root: string, app: string): string {
   return join(resolve(root), "planning", "apps", appKey);
 }
 
+function executionUnitIdentityHash(unit: ExecutionUnit): string {
+  return unit.kind === "direct_operation"
+    ? stableHash({ kind: unit.kind, dedupeKey: unit.dedupeKey })
+    : stableHash({ kind: "roadmap_code", membershipHash: unit.membershipHash });
+}
+
+function initialExecutionUnitJournal(
+  batch: AcceptedAuthority<ExecutionBatch>,
+  unit: ExecutionUnit,
+): ExecutionUnitJournal {
+  return {
+    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
+    app: batch.value.app,
+    batchRef: batch.ref,
+    unitId: unit.unitId,
+    unitIdentityHash: executionUnitIdentityHash(unit),
+    state: "admitted",
+    budget: normalizeExecutionUnitBudget(unit.budget),
+    usage: {
+      providerTurns: 0,
+      equivalentCostUsd: 0,
+      mechanicalOverheadUsd: 0,
+      activeTimeMs: 0,
+      humanDecisions: 0,
+    },
+    episodeBindingRef: null,
+    claimSettlementId: null,
+    evidenceRefs: [],
+    candidateHead: null,
+    pullRequestNumber: null,
+    outcome: null,
+    updatedAt: batch.value.admittedAt,
+  };
+}
+
+async function ensureExecutionUnitJournal(
+  root: string,
+  batch: AcceptedAuthority<ExecutionBatch>,
+  unit: ExecutionUnit,
+): Promise<ExecutionUnitJournal> {
+  const path = executionUnitJournalPath(root, batch.value.app, batch.ref.id, unit.unitId);
+  const initial = initialExecutionUnitJournal(batch, unit);
+  const won = await writeLoopFileOnce(path, `${JSON.stringify(initial, null, 2)}\n`);
+  const current = won ? initial : await readExecutionUnitJournal(root, batch.value.app, batch.ref.id, unit.unitId);
+  if (current === undefined || current.unitIdentityHash !== initial.unitIdentityHash ||
+      !sameAuthorityRef(current.batchRef, batch.ref)) {
+    throw new RoadmapDeliveryError("unit_journal_conflict", `${unit.unitId} journal differs from batch authority`);
+  }
+  return current;
+}
+
+function addExecutionUnitUsage(
+  current: ExecutionUnitJournal["usage"],
+  delta: Partial<ExecutionUnitJournal["usage"]>,
+): ExecutionUnitJournal["usage"] {
+  const next = {
+    providerTurns: current.providerTurns + (delta.providerTurns ?? 0),
+    equivalentCostUsd: current.equivalentCostUsd + (delta.equivalentCostUsd ?? 0),
+    mechanicalOverheadUsd: current.mechanicalOverheadUsd + (delta.mechanicalOverheadUsd ?? 0),
+    activeTimeMs: current.activeTimeMs + (delta.activeTimeMs ?? 0),
+    humanDecisions: current.humanDecisions + (delta.humanDecisions ?? 0),
+  };
+  if (Object.values(next).some((value) => !Number.isFinite(value) || value < 0)) {
+    throw new RoadmapDeliveryError("unit_journal_conflict", "unit usage delta is invalid");
+  }
+  return next;
+}
+
+function assertUsageWithinBudget(
+  usage: ExecutionUnitJournal["usage"],
+  budget: ExecutionUnitBudget,
+): void {
+  if (
+    usage.providerTurns > budget.maxProviderTurns ||
+    usage.equivalentCostUsd > budget.maxEquivalentCostUsd ||
+    usage.mechanicalOverheadUsd > budget.maxMechanicalOverheadUsd ||
+    usage.activeTimeMs > budget.maxActiveTimeMs ||
+    usage.humanDecisions > budget.maxHumanDecisions
+  ) {
+    throw new RoadmapDeliveryError("unit_budget_exhausted", "unit usage exceeds its own admitted budget");
+  }
+}
+
+function assertExecutionUnitJournal(journal: ExecutionUnitJournal): void {
+  if (
+    journal.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION ||
+    journal.app.trim().length === 0 ||
+    !HASH.test(journal.unitIdentityHash) ||
+    ![
+      "admitted", "planning", "claimed", "running", "reviewing",
+      "approved", "returned", "failed", "completed",
+    ].includes(journal.state)
+  ) {
+    throw new RoadmapDeliveryError("unit_journal_conflict", "execution-unit journal is invalid");
+  }
+  assertAuthorityRef(journal.batchRef, "execution_batch");
+  assertExecutionUnitBudget(journal.budget);
+  assertUsageWithinBudget(journal.usage, journal.budget);
+  requireDateTime(journal.updatedAt, "execution-unit journal updatedAt");
+  if (isTerminalJournalState(journal.state) !== (journal.outcome !== null)) {
+    throw new RoadmapDeliveryError("unit_journal_conflict", "terminal journal outcome is partial");
+  }
+}
+
+function isTerminalJournalState(state: ExecutionUnitJournalState): boolean {
+  return state === "completed" || state === "returned" || state === "failed";
+}
+
+async function writeBatchDispositionIfComplete(
+  root: string,
+  batch: AcceptedAuthority<ExecutionBatch>,
+  now: Date,
+): Promise<void> {
+  const journals = await Promise.all(batch.value.units.map((unit) =>
+    readExecutionUnitJournal(root, batch.value.app, batch.ref.id, unit.unitId)));
+  if (journals.some((journal) => journal === undefined || !isTerminalJournalState(journal.state))) return;
+  const value: ExecutionBatchDisposition = {
+    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
+    app: batch.value.app,
+    batchRef: batch.ref,
+    units: journals.map((journal) => ({
+      unitId: journal!.unitId,
+      outcome: journal!.outcome!,
+      journalHash: stableHash(journal),
+    })),
+    completedAt: journals.map((journal) => journal!.updatedAt).sort().at(-1) ?? now.toISOString(),
+  };
+  const path = executionBatchDispositionPath(root, batch.value.app, batch.ref.id);
+  const won = await writeLoopFileOnce(path, `${JSON.stringify(value, null, 2)}\n`);
+  if (!won) {
+    const existing = JSON.parse(await readFile(path, "utf8")) as ExecutionBatchDisposition;
+    if (stableHash(existing) !== stableHash(value)) {
+      throw new RoadmapDeliveryError("unit_journal_conflict", "execution-batch disposition differs from terminal journals");
+    }
+  }
+}
+
+export function executionBatchDispositionPath(root: string, app: string, batchId: string): string {
+  assertId(batchId, "execution batch disposition id");
+  return join(planningAppDir(root, app), "execution-batch-dispositions", `${batchId}.json`);
+}
+
+async function assertNoActiveExecutionUnitOverlap(
+  root: string,
+  app: string,
+  candidates: readonly ExecutionUnit[],
+): Promise<void> {
+  const candidateKeys = new Set(candidates.flatMap(executionUnitExclusiveKeys));
+  const directory = join(planningAppDir(root, app), "execution_batchs");
+  if (!existsSync(directory)) return;
+  for (const batchId of await readdir(directory)) {
+    const batchDir = join(directory, batchId);
+    let versions: string[];
+    try {
+      versions = await readdir(batchDir);
+    } catch {
+      continue;
+    }
+    for (const version of versions.filter((name) => /^v\d+\.json$/.test(name))) {
+      const batch = await readAuthorityFile<ExecutionBatch>(join(batchDir, version));
+      assertExecutionBatchShape(batch.value);
+      for (const unit of batch.value.units) {
+        const journal = await readExecutionUnitJournal(root, app, batch.ref.id, unit.unitId);
+        if (journal !== undefined && isTerminalJournalState(journal.state)) continue;
+        if (executionUnitExclusiveKeys(unit).some((key) => candidateKeys.has(key))) {
+          throw new RoadmapDeliveryError(
+            "batch_membership_active",
+            `${unit.unitId} overlaps an active execution unit in batch ${batch.ref.id}`,
+          );
+        }
+      }
+    }
+  }
+}
+
+function executionUnitExclusiveKeys(unit: ExecutionUnit): string[] {
+  return unit.kind === "direct_operation"
+    ? [`direct:${unit.dedupeKey}`]
+    : [
+        `code-membership:${unit.membershipHash}`,
+        ...(unit.issueNumbers ?? []).map((number) => `issue:${number}`),
+      ];
+}
+
 function roadmapMutationLockPath(root: string, app: string): string {
   return join(planningAppDir(root, app), "roadmap-mutation.lock");
+}
+
+function batchMutationLockPath(root: string, app: string): string {
+  return join(planningAppDir(root, app), "execution-batch.lock");
+}
+
+function executionUnitJournalLockPath(
+  root: string,
+  app: string,
+  batchId: string,
+  unitId: string,
+): string {
+  return join(planningAppDir(root, app), "execution-unit-journals", batchId, `${unitId}.lock`);
 }
 
 function validationMutationLockPath(root: string, app: string): string {

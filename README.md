@@ -817,12 +817,13 @@ the validation rebuild — see Testing above.)
 
 ### Known limitations
 
-- **Autonomous roadmap delivery is not enabled yet.** HB-102 now provides the
-  deterministic validation-contract/readiness authority and exact hash lineage, while
-  HB-103…111 still owe multi-ticket merge atomicity, the full execution-unit/batch
-  lifecycle, fast-path/direct-operation integration, common planner/session behavior,
-  complete deterministic/golden coverage, contention/soak evidence, operator surfaces,
-  and the separately human-ratified protocol-surface proposal.
+- **Autonomous roadmap delivery is not enabled yet.** HB-103…105 now wire accepted
+  roadmap and validation authority into the production Planner/Builder loop, including
+  atomic multi-ticket delivery units, deterministic bounded execution batches,
+  per-unit journals/budgets, and strict provenance-bearing zero-turn normalization.
+  HB-106…111 still owe direct-effect continuation, shared planner/session behavior,
+  the complete deterministic/golden matrices, contention/soak evidence, operator
+  surfaces, and the separately human-ratified protocol-surface proposal.
 
 - **Release gating remains suspended.** L3/L4/L5 runners exist, but no authorized
   external campaign or seven-day soak was executed in this implementation change;

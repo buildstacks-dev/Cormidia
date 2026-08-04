@@ -29,7 +29,12 @@
 # separately gated. Acceptance is not implementation evidence.
 # changelog 2026-08-03 (HB-102 implementation): the deterministic validation-contract
 # schema/catalog/lifecycle/readiness guard and exact hash lineage are executable at L1/L2.
-# HB-103..111, protocol ratification and all external campaigns remain pending.
+# changelog 2026-08-03 (HB-103/HB-104/HB-105 implementation): production loop admission
+# now consumes current RoadmapPlan/readiness/validation authority; delivery-unit claim,
+# PR/HEAD/evidence/review/merge projections are whole-unit; bounded token-free batches
+# own lazy plans, budgets, journals and outcomes; structured creator/direct authorities
+# alone qualify for zero-turn normalization. HB-106..111, protocol ratification and all
+# external campaigns remain pending.
 # changelog 2026-08-03 (owner decision): exact manual-review independently excludes
 # autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
 # No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
@@ -363,7 +368,7 @@ harness_self_tests:                          # skill rules 16-17
 
 modules:
   - id: M17
-    status: "accepted implementation contract; HB-100/HB-101/HB-102 complete, HB-103..111 pending"
+    status: "accepted implementation contract; HB-100..HB-105 complete, HB-106..111 pending"
     subject: "roadmap and validation planning"
     contracts: [CORMIDIA-C-B20-001, CORMIDIA-C-B21-001,
       CORMIDIA-C-B22-001, CORMIDIA-C-OPBATCH-001,

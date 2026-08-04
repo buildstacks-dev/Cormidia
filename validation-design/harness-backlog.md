@@ -384,7 +384,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   claim under a race, persistence-before-projection, label-without-artifact refusal,
   whole-unit human-only exclusion at admission and claim, exact unit/contract/HEAD
   negative controls, and verdict-bound settlement. This is walking-skeleton coverage
-  only; HB-103…111 remain required before autonomous-loop readiness (HB-101/HB-102 are
+  only; HB-106…111 remain required before autonomous-loop readiness (HB-101…HB-105 are
   complete below).
 - **HB-101 — COMPLETE 2026-08-03 — RoadmapPlan schema, store, snapshot and bounded-delta replanning.** Add
   versioned/hash-bound RoadmapPlan and backlog-snapshot schemas; stable workstream/unit
@@ -435,9 +435,8 @@ prepares the proposal and a human separately ratifies any such surface. -->
   approval, waiver authority/expiry and current roadmap/frontier are rechecked through
   settlement, lifecycle ingestion is strict, and projections prove durable current
   readiness.
-  Full multi-ticket merge atomicity, batch lifecycle, operator and campaign families
-  remain HB-103…111.
-- **HB-103 — Multi-ticket delivery units and one-PR atomicity.** Replace ticket-scoped
+  Full operator and campaign families remain HB-106…111.
+- **HB-103 — COMPLETE 2026-08-03 — Multi-ticket delivery units and one-PR atomicity.** Replace ticket-scoped
   claim/review/merge assumptions with a stable delivery-unit authority containing one or
   more members. Make claim/revalidation all-or-none; bind branch, gates, evidence,
   review, repair allowance, merge and every member projection to one PR/HEAD/outcome;
@@ -446,7 +445,15 @@ prepares the proposal and a human separately ratifies any such surface. -->
   ticket cannot appear in two active units. *Defends:* CF-J04-*, CF-INV-005/009/016,
   CF-C-OPLOOP and B-20/B-21 joins. *Layer:* 1/2. *Executor:* build-agent.
   *Depends on:* HB-100/101/102.
-- **HB-104 — ExecutionUnit union, token-free batch admission and lazy plans.** Add
+  *Implementation:* `src/loop/loop.ts` and `src/loop/driver.ts` now bind the whole
+  delivery unit to one worktree, branch, PR, candidate HEAD, gate set, Builder evidence,
+  independent Reviewer verdict, repair allowance, merge, and all member projections.
+  `tests/hermetic/cf-hb103/delivery-unit-atomic-loop.test.ts` proves multi-member and
+  single-ticket compatibility paths and seeds a mid-claim projection failure that must
+  roll every member back. Three additional durable-journal cases in the HB-100 walking
+  skeleton prove subset pre-provider projection repair, consistent post-provider crash
+  settlement, and exact-HEAD merge recovery across all members.
+- **HB-104 — COMPLETE 2026-08-03 — ExecutionUnit union, token-free batch admission and lazy plans.** Add
   roadmap-backed code units plus complete direct operational units; hard-before-affinity
   deterministic admission; bounded ordered batch manifests; current-fact reread; lazy
   per-unit EpisodeIntent/EpisodePlan; per-unit journals, budgets and terminal
@@ -455,7 +462,15 @@ prepares the proposal and a human separately ratifies any such surface. -->
   claim/evidence/budget/completion to another. *Defends:* CF-J20-*, CF-SM-BATCH-*,
   CF-B22-*, CF-C-B22/OPBATCH. *Layer:* 1/2. *Executor:* build-agent.
   *Depends on:* HB-100/101/102/103.
-- **HB-105 — Structured zero-turn fast paths and truthful projections.** Implement
+  *Implementation:* `src/org/roadmap-delivery.ts` owns roadmap-code/direct-operation
+  execution-unit authorities, deterministic hard-constraint-first admission, bounded
+  manifests, lazy per-unit EpisodePlan creation, and isolated budgets/journals/terminal
+  outcomes. `tests/hermetic/cf-hb104/execution-unit-batching.test.ts` proves deterministic
+  zero-provider admission and replay, bounded manifests, missing-journal active-membership
+  refusal, lazy planning, seeded cross-unit budget-lending refusal, and last-outcome batch-
+  disposition crash repair; it also pins the HB-100 v1 batch reader with a seeded broken-
+  lineage refusal.
+- **HB-105 — COMPLETE 2026-08-03 — Structured zero-turn fast paths and truthful projections.** Implement
   strict normalization for complete creator scope, governed roadmap/workflow/validation
   templates and the low-risk Support/event-discovered code-fix profile. If exposed,
   `planning:preplanned` is only a ref+hash-backed GitHub projection and is reconciled like
@@ -465,6 +480,17 @@ prepares the proposal and a human separately ratifies any such surface. -->
   refuse—never the shortcut. A future Jira adapter is not implied by this work.
   *Defends:* CF-J03-A/R, CF-S1-env, CF-C-OPPLAN/OPVALIDATION. *Layer:* 1/2.
   *Executor:* build-agent. *Depends on:* HB-101/102.
+  *Implementation:* `src/org/roadmap-loop-runtime.ts`, `src/org/ticket-episode-runtime.ts`,
+  `src/org/plan-auto.ts`, and the CLI/dispatcher seams consume accepted RoadmapPlan,
+  readiness, validation, and batch authority in the actual production loop. Complete
+  creator/direct authority with governed provenance-bearing templates normalizes without
+  provider turns; detailed prose, missing provenance, labels alone, and whole-unit
+  human/manual routing never qualify. Production wiring, initial/successor multi-ticket
+  Planner projection, no-op replay, subset-closure refusal, and seeded removed-seam
+  negative controls live in `tests/unit/cf-hb103-105/production-wiring.test.ts`.
+  The HB-100 walking skeleton additionally proves that an accepted routine template
+  reaches the real governed ticket workflow with zero planning turns, while identical
+  prose without authority and an accepted custom contract cannot take the shortcut.
 - **HB-106 — Direct operational campaign units and exact-effect continuation.** Add
   deterministic intake for complete non-code work, a shallow Marketing campaign template,
   content/evidence manifests, per-destination exact approval items, effect acknowledgements

@@ -1,7 +1,10 @@
 # Operation contract — C-OP-BATCH (execution-unit batching and session affinity)
 Canonical ID: **CORMIDIA-C-OPBATCH-001 (alias: C-OP-BATCH)**
 
-Status: ACCEPTED implementation contract (2026-08-03); implementation in progress.
+Status: ACCEPTED implementation contract (2026-08-03); HB-104's execution-unit
+authority, deterministic bounded admission, lazy plans, and isolated journals/budgets/
+outcomes are implemented. Direct-effect continuation and shared session/cache behavior
+remain pending under HB-106/HB-107.
 Defends INV-001/004/005/006/008/014/015/016, M5/M6/M17. Journeys J-20/J-04/J-18.
 Interfaces with B-20/B-21/B-22.
 

@@ -60,10 +60,11 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   `docs/comparative-execution/design.md` is the product-facing contract.
 - **Roadmap/validation/delivery-unit/batching is an accepted 2026-08-03 implementation
   contract, not included in prior green evidence.** Phase 8 is closed; HB-100's local
-  provider-free walking skeleton, HB-101's whole-backlog authority and HB-102's
-  validation-contract/readiness guard are executable, while HB-103…111 remain. M17/J-20/
-  INV-016/B-20…22/S-10 and the two new operation contracts become executable only as
-  their named cases land; the skeleton is not autonomous-loop or live evidence.
+  provider-free walking skeleton, HB-101's whole-backlog authority, HB-102's
+  validation-contract/readiness guard, and HB-103…105's production delivery-unit,
+  execution-batch, and strict zero-turn slices are executable. HB-106…111 remain.
+  M17/J-20/INV-016/B-20…22/S-10 and the two new operation contracts are only as
+  evidenced as their named landed cases; no live evidence is implied.
 - **Release gating is SUSPENDED** (product decision, PURPOSE v2.9) and **B-17's live
   deploy/publication cell is BLOCKED** — should a deploy/publication-shaped incident
   occur, it would be operating in the least-verified part of the system. <!-- AUD-109 --> No surface may imply a gate

@@ -2061,6 +2061,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     turnId: options.turnId,
     authorization: { selfApprovalSecret },
     ...(options.app.release !== undefined ? { release: options.app.release } : {}),
+    deliveryUnits: ticketEpisode.deliveryUnits,
     engine: {
       pipelines,
       roles,

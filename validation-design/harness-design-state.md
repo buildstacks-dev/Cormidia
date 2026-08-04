@@ -62,11 +62,13 @@ changed and one added issue; non-admitted work creates no EpisodePlan. HB-102 ad
 closed v1 schema, pinned accepted catalog, strict forward-only contract lifecycle,
 current-unit and readiness authorities, canonical/coverage/layer/shared-detector checks,
 durable human-approved bounded waivers, C3/floor routine refusal, exact hash lineage,
-current-label/roadmap rereads and stale-version guards. The complete offline gate passed
-149/149 files and 987 tests with one intentionally parked skip. No
-provider, live/eval/soak, merge, publication, protocol-surface edit or external effect
-ran. #239 is merged and its two-boundary exclusion remains covered; HB-103…111 remain,
-so autonomous-loop readiness is not claimed.
+current-label/roadmap rereads and stale-version guards. HB-103…105 add production
+RoadmapPlan/readiness consumption, atomic one-or-more-ticket claims and PR projections,
+bounded deterministic ExecutionUnit batches, per-unit journals/budgets/outcomes, lazy
+EpisodePlans, and strict provenance-bearing zero-turn normalization. No provider,
+live/eval/soak, publication, protocol-surface edit or external effect ran. #239 is merged
+and its two-boundary exclusion remains covered; HB-106…111 remain, so autonomous-loop
+readiness is not claimed.
 
 ## Harness revision — comparative execution (2026-08-01)
 
@@ -269,8 +271,8 @@ its §9). Summary of the event:
 
 ## Pending confirmations
 - **Active 2026-08-03 revision:** Phase 8 was accepted on 2026-08-03 as recorded at
-  `ratification-package.md` §10.7. HB-100/HB-101/HB-102 local provider-free
-  implementation is complete; HB-103…111 remain. The proposed protocol-surface package
+  `ratification-package.md` §10.7. HB-100…HB-105 local offline implementation is
+  complete; HB-106…111 remain. The proposed protocol-surface package
   remains separately approval-gated under HB-111.
 - **Closed 2026-07-31 campaign:** none in-campaign. Audit iteration 2 CONFIRMED:
   verification pass clean,

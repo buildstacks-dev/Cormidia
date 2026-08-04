@@ -79,6 +79,14 @@ Excluded by default:
 - `protocol-self-edit`-covered surfaces;
 - anything whose verification routes through the thing being changed.
 
+The durable routing mechanism is the GitHub label `routing:human-only`. A
+human applies it when the PR-level decision above excludes autonomous work.
+Planner may inspect and explain the ticket but must not add `op:ready`; Builder
+must refuse the ticket even if it already carries `op:ready`. The routing label
+is deliberately outside the `op:*` phase namespace, survives every phase-label
+swap, and is removed only when a human explicitly re-routes the whole PR scope.
+Unreadable label state fails closed as human-only rather than becoming eligible.
+
 Drift is caught at the end, not prevented by chunking in the middle: if a PR's
 final diff reaches an excluded path, stop and re-decide before merge. A
 frozen-path diff against the changed-file list is the mechanism — it held

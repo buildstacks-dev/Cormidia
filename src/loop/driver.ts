@@ -15,10 +15,12 @@ import {
   advanceReviewing,
   advanceShipping,
   branchNameForIssue,
+  AutonomousRoutingExclusionError,
   claimTicket,
   criterionTestMapFromContractText,
   itemFromIssue,
   parseAcceptanceCriteria,
+  readAutonomousClaimIssue,
   rearmDependents,
   type ReviewAuthorization,
 } from "./loop.js";
@@ -50,6 +52,7 @@ import type { Policy } from "./policy.js";
 import { loadPolicy } from "./policy.js";
 import type { GateCommands } from "./qgates.js";
 import { assertCanonicalGateCommandPlacement } from "./gate-config.js";
+import { AUTONOMOUS_EXECUTION_EXCLUSION_LABEL } from "./plan-tickets.js";
 import {
   episodeIdFor,
   readRouteRecord,
@@ -301,6 +304,14 @@ export interface LoopDriverResult {
     status: EpisodeTerminal["status"];
     reason: string;
   }>;
+  /** Tickets considered by Builder but deterministically excluded from
+   * autonomous execution. Distinct from an empty queue and from phase-based
+   * ineligibility: the human routing decision survives every op:* swap. */
+  routingRefusals?: Array<{
+    issueNumber: number;
+    code: "routing_human_only" | "routing_label_unreadable";
+    reason: string;
+  }>;
 }
 
 export function planLoopTick(
@@ -528,6 +539,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   const maxConcurrent = options.maxConcurrent ?? 1;
   const lines: string[] = [];
   const terminalEpisodeRefusals: NonNullable<LoopDriverResult["terminalEpisodeRefusals"]> = [];
+  const routingRefusals: NonNullable<LoopDriverResult["routingRefusals"]> = [];
   if (options.engine !== undefined && options.planOnly !== true) {
     const entries = listTicketClaimStates(options.engine.runlogRoot, options.app).map((entry) => ({
       issueNumber: entry.issueNumber,
@@ -565,6 +577,12 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   });
   const readyIssues: GhIssue[] = [];
   for (const issue of fetchedReadyIssues) {
+    if (issue.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+      const reason = `ticket carries ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL}; autonomous Builder claim refused`;
+      routingRefusals.push({ issueNumber: issue.number, code: "routing_human_only", reason });
+      lines.push(`#${issue.number} ${issue.title}: ${reason}`);
+      continue;
+    }
     if (options.engine !== undefined && options.planOnly !== true) {
       const terminalEpisode = await readTerminalTicketEpisode({
         root: options.engine.runlogRoot,
@@ -618,13 +636,31 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         ));
       }
     }
-    return { lines, items: [], scorecardEvents: [], itemsPreviewed: plan.length };
+    return {
+      lines,
+      items: [],
+      scorecardEvents: [],
+      itemsPreviewed: plan.length,
+      ...(routingRefusals.length === 0 ? {} : { routingRefusals }),
+    };
   }
 
   const items: LoopItem[] = [];
   for (const planned of plan) {
-    const issue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
-    if (issue === undefined) continue;
+    const selectedIssue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
+    if (selectedIssue === undefined) continue;
+    let issue: GhIssue;
+    try {
+      issue = await readAutonomousClaimIssue(selectedIssue, options.gh);
+    } catch (error) {
+      if (!(error instanceof AutonomousRoutingExclusionError)) throw error;
+      const code = error.code === "autonomous_routing_human_only"
+        ? "routing_human_only" as const
+        : "routing_label_unreadable" as const;
+      routingRefusals.push({ issueNumber: error.issueNumber, code, reason: error.message });
+      lines.push(`#${selectedIssue.number} ${selectedIssue.title}: ${error.message}`);
+      continue;
+    }
 
     // #203: the base is resolved HERE, per ticket, not once per invocation.
     // Every ticket this tick already claimed may have merged into the default
@@ -927,6 +963,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     items,
     scorecardEvents: items.flatMap((item) => item.scorecardEvents ?? []),
     ...(terminalEpisodeRefusals.length === 0 ? {} : { terminalEpisodeRefusals }),
+    ...(routingRefusals.length === 0 ? {} : { routingRefusals }),
   };
 }
 

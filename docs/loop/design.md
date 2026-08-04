@@ -461,6 +461,17 @@ stays unready with a typed reason. GitHub is read back after a label write;
 general lost-response/ambiguous publication recovery remains the separate
 #232 transaction and is not represented by a competing local state machine.
 
+`routing:human-only` is an orthogonal PR-routing decision, never a phase. A
+human applies it when Cormidia would judge a change through the instrument
+being changed (or another repository rule reserves the PR for direct human-
+routed work). Planner returns the typed `autonomous_execution_excluded`
+readiness reason instead of adding `op:ready`. Builder independently re-reads
+the issue immediately before claim and refuses with a distinct routing
+diagnostic even if `op:ready` is already present. A failed routing-label read
+also refuses: uncertainty cannot widen autonomous authority. Because phase
+transitions swap only `op:*` labels, the routing decision survives the complete
+ticket lifecycle until a human explicitly removes it.
+
 - `triage` (bug batches): classify each issue — *bug* → tier + spec
 links + `op:ready`; *improvement* → backlog candidate (labeled, not
 ready); *duplicate/invalid* → close with reason. Prioritize (`p1..p3`).

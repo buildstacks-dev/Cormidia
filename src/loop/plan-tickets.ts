@@ -21,6 +21,11 @@ import { RELEASE_KINDS, type ReleaseConfig, type ReleaseKind } from "./types.js"
 export const STATE_LABELS = ["op:ready", "op:building", "op:in-review", "op:returned", "op:blocked"] as const;
 export const TIER_LABELS = ["op:tier-quick", "op:tier-standard", "op:tier-deep"] as const;
 export const PRIORITY_LABELS = ["p1", "p2", "p3"] as const;
+/** Durable PR-routing decision. This deliberately does not share the op:*
+ * phase namespace: state transitions swap one phase label at a time, while
+ * this exclusion must survive every phase and be removable only by a human
+ * re-routing the work. */
+export const AUTONOMOUS_EXECUTION_EXCLUSION_LABEL = "routing:human-only" as const;
 
 export type TierLabel = (typeof TIER_LABELS)[number];
 export type PriorityLabel = (typeof PRIORITY_LABELS)[number];
@@ -39,7 +44,7 @@ export function domainLabelName(domain: SensitiveDomain): string {
   return `domain:${domain}`;
 }
 
-export type CanonicalLabelKind = "state" | "tier" | "priority" | "domain";
+export type CanonicalLabelKind = "state" | "tier" | "priority" | "domain" | "routing";
 
 export interface CanonicalLabelDefinition {
   name: string;
@@ -96,6 +101,15 @@ export const CANONICAL_LABELS: readonly CanonicalLabelDefinition[] = [
     kind: "state",
     appliedBy: "The loop when the exact durable continuation is waiting on critical-op approval",
     operatorResponse: "Review cormidia approvals; do not bypass the decision by editing labels",
+  },
+  {
+    name: AUTONOMOUS_EXECUTION_EXCLUSION_LABEL,
+    color: "b60205",
+    description: "Excluded from autonomous Planner readiness and Builder claims",
+    kind: "routing",
+    appliedBy: "A human making the PR-level self-hosting routing decision",
+    operatorResponse:
+      "Keep the ticket out of the autonomous loop; remove only after a human explicitly re-routes the whole PR scope",
   },
   {
     name: "op:tier-quick",

@@ -25,6 +25,9 @@ Journey J-04. Interfaces with B-01/B-15/B-16/B-20/B-21/B-22 and the provider ada
 - Claims are provisional until the first provider turn; crash before that boundary
   repairs the whole unit without consuming allowance; post-provider ambiguity requires
   the content-bound `loop rearm` transaction `[doc]` (INV-005).
+- `routing:human-only` is orthogonal to lifecycle state and refuses autonomous claim
+  even when `op:ready` is present. Builder re-reads current label state immediately
+  before claim; unreadable state refuses. Phase swaps never remove the routing label.
 
 ## §3 Cycle bounds
 - Remediation and review cycles are each bounded at **3** `[doc]`. Cycles 1–3 bounce

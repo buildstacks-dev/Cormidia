@@ -15,6 +15,7 @@ import {
 import { makeJ04World } from "../cf-j04/support.js";
 
 const HUMAN_ONLY = "routing:human-only";
+const MANUAL_REVIEW = "manual-review";
 const COMPLETE_BODY = [
   "Depends-on: none",
   "Execution group: routing",
@@ -138,6 +139,67 @@ describe("CF-REG-239 — durable exclusion from autonomous execution", () => {
     expect((await gh.readIssue(239)).labels).toContain("op:ready");
   });
 
+  it("keeps an otherwise complete manual-review issue unready without removing the hold", async () => {
+    const gh = new RoutingGithub([issue(["p2", "op:tier-quick", MANUAL_REVIEW])]);
+    const intake = await preparePlannerIssueIntake({
+      gh: gh as unknown as GhOps,
+      app: "cormidia",
+      turnId: "planner-manual-review",
+    });
+
+    const result = await applyPlannerReadinessDecisions({
+      gh: gh as unknown as GhOps,
+      intake,
+      decisions: [readyDecision()],
+    });
+
+    expect(result.outcomes[0]).toMatchObject({
+      disposition: "unready",
+      reason_code: "autonomous_execution_excluded",
+    });
+    expect((await gh.readIssue(239)).labels).toContain(MANUAL_REVIEW);
+    expect(gh.removals).not.toContainEqual([239, MANUAL_REVIEW]);
+  });
+
+  it("does not wildcard unrelated manual-* taxonomy", async () => {
+    const gh = new RoutingGithub([issue(["p2", "op:tier-quick", "manual-feelview"])]);
+    const intake = await preparePlannerIssueIntake({
+      gh: gh as unknown as GhOps,
+      app: "cormidia",
+      turnId: "planner-manual-taxonomy-negative-control",
+    });
+
+    const result = await applyPlannerReadinessDecisions({
+      gh: gh as unknown as GhOps,
+      intake,
+      decisions: [readyDecision()],
+    });
+
+    expect(result.applied_issue_numbers).toEqual([239]);
+    expect((await gh.readIssue(239)).labels).toEqual(expect.arrayContaining(["manual-feelview", "op:ready"]));
+  });
+
+  it("retracts only op:ready when manual-review arrives during Planner publication", async () => {
+    const gh = new RoutingGithub([issue(["p2", "op:tier-quick"])]);
+    const intake = await preparePlannerIssueIntake({
+      gh: gh as unknown as GhOps,
+      app: "cormidia",
+      turnId: "planner-late-manual-review",
+    });
+
+    const result = await applyPlannerReadinessDecisions({
+      gh: gh as unknown as GhOps,
+      intake,
+      decisions: [readyDecision()],
+      fault: () => gh.addLabel(239, MANUAL_REVIEW),
+    });
+
+    expect(result.outcomes[0]?.reason_code).toBe("autonomous_execution_excluded");
+    expect((await gh.readIssue(239)).labels).toContain(MANUAL_REVIEW);
+    expect((await gh.readIssue(239)).labels).not.toContain("op:ready");
+    expect(gh.removals).toEqual([[239, "op:ready"]]);
+  });
+
   it("re-reads routing at publication so a label applied after intake still wins", async () => {
     const gh = new RoutingGithub([issue(["p2", "op:tier-quick"])]);
     const intake = await preparePlannerIssueIntake({
@@ -223,6 +285,53 @@ describe("CF-REG-239 — durable exclusion from autonomous execution", () => {
       }),
     ]);
     expect(gh.swaps).toEqual([]);
+  });
+
+  it("Builder refuses a ready manual-review issue with a distinct typed diagnostic", async () => {
+    const gh = new RoutingGithub([issue(["p2", "op:tier-quick", "op:ready", MANUAL_REVIEW])]);
+    const result = await runLoopOnce({
+      app: "cormidia",
+      repo: "cormidia/Cormidia",
+      gh: gh as unknown as GhOps,
+      localRepo: "/unreachable",
+      worktreeRoot: "/unreachable",
+      policy: DEFAULT_LOOP_POLICY,
+      commands: { testCommand: "true" },
+      base: baseRevisionForBranch("trunk"),
+      planOnly: true,
+    });
+
+    expect(result.itemsPreviewed).toBe(0);
+    expect(result.routingRefusals).toEqual([
+      expect.objectContaining({ issueNumber: 239, code: "manual_review" }),
+    ]);
+    expect(gh.swaps).toEqual([]);
+  });
+
+  it("Builder re-reads a stale ready issue and refuses a late manual-review hold", async () => {
+    const world = await makeJ04World();
+    try {
+      await world.gh.ensureLabel({
+        name: MANUAL_REVIEW,
+        color: "b60205",
+        description: "Held for manual review",
+      });
+      await world.gh.addLabel(world.issue.number, MANUAL_REVIEW);
+
+      await expect(claimTicket(world.issue, {
+        gh: world.gh,
+        targetRepo: world.github.repo,
+        localRepo: world.repo.dir,
+        worktreeRoot: world.worktreeRoot,
+        base: world.base,
+      })).rejects.toMatchObject({
+        code: "autonomous_manual_review",
+        issueNumber: world.issue.number,
+      });
+      expect((await world.gh.readIssue(world.issue.number)).labels).toEqual(["op:ready", MANUAL_REVIEW]);
+    } finally {
+      await world.cleanup();
+    }
   });
 
   it("Builder re-reads a stale ready issue and refuses a late human-only label", async () => {

@@ -1,7 +1,9 @@
 # Operation contract — C-OP-VALIDATION (validation obligations through delivery)
 Canonical ID: **CORMIDIA-C-OPVALIDATION-001 (alias: C-OP-VALIDATION)**
 
-Status: ACCEPTED implementation contract (2026-08-03); implementation in progress.
+Status: ACCEPTED implementation contract (2026-08-03); HB-102's deterministic
+schema/catalog/lifecycle/readiness handoff is implemented, while HB-103+ delivery
+integration and the S-10 qualification campaign remain pending.
 Defends INV-008/012/015/016, M4/M17. Journeys J-03/J-04/J-18. Interfaces with
 B-20/B-21/B-22 and the affected product boundary contracts.
 
@@ -35,6 +37,18 @@ B-20/B-21/B-22 and the affected product boundary contracts.
   omission is never a lifecycle state or waiver. An interrupted successor leaves the
   prior accepted version authoritative and marks readiness stale until the exact
   RoadmapPlan/unit binding is reconciled.
+- The durable implementation stores an app-scoped, versioned accepted harness catalog,
+  immutable validation-contract versions, one current pointer per unit, lifecycle
+  records, and immutable delivery-unit-readiness authorities. A catalog or contract
+  successor invalidates older readiness at every downstream join.
+- The first installed catalog names the ratified 2026-08-03 harness revision. Catalog
+  successors are exact-predecessor and tighten-only and the implemented catalog slice
+  is content-pinned: they cannot add unratified policy or remove existing canonical
+  identities/aliases, floors, detector duties, templates, or widen routine/waiver
+  policy. HB-108 expands the complete catalog and its pin through an accepted revision.
+- Semantically invalid proposals do not enter the durable lifecycle, so a corrected
+  same-version retry remains possible. Exact accepted replay recovers a missing current
+  pointer without changing accepted bytes.
 
 ## §3 Builder handoff
 - The accepted delivery EpisodePlan carries the exact validation-contract ref+hash.
@@ -46,6 +60,12 @@ B-20/B-21/B-22 and the affected product boundary contracts.
   accepted obligation.
 - Missing evidence is a typed incomplete Builder outcome; prose such as “tests passed”
   cannot satisfy an evidence entry.
+- A waiver's provenance resolves to an exact durable human approval and unrevoked grant
+  binding the app/unit/contract/version/obligation/class/reason/expiry. The authority is
+  re-resolved with the waiver at downstream joins; a self-declared actor/ref is invalid.
+- Builder claim invokes its own current-label reader over every unit member; unreadable
+  labels, `routing:human-only`, or exact `manual-review` refuse the whole unit. Neither
+  exclusion is ever removed by Cormidia and `manual-review` is not a `manual-*` wildcard.
 
 ## §4 Reviewer handoff and verdict
 - Reviewer uses an independent role/assignment/session and receives the accepted
@@ -56,7 +76,10 @@ B-20/B-21/B-22 and the affected product boundary contracts.
   Suppressed critical operations are evidence states, never silently equivalent to a
   completed check.
 - A pass verdict is bound to the exact contract version, delivery-unit membership and
-  HEAD. Any change invalidates the verdict and requires the affected suffix to rerun.
+  HEAD. Settlement rechecks the current contract and exact hash. Any change invalidates
+  the verdict and requires the affected suffix to rerun.
+- Any waiver must still be unexpired at every readiness/evidence/review/settlement
+  boundary, and the exact RoadmapPlan/frontier must still be current.
 
 ## §5 Proportionality
 - Low-risk routine work may use a governed validation template or explicit policy waiver;

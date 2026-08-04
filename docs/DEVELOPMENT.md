@@ -87,6 +87,13 @@ is deliberately outside the `op:*` phase namespace, survives every phase-label
 swap, and is removed only when a human explicitly re-routes the whole PR scope.
 Unreadable label state fails closed as human-only rather than becoming eligible.
 
+The exact GitHub label `manual-review` is a second, independent autonomous
+scheduling exclusion. Planner may inspect/explain it but cannot publish `op:ready`;
+Builder rereads current labels and refuses any delivery unit containing it, even when
+`op:ready` is present. Cormidia never removes `manual-review`; only a human does. This
+rule is exact—there is no `manual-*` wildcard, and `manual-feelview` has no scheduling
+meaning pending the separate HB-112 taxonomy audit.
+
 Drift is caught at the end, not prevented by chunking in the middle: if a PR's
 final diff reaches an excluded path, stop and re-decide before merge. A
 frozen-path diff against the changed-file list is the mechanism — it held

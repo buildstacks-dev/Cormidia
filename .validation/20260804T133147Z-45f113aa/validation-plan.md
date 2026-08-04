@@ -2,7 +2,7 @@
 
 1. Bind the assessment to base commit
    `86f0727326d17063e23878d0c846b52154c8f3dd` and implementation tree
-   `9a9453188e6a2fb51bedf9e74059f40f8968f758`.
+   `45f113aa93d9a15047a4ac086223a00f0cd93cc6`.
 2. Exercise the exact CF-REG-251 trailing-hyphen input and its unsafe raw-path
    negative control.
 3. Walk the accepted deterministic catalog and require a catalog row, case row,

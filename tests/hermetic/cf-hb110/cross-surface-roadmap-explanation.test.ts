@@ -358,7 +358,7 @@ function directUnit(): DirectExecutionUnitAuthority {
     safetyFacts: [{ kind: "independent_review", evidenceRefs: ["fixture"] }],
     workflowTemplate: { id: "fixture/direct", version: "v1" },
     provenance: { source: "human", creatorId: "fixture-owner", createdAt: AT, evidenceRefs: ["fixture:direct"] },
-    dedupeKey: "hb110-direct-sibling",
+    dedupeKey: "sibling",
     admittedBudget: budget(),
     createdAt: AT,
   };

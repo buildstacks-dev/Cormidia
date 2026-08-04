@@ -9,8 +9,9 @@
 | `pnpm typecheck` | Pass |
 | `pnpm build` | Pass |
 | `git diff --check` | Pass |
+| Pinned gitleaks 8.18.4 working-tree scan | Pass after replacing one high-entropy inert fixture key |
 | Protected-path diff query | Pass; empty result |
-| `git write-tree` | `9a9453188e6a2fb51bedf9e74059f40f8968f758` |
+| `git write-tree` | `45f113aa93d9a15047a4ac086223a00f0cd93cc6` |
 
 No provider-backed, live, eval, soak, publication, deployment, scheduler, or
 release command was run.

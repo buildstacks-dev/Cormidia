@@ -27,6 +27,9 @@ pass; an unverified claim of success only wastes a remediation cycle.
 5. **Plan-adherence self-check** before declaring done:
    - every acceptance criterion is addressed, each by the test named in the
      contract's mapping;
+   - every non-waived accepted validation obligation has its named detector,
+     seeded negative control, and expected evidence at the declared cheapest
+     layer; the exact IDs appear in the gate evidence;
    - only in-scope files are touched — revert strays now, whatever they
      cost you;
    - the change conforms to the architecture it lives in (imports, layering,

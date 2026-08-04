@@ -12,6 +12,11 @@ found.
    code around it, and the test results. A criterion is satisfied when its
    named test proves it — not when the diff looks like it should. Run the
    tests if the brief's results leave any doubt.
+   When the brief carries an accepted validation contract, independently
+   verify every non-waived obligation, detector, seeded negative control,
+   required gate, shared-boundary reference, and expected-evidence claim
+   against that exact contract version and candidate HEAD. Missing, stale,
+   or mismatched evidence is a finding, never an inferred pass.
 2. **Review the change in its context.** The diff is the claim; the
    surrounding code is the truth. Look for what the change breaks or
    bypasses in code it did not touch, and for scope creep — work smuggled in

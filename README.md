@@ -227,6 +227,8 @@ cormidia loop --app <app> --once --dry-run
 cormidia loop rearm --app <app> --ticket <n> --reason "reviewed" --actor <identity> --from-allowance 3 --to-allowance 4 # preview
 cormidia dispatch --dry-run
 cormidia dispatch --retry-schedule <settlement-id>       # explicit one-time retry; same due-window identity
+cormidia publication list --app <app> --json             # read-only transaction/recovery status
+cormidia publication resume --app <app> --id <pub-id> --json # token-free exact recovery
 cormidia scheduler install --json                       # preview, audit row only
 cormidia scheduler status --json                        # read-only health
 cormidia scheduler uninstall --json                     # preview, audit row only
@@ -645,6 +647,8 @@ planning/apps/<hash>/      # immutable backlog snapshots/RoadmapPlan revisions,
                            # contract lifecycle/current-unit pointers, readiness,
                            # batches, per-unit EpisodePlan binding, Builder evidence,
                            # independent Reviewer verdict
+planning/publications/<hash>/ # durable scheduled-Planner publication transactions;
+                           # exact branch/commit/effects/evidence and recovery command
 planning/delivery-unit-claims/ # atomic all-member delivery-unit claim records
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
 approvals/                # content-bound decisions, grants, execution state,

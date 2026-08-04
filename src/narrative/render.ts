@@ -37,6 +37,19 @@ export function renderStoryMarkdown(story: NarrativeStory): string {
     lines.push("");
   }
 
+  if (story.publication !== undefined) {
+    lines.push("## Planner publication", "");
+    lines.push(
+      `State: **${story.publication.state}** · ` +
+      `${story.publication.branch_created ? `\`${story.publication.branch}\` at \`${story.publication.commit}\`` : "read-only checkout"}`,
+      "",
+    );
+    if (story.publication.error !== null) lines.push(`Error: ${story.publication.error}`, "");
+    if (story.publication.state !== "published") {
+      lines.push(`Recovery: \`${story.publication.recovery_command}\``, "");
+    }
+  }
+
   lines.push("## Timeline", "");
   if (story.moments.length === 0) lines.push("_No pass records captured._", "");
   for (const moment of story.moments) {

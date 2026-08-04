@@ -1,0 +1,22 @@
+{
+  "command": [
+    "git",
+    "-C",
+    "/Users/bikram/Build/Cormidia",
+    "status",
+    "--short"
+  ],
+  "cwd": "/Users/bikram/Build/Cormidia-worktree-230-232",
+  "duration_seconds": 0.023618,
+  "ended_at_utc": "2026-08-04T17:16:03Z",
+  "environment_variables_recorded": false,
+  "exit_code": 0,
+  "name": "operator-checkout-status-final",
+  "redaction_patterns_applied": 0,
+  "schema_version": "1.0",
+  "started_at_utc": "2026-08-04T17:16:03Z",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sha256": "322bb461650434c84a6225f7f5a45012c17c4f93b8ac83867fa36e9c903371eb",
+  "timed_out": false,
+  "timeout_seconds": 60.0
+}

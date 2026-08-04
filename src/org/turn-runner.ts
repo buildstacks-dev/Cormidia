@@ -5,14 +5,6 @@ import { existsSync, mkdirSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import {
-  acquireFileLock,
-  releaseFileLock,
-  withFileLock,
-  type FileLockClock,
-  type FileLockOptions,
-  type FileLockToken,
-} from "../runtime/file-lock.js";
 import { defaultGate } from "../runtime/gate.js";
 import { worstUsageQuality } from "../runtime/cost.js";
 import { getRuntime } from "../runtime/registry.js";
@@ -34,11 +26,7 @@ import {
   runLoopOnce,
   type LoopDriverResult,
 } from "../loop/driver.js";
-import {
-  baseRevisionForBranch,
-  resolveRemoteDefaultBranch,
-  type BaseRevision,
-} from "../loop/default-branch.js";
+import type { BaseRevision } from "../loop/default-branch.js";
 import { queueReleaseApprovals } from "./release.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 import {
@@ -156,12 +144,31 @@ import {
   preparePlannerFeedBatch,
 } from "./standing-roles.js";
 import {
-  applyPlannerReadinessDecisions,
   parsePlannerReadinessDecisions,
   plannerIssueIntakeBrief,
   preparePlannerIssueIntake,
   type PlannerIssueIntake,
 } from "./planner-intake.js";
+import {
+  ensureManagedClone,
+  withAppGitLock,
+} from "./managed-checkout.js";
+import {
+  preparePlannerPublication,
+  resumePlannerPublication,
+  type PlannerPublicationGit,
+} from "./planner-publication.js";
+
+export {
+  acquireGitCloneLock,
+  AppGitLockBusyError,
+  ensureManagedClone,
+  releaseGitCloneLock,
+  withAppGitLock,
+  type GitCloneLockClock,
+  type GitCloneLockToken,
+  type ManagedClone,
+} from "./managed-checkout.js";
 
 export interface RunDispatchedTurnOptions {
   role: RoleConfig;
@@ -212,6 +219,11 @@ export interface RunDispatchedTurnOptions {
     env: NodeJS.ProcessEnv;
     timeoutMs: number;
   }) => Promise<ApprovedCommandResult>;
+  /** Deterministic publication seams used by the L2 crash/recovery harness. */
+  plannerPublicationGit?: PlannerPublicationGit;
+  plannerPublicationFault?: (
+    boundary: "after_push" | "after_readiness" | "after_roadmap",
+  ) => void | Promise<void>;
 }
 
 export interface RunDispatchedTurnResult {
@@ -305,9 +317,11 @@ export async function runDispatchedTurn(
         : resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
     const checkout = await withAppGitLock(runtimeHome, options.app.name, async () => {
       const clone = await ensureManagedClone(options.app, runtimeHome);
-      const worktree = usesStandaloneTurnWorktree(route, options.creatorScope)
-        ? createTurnWorktree(clone.path, runtimeHome, options.app.name, options.turnId, clone.base)
-        : undefined;
+      const worktree = options.role.name === "planner"
+        ? createPlannerTurnWorktree(clone.path, runtimeHome, options.app.name, options.turnId, clone.base)
+        : usesStandaloneTurnWorktree(route, options.creatorScope)
+          ? createTurnWorktree(clone.path, runtimeHome, options.app.name, options.turnId, clone.base)
+          : undefined;
       return {
         clone,
         localRepo: worktree?.path ?? clone.path,
@@ -340,7 +354,7 @@ export async function runDispatchedTurn(
       phase: "running",
       passStartedAt: clock().toISOString(),
       worktree: localRepo,
-      ...(isolatedWorktree === undefined ? {} : { worktreeBranch: isolatedWorktree.branch }),
+      ...(isolatedWorktree?.attached === true ? { worktreeBranch: isolatedWorktree.branch } : {}),
     });
 
     // Every executor-routed provider invocation settles its own ledger row;
@@ -479,7 +493,8 @@ export async function runDispatchedTurn(
       session: result.session,
       ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
       ...(recovery === undefined ? {} : { recovery }),
-      ...(result.status === "cancelled" || result.status === "timed_out" || recovery !== undefined
+      ...(result.status === "cancelled" || result.status === "timed_out" ||
+          result.status === "failed" || result.status === "blocked_on_gate" || recovery !== undefined
         ? { message: result.summary }
         : {}),
     });
@@ -1144,7 +1159,12 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     : undefined;
   if (
     plannerIssueIntake !== undefined
-    && ["github_unavailable", "missing_required_executable", "ready_only_filtering"]
+    && [
+      "github_unavailable",
+      "missing_required_executable",
+      "ready_only_filtering",
+      "backlog_completeness_bound",
+    ]
       .includes(plannerIssueIntake.diagnostic.code)
   ) {
     return {
@@ -1334,17 +1354,68 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   if (plannerIssueIntake !== undefined && turnResult.status === "completed") {
     try {
       const decisions = parsePlannerReadinessDecisions(result.passes.at(-1)?.result.summary ?? "");
-      await applyPlannerReadinessDecisions({
-        gh: options.gh ?? new GhCliOps(options.app.repo),
+      const publication = await preparePlannerPublication({
+        stateHome: options.runtimeHome,
+        app: options.app,
+        turnId: options.turnId,
+        worktree: options.localRepo,
+        branch: turnWorktreeIdentity(
+          options.runtimeHome,
+          options.app.name,
+          options.turnId,
+        ).branch,
+        base: options.base,
         intake: plannerIssueIntake,
         decisions,
+        episodeId,
+        providerRunIds: result.passes.map((record) => record.runId),
+        providerOutput: result.passes.map((record) => record.result.summary).join("\n"),
+        now: clock(),
+        ...(options.plannerPublicationGit === undefined
+          ? {}
+          : { git: options.plannerPublicationGit }),
       });
+      const reconciled = publication.state === "publication_pending"
+        ? await resumePlannerPublication({
+            stateHome: options.runtimeHome,
+            app: options.app,
+            publicationId: publication.publication_id,
+            gh: options.gh ?? new GhCliOps(options.app.repo),
+            now: clock(),
+            ...(options.plannerPublicationGit === undefined
+              ? {}
+              : { git: options.plannerPublicationGit }),
+            ...(options.plannerPublicationFault === undefined
+              ? {}
+              : { fault: options.plannerPublicationFault }),
+          })
+        : publication;
+      if (reconciled.state !== "published") {
+        turnResult = {
+          ...turnResult,
+          status: "failed",
+          summary:
+            `Planner publication ${reconciled.state}: ${reconciled.error?.message ?? "publication is incomplete"}. ` +
+            `Resume with: ${reconciled.recovery.command}`,
+          errorCode: reconciled.state === "refused"
+            ? "error_planner_publication_refused"
+            : "error_planner_publication_pending",
+        };
+      } else {
+        turnResult = {
+          ...turnResult,
+          summary:
+            `${turnResult.summary}; Planner publication ${reconciled.publication_id} durable at ` +
+            `${reconciled.branch_created ? `${reconciled.branch}@${reconciled.commit}` : "read-only checkout"}; ` +
+            `${reconciled.evidence.validation_refs.length} validation contract(s) ready`,
+        };
+      }
     } catch (error) {
       turnResult = {
         ...turnResult,
         status: "failed",
-        summary: `Planner readiness application refused: ${error instanceof Error ? error.message : String(error)}`,
-        errorCode: "error_planner_readiness_application",
+        summary: `Planner publication refused: ${error instanceof Error ? error.message : String(error)}`,
+        errorCode: "error_planner_publication",
       };
     }
   }
@@ -2412,92 +2483,12 @@ async function ensureTurnLock(
   return acquired.lock;
 }
 
-const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;
-/** The waiter's max-wait sits ABOVE the staleness window (F-001): a genuinely
- *  stale holder — dead pid, or aged past the window — is reclaimed by the
- *  liveness/stale predicate first, and a proven-LIVE holder is never
- *  force-broken. Past this deadline with the holder still alive, the waiter
- *  gives up (typed busy) rather than running a second `git reset --hard` on the
- *  same checkout; the next dispatch tick retries. */
-const GIT_CLONE_LOCK_MAX_WAIT_MS = GIT_CLONE_LOCK_STALE_MS + 60 * 1000;
-
-/** The git-clone lock is a configuration of the shared FileLock primitive
- *  (F-008 — the ledger lock's liveness + token + stale-reclamation model). The
- *  git-named aliases keep a stable, discoverable API for callers and tests. */
-export { FileLockBusyError as AppGitLockBusyError } from "../runtime/file-lock.js";
-export type { FileLockClock as GitCloneLockClock, FileLockToken as GitCloneLockToken } from "../runtime/file-lock.js";
-
-function gitCloneLockOptions(clock?: FileLockClock): FileLockOptions {
-  return {
-    staleMs: GIT_CLONE_LOCK_STALE_MS,
-    maxWaitMs: GIT_CLONE_LOCK_MAX_WAIT_MS,
-    ...(clock !== undefined ? { clock } : {}),
-  };
-}
-
-/** Serialize mutating git operations on the shared managed clone repos/<app>.
- *  Two roles on one app can be due in the same tick (locks are per (app, role)),
- *  and each turn runs `git fetch/checkout/reset --hard` on the SAME checkout —
- *  concurrent runs contend on .git/index.lock and fail the turn (or corrupt the
- *  tree). An app-scoped advisory lock makes those operations mutually exclusive.
- *  A crashed holder cannot wedge the app forever: the lock is reclaimed once its
- *  holder pid is proven dead or it has aged past the stale window — but a
- *  proven-live holder is NEVER broken, and release verifies our ownership token
- *  so we only ever unlink our own lock (F-001). */
-export async function withAppGitLock<T>(
-  runtimeHome: string,
-  app: string,
-  fn: () => Promise<T>,
-  clock?: FileLockClock,
-): Promise<T> {
-  return withFileLock(gitCloneLockPath(runtimeHome, app), gitCloneLockOptions(clock), fn);
-}
-
-export async function acquireGitCloneLock(lockPath: string, clock?: FileLockClock): Promise<FileLockToken> {
-  return acquireFileLock(lockPath, gitCloneLockOptions(clock));
-}
-
-export async function releaseGitCloneLock(lockPath: string, token: FileLockToken): Promise<void> {
-  return releaseFileLock(lockPath, token);
-}
-
-function gitCloneLockPath(runtimeHome: string, app: string): string {
-  return join(runtimeHome, "repos", `${app}.gitlock`);
-}
-
-/** The managed clone plus the base it was synchronized to. Returning the
- *  resolved base rather than just the path is what stops the default branch
- *  being rediscovered — or guessed — further down (#101). */
-export interface ManagedClone {
-  path: string;
-  base: BaseRevision;
-}
-
-export async function ensureManagedClone(app: AppEntry, runtimeHome: string): Promise<ManagedClone> {
-  const repoDir = join(runtimeHome, "repos", app.name);
-  if (existsSync(join(repoDir, ".git"))) {
-    // Resolved from the remote, never assumed: `git fetch origin main` against
-    // a repo whose default branch is `master` aborted the turn before any work
-    // began, with a raw git error (#101).
-    const branch = resolveRemoteDefaultBranch("origin", { cwd: repoDir, errorPrefix: "turn" });
-    git(repoDir, "fetch", "origin", branch);
-    git(repoDir, "checkout", branch);
-    git(repoDir, "reset", "--hard", `origin/${branch}`);
-    return { path: repoDir, base: baseRevisionForBranch(branch) };
-  }
-  await mkdir(join(runtimeHome, "repos"), { recursive: true });
-  git(join(runtimeHome, "repos"), "clone", repoUrl(app.repo), repoDir);
-  // A fresh clone is already on the remote's default branch — read git's own
-  // answer rather than re-deriving one.
-  return {
-    path: repoDir,
-    base: baseRevisionForBranch(git(repoDir, "symbolic-ref", "--short", "HEAD")),
-  };
-}
-
 export interface TurnWorktree {
   path: string;
   branch: string;
+  /** Planner grooming starts detached so a read-only turn creates no branch.
+   * Other isolated turns attach immediately. */
+  attached?: boolean;
 }
 
 /** Pure identity used by both live checkout selection and CLI preview. The
@@ -2535,14 +2526,14 @@ export function createTurnWorktree(
   const identity = turnWorktreeIdentity(runtimeHome, app, turnId);
   if (existsSync(identity.path)) {
     assertTurnWorktree(identity);
-    return identity;
+    return { ...identity, attached: true };
   }
 
   const registered = registeredWorktreeForBranch(localRepo, identity.branch);
   if (registered !== undefined) {
     const resumed = { path: registered, branch: identity.branch };
     assertTurnWorktree(resumed);
-    return resumed;
+    return { ...resumed, attached: true };
   }
 
   if (git(localRepo, "branch", "--list", identity.branch) !== "") {
@@ -2551,7 +2542,46 @@ export function createTurnWorktree(
     git(localRepo, "worktree", "add", "-b", identity.branch, identity.path, base.ref);
   }
   assertTurnWorktree(identity);
-  return identity;
+  return { ...identity, attached: true };
+}
+
+/** Planner-specific isolation. The worktree is registered at the exact
+ * synchronized base but detached; publication materializes the deterministic
+ * branch only if bytes or commits actually differ from that base. */
+export function createPlannerTurnWorktree(
+  localRepo: string,
+  runtimeHome: string,
+  app: string,
+  turnId: string,
+  base: BaseRevision,
+): TurnWorktree {
+  const root = join(runtimeHome, "worktrees", app);
+  mkdirSync(root, { recursive: true });
+  const identity = turnWorktreeIdentity(runtimeHome, app, turnId);
+  if (existsSync(identity.path)) {
+    if (!existsSync(join(identity.path, ".git"))) {
+      throw new Error(`Planner worktree ${identity.path} is missing its git registration`);
+    }
+    const actual = gitOptional(identity.path, "symbolic-ref", "--quiet", "--short", "HEAD");
+    if (actual !== null && actual !== identity.branch) {
+      throw new Error(
+        `Planner worktree ${identity.path} is on ${actual}, expected detached or ${identity.branch}`,
+      );
+    }
+    return { ...identity, attached: actual === identity.branch };
+  }
+  const registered = registeredWorktreeForBranch(localRepo, identity.branch);
+  if (registered !== undefined) {
+    const resumed = { path: registered, branch: identity.branch, attached: true };
+    assertTurnWorktree(resumed);
+    return resumed;
+  }
+  if (git(localRepo, "branch", "--list", identity.branch) !== "") {
+    git(localRepo, "worktree", "add", identity.path, identity.branch);
+    return { ...identity, attached: true };
+  }
+  git(localRepo, "worktree", "add", "--detach", identity.path, base.ref);
+  return { ...identity, attached: false };
 }
 
 function registeredWorktreeForBranch(localRepo: string, branch: string): string | undefined {
@@ -2673,11 +2703,6 @@ function zeroResult(status: TurnResult["status"], summary: string, role: RoleCon
   };
 }
 
-function repoUrl(repo: string): string {
-  if (repo.startsWith("/") || repo.startsWith(".") || repo.startsWith("file:")) return repo;
-  return `https://github.com/${repo}.git`;
-}
-
 function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, {
     cwd: resolve(cwd),
@@ -2692,6 +2717,14 @@ function git(cwd: string, ...args: string[]): string {
     },
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
+}
+
+function gitOptional(cwd: string, ...args: string[]): string | null {
+  try {
+    return git(cwd, ...args);
+  } catch {
+    return null;
+  }
 }
 
 async function recordSchedulerReceipt(

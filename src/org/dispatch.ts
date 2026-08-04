@@ -41,6 +41,11 @@ import {
   schedulerOrgId,
   type SchedulerReasonCode,
 } from "./scheduler/model.js";
+import {
+  listPlannerPublications,
+  resumePlannerPublication,
+  type PlannerPublicationGit,
+} from "./planner-publication.js";
 
 export interface DispatchTickOptions {
   orgRoot?: string;
@@ -78,6 +83,12 @@ export interface DispatchTickOptions {
     | "post_spawn_bookkeeping"
     | "after_terminal_receipt"
   ) => void | Promise<void>;
+  /** L2 seam for token-free Planner publication reconciliation. */
+  plannerPublicationGh?: (app: AppEntry) => Pick<
+    import("../loop/github.js").GhOps,
+    "addLabel" | "removeLabel" | "readIssue" | "listIssues"
+  >;
+  plannerPublicationGit?: PlannerPublicationGit;
 }
 
 export type DispatchSpawn = (input: {
@@ -112,6 +123,63 @@ export interface DueTurn {
   scheduleClaimId?: string;
   scheduleClaimAttempt?: number;
   explicitRetry?: boolean;
+}
+
+/** Reconcile prepared Planner effects before admitting any new provider work.
+ * A pending transaction therefore cannot compete with a fresh grooming turn,
+ * and a successful retry consumes zero provider turns. */
+export async function reconcilePendingPlannerPublications(input: {
+  stateHome: string;
+  apps: readonly AppEntry[];
+  result: Pick<DispatchTickResult, "skipped" | "errors">;
+  now: Date;
+  ghFor?: (app: AppEntry) => Pick<
+    import("../loop/github.js").GhOps,
+    "addLabel" | "removeLabel" | "readIssue" | "listIssues"
+  >;
+  git?: PlannerPublicationGit;
+}): Promise<void> {
+  const apps = new Map(input.apps.map((app) => [app.name, app]));
+  for (const publication of (await listPlannerPublications(input.stateHome))
+    .filter((entry) => entry.state === "publication_pending")) {
+    const app = apps.get(publication.app);
+    if (app === undefined) {
+      input.result.errors.push(
+        `planner publication ${publication.publication_id}: app ${publication.app} is no longer registered`,
+      );
+      continue;
+    }
+    try {
+      const reconciled = await resumePlannerPublication({
+        stateHome: input.stateHome,
+        app,
+        publicationId: publication.publication_id,
+        gh: input.ghFor?.(app) ?? new GhCliOps(app.repo),
+        now: input.now,
+        ...(input.git === undefined ? {} : { git: input.git }),
+      });
+      if (reconciled.state === "published") {
+        input.result.skipped.push(
+          `${app.name}/planner: reconciled publication ${reconciled.publication_id} without provider work`,
+        );
+      } else if (reconciled.state === "refused") {
+        input.result.errors.push(
+          `${app.name}/planner: publication ${reconciled.publication_id} permanently refused: ` +
+          `${reconciled.error?.message ?? "unknown refusal"}; ${reconciled.recovery.command}`,
+        );
+      } else {
+        input.result.errors.push(
+          `${app.name}/planner: publication ${reconciled.publication_id} remains pending: ` +
+          `${reconciled.error?.message ?? "publication incomplete"}; ${reconciled.recovery.command}`,
+        );
+      }
+    } catch (error) {
+      input.result.errors.push(
+        `${app.name}/planner: publication ${publication.publication_id} reconciliation failed: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
 }
 
 interface BlockedDecision {
@@ -184,6 +252,18 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   }
   if (options.dryRun !== true) {
     await reconcileCommittedScheduleClaims(dueClaims, evidence, runtimeHome, tickAt, result);
+    await reconcilePendingPlannerPublications({
+      stateHome: runtimeHome,
+      apps: appsFile.apps,
+      result,
+      now: tickAt,
+      ...(options.plannerPublicationGh === undefined
+        ? {}
+        : { ghFor: options.plannerPublicationGh }),
+      ...(options.plannerPublicationGit === undefined
+        ? {}
+        : { git: options.plannerPublicationGit }),
+    });
   }
 
   // Refresh the monthly budget auto-pause overlay every tick. Nothing else on
@@ -244,6 +324,11 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     explicitScheduleRetries: new Set(options.explicitScheduleRetries ?? []),
     cadenceWindow: invocation?.cadence_window ?? cadenceWindow(tickAt),
     orgId: schedulerOrgId(appsFile.org.name, orgRoot),
+    plannerPublicationBlockedApps: new Set(
+      (await listPlannerPublications(runtimeHome))
+        .filter((entry) => entry.state !== "published")
+        .map((entry) => entry.app),
+    ),
   });
 
   for (const retryId of options.explicitScheduleRetries ?? []) {
@@ -533,6 +618,7 @@ async function computeDueTurns(input: {
   explicitScheduleRetries: Set<string>;
   cadenceWindow: string;
   orgId: string;
+  plannerPublicationBlockedApps: Set<string>;
 }): Promise<{
   due: DueTurn[];
   blocked: BlockedDecision[];
@@ -595,6 +681,20 @@ async function computeDueTurns(input: {
     const channels = app.channels ?? {};
     const subscribersByEvent = new Map<string, Set<string>>();
     for (const role of input.rolesFile.roles) {
+      if (role.name === "planner" && input.plannerPublicationBlockedApps.has(app.name)) {
+        const detail = "a prepared Planner publication must be reconciled before another Planner provider turn";
+        input.result.skipped.push(`${app.name}/planner: publication_pending`);
+        blocked.push({
+          app: app.name,
+          role: role.name,
+          triggerKind: "mechanical",
+          trigger: "planner-publication",
+          outcome: "blocked",
+          reason: "channel_gated",
+          detail,
+        });
+        continue;
+      }
       const triggers = resolveTriggers(role, app);
       for (const trigger of triggers) {
         if (trigger.manual === true) continue;

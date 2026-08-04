@@ -1,0 +1,19 @@
+{
+  "command": [
+    "pnpm",
+    "test"
+  ],
+  "cwd": "/Users/bikram/Build/Cormidia-worktree-230-232",
+  "duration_seconds": 84.364166,
+  "ended_at_utc": "2026-08-04T17:33:31Z",
+  "environment_variables_recorded": false,
+  "exit_code": 0,
+  "name": "pnpm-test-final4",
+  "redaction_patterns_applied": 0,
+  "schema_version": "1.0",
+  "started_at_utc": "2026-08-04T17:32:07Z",
+  "stderr_sha256": "43c2ab2f18badd32eed8e517a4efb726db4739351ee797cb0355e62fca029755",
+  "stdout_sha256": "2178ae424770b868fd44afe92e8e7ad4c8d3bc9318b47480df42b7e587c78b06",
+  "timed_out": false,
+  "timeout_seconds": 300.0
+}

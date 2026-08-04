@@ -40,7 +40,7 @@ import type {
   EpisodeStepExecutionContext,
   EpisodeStepFailedOutcome,
 } from "../loop/episode-plan-executor.js";
-import { GhCliOps, type GhOps } from "../loop/github.js";
+import { GhCliOps, type GhIssue, type GhOps } from "../loop/github.js";
 import { issueContentHash } from "../loop/issue-snapshot.js";
 import { parseDependsOn } from "../loop/scheduling.js";
 import { executePipeline } from "../loop/pipeline.js";
@@ -146,7 +146,7 @@ import {
   type PlanningStageResolution,
 } from "./planning-stage.js";
 import { loadRoles } from "./roles.js";
-import { ensureManagedClone, withAppGitLock } from "./turn-runner.js";
+import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
 import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
   acceptBacklogSnapshot,
@@ -155,6 +155,7 @@ import {
   readCurrentRoadmapPlan,
   listActiveExecutionUnits,
   type RoadmapDeliveryUnit,
+  type RoadmapIssueMove,
   type RoadmapWorkstream,
 } from "./roadmap-delivery.js";
 
@@ -853,6 +854,13 @@ export async function persistPublishedRoadmap(input: {
   plan: TicketPlan;
   published: PublishedTicket[];
   now: Date;
+  /** Frozen complete-open-backlog read used by scheduled Planner publication.
+   * Omitted callers retain the ordinary GitHub read. */
+  issues?: readonly GhIssue[];
+  /** The exact Planner-authorized candidate set. Labels remain necessary but
+   * are not sufficient when this set is supplied. */
+  readyIssueNumbers?: readonly number[];
+  source?: string;
 }): Promise<void> {
   const current = await readCurrentRoadmapPlan(input.stateHome, input.app.name);
   if (current !== undefined) {
@@ -872,10 +880,13 @@ export async function persistPublishedRoadmap(input: {
     throw new Error("published ticket projection does not exactly account for the Planner TicketPlan");
   }
   const limit = 10_001;
-  const issues = await input.gh.listIssues({ state: "open", limit });
+  const issues = input.issues === undefined
+    ? await input.gh.listIssues({ state: "open", limit })
+    : structuredClone(input.issues);
   if (issues.length >= limit) {
     throw new Error(`open backlog reached the ${limit - 1} issue completeness bound`);
   }
+  const observedIssueNumbers = new Set(issues.map((issue) => issue.number));
   const capturedAt = input.now.toISOString();
   const snapshotIssues = issues.map((issue) => ({
     issueNumber: issue.number,
@@ -883,7 +894,10 @@ export async function persistPublishedRoadmap(input: {
     lifecycle: "open" as const,
     routing: issue.labels.includes("routing:human-only") ? "human_only" as const : "automated" as const,
     observedLabels: [...issue.labels],
-    dependencyIssues: parseDependsOn(issue.body),
+    // An absent open dependency is already closed/satisfied. BacklogSnapshot
+    // is complete over the OPEN backlog and therefore cannot name a member it
+    // did not observe.
+    dependencyIssues: parseDependsOn(issue.body).filter((number) => observedIssueNumbers.has(number)),
   }));
   if (current !== undefined) {
     const priorSnapshot = await readBacklogSnapshotAuthority(
@@ -891,9 +905,11 @@ export async function persistPublishedRoadmap(input: {
       input.app.name,
       current.value.backlogSnapshotRef,
     );
-    const currentIssues = new Set(current.value.deliveryUnits.flatMap((unit) => unit.issueNumbers));
+    const currentlyPlannedIssues = new Set(current.value.deliveryUnits
+      .filter((unit) => unit.workstreamId !== "backlog-unplanned")
+      .flatMap((unit) => unit.issueNumbers));
     if (
-      input.published.every((ticket) => currentIssues.has(ticket.issueNumber)) &&
+      input.published.every((ticket) => currentlyPlannedIssues.has(ticket.issueNumber)) &&
       stableHash(priorSnapshot.value.issues) === stableHash(snapshotIssues)
     ) return;
   }
@@ -905,7 +921,7 @@ export async function persistPublishedRoadmap(input: {
       snapshotId,
       version: 1,
       app: input.app.name,
-      source: "github:complete-open-backlog-after-planner-publication",
+      source: input.source ?? "github:complete-open-backlog-after-planner-publication",
       capturedAt,
       completeness: "complete",
       pagination: { pagesObserved: Math.max(1, Math.ceil(issues.length / 100)), hasNextPage: false, unavailablePages: [] },
@@ -919,6 +935,7 @@ export async function persistPublishedRoadmap(input: {
     input.plan.tickets[ticket.index]!,
   ]));
   const preservedUnits: RoadmapDeliveryUnit[] = [];
+  const displacedUnplanned: Array<{ issueNumber: number; fromUnitId: string }> = [];
   for (const prior of current?.value.deliveryUnits ?? []) {
     const openMembers = prior.issueNumbers.filter((number) => openIssueNumbers.has(number));
     if (openMembers.length > 0 && openMembers.length !== prior.issueNumbers.length) {
@@ -927,7 +944,22 @@ export async function persistPublishedRoadmap(input: {
           `${openMembers.length}/${prior.issueNumbers.length} members remain open`,
       );
     }
-    if (openMembers.length > 0) preservedUnits.push(structuredClone(prior));
+    if (openMembers.length === 0) continue;
+    if (prior.workstreamId === "backlog-unplanned") {
+      const newlyPlanned = openMembers.filter((number) => allPlanTicketsByNumber.has(number));
+      if (newlyPlanned.length > 0) {
+        displacedUnplanned.push(...newlyPlanned.map((issueNumber) => ({
+          issueNumber,
+          fromUnitId: prior.unitId,
+        })));
+        const stillUnplanned = openMembers.filter((number) => !allPlanTicketsByNumber.has(number));
+        if (stillUnplanned.length > 0) {
+          preservedUnits.push({ ...structuredClone(prior), issueNumbers: stillUnplanned });
+        }
+        continue;
+      }
+    }
+    preservedUnits.push(structuredClone(prior));
   }
   const priorUnitByIssue = new Map(preservedUnits.flatMap((unit) =>
     unit.issueNumbers.map((number) => [number, unit.unitId] as const)));
@@ -954,10 +986,15 @@ export async function persistPublishedRoadmap(input: {
       });
     }
   }
-  const groupUnitIds = new Map([...grouped.keys()].map((group) => [
-    group,
-    `unit-${stableHash({ group, members: grouped.get(group) }).slice(0, 24)}`,
+  const priorUnitIdByMembership = new Map((current?.value.deliveryUnits ?? []).map((unit) => [
+    stableHash([...unit.issueNumbers].sort((a, b) => a - b)),
+    unit.unitId,
   ]));
+  const groupUnitIds = new Map([...grouped.keys()].map((group) => {
+    const members = grouped.get(group)!;
+    const stablePriorId = priorUnitIdByMembership.get(stableHash([...members].sort((a, b) => a - b)));
+    return [group, stablePriorId ?? `unit-${stableHash({ group, members }).slice(0, 24)}`];
+  }));
   const unitIdByIssue = new Map(priorUnitByIssue);
   for (const [group, members] of grouped) {
     for (const number of members) unitIdByIssue.set(number, groupUnitIds.get(group)!);
@@ -1014,7 +1051,24 @@ export async function persistPublishedRoadmap(input: {
   }
   const completedUnitIds = (current?.value.completedUnitIds ?? [])
     .filter((unitId) => validUnitIds.has(unitId));
+  const newMoves: RoadmapIssueMove[] = displacedUnplanned.flatMap((move) => {
+    const toUnitId = unitIdByIssue.get(move.issueNumber);
+    if (toUnitId === undefined) {
+      throw new Error(`RoadmapPlan revision lost newly planned issue #${move.issueNumber}`);
+    }
+    if (toUnitId === move.fromUnitId) return [];
+    return [{
+      issueNumber: move.issueNumber,
+      fromUnitId: move.fromUnitId,
+      toUnitId,
+      reason: "scheduled Planner assigned previously unplanned backlog",
+      movedAt: capturedAt,
+    }];
+  });
   const completed = new Set(completedUnitIds);
+  const authorizedReady = input.readyIssueNumbers === undefined
+    ? undefined
+    : new Set(input.readyIssueNumbers);
   const wipLimit = current?.value.wipLimit ?? Math.max(1, Math.min(8, workstreams.length));
   const readyFrontier = deliveryUnits
     .filter((unit) =>
@@ -1024,6 +1078,7 @@ export async function persistPublishedRoadmap(input: {
       unit.issueNumbers.every((number) => {
         const issue = issueByNumber.get(number)!;
         return issue.labels.includes("op:ready") &&
+          (authorizedReady === undefined || authorizedReady.has(number)) &&
           !issue.labels.includes("routing:human-only") && !issue.labels.includes("manual-review");
       }))
     .sort((left, right) => left.priority - right.priority || left.unitId.localeCompare(right.unitId))
@@ -1043,7 +1098,10 @@ export async function persistPublishedRoadmap(input: {
       completedUnitIds,
       readyFrontier,
       wipLimit,
-      moves: current?.value.moves.map((move) => structuredClone(move)) ?? [],
+      moves: [
+        ...(current?.value.moves.map((move) => structuredClone(move)) ?? []),
+        ...newMoves,
+      ],
       acceptedAt: capturedAt,
     },
   });

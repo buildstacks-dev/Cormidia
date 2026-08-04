@@ -10,6 +10,7 @@ import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
 import { readValidationCampaignReports } from "../org/validation-campaign.js";
 import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
+import { listPlannerPublications } from "../org/planner-publication.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
@@ -100,6 +101,7 @@ export async function cmdStatus(args: string[]): Promise<number> {
       ? [parsed.app]
       : homes?.appsFile.apps.map((app) => app.name) ?? [],
   );
+  const plannerPublications = await listPlannerPublications(stateHome, parsed.app);
   const report = {
     schema_version: 1,
     kind: "status",
@@ -113,6 +115,7 @@ export async function cmdStatus(args: string[]): Promise<number> {
     budget,
     validationCampaigns,
     roadmapExplanation,
+    plannerPublications,
   } as const;
   if (parsed.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -129,6 +132,19 @@ export async function cmdStatus(args: string[]): Promise<number> {
         `at=${item.attemptedAt ?? "-"} result=${item.result ?? "-"} ` +
         `cause=${item.failureCause ?? "-"} next=${item.nextAction}`,
       );
+    }
+  }
+  if (report.plannerPublications.length > 0) {
+    console.log("\nPLANNER PUBLICATION");
+    for (const publication of report.plannerPublications) {
+      console.log(
+        `${publication.publication_id} ${publication.app} ${publication.state} ` +
+        `${publication.branch_created ? `${publication.branch}@${publication.commit}` : "read-only"}`,
+      );
+      if (publication.error !== null) {
+        console.log(`  ${publication.error.code}: ${publication.error.message}`);
+      }
+      if (publication.state !== "published") console.log(`  ${publication.recovery.command}`);
     }
   }
   if (report.claimRecovery.length > 0) {

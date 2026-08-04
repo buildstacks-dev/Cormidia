@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "/Users/bikram/Build/Cormidia/.codex/skills/validation-harness-audit/scripts/check_assurance_artifacts.py",
+    ".validation/20260804T164335Z-abe087e950dc"
+  ],
+  "cwd": "/Users/bikram/Build/Cormidia-worktree-230-232",
+  "duration_seconds": 0.030814,
+  "ended_at_utc": "2026-08-04T17:15:42Z",
+  "environment_variables_recorded": false,
+  "exit_code": 0,
+  "name": "assurance-artifact-check-final",
+  "redaction_patterns_applied": 0,
+  "schema_version": "1.0",
+  "started_at_utc": "2026-08-04T17:15:42Z",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sha256": "cb0ceef5c48e1333a498af837786334d3783828f97df9e60380e023918fb2570",
+  "timed_out": false,
+  "timeout_seconds": 60.0
+}

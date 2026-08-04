@@ -1,0 +1,24 @@
+{
+  "command": [
+    "pnpm",
+    "vitest",
+    "run",
+    "tests/hermetic/cf-reg-232/cf-reg-232-planner-publication.test.ts",
+    "tests/hermetic/cf-reg-230/cf-reg-230-planner-intake.test.ts",
+    "tests/unit/cf-reg-230/production-scheduler-lifecycle.test.ts",
+    "tests/unit/cf-hb103-105/production-wiring.test.ts"
+  ],
+  "cwd": "/Users/bikram/Build/Cormidia-worktree-230-232",
+  "duration_seconds": 2.625041,
+  "ended_at_utc": "2026-08-04T17:32:01Z",
+  "environment_variables_recorded": false,
+  "exit_code": 0,
+  "name": "focused-lifecycle-final4",
+  "redaction_patterns_applied": 0,
+  "schema_version": "1.0",
+  "started_at_utc": "2026-08-04T17:31:58Z",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sha256": "600140173916d8f81c06690442ff72e494d45e38369d14e51c7bdf9dc22e7c7c",
+  "timed_out": false,
+  "timeout_seconds": 120.0
+}

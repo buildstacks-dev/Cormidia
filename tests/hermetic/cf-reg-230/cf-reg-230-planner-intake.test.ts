@@ -66,7 +66,7 @@ describe("CF-REG-230 — Planner intake and readiness application", () => {
 
     expect(planner.diagnostic.code).toBe("planner_input_ready");
     expect(planner.issues.map((entry) => entry.number)).toEqual([1, 2]);
-    expect(gh.queries[0]).toEqual({ state: "open", limit: 100 });
+    expect(gh.queries[0]).toEqual({ state: "open", limit: 10_001 });
     expect(builder).toEqual([]);
   });
 
@@ -80,6 +80,22 @@ describe("CF-REG-230 — Planner intake and readiness application", () => {
     });
     expect(intake.diagnostic.code).toBe("ready_only_filtering");
     expect(intake.issues).toEqual([]);
+  });
+
+  it("negative control refuses to call a capped 10,001-item source complete", async () => {
+    const gh = new IntakeGithub(Array.from({ length: 10_001 }, (_, index) => issue(index + 1)));
+    const intake = await preparePlannerIssueIntake({
+      gh: gh as unknown as GhOps,
+      app: "large-backlog",
+      turnId: "turn-completeness-bound",
+    });
+
+    expect(intake.diagnostic).toEqual({
+      code: "backlog_completeness_bound",
+      detail: "open backlog reached the 10000 issue completeness bound",
+    });
+    expect(intake.issues).toEqual([]);
+    expect(intake.deferred_count).toBe(10_001);
   });
 
   it("publishes a complete routine decision and leaves risky/incomplete work unready with typed reasons", async () => {

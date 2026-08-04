@@ -1,0 +1,144 @@
+schema_version: "1.0"
+assessment:
+  id: "20260804T164335Z-abe087e950dc"
+  mode: "full"
+  started_at_utc: "2026-08-04T16:43:55Z"
+  target_revision: "abe087e950dcb0721a753c56432f116be01483a8+working-tree-a44d5084da0146f41ca5999c86e3c29e95efb1d4"
+  repository_root: "/Users/bikram/Build/Cormidia-worktree-230-232"
+  working_tree_state: "isolated dirty candidate worktree; human checkout excluded"
+  assessor_roles: ["implementer", "validation-auditor"]
+  independence_level: "I1"
+
+project:
+  name: "Cormidia"
+  summary: "Standing AI-org runtime coordinating repository planning, validation, delivery, approvals, and operations."
+  intended_use: "Autonomous routine maintenance of registered private repositories with fail-closed critical-operation boundaries."
+  permitted_users: ["Cormidia operators", "registered app teams"]
+  excluded_uses: ["ungoverned public release", "unapproved deployment", "unbounded provider work", "non-sandbox qualification without human authorization"]
+  deployment_environments: ["developer host", "human-authorized sandbox org", "operated private app repositories"]
+  supported_platforms: ["macOS host", "Node.js >=26"]
+  expected_scale: "One standing org, registered apps, bounded scheduler WIP; Planner backlog completeness refuses at 10,000 open issues."
+  patch_and_rollback_model: "Focused squash-merged pull requests; state authorities are append-only or atomic; prepared Planner worktrees/commits remain inspectable."
+
+system_boundary:
+  in_scope_inspected:
+    - "scheduled Planner managed checkout and detached worktree"
+    - "complete issue intake and readiness publication"
+    - "durable Planner publication transaction and Git reconciliation"
+    - "RoadmapPlan, routine validation, readiness, batch, and routing production path"
+    - "operator CLI/status/narrative projections"
+    - "L1/L2 replacement harness and policy traceability"
+  in_scope_unavailable:
+    - "real disposable GitHub qualification target"
+    - "human-authorized live sandbox-org Planner campaign"
+    - "independent second-agent review"
+  external_assumed:
+    - "Git remote implements ref creation and force-with-lease compare-and-swap semantics"
+    - "GitHub CLI returns complete open issue data below the explicit bound"
+  out_of_scope:
+    - "provider-backed eval and soak campaigns"
+    - "release, deployment, scheduler installation, publication of this package"
+    - "protected surface edits"
+  human_roles_and_procedures:
+    - "Human authorizes L3/live qualification and exact disposable targets."
+    - "Human resolves permanent remote refusal and may publish only the recorded exact commit before token-free resume."
+  material_boundary_limitations:
+    - "Offline fakes prove orchestration and recovery but not changing GitHub authentication/network behavior."
+
+criticality:
+  system_level: "C3"
+  system_rationale:
+    - "The scheduler can spend provider budget and mutate private repositories and GitHub issue state without an interactive operator."
+    - "Incorrect publication/replay can duplicate paid planning work or route unvalidated work into delivery."
+  dominant_drivers: ["autonomy", "repository integrity", "exactly-once external effects", "validation-authority integrity"]
+  components:
+    - id: "COMP-GIT"
+      name: "Managed checkout and Planner worktree"
+      function: "Synchronize the exact remote default branch and isolate Planner bytes."
+      trust_boundary: "operator checkout versus org-owned clone/worktree"
+      privileges: ["local git mutation", "remote branch push"]
+      failure_propagation: "wrong checkout or base can corrupt operator work or publish a wrong diff"
+      containment: ["app git lock", "detached read-only worktree", "resolved BaseRevision"]
+      level: "C3"
+      rationale: ["repository mutation boundary"]
+    - id: "COMP-PUB"
+      name: "Planner publication transaction"
+      function: "Bind provider evidence, exact commit, GitHub readiness, roadmap, and validation authority into one resumable state machine."
+      trust_boundary: "persisted transaction versus mutable remote state"
+      privileges: ["branch push", "issue label mutation", "state authority acceptance"]
+      failure_propagation: "duplicate effects, lost work, false completion, or stale authority"
+      containment: ["content identity", "per-publication lock", "remote readback", "permanent refusal"]
+      level: "C3"
+      rationale: ["exactly-once and authorization boundary"]
+    - id: "COMP-SCHED"
+      name: "Production scheduler and delivery lifecycle"
+      function: "Reconcile pending publication before provider admission, then batch ready units through the existing delivery runtime."
+      trust_boundary: "mechanical recovery versus paid provider admission"
+      privileges: ["provider admission", "GitHub polling", "delivery batching"]
+      failure_propagation: "provider replay or execution of excluded/unvalidated work"
+      containment: ["blocked-app set", "routine guard", "frontier/readiness/routing rereads"]
+      level: "C3"
+      rationale: ["unattended control path"]
+    - id: "COMP-OBS"
+      name: "Status and narrative projection"
+      function: "Expose publication state and recovery without mutation."
+      trust_boundary: "durable state to operator decision"
+      privileges: ["read state", "render local narrative"]
+      failure_propagation: "operator may miss or mishandle pending work"
+      containment: ["closed transaction parser", "exact recovery command"]
+      level: "C2"
+      rationale: ["operator evidence affects recovery"]
+    - id: "COMP-HARNESS"
+      name: "Replacement validation harness"
+      function: "Falsify deterministic lifecycle defects and preserve traceability."
+      trust_boundary: "implementation claims versus independent evidence"
+      privileges: ["offline repository execution"]
+      failure_propagation: "false green admits duplicate or unsafe publication"
+      containment: ["seeded negative controls", "full-suite gate", "case catalog"]
+      level: "C3"
+      rationale: ["assurance root for this merge"]
+  current_change:
+    description: "Implement #232 and remaining deterministic #230 scheduler lifecycle, recovery, validation authority, observability, and qualification plan."
+    level: "L3"
+    affected_components: ["COMP-GIT", "COMP-PUB", "COMP-SCHED", "COMP-OBS", "COMP-HARNESS"]
+    rationale: ["new durable state machine", "new remote mutation/recovery path", "production scheduler admission changes"]
+
+criticality_dimensions:
+  safety_and_physical_consequence: {rating: "low", rationale: "No physical control surface."}
+  mission_or_operational_consequence: {rating: "high", rationale: "A false completion or replay can derail unattended product maintenance."}
+  financial_and_legal_consequence: {rating: "medium", rationale: "Duplicate provider work spends budget; repository effects remain private and bounded."}
+  security_and_privacy_consequence: {rating: "high", rationale: "Planner commits may contain credentials or protected protocol changes; both now fail closed before push."}
+  data_integrity_and_reversibility: {rating: "high", rationale: "Git refs and accepted roadmap/validation authorities control downstream work; prepared commits are recoverable."}
+  availability_and_continuity: {rating: "medium", rationale: "A refused transaction intentionally gates future Planner work until human resolution."}
+  exposure_and_blast_radius: {rating: "medium", rationale: "Scoped to one registered app and deterministic branch, but scheduler is unattended."}
+  detectability: {rating: "medium", rationale: "Status/narrative expose state; live external divergence still needs qualification."}
+  recoverability: {rating: "high", rationale: "Pending work has exact commit and resume identity; permanent refusal preserves artifacts."}
+  privilege_and_autonomy: {rating: "high", rationale: "Scheduler performs remote writes and provider admission without an interactive operator."}
+  novelty_and_uncertainty: {rating: "high", rationale: "New cross-Git/GitHub/state-authority transaction with multiple crash boundaries."}
+  patchability_and_lifetime: {rating: "medium", rationale: "Local package is patchable, but durable v1 state can outlive a process and release."}
+
+failure_model:
+  worst_credible_failures: ["operator checkout mutation", "completed turn with unpublished bytes", "duplicate provider planning", "wrong remote branch overwrite", "unvalidated delivery admission"]
+  irreversible_effects: ["remote branch and issue-label writes; bounded and content-identified but externally durable"]
+  silent_failure_modes: ["push succeeds but acknowledgement is lost", "backlog source truncates while claiming completeness", "roadmap accepted but transaction acknowledgement is lost"]
+  common_mode_or_cascade_risks: ["one stale/false roadmap authority can affect batching, Builder admission, and Reviewer evidence"]
+  credible_abuse_cases: ["Planner writes a protected surface or credential", "edited transaction redirects recovery", "routing label changes after Planner read"]
+
+assurance_target:
+  scoped_claim: "The deterministic #230/#232 code-maintenance lifecycle is suitable for an ordinary ready PR when all offline gates and required CI pass; external live qualification remains explicitly incomplete."
+  required_confidence: "High for deterministic recovery and scheduler wiring; no claim for real GitHub/live-org behavior."
+  mandatory_claim_categories: ["functional", "safety", "security", "recovery", "integration", "observability"]
+  mandatory_evidence_classes: ["L1/L2 tests", "seeded negative controls", "real local Git worktrees", "source wiring detector", "full offline gates"]
+  minimum_independence: "I1 for ordinary merge; I2 plus L3 evidence required before broad live-operation qualification."
+  acceptance_authority: "repository CI and ordinary merge policy; human for external campaign and residual live risk"
+  residual_risk_owner: "Cormidia product owner"
+  constraints_and_controls: ["no protected edits", "no live/eval/soak", "no provider or external campaign", "complete diff review", "focused PR"]
+  invalidation_triggers: ["publication schema/protocol change", "Git push semantics change", "scheduler ordering change", "RoadmapPlan/validation authority schema change", "GitHub adapter change"]
+
+assumptions:
+  - "The real Git implementation matches the local real-repository tests and documented compare-and-swap behavior."
+  - "GitHub authentication and availability are changing external facts and are not inferred from fakes."
+unknowns:
+  - "Outcome of the prepared real-GitHub and live-org qualification plan."
+  - "Independent reviewer assessment beyond this I1 audit."
+blocking_questions: []

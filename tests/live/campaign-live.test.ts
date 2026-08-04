@@ -29,7 +29,6 @@ let config: LiveCampaignConfigV1;
 let campaign: DurableCampaignRunner;
 let workdir = "";
 let decidedBefore = new Set<string>();
-const errors: string[] = [];
 
 beforeAll(async () => {
   ({ config } = await loadLiveCampaignConfig());
@@ -77,6 +76,7 @@ afterAll(async () => {
 
 describe("authorized L3 campaign", () => {
   it("runs the selected real adapter conformance pairs within the campaign envelope", async () => {
+    const errors: string[] = [];
     for (const target of config.adapters) {
       const caseId = ({ claude: "CF-B02-L3", codex: "CF-B03-L3", pi: "CF-B04-L3" } as const)[target.runtime];
       try {
@@ -100,6 +100,7 @@ describe("authorized L3 campaign", () => {
   });
 
   it("runs the real GitHub conformance surface only on the exact sandbox repo", async () => {
+    const errors: string[] = [];
     if (!config.github.enabled) return;
     let surface: RealGithubConformanceSurface | undefined;
     try {
@@ -125,6 +126,7 @@ describe("authorized L3 campaign", () => {
   });
 
   it("installs, inspects and removes a uniquely identified real launchd definition", async () => {
+    const errors: string[] = [];
     if (!config.launchd.enabled) return;
     const root = await mkdtemp(join(tmpdir(), "cormidia-live-launchd-"));
     const orgHome = join(root, "org");
@@ -183,7 +185,6 @@ describe("authorized L3 campaign", () => {
       ];
       return { providerTurns: 0, equivUsd: 0, violationIds: violations, evidenceRefs: [`profile:${profile.identity}:human-decisions:${decidedAfter.length}`] };
     });
-    expect(errors).toEqual([]);
   });
 });
 

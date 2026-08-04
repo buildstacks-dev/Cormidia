@@ -22,6 +22,7 @@ import type {
   TicketEpisodeExecutor,
   TicketEpisodePlanner,
   TicketEpisodePlanningRequest,
+  DeliveryUnitRuntime,
 } from "../loop/driver.js";
 import { gateCommandsForWorktree } from "../loop/driver.js";
 import {
@@ -38,6 +39,8 @@ import {
   renderReviewBody,
   isPrGateEvidenceOnlyFinding,
   latestActionableReview,
+  deliveryUnitIssueNumbers,
+  swapDeliveryUnitLabel,
   type ReviewAuthorization,
 } from "../loop/loop.js";
 import type { GhOps, GhReview } from "../loop/github.js";
@@ -45,6 +48,7 @@ import type { Policy } from "../loop/policy.js";
 import type { GateCommands } from "../loop/qgates.js";
 import type { LoopItem, ReleaseConfig, SuppressedOperation } from "../loop/types.js";
 import { resolveReleaseCommand } from "../loop/plan-tickets.js";
+import { createRoadmapLoopRuntime } from "./roadmap-loop-runtime.js";
 import {
   EPISODE_PLAN_EXECUTION_PIPELINE,
   planRouteLabel,
@@ -53,6 +57,7 @@ import {
   assertTicketEpisodePlanValid,
   isTicketMechanicalGateKind,
   ticketProviderOperation,
+  ticketGovernedWorkflowTemplates,
   TICKET_EPISODE_TOPOLOGY_CONTRACT,
   TICKET_MECHANICAL_GATE_CATALOG,
   TICKET_MECHANICAL_GATE_KINDS,
@@ -232,6 +237,7 @@ export interface TicketEpisodeRuntimeOptions {
 export interface TicketEpisodeRuntime {
   planTicket: TicketEpisodePlanner;
   executeTicketPlan: TicketEpisodeExecutor;
+  deliveryUnits: DeliveryUnitRuntime;
 }
 
 export interface TicketEpisodeInspectionOptions {
@@ -265,6 +271,11 @@ export function createTicketEpisodeRuntime(
   return {
     planTicket: (request) => planTicketEpisode(options, request),
     executeTicketPlan: (request) => executeTicketEpisode(options, request),
+    deliveryUnits: createRoadmapLoopRuntime({
+      root: options.root,
+      app: options.app,
+      gh: options.gh,
+    }),
   };
 }
 
@@ -276,6 +287,7 @@ async function planTicketEpisode(
   const inspected = await inspectTicketEpisodeInvocation(options, request);
   const plannerRole = requireRole(options.roles, "planner");
   const plannerLimits = inspected.plannerLimits;
+  const workflowTemplates = ticketWorkflowTemplates(options);
   const promptText = inspected.planningPath === "creator_scope_normalization"
     ? "Creator scope normalization path: no provider prompt is executed."
     : await resolvePlannerPrompt(options);
@@ -301,6 +313,7 @@ async function planTicketEpisode(
       providerOperations: TICKET_PROVIDER_OPERATIONS,
       mechanicalGates: TICKET_MECHANICAL_GATE_KINDS,
       topologyContract: TICKET_EPISODE_TOPOLOGY_CONTRACT,
+      workflowTemplates,
       limits: plannerLimits,
       independentReview: {
         subjectRoles: ["builder"],
@@ -360,19 +373,23 @@ export async function inspectTicketEpisodeInvocation(
     options.remainingBudgetUsd,
   );
   const requiredSafetyFacts = mergeTicketSafetyFacts(
-    request.ticket.labels,
-    request.ticket.ticketRef,
+    request.deliveryUnit?.members.flatMap((member) => member.labels) ?? request.ticket.labels,
+    request.deliveryUnit?.members.map((member) => member.ticketRef).join(",") ?? request.ticket.ticketRef,
     creatorScope,
   );
   let facts = {
     episodeId: request.episodeId,
     trigger: {
       kind: "github_issue",
-      sourceRef: `${request.targetRepo}${request.ticket.ticketRef}`,
-      payloadHash: stableHash(request.ticket),
+      sourceRef: request.deliveryUnit === undefined
+        ? `${request.targetRepo}${request.ticket.ticketRef}`
+        : `${request.targetRepo}:delivery-unit:${request.deliveryUnit.unitId}`,
+      payloadHash: stableHash(request.deliveryUnit ?? request.ticket),
     },
-    goal: creatorScope?.objective ??
-      `Deliver ${request.ticket.ticketRef}: ${request.ticket.title}`,
+    goal: creatorScope?.objective ?? (request.deliveryUnit === undefined
+      ? `Deliver ${request.ticket.ticketRef}: ${request.ticket.title}`
+      : `Deliver ${request.deliveryUnit.unitId}: ` +
+        request.deliveryUnit.members.map((member) => member.ticketRef).join(", ")),
     lifecycle: "existing-ticket",
     appStage: options.app.status,
     repositoryFacts: repository.repositoryFacts,
@@ -389,6 +406,24 @@ export async function inspectTicketEpisodeInvocation(
           checked: entry.checked,
         })),
       },
+      ...(request.deliveryUnit === undefined ? {} : {
+        deliveryUnit: {
+          unitId: request.deliveryUnit.unitId,
+          membershipHash: request.deliveryUnit.membershipHash,
+          members: request.deliveryUnit.members.map((member) => ({
+            issueNumber: member.issueNumber,
+            ticketRef: member.ticketRef,
+            title: member.title,
+            body: member.body,
+            labels: [...member.labels].sort(),
+            acceptanceCriteria: parseAcceptanceCriteria(member.body).map((entry) => ({
+              id: entry.id,
+              text: entry.text,
+              checked: entry.checked,
+            })),
+          })),
+        },
+      }),
       baseRevision: {
         ref: request.base.ref,
         defaultBranch: request.base.defaultBranch,
@@ -425,6 +460,7 @@ export async function inspectTicketEpisodeInvocation(
         reviewerRoles: ["reviewer"],
       },
       safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
+      workflowTemplates: ticketWorkflowTemplates(options),
     },
   });
   if (preview.planningPath === "episode_planner_provider_turn") {
@@ -462,6 +498,26 @@ export async function inspectTicketEpisodeInvocation(
     planningPath: preview.planningPath,
     plannerLimits: structuredClone(plannerLimits),
   };
+}
+
+function ticketWorkflowTemplates(
+  options: Pick<TicketEpisodeInspectionOptions, "roles" | "remainingBudgetUsd" | "hardBudget">,
+): ReturnType<typeof ticketGovernedWorkflowTemplates> {
+  const availableUsd = Math.min(
+    100,
+    options.remainingBudgetUsd,
+    options.hardBudget?.maxEquivalentCostUsd ?? Number.POSITIVE_INFINITY,
+  );
+  if (!Number.isFinite(availableUsd) || availableUsd <= 0) {
+    throw new Error("ticket governed workflow has no positive unit budget");
+  }
+  const builder = requireRole(options.roles, "builder");
+  const reviewer = requireRole(options.roles, "reviewer");
+  return ticketGovernedWorkflowTemplates({
+    contractUsd: Math.min(builder.maxTurnBudgetUsd, availableUsd * 0.15),
+    implementationUsd: Math.min(builder.maxTurnBudgetUsd, availableUsd * 0.5),
+    reviewUsd: Math.min(reviewer.maxTurnBudgetUsd, availableUsd * 0.35),
+  });
 }
 
 async function executeTicketEpisode(
@@ -768,7 +824,7 @@ async function executeTicketProviderStep(
               },
             }),
         ...(continuation === undefined ? {} : { continuation }),
-        beforeProviderTurn: async () => input.input.beforeProviderTurn(),
+        beforeProviderTurn: async () => input.input.beforeProviderTurn(input.step),
         ...(input.options.telemetry === undefined ? {} : { telemetry: input.options.telemetry }),
         ...(input.options.parentTaskId === undefined
           ? {}
@@ -1506,13 +1562,17 @@ function ticketBudgetSuspensionComment(input: {
 /** Project the pause onto the ticket's labels. Idempotent, and it never
  * touches a ticket already parked terminal. */
 async function blockTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
-  const durable = await gh.readIssue(item.issueNumber);
-  if (!durable.labels.includes("op:blocked")) {
-    const from = durable.labels.find((label) =>
-      ["op:ready", "op:building", "op:in-review"].includes(label),
-    );
-    if (from !== undefined) await gh.swapLabel(item.issueNumber, from, "op:blocked");
-    else await gh.addLabel(item.issueNumber, "op:blocked");
+  const durable = await Promise.all(deliveryUnitIssueNumbers(item).map((number) => gh.readIssue(number)));
+  const transitions = durable.map((issue) => issue.labels.find((label) =>
+    ["op:ready", "op:building", "op:in-review"].includes(label)));
+  const distinct = [...new Set(transitions.filter((value): value is string => value !== undefined))];
+  if (distinct.length > 1) throw new Error("delivery unit has divergent labels before block");
+  if (distinct[0] !== undefined) {
+    await swapDeliveryUnitLabel(item, gh, distinct[0], "op:blocked");
+  } else {
+    for (const issue of durable) {
+      if (!issue.labels.includes("op:blocked")) await gh.addLabel(issue.number, "op:blocked");
+    }
   }
   const labels = (await gh.readIssue(item.issueNumber)).labels;
   return { ...item, labels, phase: "blocked" };
@@ -1645,6 +1705,8 @@ async function executeTicketMechanicalStep(input: {
           reasonCode: "ticket_quality_gate_failed",
           summary: "quality gates failed; an explicit fix step or plan revision is required",
         };
+      } else {
+        await input.input.deliveryLifecycle?.afterGates(structuredClone(item), input.plan);
       }
       break;
     }
@@ -1679,9 +1741,12 @@ async function executeTicketMechanicalStep(input: {
           reasonCode: "ticket_review_not_authorized",
           summary: "independent review did not authorize the exact current revision",
         };
+      } else {
+        await input.input.deliveryLifecycle?.afterReview(structuredClone(item), input.plan);
       }
       break;
     case "ticket/ship":
+      await input.input.deliveryLifecycle?.beforeShip(structuredClone(item), input.plan);
       item = await advanceShipping(item, {
         gh: input.options.gh,
         localRepo: input.input.request.localRepo,
@@ -2225,13 +2290,17 @@ function publishedReviewBodyMatches(actual: string, expected: string): boolean {
 
 async function returnTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
   if (item.phase === "merged" || item.phase === "returned") return item;
-  const durable = await gh.readIssue(item.issueNumber);
-  if (!durable.labels.includes("op:returned")) {
-    const from = durable.labels.find((label) =>
-      ["op:ready", "op:building", "op:in-review", "op:blocked"].includes(label),
-    );
-    if (from !== undefined) await gh.swapLabel(item.issueNumber, from, "op:returned");
-    else await gh.addLabel(item.issueNumber, "op:returned");
+  const durable = await Promise.all(deliveryUnitIssueNumbers(item).map((number) => gh.readIssue(number)));
+  const transitions = durable.map((issue) => issue.labels.find((label) =>
+    ["op:ready", "op:building", "op:in-review", "op:blocked"].includes(label)));
+  const distinct = [...new Set(transitions.filter((value): value is string => value !== undefined))];
+  if (distinct.length > 1) throw new Error("delivery unit has divergent labels before return");
+  if (distinct[0] !== undefined) {
+    await swapDeliveryUnitLabel(item, gh, distinct[0], "op:returned");
+  } else {
+    for (const issue of durable) {
+      if (!issue.labels.includes("op:returned")) await gh.addLabel(issue.number, "op:returned");
+    }
   }
   const labels = (await gh.readIssue(item.issueNumber)).labels;
   return { ...item, labels, phase: "returned" };
@@ -2243,13 +2312,13 @@ async function resumeReconciledTicket(gh: GhOps, item: LoopItem): Promise<LoopIt
       `accepted revision cannot resume terminal ticket ${item.ticketRef} from ${item.phase}`,
     );
   }
-  const durable = await gh.readIssue(item.issueNumber);
-  if (durable.labels.includes("op:returned")) {
-    await gh.swapLabel(item.issueNumber, "op:returned", "op:building");
-  } else if (!durable.labels.includes("op:building")) {
+  const durable = await Promise.all(deliveryUnitIssueNumbers(item).map((number) => gh.readIssue(number)));
+  if (durable.every((issue) => issue.labels.includes("op:returned"))) {
+    await swapDeliveryUnitLabel(item, gh, "op:returned", "op:building");
+  } else if (!durable.every((issue) => issue.labels.includes("op:building"))) {
     throw new Error(
       `accepted revision cannot resume ticket ${item.ticketRef} from labels ` +
-      durable.labels.join(", "),
+      durable.map((issue) => `#${issue.number}:${issue.labels.join(",")}`).join("; "),
     );
   }
   const labels = (await gh.readIssue(item.issueNumber)).labels;
@@ -2435,10 +2504,14 @@ function assertRequest(
 }
 
 function assertBoundedTicket(request: TicketEpisodePlanningRequest): void {
-  const bytes = Buffer.byteLength(request.ticket.body);
+  const bytes = Buffer.byteLength(
+    request.deliveryUnit?.members.map((member) => member.body).join("\n\n") ?? request.ticket.body,
+  );
   if (bytes > MAX_TICKET_BODY_BYTES) {
     throw new Error(
-      `ticket ${request.ticket.ticketRef} body is ${bytes} bytes; bounded planner input allows ${MAX_TICKET_BODY_BYTES}`,
+      `${request.deliveryUnit === undefined ? "ticket" : "delivery unit"} ` +
+        `${request.deliveryUnit?.unitId ?? request.ticket.ticketRef} input is ${bytes} bytes; ` +
+        `bounded planner input allows ${MAX_TICKET_BODY_BYTES}`,
     );
   }
 }

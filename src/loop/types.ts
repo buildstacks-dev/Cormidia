@@ -165,6 +165,13 @@ export interface LoopItem {
   remediationAttempts: number;
   gateResults: GateRunResult[];
   findings: Finding[];
+  /**
+   * Immutable execution authority for this loop item. The org layer owns the
+   * content-bound RoadmapPlan/validation/batch artifacts; the loop receives
+   * only the member projection it needs to apply one branch/PR/HEAD/outcome
+   * to every issue. A one-member value is the compatibility form.
+   */
+  deliveryUnit?: LoopDeliveryUnit;
   contract?: string;
   /** Parsed, typed contract mapping consumed by the completeness gate. */
   criterionTests?: CriterionTestMap;
@@ -185,4 +192,19 @@ export interface LoopItem {
   /** Set by advanceShipping on a merged item whose milestone declared a
    *  deploy/package disposition: the org layer queues it as a critical op. */
   releaseTrigger?: ReleaseTrigger;
+}
+
+export interface LoopDeliveryUnitMember {
+  issueNumber: number;
+  ticketRef: string;
+  contentHash: string;
+  title: string;
+  body: string;
+  labels: string[];
+}
+
+export interface LoopDeliveryUnit {
+  unitId: string;
+  membershipHash: string;
+  members: LoopDeliveryUnitMember[];
 }

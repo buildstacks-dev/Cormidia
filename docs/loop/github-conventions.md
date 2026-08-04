@@ -24,8 +24,8 @@ state machine that consumes them is [`design.md`](design.md) §7.*
 | `manual-review`      | human review hold; autonomous exclusion    | Human                                               |
 
 
-Transitions follow the artifact-before-label rule ([`turns.md`](turns.md)); ticket close comes from
-the squash-merge's `Closes #N`, never a manual state.
+Transitions follow the artifact-before-label rule ([`turns.md`](turns.md)); member
+closures come from the squash-merge's complete `Closes #N` set, never a manual state.
 `routing:human-only` is not a state label: it survives every transition, blocks
 both Planner readiness and Builder claim, and only a human re-routing the whole
 PR scope removes it.
@@ -38,7 +38,7 @@ it; only a human may do so. The match is exact, not a wildcard over `manual-*` l
 Fixed headings, parseable by heading, human-first:
 
 ```markdown
-Title: imperative, one concern (one ticket = one PR, TASTE §5)
+Title: imperative, one concern (one ticket may be one complete delivery unit)
 
 ## Goal            — what exists after this ships, one paragraph
 ## Context         — why now; links to feedback/digests/prior art
@@ -51,11 +51,16 @@ Title: imperative, one concern (one ticket = one PR, TASTE §5)
 
 ### Branches, PRs, reviews
 
-- Branch: `op/<issue>-<slug>` from main; one branch per ticket; worktree ↔
-branch 1:1 ([`turns.md`](turns.md)).
-- PR: title `<type>: <summary> (#<issue>)` — in v1 the builder loop always
-emits the literal `build:` type (`prTitle` in `src/loop/loop.ts` is hardcoded;
-a variable type is a later change); body = What / Why, **Evidence**
+- Branch: `op/<issue>-<slug>` from main for a single-ticket delivery unit;
+  `op/unit-<unit>-<membership-hash>` for a multi-ticket unit. One branch and
+  worktree belong to the complete delivery unit ([`turns.md`](turns.md)).
+- PR: exactly one per delivery unit. Its body carries `Closes #N` for every
+  member, and every member's state projection moves only after the shared
+  branch/PR/gate/review/merge artifact exists.
+- PR: a single-ticket title is `<type>: <summary> (#<issue>)`; a multi-ticket
+unit is `build: <unit> (<count> tickets)`. In v1 the builder loop always emits
+the literal `build:` type (`prTitle` in `src/loop/loop.ts` is hardcoded; a
+variable type is a later change); body = What / Why, **Evidence**
 (pasted test output — TASTE §6), `Closes #<issue>`. Draft on first push;
 ready when the Builder declares done.
 - Review: verdict as a real GitHub review (APPROVE / REQUEST_CHANGES) plus a

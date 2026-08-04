@@ -2,8 +2,8 @@
 Canonical ID: **CORMIDIA-C-OPVALIDATION-001 (alias: C-OP-VALIDATION)**
 
 Status: ACCEPTED implementation contract (2026-08-03); HB-102's deterministic
-schema/catalog/lifecycle/readiness handoff is implemented, while HB-103+ delivery
-integration and the S-10 qualification campaign remain pending.
+schema/catalog/lifecycle/readiness handoff and HB-103…105's production delivery-unit
+integration are implemented, while the S-10 qualification campaign remains pending.
 Defends INV-008/012/015/016, M4/M17. Journeys J-03/J-04/J-18. Interfaces with
 B-20/B-21/B-22 and the affected product boundary contracts.
 

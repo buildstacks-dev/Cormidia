@@ -387,6 +387,119 @@ const TICKET_CANONICAL_REFERENCE_TOPOLOGY = {
   ],
 } as const;
 
+/** Code-owned workflow identity used only when an upstream authority has
+ * already supplied a complete, provenance-bearing execution scope. The
+ * template skips the planning provider turn; it never skips Builder,
+ * mechanical gates, independent review, or exact-HEAD ship authorization. */
+export const TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE = {
+  id: "ticket/standard-delivery",
+  version: "v1",
+} as const;
+
+export interface TicketStandardDeliveryBudgets {
+  contractUsd: number;
+  implementationUsd: number;
+  reviewUsd: number;
+}
+
+/** Materialize the governed topology with ceilings derived from the current
+ * accepted role/app budget. Budget values are deliberately inputs rather than
+ * template policy: the workflow shape is stable while current spend authority
+ * remains owned by the invocation. */
+export function ticketStandardDeliveryWorkflowSteps(
+  budgets: TicketStandardDeliveryBudgets,
+): ProposedEpisodeStep[] {
+  for (const [name, value] of Object.entries(budgets)) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new TypeError(`ticket workflow ${name} must be finite and positive`);
+    }
+  }
+  return [
+    {
+      kind: "mechanical_gate",
+      id: "provision",
+      gate: "ticket/provision",
+      objective: "Provision one isolated worktree for the complete delivery unit.",
+      dependsOn: [],
+      inputRefs: [],
+      expectedOutputs: [{ id: "worktree", kind: "worktree", required: true }],
+    },
+    {
+      kind: "provider_turn",
+      id: "build-contract",
+      operation: "build/contract",
+      role: "builder",
+      objective: "Bind every accepted criterion to deterministic validation evidence.",
+      requiredCapabilities: [],
+      dependsOn: ["provision"],
+      inputRefs: [],
+      expectedOutputs: [{ id: "contract", kind: "contract", required: true }],
+      maxTurnBudgetUsd: budgets.contractUsd,
+      selectionReason: "Builder owns the criterion-to-test contract for the whole unit.",
+    },
+    {
+      kind: "provider_turn",
+      id: "build-implement",
+      operation: "build/implement",
+      role: "builder",
+      objective: "Implement the complete delivery unit and its accepted detectors.",
+      requiredCapabilities: [],
+      dependsOn: ["build-contract"],
+      inputRefs: [{ ref: "plan-output:contract", required: true }],
+      expectedOutputs: [{ id: "implementation", kind: "implementation", required: true }],
+      maxTurnBudgetUsd: budgets.implementationUsd,
+      selectionReason: "Builder owns code mutation for the whole delivery unit.",
+    },
+    {
+      kind: "mechanical_gate",
+      id: "gates-and-pr",
+      gate: "ticket/gates-and-pr",
+      objective: "Run the accepted gates and bind one pull request to the resulting HEAD.",
+      dependsOn: ["build-implement"],
+      inputRefs: [{ ref: "plan-output:implementation", required: true }],
+      expectedOutputs: [{ id: "pr", kind: "pull-request", required: true }],
+    },
+    {
+      kind: "provider_turn",
+      id: "review-verify",
+      operation: "review/verify",
+      role: "reviewer",
+      objective: "Independently verify the exact delivery-unit PR and validation evidence.",
+      requiredCapabilities: [],
+      dependsOn: ["gates-and-pr"],
+      inputRefs: [{ ref: "plan-output:pr", required: true }],
+      expectedOutputs: [{ id: "review-verdict", kind: "review-verdict", required: true }],
+      maxTurnBudgetUsd: budgets.reviewUsd,
+      selectionReason: "Reviewer is independent of Builder and authorizes one exact HEAD.",
+    },
+    {
+      kind: "mechanical_gate",
+      id: "review-authorization",
+      gate: "ticket/review-authorization",
+      objective: "Verify that the independent verdict authorizes the exact candidate HEAD.",
+      dependsOn: ["review-verify"],
+      inputRefs: [{ ref: "plan-output:review-verdict", required: true }],
+      expectedOutputs: [{ id: "authorization", kind: "authorization", required: true }],
+    },
+    {
+      kind: "mechanical_gate",
+      id: "ship",
+      gate: "ticket/ship",
+      objective: "Merge or hand off the exact authorized delivery-unit outcome.",
+      dependsOn: ["review-authorization"],
+      inputRefs: [{ ref: "plan-output:authorization", required: true }],
+      expectedOutputs: [{ id: "ship-result", kind: "ship-result", required: true }],
+    },
+  ];
+}
+
+export function ticketGovernedWorkflowTemplates(
+  budgets: TicketStandardDeliveryBudgets,
+): ReadonlyMap<string, readonly ProposedEpisodeStep[]> {
+  const ref = TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE;
+  return new Map([[`${ref.id}@${ref.version}`, ticketStandardDeliveryWorkflowSteps(budgets)]]);
+}
+
 /**
  * Closed machine-readable statement of everything `validateTicketEpisodePlan`
  * enforces. Rendered into the EpisodePlanner's bounded brief so the contract

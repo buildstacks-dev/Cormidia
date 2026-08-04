@@ -80,10 +80,11 @@ acceptance criteria, test-infra-first, cross-release integration tasks.
 (labels, issue/PR comments, reviews). Durable, human-visible, and already
 Cormidia's idempotency substrate (architecture.md §3). Local caches only.
 - *Unit of work:* the predecessor's dev session worked a whole scope (one
-release, many tasks, one branch) → Cormidia runs **one ticket = one branch =
-one PR** (TASTE §5). Cost attribution becomes exact by construction — the
-predecessor's weighted-mention heuristics existed only because sessions
-were multi-task.
+release, many tasks, one branch) → Cormidia runs **one delivery unit = one
+branch = one PR**. A delivery unit contains one or more tickets; the
+single-ticket form keeps the original branch/PR convention. Claims, gates,
+review, merge, evidence, budgets, and member projections are unit-scoped.
+Cost attribution stays exact because every execution unit owns its journal.
 - *Review identity:* same model, different prompt → **different provider**
 (roles.yaml builder/reviewer pairing — uncorrelated blind spots).
 - *Review freshness:* orchestrator-recorded `review_sha` → **GitHub-native**:

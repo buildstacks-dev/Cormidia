@@ -40,6 +40,8 @@ import type {
   EpisodeStepFailedOutcome,
 } from "../loop/episode-plan-executor.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
+import { issueContentHash } from "../loop/issue-snapshot.js";
+import { parseDependsOn } from "../loop/scheduling.js";
 import { executePipeline } from "../loop/pipeline.js";
 import {
   assertPlanningEpisodePlanValid,
@@ -141,6 +143,16 @@ import {
 } from "./planning-stage.js";
 import { loadRoles } from "./roles.js";
 import { ensureManagedClone, withAppGitLock } from "./turn-runner.js";
+import {
+  ROADMAP_DELIVERY_SCHEMA_VERSION,
+  acceptBacklogSnapshot,
+  acceptRoadmapPlan,
+  readBacklogSnapshotAuthority,
+  readCurrentRoadmapPlan,
+  listActiveExecutionUnits,
+  type RoadmapDeliveryUnit,
+  type RoadmapWorkstream,
+} from "./roadmap-delivery.js";
 
 export const PRODUCT_PLANNING_EPISODE_POLICY_VERSION =
   "product-planning/episode-planner-v1" as const;
@@ -762,6 +774,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   );
   let published: PublishedTicket[];
   let recordNote = "";
+  const publicationGh = options.gh ?? new GhCliOps(options.app.repo);
   if (priorPublication !== undefined) {
     if (
       priorPublication.episode_id !== provenance.episodeId ||
@@ -778,9 +791,8 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       labels: [...ticket.labels],
     }));
   } else {
-    const gh = options.gh ?? new GhCliOps(options.app.repo);
     ({ published } = await publishPlanProjection(
-      gh,
+      publicationGh,
       planProjection,
       consumedSources === undefined ? undefined : planningSourceTicketEvidence(consumedSources),
       provenance,
@@ -800,6 +812,14 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       recordNote = `; published-tickets record write failed: ${(error as Error).message}`;
     }
   }
+  await persistPublishedRoadmap({
+    stateHome: options.stateHome,
+    app: options.app,
+    gh: publicationGh,
+    plan: planProjection.plan,
+    published,
+    now: clock(),
+  });
   return {
     status: "completed",
     summary:
@@ -811,6 +831,214 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     published,
     ...resultBase,
   };
+}
+
+/** Production projection from the Planner's structured TicketPlan into an
+ * initial or predecessor-bound successor RoadmapPlan. Validation design is separate:
+ * the roadmap frontier is only a planning candidate; the Builder consumer
+ * still requires exact validation-contract and readiness authorities, so the
+ * legacy op:ready labels cannot authorize execution by themselves. */
+export async function persistPublishedRoadmap(input: {
+  stateHome: string;
+  app: AppEntry;
+  gh: GhOps;
+  plan: TicketPlan;
+  published: PublishedTicket[];
+  now: Date;
+}): Promise<void> {
+  const current = await readCurrentRoadmapPlan(input.stateHome, input.app.name);
+  if (current !== undefined) {
+    const active = await listActiveExecutionUnits(input.stateHome, input.app.name);
+    if (active.length > 0) {
+      throw new Error(
+        `RoadmapPlan revision refused while active execution units exist: ${active.map((entry) => entry.unit.unitId).join(", ")}`,
+      );
+    }
+  }
+  const indexes = input.published.map((ticket) => ticket.index).sort((a, b) => a - b);
+  if (
+    input.published.length !== input.plan.tickets.length ||
+    indexes.some((index, expected) => index !== expected) ||
+    new Set(input.published.map((ticket) => ticket.issueNumber)).size !== input.published.length
+  ) {
+    throw new Error("published ticket projection does not exactly account for the Planner TicketPlan");
+  }
+  const limit = 10_001;
+  const issues = await input.gh.listIssues({ state: "open", limit });
+  if (issues.length >= limit) {
+    throw new Error(`open backlog reached the ${limit - 1} issue completeness bound`);
+  }
+  const capturedAt = input.now.toISOString();
+  const snapshotIssues = issues.map((issue) => ({
+    issueNumber: issue.number,
+    contentHash: issueContentHash(issue),
+    lifecycle: "open" as const,
+    routing: issue.labels.includes("routing:human-only") ? "human_only" as const : "automated" as const,
+    observedLabels: [...issue.labels],
+    dependencyIssues: parseDependsOn(issue.body),
+  }));
+  if (current !== undefined) {
+    const priorSnapshot = await readBacklogSnapshotAuthority(
+      input.stateHome,
+      input.app.name,
+      current.value.backlogSnapshotRef,
+    );
+    const currentIssues = new Set(current.value.deliveryUnits.flatMap((unit) => unit.issueNumbers));
+    if (
+      input.published.every((ticket) => currentIssues.has(ticket.issueNumber)) &&
+      stableHash(priorSnapshot.value.issues) === stableHash(snapshotIssues)
+    ) return;
+  }
+  const snapshotId = `planner-${stableHash({ app: input.app.name, capturedAt, issues }).slice(0, 24)}`;
+  const snapshot = await acceptBacklogSnapshot({
+    root: input.stateHome,
+    snapshot: {
+      schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
+      snapshotId,
+      version: 1,
+      app: input.app.name,
+      source: "github:complete-open-backlog-after-planner-publication",
+      capturedAt,
+      completeness: "complete",
+      pagination: { pagesObserved: Math.max(1, Math.ceil(issues.length / 100)), hasNextPage: false, unavailablePages: [] },
+      issues: snapshotIssues,
+    },
+  });
+  const issueByNumber = new Map(issues.map((issue) => [issue.number, issue]));
+  const openIssueNumbers = new Set(issueByNumber.keys());
+  const allPlanTicketsByNumber = new Map(input.published.map((ticket) => [
+    ticket.issueNumber,
+    input.plan.tickets[ticket.index]!,
+  ]));
+  const preservedUnits: RoadmapDeliveryUnit[] = [];
+  for (const prior of current?.value.deliveryUnits ?? []) {
+    const openMembers = prior.issueNumbers.filter((number) => openIssueNumbers.has(number));
+    if (openMembers.length > 0 && openMembers.length !== prior.issueNumbers.length) {
+      throw new Error(
+        `RoadmapPlan revision refused subset closure for ${prior.unitId}: ` +
+          `${openMembers.length}/${prior.issueNumbers.length} members remain open`,
+      );
+    }
+    if (openMembers.length > 0) preservedUnits.push(structuredClone(prior));
+  }
+  const priorUnitByIssue = new Map(preservedUnits.flatMap((unit) =>
+    unit.issueNumbers.map((number) => [number, unit.unitId] as const)));
+  const planTicketByNumber = new Map([...allPlanTicketsByNumber]
+    .filter(([number]) => !priorUnitByIssue.has(number)));
+  const grouped = new Map<string, number[]>();
+  for (const [number, ticket] of planTicketByNumber) {
+    const members = grouped.get(ticket.executionGroup) ?? [];
+    members.push(number);
+    grouped.set(ticket.executionGroup, members);
+  }
+  const usedPriorWorkstreams = new Set(preservedUnits.map((unit) => unit.workstreamId));
+  const workstreams: RoadmapWorkstream[] = (current?.value.workstreams ?? [])
+    .filter((workstream) => usedPriorWorkstreams.has(workstream.workstreamId))
+    .map((workstream) => structuredClone(workstream));
+  let nextPriority = Math.max(0, ...workstreams.map((workstream) => workstream.priority)) + 1;
+  for (const group of [...grouped.keys()].sort()) {
+    const workstreamId = `planner-${stableHash(group).slice(0, 20)}`;
+    if (!workstreams.some((workstream) => workstream.workstreamId === workstreamId)) {
+      workstreams.push({
+        workstreamId,
+        outcome: `Deliver Planner execution group ${group}`,
+        priority: nextPriority++,
+      });
+    }
+  }
+  const groupUnitIds = new Map([...grouped.keys()].map((group) => [
+    group,
+    `unit-${stableHash({ group, members: grouped.get(group) }).slice(0, 24)}`,
+  ]));
+  const unitIdByIssue = new Map(priorUnitByIssue);
+  for (const [group, members] of grouped) {
+    for (const number of members) unitIdByIssue.set(number, groupUnitIds.get(group)!);
+  }
+  const deliveryUnits: RoadmapDeliveryUnit[] = preservedUnits.map((unit) => structuredClone(unit));
+  for (const [group, members] of [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      const dependencies = new Set<string>();
+      for (const number of members) {
+        for (const dependency of planTicketByNumber.get(number)!.dependsOn) {
+          const dependencyPublished = input.published.find((ticket) => ticket.index === dependency);
+          const dependencyUnit = dependencyPublished === undefined
+            ? undefined
+            : unitIdByIssue.get(dependencyPublished.issueNumber);
+          if (dependencyUnit !== undefined && dependencyUnit !== groupUnitIds.get(group)) {
+            dependencies.add(dependencyUnit);
+          }
+        }
+      }
+      const workstreamId = `planner-${stableHash(group).slice(0, 20)}`;
+      deliveryUnits.push({
+        unitId: groupUnitIds.get(group)!,
+        workstreamId,
+        issueNumbers: [...members].sort((a, b) => a - b),
+        dependsOn: [...dependencies].sort(),
+        priority: workstreams.find((workstream) => workstream.workstreamId === workstreamId)!.priority,
+        objective: workstreams.find((workstream) => workstream.workstreamId === workstreamId)!.outcome,
+      });
+  }
+  const accounted = new Set(deliveryUnits.flatMap((unit) => unit.issueNumbers));
+  const legacy = issues.filter((issue) => !accounted.has(issue.number));
+  if (legacy.length > 0) {
+    const workstreamId = "backlog-unplanned";
+    if (!workstreams.some((workstream) => workstream.workstreamId === workstreamId)) {
+      workstreams.push({
+        workstreamId,
+        outcome: "Explicitly parked pre-existing backlog awaiting a later RoadmapPlan revision",
+        priority: 999_999,
+      });
+    }
+    for (const issue of legacy.sort((a, b) => a.number - b.number)) {
+      deliveryUnits.push({
+        unitId: `unplanned-${issue.number}`,
+        workstreamId,
+        issueNumbers: [issue.number],
+        dependsOn: [],
+        priority: 999_999,
+        objective: `Unplanned backlog projection for #${issue.number}; not executable authority`,
+      });
+    }
+  }
+  const validUnitIds = new Set(deliveryUnits.map((unit) => unit.unitId));
+  for (const unit of deliveryUnits) {
+    unit.dependsOn = unit.dependsOn.filter((dependency) => validUnitIds.has(dependency));
+  }
+  const completedUnitIds = (current?.value.completedUnitIds ?? [])
+    .filter((unitId) => validUnitIds.has(unitId));
+  const completed = new Set(completedUnitIds);
+  const wipLimit = current?.value.wipLimit ?? Math.max(1, Math.min(8, workstreams.length));
+  const readyFrontier = deliveryUnits
+    .filter((unit) =>
+      !completed.has(unit.unitId) &&
+      unit.workstreamId !== "backlog-unplanned" &&
+      unit.dependsOn.every((dependency) => completed.has(dependency)) &&
+      unit.issueNumbers.every((number) => {
+        const issue = issueByNumber.get(number)!;
+        return issue.labels.includes("op:ready") &&
+          !issue.labels.includes("routing:human-only") && !issue.labels.includes("manual-review");
+      }))
+    .sort((left, right) => left.priority - right.priority || left.unitId.localeCompare(right.unitId))
+    .slice(0, wipLimit)
+    .map((unit) => unit.unitId);
+  await acceptRoadmapPlan({
+    root: input.stateHome,
+    plan: {
+      schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
+      planId: current?.value.planId ?? `roadmap-${snapshotId}`,
+      version: (current?.value.version ?? 0) + 1,
+      app: input.app.name,
+      backlogSnapshotRef: snapshot.ref,
+      predecessor: current?.ref ?? null,
+      workstreams,
+      deliveryUnits,
+      completedUnitIds,
+      readyFrontier,
+      wipLimit,
+      moves: current?.value.moves.map((move) => structuredClone(move)) ?? [],
+      acceptedAt: capturedAt,
+    },
+  });
 }
 
 /** Persist the refused decomposition when — and only when — the stage ticket

@@ -14,9 +14,11 @@ import {
   advanceGates,
   advanceReviewing,
   advanceShipping,
+  branchNameForDeliveryUnit,
   branchNameForIssue,
   AutonomousRoutingExclusionError,
   claimTicket,
+  claimDeliveryUnitIssues,
   criterionTestMapFromContractText,
   itemFromIssue,
   parseAcceptanceCriteria,
@@ -69,6 +71,7 @@ import {
   type CreatorEpisodeScope,
   type EpisodeIntent,
   type EpisodePlan,
+  type ProviderTurnStep,
 } from "./episode-plan.js";
 import {
   EPISODE_PLAN_ROUTE_POLICY_VERSION,
@@ -79,7 +82,7 @@ import {
   type RouteDecision,
 } from "./route-policy.js";
 import { parseDependsOn, parseScope, selectReadyTickets, type SchedulableTicket } from "./scheduling.js";
-import type { LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
+import type { LoopDeliveryUnit, LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
 
 export interface LoopPlanItem {
   issueNumber: number;
@@ -158,6 +161,92 @@ export interface LoopDriverOptions {
   /** Integration-test seam for claim saga crash boundaries. Production never
    * sets it; thrown faults must still leave a recoverable ticket. */
   claimFault?: (boundary: ClaimFaultBoundary, issueNumber: number) => void | Promise<void>;
+  /** Org-owned RoadmapPlan/validation/batch authority. When present, ticket
+   * selection is disabled: every live item is an admitted one-or-more member
+   * delivery unit and the callbacks own its durable claim/journal. */
+  deliveryUnits?: DeliveryUnitRuntime;
+}
+
+export interface AdmittedLoopDeliveryUnit {
+  authorityToken: string;
+  episodeId: string;
+  unit: LoopDeliveryUnit;
+  issues: GhIssue[];
+  creatorScope?: CreatorEpisodeScope;
+}
+
+export interface BoundLoopDeliveryUnit extends AdmittedLoopDeliveryUnit {
+  bindingToken: string;
+}
+
+export interface DeliveryUnitClaimLease {
+  claimId: string;
+  attempt: number;
+  runId: string;
+}
+
+export interface DeliveryUnitRuntime {
+  reconcile(input: { now: Date }): Promise<string[]>;
+  admit(input: {
+    maxUnits: number;
+    planOnly: boolean;
+    now: Date;
+  }): Promise<{
+    units: AdmittedLoopDeliveryUnit[];
+    refusals?: LoopDriverResult["routingRefusals"];
+  }>;
+  bindAcceptedPlan(input: {
+    admitted: AdmittedLoopDeliveryUnit;
+    request: TicketEpisodePlanningRequest;
+    accepted: AcceptedTicketEpisodePlan;
+    now: Date;
+  }): Promise<BoundLoopDeliveryUnit>;
+  failBeforeClaim(input: {
+    admitted: AdmittedLoopDeliveryUnit;
+    error: unknown;
+    now: Date;
+  }): Promise<string>;
+  claim(input: { unit: BoundLoopDeliveryUnit; now: Date }): Promise<DeliveryUnitClaimLease>;
+  commit(input: { unit: BoundLoopDeliveryUnit; lease: DeliveryUnitClaimLease; now: Date }): Promise<void>;
+  providerStarted(input: {
+    unit: BoundLoopDeliveryUnit;
+    lease: DeliveryUnitClaimLease;
+    reservedCostUsd: number;
+    now: Date;
+  }): Promise<void>;
+  afterGates(input: {
+    unit: BoundLoopDeliveryUnit;
+    lease: DeliveryUnitClaimLease;
+    plan: EpisodePlan;
+    item: LoopItem;
+    now: Date;
+  }): Promise<void>;
+  afterReview(input: {
+    unit: BoundLoopDeliveryUnit;
+    lease: DeliveryUnitClaimLease;
+    plan: EpisodePlan;
+    item: LoopItem;
+    now: Date;
+  }): Promise<void>;
+  beforeShip(input: {
+    unit: BoundLoopDeliveryUnit;
+    lease: DeliveryUnitClaimLease;
+    plan: EpisodePlan;
+    item: LoopItem;
+    now: Date;
+  }): Promise<void>;
+  finish(input: {
+    unit: BoundLoopDeliveryUnit;
+    lease: DeliveryUnitClaimLease;
+    item: LoopItem;
+    now: Date;
+  }): Promise<void>;
+  recover(input: {
+    unit: BoundLoopDeliveryUnit;
+    lease: DeliveryUnitClaimLease;
+    error: unknown;
+    now: Date;
+  }): Promise<string>;
 }
 
 export type ClaimFaultBoundary =
@@ -238,6 +327,10 @@ export interface TicketEpisodePlanningRequest {
     body: string;
     labels: string[];
   };
+  /** Present for production Roadmap delivery. The ticket field remains the
+   * primary compatibility projection; this member set is the execution and
+   * PR authority. */
+  deliveryUnit?: LoopDeliveryUnit;
   /** Explicit envelope supplied by the human/agent that created this episode.
    * Ordinary GitHub title/body/labels never populate it implicitly. */
   creatorScope?: CreatorEpisodeScope;
@@ -261,7 +354,12 @@ export interface TicketEpisodeExecutionRequest {
   accepted: AcceptedTicketEpisodePlan;
   item: LoopItem;
   /** Claim saga boundary invoked immediately before each provider step. */
-  beforeProviderTurn: () => Promise<void>;
+  beforeProviderTurn: (step: ProviderTurnStep) => Promise<void>;
+  deliveryLifecycle?: {
+    afterGates: (item: LoopItem, plan: EpisodePlan) => Promise<void>;
+    afterReview: (item: LoopItem, plan: EpisodePlan) => Promise<void>;
+    beforeShip: (item: LoopItem, plan: EpisodePlan) => Promise<void>;
+  };
 }
 
 export type TicketEpisodeExecutor = (
@@ -312,7 +410,8 @@ export interface LoopDriverResult {
    * ineligibility: the human routing decision survives every op:* swap. */
   routingRefusals?: Array<{
     issueNumber: number;
-    code: "routing_human_only" | "manual_review" | "routing_label_unreadable";
+    code: "routing_human_only" | "manual_review" | "routing_label_unreadable" |
+      "roadmap_member_changed";
     reason: string;
   }>;
 }
@@ -378,14 +477,21 @@ export async function requireAcceptedTicketEpisodePlan(input: {
       `ticket episode ${input.request.episodeId} requires an injected EpisodePlanner or explicit creator scope`,
     );
   }
-  const expectedEpisodeId = episodeIdFor({
-    app: input.request.app,
-    ticket: input.request.ticket.ticketRef,
-    traceId: input.request.ticket.ticketRef,
-  });
+  const expectedEpisodeId = input.request.deliveryUnit === undefined
+    ? episodeIdFor({
+        app: input.request.app,
+        ticket: input.request.ticket.ticketRef,
+        traceId: input.request.ticket.ticketRef,
+      })
+    : deliveryUnitEpisodeId(input.request.app, input.request.deliveryUnit);
   if (
     input.request.episodeId !== expectedEpisodeId ||
-    input.request.ticket.ticketRef !== `#${input.request.ticket.issueNumber}`
+    input.request.ticket.ticketRef !== `#${input.request.ticket.issueNumber}` ||
+    (input.request.deliveryUnit !== undefined &&
+      (!input.request.deliveryUnit.members.some((member) =>
+        member.issueNumber === input.request.ticket.issueNumber) ||
+        stableHash(input.request.deliveryUnit.members.map((member) => member.issueNumber)) !==
+          input.request.deliveryUnit.membershipHash))
   ) {
     throw new TicketEpisodePlanningBoundaryError(
       "error_ticket_episode_identity_mismatch",
@@ -473,6 +579,11 @@ export async function requireAcceptedTicketEpisodePlan(input: {
   };
 }
 
+export function deliveryUnitEpisodeId(app: string, unit: LoopDeliveryUnit): string {
+  const identity = `unit:${unit.unitId}:${unit.membershipHash}`;
+  return episodeIdFor({ app, ticket: identity, traceId: identity });
+}
+
 /** Resolve which of the given dependency issue numbers are MERGED — not merely
  *  closed. The live loop feeds selection only OPEN op:ready issues, so a merged
  *  dependency (CLOSED, no op:ready label) is never in that set and
@@ -516,10 +627,11 @@ function ticketEpisodePlanningRequest(
   options: Pick<LoopDriverOptions, "app" | "repo" | "localRepo" | "base">,
   issue: GhIssue,
   root: string,
+  admitted?: AdmittedLoopDeliveryUnit,
 ): TicketEpisodePlanningRequest {
   return {
     root,
-    episodeId: episodeIdFor({
+    episodeId: admitted?.episodeId ?? episodeIdFor({
       app: options.app,
       ticket: `#${issue.number}`,
       traceId: `#${issue.number}`,
@@ -535,6 +647,12 @@ function ticketEpisodePlanningRequest(
       body: issue.body,
       labels: [...issue.labels],
     },
+    ...(admitted === undefined ? {} : {
+      deliveryUnit: structuredClone(admitted.unit),
+      ...(admitted.creatorScope === undefined
+        ? {}
+        : { creatorScope: structuredClone(admitted.creatorScope) }),
+    }),
   };
 }
 
@@ -543,7 +661,11 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   const lines: string[] = [];
   const terminalEpisodeRefusals: NonNullable<LoopDriverResult["terminalEpisodeRefusals"]> = [];
   const routingRefusals: NonNullable<LoopDriverResult["routingRefusals"]> = [];
-  if (options.engine !== undefined && options.planOnly !== true) {
+  if (options.deliveryUnits !== undefined && options.planOnly !== true) {
+    lines.push(...await options.deliveryUnits.reconcile({
+      now: options.engine?.clock?.() ?? new Date(),
+    }));
+  } else if (options.engine !== undefined && options.planOnly !== true) {
     const entries = listTicketClaimStates(options.engine.runlogRoot, options.app).map((entry) => ({
       issueNumber: entry.issueNumber,
       state: entry.state,
@@ -573,13 +695,29 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       };
     }
   }
-  const fetchedReadyIssues = await options.gh.listIssues({
-    labels: ["op:ready"],
-    state: "open",
-    limit: maxConcurrent * 3,
-  });
+  const deliveryAdmission = options.deliveryUnits === undefined
+    ? undefined
+    : await options.deliveryUnits.admit({
+        maxUnits: maxConcurrent,
+        planOnly: options.planOnly === true,
+        now: options.engine?.clock?.() ?? new Date(),
+      });
+  if (deliveryAdmission?.refusals !== undefined) {
+    routingRefusals.push(...deliveryAdmission.refusals);
+  }
+  const fetchedReadyIssues = deliveryAdmission === undefined
+    ? await options.gh.listIssues({
+        labels: ["op:ready"],
+        state: "open",
+        limit: maxConcurrent * 3,
+      })
+    : deliveryAdmission.units.flatMap((entry) => entry.issues);
   const readyIssues: GhIssue[] = [];
   for (const issue of fetchedReadyIssues) {
+    if (deliveryAdmission !== undefined) {
+      readyIssues.push(issue);
+      continue;
+    }
     const exclusion = autonomousExecutionExclusionLabel(issue.labels);
     if (exclusion !== undefined) {
       const reason = `ticket carries ${exclusion}; autonomous Builder claim refused`;
@@ -627,17 +765,32 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     }
   }
   const mergedDependencyIds = await resolveMergedDependencyIds(options.gh, unresolvedDepIds);
-  const plan = planLoopTick(readyIssues, options.repo, maxConcurrent, mergedDependencyIds);
+  const plan = deliveryAdmission === undefined
+    ? planLoopTick(readyIssues, options.repo, maxConcurrent, mergedDependencyIds)
+    : deliveryAdmission.units.map((entry) => {
+        const primary = entry.issues[0];
+        if (primary === undefined) throw new Error(`delivery unit ${entry.unit.unitId} has no issues`);
+        const item = itemFromIssue(primary, options.repo);
+        return {
+          issueNumber: primary.number,
+          title: entry.unit.unitId,
+          phase: item.phase,
+          tier: item.tier,
+        };
+      });
   lines.push(...plan.map((item) => `#${item.issueNumber} ${item.title}: ready -> claim`));
   if (options.planOnly) {
     if (options.ticketInspection !== undefined) {
       for (const planned of plan) {
         const issue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
         if (issue === undefined) continue;
+        const admitted = deliveryAdmission?.units.find((candidate) =>
+          candidate.issues[0]?.number === planned.issueNumber);
         await options.ticketInspection.inspect(ticketEpisodePlanningRequest(
           options,
           issue,
           options.ticketInspection.root,
+          admitted,
         ));
       }
     }
@@ -654,8 +807,13 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   for (const planned of plan) {
     const selectedIssue = readyIssues.find((candidate) => candidate.number === planned.issueNumber);
     if (selectedIssue === undefined) continue;
+    const admitted = deliveryAdmission?.units.find((candidate) =>
+      candidate.issues[0]?.number === planned.issueNumber);
+    const memberIssues = admitted?.issues ?? [selectedIssue];
     let issue: GhIssue;
-    try {
+    if (admitted !== undefined) {
+      issue = selectedIssue;
+    } else try {
       issue = await readAutonomousClaimIssue(selectedIssue, options.gh);
     } catch (error) {
       if (!(error instanceof AutonomousRoutingExclusionError)) throw error;
@@ -685,7 +843,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     // Apparent simplicity, tier, title, and labels never imply a bypass; the
     // org-owned planner may skip its provider turn only for an explicit,
     // validated creator scope.
-    const ticketEpisodeId = episodeIdFor({
+    const ticketEpisodeId = admitted?.episodeId ?? episodeIdFor({
       app: options.app,
       ticket: `#${issue.number}`,
       traceId: `#${issue.number}`,
@@ -693,22 +851,77 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     const planningRequest: TicketEpisodePlanningRequest | undefined =
       options.engine === undefined
         ? undefined
-        : ticketEpisodePlanningRequest(ticketOptions, issue, options.engine.runlogRoot);
-    const acceptedTicketPlan = planningRequest === undefined
-      ? undefined
-      : await requireAcceptedTicketEpisodePlan({
+        : ticketEpisodePlanningRequest(
+            ticketOptions,
+            issue,
+            options.engine.runlogRoot,
+            admitted,
+          );
+    let acceptedTicketPlan: AcceptedTicketEpisodePlan | undefined;
+    try {
+      acceptedTicketPlan = planningRequest === undefined
+        ? undefined
+        : await requireAcceptedTicketEpisodePlan({
+            request: planningRequest,
+            ...(options.engine?.planTicket === undefined
+              ? {}
+              : { planner: options.engine.planTicket }),
+          });
+    } catch (error) {
+      if (admitted === undefined || options.deliveryUnits === undefined) throw error;
+      lines.push(await options.deliveryUnits.failBeforeClaim({
+        admitted,
+        error,
+        now: options.engine?.clock?.() ?? new Date(),
+      }));
+      continue;
+    }
+    let boundUnit: BoundLoopDeliveryUnit | undefined;
+    if (
+      admitted !== undefined &&
+      planningRequest !== undefined &&
+      acceptedTicketPlan !== undefined &&
+      options.deliveryUnits !== undefined
+    ) {
+      try {
+        boundUnit = await options.deliveryUnits.bindAcceptedPlan({
+          admitted,
           request: planningRequest,
-          ...(options.engine?.planTicket === undefined
-            ? {}
-            : { planner: options.engine.planTicket }),
+          accepted: acceptedTicketPlan,
+          now: options.engine?.clock?.() ?? new Date(),
         });
+      } catch (error) {
+        lines.push(await options.deliveryUnits.failBeforeClaim({
+          admitted,
+          error,
+          now: options.engine?.clock?.() ?? new Date(),
+        }));
+        continue;
+      }
+    }
 
     // Cross-claim accounting + rehydration (Stage 2) — engine path only; the
     // injector path is the simulated M5 state machine and stays blank-slate.
     let rehydrated: RehydratedState | undefined;
     let lease: ClaimLease | undefined;
-    if (options.engine !== undefined) {
-      const branch = branchNameForIssue(issue);
+    let deliveryLease: DeliveryUnitClaimLease | undefined;
+    if (boundUnit !== undefined && options.deliveryUnits !== undefined) {
+      try {
+        deliveryLease = await options.deliveryUnits.claim({
+          unit: boundUnit,
+          now: options.engine?.clock?.() ?? new Date(),
+        });
+      } catch (error) {
+        lines.push(
+          `delivery unit ${boundUnit.unit.unitId} claim deferred without changing sibling outcomes: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+        continue;
+      }
+    } else if (options.engine !== undefined) {
+      const branch = admitted === undefined
+        ? branchNameForIssue(issue)
+        : branchNameForDeliveryUnit(admitted.unit);
       rehydrated = await rehydrateTicketState(
         { issueNumber: issue.number, body: issue.body },
         { gh: options.gh, branch },
@@ -751,21 +964,34 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     let item: LoopItem;
     try {
     await options.claimFault?.("after_selection", issue.number);
-    item = await claimTicket(issue, {
+    const claimOptions = {
       gh: options.gh,
       targetRepo: options.repo,
       localRepo: options.localRepo,
       worktreeRoot: options.worktreeRoot,
       base,
       afterLabelTransition: () => options.claimFault?.("after_label_transition", issue.number),
-    });
+    };
+    item = admitted === undefined
+      ? await claimTicket(issue, claimOptions)
+      : await claimDeliveryUnitIssues(memberIssues, { ...claimOptions, unit: admitted.unit });
     // The base a ticket was cut from is now stated, not inferable. #203 was
     // only diagnosable by comparing the managed clone's `origin/<default>`
     // against the real remote by hand; nothing in the loop output, the
     // builder's escalation, or `episode explain` named a stale base, so the
     // symptom read as a Planner scoping error.
     lines.push(`#${issue.number}: base ${base.ref}${describeBaseHead(options.localRepo, base)}`);
-    if (options.engine !== undefined && lease !== undefined) {
+    if (
+      boundUnit !== undefined &&
+      deliveryLease !== undefined &&
+      options.deliveryUnits !== undefined
+    ) {
+      await options.deliveryUnits.commit({
+        unit: boundUnit,
+        lease: deliveryLease,
+        now: options.engine?.clock?.() ?? new Date(),
+      });
+    } else if (options.engine !== undefined && lease !== undefined) {
       await markTicketClaimed({
         root: options.engine.runlogRoot,
         app: options.app,
@@ -822,7 +1048,20 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         request: planningRequest,
         accepted: acceptedTicketPlan,
         item,
-        beforeProviderTurn: async () => {
+        beforeProviderTurn: async (step) => {
+          if (
+            boundUnit !== undefined &&
+            deliveryLease !== undefined &&
+            options.deliveryUnits !== undefined
+          ) {
+            await options.deliveryUnits.providerStarted({
+              unit: boundUnit,
+              lease: deliveryLease,
+              reservedCostUsd: step.maxTurnBudgetUsd,
+              now: options.engine?.clock?.() ?? new Date(),
+            });
+            return;
+          }
           if (lease === undefined) return;
           await markTicketProviderStarted({
             root: options.engine!.runlogRoot,
@@ -831,6 +1070,33 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             claimId: lease.claimId,
           });
         },
+        ...(boundUnit === undefined || deliveryLease === undefined || options.deliveryUnits === undefined
+          ? {}
+          : {
+              deliveryLifecycle: {
+                afterGates: (current: LoopItem, plan: EpisodePlan) => options.deliveryUnits!.afterGates({
+                  unit: boundUnit!,
+                  lease: deliveryLease!,
+                  plan,
+                  item: current,
+                  now: options.engine?.clock?.() ?? new Date(),
+                }),
+                afterReview: (current: LoopItem, plan: EpisodePlan) => options.deliveryUnits!.afterReview({
+                  unit: boundUnit!,
+                  lease: deliveryLease!,
+                  plan,
+                  item: current,
+                  now: options.engine?.clock?.() ?? new Date(),
+                }),
+                beforeShip: (current: LoopItem, plan: EpisodePlan) => options.deliveryUnits!.beforeShip({
+                  unit: boundUnit!,
+                  lease: deliveryLease!,
+                  plan,
+                  item: current,
+                  now: options.engine?.clock?.() ?? new Date(),
+                }),
+              },
+            }),
       });
     }
     if (options.engine === undefined) item = await (options.afterClaim?.(item) ?? item);
@@ -890,8 +1156,10 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     // durable, so a re-arm failure logs a line but never fails the tick.
     if (item.phase === "merged") {
       try {
-        for (const dependent of await rearmDependents(options.gh, item.issueNumber)) {
-          lines.push(`#${dependent}: dependencies satisfied by #${item.issueNumber} merge -> op:ready`);
+        for (const member of item.deliveryUnit?.members ?? [{ issueNumber: item.issueNumber }]) {
+          for (const dependent of await rearmDependents(options.gh, member.issueNumber)) {
+            lines.push(`#${dependent}: dependencies satisfied by #${member.issueNumber} merge -> op:ready`);
+          }
         }
       } catch (error) {
         lines.push(
@@ -899,7 +1167,27 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
         );
       }
     }
-    if (options.engine !== undefined && lease !== undefined) {
+    if (
+      boundUnit !== undefined &&
+      deliveryLease !== undefined &&
+      options.deliveryUnits !== undefined
+    ) {
+      await options.deliveryUnits.finish({
+        unit: boundUnit,
+        lease: deliveryLease,
+        item,
+        now: options.engine?.clock?.() ?? new Date(),
+      });
+      if (item.phase !== "blocked" || item.continuation === undefined) {
+        const terminal = terminalDisposition(item);
+        await options.engine?.onEpisodeTerminal?.({
+          episodeId: boundUnit.episodeId,
+          item,
+          ...terminal,
+          now: options.engine.clock?.() ?? new Date(),
+        });
+      }
+    } else if (options.engine !== undefined && lease !== undefined) {
       await finishTicketClaim({
         root: options.engine.runlogRoot,
         app: options.app,
@@ -934,6 +1222,21 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
     }
     items.push(item);
     } catch (error) {
+      if (
+        boundUnit !== undefined &&
+        deliveryLease !== undefined &&
+        options.deliveryUnits !== undefined
+      ) {
+        const recovery = await options.deliveryUnits.recover({
+          unit: boundUnit,
+          lease: deliveryLease,
+          error,
+          now: options.engine?.clock?.() ?? new Date(),
+        });
+        await options.gh.commentIssue(issue.number, `## Delivery-unit recovery\n\n${recovery}`);
+        lines.push(recovery);
+        continue;
+      }
       if (options.engine === undefined || lease === undefined) throw error;
       const state = readTicketClaimState(options.engine.runlogRoot, options.app, issue.number);
       if (state.active?.claimId !== lease.claimId) throw error;

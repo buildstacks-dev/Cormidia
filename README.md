@@ -528,7 +528,7 @@ git root; there is no `.env.example` yet — the variables above are the full se
 **Replacement harness implemented; triggered evidence pending (2026-07-31).** The
 legacy suite remains frozen under `archive-do-not-read/` — never read, cite, or run
 it. The ratified contract is `validation-design/validation-policy.yaml`; the executable
-L1/L2 harness plus opt-in L3/L4/L5 runners live in `claude-tests/`. Release gating is
+L1/L2 harness plus opt-in L3/L4/L5 runners live in `tests/`. Release gating is
 still **suspended**: live campaigns and the real seven-day soak have not run, eval
 references/thresholds remain pending, the human threat model is not authored, and
 required-check enforcement is blocked by F-PT-018. Implemented machinery is not
@@ -588,7 +588,7 @@ src/observe/   versioned read projection, bounded GitHub source, loopback
 src/report/    ledger/range/detail readers, deterministic report projection,
                portable renderers, lazy cache/paging service, Reports assets
 src/cli/       one module per subcommand; src/cli.ts is a thin dispatch table
-claude-tests/  implemented replacement validation harness + opt-in campaign runners
+tests/  implemented replacement validation harness + opt-in campaign runners
 research/      decision records
 archive-do-not-read/  frozen pre-rebuild validation corpus — never read or run
 ```

@@ -48,7 +48,7 @@ active_revision:
   implementation_status: hb_100_hb_101_complete_hb_102_pending
   implementation_or_evidence_claim: >
     HB-100 provider-free join and HB-101 whole-backlog roadmap authority are executable
-    at claude-tests/hermetic/cf-hb100/ and cf-hb101/; this is partial L1/L2 coverage,
+    at tests/hermetic/cf-hb100/ and cf-hb101/; this is partial L1/L2 coverage,
     not full revision-family or autonomous-loop readiness.
   unchanged_baseline: "2026-07-31 ratified policy, gates, spend bounds, findings and evidence ledger"
   registry:
@@ -74,7 +74,7 @@ tier_model:
   c1_leaves: "presentation cosmetics, help text, narrative rendering, cache economics"
   recovery: "tier multiplier - inherits the tier of the journey it recovers"
 
-artifacts:                       # design root now; moves with the harness to claude-tests/
+artifacts:                       # design root now; moves with the harness to tests/
   readme: ./README.md
   policy: ./validation-policy.yaml           # this file
   scope_module_map: ./scope-and-module-map.md
@@ -96,7 +96,7 @@ artifacts:                       # design root now; moves with the harness to cl
   threat_model_status: ./threat-model-status.yaml
   comparative_execution_design: ../docs/comparative-execution/design.md
 
-implementation_root: claude-tests/          # per docs/PURPOSE.md v2.9
+implementation_root: tests/          # per docs/PURPOSE.md v2.9
 protected_paths:
   - path: "archive-do-not-read/**"
     rule: "never read, cite, run, or take design cues from"   # ratified Phase 0

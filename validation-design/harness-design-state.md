@@ -44,8 +44,8 @@ isolation and the subsequent full rerun was green; it was recorded rather than i
 contract. HB-100's local provider-free walking skeleton and HB-101's whole-backlog
 roadmap authority are complete in
 `src/org/roadmap-delivery.ts` with its L1/L2 detector at
-`claude-tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts` and five
-HB-101 cases at `claude-tests/hermetic/cf-hb101/roadmap-authority.test.ts`.
+`tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts` and five
+HB-101 cases at `tests/hermetic/cf-hb101/roadmap-authority.test.ts`.
 Protocol-surface edits, merge, publication/deployment, external effects and live/eval/
 soak campaigns remain separately gated; acceptance creates no autonomous-loop
 readiness, release-gating or executable-coverage claim.
@@ -156,7 +156,7 @@ process-identity probe.
 - Scope mode: `product` — **CONFIRMED at Phase 0** (rev 2, round 3)
 - Target: production Cormidia (org runtime)
 - Artifact root: `./validation-design/`
-- Harness implementation root (per docs v2.9, build-time only): `claude-tests/`
+- Harness implementation root (per docs v2.9, build-time only): `tests/`
   — not built during the design campaign itself; now implemented through the bounded
   runner/collector work recorded above. External evidence remains separately gated.
 - Incumbent suite: archived under `archive-do-not-read/**` — protected no-read path (ratified at Phase 0); clean-slate greenfield, no coexistence posture

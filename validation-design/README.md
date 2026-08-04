@@ -6,7 +6,7 @@
 
 This is the ratified **design and implementation index** for Cormidia's replacement
 validation harness (campaign cormidia-2026-07-31, validation-harness-design skill,
-Phases 0–8). The executable implementation lives under `../claude-tests/`; current
+Phases 0–8). The executable implementation lives under `../tests/`; current
 machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not**:
 
 - **A statement of deployed reality.** Nothing here tells you whether the scheduler is

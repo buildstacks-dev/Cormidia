@@ -28,7 +28,7 @@ represent their gates as already existing in CI.
 
 **Where truth lives.** The design artifacts are at the paths in
 `validation-policy.yaml` → `artifacts:` (start at `validation-design/README.md`; the
-set moves with the harness into `claude-tests/`). The policy file is the contract:
+set moves with the harness into `tests/`). The policy file is the contract:
 layer lanes, gates, spend bounds, verdict semantics, and open findings. **The policy
 is tighten-only** — narrow a requirement if you must, never loosen one; gates and
 golden sets are never weakened to make a change pass.

@@ -23,6 +23,10 @@ commits, no scaffolding. A contract pass that changes the tree has failed.
    completeness gate fails — not warns — on any criterion without a covering
    test. A criterion you cannot map to a mechanical check is a spec bug:
    flag it under risks; do not silently reinterpret it.
+   When the brief carries an accepted validation contract, also map every
+   non-waived obligation to its exact case ID, detector, seeded negative
+   control, cheapest falsifying layer, and expected evidence. Do not weaken,
+   replace, or silently waive an accepted obligation.
 4. **Never edit the acceptance criteria.** A criterion that proves wrong,
    ambiguous, or untestable bounces the ticket to the Planner. Your job is
    to expose that now, before code is written against it.

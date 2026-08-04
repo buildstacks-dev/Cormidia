@@ -84,6 +84,16 @@ plan:
       role: planner
       template: plan/decomposer.md
 
+# Governed S-10 capability. The orchestrator invokes this only after the
+# RoadmapPlan and delivery-unit versions are durable and before readiness.
+# It is not a standing employee and is not appended to the plan pipeline.
+validation-design:
+  passes:
+    - id: design
+      role: planner
+      template: validation/design.md
+      effort: high
+
 groom:
   passes:
     - id: groom

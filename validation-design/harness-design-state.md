@@ -66,9 +66,14 @@ current-label/roadmap rereads and stale-version guards. HB-103…105 add product
 RoadmapPlan/readiness consumption, atomic one-or-more-ticket claims and PR projections,
 bounded deterministic ExecutionUnit batches, per-unit journals/budgets/outcomes, lazy
 EpisodePlans, and strict provenance-bearing zero-turn normalization. No provider,
-live/eval/soak, publication, protocol-surface edit or external effect ran. #239 is merged
-and its two-boundary exclusion remains covered; HB-106…111 remain, so autonomous-loop
-readiness is not claimed.
+live/eval/soak, publication, protocol-surface edit or external effect ran. HB-106 adds
+the complete local seven-destination direct-campaign authority/evidence/follow-up slice;
+HB-107 converges product planning and ticket delivery on `orchestrateEpisode` and adds
+ordered context manifests, exact role/app/assignment/operation session compatibility,
+crash-safe settlement and cache hit/miss/unknown evidence. Their detectors live under
+`tests/hermetic/cf-hb106/`, `tests/hermetic/cf-hb107/`, and
+`tests/unit/cf-hb107/`. #239 is merged and its two-boundary exclusion remains covered;
+HB-108…111 remain, so autonomous-loop readiness is not claimed.
 
 ## Harness revision — comparative execution (2026-08-01)
 
@@ -271,8 +276,8 @@ its §9). Summary of the event:
 
 ## Pending confirmations
 - **Active 2026-08-03 revision:** Phase 8 was accepted on 2026-08-03 as recorded at
-  `ratification-package.md` §10.7. HB-100…HB-105 local offline implementation is
-  complete; HB-106…111 remain. The proposed protocol-surface package
+  `ratification-package.md` §10.7. HB-100…HB-107 local offline implementation is
+  complete; HB-108…111 remain. The proposed protocol-surface package
   remains separately approval-gated under HB-111.
 - **Closed 2026-07-31 campaign:** none in-campaign. Audit iteration 2 CONFIRMED:
   verification pass clean,

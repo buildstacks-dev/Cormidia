@@ -13,7 +13,6 @@ import {
   readEpisodePlanExecutionJournal,
   type EpisodePlanExecutionEvent,
   type EpisodePlanExecutionJournal,
-  type EpisodePlanExecutionResult,
 } from "../../loop/episode-plan-executor.js";
 import {
   episodeReplanJournalPath,
@@ -45,6 +44,7 @@ import {
 } from "./coordinator.js";
 import {
   executeAcceptedEpisodePlan,
+  type AcceptedEpisodePlanExecutionResult,
   type ExecuteAcceptedEpisodePlanOptions,
 } from "./execution.js";
 import {
@@ -107,7 +107,7 @@ export interface OrchestratedEpisode {
   prepared: PreparedEpisodePlan;
   /** Current durable route state (terminal when delivery completed). */
   route: RouteRecord;
-  execution: EpisodePlanExecutionResult | null;
+  execution: AcceptedEpisodePlanExecutionResult | null;
 }
 
 export interface InspectEpisodeInvocationOptions {
@@ -200,7 +200,7 @@ export async function orchestrateEpisode(
     roles: options.roles,
     intent,
   });
-  let execution: EpisodePlanExecutionResult | null = null;
+  let execution: AcceptedEpisodePlanExecutionResult | null = null;
   if (options.mode === "execute") {
     const proposeRevision = options.execution.proposeRevision ??
       (options.planner.promptText.trim().length === 0

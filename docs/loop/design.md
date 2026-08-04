@@ -140,9 +140,13 @@ a role invocation or pipeline does not create an independent route.
 
 Rules, all inherited from the predecessor and now contract-level:
 
-1. **Fresh session per pass.** No pass resumes another's session (crash
-  recovery of the *same* pass may — architecture.md §3). Passes
-   communicate only through durable artifacts: commits, PR/issue comments,
+1. **Session identity is exact.** Crash recovery may resume the same pass.
+   Batch affinity may additionally offer a settled session to another execution
+   unit only when app, role, atomic assignment, operation, runtime and ordered
+   immutable-prefix hash all match exactly; cache hit/miss evidence is not part
+   of that authorization. Builder state is never offered to Reviewer. Every
+   reuse still creates a distinct provider turn and per-unit settlement. Passes
+   otherwise communicate only through durable artifacts: commits, PR/issue comments,
    ticket state. Disk/GitHub is the message bus.
 2. **Prompts are versioned code.** Templates live in `prompts/<pipeline>/`
   in the org home — diffable, reviewable, and a protocol surface: the

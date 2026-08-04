@@ -384,7 +384,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   claim under a race, persistence-before-projection, label-without-artifact refusal,
   whole-unit human-only exclusion at admission and claim, exact unit/contract/HEAD
   negative controls, and verdict-bound settlement. This is walking-skeleton coverage
-  only; HB-106…111 remain required before autonomous-loop readiness (HB-101…HB-105 are
+  only; HB-108…111 remain required before autonomous-loop readiness (HB-101…HB-107 are
   complete below).
 - **HB-101 — COMPLETE 2026-08-03 — RoadmapPlan schema, store, snapshot and bounded-delta replanning.** Add
   versioned/hash-bound RoadmapPlan and backlog-snapshot schemas; stable workstream/unit
@@ -435,7 +435,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   approval, waiver authority/expiry and current roadmap/frontier are rechecked through
   settlement, lifecycle ingestion is strict, and projections prove durable current
   readiness.
-  Full operator and campaign families remain HB-106…111.
+  Full operator and remaining matrix families remain HB-108…111.
 - **HB-103 — COMPLETE 2026-08-03 — Multi-ticket delivery units and one-PR atomicity.** Replace ticket-scoped
   claim/review/merge assumptions with a stable delivery-unit authority containing one or
   more members. Make claim/revalidation all-or-none; bind branch, gates, evidence,
@@ -491,7 +491,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   The HB-100 walking skeleton additionally proves that an accepted routine template
   reaches the real governed ticket workflow with zero planning turns, while identical
   prose without authority and an accepted custom contract cannot take the shortcut.
-- **HB-106 — Direct operational campaign units and exact-effect continuation.** Add
+- **HB-106 — COMPLETE 2026-08-03 — Direct operational campaign units and exact-effect continuation.** Add
   deterministic intake for complete non-code work, a shallow Marketing campaign template,
   content/evidence manifests, per-destination exact approval items, effect acknowledgements
   and deterministic follow-up observation scheduling. Unknown replies/actions create new
@@ -500,7 +500,16 @@ prepares the proposal and a human separately ratifies any such surface. -->
   no live post, connector, or B-17 L3 green claim is created. *Defends:* CF-J20-A,
   CF-C-OPBATCH, INV-003/008, B-17/T-12. *Layer:* 1/2; B-17 real target remains blocked.
   *Executor:* build-agent. *Depends on:* HB-104 and existing approval/effect contracts.
-- **HB-107 — Shared EpisodePlanner façade plus role-safe session/cache reuse.** Converge
+  *Implementation:* `src/org/direct-operational-campaign.ts` constructs the accepted
+  five-Reddit/one-LinkedIn/one-Twitter authority as one Marketing content turn, seven
+  exact approval steps and a deterministic terminal contract gate. Content manifests,
+  approval links, executor acknowledgements, evidence projections and observation
+  schedules remain per destination; partial approval preparation replays idempotently,
+  broadened grants are refused, and unknown interactions construct a new direct unit and
+  EpisodePlan. `tests/hermetic/cf-hb106/direct-operational-campaign.test.ts` covers the
+  complete local lifecycle with a seeded broadened-grant detector. Its executor evidence
+  is fixture-only: no connector, external publication or B-17 L3 action ran.
+- **HB-107 — COMPLETE 2026-08-03 — Shared EpisodePlanner façade plus role-safe session/cache reuse.** Converge
   roadmap planning's direct primitive composition and delivery on the common
   `orchestrateEpisode` façade while retaining domain catalogs/validators/prompts/handlers.
   Add stable immutable-prefix/delta manifests, exact app/role/assignment/operation session
@@ -510,6 +519,17 @@ prepares the proposal and a human separately ratifies any such surface. -->
   correctness/admission. *Defends:* CF-J20-S/I/RC, CF-B22-*, INV-004/006/016.
   *Layer:* 1/2; existing L3 adapter trigger only if invocation semantics change.
   *Executor:* build-agent. *Depends on:* HB-101/104.
+  *Implementation:* product planning and ticket planning/delivery now enter
+  `orchestrateEpisode`; RoadmapPlan persistence remains a separate domain authority after
+  the delivery EpisodePlan. `src/org/execution-affinity.ts` persists ordered immutable-
+  prefix/unit-delta manifests and crash-safe per-turn settlements, classifies provider
+  cache evidence as hit/miss/unknown, and permits session reuse only across exact app,
+  role, atomic assignment, operation, runtime and prefix identity. Cache telemetry is
+  absent from the reuse predicate and exposes cost-affinity advice with no correctness
+  authority. `tests/hermetic/cf-hb107/session-cache-affinity.test.ts` and
+  `tests/unit/cf-hb107/shared-orchestrator-facade.test.ts` seed crash, cache-lure,
+  Builder→Reviewer and direct-facade-bypass violations. Ticket provider turns persist
+  the manifests/telemetry; no adapter invocation semantics or L3 campaign changed.
 - **HB-108 — Complete deterministic catalog and pre-tuning golden integration.** Land
   every 2026-08-03 design-only L1/L2 family with seeded negative controls, plus the
   Planner large-backlog/delta/cache-lure cases and Validation Designer cases in the L4

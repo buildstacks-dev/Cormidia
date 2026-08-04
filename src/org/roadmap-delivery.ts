@@ -1,4 +1,4 @@
-// Durable roadmap-to-delivery authority joins (HB-100 through HB-105).
+// Durable roadmap-to-delivery authority joins (HB-100 through HB-107).
 //
 // This module is deliberately provider-free until EpisodePlanner normalization:
 // roadmap admission, validation admission, batching, claims, and evidence review
@@ -15,6 +15,7 @@ import {
   stableHash,
   type CreatorEpisodeScope,
   type EpisodePlan,
+  type ProposedEpisodeStep,
 } from "../loop/episode-plan.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "../loop/durable.js";
 import { autonomousExecutionExclusionLabel } from "../loop/plan-tickets.js";
@@ -641,7 +642,12 @@ export interface DirectExecutionUnitAuthority {
   expectedArtifacts: CreatorEpisodeScope["expectedArtifacts"];
   declaredConstraints: CreatorEpisodeScope["declaredConstraints"];
   safetyFacts: CreatorEpisodeScope["safetyFacts"];
-  workflowTemplate: NonNullable<CreatorEpisodeScope["workflowTemplate"]>;
+  /** Generic repeatable work may name a governed template. A content-bound
+   * operational campaign instead carries its exact instantiated steps so the
+   * seven destination approvals cannot be widened by template lookup. Exactly
+   * one workflow representation is required. */
+  workflowTemplate?: NonNullable<CreatorEpisodeScope["workflowTemplate"]>;
+  steps?: ProposedEpisodeStep[];
   provenance: CreatorEpisodeScope["provenance"];
   dedupeKey: string;
   admittedBudget: ExecutionUnitBudget;
@@ -2193,7 +2199,9 @@ export async function normalizeDirectExecutionUnitEpisode(input: {
     expectedArtifacts: structuredClone(authority.value.expectedArtifacts),
     declaredConstraints: structuredClone(authority.value.declaredConstraints),
     safetyFacts: structuredClone(authority.value.safetyFacts),
-    workflowTemplate: structuredClone(authority.value.workflowTemplate),
+    ...(authority.value.workflowTemplate === undefined
+      ? { steps: structuredClone(authority.value.steps!) }
+      : { workflowTemplate: structuredClone(authority.value.workflowTemplate) }),
   };
   const episodeId = `direct-${stableHash({ app: input.app.name, authority: authority.ref }).slice(0, 32)}`;
   const intent = buildEpisodeIntent({
@@ -2201,6 +2209,10 @@ export async function normalizeDirectExecutionUnitEpisode(input: {
     episodeId,
     app: input.app,
     roles: input.roles,
+    requiredSafetyFacts: [...new Map([
+      ...input.facts.requiredSafetyFacts,
+      ...authority.value.safetyFacts,
+    ].map((fact) => [stableHash(fact), structuredClone(fact)])).values()],
     creatorScope,
   });
   const prepared = await prepareEpisodePlan({
@@ -4081,10 +4093,11 @@ function assertDeliveryUnitReadinessShape(readiness: DeliveryUnitReadiness): voi
 }
 
 function assertDirectExecutionUnit(authority: DirectExecutionUnitAuthority): void {
+  const workflowKeys = authority.workflowTemplate === undefined ? ["steps"] : ["workflowTemplate"];
   assertExactObjectKeys(authority, [
     "schemaVersion", "kind", "unitId", "app", "objective", "inScope", "outOfScope",
     "acceptanceCriteria", "expectedArtifacts", "declaredConstraints", "safetyFacts",
-    "workflowTemplate", "provenance", "dedupeKey", "admittedBudget", "createdAt",
+    ...workflowKeys, "provenance", "dedupeKey", "admittedBudget", "createdAt",
   ], "direct execution unit", "direct_unit_incomplete");
   if (authority.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION || authority.kind !== "direct_operation") {
     throw new RoadmapDeliveryError("direct_unit_incomplete", "unsupported direct-unit schema");
@@ -4099,11 +4112,13 @@ function assertDirectExecutionUnit(authority: DirectExecutionUnitAuthority): voi
     ["outOfScope", authority.outOfScope],
     ["acceptanceCriteria", authority.acceptanceCriteria],
     ["expectedArtifacts", authority.expectedArtifacts],
-    ["safetyFacts", authority.safetyFacts],
   ] as const) {
     if (!Array.isArray(values) || values.length === 0) {
       throw new RoadmapDeliveryError("direct_unit_incomplete", `direct unit ${name} is empty`);
     }
+  }
+  if (!Array.isArray(authority.safetyFacts)) {
+    throw new RoadmapDeliveryError("direct_unit_incomplete", "direct unit safetyFacts must be explicit");
   }
   if (
     authority.provenance === undefined ||
@@ -4112,15 +4127,29 @@ function assertDirectExecutionUnit(authority: DirectExecutionUnitAuthority): voi
     Number.isNaN(Date.parse(authority.provenance.createdAt)) ||
     authority.provenance.evidenceRefs.length === 0 ||
     authority.provenance.evidenceRefs.some((ref) => ref.trim().length === 0) ||
-    authority.workflowTemplate === undefined ||
-    authority.workflowTemplate.id.trim().length === 0 ||
-    authority.workflowTemplate.version.trim().length === 0 ||
     Object.keys(authority.declaredConstraints).length === 0
   ) {
     throw new RoadmapDeliveryError(
       "direct_unit_incomplete",
       "direct unit requires provenance, governed template, and declared constraints",
     );
+  }
+  const hasTemplate = authority.workflowTemplate !== undefined;
+  const hasSteps = authority.steps !== undefined;
+  if (hasTemplate === hasSteps) {
+    throw new RoadmapDeliveryError(
+      "direct_unit_incomplete",
+      "direct unit requires exactly one governed template or exact step graph",
+    );
+  }
+  if (hasTemplate && (
+    authority.workflowTemplate!.id.trim().length === 0 ||
+    authority.workflowTemplate!.version.trim().length === 0
+  )) {
+    throw new RoadmapDeliveryError("direct_unit_incomplete", "direct-unit workflow template is invalid");
+  }
+  if (hasSteps && (!Array.isArray(authority.steps) || authority.steps.length === 0)) {
+    throw new RoadmapDeliveryError("direct_unit_incomplete", "direct-unit step graph is empty");
   }
   assertExecutionUnitBudget(authority.admittedBudget);
 }

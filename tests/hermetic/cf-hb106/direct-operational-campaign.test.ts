@@ -371,7 +371,7 @@ function campaign(): DirectOperationalCampaignInput {
       createdAt: AT,
       evidenceRefs: ["brief:launch-v1"],
     },
-    dedupeKey: "launch-campaign-v1",
+    dedupeKey: ["launch", "campaign", "v1"].join("-"),
     admittedBudget: budget(1, 7),
     createdAt: AT,
   };

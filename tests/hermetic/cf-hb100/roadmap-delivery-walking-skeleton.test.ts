@@ -15,7 +15,9 @@ import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
   RoadmapDeliveryError,
   acceptBacklogSnapshot,
+  acceptDeliveryUnitReadiness,
   acceptRoadmapPlan,
+  acceptValidationCatalog,
   acceptValidationContract,
   admitExecutionBatch,
   assertReviewerVerdictAdmissible,
@@ -37,6 +39,7 @@ import {
   type BacklogSnapshot,
   type BuilderEvidenceManifest,
   type DeliveryEpisodeBinding,
+  type DeliveryUnitReadiness,
   type DeliveryUnitClaim,
   type ExecutionBatch,
   type RoadmapDeliveryProjection,
@@ -46,6 +49,11 @@ import {
   type ValidationContract,
 } from "../../../src/org/roadmap-delivery.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
+import {
+  VALIDATION_BASE_AFFECTED,
+  VALIDATION_EMPTY_AFFECTED,
+  validationCatalog,
+} from "../../fixtures/validation-catalog.js";
 
 const AT = "2026-08-03T22:00:00.000Z";
 const APP: AppEntry = {
@@ -117,6 +125,7 @@ function backlogSnapshot(): BacklogSnapshot {
       contentHash: stableHash({ issueNumber, title: `HB-100 issue ${issueNumber}` }),
       lifecycle: "open",
       routing: "automated",
+      observedLabels: ["planning:preplanned"],
       dependencyIssues: [],
     })),
   };
@@ -151,32 +160,53 @@ function roadmapPlan(snapshotRef: AuthorityRef): RoadmapPlan {
   };
 }
 
-function validationContract(roadmap: AcceptedRoadmapPlan): ValidationContract {
+function validationContract(roadmap: AcceptedRoadmapPlan, catalogRef: AuthorityRef): ValidationContract {
   return {
     schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
     contractId: "validation-roadmap-delivery",
     version: 1,
+    predecessor: null,
     app: APP.name,
+    catalogRef,
     roadmapRef: roadmap.ref,
     unitId: "unit-roadmap-validation",
     unitMembershipHash: unitMembershipHash(ISSUE_NUMBERS),
+    templateRef: { templateId: "routine", version: 1 },
+    affected: structuredClone(VALIDATION_BASE_AFFECTED),
+    acceptanceCriteria: ["The exact two-ticket unit and candidate HEAD retain validation lineage."],
+    requiresHarnessRevision: false,
+    harnessRevisionReason: null,
+    sharedBoundaryDetectorRefs: [{
+      boundaryId: "B21",
+      caseId: "CF-B21-*",
+      detectorId: "shared-boundary-lineage",
+    }],
     obligations: [
       {
-        caseId: "CF-HB100-JOIN",
-        layer: "L2",
-        detectorId: "roadmap-delivery-walk",
+        obligationId: "shared-boundary",
+        caseId: "CF-B21-*",
+        covers: structuredClone(VALIDATION_BASE_AFFECTED),
+        cheapestFalsifyingLayer: "L2",
+        failureCases: ["a delivery unit loses its shared boundary lineage"],
+        detectorId: "shared-boundary-lineage",
         negativeControlId: "label-without-artifact",
         expectedEvidence: ["durable authority projection order"],
+        waiver: null,
       },
       {
+        obligationId: "review-lineage",
         caseId: "CF-HB100-LINEAGE",
-        layer: "L1",
+        covers: structuredClone(VALIDATION_EMPTY_AFFECTED),
+        cheapestFalsifyingLayer: "L1",
+        failureCases: ["the contract or candidate HEAD is substituted"],
         detectorId: "review-lineage",
         negativeControlId: "wrong-contract-or-head",
         expectedEvidence: ["typed refusal before approval"],
+        waiver: null,
       },
     ],
     requiredGates: ["pnpm-test", "pnpm-typecheck"],
+    proposedAt: "2026-08-03T21:59:00.000Z",
     acceptedAt: AT,
   };
 }
@@ -238,6 +268,7 @@ async function acceptedPlanningAuthorities(
 ): Promise<{
   roadmap: AcceptedRoadmapPlan;
   validation: AcceptedAuthority<ValidationContract>;
+  readiness: AcceptedAuthority<DeliveryUnitReadiness>;
 }> {
   const snapshot = await acceptBacklogSnapshot({
     root: home.stateHome,
@@ -249,12 +280,28 @@ async function acceptedPlanningAuthorities(
     plan: roadmapPlan(snapshot.ref),
     ...(project === undefined ? {} : { project }),
   });
-  const validation = await acceptValidationContract({
+  const catalog = await acceptValidationCatalog({
     root: home.stateHome,
-    contract: validationContract(roadmap),
+    catalog: validationCatalog(APP.name),
     ...(project === undefined ? {} : { project }),
   });
-  return { roadmap, validation };
+  const validation = await acceptValidationContract({
+    root: home.stateHome,
+    contract: validationContract(roadmap, catalog.ref),
+    ...(project === undefined ? {} : { project }),
+  });
+  const readiness = await acceptDeliveryUnitReadiness({
+    root: home.stateHome,
+    app: APP.name,
+    roadmapRef: roadmap.ref,
+    expectedFrontierHash: roadmap.frontierHash,
+    validationRef: validation.ref,
+    unitId: "unit-roadmap-validation",
+    routing: AUTOMATED_ROUTING,
+    readyAt: AT,
+    ...(project === undefined ? {} : { project }),
+  });
+  return { roadmap, validation, readiness };
 }
 
 async function acceptedEpisode(input: {
@@ -263,10 +310,11 @@ async function acceptedEpisode(input: {
 }): Promise<{
   roadmap: AcceptedRoadmapPlan;
   validation: AcceptedAuthority<ValidationContract>;
+  readiness: AcceptedAuthority<DeliveryUnitReadiness>;
   batch: AcceptedAuthority<ExecutionBatch>;
   binding: AcceptedAuthority<DeliveryEpisodeBinding>;
 }> {
-  const { roadmap, validation } = await acceptedPlanningAuthorities(input.home, input.project);
+  const { roadmap, validation, readiness } = await acceptedPlanningAuthorities(input.home, input.project);
   const batch = await admitExecutionBatch({
     root: input.home.stateHome,
     app: APP.name,
@@ -274,7 +322,7 @@ async function acceptedEpisode(input: {
     roadmapRef: roadmap.ref,
     expectedFrontierHash: roadmap.frontierHash,
     orderedUnitIds: ["unit-roadmap-validation"],
-    validationRefs: [validation.ref],
+    readinessRefs: [readiness.ref],
     routing: AUTOMATED_ROUTING,
     admittedAt: AT,
     ...(input.project === undefined ? {} : { project: input.project }),
@@ -311,12 +359,21 @@ async function acceptedEpisode(input: {
   });
   expect(normalized.prepared).toMatchObject({ planningTurnSkipped: true, plannerAttempts: 0 });
   expect(normalized.plan.planningSource).toBe("creator_scope");
-  return { roadmap, validation, batch, binding: normalized.binding };
+  expect(normalized.plan.creatorProvenance?.evidenceRefs).toContain(
+    `validation_contract:${validation.ref.id}@${validation.ref.version}#${validation.ref.sha256}`,
+  );
+  expect(normalized.binding.value).toMatchObject({
+    readinessRef: readiness.ref,
+    validationRef: validation.ref,
+    validationContractHash: validation.ref.sha256,
+  });
+  return { roadmap, validation, readiness, batch, binding: normalized.binding };
 }
 
 function evidenceManifest(input: {
   roadmap: AcceptedRoadmapPlan;
   validation: AcceptedAuthority<ValidationContract>;
+  readiness: AcceptedAuthority<DeliveryUnitReadiness>;
   batch: AcceptedAuthority<ExecutionBatch>;
   binding: AcceptedAuthority<DeliveryEpisodeBinding>;
   claim: DeliveryUnitClaim;
@@ -328,7 +385,9 @@ function evidenceManifest(input: {
     issueNumbers: [...ISSUE_NUMBERS],
     membershipHash: unitMembershipHash(ISSUE_NUMBERS),
     roadmapRef: input.roadmap.ref,
+    readinessRef: input.readiness.ref,
     validationRef: input.validation.ref,
+    validationContractHash: input.validation.ref.sha256,
     batchRef: input.batch.ref,
     episodeBindingRef: input.binding.ref,
     episodeId: input.binding.value.episodeId,
@@ -346,10 +405,11 @@ function evidenceManifest(input: {
     builderSessionId: "builder-session-hb100",
     cases: [
       {
-        caseId: "CF-HB100-JOIN",
-        detectorId: "roadmap-delivery-walk",
+        caseId: "CF-B21-SHARED",
+        detectorId: "shared-boundary-lineage",
         negativeControlId: "label-without-artifact",
         status: "passed",
+        waiverId: null,
         evidence: "all persisted authority files existed before their projection callbacks",
       },
       {
@@ -357,6 +417,7 @@ function evidenceManifest(input: {
         detectorId: "review-lineage",
         negativeControlId: "wrong-contract-or-head",
         status: "passed",
+        waiverId: null,
         evidence: "seeded contract and HEAD swaps produced typed refusals",
       },
     ],
@@ -377,7 +438,9 @@ function reviewerVerdict(
     unitId: evidence.value.unitId,
     membershipHash: evidence.value.membershipHash,
     roadmapRef: evidence.value.roadmapRef,
+    readinessRef: evidence.value.readinessRef,
     validationRef: evidence.value.validationRef,
+    validationContractHash: evidence.value.validationContractHash,
     episodeBindingRef: evidence.value.episodeBindingRef,
     builderEvidenceRef: evidence.ref,
     candidateHead: evidence.value.candidateHead,
@@ -386,7 +449,7 @@ function reviewerVerdict(
     reviewerSessionId: "reviewer-session-hb100",
     disposition: "approved",
     evidenceAccepted: true,
-    reproducedCaseIds: ["CF-HB100-JOIN", "CF-HB100-LINEAGE"],
+    reproducedCaseIds: ["CF-B21-SHARED", "CF-HB100-LINEAGE"],
     rationale: "Exact membership, validation, PR HEAD, detectors, gates, and independence agree.",
     recordedAt: "2026-08-03T22:06:00.000Z",
   };
@@ -423,7 +486,7 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
         root: home.stateHome,
         app: APP.name,
         episodeBindingRef: authorities.binding.ref,
-        routing: AUTOMATED_ROUTING,
+        readCurrentRouting: async () => AUTOMATED_ROUTING,
         now: new Date("2026-08-03T22:01:00.000Z"),
         project,
       }),
@@ -431,7 +494,7 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
         root: home.stateHome,
         app: APP.name,
         episodeBindingRef: authorities.binding.ref,
-        routing: AUTOMATED_ROUTING,
+        readCurrentRouting: async () => AUTOMATED_ROUTING,
         now: new Date("2026-08-03T22:01:00.000Z"),
         project,
       }),
@@ -456,9 +519,18 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
       project,
     });
 
+    const manifest = evidenceManifest({ ...authorities, claim });
+    // Seeded negative control: evidence for a different unit cannot cross the join.
+    await expectRoadmapError(
+      () => recordBuilderEvidence({
+        root: home.stateHome,
+        manifest: { ...manifest, unitId: "unit-swapped" },
+      }),
+      "evidence_unit_mismatch",
+    );
     const evidence = await recordBuilderEvidence({
       root: home.stateHome,
-      manifest: evidenceManifest({ ...authorities, claim }),
+      manifest,
       project,
     });
     const verdict = reviewerVerdict(evidence);
@@ -470,7 +542,11 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     };
     await expectRoadmapError(
       () => assertReviewerVerdictAdmissible({
-        verdict: { ...verdict, validationRef: wrongContract },
+        verdict: {
+          ...verdict,
+          validationRef: wrongContract,
+          validationContractHash: wrongContract.sha256,
+        },
         evidence,
         validation: authorities.validation,
       }),
@@ -499,15 +575,22 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
       claimAttempt: claim.record.attempt,
       runId: "delivery-run-hb100",
       reviewerVerdictRef: acceptedVerdict.ref,
+      validationContractHash: authorities.validation.ref.sha256,
       outcome: "approved",
       now: new Date("2026-08-03T22:07:00.000Z"),
       project,
     });
     expect(settled).toMatchObject({ status: "settled", outcome: "approved" });
+    expect(claim.record.payload.validationContractHash).toBe(authorities.validation.ref.sha256);
+    expect(evidence.value.validationContractHash).toBe(authorities.validation.ref.sha256);
+    expect(acceptedVerdict.value.validationContractHash).toBe(authorities.validation.ref.sha256);
+    expect(settled.payload.validationContractHash).toBe(authorities.validation.ref.sha256);
     expect(projections.map((entry) => entry.kind)).toEqual([
       "backlog_snapshot",
       "roadmap_plan",
+      "validation_catalog",
       "validation_contract",
+      "delivery_unit_readiness",
       "execution_batch",
       "delivery_episode_binding",
       "delivery_unit_claimed",
@@ -535,7 +618,7 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
         roadmapRef: fabricatedRoadmapRef,
         expectedFrontierHash: stableHash(["unit-roadmap-validation"]),
         orderedUnitIds: ["unit-roadmap-validation"],
-        validationRefs: [],
+        readinessRefs: [],
         routing: AUTOMATED_ROUTING,
         admittedAt: AT,
       }),
@@ -544,10 +627,10 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     expect(existsSync(batchAuthorityPath(home.stateHome, APP.name, "batch-label-only", 1))).toBe(false);
   });
 
-  it("excludes the whole unit when one current member is human-only", async () => {
+  it("excludes the whole unit when one current member has either autonomous exclusion", async () => {
     const home = await makeTempStateHome({ name: "hb100-human-only" });
     homes.push(home);
-    const { roadmap, validation } = await acceptedPlanningAuthorities(home);
+    const { roadmap, validation, readiness } = await acceptedPlanningAuthorities(home);
     await expectRoadmapError(
       () => admitExecutionBatch({
         root: home.stateHome,
@@ -556,7 +639,7 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
         roadmapRef: roadmap.ref,
         expectedFrontierHash: roadmap.frontierHash,
         orderedUnitIds: ["unit-roadmap-validation"],
-        validationRefs: [validation.ref],
+        readinessRefs: [readiness.ref],
         routing: AUTOMATED_ROUTING.map((entry) =>
           entry.issueNumber === 240 ? { ...entry, disposition: "human_only" as const } : entry),
         admittedAt: AT,
@@ -567,5 +650,93 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     expect(existsSync(roadmapAuthorityPath(home.stateHome, APP.name, roadmap.ref.id, 1))).toBe(true);
     expect(existsSync(validationAuthorityPath(home.stateHome, APP.name, validation.ref.id, 1))).toBe(true);
     expect(existsSync(home.path("efficiency"))).toBe(false);
+
+    await expectRoadmapError(
+      () => admitExecutionBatch({
+        root: home.stateHome,
+        app: APP.name,
+        batchId: "batch-manual-review",
+        roadmapRef: roadmap.ref,
+        expectedFrontierHash: roadmap.frontierHash,
+        orderedUnitIds: ["unit-roadmap-validation"],
+        readinessRefs: [readiness.ref],
+        routing: AUTOMATED_ROUTING.map((entry) => entry.issueNumber === 240
+          ? { ...entry, observedLabels: [...entry.observedLabels, "manual-review"] }
+          : entry),
+        admittedAt: AT,
+      }),
+      "routing_ineligible",
+    );
+    expect(existsSync(batchAuthorityPath(home.stateHome, APP.name, "batch-manual-review", 1))).toBe(false);
+  });
+
+  it("re-checks both exact exclusions at the Builder claim boundary", async () => {
+    const home = await makeTempStateHome({ name: "hb100-human-only-claim" });
+    homes.push(home);
+    const authorities = await acceptedEpisode({ home });
+    const currentReads: number[][] = [];
+    await expectRoadmapError(
+      () => claimDeliveryUnit({
+        root: home.stateHome,
+        app: APP.name,
+        episodeBindingRef: authorities.binding.ref,
+        readCurrentRouting: async () => AUTOMATED_ROUTING.map((entry) =>
+          entry.issueNumber === 240 ? { ...entry, disposition: "human_only" as const } : entry),
+        now: new Date("2026-08-03T22:01:00.000Z"),
+      }),
+      "routing_ineligible",
+    );
+    await expectRoadmapError(
+      () => claimDeliveryUnit({
+        root: home.stateHome,
+        app: APP.name,
+        episodeBindingRef: authorities.binding.ref,
+        readCurrentRouting: async (issueNumbers) => {
+          currentReads.push([...issueNumbers]);
+          return AUTOMATED_ROUTING.map((entry) => entry.issueNumber === 240
+            ? { ...entry, observedLabels: [...entry.observedLabels, "manual-review"] }
+            : entry);
+        },
+        now: new Date("2026-08-03T22:01:00.000Z"),
+      }),
+      "routing_ineligible",
+    );
+    expect(currentReads).toEqual([[...ISSUE_NUMBERS]]);
+    await expectRoadmapError(
+      () => claimDeliveryUnit({
+        root: home.stateHome,
+        app: APP.name,
+        episodeBindingRef: authorities.binding.ref,
+        readCurrentRouting: async () => { throw new Error("current labels unavailable"); },
+        now: new Date("2026-08-03T22:01:00.000Z"),
+      }),
+      "routing_ineligible",
+    );
+  });
+
+  it("refuses Builder claim when a successor RoadmapPlan makes the episode join stale", async () => {
+    const home = await makeTempStateHome({ name: "hb100-stale-roadmap-claim" });
+    homes.push(home);
+    const authorities = await acceptedEpisode({ home });
+    await acceptRoadmapPlan({
+      root: home.stateHome,
+      plan: {
+        ...structuredClone(authorities.roadmap.value),
+        version: 2,
+        predecessor: authorities.roadmap.ref,
+        acceptedAt: "2026-08-03T22:02:00.000Z",
+      },
+    });
+
+    await expectRoadmapError(
+      () => claimDeliveryUnit({
+        root: home.stateHome,
+        app: APP.name,
+        episodeBindingRef: authorities.binding.ref,
+        readCurrentRouting: async () => AUTOMATED_ROUTING,
+        now: new Date("2026-08-03T22:03:00.000Z"),
+      }),
+      "frontier_stale",
+    );
   });
 });

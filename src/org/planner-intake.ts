@@ -4,6 +4,7 @@
 import type { GhIssue, GhOps, ListIssueOptions } from "../loop/github.js";
 import {
   AUTONOMOUS_EXECUTION_EXCLUSION_LABEL,
+  autonomousExecutionExclusionLabel,
   STATE_LABELS,
 } from "../loop/plan-tickets.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
@@ -225,11 +226,12 @@ export async function applyPlannerReadinessDecisions(input: {
       );
       continue;
     }
-    if (before.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+    const beforeExclusion = autonomousExecutionExclusionLabel(before.labels);
+    if (beforeExclusion !== undefined) {
       outcomes[index] = routingOutcome(
         outcome,
         "autonomous_execution_excluded",
-        `ticket carries ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL}; only a human may route this PR scope`,
+        exclusionReason(beforeExclusion),
       );
       continue;
     }
@@ -259,12 +261,13 @@ export async function applyPlannerReadinessDecisions(input: {
       );
       continue;
     }
-    if (observed.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+    const observedExclusion = autonomousExecutionExclusionLabel(observed.labels);
+    if (observedExclusion !== undefined) {
       if (observed.labels.includes("op:ready")) await input.gh.removeLabel(issueNumber, "op:ready");
       outcomes[index] = routingOutcome(
         outcome,
         "autonomous_execution_excluded",
-        `ticket acquired ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL} while readiness was publishing; op:ready was removed`,
+        `ticket acquired ${observedExclusion} while readiness was publishing; op:ready was removed`,
       );
       continue;
     }
@@ -326,10 +329,11 @@ function readinessGuard(issue: PlannerIssueInput): {
   code: "high_risk" | "validation_incomplete" | "autonomous_execution_excluded";
   detail: string;
 } | undefined {
-  if (issue.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+  const exclusion = autonomousExecutionExclusionLabel(issue.labels);
+  if (exclusion !== undefined) {
     return {
       code: "autonomous_execution_excluded",
-      detail: `ticket carries ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL}; only a human may route this PR scope`,
+      detail: exclusionReason(exclusion),
     };
   }
   if (issue.labels.includes("op:tier-deep") || issue.labels.some((label) => label.startsWith("domain:"))) {
@@ -406,4 +410,10 @@ function routingOutcome(
     reason_code: reasonCode,
     reason,
   };
+}
+
+function exclusionReason(label: string): string {
+  return label === AUTONOMOUS_EXECUTION_EXCLUSION_LABEL
+    ? `ticket carries ${label}; only a human may route this PR scope`
+    : `ticket carries ${label}; only a human may remove this review hold`;
 }

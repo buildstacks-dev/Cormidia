@@ -362,7 +362,8 @@ GitHub epic [#219](https://github.com/cormidia/Cormidia/issues/219). -->
 
 <!-- Owner accepted Phase 8 of the harness revision on 2026-08-03. HB-100 is authorized
 for local provider-free implementation. These tickets implement #184/#233/#234/#240;
-#239's human-only routing enforcement is a prerequisite, not duplicated here. No ticket
+#239's merged human-only routing enforcement is a satisfied prerequisite, not duplicated
+here. No ticket
 may silently edit TASTE.md, roles.yaml, pipelines.yaml, prompts/** or PURPOSE.md: HB-111
 prepares the proposal and a human separately ratifies any such surface. -->
 
@@ -378,12 +379,13 @@ prepares the proposal and a human separately ratifies any such surface. -->
   joins. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* accepted Phase 8 package
   and #239.
   *Implementation:* `src/org/roadmap-delivery.ts` plus
-  `tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts`. The three
+  `tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts`. The five
   executable cases prove the two-ticket provider-free join, one durable all-member
   claim under a race, persistence-before-projection, label-without-artifact refusal,
-  whole-unit human-only exclusion, exact contract/HEAD negative controls, and verdict-
-  bound settlement. This is walking-skeleton coverage only; #239 merge/integration and
-  HB-102…111 remain required before autonomous-loop readiness (HB-101 is complete below).
+  whole-unit human-only exclusion at admission and claim, exact unit/contract/HEAD
+  negative controls, and verdict-bound settlement. This is walking-skeleton coverage
+  only; HB-103…111 remain required before autonomous-loop readiness (HB-101/HB-102 are
+  complete below).
 - **HB-101 — COMPLETE 2026-08-03 — RoadmapPlan schema, store, snapshot and bounded-delta replanning.** Add
   versioned/hash-bound RoadmapPlan and backlog-snapshot schemas; stable workstream/unit
   IDs; exact issue accounting; graph/WIP/priority/frontier validation; predecessor/move
@@ -404,7 +406,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   issues, stale frontiers and unexplained ID/membership moves turn red; untouched and
   non-admitted work creates no EpisodePlan. Provider-authored roadmap planning and the
   remaining full CF-J03/B20 matrix stay with later tickets.
-- **HB-102 — Validation-contract authority and deterministic readiness guard.** Add the
+- **HB-102 — COMPLETE 2026-08-03 — Validation-contract authority and deterministic readiness guard.** Add the
   versioned validation schema/store, canonical ID resolver, affected-structure and
   cheapest-layer checks, explicit bounded-waiver policy, shared-boundary detector refs,
   negative-control obligations, and `requires_harness_revision` refusal. Thread the
@@ -414,6 +416,27 @@ prepares the proposal and a human separately ratifies any such surface. -->
   evidence turns red. *Defends:* CF-SM-VALIDATION-*, CF-INV-016, CF-B21-*,
   CF-C-B21/OPVALIDATION, CF-S10-env. *Layer:* 1/2. *Executor:* build-agent.
   *Depends on:* HB-100/101.
+  *Implementation:* `src/org/roadmap-delivery.ts` now owns a closed v1 interchange
+  schema, versioned app-scoped accepted validation catalog, immutable contract/lifecycle/
+  current-pointer store, canonical harness-ID resolution, exact affected-structure and
+  cheapest-layer checks, bounded provenance-bearing waivers, shared-boundary/negative-
+  control enforcement, and immutable delivery-unit-readiness authority. The exact
+  contract hash is carried through readiness, creator-scope EpisodePlan provenance,
+  delivery binding/claim, Builder evidence, Reviewer verdict and settlement. Six
+  executable cases at `tests/hermetic/cf-hb102/validation-contract-authority.test.ts`
+  seed omissions, unknown IDs, coverage/layer/control failures, routine C3/floor misuse,
+  invalid waivers, stale contract/catalog versions and human-only routing; the updated
+  HB-100 detector seeds swapped unit/contract/HEAD evidence and claim-boundary routing.
+  The 2026-08-03 owner decision additionally makes exact `manual-review` an independent
+  Planner/Builder/whole-unit exclusion, preserves it for human-only removal, and adds
+  stale-read plus no-wildcard negative controls. Catalog successors are tighten-only,
+  the implemented catalog slice is pinned to its ratified content hash, invalid
+  proposals do not poison a version, waiver provenance resolves an exact durable human
+  approval, waiver authority/expiry and current roadmap/frontier are rechecked through
+  settlement, lifecycle ingestion is strict, and projections prove durable current
+  readiness.
+  Full multi-ticket merge atomicity, batch lifecycle, operator and campaign families
+  remain HB-103…111.
 - **HB-103 — Multi-ticket delivery units and one-PR atomicity.** Replace ticket-scoped
   claim/review/merge assumptions with a stable delivery-unit authority containing one or
   more members. Make claim/revalidation all-or-none; bind branch, gates, evidence,
@@ -497,6 +520,12 @@ prepares the proposal and a human separately ratifies any such surface. -->
   change before application. *Defends:* INV-001, M11 and repository working rules.
   *Layer:* process/design. *Executor:* human + build-agent. *Depends on:* HB-100…108
   behavior/schema stabilization.
+- **HB-112 — PENDING, non-blocking — `manual-feelview` backlog-taxonomy audit.** Inventory
+  every use of the exact label, identify its human owner and intended lifecycle, and
+  propose keep/rename/retire cleanup without assigning autonomous-scheduling semantics.
+  It is not an alias of `manual-review`, does not justify a `manual-*` wildcard, and any
+  future scheduling meaning requires a separate product-owner decision plus detectors.
+  *Layer:* process/read-only audit. *Executor:* build-agent + human taxonomy decision.
 
 ## Standing rules
 

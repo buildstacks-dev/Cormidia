@@ -52,7 +52,10 @@ import type { Policy } from "./policy.js";
 import { loadPolicy } from "./policy.js";
 import type { GateCommands } from "./qgates.js";
 import { assertCanonicalGateCommandPlacement } from "./gate-config.js";
-import { AUTONOMOUS_EXECUTION_EXCLUSION_LABEL } from "./plan-tickets.js";
+import {
+  MANUAL_REVIEW_EXCLUSION_LABEL,
+  autonomousExecutionExclusionLabel,
+} from "./plan-tickets.js";
 import {
   episodeIdFor,
   readRouteRecord,
@@ -309,7 +312,7 @@ export interface LoopDriverResult {
    * ineligibility: the human routing decision survives every op:* swap. */
   routingRefusals?: Array<{
     issueNumber: number;
-    code: "routing_human_only" | "routing_label_unreadable";
+    code: "routing_human_only" | "manual_review" | "routing_label_unreadable";
     reason: string;
   }>;
 }
@@ -577,9 +580,11 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   });
   const readyIssues: GhIssue[] = [];
   for (const issue of fetchedReadyIssues) {
-    if (issue.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
-      const reason = `ticket carries ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL}; autonomous Builder claim refused`;
-      routingRefusals.push({ issueNumber: issue.number, code: "routing_human_only", reason });
+    const exclusion = autonomousExecutionExclusionLabel(issue.labels);
+    if (exclusion !== undefined) {
+      const reason = `ticket carries ${exclusion}; autonomous Builder claim refused`;
+      const code = exclusion === MANUAL_REVIEW_EXCLUSION_LABEL ? "manual_review" as const : "routing_human_only" as const;
+      routingRefusals.push({ issueNumber: issue.number, code, reason });
       lines.push(`#${issue.number} ${issue.title}: ${reason}`);
       continue;
     }
@@ -656,7 +661,9 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       if (!(error instanceof AutonomousRoutingExclusionError)) throw error;
       const code = error.code === "autonomous_routing_human_only"
         ? "routing_human_only" as const
-        : "routing_label_unreadable" as const;
+        : error.code === "autonomous_manual_review"
+          ? "manual_review" as const
+          : "routing_label_unreadable" as const;
       routingRefusals.push({ issueNumber: error.issueNumber, code, reason: error.message });
       lines.push(`#${selectedIssue.number} ${selectedIssue.title}: ${error.message}`);
       continue;

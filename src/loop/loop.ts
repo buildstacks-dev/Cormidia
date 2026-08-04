@@ -71,6 +71,8 @@ import type {
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
 import {
   AUTONOMOUS_EXECUTION_EXCLUSION_LABEL,
+  MANUAL_REVIEW_EXCLUSION_LABEL,
+  autonomousExecutionExclusionLabel,
   parseReleaseKind,
   parseReleaseVersion,
   resolveReleaseCommand,
@@ -110,6 +112,7 @@ export class LoopPhaseTransitionError extends Error {
 
 export type AutonomousRoutingErrorCode =
   | "autonomous_routing_human_only"
+  | "autonomous_manual_review"
   | "autonomous_routing_state_unreadable";
 
 /** Typed fail-closed refusal shared by the live driver and the atomic claim
@@ -142,11 +145,16 @@ export async function readAutonomousClaimIssue(
       `label state is unreadable; refusing autonomous claim (${error instanceof Error ? error.message : String(error)})`,
     );
   }
-  if (observed.labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+  const exclusion = autonomousExecutionExclusionLabel(observed.labels);
+  if (exclusion !== undefined) {
     throw new AutonomousRoutingExclusionError(
-      "autonomous_routing_human_only",
+      exclusion === AUTONOMOUS_EXECUTION_EXCLUSION_LABEL
+        ? "autonomous_routing_human_only"
+        : "autonomous_manual_review",
       issue.number,
-      `carries ${AUTONOMOUS_EXECUTION_EXCLUSION_LABEL}; only a human-routed coding agent may deliver this PR scope`,
+      exclusion === MANUAL_REVIEW_EXCLUSION_LABEL
+        ? `carries ${exclusion}; only a human may remove this review hold`
+        : `carries ${exclusion}; only a human-routed coding agent may deliver this PR scope`,
     );
   }
   return observed;

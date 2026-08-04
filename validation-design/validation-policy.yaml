@@ -27,6 +27,12 @@
 # accepted the exact section 10.1 decision and authorized local implementation from
 # HB-100; protocol surfaces, merge, publication/deployment and live/eval/soak remain
 # separately gated. Acceptance is not implementation evidence.
+# changelog 2026-08-03 (HB-102 implementation): the deterministic validation-contract
+# schema/catalog/lifecycle/readiness guard and exact hash lineage are executable at L1/L2.
+# HB-103..111, protocol ratification and all external campaigns remain pending.
+# changelog 2026-08-03 (owner decision): exact manual-review independently excludes
+# autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
+# No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
 
 schema_version: 1
 scope: product
@@ -45,11 +51,12 @@ active_revision:
   accepted_by: "product owner (human), in session; exact selected statement recorded in ratification-package.md section 10.7"
   scope: "combined #184/#233/#234/#240 Planner -> Validation Designer -> EpisodePlanner -> Builder -> Reviewer lifecycle"
   design_only: false
-  implementation_status: hb_100_hb_101_complete_hb_102_pending
+  implementation_status: hb_100_hb_101_hb_102_complete_hb_103_pending
   implementation_or_evidence_claim: >
-    HB-100 provider-free join and HB-101 whole-backlog roadmap authority are executable
-    at tests/hermetic/cf-hb100/ and cf-hb101/; this is partial L1/L2 coverage,
-    not full revision-family or autonomous-loop readiness.
+    HB-100 provider-free join, HB-101 whole-backlog roadmap authority and HB-102
+    validation-contract/readiness authority are executable at tests/hermetic/cf-hb100/,
+    cf-hb101/ and cf-hb102/; this is partial L1/L2 coverage, not full revision-family,
+    external-campaign or autonomous-loop readiness.
   unchanged_baseline: "2026-07-31 ratified policy, gates, spend bounds, findings and evidence ledger"
   registry:
     modules: [M17]
@@ -65,6 +72,18 @@ active_revision:
     changes delivery membership, one-PR atomicity, validation obligations,
     budget/evidence attribution, routing eligibility, effect authority, or Reviewer
     independence.
+  autonomous_scheduling_exclusions:
+    exact_labels: [routing:human-only, manual-review]
+    whole_delivery_unit: true
+    planner_and_builder_independent_checks: true
+    cormidia_may_remove: false
+    manual_label_wildcard: false
+    manual_feelview_status: "HB-112 taxonomy audit only; no scheduling semantics"
+  validation_contract_authority:
+    catalog_slice_content_sha256: "cf09951a195e5f850d94a8034e51247cc4a70645233cf23f18c3a78497bb21c5"
+    catalog_expansion_owner: "HB-108 plus accepted harness-revision pin update"
+    waiver_authority: "exact unrevoked durable human approval, content-bound to the complete obligation"
+    waiver_recheck: "acceptance and every downstream delivery join through settlement"
 
 default_tier: C2
 tier_model:
@@ -344,7 +363,7 @@ harness_self_tests:                          # skill rules 16-17
 
 modules:
   - id: M17
-    status: "accepted implementation contract; HB-100/HB-101 complete, HB-102..111 pending"
+    status: "accepted implementation contract; HB-100/HB-101/HB-102 complete, HB-103..111 pending"
     subject: "roadmap and validation planning"
     contracts: [CORMIDIA-C-B20-001, CORMIDIA-C-B21-001,
       CORMIDIA-C-B22-001, CORMIDIA-C-OPBATCH-001,

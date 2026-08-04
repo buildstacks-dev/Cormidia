@@ -21,6 +21,7 @@ state machine that consumes them is [`design.md`](design.md) §7.*
 | `op:incident`      | SRE incident note                            | SRE                                                 |
 | `p1` / `p2` / `p3` | priority (dispatch order within events)      | Planner                                             |
 | `routing:human-only` | excluded from autonomous readiness/claim   | Human, after the PR-level self-hosting routing call |
+| `manual-review`      | human review hold; autonomous exclusion    | Human                                               |
 
 
 Transitions follow the artifact-before-label rule ([`turns.md`](turns.md)); ticket close comes from
@@ -28,6 +29,9 @@ the squash-merge's `Closes #N`, never a manual state.
 `routing:human-only` is not a state label: it survives every transition, blocks
 both Planner readiness and Builder claim, and only a human re-routing the whole
 PR scope removes it.
+`manual-review` independently blocks Planner readiness and Builder claim for the
+entire delivery unit. Cormidia preserves it across every transition and never removes
+it; only a human may do so. The match is exact, not a wildcard over `manual-*` labels.
 
 ### Ticket format (what the Planner emits)
 

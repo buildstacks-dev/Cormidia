@@ -41,26 +41,32 @@ The first full run's unrelated CF-J12-I missing-journal failure passed immediate
 isolation and the subsequent full rerun was green; it was recorded rather than ignored.
 
 **Current state:** Phase 8 is closed and the revision is the binding implementation
-contract. HB-100's local provider-free walking skeleton and HB-101's whole-backlog
-roadmap authority are complete in
+contract. HB-100's local provider-free walking skeleton, HB-101's whole-backlog
+roadmap authority and HB-102's validation-contract/readiness authority are complete in
 `src/org/roadmap-delivery.ts` with its L1/L2 detector at
 `tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts` and five
-HB-101 cases at `tests/hermetic/cf-hb101/roadmap-authority.test.ts`.
+HB-101 cases at `tests/hermetic/cf-hb101/roadmap-authority.test.ts`, plus six
+HB-102 cases at `tests/hermetic/cf-hb102/validation-contract-authority.test.ts`.
 Protocol-surface edits, merge, publication/deployment, external effects and live/eval/
 soak campaigns remain separately gated; acceptance creates no autonomous-loop
 readiness, release-gating or executable-coverage claim.
 
-HB-100 verification: its three cases prove the two-ticket roadmap→validation→batch→
+HB-100 verification: its five cases prove the two-ticket roadmap→validation→batch→
 lazy zero-turn EpisodePlan→atomic claim→synthetic PR evidence→independent review join,
-plus label-only and human-only refusals and seeded contract/HEAD lineage violations.
+plus label-only and Planner/Builder human-only refusals and seeded unit/contract/HEAD
+lineage violations.
 HB-101 adds immutable complete/paginated backlog snapshots, current RoadmapPlan pointer,
 exact 125-issue accounting, WIP/priority/frontier guards, deterministic projection
 repair, stable IDs, append-only moves, and a 120-item prior-plan delta with only one
-changed and one added issue; non-admitted work creates no EpisodePlan. The complete
-offline gate passed 147/147 files and 959 tests with one intentionally parked skip;
-typecheck, build and `git diff --check` passed. No provider, live/eval/soak, merge,
-publication, protocol-surface edit or external effect ran. HB-102…111 and #239
-integration remain pending, so autonomous-loop readiness is not claimed.
+changed and one added issue; non-admitted work creates no EpisodePlan. HB-102 adds the
+closed v1 schema, pinned accepted catalog, strict forward-only contract lifecycle,
+current-unit and readiness authorities, canonical/coverage/layer/shared-detector checks,
+durable human-approved bounded waivers, C3/floor routine refusal, exact hash lineage,
+current-label/roadmap rereads and stale-version guards. The complete offline gate passed
+149/149 files and 987 tests with one intentionally parked skip. No
+provider, live/eval/soak, merge, publication, protocol-surface edit or external effect
+ran. #239 is merged and its two-boundary exclusion remains covered; HB-103…111 remain,
+so autonomous-loop readiness is not claimed.
 
 ## Harness revision — comparative execution (2026-08-01)
 
@@ -263,9 +269,9 @@ its §9). Summary of the event:
 
 ## Pending confirmations
 - **Active 2026-08-03 revision:** Phase 8 was accepted on 2026-08-03 as recorded at
-  `ratification-package.md` §10.7. HB-100/HB-101 local provider-free implementation is
-  complete; HB-102…111 remain. The proposed AGENTS routing addendum remains separately
-  approval-gated.
+  `ratification-package.md` §10.7. HB-100/HB-101/HB-102 local provider-free
+  implementation is complete; HB-103…111 remain. The proposed protocol-surface package
+  remains separately approval-gated under HB-111.
 - **Closed 2026-07-31 campaign:** none in-campaign. Audit iteration 2 CONFIRMED:
   verification pass clean,
   no new blocking findings; two residues fixed, compound-tag convention accepted

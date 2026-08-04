@@ -1,6 +1,6 @@
 # Cormidia Architecture
 
-*v1.8 — last aligned 2026-07-27. This is the implementation map: how Cormidia
+*v1.9 — last aligned 2026-08-03. This is the implementation map: how Cormidia
 actually runs, and where each subsystem's full contract lives. Decisions and
 their history belong to `docs/PURPOSE.md` → Decided; numeric budgets, routes,
 and measurement definitions live only in `docs/episodes/contract.md`;
@@ -128,6 +128,7 @@ Newer work never assumes older work finished:
 | OKF memory / scorecards / retro | `src/org/memory.ts`, `scorecards.ts`, `retro.ts` | §6 |
 | Ticket state machine | `src/loop/loop.ts` | full design in `docs/loop/design.md` |
 | EpisodePlanner boundary | `src/org/episode-planner/` | intent, creator scope, planner orchestration |
+| Roadmap/validation delivery authority | `src/org/roadmap-delivery.ts` | immutable backlog/roadmap/catalog/contract/readiness/batch joins; exact validation hash through settlement |
 | EpisodePlan + route projection | `src/loop/episode-plan.ts`, `episode-plan-executor.ts`, `episode-route.ts` | one workflow source of truth |
 | Pass transport, briefs, gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | `docs/loop/design.md` |
 | Protocol templates | `prompts/`, `pipelines.yaml` (org home) | human-ratified; not a workflow planner |
@@ -286,9 +287,11 @@ state/turns/<turnId>.json  turn journals (§3)
 state/budget-overlay.json  dispatcher budget-pause overlay (§7)
 scheduler/installation.json  org-scoped scheduler ownership/definition record
 scheduler/evidence/      versioned invocation, route-decision, and alert JSON
-planning/apps/<hash>/    immutable backlog snapshots/RoadmapPlan revisions, current
-                        pointer, validation, batch, delivery binding, Builder evidence,
-                        and independent Reviewer verdict records
+planning/apps/<hash>/    immutable backlog snapshots/RoadmapPlan revisions; current
+                        roadmap pointer; versioned validation catalog/current pointer;
+                        validation contracts, lifecycle/current-unit pointers and
+                        readiness authorities; batches, delivery bindings, Builder
+                        evidence and independent Reviewer verdict records
 planning/delivery-unit-claims/ atomic all-member delivery-unit claims
 validation/campaigns/<id>/report.json  versioned triggered-validation report;
                          completeness and verdict are separate product facts

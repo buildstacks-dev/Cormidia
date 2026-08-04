@@ -641,8 +641,10 @@ scheduler/evidence/       # exact-once invocation, decision, and local-alert JSO
 validation/campaigns/<id>/ # durable L3/L4/L5 report.json; partial evidence retained
 validation/soaks/<id>/     # resumable real-soak checkpoint state
 planning/apps/<hash>/      # immutable backlog snapshots/RoadmapPlan revisions,
-                           # current pointer, validation, batches, per-unit EpisodePlan
-                           # binding, Builder evidence, independent Reviewer verdict
+                           # current roadmap pointer, validation catalogs/contracts,
+                           # contract lifecycle/current-unit pointers, readiness,
+                           # batches, per-unit EpisodePlan binding, Builder evidence,
+                           # independent Reviewer verdict
 planning/delivery-unit-claims/ # atomic all-member delivery-unit claim records
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
 approvals/                # content-bound decisions, grants, execution state,
@@ -814,6 +816,13 @@ degraded capabilities. (The gated live-adapter proof suite is archived during
 the validation rebuild — see Testing above.)
 
 ### Known limitations
+
+- **Autonomous roadmap delivery is not enabled yet.** HB-102 now provides the
+  deterministic validation-contract/readiness authority and exact hash lineage, while
+  HB-103…111 still owe multi-ticket merge atomicity, the full execution-unit/batch
+  lifecycle, fast-path/direct-operation integration, common planner/session behavior,
+  complete deterministic/golden coverage, contention/soak evidence, operator surfaces,
+  and the separately human-ratified protocol-surface proposal.
 
 - **Release gating remains suspended.** L3/L4/L5 runners exist, but no authorized
   external campaign or seven-day soak was executed in this implementation change;

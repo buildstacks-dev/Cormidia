@@ -26,6 +26,27 @@ export const PRIORITY_LABELS = ["p1", "p2", "p3"] as const;
  * this exclusion must survive every phase and be removable only by a human
  * re-routing the work. */
 export const AUTONOMOUS_EXECUTION_EXCLUSION_LABEL = "routing:human-only" as const;
+/** Exact human review hold. This is intentionally a second named label rather
+ * than a `manual-*` pattern: unrelated manual taxonomy carries no autonomous
+ * scheduling meaning unless a human ratifies it separately. */
+export const MANUAL_REVIEW_EXCLUSION_LABEL = "manual-review" as const;
+
+export type AutonomousExecutionExclusionLabel =
+  | typeof AUTONOMOUS_EXECUTION_EXCLUSION_LABEL
+  | typeof MANUAL_REVIEW_EXCLUSION_LABEL;
+
+/** Return the exact exclusion that blocks autonomous readiness or claim. */
+export function autonomousExecutionExclusionLabel(
+  labels: readonly string[],
+): AutonomousExecutionExclusionLabel | undefined {
+  if (labels.includes(AUTONOMOUS_EXECUTION_EXCLUSION_LABEL)) {
+    return AUTONOMOUS_EXECUTION_EXCLUSION_LABEL;
+  }
+  if (labels.includes(MANUAL_REVIEW_EXCLUSION_LABEL)) {
+    return MANUAL_REVIEW_EXCLUSION_LABEL;
+  }
+  return undefined;
+}
 
 export type TierLabel = (typeof TIER_LABELS)[number];
 export type PriorityLabel = (typeof PRIORITY_LABELS)[number];
@@ -110,6 +131,15 @@ export const CANONICAL_LABELS: readonly CanonicalLabelDefinition[] = [
     appliedBy: "A human making the PR-level self-hosting routing decision",
     operatorResponse:
       "Keep the ticket out of the autonomous loop; remove only after a human explicitly re-routes the whole PR scope",
+  },
+  {
+    name: MANUAL_REVIEW_EXCLUSION_LABEL,
+    color: "b60205",
+    description: "Held for human review and excluded from autonomous readiness and claims",
+    kind: "routing",
+    appliedBy: "A human requiring manual review before autonomous scheduling",
+    operatorResponse:
+      "Keep the ticket out of the autonomous loop; only a human may remove manual-review",
   },
   {
     name: "op:tier-quick",

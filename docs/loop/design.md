@@ -461,6 +461,14 @@ stays unready with a typed reason. GitHub is read back after a label write;
 general lost-response/ambiguous publication recovery remains the separate
 #232 transaction and is not represented by a competing local state machine.
 
+For roadmap-backed delivery, “validation-complete” means an immutable
+delivery-unit-readiness authority binds the current RoadmapPlan/frontier, exact unit
+membership, current validation-catalog and validation-contract ref+hash, and a current
+automated routing snapshot. `planning:preplanned` and `op:ready` remain projections;
+neither label can replace that authority. Batch admission and Builder claim reread the
+relevant current facts and refuse a stale contract, catalog, membership, frontier, or
+routing decision before provider construction.
+
 `routing:human-only` is an orthogonal PR-routing decision, never a phase. A
 human applies it when Cormidia would judge a change through the instrument
 being changed (or another repository rule reserves the PR for direct human-
@@ -471,6 +479,13 @@ diagnostic even if `op:ready` is already present. A failed routing-label read
 also refuses: uncertainty cannot widen autonomous authority. Because phase
 transitions swap only `op:*` labels, the routing decision survives the complete
 ticket lifecycle until a human explicitly removes it.
+
+The exact `manual-review` label is a second hard exclusion with the same two-boundary
+and whole-delivery-unit behavior, but a distinct reason: it is a human review hold,
+not the technical/self-judging classification. Planner never projects `op:ready` for
+it, Builder rereads every member's current labels at claim, and Cormidia never removes
+the label. There is deliberately no `manual-*` wildcard; `manual-feelview` remains a
+separate taxonomy-audit item and has no scheduling semantics.
 
 - `triage` (bug batches): classify each issue — *bug* → tier + spec
 links + `op:ready`; *improvement* → backlog candidate (labeled, not

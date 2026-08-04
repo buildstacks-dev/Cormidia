@@ -10,13 +10,11 @@ import {
   RoadmapDeliveryError,
   acceptBacklogSnapshot,
   acceptRoadmapPlan,
-  acceptValidationContract,
   admitExecutionBatch,
   backlogSnapshotAuthorityPath,
   deriveBacklogDelta,
   readCurrentRoadmapPlan,
   reconcileRoadmapProjections,
-  unitMembershipHash,
   type AcceptedAuthority,
   type AcceptedRoadmapPlan,
   type AuthorityRef,
@@ -24,7 +22,6 @@ import {
   type BacklogSnapshotIssue,
   type RoadmapIssueProjection,
   type RoadmapPlan,
-  type ValidationContract,
 } from "../../../src/org/roadmap-delivery.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
@@ -37,11 +34,13 @@ afterEach(async () => {
 });
 
 function issue(issueNumber: number, overrides: Partial<BacklogSnapshotIssue> = {}): BacklogSnapshotIssue {
+  const routing = overrides.routing ?? (issueNumber === 2 ? "human_only" : "automated");
   return {
     issueNumber,
     contentHash: stableHash({ issueNumber, revision: 1 }),
     lifecycle: "open",
-    routing: issueNumber === 2 ? "human_only" : "automated",
+    routing,
+    observedLabels: routing === "human_only" ? ["routing:human-only"] : [],
     dependencyIssues: [],
     ...overrides,
   };
@@ -103,32 +102,13 @@ function roadmap(input: {
     workstreams: [{ workstreamId: "backlog-loop", outcome: "Drain the governed backlog", priority: 1 }],
     deliveryUnits,
     completedUnitIds: [],
-    readyFrontier: deliveryUnits.slice(0, wipLimit).map((unit) => unit.unitId),
+    readyFrontier: deliveryUnits
+      .filter((unit) => unit.issueNumbers[0] !== 2)
+      .slice(0, wipLimit)
+      .map((unit) => unit.unitId),
     wipLimit,
     moves: [],
     acceptedAt: new Date(Date.parse(AT) + version * 2_000).toISOString(),
-  };
-}
-
-function validationContract(roadmapPlan: AcceptedRoadmapPlan): ValidationContract {
-  const unit = roadmapPlan.value.deliveryUnits[0]!;
-  return {
-    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-    contractId: `validation-${roadmapPlan.value.version}`,
-    version: 1,
-    app: APP,
-    roadmapRef: roadmapPlan.ref,
-    unitId: unit.unitId,
-    unitMembershipHash: unitMembershipHash(unit.issueNumbers),
-    obligations: [{
-      caseId: "CF-HB101-FRONTIER",
-      layer: "L2",
-      detectorId: "current-roadmap-pointer",
-      negativeControlId: "stale-frontier",
-      expectedEvidence: ["typed stale refusal"],
-    }],
-    requiredGates: ["pnpm-test"],
-    acceptedAt: AT,
   };
 }
 
@@ -180,15 +160,18 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
       unitId: null,
       membershipHash: null,
     };
-    const repairs = reconcileRoadmapProjections({
+    const repairs = await reconcileRoadmapProjections({
+      root: home.stateHome,
       roadmap: acceptedRoadmap,
       snapshot: acceptedSnapshot,
+      readiness: [],
       current: [firstProjection],
+      now: new Date(AT),
     });
     expect(repairs).toHaveLength(125);
     expect(repairs[0]).toMatchObject({ issueNumber: 1, reason: "contradictory" });
-    expect(repairs[0]!.labels).toEqual(["op:ready", "planning:preplanned"]);
-    // #2 is in the frontier but the accepted snapshot records human-only routing.
+    expect(repairs[0]!.labels).toEqual(["planning:preplanned"]);
+    // A RoadmapPlan alone is never enough to project ready, and #2 is human-only.
     expect(repairs[1]!.labels).toEqual(["planning:preplanned"]);
     expect(repairs[4]!.labels).toEqual(["planning:preplanned"]);
 
@@ -199,11 +182,14 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
       unitId: repair.unitId,
       membershipHash: repair.membershipHash,
     }));
-    expect(reconcileRoadmapProjections({
+    expect((await reconcileRoadmapProjections({
+      root: home.stateHome,
       roadmap: acceptedRoadmap,
       snapshot: acceptedSnapshot,
+      readiness: [],
       current: converged,
-    }).every((repair) => repair.reason === "current")).toBe(true);
+      now: new Date(AT),
+    })).every((repair) => repair.reason === "current")).toBe(true);
   });
 
   it("refuses partial, paginated, or unavailable snapshots before roadmap authority exists", async () => {
@@ -260,10 +246,6 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
         issueNumbers: firstSnapshot.value.issues.map((entry) => entry.issueNumber),
       }),
     });
-    const firstValidation = await acceptValidationContract({
-      root: home.stateHome,
-      contract: validationContract(firstRoadmap),
-    });
     const nextIssues = firstSnapshot.value.issues.map((entry) =>
       entry.issueNumber === 120
         ? { ...entry, contentHash: stableHash({ issueNumber: 120, revision: 2 }) }
@@ -310,7 +292,7 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
         roadmapRef: firstRoadmap.ref,
         expectedFrontierHash: firstRoadmap.frontierHash,
         orderedUnitIds: [firstRoadmap.value.readyFrontier[0]!],
-        validationRefs: [firstValidation.ref],
+        readinessRefs: [],
         routing: [{ issueNumber: 1, disposition: "automated", observedLabels: ["op:ready"] }],
         admittedAt: AT,
       }),
@@ -321,7 +303,11 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
   it("requires append-only move evidence when membership crosses delivery units", async () => {
     const home = await makeTempStateHome({ name: "hb101-moves" });
     homes.push(home);
-    const firstSnapshot = await acceptSnapshot(home, snapshot({ count: 6 }));
+    const automatedIssues = Array.from(
+      { length: 6 },
+      (_, index) => issue(index + 1, { routing: "automated" }),
+    );
+    const firstSnapshot = await acceptSnapshot(home, snapshot({ issues: automatedIssues }));
     const firstPlan: RoadmapPlan = {
       ...roadmap({ snapshotRef: firstSnapshot.ref, issueNumbers: [1, 2, 3, 4, 5, 6], wipLimit: 2 }),
       deliveryUnits: [
@@ -331,7 +317,7 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
       readyFrontier: ["unit-a", "unit-b"],
     };
     const acceptedFirst = await acceptRoadmapPlan({ root: home.stateHome, plan: firstPlan });
-    const secondSnapshot = await acceptSnapshot(home, snapshot({ version: 2, count: 6 }));
+    const secondSnapshot = await acceptSnapshot(home, snapshot({ version: 2, issues: automatedIssues }));
     const moved: RoadmapPlan = {
       ...firstPlan,
       version: 2,

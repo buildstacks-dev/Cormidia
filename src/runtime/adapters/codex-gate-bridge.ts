@@ -3,9 +3,12 @@
 // App Server approval callbacks do not see auto-approved commands such as
 // `cat .env`. Codex hooks do see supported simple Bash/apply_patch/MCP calls,
 // so a per-turn Unix socket carries those calls back into Cormidia's in-process
-// GateFn. The child hook fails closed. `unified_exec`, apps, and web search are
-// disabled by codexAppServerArgs because current Codex hooks do not intercept
-// those alternate paths completely.
+// GateFn. The child hook fails closed. Code mode (`exec`), `unified_exec`,
+// apps, and web search are disabled by codexAppServerArgs because current
+// Codex hooks do not expose their nested effects in a shape the gate can
+// classify completely. The matcher still names `exec` as defense in depth:
+// if a provider/version ignores the disable, the normalizer below throws and
+// the bridge denies the whole call.
 
 import { createServer, type Server, type Socket } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -119,6 +122,9 @@ export function normalizeCodexHookActions(input: unknown, workdir: string): Tool
     rawInput !== null && typeof rawInput === "object" && !Array.isArray(rawInput)
       ? (rawInput as Record<string, unknown>)
       : {};
+  if (toolName.toLowerCase() === "exec") {
+    throw new Error("Codex code-mode exec is not a gateable tool route");
+  }
   if (toolName.toLowerCase() !== "apply_patch") {
     return [normalizeToolAction(toolName, toolInput, workdir)];
   }
@@ -149,7 +155,7 @@ export function codexAppServerArgs(
 ): string[] {
   const hook =
     `hooks.PreToolUse=[{ matcher = ` +
-    `"^(Bash|apply_patch|Edit|Write|mcp__.*)$", hooks = [{ type = "command", ` +
+    `"^(Bash|exec|apply_patch|Edit|Write|mcp__.*)$", hooks = [{ type = "command", ` +
     `command = ${JSON.stringify(hookCommand)}, timeout = 30 }] }]`;
   return [
     "--ask-for-approval",
@@ -163,6 +169,12 @@ export function codexAppServerArgs(
     "bypass_hook_trust=true",
     "-c",
     "features.hooks=true",
+    "-c",
+    "features.code_mode=false",
+    "-c",
+    "features.code_mode_host=false",
+    "-c",
+    "features.code_mode_only=false",
     "-c",
     "features.unified_exec=false",
     "-c",

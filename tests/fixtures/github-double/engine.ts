@@ -376,7 +376,11 @@ function flagValues(parsed: ParsedArgs, name: string): string[] {
 export function canonicalOp(argv: string[]): string {
   const parsed = parseArgs(argv);
   const [first, second] = parsed.positionals;
-  if (first === "api") return "ref.delete";
+  if (first === "api") {
+    return (flagValue(parsed, "-X") ?? "GET").toUpperCase() === "DELETE"
+      ? "ref.delete"
+      : "ref.view";
+  }
   if (first === undefined || second === undefined) return `unknown.${first ?? "empty"}`;
   return `${first}.${second}`;
 }
@@ -840,6 +844,22 @@ function executeOp(
       const allGreen = pr.checks.every((check) => check.state === "SUCCESS");
       // Like real gh: red checks exit non-zero while still emitting the JSON.
       return { stdout: `${JSON.stringify(rows)}\n`, stderr: "", exitCode: allGreen ? 0 : 1, effect: false };
+    }
+
+    case "ref.view": {
+      const target = parsed.positionals[1];
+      if (target === undefined) return err("api: path required");
+      const match = /^repos\/([^\s]+)\/git\/ref\/heads\/(.+)$/.exec(target);
+      if (match === null) return err(`github double: unsupported api path: ${target}`);
+      const [, apiRepo, branch] = match;
+      if (apiRepo !== repo) {
+        return err(`HTTP 404: Not Found (https://api.github.com/repos/${apiRepo ?? "?"})`);
+      }
+      const oid = branch === undefined ? undefined : state.branches[branch]?.oid;
+      if (branch === undefined || oid === undefined) {
+        return err(`HTTP 404: Reference does not exist (https://api.github.com/repos/${repo}/git/ref/heads/${branch ?? "?"})`);
+      }
+      return ok(`${JSON.stringify({ ref: `refs/heads/${branch}`, object: { type: "commit", sha: oid } })}\n`, false);
     }
 
     case "ref.delete": {

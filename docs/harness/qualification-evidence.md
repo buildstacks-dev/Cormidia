@@ -108,3 +108,16 @@ from their own mapped cases. `I-LIVE-01` remains the sole pending
 `future_soak` contract and cannot be inferred from this campaign, virtual soak,
 or read-only production evidence. The canonical distinction is
 [`docs/qualification/design.md`](../qualification/design.md#phase-6-qualification-scope).
+
+The authorized 2026-08-04 replacement-harness campaign
+`cormidia-maintenance-l3-ec60cd33e7c7` is retained **failed evidence**, not a
+qualification. It collected all six required L3 cases in six provider turns
+and $0.7284 equivalent spend, then reported four deterministic violations:
+Codex CLI 0.144.4 exposed code-mode `exec` outside the Bash-only hook matcher
+(#271), the real-GitHub stale-review fence trusted a lagging PR projection
+(#272), the label-filtered issue search was sampled without the suite's
+readback tolerance (#273), and the Vitest process failed to reflect the
+durable failing verdict (#274). The immutable report SHA-256 is
+`709739891a8baf05a9cd2a48666ad8bd8c0b36bf19462e060ea3fbccb7bfbc48`.
+The report and sandbox are preserved; neither can qualify any repaired
+successor candidate.

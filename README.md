@@ -628,6 +628,10 @@ scheduler/installation.json # owned definition/install record
 scheduler/evidence/       # exact-once invocation, decision, and local-alert JSON
 validation/campaigns/<id>/ # durable L3/L4/L5 report.json; partial evidence retained
 validation/soaks/<id>/     # resumable real-soak checkpoint state
+planning/apps/<hash>/      # immutable backlog snapshots/RoadmapPlan revisions,
+                           # current pointer, validation, batches, per-unit EpisodePlan
+                           # binding, Builder evidence, independent Reviewer verdict
+planning/delivery-unit-claims/ # atomic all-member delivery-unit claim records
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
 approvals/                # content-bound decisions, grants, execution state,
                           # attempt/result acknowledgement, transition audit

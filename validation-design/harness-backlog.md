@@ -7,6 +7,10 @@ live target, an unpassed eval threshold, or unauthorized CI parks only its own l
 tickets, never L1/L2 implementation. Catalog derivation is already complete
 (case-catalog.md); these tickets implement it.
 
+<!-- acceptance 2026-08-03: the product owner accepted the revision as the binding
+implementation contract and authorized HB-100. Protected protocol surfaces, merge,
+publication/deployment and live/token-spending campaigns remain separately gated. -->
+
 Executors: `build-agent` = the standing coding agent working in the Cormidia repo under
 AGENTS.md routing; `human` = Bikram; `campaign` = a scheduled/authorized validation
 campaign run.
@@ -353,6 +357,146 @@ GitHub epic [#219](https://github.com/cormidia/Cormidia/issues/219). -->
   *Gate:* sampling or parallelism re-enters risk allocation and may activate
   CF-OPS-COMP at L5; no single comparison mutates routing/qualification policy.
   *Executor:* human + build-agent.
+
+## Proposed roadmap/validation/delivery/batching implementation (2026-08-03)
+
+<!-- Owner accepted Phase 8 of the harness revision on 2026-08-03. HB-100 is authorized
+for local provider-free implementation. These tickets implement #184/#233/#234/#240;
+#239's human-only routing enforcement is a prerequisite, not duplicated here. No ticket
+may silently edit TASTE.md, roles.yaml, pipelines.yaml, prompts/** or PURPOSE.md: HB-111
+prepares the proposal and a human separately ratifies any such surface. -->
+
+- **HB-100 — COMPLETE 2026-08-03 — Vertical walking skeleton: roadmap → validation → unit → batch → review.**
+  Implement the smallest hermetic path for one accepted RoadmapPlan containing one
+  two-ticket delivery unit, one accepted validation contract, a batch of one, lazy
+  token-free EpisodePlan normalization, an atomic member claim, one synthetic PR/evidence
+  manifest and an independent Reviewer verdict. Persist each authority before its
+  projection; seed one wrong-contract/HEAD lineage violation and prove the detector turns
+  red. *Acceptance:* the path can be walked end-to-end without a provider, a label cannot
+  substitute for an artifact, and no prior green suite is represented as covering it.
+  *Defends:* CF-J03/J04 2026-08-03 slices, CF-J20-S, CF-INV-016, CF-B20/21/22 happy
+  joins. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* accepted Phase 8 package
+  and #239.
+  *Implementation:* `src/org/roadmap-delivery.ts` plus
+  `claude-tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts`. The three
+  executable cases prove the two-ticket provider-free join, one durable all-member
+  claim under a race, persistence-before-projection, label-without-artifact refusal,
+  whole-unit human-only exclusion, exact contract/HEAD negative controls, and verdict-
+  bound settlement. This is walking-skeleton coverage only; #239 merge/integration and
+  HB-102…111 remain required before autonomous-loop readiness (HB-101 is complete below).
+- **HB-101 — COMPLETE 2026-08-03 — RoadmapPlan schema, store, snapshot and bounded-delta replanning.** Add
+  versioned/hash-bound RoadmapPlan and backlog-snapshot schemas; stable workstream/unit
+  IDs; exact issue accounting; graph/WIP/priority/frontier validation; predecessor/move
+  history; pagination/unavailable distinctions; deterministic projection reconciliation;
+  100+ issue and prior-plan+small-delta fixtures. Select exact app-state paths as a
+  normal implementation decision and pin migration/reader compatibility in tests.
+  *Acceptance:* no unaccounted/duplicate issue, stale frontier or projection-only
+  readiness; unchanged regions need no provider rediscovery and non-admitted units get
+  no EpisodePlan. *Defends:* CF-J03-*, CF-SM-ROADMAP-*, CF-B20-*, CF-C-B20,
+  CF-C-OPPLAN. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* HB-100.
+  *Implementation:* the versioned immutable snapshot/RoadmapPlan records and current
+  pointer live under `planning/apps/<app-hash>/`; `src/org/roadmap-delivery.ts` owns
+  completeness/pagination, exact issue accounting, dependency/WIP/priority/frontier,
+  current-plan CAS, stable membership IDs, append-only issue moves, bounded-delta and
+  deterministic projection reconciliation. Five executable cases at
+  `claude-tests/hermetic/cf-hb101/roadmap-authority.test.ts` include 125-issue and
+  120-plus-two-delta fixtures. They prove incomplete snapshots, unaccounted/duplicate
+  issues, stale frontiers and unexplained ID/membership moves turn red; untouched and
+  non-admitted work creates no EpisodePlan. Provider-authored roadmap planning and the
+  remaining full CF-J03/B20 matrix stay with later tickets.
+- **HB-102 — Validation-contract authority and deterministic readiness guard.** Add the
+  versioned validation schema/store, canonical ID resolver, affected-structure and
+  cheapest-layer checks, explicit bounded-waiver policy, shared-boundary detector refs,
+  negative-control obligations, and `requires_harness_revision` refusal. Thread the
+  exact contract hash through readiness, EpisodePlan, Builder manifest and Reviewer
+  verdict. *Acceptance:* omissions/unknown IDs/stale versions never become waivers or
+  ready; C3/floor obligations cannot take the routine template; swapped unit/HEAD
+  evidence turns red. *Defends:* CF-SM-VALIDATION-*, CF-INV-016, CF-B21-*,
+  CF-C-B21/OPVALIDATION, CF-S10-env. *Layer:* 1/2. *Executor:* build-agent.
+  *Depends on:* HB-100/101.
+- **HB-103 — Multi-ticket delivery units and one-PR atomicity.** Replace ticket-scoped
+  claim/review/merge assumptions with a stable delivery-unit authority containing one or
+  more members. Make claim/revalidation all-or-none; bind branch, gates, evidence,
+  review, repair allowance, merge and every member projection to one PR/HEAD/outcome;
+  preserve the single-ticket case. *Acceptance:* a changed/human-only/already-claimed
+  member refuses the whole unit; crashes cannot leave subset claims or closures; one
+  ticket cannot appear in two active units. *Defends:* CF-J04-*, CF-INV-005/009/016,
+  CF-C-OPLOOP and B-20/B-21 joins. *Layer:* 1/2. *Executor:* build-agent.
+  *Depends on:* HB-100/101/102.
+- **HB-104 — ExecutionUnit union, token-free batch admission and lazy plans.** Add
+  roadmap-backed code units plus complete direct operational units; hard-before-affinity
+  deterministic admission; bounded ordered batch manifests; current-fact reread; lazy
+  per-unit EpisodeIntent/EpisodePlan; per-unit journals, budgets and terminal
+  dispositions; sibling-isolation recovery. *Acceptance:* grouping constructs no runtime
+  or plan, never changes membership/priority/authority, and one failed unit cannot lend
+  claim/evidence/budget/completion to another. *Defends:* CF-J20-*, CF-SM-BATCH-*,
+  CF-B22-*, CF-C-B22/OPBATCH. *Layer:* 1/2. *Executor:* build-agent.
+  *Depends on:* HB-100/101/102/103.
+- **HB-105 — Structured zero-turn fast paths and truthful projections.** Implement
+  strict normalization for complete creator scope, governed roadmap/workflow/validation
+  templates and the low-risk Support/event-discovered code-fix profile. If exposed,
+  `planning:preplanned` is only a ref+hash-backed GitHub projection and is reconciled like
+  `op:*`; `op:ready`/`op:tier-*` remain non-authoritative. *Acceptance:* complete inputs
+  construct zero provider runtimes; detailed prose, label-only state, C3/boundary/schema/
+  migration changes and incomplete scopes take the bounded planning/design path or
+  refuse—never the shortcut. A future Jira adapter is not implied by this work.
+  *Defends:* CF-J03-A/R, CF-S1-env, CF-C-OPPLAN/OPVALIDATION. *Layer:* 1/2.
+  *Executor:* build-agent. *Depends on:* HB-101/102.
+- **HB-106 — Direct operational campaign units and exact-effect continuation.** Add
+  deterministic intake for complete non-code work, a shallow Marketing campaign template,
+  content/evidence manifests, per-destination exact approval items, effect acknowledgements
+  and deterministic follow-up observation scheduling. Unknown replies/actions create new
+  units when content exists. *Acceptance:* one content turn may draft five Reddit posts,
+  LinkedIn and Twitter coherently, but seven payloads remain seven grants/effect outcomes;
+  no live post, connector, or B-17 L3 green claim is created. *Defends:* CF-J20-A,
+  CF-C-OPBATCH, INV-003/008, B-17/T-12. *Layer:* 1/2; B-17 real target remains blocked.
+  *Executor:* build-agent. *Depends on:* HB-104 and existing approval/effect contracts.
+- **HB-107 — Shared EpisodePlanner façade plus role-safe session/cache reuse.** Converge
+  roadmap planning's direct primitive composition and delivery on the common
+  `orchestrateEpisode` façade while retaining domain catalogs/validators/prompts/handlers.
+  Add stable immutable-prefix/delta manifests, exact app/role/assignment/operation session
+  compatibility, per-unit settlement and cache-hit/miss/unknown telemetry. *Acceptance:*
+  no schema/authority collapse between RoadmapPlan and delivery EpisodePlan; Reviewer
+  never resumes Builder state; cache evidence changes cost telemetry only, never
+  correctness/admission. *Defends:* CF-J20-S/I/RC, CF-B22-*, INV-004/006/016.
+  *Layer:* 1/2; existing L3 adapter trigger only if invocation semantics change.
+  *Executor:* build-agent. *Depends on:* HB-101/104.
+- **HB-108 — Complete deterministic catalog and pre-tuning golden integration.** Land
+  every 2026-08-03 design-only L1/L2 family with seeded negative controls, plus the
+  Planner large-backlog/delta/cache-lure cases and Validation Designer cases in the L4
+  runner. Obtain human reference validation separately; never tune prompts before the
+  committed corpus and never turn F-PT-010/011 hypotheses into pass/fail thresholds.
+  *Acceptance:* policy/registry/catalog closure tests resolve M17/J-20/INV-016/B-20…22/
+  C-OP-BATCH/C-OP-VALIDATION/S-10; empty walks and detector-never-fired states fail.
+  *Defends:* all revision CF families. *Layer:* 1/2 + 4 data collection.
+  *Executor:* human + build-agent. *Depends on:* HB-101…107.
+- **HB-109 — Batch-aware contention and soak repeat cases.** Extend the existing
+  deterministic contention rig with overlapping batches, duplicate unit stimuli,
+  all-or-none multi-ticket claims, per-unit settlement and terminal isolation. Extend
+  the existing soak collector's inspection schema for batch progress, stale frontiers,
+  session reuse and cache-evidence quality. *Acceptance:* no new campaign type; the rig
+  proves its seeded violation; the real seven-day repeat remains human-started and
+  incomplete until run. *Defends:* CF-OPS-CONT/SOAK revision clauses, B-22.
+  *Layer:* 5 (contention rig may remain hermetic; soak is live evidence). *Executor:*
+  build-agent for machinery; human + campaign for the seven-day run. *Depends on:*
+  HB-103/104/107.
+- **HB-110 — Operator/explain/report surfaces for roadmap, validation and batches.**
+  Add read-only explanations and cross-surface projections that distinguish artifact
+  authority from labels, provider-turn fast path from workflow bypass, batch complete
+  from every-unit-success, cache unknown from zero, and direct operational readiness
+  from code readiness. *Acceptance:* CLI text/JSON/Observe/portable report agree on the
+  same fixture; stale/unavailable sources name affected claims and never render green.
+  *Defends:* INV-008/016, CF-IF-XSURF and J-03/J-20 observation clauses. *Layer:* 2.
+  *Executor:* build-agent. *Depends on:* HB-101…107.
+- **HB-111 — Human-ratified protocol-surface proposal.** Prepare exact, reviewable
+  proposed diffs for any needed Planner/Validation Designer role assignment,
+  pipelines.yaml ordering, prompts, TASTE or PURPOSE language. Include migration,
+  rollback and golden-set impact. *Acceptance:* no protected surface is edited by this
+  ticket; implementation tickets remain runnable with current ratified surfaces or stop
+  at the precise dependency; a human must separately approve each proposed surface
+  change before application. *Defends:* INV-001, M11 and repository working rules.
+  *Layer:* process/design. *Executor:* human + build-agent. *Depends on:* HB-100…108
+  behavior/schema stabilization.
 
 ## Standing rules
 

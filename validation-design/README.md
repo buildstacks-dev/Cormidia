@@ -26,10 +26,10 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 
 ## Read in this order
 
-1. `scope-and-module-map.md` — what's in scope, module map M1–M16.
-2. `system-map.md` — journeys J-01…J-19, state ownership, criticality tier (§5).
-3. `invariants.md` — CORMIDIA-INV-001…015 (what must never break).
-4. `boundary-map.md` — B-01…B-19, failure modes, honest-fake verdicts.
+1. `scope-and-module-map.md` — what's in scope, module map M1–M17.
+2. `system-map.md` — journeys J-01…J-20, state ownership, criticality tier (§5).
+3. `invariants.md` — CORMIDIA-INV-001…016 (what must never break).
+4. `boundary-map.md` — B-01…B-22, failure modes, honest-fake verdicts.
 5. `contracts/` — per-boundary + operation contracts, journey acceptance criteria.
 6. `risk-allocation.md` — E-1/E-2/E-3 exhaustive families, thin lanes, spend/soak.
 7. `llm-eval-plan.md` + `golden-sets/` — the statistical lane.
@@ -43,8 +43,8 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
     landed in AGENTS.md).
 14. `elicitation-log.md` / `harness-design-state.md` — provenance and gate history.
 15. `ratification-package.md` — what a human must decide to make this binding
-    (created at the final campaign gate; **ratified 2026-07-31** — its §9
-    "Ratification record" is the disposition of every decision).
+    (baseline **ratified 2026-07-31** in §9; the 2026-08-03 revision's pending final
+    acceptance packet and reader review are in §10).
 
 ## Warnings a tired reader needs up front
 
@@ -58,6 +58,12 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   included in the 2026-07-31 green evidence.** Its direction is owner-confirmed;
   M16/J-19/B-18/B-19/S-8 and HB-090…094 make the implementation obligations visible.
   `docs/comparative-execution/design.md` is the product-facing contract.
+- **Roadmap/validation/delivery-unit/batching is an accepted 2026-08-03 implementation
+  contract, not included in prior green evidence.** Phase 8 is closed; HB-100's local
+  provider-free walking skeleton and HB-101's whole-backlog authority are executable,
+  while HB-102…111 remain. M17/J-20/
+  INV-016/B-20…22/S-10 and the two new operation contracts become executable only as
+  their named cases land; the skeleton is not autonomous-loop or live evidence.
 - **Release gating is SUSPENDED** (product decision, PURPOSE v2.9) and **B-17's live
   deploy/publication cell is BLOCKED** — should a deploy/publication-shaped incident
   occur, it would be operating in the least-verified part of the system. <!-- AUD-109 --> No surface may imply a gate
@@ -66,7 +72,7 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   exist, but no external campaign or seven-day window was run in this implementation
   change. Reviewer/planner golden references still await human validation. These are
   reported incomplete/inconclusive, never green.
-- **Eighteen product-truth findings are tracked; nine still park exact cells**
+- **Twenty product-truth findings are tracked; nine still park exact cells**
   (F-PT-006/008/012…018). If an incident touches one of those seams, the named cell
   deliberately encodes **no expected behavior**. That is honesty, not coverage:
   escalate to the human, don't infer. F-PT-009/010/011 do not prevent data collection
@@ -83,14 +89,14 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 
 | Prefix | Meaning | Defined in |
 |---|---|---|
-| `M1…M16` | modules | scope-and-module-map.md §2 |
-| `J-01…J-19` | journeys | system-map.md §1.3 |
+| `M1…M17` | modules | scope-and-module-map.md §2 |
+| `J-01…J-20` | journeys | system-map.md §1.3 |
 | `T-1…T-12` | C3 control points (function-scoped risk) | system-map.md §5.2 |
-| `CORMIDIA-INV-001…015` (alias INV-NNN) | invariants | invariants.md |
-| `B-01…B-19` (B-09a/b split) | boundaries | boundary-map.md |
+| `CORMIDIA-INV-001…016` (alias INV-NNN) | invariants | invariants.md |
+| `B-01…B-22` (B-09a/b split) | boundaries | boundary-map.md |
 | `CORMIDIA-C-…-001` (aliases B-NN, C-OP-*) | contracts | contracts/ headers + journey-acceptance.md alias table |
-| `S-1…S-9` | LLM call sites (S-8 added by comparative-execution revision) | llm-eval-plan.md §1 |
+| `S-1…S-10` | LLM call sites (S-8 comparative selection; S-10 validation design) | llm-eval-plan.md §1 |
 | `E-1/E-2/E-3, STD, THIN, FLOOR, L4Q` | risk allocation vocabulary | risk-allocation.md §2, case-catalog.md header |
 | `CF-*` | case families | case-catalog.md |
 | `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31, HB-P3/P5 still parked) | harness-backlog.md |
-| `F-PT-001…018` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |
+| `F-PT-001…020` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |

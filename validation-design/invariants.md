@@ -21,6 +21,13 @@ INV-004/010; candidate and judge accounting by INV-006; selection/report truth b
 INV-008/012/015; durable recovery by INV-013/014. Operation-specific promises remain
 contracts B-18/B-19 and J-19 acceptance criteria rather than masquerading as INV-016.
 
+Harness revision 2026-08-03 (#184/#233/#234/#240), owner-confirmed through Phase 2:
+roadmap, delivery-unit, and execution-batch identities extend INV-001/004/005/006/008/
+009/014/015. New INV-016 is the one genuinely global addition: validation obligation
+lineage must predate autonomous delivery and remain bound through independent review.
+Cache/session optimization may reorder or co-schedule units but can never alter the
+correctness or authority identities those invariants protect.
+
 ---
 
 ## CORMIDIA-INV-001 — Authority never grows by accident
@@ -32,6 +39,9 @@ approvals — can manufacture or widen permission. Where two authority sources d
 most restrictive valid source governs, or the turn stops. The surfaces that define agent
 authority (`AUTHORITY.md`, `TASTE.md`, `roles.yaml`, `pipelines.yaml`, `prompts/**`,
 protected learning surfaces) are structurally unwritable by agents — proposal-only.
+Roadmap membership, delivery-unit grouping, and execution batching cannot dilute a
+member ticket's routing restriction: if any member is `routing:human-only`, the entire
+unit is autonomously ineligible, and no cache-affinity or priority score can override it.
 **Enforcement.** Both — the gate + context assembler enforce at runtime; tests attack the
 enforcement. **Falsifying test shape.** A turn whose app config claims a wider grant than
 the org; a memory bundle containing permission-granting text; an agent write landing on a
@@ -88,22 +98,29 @@ identity: plan, authority, context, memory bundles, repository, worktree, approv
 triggering event, run evidence, and settlement. Any mismatch stops the turn; nothing
 infers which field was intended. No state, context, approval scope, or worktree content
 bleeds across apps.
+An execution batch is therefore app-local. Builder and Reviewer sessions remain
+role/assignment-isolated, and every provider step is attributed to exactly one execution
+unit even when immutable shared inputs are cached across compatible units.
 **Enforcement.** Both. **Falsifying test shape.** A turn whose context contains another
 app's memory; a settlement row attributed to a different app than the worktree mutated.
 **Adversarial seeds.** (a) event for app A routed to a turn holding app B's worktree;
 (b) memory selection pulling sibling-app bundle; (c) approval scoped to app A consumed by
 app B's turn; (d) reset of app A observed from app B's clone (ties to INV-010).
 
-## CORMIDIA-INV-005 — Ticket claims are unique, durable, and stable
+## CORMIDIA-INV-005 — Execution ownership is unique, durable, stable, and membership-atomic
 `[elicited+doc: PURPOSE 2026-07-18 sagas, loop design §7]`
-**Statement.** At every moment a ticket has at most one active claim. A claim never
-silently disappears while its work continues; a crash before the first provider turn
-repairs without consuming allowance; after provider work may have happened, only the
-explicit re-arm transaction changes the claim. An approval pause preserves the same claim
-number — a pause is never a fresh claim.
-**Enforcement.** Both. **Falsifying test shape.** Two turns holding one ticket; a claim
-record vanishing while a worktree still advances; claim number incrementing across an
-approval wait.
+**Statement.** Every execution unit has at most one active claim. For code work, a ticket
+belongs to at most one active delivery-unit claim and claiming a multi-ticket unit is
+all-or-none: no member may advance while another remains claimable elsewhere. For direct
+operational work, the claim binds the exact source event/task and effect set so batching
+cannot duplicate it. A claim never silently disappears while its work continues; a
+crash before the first provider turn repairs the whole unit without consuming allowance;
+after provider work may have happened, only the explicit re-arm/reconciliation
+transaction changes it. An approval pause preserves the same unit/member/effect
+identities — a pause is never a fresh claim.
+**Enforcement.** Both. **Falsifying test shape.** Two turns holding one member ticket; a
+partial multi-ticket claim; a unit claim record vanishing while its worktree still
+advances; claim number incrementing across an approval wait.
 **Adversarial seeds.** (a) two ticks racing one `op:ready` ticket; (b) kill after label
 flip, before claim persist (and the reverse); (c) approval pause → resume → assert claim
 identity; (d) re-arm without the transaction (must be refused).
@@ -115,6 +132,9 @@ exactly once — succeeded, failed, cancelled, malformed, or gate-stopped alike.
 steps never settle as provider turns. Unknown or unavailable usage is never rendered as
 zero. The ledger is the sole durable spend fact; overlays and reports derive from it and
 never replace it.
+Execution-unit and batch totals are projections over those per-turn settlements:
+an aggregate reservation or cache discount can never hide, duplicate, or reassign a
+member unit's spend.
 **Enforcement.** Both (settlement machinery + reconcile; readers guarded by tests).
 **Falsifying test shape.** A provider turn with zero or two ledger rows; a mechanical step
 settling; an unavailable-usage turn shown as $0 headroom.
@@ -150,6 +170,10 @@ observable state is unknown/degraded/ambiguous/needs-attention — never green b
 Reconciliation never erases contradictions or compresses multi-source state into a more
 advanced claim than the evidence supports (there is deliberately no single ticket-status
 field — see system-map §2.3).
+A ready-frontier entry requires the exact RoadmapPlan version, delivery-unit membership,
+routing eligibility, dependency state, and validation contract it claims. Any
+`planning:preplanned`-style label is only a projection of a valid creator-scope artifact;
+the label, rich prose, `op:ready`, and `op:tier-*` never prove that artifact exists.
 **Enforcement.** Both (readers/writers guarded; presentation tested). **Falsifying test
 shape.** Any surface rendering a claim whose backing artifact is absent, stale, or
 contradicted.
@@ -166,6 +190,9 @@ commit pushed after the review invalidates the approval (ancestry alone is not f
 required checks are fresh for that exact candidate; the remote default branch was
 resolved, never guessed; and the merge actor is the orchestrator alone. Git's ability to
 recover from a bad merge never excuses a violation.
+For a multi-ticket delivery unit, that one reviewed candidate is the unit's only merge
+boundary: every member and every required validation obligation binds the same PR and
+HEAD, and no member is closed or represented as delivered independently.
 **Enforcement.** Both. **Falsifying test shape.** A merge where the review `commit_id`
 differs from the merged HEAD (including a reviewed ancestor with an unreviewed later
 push); a merge onto a guessed base; a merge performed by an agent identity.
@@ -244,6 +271,9 @@ candidate terminates in a named reason from the ratified vocabulary; an event re
 only with per-subscriber consumption evidence; a failed provider turn still settles; an
 executed critical effect never disappears between execution and acknowledgement. The
 machine never forgets the thing the human still needs to know.
+Every issue in a Planner-considered backlog snapshot is likewise accounted for exactly
+once by stable workstream/delivery-unit membership or a typed unassigned disposition;
+replanning records deliberate moves instead of silently dropping or renaming the work.
 **Enforcement.** Both. **Falsifying test shape.** A considered (app, role, trigger,
 window) with no durable outcome; an inbox file gone without consumption marks; a
 crashed-effect gap with neither acknowledgement nor ambiguity record.
@@ -266,6 +296,27 @@ newer delegated default; classifier error → allow; unknown usage → headroom)
 **Adversarial seeds.** (a) corrupt/linked self-approval key → must fail closed; (b) org
 with no charter → legacy-conservative, never delegated; (c) classifier throws → deny +
 escalate; (d) budget state unreadable → no admission.
+
+## CORMIDIA-INV-016 — Validation obligation lineage is continuous and independently closed
+`[stated+elicited: #184/#234 lifecycle confirmation, 2026-08-03]`
+**Statement.** Every autonomously executed unit has one durable validation/evidence
+contract before it becomes ready. That contract identifies the affected journeys, boundaries,
+contracts and invariants; cheapest falsifying layers; failure cases, detectors and
+negative controls; expected evidence; and any explicit policy-bounded waiver. The same
+contract version and execution-unit identity remain bound through EpisodePlan admission
+and terminal evidence. Code delivery additionally binds Builder artifacts, exact-HEAD
+gate evidence, and an independent Reviewer verdict; operational effects bind their exact
+payload/action, required approval and acknowledgement evidence.
+Neither Planner, Validation Designer, Builder, Reviewer, a label, nor model prose can
+silently waive, rewrite, satisfy, and approve the obligation alone.
+**Enforcement.** Both — deterministic readiness/admission/review guardrails plus tests
+that attack every handoff. **Falsifying test shape.** A unit becomes ready with a missing
+or malformed contract; Builder omits required evidence but Reviewer passes; a waiver has
+no policy/provenance; a contract or member changes after review without invalidation.
+**Adversarial seeds.** (a) structurally valid but unknown contract ID; (b) explicit
+low-risk waiver outside its policy class; (c) evidence copied from another unit/HEAD;
+(d) cross-ticket boundary touched without its shared contract detector; (e) Reviewer
+resumed from Builder's private session and self-confirms the same unsupported claim.
 
 ---
 
@@ -292,7 +343,8 @@ escalate; (d) budget state unreadable → no admission.
 ## Beat-4 category check (skill checklist vs the elicited set)
 
 Money/irreversible: INV-003/006/007/009/010. State machines & legal transitions: INV-005,
-INV-012 (learning states), + per-boundary contracts. Resource conservation: INV-006/014.
+INV-012 (learning states), INV-016 (validation lifecycle), + per-boundary contracts.
+Resource conservation: INV-006/014.
 Uniqueness/mapping: INV-004/005/007 (one admission computation). Ordering/idempotency:
 INV-003 (never re-perform), INV-013. Tenancy/authorization: INV-001/002/004. No category
 required a `[PROPOSED]` addition — the stakeholder's ramble covered all six.

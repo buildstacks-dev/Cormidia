@@ -1,18 +1,21 @@
 # Case catalog — Cormidia (product scope, matrix closure)
 
 Status: derived to matrix closure (Phase 6, agent-alone per Division of labor §6) over
-the ratified baseline plus the owner-confirmed 2026-08-01 harness revision: system-map
-(J-01…J-19), invariants (INV-001…015), boundary-map (B-01…B-19), contracts
-(24 canonical IDs), llm-eval-plan (S-1…S-9), risk-allocation
+the ratified baseline plus the owner-confirmed 2026-08-01 revision and the 2026-08-03
+revision confirmed through Phase 7: system-map (J-01…J-20), invariants
+(INV-001…016), boundary-map (B-01…B-22), contracts (29 canonical IDs),
+llm-eval-plan (S-1…S-10), risk-allocation
 (E-1/E-2/E-3, floors, §5/§6 obligations). **This remains the design-derived
 catalog, while executable authoring is tracked by `harness-backlog.md`.** As of
 2026-07-31, Waves 0–4 are implemented under `claude-tests/`: through Wave 3 the
 E-1/E-2/E-3 and evidence-agreement families are executable; Wave 4 adds the
 CF-J02/CF-J03/CF-J10/CF-J16/CF-OPS-GROW/CF-IF/CF-S2-traj/CF-S9-env remainder.
 The full pre-revision L1/L2 gate is green (116 files, 726 passed, one intentionally
-parked skip). J-19/B-18/B-19/S-8 families are **design-only and not implemented**;
-their presence here must not be represented as executable coverage. Catalog closure
-does not imply implementation or separately gated L3/L4/L5 evidence.
+parked skip). J-19/B-18/B-19/S-8 and every unimplemented 2026-08-03 revision family
+must not be represented as executable coverage. The 2026-08-03 revision is an accepted
+implementation contract; coverage changes only as named cases land. Catalog closure
+does not imply implementation or separately gated L3/L4/L5
+evidence.
 
 **Closure rule:** every (source artifact × derivation row) cell below carries case
 families or a **named prune**. Prune vocabulary (nothing else is legal):
@@ -62,16 +65,16 @@ journey-acceptance.md alias table.
 | CF-J02-I | kill during bootstrap writes / promote's config-commit-push-registry sequence | 2 | state | E1 (lifecycle journal) |
 | CF-J02-RC | promote resumes exactly once across boundaries; bootstrap re-run idempotent | 2 | state | E1 |
 | CF-J02-A | ladder claims per surface: no rung overclaim on CLI/JSON/observe (`generated≠registered≠runtime-ready≠live≠scheduled`) | 2 | evid | E3 |
-| CF-J03-S | goal → persisted valid EpisodePlan → TicketPlan → published tickets w/ lineage, deps, only dep-free `op:ready` | 2 | state+evid | STD |
-| CF-J03-R | C-OP-PLAN §1 refusal classes (incomplete scope w/ --execution-ready, unknown op/role, unapproved tuple, mismatched disposition, missing required source) all pre-provider | 1/2 | refusal | STD (validator depth per risk-allocation §3) |
-| CF-J03-I | crash between plan persistence and publication; between ticket creates (partial publication) | 2 | state+evid | E2 |
-| CF-J03-RC | recovery republishes idempotently via markers; no duplicate issues | 2 | evid | E2/E3 |
-| CF-J03-A | plan --auto vs creator-scope routes produce same schema outputs; dry-run previews spend nothing, return exactProviderAuthoredPlan:null | 2 | evid+refusal | STD |
-| CF-J04-S | full ready→merged walk on fake GitHub + scripted adapters: labels-after-artifacts at every stage | 2 | state+evid | E3 |
-| CF-J04-R | gate-red, review REJECT, returned-after-3-cycles paths | 2 | state | STD |
-| CF-J04-I | kill at every stage boundary (claim, branch, PR, review, merge) — the crash-point sweep. Recovery per journal/plan authority order is asserted; **disposition of ambiguous uncommitted builder bytes per ratified F-PT-004 (2026-07-31): preserve-and-inspect, never reset** (cases derivable — HB-P2) | 2 | state | E2 |
-| CF-J04-RC | any tick advances any item from GitHub-derived state; pre-provider claim crash repairs without allowance; post-provider needs re-arm | 2 | state | E2 |
-| CF-J04-A | manual human label edits observed not clobbered; depends-on/file-scope parallelism rules | 2 | state | STD |
+| CF-J03-S | one bounded 100+ issue snapshot → accepted RoadmapPlan with exact accounting, stable workstream/delivery-unit IDs, dependencies/priority/WIP, validation status and bounded ready frontier; no delivery EpisodePlans for unadmitted units | 2 | state+evid | E3/STD (2026-08-03 design-only slice) |
+| CF-J03-R | C-OP-PLAN refusal classes: incomplete creator scope marked execution-ready, unknown op/role, unapproved tuple, missing source/page, duplicate/unaccounted issue, cycle, invalid validation/routing, stale plan, or label-without-artifact; deterministic failures occur pre-provider/effect | 1/2 | refusal | E1/E3/STD (2026-08-03 design-only slice) |
+| CF-J03-I | crash between RoadmapPlan validation/persistence/projection and between deterministic ticket publications; accepted predecessor stays readable, partial projection never becomes authority | 2 | state+evid | E2/E3 (2026-08-03 design-only slice) |
+| CF-J03-RC | prior-plan+bounded-delta replay preserves stable IDs/history, applies publication/projection markers idempotently, and never duplicates issues or replans unchanged regions | 2 | state+evid | E2/E3 (2026-08-03 design-only slice) |
+| CF-J03-A | provider-authored roadmap, complete structured zero-turn roadmap intake, creator-scope EpisodePlan normalization and dry-run preview preserve distinct schemas/turn counts; detailed prose or `planning:preplanned` without a valid artifact never bypasses planning | 1/2 | evid+refusal | E3/STD (2026-08-03 design-only slice) |
+| CF-J04-S | one ready delivery unit with one-or-more tickets → atomic member claim → one EpisodePlan → build/gates → exactly one PR → independent exact-HEAD review → merge; every member projection follows shared artifacts | 2 | state+evid | E3 (2026-08-03 design-only slice) |
+| CF-J04-R | any changed/human-only member, validation mismatch, gate-red, review REJECT, or exhausted third repair cycle returns/refuses the entire unit; no partial PR/merge/member closure | 2 | state+refusal | E1/E3 (2026-08-03 design-only slice) |
+| CF-J04-I | kill at every unit boundary (all-or-none claim, branch, evidence, PR, review, merge); no subset claim/closure. Recovery asserts plan authority order and the ratified F-PT-004 preserve-and-inspect rule | 2 | state | E2/E3 (2026-08-03 design-only slice) |
+| CF-J04-RC | any tick advances the independently authoritative unit from durable facts; pre-provider claim crash repairs without allowance, post-provider needs re-arm, and completed siblings/batch state cannot substitute for this unit | 2 | state+evid | E2/E3 (2026-08-03 design-only slice) |
+| CF-J04-A | single-ticket and multi-ticket units, batched and unbatched entry, and manual projection edits converge on the same unit/PR/evidence contract without clobbering human-only routing | 2 | state+diff | E1/E3 (2026-08-03 design-only slice) |
 | CF-J05-S | gate block → item → approve → typed execution → executed w/ acknowledgement | 2 | state+evid | E1 |
 | CF-J05-R | deny path; never-broadly-scopeable ops refuse scoped grants; unknown item refusal | 2 | refusal | E1 |
 | CF-J05-I | kill between decision/continuation; between effect/acknowledgement (→ ambiguous, never re-perform) | 2 | state+evid | E1 |
@@ -143,6 +146,11 @@ journey-acceptance.md alias table.
 | CF-J19-I | kill at candidate start/settlement/evidence collection/selection/materialization boundaries; no losing or unselected lane crosses into ordinary continuation | 2 | state+diff | E1/E2 (design-only) |
 | CF-J19-RC | replay resumes only unsettled candidate work, never spends twice for a settled turn, preserves immutable evidence/selection, and completes or reports ambiguous materialization without choosing again | 2 | state+evid | E1/E2 (design-only) |
 | CF-J19-A | EpisodePlan and standalone `cormidia compare` adapters produce the same comparison/result contract; standalone preview spends nothing and execution never mutates the active branch or performs orchestrator-owned GitHub effects | 2 | diff+evid | E1/E3 (design-only) |
+| CF-J20-S | token-free admission selects a bounded same-app batch from exact roadmap-ready or complete direct-work authorities; hard routing/dependency/validation/WIP/budget constraints precede affinity; EpisodePlans are created lazily per admitted unit | 1/2 | state+evid | E1/E2/E3 (accepted design; implementation pending) |
+| CF-J20-R | stale frontier, human-only member, cross-app/role/session mix, incomplete direct work, broadened effect grant, insufficient budget, duplicate/already-claimed unit, or affinity-over-hard-constraint each yields a typed pre-spend exclusion/refusal | 1/2 | refusal | E1/E2/E3 (accepted design; implementation pending) |
+| CF-J20-I | kill before/after batch persistence, per-unit revalidation, lazy EpisodePlan persistence, claim and unit terminal; no eager plan, double claim/spend, sibling contamination, or repeated completed turn to recreate cache state | 2 | state+evid | E2/E3 (accepted design; implementation pending) |
+| CF-J20-RC | recovery preserves per-unit plan/claim/budget/evidence authority and emits one typed batch disposition per admitted unit; independent siblings may continue but never inherit failed work | 2 | state+evid | E2/E3 (accepted design; implementation pending) |
+| CF-J20-A | roadmap-backed code units retain one-PR/Reviewer rules; complete direct operational units may omit RoadmapPlan but not EpisodePlan/effect policy. Five Reddit destinations + LinkedIn + Twitter remain seven exact approvals/acknowledgements; unknown replies become new units | 2 | state+evid+refusal | E1/E3 (design-only; B-17 live proof still blocked) |
 
 ## 2. State-machine matrix (machine × legal / illegal / replay / crash-point)
 
@@ -161,6 +169,9 @@ journey-acceptance.md alias table.
 | CF-SM-EVENT-L/I/R/C | event pending→per-role-marked→retired: retire-before-all-marks illegal; refire-on-marked illegal; crash between mark and retire; **partial-file legality BLOCKED:F-PT-006** | 2 | state | STD |
 | CF-SM-TURN-L/I/R/C | productive turn journal path `assembling→running→collecting→done`: phases in order, productive-phase skip illegal (error terminals may end the current phase honestly), same-phase replay idempotent, real SIGKILL at every productive phase (recognized intermediates only) | 2 | state | E2 |
 | CF-SM-COMP-L/I/R/C | comparison `planned→executing→evaluating→selected→materializing→completed`, with typed `evaluating→inconclusive|failed` terminals: legal transitions only; candidate-set/input/policy hashes immutable after spend starts; settled candidates and selection replay idempotently; crash sweep at every transition and materialization acknowledgement | 2 | state+evid | E1/E2/E3 (design-only) |
+| CF-SM-ROADMAP-L/I/R/C | RoadmapPlan draft→validated→accepted→superseded lifecycle: only schema/graph/complete-accounting-valid versions become authority; predecessor/hash immutable; replay idempotent; crash leaves the accepted predecessor authoritative | 1/2 | state+refusal | E2/E3 (accepted design; implementation pending) |
+| CF-SM-VALIDATION-L/I/R/C | validation proposal→validated→accepted→superseded lifecycle with explicit bounded waiver variant: unknown IDs/structural mismatch/forbidden waiver illegal; replay content-bound; crash never turns omission into acceptance | 1/2 | state+refusal | E1/E3 (accepted design; implementation pending) |
+| CF-SM-BATCH-L/I/R/C | batch admitted→running→complete with independent per-unit dispositions: no complete before every disposition, duplicate unit/claim illegal, replay terminal-safe, and crash resumes units from their own journals | 2 | state+evid | E2/E3 (accepted design; implementation pending) |
 
 ## 3. Invariant matrix (INV × violation-paths / guardrail-response)
 
@@ -184,6 +195,7 @@ plus the guardrail's negative control (skill rule 16 — the detector proves it 
 | CF-INV-013 | kill mid-append/mid-rename/mid-journal per store class; truncated JSON rejected; quarantined bytes never valid state | 2 | state | E2 |
 | CF-INV-014 | WIP-limited named reason; sweep-without-marks refused; spawn-failure post-decision; post-spawn bookkeeping failure named | 2 | evid | E2 |
 | CF-INV-015 | error-branch sweep: corrupt HMAC key, missing charter, classifier throw, unreadable budget → each yields *less* capability, never more/greener (cross-family negative-control harness) | 1/2 | refusal | FLOOR |
+| CF-INV-016 | membership/validation/evidence lineage swaps across roadmap revisions, delivery units, PR HEADs, batches and role sessions are refused; a seeded shortcut makes an otherwise-green batch reuse sibling/Builder evidence and the detector must turn red | 1/2 | refusal+evid+det | E1/E2/E3/FLOOR (accepted design; implementation pending) |
 
 ## 4. Boundary matrix (B × success / timeout / partial-success / retry / duplicate / stale-read / version-skew)
 
@@ -192,7 +204,7 @@ convention stated here, matching §5's. -->
 **Row-collapsing convention (same as §5):** one family row per boundary stands for
 its seven nominal failure-mode columns — the family text enumerates the modes;
 separately-risky dimensions (the `-L3` live obligations) get their own rows. The §9
-closure statement reconciles the 126 semantic cells against these families.
+closure statement reconciles the 161 semantic cells against these families.
 Failure-mode lists are ratified per boundary in boundary-map.md; each cell's family =
 those modes under the honest fake, plus the fake/real conformance pair where an L3
 obligation exists.
@@ -202,7 +214,6 @@ obligation exists.
 | CF-B01-{ok,to,ps,rt,dup,stale,skew} | scripted GitHub double: success ops; timeouts/rate limits; partial success (issue-no-label, merge-no-branch-delete); ratified 3-total-attempt jittered exponential retry (injected clock) for reads/idempotent exact-input operations, while ambiguous writes remain single-shot for marker reconciliation; duplicate-create detection; stale-read-after-write re-read; default-branch-moved + force-push skew. Lost-response mode in `ps`+`rt` | 2 | state+evid | E3 |
 | CF-B01-L3 | **the GitHub live smoke** (risk-allocation §5 trigger: merge/review/branch/auth changes): real auth, squash-merge + branch-protection semantics, HMAC review submission, poll truth — on sandbox repos, spend-bounded | 3 | live | E3 |
 | CF-B02-* | adapter core against scripted Anthropic: outcomes, tool-events w/o terminal, malformed verdicts, usage absent/partial, resume-mismatch typed, partial stream | 2 | state | E2 (T-11 exhaustive) |
-| CF-B02-L3 | **Anthropic real-adapter conformance run** (same suite as the fake — drift guard; §5 trigger + bounds) | 3 | live | E2 |
 | CF-B03-* | B-02 set + subprocess death mid-RPC, protocol skew, rotation events (checkpoint preserved; resume-exact-or-honest-stop), stale capabilities; forbidden-read + forbidden-write denial (hook bridge) | 2 | state | E1/E2 |
 | CF-B03-L3 | **Codex real-adapter conformance run** incl. real forbidden-read + forbidden-write denial (§5 trigger + bounds) | 3 | live | E1/E2 |
 | CF-B04-* | B-02 set + extension absent → terminal pre-tool failure; injected forbidden attempt reaches gate and is denied | 2 | refusal | E1 |
@@ -223,6 +234,9 @@ obligation exists.
 | CF-B17-* | scripted external target: accept-vs-complete split, lost response, marker disagreement, target-auth failure (grant consumed, evidence in audit), at-most-once; real round-trip **BLOCKED:B-17-L3** | 2 | evid | E1 |
 | CF-B18-* | scripted candidate-lane boundary: identical frozen input/base/authority; exact tuple identity; unavailable capability and spend refusal; partial/timeout/duplicate settlement; workspace mutation containment; stale evidence rejected; version skew named; no candidate outward effects | 1/2 | state+diff+refusal | E1/E2/E3 (design-only) |
 | CF-B19-* | scripted selection/materialization boundary: eligible set and policy hash binding; deterministic precedence over judge; stable tie-break; no-selection/inconclusive path; duplicate/retry idempotency; stale base/evidence refusal; exactly one winner namespace crosses and only to the declared continuation target | 1/2 | state+evid+diff | E1/E3 (design-only) |
+| CF-B20-* | 100+ issue and delta fixtures across success/timeout/partial projection/retry/duplicate/stale/version-skew: complete accounting, stable IDs, exact frontier hash, current routing/dependency/validation/WIP reread, no per-issue provider turn/eager EpisodePlan, labels never authority | 1/2 | state+evid+refusal | E1/E2/E3 (accepted design; implementation pending) |
+| CF-B21-* | validation-contract fixtures across success/provider timeout/partial evidence/retry/duplicate/stale HEAD/version skew: ID resolution, bounded waivers, shared-boundary coverage, detector+negative control, exact unit/plan/HEAD binding and Reviewer independence | 1/2 | state+evid+refusal+det | E1/E3 (accepted design; implementation pending) |
+| CF-B22-* | batch/unit-set permutations across success/timeout/partial unit failure/retry/duplicate/stale frontier/version skew: token-free admission, lazy plans, atomic claims, budget conservation, session-role isolation, per-unit terminals and cache unknown/hit/miss evidence | 1/2 | state+evid+refusal | E1/E2/E3 (accepted design; implementation pending) |
 
 ## 5. Contract matrix (C × valid/invalid inputs / outputs / typed errors / idempotency / ordering / freshness+latency)
 
@@ -233,7 +247,7 @@ spanning the six rows) except where a dimension is separately risky.
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
 | CF-C-CORE | CORMIDIA-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause BLOCKED:F-PT-017**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
-Twenty boundary-contract families (B-09a and B-09b are separate contracts), one per
+Twenty-three boundary-contract families (B-09a and B-09b are separate contracts), one per
 canonical `CORMIDIA-C-B*-001` ID, each clause-complete (valid/invalid inputs, outputs,
 typed errors, idempotency, ordering, freshness/latency). HB-007 items 1–8 and 13 are
 asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain provisional.
@@ -261,9 +275,14 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-C-B17 | 2 | E1 (T-12) | — | BLOCKED:B-17-L3 (live round-trip) |
 | CF-C-B18 | 1/2 | E1/E2/E3 | — | — (design-only; implementation pending) |
 | CF-C-B19 | 1/2 | E1/E3 | — | — (design-only; S-8 automatic-selection clause remains inadmissible under F-PT-011) |
+| CF-C-B20 | 1/2 | E1/E2/E3 | — | — (accepted design; implementation pending) |
+| CF-C-B21 | 1/2 | E1/E3 | — | — (accepted design; implementation pending) |
+| CF-C-B22 | 1/2 + 5 repeat trigger | E1/E2/E3 | dup: CF-OPS-CONT/CF-OPS-SOAK when trigger applies | — (accepted design; implementation pending) |
 | CF-C-OPLIFE | C-OP-LIFE §§1–6 + error split (precondition-refusal vs journaled-intermediate) | 2 | state+refusal | E1 (T-8 slices) |
 | CF-C-OPPLAN | C-OP-PLAN §§1–5 (bypass conditions, plan production, previews, boot boundary, sources fail-closed) | 1/2 | refusal+state | STD (validator depth per risk-allocation §3) |
 | CF-C-OPLOOP | C-OP-LOOP §§1–5 (vocabulary, claims, 3-cycle bound + fourth-cycle return, review/merge, parallelism) | 2 | state | E3 |
+| CF-C-OPVALIDATION | C-OP-VALIDATION §§1–5: timed authorship, strict shape/ID/waiver admission, exact Builder evidence, independent Reviewer closure, proportional fast path | 1/2 | state+refusal+evid+det | E1/E3 (accepted design; implementation pending) |
+| CF-C-OPBATCH | C-OP-BATCH §§1–5: execution-unit union, hard-before-affinity grouping, lazy plans, direct effects, context/session isolation, per-unit recovery/completion | 1/2 | state+refusal+evid | E1/E2/E3 (accepted design; implementation pending) |
 | CF-C-ACCEPT | journey-acceptance criteria as executable checks — PRUNE-dup: each criterion's cell in §1 (traces already resolve) | — | — | — |
 
 ## 6. Interface-adapter matrix (adapter × conformance / error-translation / cross-surface agreement)
@@ -282,7 +301,7 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-S1-env | C-OP-PLAN validator envelope (PRUNE-dup:CF-C-OPPLAN) + malformed-TicketPlan handling, format-repair path budget | 1/2 | refusal | STD |
+| CF-S1-env | C-OP-PLAN validator envelope (PRUNE-dup:CF-C-OPPLAN) + malformed RoadmapPlan/EpisodePlan handling, 100-issue/delta/eager-plan trajectory assertions and format-repair budget | 1/2 | refusal+evid | E3/STD (2026-08-03 slice design-only) |
 | CF-S1-qual | planner golden set per scaffold (S-1a/S-1b axes incl. proportionality) — **inconclusive-only until F-PT-010** | 4 | stat | L4Q |
 | CF-S1-traj/judge | PRUNE-na (planner is not agentic-looping here; no judge) | — | — | — |
 | CF-S2-env | builder envelope: guardrail set (authority/boundary/gates/artifacts/spend) — PRUNE-dup:CF-INV-001/002/004/006 + CF-B16 | — | — | — |
@@ -309,14 +328,17 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-S8-traj | PRUNE-na (single-pass judge; candidate trajectories belong to their emitting call sites) | — | — | — |
 | CF-S9-env | format-repair: same-session, bounded attempts, settlement — contract-only | 2 | state | STD |
 | CF-S9-qual/traj/judge | PRUNE-na (contract-only site by ratified decision) | — | — | — |
+| CF-S10-env | strict C-OP-VALIDATION/B-21 envelope: exact unit/roadmap refs, resolvable IDs, cheapest layers, failure cases, detector+negative control, evidence, bounded waivers and structural-revision routing | 1/2 | refusal+evid+det | E1/E3 (accepted design; implementation pending) |
+| CF-S10-qual | Validation Designer golden set per scaffold: routine template, cross-ticket seam, C3/architecture change, malformed-ID lure, over-testing/live-lure and L3/L4 detector deposit — **inconclusive-only under F-PT-011** | 4 | stat | L4Q (accepted design; implementation pending) |
+| CF-S10-traj/judge | PRUNE-na (bounded design capability, not an agentic loop or judge; compatible units may share input/session but emit separate contracts) | — | — | — |
 | CF-COND | brief-conditioning study (informs, never gates) — sampling design OPEN under F-PT-011 | 4 | stat (non-gating) | THIN |
 
 ## 8. Operational-obligation matrix (obligation × load-at-contention / soak / resource-growth / clock-skew / abuse / recovery)
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-OPS-CONT | ratified contention exercise: ≥10 due candidates, ≥3 apps, duplicate (app,role) stimuli, simultaneous terminal settlement; six proof obligations. **Layer 5** — the question is "can load/contention hurt Cormidia"; the rig being hermetic describes the implementation, not the layer | 5 (hermetic rig, deterministic oracle) | state | E2 |
-| CF-OPS-SOAK | 7-day sandbox soak per risk-allocation §6 (inspection list; $15 ceiling; completeness/verdict split) | 5 | live+evid | E2/E3 |
+| CF-OPS-CONT | ratified contention exercise: ≥10 due candidates, ≥3 apps, duplicate (app,role) stimuli, simultaneous terminal settlement; six baseline proof obligations. A material execution-batch/unit-claim change repeats it with overlapping batches, atomic multi-ticket claims and per-unit settlement/terminal isolation. **Layer 5** — the question is "can load/contention hurt Cormidia"; the rig being hermetic describes the implementation, not the layer | 5 (hermetic rig, deterministic oracle) | state | E2 |
+| CF-OPS-SOAK | 7-day sandbox soak per risk-allocation §6 (inspection list; $15 ceiling; completeness/verdict split); material batching/session-reuse changes add batch progress, per-unit settlement, stale-frontier and cache-evidence inspection without creating a new campaign type | 5 | live+evid | E2/E3 |
 | CF-OPS-ROT | **Codex natural multi-hour auth-rotation under a long live run** (ratified L5 obligation, boundary-map B-03 / contract B-03): embedded in the 7-day soak as a named sub-obligation with **its own completion evidence** — at least one live Codex session spanning a real rotation window, with checkpoint/session-identity preservation asserted; if no natural rotation occurs during the soak, the sub-obligation reports completeness=incomplete (never assumed covered) | 5 | live+evid | E2 |
 | CF-OPS-GROW | seeded aged-state retention sweep at 30/180/365-day boundaries under controlled clock; ledger-day-file protection rule | 2 | state | E2 |
 | CF-OPS-SKEW | PRUNE-dup:CF-B06-* (clock anomalies) + soak's real sleep cycles | — | — | — |
@@ -348,31 +370,33 @@ not change matrix allocation or unblock any finding.
 | CF-HARNESS-REPORT | Complete | Durable reports debit unknown failed-case spend conservatively, keep exact-ceiling coverage incomplete, bind canonical policy/golden inputs to authorized HEAD, and surface corrupt/inconclusive evidence without green. |
 | CF-J19-* / CF-SM-COMP-* / CF-B18-* / CF-B19-* / CF-C-B18 / CF-C-B19 / CF-IF-COMPARE | Design only | Implementation is tracked by the comparative-execution backlog and GitHub epic; no executable coverage or evidence claim exists yet. |
 | CF-S8-env / CF-S8-qual+judge | Design/scaffold only | Empty truthful scaffold at `golden-sets/selection-judge/`; F-PT-011 keeps scores inadmissible for automatic selection and any threshold-dependent outcome inconclusive. |
+| CF-J03/J04 2026-08-03 slices; CF-J20-*; CF-SM-ROADMAP/VALIDATION/BATCH-*; CF-INV-016; CF-B20/21/22-*; CF-C-B20/21/22; CF-C-OPVALIDATION/OPBATCH | HB-100/HB-101 partial executable coverage; full families pending | Three HB-100 L1/L2 cases prove the provider-free join, atomic two-ticket claim, artifact-before-projection, label/human-only refusals and contract/HEAD lineage detector. Five HB-101 cases add 125-issue exact accounting/projection, incomplete snapshot and duplicate/unaccounted negatives, stable revision/delta/current-frontier guards and append-only move evidence. HB-102…111 remain; no autonomous-loop or live-evidence claim. |
+| CF-S1 2026-08-03 slice; CF-S10-env/qual | Accepted design/scaffold; implementation pending | Pre-tuning Planner additions and Validation Designer cases are committed under `golden-sets/` with `human_validation=pending`; F-PT-010/011 keep threshold-dependent outcomes inconclusive. |
 
 - HB-080 runbook: complete at `docs/qualification/validation-triage.md` and linked
   from campaign presentation surfaces.
 - HB-081 inconclusive semantics: complete with product detector at
   `claude-tests/hermetic/cf-harness-report/campaign-report-surfaces.test.ts`.
 
-- **Journeys:** 19 × 5 = **95 semantic cells, written as 91 table rows** (the single
-  J-13 row covers its five dup-pruned cells). Accounting: **86 family cells + 9
+- **Journeys:** 20 × 5 = **100 semantic cells, written as 96 table rows** (the single
+  J-13 row covers its five dup-pruned cells). Accounting: **91 family cells + 9
   pruned/blocked cells** — J-06-A (na), J-10-A (na), J-13 ×5 (dup), J-16-RC (dup),
   J-17-A (BLOCKED:B-17-L3). CF-J10-I is a family cell carrying an embedded named
   block (F-PT-006). <!-- ratification 2026-07-31: J-07-I unblocked (F-PT-003
   ratified) — moved from the blocked count to the family count; CF-J04-I's embedded
   F-PT-004 block resolved (ratified line encoded in-cell). -->
-- **State machines:** 9 machines × 4 rows = 36 cells → all traced (2 dup prunes; 1
-  F-PT-006 block); CF-SM-COMP is design-only.
-- **Invariants:** 15 × 2 rows → 15 families (violation+guardrail folded; every family
+- **State machines:** 12 machines × 4 rows = 48 cells → all traced (2 dup prunes; 1
+  F-PT-006 block); CF-SM-COMP and CF-SM-ROADMAP/VALIDATION/BATCH are design-only.
+- **Invariants:** 16 × 2 rows → 16 families (violation+guardrail folded; every family
   carries its negative control).
-- **Boundaries:** 19 numbered boundaries become **20 matrix entries** (B-09 splits into
-  B-09a and B-09b) × 7 rows = **140 semantic cells** → traced via the §4 families
+- **Boundaries:** 22 numbered boundaries become **23 matrix entries** (B-09 splits into
+  B-09a and B-09b) × 7 rows = **161 semantic cells** → traced via the §4 families
   (B-08, B-11 dup-pruned to their journey/state owners; finding-blocks named in-cell).
-- **Contracts:** 24 canonical IDs = 20 boundary contracts (incl. B-09A/B-09B
-  separately) + CORE + 3 OP → 24 clause-complete families; acceptance criteria
+- **Contracts:** 29 canonical IDs = 23 boundary contracts (incl. B-09A/B-09B
+  separately) + CORE + 5 OP → 29 clause-complete families; acceptance criteria
   dup-pruned to their §1 cells.
 - **Interfaces:** 7 families incl. standalone comparison and the cross-surface agreement check.
-- **LLM sites:** **9 site families (S-1…S-9) × 4 rows = 36 cells** → every cell
+- **LLM sites:** **10 site families (S-1…S-10) × 4 rows = 40 cells** → every cell
   now explicitly a family, PRUNE-na, PRUNE-dup, or finding-parked; no quality cell may
   yield pass/fail until its owning finding ratifies (L4Q category).
 - **Ops obligations:** 8 rows → **5 families (CONT, SOAK, ROT, GROW, ABUSE-interim) +

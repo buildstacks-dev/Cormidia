@@ -1084,3 +1084,140 @@ The owner then requested: "Please build the design doc and epic. Commit and merg
 Revision gate outcome: **direction confirmed; implementation pending.** No existing
 ratified requirement was loosened, no blocked finding was guessed, and no live/eval/
 soak campaign was run.
+## Harness revision — planning, validation, delivery units, and batching (2026-08-03)
+
+Mode: `harness-revision`, fast. Scope: combined Planner → validation design →
+EpisodePlanner → Builder → Reviewer lifecycle for issues #184/#233/#234/#240, preserving
+unaffected IDs and the existing harness. Protected no-read path remains
+`archive-do-not-read/**`. Human-ratified prompt/pipeline/role surfaces remain
+proposal-only.
+
+### Phase 0 confirmation
+
+The owner explicitly confirmed the combined lifecycle scope and fast mode after asking
+the agent to err toward doing more now to unblock autonomous Cormidia work.
+
+### Phase 1 walk and confirmation
+
+The owner endorsed four distinct identities:
+
+- workstream — durable outcome, dependencies and priority;
+- delivery unit — one reviewable PR containing one or more tickets;
+- EpisodePlan — one executable workflow authority per delivery unit; and
+- execution batch — compatible delivery units co-scheduled for Builder/Reviewer session
+  and cache efficiency without replacing EpisodePlan authority.
+
+The owner asked that the EpisodePlanner be explicit. Synthesis confirmed: Planner is the
+organizational role; EpisodePlanner is a shared capability converting one admitted
+EpisodeIntent to an EpisodePlan; roadmap-planning and delivery are domain adapters over
+the shared core. The owner confirmed the reconciled map and unchanged base-C2/existing-
+C3 tiering.
+
+### Phase 2 invariant elicitation and confirmation
+
+The owner confirmed the non-negotiable: cache/session optimization may reorder or
+co-schedule delivery units but must never change membership, one-PR atomicity,
+validation obligations, budget/evidence attribution, routing eligibility, or Reviewer
+independence. This extends existing identity/evidence/accounting invariants and adds
+INV-016 for continuous, independently closed validation lineage.
+
+### Phase 3–5 grounding supplied by the owner
+
+The owner described the desired human analogue: with a backlog of roughly 50–100 items,
+sit down once, prioritize and form work groups/batches in one planning session—not one
+cold LLM invocation per issue consuming 50k–100k uncached tokens. Rich defects produced
+inside Builder/Reviewer flow should retain their already-paid context in detailed
+tickets so later planning only fills missing decisions.
+
+Synthesis:
+
+1. Order is backlog snapshot → RoadmapPlan → bounded ready frontier → token-free batch
+   admission → lazy per-delivery-unit EpisodePlan. Creating EpisodePlans for all backlog
+   items before roadmap selection is rejected.
+2. Complete structured creator scope/workflow templates normalize with zero provider
+   turns. Detailed prose alone does not. Existing `op:ready` and `op:tier-*` labels do
+   not bypass EpisodePlanner; a future `planning:preplanned` label may only project a
+   persisted validated artifact ref+hash.
+3. Roadmap replanning consumes a prior plan plus bounded delta; unchanged inputs use
+   stable references/prefixes. Actual cache evidence is measured, not assumed.
+4. Builder/Reviewer-discovered issues retain exact episode/PR/HEAD, reproduction,
+   evidence and contract lineage, but Planner/human still owns priority, membership and
+   readiness.
+5. Product planning and delivery converge on one `orchestrateEpisode` façade while
+   retaining separate catalogs, validators, prompts, handlers and terminal artifacts.
+
+Derived additions: M17; J-20; B-20/B-21/B-22; C-OP-VALIDATION/C-OP-BATCH; S-10; Planner
+large-backlog/delta/cache-lure cases; Validation Designer pre-tuning golden cases.
+
+### Direct-work refinement and Phase 6 confirmation
+
+The owner confirmed the Phase 6 allocation, then supplied three calibration scenarios:
+(1) a ready-made fully planned ticket; (2) a small webpage bug discovered by Support in
+Jira and deposited into backlog; and (3) a release-promotion task posting to five Reddit
+destinations, LinkedIn and Twitter, then following the posts. The intended principle is
+that simple or complete work should not traverse ceremonial multi-agent planning merely
+because every outcome ultimately needs an EpisodePlan.
+
+Synthesis distinguishes artifact from provider work and code from operations:
+
+- Complete code work bypasses roadmap/EpisodePlanner **provider turns** through strict
+  normalization, but retains deterministic RoadmapPlan membership, validation, one-PR
+  delivery and independent review.
+- A proven low-risk Support bug uses governed quick-fix roadmap/validation/workflow
+  templates; it skips portfolio debate, not roadmap accounting or code review.
+- A complete non-code operational task may bypass RoadmapPlan entirely as a direct
+  execution unit, but never bypasses EpisodeIntent/EpisodePlan/effect policy. One
+  Marketing/Reddit-agent turn can draft a coherent campaign without ten ceremonial
+  agents. Seven external destinations remain seven exact payload approvals and seven
+  acknowledgements; batching cannot widen authority. Unknown follow-up replies become
+  future units when their content exists.
+
+This generalizes execution batches to a union of roadmap-backed code-delivery units and
+complete direct operational units. Existing B-13/B-17/T-12 own event/external-effect
+seams; B-17 L3 remains blocked without a disposable target. No external posting is
+authorized or performed by this design work.
+
+### Phase 7 tooling confirmation
+
+The proposed selection reused the ratified baseline stack: Vitest, fast-check, owned
+in-process fakes plus real temporary git/filesystems, the existing opt-in live runner,
+hand-rolled eval runner, contention rig, soak protocol, pinned gitleaks and GitHub
+Actions. The revision adds deterministic 100+ issue/delta fixtures, roadmap/validation/
+batch fixtures, scripted cache evidence and kill schedules; it adds no framework,
+database, queue, cassette system, hosted evaluator or campaign type.
+
+**Phase 7 gate: CONFIRMED (2026-08-03).** Owner response: “Confirmed. Thanks.” Scope:
+tooling only; policy/catalog/backlog and Phase 8 reader review still owed at that point.
+
+### Phase 8 deliverables and adversarial review
+
+The policy now carries an `awaiting_phase8_acceptance` revision registry for
+M17/J-20/INV-016/B-20…22/C-OP-BATCH/C-OP-VALIDATION/S-10. The catalog adds and closes
+the design-only journey, state-machine, invariant, boundary, contract and LLM families;
+the backlog sequences HB-100…111 from a provider-free vertical skeleton. Golden sets
+remain pre-tuning and `human_validation=pending`.
+
+Three fresh-context reader perspectives were applied:
+
+- **Operator:** found ambiguity in “batch complete,” Jira/example capability, and label
+  authority. Fixed by total per-unit disposition semantics, explicit future-adapter/no-
+  live-post language, and ref+hash-only projection rules.
+- **New engineer:** found lifecycle state names present only in case families, old
+  policy/catalog counts, and unspecified storage paths. Fixed the first two in operation
+  contracts/policy/catalog; accepted exact paths as a pinned HB-101 implementation
+  decision because authority and identity semantics are already fixed.
+- **Coding agent:** found the risk of isolated green components, the two EpisodePlanner
+  entry-path asymmetry, and protected protocol surfaces being treated as ordinary code.
+  Fixed with HB-100's vertical negative-control skeleton, HB-107 façade convergence,
+  and proposal-only HB-111/AGENTS addendum.
+
+One duplicate historical CF-B02-L3 catalog row was removed while recounting closure; no
+contract or evidence claim changed. No new product-truth ambiguity was found, so no new
+F-PT entry was opened.
+
+**Phase 8 gate: ACCEPTED (2026-08-03).** The product owner selected and returned the
+exact §10.1 acceptance statement: the revision is the binding implementation contract
+and HB-100 may begin. The same statement retains separate approval for protocol-surface
+changes, merges, publication/deployment and live/token-spending campaigns. The request
+body was otherwise blank; the exact selected statement is the attributable acceptance
+record. No implementation or evidence claim follows from acceptance alone.

@@ -1,10 +1,66 @@
 # Harness design state — Cormidia validation campaign
 
-Updated: 2026-08-01 (2026-07-31 design campaign CLOSED and RATIFIED; implementation Waves
+Updated: 2026-08-03 (2026-07-31 design campaign CLOSED and RATIFIED; implementation Waves
 0–4 plus L3/L4 runner surfaces, L5 contention/soak collectors, and HB-080/081
 complete in the replacement harness worktree; audit loop CLOSED verdict
 "clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7;
 product-owner ratification record in ratification-package.md §9)
+
+## Active harness revision — roadmap, validation, delivery units, batching (2026-08-03)
+
+Scope: combined #184/#233/#234/#240 lifecycle, `harness-revision` fast mode. Phase 0
+scope/coexistence and Phase 1 map+tier were explicitly confirmed; Phase 2's invariant
+direction and naming were explicitly confirmed. Phase 3 boundaries, Phase 4 contracts,
+and Phase 5 call-site/golden-set changes are drafted from the owner's large-backlog,
+one-sitting/cache-economics elicitation.
+
+Draft additions: M17; J-20; INV-016 plus surgical extensions to existing invariants;
+B-20/B-21/B-22 and their canonical contracts; C-OP-VALIDATION/C-OP-BATCH; delivery-unit
+revisions to C-OP-PLAN/C-OP-LOOP; S-10 Validation Designer; large-backlog/delta/cache-
+lure Planner cases; Validation Designer pre-tuning cases. The implementation converges
+product planning and delivery on the shared `orchestrateEpisode` façade while retaining
+domain-specific adapters.
+
+Phase 6 risk weighting and layer-5 obligations were explicitly owner-confirmed. A later
+scenario refinement generalized batching from code delivery units to execution units:
+roadmap-backed code units and complete direct operational units. The latter may omit
+RoadmapPlan but never EpisodePlan/effect policy; external payloads retain exact approvals.
+
+Phase 7 tooling was explicitly owner-confirmed: the existing Vitest/fast-check/owned-
+fake/temp-git/eval/ops toolchain remains sufficient, with new fixtures rather than a new
+framework or hosted service. The policy registry, matrix-closed design cases and
+implementation backlog are now drafted. The operator/new-engineer/coding-agent reader
+test is recorded in the Phase 8 package.
+
+Phase 8 was explicitly accepted by the product owner on 2026-08-03 using the exact
+decision statement recorded in `ratification-package.md` §10.7. Verification on the
+isolated revision worktree: policy/golden JSON parse and
+registry/cardinality checks passed; `git diff --check`, typecheck and build passed; the
+final offline run passed 145/145 files and 951 tests with one intentionally parked skip.
+The first full run's unrelated CF-J12-I missing-journal failure passed immediately in
+isolation and the subsequent full rerun was green; it was recorded rather than ignored.
+
+**Current state:** Phase 8 is closed and the revision is the binding implementation
+contract. HB-100's local provider-free walking skeleton and HB-101's whole-backlog
+roadmap authority are complete in
+`src/org/roadmap-delivery.ts` with its L1/L2 detector at
+`claude-tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts` and five
+HB-101 cases at `claude-tests/hermetic/cf-hb101/roadmap-authority.test.ts`.
+Protocol-surface edits, merge, publication/deployment, external effects and live/eval/
+soak campaigns remain separately gated; acceptance creates no autonomous-loop
+readiness, release-gating or executable-coverage claim.
+
+HB-100 verification: its three cases prove the two-ticket roadmap→validation→batch→
+lazy zero-turn EpisodePlan→atomic claim→synthetic PR evidence→independent review join,
+plus label-only and human-only refusals and seeded contract/HEAD lineage violations.
+HB-101 adds immutable complete/paginated backlog snapshots, current RoadmapPlan pointer,
+exact 125-issue accounting, WIP/priority/frontier guards, deterministic projection
+repair, stable IDs, append-only moves, and a 120-item prior-plan delta with only one
+changed and one added issue; non-admitted work creates no EpisodePlan. The complete
+offline gate passed 147/147 files and 959 tests with one intentionally parked skip;
+typecheck, build and `git diff --check` passed. No provider, live/eval/soak, merge,
+publication, protocol-surface edit or external effect ran. HB-102…111 and #239
+integration remain pending, so autonomous-loop readiness is not claimed.
 
 ## Harness revision — comparative execution (2026-08-01)
 
@@ -206,7 +262,12 @@ its §9). Summary of the event:
   ratified/adjusted-ratified on 2026-07-31; only register items 9–12 remain PROPOSED.
 
 ## Pending confirmations
-- None in-campaign. Audit iteration 2 CONFIRMED (2026-07-31): verification pass clean,
+- **Active 2026-08-03 revision:** Phase 8 was accepted on 2026-08-03 as recorded at
+  `ratification-package.md` §10.7. HB-100/HB-101 local provider-free implementation is
+  complete; HB-102…111 remain. The proposed AGENTS routing addendum remains separately
+  approval-gated.
+- **Closed 2026-07-31 campaign:** none in-campaign. Audit iteration 2 CONFIRMED:
+  verification pass clean,
   no new blocking findings; two residues fixed, compound-tag convention accepted
   as-is; historical "pending Phase 1 hard-stop" quotations in audit/log entries are
   trace preservation per stakeholder ruling, not unresolved residue. AUD-101…109

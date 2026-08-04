@@ -14,6 +14,12 @@ Harness revision 2026-08-01: B-18/B-19 are the only new boundaries introduced by
 owner-confirmed comparative-execution direction. Existing B-02/03/04, B-14/15/16 and
 their layer placements are reused rather than duplicated.
 
+Harness revision 2026-08-03 (#184/#233/#234/#240): B-20/B-21/B-22 cover the newly
+confirmed durable joins from RoadmapPlan to admission, validation contract to delivery,
+and execution batch to independently authoritative delivery episodes. GitHub/provider/
+filesystem transport still reuses B-01/B-02..04/B-15; these rows exist because their
+state owners and asynchronous failure domains differ, not to duplicate transport tests.
+
 Boundaries fall out of the structural view (state ownership, consistency, failure
 domains) — never testing convenience. Interfaces (CLI/JSON/UI) are adapters, not
 boundaries; the `org → loop → runtime` import layering is code organization, not failure
@@ -374,6 +380,83 @@ both fake and real dependency to prevent drift.
   journey. Standalone materialization is local and creates no new L3 target.
 - **Layer:** 1/2.
 
+### B-20 — RoadmapPlan authority ↔ ready-frontier and delivery admission `[stated]`
+- **Why it is a boundary:** the deterministic roadmap publisher owns one versioned
+  account of backlog membership, delivery units, dependencies, priority, WIP and
+  validation status; scheduler/readiness consumers run later and can fail or observe a
+  changed GitHub backlog while that accepted plan remains intact.
+- **Boundary test:** a valid RoadmapPlan can exist while scheduling is stopped; a healthy
+  scheduler must refuse a missing, stale, truncated, or contradictory plan. PASS.
+- **Journeys / tier:** J-03/J-20/J-18; C2 planning with T-3 routing and T-9 evidence
+  slices where admission could include protected work or claim unsupported readiness.
+- **Failure modes:** one of 100 considered issues is dropped or assigned twice; unstable
+  workstream/delivery-unit IDs rewrite history; dependency cycle; ready unit has an
+  unmet dependency or absent validation contract; issue membership/routing changes
+  after snapshot; stale frontier consumed after replan; label-only readiness or
+  `planning:preplanned` forgery; partial GitHub projection; every tick rereads and
+  replans the whole backlog; a planner eagerly creates one EpisodePlan per issue before
+  admission; an unavailable/truncated backlog is represented as empty or complete.
+- **Honest fake:** YES — real roadmap validator/publisher/scheduler against the B-01
+  scripted GitHub double and B-15 temp state, including 100+ issue snapshots, deltas,
+  stale hashes, partial writes and concurrent label/body edits.
+- **Unproven real:** GitHub pagination/freshness remains B-01 L3; Planner quality and
+  context efficiency are S-1 L4/trajectory evidence, not transport truth.
+- **Layer:** 1/2 dominant; existing B-01 L3 only.
+
+### B-21 — Validation contract authority ↔ readiness, Builder evidence, and Reviewer verdict `[stated]`
+- **Why it is a boundary:** the validation-design pass proposes and the deterministic
+  validator persists obligations before readiness; Builder and Reviewer consume that
+  immutable version in later processes and can each fail while the contract remains
+  valid.
+- **Boundary test:** a validation contract can be complete while no Builder is running;
+  a Builder result can exist while Reviewer correctly refuses missing or stale evidence.
+  PASS.
+- **Journeys / tier:** J-03/J-04/J-18; C2 ordinarily, inheriting the tier of every
+  affected T-1…T-12 control point; evidence-integrity failures are T-9.
+- **Failure modes:** missing/malformed/unknown journey, boundary, contract or invariant
+  IDs; structural change smuggled through a case-only update; cheapest layer ignored;
+  no seeded negative control; waiver outside explicit policy or without provenance;
+  Builder evidence absent/copied from another unit or HEAD; Reviewer passes on declared
+  missing evidence; contract mutates after build/review; Builder and Reviewer share a
+  private reasoning session and lose independence; cross-ticket boundary touched with
+  no shared detector.
+- **Honest fake:** YES — strict schema/ID registry, fixture RoadmapPlans and validation
+  contracts, seeded Builder/Reviewer evidence, exact-HEAD changes, waiver matrices and
+  mocked provider outputs. Model quality remains S-10 L4.
+- **Unproven real:** none beyond ordinary provider adapters and GitHub exact-HEAD B-01;
+  the correctness guardrails are fully L1/L2.
+- **Layer:** 1/2; inherited existing L3 seams only.
+
+### B-22 — Execution-batch admission ↔ independently authoritative execution episodes `[stated]`
+- **Why it is a boundary:** the scheduler owns a bounded grouping/order/context-affinity
+  decision; each execution unit owns its own EpisodeIntent, EpisodePlan, claim, budget,
+  effects and verdict. Code-delivery units additionally own one PR; direct operational
+  units instead bind one complete task/event and typed effect set. One unit may fail or
+  replan while siblings and the batch journal remain valid.
+- **Boundary test:** an admitted batch can survive one unit's provider failure without
+  transferring that unit's claim/evidence/budget to a sibling; an individual delivery
+  episode can resume without recreating or reauthorizing the whole batch. PASS.
+- **Journeys / tier:** J-20/J-04/J-18; C2 scheduling, with T-5 aggregate accounting,
+  T-6 app/context isolation, T-7 per-PR merge, T-9 attribution, and T-11 exact-session
+  resume slices.
+- **Failure modes:** same unit admitted twice or to overlapping batches; cross-app unit
+  grouped; unit membership changes after batch hash; aggregate cap hides per-turn/unit
+  exposure; batch crash causes completed work to rerun; failed unit partially closes
+  tickets; cached context from a sibling changes authority or acceptance criteria;
+  Builder session resumed as Reviewer; cache miss claimed as hit; priority/cache score
+  overrides dependency, routing or validation; one giant batch defeats WIP/reviewability;
+  EpisodePlans created for non-admitted frontier members.
+  A direct task bypasses RoadmapPlan without complete creator provenance/effect policy;
+  a batch turns multiple external payloads into one widened approval; unknown follow-up
+  content is pre-authorized; code work bypasses durable roadmap accounting rather than
+  only bypassing its provider turn.
+- **Honest fake:** YES — real scheduler, episode journals and temp git with mocked
+  adapters; scripted cache metadata, hit/miss/unavailable evidence, crashes between unit
+  terminals, and per-unit failure/replan. Correctness never depends on obtaining a hit.
+- **Unproven real:** actual provider cache/session behavior reuses B-02/B-03/B-04 L3;
+  measured cache economics are observational until enough evidence exists.
+- **Layer:** 1/2 dominant; existing adapter L3; no new L5 solely for sequential batches.
+
 ## 2. Not boundaries (named, so nobody re-litigates)
 
 - `org → loop → runtime` module layering — import discipline inside one process.
@@ -386,6 +469,8 @@ both fake and real dependency to prevent drift.
   M16, not two comparison behaviors.
 - Selection judge transport — reuses B-02/B-03/B-04; its quality and calibration are
   S-8 layer-4 obligations, not a new provider boundary.
+- Delivery unit ↔ its member ticket/one-PR GitHub projections — the transaction is
+  C-OP-LOOP behavior over B-01/B-15, not another independently deployable dependency.
 
 ## 3. Diagram
 
@@ -414,6 +499,10 @@ flowchart LR
         CMP[Comparison coordinator]
         CAND[Isolated candidate lanes]
         MAT[Winner materializer]
+        ROAD[RoadmapPlan publisher]
+        VAL[Validation-contract store]
+        BATCH[Batch admission]
+        EP[Delivery episodes]
     end
     HUM[Human]
     TICK -- B-08 --> TURN
@@ -442,6 +531,11 @@ flowchart LR
     CMP -- B-19 --> MAT
     CAND -- B-02/03/04 --> ANT
     MAT -. B-15/B-14 .-> FSGIT
+    ROAD -- B-20 --> BATCH
+    VAL -- B-21 --> EP
+    BATCH -- B-22 --> EP
+    ROAD -- B-01 projection --> GH
+    EP -- B-01 delivery --> GH
 ```
 
 ## 4. Findings raised at Phase 3

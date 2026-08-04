@@ -20,6 +20,13 @@
 # comparative-execution design (M16/J-19/B-18/B-19/S-8). Existing ratified gates,
 # tiers, spend bounds, and tooling are unchanged. New case families are design-only;
 # S-8 scores remain inadmissible under F-PT-011 until calibrated and ratified.
+# changelog 2026-08-03 (owner-accepted Phase 8 implementation contract):
+# register the roadmap/validation/delivery-unit/batching revision
+# (M17/J-20/INV-016/B-20..22/S-10/C-OP-BATCH/C-OP-VALIDATION). Existing ratified
+# gates, tiers, spend bounds, tools and blocked findings are unchanged. The owner
+# accepted the exact section 10.1 decision and authorized local implementation from
+# HB-100; protocol surfaces, merge, publication/deployment and live/eval/soak remain
+# separately gated. Acceptance is not implementation evidence.
 
 schema_version: 1
 scope: product
@@ -28,6 +35,36 @@ campaign: cormidia-2026-07-31
 design_status: ratified
 ratified_on: 2026-07-31
 ratified_by: "product owner (human), in session; record: ratification-package.md -> Ratification record — 2026-07-31"
+
+active_revision:
+  id: roadmap-validation-delivery-batching-2026-08-03
+  mode: harness-revision-fast
+  status: accepted_implementation_contract
+  owner_confirmed_through_phase: 8
+  accepted_on: 2026-08-03
+  accepted_by: "product owner (human), in session; exact selected statement recorded in ratification-package.md section 10.7"
+  scope: "combined #184/#233/#234/#240 Planner -> Validation Designer -> EpisodePlanner -> Builder -> Reviewer lifecycle"
+  design_only: false
+  implementation_status: hb_100_hb_101_complete_hb_102_pending
+  implementation_or_evidence_claim: >
+    HB-100 provider-free join and HB-101 whole-backlog roadmap authority are executable
+    at claude-tests/hermetic/cf-hb100/ and cf-hb101/; this is partial L1/L2 coverage,
+    not full revision-family or autonomous-loop readiness.
+  unchanged_baseline: "2026-07-31 ratified policy, gates, spend bounds, findings and evidence ledger"
+  registry:
+    modules: [M17]
+    journeys: [J-20]
+    invariants: [CORMIDIA-INV-016]
+    boundaries: [B-20, B-21, B-22]
+    contracts: [CORMIDIA-C-B20-001, CORMIDIA-C-B21-001,
+      CORMIDIA-C-B22-001, CORMIDIA-C-OPBATCH-001,
+      CORMIDIA-C-OPVALIDATION-001]
+    llm_sites: [S-10]
+  non_negotiable: >
+    Cache/session optimization may reorder or co-schedule execution units but never
+    changes delivery membership, one-PR atomicity, validation obligations,
+    budget/evidence attribution, routing eligibility, effect authority, or Reviewer
+    independence.
 
 default_tier: C2
 tier_model:
@@ -71,7 +108,8 @@ invariants:                                  # registry; statements in invariant
   ids: [CORMIDIA-INV-001, CORMIDIA-INV-002, CORMIDIA-INV-003, CORMIDIA-INV-004,
         CORMIDIA-INV-005, CORMIDIA-INV-006, CORMIDIA-INV-007, CORMIDIA-INV-008,
         CORMIDIA-INV-009, CORMIDIA-INV-010, CORMIDIA-INV-011, CORMIDIA-INV-012,
-        CORMIDIA-INV-013, CORMIDIA-INV-014, CORMIDIA-INV-015]
+        CORMIDIA-INV-013, CORMIDIA-INV-014, CORMIDIA-INV-015,
+        CORMIDIA-INV-016]
   non_discretionary_floors: [CORMIDIA-INV-001, CORMIDIA-INV-011, CORMIDIA-INV-015]
   enforcement: "see invariants.md per item (guardrail+test for all; INV-013 reader-side guardrail)"
 
@@ -128,9 +166,9 @@ layers:                                      # the audit's diff surface
         max_equiv_usd: 100
       on_ceiling_exhaustion: "completeness=incomplete; verdict per verdict_semantics (never pass)"
   L4_eval:
-    status: "data-collection runner implemented for the ratified baseline; S-8 selection-judge integration is design-only; all quality thresholds unratified; reviewer/planner human reference validation pending"
+    status: "data-collection runner implemented for the ratified baseline; S-8 selection-judge and S-10 validation-designer integration are design-only; all quality thresholds unratified; reviewer/planner human reference validation pending"
     runner: "hand-rolled per-tuple runner over golden-sets/ (plain files in git); CORMIDIA_EVAL=1 + absolute reviewed authorization file; HEAD, canonical policy, and every golden input must be tracked and byte-identical at the authorized commit"
-    sites: "S-1..S-9 per llm-eval-plan.md; S-8 is registered design-only with an empty truthful scaffold"
+    sites: "S-1..S-10 per llm-eval-plan.md; S-8 and S-10 additions are registered design-only; S-10 has a pre-tuning scaffold with human_validation=pending"
     decision_status_rule: >
       No PROPOSED/hypothesis threshold yields pass or fail. Until the owning finding
       (F-PT-009/010/011) ratifies, campaigns run in data-collection mode and report
@@ -144,12 +182,12 @@ layers:                                      # the audit's diff surface
         implementation_status: "implemented; deterministic rig green"
         design: ">=10 due candidates, >=3 apps, duplicate (app,role) stimuli, simultaneous terminal settlement; six proof obligations (risk-allocation section 6)"
         owner: human
-        trigger: "pre-GA; repeat on material scheduler/locking change"
+        trigger: "pre-GA; repeat on material scheduler/locking/execution-batch admission or unit-claim change"
       - id: CF-OPS-SOAK          # 7-day laptop soak, owner-ratified
         implementation_status: "resumable collector implemented; human-started seven-day campaign not run"
         design: "7 calendar days ordinary laptop use, >=3 sleep/wake cycles (1 overnight), sandbox only, 15 USD ceiling; inspection list per risk-allocation section 6"
         owner: human
-        trigger: "initial autonomous qualification; repeat on material scheduler/locking/settlement/retention/shape change"
+        trigger: "initial autonomous qualification; repeat on material scheduler/locking/settlement/retention/session-reuse/execution-batch shape change"
       - id: CF-OPS-ROT           # Codex natural rotation sub-obligation (own evidence)
         parent: CF-OPS-SOAK
         implementation_status: "collector implemented; natural live evidence not observed"
@@ -226,6 +264,15 @@ tooling:
       reason: "fights per-pairing/severity aggregation and the decision-status rule; second framework surface"
     - option: hosted-eval-platforms
       reason: "data leaves the box; recurring cost; auth surface; anti-local-first"
+  revision_2026_08_03:
+    status: owner_confirmed_phase_7
+    decision: "reuse the selected stack; no new framework, service, database, queue, cassette system or hosted evaluator"
+    added_fixture_obligations:
+      - "deterministic 100+ issue backlog and bounded-delta generators"
+      - "versioned RoadmapPlan, validation-contract, direct-work and execution-batch fixtures"
+      - "scripted provider cache-hit/cache-miss/cache-unknown and session-resume evidence"
+      - "kill-point and contention schedules across unit admission, lazy EpisodePlan creation and per-unit terminal disposition"
+    quality_scaffolds: [golden-sets/planner, golden-sets/validation-designer]
 
 proposed_register:                           # provisional values; owner: human
   hb007_review: "completed 2026-07-31; product owner explicitly said 'ratify recommendations'"
@@ -295,4 +342,10 @@ harness_self_tests:                          # skill rules 16-17
   - "fixtures get self-tests; sweeps assert non-empty walks; policy loader, CI config, and registry surfaces pinned by tests"
   - "gitleaks canary proves the scanner can fire"
 
-modules: []                                  # product scope; later deep passes (M10 lifecycle, M13 learning) extend here
+modules:
+  - id: M17
+    status: "accepted implementation contract; HB-100/HB-101 complete, HB-102..111 pending"
+    subject: "roadmap and validation planning"
+    contracts: [CORMIDIA-C-B20-001, CORMIDIA-C-B21-001,
+      CORMIDIA-C-B22-001, CORMIDIA-C-OPBATCH-001,
+      CORMIDIA-C-OPVALIDATION-001]

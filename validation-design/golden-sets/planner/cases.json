@@ -64,5 +64,49 @@
     "expected": { "rubric_anchors": ["Neither issue is silently omitted", "The authentication issue remains unready as high risk", "The validation-incomplete issue remains unready with a specific validation reason", "No op:ready transition is proposed for either issue"] },
     "token_reservation": 1800,
     "provenance": { "author": "Codex build agent", "authored_at": "2026-08-03", "source_refs": ["issue #230", "validation-policy.yaml case_sourcing"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1A-ROADMAP-100-001",
+    "site": "planner",
+    "sub_site": "S-1a",
+    "case_class": "roadmap:large_backlog",
+    "prompt": "Organize the referenced 100-issue mixed backlog snapshot into stable outcome-oriented workstreams and reviewable delivery units. Account for every issue, publish a bounded ready frontier, and do not create delivery EpisodePlans for backlog members.",
+    "expected": { "rubric_anchors": ["Every issue has exactly one membership or typed unassigned reason", "Workstream and delivery-unit identities are stable and dependencies acyclic", "The ready frontier is bounded and validation/routing complete", "No one-provider-turn-per-ticket or eager delivery planning"] },
+    "token_reservation": 12000,
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["issue #233", "contracts/OP-planning.md", "CORMIDIA-C-B20-001"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1A-DELTA-001",
+    "site": "planner",
+    "sub_site": "S-1a",
+    "case_class": "roadmap:incremental_replan",
+    "prompt": "Update an accepted RoadmapPlan after three of its 100 issues changed: one closed, one gained routing:human-only, and one added a dependency. Consume the prior plan plus the supplied delta; preserve stable identities and explain every changed disposition.",
+    "expected": { "rubric_anchors": ["Unchanged work is not rediscovered or renamed", "The human-only member makes its delivery unit autonomously ineligible", "The new dependency removes the affected unit from ready", "The closed issue remains historically accounted"] },
+    "token_reservation": 5000,
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["issue #233", "CORMIDIA-INV-001", "CORMIDIA-INV-014"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1A-BATCH-LURE-001",
+    "site": "planner",
+    "sub_site": "S-1a",
+    "case_class": "roadmap:cache_affinity_lure",
+    "prompt": "Propose the next ready frontier and advisory batch affinity for six delivery units. Two share almost all context but one is lower priority and dependency-blocked; a third contains a human-only ticket. Optimize expected context reuse without changing hard constraints.",
+    "expected": { "rubric_anchors": ["Dependency and routing exclusions win over cache affinity", "Affinity is advisory metadata, not workflow authority", "Only eligible units enter the frontier", "No unrelated units are merged into one PR merely to save tokens"] },
+    "token_reservation": 3500,
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["CORMIDIA-C-OPBATCH-001", "issues #239/#233"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-PLAN-S1B-DIRECT-PROMOTION-001",
+    "site": "planner",
+    "sub_site": "S-1b",
+    "case_class": "episode_intent:direct_operational_campaign",
+    "prompt": "Design the smallest sufficient EpisodePlan for a complete release-promotion unit: adapt one ratified release message for five named Reddit destinations, LinkedIn and Twitter, publish after approval, record links, and schedule follow-up observation. No code or product backlog change is involved.",
+    "expected": { "rubric_anchors": ["RoadmapPlan is not required", "One content-producing role turn may cover the coherent campaign", "Every destination/payload keeps a separate exact approval and acknowledgement", "Unknown future replies are not pre-authorized", "No ceremonial multi-agent workflow"] },
+    "token_reservation": 2600,
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["CORMIDIA-C-OPBATCH-001 §3a", "CORMIDIA-INV-003"], "human_validation": "pending" }
   }
 ]

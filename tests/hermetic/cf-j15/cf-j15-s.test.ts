@@ -81,8 +81,12 @@ describe("CF-J15-S / CF-INV-008 — evidence never outruns reality", () => {
     });
 
     expect(snapshot.sources.map((source) => source.id).sort()).toEqual([
-      "approvals", "github", "ledger", "local_files", "scheduler",
+      "approvals", "github", "ledger", "local_files", "roadmap_delivery", "scheduler",
     ]);
+    expect(snapshot.sources.find((source) => source.id === "roadmap_delivery")).toMatchObject({
+      status: "unavailable",
+      detail: expect.stringMatching(/No durable planning state/),
+    });
     expect(snapshot.sources.find((source) => source.id === "scheduler")).toMatchObject({
       status: "unavailable",
       detail: expect.stringMatching(/not measured/i),

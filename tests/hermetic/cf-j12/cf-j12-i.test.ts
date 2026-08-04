@@ -44,6 +44,7 @@ import {
 const CAND = "cand_j12i_lesson";
 const CONCEPT = "lrn_j12i_lesson";
 const NAME = "j12i-crash-lesson";
+const TRAILING_HYPHEN_APPROVAL_ID = "20260731T120000Z-ooh-";
 
 interface JournalOnDisk {
   journal_id: string;
@@ -69,6 +70,31 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
     join(world.state.stateHome, "learning", "publish-journal", `${sanitizeIdSegment(approvalId)}.json`);
   const readJournal = async (approvalId: string): Promise<JournalOnDisk> =>
     JSON.parse(await readFile(journalPath(approvalId), "utf8")) as JournalOnDisk;
+
+  it("CF-REG-251: a seeded trailing-hyphen approval id round-trips through the publisher journal path", async () => {
+    world = await makeLearningWorld("cf-reg-251-trailing-hyphen", {
+      approvalId: TRAILING_HYPHEN_APPROVAL_ID,
+    });
+    await seedReviewedOkfCandidate(world, { id: CAND, conceptId: CONCEPT, name: NAME });
+    const approvalId = await raiseAndApprove(world, CAND);
+    expect(approvalId).toBe(TRAILING_HYPHEN_APPROVAL_ID);
+
+    const published = await publishCandidate(world.deps, CAND);
+    expect(published.status).toBe("published");
+
+    const rawPath = join(
+      world.state.stateHome,
+      "learning",
+      "publish-journal",
+      `${approvalId}.json`,
+    );
+    expect(rawPath).not.toBe(journalPath(approvalId));
+    await expect(readFile(rawPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const journal = await readJournal(approvalId);
+    expect(journal.journal_id).toBe(TRAILING_HYPHEN_APPROVAL_ID);
+    expect(journal.done_at).toBeDefined();
+  });
 
   it("crash BEFORE the artifact step: resume forward-completes the exact approved bytes from the journal — a post-approval draft tamper publishes nothing", async () => {
     world = await makeLearningWorld("cf-j12-i-leg1");

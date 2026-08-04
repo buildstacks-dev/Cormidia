@@ -24,6 +24,7 @@ import {
 import {
   appendLearningEventsDeduped,
   readLearningEvents,
+  sanitizeIdSegment,
   type LearningEvent,
 } from "../../../src/org/learning/events.js";
 import { readInterventionRecord } from "../../../src/org/learning/intervention.js";
@@ -192,7 +193,7 @@ describe("CF-J12-S — capture→episode→candidate→review→publish happy pa
       world.state.stateHome,
       "learning",
       "publish-journal",
-      `${approvalId}.json`,
+      `${sanitizeIdSegment(approvalId)}.json`,
     );
     const journal = JSON.parse(await readFile(journalPath, "utf8")) as { done_at?: string };
     expect(journal.done_at).toBeDefined();

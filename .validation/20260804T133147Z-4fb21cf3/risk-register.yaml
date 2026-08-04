@@ -1,0 +1,33 @@
+schema_version: 1
+assessment_id: hb-108-110-20260804
+risks:
+  - id: R-001
+    subject: Golden-corpus human labels are not ratified.
+    likelihood: expected
+    impact: high_if_misreported
+    control: Preserve human_validation=pending and threshold-dependent verdict=inconclusive.
+    residual: accepted_for_machinery_only
+  - id: R-002
+    subject: Seven-day contention evidence has not been collected.
+    likelihood: certain
+    impact: medium
+    control: Report collector readiness separately from campaign completeness; do not start campaign.
+    residual: pending_HB_111_or_authorized_campaign
+  - id: R-003
+    subject: A malformed batch disposition could masquerade as authoritative completion.
+    likelihood: low
+    impact: high
+    control: Validate schema, app/ref, exact unit set, outcomes, and journal hashes; degrade on corruption.
+    residual: low
+  - id: R-004
+    subject: Local validation has same-agent independence.
+    likelihood: certain
+    impact: medium
+    control: Require GitHub CI in a separate environment before merge.
+    residual: pending_until_CI
+  - id: R-005
+    subject: Release gating and external qualification evidence remain incomplete by policy.
+    likelihood: certain
+    impact: high_for_release
+    control: Make no release-readiness claim.
+    residual: outside_stated_target

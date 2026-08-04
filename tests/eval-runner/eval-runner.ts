@@ -9,7 +9,7 @@ import { writeFileAtomic } from "../../src/org/atomic.js";
 import type { Effort, RuntimeKind } from "../../src/runtime/types.js";
 import { DurableCampaignRunner } from "../campaign/campaign-runner.js";
 
-export type EvalSite = "reviewer" | "planner";
+export type EvalSite = "reviewer" | "planner" | "validation-designer";
 export interface EvalCaseV1 {
   schema_version: 1;
   id: string;
@@ -176,7 +176,7 @@ export function validateCases(cases: EvalCaseV1[]): void {
     if (item === null || typeof item !== "object" || Array.isArray(item)) throw new Error("golden case must be an object");
     exactKeys(item as unknown as Record<string, unknown>, ["schema_version", "id", "site", "sub_site", "case_class", "prompt", "expected", "token_reservation", "provenance"], "golden case");
     if (item.schema_version !== 1 || !nonEmpty(item.id) || !nonEmpty(item.prompt) || !nonEmpty(item.sub_site) || !nonEmpty(item.case_class)) throw new Error(`invalid golden case ${item.id || "(missing id)"}`);
-    if (item.site !== "reviewer" && item.site !== "planner") throw new Error(`golden case ${item.id} has unsupported site`);
+    if (item.site !== "reviewer" && item.site !== "planner" && item.site !== "validation-designer") throw new Error(`golden case ${item.id} has unsupported site`);
     if (!Number.isInteger(item.token_reservation) || item.token_reservation < 1) throw new Error(`golden case ${item.id} has invalid token_reservation`);
     if (item.expected === null || typeof item.expected !== "object" || Array.isArray(item.expected)) throw new Error(`golden case ${item.id} expected must be an object`);
     exactKeys(item.expected as unknown as Record<string, unknown>, ["verdict", "rubric_anchors"], `golden case ${item.id} expected`);

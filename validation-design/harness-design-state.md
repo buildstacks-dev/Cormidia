@@ -1,6 +1,6 @@
 # Harness design state — Cormidia validation campaign
 
-Updated: 2026-08-03 (2026-07-31 design campaign CLOSED and RATIFIED; implementation Waves
+Updated: 2026-08-04 (2026-07-31 design campaign CLOSED and RATIFIED; implementation Waves
 0–4 plus L3/L4 runner surfaces, L5 contention/soak collectors, and HB-080/081
 complete in the replacement harness worktree; audit loop CLOSED verdict
 "clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7;
@@ -73,7 +73,11 @@ ordered context manifests, exact role/app/assignment/operation session compatibi
 crash-safe settlement and cache hit/miss/unknown evidence. Their detectors live under
 `tests/hermetic/cf-hb106/`, `tests/hermetic/cf-hb107/`, and
 `tests/unit/cf-hb107/`. #239 is merged and its two-boundary exclusion remains covered;
-HB-108…111 remain, so autonomous-loop readiness is not claimed.
+HB-108 expands the accepted deterministic catalog and integrates the pending pre-tuning
+corpora, HB-109 completes batch-aware contention/collector machinery, and HB-110 adds
+the shared Status/Report/Observe explanation. Human golden references, the seven-day
+campaign, HB-111 and external evidence remain, so autonomous-loop readiness is not
+claimed.
 
 ## Harness revision — comparative execution (2026-08-01)
 
@@ -125,11 +129,14 @@ typecheck`, `pnpm build`, and `git diff --check` passed. No L3/L4/L5 campaign ra
   reporting are implemented. No live provider/repository/host campaign was run, so
   HB-051…054 evidence remains incomplete—not pass. B-17-L3 remains blocked.
 - L4: the per-tuple data-collection runner, rotating shards, token reservations, and
-  reviewer/planner/builder-trajectory committed sets are implemented. Reviewer and
-  planner human reference review remains pending; F-PT-009/010/011 keep every
+  reviewer/planner/Validation-Designer/builder-trajectory committed sets are implemented.
+  Reviewer, Planner and Validation Designer human reference review remains pending;
+  F-PT-009/010/011 keep every
   threshold-dependent verdict inconclusive.
-- L5: CF-OPS-CONT's ratified contention rig is implemented and green. The resumable
-  seven-day soak/rotation collector is implemented but no real window was scheduled.
+- L5: CF-OPS-CONT's ratified contention rig is implemented through overlapping batches,
+  duplicate stimuli, atomic multi-ticket claims, per-unit settlement, sibling isolation
+  and stale frontiers. The resumable seven-day soak/rotation collector records the same
+  batch/session/cache/recovery dimensions but no real window was scheduled.
   The ten-surface threat-model worksheet is explicitly only a scaffold; HB-072 awaits
   a human author/reviewer and the hash-bound gate keeps HB-073 blocked.
 - HB-080 and HB-081 are complete: the alert→action runbook is linked from all campaign
@@ -276,9 +283,10 @@ its §9). Summary of the event:
 
 ## Pending confirmations
 - **Active 2026-08-03 revision:** Phase 8 was accepted on 2026-08-03 as recorded at
-  `ratification-package.md` §10.7. HB-100…HB-107 local offline implementation is
-  complete; HB-108…111 remain. The proposed protocol-surface package
-  remains separately approval-gated under HB-111.
+  `ratification-package.md` §10.7. HB-100…HB-110 local offline machinery is complete;
+  HB-109's human-started seven-day evidence, human golden references, thresholds and
+  external evidence remain pending. The proposed protocol-surface package remains
+  separately approval-gated under HB-111.
 - **Closed 2026-07-31 campaign:** none in-campaign. Audit iteration 2 CONFIRMED:
   verification pass clean,
   no new blocking findings; two residues fixed, compound-tag convention accepted

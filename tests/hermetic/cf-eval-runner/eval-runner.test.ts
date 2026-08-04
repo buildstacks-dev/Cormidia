@@ -3,6 +3,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { readValidationCampaignReports } from "../../../src/org/validation-campaign.js";
 import { DurableCampaignRunner } from "../../campaign/campaign-runner.js";
 import { runEvalCampaign, selectRotatingShard, validateCases, type EvalCaseV1, type EvalTuple } from "../../eval-runner/eval-runner.js";
@@ -121,5 +122,55 @@ describe("eval runner", () => {
         equivUsd: 0.1, sessionId: "invalid-usage",
       }) },
     })).rejects.toThrow(/invalid token usage/);
+  });
+
+  it("integrates the pre-tuning Planner and Validation Designer corpora as pending, unscored data collection", async () => {
+    const corpusPaths = [
+      join(process.cwd(), "validation-design", "golden-sets", "planner", "cases.json"),
+      join(process.cwd(), "validation-design", "golden-sets", "validation-designer", "cases.json"),
+    ];
+    const corpora = (await Promise.all(corpusPaths.map(async (path) =>
+      JSON.parse(await readFile(path, "utf8")) as EvalCaseV1[]))).flat();
+    validateCases(corpora);
+    expect(new Set(corpora.map((item) => item.site))).toEqual(new Set(["planner", "validation-designer"]));
+    expect(corpora.every((item) => item.provenance.human_validation === "pending")).toBe(true);
+
+    const selected = [
+      corpora.find((item) => item.id === "GS-PLAN-S1A-ROADMAP-100-001")!,
+      corpora.find((item) => item.id === "GS-VAL-S10-CROSS-TICKET-001")!,
+    ];
+    const required = selected.map((item) => `${tuples[0]!.id}::${item.id}`);
+    const runner = await campaign(required, required.length + 1);
+    const results = await runEvalCampaign({
+      campaign: runner,
+      campaignId: "eval-test",
+      stateHome: state!.stateHome,
+      cases: selected,
+      tuples: [tuples[0]!],
+      maxTokens: 20_000,
+      executor: { execute: async ({ evalCase }) => ({
+        output: `Fixture response for ${evalCase.id}`,
+        tokensIn: 20,
+        tokensOut: 10,
+        equivUsd: 0.1,
+        sessionId: `pending-${evalCase.id}`,
+      }) },
+    });
+    expect(results.observations).toHaveLength(2);
+    expect(results.observations.every((item) =>
+      item.observed_verdict === "not_applicable"
+      && item.matches_reference === null
+      && item.human_reference_status === "pending")).toBe(true);
+    expect((await runner.finish()).outcome).toMatchObject({
+      completeness: "complete",
+      verdict: "inconclusive",
+      decision_status: "proposed",
+    });
+  });
+
+  it("negative control: a Validation Designer corpus row without its S-10 sub-site is rejected", async () => {
+    const path = join(process.cwd(), "validation-design", "golden-sets", "validation-designer", "cases.json");
+    const corpus = JSON.parse(await readFile(path, "utf8")) as EvalCaseV1[];
+    expect(() => validateCases([{ ...corpus[0]!, sub_site: "" }])).toThrow(/invalid golden case/);
   });
 });

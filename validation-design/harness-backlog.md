@@ -384,8 +384,8 @@ prepares the proposal and a human separately ratifies any such surface. -->
   claim under a race, persistence-before-projection, label-without-artifact refusal,
   whole-unit human-only exclusion at admission and claim, exact unit/contract/HEAD
   negative controls, and verdict-bound settlement. This is walking-skeleton coverage
-  only; HB-108…111 remain required before autonomous-loop readiness (HB-101…HB-107 are
-  complete below).
+  only; HB-108/HB-110 and HB-109 machinery are complete below, while the HB-109
+  seven-day evidence and HB-111 remain required before autonomous-loop readiness.
 - **HB-101 — COMPLETE 2026-08-03 — RoadmapPlan schema, store, snapshot and bounded-delta replanning.** Add
   versioned/hash-bound RoadmapPlan and backlog-snapshot schemas; stable workstream/unit
   IDs; exact issue accounting; graph/WIP/priority/frontier validation; predecessor/move
@@ -435,7 +435,8 @@ prepares the proposal and a human separately ratifies any such surface. -->
   approval, waiver authority/expiry and current roadmap/frontier are rechecked through
   settlement, lifecycle ingestion is strict, and projections prove durable current
   readiness.
-  Full operator and remaining matrix families remain HB-108…111.
+  HB-108 closes the deterministic matrix and HB-110 closes the operator surfaces below;
+  human S-10 reference review/thresholds, HB-109 live evidence and HB-111 remain pending.
 - **HB-103 — COMPLETE 2026-08-03 — Multi-ticket delivery units and one-PR atomicity.** Replace ticket-scoped
   claim/review/merge assumptions with a stable delivery-unit authority containing one or
   more members. Make claim/revalidation all-or-none; bind branch, gates, evidence,
@@ -530,7 +531,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   `tests/unit/cf-hb107/shared-orchestrator-facade.test.ts` seed crash, cache-lure,
   Builder→Reviewer and direct-facade-bypass violations. Ticket provider turns persist
   the manifests/telemetry; no adapter invocation semantics or L3 campaign changed.
-- **HB-108 — Complete deterministic catalog and pre-tuning golden integration.** Land
+- **HB-108 — COMPLETE 2026-08-04 — Complete deterministic catalog and pre-tuning golden integration.** Land
   every 2026-08-03 design-only L1/L2 family with seeded negative controls, plus the
   Planner large-backlog/delta/cache-lure cases and Validation Designer cases in the L4
   runner. Obtain human reference validation separately; never tune prompts before the
@@ -539,7 +540,13 @@ prepares the proposal and a human separately ratifies any such surface. -->
   C-OP-BATCH/C-OP-VALIDATION/S-10; empty walks and detector-never-fired states fail.
   *Defends:* all revision CF families. *Layer:* 1/2 + 4 data collection.
   *Executor:* human + build-agent. *Depends on:* HB-101…107.
-- **HB-109 — Batch-aware contention and soak repeat cases.** Extend the existing
+  *Implementation:* `src/org/ratified-validation-catalog.ts` expands and content-pins
+  the accepted deterministic registry; `tests/hermetic/cf-hb108/` fails empty walks and
+  detector-never-fired families. The L4 runner accepts the committed Planner and
+  Validation Designer corpora with every reference still `human_validation=pending`;
+  F-PT-010/011 keep all threshold-dependent results inconclusive. No provider/eval
+  campaign ran.
+- **HB-109 — MACHINERY COMPLETE 2026-08-04; SEVEN-DAY EVIDENCE PENDING — Batch-aware contention and soak repeat cases.** Extend the existing
   deterministic contention rig with overlapping batches, duplicate unit stimuli,
   all-or-none multi-ticket claims, per-unit settlement and terminal isolation. Extend
   the existing soak collector's inspection schema for batch progress, stale frontiers,
@@ -549,7 +556,13 @@ prepares the proposal and a human separately ratifies any such surface. -->
   *Layer:* 5 (contention rig may remain hermetic; soak is live evidence). *Executor:*
   build-agent for machinery; human + campaign for the seven-day run. *Depends on:*
   HB-103/104/107.
-- **HB-110 — Operator/explain/report surfaces for roadmap, validation and batches.**
+  *Implementation:* `tests/ops/contention-rig.ts` now exercises overlapping direct
+  batches, duplicate stimuli, atomic two-ticket claim rollback, per-unit mixed terminal
+  settlement, sibling isolation and stale-frontier refusal. `tests/ops/soak-protocol.ts`
+  records batch-complete/all-unit-success, stale-frontier, session-reuse, cache-quality
+  and recovery-state denominators. The hermetic rig and collector negative controls are
+  green; the human-started seven-day campaign remains unrun and incomplete.
+- **HB-110 — COMPLETE 2026-08-04 — Operator/explain/report surfaces for roadmap, validation and batches.**
   Add read-only explanations and cross-surface projections that distinguish artifact
   authority from labels, provider-turn fast path from workflow bypass, batch complete
   from every-unit-success, cache unknown from zero, and direct operational readiness
@@ -557,6 +570,11 @@ prepares the proposal and a human separately ratifies any such surface. -->
   same fixture; stale/unavailable sources name affected claims and never render green.
   *Defends:* INV-008/016, CF-IF-XSURF and J-03/J-20 observation clauses. *Layer:* 2.
   *Executor:* build-agent. *Depends on:* HB-101…107.
+  *Implementation:* `src/org/roadmap-explanation.ts` is the single read-only projection
+  consumed by `cormidia status` text/JSON, Observe snapshot/UI, and Reports JSON/
+  terminal/portable HTML. `tests/hermetic/cf-hb110/` proves exact projection equality,
+  mixed-outcome batch wording, artifact-versus-label authority, fast-path/cache/routing/
+  recovery explanations, and degraded-source affected-claim naming.
 - **HB-111 — Human-ratified protocol-surface proposal.** Prepare exact, reviewable
   proposed diffs for any needed Planner/Validation Designer role assignment,
   pipelines.yaml ordering, prompts, TASTE or PURPOSE language. Include migration,

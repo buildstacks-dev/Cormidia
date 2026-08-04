@@ -79,6 +79,34 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
       await expect(recordSoakCheckpoint(config, evidence)).rejects.toThrow(/policy drifted/);
     } finally { await org.cleanup(); }
   });
+
+  it("negative control: batch success and cache/recovery accounting cannot exceed their durable denominators", () => {
+    const state = {
+      schema_version: 1 as const,
+      campaign_id: "soak-accounting",
+      started_at: "2026-07-01T00:00:00.000Z",
+      commit: "a".repeat(40),
+      config_sha256: "b".repeat(64),
+      policy_sha256: "c".repeat(64),
+      timezone: "America/Los_Angeles",
+      sandbox: { org: "fixture", apps: ["sandbox-app"], repos: ["fixture/sandbox-app"] },
+      baseline: { provider_turns: 0, equiv_usd: 0, human_decision_rows: 0 },
+      checkpoints: [checkpoint("seeded-accounting", "2026-07-09T12:00:00.000Z")],
+    };
+    state.checkpoints[0]!.roadmap_delivery = {
+      ...state.checkpoints[0]!.roadmap_delivery,
+      batches_observed: 1,
+      batches_complete: 2,
+      batches_every_unit_successful: 3,
+      units_observed: 1,
+      cache_evidence: { hit: 1, miss: 1, unknown: 0 },
+    };
+    expect(evaluateSoak(state, new Date("2026-07-09T12:00:00.000Z")).violation_ids).toEqual(expect.arrayContaining([
+      "CF-OPS-SOAK:batch_completion_exceeds_observed",
+      "CF-OPS-SOAK:batch_success_exceeds_completion",
+      "CF-OPS-SOAK:cache_evidence_accounting_mismatch",
+    ]));
+  });
 });
 
 async function configFor(org: Awaited<ReturnType<typeof makeTempOrgHome>>, policy: string, authorizedAt: string): Promise<SoakConfigV1> {
@@ -129,6 +157,20 @@ function checkpoint(
     state_growth: { files: 10, bytes: 1000 },
     retention: { completed_sweeps: 1, sweeps_with_errors: 0 },
     source_health: [{ id: "local_files", status: "healthy" }, { id: "approvals", status: "healthy" }, { id: "ledger", status: "healthy" }],
+    roadmap_delivery: {
+      batches_observed: 1,
+      batches_complete: 1,
+      batches_every_unit_successful: 0,
+      units_observed: 2,
+      stale_frontier_refusals: 1,
+      session_reuse: { consider_exact_reuse: 1, rerun_without_session: 1, no_cross_unit_reuse: 0 },
+      cache_evidence: { hit: 1, miss: 0, unknown: 1 },
+      recovery_states: {
+        not_started: 0, in_progress: 0, rerun_without_session: 1,
+        consider_exact_session_reuse: 1, no_cross_unit_reuse: 0,
+        terminal_completed: 0, terminal_returned: 0, terminal_failed: 0, unavailable: 0,
+      },
+    },
     human_decision_rows: 0,
   };
 }

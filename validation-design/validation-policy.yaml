@@ -41,6 +41,15 @@
 # exact session compatibility and cache hit/miss/unknown telemetry are executable at
 # L1/L2. No connector, external effect or live/eval/soak campaign ran. HB-108..111 and
 # protocol ratification remain pending.
+# changelog 2026-08-04 (HB-108/HB-109 machinery/HB-110): the accepted validation
+# catalog now contains the complete deterministic 2026-08-03 registry and a new
+# content pin; its closure walk fails on empty families or missing seeded detectors.
+# Planner and Validation Designer pre-tuning corpora run as pending, unscored data
+# collection and stay inconclusive under F-PT-010/011. The contention rig now covers
+# overlapping batches, duplicate stimuli, atomic multi-ticket claims, mixed sibling
+# settlement and stale frontiers; the soak collector records the same batch/cache/
+# recovery denominators, but no seven-day campaign ran. CLI Status, Reports and Observe
+# consume one read-only explanation projection. No protected protocol surface changed.
 # changelog 2026-08-03 (owner decision): exact manual-review independently excludes
 # autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
 # No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
@@ -62,13 +71,15 @@ active_revision:
   accepted_by: "product owner (human), in session; exact selected statement recorded in ratification-package.md section 10.7"
   scope: "combined #184/#233/#234/#240 Planner -> Validation Designer -> EpisodePlanner -> Builder -> Reviewer lifecycle"
   design_only: false
-  implementation_status: hb_100_through_hb_107_complete_hb_108_pending
+  implementation_status: hb_100_through_hb_110_offline_machinery_complete_hb_109_live_evidence_and_hb_111_pending
   implementation_or_evidence_claim: >
-    HB-100 through HB-107 have named local L1/L2 slices: provider-free authority joins,
+    HB-100 through HB-110 have named local L1/L2 slices: provider-free authority joins,
     whole-backlog roadmap and validation readiness, atomic delivery units, bounded lazy
     batches, structured fast paths, complete direct campaign authority, the shared
-    orchestration facade, and exact role/session/cache evidence. This remains partial
-    revision-family coverage, not external-campaign or autonomous-loop readiness.
+    orchestration facade, exact role/session/cache evidence, deterministic catalog
+    closure, batch-aware contention/soak collection machinery, and shared operator
+    explanations. The seven-day campaign, human golden-reference review, thresholds,
+    HB-111 and external evidence remain pending; this is not autonomous-loop readiness.
   unchanged_baseline: "2026-07-31 ratified policy, gates, spend bounds, findings and evidence ledger"
   registry:
     modules: [M17]
@@ -92,8 +103,8 @@ active_revision:
     manual_label_wildcard: false
     manual_feelview_status: "HB-112 taxonomy audit only; no scheduling semantics"
   validation_contract_authority:
-    catalog_slice_content_sha256: "cf09951a195e5f850d94a8034e51247cc4a70645233cf23f18c3a78497bb21c5"
-    catalog_expansion_owner: "HB-108 plus accepted harness-revision pin update"
+    catalog_slice_content_sha256: "58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880"
+    catalog_expansion_owner: "HB-108 complete 2026-08-04; accepted harness-revision pin updated"
     waiver_authority: "exact unrevoked durable human approval, content-bound to the complete obligation"
     waiver_recheck: "acceptance and every downstream delivery join through settlement"
 
@@ -197,9 +208,9 @@ layers:                                      # the audit's diff surface
         max_equiv_usd: 100
       on_ceiling_exhaustion: "completeness=incomplete; verdict per verdict_semantics (never pass)"
   L4_eval:
-    status: "data-collection runner implemented for the ratified baseline; S-8 selection-judge and S-10 validation-designer integration are design-only; all quality thresholds unratified; reviewer/planner human reference validation pending"
+    status: "data-collection runner integrates Reviewer, Planner and Validation Designer corpora; S-8 selection-judge remains design-only; all quality thresholds unratified and all human reference validation remains pending"
     runner: "hand-rolled per-tuple runner over golden-sets/ (plain files in git); CORMIDIA_EVAL=1 + absolute reviewed authorization file; HEAD, canonical policy, and every golden input must be tracked and byte-identical at the authorized commit"
-    sites: "S-1..S-10 per llm-eval-plan.md; S-8 and S-10 additions are registered design-only; S-10 has a pre-tuning scaffold with human_validation=pending"
+    sites: "S-1..S-10 per llm-eval-plan.md; S-8 remains registered design-only; S-10 pre-tuning cases are runner-integrated with human_validation=pending and threshold-dependent outcomes inconclusive under F-PT-011"
     decision_status_rule: >
       No PROPOSED/hypothesis threshold yields pass or fail. Until the owning finding
       (F-PT-009/010/011) ratifies, campaigns run in data-collection mode and report
@@ -207,7 +218,7 @@ layers:                                      # the audit's diff surface
       are inadmissible until their calibration sets exist AND thresholds ratify.
     cadence: "per-site prompt/model/instruction change; release qualification; nightly rotating shards (when scheduled validation exists); token ceiling declared per campaign; partial evidence preserved"
   L5_ops:
-    status: "contention rig + soak collector implemented; real seven-day evidence pending; human threat model pending; abuse lane blocked"
+    status: "batch-aware contention rig + extended soak collector implemented; real seven-day evidence pending and was not started; human threat model pending; abuse lane blocked"
     obligations:
       - id: CF-OPS-CONT          # contention (L5 by question; hermetic rig)
         implementation_status: "implemented; deterministic rig green"
@@ -375,7 +386,7 @@ harness_self_tests:                          # skill rules 16-17
 
 modules:
   - id: M17
-    status: "accepted implementation contract; HB-100..HB-107 complete, HB-108..111 pending"
+    status: "accepted implementation contract; HB-100..HB-110 offline machinery complete, HB-109 live evidence and HB-111 pending"
     subject: "roadmap and validation planning"
     contracts: [CORMIDIA-C-B20-001, CORMIDIA-C-B21-001,
       CORMIDIA-C-B22-001, CORMIDIA-C-OPBATCH-001,

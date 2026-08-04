@@ -22,6 +22,7 @@ export function renderReportHtml(report: ReportSnapshotV1): string {
 <p class="confidential"><strong>Confidential operational metadata.</strong> Portable local projection; no external requests. Equivalent cost is not a provider invoice.</p>
 ${quality(report)}
 ${validationCampaigns(report)}
+${roadmapExplanation(report)}
 <section aria-labelledby="headline"><h1 id="headline">Usage overview</h1><div class="metrics">${metric("Known input", formatInt(report.headline.known_input_tokens))}${metric("Known output", formatInt(report.headline.known_output_tokens))}${metric("Known total", formatInt(report.headline.known_total_tokens))}${metric("Equivalent cost", money(report.headline.recorded_equivalent_cost_usd), `reported ${money(report.headline.provider_reported_cost_usd)} · estimated ${money(report.headline.cormidia_estimated_cost_usd)} · partial ${money(report.headline.partial_recorded_cost_usd)}`)}${metric("Provider turns", String(report.headline.provider_turns), `${report.headline.unknown_usage_turns} unknown usage`)}${metric("Sessions", String(report.headline.sessions), `${report.headline.completed_sessions} completed`)}</div></section>
 ${efficiency(report)}
 ${budget(report)}
@@ -36,6 +37,19 @@ ${report.unattributed_turns.length === 0 ? "" : `<section><h2>Unattributed turns
 <script id="report-data" type="application/json">${json}</script>
 <script>${JS}</script>
 </body></html>\n`;
+}
+
+function roadmapExplanation(report: ReportSnapshotV1): string {
+  if (report.roadmap_explanation.apps.length === 0) return "";
+  return report.roadmap_explanation.apps.map((app) => {
+    const batches = app.batches.map((batch) =>
+      `<tr><td><code>${esc(batch.batch_id)}</code></td><td>${batch.complete}</td><td>${batch.every_unit_success === null ? "unknown" : batch.every_unit_success}</td><td>${esc(batch.authority.durable_ref)}</td></tr>`,
+    ).join("");
+    const units = app.delivery_units.map((unit) =>
+      `<tr><td><code>${esc(unit.unit_id)}</code><br><small>${esc(unit.kind)}</small></td><td>${esc(unit.artifact_authority.validation_contract?.durable_ref ?? "unavailable")}</td><td>${esc(unit.fast_path.reason)}<br><small>workflow bypass: ${unit.fast_path.workflow_bypassed ?? "unknown"}</small></td><td>${esc(unit.cache_evidence.measurement)}<br><small>cost-affinity only; unknown is not zero</small></td><td>${unit.routing_exclusion.excluded ?? "unknown"}<br><small>${esc(unit.routing_exclusion.reasons.join(", ") || "none")}</small></td><td>${esc(unit.recovery.state)}</td><td>projection only: ${esc(unit.label_projection.labels.join(", ") || "none")}</td></tr>`,
+    ).join("");
+    return `<section class="quality" aria-labelledby="roadmap-${esc(app.app)}"><h1 id="roadmap-${esc(app.app)}">Roadmap / validation / delivery · ${esc(app.app)}</h1><p><strong>Source ${esc(app.source.status)}.</strong> ${esc(app.source.detail)}${app.source.affected_claims.length === 0 ? "" : ` Affected claims: ${esc(app.source.affected_claims.join(", "))}.`}</p><p>Roadmap authority: <code>${esc(app.roadmap_plan?.durable_ref ?? "unavailable")}</code>. Labels below are projections, never authority.</p><h2>Batches</h2><div class="scroll"><table><thead><tr><th>Batch</th><th>Complete</th><th>Every unit successful</th><th>Authority</th></tr></thead><tbody>${batches}</tbody></table></div><h2>Delivery units</h2><div class="scroll"><table><thead><tr><th>Unit</th><th>Validation authority</th><th>Fast path</th><th>Cache evidence</th><th>Routing exclusion</th><th>Recovery</th><th>Labels</th></tr></thead><tbody>${units}</tbody></table></div></section>`;
+  }).join("");
 }
 
 function efficiency(report: ReportSnapshotV1): string {

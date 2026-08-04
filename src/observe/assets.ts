@@ -106,6 +106,11 @@ export const OBSERVE_HTML = `<!doctype html>
       <div class="section-heading"><h2 id="sources-title">Source health</h2><span id="sources-scope" class="scope-badge"></span></div>
       <div id="sources" class="sources"></div>
     </section>
+    <section aria-labelledby="roadmap-explanation-title">
+      <div class="section-heading"><h2 id="roadmap-explanation-title">Roadmap / validation / delivery</h2><span id="roadmap-explanation-scope" class="scope-badge"></span></div>
+      <p class="meta">Durable artifact references are authority. Labels and cache telemetry are projections and cost-affinity evidence only.</p>
+      <div id="roadmap-explanation" class="history"></div>
+    </section>
     <section aria-labelledby="validation-campaigns-title">
       <div class="section-heading"><h2 id="validation-campaigns-title">Validation campaigns</h2><span id="validation-campaigns-scope" class="scope-badge"></span></div>
       <p class="meta">An inconclusive campaign is not a pass and is never release evidence.</p>
@@ -354,6 +359,7 @@ export const OBSERVE_JS = String.raw`(() => {
     'apps-scope':'Monthly budget is an app-wide month-to-date fact; a session cannot narrow it.',
     'pending-intake-scope':'Pending intake carries no trace or task identity, so a session cannot include it.',
     'sources-scope':'Source health is CURRENT observer health, not health as of this session.',
+    'roadmap-explanation-scope':'Planning artifacts are current app-wide authority, not historical session state.',
     'history-index-scope':'The recorded-session index is navigation, so it is not narrowed by the current selection.',
   };
   // Session kind WINS over filters for a session-scoped section — a selected
@@ -509,7 +515,7 @@ export const OBSERVE_JS = String.raw`(() => {
     );
     populateFilters(s);
     renderScopeStatement(s,scope);
-    renderAttention(s,scope); renderApps(s,scope); renderActivityHistory(s,scope); renderPendingIntake(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistoryIndex(s); renderHistory(s,scope); renderSources(s,scope); renderValidationCampaigns(s,scope);
+    renderAttention(s,scope); renderApps(s,scope); renderActivityHistory(s,scope); renderPendingIntake(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistoryIndex(s); renderHistory(s,scope); renderSources(s,scope); renderRoadmapExplanation(s,scope); renderValidationCampaigns(s,scope);
     // A snapshot must never steal focus: the drawer takes focus when it OPENS,
     // not on each of the re-renders SSE drives while it is open.
     if(state.selectedPass) { const pass=s.passes.find((p)=>p.id===state.selectedPass); if(pass) renderDrawer(pass,false); else closeDrawer(); }
@@ -1309,6 +1315,30 @@ export const OBSERVE_JS = String.raw`(() => {
     renderSourceCards(s);
   }
   function renderSourceCards(s) { q('sources').replaceChildren(...s.sources.map((v)=>node('article',{class:'source'},node('h3',{},v.id+' '),badge(v.status,v.status==='healthy'?'completed':v.status==='degraded'?'blocked':'failed'),node('p',{class:'meta'},v.detail),node('p',{class:'meta'},'observed ',stamp(v.observed_at))))); }
+  function renderRoadmapExplanation(s,scope) {
+    const projection=s.roadmap_explanation||{apps:[]};
+    const narrowed=Boolean(scope)||activeFacets().length>0;
+    const kind=narrowed?'app_wide_context':'live_app_wide';
+    renderSectionScope('roadmap-explanation-scope','roadmap-explanation',kind,
+      sectionScopeText(kind,'current durable planning explanation',disclose(projection.apps.length,projection.apps.length,false)),
+      narrowed?APP_WIDE_REASONS['roadmap-explanation-scope']:'');
+    const cards=[];
+    for(const app of projection.apps) {
+      cards.push(node('article',{class:'card history-row'},
+        node('div',{},node('strong',{},app.app),node('div',{class:'meta'},'Roadmap authority: '+(app.roadmap_plan?app.roadmap_plan.durable_ref:'unavailable'))),
+        node('div',{class:'integrity'},app.source.detail+(app.source.affected_claims.length?' · affected claims: '+app.source.affected_claims.join(', '):'')),
+        badge(app.source.status,app.source.status==='healthy'?'completed':app.source.status==='degraded'?'blocked':'failed')));
+      for(const batch of app.batches) cards.push(node('article',{class:'card history-row'},
+        node('div',{},node('strong',{},'Batch '+batch.batch_id),node('div',{class:'meta'},batch.authority.durable_ref)),
+        node('div',{class:'integrity'},'complete '+batch.complete+' · every-unit-success '+(batch.every_unit_success===null?'unknown':batch.every_unit_success)),
+        badge(batch.complete?(batch.every_unit_success?'all units successful':'complete with non-success outcomes'):'in progress',batch.complete?(batch.every_unit_success?'completed':'blocked'):'running')));
+      for(const unit of app.delivery_units) cards.push(node('article',{class:'card history-row'},
+        node('div',{},node('strong',{},'Unit '+unit.unit_id),node('div',{class:'meta'},unit.kind+' · validation '+(unit.artifact_authority.validation_contract?unit.artifact_authority.validation_contract.durable_ref:'unavailable'))),
+        node('div',{class:'integrity'},'fast-path '+unit.fast_path.reason+' (workflow bypass '+(unit.fast_path.workflow_bypassed===null?'unknown':unit.fast_path.workflow_bypassed)+') · cache '+unit.cache_evidence.measurement+' (unknown is not zero) · routing-excluded '+(unit.routing_exclusion.excluded===null?'unknown':unit.routing_exclusion.excluded)+' · recovery '+unit.recovery.state+' · labels projection-only '+(unit.label_projection.labels.join(', ')||'none')),
+        badge(unit.recovery.state,unit.recovery.state==='terminal_completed'?'completed':unit.recovery.state==='terminal_failed'||unit.recovery.state==='terminal_returned'?'failed':unit.recovery.state==='unavailable'?'blocked':'running')));
+    }
+    q('roadmap-explanation').replaceChildren(...(cards.length?cards:[empty('No planning explanation is available for this scope.')]));
+  }
   function renderValidationCampaigns(s,scope) {
     const evidence=s.validation_campaigns||{reports:[],corrupt:[]};
     const reports=evidence.reports.filter((campaign)=>campaign.target.apps.length===0||campaign.target.apps.some((app)=>visibleApp(app,scope)));

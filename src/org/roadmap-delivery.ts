@@ -46,11 +46,9 @@ export const VALIDATION_CATALOG_SCHEMA_VERSION = 1 as const;
 export const VALIDATION_CONTRACT_SCHEMA_VERSION = 1 as const;
 export const RATIFIED_HARNESS_REVISION_ID =
   "roadmap-validation-delivery-batching-2026-08-03" as const;
-/** Content root for the ratified HB-100..102 catalog slice. HB-108 expands the
- * complete deterministic catalog and intentionally updates this pin through a
- * separately accepted harness revision. */
+/** Content root for the complete deterministic HB-100..108 catalog. */
 export const RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 =
-  "cf09951a195e5f850d94a8034e51247cc4a70645233cf23f18c3a78497bb21c5" as const;
+  "58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880" as const;
 
 export const VALIDATION_LAYERS = ["L1", "L2", "L3", "L4", "L5"] as const;
 export type ValidationLayer = (typeof VALIDATION_LAYERS)[number];

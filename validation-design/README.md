@@ -63,14 +63,17 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   provider-free walking skeleton, HB-101's whole-backlog authority, HB-102's
   validation-contract/readiness guard, and HB-103…107's production delivery-unit,
   execution-batch, strict zero-turn, direct-campaign, shared-façade and role-safe
-  session/cache slices are executable. HB-108…111 remain.
+  session/cache slices are executable. HB-108 closes the deterministic catalog and
+  integrates still-human-pending pre-tuning corpora; HB-109 closes contention and soak-
+  collector machinery without running the campaign; HB-110 closes shared operator
+  explanations. HB-111 and all separately named human/external evidence remain.
   M17/J-20/INV-016/B-20…22/S-10 and the two new operation contracts are only as
   evidenced as their named landed cases; no live evidence is implied.
 - **Release gating is SUSPENDED** (product decision, PURPOSE v2.9) and **B-17's live
   deploy/publication cell is BLOCKED** — should a deploy/publication-shaped incident
   occur, it would be operating in the least-verified part of the system. <!-- AUD-109 --> No surface may imply a gate
   exists.
-- **Implemented does not mean evidenced.** L3 live machinery and the L5 soak collector
+- **Implemented does not mean evidenced.** L3 live machinery and the extended L5 soak collector
   exist, but no external campaign or seven-day window was run in this implementation
   change. Reviewer/planner golden references still await human validation. These are
   reported incomplete/inconclusive, never green.

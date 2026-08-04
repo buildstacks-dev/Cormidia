@@ -1,8 +1,10 @@
 # Boundary contract — CORMIDIA-C-B22-001
 
 Boundary: **B-22 execution-batch admission ↔ independently authoritative execution
-episodes**. Status: ACCEPTED implementation contract (2026-08-03); implementation in
-progress.
+episodes**. Status: ACCEPTED implementation contract (2026-08-03); deterministic
+implementation is complete through HB-109, including overlapping-batch, duplicate,
+atomic multi-ticket claim, per-unit settlement, sibling-isolation and stale-frontier
+machinery. The seven-day campaign remains unrun and supplies no external evidence.
 
 ## Inputs
 - Exact roadmap-ready-frontier hash or complete direct-work authority, plus a bounded

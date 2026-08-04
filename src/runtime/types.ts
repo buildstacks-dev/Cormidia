@@ -2,6 +2,7 @@
 // these types — never a provider SDK. See research/2026-07-03_runtime-layer.md.
 
 import type { RuntimeCapability } from "./capabilities.js";
+import type { ProviderPermissionModes } from "./permission-mode.js";
 
 export type RuntimeKind = "claude" | "codex" | "pi";
 
@@ -74,6 +75,25 @@ export interface RoleConfig {
   triggers: Trigger[];
   outputs: string[];
   maxTurnBudgetUsd: number;
+  /** Ephemeral app-resolved provider policy. roles.yaml never owns this map;
+   * the app registry can select only the supported non-bypass modes. */
+  permissionModes?: ProviderPermissionModes;
+  /** Ephemeral app-level maxima for the non-cost dimensions of one provider
+   * turn. Null inherits the pass/episode allowance. */
+  turnExecutionLimits?: {
+    activeTimeMs: number | null;
+    toolCalls: number | null;
+    modelTurns: number | null;
+  };
+  /** Ephemeral app-level static-route limits. Accepted EpisodePlan DAGs do
+   * not consume these because their validated steps are the authority. */
+  routeExecutionLimits?: Record<"quick" | "standard" | "deep", {
+    environmentRetries: number;
+    toolCalls: number;
+    claimAttempts: number;
+    repairAttempts: number;
+    reviewCycles: number;
+  }>;
 }
 
 /** Resume handle. Claude: session id; Codex: thread id; pi: session id/path. */

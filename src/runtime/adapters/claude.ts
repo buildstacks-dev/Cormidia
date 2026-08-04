@@ -59,6 +59,7 @@ import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { claudeDenyRulesForRole } from "../role-shaping.js";
 import { toolUseEvent } from "../tool-events.js";
 import { renderContextBundle } from "../worktree-context.js";
+import { permissionModeFor, type ClaudePermissionMode } from "../permission-mode.js";
 
 /** The SDK's query() shape, injectable so unit tests run with a scripted
  *  stand-in and zero network/CLI dependency. */
@@ -182,6 +183,7 @@ export class ClaudeRuntime implements Runtime {
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
     const assignment = resolveTurnRequestAssignment(req, this.kind);
+    const permissionMode = permissionModeFor("claude", req.role.permissionModes) as ClaudePermissionMode;
     if (req.session !== undefined && req.session.runtime !== "claude") {
       throw new Error(
         `ClaudeRuntime cannot resume a "${req.session.runtime}" session — ` +
@@ -307,6 +309,7 @@ export class ClaudeRuntime implements Runtime {
         append: buildSystemPromptAppend(req),
       },
       settingSources: [],
+      permissionMode,
       hooks: { PreToolUse: [{ hooks: [preToolUseGate] }] },
       canUseTool,
       // Per-turn budget cap, enforced by the CLI as a running mid-turn

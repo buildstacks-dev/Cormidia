@@ -1,0 +1,27 @@
+schema_version: 1
+assessment_id: hb-111-181-154-routing-20260804
+claims:
+  - id: CF-REG-181
+    claim: Each app resolves safe Codex and Claude permission modes before provider construction, rejects bypass or unsupported modes, and exposes the effective policy.
+    evidence: tests/unit/cf-reg-181/provider-permission-arguments.test.ts and tests/hermetic/cf-reg-181-154/app-execution-policy.test.ts
+    status: verified_offline
+  - id: CF-REG-154
+    claim: Per-turn soft caps, generic/ticket hard ceilings, and static-route execution bounds are independently configurable, monotonic, applied, and durably explained.
+    evidence: tests/hermetic/cf-reg-181-154/app-execution-policy.test.ts
+    status: verified_offline
+  - id: routing-audit
+    claim: Every open issue has one reported primary routing disposition; exact manual-review exclusions are preserved and unreadable label state fails closed.
+    evidence: validation-design/autonomous-routing-audit-2026-08-04.md and tests/hermetic/cf-reg-239/cf-reg-239-routing-exclusion.test.ts
+    status: verified_offline_and_github_state_audited
+  - id: HB-111-proposal
+    claim: Required protected changes are determined and expressed as an exact unapplied diff with migration, rollback, and golden-set impact.
+    evidence: validation-design/hb-111-protected-surface-proposal.md
+    status: proposed_pending_separate_human_approval
+  - id: repository-gates
+    claim: The complete offline suite, strict typecheck, build, and whitespace checks pass for the assessed working tree.
+    evidence: commands.md
+    status: verified_offline
+verdict_rules:
+  unapplied_protected_change: pending_human_approval
+  unrun_external_campaign: incomplete
+  threshold_dependent_results: inconclusive

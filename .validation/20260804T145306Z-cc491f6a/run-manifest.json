@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "assessment_id": "hb-111-181-154-routing-20260804",
+  "mode": "full-hardening",
+  "started_at": "2026-08-04T14:53:06Z",
+  "repository": "cormidia/Cormidia",
+  "branch": "codex/hb-111-181-154-routing-audit",
+  "base_revision": "cc491f6adbce464923af833bccac742dc082691c",
+  "target_tree": "02ff077e04df670cb53953ecd252ee7740171097",
+  "target_tree_scope": "staged implementation, tests, contracts, reports, and proposal before this evidence package",
+  "environment": {
+    "kind": "developer-host",
+    "worktree": "/Users/bikram/Build/Cormidia-hb111-181-154-routing",
+    "networked_validation": false,
+    "provider_backed_validation": false
+  },
+  "scope": [
+    "HB-111 proposal",
+    "CF-REG-181",
+    "CF-REG-154",
+    "all-open-issue autonomous-routing audit",
+    "pre-PR-249 comment correction"
+  ],
+  "excluded_actions": [
+    "protected-surface application or merge",
+    "provider-backed validation",
+    "live validation",
+    "eval campaigns",
+    "soak campaign execution",
+    "publication",
+    "deployment",
+    "scheduler installation",
+    "release"
+  ],
+  "evidence_index": "commands.md",
+  "assessment": "conditionally_sufficient_for_stated_ordinary_target"
+}

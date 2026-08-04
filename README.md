@@ -744,6 +744,14 @@ and expected outputs, so a different assignment never grants broader
 authority. See `docs/architecture.md` § 7 for the exact
 `adaptive_assignments` and app-narrowing schema.
 
+The same app `execution` block resolves safe provider permission modes and
+execution limits. Shipped defaults are Codex `on-request` and Claude `auto`;
+bypass modes are rejected. Per-turn soft caps, generic/ticket hard ceilings,
+and static-route execution bounds are independent, monotonic, and visible in
+`cormidia apps --json` plus the durable run/episode evidence. These modes never
+replace Cormidia's critical-operation approvals or widen sandbox, filesystem,
+or network authority. See `docs/org/apps.md`.
+
 After validation, the plan is written before its first delivery turn. Its
 typed provider, mechanical-gate, and approval steps execute in deterministic
 dependency order. New material evidence can produce a bounded, forward-only

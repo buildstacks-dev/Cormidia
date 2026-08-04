@@ -1,0 +1,33 @@
+schema_version: 1
+assessment_id: hb-111-181-154-routing-20260804
+risks:
+  - id: R-001
+    subject: A provider convenience mode could be mistaken for approval or sandbox authority.
+    likelihood: low
+    impact: high
+    control: Allow-list non-bypass modes; keep Cormidia gate and workspace/network policy independent; test CLI, SDK, and request construction.
+    residual: low
+  - id: R-002
+    subject: Inconsistent turn, episode, or route limits could admit a trajectory the runtime cannot enforce coherently.
+    likelihood: low
+    impact: high
+    control: Reject invalid and non-monotonic app policy before provider construction and persist actual effective bounds.
+    residual: low
+  - id: R-003
+    subject: Autonomous routing could self-judge a changed gate or consume unreadable label state.
+    likelihood: low
+    impact: high
+    control: Exact durable exclusions, conservative issue-level audit, and current-label fail-closed detectors for Planner and Builder.
+    residual: low
+  - id: R-004
+    subject: Protected HB-111 text could activate before human approval or without its code-owned operation boundary.
+    likelihood: low
+    impact: high
+    control: Keep exact proposal unapplied; require separate approval, isolated PR, human merge, and coordinated activation.
+    residual: pending_human_approval
+  - id: R-005
+    subject: Local validation has same-agent independence.
+    likelihood: certain
+    impact: medium
+    control: Require all GitHub CI checks in a separate environment before merge.
+    residual: pending_until_CI

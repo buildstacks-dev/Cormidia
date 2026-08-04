@@ -9,6 +9,12 @@ Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; head
 - Authority: missing `AUTHORITY.md` → built-in legacy-conservative profile, never the
   newer delegated default `[doc]` (INV-015).
 - App narrowing may only narrow (INV-001); a widening app config is a typed refusal.
+- App `execution` policy resolves shipped, observable defaults for Codex/Claude
+  permission modes, per-turn soft caps, generic/ticket hard ceilings, and static-route
+  execution bounds. Unsupported/bypass modes, unknown fields, non-positive values, a
+  per-turn value above an explicit episode ceiling, or quick→standard→deep regression
+  are typed pre-provider refusals. Omission is explicit default resolution, not a
+  hidden adapter constant.
 
 ## 2. Output guarantees (B-10a — active-org identity)
 - Resolution precedence: explicit per-process overrides (`CORMIDIA_ORG_HOME`,
@@ -27,6 +33,9 @@ Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; head
   wrong org" is an identity failure, not a parse failure `[elicited]` (INV-004).
 - Every dispatched command with an explicit or safely resolved state home writes its
   invocation audit row with the resolved org/app `[doc]`.
+- `cormidia apps --json` explains the full effective app policy. Paid run envelopes
+  bind the effective per-turn dimensions and provider mode to the app config reference;
+  EpisodeIntent/route evidence binds the hard ceiling and static execution bounds.
 
 ## 3. Error behavior
 - Unreadable/torn config: reader rejects, recognized-intermediate rules apply (INV-013);

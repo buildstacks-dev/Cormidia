@@ -46,17 +46,26 @@ export async function cmdApps(args: string[] = []): Promise<number> {
       pad("REPO", repoWidth) +
       pad("STATUS", statusWidth) +
       pad("ASSIGNMENT", 12) +
+      pad("PERMISSIONS", 25) +
+      pad("TURN CAP", 12) +
       "BUDGET",
   );
   for (const a of report.apps) {
     const cadence = Object.keys(a.cadence).length
       ? `  (cadence overrides: ${Object.keys(a.cadence).join(", ")})`
       : "";
+    const runtimePolicy = a.execution!.runtimePolicy!;
+    const turnCap = runtimePolicy.limits.perTurn.equivalentCostUsd;
     console.log(
       pad(a.name, appWidth) +
         pad(a.repo, repoWidth) +
         pad(a.status, statusWidth) +
         pad(a.execution?.assignmentMode ?? "fixed", 12) +
+        pad(
+          `codex:${runtimePolicy.permissionModes.codex}/claude:${runtimePolicy.permissionModes.claude}`,
+          25,
+        ) +
+        pad(turnCap === null ? "role-derived" : `$${turnCap}`, 12) +
         `$${a.budgetUsdMonth}/mo` +
         cadence,
     );

@@ -5,6 +5,10 @@ Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
 
 - Gate integration: SDK hooks + `canUseTool` — the gate must see **every** tool path
   the SDK can execute (INV-002; adversarial: new tool types fail closed).
+- Permission mode is explicit app policy and is supplied to the Agent SDK for every
+  turn. Omission resolves through the shipped `auto` default. `bypassPermissions` is
+  unrepresentable, and no accepted mode widens the Cormidia gate, role shaping,
+  filesystem/network authority, or critical-operation approvals.
 - Tool events surface **pre-execution**: no `success`/`durationMs` outcome fields —
   consumers must not synthesize outcomes `[doc: known limitation]`.
 - Auth: subscription-first (any usable Agent SDK auth), `ANTHROPIC_API_KEY` fallback;

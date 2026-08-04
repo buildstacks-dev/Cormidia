@@ -575,7 +575,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   terminal/portable HTML. `tests/hermetic/cf-hb110/` proves exact projection equality,
   mixed-outcome batch wording, artifact-versus-label authority, fast-path/cache/routing/
   recovery explanations, and degraded-source affected-claim naming.
-- **HB-111 — Human-ratified protocol-surface proposal.** Prepare exact, reviewable
+- **HB-111 — COMPLETE 2026-08-04 — Human-ratified protocol-surface proposal.** Prepare exact, reviewable
   proposed diffs for any needed Planner/Validation Designer role assignment,
   pipelines.yaml ordering, prompts, TASTE or PURPOSE language. Include migration,
   rollback and golden-set impact. *Acceptance:* no protected surface is edited by this
@@ -584,6 +584,13 @@ prepares the proposal and a human separately ratifies any such surface. -->
   change before application. *Defends:* INV-001, M11 and repository working rules.
   *Layer:* process/design. *Executor:* human + build-agent. *Depends on:* HB-100…108
   behavior/schema stabilization.
+  *Implementation:* `validation-design/hb-111-protected-surface-proposal.md`
+  records the complete exact diff and determines that an independent Planner-assigned
+  `validation-design` pass plus Validation Designer/Builder/Reviewer prompt changes are
+  needed. It records why roles, plan-pass ordering, TASTE, PURPOSE, and standing AGENTS
+  text do not change, and includes the ordinary code dependency, migration, rollback,
+  and golden/gate impact. No protected surface was edited; application remains pending
+  separate explicit human approval and human merge.
 - **HB-112 — PENDING, non-blocking — `manual-feelview` backlog-taxonomy audit.** Inventory
   every use of the exact label, identify its human owner and intended lifecycle, and
   propose keep/rename/retire cleanup without assigning autonomous-scheduling semantics.

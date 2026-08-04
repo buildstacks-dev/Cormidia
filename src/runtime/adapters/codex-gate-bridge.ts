@@ -143,12 +143,17 @@ export function codexGateHookCommand(): string {
   return argv.map(shellQuote).join(" ");
 }
 
-export function codexAppServerArgs(hookCommand = codexGateHookCommand()): string[] {
+export function codexAppServerArgs(
+  permissionMode: import("../permission-mode.js").CodexPermissionMode = "on-request",
+  hookCommand = codexGateHookCommand(),
+): string[] {
   const hook =
     `hooks.PreToolUse=[{ matcher = ` +
     `"^(Bash|apply_patch|Edit|Write|mcp__.*)$", hooks = [{ type = "command", ` +
     `command = ${JSON.stringify(hookCommand)}, timeout = 30 }] }]`;
   return [
+    "--ask-for-approval",
+    permissionMode,
     // Codex CLI 0.142.5 parses the global bypass flag below but its app-server
     // dispatch path does not forward that flag into ConfigOverrides. Keep the
     // public flag for forward compatibility and set the equivalent session

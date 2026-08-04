@@ -60,6 +60,8 @@ import {
 import { createLoopReplayExecutor, gitIn, renderCandidateOverlay } from "../org/learning/replay.js";
 import { eligibleFixtures, runExperiment } from "../org/learning/runner.js";
 import { loadRoles } from "../org/roles.js";
+import { runtimePolicyForApp } from "../org/apps.js";
+import { resolveAppRoles } from "../org/app-execution-policy.js";
 import { getRuntime } from "../runtime/registry.js";
 import { flag, learningRoots, parseFlags, requireFlag, type Flags } from "./learn-activation.js";
 
@@ -257,7 +259,8 @@ async function run(homes: CormidiaHomes, args: string[]): Promise<number> {
   }
 
   const rolesFile = await loadRoles(join(homes.orgHome, "roles.yaml"));
-  const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
+  const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(appEntry));
+  const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
   const overlay = await renderCandidateOverlay({
     orgHome: homes.orgHome,
     ...(appWorkdir !== undefined ? { appWorkdir } : {}),

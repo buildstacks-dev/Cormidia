@@ -105,7 +105,13 @@ import type {
   TurnHooks,
 } from "../runtime/types.js";
 import { ApprovalStore } from "./approvals.js";
-import { normalizeAppExecution, type AppEntry, type AppsFile } from "./apps.js";
+import {
+  normalizeAppExecution,
+  runtimePolicyForApp,
+  type AppEntry,
+  type AppsFile,
+} from "./apps.js";
+import { resolveAppRoles } from "./app-execution-policy.js";
 import { isBudgetBlocking, rollupBudgets, type BudgetRow } from "./budget.js";
 import { assembleContext } from "./context.js";
 import {
@@ -272,10 +278,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   const startedAt = clock();
 
   const rolesFile = await loadRoles(join(options.orgHome, "roles.yaml"));
-  const planner = rolesFile.roles.find((role) => role.name === "planner");
+  const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(options.app));
+  const planner = configuredRoles.find((role) => role.name === "planner");
   if (planner === undefined) return { status: "failed", summary: "roles.yaml has no planner role" };
   const pipelines = await loadPipelines(join(options.orgHome, "pipelines.yaml"), {
-    roleNames: rolesFile.roles.map((role) => role.name),
+    roleNames: configuredRoles.map((role) => role.name),
     promptsDir: join(options.orgHome, "prompts"),
   });
   assertPlanningOperationCatalogMatches(pipelines);
@@ -397,7 +404,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       normalizeAppExecution(options.app.execution).assignmentMode === "adaptive"
     ? await probeApprovedAssignmentReadiness({
         app: options.app,
-        roles: rolesFile.roles,
+        roles: configuredRoles,
         probe: assignmentReadinessProbe,
         ...(options.assignmentReadinessTimeoutMs === undefined
           ? {}
@@ -456,7 +463,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       maxHumanDecisions: 0,
     },
     requiredSafetyFacts: safetyFactsFromPlanningRequest(options.planning),
-    responsibilityByRole: Object.fromEntries(rolesFile.roles.map((role) => [
+    responsibilityByRole: Object.fromEntries(configuredRoles.map((role) => [
       role.name,
       role.name === "planner"
         ? "Select and execute the smallest sufficient governed product-planning workflow"
@@ -467,14 +474,14 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   const intent = existingIntent ?? buildEpisodeIntent({
     ...episodeFacts,
     app: options.app,
-    roles: rolesFile.roles,
+    roles: configuredRoles,
     ...(readiness === undefined ? {} : { assignmentAvailable: readiness.available }),
   });
 
   if (options.requireExecutionReadyCreatorScope) {
     const policy = createEpisodePlanningPolicy(options.app, {
       intent,
-      roles: rolesFile.roles,
+      roles: configuredRoles,
       assignmentAuthority: existingIntent === undefined ? "current_config" : "persisted_intent",
       safetyFloorMapping: PRODUCT_PLANNING_SUBJECT_SAFETY_MAPPING,
     });
@@ -549,7 +556,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       mode: "execute",
       root: options.stateHome,
       app: options.app,
-      roles: rolesFile.roles,
+      roles: configuredRoles,
       facts: episodeFacts,
       assignmentReadinessProbe,
       ...(options.assignmentReadinessTimeoutMs === undefined
@@ -579,7 +586,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         proposeRevision: createProviderEpisodePlanRevisionProposer({
           root: options.stateHome,
           app: options.app,
-          roles: rolesFile.roles,
+          roles: configuredRoles,
           promptText,
           context,
           workdir: localRepo,

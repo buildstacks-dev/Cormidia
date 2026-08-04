@@ -69,6 +69,7 @@ import {
   type EpisodeAllowance,
   type TurnBudgetStop,
 } from "../runtime/turn-budget.js";
+import { permissionModeFor } from "../runtime/permission-mode.js";
 import {
   createEventWriter,
   readEvents,
@@ -102,6 +103,7 @@ import {
   type PassConfig,
   type PassSelection,
   type PipelineConfig,
+  type TicketTier,
 } from "./pipelines.js";
 import type { LoopContinuation } from "./types.js";
 import { writeLoopFileAtomic } from "./durable.js";
@@ -182,6 +184,9 @@ export interface ExecutePipelineOptions {
     factors?: AdmissionFactor[];
     authorizedPasses?: AuthorizedPass[];
     budgetOverrides?: Partial<RouteBudget>;
+    /** App-resolved static-route bounds. Accepted EpisodePlan routes use null
+     * because the validated step DAG is their execution authority. */
+    executionBounds?: import("./route-policy.js").RouteExecutionBounds | null;
     finalize?: boolean;
     nextTurnEstimate?: { costUsd?: number; activeTimeMs?: number };
     artifactExpectations?: PipelineArtifactExpectation[];
@@ -493,6 +498,7 @@ async function admitPipelineEpisode(
       factor_rules: factorRules,
     };
   });
+  const configuredExecutionBounds = resolvedStaticExecutionBounds(options, route);
   return admitEpisode({
     root: options.runlog.root,
     episodeId,
@@ -505,7 +511,29 @@ async function admitPipelineEpisode(
     ...(options.episode?.budgetOverrides !== undefined
       ? { budgetOverrides: options.episode.budgetOverrides }
       : {}),
+    ...(configuredExecutionBounds !== undefined
+      ? { executionBounds: configuredExecutionBounds }
+      : {}),
   });
+}
+
+function resolvedStaticExecutionBounds(
+  options: ExecutePipelineOptions,
+  route: TicketTier,
+): import("./route-policy.js").RouteExecutionBounds | null | undefined {
+  if (options.episode?.executionBounds !== undefined) return options.episode.executionBounds;
+  if (options.episode?.authorizedPasses?.some((pass) => pass.plan_version !== undefined)) {
+    return undefined;
+  }
+  const configured = Object.values(options.roles)
+    .map((role) => role.routeExecutionLimits?.[route])
+    .filter((value): value is import("./route-policy.js").RouteExecutionBounds => value !== undefined);
+  if (configured.length === 0) return undefined;
+  const canonical = JSON.stringify(configured[0]);
+  if (configured.some((value) => JSON.stringify(value) !== canonical)) {
+    throw new Error("pipeline roles resolved inconsistent app route-execution limits");
+  }
+  return { ...configured[0]! };
 }
 
 async function finalizePipelineEpisode(
@@ -1102,9 +1130,19 @@ async function runPass(
   // abandoning it. The adapter receives the same signal and has a bounded
   // grace period to return partial usage before finalization.
   const allowance = await remainingExecutionAllowance(root, episodeId);
-  toolCallAllowance = allowance.toolCalls;
-  const configuredCapMs = (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000;
+  toolCallAllowance = minNullable(
+    allowance.toolCalls,
+    role.turnExecutionLimits?.toolCalls ?? null,
+  );
+  const configuredCapMs = Math.min(
+    (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000,
+    role.turnExecutionLimits?.activeTimeMs ?? Number.POSITIVE_INFINITY,
+  );
   const capMs = Math.min(configuredCapMs, allowance.activeTimeMs);
+  const modelTurns = minNullable(
+    pass.maxTurns ?? null,
+    role.turnExecutionLimits?.modelTurns ?? null,
+  );
   const unlinkParent = forwardAbort(options.signal, passController);
   const timeout = capMs <= 0
     ? undefined
@@ -1134,9 +1172,11 @@ async function runPass(
         equivalent_cost_usd: allowance.equivalentCostUsd,
         tool_calls: toolCallAllowance,
         active_time_ms: 0,
-        model_turns: pass.maxTurns ?? null,
+        model_turns: modelTurns,
         cost_enforcement: costEnforcementFor(assignment.harness),
         equivalent_cost_reserve_usd: 0,
+        permission_mode: permissionModeFor(assignment.harness, role.permissionModes),
+        configuration_ref: `apps.yaml#apps.${app}.execution`,
       } as const;
       activeBudget = new HardTurnBudget({
         bounds: effectiveBounds,
@@ -1215,9 +1255,11 @@ async function runPass(
       equivalent_cost_usd: started.reservation.equivalentCostUsd,
       tool_calls: toolCallAllowance,
       active_time_ms: capMs,
-      model_turns: pass.maxTurns ?? null,
+      model_turns: modelTurns,
       cost_enforcement: costEnforcementFor(assignment.harness),
       equivalent_cost_reserve_usd: started.reservation.equivalentCostUsd,
+      permission_mode: permissionModeFor(assignment.harness, role.permissionModes),
+      configuration_ref: `apps.yaml#apps.${app}.execution`,
     } as const;
     activeBudget = new HardTurnBudget({
       bounds: effectiveBounds,
@@ -1272,7 +1314,7 @@ async function runPass(
           signal: passController.signal,
           ...(request.session !== undefined ? { session: request.session } : {}),
           ...(request.verdictSchema !== undefined ? { verdictSchema: request.verdictSchema } : {}),
-          ...(pass.maxTurns !== undefined ? { maxTurns: pass.maxTurns } : {}),
+          ...(modelTurns !== null ? { maxTurns: modelTurns } : {}),
           ...(options.networkAccess === true ? { networkAccess: true } : {}),
         },
         hooks: passHooks,
@@ -1934,6 +1976,12 @@ function unavailableUsage(): TurnUsage {
     wallClockMs: 0,
     quality: "unavailable",
   };
+}
+
+function minNullable(left: number | null, right: number | null): number | null {
+  if (left === null) return right;
+  if (right === null) return left;
+  return Math.min(left, right);
 }
 
 function mergeProgress(previous: TurnProgress | undefined, next: TurnProgress): TurnProgress {

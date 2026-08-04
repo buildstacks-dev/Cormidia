@@ -161,12 +161,13 @@ import {
   mergeEpisodeSafetyFacts,
   safetyFactsFromTicketLabels,
 } from "./episode-safety-facts.js";
+import { effectiveEpisodeHardCeiling } from "./app-execution-policy.js";
+import { runtimePolicyForApp } from "./apps.js";
 
 export const TICKET_EPISODE_PLANNER_POLICY_VERSION =
   "ticket-episode/episode-planner-v1" as const;
 
 const MAX_TICKET_BODY_BYTES = 128 * 1024;
-const MAX_TICKET_PROVIDER_TURNS = 12;
 const DEFAULT_PLANNER_ACTIVE_TIME_MS = 5 * 60_000;
 const TICKET_SAFETY_FLOOR_MAPPING = {
   gateKinds: {
@@ -2574,11 +2575,10 @@ function ticketHardBudget(
     );
   }
   const requested = options.hardBudget ?? {};
-  return {
-    maxProviderTurns: Math.min(
-      requested.maxProviderTurns ?? MAX_TICKET_PROVIDER_TURNS,
-      MAX_TICKET_PROVIDER_TURNS,
-    ),
+  return effectiveEpisodeHardCeiling(runtimePolicyForApp(options.app), "ticket", {
+    ...(requested.maxProviderTurns === undefined
+      ? {}
+      : { maxProviderTurns: requested.maxProviderTurns }),
     maxEquivalentCostUsd: Math.min(
       requested.maxEquivalentCostUsd ?? remaining,
       remaining,
@@ -2587,9 +2587,13 @@ function ticketHardBudget(
       requested.maxMechanicalOverheadUsd ?? remaining,
       remaining,
     ),
-    maxActiveTimeMs: requested.maxActiveTimeMs ?? 2 * 60 * 60_000,
-    maxHumanDecisions: requested.maxHumanDecisions ?? 2,
-  };
+    ...(requested.maxActiveTimeMs === undefined
+      ? {}
+      : { maxActiveTimeMs: requested.maxActiveTimeMs }),
+    ...(requested.maxHumanDecisions === undefined
+      ? {}
+      : { maxHumanDecisions: requested.maxHumanDecisions }),
+  });
 }
 
 function defaultPlannerLimits(

@@ -27,6 +27,7 @@ import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { renderContextBundle } from "../worktree-context.js";
 import { toolUseEvent } from "../tool-events.js";
 import { codexAppServerArgs, startCodexGateBridge } from "./codex-gate-bridge.js";
+import { permissionModeFor, type CodexPermissionMode } from "../permission-mode.js";
 
 export type JsonRpcId = number | string;
 
@@ -277,6 +278,7 @@ export class CodexRuntime implements Runtime {
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
     const assignment = resolveTurnRequestAssignment(req, this.kind);
+    const permissionMode = permissionModeFor("codex", req.role.permissionModes) as CodexPermissionMode;
     if (req.session !== undefined && req.session.runtime !== "codex") {
       throw new Error(
         `CodexRuntime cannot resume a "${req.session.runtime}" session - ` +
@@ -288,7 +290,7 @@ export class CodexRuntime implements Runtime {
     const escalations: GateEscalation[] = [];
     const gateBridge = await startCodexGateBridge(req.workdir, hooks, escalations);
     const client = this.clientFactory({
-      args: codexAppServerArgs(),
+      args: codexAppServerArgs(permissionMode),
       env: { ...withNonInteractiveEnv(this.appServerEnv ?? process.env), ...gateBridge.env },
     });
     const state: CodexTurnState = {
@@ -313,10 +315,10 @@ export class CodexRuntime implements Runtime {
 
       const threadResponse =
         req.session === undefined
-          ? await client.request("thread/start", threadParams(req, assignment))
+          ? await client.request("thread/start", threadParams(req, assignment, permissionMode))
           : await client.request("thread/resume", {
               threadId: req.session.id,
-              ...threadParams(req, assignment),
+              ...threadParams(req, assignment, permissionMode),
             });
       const threadId = extractThreadId(threadResponse) ?? req.session?.id;
       if (threadId === undefined) {
@@ -328,7 +330,7 @@ export class CodexRuntime implements Runtime {
       state.threadId = threadId;
       hooks.onProgress?.({ session: { runtime: "codex", id: threadId } });
 
-      await client.request("turn/start", turnParams(req, assignment, threadId));
+      await client.request("turn/start", turnParams(req, assignment, threadId, permissionMode));
 
       for await (const message of client) {
         await this.handleServerMessage(client, message, req, assignment, hooks, escalations, state);
@@ -610,11 +612,15 @@ async function declineMcpElicitation(
   await client.respond(message.id, { action: "decline", content: null, _meta: null });
 }
 
-function threadParams(req: TurnRequest, assignment: TurnAssignment): Record<string, unknown> {
+function threadParams(
+  req: TurnRequest,
+  assignment: TurnAssignment,
+  permissionMode: CodexPermissionMode,
+): Record<string, unknown> {
   return {
     model: assignment.model,
     cwd: req.workdir,
-    approvalPolicy: "untrusted",
+    approvalPolicy: permissionMode,
     approvalsReviewer: "user",
     sandbox: "workspace-write",
     developerInstructions: renderContextBundle(req.context),
@@ -627,12 +633,13 @@ function turnParams(
   req: TurnRequest,
   assignment: TurnAssignment,
   threadId: string,
+  permissionMode: CodexPermissionMode,
 ): Record<string, unknown> {
   return {
     threadId,
     input: [{ type: "text", text: req.task, text_elements: [] }],
     cwd: req.workdir,
-    approvalPolicy: "untrusted",
+    approvalPolicy: permissionMode,
     approvalsReviewer: "user",
     sandboxPolicy: {
       type: "workspaceWrite",

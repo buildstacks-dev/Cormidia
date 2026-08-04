@@ -14,7 +14,8 @@ import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
 import { loadPipelines } from "../loop/pipelines.js";
 import { finalizeEpisode } from "../loop/efficiency.js";
 import type { ScorecardEvent as LoopScorecardEvent } from "../loop/types.js";
-import { loadApps } from "../org/apps.js";
+import { loadApps, runtimePolicyForApp } from "../org/apps.js";
+import { resolveAppRoles } from "../org/app-execution-policy.js";
 import { assembleContext, createEpisodeContextResolver } from "../org/context.js";
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
@@ -282,7 +283,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
     ...(selfApprovalSecret === undefined ? {} : { selfApprovalSecret }),
   });
   const rolesFile = await loadRoles(rolesPath);
-  const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
+  const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(selectedApp));
+  const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
   const maybeBuilderRole = roles["builder"];
   if (maybeBuilderRole === undefined) throw new Error("loop: roles.yaml has no builder role");
   const builderRole = maybeBuilderRole;
@@ -324,7 +326,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
           await inspectTicketEpisodeInvocation({
             root: homes.stateHome,
             app: selectedApp,
-            roles: rolesFile.roles,
+            roles: configuredRoles,
             remainingBudgetUsd,
           }, request);
         },
@@ -383,7 +385,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         root: homes.stateHome,
         orgRoot: homes.orgHome,
         app: selectedApp,
-        roles: rolesFile.roles,
+        roles: configuredRoles,
         gh: inputs.gh,
         policy: inputs.policy,
         commands: inputs.commands,
@@ -401,7 +403,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         approval: createExistingTicketApprovalHandler({
           store: approvalStore,
           app: selectedApp.name,
-          roleNames: rolesFile.roles.map((role) => role.name),
+          roleNames: configuredRoles.map((role) => role.name),
         }),
         raiseTurnBudgetEscalation: (escalation) =>
           raiseTurnBudgetEscalation(approvalStore.root, escalation),

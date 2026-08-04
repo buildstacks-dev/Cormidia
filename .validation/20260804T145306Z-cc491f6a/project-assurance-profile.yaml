@@ -1,0 +1,30 @@
+schema_version: 1
+assessment_id: hb-111-181-154-routing-20260804
+base_criticality: C2
+change_materiality: L2
+intended_use: >-
+  Offline implementation and validation of issues 181 and 154, an exact
+  proposal-only HB-111 review boundary, and a repository-wide autonomous-routing
+  audit before ordinary pull-request integration.
+elevated_control_points:
+  - id: T-3
+    criticality: C3
+    reason: App configuration and current GitHub routing labels decide whether autonomous work may proceed.
+  - id: T-5
+    criticality: C3
+    reason: Per-turn and episode execution bounds constrain paid provider work and durable settlement evidence.
+  - id: T-11
+    criticality: C3
+    reason: Provider construction must apply safe permission modes without widening sandbox or approval authority.
+assurance_depth:
+  source_review: complete
+  deterministic_testing: complete
+  seeded_negative_controls: complete
+  cross_surface_conformance: complete
+  github_routing_audit: complete
+  external_seam_evidence: not_in_scope
+  protected_surface_activation: pending_human_approval
+independence:
+  local: I1_same_agent
+  github_ci: pending_separate_environment
+release_claim: none

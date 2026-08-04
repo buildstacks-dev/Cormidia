@@ -67,6 +67,10 @@ export interface EffectiveTurnBounds {
    * Adapters without a native strict cap cannot promise a smaller monetary
    * increment, so this conservative reservation is their hard admission. */
   equivalent_cost_reserve_usd: number;
+  /** App-resolved provider convenience policy actually supplied to this
+   * harness. It never replaces Cormidia's gate or critical-op approvals. */
+  permission_mode: string;
+  configuration_ref: string;
 }
 
 export type BudgetStopDimension =

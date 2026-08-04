@@ -45,7 +45,8 @@ import type {
   TurnAssignment,
 } from "../runtime/types.js";
 import { ApprovalStore, actionHash, type ApprovalItem } from "./approvals.js";
-import type { AppEntry, AppsFile } from "./apps.js";
+import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
+import { resolveAppRoles } from "./app-execution-policy.js";
 import { writeFileAtomic } from "./atomic.js";
 import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext } from "./context.js";
@@ -375,14 +376,15 @@ async function executeReleaseEpisode(
   command: string,
 ): Promise<ReleaseCommandResult> {
   const roles = await loadRoles(join(options.orgHome, "roles.yaml"));
+  const configuredRoles = resolveAppRoles(roles.roles, runtimePolicyForApp(app));
   const cwd = managedClone(options.stateHome, app);
-  const plannerRole = requireReleaseRole(roles.roles, "planner");
-  const sreRole = item.role === "sre" ? requireReleaseRole(roles.roles, "sre") : undefined;
+  const plannerRole = requireReleaseRole(configuredRoles, "planner");
+  const sreRole = item.role === "sre" ? requireReleaseRole(configuredRoles, "sre") : undefined;
   const definition = await buildReleaseEpisodeDefinition(
     options,
     item,
     app,
-    roles.roles,
+    configuredRoles,
     command,
     sreRole,
   );
@@ -414,7 +416,7 @@ async function executeReleaseEpisode(
   const orchestrated = await orchestrateEpisode({
     root: options.stateHome,
     app,
-    roles: roles.roles,
+    roles: configuredRoles,
     facts,
     mode: "execute",
     ...(options.assignmentReadinessProbe === undefined

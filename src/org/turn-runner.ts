@@ -92,7 +92,11 @@ import {
   executeApprovedCommands,
   type ApprovedCommandResult,
 } from "./approval-command.js";
-import type { AppEntry, AppsFile } from "./apps.js";
+import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
+import {
+  effectiveEpisodeHardCeiling,
+  resolveAppRoles,
+} from "./app-execution-policy.js";
 import { isBudgetBlocking, raiseTurnBudgetEscalation, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
 import {
@@ -631,7 +635,6 @@ function actorRetryReconciliationSummary(
 }
 
 const GENERIC_EPISODE_PLANNER_POLICY_VERSION = "generic-dispatched-turn/episode-planner-v1";
-const GENERIC_EPISODE_MAX_PROVIDER_TURNS = 8;
 const GENERIC_TRIGGER_PAYLOAD_MAX_BYTES = 32 * 1024;
 
 function usesStandaloneTurnWorktree(
@@ -656,7 +659,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
 }): Promise<TurnResult> {
   const clock = options.now ?? (() => new Date());
   const configured = await loadRoles(join(options.orgRoot, "roles.yaml"));
-  const roles = configured.roles;
+  const roles = resolveAppRoles(configured.roles, runtimePolicyForApp(options.app));
   if (!roles.some((role) => role.name === options.role.name)) {
     throw new Error(`generic episode role ${options.role.name} is not present in roles.yaml`);
   }
@@ -757,13 +760,10 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
       },
       networkAccess: options.networkAccess === true,
     },
-    hardBudget: {
-      maxProviderTurns: GENERIC_EPISODE_MAX_PROVIDER_TURNS,
+    hardBudget: effectiveEpisodeHardCeiling(runtimePolicyForApp(options.app), "generic", {
       maxEquivalentCostUsd: remainingBudgetUsd,
       maxMechanicalOverheadUsd: remainingBudgetUsd,
-      maxActiveTimeMs: 60 * 60 * 1_000,
-      maxHumanDecisions: 2,
-    },
+    }),
     requiredSafetyFacts: genericSafetyFacts(options.journal, options.creatorScope),
     responsibilityByRole: Object.fromEntries(
       roles.map((role) => [
@@ -1072,8 +1072,8 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   };
 }): Promise<TurnResult> {
   const rolesFile = await loadRoles(join(options.orgRoot, "roles.yaml"));
-  const configuredRoles = rolesFile.roles;
-  const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
+  const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(options.app));
+  const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
   const pipelines = await loadPipelines(join(options.orgRoot, "pipelines.yaml"), {
     roleNames: rolesFile.roles.map((role) => role.name),
     promptsDir: join(options.orgRoot, "prompts"),
@@ -1940,7 +1940,8 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
 }): Promise<TurnResult> {
   const clock = options.now ?? (() => new Date());
   const rolesFile = await loadRoles(join(options.orgRoot, "roles.yaml"));
-  const roles = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role]));
+  const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(options.app));
+  const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
   const plannerRole = roles["planner"];
   if (plannerRole === undefined) {
     throw new Error("ticket episode planning requires a configured planner role in roles.yaml");
@@ -2003,7 +2004,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     root: options.runtimeHome,
     orgRoot: options.orgRoot,
     app: options.app,
-    roles: rolesFile.roles,
+    roles: configuredRoles,
     gh,
     policy,
     commands,
@@ -2021,7 +2022,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     approval: createExistingTicketApprovalHandler({
       store: options.store,
       app: options.app.name,
-      roleNames: rolesFile.roles.map((role) => role.name),
+      roleNames: configuredRoles.map((role) => role.name),
     }),
     // One inbox, never two: a per-turn budget grant is a synthetic item in the
     // same store the critical-op approvals live in.

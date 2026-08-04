@@ -9,10 +9,12 @@ Defends: INV-001/002/003/004/006, T-1/T-5/T-11. Journeys: any provider turn (J-0
 - One `TurnRequest`: exactly one `workdir` (app-bound, INV-004); one indivisible
   `TurnAssignment {harness, model, effort}` — no member substitutable; role toolset ∩
   adapter capabilities; the composed `GateFn`; per-turn budget cap; brief bytes;
-  session-resume identity when continuing.
+  session-resume identity when continuing; and the app-resolved non-bypass
+  provider permission mode.
 - Invalid classes → typed refusal **before provider construction** (unknown model,
-  unapproved adaptive tuple, missing workdir, absent gate). Never coercion, never
-  silent fallback to a different tuple.
+  unapproved adaptive tuple, missing workdir, absent gate, unsupported/bypass
+  permission mode, invalid or non-monotonic execution limits). Never coercion,
+  never silent fallback to a different tuple.
 
 ## 2. Output guarantees
 - Always: a run envelope with terminal status ∈ {completed, failed, cancelled,
@@ -48,8 +50,13 @@ Defends: INV-001/002/003/004/006, T-1/T-5/T-11. Journeys: any provider turn (J-0
   defensive check. On crossing: stop; any overshoot is retained and settled (INV-006).
   The configured cap is **not** claimed as a mathematically hard spend ceiling where a
   provider reports usage in jumps — surfaces must not imply otherwise (INV-008).
-- Effective cost/tool/time/provider/model bounds are recorded before execution. Budget
-  admission wraps ahead of the safety gate and refuses the next disallowed action with
+- Budget and provider permission mode are app-scoped: the per-turn soft cap,
+  episode/ticket hard ceiling, and remaining execution bounds resolve independently.
+  Effective cost/tool/time/provider/model bounds and permission mode are recorded before
+  execution, and the exact values actually applied remain durable in the run envelope,
+  EpisodeIntent, and route record. A wider safety route may never resolve to a narrower
+  configured execution bound; that configuration is rejected before provider construction.
+  Budget admission wraps ahead of the safety gate and refuses the next disallowed action with
   `escalate:false`; it never creates or reroutes a `budget-exceeded` approval item.
   Partial usage and settlement survive the terminal `error_turn_budget_exhausted` stop.
 - Gate classification precedes every tool action's execution — no post-hoc classification

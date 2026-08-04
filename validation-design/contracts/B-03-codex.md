@@ -5,6 +5,11 @@ Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
 
 - Transport: pinned `@openai/codex` CLI, JSON-RPC over stdio; per-thread model,
   approvals, sandbox modes. `@openai/codex-sdk` is not the adapter surface `[doc]`.
+- Approval mode is explicit app policy. Omission resolves to `on-request`; the same
+  safe value is emitted as `--ask-for-approval` and on both App Server thread/turn
+  requests. Approval/sandbox bypass modes are unrepresentable. The mode never widens
+  Cormidia's hook/gate, workspace-write roots, network default-deny, role shaping, or
+  critical-operation approvals.
 - Subprocess: death mid-RPC is a typed failure preserving the journal/checkpoint;
   protocol-version skew with the pinned CLI is a typed, terminal config error.
 - Known upstream gap: the `untrusted` policy may auto-run trusted read-only commands
@@ -13,6 +18,9 @@ Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
   classify supported reads.** A forbidden **read** escaping that hook is an
   INV-002/INV-011 violation — reads can cross worktree and secret boundaries — not a
   degradation; a forbidden write escaping is likewise INV-002.
+  The separately required ephemeral-hook trust override authorizes only the exact
+  Cormidia hook process; it is not an approval or sandbox bypass and cannot compensate
+  for an invalid linked-worktree writable-root contract.
 - Auth rotation: injected rotation events are L2-scripted (fake); auth loss follows the
   core preserve-checkpoint rule `[rambling: campaigns died mid-run when Codex
   refresh-token rotation raced and killed auth; multi-hour runs WILL be interrupted —

@@ -23,6 +23,20 @@ apps:
     execution:
       assignment_mode: fixed    # fixed | adaptive; omission is fixed
       allowed_assignments: {}   # adaptive app narrowing by role/candidate id
+      permission_modes:
+        codex: on-request       # safe modes only; no approval/sandbox bypass
+        claude: auto            # bypassPermissions is not representable
+      limits:
+        per_turn:
+          equivalent_cost_usd: null  # null inherits the role ceiling
+          active_time_ms: null       # null inherits the pass/episode allowance
+          tool_calls: null
+          model_turns: null
+        generic_episode:
+          equivalent_cost_usd: null  # null uses current app-ledger headroom
+        ticket_episode:
+          equivalent_cost_usd: null
+        route_execution: {}          # optional quick/standard/deep overrides
     cadence: {}                 # optional per-role trigger overrides, e.g.
                                 #   support: []          (disable role here)
                                 #   planner: [{schedule: "daily 08:00"}]
@@ -40,6 +54,28 @@ tuple in both modes. The committed org-home entry and `.cormidia/config.yaml`'s
 `apps.<name>` mirror use the same app-entry schema and must normalize
 identically. Checkout gate commands are `.cormidia/config.yaml` top-level
 extensions, not app-entry fields.
+
+`permission_modes` is resolved per app before a paid turn. Omission uses the
+shipped Codex `on-request` and Claude `auto` modes; `cormidia apps --json`
+prints the complete effective policy, including inherited defaults. Only
+provider-supported, non-bypass modes are accepted. Auto/ask behavior is a
+harness convenience layer: it never removes Cormidia's tool gate, critical-
+operation approvals, workspace-write sandbox, network default-deny, or role
+tool shaping. The Codex linked-worktree writable-root calculation remains an
+independent boundary; a permission mode does not make an invalid worktree
+contract valid.
+
+`limits` resolves three independent authorities. `per_turn` is the soft ring:
+an app value narrows the role/pass allowance for that one turn. The generic and
+ticket episode sections are hard ceilings over the derived EpisodeIntent; cost
+`null` preserves the current ledger remainder as authority. `route_execution`
+may override the existing quick/standard/deep environment-retry, tool-call,
+claim, repair, and review-cycle defaults. Load rejects unknown fields,
+non-positive values, a per-turn value above an explicit episode ceiling, or
+any wider route whose execution bound is below a narrower route. Run envelopes
+persist the actual per-turn cost/time/tool/model values and permission mode;
+EpisodeIntent/route records persist the hard ceiling and static execution
+bounds that actually applied.
 
 An org-approved role candidate keeps the harness and exact model inseparable,
 lists every supported effort explicitly, and binds the operational evidence

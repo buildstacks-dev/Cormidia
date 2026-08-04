@@ -77,6 +77,7 @@ export interface RecordedProviderOptions {
   resume: string | undefined;
   maxTurns: number | undefined;
   maxBudgetUsd: number | undefined;
+  permissionMode: string | undefined;
   settingSources: readonly string[] | undefined;
   systemPromptAppend: string | undefined;
   hasOutputFormatSchema: boolean;
@@ -523,6 +524,7 @@ function recordProviderOptions(options: SdkOptions | undefined): RecordedProvide
     resume: options?.resume,
     maxTurns: options?.maxTurns,
     maxBudgetUsd: options?.maxBudgetUsd,
+    permissionMode: options?.permissionMode,
     settingSources: options?.settingSources,
     systemPromptAppend,
     hasOutputFormatSchema: options?.outputFormat !== undefined,

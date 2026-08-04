@@ -18,6 +18,13 @@ import {
   loadRoles,
   resolveApprovedAssignmentCandidates,
 } from "./roles.js";
+import {
+  appRuntimePolicyYaml,
+  normalizeAppRuntimePolicy,
+  parseAppRuntimePolicy,
+  shippedAppRuntimePolicy,
+  type AppRuntimePolicy,
+} from "./app-execution-policy.js";
 
 export type AppStatus = "live" | "paused" | "onboarding";
 export type AppAssignmentMode = AssignmentMode;
@@ -32,6 +39,7 @@ const STATUSES: AppStatus[] = ["live", "paused", "onboarding"];
 export interface AppExecutionConfig {
   assignmentMode: AppAssignmentMode;
   allowedAssignments: Record<string, string[]>;
+  runtimePolicy?: AppRuntimePolicy;
 }
 
 /** Feedback/publishing channels an app exposes (docs/PURPOSE.md → "Support
@@ -248,15 +256,21 @@ export function normalizeAppExecution(
   execution: AppExecutionConfig | undefined,
   errorPrefix = "execution",
 ): AppExecutionConfig {
-  if (execution === undefined) return { assignmentMode: "fixed", allowedAssignments: {} };
+  if (execution === undefined) {
+    return {
+      assignmentMode: "fixed",
+      allowedAssignments: {},
+      runtimePolicy: shippedAppRuntimePolicy(),
+    };
+  }
   const err = (msg: string) => new Error(`${errorPrefix}: ${msg}`);
   if (!execution || typeof execution !== "object" || Array.isArray(execution)) {
     throw err("must be an object");
   }
   const spec = execution as unknown as Record<string, unknown>;
   for (const key of Object.keys(spec)) {
-    if (key !== "assignmentMode" && key !== "allowedAssignments") {
-      throw err(`unknown key "${key}" (allowed: assignmentMode, allowedAssignments)`);
+    if (key !== "assignmentMode" && key !== "allowedAssignments" && key !== "runtimePolicy") {
+      throw err(`unknown key "${key}" (allowed: assignmentMode, allowedAssignments, runtimePolicy)`);
     }
   }
   if (!ASSIGNMENT_MODES.includes(execution.assignmentMode)) {
@@ -269,7 +283,16 @@ export function normalizeAppExecution(
       err,
       "allowedAssignments",
     ),
+    runtimePolicy: execution.runtimePolicy === undefined
+      ? shippedAppRuntimePolicy()
+      : normalizeAppRuntimePolicy(execution.runtimePolicy, err),
   };
+}
+
+export function runtimePolicyForApp(
+  app: Pick<AppEntry, "execution">,
+): AppRuntimePolicy {
+  return normalizeAppExecution(app.execution).runtimePolicy!;
 }
 
 /** Convert normalized in-memory spelling to the shared apps.yaml /
@@ -282,19 +305,32 @@ export function appExecutionYaml(
   if (Object.keys(normalized.allowedAssignments).length > 0) {
     out["allowed_assignments"] = normalized.allowedAssignments;
   }
+  Object.assign(out, appRuntimePolicyYaml(normalized.runtimePolicy!));
   return out;
 }
 
 function parseExecution(raw: unknown, err: (msg: string) => Error): AppExecutionConfig {
-  if (raw === undefined) return { assignmentMode: "fixed", allowedAssignments: {} };
+  if (raw === undefined) {
+    return {
+      assignmentMode: "fixed",
+      allowedAssignments: {},
+      runtimePolicy: shippedAppRuntimePolicy(),
+    };
+  }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw err("execution must be a mapping");
   }
   const spec = raw as Record<string, unknown>;
   for (const key of Object.keys(spec)) {
-    if (key !== "assignment_mode" && key !== "allowed_assignments") {
+    if (
+      key !== "assignment_mode" &&
+      key !== "allowed_assignments" &&
+      key !== "permission_modes" &&
+      key !== "limits"
+    ) {
       throw err(
-        `execution: unknown key "${key}" (allowed: assignment_mode, allowed_assignments)`,
+        `execution: unknown key "${key}" ` +
+          "(allowed: assignment_mode, allowed_assignments, permission_modes, limits)",
       );
     }
   }
@@ -310,6 +346,10 @@ function parseExecution(raw: unknown, err: (msg: string) => Error): AppExecution
       spec["allowed_assignments"] === undefined ? {} : spec["allowed_assignments"],
       err,
       "execution.allowed_assignments",
+    ),
+    runtimePolicy: parseAppRuntimePolicy(
+      { permissionModes: spec["permission_modes"], limits: spec["limits"] },
+      err,
     ),
   };
 }

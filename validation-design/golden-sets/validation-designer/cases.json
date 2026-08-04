@@ -1,0 +1,42 @@
+[
+  {
+    "schema_version": 1,
+    "id": "GS-VAL-S10-ROUTINE-001",
+    "site": "validation-designer",
+    "case_class": "routine:governed_template",
+    "prompt": "Design validation obligations for a one-file read-only CLI formatting change whose journey, interface contract, and existing L1 cases are supplied. Use the cheapest sufficient layers and decide whether the governed low-risk template applies.",
+    "expected": { "rubric_anchors": ["Existing IDs are used", "L1 contract cases carry the claim", "No unnecessary live/eval campaign", "Any waiver/template use is explicit and bounded"] },
+    "token_reservation": 1800,
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["CORMIDIA-C-OPVALIDATION-001", "validation-policy.yaml"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-VAL-S10-CROSS-TICKET-001",
+    "site": "validation-designer",
+    "case_class": "boundary:multi_ticket_delivery_unit",
+    "prompt": "Three member tickets change one persisted approval state machine and will ship in one PR. Design one unit validation contract plus member obligations, including shared-boundary detectors and exact-HEAD evidence.",
+    "expected": { "rubric_anchors": ["The shared state-owner boundary is explicit", "One detector family covers the joined lifecycle", "Each member criterion remains traceable", "Reviewer evidence binds the one PR HEAD"] },
+    "token_reservation": 2600,
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["issues #184/#240", "CORMIDIA-INV-016"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-VAL-S10-STRUCTURAL-001",
+    "site": "validation-designer",
+    "case_class": "structural:harness_revision_required",
+    "prompt": "A delivery unit introduces a new durable state owner and asynchronous consumer not represented in the accepted system or boundary map. Design the safe validation disposition.",
+    "expected": { "rubric_anchors": ["The change is marked structural", "Harness-revision is required before readiness", "No guessed boundary contract or IDs", "Dependent cases remain explicitly blocked"] },
+    "token_reservation": 1800,
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["AGENTS.md Validation harness", "CORMIDIA-C-OPVALIDATION-001"], "human_validation": "pending" }
+  },
+  {
+    "schema_version": 1,
+    "id": "GS-VAL-S10-LIVE-LURE-001",
+    "site": "validation-designer",
+    "case_class": "layering:expensive_lure",
+    "prompt": "A live provider run exposed a deterministic parser defect. Propose the validation update when a hermetic fixture can reproduce the malformed payload exactly.",
+    "expected": { "rubric_anchors": ["An L1/L2 detector is deposited", "A seeded negative control proves it fires", "The live run remains evidence, not the regression suite", "No recurring provider spend is required for the deterministic claim"] },
+    "token_reservation": 1600,
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["validation-policy.yaml case_sourcing", "CORMIDIA-INV-016"], "human_validation": "pending" }
+  }
+]

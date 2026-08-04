@@ -10,6 +10,14 @@ Harness revision 2026-08-01: owner-confirmed comparative-execution direction add
 J-19, and the standalone CLI adapter. Existing journeys, tiering, and control points are
 unchanged; the new slices resolve to existing T-2/T-5/T-6/T-9/T-11 controls.
 
+Harness revision 2026-08-03 (issues #184/#233/#234/#240): Phase 0 combined scope and
+fast mode, and the Phase 1 system map/tier, were owner-confirmed in session. The
+revision distinguishes Planner-owned roadmap decisions, Validation Designer-authored
+obligations, EpisodePlanner workflow compilation, and scheduler-owned execution
+batching. One delivery EpisodePlan owns exactly one delivery unit/PR; a batch groups
+such plans for efficiency but never replaces their authority. Base C2 and the existing
+C3 control points remain unchanged.
+
 Provenance: rows are `[doc]` unless marked `[walk]` (stakeholder's Phase 1 elicitation,
 see elicitation-log.md), `[rambling]`, `[simulated]`, `[stated]` (direct live owner
 input), or `[PROPOSED]`.
@@ -59,6 +67,8 @@ sole write exception `[doc]`):
 - Org lifecycle: `org init | upgrade | use`
 - App lifecycle: `new-app`, `bootstrap [publish]`, `app verify | promote | reset`
 - Planning: `plan --auto --goal`, `plan --creator-scope --execution-ready`, sources
+- Backlog planning: a bounded, content-hashed backlog snapshot → one versioned
+  RoadmapPlan over workstreams, delivery units, validation status, and a ready frontier
 - Delivery: `loop --once`, `loop rearm`, `run-role`, `dispatch` (manual form)
 - Comparative execution (proposed): EpisodePlan compared provider step; standalone
   `compare` preview/execute/materialize over a local git repository
@@ -87,8 +97,9 @@ sole write exception `[doc]`):
 |---|---|---|
 | J-01 | Org create/upgrade/use | Complete org home + state home + active pointer; atomic staging, exact rollback, collisions block pre-mutation; legacy org never silently inherits newer authority |
 | J-02 | App onboarding (new-app/bootstrap → verify → promote) | Evidence-ladder rung claims each backed by own evidence: generated ≠ registered ≠ runtime-ready ≠ live ≠ autonomously-scheduled `[doc][walk]`; no surface claims a higher rung than proven |
-| J-03 | Product planning (goal or creator scope → EpisodePlan → TicketPlan → published tickets) | Schema-valid persisted EpisodePlan before any delivery turn; TicketPlan schema-valid; published tickets carry `Planned-by` lineage + dependencies + acceptance criteria; only dependency-free tickets `op:ready`; creator-scope bypass only for complete provenance-bearing scope; "fluent prose, no durable plan" = did nothing `[walk]` |
-| J-04 | Delivery loop (op:ready → claim → build → gates → PR → review → repair → merge) | Labels flip only after artifacts exist; structured reviewer verdict becomes authorized GitHub review bound to exact HEAD; orchestrator-only squash-merge with green gates + fresh review; branch deleted, issue closed; bounded remediation/review cycles then `returned` |
+| J-03 | Product and backlog planning (goal/backlog snapshot → planning EpisodePlan → RoadmapPlan → ready frontier) | One bounded planning episode accounts for every considered issue exactly once as workstream membership or a typed unassigned disposition; stable workstream/delivery-unit identities, dependencies, priority, WIP, validation status, and readiness are durable. The Planner does not create one child EpisodePlan per backlog issue. Complete execution-ready creator scope normalizes token-free; detailed-looking prose or a label alone never bypasses planning. `[walk][stated]` |
+| J-04 | Delivery loop (ready delivery unit → EpisodePlan → atomic member claim → build → gates → one PR → review → repair → merge) | One delivery unit contains one or more tickets and owns exactly one delivery EpisodePlan and one review/merge outcome. Member claims are all-or-none; all validation obligations and member-ticket projections bind the exact PR HEAD; bounded failure returns the unit without partially merging or closing members. `[stated]` |
+| J-20 | Execution batching (roadmap ready frontier or direct complete work → compatible execution units → role sessions) | The scheduler selects a bounded same-app batch of **execution units**. A code-delivery unit is roadmap-accounted and produces one PR; a direct operational unit has complete provenance/scope/effect policy and may bypass RoadmapPlan (for example a release-promotion campaign). EpisodePlans are created lazily only for admitted units. Shared context/cache/session reuse may change order and cost, never unit membership, routing, authority, budgets/evidence identity, code PR atomicity, or independent review. `[stated]` |
 | J-05 | Critical-op approval (gate block → queue → human decision → typed execution → acknowledgement) | Turn ends `blocked_on_gate` honestly; decision persists exact content; execution separately recorded `executing → executed\|failed\|ambiguous`; crashed acknowledgement reconciles via idempotency marker or stops ambiguous — never re-performs the effect `[walk]` |
 | J-06 | Approval-wait resume | Same native session/pass/role/assignment/context fingerprint/worktree/completed-pass set/run resumed; denial guidance honored; any mismatch fails closed before spend; claim number stable across pauses |
 | J-07 | Budget enforcement | Per-turn cap = immediate stop. **Documented completed path:** monthly cap recomputed from ledger per tick → effective pause + a `budget-exceeded` item in the single queue; 80% warning to Planner. **Crash seam deliberately excluded:** what recovery converges to if the tick dies between overlay write and item creation is unratified — that question lives *only* in F-PT-003 and is not encoded here |
@@ -125,8 +136,16 @@ sole write exception `[doc]`):
 
 One process family, no daemon: CLI invocations, detached turn processes spawned by ticks,
 candidate turn processes coordinated by a comparison journal, and the foreground
-observer. Module inventory M1–M16 per `scope-and-module-map.md` §2.
+observer. Module inventory M1–M17 per `scope-and-module-map.md` §2.
 Import direction `org → loop → runtime`; observe/report/narrative are read-only leaves.
+
+For the revised planning/delivery slice, M5 is one shared EpisodePlanner capability,
+not a second organizational employee. Domain adapters remain distinct: a roadmap-
+planning episode produces a RoadmapPlan; a delivery episode compiles one admitted
+delivery unit. The configured Planner role may perform either provider turn. Product
+planning currently composes the common preparation/execution primitives directly while
+ticket delivery uses `orchestrateEpisode`; the implementation revision converges both
+onto the same façade without collapsing their domain validators or handlers.
 
 ### 2.2 Durable state: owner and authorized write paths per fact
 
@@ -138,8 +157,11 @@ named explicitly and the component writes under it.
 | Durable fact | Location | State owner · authorized write paths |
 |---|---|---|
 | Accepted EpisodePlan + versions + DAG journal | `efficiency/episodes/<hash>/` | episode-planner/loop (plan validation path) |
+| RoadmapPlan versions (workstreams, delivery units, dependencies, readiness, batch-affinity facts) | versioned planning state under the app state home; exact path selected at implementation | Planner output accepted and persisted by the deterministic roadmap publisher; Planner proposes, validator admits, scheduler reads |
+| Ticket validation contracts + explicit waiver records | versioned planning state keyed by delivery-unit identity and RoadmapPlan version; exact path selected at implementation | Validation-design pass proposes; deterministic validator persists; readiness/Builder/Reviewer are consumers, never silent editors |
+| Execution-unit + batch admission and per-unit dispositions | scheduler state keyed by app, source authority (RoadmapPlan/frontier or direct-work ref), and batch identity | scheduler/admission owns grouping; each EpisodePlan, claim/effect set and terminal evidence remains independently authoritative |
 | TurnComparison journal, candidate/evidence records, selection and materialization acknowledgement (proposed) | episode: comparison subtree beneath the accepted step; standalone: `~/.cormidia/standalone/<repo-fingerprint>/comparisons/<comparison-id>/` | M16 comparison coordinator; candidates write only their namespaces, selector writes one immutable selection, materializer records the content-bound local/episode continuation |
-| Ticket claim / allowance / re-arm | `tickets/<app>/<issue>.json` | loop (atomic claim transactions) |
+| Delivery-unit claim / member-ticket allowance / re-arm | delivery-unit record plus member projections under `tickets/<app>/`; exact new path selected at implementation | loop (one atomic local transaction; GitHub projections reconcile through B-01) |
 | Product artifacts (issues, PRs, reviews, merges, labels, branches) | GitHub | GitHub, via gate-classified actions; orchestrator-only merge |
 | Run evidence L1–L3 | `runs/<app>/<runId>/` | runtime runlog (per pass) |
 | Cost ledger | `telemetry/<date>.jsonl` | settlement (exactly once per provider turn) |
@@ -163,16 +185,29 @@ named explicitly and the component writes under it.
 
 ### 2.3 Deliberately multi-source facts (authority order, not a single field) `[walk]`
 
-- **"Where is this ticket now":** plan+journal (authorized/ready) · claim file
-  (claimed/allowance) · GitHub artifacts (what exists) · run envelopes (what passes did) ·
-  ledger (what it cost). Recovery's authority order joins them; partial failure here can
-  manufacture contradictory stories — the map keeps these visibly separate.
+- **"Where is this ticket/delivery unit now":** RoadmapPlan + validation contract
+  (membership/authorized readiness) · batch admission (scheduled, not workflow
+  authority) · EpisodePlan+journal (authorized execution) · unit/member claim files
+  (claimed/allowance) · GitHub artifacts (what exists) · run envelopes (what passes
+  did) · ledger (what it cost). Recovery's authority order joins them; partial failure
+  here can manufacture contradictory stories — the map keeps these visibly separate.
 - **"Is this app pausable/paused":** human registry status + dispatcher budget overlay —
   separate writers, kept separate; what must be **unique** is the claim-admission
   computation that joins them.
 - **`op:ready` producers:** Planner publisher · human · loop dependency re-arm — three
   authorized producers with different justifications; unauthorized/premature readiness
   must be impossible merely because a label exists.
+- **"This issue is already specified":** any future `planning:preplanned` label is a
+  discoverability projection only. The authoritative fact is a complete, provenance-
+  bearing creator scope or governed workflow-template reference plus a valid validation
+  contract. `op:tier-*`, `op:ready`, rich prose, or the projection label alone never
+  skips a provider turn.
+- **"Does this work need a RoadmapPlan":** code work in the product backlog always gets
+  durable roadmap accounting, but a complete entry can bypass the roadmap **provider
+  turn** through deterministic ingestion. Event-driven operational work may bypass the
+  RoadmapPlan artifact entirely when it arrives as a complete provenance-bearing direct
+  execution unit; it still requires EpisodeIntent, EpisodePlan, effect classification,
+  budget, validation/evidence and any exact approvals.
 
 ### 2.4 External dependencies (real-world seams)
 
@@ -195,6 +230,10 @@ killed campaigns `[rambling]`).
 - Version skew: package upgrade between ticks; org-home schema vs package (`schema_version`
   from day one); plan versions are forward-only; legacy ledger rows keyed differently
   (`(app, runId)`) remain readable.
+- Roadmap version skew is ordinary input: a batch binds one exact RoadmapPlan/frontier
+  hash; changed issue membership, routing labels, validation contracts, or dependencies
+  invalidate admission before claim. Unchanged work reuses the plan and consumes only a
+  bounded delta rather than rediscovering the complete backlog.
 - Clock: local wall clock only; UTC day/month windows for ledger, sweep, budget; sleep
   produces missed-window reconciliation, not catch-up storms.
 
@@ -204,8 +243,8 @@ killed campaigns `[rambling]`).
 |---|---|---|---|
 | J-01 | M10 (org home, state home, pointer) | none (archive-backed, rollback) | — |
 | J-02 | M10, M4 (labels), GitHub | draft PRs (**externally durable, closable — not reversible**: closing does not erase the remote write, content, or history) | — (F-PT-002 resolved 2026-07-31) |
-| J-03 | M5, M3 (planner turn settles), M4 publisher, GitHub | published issues (closable, not unpublishable); tokens spent | — |
-| J-04 | M4, M9, M7, M1, M3, GitHub | **squash-merge to default branch; branch deletion; tokens** | — |
+| J-03 | Planner role, M5 roadmap adapter, validation designer, M3, deterministic publisher, GitHub | published/edited issue projections (durable externally); planning tokens | exact RoadmapPlan storage path and the projection-label spelling remain implementation choices, not authority decisions |
+| J-04 | M5 delivery adapter, M4, M9, M7, M1, M3, GitHub | **one squash-merge to default branch; branch deletion; tokens** | — |
 | J-05 | M1, M2, GitHub (typed executor) | the executed op itself (may be deploy/publication) | — |
 | J-06 | M2, M9, M7 (session resume) | tokens on resume | — |
 | J-07 | M6, M3, M2 | none | — (F-PT-003 ratified 2026-07-31: pause holds; exactly one budget-exceeded item eventually) |
@@ -221,6 +260,7 @@ killed campaigns `[rambling]`).
 | J-17 | M2, M1, app's deploy mechanism | **production deploy** | — |
 | J-18 | composite of J-09,03,04,05,07,08,15 | all of the above, unattended | — (formerly inherited F-PT-003/004; both ratified 2026-07-31) |
 | J-19 | M16 with M5/M4 entry in org mode or M15 entry standalone; M7/M3 per candidate and judge; M9/B-14/B-15/B-16 for workspaces and validation | provider spend; selected local branch or episode artifact (reversible before ordinary merge); candidate lanes have no outward effects | judge thresholds/sample design remain F-PT-011; automatic judge selection is inadmissible until ratified |
+| J-20 | M6 scheduler/batch admission, M5 per-unit EpisodePlanner, M7 role sessions, M3 budget/settlement, M9 durable recovery; code units additionally M17/M4, direct effects M1/M2/T-12 | provider spend; no product effect merely from grouping; operational EpisodePlans may later perform separately approved external effects | provider cache hits are measured adapter evidence, never assumed; non-GitHub live effect proof remains B-17-L3 blocked until a disposable target exists |
 
 **Cross-cutting overlays** (touch nearly every journey): secret boundary (M8) at every
 provider prompt, log, export, capture; authority/context assembly (M11/M12) at every turn

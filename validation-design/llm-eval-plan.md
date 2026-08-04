@@ -13,6 +13,12 @@ selection judge. It is a judge site and therefore inherits the calibration rule.
 threshold/sample design stays under F-PT-011; all scores are advisory/inconclusive
 until ratified.
 
+Harness revision 2026-08-03: S-1a becomes roadmap/portfolio planning over bounded large
+backlogs; S-1b remains per-delivery-unit Episode workflow planning; new S-10 is the
+validation-design pass required before readiness. Complete creator scopes/templates are
+deterministic normalization paths, not LLM sites. Batch construction is likewise
+deterministic; model-generated affinity is advisory Planner output, never admission.
+
 ## 0. Standing rules (apply to every site)
 
 1. **Two layers, never collapsed.** Contract layer: deterministic, mocked provider,
@@ -45,7 +51,7 @@ Family map corrected per elicitation: same role ≠ same output contract or rubr
 
 | Site | Sub-site | Type |
 |---|---|---|
-| S-1 EpisodePlanner | S-1a product planning (TicketPlan: `plan/bootstrap`, `plan/decompose`) · S-1b episode workflow design (delivery episodes) | planner |
+| S-1 Planning | S-1a roadmap planning (large-backlog workstreams, delivery units, priority, ready frontier, advisory affinity) · S-1b EpisodePlanner workflow design (one admitted code or direct operational execution unit) | planner |
 | S-2 Builder | S-2a contract pass · S-2b implement pass · S-2c fix/remediation pass | agentic worker |
 | S-3 Reviewer | S-3a ordinary review · S-3b ship-check review | judge |
 | S-4 SRE | S-4a scheduled health analysis · S-4b event-driven incident analysis | analyzer |
@@ -54,6 +60,7 @@ Family map corrected per elicitation: same role ≠ same output contract or rubr
 | S-7 Learning Reviewer | (single) | judge |
 | S-8 Selection Judge | S-8a Builder change · later operation-specific policies for Planner/Reviewer/SRE/Audience | judge |
 | S-9 Format-repair retry | (single; same-session structure repair) | **contract-only** — valid structure is the whole job; no elegance rubric `[elicited]` |
+| S-10 Validation Designer | validation obligations for one or more compatible delivery units before readiness; capability/pass, not a free-running org role | planner or separately configured validation-design assignment |
 
 **Not a call site — conditioning surface:** brief/context assembly. Broken = wrong app,
 wrong authority, missing required source, undisclosed truncation, runtime constructed
@@ -92,19 +99,30 @@ becomes merged reality"; PR #182 the emotional center]`
   shard rotation.
 
 ### S-1 Planner — second `[elicited: "its mistakes amplify"]`
-- **Contract (L1/2):** C-OP-PLAN §§1–2 — creator-scope conditions, schema validity,
-  acyclic DAG, approved tuples only, persistence before publication/delivery, no
-  dependency-blocked ticket marked ready. All deterministic validator territory (its
-  correctness is T-2/T-5-adjacent code, tested as guardrail).
-- **Quality (L4):** golden goal-set per sub-site (S-1a: bounded goals → TicketPlans;
-  S-1b: episode intents → workflow DAGs). Rubric axes: decomposition sanity (neither
-  seven tiny tickets for a two-line change nor one ticket containing three systems);
-  dependency correctness; acceptance-criteria usefulness (binary, testable, mapped);
-  role/step necessity; **proportionality — expected total process cost vs the work**
-  `[elicited; rambling: "not the 83-contract apparatus"]`. Threshold + sample design:
+- **Contract (L1/2):** C-OP-PLAN §§1–2 and B-20 — creator-scope conditions, strict
+  RoadmapPlan/EpisodePlan schemas, complete issue accounting, stable identities, acyclic
+  graphs, approved tuples only, persistence before publication/delivery, bounded ready
+  frontier, no dependency/routing/validation-ineligible unit marked ready, and no eager
+  per-issue delivery plan. All are deterministic validator/trajectory territory.
+- **Quality (L4):** golden set per sub-site. S-1a cases include 100+ issue backlogs,
+  competing priorities, stale/delta updates, overloaded frontiers, detailed defect
+  tickets, cross-ticket seams, coherent multi-ticket PRs and misleading cache-affinity
+  lures. S-1b cases map admitted code or direct operational execution units to the
+  smallest sufficient workflow DAG; the latter include RoadmapPlan-absent campaigns
+  whose exact effect/approval policy remains complete.
+  Rubric axes: workstream cohesion; delivery-unit reviewability; complete accounting;
+  dependency/priority correctness; acceptance-criteria usefulness; routine-vs-human-only
+  routing; ready-frontier quality; role/step necessity; proportionality and expected
+  total process cost. Cache affinity is rewarded only after hard constraints and never
+  for merging unrelated work. Threshold + sample design:
   **F-PT-010 (open)** — the ≥ 85% / N ≥ 3 figures are budgeting hypotheses that came
   from neither the owner nor the docs; same owner ruling applies (data collection only;
   threshold-dependent verdicts `inconclusive` until ratified).
+- **Trajectory/economics (deterministic observation):** one bounded snapshot per roadmap
+  revision; selective detail expansion; prior-plan+delta reuse; bounded issue/tool reads;
+  zero delivery EpisodePlans for non-admitted units; creator-scope normalization records
+  zero planner provider turns. Provider-reported cache reads/writes and stable-prefix
+  reuse are measured, not pass criteria until governed learning ratifies a policy.
 
 ### S-2 Builder — trajectory-first (cheap deterministic before any rubric)
 - **Contract (L1/2):** authority escape, out-of-boundary writes, skipped gates,
@@ -207,6 +225,26 @@ becomes merged reality"; PR #182 the emotional center]`
 - **Contract only:** produces valid structure in the same session; bounded attempts;
   settlement per turn (INV-006). No quality rubric, ever `[elicited]`.
 
+### S-10 Validation Designer — before-readiness design capability `[stated]`
+- **Contract (L1/2):** C-OP-VALIDATION §§1–2 and B-21 — strict resolved IDs, exact
+  RoadmapPlan/delivery-unit binding, cheapest-layer declaration, failure cases, detector
+  and seeded negative-control requirements, expected evidence, explicit bounded waivers,
+  and structural-change routing back to harness-revision. Missing/unknown/stale content
+  cannot reach `op:ready`.
+- **Quality (L4):** committed `golden-sets/validation-designer/` authored before prompt
+  iteration. Cases include low-risk templated work, architecture-contract changes,
+  multi-ticket shared state, migrations, security/control-point changes, malformed but
+  plausible IDs, over-testing lures, live-test-overuse, and real L3/L4 findings that need
+  cheaper detectors. Rubric: consequence coverage; correct existing IDs; seam ownership;
+  cheapest falsifying layer; detector/negative-control quality; evidence auditability;
+  proportionality; no invented product truth.
+- **Threshold/sample design:** OPEN under F-PT-011; data collection only and every
+  threshold-dependent verdict remains `inconclusive` until ratified. Deterministic
+  contract failures remain ordinary red failures.
+- **Batching:** compatible units in one workstream may share one validation-design
+  session and stable context prefix, but each emits a separately addressable contract
+  bound to its unit/version. Shared session does not permit copied obligations.
+
 ## 3. Judge calibration rule
 
 Any judge site (S-3, S-7, S-8 — and any judge the qualification replacement introduces,
@@ -262,9 +300,9 @@ discarded, never rendered green (INV-008/014).
 
 ## 7. Golden-set scaffolds
 
-`golden-sets/` holds **twelve** directories: ten statistical golden sets (reviewer,
+`golden-sets/` holds **thirteen** directories: eleven statistical golden sets (reviewer,
 planner, **builder-quality**, sre, support, marketing-content, marketing-analysis,
-distiller, learning-reviewer, **selection-judge**), one deterministic suite (builder-trajectory — exempt
+distiller, learning-reviewer, **selection-judge**, **validation-designer**), one deterministic suite (builder-trajectory — exempt
 from rubric/threshold fields, marked N/A), and `brief-conditioning/` (the §1
 conditioning-surface study — NOT a model golden set; threshold N/A, never gates).
 Every **statistical** scaffold carries: rubric axes; threshold and sample-size status
@@ -289,7 +327,7 @@ rest.
   docs; the same owner ruling applies.
 - **F-PT-011 (open — umbrella, site-specific decisions):** thresholds, N, and sample
   designs for the later quality sets — Builder quality, Support, Marketing content,
-  Marketing analysis, Distiller, Learning Reviewer — are undecided, **plus the
+  Marketing analysis, Distiller, Learning Reviewer, Validation Designer — are undecided, **plus the
   brief-conditioning study's non-gating sampling design** (variant pairs per
   downstream site, minimum pair counts — a study-design decision, never a gate). Each site's
   decision is individually owned by the human; until ratified, the §9 rule applies

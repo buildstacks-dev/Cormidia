@@ -1,7 +1,8 @@
 # Journey acceptance criteria — Cormidia (product scope)
 
-Status: DRAFT (Phase 4). Given/when/then at behavior level; each criterion traces to an
-invariant or contract (trace in brackets). These are ticket-shaped: they travel with the
+Status: RATIFIED 2026-07-31 baseline with an ACCEPTED 2026-08-03 J-03/J-04/J-20
+implementation contract revision. Given/when/then at
+behavior level; each criterion traces to an invariant or contract (trace in brackets). These are ticket-shaped: they travel with the
 feature/change that touches the journey. Compact by design — 2–4 per journey; the case
 catalog (Phase 6) expands them mechanically.
 
@@ -20,9 +21,12 @@ its header):
 | B-06 | CORMIDIA-C-B06-001 | | B-16 | CORMIDIA-C-B16-001 |
 | B-07 | CORMIDIA-C-B07-001 | | B-17 | CORMIDIA-C-B17-001 |
 | B-18 | CORMIDIA-C-B18-001 | | B-19 | CORMIDIA-C-B19-001 |
+| B-20 | CORMIDIA-C-B20-001 | | B-21 | CORMIDIA-C-B21-001 |
+| B-22 | CORMIDIA-C-B22-001 | | C-OP-BATCH | CORMIDIA-C-OPBATCH-001 |
 | B-08 | CORMIDIA-C-B08-001 | | C-OP-LIFE | CORMIDIA-C-OPLIFE-001 |
 | B-09a | CORMIDIA-C-B09A-001 | | C-OP-PLAN | CORMIDIA-C-OPPLAN-001 |
 | B-09b | CORMIDIA-C-B09B-001 | | C-OP-LOOP | CORMIDIA-C-OPLOOP-001 |
+| C-OP-VALIDATION | CORMIDIA-C-OPVALIDATION-001 | | | |
 | INV-NNN | CORMIDIA-INV-NNN | | T-NN | system-map §5.2 control point (not a contract ID) |
 
 **Journey aliases** (`J-04/05/07/08` in J-18's composite trace) are not contract IDs:
@@ -49,12 +53,25 @@ Phase 3 boundary owns them.
   any verify failure, promote refuses with the failing rung named. [B-10, INV-008]
 
 ## J-03 Planning
-- Given a goal, when planning completes, then a schema-valid persisted EpisodePlan
-  exists before any delivery turn, and published tickets carry Planned-by lineage,
-  dependencies, acceptance criteria, with only dependency-free tickets `op:ready`.
-  [C-OP-PLAN §2, INV-008/012]
+- Given a content-hashed snapshot of at least 100 mixed backlog issues, when one roadmap-
+  planning episode completes, then every considered issue appears exactly once under a
+  stable workstream/delivery unit or typed unassigned reason, and only bounded,
+  dependency-clear, validation-complete, routing-eligible units enter the ready frontier.
+  [C-OP-PLAN §2, B-20, INV-008/014/016]
+- Given an unchanged accepted RoadmapPlan plus a small backlog delta, when grooming runs,
+  then it consumes the prior plan and bounded delta without one cold provider turn per
+  issue or eager delivery EpisodePlan construction; moves retain history and stable IDs.
+  [C-OP-PLAN §2, B-20, INV-006/014]
 - Given an incomplete creator scope, when submitted with `--execution-ready`, then it
   fails before provider construction — never silent EpisodePlanner fallback. [C-OP-PLAN §1]
+- Given a complete validated creator scope/workflow template and validation contract,
+  when its delivery unit is admitted, then EpisodePlan normalization constructs zero
+  provider runtimes; given only detailed prose or a projection label, EpisodePlanner is
+  not bypassed. [C-OP-PLAN §1/§2, C-OP-VALIDATION §2, INV-008/012]
+- Given a complete code ticket, when deterministic roadmap intake succeeds, then it
+  receives stable roadmap membership/readiness without a roadmap provider turn; given a
+  complete direct operational task, it may omit RoadmapPlan under C-OP-BATCH but still
+  receives an EpisodePlan. [C-OP-PLAN §2, C-OP-BATCH §1/§3a, INV-008/014]
 - Given planning prose without a durable plan, then the episode reports failure — prose
   is not an artifact. [INV-012]
 - Given scheduled grooming, Planner receives bounded provenance-bearing open issues
@@ -63,11 +80,16 @@ Phase 3 boundary owns them.
   [C-OP-PLAN §2/§5, B-01, INV-008/012]
 
 ## J-04 Delivery loop
-- Given a claimed ticket, when each stage completes, then its label flips only after
-  the artifact exists (PR before `op:in-review`, merge evidence before closure).
-  [INV-008]
+- Given a one-or-more-ticket delivery unit, when claim begins, then all current member,
+  routing, frontier and validation hashes are revalidated and the unit claims all
+  members or none. [C-OP-LOOP §2, B-20/B-21, INV-001/005/016]
+- Given a claimed delivery unit, when each stage completes, then its member projections
+  flip only after the shared artifact exists (one PR before `op:in-review`, merge
+  evidence before every member closes). [C-OP-LOOP §1/§4, INV-008/009]
 - Given an APPROVE verdict, when merging, then review commit_id == candidate HEAD,
-  checks fresh on that SHA, base resolved from remote, merge by orchestrator. [INV-009]
+  checks and declared validation evidence are fresh on that SHA, every member belongs to
+  the reviewed unit, base resolved from remote, merge by orchestrator. [C-OP-VALIDATION
+  §4, INV-009/016]
 - Given remediation or review cycles 1–3 have been exhausted, when a fourth cycle would
   be required, then the ticket returns (`returned`) rather than looping. [C-OP-LOOP §3]
 
@@ -203,3 +225,29 @@ Phase 3 boundary owns them.
   used, then no org or GitHub is required, preview spends no tokens, candidates mutate
   only external comparison worktrees, and materialization creates only a new local
   winner branch without touching the active branch. [B-18/B-19, INV-004/010/013]
+
+## J-20 Execution batching
+
+- Given one accepted ready frontier and/or complete direct operational units, when batch
+  admission runs, then it constructs zero provider runtimes and selects only bounded
+  same-app units satisfying priority,
+  dependency, routing, validation, WIP and budget constraints; affinity cannot override
+  any hard constraint. [C-OP-BATCH §1/§2, B-20/B-22, INV-001/004/015/016]
+- Given an admitted batch, when delivery starts, then an EpisodePlan is created lazily
+  for each unit immediately before its claim—never for every frontier/backlog issue—and
+  complete creator scope takes the zero-turn normalization path. [C-OP-BATCH §3,
+  C-OP-PLAN §1/§2, B-22]
+- Given compatible units with shared immutable inputs, when Builder or Reviewer sessions
+  are reused, then stable prefix/delta manifests and actual cache evidence are recorded,
+  every turn remains attributed/settled to one unit, and Builder private state is never
+  resumed by Reviewer. [C-OP-BATCH §4, B-22, INV-004/006/016]
+- Given one unit fails, replans or returns, when the batch continues or resumes, then no
+  sibling inherits its claim, evidence, budget or partial completion; every admitted
+  unit receives a typed terminal batch disposition. [C-OP-BATCH §5, B-22,
+  INV-005/008/014]
+- Given a release-promotion unit containing five Reddit destinations, LinkedIn and
+  Twitter, when one shallow EpisodePlan drafts/adapts the campaign, then every exact
+  payload/destination remains a separately approved and acknowledged external effect;
+  a batch review UI cannot widen those grants. Follow-up observation may be scheduled,
+  but unknown future replies require new units/plans. [C-OP-BATCH §3a, INV-003/008,
+  B-17/T-12]

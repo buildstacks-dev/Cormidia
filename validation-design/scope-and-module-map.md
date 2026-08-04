@@ -1,8 +1,10 @@
 # Phase 0 — Scope declaration and module map (Cormidia)
 
-Status: ratified 2026-07-31 baseline plus a surgical harness revision for comparative
-execution, direction confirmed by the owner 2026-08-01. Existing module judgments stay
-unchanged; M16 is the only addition.
+Status: ratified 2026-07-31 baseline plus surgical harness revisions: comparative
+execution direction confirmed by the owner 2026-08-01, and roadmap/validation/delivery-
+batching confirmed through Phase 7 on 2026-08-03. Existing module judgments stay
+unchanged; M16 and M17 are the additions. The 2026-08-03 revision passed Phase 8
+acceptance and is not an implementation claim.
 Provenance labels: `[doc]` = derivable from ./docs/ · `[rambling]` = ./rambling.txt (cited) ·
 `[simulated]` = stakeholder judgment beyond docs/rambling · `[PROPOSED]` = designer-originated.
 `[stated]` = direct live owner input; absent from the closed 2026-07-31 campaign and
@@ -33,6 +35,8 @@ used only on the owner-confirmed 2026-08-01 comparative-execution direction.
   `[doc: PURPOSE v2.9]` `[rambling: "hard requirement ... ZERO human approval decisions"]`
 - **Fast mode:** declined by stakeholder. Every concept (invariants, boundaries, contracts,
   eval layers, risk tiers) gets full teach-first treatment.
+  The surgical 2026-08-03 harness revision separately uses owner-confirmed fast mode;
+  it preserves the baseline and revisits only affected artifacts.
 - **Criticality:** deliberately **not declared here**. Rev 1 carried a provisional
   criticality column; the stakeholder struck it as pre-empting the Phase 1 teach-first tier
   discussion. Tiering happens in Phase 1 (teach, then elicit) and risk weighting in Phase 6.
@@ -51,7 +55,7 @@ campaign with this skill. All rows `[doc]` unless noted.
 | M3 | **Budget & ledger** | exactly-once provider-turn settlement; monthly caps + overlay; 80%/100% behavior; `budget --reconcile`; equivalent-cost estimates flagged as such | Yes |
 | M4 | **Build loop & merge integrity** | ticket state machine; passes/briefs/verdicts; mechanical quality gates; **orchestrator-only squash-merge**; **HMAC-verified exact-commit single-account review authorization** (placed here per stakeholder: a merge-integrity mechanism, not the approval queue); GitHub conventions — labels flip only after artifacts exist (`src/loop`) | Yes |
 | M5 | **EpisodePlanner boundary** | bounded intent; creator-scope-only planner bypass; plan validation/persistence; DAG execution order; forward-only revisions; no-network planner boot | Yes |
-| M6 | **Dispatcher & scheduler** | stateless tick; due arithmetic; locks + org WIP; event polling + file-drop inbox (closed kind registry); exactly-once event consumption; scheduler install/status/uninstall evidence; daily retention sweep | Yes |
+| M6 | **Dispatcher & scheduler** | stateless tick; due arithmetic; locks + org WIP; event polling + file-drop inbox (closed kind registry); exactly-once event consumption; scheduler install/status/uninstall evidence; daily retention sweep; execution-batch admission over an already-valid ready frontier (grouping is optimization, never workflow authority) | Yes |
 | M7 | **Runtime adapters** | claude/codex/pi behind one Runtime interface; atomic harness/model/effort assignment; adapter-level gate conformance; session resume; tool events; capability matrix; documented degradations | Yes |
 | M8 | **Secret boundary** | the shared secret-pattern list governing scanning, scrubbing, bounded previews, exports, and capture-time redaction. **Scope corrected by stakeholder:** L3 evidence (`brief.md`, `prompt.md`, `output.md`, `session.log`) is intentionally verbatim local evidence and may contain sensitive material; "everything redacts through it" is NOT the ratified claim — see finding F-PT-001 | Folded into product-level invariants (small surface) |
 | M9 | **Turn lifecycle & durable state** | turn journals (crash-recovery source of truth); org-managed clones + worktrees; recovery at artifact boundaries; four idempotency rules; uncommitted-work preservation (`[rambling: "the next turn must not eat it"]`) | Yes |
@@ -62,6 +66,7 @@ campaign with this skill. All rows `[doc]` unless noted.
 | M14 | **Observe / report / narrative** | read-only presentation leaves; ledger-first reports. **Explicit confidentiality slice (stakeholder-directed):** loopback-only bind; per-process capability enforcement; no mutation routes; traversal/symlink confinement; no raw L3 in snapshots or SSE (explicit local fetch only); capture-time redaction for long-lived narratives | No — product-level coverage with the confidentiality slice |
 | M15 | **CLI surface** | subcommand dispatch; `--json` error contract (`ok:false`, stable `error.code`); dry-run token-free/write-free claims (audit row sole exception); exit codes | No — adapter-conformance coverage at product level |
 | M16 | **Comparative execution** `[stated+PROPOSED]` | Per-provider-turn candidate-set planning; frozen-input identity; isolated candidate workspaces; operation-specific evidence; blinded selection; durable winner materialization; the shared core behind EpisodePlan comparison and standalone `cormidia compare` (`docs/comparative-execution/design.md`) | Yes — new state machine, selection judge, workspace and continuation seams |
+| M17 | **Roadmap and validation planning** `[stated]` | bounded whole-backlog snapshot; stable workstreams; delivery-unit membership; dependencies/priority/WIP; bounded ready frontier; validation-contract authoring and explicit waivers; deterministic label/trailer projections; incremental replanning without full-backlog rediscovery | Yes — new durable planning state and the admission seam for M5/M6 |
 
 Mapping judgments (ratified with this map):
 

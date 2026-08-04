@@ -286,6 +286,10 @@ state/turns/<turnId>.json  turn journals (§3)
 state/budget-overlay.json  dispatcher budget-pause overlay (§7)
 scheduler/installation.json  org-scoped scheduler ownership/definition record
 scheduler/evidence/      versioned invocation, route-decision, and alert JSON
+planning/apps/<hash>/    immutable backlog snapshots/RoadmapPlan revisions, current
+                        pointer, validation, batch, delivery binding, Builder evidence,
+                        and independent Reviewer verdict records
+planning/delivery-unit-claims/ atomic all-member delivery-unit claims
 validation/campaigns/<id>/report.json  versioned triggered-validation report;
                          completeness and verdict are separate product facts
 validation/soaks/<id>/state.json  resumable seven-day soak checkpoint evidence

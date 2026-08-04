@@ -1,8 +1,8 @@
 # Golden sets — scaffolds (commitment precedes content)
 
-Twelve directories: ten statistical golden sets (reviewer, planner, builder-quality,
+Thirteen directories: eleven statistical golden sets (reviewer, planner, builder-quality,
 sre, support, marketing-content, marketing-analysis, distiller, learning-reviewer,
-selection-judge) +
+selection-judge, validation-designer) +
 one deterministic suite (builder-trajectory) + `brief-conditioning/` (conditioning
 study — NOT a model golden set). Every **statistical** scaffold records: rubric axes ·
 threshold + sample-size status (`OPEN` with its owning finding where unknown) ·

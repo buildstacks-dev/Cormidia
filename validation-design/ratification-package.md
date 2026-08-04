@@ -315,3 +315,148 @@ be scheduled per policy — HB-054 still additionally gated on the test-mode pro
 being implemented in Cormidia. **Release gating remains SUSPENDED** until the
 replacement qualification (llm-eval-plan §5's nine obligations) is built and the
 human-authored threat model exists.
+
+## 10. Harness-revision acceptance package — 2026-08-03
+
+### 10.1 Status and requested decision
+
+This section is the final Phase 8 gate for the `harness-revision` covering
+#184/#233/#234/#240. The product owner explicitly confirmed Phases 0, 1, 2, 6 and 7;
+Phases 3–5 were derived from those confirmations and the owner's concrete scenarios.
+The package was **explicitly accepted on 2026-08-03**. Before that acceptance:
+
+- `validation-policy.yaml` keeps the 2026-07-31 baseline ratified and records this
+  revision as `awaiting_phase8_acceptance`, `design_only: true`;
+- HB-100…111 are not implementation authorization;
+- no Planner/Validation Designer role, pipeline, prompt, TASTE or PURPOSE surface may
+  be edited from this proposal; and
+- no prior test evidence, live campaign or scheduler state proves the revised loop.
+
+The exact decision requested is:
+
+> **Accept the 2026-08-03 roadmap/validation/delivery-unit/batching revision as the
+> binding implementation contract and authorize implementation to begin with HB-100,
+> while preserving separate human approval for protocol-surface edits, external
+> publication/deployment, merge, and live/eval/soak campaigns.**
+
+### 10.2 Confirmed architecture and nomenclature
+
+- **Planner** is the organizational role owning product intent, priority, workstreams,
+  delivery-unit membership and ready-frontier proposals.
+- **EpisodePlanner** is one shared capability that converts one admitted EpisodeIntent
+  into an executable EpisodePlan. Roadmap planning and delivery are domain adapters over
+  shared primitives; the implementation converges both on `orchestrateEpisode` without
+  collapsing their schemas, validators, prompts or terminal artifacts.
+- A **RoadmapPlan** is the durable whole-backlog planning artifact. One bounded planning
+  session handles a content-hashed backlog snapshot (including 100+ issue fixtures),
+  then future sessions consume the accepted plan plus a bounded delta.
+- A **workstream** is a durable outcome/dependency/priority grouping. A **delivery
+  unit** is one reviewable code change containing one-or-more tickets and producing
+  exactly one PR/review/merge outcome. An **execution batch** is scheduler-owned
+  co-scheduling of compatible execution units; it is never workflow authority.
+- An **execution unit** is either a RoadmapPlan-backed code delivery unit or a complete
+  direct operational unit. Code work is always roadmap-accounted. Complete non-code
+  operational work may omit RoadmapPlan, but never EpisodeIntent/EpisodePlan,
+  validation/evidence policy or effect authority.
+
+The non-negotiable owner-confirmed rule is: cache/session optimization may reorder or
+co-schedule units, but never changes membership, one-PR atomicity, validation
+obligations, budget/evidence attribution, routing eligibility, effect authority, or
+Reviewer independence.
+
+### 10.3 Fast paths and the three calibration scenarios
+
+1. **Ready-made complete code ticket:** strict structured intake may construct
+   RoadmapPlan membership and the delivery EpisodePlan with zero provider turns. The
+   durable artifacts, gates and independent review remain. Detailed prose or a label
+   alone is insufficient.
+2. **Small Support/event-discovered webpage defect:** if it proves the bounded low-risk
+   criteria, governed roadmap/workflow/validation templates avoid portfolio debate and
+   contract re-authoring. Because it changes code, it still receives roadmap accounting,
+   one PR, gates and Reviewer. A future Jira adapter may provide normalized input; the
+   revision does not claim one exists.
+3. **Five Reddit destinations + LinkedIn + Twitter + follow-up:** a complete campaign
+   may bypass RoadmapPlan and use one shallow Marketing content turn. Seven destinations
+   remain seven exact payload approvals and seven execution acknowledgements. Follow-up
+   observation may be deterministic; unknown replies become new units/plans when their
+   content exists. B-17 real non-GitHub proof remains blocked and this design authorizes
+   no post.
+
+Any future `planning:preplanned` label is only a discoverability projection of a
+persisted validated artifact ref+hash. Existing `op:ready`/`op:tier-*` labels do not
+bypass EpisodePlanner or establish planning, validation, routing or effect authority.
+
+### 10.4 Validation and assurance allocation
+
+The revision registers M17, J-20, INV-016, B-20/B-21/B-22,
+CORMIDIA-C-B20/B21/B22-001, C-OP-VALIDATION, C-OP-BATCH and S-10. The case catalog is
+closed over J-01…J-20, INV-001…016, B-01…B-22, 29 canonical contracts and S-1…S-10.
+
+- L1/L2 carry schema/graph/accounting, stable-ID, exact-hash, routing, waiver,
+  all-or-none claim, lazy-plan, session-isolation, evidence-lineage, recovery and
+  negative-control obligations.
+- S-1 and S-10 quality remain L4 data collection with committed pre-tuning cases and
+  `human_validation=pending`; F-PT-010/011 keep threshold-dependent outcomes
+  inconclusive.
+- There is no new campaign type or tool. Material batch/claim/session-reuse changes
+  repeat the existing contention and seven-day soak obligations. Cache hit/miss/unknown
+  is measured adapter evidence, never a correctness gate.
+- B-17-L3, release-gating suspension, the threat-model gate, existing open findings and
+  all human critical-operation approvals remain unchanged.
+
+### 10.5 Implementation sequence
+
+HB-100 is the walking skeleton: one two-ticket unit from RoadmapPlan through validation,
+batch admission, lazy zero-turn EpisodePlan, atomic claim, synthetic PR/evidence and
+independent review. HB-101…107 then deepen roadmap/delta state, validation authority,
+multi-ticket delivery, batches/direct operations, fast paths and role-safe cache/session
+reuse. HB-108 closes executable cases/goldens; HB-109 repeats contention/soak machinery;
+HB-110 adds truthful operator surfaces. HB-111 only prepares exact proposed changes to
+human-ratified protocol surfaces for separate human approval.
+
+#239's `routing:human-only` enforcement is a prerequisite and is not reimplemented by
+this backlog.
+
+### 10.6 Phase 8 adversarial reader review
+
+Three fresh-context perspectives were simulated against the completed artifact graph.
+All findings are dispositioned; none requires a new product-truth finding.
+
+| Reader | Finding | Disposition |
+|---|---|---|
+| Operator | “Batch complete” could be misread as every unit merged/published. | Fixed in C-OP-BATCH §5, CF-SM-BATCH and HB-110: complete means every unit has a typed disposition; per-unit failure remains visible. |
+| Operator | A Jira example could be mistaken for a supported connector, and the social example for publication authority. | Fixed in C-OP-PLAN/C-OP-BATCH/HB-105: Jira is explicitly a future adapter; C-OP-BATCH/HB-106 and this package say no connector, live post or approval bypass is implied. |
+| Operator | A label could be mistaken for the fast-path authority. | Fixed across C-OP-PLAN, B-20, INV-016, the proposed AGENTS addendum and HB-105: only a validated ref+hash artifact authorizes normalization/readiness. |
+| New engineer | Newly named roadmap, validation and batch states were visible in case families but not their operation contracts. | Fixed: forward-only lifecycle vocabularies and crash authority are now explicit in C-OP-PLAN §2, C-OP-VALIDATION §2 and C-OP-BATCH §5. |
+| New engineer | The policy and catalog still enumerated only the pre-revision IDs/counts. | Fixed: policy active-revision registry, INV-016/S-10/tooling entries, 29-contract resolver, new case families and closure arithmetic now agree. |
+| New engineer | Exact storage paths are not selected. | Accepted as an implementation choice, not product truth; HB-101 requires selecting and pinning app-state paths/migration compatibility. Authority, identity and hash semantics are already fixed. |
+| Coding agent | A component-by-component backlog could produce green islands without proving the joins. | Fixed: HB-100 is a provider-free vertical walking skeleton and every later ticket depends on it; its seeded lineage violation is the first negative control. |
+| Coding agent | Current product-planning and delivery entry paths are asymmetric. | Fixed as an explicit HB-107 obligation: converge on `orchestrateEpisode`, retain domain adapters, and trigger existing L3 adapter proof only if invocation semantics change. |
+| Coding agent | Human-ratified surfaces might be treated as ordinary implementation files. | Fixed: HB-111 is proposal-only; the proposed AGENTS addendum and this gate require separate explicit human approval for exact diffs. |
+
+The review also removed one duplicate pre-existing CF-B02-L3 catalog row encountered
+while recounting boundary closure; this changes no contract or coverage claim.
+
+Verification on the isolated revision worktree: policy YAML and both changed golden-set
+JSON files parse; registry/cardinality assertions and `git diff --check` pass;
+`pnpm typecheck` and `pnpm build` pass. The final full offline run passes 145/145 files,
+951 tests, with one intentionally parked skip. An earlier full run had one unrelated
+CF-J12-I missing-journal failure; that exact test then passed in isolation and the full
+suite passed on rerun. The failure was not hidden or converted into a design claim.
+
+### 10.7 Phase 8 acceptance record
+
+**ACCEPTED 2026-08-03.** In response to the final gate, the product owner selected and
+returned the exact acceptance statement:
+
+> Accept the 2026-08-03 roadmap/validation/delivery-unit/batching revision as the
+> binding implementation contract and authorize implementation beginning with HB-100,
+> while retaining separate approval for protocol-surface changes, merges,
+> publication/deployment, and live/token-spending campaigns.
+
+This closes Phase 8 and authorizes local, provider-free implementation beginning with
+HB-100. It does **not** authorize changes to `TASTE.md`, `roles.yaml`, `pipelines.yaml`,
+`prompts/**`, `docs/PURPOSE.md` or the binding `AGENTS.md` routing contribution; it also
+does not authorize merge, publication/deployment, external effects, or live/eval/soak
+campaigns. Acceptance makes the revision the implementation contract; it is not itself
+executable coverage or operational evidence.

@@ -325,20 +325,30 @@ cluster survives policy caps; do not invoke the live form unless the human
 explicitly asks for a distillation run. Scheduled distiller/reviewer turns use
 the same ordinary ledger and learning-budget overlay as every provider turn.
 
-## Platform-development boundary
+## Self-hosting boundary
 
-This packaged skill operates an org; it must not build or maintain Cormidia
-itself. Do not turn the Cormidia repository into an app managed by a Cormidia org,
-and do not use org authority, approvals, state, memory, learning, scheduler, or
-budgets as platform-development authority. Conversely, developer campaigns and
-CI evidence never authorize an org operation.
+The standing Cormidia org may onboard and manage both
+`cormidia/cormidia-web` and `cormidia/Cormidia` as ordinary apps. Neither app's
+onboarding depends on the other first proving the loop. Keep package root, org
+home, state home, and managed app checkout distinct, and use the same
+bootstrap, verification, promotion, planning, loop, and approval commands as
+for any other app.
 
-If the user asks to change the Cormidia platform from its source repository,
-leave this operating workflow and follow that repository's root developer
-instructions and human-ratified development policy. Those developer-only
-instructions, eval tools, grants, raw evidence, and release workflow are
-intentionally not packaged with this skill. Never copy them into an org home
-or target app.
+When operating the Cormidia source app, follow its root `AGENTS.md` and linked
+developer policy as app-scoped repository instructions. The org/app authority
+may authorize ordinary planning, implementation, review, maintenance, and
+marketing work. Every release-shaped action for every app — including website
+deployment, external publication, npm publish, version tags, and release
+handoff — requires explicit human approval. Approval is not execution; after
+approval, Cormidia may execute only the exact approved action through the
+ordinary durable release mechanism. The org can never approve its own release.
+
+Repository developer grants, raw eval artifacts, campaign state, and
+outer-session instructions never become org-home constitution, cross-app
+memory, learning, or approval authority. Do not copy them into the org home or
+global org context. Developer campaign and CI evidence likewise never
+authorize an unrelated org operation. Human-ratified repository surfaces keep
+their required human merge boundary.
 
 ## Diagnose
 

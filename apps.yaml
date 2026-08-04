@@ -32,7 +32,7 @@ apps:
     status: onboarding
     cadence: {}
   # Public front door (homepage, install docs, community issues, release
-  # notes; never source) — self-hosting decision, docs/PURPOSE.md v2.11/v2.12.
+  # notes; never source) — self-hosting decision, docs/PURPOSE.md v2.11–v2.13.
   cormidia-web:
     repo: cormidia/cormidia-web
     status: onboarding

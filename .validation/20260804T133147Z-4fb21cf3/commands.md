@@ -11,7 +11,8 @@
 | `git diff --check` | Pass |
 | Pinned gitleaks 8.18.4 working-tree scan | Pass after replacing one high-entropy inert fixture key |
 | Protected-path diff query | Pass; empty result |
-| `git write-tree` | `45f113aa93d9a15047a4ac086223a00f0cd93cc6` |
+| Focused CF-SM-LEARN-C/CF-J12-S/CF-REG-251 rerun | Pass; 18 tests |
+| `git write-tree` | `4fb21cf3f4a542deba70c77c84167a732d52275a` |
 
 No provider-backed, live, eval, soak, publication, deployment, scheduler, or
 release command was run.

@@ -6,7 +6,7 @@
   "repository": "cormidia/Cormidia",
   "branch": "codex/hb-108-110",
   "base_revision": "86f0727326d17063e23878d0c846b52154c8f3dd",
-  "target_tree": "45f113aa93d9a15047a4ac086223a00f0cd93cc6",
+  "target_tree": "4fb21cf3f4a542deba70c77c84167a732d52275a",
   "environment": {
     "kind": "developer-host",
     "worktree": "/tmp/cormidia-hb-108-110.JwI65i",

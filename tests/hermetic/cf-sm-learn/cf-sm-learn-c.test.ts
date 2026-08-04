@@ -19,7 +19,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cutManifestVersion, readManifest } from "../../../src/org/learning/concepts.js";
-import { readLearningEvents } from "../../../src/org/learning/events.js";
+import {
+  readLearningEvents,
+  sanitizeIdSegment,
+} from "../../../src/org/learning/events.js";
 import { readInterventionRecord } from "../../../src/org/learning/intervention.js";
 import { publishCandidate } from "../../../src/org/learning/publisher.js";
 import {
@@ -36,6 +39,7 @@ import {
 const CAND = "cand_smc_tail";
 const CONCEPT = "lrn_smc_tail";
 const NAME = "smc-tail-lesson";
+const TRAILING_HYPHEN_APPROVAL_ID = "20260731T120000Z-smc-";
 
 interface JournalOnDisk {
   artifact_ref?: string;
@@ -49,9 +53,12 @@ describe("CF-SM-LEARN-C — crash after grant consumption, before the done mark:
   let approvalId: string;
 
   beforeAll(async () => {
-    world = await makeLearningWorld("cf-sm-learn-c");
+    world = await makeLearningWorld("cf-sm-learn-c", {
+      approvalId: TRAILING_HYPHEN_APPROVAL_ID,
+    });
     await seedReviewedOkfCandidate(world, { id: CAND, conceptId: CONCEPT, name: NAME });
     approvalId = await raiseAndApprove(world, CAND);
+    expect(approvalId).toBe(TRAILING_HYPHEN_APPROVAL_ID);
   });
 
   afterAll(async () => {
@@ -61,7 +68,12 @@ describe("CF-SM-LEARN-C — crash after grant consumption, before the done mark:
   const readJournal = async (): Promise<JournalOnDisk> =>
     JSON.parse(
       await readFile(
-        join(world.state.stateHome, "learning", "publish-journal", `${approvalId}.json`),
+        join(
+          world.state.stateHome,
+          "learning",
+          "publish-journal",
+          `${sanitizeIdSegment(approvalId)}.json`,
+        ),
         "utf8",
       ),
     ) as JournalOnDisk;

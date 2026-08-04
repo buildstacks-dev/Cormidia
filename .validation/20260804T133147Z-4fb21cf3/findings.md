@@ -10,7 +10,10 @@
   runtime catalog, policy pin, case catalog, executable closure, and seeded sweep.
 - `CF-REG-251`: the previously merged normalization lacked its exact deterministic
   regression. The detector injects an approval ID ending in `-`, proves the raw
-  filename is unsafe, and proves the normalized journal round-trips.
+  filename is unsafe, and proves the normalized journal round-trips. GitHub CI
+  exposed a second raw test reader in CF-SM-LEARN-C; that family now injects the
+  same edge shape deterministically, and all active publish-journal readers use
+  the publisher sanitizer.
 
 ## Residual conditions
 

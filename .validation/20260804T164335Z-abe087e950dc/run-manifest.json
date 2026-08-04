@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "assessment_id": "20260804T164335Z-abe087e950dc",
+  "mode": "full",
+  "started_at": "2026-08-04T16:43:55Z",
+  "created_at_utc": "2026-08-04T16:43:55Z",
+  "repository": "cormidia/Cormidia",
+  "branch": "codex/issues-230-232",
+  "base_revision": "abe087e950dcb0721a753c56432f116be01483a8",
+  "target_revision": "abe087e950dcb0721a753c56432f116be01483a8+working-tree-a44d5084da0146f41ca5999c86e3c29e95efb1d4",
+  "candidate_digest": "a44d5084da0146f41ca5999c86e3c29e95efb1d4",
+  "candidate_digest_method": "git hash-object over staged binary diff for README.md, docs/, src/, tests/, and validation-design/",
+  "candidate_scope": "working tree excluding this run-scoped evidence directory",
+  "environment": {
+    "kind": "developer-host",
+    "worktree": "/Users/bikram/Build/Cormidia-worktree-230-232",
+    "node": "v26.4.0",
+    "pnpm": "11.10.0",
+    "networked_validation": false,
+    "provider_backed_validation": false
+  },
+  "scope": [
+    "#232 deterministic implementation and acceptance",
+    "#230 remaining deterministic production lifecycle",
+    "#184/#233/#234/#240 acceptance review",
+    "qualification plan without execution"
+  ],
+  "excluded_actions": [
+    "protected-surface edits",
+    "provider-backed/live/eval/soak campaigns",
+    "real GitHub qualification mutation",
+    "deployment, scheduler installation, release, or publication"
+  ],
+  "independence": {
+    "level": "I1",
+    "reason": "same agent implemented and audited; no separate reviewer agent authorized"
+  },
+  "evidence_index": "commands.md",
+  "assessment": "conditionally_sufficient_for_stated_deterministic_target",
+  "external_claim": "not_verified"
+}

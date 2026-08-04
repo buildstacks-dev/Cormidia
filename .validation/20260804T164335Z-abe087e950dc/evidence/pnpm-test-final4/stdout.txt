@@ -1,0 +1,995 @@
+
+ RUN  v3.2.6 /Users/bikram/Build/Cormidia-worktree-230-232
+
+ ✓ tests/hermetic/cf-j14/cf-j14-i.test.ts (7 tests) 9397ms
+   ✓ CF-J14-I — kill at each reset step; durable intent + archive keep it resumable (C-OP-LIFE §6) > SIGKILL at before_archive_creation leaves exactly the journaled intermediate  1409ms
+   ✓ CF-J14-I — kill at each reset step; durable intent + archive keep it resumable (C-OP-LIFE §6) > SIGKILL at before_archive_rename leaves exactly the journaled intermediate  1244ms
+   ✓ CF-J14-I — kill at each reset step; durable intent + archive keep it resumable (C-OP-LIFE §6) > SIGKILL at after_archive_rename leaves exactly the journaled intermediate  1256ms
+   ✓ CF-J14-I — kill at each reset step; durable intent + archive keep it resumable (C-OP-LIFE §6) > SIGKILL at after_pull_request_update leaves exactly the journaled intermediate  1311ms
+   ✓ CF-J14-I — kill at each reset step; durable intent + archive keep it resumable (C-OP-LIFE §6) > SIGKILL at after_issue_update leaves exactly the journaled intermediate  1362ms
+   ✓ CF-J14-I — kill at each reset step; durable intent + archive keep it resumable (C-OP-LIFE §6) > SIGKILL at after_branch_update leaves exactly the journaled intermediate  1409ms
+   ✓ CF-J14-I — kill at each reset step; durable intent + archive keep it resumable (C-OP-LIFE §6) > SIGKILL at after_registry_write leaves exactly the journaled intermediate  1406ms
+ ✓ tests/hermetic/cf-reg-206/cf-reg-206-cli.test.ts (5 tests) 10270ms
+   ✓ CF-REG-206 — non-interactive approval decisions > refuses review without a TTY, names decide, and writes no decision  946ms
+   ✓ CF-REG-206 — non-interactive approval decisions > requires a target, one decision, a justification, identity, and exact confirmation  6495ms
+   ✓ CF-REG-206 — non-interactive approval decisions > records an attributable agent decision and parses an app scope with an optional path  958ms
+   ✓ CF-REG-206 — non-interactive approval decisions > requires a human identity for every decision on NEVER_SCOPEABLE_RULES  1871ms
+ ✓ tests/fixtures/github-double/conformance/cf-c-b01-negative.test.ts (3 tests) 5970ms
+   ✓ CF-C-B01 — conformance suite negative controls (lying fakes must fail) > negative control: conformance suite rejects a fake that reports merge success without recording it  3008ms
+   ✓ CF-C-B01 — conformance suite negative controls (lying fakes must fail) > negative control: conformance suite rejects a fake reporting the wrong default branch  2960ms
+ ✓ tests/hermetic/cf-j04/cf-j04-i.test.ts (6 tests) 8243ms
+   ✓ CF-J04-I — crash-point sweep follows artifact authority > kill after claim label: the dead provisional claim re-arms; no branch artifact is invented  1319ms
+   ✓ CF-J04-I — crash-point sweep follows artifact authority > kill after branch: the branch/worktree survive and pre-provider recovery consumes no claim  1307ms
+   ✓ CF-J04-I — crash-point sweep follows artifact authority > kill after PR: rehydration trusts the open PR artifact despite the lagging build label  1522ms
+   ✓ CF-J04-I — crash-point sweep follows artifact authority > kill after review: the exact-HEAD approval advances directly to shipping  1619ms
+   ✓ CF-J04-I — crash-point sweep follows artifact authority > kill after merge: merged PR authority runs only the idempotent cleanup tail  1951ms
+   ✓ CF-J04-I — crash-point sweep follows artifact authority > negative control: an in-review label without a PR never fabricates PR authority  524ms
+ ✓ tests/hermetic/cf-j14/cf-j14-rc.test.ts (4 tests) 5641ms
+   ✓ CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (C-OP-LIFE §6) > killed after the archive rename: the resume adopts the intent, reuses the archive, closes once, converges  1521ms
+   ✓ CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (C-OP-LIFE §6) > killed between the PR close and the issue close: the resume never re-closes the PR  1470ms
+   ✓ CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (C-OP-LIFE §6) > killed after the registry write: the idempotent finalizer completes the terminal cleanup (twice, safely)  1407ms
+   ✓ CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (C-OP-LIFE §6) > negative control: archive tampered between kill and resume — the checksum detector FIRES and nothing is destroyed  1244ms
+ ✓ tests/fixtures/github-double/cf-b01-double.test.ts (16 tests) 5444ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-ok: full issue → PR → review → squash-merge → branch-delete walk through unmodified GhCliOps  780ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-to: timeout is terminal while rate-limit and 5xx exhaust the bounded retry as typed GhOpsError  533ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-ps: partial success — merge landed, branch delete fails  367ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-rt/dup: LOST-RESPONSE is first-class — effect applied, error returned, retry duplicates the issue  444ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-rt: lost response on pr create — the retry DETECTS the prior effect instead of duplicating (contract §4 markers)  312ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-stale: scripted stale read serves the pre-write snapshot exactly once  378ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-skew: configurable default branch, and default-branch-moved leaves earlier PRs on the old base  418ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-skew: force-push skew defeats the product's own review delivery fence  306ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-ok: single-account mode drives the product's HMAC self-approval fallback end to end  441ms
+   ✓ CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01) > CF-B01-ok: pr checks surface matches gh semantics (no checks = loud, red checks = JSON with non-zero exit)  378ms
+ ✓ tests/hermetic/cf-j03/cf-j03-planning.test.ts (7 tests) 4581ms
+   ✓ CF-J03-S/I/RC — durable planning and idempotent publication > publishes lineage, dependency edges, readiness, and a durable local mirror  1239ms
+   ✓ CF-J03-S/I/RC — durable planning and idempotent publication > recovers a lost issue-create response without duplicating the accepted effect  1527ms
+   ✓ CF-J03-S/I/RC — durable planning and idempotent publication > repairs labels after a partial issue create without duplicating the issue  1803ms
+ ✓ tests/hermetic/cf-j14/cf-j14-r.test.ts (10 tests) 4072ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > active run (fresh heartbeat): refuses, not force-eligible  477ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > negative control: --force against a fresh heartbeat — the refusal detector still FIRES (INV-010 seed c)  411ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > heartbeat exactly 10:00 old: still an ACTIVE run — the ratified bound is strictly greater-than (J-14)  414ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > heartbeat >10 min old without --force: refuses as stale_run, force-eligible  416ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > --force crosses ONLY the stale-heartbeat condition: the same stale run resets cleanly with --force  699ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > active journal: refuses, never force-eligible  413ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > active role lock held by a live process: refuses, --force never crosses locks  403ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > pending approval: refuses, --force never crosses the operator boundary (INV-010 seed c)  414ms
+   ✓ CF-J14-R — refusal classes and the narrow --force condition (C-OP-LIFE §6, J-14) > execute with a blocked reviewed plan refuses before locks, archive, or intent  425ms
+ ✓ tests/hermetic/cf-reg-203/cf-reg-203-base-freshness.test.ts (3 tests) 3394ms
+   ✓ CF-REG-203 — each ticket claim cuts from the base resolved at that claim (#203, INV-009/T-7) > -A within one tick: a ticket claimed after a predecessor's merge sees that merge in its worktree  1219ms
+   ✓ CF-REG-203 — each ticket claim cuts from the base resolved at that claim (#203, INV-009/T-7) > -B across ticks (--follow reuses one BaseRevision): the second tick still cuts from the current remote  1183ms
+   ✓ CF-REG-203 — each ticket claim cuts from the base resolved at that claim (#203, INV-009/T-7) > -NC negative control: with no per-claim refresh wired, the later ticket IS cut from the stale base and the detector fires  992ms
+ ✓ tests/hermetic/cf-j02/cf-j02-lifecycle.test.ts (4 tests) 3285ms
+   ✓ CF-J02-S/R — onboarding earns only registered until verification > bootstraps from immutable recovered answers and reruns idempotently  558ms
+   ✓ CF-J02-I/RC — lifecycle interruption and convergence > rolls back a bootstrap interrupted after registry write and converges on rerun  541ms
+   ✓ CF-J02-I/RC — lifecycle interruption and convergence > resumes promotion after the push boundary and becomes idempotently live  1970ms
+ ✓ tests/fixtures/github-double/conformance/cf-c-b01-conformance.test.ts (1 test) 3013ms
+   ✓ CF-C-B01 — GitHub surface conformance, fake target (pair of CF-B01-L3) > the honest double passes every conformance clause through unmodified GhCliOps  3012ms
+ ✓ tests/hermetic/cf-reg-239/cf-reg-239-routing-exclusion.test.ts (16 tests) 2811ms
+   ✓ CF-REG-239 — durable exclusion from autonomous execution > Builder re-reads a stale ready issue and refuses a late manual-review hold  592ms
+   ✓ CF-REG-239 — durable exclusion from autonomous execution > Builder re-reads a stale ready issue and refuses a late human-only label  529ms
+   ✓ CF-REG-239 — durable exclusion from autonomous execution > Builder rolls back a claim when the human-only label arrives during the phase swap  687ms
+   ✓ CF-REG-239 — durable exclusion from autonomous execution > negative control claims the identical ready issue without the routing label  570ms
+   ✓ CF-REG-239 — durable exclusion from autonomous execution > Builder treats unreadable current label state as a typed exclusion  422ms
+ ✓ tests/hermetic/cf-sm-loop/cf-sm-loop.test.ts (4 tests) 2948ms
+   ✓ CF-SM-LOOP-L/I/R — loop transition relation > walks every productive legal phase and its merged recovery replay  1317ms
+   ✓ CF-SM-LOOP-L/I/R — loop transition relation > illegal phase entry is rejected before remote mutation  611ms
+   ✓ CF-SM-LOOP-L/I/R — loop transition relation > replayed review stimulus is idempotent and does not publish a merge  1020ms
+ ✓ tests/hermetic/cf-j14/cf-j14-a.test.ts (6 tests) 3276ms
+   ✓ CF-J14-A — sibling-diff oracle and the authorized destructive set (INV-010) > INV-010 seed (a): reset of A with B active — B's full state and the human checkout are bit-identical  713ms
+   ✓ CF-J14-A — sibling-diff oracle and the authorized destructive set (INV-010) > negative control (oracle self-test): a seeded out-of-scope mutation makes the oracle FIRE naming the path  370ms
+   ✓ CF-J14-A — sibling-diff oracle and the authorized destructive set (INV-010) > INV-010 seed (b): the archive write fails — destruction never begins, remote untouched  434ms
+   ✓ CF-J14-A — sibling-diff oracle and the authorized destructive set (INV-010) > negative control (seed b guard): destruction seeded AFTER the failed archive — the oracle FIRES  568ms
+   ✓ CF-J14-A — sibling-diff oracle and the authorized destructive set (INV-010) > INV-010 seed (d): the recorded default branch never enters the deletion set, even as a managed PR's head (#101 wrong-remote guard)  694ms
+   ✓ CF-J14-A — sibling-diff oracle and the authorized destructive set (INV-010) > negative control (seed d): with the lifecycle record removed, only PR-base protection remains and the default branch regresses into the deletion set — proving the record guard is the active detector  496ms
+ ✓ tests/hermetic/cf-j01/cf-j01-i.test.ts (12 tests) 2795ms
+ ✓ tests/hermetic/cf-j04/cf-j04-r.test.ts (3 tests) 2846ms
+   ✓ CF-J04-R — delivery refusal and bounded-return branches > gate-red returns the ticket with exact evidence and never creates a PR  770ms
+   ✓ CF-J04-R — delivery refusal and bounded-return branches > CHANGES_REQUESTED bounces to building with the review evidence retained  1024ms
+   ✓ CF-J04-R — delivery refusal and bounded-return branches > a fourth non-actionable review cycle returns instead of spinning or merging  1051ms
+stdout | tests/hermetic/cf-c-oplife/cf-c-oplife.test.ts > CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md) > §1 + error split: the dispatched CLI dry-run writes NOTHING but the invocation audit row
+{
+  "authority": {
+    "automatic": [
+      "ordinary reversible decisions",
+      "local edits and tests",
+      "branches, tickets, and normal PR preparation",
+      "ordinary token spend within configured budgets"
+    ],
+    "human_gated": [
+      "publication or deployment",
+      "secrets and credentials",
+      "cloud, DNS, or infrastructure changes",
+      "irreversible data loss",
+      "merge when human merge is required",
+      "genuinely material product decisions"
+    ],
+    "profile": "delegated-operator",
+    "version": "delegated-operator/v1"
+  },
+  "blockers": [],
+  "effects": {
+    "active_pointer": {
+      "action": "create",
+      "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/home/.cormidia/config"
+    },
+    "generated_destinations": [
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory",
+        "relative_path": "memory"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts",
+        "relative_path": "prompts"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/retro",
+        "relative_path": "retro"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/skills",
+        "relative_path": "skills"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/taste",
+        "relative_path": "taste"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles",
+        "relative_path": "memory/roles"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/build",
+        "relative_path": "prompts/build"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/episode",
+        "relative_path": "prompts/episode"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/groom",
+        "relative_path": "prompts/groom"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/learning",
+        "relative_path": "prompts/learning"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/marketing",
+        "relative_path": "prompts/marketing"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/plan",
+        "relative_path": "prompts/plan"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/review",
+        "relative_path": "prompts/review"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/ship",
+        "relative_path": "prompts/ship"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/sre",
+        "relative_path": "prompts/sre"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/support",
+        "relative_path": "prompts/support"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/triage",
+        "relative_path": "prompts/triage"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/validation",
+        "relative_path": "prompts/validation"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/builder",
+        "relative_path": "memory/roles/builder"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/distiller",
+        "relative_path": "memory/roles/distiller"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/learning-reviewer",
+        "relative_path": "memory/roles/learning-reviewer"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/marketing",
+        "relative_path": "memory/roles/marketing"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/planner",
+        "relative_path": "memory/roles/planner"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/reviewer",
+        "relative_path": "memory/roles/reviewer"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/sre",
+        "relative_path": "memory/roles/sre"
+      },
+      {
+        "disposition": "create",
+        "kind": "directory",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/support",
+        "relative_path": "memory/roles/support"
+      },
+      {
+        "content_sha256": "15d9184567f0a1f0c4fe5d9b18f0bf7411b3951359f06391664628b15c8ac428",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/AGENTS.md",
+        "relative_path": "AGENTS.md"
+      },
+      {
+        "content_sha256": "cce9de4860c59eea478855525b4e910e742f897c4f2faf69b396f6d26643c2d2",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/apps.yaml",
+        "relative_path": "apps.yaml"
+      },
+      {
+        "content_sha256": "1296914e5a7fd3f2f597a525a0523d1a33595bf1467fcc8378d4427f879a8994",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/AUTHORITY.md",
+        "relative_path": "AUTHORITY.md"
+      },
+      {
+        "content_sha256": "64659332bf6409b1f24acb508009fe294ba5e3850b821342602d153cc33af8a1",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/CLAUDE.md",
+        "relative_path": "CLAUDE.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/builder/INDEX.md",
+        "relative_path": "memory/roles/builder/INDEX.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/distiller/INDEX.md",
+        "relative_path": "memory/roles/distiller/INDEX.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/learning-reviewer/INDEX.md",
+        "relative_path": "memory/roles/learning-reviewer/INDEX.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/marketing/INDEX.md",
+        "relative_path": "memory/roles/marketing/INDEX.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/planner/INDEX.md",
+        "relative_path": "memory/roles/planner/INDEX.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/reviewer/INDEX.md",
+        "relative_path": "memory/roles/reviewer/INDEX.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/sre/INDEX.md",
+        "relative_path": "memory/roles/sre/INDEX.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/memory/roles/support/INDEX.md",
+        "relative_path": "memory/roles/support/INDEX.md"
+      },
+      {
+        "content_sha256": "0b07e12e02089a05b91059f2b861f33a7865de1b86b254f8b00db3b490e1def5",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/pipelines.yaml",
+        "relative_path": "pipelines.yaml"
+      },
+      {
+        "content_sha256": "cdc302abbbeb02fbafd87c69981848b88b24f11b82a62a9ca2cd15514c3a44ef",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/build/contract.md",
+        "relative_path": "prompts/build/contract.md"
+      },
+      {
+        "content_sha256": "2e55867fd362e24addbf04602bfc276a3eade68509f224e973c14c9b8a18ec66",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/build/fix.md",
+        "relative_path": "prompts/build/fix.md"
+      },
+      {
+        "content_sha256": "8fe49020e1af7cd7757801aed0a450f6d98acec06f612799a6a4f32fe4a683d7",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/build/implement.md",
+        "relative_path": "prompts/build/implement.md"
+      },
+      {
+        "content_sha256": "232b8d16952d7ba9cf9fb5e09ca381e61d3cc8f56a968263c21c6cfddf091870",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/episode/plan.md",
+        "relative_path": "prompts/episode/plan.md"
+      },
+      {
+        "content_sha256": "3d0118dfdc23a1186b9001db9814dd3eeec9081a0f937114961be83cdbaab13a",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/groom/groom.md",
+        "relative_path": "prompts/groom/groom.md"
+      },
+      {
+        "content_sha256": "9a75ce38c582c99391dd5cbe06c04b19a0109ff17de7c17fab3327ecf6a34aea",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/learning/distill.md",
+        "relative_path": "prompts/learning/distill.md"
+      },
+      {
+        "content_sha256": "8f6486d11b3131ac5382b7dc3eac82ccfd5f6d70fe412b934580d3bae8fb0224",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/learning/review.md",
+        "relative_path": "prompts/learning/review.md"
+      },
+      {
+        "content_sha256": "32188704f712704fe23de1db75aa7ffc8cbfea1f35cf8834a351858db9dd3dc8",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/marketing/ci-sweep.md",
+        "relative_path": "prompts/marketing/ci-sweep.md"
+      },
+      {
+        "content_sha256": "47549b8cfba0de83a30146865c1258681264ff61f0d314d91a0bc933aa4842fb",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/marketing/release.md",
+        "relative_path": "prompts/marketing/release.md"
+      },
+      {
+        "content_sha256": "f557d78402b21d3af880c2ec18eb08d2611825899687c54ad05011db5fa1af1c",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/plan/arbitrator.md",
+        "relative_path": "prompts/plan/arbitrator.md"
+      },
+      {
+        "content_sha256": "9b31d252198f6794f319cb4e417bb05e9f3daa73e8f794276ce8c73da90accf3",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/plan/bootstrap.md",
+        "relative_path": "prompts/plan/bootstrap.md"
+      },
+      {
+        "content_sha256": "4fe9ef42b124f89a114f7ef952f795f5213f2da1f94fd8a89139d2a49450f980",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/plan/decomposer.md",
+        "relative_path": "prompts/plan/decomposer.md"
+      },
+      {
+        "content_sha256": "0a5f5a078c4f943cef541b224f93d40ee49a45b55868154568ef7f0474064ddb",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/plan/pm-b.md",
+        "relative_path": "prompts/plan/pm-b.md"
+      },
+      {
+        "content_sha256": "2aa3a2ae74449c34f5528945fd49d5c34f790e4a4df42da69f1cf1d3205f3856",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/plan/pm.md",
+        "relative_path": "prompts/plan/pm.md"
+      },
+      {
+        "content_sha256": "b03907a65a11eb020d233935f03005ec3187880a0a87c160e49612b67f784fa5",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/plan/visionary.md",
+        "relative_path": "prompts/plan/visionary.md"
+      },
+      {
+        "content_sha256": "e1eb35610edb77ab6b1a09a6b430f5f280a8f9060b42bab83fca69714deb9663",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/review/perf.md",
+        "relative_path": "prompts/review/perf.md"
+      },
+      {
+        "content_sha256": "b281dc3efb3d053a00781fa516c4ecd1adb506328fad80856095bcc4ffaf460f",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/review/security.md",
+        "relative_path": "prompts/review/security.md"
+      },
+      {
+        "content_sha256": "dd3224c6763911c862ad4a93c46a48783cfadaf298be794a869606c74a167219",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/review/verify.md",
+        "relative_path": "prompts/review/verify.md"
+      },
+      {
+        "content_sha256": "32ac11df4b5c63bd515beaea1433f32a34bd37c730fc95e4626b33ce2b2e31ec",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/ship/check.md",
+        "relative_path": "prompts/ship/check.md"
+      },
+      {
+        "content_sha256": "8b9b9bd0d4ff526be05c7c428cb9c444e7cb31cf52dd4180a753d587ca1f2018",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/sre/health.md",
+        "relative_path": "prompts/sre/health.md"
+      },
+      {
+        "content_sha256": "4ddfc67a9929c136a6c9489cd369b5d2fcb3e7cf7e4cec553550c2ea4ba74f3c",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/sre/incident.md",
+        "relative_path": "prompts/sre/incident.md"
+      },
+      {
+        "content_sha256": "7dae2e3decfcbbcc0a1b5907ea7b5527979ed63b13a1c1d60ea09e2902214250",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/support/digest.md",
+        "relative_path": "prompts/support/digest.md"
+      },
+      {
+        "content_sha256": "c8bcf40b1d6705b12f4e433708f3bba5f678ea96c14c9dc8b7203c9615664a57",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/triage/triage.md",
+        "relative_path": "prompts/triage/triage.md"
+      },
+      {
+        "content_sha256": "9fab5d3f9d7549d6f0fc9972f92ea65454f3bce7f6b30081fabb566862620a32",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/prompts/validation/design.md",
+        "relative_path": "prompts/validation/design.md"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/retro/.gitkeep",
+        "relative_path": "retro/.gitkeep"
+      },
+      {
+        "content_sha256": "21e8549a115c18508e28f8210b4a788f74a0ccc0071bee4857547d65fed87c9b",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/roles.yaml",
+        "relative_path": "roles.yaml"
+      },
+      {
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/skills/.gitkeep",
+        "relative_path": "skills/.gitkeep"
+      },
+      {
+        "content_sha256": "b896d60cc135bdcc4495b1cefd26ccb61b878b8c949cb58a1164c41935ac2d9a",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/TASTE.md",
+        "relative_path": "TASTE.md"
+      },
+      {
+        "content_sha256": "ecb07b466ee7df90167051a68021cc793bbe3f343bdef9c2911cc2f49d0568a3",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/taste/builder.md",
+        "relative_path": "taste/builder.md"
+      },
+      {
+        "content_sha256": "f30ba1c6ad9c9018404523126a8418e9d264ce59021155140e5bea8638af92c0",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/taste/marketing.md",
+        "relative_path": "taste/marketing.md"
+      },
+      {
+        "content_sha256": "650e5d67f4e74e27f77bc269393d71794fab5a0edbad183a7b7e603ea5744b32",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/taste/planner.md",
+        "relative_path": "taste/planner.md"
+      },
+      {
+        "content_sha256": "f2971d23ad1725204aaf77ae8950c45f654544c826665f64224ea2bc37eea0e4",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/taste/reviewer.md",
+        "relative_path": "taste/reviewer.md"
+      },
+      {
+        "content_sha256": "e4362e3f5eb80de387af0b3a1ca1948e76eb84eb183dbf0f71db8da46d83c4a1",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/taste/sre.md",
+        "relative_path": "taste/sre.md"
+      },
+      {
+        "content_sha256": "8e0b2efbb590b5ad6dec4e2b2b22c7557dd855946f5e80655bba49aa60e91993",
+        "disposition": "create",
+        "kind": "file",
+        "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org/taste/support.md",
+        "relative_path": "taste/support.md"
+      }
+    ],
+    "org_home": {
+      "action": "create",
+      "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org"
+    },
+    "state_home": {
+      "action": "create",
+      "path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/state"
+    }
+  },
+  "executable": true,
+  "operation": "org_init",
+  "org_home": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/org",
+  "package_root": "/Users/bikram/Build/Cormidia-worktree-230-232/",
+  "pointer_path": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/home/.cormidia/config",
+  "roles": [
+    {
+      "effort": "xhigh",
+      "model": "claude-opus-4-8",
+      "name": "planner",
+      "runtime": "claude",
+      "triggers": [
+        {
+          "schedule": "daily 07:00"
+        },
+        {
+          "schedule": "weekly mon"
+        },
+        {
+          "event": "support-feedback"
+        },
+        {
+          "event": "adoption-signal"
+        }
+      ]
+    },
+    {
+      "effort": "high",
+      "model": "gpt-5.6-sol",
+      "name": "builder",
+      "runtime": "codex",
+      "triggers": [
+        {
+          "event": "ticket-ready"
+        }
+      ]
+    },
+    {
+      "effort": "xhigh",
+      "model": "claude-opus-4-8",
+      "name": "reviewer",
+      "runtime": "claude",
+      "triggers": [
+        {
+          "event": "pr-opened"
+        }
+      ]
+    },
+    {
+      "effort": "medium",
+      "model": "gpt-5.6-sol",
+      "name": "sre",
+      "runtime": "codex",
+      "triggers": [
+        {
+          "schedule": "hourly"
+        },
+        {
+          "event": "ci-failed"
+        },
+        {
+          "event": "health-alert"
+        }
+      ]
+    },
+    {
+      "effort": "medium",
+      "model": "claude-sonnet-5",
+      "name": "support",
+      "runtime": "claude",
+      "triggers": [
+        {
+          "schedule": "every 4h"
+        },
+        {
+          "event": "support-feedback"
+        }
+      ]
+    },
+    {
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "name": "marketing",
+      "runtime": "claude",
+      "triggers": [
+        {
+          "event": "release-shipped"
+        },
+        {
+          "schedule": "weekly thu"
+        },
+        {
+          "event": "adoption-signal"
+        },
+        {
+          "event": "launch-calendar"
+        }
+      ]
+    },
+    {
+      "effort": "medium",
+      "model": "claude-sonnet-5",
+      "name": "distiller",
+      "runtime": "claude",
+      "triggers": [
+        {
+          "schedule": "daily 06:00"
+        }
+      ]
+    },
+    {
+      "effort": "high",
+      "model": "gpt-5.6-sol",
+      "name": "learning-reviewer",
+      "runtime": "codex",
+      "triggers": [
+        {
+          "schedule": "weekly mon 07:00"
+        }
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "state_home": "/var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jaCgN2/state",
+  "status": "ready",
+  "template_root": "/Users/bikram/Build/Cormidia-worktree-230-232"
+}
+
+stdout | tests/hermetic/cf-c-oplife/cf-c-oplife.test.ts > CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md) > §2 org use: pointer update is atomic and wholesale — junk bytes are replaced, no temp residue survives
+Org selected: atomic-org
+Org home:   /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-TuywdF/org — committed organization configuration: roles, apps, pipelines, prompts, authority, taste, and curated memory.
+State home: /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-TuywdF/state — local high-churn runtime state: managed clones, worktrees, locks, approvals, telemetry, and run logs.
+Pointer:    /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-TuywdF/home/.cormidia/config
+Apps:       0
+Authority:  delegated-operator/v1 (sha256:1296914e5a7fd3f2f597a525a0523d1a33595bf1467fcc8378d4427f879a8994)
+Automatic:
+  - ordinary reversible decisions
+  - local edits and tests
+  - branches, tickets, and normal PR preparation
+  - ordinary token spend within configured budgets
+Human-gated:
+  - publication or deployment
+  - secrets and credentials
+  - cloud, DNS, or infrastructure changes
+  - irreversible data loss
+  - merge when human merge is required
+  - genuinely material product decisions
+
+ ✓ tests/hermetic/cf-j06/cf-j06-r.test.ts (10 tests) 2667ms
+   ✓ CF-J06-R — every fingerprint mismatch class fails closed pre-spend (L2, HB-012) > control: an untampered continuation resumes and EVERY no-spend detector channel moves — the refusal legs below cannot pass vacuously  352ms
+ ✓ tests/hermetic/cf-c-oplife/cf-c-oplife.test.ts (12 tests) 2471ms
+   ✓ CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md) > §3: the archive root inside the state home refuses — the backup can never destroy itself  436ms
+   ✓ CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md) > §4: a missing lifecycle record is a TYPED verification result with zero provider construction, and the preview form writes nothing  366ms
+   ✓ CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md) > §5: promote preview is non-mutating with actionable remediation; execute refuses on unverifiable state (error split: precondition refusal)  368ms
+   ✓ CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md) > §6 + error split: the reviewed-plan identity check refuses a plan/app mismatch before locks, intent, or archive  401ms
+   ✓ CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md) > error split (journaled intermediate): a mid-closes failure leaves the durable intent + archive, restores local state, and the rerun completes without duplicating closes  728ms
+ ✓ tests/fixtures/kill-point.test.ts (4 tests) 2507ms
+   ✓ HB-002 fixtures/kill-point (subprocess kill-point harness) > negative control: a hung child FIRES the timeout, never a silent pass  2018ms
+ ✓ tests/hermetic/cf-j06/cf-j06-i.test.ts (5 tests) 2305ms
+   ✓ CF-J06-I — crash mid-resume; TTL expiry before resume (L2, HB-012) > gh failure between decision write and label projection: decision durable; the retry repairs the projection WITHOUT re-asking  603ms
+   ✓ CF-J06-I — crash mid-resume; TTL expiry before resume (L2, HB-012) > startup reconciliation repairs the stale decision projection (op:blocked -> op:ready) with the decision intact  525ms
+   ✓ CF-J06-I — crash mid-resume; TTL expiry before resume (L2, HB-012) > SIGKILL between resume lease and provider start: decision survives, recovery auto-rearms without consuming allowance, never re-asks  644ms
+   ✓ CF-J06-I — crash mid-resume; TTL expiry before resume (L2, HB-012) > control: without a kill the resumed claim reaches provider start on the original claim number  518ms
+ ✓ tests/hermetic/cf-j06/cf-j06-s.test.ts (5 tests) 2046ms
+   ✓ CF-J06-S — approve and deny both resume the same session/claim with guidance (L2, HB-012) > approved: the executor resumes the exact parked session with the decision as guidance, repeating no completed pass  337ms
+   ✓ CF-J06-S — approve and deny both resume the same session/claim with guidance (L2, HB-012) > denied: the executor resumes the exact parked session with the decision as guidance, repeating no completed pass  344ms
+   ✓ CF-J06-S — approve and deny both resume the same session/claim with guidance (L2, HB-012) > claim seam: approve then deny across two pauses keep claim number 1, one claim consumed, decisions accumulated in order (INV-005)  487ms
+   ✓ CF-J06-S — approve and deny both resume the same session/claim with guidance (L2, HB-012) > full composition: a decision recorded by continueAfterApproval resumes through the executor as the same session/claim with that guidance  641ms
+ ✓ tests/hermetic/cf-inv-009/cf-inv-009-merge-boundary.test.ts (4 tests) 2083ms
+   ✓ CF-INV-009 — merge boundary refuses stale, guessed, forged, and agent-owned authority > post-APPROVE push fails the freshness gate and never reaches merge  1198ms
+   ✓ CF-INV-009 — merge boundary refuses stale, guessed, forged, and agent-owned authority > a guessed main base fails before PR creation; the resolved trunk base succeeds  874ms
+ ✓ tests/hermetic/cf-b14/cf-b14-publish-refusals.test.ts (8 tests) 1845ms
+   ✓ CF-B14-* — publish-only refusals (bootstrap publish planning, contract B-14 §1/§3) > baseline: with only bootstrap-owned changes pending, planning raises no blockers and scopes exactly the owned paths  343ms
+   ✓ CF-B14-* — publish-only refusals (bootstrap publish planning, contract B-14 §1/§3) > refuses an instruction file whose pending change goes beyond the marked block — a file Cormidia did not write is not Cormidia's to commit  405ms
+ ✓ tests/hermetic/skeleton-j04-ready-to-pr.test.ts (2 tests) 1801ms
+   ✓ CF-J04-S skeleton — ready → claim → scripted build → PR on the fake GitHub (L2 reduced walk, HB-005c) > walks op:ready → op:building → gates → push → PR → op:in-review, labels flipping only after their artifacts  970ms
+   ✓ CF-J04-S skeleton — ready → claim → scripted build → PR on the fake GitHub (L2 reduced walk, HB-005c) > negative control: a skewed remote head between gates and PR — the evidence-binding detector FIRES and the label never flips  830ms
+ ✓ tests/hermetic/cf-j14/cf-j14-s.test.ts (4 tests | 1 skipped) 1734ms
+   ✓ CF-J14-S — reset plan mutates nothing; execute order archive→closes→registry→clears (C-OP-LIFE §6) > the default plan performs GitHub reads only and mutates no local byte  488ms
+   ✓ CF-J14-S — reset plan mutates nothing; execute order archive→closes→registry→clears (C-OP-LIFE §6) > execute: durable intent, then archive, then closes, then destruction — each boundary observed in order  639ms
+   ✓ CF-J14-S — reset plan mutates nothing; execute order archive→closes→registry→clears (C-OP-LIFE §6) > execute stays inside the authorized destructive set (INV-010 oracle over the full world)  607ms
+ ✓ tests/hermetic/cf-b14/cf-b14-bootstrap-checkout.test.ts (14 tests) 1607ms
+ ✓ tests/hermetic/cf-j04/cf-j04-s.test.ts (2 tests) 1422ms
+   ✓ CF-J04-S — full ready→merged delivery walk > uses scripted adapter turns and reaches merged with every label behind its artifact  1422ms
+ ✓ tests/hermetic/cf-j17/cf-j17-s.test.ts (3 tests) 1443ms
+   ✓ CF-J17-S — declared release: fresh content-bound approval → at-most-once execution (L2) > walks trigger → content-bound approval → single typed execution with acceptance and completion as separate durable facts  707ms
+   ✓ CF-J17-S — declared release: fresh content-bound approval → at-most-once execution (L2) > negative control: post-decision tamper of the approved command — the content-binding detector FIRES and nothing runs  393ms
+   ✓ CF-J17-S — declared release: fresh content-bound approval → at-most-once execution (L2) > a revoked grant terminalizes the approved release before any execution  343ms
+ ✓ tests/hermetic/cf-j01/cf-j01-rc.test.ts (7 tests) 1397ms
+   ✓ CF-J01-RC — interrupted upgrade rerun converges (C-OP-LIFE §3, INV-013) > kill at after_archive_creation, rerun: converges, archive restorable, ratified surfaces unreplaced  305ms
+ ✓ tests/hermetic/cf-j05/cf-j05-rc.test.ts (4 tests) 1240ms
+   ✓ CF-J05-RC — typed idempotency-marker reconciliation of crashed durable-github deliveries (L2) > completion-typed marker: a crash after the remote effect reconciles to executed WITHOUT a duplicate publication  411ms
+   ✓ CF-J05-RC — typed idempotency-marker reconciliation of crashed durable-github deliveries (L2) > acceptance-typed evidence alone (claimed attempt, no remote marker) NEVER converts to executed — ambiguous instead, and only explicit re-arm retries  390ms
+   ✓ CF-J05-RC — typed idempotency-marker reconciliation of crashed durable-github deliveries (L2) > negative control: TWO remote bodies carry the marker — the disagreement detector FIRES: ambiguous, never the greener story  429ms
+ ✓ tests/fixtures/git-repo.test.ts (8 tests) 1080ms
+   ✓ HB-002 fixtures/git-repo (real git substrate the product accepts) > clones keep the branch, the origin remote, and can push back  334ms
+ ✓ tests/hermetic/cf-j06/cf-j06-rc.test.ts (3 tests) 1123ms
+   ✓ CF-J06-RC — duplicate continuation attempt refused with original outcome preserved (L2, HB-012) > a replayed decision under the same approval id with a CONFLICTING outcome is refused; the original outcome survives  422ms
+   ✓ CF-J06-RC — duplicate continuation attempt refused with original outcome preserved (L2, HB-012) > a second concurrent resume against a live lease is refused; the original lease and continuation survive untouched  343ms
+   ✓ CF-J06-RC — duplicate continuation attempt refused with original outcome preserved (L2, HB-012) > negative control: a forged duplicate decision written past the guard makes the detector FIRE  357ms
+ ✓ tests/hermetic/cf-j01/cf-j01-a.test.ts (2 tests) 1003ms
+   ✓ CF-J01-A — launcher parity and the removed-cwd guard (C-OP-LIFE §1) > source-backed launcher: `org init --dry-run --json` agrees byte-for-byte with the in-process plan preview  932ms
+ ✓ tests/hermetic/cf-reg-232/cf-reg-232-planner-publication.test.ts (10 tests) 1209ms
+   ✓ CF-REG-232 — exactly-once Planner publication > uses a detached managed worktree, creates no branch for read-only grooming, and never changes operator bytes  1018ms
+ ✓ tests/hermetic/cf-inv-011/cf-inv-011-published-issue.test.ts (4 tests) 1004ms
+   ✓ CF-INV-011 — published issue bodies carry no secret (L2 on gh double, HB-016) > evidence pin: publication crosses the real B-01 seam (gh issue create) for a clean plan; a refused plan makes ZERO gh calls  945ms
+ ✓ tests/hermetic/cf-sm-turn/cf-sm-turn.test.ts (7 tests) 877ms
+ ✓ tests/hermetic/cf-j17/cf-j17-r.test.ts (4 tests) 824ms
+   ✓ CF-J17-R — undeclared mechanism fails the ship gate; scoped grants refused for production-deploy (L2) > negative control: deployable milestone with NO declared mechanism — the P7 detector FIRES: returned, commented, never merged  449ms
+   ✓ CF-J17-R — undeclared mechanism fails the ship gate; scoped grants refused for production-deploy (L2) > a declared mechanism of the WRONG kind also fails the ship gate before any merge  361ms
+ ✓ tests/hermetic/cf-b15/cf-b15-substrate.test.ts (8 tests) 733ms
+ ✓ tests/hermetic/cf-j05/cf-j05-i.test.ts (2 tests) 642ms
+   ✓ CF-J05-I — kill between decision/continuation and between effect/acknowledgement (L2, real SIGKILL) > leg 1: killed between decision and continuation — the decision survives, and the next dispatch performs exactly once  328ms
+   ✓ CF-J05-I — kill between decision/continuation and between effect/acknowledgement (L2, real SIGKILL) > leg 2 / negative control: killed between effect and acknowledgement — a willing re-dispatch NEVER re-performs; the ambiguity detector FIRES  314ms
+ ✓ tests/hermetic/cf-b14/cf-b14-concurrent-edit.test.ts (4 tests) 587ms
+ ✓ tests/fixtures/adapters/pi-double.test.ts (6 tests) 485ms
+ ✓ tests/hermetic/cf-reg-202/cf-reg-202-failed-gate-revision.test.ts (10 tests) 556ms
+   ✓ CF-REG-202 — a failed_gate revision is executable (#202, sibling of #175) > -C a reconciled review re-performs nothing: no second comment, no second review, ticket resumed  538ms
+stdout | tests/hermetic/cf-j01/cf-j01-s.test.ts > CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3) > org use: re-points the atomic active pointer at a second complete org and records its state home (§2)
+Org selected: first-org
+Org home:   /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jbI6mk/org — committed organization configuration: roles, apps, pipelines, prompts, authority, taste, and curated memory.
+State home: /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jbI6mk/state — local high-churn runtime state: managed clones, worktrees, locks, approvals, telemetry, and run logs.
+Pointer:    /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-jbI6mk/home/.cormidia/config
+Apps:       0
+Authority:  delegated-operator/v1 (sha256:1296914e5a7fd3f2f597a525a0523d1a33595bf1467fcc8378d4427f879a8994)
+Automatic:
+  - ordinary reversible decisions
+  - local edits and tests
+  - branches, tickets, and normal PR preparation
+  - ordinary token spend within configured budgets
+Human-gated:
+  - publication or deployment
+  - secrets and credentials
+  - cloud, DNS, or infrastructure changes
+  - irreversible data loss
+  - merge when human merge is required
+  - genuinely material product decisions
+
+ ✓ tests/unit/cf-inv-009/default-branch-source.test.ts (4 tests) 522ms
+   ✓ CF-INV-009 — resolved-default-branch structural pin > sweeps all of src/**/*.ts and finds no hardcoded default-branch literal  520ms
+ ✓ tests/hermetic/cf-j01/cf-j01-s.test.ts (8 tests) 530ms
+ ✓ tests/hermetic/cf-reg-205/cf-reg-205-expiry.test.ts (3 tests) 493ms
+   ✓ CF-REG-205 — pending approval expiry > expires the raising turn, releases its claim, preserves evidence, and unblocks app verify  487ms
+ ✓ tests/hermetic/skeleton-tick-turn-settle.test.ts (4 tests) 468ms
+ ✓ tests/hermetic/cf-adapter-conformance/adapter-conformance-pair.test.ts (4 tests) 386ms
+ ✓ tests/hermetic/cf-j02/cf-j02-a.test.ts (2 tests) 531ms
+   ✓ CF-J02-A — lifecycle evidence ladder claims per surface > a registered onboarding app with no lifecycle evidence remains registered in verify/promotion JSON and onboarding in Observe  530ms
+ ✓ tests/hermetic/cf-hb102/validation-contract-authority.test.ts (6 tests) 376ms
+ ✓ tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts (10 tests) 380ms
+ ✓ tests/hermetic/cf-reg-181-154/app-execution-policy.test.ts (4 tests) 331ms
+ ✓ tests/hermetic/cf-reg-231/cf-reg-231-due-window.test.ts (8 tests) 313ms
+ ✓ tests/hermetic/cf-sm-appr/cf-sm-appr-c.test.ts (14 tests) 304ms
+ ✓ tests/hermetic/cf-b10/cf-b10a-identity.test.ts (8 tests) 283ms
+ ✓ tests/hermetic/cf-hb103/delivery-unit-atomic-loop.test.ts (3 tests) 295ms
+ ✓ tests/hermetic/cf-ops-cont/contention-rig.test.ts (2 tests) 286ms
+ ✓ tests/hermetic/cf-reg-236-budget/cf-reg-236-turn-budget-suspend.test.ts (11 tests) 287ms
+ ✓ tests/hermetic/cf-j12/cf-j12-s.test.ts (10 tests) 224ms
+stdout | tests/hermetic/cf-j01/cf-j01-r.test.ts > CF-J01-R — collision/refusal classes refuse pre-mutation (C-OP-LIFE §1/§2) > incomplete org for `org use`: refuses and leaves the active pointer byte-identical (§2)
+Org selected: good-org
+Org home:   /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-TVTzEc/org — committed organization configuration: roles, apps, pipelines, prompts, authority, taste, and curated memory.
+State home: /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-TVTzEc/state — local high-churn runtime state: managed clones, worktrees, locks, approvals, telemetry, and run logs.
+Pointer:    /var/folders/dj/h7_rbnvs6cjd8hqbrx51gnvc0000gn/T/cormidia-cf-j01-TVTzEc/home/.cormidia/config
+Apps:       0
+Authority:  delegated-operator/v1 (sha256:1296914e5a7fd3f2f597a525a0523d1a33595bf1467fcc8378d4427f879a8994)
+Automatic:
+  - ordinary reversible decisions
+  - local edits and tests
+  - branches, tickets, and normal PR preparation
+  - ordinary token spend within configured budgets
+Human-gated:
+  - publication or deployment
+  - secrets and credentials
+  - cloud, DNS, or infrastructure changes
+  - irreversible data loss
+  - merge when human merge is required
+  - genuinely material product decisions
+
+ ✓ tests/hermetic/cf-j01/cf-j01-r.test.ts (14 tests) 261ms
+ ✓ tests/hermetic/cf-j07/cf-j07-i.test.ts (2 tests) 274ms
+ ✓ tests/hermetic/cf-j05/cf-j05-s.test.ts (3 tests) 330ms
+ ✓ tests/fixtures/org-home.test.ts (10 tests) 245ms
+ ✓ tests/hermetic/cf-sm-appr/cormidia-case-det-004.test.ts (6 tests) 271ms
+ ✓ tests/hermetic/cf-reg-229/cf-reg-229-hard-turn-budget.test.ts (5 tests) 210ms
+ ✓ tests/hermetic/cf-b10/cf-b10-corruption-sweep.test.ts (7 tests) 245ms
+ ✓ tests/unit/cf-b10/cf-b10-brand-rename.test.ts (3 tests) 204ms
+ ✓ tests/hermetic/cf-j10/cf-j10-event-inbox.test.ts (4 tests) 216ms
+ ✓ tests/hermetic/cf-reg-209/cf-reg-209-scheduler-health.test.ts (9 tests) 217ms
+ ✓ tests/hermetic/cf-b07/cf-b07-process-lifecycle.test.ts (5 tests) 211ms
+ ✓ tests/hermetic/cf-j12/cf-j12-i.test.ts (5 tests) 195ms
+ ✓ tests/hermetic/cf-harness-report/repository-binding.test.ts (1 test) 186ms
+ ✓ tests/hermetic/cf-inv-001/cf-inv-001-seeds.test.ts (13 tests) 181ms
+ ✓ tests/hermetic/cf-reg-228/cf-reg-228-paid-turn-eligibility.test.ts (6 tests) 164ms
+ ✓ tests/hermetic/cf-inv-005/cf-inv-005-claim-race.test.ts (3 tests) 149ms
+ ✓ tests/hermetic/cf-j07/cf-j07-s.test.ts (6 tests) 151ms
+ ✓ tests/policy/policy-pin.test.ts (12 tests) 146ms
+ ✓ tests/hermetic/cf-b10/cf-b10-preview-execute-drift.test.ts (6 tests) 137ms
+ ✓ tests/hermetic/cf-b14/cf-b14-link-ownership.test.ts (3 tests) 129ms
+ ✓ tests/hermetic/cf-hb110/cross-surface-roadmap-explanation.test.ts (3 tests) 140ms
+ ✓ tests/hermetic/cf-hb106/direct-operational-campaign.test.ts (5 tests) 104ms
+ ✓ tests/hermetic/cf-j05/cf-j05-a.test.ts (2 tests) 121ms
+ ✓ tests/hermetic/cf-j07/cf-j07-r.test.ts (5 tests) 126ms
+ ✓ tests/hermetic/cf-ops-soak/soak-protocol.test.ts (4 tests) 106ms
+ ✓ tests/hermetic/cf-sm-grant/cf-sm-grant-lir.test.ts (16 tests) 101ms
+ ✓ tests/hermetic/cf-s9-env/cf-s9-format-repair.test.ts (2 tests) 113ms
+ ✓ tests/hermetic/cf-j12/cf-j12-a.test.ts (6 tests) 103ms
+ ✓ tests/hermetic/cf-j07/cf-j07-a.test.ts (2 tests) 100ms
+ ✓ tests/hermetic/cf-sm-appr/cf-sm-appr-lir.test.ts (13 tests) 95ms
+ ✓ tests/fixtures/adapters/codex-double.test.ts (6 tests) 95ms
+ ✓ tests/hermetic/cf-hb104/execution-unit-batching.test.ts (5 tests) 70ms
+ ✓ tests/hermetic/cf-j12/cf-j12-rc.test.ts (4 tests) 73ms
+ ✓ tests/hermetic/cf-j07/cf-j07-rc.test.ts (2 tests) 82ms
+ ✓ tests/hermetic/cf-sm-learn/cf-sm-learn-c.test.ts (3 tests) 70ms
+ ✓ tests/hermetic/cf-sm-learn/cf-sm-learn-i.test.ts (10 tests) 69ms
+ ✓ tests/hermetic/cf-b17/cf-b17.test.ts (11 tests) 69ms
+ ✓ tests/hermetic/cf-sm-learn/cf-sm-learn-l.test.ts (6 tests) 68ms
+ ✓ tests/hermetic/cf-j08/cf-j08-s.test.ts (5 tests) 66ms
+ ✓ tests/hermetic/cf-hb101/roadmap-authority.test.ts (5 tests) 60ms
+ ✓ tests/hermetic/cf-j09/cf-j09-rc.test.ts (2 tests) 64ms
+ ✓ tests/hermetic/cf-j12/cf-j12-r.test.ts (8 tests) 65ms
+ ✓ tests/hermetic/cf-j08/cf-j08-rc.test.ts (7 tests) 60ms
+ ✓ tests/hermetic/cf-sm-grant/cf-sm-grant-c.test.ts (6 tests) 59ms
+ ✓ tests/unit/cf-reg-181/provider-permission-arguments.test.ts (3 tests) 63ms
+ ✓ tests/hermetic/cf-j05/cf-j05-r.test.ts (5 tests) 53ms
+ ✓ tests/hermetic/cf-sm-learn/cf-sm-learn-r.test.ts (4 tests) 57ms
+ ✓ tests/hermetic/cf-reg-236-budget/cf-reg-236-plan-suspension.test.ts (5 tests) 53ms
+ ✓ tests/hermetic/cf-j08/cf-j08-i.test.ts (5 tests) 55ms
+ ✓ tests/hermetic/cf-j08/cf-j08-a.test.ts (5 tests) 54ms
+ ✓ tests/hermetic/cf-j15/cf-j15-a.test.ts (2 tests) 49ms
+ ✓ tests/hermetic/cf-j15/cf-j15-r.test.ts (3 tests) 50ms
+ ✓ tests/hermetic/cf-reg-244/cf-reg-244-suppressed-operations.test.ts (9 tests) 45ms
+ ✓ tests/hermetic/cf-j08/cf-j08-r.test.ts (5 tests) 45ms
+ ✓ tests/unit/cf-sched-claim/durable-claim.test.ts (5 tests) 40ms
+ ✓ tests/hermetic/cf-j17/cf-j17-rc.test.ts (4 tests) 39ms
+ ✓ tests/hermetic/cf-eval-runner/eval-runner.test.ts (7 tests) 42ms
+ ✓ tests/hermetic/cf-j16/cf-j16-scheduler-lifecycle.test.ts (4 tests) 41ms
+ ✓ tests/hermetic/cf-inv-011/cf-inv-011-report-html.test.ts (3 tests) 39ms
+ ✓ tests/unit/cf-inv-011/cf-inv-011-single-policy-source.test.ts (4 tests) 39ms
+ ✓ tests/unit/inv-006-settlement.test.ts (6 tests) 31ms
+ ✓ tests/hermetic/cf-j17/cf-j17-i.test.ts (3 tests) 36ms
+ ✓ tests/hermetic/cf-hb108/deterministic-catalog-closure.test.ts (4 tests) 35ms
+ ✓ tests/fixtures/state-home.test.ts (5 tests) 29ms
+ ✓ tests/unit/cf-hb103-105/production-wiring.test.ts (3 tests) 34ms
+ ✓ tests/hermetic/cf-j15/cf-j15-rc.test.ts (3 tests) 29ms
+ ✓ tests/hermetic/cf-harness-report/campaign-runner.test.ts (5 tests) 27ms
+ ✓ tests/hermetic/cf-reg-211/cf-reg-211-scheduler-environment.test.ts (4 tests) 24ms
+ ✓ tests/unit/cf-reg-204/cf-reg-204-read-only-git-plumbing.test.ts (72 tests) 25ms
+ ✓ tests/hermetic/cf-j15/cf-j15-i.test.ts (3 tests) 26ms
+ ✓ tests/hermetic/cf-inv-011/cf-inv-011-envelope-previews.test.ts (3 tests) 19ms
+ ✓ tests/hermetic/cf-inv-002/composed-gate-approval-boundary.test.ts (4 tests) 21ms
+ ✓ tests/hermetic/cf-hb107/session-cache-affinity.test.ts (4 tests) 18ms
+ ✓ tests/fixtures/adapters/claude-double.test.ts (34 tests) 16ms
+ ✓ tests/hermetic/cf-inv-011/cf-inv-011-narrative-capture.test.ts (4 tests) 17ms
+ ✓ tests/hermetic/cf-harness-report/live-config.test.ts (5 tests) 16ms
+ ✓ tests/hermetic/cf-s2-traj/cf-s2-trajectory.test.ts (4 tests) 15ms
+ ✓ tests/hermetic/cf-harness-report/campaign-report-surfaces.test.ts (1 test) 20ms
+ ✓ tests/hermetic/cf-inv-002/codex-hook-bridge.test.ts (6 tests) 14ms
+ ✓ tests/hermetic/cf-j15/cf-j15-s.test.ts (2 tests) 14ms
+ ✓ tests/hermetic/cf-ops-grow/cf-ops-grow-retention.test.ts (1 test) 12ms
+ ✓ tests/hermetic/cf-reg-230/cf-reg-230-planner-intake.test.ts (8 tests) 12ms
+ ✓ tests/unit/cf-if/cf-if-conformance.test.ts (9 tests) 14ms
+ ✓ tests/unit/cf-inv-002/alt-route-mutation.test.ts (23 tests) 13ms
+ ✓ tests/fixtures/clock.test.ts (5 tests) 12ms
+ ✓ tests/unit/cf-inv-002/obfuscated-deploy.test.ts (19 tests) 11ms
+ ✓ tests/unit/cf-sm-appr/cf-sm-appr-unit.test.ts (13 tests) 12ms
+ ✓ tests/hermetic/cf-harness-report/campaign-report-contract.test.ts (6 tests) 12ms
+ ✓ tests/hermetic/cf-ops-abuse/threat-model-gate.test.ts (2 tests) 11ms
+ ✓ tests/unit/cf-inv-011/cf-inv-011-observe-projection.test.ts (4 tests) 9ms
+ ✓ tests/unit/cf-inv-001/cf-inv-001-guardrails.test.ts (16 tests) 10ms
+ ✓ tests/fixtures/walk.test.ts (6 tests) 9ms
+ ✓ tests/hermetic/cf-if-ui/cf-if-presentation-smoke.test.ts (2 tests) 8ms
+ ✓ tests/unit/s3-verdict-marker.test.ts (9 tests) 5ms
+ ✓ tests/unit/cf-b10/cf-b10-authority-documents.test.ts (13 tests) 6ms
+ ✓ tests/hermetic/cf-eval-runner/eval-config.test.ts (3 tests) 4ms
+ ✓ tests/unit/cf-inv-011/cf-inv-011-scrub-guardrail.test.ts (7 tests) 4ms
+ ✓ tests/unit/cf-hb107/shared-orchestrator-facade.test.ts (2 tests) 4ms
+ ✓ tests/fixtures/synthetic-secret.test.ts (12 tests) 4ms
+ ✓ tests/unit/cf-inv-011/cf-inv-011-publication-refusal.test.ts (4 tests) 3ms
+ ✓ tests/unit/cf-reg-230/production-scheduler-lifecycle.test.ts (1 test) 2ms
+ ✓ tests/hermetic/cf-j18/cf-j18-validation-profile.test.ts (6 tests) 2ms
+ ✓ tests/unit/cf-inv-002/codex-channel-fail-closed.test.ts (5 tests) 3ms
+
+ Test Files  161 passed (161)
+      Tests  1044 passed | 1 skipped (1045)
+   Start at  10:32:07
+   Duration  83.93s (transform 1.59s, setup 0ms, collect 23.82s, tests 128.30s, environment 10ms, prepare 3.89s)

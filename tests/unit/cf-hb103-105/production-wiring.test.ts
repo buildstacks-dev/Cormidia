@@ -126,6 +126,54 @@ describe("HB-103/104/105 production wiring detector", () => {
     expect(successor?.value.deliveryUnits.find((unit) => unit.issueNumbers.includes(601))?.issueNumbers)
       .toEqual([601, 602]);
   });
+
+  it("moves a previously unplanned backlog member into the next scheduled Planner unit", async () => {
+    const home = await makeTempStateHome({ name: "hb105-scheduled-replan" });
+    homes.push(home);
+    const issues = [
+      issue(701, "Already planned", ["op:ready"]),
+      issue(702, "Awaiting Planner", ["op:ready"]),
+    ];
+    await persistPublishedRoadmap({
+      stateHome: home.stateHome,
+      app: APP,
+      gh: { listIssues: async () => structuredClone(issues) } as unknown as GhOps,
+      plan: {
+        stage: "growth",
+        ticketCountRationale: "Initial partial projection.",
+        releaseDisposition: "merge-only",
+        releaseKind: "merge-only",
+        tickets: [planTicket("Already planned", "initial", [])],
+      },
+      published: [{ index: 0, issueNumber: 701, title: "Already planned", ready: true, labels: ["op:ready"] }],
+      now: new Date("2026-08-04T00:00:00.000Z"),
+    });
+    expect((await readCurrentRoadmapPlan(home.stateHome, APP.name))?.value.deliveryUnits
+      .find((unit) => unit.issueNumbers.includes(702))?.workstreamId).toBe("backlog-unplanned");
+
+    await persistPublishedRoadmap({
+      stateHome: home.stateHome,
+      app: APP,
+      gh: { listIssues: async () => structuredClone(issues) } as unknown as GhOps,
+      plan: {
+        stage: "growth",
+        ticketCountRationale: "Scheduled Planner assigned the remaining issue.",
+        releaseDisposition: "merge-only",
+        releaseKind: "merge-only",
+        tickets: [planTicket("Awaiting Planner", "scheduled", [])],
+      },
+      published: [{ index: 0, issueNumber: 702, title: "Awaiting Planner", ready: true, labels: ["op:ready"] }],
+      now: new Date("2026-08-04T00:01:00.000Z"),
+      issues,
+      readyIssueNumbers: [702],
+      source: "fixture:scheduled-planner",
+    });
+
+    const revised = await readCurrentRoadmapPlan(home.stateHome, APP.name);
+    const moved = revised?.value.deliveryUnits.find((unit) => unit.issueNumbers.includes(702));
+    expect(moved?.workstreamId).not.toBe("backlog-unplanned");
+    expect(moved?.unitId).toBe("unplanned-702");
+  });
 });
 
 const APP: AppEntry = {

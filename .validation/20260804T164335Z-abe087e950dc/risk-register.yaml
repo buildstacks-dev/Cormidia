@@ -1,0 +1,110 @@
+schema_version: "1.0"
+assessment_id: "20260804T164335Z-abe087e950dc"
+target_revision: "abe087e950dcb0721a753c56432f116be01483a8+working-tree-a44d5084da0146f41ca5999c86e3c29e95efb1d4"
+
+risks:
+  - id: "RSK-DUPLICATE"
+    title: "Duplicate or conflicting publication after interruption"
+    scenario: "Process stops before/after push acknowledgement or two reconcilers resume together."
+    affected_claim_ids: ["CLM-EXACTLY-ONCE"]
+    affected_component_ids: ["COMP-PUB"]
+    initiating_causes: ["crash", "lost Git/Roadmap acknowledgement", "concurrent scheduler/manual resume", "foreign remote ref", "competing RoadmapPlan successor"]
+    consequence: "Duplicate remote effect, overwrite, or repeat provider spend."
+    consequence_rating: "high"
+    exposure: "per scheduled Planner mutation"
+    likelihood: "credible"
+    detectability: "high"
+    recoverability: "high"
+    evidence_weakness: "real remote unrun"
+    current_controls: ["content-bound durable identity", "per-publication lock", "remote ref readback", "absent force-with-lease", "Roadmap predecessor/source CAS", "permanent conflict refusal", "provider evidence replay"]
+    control_evidence: ["CF-REG-232 fault and concurrency cases"]
+    residual_risk: "medium until L3"
+    disposition: "controlled_offline"
+    required_action: "Run the human-authorized qualification plan."
+    owner: "campaign operator"
+    acceptance_authority: "human product owner"
+    finding_ids: ["FND-005"]
+  - id: "RSK-WRONG-CHECKOUT"
+    title: "Planner mutates the operator checkout or wrong base"
+    scenario: "Scheduled work runs in a human checkout or guesses/caches the default branch."
+    affected_claim_ids: ["CLM-ISO"]
+    affected_component_ids: ["COMP-GIT"]
+    initiating_causes: ["checkout selection regression", "base-resolution regression", "managed origin/configured repository mismatch"]
+    consequence: "Human bytes corrupted or wrong diff published."
+    consequence_rating: "high"
+    exposure: "per Planner turn"
+    likelihood: "low with controls"
+    detectability: "high"
+    recoverability: "medium"
+    evidence_weakness: "local Git only"
+    current_controls: ["org-managed clone", "app lock", "detached Planner worktree", "BaseRevision threading", "registered-origin comparison"]
+    control_evidence: ["CF-REG-232 real local Git byte/origin oracle", "CF-INV-009 existing source sweep"]
+    residual_risk: "low offline"
+    disposition: "controlled"
+    required_action: "Revalidate after checkout/base changes."
+    owner: "runtime maintainer"
+    acceptance_authority: "repository owner"
+    finding_ids: []
+  - id: "RSK-INCOMPLETE-BACKLOG"
+    title: "Truncated backlog is accepted as complete"
+    scenario: "GitHub returns the caller's limit and Planner plans only a prefix."
+    affected_claim_ids: ["CLM-INTAKE", "CLM-LIFECYCLE"]
+    affected_component_ids: ["COMP-SCHED"]
+    initiating_causes: ["source page/limit cap", "provider brief bound confused with source completeness"]
+    consequence: "Work silently vanishes from RoadmapPlan or receives stale readiness."
+    consequence_rating: "high"
+    exposure: "large app backlog"
+    likelihood: "low at current scale"
+    detectability: "high at bound"
+    recoverability: "high"
+    evidence_weakness: "GitHub pagination surface unrun"
+    current_controls: ["10,001 read", "10,000 explicit refusal", "pre-provider diagnostic", "complete BacklogSnapshot"]
+    control_evidence: ["CF-REG-230 10,001 seeded negative control", "production wiring detector"]
+    residual_risk: "medium until L3"
+    disposition: "controlled_offline"
+    required_action: "Run disposable GitHub qualification."
+    owner: "campaign operator"
+    acceptance_authority: "human product owner"
+    finding_ids: ["FND-005"]
+  - id: "RSK-UNSAFE-CONTENT"
+    title: "Planner publishes credential or protected protocol content"
+    scenario: "Untrusted provider output changes a protected path or embeds a known credential shape."
+    affected_claim_ids: ["CLM-PUBLICATION-SAFETY"]
+    affected_component_ids: ["COMP-PUB"]
+    initiating_causes: ["prompt injection", "provider mistake", "malicious issue content"]
+    consequence: "Secret disclosure or unauthorized operating-policy change."
+    consequence_rating: "high"
+    exposure: "mutating Planner turns"
+    likelihood: "credible"
+    detectability: "high for canonical patterns/paths"
+    recoverability: "high before push"
+    evidence_weakness: "pattern detection is necessarily finite"
+    current_controls: ["repository/app protocol-path refusal", "single canonical SECRET_PATTERNS scan", "local artifact preservation"]
+    control_evidence: ["CF-REG-232 app-authority and secret seeds", "CF-INV-011 policy-source detectors"]
+    residual_risk: "medium"
+    disposition: "controlled"
+    required_action: "Keep scanner canonical and revalidate on pattern changes."
+    owner: "security/runtime maintainer"
+    acceptance_authority: "repository owner"
+    finding_ids: []
+  - id: "RSK-HARNESS-COMMON-MODE"
+    title: "Implementation and audit share one assessor"
+    scenario: "The same agent misunderstands both the code and its tests."
+    affected_claim_ids: ["CLM-ISO", "CLM-EXACTLY-ONCE", "CLM-INTAKE", "CLM-LIFECYCLE", "CLM-PUBLICATION-SAFETY", "CLM-OBSERVABILITY"]
+    affected_component_ids: ["COMP-HARNESS"]
+    initiating_causes: ["no separately authorized reviewer agent"]
+    consequence: "A shared blind spot survives offline evidence."
+    consequence_rating: "medium"
+    exposure: "this assessment"
+    likelihood: "credible"
+    detectability: "unknown"
+    recoverability: "high before release"
+    evidence_weakness: "I1 only"
+    current_controls: ["ratified policy", "incident-derived cases", "seeded controls", "repository CI"]
+    control_evidence: ["this run-scoped evidence package"]
+    residual_risk: "medium"
+    disposition: "open"
+    required_action: "Obtain independent review before broad live qualification."
+    owner: "repository owner"
+    acceptance_authority: "human product owner"
+    finding_ids: ["FND-006"]

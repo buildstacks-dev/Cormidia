@@ -458,13 +458,20 @@ Scheduled `groom` receives a bounded, hash-bearing snapshot of open GitHub
 issues without an `op:ready` filter; Builder's claim query remains
 `op:ready`-only. Missing `gh`, unavailable GitHub, an empty repository, and an
 accidental ready-only Planner query are distinct typed outcomes before
-provider construction. Planner emits one machine-readable readiness decision
+provider construction. The source read requests the complete open backlog and
+refuses the explicit 10,000-item completeness bound; the provider view remains
+bounded independently. Planner emits one machine-readable readiness decision
 with an explicit reason for every issue that has no active `op:*` state. The
 deterministic publisher may add `op:ready` only for a fully specified routine
 ticket; deep/domain-risk, truncated, blocked, or validation-incomplete work
-stays unready with a typed reason. GitHub is read back after a label write;
-general lost-response/ambiguous publication recovery remains the separate
-#232 transaction and is not represented by a competing local state machine.
+stays unready with a typed reason. GitHub is read back after a label write.
+Scheduled publication is one durable #232 transaction: it binds the isolated
+worktree's branch/commit, readiness decisions, complete-backlog RoadmapPlan,
+and accepted routine validation/readiness authorities. A turn completes only
+after every declared effect is durable. Crash, lost acknowledgement, and
+duplicate resume replay the transaction without rerunning Planner; remote
+conflict or permanent refusal preserves the artifact and returns a typed
+operator recovery action.
 
 For roadmap-backed delivery, “validation-complete” means an immutable
 delivery-unit-readiness authority binds the current RoadmapPlan/frontier, exact unit

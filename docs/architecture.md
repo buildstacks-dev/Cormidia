@@ -292,6 +292,8 @@ planning/apps/<hash>/    immutable backlog snapshots/RoadmapPlan revisions; curr
                         validation contracts, lifecycle/current-unit pointers and
                         readiness authorities; batches, delivery bindings, Builder
                         evidence and independent Reviewer verdict records
+planning/publications/<hash>/ durable scheduled-Planner publication transactions;
+                        exact repository/branch/commit/effects/evidence and recovery
 planning/delivery-unit-claims/ atomic all-member delivery-unit claims
 validation/campaigns/<id>/report.json  versioned triggered-validation report;
                          completeness and verdict are separate product facts

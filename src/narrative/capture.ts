@@ -141,6 +141,9 @@ export function mergeStory(captured: NarrativeStory | undefined, fresh: Narrativ
   if (merged.planned_by === undefined && captured.planned_by !== undefined) {
     merged.planned_by = captured.planned_by;
   }
+  if (merged.publication === undefined && captured.publication !== undefined) {
+    merged.publication = captured.publication;
+  }
   if (merged.delivery === undefined && captured.delivery !== undefined) merged.delivery = captured.delivery;
   // Cost can only shrink when ledger day-files were swept — keep the richer
   // settlement (more provider turns; then larger settled total).

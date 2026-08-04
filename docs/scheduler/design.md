@@ -277,6 +277,8 @@ standing-roles/<app>/
 ├── artifacts/<artifact-id>.json
 ├── planner-feeds/<feed-id>.json
 └── planner-feed-consumptions/<batch-id>.json
+planning/publications/<app-hash>/
+└── <publication-id>.json            # pending/published/refused + exact recovery identity
 ```
 
 All scheduler evidence is `schema_version: 1`, canonical-key JSON, and sorted
@@ -293,6 +295,20 @@ only after the Planner pipeline completes. New payload bytes for the same
 source advance older pending records to `superseded`. Terminal records become
 `expired` and are pruned after their retention window, while pending evidence
 is never removed merely because it is old.
+
+Scheduled Planner turns execute in detached worktrees created from the
+org-managed clone, never in an operator checkout. A read-only turn stays
+detached and creates no branch. A mutating turn first commits its declared
+repository artifacts locally, then records a content-bound
+`publication_pending` transaction before any remote write. The transaction
+binds repository, branch, commit, intended effects, provider evidence, error,
+and its safe recovery command. Scheduler reconciliation processes pending
+transactions before admitting new provider work for that app: it proves the
+remote ref, applies readiness, accepts the complete-backlog RoadmapPlan and
+routine validation/readiness authorities, and only then marks both publication
+and turn complete. A lost push acknowledgement is reconciled from the exact
+remote commit; conflict or permanent refusal preserves the worktree and fails
+closed. `cormidia publication list|resume` exposes the same token-free path.
 
 The five identity layers remain distinct:
 

@@ -11,13 +11,15 @@ import { canonicalJson, sha256 } from "./scheduler/model.js";
 
 export const PLANNER_ISSUE_BATCH_MAX = 100;
 export const PLANNER_ISSUE_BUDGET_BYTES = 64 * 1024;
+export const PLANNER_BACKLOG_COMPLETENESS_LIMIT = 10_001;
 
 export type PlannerInputDiagnosticCode =
   | "planner_input_ready"
   | "empty_repository"
   | "github_unavailable"
   | "missing_required_executable"
-  | "ready_only_filtering";
+  | "ready_only_filtering"
+  | "backlog_completeness_bound";
 
 export interface PlannerIssueInput {
   number: number;
@@ -123,7 +125,10 @@ export async function preparePlannerIssueIntake(input: {
   maxIssues?: number;
   budgetBytes?: number;
 }): Promise<PlannerIssueIntake> {
-  const query = input.query ?? { state: "open", limit: PLANNER_ISSUE_BATCH_MAX };
+  // The provider brief remains bounded below, but the source read itself is a
+  // complete-open-backlog read. Otherwise deferred_count=0 can falsely mean
+  // complete when GitHub merely stopped at the provider batch size.
+  const query = input.query ?? { state: "open", limit: PLANNER_BACKLOG_COMPLETENESS_LIMIT };
   if (query.labels?.includes("op:ready") === true) {
     return intakeRecord(input, query, [], 0, 0, {
       code: "ready_only_filtering",
@@ -151,6 +156,12 @@ export async function preparePlannerIssueIntake(input: {
   const candidates = fetched
     .filter((issue) => issue.state === "OPEN")
     .sort((left, right) => left.number - right.number);
+  if (candidates.length >= PLANNER_BACKLOG_COMPLETENESS_LIMIT) {
+    return intakeRecord(input, query, [], 0, candidates.length, {
+      code: "backlog_completeness_bound",
+      detail: `open backlog reached the ${PLANNER_BACKLOG_COMPLETENESS_LIMIT - 1} issue completeness bound`,
+    }, budgetBytes);
+  }
   for (const issue of candidates.slice(0, maxIssues)) {
     const header = `#${issue.number} ${issue.title}\nLabels: ${issue.labels.join(", ") || "none"}\n`;
     const available = Math.max(0, remaining - Buffer.byteLength(header));
@@ -236,8 +247,12 @@ export async function applyPlannerReadinessDecisions(input: {
       continue;
     }
 
-    await input.gh.addLabel(issueNumber, "op:ready");
-    await input.fault?.("after_remote");
+    // A replay after a lost acknowledgement observes the exact intended
+    // state and performs no duplicate remote write.
+    if (!before.labels.includes("op:ready")) {
+      await input.gh.addLabel(issueNumber, "op:ready");
+      await input.fault?.("after_remote");
+    }
     let observed: GhIssue;
     try {
       observed = await input.gh.readIssue(issueNumber);
@@ -305,7 +320,7 @@ function validateReadinessDecisions(
   return actionable.map((issue) => {
     const requested = byNumber.get(issue.number);
     if (requested === undefined) throw new Error(`Planner omitted readiness decision for #${issue.number}`);
-    const guard = readinessGuard(issue);
+    const guard = plannerRoutineReadinessGuard(issue);
     if (requested.disposition === "ready" && guard !== undefined) {
       return {
         ...requested,
@@ -325,7 +340,7 @@ function validateReadinessDecisions(
   });
 }
 
-function readinessGuard(issue: PlannerIssueInput): {
+export function plannerRoutineReadinessGuard(issue: PlannerIssueInput): {
   code: "high_risk" | "validation_incomplete" | "autonomous_execution_excluded";
   detail: string;
 } | undefined {

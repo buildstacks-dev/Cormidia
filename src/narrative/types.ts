@@ -72,6 +72,17 @@ export interface NarrativeStory {
   /** Ticket stories: the planning execution that authored the ticket,
    *  joined locally from published-tickets records — never guessed. */
   planned_by?: { episode_id: string; run_id: string; trace_id: string };
+  /** Deterministic Planner egress after provider completion. Pending/refused
+   * state keeps the planning story visibly non-complete. */
+  publication?: {
+    id: string;
+    state: "publication_pending" | "published" | "refused";
+    branch: string;
+    commit: string;
+    branch_created: boolean;
+    error: string | null;
+    recovery_command: string;
+  };
   ticket_ref?: string;
   moments: NarrativeMoment[];
   /** Build→review→merge boundaries from the execution journal. */

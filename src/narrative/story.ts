@@ -5,6 +5,7 @@
 // network, no writes.
 
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
+import { hashedFileStem } from "../runtime/runlog/paths.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
 import {
   boundQuote,
@@ -25,6 +26,10 @@ import {
   type StoryKind,
   type StoryStatus,
 } from "./types.js";
+import {
+  listPlannerPublications,
+  type PlannerPublicationTransaction,
+} from "../org/planner-publication.js";
 
 export interface NarrativeFoldResult {
   stories: NarrativeStory[];
@@ -34,6 +39,7 @@ export interface NarrativeFoldResult {
 export async function foldAppStories(stateHome: string, app: string): Promise<NarrativeFoldResult> {
   const sources = await readAppRunSources(stateHome, app);
   const ledger = await readLedgerRows(stateHome);
+  const publications = await listPlannerPublications(stateHome, app);
 
   // Group envelopes into episodes; a pre-episode envelope groups by trace.
   const groups = new Map<string, RunEnvelope[]>();
@@ -46,7 +52,15 @@ export async function foldAppStories(stateHome: string, app: string): Promise<Na
 
   const stories: NarrativeStory[] = [];
   for (const [episodeId, envelopes] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    stories.push(await foldStory(stateHome, app, episodeId, envelopes, sources.publishedTickets, ledger));
+    stories.push(await foldStory(
+      stateHome,
+      app,
+      episodeId,
+      envelopes,
+      sources.publishedTickets,
+      ledger,
+      publications.find((publication) => publication.evidence.episode_id === episodeId),
+    ));
   }
 
   // Ticket stories join back to the planning execution that published them —
@@ -79,6 +93,7 @@ async function foldStory(
   envelopes: RunEnvelope[],
   publishedTickets: Map<string, import("../loop/plan-publication-record.js").PublishedTicketsRecord>,
   ledger: TurnRecord[],
+  publication?: PlannerPublicationTransaction,
 ): Promise<NarrativeStory> {
   const ordered = [...envelopes].sort(
     (a, b) => a.started_at.localeCompare(b.started_at) || a.run_id.localeCompare(b.run_id),
@@ -121,6 +136,23 @@ async function foldStory(
       ...(quote !== undefined ? { quote } : {}),
       evidence: `runs/${app}/${envelope.run_id}/`,
     });
+  }
+  if (publication !== undefined) {
+    moments.push({
+      at: publication.updated_at,
+      run_id: `publication:${publication.publication_id}`,
+      pipeline: "planner-publication",
+      pass: "publication",
+      role: "planner",
+      status: publication.state,
+      headline:
+        publication.state === "published"
+          ? `publication durable (${publication.branch_created ? publication.branch : "read-only"})`
+          : `${publication.state}: ${publication.error?.code ?? "incomplete"}`,
+      evidence:
+        `planning/publications/${hashedFileStem(publication.app)}/${publication.publication_id}.json`,
+    });
+    moments.sort((left, right) => left.at.localeCompare(right.at) || left.run_id.localeCompare(right.run_id));
   }
 
   // Planning stories carry the tickets they published (#128).
@@ -178,6 +210,7 @@ async function foldStory(
     ...ordered.flatMap((e) => [e.started_at, e.finished_at ?? e.started_at]),
     ...(journal !== undefined ? [journal.updated_at] : []),
     ...published.map((record) => record.published_at),
+    ...(publication === undefined ? [] : [publication.updated_at]),
   ].sort();
 
   return {
@@ -187,12 +220,31 @@ async function foldStory(
     kind,
     title: storyTitle(kind, episodeId, ordered, plannedTickets.length),
     opened: first.started_at,
-    ...(isTerminal(ordered) && last.finished_at !== undefined ? { closed: last.finished_at } : {}),
-    status: storyStatus(ordered, journal?.status),
+    ...(isTerminal(ordered) && last.finished_at !== undefined && publication?.state !== "publication_pending"
+      ? { closed: last.finished_at }
+      : {}),
+    status: publication?.state === "publication_pending"
+      ? "in_progress"
+      : publication?.state === "refused"
+        ? "failed"
+        : storyStatus(ordered, journal?.status),
     ...(origin !== undefined
       ? { origin: { kind: origin.kind, ...(origin.ref !== undefined ? { ref: origin.ref } : {}), ...(origin.quote !== undefined ? { quote: origin.quote } : {}) } }
       : {}),
     ...(plannedTickets.length > 0 ? { planned_tickets: plannedTickets } : {}),
+    ...(publication === undefined
+      ? {}
+      : {
+          publication: {
+            id: publication.publication_id,
+            state: publication.state,
+            branch: publication.branch,
+            commit: publication.commit,
+            branch_created: publication.branch_created,
+            error: publication.error?.message ?? null,
+            recovery_command: publication.recovery.command,
+          },
+        }),
     ...(first.ticket !== undefined ? { ticket_ref: normalizeTicketRef(first.ticket) } : {}),
     moments,
     ...(delivery !== undefined ? { delivery } : {}),

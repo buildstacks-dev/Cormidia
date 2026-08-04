@@ -1,0 +1,123 @@
+schema_version: "1.0"
+assessment_id: "20260804T164335Z-abe087e950dc"
+target_revision: "abe087e950dcb0721a753c56432f116be01483a8+working-tree-a44d5084da0146f41ca5999c86e3c29e95efb1d4"
+
+source_precedence:
+  - "validation-design/validation-policy.yaml and ratified contracts"
+  - "GitHub issue acceptance criteria #230 and #232"
+  - "docs/PURPOSE.md and docs/DEVELOPMENT.md"
+  - "architecture/scheduler/loop documentation and protected-surface rules"
+  - "incident-derived case-catalog rows and existing tests"
+  - "current implementation behavior"
+
+claims:
+  - id: "CLM-ISO"
+    category: "safety"
+    component_ids: ["COMP-GIT"]
+    statement: "Every scheduled Planner uses an org-managed isolated worktree; read-only grooming creates no branch and operator checkout bytes remain unchanged."
+    negative_requirement: true
+    source_class: "issue_acceptance_and_invariant"
+    source_references: ["#232", "CF-INV-008", "CF-B15-*", "C-OP-PLAN"]
+    criticality: "C3"
+    failure_consequence: "Operator work corruption or publication from the wrong base."
+    assumptions: []
+    required_evidence: {classes: ["real_local_git", "negative_control"], minimum_independence: "I1", environments: ["host-local git"], acceptance_criteria: ["detached read-only", "byte-identical operator checkout", "resolved base"]}
+    current_evidence: ["tests/hermetic/cf-reg-232/cf-reg-232-planner-publication.test.ts"]
+    status: "verified_offline"
+    limitations: ["No real remote GitHub target exercised."]
+    owner_or_authority: "Cormidia runtime"
+  - id: "CLM-EXACTLY-ONCE"
+    category: "recovery"
+    component_ids: ["COMP-PUB"]
+    statement: "A Planner workflow is successful only after declared effects are durable; pending/refused recovery publishes the exact commit/effects once without another provider turn."
+    negative_requirement: false
+    source_class: "issue_acceptance_and_incident"
+    source_references: ["#232", "CF-J03-I", "CF-J03-RC", "CF-INV-003/013/014"]
+    criticality: "C3"
+    failure_consequence: "Lost work, duplicate planning spend, conflicting branch, or false completion."
+    assumptions: []
+    required_evidence: {classes: ["fault_injection", "state_machine", "sensitivity"], minimum_independence: "I1", environments: ["L2 fake GitHub", "real local Git"], acceptance_criteria: ["crash before push", "lost ack", "duplicate/concurrent resume", "conflict", "permanent refusal", "no provider replay"]}
+    current_evidence: ["tests/hermetic/cf-reg-232/cf-reg-232-planner-publication.test.ts"]
+    status: "verified_offline"
+    limitations: ["Changing network/auth behavior remains unqualified."]
+    owner_or_authority: "Cormidia runtime"
+  - id: "CLM-INTAKE"
+    category: "functional"
+    component_ids: ["COMP-SCHED"]
+    statement: "Planner source intake is unfiltered and complete below an explicit bound, provider input remains bounded, and risky/incomplete/routed work cannot become routine-ready."
+    negative_requirement: true
+    source_class: "issue_acceptance"
+    source_references: ["#230", "CF-REG-230", "CF-INV-008/012/016"]
+    criticality: "C3"
+    failure_consequence: "Circular readiness, silent backlog loss, or unsafe delivery admission."
+    assumptions: []
+    required_evidence: {classes: ["boundary_cases", "negative_control", "source_wiring"], minimum_independence: "I1", environments: ["L2 fake GitHub"], acceptance_criteria: ["untriaged visible", "Builder ready-only", "typed diagnostics", "10,001 bound refuses before provider"]}
+    current_evidence: ["tests/hermetic/cf-reg-230/cf-reg-230-planner-intake.test.ts", "tests/unit/cf-reg-230/production-scheduler-lifecycle.test.ts"]
+    status: "verified_offline"
+    limitations: ["Disposable GitHub criterion not run."]
+    owner_or_authority: "Cormidia Planner boundary"
+  - id: "CLM-LIFECYCLE"
+    category: "integration"
+    component_ids: ["COMP-PUB", "COMP-SCHED"]
+    statement: "The production scheduler connects complete backlog intake through RoadmapPlan, routine validation/readiness, delivery units, batching, and routing exclusions."
+    negative_requirement: false
+    source_class: "ratified_operational_contract"
+    source_references: ["C-OP-PLAN", "C-OP-VALIDATION", "C-OP-BATCH", "B-20/B-21/B-22"]
+    criticality: "C3"
+    failure_consequence: "Domain helpers appear green while production dispatch bypasses authority."
+    assumptions: []
+    required_evidence: {classes: ["hermetic_composition", "production_source_detector", "negative_control"], minimum_independence: "I1", environments: ["L2"], acceptance_criteria: ["recovery before admission", "RoadmapPlan migration", "validation refs", "batch and routing seams"]}
+    current_evidence: ["tests/unit/cf-hb103-105/production-wiring.test.ts", "tests/unit/cf-reg-230/production-scheduler-lifecycle.test.ts", "tests/hermetic/cf-reg-232/cf-reg-232-planner-publication.test.ts"]
+    status: "verified_offline"
+    limitations: ["One live sandbox-org turn remains unrun."]
+    owner_or_authority: "Cormidia scheduler"
+  - id: "CLM-PUBLICATION-SAFETY"
+    category: "security"
+    component_ids: ["COMP-PUB"]
+    statement: "A Planner worktree origin must match the registered repository; protected surfaces and canonical credential patterns are permanently refused before remote push, while exact local evidence remains inspectable."
+    negative_requirement: true
+    source_class: "repository_policy_and_security_invariant"
+    source_references: ["AGENTS.md protected surfaces", "CF-INV-011"]
+    criticality: "C3"
+    failure_consequence: "Credential disclosure or autonomous protocol self-edit."
+    assumptions: []
+    required_evidence: {classes: ["registered_origin", "seeded_secret", "policy_source_reuse", "refusal"], minimum_independence: "I1", environments: ["real local Git"], acceptance_criteria: ["origin mismatch refuses", "canonical pattern fires", "secret not echoed", "no push"]}
+    current_evidence: ["tests/hermetic/cf-reg-232/cf-reg-232-planner-publication.test.ts", "tests/unit/cf-inv-011/*"]
+    status: "verified_offline"
+    limitations: []
+    owner_or_authority: "repository owner"
+  - id: "CLM-OBSERVABILITY"
+    category: "observability"
+    component_ids: ["COMP-OBS"]
+    statement: "Status and narrative identify pending/refused publication, exact branch/commit, error, and safe recovery action."
+    negative_requirement: false
+    source_class: "issue_acceptance"
+    source_references: ["#232"]
+    criticality: "C2"
+    failure_consequence: "Operator cannot distinguish completed from recoverable work."
+    assumptions: []
+    required_evidence: {classes: ["production_source_detector", "schema_review"], minimum_independence: "I1", environments: ["offline"], acceptance_criteria: ["CLI status", "narrative status", "recovery command"]}
+    current_evidence: ["tests/hermetic/cf-reg-232/cf-reg-232-planner-publication.test.ts", "tests/unit/cf-reg-230/production-scheduler-lifecycle.test.ts"]
+    status: "verified_offline"
+    limitations: ["No screenshot/UI campaign required for this CLI/state change."]
+    owner_or_authority: "Cormidia operator experience"
+  - id: "CLM-EXTERNAL"
+    category: "external_qualification"
+    component_ids: ["COMP-GIT", "COMP-PUB", "COMP-SCHED"]
+    statement: "The candidate works against one real disposable GitHub repository and one live sandbox-org Planner turn within the ratified bounds."
+    negative_requirement: false
+    source_class: "issue_acceptance_and_qualification_policy"
+    source_references: ["#230", "validation-policy L3", "docs/qualification/planner-publication-qualification.md"]
+    criticality: "C3"
+    failure_consequence: "Offline confidence may not transfer to changing auth/network/remote semantics."
+    assumptions: []
+    required_evidence: {classes: ["L3 real GitHub", "live sandbox org"], minimum_independence: "I2", environments: ["human-authorized disposable private repo"], acceptance_criteria: ["CF-B01-L3", "one Planner turn", "zero-turn replay", "verified cleanup"]}
+    current_evidence: ["qualification plan only"]
+    status: "not_verified"
+    limitations: ["Explicitly prohibited in this session."]
+    owner_or_authority: "human campaign operator"
+
+conflicts: []
+unsupported_or_excluded_behaviors:
+  - "No release-readiness, production deployment, L4 threshold, or L5 soak claim follows from this audit."
+  - "A refused transaction does not authorize automatic re-performance; only exact remote observation can resume it."

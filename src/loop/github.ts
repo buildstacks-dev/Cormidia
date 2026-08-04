@@ -506,7 +506,13 @@ export class GhCliOps implements GhOps {
   async createReview(prNumber: number, input: CreateReviewInput): Promise<GhReview> {
     let reviewedCommit = input.expectedCommit;
     if (input.expectedCommit !== undefined) {
-      const current = (await this.readPR(prNumber)).headRefOid;
+      // GitHub's PR projection can lag behind the branch ref immediately
+      // after a push. A projection-only check allowed a stale review through
+      // in CF-REG-272: `gh pr view` still returned the old oid while the
+      // repository ref had advanced. Resolve the PR's branch name, then bind
+      // the write fence to the authoritative git ref at this mutation seam.
+      const pr = await this.readPR(prNumber);
+      const current = await this.readBranchHead(pr.headRefName);
       if (current !== input.expectedCommit) {
         throw new Error(
           `refusing to publish review for PR #${prNumber}: expected head ${input.expectedCommit}, got ${current ?? "unresolved"}`,
@@ -582,6 +588,16 @@ export class GhCliOps implements GhOps {
       body: input.body,
       ...(reviewedCommit === undefined ? {} : { commitId: reviewedCommit }),
     };
+  }
+
+  private async readBranchHead(branch: string): Promise<string> {
+    const raw = await this.runJson([
+      "api",
+      `repos/${this.repo}/git/ref/heads/${branch}`,
+    ]);
+    const ref = asRecord(raw, "gh branch ref output");
+    const object = asRecord(ref["object"], "gh branch ref output.object");
+    return stringField(object, "sha", "gh branch ref output.object");
   }
 
   async listReviews(prNumber: number): Promise<GhReview[]> {

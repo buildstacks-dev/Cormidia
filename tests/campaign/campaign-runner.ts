@@ -224,6 +224,25 @@ export class DurableCampaignRunner {
   }
 }
 
+/** Turn a durable campaign verdict into the process-level gate result. The
+ * report is persisted first by `finish()`; this assertion then prevents a
+ * green test process from masking a complete-but-failing or incomplete run. */
+export function assertCompletedCampaignPass(
+  report: Pick<ValidationCampaignReportV1, "campaign_id" | "status" | "outcome">,
+): void {
+  if (
+    report.status === "completed" &&
+    report.outcome.completeness === "complete" &&
+    report.outcome.verdict === "pass"
+  ) return;
+  throw new Error(
+    `validation campaign ${report.campaign_id} did not pass: ` +
+      `status=${report.status} completeness=${report.outcome.completeness} ` +
+      `verdict=${report.outcome.verdict} violations=${report.outcome.violation_ids.join(",") || "none"} ` +
+      `reasons=${report.outcome.reason_codes.join(",") || "none"}`,
+  );
+}
+
 function unique(values: string[]): string[] { return [...new Set(values)]; }
 function money(value: number): number { return Math.round(value * 1_000_000) / 1_000_000; }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }

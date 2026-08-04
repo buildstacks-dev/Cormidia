@@ -135,11 +135,13 @@ const CLAUSES: Clause[] = [
         assert.equal(got.state, "OPEN");
         return got;
       });
-      const listed = await ctx.ops.listIssues({ labels: [label], state: "open" });
-      assert.ok(
-        listed.some((candidate) => candidate.number === reread.number),
-        "label-filtered listIssues must find the created issue",
-      );
+      await ctx.eventually(async () => {
+        const listed = await ctx.ops.listIssues({ labels: [label], state: "open" });
+        assert.ok(
+          listed.some((candidate) => candidate.number === reread.number),
+          "label-filtered listIssues must find the created issue",
+        );
+      });
     },
   },
   {

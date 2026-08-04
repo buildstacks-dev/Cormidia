@@ -18,7 +18,7 @@ import {
 import { buildSchedulerExpectation } from "../../src/org/scheduler/definition.js";
 import { installScheduler, schedulerDefinitionStatus, uninstallScheduler } from "../../src/org/scheduler/lifecycle.js";
 import { PlatformSchedulerManager } from "../../src/org/scheduler/manager.js";
-import { DurableCampaignRunner } from "../campaign/campaign-runner.js";
+import { assertCompletedCampaignPass, DurableCampaignRunner } from "../campaign/campaign-runner.js";
 import { assertCampaignRepositoryBinding } from "../campaign/repository-binding.js";
 import { runAdapterConformance } from "../fixtures/adapters/conformance.js";
 import { GITHUB_CONFORMANCE_CLAUSE_COUNT, runGithubConformance } from "../fixtures/github-double/conformance/suite.js";
@@ -70,7 +70,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (campaign !== undefined) await campaign.finish();
+  if (campaign !== undefined) {
+    const report = await campaign.finish();
+    assertCompletedCampaignPass(report);
+  }
   if (workdir !== "") await rm(workdir, { recursive: true, force: true });
 });
 

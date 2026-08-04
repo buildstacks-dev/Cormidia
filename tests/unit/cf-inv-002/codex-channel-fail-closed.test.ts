@@ -26,6 +26,10 @@ import {
  *  the exact disable token the adapter must emit. If a channel's token is
  *  absent from the args, that channel is live and un-gateable — fail-open. */
 const UNGATEABLE_CHANNELS: ReadonlyArray<{ channel: string; disableTokens: readonly string[] }> = [
+  {
+    channel: "code_mode",
+    disableTokens: ["features.code_mode=false", "features.code_mode_host=false", "features.code_mode_only=false"],
+  },
   { channel: "unified_exec", disableTokens: ["features.unified_exec=false"] },
   { channel: "apps", disableTokens: ["features.apps=false"] },
   { channel: "plugins", disableTokens: ["features.plugins=false"] },
@@ -62,7 +66,7 @@ describe("CF-INV-002 (seed b / T-11) — Codex un-gateable tool routes fail clos
     expect(matcherLine).toBeDefined();
     // Bash, apply_patch, file writes, and every MCP tool route through the hook
     // into Cormidia's in-process GateFn — the surface the gate actually classifies.
-    expect(matcherLine).toContain('"^(Bash|apply_patch|Edit|Write|mcp__.*)$"');
+    expect(matcherLine).toContain('"^(Bash|exec|apply_patch|Edit|Write|mcp__.*)$"');
   });
 
   it("negative control: a seeded-allow args array that re-enables unified_exec is CAUGHT by the detector", () => {

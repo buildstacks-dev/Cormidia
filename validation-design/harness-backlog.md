@@ -220,14 +220,18 @@ token reservation, bounded shard rotation, partial evidence, strict golden/prove
 validation, and tracked-blob binding to the authorized commit). CF-REG-287 tightened
 partial evidence after the 2026-08-05 RQ-1 campaign: a known over-reservation result now
 preserves its session/output hash/exact usage and independent cases continue while the
-authorized hard envelopes admit them. HB-061/HB-062 build-agent
+authorized hard envelopes admit them. F-PT-022 was owner-resolved 2026-08-05:
+reservations and campaign `max_tokens` count output only; a seeded high-input/small-
+output control proves input/cache telemetry cannot consume that envelope. Existing
+golden reservations and the 49,500-output-token full-corpus sum are unchanged.
+HB-061/HB-062 build-agent
 authoring is complete; every current reviewer/planner reference was human-validated by
 `bikramgupta` on 2026-08-04 without changing agent authorship.
 HB-063 deterministic trajectory scenarios are complete. F-PT-009/010/011 and register
 items 9..12 remain PROPOSED, so threshold-dependent campaigns remain inconclusive. -->
 
 - **HB-060** Eval runner v1 (data-collection mode; inconclusive-only reporting;
-  per-tuple aggregation; token ceilings; shard rotation). Executor: build-agent.
+  per-tuple aggregation; output-token ceilings; shard rotation). Executor: build-agent.
 - **HB-061** Author reviewer/ seeded-defect + clean sets (first-funded; provenance
   rules per scaffold). Executor: human + build-agent. *Note: threshold verdicts stay
   inconclusive until F-PT-009 ratifies — authoring is NOT gated on ratification.*

@@ -1,5 +1,5 @@
 // HB-060 — L4 runner self-tests: per-tuple aggregation, rotating shards,
-// token ceiling preservation, and inconclusive-only threshold semantics.
+// output-token ceiling preservation, and inconclusive-only threshold semantics.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile, writeFile } from "node:fs/promises";
@@ -63,6 +63,11 @@ describe("eval runner", () => {
       expect.objectContaining({ tuple_id: "builder-a__reviewer-b", observations: 3, reference_mismatches: 2 }),
     ]);
     expect(results.producer_digest).toBe(PRODUCER_DIGEST);
+    expect(results.token_unit).toBe("output_tokens");
+    expect(results.per_tuple).toEqual([
+      expect.objectContaining({ tuple_id: "builder-a__reviewer-a", tokens: 15 }),
+      expect.objectContaining({ tuple_id: "builder-a__reviewer-b", tokens: 15 }),
+    ]);
     const first = results.observations[0]!;
     expect(first.grading_key).toBe(compositeGradeKey({
       output_sha256: first.output_sha256,
@@ -84,13 +89,72 @@ describe("eval runner", () => {
     }));
     const result = await runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 150, executor: { execute },
+      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 119, executor: { execute },
     });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.stopped_on_token_ceiling).toBe(true);
     await runner.finish();
     expect((await readValidationCampaignReports(state!.stateHome)).reports[0]?.outcome).toMatchObject({
       completeness: "incomplete", verdict: "inconclusive",
+    });
+  });
+
+  it("negative control: high input usage does not consume the ratified output-token envelope", async () => {
+    const selected = [
+      { ...cases[0]!, token_reservation: 1_200 },
+      cases[1]!,
+    ];
+    const required = selected.map((item) => `${tuples[0]!.id}::${item.id}`);
+    const runner = await campaign(required, 3);
+    const execute = vi.fn(async ({ evalCase }: { evalCase: EvalCaseV1 }) => evalCase.id === selected[0]!.id
+      ? {
+          output: "VERDICT: REJECT\n",
+          tokensIn: 21_650,
+          tokensOut: 260,
+          equivUsd: 0.2,
+          sessionId: "high-input-small-output",
+        }
+      : {
+          output: "VERDICT: APPROVE\n",
+          tokensIn: 60,
+          tokensOut: 20,
+          equivUsd: 0.1,
+          sessionId: "independent-success",
+        });
+    const result = await runEvalCampaign({
+      campaign: runner,
+      campaignId: "eval-test",
+      stateHome: state!.stateHome,
+      cases: selected,
+      tuples: [tuples[0]!],
+      producerDigest: PRODUCER_DIGEST,
+      maxTokens: 1_300,
+      executor: { execute },
+    });
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      token_unit: "output_tokens",
+      observed_tokens: 280,
+      stopped_on_token_ceiling: false,
+    });
+    expect(result.attempts).toEqual([
+      expect.objectContaining({
+        case_id: selected[0]!.id,
+        status: "collected",
+        token_reservation: 1_200,
+        tokens_in: 21_650,
+        tokens_out: 260,
+      }),
+      expect.objectContaining({
+        case_id: selected[1]!.id,
+        status: "collected",
+        tokens_in: 60,
+        tokens_out: 20,
+      }),
+    ]);
+    expect((await runner.finish()).outcome).toMatchObject({
+      completeness: "complete",
+      verdict: "inconclusive",
     });
   });
 
@@ -140,7 +204,7 @@ describe("eval runner", () => {
       ? {
           output: "VERDICT: REJECT\n",
           tokensIn: 110,
-          tokensOut: 40,
+          tokensOut: 110,
           equivUsd: 0.2,
           sessionId: "known-overrun",
         }
@@ -162,14 +226,14 @@ describe("eval runner", () => {
       executor: { execute },
     });
     expect(execute).toHaveBeenCalledTimes(2);
-    expect(result.observed_tokens).toBe(230);
+    expect(result.observed_tokens).toBe(130);
     expect(result.attempts).toEqual([
       expect.objectContaining({
         case_id: selected[0]!.id,
         status: "token_reservation_exceeded",
         session_id: "known-overrun",
         tokens_in: 110,
-        tokens_out: 40,
+        tokens_out: 110,
         equiv_usd: 0.2,
         output_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         error_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),

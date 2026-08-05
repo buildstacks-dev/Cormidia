@@ -38,8 +38,9 @@ deterministic; model-generated affinity is advisory Planner output, never admiss
    pairs are never pooled into one comforting average `[elicited]`.
 5. **Golden sets are authored and committed before prompt tuning** (skill rule 6) and
    double as the model-swap regression suite.
-6. **Economics:** offline/hermetic first; every token-spending campaign declares a
-   token ceiling and preserves partial evidence when the ceiling stops it; nightly work
+6. **Economics:** offline/hermetic first; every token-spending campaign declares an
+   output-token ceiling and preserves partial evidence when the ceiling stops it; input
+   and cache tokens remain cost/telemetry dimensions, not admission dimensions; nightly work
    rotates committed shards rather than re-running everything `[elicited]`
    `[rambling: "trust AND afford"]`.
 7. **Trust boundary:** agent self-reported success is advisory; it never feeds
@@ -286,7 +287,7 @@ disposition; the underlying verdict never changes.
 |---|---|---|---|
 | Contract layer (all sites) | schema/marker/envelope/guardrail tests, mocked provider | every commit | none |
 | Trajectory assertions | deterministic telemetry checks over hermetic runs | every commit | none |
-| Quality evals (per site) | full committed golden set | prompt/model/instruction change for that site; release qualification | token ceiling declared per campaign |
+| Quality evals (per site) | full committed golden set | prompt/model/instruction change for that site; release qualification | output-token ceiling declared per campaign |
 | Nightly | rotating committed shards | nightly (when scheduled validation exists) | small declared ceiling |
 | Meta-evals | judge calibration sets | judge prompt/model change; before admitting judge scores | declared ceiling |
 | Swap campaigns | §4 procedure | on candidate model/tuple | declared ceiling |

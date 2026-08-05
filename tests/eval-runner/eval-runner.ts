@@ -96,6 +96,20 @@ export interface EvalObservation {
   human_reference_status: "pending" | "validated";
 }
 
+export interface EvalAttempt {
+  case_id: string;
+  tuple_id: string;
+  attempt_id: string;
+  status: "collected" | "execution_error" | "invalid_result" | "token_reservation_exceeded";
+  token_reservation: number;
+  session_id: string | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  equiv_usd: number | null;
+  output_sha256: string | null;
+  error_sha256: string | null;
+}
+
 export interface EvalResultsV1 {
   schema_version: 1;
   campaign_id: string;
@@ -104,6 +118,7 @@ export interface EvalResultsV1 {
   observed_tokens: number;
   selected_case_ids: string[];
   stopped_on_token_ceiling: boolean;
+  attempts: EvalAttempt[];
   observations: EvalObservation[];
   per_tuple: Array<{
     tuple_id: string;
@@ -136,6 +151,7 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
     observed_tokens: 0,
     selected_case_ids: selected.map((item) => item.id),
     stopped_on_token_ceiling: false,
+    attempts: [],
     observations: [],
     per_tuple: [],
   };
@@ -150,40 +166,63 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
         break outer;
       }
       const caseKey = `${tuple.id}::${evalCase.id}`;
-      await options.campaign.runCase(caseKey, { providerTurns: 1, maxEquivUsd: tuple.maxCaseCostUsd }, async () => {
-        let execution: EvalExecutionResult;
-        try {
-          execution = await options.executor.execute({ tuple, evalCase, maxTokens: evalCase.token_reservation });
-        } catch (error) {
-          // The provider may have consumed tokens before failing to return
-          // usage. Debit the full token reservation and persist before the
-          // campaign aborts; unknown partial use must not vanish.
-          results.observed_tokens += evalCase.token_reservation;
-          results.stopped_on_token_ceiling = results.observed_tokens >= options.maxTokens;
+      try {
+        const recorded = await options.campaign.runCase(caseKey, { providerTurns: 1, maxEquivUsd: tuple.maxCaseCostUsd }, async () => {
+          let execution: EvalExecutionResult;
+          try {
+            execution = await options.executor.execute({ tuple, evalCase, maxTokens: evalCase.token_reservation });
+          } catch (error) {
+            // The provider may have consumed tokens before failing to return
+            // usage. Debit the full token reservation and persist the attempt
+            // before continuing to any independent case that still fits.
+            results.observed_tokens += evalCase.token_reservation;
+            results.stopped_on_token_ceiling = results.observed_tokens >= options.maxTokens;
+            results.attempts.push(attempt(tuple, evalCase, "execution_error", null, error));
+            await persist(options.stateHome, results);
+            throw error;
+          }
+          try {
+            validateExecution(execution, caseKey);
+          } catch (error) {
+            results.observed_tokens += evalCase.token_reservation;
+            results.stopped_on_token_ceiling = results.observed_tokens >= options.maxTokens;
+            results.attempts.push(attempt(tuple, evalCase, "invalid_result", execution, error));
+            await persist(options.stateHome, results);
+            throw error;
+          }
+          const tokens = execution.tokensIn + execution.tokensOut;
+          results.observed_tokens += tokens;
+          if (tokens > evalCase.token_reservation) {
+            const error = new Error(`eval ${caseKey} exceeded its token reservation`);
+            results.stopped_on_token_ceiling = results.observed_tokens >= options.maxTokens;
+            results.attempts.push(attempt(tuple, evalCase, "token_reservation_exceeded", execution, error));
+            await persist(options.stateHome, results);
+            throw error;
+          }
+          const score = scoreObservation(evalCase, execution, tuple, options.campaignId, primaryByGrade);
+          results.attempts.push(attempt(tuple, evalCase, "collected", execution));
+          results.observations.push(score);
+          results.per_tuple = aggregate(results.observations, options.tuples);
           await persist(options.stateHome, results);
-          throw error;
+          return {
+            providerTurns: 1,
+            equivUsd: execution.equivUsd,
+            reasonCodes: [
+              ...(score.matches_reference === false ? ["quality_observation_mismatch"] : []),
+              ...(evalCase.provenance.human_validation === "pending" ? ["golden_reference_human_validation_pending"] : []),
+            ],
+            evidenceRefs: [`validation/campaigns/${options.campaignId}/eval-results.json#${caseKey}`],
+          };
+        });
+        if (recorded === undefined) break outer;
+      } catch (error) {
+        const recordedExecutionError = options.campaign.report().outcome.reason_codes.includes(`case_execution_error:${caseKey}`);
+        if (!recordedExecutionError) throw error;
+        if (results.stopped_on_token_ceiling) {
+          await options.campaign.noteIncomplete("eval_token_ceiling_observed_exhausted");
+          break outer;
         }
-        validateExecution(execution, caseKey);
-        const tokens = execution.tokensIn + execution.tokensOut;
-        results.observed_tokens += tokens;
-        if (tokens > evalCase.token_reservation) {
-          await persist(options.stateHome, results);
-          throw new Error(`eval ${caseKey} exceeded its token reservation`);
-        }
-        const score = scoreObservation(evalCase, execution, tuple, options.campaignId, primaryByGrade);
-        results.observations.push(score);
-        results.per_tuple = aggregate(results.observations, options.tuples);
-        await persist(options.stateHome, results);
-        return {
-          providerTurns: 1,
-          equivUsd: execution.equivUsd,
-          reasonCodes: [
-            ...(score.matches_reference === false ? ["quality_observation_mismatch"] : []),
-            ...(evalCase.provenance.human_validation === "pending" ? ["golden_reference_human_validation_pending"] : []),
-          ],
-          evidenceRefs: [`validation/campaigns/${options.campaignId}/eval-results.json#${caseKey}`],
-        };
-      });
+      }
     }
   }
   results.per_tuple = aggregate(results.observations, options.tuples);
@@ -240,6 +279,34 @@ function validateExecution(value: EvalExecutionResult, caseKey: string): void {
   if (typeof value.output !== "string" || !nonEmpty(value.sessionId)) throw new Error(`eval ${caseKey} returned invalid output/session identity`);
   if (!Number.isInteger(value.tokensIn) || value.tokensIn < 0 || !Number.isInteger(value.tokensOut) || value.tokensOut < 0) throw new Error(`eval ${caseKey} returned invalid token usage`);
   if (!Number.isFinite(value.equivUsd) || value.equivUsd < 0) throw new Error(`eval ${caseKey} returned invalid equivalent cost`);
+}
+
+function attempt(
+  tuple: EvalTuple,
+  evalCase: EvalCaseV1,
+  status: EvalAttempt["status"],
+  execution: EvalExecutionResult | null,
+  error?: unknown,
+): EvalAttempt {
+  return {
+    case_id: evalCase.id,
+    tuple_id: tuple.id,
+    attempt_id: tuple.attemptId,
+    status,
+    token_reservation: evalCase.token_reservation,
+    session_id: execution !== null && nonEmpty(execution.sessionId) ? execution.sessionId : null,
+    tokens_in: execution !== null && Number.isInteger(execution.tokensIn) && execution.tokensIn >= 0 ? execution.tokensIn : null,
+    tokens_out: execution !== null && Number.isInteger(execution.tokensOut) && execution.tokensOut >= 0 ? execution.tokensOut : null,
+    equiv_usd: execution !== null && Number.isFinite(execution.equivUsd) && execution.equivUsd >= 0 ? execution.equivUsd : null,
+    output_sha256: execution !== null && typeof execution.output === "string"
+      ? createHash("sha256").update(execution.output).digest("hex")
+      : null,
+    error_sha256: error === undefined ? null : createHash("sha256").update(errorMessage(error)).digest("hex"),
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function exactKeys(value: Record<string, unknown>, allowed: string[], name: string): void {

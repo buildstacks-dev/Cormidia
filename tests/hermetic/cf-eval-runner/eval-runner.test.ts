@@ -103,19 +103,100 @@ describe("eval runner", () => {
       cases: selected, tuples: [tuples[0]!], producerDigest: "caller-invented", maxTokens: 100,
       executor: { execute: async () => { throw new Error("must not execute"); } },
     })).rejects.toThrow(/producerDigest must be lowercase sha256/);
-    await expect(runEvalCampaign({
+    const result = await runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
       cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 100,
       executor: { execute: async () => { throw new Error("provider response lost"); } },
-    })).rejects.toThrow(/provider response lost/);
+    });
+    expect(result.attempts).toEqual([expect.objectContaining({
+      case_id: selected[0]!.id,
+      status: "execution_error",
+      token_reservation: 100,
+      session_id: null,
+      tokens_in: null,
+      tokens_out: null,
+      equiv_usd: null,
+      output_sha256: null,
+      error_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    })]);
     const results = JSON.parse(await readFile(
       state!.path("validation", "campaigns", "eval-test", "eval-results.json"), "utf8",
     )) as { observed_tokens: number; stopped_on_token_ceiling: boolean };
     expect(results).toMatchObject({ observed_tokens: 100, stopped_on_token_ceiling: true });
-    expect((await runner.finish()).spend).toMatchObject({
+    const report = await runner.finish();
+    expect(report.spend).toMatchObject({
       observed_provider_turns: 1,
       observed_equiv_usd: 1,
       ceiling_exhausted: true,
+    });
+    expect(report.outcome.reason_codes).toContain("eval_token_ceiling_observed_exhausted");
+  });
+
+  it("negative control: preserves a known over-reservation result and continues to an independent case", async () => {
+    const selected = [cases[0]!, cases[1]!];
+    const required = selected.map((item) => `${tuples[0]!.id}::${item.id}`);
+    const runner = await campaign(required, 3);
+    const execute = vi.fn(async ({ evalCase }: { evalCase: EvalCaseV1 }) => evalCase.id === selected[0]!.id
+      ? {
+          output: "VERDICT: REJECT\n",
+          tokensIn: 110,
+          tokensOut: 40,
+          equivUsd: 0.2,
+          sessionId: "known-overrun",
+        }
+      : {
+          output: "VERDICT: APPROVE\n",
+          tokensIn: 60,
+          tokensOut: 20,
+          equivUsd: 0.1,
+          sessionId: "independent-success",
+        });
+    const result = await runEvalCampaign({
+      campaign: runner,
+      campaignId: "eval-test",
+      stateHome: state!.stateHome,
+      cases: selected,
+      tuples: [tuples[0]!],
+      producerDigest: PRODUCER_DIGEST,
+      maxTokens: 500,
+      executor: { execute },
+    });
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(result.observed_tokens).toBe(230);
+    expect(result.attempts).toEqual([
+      expect.objectContaining({
+        case_id: selected[0]!.id,
+        status: "token_reservation_exceeded",
+        session_id: "known-overrun",
+        tokens_in: 110,
+        tokens_out: 40,
+        equiv_usd: 0.2,
+        output_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        error_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+      expect.objectContaining({
+        case_id: selected[1]!.id,
+        status: "collected",
+        session_id: "independent-success",
+        tokens_in: 60,
+        tokens_out: 20,
+        equiv_usd: 0.1,
+        error_sha256: null,
+      }),
+    ]);
+    expect(result.observations.map((item) => item.case_id)).toEqual([selected[1]!.id]);
+    expect(await runner.finish()).toMatchObject({
+      coverage: {
+        collected_case_ids: [`${tuples[0]!.id}::${selected[1]!.id}`],
+        missing_case_ids: [`${tuples[0]!.id}::${selected[0]!.id}`],
+      },
+      outcome: {
+        completeness: "incomplete",
+        verdict: "inconclusive",
+        reason_codes: expect.arrayContaining([
+          `case_execution_error:${tuples[0]!.id}::${selected[0]!.id}`,
+        ]),
+      },
     });
   });
 
@@ -131,14 +212,26 @@ describe("eval runner", () => {
     const selected = [cases[0]!];
     const required = [`${tuples[0]!.id}::${selected[0]!.id}`];
     const runner = await campaign(required, 1);
-    await expect(runEvalCampaign({
+    const result = await runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
       cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 100,
       executor: { execute: async () => ({
         output: "VERDICT: REJECT\n", tokensIn: -1, tokensOut: 2,
         equivUsd: 0.1, sessionId: "invalid-usage",
       }) },
-    })).rejects.toThrow(/invalid token usage/);
+    });
+    expect(result.observations).toEqual([]);
+    expect(result.attempts).toEqual([expect.objectContaining({
+      status: "invalid_result",
+      session_id: "invalid-usage",
+      tokens_in: null,
+      tokens_out: 2,
+      error_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    })]);
+    expect((await runner.finish()).outcome).toMatchObject({
+      completeness: "incomplete",
+      verdict: "inconclusive",
+    });
   });
 
   it("negative control: refuses a tuple or selected site with zero execution coverage", async () => {

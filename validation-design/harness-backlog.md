@@ -217,7 +217,10 @@ blocked exactly as designed. -->
 
 <!-- implementation status 2026-07-31: HB-060 COMPLETE (per-tuple data collection,
 token reservation, bounded shard rotation, partial evidence, strict golden/provenance
-validation, and tracked-blob binding to the authorized commit). HB-061/HB-062 build-agent
+validation, and tracked-blob binding to the authorized commit). CF-REG-287 tightened
+partial evidence after the 2026-08-05 RQ-1 campaign: a known over-reservation result now
+preserves its session/output hash/exact usage and independent cases continue while the
+authorized hard envelopes admit them. HB-061/HB-062 build-agent
 authoring is complete; every current reviewer/planner reference was human-validated by
 `bikramgupta` on 2026-08-04 without changing agent authorship.
 HB-063 deterministic trajectory scenarios are complete. F-PT-009/010/011 and register

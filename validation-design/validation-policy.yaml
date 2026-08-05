@@ -402,6 +402,7 @@ open_findings:
   - {id: F-PT-018, status: open-known-limitation, subject: "the current private-repository GitHub plan cannot enable branch protection/rulesets; protected human merge and exact-tag rerun are the ratified bounded mechanism, without claiming mechanical merge blocking"}
   - {id: F-PT-021, status: resolved-ratified, resolved: 2026-08-04, subject: "RQ-1 tag approval authenticity",
      resolution: "publication requires exact equality among the GitHub-authenticated tag-push actor, approval.approved_by, and one app-configured release approver; mismatch refuses before npm authentication. Remote proof of the local ApprovalStore path is not additionally required"}
+  - {id: F-PT-022, status: open, subject: "L4 token accounting: whether per-case reservations and campaign max_tokens count output tokens only, uncached input plus output, or every vendor-reported input/cache-create/cache-read/output token; and how a known actual overrun settles against the authorized envelope"}
   - {id: F-PT-001, status: resolved-by-docs, subject: "redaction scope"}
   - {id: F-PT-005, status: resolved-ratified, resolved: 2026-07-31, subject: "subscriber-set cutoff",
      resolution: "simulated-seat derivation human-ratified by adoption 2026-07-31: added subscribers inherit pending events; removed subscribers cease blocking retirement"}

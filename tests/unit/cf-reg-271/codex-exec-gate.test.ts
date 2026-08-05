@@ -9,6 +9,8 @@ import {
   normalizeCodexHookActions,
 } from "../../../src/runtime/adapters/codex-gate-bridge.js";
 
+const MODEL_CATALOG = "/tmp/cormidia-direct-tool-model-catalog.json";
+
 const CODE_MODE_DISABLES = [
   "features.code_mode=false",
   "features.code_mode_host=false",
@@ -25,7 +27,7 @@ function execRouteDefects(args: readonly string[]): string[] {
 
 describe("CF-REG-271 — Codex code-mode exec cannot bypass the gate", () => {
   it("disables every code-mode switch and keeps exec inside the defensive hook matcher", () => {
-    expect(execRouteDefects(codexAppServerArgs())).toEqual([]);
+    expect(execRouteDefects(codexAppServerArgs(MODEL_CATALOG))).toEqual([]);
   });
 
   it("fails closed on the exact exec input family observed in the L3 session", () => {
@@ -38,7 +40,7 @@ describe("CF-REG-271 — Codex code-mode exec cannot bypass the gate", () => {
   });
 
   it("negative control: catches a seeded legacy matcher plus re-enabled code mode", () => {
-    const seededBypass = codexAppServerArgs()
+    const seededBypass = codexAppServerArgs(MODEL_CATALOG)
       .filter((arg) => !CODE_MODE_DISABLES.includes(arg as typeof CODE_MODE_DISABLES[number]))
       .map((arg) => arg.replace("Bash|exec|apply_patch", "Bash|apply_patch"));
 
@@ -48,6 +50,6 @@ describe("CF-REG-271 — Codex code-mode exec cannot bypass the gate", () => {
       "missing:features.code_mode_only=false",
       "matcher:exec-uncovered",
     ]);
-    expect(execRouteDefects(codexAppServerArgs())).toEqual([]);
+    expect(execRouteDefects(codexAppServerArgs(MODEL_CATALOG))).toEqual([]);
   });
 });

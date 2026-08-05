@@ -80,7 +80,12 @@ describe("CF-INV-002 (hook bridge / seed d) — forbidden reads & writes are den
   });
 
   async function startBridge(hooks: TurnHooks, escalations: GateEscalation[] = []): Promise<CodexGateBridge> {
-    const bridge = await startCodexGateBridge("/tmp/cf-inv-002-wd", hooks, escalations);
+    const bridge = await startCodexGateBridge(
+      "/tmp/cf-inv-002-wd",
+      "gpt-5.6-sol",
+      hooks,
+      escalations,
+    );
     bridges.push(bridge);
     return bridge;
   }

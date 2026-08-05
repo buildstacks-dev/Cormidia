@@ -3,33 +3,41 @@
 // App Server approval callbacks do not see auto-approved commands such as
 // `cat .env`. Codex hooks do see supported simple Bash/apply_patch/MCP calls,
 // so a per-turn Unix socket carries those calls back into Cormidia's in-process
-// GateFn. The child hook fails closed. Code mode (`exec`), `unified_exec`,
-// apps, and web search are disabled by codexAppServerArgs because current
-// Codex hooks do not expose their nested effects in a shape the gate can
-// classify completely. The matcher still names `exec` as defense in depth:
-// if a provider/version ignores the disable, the normalizer below throws and
-// the bridge denies the whole call.
+// GateFn. The child hook fails closed. Code mode (`exec`) is forced off with
+// both feature flags and an isolated copy of the bundled model catalog whose
+// assigned-model selector is cleared, because model metadata takes precedence
+// over those flags. `unified_exec`, apps, and web search are disabled directly
+// because current Codex hooks do not expose those alternate effects in a shape
+// the gate can classify completely. The matcher
+// still names `exec` as defense in depth: if a provider/version exposes it
+// anyway, the normalizer below throws and the bridge denies the whole call.
 
 import { createServer, type Server, type Socket } from "node:net";
-import { mkdtemp, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
 import { toolUseEvent } from "../tool-events.js";
 import { normalizeToolAction } from "./claude.js";
 
 const MAX_BRIDGE_BYTES = 8 * 1024 * 1024;
+const execFileAsync = promisify(execFile);
+let bundledCodexCatalog: Promise<unknown> | undefined;
 
 export interface CodexGateBridge {
   socketPath: string;
+  modelCatalogPath: string;
   env: NodeJS.ProcessEnv;
   close(): Promise<void>;
 }
 
 export async function startCodexGateBridge(
   workdir: string,
+  model: string,
   hooks: TurnHooks,
   escalations: GateEscalation[],
 ): Promise<CodexGateBridge> {
@@ -40,6 +48,7 @@ export async function startCodexGateBridge(
   const socketRoot = process.platform === "win32" ? tmpdir() : "/tmp";
   const directory = await mkdtemp(join(socketRoot, "cormidia-cg-"));
   const socketPath = join(directory, "gate.sock");
+  const modelCatalogPath = join(directory, "direct-tool-model-catalog.json");
   const sockets = new Set<Socket>();
   const server = createServer((socket) => {
     sockets.add(socket);
@@ -90,6 +99,11 @@ export async function startCodexGateBridge(
     });
   });
   try {
+    await writeFile(
+      modelCatalogPath,
+      `${JSON.stringify(await codexDirectToolCatalog(model))}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    );
     await listen(server, socketPath);
   } catch (error) {
     await rm(directory, { recursive: true, force: true });
@@ -99,6 +113,7 @@ export async function startCodexGateBridge(
   let closing: Promise<void> | undefined;
   return {
     socketPath,
+    modelCatalogPath,
     env: { CORMIDIA_CODEX_GATE_SOCKET: socketPath },
     close: async () => {
       closing ??= (async () => {
@@ -109,6 +124,87 @@ export async function startCodexGateBridge(
       return closing;
     },
   };
+}
+
+/**
+ * Codex model metadata currently has higher precedence than feature flags.
+ * In @openai/codex 0.144.4, gpt-5.6-sol's `tool_mode=code_mode_only`
+ * therefore overrides `features.code_mode*=false` and exposes a custom
+ * `exec` tool whose nested effects are not reliably covered by PreToolUse.
+ *
+ * Codex's package-local `debug models --bundled` command exposes the exact
+ * catalog compiled into the pinned binary without network or provider use.
+ * Clone that catalog, clear the assigned model's tool-mode selector, and turn
+ * off Responses Lite so the chosen direct tools are explicit in the request;
+ * the disabled code-mode flags below then select direct tools while every
+ * other capability and instruction byte remains the package's own. Direct
+ * shell/file calls pass through the existing hook and approval boundaries.
+ */
+export async function codexDirectToolCatalog(
+  model: string,
+): Promise<{ models: Array<Record<string, unknown>> }> {
+  const parsed = await loadBundledCodexCatalog();
+  if (!isRecord(parsed) || !Array.isArray(parsed.models)) {
+    throw new Error("Codex bundled model catalog has no models array");
+  }
+  const models = parsed.models.filter(isRecord);
+  if (models.length !== parsed.models.length || models.length === 0) {
+    throw new Error("Codex bundled model catalog contains invalid model entries");
+  }
+  const selected = selectCodexModelMetadataIndex(model, models);
+  if (selected < 0) {
+    throw new Error(`Codex bundled model catalog has no metadata for assigned model ${JSON.stringify(model)}`);
+  }
+  return {
+    models: models.map((entry, index) =>
+      index === selected
+        ? { ...entry, tool_mode: null, use_responses_lite: false }
+        : entry
+    ),
+  };
+}
+
+function loadBundledCodexCatalog(): Promise<unknown> {
+  bundledCodexCatalog ??= (async () => {
+    const require = createRequire(import.meta.url);
+    const codexBin = require.resolve("@openai/codex/bin/codex.js");
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      [codexBin, "debug", "models", "--bundled"],
+      { encoding: "utf8", maxBuffer: MAX_BRIDGE_BYTES },
+    );
+    return JSON.parse(stdout) as unknown;
+  })();
+  return bundledCodexCatalog;
+}
+
+function selectCodexModelMetadataIndex(
+  model: string,
+  candidates: ReadonlyArray<Record<string, unknown>>,
+): number {
+  const direct = longestPrefixIndex(model, candidates);
+  if (direct >= 0) return direct;
+  const separator = model.indexOf("/");
+  if (separator <= 0 || separator !== model.lastIndexOf("/")) return -1;
+  const namespace = model.slice(0, separator);
+  if (!/^[A-Za-z0-9_-]+$/.test(namespace)) return -1;
+  return longestPrefixIndex(model.slice(separator + 1), candidates);
+}
+
+function longestPrefixIndex(
+  model: string,
+  candidates: ReadonlyArray<Record<string, unknown>>,
+): number {
+  let best = -1;
+  let bestLength = -1;
+  for (const [index, candidate] of candidates.entries()) {
+    const slug = typeof candidate.slug === "string" ? candidate.slug : "";
+    if (slug.length > bestLength && model.startsWith(slug)) {
+      best = index;
+      bestLength = slug.length;
+    }
+  }
+  return best;
 }
 
 export function normalizeCodexHookActions(input: unknown, workdir: string): ToolAction[] {
@@ -150,6 +246,7 @@ export function codexGateHookCommand(): string {
 }
 
 export function codexAppServerArgs(
+  modelCatalogPath: string,
   permissionMode: import("../permission-mode.js").CodexPermissionMode = "on-request",
   hookCommand = codexGateHookCommand(),
 ): string[] {
@@ -160,15 +257,15 @@ export function codexAppServerArgs(
   return [
     "--ask-for-approval",
     permissionMode,
-    // Codex CLI 0.142.5 parses the global bypass flag below but its app-server
-    // dispatch path does not forward that flag into ConfigOverrides. Keep the
-    // public flag for forward compatibility and set the equivalent session
-    // config explicitly so the already-vetted ephemeral hook is runnable.
+    // Codex CLI parses this global bypass flag but 0.144.4's app-server
+    // dispatch does not forward it into ConfigOverrides. Keep the public flag
+    // for forward compatibility; codex.ts also sets the equivalent typed
+    // thread request override so the exact ephemeral hook is runnable now.
     "--dangerously-bypass-hook-trust",
     "-c",
-    "bypass_hook_trust=true",
-    "-c",
     "features.hooks=true",
+    "-c",
+    `model_catalog_json=${JSON.stringify(modelCatalogPath)}`,
     "-c",
     "features.code_mode=false",
     "-c",
@@ -222,4 +319,8 @@ function closeServer(server: Server): Promise<void> {
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

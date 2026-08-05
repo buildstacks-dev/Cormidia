@@ -21,6 +21,16 @@ Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
   The separately required ephemeral-hook trust override authorizes only the exact
   Cormidia hook process; it is not an approval or sandbox bypass and cannot compensate
   for an invalid linked-worktree writable-root contract.
+- Assigned Codex model ids remain exact, but their provider-supplied `tool_mode`
+  selector must not override Cormidia's constrained tool surface. Each turn supplies
+  a private clone of the pinned package's bundled model catalog with the selected model's
+  selector cleared and Responses Lite disabled so its direct tools remain explicit in the
+  request; both the unchanged emitted model id and the absence of custom code-mode `exec`
+  are pinned against the packaged App Server with a loopback Responses fake. The same
+  detector executes forbidden read/write attempts and requires terminal gate denial.
+  Restoring `code_mode_only` and dropping the typed thread hook-trust override (which
+  proves an auto-approved read reaches the command-execution seam with no gate
+  escalation) are its seeded negative controls.
 - Auth rotation: injected rotation events are L2-scripted (fake); auth loss follows the
   core preserve-checkpoint rule `[rambling: campaigns died mid-run when Codex
   refresh-token rotation raced and killed auth; multi-hour runs WILL be interrupted —

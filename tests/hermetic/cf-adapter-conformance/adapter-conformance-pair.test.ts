@@ -30,14 +30,14 @@ function scenarios(session = "session-conformance") {
 
 describe("shared adapter conformance suite", () => {
   it.each([
-    { runtime: "claude" as const, make: () => claudeDouble(scenarios()).runtime },
-    { runtime: "codex" as const, make: () => codexDouble(scenarios()).runtime },
-    { runtime: "pi" as const, make: () => piDouble(scenarios()).runtime },
-  ])("passes against the real $runtime adapter over its scripted transport", async ({ runtime, make }) => {
+    { runtime: "claude" as const, model: "claude-scripted-model", make: () => claudeDouble(scenarios()).runtime },
+    { runtime: "codex" as const, model: "gpt-5.6-sol", make: () => codexDouble(scenarios()).runtime },
+    { runtime: "pi" as const, model: "claude-scripted-model", make: () => piDouble(scenarios()).runtime },
+  ])("passes against the real $runtime adapter over its scripted transport", async ({ runtime, model, make }) => {
     repo = await makeTempGitRepo();
     const report = await runAdapterConformance(make(), {
       runtime,
-      model: "claude-scripted-model",
+      model,
       effort: "medium",
       maxTurnBudgetUsd: 1,
     }, repo.dir);

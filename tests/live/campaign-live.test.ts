@@ -23,6 +23,7 @@ import { assertCampaignRepositoryBinding } from "../campaign/repository-binding.
 import { runAdapterConformance } from "../fixtures/adapters/conformance.js";
 import { GITHUB_CONFORMANCE_CLAUSE_COUNT, runGithubConformance } from "../fixtures/github-double/conformance/suite.js";
 import { loadLiveCampaignConfig, type LiveCampaignConfigV1 } from "./config.js";
+import { githubConformanceCaseResult } from "./github-conformance-result.js";
 import { RealGithubConformanceSurface } from "./real-github-surface.js";
 
 let config: LiveCampaignConfigV1;
@@ -111,13 +112,7 @@ describe("authorized L3 campaign", () => {
       await campaign.runCase("CF-B01-L3", { providerTurns: 0, maxEquivUsd: 0 }, async () => {
         const report = await runGithubConformance(surface!, { readBackAttempts: 3, readBackDelayMs: 1_000 });
         await surface!.cleanup();
-        return {
-          providerTurns: 0,
-          equivUsd: 0,
-          violationIds: report.failures.map((failure) => `CORMIDIA-C-B01-001:${failure.id}`),
-          reasonCodes: report.failures.map((failure) => `github_clause_failed:${failure.id}`),
-          evidenceRefs: [`github:${config.github.repo}:clauses:${report.passed.length}/${report.total}`],
-        };
+        return githubConformanceCaseResult(config.github.repo, report);
       });
     } catch (error) { errors.push(`CF-B01-L3: ${errorMessage(error)}`); }
     finally {

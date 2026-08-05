@@ -202,7 +202,11 @@ blocked exactly as designed. -->
   auth on the operator machine; spend authorization per policy triggers.* Executor:
   campaign (human-initiated per trigger).
 - **HB-052** CF-B01-L3 GitHub smoke on sandbox repos. *Gate: sandbox repo access.*
-  Executor: campaign.
+  Executor: campaign. **Case-level hardening 2026-08-05 (#291):** a finite search-index
+  observation gap whose contract has no staleness maximum remains required but
+  incomplete/inconclusive; direct mismatches still fail, and sanitized clause/error
+  identity is durable. Deterministic sensitivity lives in CF-REG-291 plus the campaign
+  runner and CF-REG-273 controls; a successor still needs fresh authorized L3 evidence.
 - **HB-053** CF-J16-A launchd proof. *Gate: operator machine session.* Executor:
   human + build-agent script.
 - **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile.

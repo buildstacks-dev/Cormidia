@@ -54,6 +54,8 @@ export interface GithubConformanceOptions {
 export interface ConformanceClauseFailure {
   id: string;
   name: string;
+  classification: "violation" | "observation_inconclusive";
+  code: string;
   error: string;
 }
 
@@ -76,6 +78,13 @@ interface Clause {
   id: string;
   name: string;
   run(ctx: ClauseContext): Promise<void>;
+}
+
+class ObservationInconclusiveError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = "ObservationInconclusiveError";
+  }
 }
 
 async function ensureConformanceLabel(ctx: ClauseContext, suffix: string): Promise<string> {
@@ -135,13 +144,20 @@ const CLAUSES: Clause[] = [
         assert.equal(got.state, "OPEN");
         return got;
       });
-      await ctx.eventually(async () => {
-        const listed = await ctx.ops.listIssues({ labels: [label], state: "open" });
-        assert.ok(
-          listed.some((candidate) => candidate.number === reread.number),
-          "label-filtered listIssues must find the created issue",
+      try {
+        await ctx.eventually(async () => {
+          const listed = await ctx.ops.listIssues({ labels: [label], state: "open" });
+          assert.ok(
+            listed.some((candidate) => candidate.number === reread.number),
+            "label-filtered listIssues must find the created issue",
+          );
+        });
+      } catch (error) {
+        throw new ObservationInconclusiveError(
+          "label_filtered_issue_search_not_observed",
+          `bounded label-filtered search observation exhausted: ${errorMessage(error)}`,
         );
-      });
+      }
     },
   },
   {
@@ -440,9 +456,17 @@ export async function runGithubConformance(
       failures.push({
         id: clause.id,
         name: clause.name,
-        error: error instanceof Error ? error.message : String(error),
+        classification: error instanceof ObservationInconclusiveError
+          ? "observation_inconclusive"
+          : "violation",
+        code: error instanceof ObservationInconclusiveError ? error.code : "assertion_failed",
+        error: errorMessage(error),
       });
     }
   }
   return { target: surface.label, total: selected.length, passed, failures };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

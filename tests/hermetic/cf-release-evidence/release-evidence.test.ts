@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -113,12 +113,22 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
 
     const passingCandidateTest = await readFile(join(repo, "tests", "fixture.test.ts"), "utf8");
     const failingCandidateTest = `${passingCandidateTest}\n` +
-      "it('seeded candidate failure', () => { expect(false).toBe(true); });\n";
+      "it('seeded candidate failure', () => { expect(false || process.env.VITE_RQ1_BYPASS === 'accept').toBe(true); });\n";
     await writeFile(join(repo, "tests", "fixture.test.ts"), failingCandidateTest, "utf8");
     await git(repo, ["add", "tests/fixture.test.ts"]); await git(repo, ["commit", "-qm", "seed failing candidate"]);
     const failingCandidate = (await git(repo, ["rev-parse", "HEAD"])).trim();
-    await writeFile(join(repo, "tests", "fixture.test.ts"), failingCandidateTest.replace("expect(false)", "expect(true)"), "utf8");
+    await writeFile(join(repo, "tests", "fixture.test.ts"), failingCandidateTest.replace("expect(false ||", "expect(true ||"), "utf8");
     await expect(releaseRepositorySnapshot(repo, failingCandidate)).rejects.toThrow(/execution tree differs from the candidate/);
+    await writeFile(join(repo, "tests", "fixture.test.ts"), failingCandidateTest, "utf8");
+    await writeFile(join(repo, ".env.test"), "VITE_RQ1_BYPASS=accept\n", "utf8");
+    await expect(releaseRepositorySnapshot(repo, failingCandidate)).rejects.toThrow(/Vitest report is not successful/);
+    const forgedReport = fixtureVitestReport();
+    (forgedReport["testResults"] as Array<Record<string, unknown>>)[0]!["name"] = join(repo, "tests", "fixture.test.ts");
+    const fixtureVitestBin = join(repo, "node_modules", ".bin", "vitest");
+    await rm(fixtureVitestBin, { force: true });
+    await writeFile(fixtureVitestBin, `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(JSON.stringify(forgedReport))});\n`, "utf8");
+    await chmod(fixtureVitestBin, 0o755);
+    await expect(releaseRepositorySnapshot(repo, failingCandidate)).rejects.toThrow(/Vitest report is not successful/);
     await writeFile(join(repo, "tests", "fixture.test.ts"), passingCandidateTest, "utf8");
     await git(repo, ["add", "tests/fixture.test.ts"]); await git(repo, ["commit", "-qm", "restore passing fixture"]);
 
@@ -128,7 +138,7 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "seed post-review golden mutation"]);
     const alteredCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
     await expect(releaseRepositorySnapshot(repo, alteredCommit)).rejects.toThrow(/content changed after human review/);
-  });
+  }, 90_000);
 
   it("negative control: machine inventory catches alternate skip syntax and refuses missing or forged skip rows", async () => {
     const repo = await mkdtemp(join(tmpdir(), "rq1-vitest-inventory-")); roots.push(repo);
@@ -879,17 +889,14 @@ async function writeRepositoryFixture(
     ");",
     "",
   ].join("\n"), "utf8");
-  await writeFile(join(repo, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+  await writeFile(join(repo, ".gitignore"), await readFile(join(process.cwd(), ".gitignore")), "utf8");
+  await writeFile(join(repo, "pnpm-lock.yaml"), await readFile(join(process.cwd(), "pnpm-lock.yaml")), "utf8");
   await writeFile(join(repo, "vitest.config.ts"), await readFile(join(process.cwd(), "vitest.config.ts")), "utf8");
   await writeFile(join(repo, "prompts", "fixture.md"), "fixture prompt\n", "utf8");
   await writeFile(join(repo, "roles.yaml"), "roles:\n  planner:\n    runtime: claude\n    model: fixture\n    effort: high\n", "utf8");
   await writeFile(join(repo, "pipelines.yaml"), "pipelines: {}\n", "utf8");
   await writeFile(join(repo, "TASTE.md"), "# Fixture taste\n", "utf8");
-  await writeFile(join(repo, "package.json"), `${JSON.stringify({
-    packageManager: "pnpm@11.10.0", engines: { node: ">=26" },
-    dependencies: { "@anthropic-ai/claude-agent-sdk": "0.3.201", "@earendil-works/pi-coding-agent": "0.80.7", "@openai/codex": "0.144.4" },
-    devDependencies: { typescript: "5.9.3", vitest: "3.2.6" },
-  }, null, 2)}\n`, "utf8");
+  await writeFile(join(repo, "package.json"), await readFile(join(process.cwd(), "package.json")), "utf8");
   for (const [packagePath, version] of [
     ["typescript", "5.9.3"],
     ["@anthropic-ai/claude-agent-sdk", "0.3.201"],

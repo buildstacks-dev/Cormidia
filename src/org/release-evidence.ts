@@ -7,7 +7,8 @@
 import { createHash } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
 import { gunzipSync } from "node:zlib";
-import { lstat, readFile, readdir, realpath as realpathFs } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, readdir, realpath as realpathFs, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { platform, arch } from "node:process";
 import { promisify } from "node:util";
@@ -470,7 +471,7 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
     gitFile(repo, revision, "TASTE.md"),
     gitTreeDigest(repo, revision, "validation-design/golden-sets"),
     gitFile(repo, revision, "validation-design/golden-sets/human-validation.json"),
-    runReleaseVitest(repo),
+    runReleaseVitest(repo, revision),
   ]);
   const assignments = assignmentProjection(parseYaml(rolesBytes.toString("utf8")));
   const toolchain = await currentReleaseToolchain(repo);
@@ -1986,24 +1987,81 @@ async function validateReleaseExecutionTree(repo: string, revision: string): Pro
   }
 }
 
-async function runReleaseVitest(repo: string): Promise<unknown> {
-  let stdout: string;
+async function runReleaseVitest(repo: string, revision: string): Promise<unknown> {
+  const executionRoot = await mkdtemp(join(tmpdir(), "cormidia-rq1-execution-"));
+  const executionRepo = join(executionRoot, "candidate");
   try {
-    const result = await execFile("pnpm", ["exec", "vitest", "run", "--reporter=json", "--no-cache"], {
-      cwd: repo,
+    const sourceRepo = await realpathFs(repo);
+    await execFile("git", ["clone", "--quiet", "--no-checkout", "--shared", sourceRepo, executionRepo], {
       encoding: "utf8",
       maxBuffer: 50 * 1024 * 1024,
     });
-    stdout = result.stdout;
-  } catch (error) {
-    const stderr = typeof error === "object" && error !== null && "stderr" in error ? String((error as { stderr?: unknown }).stderr) : "";
-    throw new Error(`release candidate Vitest execution failed${stderr.trim() ? `: ${stderr.trim()}` : ""}`);
+    await git(executionRepo, ["sparse-checkout", "set", "--no-cone", "/*", "!/archive-do-not-read/"]);
+    await git(executionRepo, ["checkout", "--quiet", "--detach", revision]);
+    const canonicalExecutionRepo = await realpathFs(executionRepo);
+    const environment = releaseExecutionEnvironment();
+    await execFile("pnpm", [
+      "install", "--offline", "--frozen-lockfile", "--ignore-scripts", "--verify-store-integrity",
+    ], {
+      cwd: executionRepo,
+      env: environment,
+      encoding: "utf8",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    let stdout: string;
+    try {
+      const result = await execFile("pnpm", ["exec", "vitest", "run", "--reporter=json", "--no-cache"], {
+        cwd: executionRepo,
+        env: environment,
+        encoding: "utf8",
+        maxBuffer: 50 * 1024 * 1024,
+      });
+      stdout = result.stdout;
+    } catch (error) {
+      const failedStdout = typeof error === "object" && error !== null && "stdout" in error ? String((error as { stdout?: unknown }).stdout) : "";
+      if (failedStdout.trim().length > 0) {
+        try {
+          return normalizeReleaseVitestReportPaths(JSON.parse(failedStdout) as unknown, canonicalExecutionRepo);
+        } catch {
+          // Fall through to the execution error when the failed process did not
+          // emit one trustworthy machine-readable report.
+        }
+      }
+      const stderr = typeof error === "object" && error !== null && "stderr" in error ? String((error as { stderr?: unknown }).stderr) : "";
+      throw new Error(`release candidate Vitest execution failed${stderr.trim() ? `: ${stderr.trim()}` : ""}`);
+    }
+    try {
+      return normalizeReleaseVitestReportPaths(JSON.parse(stdout) as unknown, canonicalExecutionRepo);
+    } catch (error) {
+      throw new Error("release candidate Vitest JSON report is malformed", { cause: error });
+    }
+  } finally {
+    await rm(executionRoot, { recursive: true, force: true });
   }
-  try {
-    return JSON.parse(stdout) as unknown;
-  } catch (error) {
-    throw new Error("release candidate Vitest JSON report is malformed", { cause: error });
+}
+
+function normalizeReleaseVitestReportPaths(report: unknown, executionRepo: string): unknown {
+  const root = object(report, "Vitest JSON report");
+  if (!Array.isArray(root["testResults"])) return report;
+  for (const raw of root["testResults"] as unknown[]) {
+    const file = object(raw, "Vitest test result");
+    if (typeof file["name"] !== "string" || file["name"].trim().length === 0) continue;
+    const absoluteFile = isAbsolute(file["name"]) ? resolve(file["name"]) : resolve(executionRepo, file["name"]);
+    const relativeFile = relative(resolve(executionRepo), absoluteFile);
+    if (relativeFile.length === 0 || isAbsolute(relativeFile) || relativeFile.split(sep).includes("..")) {
+      throw new Error(`Vitest test result is outside the isolated candidate checkout: ${file["name"]}`);
+    }
+    file["name"] = safeRelativePath(relativeFile, "isolated Vitest test result path");
   }
+  return report;
+}
+
+function releaseExecutionEnvironment(): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = { CI: "true", NO_COLOR: "1" };
+  for (const name of ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SHELL", "USER", "LOGNAME", "LANG", "LC_ALL", "PNPM_HOME", "COREPACK_HOME"] as const) {
+    if (process.env[name] !== undefined) environment[name] = process.env[name];
+  }
+  return environment;
 }
 
 async function gitFile(repo: string, revision: string, path: string): Promise<Buffer> {

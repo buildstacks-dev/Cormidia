@@ -7,8 +7,8 @@
 import { createHash } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
 import { gunzipSync } from "node:zlib";
-import { lstat, readFile, readdir } from "node:fs/promises";
-import { basename, join, relative, resolve, sep } from "node:path";
+import { lstat, readFile, readdir, realpath as realpathFs } from "node:fs/promises";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { platform, arch } from "node:process";
 import { promisify } from "node:util";
 import { parse as parseYaml } from "yaml";
@@ -50,6 +50,7 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
+const RELEASE_VITEST_CONFIG_SHA256 = "d63b0db31d415aa0db00a40fc2597a0ea1b3ed2c20db553b3bff78fdd924cf9f";
 
 export type ReleaseInputKind = typeof RELEASE_EVIDENCE_INPUT_KINDS[number];
 export type DeterministicCheckId = typeof RELEASE_DETERMINISTIC_CHECKS[number];
@@ -447,6 +448,18 @@ export interface ReleaseRepositorySnapshotV1 {
  * producer rather than candidate-source currency. */
 export async function releaseRepositorySnapshot(repo: string, revision: string): Promise<ReleaseRepositorySnapshotV1> {
   commit(revision, "repository snapshot revision");
+  const [candidateVitestConfig, workingVitestConfig, trackedVitestFiles, canonicalRepo] = await Promise.all([
+    gitFile(repo, revision, "vitest.config.ts"),
+    readFile(join(repo, "vitest.config.ts")),
+    releaseTrackedVitestFiles(repo, revision),
+    realpathFs(repo),
+  ]);
+  if (sha256(candidateVitestConfig) !== RELEASE_VITEST_CONFIG_SHA256) {
+    throw new Error("release candidate Vitest config differs from the pinned offline lane");
+  }
+  if (!candidateVitestConfig.equals(workingVitestConfig)) {
+    throw new Error("release candidate Vitest config differs from the checked-out execution config");
+  }
   const [policyBytes, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes, vitestReport] = await Promise.all([
     gitFile(repo, revision, "validation-design/validation-policy.yaml"),
     gitFile(repo, revision, "pnpm-lock.yaml"),
@@ -462,7 +475,7 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
   const toolchain = await currentReleaseToolchain(repo);
   const goldenReferences = await goldenReferenceProjection(repo, revision, validationRecordBytes);
   const policy = releasePolicyProjection(policyBytes);
-  const allowedTestSkips = releaseAllowedTestSkipsFromVitestReport(vitestReport, policy.openFindingIds);
+  const allowedTestSkips = releaseAllowedTestSkipsFromVitestReport(vitestReport, policy.openFindingIds, trackedVitestFiles, canonicalRepo);
   const producerDigests = releaseProducerDigests(revision, sha256(policyBytes), toolchain);
   return {
     candidate_commit: revision,
@@ -1882,7 +1895,12 @@ function releasePolicyProjection(policyBytes: Buffer): {
   };
 }
 
-export function releaseAllowedTestSkipsFromVitestReport(vitestReport: unknown, openFindingIds: ReadonlySet<string>): string[] {
+export function releaseAllowedTestSkipsFromVitestReport(
+  vitestReport: unknown,
+  openFindingIds: ReadonlySet<string>,
+  expectedTestFiles: readonly string[],
+  repo: string,
+): string[] {
   const root = object(vitestReport, "Vitest JSON report");
   if (root["success"] !== true) throw new Error("release candidate Vitest report is not successful");
   const total = nonNegativeInteger(root["numTotalTests"], "Vitest numTotalTests");
@@ -1894,10 +1912,18 @@ export function releaseAllowedTestSkipsFromVitestReport(vitestReport: unknown, o
     throw new Error("release candidate Vitest report has no executed test inventory");
   }
   const observed = { passed: 0, failed: 0, pending: 0, todo: 0 };
+  const observedFiles: string[] = [];
   const skipIds: string[] = [];
   for (const rawFile of root["testResults"] as unknown[]) {
     const file = object(rawFile, "Vitest test result");
     const fileName = nonEmpty(file["name"], "Vitest test result name");
+    const absoluteFile = isAbsolute(fileName) ? resolve(fileName) : resolve(repo, fileName);
+    const candidateRelativeFile = relative(resolve(repo), absoluteFile);
+    if (candidateRelativeFile.length === 0 || isAbsolute(candidateRelativeFile) || candidateRelativeFile.split(sep).includes("..")) {
+      throw new Error(`Vitest test result is outside the candidate repository: ${fileName}`);
+    }
+    const relativeFile = safeRelativePath(candidateRelativeFile, "Vitest test result path");
+    observedFiles.push(relativeFile);
     if (!Array.isArray(file["assertionResults"])) throw new Error(`Vitest test result ${fileName} lacks assertion inventory`);
     for (const rawAssertion of file["assertionResults"] as unknown[]) {
       const assertion = object(rawAssertion, `Vitest assertion in ${fileName}`);
@@ -1923,9 +1949,21 @@ export function releaseAllowedTestSkipsFromVitestReport(vitestReport: unknown, o
   if (total !== observed.passed + observed.failed + observed.pending + observed.todo) {
     throw new Error("Vitest JSON report total does not match its assertion inventory");
   }
+  if (new Set(observedFiles).size !== observedFiles.length) throw new Error("Vitest JSON report contains duplicate test files");
+  if (canonicalJson(observedFiles.sort()) !== canonicalJson([...expectedTestFiles].sort())) {
+    throw new Error("Vitest JSON report file inventory differs from the exact tracked offline test inventory");
+  }
   if (expectedFailed !== 0) throw new Error("release candidate Vitest inventory contains failed tests");
   if (new Set(skipIds).size !== skipIds.length) throw new Error("release candidate has duplicate policy-bound skipped-test identities");
   return skipIds.sort();
+}
+
+async function releaseTrackedVitestFiles(repo: string, revision: string): Promise<string[]> {
+  const result = await git(repo, ["ls-tree", "-r", "-z", "--name-only", revision, "--", "tests"], false);
+  const paths = result.split("\0").filter((path) => /^tests\/.+\.test\.ts$/.test(path) && !path.startsWith("tests/live/")).sort();
+  if (paths.length === 0) throw new Error("release candidate has no tracked offline Vitest files");
+  if (new Set(paths).size !== paths.length) throw new Error("release candidate has duplicate tracked offline Vitest files");
+  return paths;
 }
 
 async function runReleaseVitest(repo: string): Promise<unknown> {

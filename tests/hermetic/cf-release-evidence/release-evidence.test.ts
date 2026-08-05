@@ -133,11 +133,21 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     expect(() => releaseAllowedTestSkipsFromVitestReport(
       fixtureVitestReport("alternate it['skip'] syntax without a policy binding"),
       new Set(["F-PT-012"]),
+      ["tests/fixture.test.ts"],
+      "/fixture",
     )).toThrow(/unbound skipped or pending test/);
     expect(() => releaseAllowedTestSkipsFromVitestReport(
       fixtureVitestReport("BLOCKED:F-PT-999 — forged closed finding"),
       new Set(["F-PT-012"]),
+      ["tests/fixture.test.ts"],
+      "/fixture",
     )).toThrow(/not bound to a current open policy finding/);
+    expect(() => releaseAllowedTestSkipsFromVitestReport(
+      fixtureVitestReport(),
+      new Set(["F-PT-012"]),
+      ["tests/fixture.test.ts", "tests/hidden.test.ts"],
+      "/fixture",
+    )).toThrow(/file inventory differs/);
 
     const snapshot = await releaseRepositorySnapshot(repo, candidate);
     expect(snapshot.allowed_test_skips).toEqual(["BLOCKED:F-PT-012"]);
@@ -145,6 +155,13 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     const missing = deterministicEvidence(manifest);
     missing.checks.find((item) => item.id === "pnpm-test")!.skipped_case_ids = [];
     expect(evaluateDeterministicAdmission(manifest, missing)).toMatchObject({ verdict: "fail" });
+
+    const narrowedConfig = (await readFile(join(repo, "vitest.config.ts"), "utf8"))
+      .replace('include: ["tests/**/*.test.ts"]', 'include: ["tests/fixture.test.ts"]');
+    await writeFile(join(repo, "vitest.config.ts"), narrowedConfig, "utf8");
+    await git(repo, ["add", "vitest.config.ts"]); await git(repo, ["commit", "-qm", "seed narrowed test discovery"]);
+    const narrowedCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
+    await expect(releaseRepositorySnapshot(repo, narrowedCommit)).rejects.toThrow(/config differs from the pinned offline lane/);
   });
 
   it("admits every exact deterministic check and preserves the one ratified skip", () => {
@@ -852,6 +869,7 @@ async function writeRepositoryFixture(
     "",
   ].join("\n"), "utf8");
   await writeFile(join(repo, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+  await writeFile(join(repo, "vitest.config.ts"), await readFile(join(process.cwd(), "vitest.config.ts")), "utf8");
   await writeFile(join(repo, "prompts", "fixture.md"), "fixture prompt\n", "utf8");
   await writeFile(join(repo, "roles.yaml"), "roles:\n  planner:\n    runtime: claude\n    model: fixture\n    effort: high\n", "utf8");
   await writeFile(join(repo, "pipelines.yaml"), "pipelines: {}\n", "utf8");

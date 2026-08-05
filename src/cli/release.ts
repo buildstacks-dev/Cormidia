@@ -257,7 +257,11 @@ async function readArray<T>(path: string, name: string): Promise<T[]> {
 function normalizeL4Evidence(manifest: ReleaseManifestV1, value: unknown): L4ReleaseEvidenceV1 {
   if (value !== null && typeof value === "object" && !Array.isArray(value) && "qualification_id" in value) return value as L4ReleaseEvidenceV1;
   if (value === null || typeof value !== "object" || Array.isArray(value) || !Array.isArray((value as Record<string, unknown>)["observations"])) throw new Error("L4 evidence must be an RQ-1 evidence object or eval-results.json");
-  const observations = ((value as Record<string, unknown>)["observations"] as Array<Record<string, unknown>>).map((row) => ({
+  const raw = value as Record<string, unknown>;
+  if (typeof raw["producer_digest"] !== "string" || !/^[a-f0-9]{64}$/.test(raw["producer_digest"])) {
+    throw new Error("eval-results.json lacks its execution-time producer digest");
+  }
+  const observations = (raw["observations"] as Array<Record<string, unknown>>).map((row) => ({
     pairing_id: row["tuple_id"],
     case_id: row["case_id"],
     attempt_id: row["attempt_id"],
@@ -274,7 +278,7 @@ function normalizeL4Evidence(manifest: ReleaseManifestV1, value: unknown): L4Rel
     schema_version: 1,
     qualification_id: manifest.qualification_id,
     subject_digest: obligation.subject_digest,
-    producer_digest: obligation.producer_digest,
+    producer_digest: raw["producer_digest"],
     observations,
   };
 }

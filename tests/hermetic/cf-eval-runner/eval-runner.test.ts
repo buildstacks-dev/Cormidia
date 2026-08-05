@@ -22,6 +22,7 @@ const tuples: EvalTuple[] = [
   { id: "builder-a__reviewer-a", site: "reviewer", operation: "review", arm: "bootstrap", producerTuple: "fixture", evaluatorTuple: "reviewer/claude/m-a/medium", rubricVersion: "reviewer-v1", attemptId: "attempt-1", promptInputDigest: "a".repeat(64), rubricDigest: "b".repeat(64), graderDigest: "c".repeat(64), runtime: "claude", model: "m-a", effort: "medium", maxCaseCostUsd: 1 },
   { id: "builder-a__reviewer-b", site: "reviewer", operation: "review", arm: "bootstrap", producerTuple: "fixture", evaluatorTuple: "reviewer/codex/m-b/medium", rubricVersion: "reviewer-v1", attemptId: "attempt-1", promptInputDigest: "a".repeat(64), rubricDigest: "b".repeat(64), graderDigest: "d".repeat(64), runtime: "codex", model: "m-b", effort: "medium", maxCaseCostUsd: 1 },
 ];
+const PRODUCER_DIGEST = "e".repeat(64);
 
 function golden(id: string, verdict: "APPROVE" | "REJECT"): EvalCaseV1 {
   return {
@@ -51,7 +52,7 @@ describe("eval runner", () => {
     const required = tuples.flatMap((tuple) => cases.map((item) => `${tuple.id}::${item.id}`));
     const runner = await campaign(required);
     const results = await runEvalCampaign({
-      campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome, cases, tuples, maxTokens: 1_000,
+      campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome, cases, tuples, producerDigest: PRODUCER_DIGEST, maxTokens: 1_000,
       executor: { execute: async ({ tuple, evalCase }) => ({
         output: tuple.id.endsWith("a") ? `VERDICT: ${evalCase.expected.verdict}\n` : "VERDICT: APPROVE\n",
         tokensIn: 10, tokensOut: 5, equivUsd: 0.1, sessionId: `${tuple.id}-${evalCase.id}`,
@@ -61,6 +62,7 @@ describe("eval runner", () => {
       expect.objectContaining({ tuple_id: "builder-a__reviewer-a", observations: 3, reference_matches: 3 }),
       expect.objectContaining({ tuple_id: "builder-a__reviewer-b", observations: 3, reference_mismatches: 2 }),
     ]);
+    expect(results.producer_digest).toBe(PRODUCER_DIGEST);
     const first = results.observations[0]!;
     expect(first.grading_key).toBe(compositeGradeKey({
       output_sha256: first.output_sha256,
@@ -82,7 +84,7 @@ describe("eval runner", () => {
     }));
     const result = await runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: selected, tuples: [tuples[0]!], maxTokens: 150, executor: { execute },
+      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 150, executor: { execute },
     });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.stopped_on_token_ceiling).toBe(true);
@@ -98,7 +100,12 @@ describe("eval runner", () => {
     const runner = await campaign(required, 1);
     await expect(runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: selected, tuples: [tuples[0]!], maxTokens: 100,
+      cases: selected, tuples: [tuples[0]!], producerDigest: "caller-invented", maxTokens: 100,
+      executor: { execute: async () => { throw new Error("must not execute"); } },
+    })).rejects.toThrow(/producerDigest must be lowercase sha256/);
+    await expect(runEvalCampaign({
+      campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
+      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 100,
       executor: { execute: async () => { throw new Error("provider response lost"); } },
     })).rejects.toThrow(/provider response lost/);
     const results = JSON.parse(await readFile(
@@ -126,7 +133,7 @@ describe("eval runner", () => {
     const runner = await campaign(required, 1);
     await expect(runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: selected, tuples: [tuples[0]!], maxTokens: 100,
+      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 100,
       executor: { execute: async () => ({
         output: "VERDICT: REJECT\n", tokensIn: -1, tokensOut: 2,
         equivUsd: 0.1, sessionId: "invalid-usage",
@@ -139,7 +146,7 @@ describe("eval runner", () => {
     const runner = await campaign([`${plannerTuple.id}::${cases[0]!.id}`], 1);
     await expect(runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: [cases[0]!], tuples: [plannerTuple], maxTokens: 100,
+      cases: [cases[0]!], tuples: [plannerTuple], producerDigest: PRODUCER_DIGEST, maxTokens: 100,
       executor: { execute: async () => { throw new Error("must not execute"); } },
     })).rejects.toThrow(/tuple site planner has no selected cases|selected reviewer cases but no exact tuple/);
   });
@@ -171,6 +178,7 @@ describe("eval runner", () => {
       stateHome: state!.stateHome,
       cases: selected,
       tuples: siteTuples,
+      producerDigest: PRODUCER_DIGEST,
       maxTokens: 20_000,
       executor: { execute: async ({ evalCase }) => ({
         output: `Fixture response for ${evalCase.id}`,

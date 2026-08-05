@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import {
   RELEASE_DETERMINISTIC_CHECKS,
+  RELEASE_L3_REQUIRED_CASES,
   assessReleaseQualification,
   canonicalJson,
   compositeGradeKey,
@@ -26,6 +27,7 @@ import {
   sha256,
   validateEvidenceOnlyChangedPaths,
   validateReleaseCommitLineage,
+  validateReleaseAttestation,
   validateReleaseManifest,
   validateReleaseApprovalAuthority,
   validateReleaseQualificationReport,
@@ -76,6 +78,10 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
       debt_eligible: false, subject_digest: "a".repeat(64), producer_digest: "b".repeat(64),
     });
     expect(() => createReleaseManifest(l5 as unknown as ReleaseManifestBodyV1)).toThrow(/obligation\.lane.*deterministic, L3, L4/);
+    const inventedL3 = fixtureBody();
+    inventedL3.triggered_campaigns[0]!.required_case_ids = ["INVENTED-ONLY"];
+    inventedL3.triggered_campaigns[0]!.scopes = ["INVENTED-ONLY"];
+    expect(() => createReleaseManifest(inventedL3)).toThrow(/incomplete or invented L3 case inventory/);
   });
 
   it("recomputes candidate inputs, permits pending future assurance, and refuses caller-supplied policy bytes", async () => {
@@ -88,17 +94,24 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await writeRepositoryFixture(repo, repositoryGoldenCases("validated"), false, sourceCommit, cases);
     await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "ratified inputs"]);
     const candidate = (await git(repo, ["rev-parse", "HEAD"])).trim();
-    const snapshot = await releaseRepositorySnapshot(repo, candidate);
-    const manifestLike = {
-      candidate_commit: candidate,
-      inputs: snapshot.inputs,
-      assignments: snapshot.assignments,
-      l4: { references: snapshot.golden_references },
-    } as unknown as ReleaseManifestBodyV1;
+    const manifestLike = await repositoryFixtureManifest(repo, candidate);
     await expect(validateReleaseRepositoryState(repo, manifestLike)).resolves.toBeUndefined();
     const forged = structuredClone(manifestLike);
     forged.inputs.policy = "f".repeat(64);
     await expect(validateReleaseRepositoryState(repo, forged)).rejects.toThrow(/policy.*caller-supplied/);
+    const forgedProducer = structuredClone(manifestLike);
+    forgedProducer.deterministic.producer_digest = "f".repeat(64);
+    await expect(validateReleaseRepositoryState(repo, forgedProducer)).rejects.toThrow(/producer digest.*caller-supplied/);
+    const forgedSkips = structuredClone(manifestLike);
+    forgedSkips.deterministic.allowed_test_skips.push("BLOCKED:F-PT-009");
+    await expect(validateReleaseRepositoryState(repo, forgedSkips)).rejects.toThrow(/allowed test skips/);
+
+    const alteredCases = repositoryGoldenCases("validated");
+    alteredCases[0]!["prompt"] = "Changed after the human review";
+    await writeRepositoryFixture(repo, alteredCases, false, sourceCommit, cases);
+    await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "seed post-review golden mutation"]);
+    const alteredCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
+    await expect(releaseRepositorySnapshot(repo, alteredCommit)).rejects.toThrow(/content changed after human review/);
   });
 
   it("admits every exact deterministic check and preserves the one ratified skip", () => {
@@ -135,6 +148,21 @@ describe("RQ-1 L4 pairing and calibrated-judge admission", () => {
     const evidence = l4Evidence(manifest);
     evidence.observations[0]!.automatic_score_used = true;
     expect(evaluateL4Evidence(manifest, evidence).violation_ids.some((item) => item.includes("uncalibrated_judge_score"))).toBe(true);
+  });
+
+  it("negative control: comparison arms must share one exact case/attempt/evaluator/rubric manifest", () => {
+    const body = fixtureBody();
+    body.l4.mode = "comparison";
+    body.l4.pairings = body.l4.pairings.flatMap((item) => [
+      { ...item, id: `${item.id}-CANDIDATE`, comparison_group: item.id, arm: "candidate" as const, producer_tuple: `${item.producer_tuple}:candidate` },
+      { ...item, id: `${item.id}-BASELINE`, comparison_group: item.id, arm: "baseline" as const, producer_tuple: `${item.producer_tuple}:baseline` },
+    ]);
+    body.obligations = body.obligations.map((item) => ({ ...item, subject_digest: releaseSubjectDigest(body) }));
+    expect(() => createReleaseManifest(body)).not.toThrow();
+
+    body.l4.pairings.find((item) => item.arm === "baseline")!.attempt_ids = ["different-attempt"];
+    body.obligations = body.obligations.map((item) => ({ ...item, subject_digest: releaseSubjectDigest(body) }));
+    expect(() => createReleaseManifest(body)).toThrow(/same case\/attempt\/evaluator\/rubric manifest/);
   });
 
   it("negative control: composite grading identity prevents false reuse and requires one primary", () => {
@@ -317,7 +345,7 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
   });
 
   it("verifies exact packet, package, annotated approval, and tamper refusal", async () => {
-    const { manifest, report } = qualifiedFixture();
+    const { manifest, report, debt } = qualifiedFixture();
     const root = await mkdtemp(join(tmpdir(), "rq1-packet-")); roots.push(root);
     const packet = join(root, "release-evidence", manifest.package.version, manifest.qualification_id);
     await mkdir(packet, { recursive: true });
@@ -350,6 +378,40 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
     expect(() => validateReleaseCommitLineage(manifest, attestation, packetFiles.map((item) => `release-evidence/${manifest.package.version}/${manifest.qualification_id}/${item.path}`))).not.toThrow();
     expect(() => validateReleaseCommitLineage(manifest, attestation, [...packetFiles.map((item) => `release-evidence/${manifest.package.version}/${manifest.qualification_id}/${item.path}`), "README.md"])).toThrow(/outside evidence namespace/);
     await expect(verifyReleasePacket({ packetDir: packet, currentCommit: releaseCommit, currentTag: action.tag, currentPackage: manifest.package, attestation: envelope.attestation, approval: envelope.approval })).resolves.toMatchObject({ report: { outcome: { qualification: "qualified" } } });
+
+    const rejectedDeterministic = deterministicEvidence(manifest);
+    rejectedDeterministic.checks[0]!.status = "fail";
+    const rejectedReport = assessReleaseQualification({
+      manifest,
+      laneResults: [
+        evaluateDeterministicAdmission(manifest, rejectedDeterministic),
+        ...evaluateTriggeredCampaignEvidence(manifest, campaignEvidence(manifest)),
+        evaluateL4Evidence(manifest, l4Evidence(manifest)),
+      ],
+      debtDispositions: [debt],
+      generatedAt: report.generated_at,
+    });
+    const rejectedBytes = {
+      ...evidenceBytes,
+      "deterministic-results.json": `${JSON.stringify(rejectedDeterministic, null, 2)}\n`,
+      "qualification-report.json": `${JSON.stringify(rejectedReport, null, 2)}\n`,
+    };
+    await Promise.all(Object.entries(rejectedBytes).map(([path, bytes]) => writeFile(join(packet, path), bytes, "utf8")));
+    const rejectedPacketFiles = Object.entries(rejectedBytes).map(([path, bytes]) => ({
+      path, size: Buffer.byteLength(bytes), sha256: sha256(bytes),
+    }));
+    const rejectedAttestation = {
+      ...attestation,
+      qualification_report_sha256: digestJson(rejectedReport),
+      qualification_dispositions_sha256: digestJson({ evaluator_debt: rejectedReport.debt_dispositions, evidence_changes: rejectedReport.evidence_change_dispositions }),
+      packet_files: rejectedPacketFiles,
+    };
+    const rejectedApproval = { ...approval, attestation_sha256: digestJson(rejectedAttestation) };
+    await expect(verifyReleasePacket({
+      packetDir: packet, currentCommit: releaseCommit, currentTag: action.tag,
+      currentPackage: manifest.package, attestation: rejectedAttestation, approval: rejectedApproval,
+    })).rejects.toThrow(/requires a qualified evidence report/);
+    await Promise.all(Object.entries(evidenceBytes).map(([path, bytes]) => writeFile(join(packet, path), bytes, "utf8")));
 
     await writeFile(join(packet, "qualification-report.json"), `${reportBytes} `, "utf8");
     await expect(verifyReleasePacket({ packetDir: packet, currentCommit: releaseCommit, currentTag: action.tag, currentPackage: manifest.package, attestation, approval })).rejects.toThrow(/hash mismatch/);
@@ -390,6 +452,12 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
       attestation_sha256: "f".repeat(64), release_action_sha256: attestation.release_action_sha256,
     };
     expect(() => createReleaseTagMessage(attestation, approval)).toThrow(/not bound/);
+    const crossBoundAction = { ...action, version: "0.1.3", tag: "v0.1.3" };
+    expect(() => validateReleaseAttestation({
+      ...attestation,
+      release_action: crossBoundAction,
+      release_action_sha256: digestJson(crossBoundAction),
+    })).toThrow(/action does not match its package\/tag identity/);
     expect(() => createReleaseAttestation({
       manifest, report, releaseCommit: "b".repeat(40), tag: action.tag,
       changedPaths: [
@@ -471,7 +539,7 @@ function fixtureBody(): ReleaseManifestBodyV1 {
       reference("VAL-001", "validation-designer", "3"),
     ],
     pairings: [
-      pairing("PAIR-REV", "reviewer", "review", "fixture", "reviewer/codex/model/medium", "REV-001", "4"),
+      pairing("PAIR-REV", "reviewer", "review", "fixture", "human", "REV-001", "4"),
       pairing("PAIR-PLAN", "planner", "plan", "planner/codex/model/medium", "human", "PLAN-001", "5"),
       pairing("PAIR-VAL", "validation-designer", "validation-design", "validation-designer/codex/model/medium", "human", "VAL-001", "6"),
     ],
@@ -499,9 +567,10 @@ function fixtureBody(): ReleaseManifestBodyV1 {
   const triggeredCampaigns: ReleaseManifestBodyV1["triggered_campaigns"] = [
     {
       obligation_id: "RQ-L3", campaign_id: "release-l3-fixture", lane: "L3",
-      campaign_kind: "release", trigger: "human_authorized_release_qualification",
-      apps: ["Cormidia"], scopes: ["supported-adapters"], tuples: ["fixture-adapter"],
-      required_case_ids: ["L3-RELEASE-FIXTURE"], max_provider_turns: 24, max_equiv_usd: 100,
+      campaign_kind: "release", trigger: "human:bikramgupta:fixture qualification",
+      apps: ["Cormidia"], scopes: [...RELEASE_L3_REQUIRED_CASES],
+      tuples: ["claude/fixture/high", "codex/fixture/high", "pi/fixture/high"],
+      required_case_ids: [...RELEASE_L3_REQUIRED_CASES], max_provider_turns: 24, max_equiv_usd: 100,
       decision_status: "ratified",
     },
   ];
@@ -510,7 +579,7 @@ function fixtureBody(): ReleaseManifestBodyV1 {
     repository: "cormidia/Cormidia", candidate_commit: "a".repeat(40), clean_tracked_tree: true, package: packageManifest,
     inputs, assignments, toolchain,
     human_authorization: { authorized_by: "bikramgupta", authorized_at: "2026-08-05T00:59:00.000Z", purpose: "fixture qualification", approval_ref: "fixture:approval" },
-    deterministic: { required_checks: [...RELEASE_DETERMINISTIC_CHECKS], allowed_test_skips: ["BLOCKED:F-PT-EXAMPLE"], producer_digest: "6".repeat(64) },
+    deterministic: { required_checks: [...RELEASE_DETERMINISTIC_CHECKS], allowed_test_skips: ["BLOCKED:F-PT-012"], producer_digest: "6".repeat(64) },
     l4,
     triggered_campaigns: triggeredCampaigns,
     ceilings: { l3_premerge: { max_provider_turns: 2, max_equiv_usd: 5 }, l3_release: { max_provider_turns: 24, max_equiv_usd: 100 }, l4: { max_provider_turns: 20, max_equiv_usd: 40, max_tokens: 100_000, authorization_ref: "fixture:l4-envelope" } },
@@ -531,7 +600,7 @@ function reference(caseId: string, site: "reviewer" | "planner" | "validation-de
 }
 
 function pairing(id: string, site: "reviewer" | "planner" | "validation-designer", operation: string, producer: string, evaluator: string, caseId: string, seed: string) {
-  return { id, site, operation, arm: "bootstrap" as const, producer_tuple: producer, evaluator_tuple: evaluator, rubric_version: "v1", rubric_digest: seed.repeat(64), grader_digest: String(Number(seed) + 1).repeat(64), evaluator_status: "human_review" as const, decision_rule_digest: null, case_ids: [caseId], attempt_ids: ["attempt-1"] };
+  return { id, comparison_group: id, site, operation, arm: "bootstrap" as const, producer_tuple: producer, evaluator_tuple: evaluator, rubric_version: "v1", rubric_digest: seed.repeat(64), grader_digest: String(Number(seed) + 1).repeat(64), evaluator_status: "human_review" as const, decision_rule_digest: null, case_ids: [caseId], attempt_ids: ["attempt-1"] };
 }
 
 function obligation(id: string, lane: ReleaseObligationV1["lane"], claimClass: ReleaseObligationV1["claim_class"], debtEligible: boolean, subject: string, producerSeed: string): ReleaseObligationV1 {
@@ -544,7 +613,7 @@ function deterministicEvidence(manifest: ReleaseManifestV1): DeterministicEviden
     checks: RELEASE_DETERMINISTIC_CHECKS.map((id) => ({
       id, status: "pass", candidate_commit: manifest.candidate_commit,
       subject_digest: releaseSubjectDigest(manifest), producer_digest: manifest.deterministic.producer_digest,
-      evidence_ref: `ci:${id}`, skipped_case_ids: id === "pnpm-test" ? ["BLOCKED:F-PT-EXAMPLE"] : [],
+      evidence_ref: `ci:${id}`, skipped_case_ids: id === "pnpm-test" ? ["BLOCKED:F-PT-012"] : [],
     })),
   };
 }
@@ -643,6 +712,10 @@ async function repositoryFixtureManifest(repo: string, candidate: string): Promi
   body.inputs = snapshot.inputs;
   body.assignments = snapshot.assignments;
   body.toolchain = snapshot.toolchain;
+  body.deterministic.allowed_test_skips = snapshot.allowed_test_skips;
+  body.deterministic.producer_digest = snapshot.producer_digests.deterministic;
+  body.triggered_campaigns[0]!.required_case_ids = snapshot.l3_required_case_ids;
+  body.triggered_campaigns[0]!.scopes = snapshot.l3_required_case_ids;
   body.l4.references = snapshot.golden_references;
   body.l4.pairings = snapshot.golden_references.map((item, index) => pairing(
     `PAIR-${index + 1}`,
@@ -654,7 +727,11 @@ async function repositoryFixtureManifest(repo: string, candidate: string): Promi
     String(index + 1),
   ));
   const subject = releaseSubjectDigest({ ...body, qualification_id: "0".repeat(64) });
-  body.obligations = body.obligations.map((item) => ({ ...item, subject_digest: subject }));
+  body.obligations = body.obligations.map((item) => ({
+    ...item,
+    subject_digest: subject,
+    producer_digest: snapshot.producer_digests[item.lane],
+  }));
   return createReleaseManifest(body);
 }
 
@@ -712,10 +789,33 @@ async function writeRepositoryFixture(
 ): Promise<void> {
   const validation = join(repo, "validation-design");
   await mkdir(join(repo, "prompts"), { recursive: true });
+  await mkdir(join(repo, "tests"), { recursive: true });
   await mkdir(join(validation, "golden-sets", "reviewer"), { recursive: true });
   await mkdir(join(validation, "golden-sets", "planner"), { recursive: true });
   await mkdir(join(validation, "golden-sets", "validation-designer"), { recursive: true });
-  await writeFile(join(validation, "validation-policy.yaml"), "schema_version: 1\n", "utf8");
+  await writeFile(join(validation, "validation-policy.yaml"), [
+    "schema_version: 1",
+    "layers:",
+    "  L3_live_sandbox:",
+    "    obligations:",
+    "      - {id: CF-B01-L3, trigger: release}",
+    "      - {id: CF-B02-L3, trigger: release}",
+    "      - {id: CF-B03-L3, trigger: release}",
+    "      - {id: CF-B04-L3, trigger: release}",
+    "      - {id: CF-J16-A, trigger: 'release when scheduler changes'}",
+    "      - {id: CF-J18-A, trigger: 'release qualification'}",
+    "open_findings:",
+    "  - {id: F-PT-012, status: open, subject: fixture skip}",
+    "",
+  ].join("\n"), "utf8");
+  await writeFile(join(repo, "tests", "fixture.test.ts"), [
+    "import { it } from 'vitest';",
+    "it.skip(",
+    "  'BLOCKED:F-PT-012 — fixture policy question',",
+    "  () => {},",
+    ");",
+    "",
+  ].join("\n"), "utf8");
   await writeFile(join(repo, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
   await writeFile(join(repo, "prompts", "fixture.md"), "fixture prompt\n", "utf8");
   await writeFile(join(repo, "roles.yaml"), "roles:\n  planner:\n    runtime: claude\n    model: fixture\n    effort: high\n", "utf8");

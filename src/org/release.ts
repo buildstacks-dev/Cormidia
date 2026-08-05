@@ -220,6 +220,7 @@ export interface ReleaseCommandResult {
   exitCode: number;
   stdout: string;
   stderr: string;
+  outcome?: "completed" | "failed" | "ambiguous";
 }
 
 export interface ReleaseExecutionRecord {
@@ -229,7 +230,7 @@ export interface ReleaseExecutionRecord {
   ticketRef: string;
   owner: "orchestrator" | "sre";
   command: string;
-  status: "running" | "completed" | "failed";
+  status: "running" | "completed" | "failed" | "ambiguous";
   startedAt: string;
   finishedAt?: string;
   exitCode?: number;
@@ -244,6 +245,9 @@ export interface ExecuteApprovedReleasesOptions {
   appsFile: AppsFile;
   now?: () => Date;
   commandRunner?: (command: string, cwd: string, env: NodeJS.ProcessEnv) => Promise<ReleaseCommandResult>;
+  /** Deterministic seam for RQ-1 tag effect/readback tests. Production uses
+   * direct git argv execution and never a shell. */
+  rq1GitRunner?: (cwd: string, args: string[]) => Promise<ReleaseCommandResult>;
   ghFor?: (app: AppEntry) => GhOps;
   /** Exact assignment-aware factory. The legacy role-only seam remains for
    * existing callers, but it receives a role view carrying the persisted
@@ -257,7 +261,7 @@ export interface ExecuteApprovedReleasesOptions {
 export interface ReleaseExecutionOutcome {
   approvalId: string;
   app: string;
-  status: "completed" | "failed" | "skipped";
+  status: "completed" | "failed" | "ambiguous" | "skipped";
   summary: string;
 }
 
@@ -303,10 +307,12 @@ export async function executeApprovedReleases(
       } else if (item.execution?.state === "executing" || item.execution?.state === "ambiguous") {
         await store.finishExecution({
           id: item.id,
-          state: existing.status === "completed" ? "executed" : "failed",
+          state: existing.status === "completed" ? "executed" : existing.status === "ambiguous" ? "ambiguous" : "failed",
           actor: "orchestrator/release-reconcile",
           result: existing.summary ?? existing.status,
-          ...(existing.status === "failed" ? { failureCause: "release_failed" } : {}),
+          ...(existing.status === "failed"
+            ? { failureCause: "release_failed" }
+            : existing.status === "ambiguous" ? { failureCause: "ambiguous_release_result" } : {}),
           now: clock(),
         });
       }
@@ -398,7 +404,7 @@ export async function executeApprovedReleases(
       const result = await executeReleaseEpisode(options, store, item, app, command);
       record = {
         ...record,
-        status: result.exitCode === 0 ? "completed" : "failed",
+        status: result.outcome ?? (result.exitCode === 0 ? "completed" : "failed"),
         finishedAt: clock().toISOString(),
         exitCode: result.exitCode,
         summary: releaseSummary(result),
@@ -415,10 +421,12 @@ export async function executeApprovedReleases(
     if (item.execution?.executor === "release") {
       await store.finishExecution({
         id: item.id,
-        state: record.status === "completed" ? "executed" : "failed",
+        state: record.status === "completed" ? "executed" : record.status === "ambiguous" ? "ambiguous" : "failed",
         actor: "orchestrator/release",
         result: record.summary ?? record.status,
-        ...(record.status === "failed" ? { failureCause: "release_failed" } : {}),
+        ...(record.status === "failed"
+          ? { failureCause: "release_failed" }
+          : record.status === "ambiguous" ? { failureCause: "ambiguous_release_result" } : {}),
         now: clock(),
       });
     }
@@ -434,7 +442,7 @@ export async function executeApprovedReleases(
     outcomes.push({
       approvalId: item.id,
       app: item.app,
-      status: record.status === "completed" ? "completed" : "failed",
+      status: record.status === "completed" ? "completed" : record.status === "ambiguous" ? "ambiguous" : "failed",
       summary:
         persisted.commentError === undefined
           ? record.summary ?? record.status
@@ -923,7 +931,7 @@ async function runApprovedOrchestratorCommand(
   // approval and release-preflight steps only observe the grant.
   store.consumeGrantSync(grant.grantId, options.now?.() ?? new Date());
   const cwd = managedClone(options.stateHome, app);
-  if (rq1 !== undefined) return runRq1TagPush(cwd, rq1);
+  if (rq1 !== undefined) return runRq1TagPush(cwd, rq1, options.rq1GitRunner ?? runGitReleaseEffect);
   return (options.commandRunner ?? runReleaseCommand)(command, cwd, { ...process.env, CI: "1" });
 }
 
@@ -966,8 +974,9 @@ async function prepareRq1TagExecution(
 async function runRq1TagPush(
   cwd: string,
   prepared: PreparedRq1TagExecution,
+  run: (cwd: string, args: string[]) => Promise<ReleaseCommandResult>,
 ): Promise<ReleaseCommandResult> {
-  const tagResult = await runGitReleaseEffect(cwd, [
+  const tagResult = await run(cwd, [
     "tag",
     "-a",
     prepared.attestation.tag,
@@ -976,11 +985,28 @@ async function runRq1TagPush(
     prepared.message,
   ]);
   if (tagResult.exitCode !== 0) return tagResult;
-  return runGitReleaseEffect(cwd, [
+  const pushResult = await run(cwd, [
     "push",
     "origin",
     `refs/tags/${prepared.attestation.tag}`,
   ]);
+  if (pushResult.exitCode === 0) return pushResult;
+  const local = await run(cwd, ["rev-parse", `refs/tags/${prepared.attestation.tag}`]);
+  const remote = await run(cwd, ["ls-remote", "--tags", "origin", `refs/tags/${prepared.attestation.tag}`]);
+  if (local.exitCode !== 0 || remote.exitCode !== 0) {
+    return { ...pushResult, outcome: "ambiguous", stderr: `${pushResult.stderr}\nRQ-1 tag push readback was unavailable`.trim() };
+  }
+  const matching = remote.stdout.split("\n").map((line) => line.trim().split(/\s+/, 2)).find((parts) => parts[1] === `refs/tags/${prepared.attestation.tag}`);
+  if (matching === undefined) return { ...pushResult, outcome: "failed" };
+  if (matching[0] !== local.stdout.trim()) {
+    return { ...pushResult, outcome: "ambiguous", stderr: `${pushResult.stderr}\nRQ-1 remote tag marker disagrees with the local annotated tag`.trim() };
+  }
+  return {
+    exitCode: 0,
+    outcome: "completed",
+    stdout: `${pushResult.stdout}\nRQ-1 tag push response lost; exact remote tag marker reconciled`.trim(),
+    stderr: pushResult.stderr,
+  };
 }
 
 async function runGitReleaseEffect(cwd: string, args: string[]): Promise<ReleaseCommandResult> {

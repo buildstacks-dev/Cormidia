@@ -31,6 +31,16 @@ export const RELEASE_DETERMINISTIC_CHECKS = [
   "smoke-onboarding", "package-dry-run", "package-install-smoke", "core-checks",
 ] as const;
 export const RELEASE_L4_SITES = ["reviewer", "planner", "validation-designer"] as const;
+export const RELEASE_L3_REQUIRED_CASES = [
+  "CF-B02-L3", "CF-B03-L3", "CF-B04-L3", "CF-B01-L3", "CF-J18-A",
+] as const;
+export const RELEASE_L3_CONDITIONAL_CASES = ["CF-J16-A"] as const;
+
+const RELEASE_OBLIGATION_SPECS = [
+  { id: "RQ-DET", lane: "deterministic", claim_class: "build", debt_eligible: false },
+  { id: "RQ-L3", lane: "L3", claim_class: "product", debt_eligible: false },
+  { id: "RQ-L4", lane: "L4", claim_class: "evaluator_evidence", debt_eligible: true },
+] as const satisfies ReadonlyArray<Pick<ReleaseObligationV1, "id" | "lane" | "claim_class" | "debt_eligible">>;
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
@@ -95,6 +105,7 @@ export interface ReleaseToolchainV1 {
 
 export interface ReleaseL4PairingV1 {
   id: string;
+  comparison_group: string;
   site: ReleaseL4Site;
   operation: string;
   arm: "bootstrap" | "candidate" | "baseline";
@@ -420,6 +431,10 @@ export interface ReleaseRepositorySnapshotV1 {
   assignments: ReleaseAssignmentV1[];
   toolchain: ReleaseToolchainV1;
   golden_references: ReleaseGoldenReferenceV1[];
+  producer_digests: Record<ReleaseLane, string>;
+  allowed_test_skips: string[];
+  l3_required_case_ids: string[];
+  l3_conditional_case_ids: string[];
 }
 
 /** Recompute every repository-owned RQ-1 input from an exact commit. The path
@@ -428,7 +443,7 @@ export interface ReleaseRepositorySnapshotV1 {
  * producer rather than candidate-source currency. */
 export async function releaseRepositorySnapshot(repo: string, revision: string): Promise<ReleaseRepositorySnapshotV1> {
   commit(revision, "repository snapshot revision");
-  const [policy, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes] = await Promise.all([
+  const [policyBytes, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes] = await Promise.all([
     gitFile(repo, revision, "validation-design/validation-policy.yaml"),
     gitFile(repo, revision, "pnpm-lock.yaml"),
     gitTreeDigest(repo, revision, "prompts"),
@@ -441,10 +456,13 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
   const assignments = assignmentProjection(parseYaml(rolesBytes.toString("utf8")));
   const toolchain = await currentReleaseToolchain(repo);
   const goldenReferences = await goldenReferenceProjection(repo, revision, validationRecordBytes);
+  const policy = releasePolicyProjection(policyBytes);
+  const allowedTestSkips = await releaseAllowedTestSkips(repo, revision, policy.openFindingIds);
+  const producerDigests = releaseProducerDigests(revision, sha256(policyBytes), toolchain);
   return {
     candidate_commit: revision,
     inputs: {
-      policy: sha256(policy),
+      policy: sha256(policyBytes),
       dependency_lock: sha256(lock),
       prompts,
       roles: sha256(rolesBytes),
@@ -457,6 +475,10 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
     assignments,
     toolchain,
     golden_references: goldenReferences,
+    producer_digests: producerDigests,
+    allowed_test_skips: allowedTestSkips,
+    l3_required_case_ids: [...policy.requiredL3CaseIds],
+    l3_conditional_case_ids: [...policy.conditionalL3CaseIds],
   };
 }
 
@@ -470,6 +492,43 @@ export async function validateReleaseRepositoryState(
   }
   if (canonicalJson(snapshot.assignments) !== canonicalJson(manifest.assignments)) throw new Error("release manifest assignments differ from roles.yaml");
   if (canonicalJson(snapshot.golden_references) !== canonicalJson(manifest.l4.references)) throw new Error("release manifest golden references are incomplete, stale, or not human validated");
+  if (canonicalJson(snapshot.allowed_test_skips) !== canonicalJson(manifest.deterministic.allowed_test_skips)) {
+    throw new Error("release manifest allowed test skips differ from the exact policy-bound skipped-test inventory");
+  }
+  // Re-verification can run on a different host than the authorized evidence
+  // producer. Recompute from the manifest's content-bound producer toolchain,
+  // never from the verifier host's ambient versions.
+  const producerDigests = releaseProducerDigests(manifest.candidate_commit, snapshot.inputs.policy, manifest.toolchain);
+  if (manifest.deterministic.producer_digest !== producerDigests.deterministic) {
+    throw new Error("release manifest deterministic producer digest is stale or caller-supplied");
+  }
+  for (const obligation of manifest.obligations) {
+    if (obligation.producer_digest !== producerDigests[obligation.lane]) {
+      throw new Error(`release manifest ${obligation.lane} producer digest is stale or caller-supplied`);
+    }
+  }
+  const campaignCases = manifest.triggered_campaigns[0]?.required_case_ids ?? [];
+  const required = snapshot.l3_required_case_ids;
+  const requiredWithConditional = [...required, ...snapshot.l3_conditional_case_ids];
+  if (canonicalJson(campaignCases) !== canonicalJson(required) && canonicalJson(campaignCases) !== canonicalJson(requiredWithConditional)) {
+    throw new Error("release manifest L3 case inventory differs from the ratified policy obligations");
+  }
+}
+
+function releaseProducerDigests(
+  candidateCommit: string,
+  policySha256: string,
+  toolchain: ReleaseToolchainV1,
+): Record<ReleaseLane, string> {
+  return Object.fromEntries(
+    (["deterministic", "L3", "L4"] as const).map((lane) => [lane, digestJson({
+      contract_id: RELEASE_QUALIFICATION_CONTRACT,
+      lane,
+      candidate_commit: candidateCommit,
+      policy_sha256: policySha256,
+      toolchain,
+    })]),
+  ) as Record<ReleaseLane, string>;
 }
 
 export async function currentReleaseToolchain(repo: string): Promise<ReleaseToolchainV1> {
@@ -610,6 +669,24 @@ export function evaluateL4Evidence(manifest: ReleaseManifestV1, evidence: L4Rele
   }
   const missing = expected.filter((id) => !rows.has(id));
   reasons.push(...missing.map((id) => `missing:${id}`));
+  if (manifest.l4.mode === "comparison") {
+    const groups = new Map<string, ReleaseL4PairingV1[]>();
+    for (const pairing of manifest.l4.pairings) {
+      groups.set(pairing.comparison_group, [...(groups.get(pairing.comparison_group) ?? []), pairing]);
+    }
+    for (const [groupId, group] of groups) {
+      const candidate = group.find((item) => item.arm === "candidate")!;
+      const baseline = group.find((item) => item.arm === "baseline")!;
+      for (const caseId of candidate.case_ids) for (const attemptId of candidate.attempt_ids) {
+        const candidateRow = rows.get(observationId(candidate.id, caseId, attemptId));
+        const baselineRow = rows.get(observationId(baseline.id, caseId, attemptId));
+        if (candidateRow !== undefined && baselineRow !== undefined && (
+          candidateRow.output_sha256 !== baselineRow.output_sha256
+          || candidateRow.outcome !== baselineRow.outcome
+        )) reasons.push(`paired_disagreement:${groupId}:${caseId}:${attemptId}`);
+      }
+    }
+  }
   const grouped = new Map<string, L4ReleaseObservationV1[]>();
   for (const row of evidence.observations) grouped.set(row.grading_key, [...(grouped.get(row.grading_key) ?? []), row]);
   for (const group of grouped.values()) {
@@ -889,6 +966,7 @@ export function releaseSubjectDigest(manifest: ReleaseManifestBodyV1 | ReleaseMa
     references: manifest.l4.references,
     pairings: manifest.l4.pairings.map((pairing) => ({
       id: pairing.id,
+      comparison_group: pairing.comparison_group,
       site: pairing.site,
       operation: pairing.operation,
       arm: pairing.arm,
@@ -1109,6 +1187,10 @@ export function validateReleaseAttestation(value: unknown): asserts value is Rel
   if (!Array.isArray(root["packet_files"])) throw new Error("packet_files must be an array");
   validatePacketFiles(root["packet_files"] as Array<{ path: string; size: number; sha256: string }>);
   validateReleaseAction(root["release_action"]);
+  const action = root["release_action"] as ReleaseActionV1;
+  if (action.package_name !== root["package_name"] || action.version !== root["package_version"] || action.tag !== root["tag"]) {
+    throw new Error("release attestation action does not match its package/tag identity");
+  }
   if (root["release_action_sha256"] !== digestJson(root["release_action"])) throw new Error("release_action_sha256 mismatch");
   instant(root["created_at"], "created_at");
 }
@@ -1219,6 +1301,9 @@ export async function verifyReleasePacket(input: {
     l4: l4Value as L4ReleaseEvidenceV1,
     campaigns: campaignsValue as ReleaseCampaignEvidenceV1,
   });
+  if (report.outcome.qualification !== "qualified") {
+    throw new Error("release packet verification requires a qualified evidence report");
+  }
   const expectedSuffix = join("release-evidence", manifest.package.version, manifest.qualification_id);
   if (!packetDir.endsWith(`${sep}${expectedSuffix}`) && packetDir !== resolve(expectedSuffix)) throw new Error("release packet path does not match version/qualification identity");
   if (attestation.qualification_id !== manifest.qualification_id || attestation.prepared_commit !== manifest.candidate_commit) throw new Error("release attestation is not bound to manifest");
@@ -1303,12 +1388,18 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
   if (!Array.isArray(root["obligations"]) || root["obligations"].length === 0) throw new Error("release manifest requires obligations");
   const obligations = root["obligations"] as unknown[];
   for (const item of obligations) validateObligation(item);
-  if (new Set((obligations as ReleaseObligationV1[]).map((item) => item.id)).size !== obligations.length) throw new Error("release obligation ids must be unique");
+  const obligationRows = obligations as ReleaseObligationV1[];
+  if (new Set(obligationRows.map((item) => item.id)).size !== obligations.length) throw new Error("release obligation ids must be unique");
+  const obligationShape = obligationRows.map(({ id, lane, claim_class, debt_eligible }) => ({ id, lane, claim_class, debt_eligible }));
+  if (canonicalJson(obligationShape) !== canonicalJson(RELEASE_OBLIGATION_SPECS)) {
+    throw new Error("release obligations must use the exact ordered RQ-1 lane contract");
+  }
   const subjectDigest = releaseSubjectDigest(root as unknown as ReleaseManifestBodyV1);
-  if ((obligations as ReleaseObligationV1[]).some((item) => item.subject_digest !== subjectDigest)) throw new Error("every release obligation must bind the exact release subject digest");
-  for (const lane of ["deterministic", "L3", "L4"] as const) if (!(obligations as ReleaseObligationV1[]).some((item) => item.lane === lane)) throw new Error(`release manifest requires a ${lane} obligation`);
+  if (obligationRows.some((item) => item.subject_digest !== subjectDigest)) throw new Error("every release obligation must bind the exact release subject digest");
   const triggered = root["triggered_campaigns"] as ReleaseTriggeredCampaignV1[];
-  for (const obligation of obligations as ReleaseObligationV1[]) {
+  const expectedTrigger = `human:${authorization["authorized_by"] as string}:${authorization["purpose"] as string}`;
+  if (triggered[0]!.trigger !== expectedTrigger) throw new Error("release L3 campaign trigger is not bound to the human authorization");
+  for (const obligation of obligationRows) {
     const matching = triggered.filter((item) => item.obligation_id === obligation.id);
     if (obligation.lane === "L3") {
       if (matching.length !== 1 || matching[0]!.lane !== "L3") {
@@ -1321,7 +1412,7 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
 }
 
 function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTriggeredCampaignV1[] {
-  if (!Array.isArray(value) || value.length === 0) throw new Error("release manifest requires triggered L3 campaigns");
+  if (!Array.isArray(value) || value.length !== 1) throw new Error("release manifest requires exactly one RQ-1 release campaign");
   const obligationIds: string[] = [];
   const campaignIds: string[] = [];
   for (const raw of value) {
@@ -1332,15 +1423,31 @@ function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTri
     oneOf(item["lane"], ["L3"], "triggered lane");
     const kind = nonEmpty(item["campaign_kind"], "triggered campaign_kind");
     nonEmpty(item["trigger"], "triggered trigger");
-    if (uniqueStrings(item["apps"], "triggered apps").length === 0) throw new Error("triggered campaign requires at least one app");
-    if (uniqueStrings(item["scopes"], "triggered scopes").length === 0) throw new Error("triggered campaign requires at least one scope");
-    uniqueStrings(item["tuples"], "triggered tuples");
-    if (uniqueStrings(item["required_case_ids"], "triggered required_case_ids").length === 0) throw new Error("triggered campaign requires a non-empty case inventory");
+    if (uniqueStrings(item["apps"], "triggered apps").length !== 1) throw new Error("RQ-1 release campaign requires one exact app");
+    const scopes = uniqueStrings(item["scopes"], "triggered scopes");
+    const tuples = uniqueStrings(item["tuples"], "triggered tuples");
+    const cases = uniqueStrings(item["required_case_ids"], "triggered required_case_ids");
     const maxTurns = positiveInteger(item["max_provider_turns"], "triggered max_provider_turns");
     const maxUsd = positive(item["max_equiv_usd"], "triggered max_equiv_usd");
-    oneOf(item["decision_status"], ["ratified", "proposed", "not_applicable"], "triggered decision_status");
-    const ceiling = kind === "pre_merge_adapter" ? { turns: 2, usd: 5 } : { turns: 24, usd: 100 };
-    if (maxTurns > ceiling.turns || maxUsd > ceiling.usd) throw new Error(`L3 ${kind} campaign exceeds its RQ-1 ceiling`);
+    if (item["obligation_id"] !== "RQ-L3" || item["lane"] !== "L3" || kind !== "release") {
+      throw new Error("triggered campaign must target the exact RQ-L3 release lane");
+    }
+    const required = [...RELEASE_L3_REQUIRED_CASES];
+    const requiredWithConditional = [...required, ...RELEASE_L3_CONDITIONAL_CASES];
+    if (canonicalJson(cases) !== canonicalJson(required) && canonicalJson(cases) !== canonicalJson(requiredWithConditional)) {
+      throw new Error("RQ-1 release campaign has an incomplete or invented L3 case inventory");
+    }
+    if (canonicalJson(scopes) !== canonicalJson(cases)) throw new Error("RQ-1 release campaign scopes must equal its exact case inventory");
+    const tupleParts = tuples.map((tuple) => tuple.split("/"));
+    if (tupleParts.some((parts) => parts.length !== 3 || parts[1]!.length === 0 || !["low", "medium", "high", "xhigh", "max"].includes(parts[2]!))) {
+      throw new Error("RQ-1 release campaign tuples must be exact runtime/model/effort identities");
+    }
+    const runtimes = tupleParts.map((parts) => parts[0]);
+    if (canonicalJson(runtimes) !== canonicalJson(["claude", "codex", "pi"])) {
+      throw new Error("RQ-1 release campaign requires exact claude, codex, and pi tuples");
+    }
+    if (maxTurns !== 24 || maxUsd !== 100) throw new Error("RQ-1 release campaign must use the ratified 24-turn/$100 ceiling");
+    if (item["decision_status"] !== "ratified") throw new Error("RQ-1 release campaign decision status must be ratified");
   }
   if (new Set(obligationIds).size !== obligationIds.length) throw new Error("triggered campaigns must target unique obligations");
   if (new Set(campaignIds).size !== campaignIds.length) throw new Error("triggered campaign ids must be unique");
@@ -1401,13 +1508,17 @@ function validateL4(value: unknown): void {
   if (!Array.isArray(root["pairings"]) || root["pairings"].length === 0) throw new Error("L4 pairings must be non-empty");
   const pairingIds: string[] = [];
   for (const raw of root["pairings"]) {
-    const item = object(raw, "L4 pairing"); exact(item, ["id", "site", "operation", "arm", "producer_tuple", "evaluator_tuple", "rubric_version", "rubric_digest", "grader_digest", "evaluator_status", "decision_rule_digest", "case_ids", "attempt_ids"], "L4 pairing");
-    pairingIds.push(identifier(item["id"], "L4 pairing id")); const site = oneOf(item["site"], RELEASE_L4_SITES, "L4 pairing site"); nonEmpty(item["operation"], "L4 operation");
+    const item = object(raw, "L4 pairing"); exact(item, ["id", "comparison_group", "site", "operation", "arm", "producer_tuple", "evaluator_tuple", "rubric_version", "rubric_digest", "grader_digest", "evaluator_status", "decision_rule_digest", "case_ids", "attempt_ids"], "L4 pairing");
+    pairingIds.push(identifier(item["id"], "L4 pairing id")); identifier(item["comparison_group"], "L4 comparison_group"); const site = oneOf(item["site"], RELEASE_L4_SITES, "L4 pairing site");
+    const operation = nonEmpty(item["operation"], "L4 operation");
+    const expectedOperation = site === "reviewer" ? "review" : site === "planner" ? "plan" : "validation-design";
+    if (operation !== expectedOperation) throw new Error(`L4 pairing operation does not match ${site}`);
     const arm = oneOf(item["arm"], ["bootstrap", "candidate", "baseline"], "L4 arm");
     if (mode === "bootstrap" && arm !== "bootstrap") throw new Error("bootstrap L4 manifest may contain only bootstrap arms");
     if (mode === "comparison" && arm === "bootstrap") throw new Error("comparison L4 manifest cannot contain bootstrap arms");
     nonEmpty(item["producer_tuple"], "L4 producer_tuple"); nonEmpty(item["evaluator_tuple"], "L4 evaluator_tuple"); nonEmpty(item["rubric_version"], "L4 rubric_version"); hash(item["rubric_digest"], "L4 rubric_digest"); hash(item["grader_digest"], "L4 grader_digest");
     const evaluator = oneOf(item["evaluator_status"], ["human_review", "advisory_judge", "admitted_judge"], "L4 evaluator_status");
+    if (evaluator === "human_review" && item["evaluator_tuple"] !== "human") throw new Error("human-reviewed L4 pairing must name evaluator_tuple=human");
     if (evaluator === "admitted_judge") hash(item["decision_rule_digest"], "L4 decision_rule_digest");
     else if (item["decision_rule_digest"] !== null) throw new Error("non-admitted L4 evaluator cannot carry a decision rule");
     const cases = uniqueStrings(item["case_ids"], "L4 pairing case_ids");
@@ -1420,9 +1531,39 @@ function validateL4(value: unknown): void {
   const coveredCases = new Set((root["pairings"] as ReleaseL4PairingV1[]).flatMap((item) => item.case_ids));
   if (coveredCases.size !== referenceIds.length || referenceIds.some((id) => !coveredCases.has(id))) throw new Error("L4 pairings must cover every admitted reference case");
   for (const site of RELEASE_L4_SITES) if (!(root["pairings"] as ReleaseL4PairingV1[]).some((item) => item.site === site)) throw new Error(`L4 manifest lacks ${site} pairing`);
-  if (mode === "comparison") for (const site of RELEASE_L4_SITES) {
-    const arms = new Set((root["pairings"] as ReleaseL4PairingV1[]).filter((item) => item.site === site).map((item) => item.arm));
-    if (!arms.has("candidate") || !arms.has("baseline")) throw new Error(`comparison L4 site ${site} requires candidate and baseline arms`);
+  const groups = new Map<string, ReleaseL4PairingV1[]>();
+  for (const pairing of root["pairings"] as ReleaseL4PairingV1[]) {
+    groups.set(pairing.comparison_group, [...(groups.get(pairing.comparison_group) ?? []), pairing]);
+  }
+  for (const [groupId, group] of groups) {
+    if (mode === "bootstrap") {
+      if (group.length !== 1 || group[0]!.arm !== "bootstrap") throw new Error(`bootstrap L4 comparison group ${groupId} must contain exactly one bootstrap pairing`);
+      continue;
+    }
+    const candidate = group.find((item) => item.arm === "candidate");
+    const baseline = group.find((item) => item.arm === "baseline");
+    if (group.length !== 2 || candidate === undefined || baseline === undefined) {
+      throw new Error(`comparison L4 group ${groupId} requires exactly one candidate and one baseline pairing`);
+    }
+    const pairShape = (item: ReleaseL4PairingV1) => ({
+      comparison_group: item.comparison_group,
+      site: item.site,
+      operation: item.operation,
+      evaluator_tuple: item.evaluator_tuple,
+      rubric_version: item.rubric_version,
+      rubric_digest: item.rubric_digest,
+      grader_digest: item.grader_digest,
+      evaluator_status: item.evaluator_status,
+      decision_rule_digest: item.decision_rule_digest,
+      case_ids: item.case_ids,
+      attempt_ids: item.attempt_ids,
+    });
+    if (canonicalJson(pairShape(candidate)) !== canonicalJson(pairShape(baseline))) {
+      throw new Error(`comparison L4 group ${groupId} does not use the same case/attempt/evaluator/rubric manifest`);
+    }
+    if (candidate.producer_tuple === baseline.producer_tuple) {
+      throw new Error(`comparison L4 group ${groupId} does not identify distinct candidate and baseline producer tuples`);
+    }
   }
 }
 
@@ -1653,6 +1794,15 @@ async function goldenReferenceProjection(
       if (source === undefined || digestJson(source) !== entry.source_case_digest) throw new Error(`golden case ${caseId} source digest is stale`);
       const provenance = object(currentRoot["provenance"], `golden case ${caseId} provenance`);
       if (provenance["human_validation"] !== "validated" || provenance["validated_by"] !== validatedBy) throw new Error(`golden case ${caseId} is not attributed to the validating human`);
+      const sourceRoot = object(source, `source golden case ${caseId}`);
+      const sourceProvenance = object(sourceRoot["provenance"], `source golden case ${caseId} provenance`);
+      const reviewedCurrent = structuredClone(currentRoot);
+      const reviewedProvenance = object(reviewedCurrent["provenance"], `current golden case ${caseId} provenance`);
+      reviewedProvenance["human_validation"] = sourceProvenance["human_validation"];
+      delete reviewedProvenance["validated_by"];
+      if (canonicalJson(reviewedCurrent) !== canonicalJson(sourceRoot)) {
+        throw new Error(`golden case ${caseId} content changed after human review`);
+      }
       const expected = object(currentRoot["expected"], `golden case ${caseId} expected`);
       const site = oneOf(currentRoot["site"], RELEASE_L4_SITES, `golden case ${caseId} site`);
       references.push({
@@ -1686,6 +1836,65 @@ async function gitTreeDigest(repo: string, revision: string, prefix: string): Pr
   if (paths.some((path) => path === "archive-do-not-read" || path.startsWith("archive-do-not-read/"))) throw new Error("release input tree attempted to enter the forbidden archive");
   const rows = await Promise.all(paths.map(async (path) => ({ path, sha256: sha256(await gitFile(repo, revision, path)) })));
   return digestJson(rows);
+}
+
+function releasePolicyProjection(policyBytes: Buffer): {
+  openFindingIds: Set<string>;
+  requiredL3CaseIds: readonly string[];
+  conditionalL3CaseIds: readonly string[];
+} {
+  const root = object(parseYaml(policyBytes.toString("utf8")), "validation policy");
+  const layers = object(root["layers"], "validation policy layers");
+  const l3 = object(layers["L3_live_sandbox"], "validation policy L3 lane");
+  if (!Array.isArray(l3["obligations"])) throw new Error("validation policy L3 obligations must be an array");
+  const obligations = new Map<string, Record<string, unknown>>();
+  for (const raw of l3["obligations"] as unknown[]) {
+    const item = object(raw, "validation policy L3 obligation");
+    const id = identifier(item["id"], "validation policy L3 obligation id");
+    if (obligations.has(id)) throw new Error(`duplicate validation policy L3 obligation ${id}`);
+    obligations.set(id, item);
+  }
+  for (const id of [...RELEASE_L3_REQUIRED_CASES, ...RELEASE_L3_CONDITIONAL_CASES]) {
+    const item = obligations.get(id);
+    if (item === undefined || typeof item["trigger"] !== "string" || !item["trigger"].toLowerCase().includes("release")) {
+      throw new Error(`validation policy does not declare ${id} as an RQ-1 release obligation`);
+    }
+    if (item["status"] === "BLOCKED") throw new Error(`validation policy release obligation ${id} is blocked`);
+  }
+  if (!Array.isArray(root["open_findings"])) throw new Error("validation policy open_findings must be an array");
+  const openFindingIds = new Set<string>();
+  for (const raw of root["open_findings"] as unknown[]) {
+    const item = object(raw, "validation policy finding");
+    const id = identifier(item["id"], "validation policy finding id");
+    const status = nonEmpty(item["status"], `validation policy finding ${id} status`);
+    if (!status.startsWith("resolved")) openFindingIds.add(id);
+  }
+  return {
+    openFindingIds,
+    requiredL3CaseIds: RELEASE_L3_REQUIRED_CASES,
+    conditionalL3CaseIds: RELEASE_L3_CONDITIONAL_CASES,
+  };
+}
+
+async function releaseAllowedTestSkips(repo: string, revision: string, openFindingIds: Set<string>): Promise<string[]> {
+  const result = await git(repo, ["ls-tree", "-r", "-z", "--name-only", revision, "--", "tests"], false);
+  const paths = result.split("\0").filter((path) => /\.(?:[cm]?[jt]sx?)$/.test(path)).sort();
+  if (paths.length === 0) throw new Error("release candidate has no tracked validation tests");
+  const skipIds: string[] = [];
+  for (const path of paths) {
+    const source = (await gitFile(repo, revision, path)).toString("utf8");
+    const calls = [...source.matchAll(/\b(?:it|test|describe)\.skip\s*\(/g)];
+    const bound = [...source.matchAll(/\b(?:it|test|describe)\.skip\s*\(\s*["'`](BLOCKED:([A-Z0-9-]+))\b/g)];
+    if (calls.length !== bound.length) throw new Error(`release candidate has an unbound skipped test in ${path}`);
+    for (const match of bound) {
+      const skipId = match[1]!;
+      const findingId = match[2]!;
+      if (!openFindingIds.has(findingId)) throw new Error(`skipped test ${skipId} is not bound to a current open policy finding`);
+      skipIds.push(skipId);
+    }
+  }
+  if (new Set(skipIds).size !== skipIds.length) throw new Error("release candidate has duplicate policy-bound skipped-test identities");
+  return skipIds.sort();
 }
 
 async function gitFile(repo: string, revision: string, path: string): Promise<Buffer> {

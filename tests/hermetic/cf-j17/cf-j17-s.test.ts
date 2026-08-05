@@ -347,6 +347,41 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     })).toEqual([]);
   });
 
+  it("negative control: a lost RQ-1 push response reconciles the exact remote tag marker", async () => {
+    const walk = await makeWalk();
+    const clock = makeTestClock("2026-08-04T20:00:00.000Z");
+    const revision = gitIn(walk.managedClone, "rev-parse", "HEAD");
+    const attestation = rq1Attestation(revision);
+    const attestationSha = digestJson(attestation);
+    const attestationDir = join(walk.org.stateHome, "releases", "attestations");
+    mkdirSync(attestationDir, { recursive: true });
+    writeFileSync(join(attestationDir, `${attestationSha}.json`), `${JSON.stringify(attestation)}\n`);
+    const raised = await walk.store.raise({
+      app: APP, role: "orchestrator", rule: "production-deploy",
+      action: { tool: "bash", input: { command: `cormidia-internal rq1-tag ${attestationSha}` } },
+      ticketRef: `#${walk.issueNumber}`, now: clock.nowDate(),
+    });
+    await walk.store.decide(raised.id, {
+      decision: "approved", decidedBy: { kind: "human", identity: "fixture-human" }, now: clock.nowDate(),
+    });
+    const outcomes = await executeApprovedReleases({
+      stateHome: walk.org.stateHome,
+      orgHome: walk.org.orgHome,
+      appsFile: walk.appsFile,
+      now: clock.dateFn,
+      ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
+      rq1GitRunner: async (cwd, args) => {
+        const stdout = gitIn(cwd, ...args);
+        if (args[0] === "push") return { exitCode: 1, stdout: "", stderr: "seeded lost response" };
+        return { exitCode: 0, stdout, stderr: "" };
+      },
+    });
+    expect(outcomes).toMatchObject([{ status: "completed", approvalId: raised.id }]);
+    expect(outcomes[0]!.summary).toContain("exact remote tag marker reconciled");
+    expect((await walk.store.show(raised.id)).item.execution?.state).toBe("executed");
+    expect(gitIn(walk.remote, "rev-parse", "refs/tags/v0.1.2^{}")).toBe(revision);
+  });
+
   it("negative control: refuses a modified RQ-1 attestation before consuming the approved grant", async () => {
     const walk = await makeWalk();
     const clock = makeTestClock("2026-08-04T20:00:00.000Z");

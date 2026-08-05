@@ -64,6 +64,7 @@ export interface EvalCampaignOptions {
   stateHome: string;
   cases: EvalCaseV1[];
   tuples: EvalTuple[];
+  producerDigest: string;
   maxTokens: number;
   shard?: { date: string; count: number };
   executor: EvalExecutor;
@@ -98,6 +99,7 @@ export interface EvalObservation {
 export interface EvalResultsV1 {
   schema_version: 1;
   campaign_id: string;
+  producer_digest: string;
   token_ceiling: number;
   observed_tokens: number;
   selected_case_ids: string[];
@@ -121,6 +123,7 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
   const selected = options.shard === undefined ? [...options.cases] : selectRotatingShard(options.cases, options.shard.date, options.shard.count);
   if (selected.length === 0) throw new Error("eval runner selected an empty shard");
   validateTuples(options.tuples);
+  if (!/^[a-f0-9]{64}$/.test(options.producerDigest)) throw new Error("eval runner producerDigest must be lowercase sha256");
   const selectedSites = new Set(selected.map((item) => item.site));
   const tupleSites = new Set(options.tuples.map((item) => item.site));
   for (const site of selectedSites) if (!tupleSites.has(site)) throw new Error(`eval runner has selected ${site} cases but no exact tuple`);
@@ -128,6 +131,7 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
   const results: EvalResultsV1 = {
     schema_version: 1,
     campaign_id: options.campaignId,
+    producer_digest: options.producerDigest,
     token_ceiling: options.maxTokens,
     observed_tokens: 0,
     selected_case_ids: selected.map((item) => item.id),

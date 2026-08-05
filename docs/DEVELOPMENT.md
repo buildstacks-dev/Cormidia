@@ -216,13 +216,12 @@ new treatment or experiment decision. Never rerun for a better draw.
 Standing development authorizations lived under
 `eval/development-authorizations/`, now frozen with the rest of the
 qualification machinery under `archive-do-not-read/`; grant files there are
-historical record only. Execution semantics for campaigns under a standing
-grant (accident guards, readiness, confirmation, and the thresholds they
-cannot alter) remain documented in
-[`docs/qualification/design.md`](qualification/design.md) → Development
-qualification execution, but the executable entrypoints are archived and
-qualification campaigns are suspended during the validation rebuild
-(docs/PURPOSE.md → Decided, v2.9).
+historical record only and are not authority for the replacement harness. Current
+L3/L4/L5 campaign entrypoints and their exact human-authorization, accident-guard,
+readiness, content-binding, and hard-ceiling rules are documented in
+[`docs/qualification/design.md`](qualification/design.md). RQ-1 requires separately
+authorized, candidate-bound L3/L4 evidence; future L5 campaigns remain outside its
+denominator. No campaign is authorized merely because the gate is active.
 
 ## Shipping discipline
 

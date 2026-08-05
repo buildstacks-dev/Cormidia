@@ -1079,6 +1079,7 @@ function configYaml(
 #   command after merge instead. Examples:
 #   release: { kind: deploy, owner: sre, trigger: tag }
 #   release: { kind: deploy, owner: orchestrator, trigger: command, command: gh workflow run deploy.yml }
+#   RQ-1 tag publication additionally declares approvers: [exact-github-login].
 # setup_command/test_command/lint_command/e2e_test_command: checkout-level
 #   quality gates. These keys are top-level siblings of apps, never fields
 #   under apps.<name>.

@@ -400,8 +400,8 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
   }
   const spec = raw as Record<string, unknown>;
   for (const key of Object.keys(spec)) {
-    if (!["kind", "command", "owner", "trigger"].includes(key)) {
-      throw err(`release: unknown key "${key}" (allowed: kind, command, owner, trigger)`);
+    if (!["kind", "command", "owner", "trigger", "approvers"].includes(key)) {
+      throw err(`release: unknown key "${key}" (allowed: kind, command, owner, trigger, approvers)`);
     }
   }
   const kind = spec["kind"];
@@ -414,6 +414,7 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
     throw err(`release.owner must be one of ${RELEASE_OWNERS.join(" | ")}`);
   }
   const rawTrigger = spec["trigger"];
+  const approvers = parseReleaseApprovers(spec["approvers"], err);
   if (rawTrigger !== undefined) {
     if (typeof rawTrigger !== "string" || !RELEASE_TRIGGERS.includes(rawTrigger as ReleaseTriggerMode)) {
       throw err(`release.trigger must be one of ${RELEASE_TRIGGERS.join(" | ")}`);
@@ -429,6 +430,9 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
     }
     if (rawTrigger !== undefined) {
       throw err("release.trigger is meaningless for merge-only (nothing runs after merge)");
+    }
+    if (approvers !== undefined) {
+      throw err("release.approvers is meaningful only for a tag-triggered release");
     }
     return { kind, owner: owner as ReleaseOwner };
   }
@@ -446,6 +450,9 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
     if (typeof command !== "string" || command.trim().length === 0) {
       throw err('release.command is required for trigger "command" (deploy command or CI workflow ref)');
     }
+    if (approvers !== undefined) {
+      throw err("release.approvers is meaningful only for a tag-triggered release");
+    }
   } else if (command !== undefined) {
     throw err("release.command is not used with trigger: tag (Cormidia pushes the version tag itself)");
   }
@@ -454,7 +461,25 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
     owner: owner as ReleaseOwner,
     trigger,
     ...(typeof command === "string" ? { command } : {}),
+    ...(approvers !== undefined ? { approvers } : {}),
   };
+}
+
+function parseReleaseApprovers(raw: unknown, err: (msg: string) => Error): string[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw err("release.approvers must be a non-empty list of exact GitHub identities");
+  }
+  const approvers = raw.map((value) => {
+    if (typeof value !== "string" || value.trim().length === 0 || value !== value.trim()) {
+      throw err("release.approvers must contain non-empty exact GitHub identities");
+    }
+    return value;
+  });
+  if (new Set(approvers).size !== approvers.length) {
+    throw err("release.approvers must not contain duplicate identities");
+  }
+  return approvers;
 }
 
 /** Parse the optional `channels` block. Absent → `{}` (role stays gated off).

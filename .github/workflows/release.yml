@@ -97,6 +97,8 @@ jobs:
       - name: Verify RQ-1 packet, annotated-tag approval, and package currency
         env:
           CORMIDIA_RELEASE_TAG: ${{ github.ref_name }}
+          CORMIDIA_RELEASE_ACTOR: ${{ github.actor }}
+          CORMIDIA_RELEASE_REPOSITORY: ${{ github.repository }}
         run: pnpm release:verify
       - name: Seal verified package artifact
         run: |

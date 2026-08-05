@@ -1,17 +1,14 @@
 # Qualification and release gating
 
-> **Status 2026-07-31:** the replacement per-commit harness and the bounded
+> **Status 2026-08-04:** the replacement per-commit harness and the bounded
 > L3/L4/L5 runners are implemented under `tests/`, with the current
-> contract in `validation-design/validation-policy.yaml`. Release gating remains
-> **SUSPENDED**: no authorized external campaign or seven-day soak was run in the
-> implementation change, current Reviewer/Planner/Validation Designer references are
-> human-validated while thresholds remain pending, the human-authored threat model
-> does not yet exist, and required-check
-> enforcement remains blocked by F-PT-018. Implemented machinery is not release
-> evidence. PURPOSE v2.14 records one narrow owner-ratified exception permitting
-> publication of exactly `cormidia@0.1.1` after the complete token-free suite,
-> build, packaging, and installed-command checks pass. It does not reactivate
-> this gate or authorize any later release.
+> contract in `validation-design/validation-policy.yaml`. RQ-1 is active and
+> fail-closed for versions after `0.1.1`: every exact candidate requires complete
+> L1/L2 plus separately authorized, candidate-bound L3/L4 evidence. No paid campaign
+> or release ran in the implementation change. The human threat model, HB-073,
+> seven-day soak, and natural rotation remain visible future L5 assurance outside
+> RQ-1. F-PT-018 remains an explicit merge-enforcement limitation bounded by
+> protected human merge and the release-blocking exact-tag rerun.
 
 ## Replacement campaign contract
 
@@ -72,11 +69,12 @@ series, retention sweep sanity, source health, zero new human decisions, and at 
 record with exact session and checkpoint preservation. Missing natural rotation makes
 the campaign incomplete; it is never injected or inferred.
 
-HB-072 remains human work. `validation-design/threat-model-template.md` is only a
+HB-072 remains future human work. `validation-design/threat-model-template.md` is only a
 ten-surface worksheet, and `threat-model-status.yaml` intentionally says
 `awaiting_human_author`. The admission gate hash-binds a human-authored and reviewed
-artifact covering TM-01…TM-10 before HB-073 abuse cases or release-gating
-reactivation can proceed.
+artifact covering TM-01…TM-10 before HB-073 abuse cases can proceed. Neither item is
+inside RQ-1 completeness, verdict, qualification, campaigns, or cost ceilings; absence
+remains visible and can never be represented as pass.
 
 Campaigns persist after every result at
 `<state-home>/validation/campaigns/<campaign-id>/report.json`. The product schema keeps

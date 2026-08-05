@@ -1,7 +1,8 @@
 // RQ-1 release qualification. This module is deliberately deterministic and
-// provider-free: it binds existing L1/L2/L3/L4/L5 evidence to exact package
+// provider-free: it binds existing L1/L2/L3/L4 release evidence to exact package
 // bytes, preserves each lane's truth, and refuses stale or incomplete release
-// claims. It does not authorize a campaign, tag, or publication.
+// claims. L5 threat/soak work remains separately declared future assurance and
+// is not part of RQ-1. This module does not authorize a campaign, tag, or publication.
 
 import { createHash } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
@@ -39,7 +40,7 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 export type ReleaseInputKind = typeof RELEASE_EVIDENCE_INPUT_KINDS[number];
 export type DeterministicCheckId = typeof RELEASE_DETERMINISTIC_CHECKS[number];
 export type ReleaseL4Site = typeof RELEASE_L4_SITES[number];
-export type ReleaseLane = "deterministic" | "L3" | "L4" | "L5";
+export type ReleaseLane = "deterministic" | "L3" | "L4";
 export type EvidenceCompleteness = "complete" | "incomplete";
 export type EvidenceVerdict = "pass" | "fail" | "inconclusive";
 export type ReleaseQualification = "qualified" | "not_qualified" | "needs_human_disposition";
@@ -121,7 +122,7 @@ export interface ReleaseObligationV1 {
 export interface ReleaseTriggeredCampaignV1 {
   obligation_id: string;
   campaign_id: string;
-  lane: "L3" | "L5";
+  lane: "L3";
   campaign_kind: string;
   trigger: string;
   apps: string[];
@@ -150,14 +151,6 @@ export interface ReleaseManifestBodyV1 {
     purpose: string;
     approval_ref: string;
   };
-  threat_model: {
-    artifact_sha256: string;
-    status_sha256: string;
-    human_authored: true;
-    human_reviewed: true;
-    covered_surfaces: string[];
-    abuse_case_ids: string[];
-  };
   deterministic: {
     required_checks: DeterministicCheckId[];
     allowed_test_skips: string[];
@@ -174,7 +167,6 @@ export interface ReleaseManifestBodyV1 {
     l3_premerge: { max_provider_turns: 2; max_equiv_usd: 5 };
     l3_release: { max_provider_turns: 24; max_equiv_usd: 100 };
     l4: { max_provider_turns: number; max_equiv_usd: number; max_tokens: number; authorization_ref: string };
-    l5: { max_provider_turns: 24; max_equiv_usd: 15 };
   };
   retry_policy: {
     merit_failures: "never";
@@ -427,7 +419,6 @@ export interface ReleaseRepositorySnapshotV1 {
   inputs: Record<ReleaseInputKind, string>;
   assignments: ReleaseAssignmentV1[];
   toolchain: ReleaseToolchainV1;
-  threat_model: ReleaseManifestBodyV1["threat_model"];
   golden_references: ReleaseGoldenReferenceV1[];
 }
 
@@ -437,7 +428,7 @@ export interface ReleaseRepositorySnapshotV1 {
  * producer rather than candidate-source currency. */
 export async function releaseRepositorySnapshot(repo: string, revision: string): Promise<ReleaseRepositorySnapshotV1> {
   commit(revision, "repository snapshot revision");
-  const [policy, lock, prompts, rolesBytes, pipelines, taste, goldenSets, threatStatusBytes, validationRecordBytes] = await Promise.all([
+  const [policy, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes] = await Promise.all([
     gitFile(repo, revision, "validation-design/validation-policy.yaml"),
     gitFile(repo, revision, "pnpm-lock.yaml"),
     gitTreeDigest(repo, revision, "prompts"),
@@ -445,12 +436,10 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
     gitFile(repo, revision, "pipelines.yaml"),
     gitFile(repo, revision, "TASTE.md"),
     gitTreeDigest(repo, revision, "validation-design/golden-sets"),
-    gitFile(repo, revision, "validation-design/threat-model-status.yaml"),
     gitFile(repo, revision, "validation-design/golden-sets/human-validation.json"),
   ]);
   const assignments = assignmentProjection(parseYaml(rolesBytes.toString("utf8")));
   const toolchain = await currentReleaseToolchain(repo);
-  const threatModel = await threatModelProjection(repo, revision, threatStatusBytes);
   const goldenReferences = await goldenReferenceProjection(repo, revision, validationRecordBytes);
   return {
     candidate_commit: revision,
@@ -467,7 +456,6 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
     },
     assignments,
     toolchain,
-    threat_model: threatModel,
     golden_references: goldenReferences,
   };
 }
@@ -481,7 +469,6 @@ export async function validateReleaseRepositoryState(
     if (kind !== "tools" && snapshot.inputs[kind] !== manifest.inputs[kind]) throw new Error(`release manifest repository input ${kind} is stale or caller-supplied`);
   }
   if (canonicalJson(snapshot.assignments) !== canonicalJson(manifest.assignments)) throw new Error("release manifest assignments differ from roles.yaml");
-  if (canonicalJson(snapshot.threat_model) !== canonicalJson(manifest.threat_model)) throw new Error("release manifest threat-model status differs from the candidate commit");
   if (canonicalJson(snapshot.golden_references) !== canonicalJson(manifest.l4.references)) throw new Error("release manifest golden references are incomplete, stale, or not human validated");
 }
 
@@ -920,7 +907,6 @@ export function releaseSubjectDigest(manifest: ReleaseManifestBodyV1 | ReleaseMa
     package: manifest.package,
     inputs: subjectInputs,
     assignments: manifest.assignments,
-    threat_model: manifest.threat_model,
     l4: subjectL4,
     triggered_campaigns: manifest.triggered_campaigns,
   });
@@ -1135,6 +1121,32 @@ export function validateReleaseApproval(value: unknown): asserts value is Releas
   hash(root["attestation_sha256"], "attestation_sha256"); hash(root["release_action_sha256"], "release_action_sha256");
 }
 
+/** Authenticate the remote publication decision against GitHub's tag-push
+ * identity and the candidate's human-ratified app configuration. This does
+ * not claim that GitHub can observe the local ApprovalStore; the ratified
+ * contract accepts the authenticated human release authority as the remote
+ * boundary and refuses every mismatch before npm authentication. */
+export function validateReleaseApprovalAuthority(input: {
+  approval: ReleaseApprovalV1;
+  authenticatedActor: string;
+  authenticatedRepository: string;
+  manifestRepository: string;
+  configuredApprovers: string[];
+}): void {
+  validateReleaseApproval(input.approval);
+  const actor = nonEmpty(input.authenticatedActor, "authenticated release actor");
+  const authenticatedRepository = nonEmpty(input.authenticatedRepository, "authenticated release repository");
+  const manifestRepository = nonEmpty(input.manifestRepository, "manifest repository");
+  const approvers = uniqueStrings(input.configuredApprovers, "configured release approvers");
+  if (approvers.length === 0) throw new Error("configured release approvers must be non-empty");
+  if (authenticatedRepository !== manifestRepository) {
+    throw new Error("authenticated release repository does not match the RQ-1 manifest");
+  }
+  if (actor !== input.approval.approved_by || !approvers.includes(actor)) {
+    throw new Error("GitHub tag-push actor, RQ-1 approved_by, and configured release approver must match exactly");
+  }
+}
+
 export function createReleaseTagMessage(attestation: ReleaseAttestationV1, approval: ReleaseApprovalV1): string {
   validateReleaseAttestation(attestation);
   validateReleaseApproval(approval);
@@ -1258,7 +1270,7 @@ export function assertSanitizedEvidence(value: unknown, path = "evidence"): void
   }
 }
 
-const MANIFEST_BODY_KEYS = ["schema_version", "contract_id", "prepared_at", "repository", "candidate_commit", "clean_tracked_tree", "package", "inputs", "assignments", "toolchain", "human_authorization", "threat_model", "deterministic", "l4", "triggered_campaigns", "ceilings", "retry_policy", "obligations"] as const;
+const MANIFEST_BODY_KEYS = ["schema_version", "contract_id", "prepared_at", "repository", "candidate_commit", "clean_tracked_tree", "package", "inputs", "assignments", "toolchain", "human_authorization", "deterministic", "l4", "triggered_campaigns", "ceilings", "retry_policy", "obligations"] as const;
 
 function validateReleaseManifestBody(value: unknown): asserts value is ReleaseManifestBodyV1 {
   const root = object(value, "release manifest body");
@@ -1277,13 +1289,6 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
   const authorization = object(root["human_authorization"], "human_authorization");
   exact(authorization, ["authorized_by", "authorized_at", "purpose", "approval_ref"], "human_authorization");
   nonEmpty(authorization["authorized_by"], "human_authorization.authorized_by"); instant(authorization["authorized_at"], "human_authorization.authorized_at"); nonEmpty(authorization["purpose"], "human_authorization.purpose"); nonEmpty(authorization["approval_ref"], "human_authorization.approval_ref");
-  const threat = object(root["threat_model"], "threat_model");
-  exact(threat, ["artifact_sha256", "status_sha256", "human_authored", "human_reviewed", "covered_surfaces", "abuse_case_ids"], "threat_model");
-  hash(threat["artifact_sha256"], "threat_model.artifact_sha256"); hash(threat["status_sha256"], "threat_model.status_sha256");
-  if (threat["human_authored"] !== true || threat["human_reviewed"] !== true) throw new Error("release manifest requires human-authored and human-reviewed threat model");
-  const surfaces = uniqueStrings(threat["covered_surfaces"], "threat_model.covered_surfaces");
-  if (canonicalJson([...surfaces].sort()) !== canonicalJson(Array.from({ length: 10 }, (_, index) => `TM-${String(index + 1).padStart(2, "0")}`))) throw new Error("threat model must cover TM-01 through TM-10");
-  if (uniqueStrings(threat["abuse_case_ids"], "threat_model.abuse_case_ids").length === 0) throw new Error("release manifest requires HB-073 abuse case ids");
   const deterministic = object(root["deterministic"], "deterministic");
   exact(deterministic, ["required_checks", "allowed_test_skips", "producer_digest"], "deterministic");
   const checks = uniqueStrings(deterministic["required_checks"], "deterministic.required_checks");
@@ -1301,13 +1306,13 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
   if (new Set((obligations as ReleaseObligationV1[]).map((item) => item.id)).size !== obligations.length) throw new Error("release obligation ids must be unique");
   const subjectDigest = releaseSubjectDigest(root as unknown as ReleaseManifestBodyV1);
   if ((obligations as ReleaseObligationV1[]).some((item) => item.subject_digest !== subjectDigest)) throw new Error("every release obligation must bind the exact release subject digest");
-  for (const lane of ["deterministic", "L3", "L4", "L5"] as const) if (!(obligations as ReleaseObligationV1[]).some((item) => item.lane === lane)) throw new Error(`release manifest requires a ${lane} obligation`);
+  for (const lane of ["deterministic", "L3", "L4"] as const) if (!(obligations as ReleaseObligationV1[]).some((item) => item.lane === lane)) throw new Error(`release manifest requires a ${lane} obligation`);
   const triggered = root["triggered_campaigns"] as ReleaseTriggeredCampaignV1[];
   for (const obligation of obligations as ReleaseObligationV1[]) {
     const matching = triggered.filter((item) => item.obligation_id === obligation.id);
-    if (obligation.lane === "L3" || obligation.lane === "L5") {
-      if (matching.length !== 1 || matching[0]!.lane !== obligation.lane) {
-        throw new Error(`release ${obligation.lane} obligation ${obligation.id} requires one exact triggered campaign`);
+    if (obligation.lane === "L3") {
+      if (matching.length !== 1 || matching[0]!.lane !== "L3") {
+        throw new Error(`release L3 obligation ${obligation.id} requires one exact triggered campaign`);
       }
     } else if (matching.length > 0) {
       throw new Error(`triggered campaign cannot target ${obligation.lane} obligation ${obligation.id}`);
@@ -1316,7 +1321,7 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
 }
 
 function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTriggeredCampaignV1[] {
-  if (!Array.isArray(value) || value.length === 0) throw new Error("release manifest requires triggered L3/L5 campaigns");
+  if (!Array.isArray(value) || value.length === 0) throw new Error("release manifest requires triggered L3 campaigns");
   const obligationIds: string[] = [];
   const campaignIds: string[] = [];
   for (const raw of value) {
@@ -1324,7 +1329,7 @@ function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTri
     exact(item, ["obligation_id", "campaign_id", "lane", "campaign_kind", "trigger", "apps", "scopes", "tuples", "required_case_ids", "max_provider_turns", "max_equiv_usd", "decision_status"], "release triggered campaign");
     obligationIds.push(identifier(item["obligation_id"], "triggered obligation_id"));
     campaignIds.push(identifier(item["campaign_id"], "triggered campaign_id"));
-    const lane = oneOf(item["lane"], ["L3", "L5"], "triggered lane");
+    oneOf(item["lane"], ["L3"], "triggered lane");
     const kind = nonEmpty(item["campaign_kind"], "triggered campaign_kind");
     nonEmpty(item["trigger"], "triggered trigger");
     if (uniqueStrings(item["apps"], "triggered apps").length === 0) throw new Error("triggered campaign requires at least one app");
@@ -1334,12 +1339,8 @@ function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTri
     const maxTurns = positiveInteger(item["max_provider_turns"], "triggered max_provider_turns");
     const maxUsd = positive(item["max_equiv_usd"], "triggered max_equiv_usd");
     oneOf(item["decision_status"], ["ratified", "proposed", "not_applicable"], "triggered decision_status");
-    if (lane === "L3") {
-      const ceiling = kind === "pre_merge_adapter" ? { turns: 2, usd: 5 } : { turns: 24, usd: 100 };
-      if (maxTurns > ceiling.turns || maxUsd > ceiling.usd) throw new Error(`L3 ${kind} campaign exceeds its RQ-1 ceiling`);
-    } else if (maxTurns > 24 || maxUsd > 15) {
-      throw new Error("L5 campaign exceeds its RQ-1 ceiling");
-    }
+    const ceiling = kind === "pre_merge_adapter" ? { turns: 2, usd: 5 } : { turns: 24, usd: 100 };
+    if (maxTurns > ceiling.turns || maxUsd > ceiling.usd) throw new Error(`L3 ${kind} campaign exceeds its RQ-1 ceiling`);
   }
   if (new Set(obligationIds).size !== obligationIds.length) throw new Error("triggered campaigns must target unique obligations");
   if (new Set(campaignIds).size !== campaignIds.length) throw new Error("triggered campaign ids must be unique");
@@ -1426,8 +1427,8 @@ function validateL4(value: unknown): void {
 }
 
 function validateCeilings(value: unknown): void {
-  const root = object(value, "ceilings"); exact(root, ["l3_premerge", "l3_release", "l4", "l5"], "ceilings");
-  fixedCeiling(root["l3_premerge"], "l3_premerge", 2, 5); fixedCeiling(root["l3_release"], "l3_release", 24, 100); fixedCeiling(root["l5"], "l5", 24, 15);
+  const root = object(value, "ceilings"); exact(root, ["l3_premerge", "l3_release", "l4"], "ceilings");
+  fixedCeiling(root["l3_premerge"], "l3_premerge", 2, 5); fixedCeiling(root["l3_release"], "l3_release", 24, 100);
   const l4 = object(root["l4"], "l4 ceiling"); exact(l4, ["max_provider_turns", "max_equiv_usd", "max_tokens", "authorization_ref"], "l4 ceiling");
   positiveInteger(l4["max_provider_turns"], "l4.max_provider_turns"); positive(l4["max_equiv_usd"], "l4.max_equiv_usd"); positiveInteger(l4["max_tokens"], "l4.max_tokens"); nonEmpty(l4["authorization_ref"], "l4.authorization_ref");
 }
@@ -1439,7 +1440,7 @@ function fixedCeiling(value: unknown, name: string, turns: number, usd: number):
 
 function validateObligation(value: unknown): asserts value is ReleaseObligationV1 {
   const root = object(value, "release obligation"); exact(root, ["id", "lane", "required", "claim_class", "debt_eligible", "subject_digest", "producer_digest"], "release obligation");
-  identifier(root["id"], "obligation.id"); oneOf(root["lane"], ["deterministic", "L3", "L4", "L5"], "obligation.lane");
+  identifier(root["id"], "obligation.id"); oneOf(root["lane"], ["deterministic", "L3", "L4"], "obligation.lane");
   if (root["required"] !== true) throw new Error("release obligations must be required");
   const claim = oneOf(root["claim_class"], ["product", "safety", "accounting", "learning", "build", "ci", "budget", "evaluator_evidence"], "obligation.claim_class");
   if (typeof root["debt_eligible"] !== "boolean") throw new Error("obligation.debt_eligible must be boolean");
@@ -1477,7 +1478,7 @@ function validateL4EvidenceShape(value: unknown): asserts value is L4ReleaseEvid
 
 function validateLaneResult(value: unknown): asserts value is ReleaseLaneResultV1 {
   const root = object(value, "release lane result"); exact(root, ["obligation_id", "lane", "claim_class", "debt_eligible", "completeness", "verdict", "decision_status", "subject_digest", "producer_digest", "evidence_ref", "evidence_sha256", "violation_ids", "reason_codes"], "release lane result");
-  identifier(root["obligation_id"], "lane obligation_id"); oneOf(root["lane"], ["deterministic", "L3", "L4", "L5"], "lane");
+  identifier(root["obligation_id"], "lane obligation_id"); oneOf(root["lane"], ["deterministic", "L3", "L4"], "lane");
   oneOf(root["claim_class"], ["product", "safety", "accounting", "learning", "build", "ci", "budget", "evaluator_evidence"], "lane claim_class"); if (typeof root["debt_eligible"] !== "boolean") throw new Error("lane debt_eligible must be boolean");
   const completeness = oneOf(root["completeness"], ["complete", "incomplete"], "lane completeness"); const verdict = oneOf(root["verdict"], ["pass", "fail", "inconclusive"], "lane verdict"); const decision = oneOf(root["decision_status"], ["ratified", "proposed", "not_applicable"], "lane decision_status");
   hash(root["subject_digest"], "lane subject_digest"); hash(root["producer_digest"], "lane producer_digest"); nonEmpty(root["evidence_ref"], "lane evidence_ref"); hash(root["evidence_sha256"], "lane evidence_sha256"); const violations = uniqueStrings(root["violation_ids"], "lane violation_ids"); uniqueStrings(root["reason_codes"], "lane reason_codes");
@@ -1610,34 +1611,6 @@ function assignmentProjection(value: unknown): ReleaseAssignmentV1[] {
   assignments.sort((left, right) => left.assignment_id.localeCompare(right.assignment_id));
   validateAssignments(assignments);
   return assignments;
-}
-
-async function threatModelProjection(
-  repo: string,
-  revision: string,
-  statusBytes: Buffer,
-): Promise<ReleaseManifestBodyV1["threat_model"]> {
-  const status = object(parseYaml(statusBytes.toString("utf8")), "threat-model status");
-  if (status["status"] !== "ratified" || status["human_authored"] !== true || status["human_reviewed"] !== true || status["release_gating_acknowledged"] !== true) {
-    throw new Error("release preparation blocked: threat model is not human-authored, human-reviewed, ratified, and acknowledged for release gating");
-  }
-  nonEmpty(status["author"], "threat-model author"); nonEmpty(status["reviewer"], "threat-model reviewer");
-  if (status["author"] === status["reviewer"]) throw new Error("release preparation blocked: threat-model author and reviewer must be distinct");
-  instant(status["authored_at"], "threat-model authored_at"); instant(status["reviewed_at"], "threat-model reviewed_at");
-  const artifact = safeRelativePath(status["artifact"], "threat-model artifact");
-  const artifactBytes = await gitFile(repo, revision, `validation-design/${artifact}`);
-  const artifactSha = sha256(artifactBytes);
-  if (status["artifact_sha256"] !== artifactSha) throw new Error("release preparation blocked: threat-model artifact digest is stale");
-  const covered = uniqueStrings(status["covered_surfaces"], "threat-model covered surfaces");
-  const abuseCases = uniqueStrings(status["abuse_case_ids"], "threat-model abuse cases");
-  return {
-    artifact_sha256: artifactSha,
-    status_sha256: sha256(statusBytes),
-    human_authored: true,
-    human_reviewed: true,
-    covered_surfaces: covered,
-    abuse_case_ids: abuseCases,
-  };
 }
 
 async function goldenReferenceProjection(

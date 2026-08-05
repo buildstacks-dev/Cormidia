@@ -1,6 +1,8 @@
 # Release-evidence gate revision — exact ratification proposal
 
-Status: **RATIFIED — IMPLEMENTATION IN PROGRESS** (ratified by `bikramgupta`, 2026-08-04)
+Status: **RATIFIED AND AMENDED — IMPLEMENTATION IN PROGRESS** (RQ-1 ratified by
+`bikramgupta`, 2026-08-04; future-assurance/authenticated-actor amendment separately
+ratified by `bikramgupta`, 2026-08-04)
 Target baseline: `00e00b5b3232f4a6f60dc0fc3ee38f84d51e106e`
 Mode: `validation-harness-design` harness revision, followed by
 `validation-harness-audit` assess/design
@@ -10,8 +12,8 @@ This is the review boundary for restoring release qualification after the narrow
 `cormidia@0.1.1` exception. It does not reactivate a gate, validate a golden
 reference, claim a human-authored threat model, authorize a paid campaign, create a
 tag, or publish a package. The exact protected/binding surface proposal is in §14.
-Applying it requires separate explicit human ratification; activation additionally
-requires the genuinely human-authored/reviewed inputs named in §13.
+Applying it required separate explicit human ratification. That ratification is now
+recorded in §14.8; activation requires the final I2 implementation audit named in §13.
 
 ## 1. Outcome of the holistic review
 
@@ -72,7 +74,6 @@ that separate, content-bound human disposition; it never changes the lane result
 - required L4 collection is complete, every automatic score used as evidence came
   from an admitted calibrated judge, and every disagreement/regression has a terminal
   disposition (§6–§8);
-- required L5 baseline evidence is current (§9);
 - no product, safety, permission, settlement/accounting, learning-integrity, build,
   typecheck, core-test, required-CI, or spend-ceiling violation exists;
 - all accepted evaluator debt is bounded, immutable, disclosed, owned, and explicitly
@@ -94,8 +95,8 @@ Qualification means only:
 > disclosed residual limitation in the evidence packet.
 
 It does not mean that Cormidia is generally safe, that unpopulated call sites have
-qualified model quality, that B-17 has a proven real non-GitHub target, or that a
-package was published.
+qualified model quality, that B-17 has a proven real non-GitHub target, that the future
+L5 threat/abuse/soak/rotation assurance has completed, or that a package was published.
 
 ## 3. Campaign identity, evidence currency, and immutable inputs
 
@@ -112,13 +113,12 @@ SHA-256 becomes `qualification_id`. The closed schema binds:
 - `validation-policy.yaml` digest and the release-contract version;
 - all prompt, `roles.yaml`, `pipelines.yaml`, and `TASTE.md` digests;
 - every exact role/call-site `(runtime, model, effort)` assignment;
-- every required L3/L5 campaign ID, kind, trigger, app/scope/tuple/case inventory,
+- every required L3 campaign ID, kind, trigger, app/scope/tuple/case inventory,
   decision status, and its authorized provider-turn/equivalent-USD ceiling;
 - every golden-set path/digest, reference status, rubric version, judge tuple, and
   candidate/baseline tuple;
 - exact required case/attempt identities for every lane;
-- L3/L4/L5 ceiling envelopes and typed retry policies;
-- current threat-model status/artifact digest and reusable L5 baseline IDs;
+- L3/L4 ceiling envelopes and typed retry policies;
 - human campaign authorization identity, time, purpose, and approval reference; and
 - evidence-output namespace `release-evidence/<version>/<qualification_id>/`.
 
@@ -205,12 +205,11 @@ reservation. Ceiling exhaustion means incomplete/inconclusive and blocks
 qualification.
 
 `B-17-L3` remains honestly blocked because no disposable real non-GitHub target exists.
-For pre-V1 package qualification it is a named evaluator-evidence debt row, never a
-pass and never evidence that the real target works. It may be accepted only when B-17
-product bytes and its release mechanism are unchanged, all B-17 L1/L2 cases pass, and
-the human release disposition explicitly accepts the limitation. A B-17 implementation
-or release-mechanism change invalidates that disposition and blocks until a disposable
-target exists or a newly ratified policy says otherwise.
+It is future assurance outside the npm-release RQ-1 denominator, never a pass and never
+evidence that a real generic external target works. The supported GitHub-tag/npm path
+is covered by the exact approval→tag→workflow→publication→acknowledgement chain and its
+deterministic detectors. A future generic target implementation must re-enter the
+B-17 live obligation; it cannot inherit npm-release evidence.
 
 ## 6. L4 release scope: paired evidence, not absolute thresholds
 
@@ -337,26 +336,18 @@ Artifact-byte equality alone is insufficient across different prompts, rubrics,
 contexts, or graders. Dedupe cannot hide provider turns already spent, alter sampling,
 or convert a missing candidate execution into coverage.
 
-## 9. L5 qualification baseline
+## 9. Future L5 assurance outside RQ-1
 
-Gate activation requires:
+The human-authored and separately reviewed TM-01…TM-10 threat model, HB-073 abuse
+detectors, seven-calendar-day sandbox soak, and natural CF-OPS-ROT evidence remain
+declared L5 obligations. They are future assurance, not RQ-1 release obligations.
+They do not enter RQ-1 completeness, verdict, qualification, manifest campaigns, or
+cost ceilings. Their absence stays visible and may never be represented as a pass.
 
-- a genuinely human-authored and separately human-reviewed threat model covering
-  TM-01…TM-10, hash-bound by `threat-model-status.yaml`;
-- the HB-073 abuse cases derived by that human threat model, each placed at the cheapest
-  falsifying layer with seeded negative controls; and
-- one complete/pass seven-calendar-day sandbox soak including CF-OPS-SOAK and the
-  natural CF-OPS-ROT evidence.
-
-The existing L5 ceiling remains 24 provider turns and $15 equivalent cost. Missing
-natural rotation, sleep cycles, source health, settlement, or other required evidence
-is incomplete/inconclusive.
-
-L5 evidence is reusable across releases only while its trigger fingerprint is current.
-Material changes to a trust boundary, deployment shape, adapter capability, externally
-reachable surface, scheduler, locking, settlement, retention, roadmap/batching
-concurrency, or session reuse invalidate the affected threat/soak evidence exactly as
-specified in `risk-allocation.md` §6.
+Their existing owners, collectors, triggers, and 24-provider-turn/$15 future campaign
+ceiling remain intact. Material trust-boundary, deployment, adapter, scheduler,
+locking, settlement, retention, batching, concurrency, or session-reuse changes still
+invalidate any future evidence under `risk-allocation.md` §6.
 
 ## 10. Completeness, verdicts, retry, cost, and evaluator debt
 
@@ -391,7 +382,7 @@ The underlying inconclusive/fail evidence is immutable in every row.
 
 - L3 pre-merge changed adapter: 2 turns / $5.
 - L3 release: 24 turns / $100.
-- L5 soak: 24 turns / $15.
+- Future L5 assurance (outside RQ-1): 24 turns / $15 when separately authorized.
 - L4 has no ratified global numeric ceiling. The exact token, provider-turn, and
   equivalent-USD ceilings must therefore be supplied and human-authorized in each
   immutable campaign manifest. This proposal does not invent one.
@@ -401,7 +392,7 @@ The underlying inconclusive/fail evidence is immutable in every row.
 Evaluator debt is eligible only when predeclared or classified by an exact human
 disposition that names the failed evidence, candidate, consequence, owner, and
 invalidation trigger. It cannot cover a product/safety/accounting/learning/build/CI/
-budget violation, a missing human threat model, a changed subject digest, or a proven
+budget violation, a changed subject digest, or a proven
 guardrail failure. Debt acceptance authorizes qualification review, not publication;
 the separate release approval remains mandatory.
 
@@ -413,9 +404,9 @@ The packet under `release-evidence/<version>/<qualification_id>/` contains only:
 - aggregate qualification report;
 - one immutable index of lane/case reports and hashes;
 - offline/CI command results and immutable run links;
-- sanitized L3/L4/L5 summaries, not raw prompts, outputs, secrets, credentials, org
+- sanitized L3/L4 summaries, not raw prompts, outputs, secrets, credentials, org
   state, or provider session logs;
-- human reference/judge/threat-model status references and digests;
+- human reference/judge status references and digests;
 - evaluator-debt and evidence-change dispositions;
 - package/tarball/file manifests; and
 - every input needed to derive the post-merge release attestation, but not the
@@ -437,13 +428,13 @@ fields, path escape, or stale currency refuses.
 
 ### 12.1 Merge
 
-F-PT-018 remains open: current GitHub APIs confirm that branch protection/rulesets are
+F-PT-018 remains an open known limitation: current GitHub APIs confirm that branch protection/rulesets are
 unavailable on the private-repository plan. Core checks are internally fail-closed but
 not mechanically merge-blocking. This proposal does not pretend otherwise and does
 not invent a plan upgrade or a replacement branch-policy decision.
 
-Until F-PT-018 is separately resolved, the protected-surface PR remains human-merge
-only and the evidence packet records exact green check runs on the merged SHA. The
+The protected-surface PR remains human-merge only and the evidence packet records exact
+green check runs on the merged SHA. The
 release verifier does not trust the fact that a PR merged; it reruns deterministic
 gates on the tag candidate.
 
@@ -457,8 +448,9 @@ The exact supported path is:
 4. human reviews the packet and separately approves the exact package tag/publication
    action bound to the attestation digest;
 5. Cormidia's B-17 release handoff pushes the approved tag at most once;
-6. the tag workflow reruns offline gates and `release:verify`, then may execute
-   `npm publish` only when the exact release approval is present; and
+6. the tag workflow reruns offline gates and `release:verify`, authenticates exact
+   equality among GitHub's tag-push actor, `approval.approved_by`, and one configured
+   `release.approvers` identity, then may execute `npm publish`; and
 7. publication acknowledgement is recorded separately from approval/acceptance.
 
 Implementation adds defense in depth at three ordinary surfaces:
@@ -475,19 +467,16 @@ physically impossible for the human registry owner.
 
 ### 13.1 Migration
 
-1. Ratify this proposal; no gate changes yet.
+1. Ratify this proposal and its §14.8 amendment.
 2. Implement release manifest/currency/attestation schemas, aggregators, deterministic
-   detectors, packet sanitizer, operator commands, and release workflow while policy
-   still says suspended.
+   detectors, packet sanitizer, operator commands, and release workflow.
 3. Human validates the selected golden references with attributable metadata.
-4. Human authors the threat model; a separate human reviews it; implement HB-073 cases.
-5. Run only offline checks in this implementation session. Do not run L3/L4/L5 paid or
+4. Run only offline checks in this implementation session. Do not run L3/L4/L5 paid or
    real-time campaigns and do not publish.
+5. Complete the independent I2 review of the final implementation.
 6. Land implementation plus the approved protected surfaces through a human-merge PR.
-7. In a later separately authorized campaign, collect the initial L3/L4/L5 evidence.
-8. Complete the required seven-day L5 soak, including natural credential rotation,
-   in that separately authorized campaign.
-9. Generate the first qualifying packet and derive its post-merge attestation. Only
+7. In a later separately authorized per-candidate campaign, collect required L3/L4 evidence.
+8. Generate the first qualifying packet and derive its post-merge attestation. Only
    then may an exact release approval be requested.
 
 No old campaign is promoted, rescored, or overwritten. `0.1.1` remains an exception,
@@ -511,12 +500,18 @@ This proposal intentionally cannot fill these fields:
 - threat-model author, reviewer, threats, residual-risk conclusions, dispositions, and
   abuse-case IDs;
 - judge threshold, sample size, aggregation, and admissibility rule;
-- a merge-enforcement alternative for F-PT-018; or
 - an L4 global numeric ceiling.
 
 Those are not implementation details. They remain human-attributable decisions.
+The threat-model fields remain human work in the future-assurance lane rather than
+activation inputs. F-PT-018's bounded human-merge/exact-tag mechanism and F-PT-021's
+authenticated-actor rule are ratified decisions, not open implementation choices.
 
 ## 14. Exact protected and binding surface proposal
+
+Sections 14.2–14.7 retain the exact original 2026-08-04 proposal for attribution.
+The separately ratified §14.8 amendment is later and supersedes only its named L5,
+activation, B-17, F-PT-018, and approval-authentication clauses.
 
 ### 14.1 Determination
 
@@ -727,6 +722,27 @@ that release gating is suspended with:
 
 Before that activation point those documents remain unchanged and truthful.
 
+### 14.8 Ratified future-assurance and approval-authentication amendment
+
+Separately ratified by `bikramgupta` on 2026-08-04 after the exact diff was presented:
+
+- TM-01…TM-10, HB-073, the seven-day soak, and natural rotation remain declared future
+  L5 assurance, visible and never pass, but outside RQ-1's denominator;
+- RQ-1 requires deterministic, triggered L3, and paired L4 obligations only;
+- B-17's generic non-GitHub live target remains future assurance and is not an npm
+  release obligation;
+- F-PT-018 remains a known limitation bounded by protected human merge plus exact-tag
+  rerun, not an activation blocker; and
+- publication requires exact equality among GitHub's authenticated tag-push actor,
+  `approval.approved_by`, and one `.cormidia/config.yaml` `release.approvers` identity.
+  Remote proof of the local ApprovalStore path is not additionally required.
+
+The exact ratified protected files are `docs/PURPOSE.md`, root `AGENTS.md`,
+`.cormidia/config.yaml`, `validation-design/validation-policy.yaml`, and
+`validation-design/threat-model-status.yaml`. Ratification authorizes ordinary
+implementation and the independent I2 audit; it authorizes no campaign, tag,
+publication, deployment, scheduler installation, or release.
+
 ## 15. Ratification boundary
 
 Ratification of this proposal means:
@@ -738,7 +754,7 @@ Ratification of this proposal means:
   expected behavior differs;
 - authorize ordinary non-protected implementation, offline detectors, CI/operator
   surfaces, and sanitized evidence-packet tooling; and
-- preserve separate human authorship/review for the threat model and separate exact
+- preserve separate human authorship/review for the future threat model and separate exact
   approval for any future paid campaign, tag, or publication.
 
 No paid campaign, live/soak run, tag, npm publication, deployment, scheduler

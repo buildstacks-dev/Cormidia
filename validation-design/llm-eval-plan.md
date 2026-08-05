@@ -6,7 +6,7 @@ Provenance: `[elicited]` = stakeholder Phase 5 ramble; `[doc]`; `[rambling]` cit
 Grounding rule: the archived qualification machinery is prohibited design input; where
 0–8 artifact scoring or campaign semantics are cited, the citation is the **live
 contract** `docs/qualification/design.md` (canonical record; machinery archived,
-gating suspended) `[doc]`.
+RQ-1 replacement active) `[doc]`.
 
 Harness revision 2026-08-01: comparative execution adds S-8, the operation-specific
 selection judge. It is a judge site and therefore inherits the calibration rule. Its
@@ -273,8 +273,10 @@ evidence over the same immutable manifest. Absolute F-PT-009/010/011 hypotheses
 remain unratified and are not release rules. Deterministic trajectory gates admit
 candidates before qualitative review; observed trajectory differences remain a
 separate human-review channel and do not enter the blinded artifact judge. Judge
-scores are inadmissible until human references, sample design, thresholds and
-aggregation are separately ratified. Complete but threshold-inconclusive evidence
+Current Reviewer, Planner, and Validation Designer expected behaviors were human-
+validated by `bikramgupta` on 2026-08-04 without replacing agent authorship. Judge
+scores remain inadmissible until the applicable calibration corpus, sample design,
+thresholds, and aggregation rule are separately ratified. Complete but threshold-inconclusive evidence
 may become disclosed evaluator debt only through a separate content-bound human
 disposition; the underlying verdict never changes.
 
@@ -301,8 +303,11 @@ from rubric/threshold fields, marked N/A), and `brief-conditioning/` (the §1
 conditioning-surface study — NOT a model golden set; threshold N/A, never gates).
 Every **statistical** scaffold carries: rubric axes; threshold and sample-size status
 (OPEN with its owning finding where unknown); cadence; qualifying tuple dimensions;
-case schema + provenance requirements; and an explicit `SCAFFOLD/UNPOPULATED` status
-noting it cannot support model-swap or qualification evidence yet. Deterministic/study
+case schema + provenance requirements; and an explicit population/admissibility
+status. Reviewer, Planner, and Validation Designer are populated and human-validated;
+their threshold-dependent results remain inconclusive under F-PT-009/010/011. Empty
+sites remain `SCAFFOLD/UNPOPULATED` and cannot support model-swap or qualification
+evidence. Deterministic/study
 scaffolds carry the same headers with N/A where a field does not apply. Authoring
 priority `[elicited]`: **1) reviewer/ 2) planner/ 3) builder-trajectory/**, then the
 rest.

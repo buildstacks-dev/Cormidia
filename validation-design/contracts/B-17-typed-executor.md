@@ -54,6 +54,7 @@ Status: DRAFT (Phase 4). Defends INV-003/014, T-12. Journeys J-05/J-11/J-17.
 BLOCKED per boundary-map B-17 — no disposable real non-GitHub target. Recorded in
 `validation-policy.yaml` (obligation `B-17-L3`) with reason + unblock condition
 (policy ratified 2026-07-31; the unblock condition remains unmet); no green L3 claim
-follows.
+follows. The 2026-08-04 RQ-1 revision classifies this generic target as future
+assurance outside the npm-release denominator; absence remains visible and never pass.
 <!-- changelog 2026-07-31: pointed to the existing draft policy (final-gate fix). -->
 <!-- ratification 2026-07-31: policy no longer draft; B-17-L3 stays BLOCKED. -->

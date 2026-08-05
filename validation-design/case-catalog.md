@@ -15,7 +15,9 @@ current test count. J-19/B-18/B-19/S-8 remain design-only. HB-108 closes every
 deterministic 2026-08-03 revision family through named L1/L2 evidence and a fail-closed
 registry walk; HB-109 closes contention/soak machinery but not the unrun seven-day
 campaign; HB-110 closes its cross-surface projection. Catalog closure does not imply
-separately gated L3/L4/L5 evidence or human reference validation.
+separately gated L3/L4 evidence. Current Reviewer, Planner, and Validation Designer
+references were human-validated on 2026-08-04; future L5 evidence remains separate
+from RQ-1.
 
 **Closure rule:** every (source artifact × derivation row) cell below carries case
 families or a **named prune**. Prune vocabulary (nothing else is legal):
@@ -48,13 +50,13 @@ journey-acceptance.md alias table.
 
 | Cell | Case family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-HARNESS-CI | Per-commit workflow shape, fail-closed jobs, detector canaries, and actual merge-blocking enforcement. Workflow-shape checks are implemented; required-check enforcement is **BLOCKED:F-PT-018**. | 1 + CI | evid+det | FLOOR |
+| CF-HARNESS-CI | Per-commit workflow shape, fail-closed jobs, detector canaries, and actual merge-blocking enforcement. Workflow-shape checks are implemented; mechanical merge blocking is **KNOWN-LIMITATION:F-PT-018**, bounded for RQ-1 by protected human merge plus exact-tag rerun. | 1 + CI | evid+det | FLOOR |
 | CF-HARNESS-REPORT | Durable completeness/verdict truth table; exact-ceiling, unknown-partial-spend, corrupt-report, canonical-policy/golden-blob binding, and presentation negative controls | 1/2 | evid+refusal+det | FLOOR |
 | CF-HARNESS-RQ | RQ-1 manifest, deterministic-first admission, aggregate completeness/verdict/qualification truth table, debt disposition, exact site/pairing scope | 1/2 | evid+refusal+det | E3/FLOOR |
 | CF-HARNESS-CURRENCY | subject/producer digests, evidence-only descendant, identical package/policy/prompt/assignment/golden inputs, invalidation triggers | 1/2 | diff+evid+refusal+det | E3/FLOOR |
 | CF-HARNESS-ATTEST | canonical packet/attestation, path containment, packet hashes, exact release approval binding, tamper and missing-field refusal | 1/2 | evid+refusal+det | E1/E3/FLOOR |
 | CF-HARNESS-JUDGE | pending-reference refusal, uncalibrated-score refusal, exact pairing identity, composite-hash grade reuse, low-calibration triage without threshold/corpus weakening | 1/2 | stat-envelope+refusal+det | E3/L4Q |
-| CF-HARNESS-RELEASE | exact-tag offline rerun, current attestation, prepublish refusal, approval→tag→publish→ack separation; merge enforcement remains BLOCKED:F-PT-018 and workflow authentication of the B-17 human decision remains BLOCKED:F-PT-021 | 1/2 + CI | evid+refusal+det | E1/E3/FLOOR |
+| CF-HARNESS-RELEASE | exact-tag offline rerun, current attestation, prepublish refusal, approval→tag→publish→ack separation, and exact equality among GitHub tag-push actor, `approval.approved_by`, and configured release approver; mechanical merge enforcement remains KNOWN-LIMITATION:F-PT-018 | 1/2 + CI | evid+refusal+det | E1/E3/FLOOR |
 
 ## 1. Journey matrix (J × success / refusal / interruption / recovery / alt-initiators+observations)
 
@@ -338,7 +340,11 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-S10-traj/judge | PRUNE-na (bounded design capability, not an agentic loop or judge; compatible units may share input/session but emit separate contracts) | — | — | — |
 | CF-COND | brief-conditioning study (informs, never gates) — sampling design OPEN under F-PT-011 | 4 | stat (non-gating) | THIN |
 
-## 8. Operational-obligation matrix (obligation × load-at-contention / soak / resource-growth / clock-skew / abuse / recovery)
+## 8. Operational-obligation matrix (future L5 assurance outside RQ-1)
+
+These L5 rows keep their original owners, collectors, triggers, and ceiling. They do
+not enter RQ-1 completeness, verdict, qualification, manifest campaigns, or cost
+ceilings. Missing work remains visible and never pass.
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
@@ -347,7 +353,7 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-OPS-ROT | **Codex natural multi-hour auth-rotation under a long live run** (ratified L5 obligation, boundary-map B-03 / contract B-03): embedded in the 7-day soak as a named sub-obligation with **its own completion evidence** — at least one live Codex session spanning a real rotation window, with checkpoint/session-identity preservation asserted; if no natural rotation occurs during the soak, the sub-obligation reports completeness=incomplete (never assumed covered) | 5 | live+evid | E2 |
 | CF-OPS-GROW | seeded aged-state retention sweep at 30/180/365-day boundaries under controlled clock; ledger-day-file protection rule | 2 | state | E2 |
 | CF-OPS-SKEW | PRUNE-dup:CF-B06-* (clock anomalies) + soak's real sleep cycles | — | — | — |
-| CF-OPS-ABUSE | threat-model-driven abuse cases: deferred until the ratified threat model exists (owner-ratified timing, risk-allocation §6); interim floor = CF-INV-001/002/011/015 adversarial families | 5 | mixed | E1 (deferred lane, declared) |
+| CF-OPS-ABUSE | threat-model-driven abuse cases: deferred until the human-authored and reviewed threat model exists (risk-allocation §6); interim floor = CF-INV-001/002/011/015 adversarial families | 5 | mixed | E1 (future lane, declared) |
 | CF-OPS-REC | PRUNE-dup:§1 interruption/recovery rows + CF-B07 (recovery is a modifier everywhere, not a lane) | — | — | — |
 | CF-OPS-COMP | PRUNE-na for V1 (explicit tuples, sequential execution, hard per-comparison ceilings are falsifiable at L1/L2); automatic sampling or parallel candidates must re-enter allocation and may create a bounded L5 contention/cost obligation | — | — | — |
 
@@ -370,8 +376,8 @@ not change matrix allocation or unblock any finding.
 | CF-S3-qual+judge | Runner + cases complete | Seeded reviewer/clean cases human-validated; F-PT-009 open, so any run is inconclusive and judge scores remain inadmissible. |
 | CF-S2-traj | Complete | Deterministic trajectory scenarios committed; repeat-loop N=3 remains proposed only. |
 | CF-OPS-CONT | Complete | `tests/ops/contention-rig.ts`; ratified ≥10/≥3/WIP=2 shape green in hermetic self-test. |
-| CF-OPS-SOAK / CF-OPS-ROT | Collector complete | `tests/ops/soak-protocol.ts`; real seven-day/sleep/rotation evidence pending human scheduling. |
-| CF-OPS-ABUSE | Gate only; blocked | `tests/ops/threat-model-gate.ts` refuses the checked-in `awaiting_human_author` status. No abuse cases before HB-072. |
+| CF-OPS-SOAK / CF-OPS-ROT | Collector complete; future assurance | `tests/ops/soak-protocol.ts`; real seven-day/sleep/rotation evidence pending human scheduling and outside RQ-1. |
+| CF-OPS-ABUSE | Gate only; future blocked | `tests/ops/threat-model-gate.ts` refuses the checked-in `awaiting_human_author` status. No abuse cases before HB-072; neither row is inside RQ-1. |
 | CF-HARNESS-REPORT | Complete | Durable reports debit unknown failed-case spend conservatively, keep exact-ceiling coverage incomplete, bind canonical policy/golden inputs to authorized HEAD, and surface corrupt/inconclusive evidence without green. |
 | CF-J19-* / CF-SM-COMP-* / CF-B18-* / CF-B19-* / CF-C-B18 / CF-C-B19 / CF-IF-COMPARE | Design only | Implementation is tracked by the comparative-execution backlog and GitHub epic; no executable coverage or evidence claim exists yet. |
 | CF-S8-env / CF-S8-qual+judge | Design/scaffold only | Empty truthful scaffold at `golden-sets/selection-judge/`; F-PT-011 keeps scores inadmissible for automatic selection and any threshold-dependent outcome inconclusive. |

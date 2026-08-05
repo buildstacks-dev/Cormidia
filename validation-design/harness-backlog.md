@@ -231,13 +231,17 @@ items 9..12 remain PROPOSED, so threshold-dependent campaigns remain inconclusiv
 - **HB-062** Author planner/ sets; **HB-063** builder-trajectory scenario fixtures;
   later scaffolds per elicited priority. Executor: human + build-agent.
 
-## Wave L5 — ops lane (gated per obligation)
+## Wave L5 — future assurance outside RQ-1 (gated per obligation)
 
 <!-- implementation status 2026-07-31: HB-070 COMPLETE (ratified contention shape;
 deterministic rig green). HB-071 runner/collector COMPLETE but the seven-real-day
 human-started campaign and CF-OPS-ROT natural evidence are PENDING. HB-072 is
 AWAITING HUMAN AUTHOR: the ten-surface worksheet is only a scaffold. HB-073 remains
 BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed. -->
+
+<!-- owner disposition 2026-08-04: HB-072/HB-073, the seven-day soak and natural
+rotation retain their owners, collectors, triggers and ceiling, but are not RQ-1
+release obligations. Missing evidence remains visible and never pass. -->
 
 - **HB-070** Contention rig (CF-OPS-CONT; hermetic implementation, L5 question).
   Executor: build-agent. **HB-071** Soak protocol runner + evidence collector
@@ -275,10 +279,11 @@ BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed
 - **HB-P6** F-PT-017 provider terminal-status enum decision and migration cases
   (CF-C-CORE). Executor: human + build-agent after the owner chooses the canonical
   vocabulary and compatibility path; no test may derive truth from the current code.
-- **HB-P7** F-PT-018 merge-blocking enforcement (CF-HARNESS-CI). Executor: human +
-  build-agent after GitHub required-check controls become available or the owner
-  ratifies an enforceable alternative. The PR workflow remains active and
-  fail-closed internally, but must not be represented as merge-blocking meanwhile.
+- **HB-P7** F-PT-018 mechanical merge-blocking enforcement (CF-HARNESS-CI), retained
+  as a known limitation/future improvement. Executor: human + build-agent after GitHub
+  required-check controls become available. The PR workflow remains active and
+  fail-closed internally; RQ-1 uses protected human merge plus release-blocking
+  exact-tag rerun and does not claim mechanical merge blocking.
 
 ## Post-ratification additions (2026-07-31)
 
@@ -598,31 +603,33 @@ prepares the proposal and a human separately ratifies any such surface. -->
   It is not an alias of `manual-review`, does not justify a `manual-*` wildcard, and any
   future scheduling meaning requires a separate product-owner decision plus detectors.
   *Layer:* process/read-only audit. *Executor:* build-agent + human taxonomy decision.
-- **HB-113 — IN PROGRESS — RQ-1 manifest, currency, and attestation schemas.** Implement
+- **HB-113 — COMPLETE 2026-08-04 — RQ-1 manifest, currency, and attestation schemas.** Implement
   closed canonical schemas for candidate/package identity, subject and producer currency,
   evidence-only descendant equivalence, sanitized packets, and release attestations.
   *Layer:* 1/2. *Executor:* build-agent. *Depends on:* RQ-1 ratification.
-- **HB-114 — IN PROGRESS — RQ-1 deterministic detector families.** Deposit seeded
+- **HB-114 — COMPLETE 2026-08-04 — RQ-1 deterministic detector families.** Deposit seeded
   negative controls for forged completeness, stale inputs, changed package bytes,
   path escape, tamper, unlisted skips, missing CI, pending references, uncalibrated
   judges, and publish without attestation. *Layer:* 1/2 + CI. *Executor:* build-agent.
   *Depends on:* HB-113.
-- **HB-115 — IN PROGRESS — Paired L4 evidence and human review packet.** Preserve exact
+- **HB-115 — COMPLETE 2026-08-04 — Paired L4 evidence and human review packet.** Preserve exact
   site/operation/producer/evaluator/rubric pairings, composite grading identity, bootstrap
   versus candidate/baseline arms, and advisory-only uncalibrated results. *Layer:* 1/2 +
   L4 machinery. *Executor:* build-agent; campaigns remain human-authorized. *Depends on:*
   human reference validation and HB-113.
-- **HB-116 — IN PROGRESS — Packet sanitizer and operator surfaces.** Add deterministic
+- **HB-116 — COMPLETE 2026-08-04 — Packet sanitizer and operator surfaces.** Add deterministic
   prepare/assess/attest/verify commands and concise disagreement/debt reports without
   raw provider content. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* HB-113…115.
-- **HB-117 — IN PROGRESS — Release workflow, prepublish refusal, and B-17 tag path.** Add
+- **HB-117 — COMPLETE 2026-08-04 — Release workflow, prepublish refusal, and B-17 tag path.** Add
   exact-tag offline verification and keep approval, tag, npm publication, and
-  acknowledgement as separate facts. F-PT-018 remains open. *Layer:* 1/2 + CI.
+  acknowledgement as separate facts. F-PT-018 remains an open known limitation;
+  F-PT-021 is resolved by authenticated actor/approver/repository equality. *Layer:* 1/2 + CI.
   *Executor:* build-agent + protected human merge. *Depends on:* HB-116.
 - **HB-118 — PENDING — RQ-1 implementation audit and holdout.** Independently verify the
-  completed C3 assessor and every seeded detector before activation. *Layer:* audit.
-  *Executor:* validation auditor. *Depends on:* HB-113…117. HB-072-human, HB-073, and
-  the separately authorized initial evidence campaigns remain activation prerequisites.
+  completed C3 assessor and every seeded detector before the protected implementation
+  lands. *Layer:* audit. *Executor:* validation auditor. *Depends on:* HB-113…117.
+  Future HB-072/HB-073/L5 work is outside RQ-1; separately authorized L3/L4 campaigns
+  qualify each later candidate rather than activating the gate.
 
 ## Standing rules
 

@@ -27,6 +27,7 @@ import {
   validateEvidenceOnlyChangedPaths,
   validateReleaseCommitLineage,
   validateReleaseManifest,
+  validateReleaseApprovalAuthority,
   validateReleaseQualificationReport,
   validateReleaseRepositoryState,
   verifyReleasePacket,
@@ -60,7 +61,7 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     expect(createReleaseManifest(producerOnlyChange).qualification_id).not.toBe(manifest.qualification_id);
   });
 
-  it("negative control: rejects unknown input, pending human reference, and stale assignment bytes", () => {
+  it("negative control: rejects unknown input, pending human reference, stale assignment bytes, and an L5 release obligation", () => {
     const body = fixtureBody();
     expect(() => createReleaseManifest({ ...body, invented_threshold: 0.95 } as ReleaseManifestBodyV1)).toThrow(/unknown/);
     const pending = structuredClone(body) as unknown as Record<string, unknown>;
@@ -69,16 +70,22 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     const stale = structuredClone(fixtureManifest());
     stale.inputs.assignments = "f".repeat(64);
     expect(() => validateReleaseManifest(stale)).toThrow(/assignment inventory|release subject digest|qualification_id/);
+    const l5 = structuredClone(body) as unknown as Record<string, unknown>;
+    (l5["obligations"] as unknown[]).push({
+      id: "RQ-L5-FORGE", lane: "L5", required: true, claim_class: "safety",
+      debt_eligible: false, subject_digest: "a".repeat(64), producer_digest: "b".repeat(64),
+    });
+    expect(() => createReleaseManifest(l5 as unknown as ReleaseManifestBodyV1)).toThrow(/obligation\.lane.*deterministic, L3, L4/);
   });
 
-  it("negative control: recomputes candidate inputs and refuses an unratified threat model", async () => {
+  it("recomputes candidate inputs, permits pending future assurance, and refuses caller-supplied policy bytes", async () => {
     const repo = await mkdtemp(join(tmpdir(), "rq1-repository-")); roots.push(repo);
     const cases = repositoryGoldenCases("pending");
     await writeRepositoryFixture(repo, cases, false, "0".repeat(40));
     await git(repo, ["init", "-q"]); await git(repo, ["config", "user.email", "fixture@example.test"]); await git(repo, ["config", "user.name", "Fixture"]);
     await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "source references"]);
     const sourceCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
-    await writeRepositoryFixture(repo, repositoryGoldenCases("validated"), true, sourceCommit, cases);
+    await writeRepositoryFixture(repo, repositoryGoldenCases("validated"), false, sourceCommit, cases);
     await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "ratified inputs"]);
     const candidate = (await git(repo, ["rev-parse", "HEAD"])).trim();
     const snapshot = await releaseRepositorySnapshot(repo, candidate);
@@ -86,19 +93,12 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
       candidate_commit: candidate,
       inputs: snapshot.inputs,
       assignments: snapshot.assignments,
-      threat_model: snapshot.threat_model,
       l4: { references: snapshot.golden_references },
     } as unknown as ReleaseManifestBodyV1;
     await expect(validateReleaseRepositoryState(repo, manifestLike)).resolves.toBeUndefined();
     const forged = structuredClone(manifestLike);
     forged.inputs.policy = "f".repeat(64);
     await expect(validateReleaseRepositoryState(repo, forged)).rejects.toThrow(/policy.*caller-supplied/);
-
-    const statusPath = join(repo, "validation-design", "threat-model-status.yaml");
-    await writeFile(statusPath, threatStatus(false, "0".repeat(64)), "utf8");
-    await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "withdraw threat ratification"]);
-    const blocked = (await git(repo, ["rev-parse", "HEAD"])).trim();
-    await expect(releaseRepositorySnapshot(repo, blocked)).rejects.toThrow(/threat model is not human-authored/);
   });
 
   it("admits every exact deterministic check and preserves the one ratified skip", () => {
@@ -170,12 +170,34 @@ describe("RQ-1 L4 pairing and calibrated-judge admission", () => {
 });
 
 describe("RQ-1 completeness, evaluator debt, and attestation", () => {
-  it("derives L3/L5 lane results from exact schema-validated campaign reports", () => {
+  it("authenticates the exact configured GitHub release authority", () => {
+    const approval = {
+      schema_version: 1 as const,
+      contract_id: "RQ-1" as const,
+      decision: "approved" as const,
+      approved_by: "bikramgupta",
+      approved_at: "2026-08-05T02:01:00.000Z",
+      attestation_sha256: "a".repeat(64),
+      release_action_sha256: "b".repeat(64),
+    };
+    const exact = {
+      approval,
+      authenticatedActor: "bikramgupta",
+      authenticatedRepository: "cormidia/Cormidia",
+      manifestRepository: "cormidia/Cormidia",
+      configuredApprovers: ["bikramgupta"],
+    };
+    expect(() => validateReleaseApprovalAuthority(exact)).not.toThrow();
+    expect(() => validateReleaseApprovalAuthority({ ...exact, authenticatedActor: "another-writer" })).toThrow(/must match exactly/);
+    expect(() => validateReleaseApprovalAuthority({ ...exact, configuredApprovers: ["another-writer"] })).toThrow(/must match exactly/);
+    expect(() => validateReleaseApprovalAuthority({ ...exact, authenticatedRepository: "fork/Cormidia" })).toThrow(/does not match/);
+  });
+
+  it("derives the required L3 lane result from an exact schema-validated campaign report", () => {
     const manifest = fixtureManifest();
     const results = evaluateTriggeredCampaignEvidence(manifest, campaignEvidence(manifest));
     expect(results).toMatchObject([
       { obligation_id: "RQ-L3", completeness: "complete", verdict: "pass" },
-      { obligation_id: "RQ-L5", completeness: "complete", verdict: "pass" },
     ]);
   });
 
@@ -474,11 +496,6 @@ function fixtureBody(): ReleaseManifestBodyV1 {
     roles: "d".repeat(64), pipelines: "e".repeat(64), taste: "f".repeat(64),
     golden_sets: "1".repeat(64), assignments: digestJson(assignments), tools: digestJson(toolchain),
   };
-  const threatModel = {
-    artifact_sha256: "4".repeat(64), status_sha256: "5".repeat(64), human_authored: true as const, human_reviewed: true as const,
-    covered_surfaces: Array.from({ length: 10 }, (_, index) => `TM-${String(index + 1).padStart(2, "0")}`),
-    abuse_case_ids: ["ABUSE-001"],
-  };
   const triggeredCampaigns: ReleaseManifestBodyV1["triggered_campaigns"] = [
     {
       obligation_id: "RQ-L3", campaign_id: "release-l3-fixture", lane: "L3",
@@ -487,24 +504,16 @@ function fixtureBody(): ReleaseManifestBodyV1 {
       required_case_ids: ["L3-RELEASE-FIXTURE"], max_provider_turns: 24, max_equiv_usd: 100,
       decision_status: "ratified",
     },
-    {
-      obligation_id: "RQ-L5", campaign_id: "release-l5-fixture", lane: "L5",
-      campaign_kind: "soak", trigger: "human_authorized_release_qualification",
-      apps: ["Cormidia"], scopes: ["seven-day-soak"], tuples: [],
-      required_case_ids: ["L5-SOAK-FIXTURE"], max_provider_turns: 24, max_equiv_usd: 15,
-      decision_status: "ratified",
-    },
   ];
   const body: ReleaseManifestBodyV1 = {
     schema_version: 1, contract_id: "RQ-1", prepared_at: "2026-08-05T01:00:00.000Z",
     repository: "cormidia/Cormidia", candidate_commit: "a".repeat(40), clean_tracked_tree: true, package: packageManifest,
     inputs, assignments, toolchain,
     human_authorization: { authorized_by: "bikramgupta", authorized_at: "2026-08-05T00:59:00.000Z", purpose: "fixture qualification", approval_ref: "fixture:approval" },
-    threat_model: threatModel,
     deterministic: { required_checks: [...RELEASE_DETERMINISTIC_CHECKS], allowed_test_skips: ["BLOCKED:F-PT-EXAMPLE"], producer_digest: "6".repeat(64) },
     l4,
     triggered_campaigns: triggeredCampaigns,
-    ceilings: { l3_premerge: { max_provider_turns: 2, max_equiv_usd: 5 }, l3_release: { max_provider_turns: 24, max_equiv_usd: 100 }, l4: { max_provider_turns: 20, max_equiv_usd: 40, max_tokens: 100_000, authorization_ref: "fixture:l4-envelope" }, l5: { max_provider_turns: 24, max_equiv_usd: 15 } },
+    ceilings: { l3_premerge: { max_provider_turns: 2, max_equiv_usd: 5 }, l3_release: { max_provider_turns: 24, max_equiv_usd: 100 }, l4: { max_provider_turns: 20, max_equiv_usd: 40, max_tokens: 100_000, authorization_ref: "fixture:l4-envelope" } },
     retry_policy: { merit_failures: "never", github_total_attempts: 3, ambiguous_writes: "single_shot_then_reconcile", provider_retry: "predeclared_typed_infrastructure_only", unknown_partial_usage: "debit_full_reservation" },
     obligations: [],
   };
@@ -513,7 +522,6 @@ function fixtureBody(): ReleaseManifestBodyV1 {
     obligation("RQ-DET", "deterministic", "build", false, subject, "6"),
     obligation("RQ-L3", "L3", "product", false, subject, "7"),
     obligation("RQ-L4", "L4", "evaluator_evidence", true, subject, "8"),
-    obligation("RQ-L5", "L5", "safety", false, subject, "9"),
   ];
   return body;
 }
@@ -526,7 +534,7 @@ function pairing(id: string, site: "reviewer" | "planner" | "validation-designer
   return { id, site, operation, arm: "bootstrap" as const, producer_tuple: producer, evaluator_tuple: evaluator, rubric_version: "v1", rubric_digest: seed.repeat(64), grader_digest: String(Number(seed) + 1).repeat(64), evaluator_status: "human_review" as const, decision_rule_digest: null, case_ids: [caseId], attempt_ids: ["attempt-1"] };
 }
 
-function obligation(id: string, lane: "deterministic" | "L3" | "L4" | "L5", claimClass: ReleaseObligationV1["claim_class"], debtEligible: boolean, subject: string, producerSeed: string): ReleaseObligationV1 {
+function obligation(id: string, lane: ReleaseObligationV1["lane"], claimClass: ReleaseObligationV1["claim_class"], debtEligible: boolean, subject: string, producerSeed: string): ReleaseObligationV1 {
   return { id, lane, required: true, claim_class: claimClass, debt_eligible: debtEligible, subject_digest: subject, producer_digest: producerSeed.repeat(64) };
 }
 
@@ -635,7 +643,6 @@ async function repositoryFixtureManifest(repo: string, candidate: string): Promi
   body.inputs = snapshot.inputs;
   body.assignments = snapshot.assignments;
   body.toolchain = snapshot.toolchain;
-  body.threat_model = snapshot.threat_model;
   body.l4.references = snapshot.golden_references;
   body.l4.pairings = snapshot.golden_references.map((item, index) => pairing(
     `PAIR-${index + 1}`,

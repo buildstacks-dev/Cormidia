@@ -113,11 +113,13 @@ unanchored from the incumbent suite. The replacement design was **ratified
 implementation lands under `tests/` by backlog wave.
 
 The minimum for any change is `pnpm test && pnpm typecheck`; this is a populated
-offline gate, not green-by-absence. Release gating is **suspended**: the
-fail-closed release-currency lane and attestation were archived with `eval/`;
-do not tag a release expecting a gate to catch anything. Replacement L3/L4/L5
-runners are explicit human-authorized campaigns; their unrun/missing work remains
-incomplete/inconclusive and they must never be invoked casually.
+offline gate, not green-by-absence. Release qualification is active under RQ-1:
+the exact candidate requires a current aggregate attestation and a separate exact
+human release approval. Missing, stale, corrupt, ceiling-stopped, uncalibrated, or
+undispositioned required evidence is never a pass. L3/L4 campaigns remain explicit
+human-authorized, per-candidate work and must never be invoked casually. The threat
+model, HB-073 abuse lane, seven-day soak, and natural rotation remain disclosed
+future L5 assurance outside RQ-1 and may not be claimed as completed evidence.
 
 ## Navigation
 - Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · operator outcome: `docs/VISION.md` · platform development: `docs/DEVELOPMENT.md`
@@ -186,8 +188,9 @@ completeness=incomplete, never green. Never forge human approval decisions; unat
 runs use only the ratified sandbox test-mode profile.
 
 **Blocked work:** the parked tickets (`harness-backlog.md` HB-P3/HB-P5/HB-P6/HB-P7),
-the exact F-PT-012…016 catalog cells, B-17's live cell, and HB-073 behind the
-human-authored threat model are blocked — do not implement them, and do not encode any
+the exact F-PT-012…016 catalog cells, B-17's generic non-GitHub live cell, and HB-073
+behind the human-authored threat model remain blocked in their own future-assurance
+lanes — they are not RQ-1 release blockers. Do not implement them or encode any
 finding's "expected" behavior as truth before a human ratifies it.
 (HB-P1/HB-P2/HB-P4 were unparked at ratification 2026-07-31 — their findings are
 resolved and their contracts ratified.)

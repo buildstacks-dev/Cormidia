@@ -218,7 +218,7 @@ layers:                                      # the audit's diff surface
       are inadmissible until their calibration sets exist AND thresholds ratify.
     cadence: "per-site prompt/model/instruction change; release qualification; nightly rotating shards (when scheduled validation exists); token ceiling declared per campaign; partial evidence preserved"
   L5_ops:
-    status: "batch-aware contention rig + extended soak collector implemented; real seven-day evidence pending and was not started; human threat model pending; abuse lane blocked"
+    status: "future assurance: batch-aware contention rig + extended soak collector implemented; real seven-day evidence pending and was not started; human threat model pending; abuse lane blocked; none is inside the RQ-1 release denominator"
     obligations:
       - id: CF-OPS-CONT          # contention (L5 by question; hermetic rig)
         implementation_status: "implemented; deterministic rig green"
@@ -237,9 +237,9 @@ layers:                                      # the audit's diff surface
       - id: threat-model         # owner-ratified scope + timing; human-confirmed 2026-07-31
         design: "STRIDE-style pass over boundary-map; scope = trust boundaries behind all C3 control points (ten surfaces, risk-allocation section 6)"
         owner: human
-        note: "human-authored (confirmed at ratification 2026-07-31); sits on the critical path to release-gating reactivation"
+        note: "human-authored future L5 assurance; absence remains disclosed and never pass, but does not block RQ-1"
         implementation_status: "ten-surface template + hash-bound admission gate implemented; status awaiting_human_author"
-        due_before_earliest_of: [release_gating_reactivation, droplet_migration, first_non_sandbox_production_onboarding]
+        due_before_earliest_of: [droplet_migration, first_non_sandbox_production_onboarding]
         review_trigger: "material trust-boundary/deployment-shape/adapter-capability/reachable-surface change"
       - id: secret-hygiene
         design: "gitleaks in CI - pinned version+config, fail-closed invocation, generated temporary canary proving detection, no broad fixture allowlists"
@@ -274,16 +274,13 @@ unattended_test_mode_profile:                # canonical definition (B-09b cross
   provenance: "[doc: PURPOSE v2.9] + [rambling] + owner rulings"
 
 release_gating:
-  status: activation_pending_human_threat_model_and_evidence
+  status: active_fail_closed
   contract_id: RQ-1
   proposal: release-evidence-gate-revision-proposal.md
   qualification_values: [qualified, not_qualified, needs_human_disposition]
   activation_requires:
     - human_ratification_of_exact_protected_diff
-    - human_authored_and_human_reviewed_TM-01_through_TM-10
-    - HB-073_abuse_cases_with_seeded_negative_controls
-    - complete_pass_seven_day_L5_soak_with_natural_credential_rotation
-    - implementation_audit_green
+    - implementation_audit_I2_green
     - resolved_tag_approval_authenticity_F-PT-021
   rules:
     - deterministic_first
@@ -294,7 +291,13 @@ release_gating:
     - evidence_only_descendant_equivalence
     - separate_human_eval_debt_disposition
     - separate_exact_human_release_approval
+    - github_actor_equals_approval_identity_equals_configured_release_approver
     - no_green_by_absence
+  future_assurance_outside_rq1:
+    - human_authored_and_human_reviewed_TM-01_through_TM-10
+    - HB-073_abuse_cases_with_seeded_negative_controls
+    - complete_pass_seven_day_L5_soak_with_natural_credential_rotation
+  future_assurance_rule: "absence remains disclosed and never pass, but does not affect RQ-1 completeness, verdict, or qualification"
   release_candidate_equivalence:
     allowed_changed_path: "release-evidence/<version>/<qualification_id>/**"
     require_identical: [package_version, packed_file_manifest, tarball_sha256,
@@ -302,8 +305,13 @@ release_gating:
       policy, golden_sets, assignments]
   current_l4_release_sites: [reviewer, planner, validation-designer]
   l4_numeric_ceiling: "per immutable human authorization; no global value ratified"
-  b17_live_status: "BLOCKED; disclosed pre-V1 evaluator debt only under RQ-1 §5"
-  merge_enforcement: "BLOCKED:F-PT-018; release workflow reruns exact-tag gates"
+  b17_live_status: "future assurance for generic non-GitHub external targets; not an RQ-1 npm-release obligation"
+  merge_enforcement: "KNOWN-LIMITATION:F-PT-018; protected human merge plus release-blocking exact-tag rerun"
+  approval_authentication:
+    configured_path: ".cormidia/config.yaml#/apps/Cormidia/release/approvers"
+    rule: "GitHub tag-push actor == approval.approved_by == one configured approver"
+    mismatch: "refuse before npm authentication"
+    local_approval_store_proof: "not additionally required"
 
 ci:
   host: github-actions
@@ -391,8 +399,9 @@ open_findings:
      resolution: "contract truth (PURPOSE v2.15): secrets-or-auth is operation-aware and fails closed. It classifies on whether an action actually emits file contents, not on text alone; any command whose effect cannot be parsed is treated as critical. The two error directions are not symmetric per system-map.md 5.2 — a real critical effect classified routine is authority damage, a false positive is only availability damage — so the fail-closed default on unparsed effects is part of the contract. Coverage must also reach effects that bypass the gate entirely rather than merely evading a pattern (#20)"}
   - {id: F-PT-020, status: resolved-ratified, resolved: 2026-08-03, subject: "undecided approval items have no documented lifetime: approvals/design.md specifies TTL and expiry for GRANTS (post-decision) but says nothing about a pending item whose raising turn has ended. #205 shows the cost — 7 of 7 items in the august-org run outlived their turns, and app verify treats any pending item as a promotion blocker, so the queue grows monotonically under the scheduler and permanently blocks promotion. Deciding it means adding a terminal non-blocking state to the ratified approval state machine (CF-SM-APPR) and changing what app verify counts; adjacent to F-PT-008. Owner decision required",
      resolution: "contract truth (PURPOSE v2.15): a gate denial suspends the raising turn, so an approval is raised synchronously and cannot outlive its turn. CF-SM-APPR gains a terminal non-blocking 'expired' state reached after a TTL (default 24h, matching the grant TTL, resolved through policy configuration not a source constant). On expiry the turn's durable artifacts and worktree are preserved, its claim is released, the turn resolves as blocked rather than failed and consumes no failure claim (#104), and the item leaves the pending queue for an audit view. cormidia app verify counts only approvals whose raising turn is still live. F-PT-008 is adjacent but NOT resolved: it concerns an item whose grant expires after a decision, not an item never decided"}
-  - {id: F-PT-018, status: open-blocked-gate, subject: "per-commit CI is designed as merge-blocking, but the current private-repository GitHub plan cannot enable branch protection/rulesets; enforcement mechanism or plan change requires owner action"}
-  - {id: F-PT-021, status: open-blocked-gate, subject: "the RQ-1 annotated tag carries an attributable but self-asserted approval record; the GitHub tag workflow cannot distinguish a tag created through the durable B-17 human-approval path from a forged envelope pushed by another tag-authorized actor. The human threat model/owner must decide the admissible approval-authenticity and enforcement mechanism before activation"}
+  - {id: F-PT-018, status: open-known-limitation, subject: "the current private-repository GitHub plan cannot enable branch protection/rulesets; protected human merge and exact-tag rerun are the ratified bounded mechanism, without claiming mechanical merge blocking"}
+  - {id: F-PT-021, status: resolved-ratified, resolved: 2026-08-04, subject: "RQ-1 tag approval authenticity",
+     resolution: "publication requires exact equality among the GitHub-authenticated tag-push actor, approval.approved_by, and one app-configured release approver; mismatch refuses before npm authentication. Remote proof of the local ApprovalStore path is not additionally required"}
   - {id: F-PT-001, status: resolved-by-docs, subject: "redaction scope"}
   - {id: F-PT-005, status: resolved-ratified, resolved: 2026-07-31, subject: "subscriber-set cutoff",
      resolution: "simulated-seat derivation human-ratified by adoption 2026-07-31: added subscribers inherit pending events; removed subscribers cease blocking retirement"}

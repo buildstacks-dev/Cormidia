@@ -10,10 +10,12 @@ import { promisify } from "node:util";
 import {
   packageManifestFromTarball,
   parseReleaseTagMessage,
+  validateReleaseApprovalAuthority,
   validateReleaseCommitLineage,
   validateReleaseRepositoryState,
   verifyReleasePacket,
 } from "../dist/org/release-evidence.js";
+import { loadApps } from "../dist/org/apps.js";
 
 const execFile = promisify(execFileCallback);
 
@@ -39,6 +41,21 @@ async function main() {
     currentPackage,
     attestation: envelope.attestation,
     approval: envelope.approval,
+  });
+  if (process.env.GITHUB_ACTIONS !== "true") {
+    throw new Error("release publication verification requires the GitHub Actions tag-push identity");
+  }
+  const authenticatedActor = required(process.env.CORMIDIA_RELEASE_ACTOR, "CORMIDIA_RELEASE_ACTOR");
+  const authenticatedRepository = required(process.env.CORMIDIA_RELEASE_REPOSITORY, "CORMIDIA_RELEASE_REPOSITORY");
+  const apps = await loadApps(join(repo, ".cormidia", "config.yaml"));
+  const app = apps.apps.find((item) => item.repo === authenticatedRepository);
+  if (app === undefined) throw new Error("authenticated release repository is not registered in .cormidia/config.yaml");
+  validateReleaseApprovalAuthority({
+    approval: result.approval,
+    authenticatedActor,
+    authenticatedRepository,
+    manifestRepository: result.manifest.repository,
+    configuredApprovers: app.release?.approvers ?? [],
   });
   await git(repo, ["merge-base", "--is-ancestor", result.manifest.candidate_commit, head]);
   const changed = (await git(repo, ["diff", "--name-only", "-z", `${result.manifest.candidate_commit}..${head}`], false)).split("\0").filter(Boolean);

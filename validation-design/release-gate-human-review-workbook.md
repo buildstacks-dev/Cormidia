@@ -4,7 +4,7 @@ Status: **§1 EXPECTED BEHAVIORS CONFIRMED BY `bikramgupta`; §2 REMAINS AN AGEN
 
 This companion makes the remaining human work concrete without attributing an agent's
 conclusions to a human. It does not replace `threat-model-template.md`, validate a
-golden row, resolve HB-072/HB-073, or activate RQ-1.
+golden row, resolve HB-072/HB-073, or qualify an RQ-1 candidate.
 
 ## 1. Golden expected-behavior review
 

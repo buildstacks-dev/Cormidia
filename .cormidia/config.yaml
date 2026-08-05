@@ -41,6 +41,7 @@ apps:
       kind: package
       owner: orchestrator
       trigger: tag
+      approvers: [bikramgupta]
     cadence: {}
     execution:
       assignment_mode: fixed

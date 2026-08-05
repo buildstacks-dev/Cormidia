@@ -144,7 +144,7 @@ and agent definitions.
 
 - **Replacement release-evidence gate** (ratified 2026-08-04). Release
   qualification is restored through RQ-1: deterministic contracts admit the
-  exact candidate before spend; bounded L3/L4/L5 evidence remains separate by
+  exact candidate before spend; bounded L3/L4 evidence remains separate by
   completeness and verdict; candidate/baseline quality evidence is paired per
   site and exact producer/evaluator tuple; uncalibrated judge scores remain
   advisory; evaluator debt can be accepted only as a separate immutable human
@@ -153,10 +153,18 @@ and agent definitions.
   references, tools and ceilings. A deterministic attestation admits only a
   content-bound evidence-only descendant whose package and qualification inputs
   are identical. The supported tag/npm path verifies that attestation and still
-  requires a separate exact human release approval. F-PT-018 remains an honest
+  requires a separate exact human release approval. Publication proceeds only
+  when the GitHub-authenticated tag-push actor, the approval's `approved_by`
+  identity, and an app-configured release approver are the same exact identity.
+  Remote proof that the tag traversed the local ApprovalStore is not additionally
+  required; an identity mismatch refuses before npm authentication. F-PT-018
+  remains an honest
   merge-enforcement limitation; release verification reruns the mandatory gates
-  on the tag candidate. The gate cannot activate until the human-authored and
-  human-reviewed TM-01…TM-10 threat model and its abuse-case detectors exist.
+  on the tag candidate. The human-authored threat model, HB-073 abuse-case
+  detectors, seven-day soak, and natural credential rotation remain future L5
+  assurance outside RQ-1's completeness, verdict, and qualification denominator.
+  Their absence must remain visible and may never be represented as a pass, but
+  it does not block RQ-1 activation or qualification.
 
 - **Cormidia platform-development authority is independently governed**
   (ratified 2026-07-16; original operational exclusion superseded by the

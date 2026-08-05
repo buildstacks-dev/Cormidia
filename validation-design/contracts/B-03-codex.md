@@ -29,7 +29,8 @@ Status: DRAFT (Phase 4). Extends `provider-adapter-core.md`; deltas only.
   are pinned against the packaged App Server with a loopback Responses fake. The same
   detector executes forbidden read/write attempts and requires terminal gate denial.
   Restoring `code_mode_only` and dropping the typed thread hook-trust override (which
-  reproduces an executed auto-approved read) are its seeded negative controls.
+  proves an auto-approved read reaches the command-execution seam with no gate
+  escalation) are its seeded negative controls.
 - Auth rotation: injected rotation events are L2-scripted (fake); auth loss follows the
   core preserve-checkpoint rule `[rambling: campaigns died mid-run when Codex
   refresh-token rotation raced and killed auth; multi-hour runs WILL be interrupted —

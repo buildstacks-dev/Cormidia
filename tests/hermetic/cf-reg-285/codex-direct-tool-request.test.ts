@@ -23,7 +23,6 @@ import type { RoleConfig } from "../../../src/runtime/types.js";
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 const MODEL = "gpt-5.6-sol";
-const TRUST_BYPASS_CANARY = "CF_REG_285_TRUST_BYPASS_CANARY";
 const roots: string[] = [];
 const servers: Server[] = [];
 
@@ -64,16 +63,13 @@ describe("CF-REG-285 — assigned Codex models reach only direct gateable tools"
     expect(run.result.status).toBe("blocked_on_gate");
   });
 
-  it("negative control: dropping the typed hook-trust override reproduces an un-gated read", async () => {
+  it("negative control: dropping hook trust lets an auto-approved read reach command execution", async () => {
     const run = await runAgainstLoopback(
       false,
-      (marker) => {
-        writeFileSync(marker, `${TRUST_BYPASS_CANARY}\n`, "utf8");
-        return `cat ${JSON.stringify(marker)}`;
-      },
+      () => "cat /etc/hosts",
       true,
     );
-    expect(JSON.stringify(run.requests[1])).toContain(TRUST_BYPASS_CANARY);
+    expect(functionCallOutput(run.requests[1]!, "call-cf-reg-285")).toEqual(expect.any(String));
     expect(run.result.escalations).toHaveLength(0);
     expect(run.result.status).toBe("completed");
   });
@@ -233,6 +229,14 @@ function customToolNames(request: Record<string, unknown>): string[] {
 
 function tools(request: Record<string, unknown>): Array<Record<string, unknown>> {
   return Array.isArray(request.tools) ? request.tools.filter(isRecord) : [];
+}
+
+function functionCallOutput(request: Record<string, unknown>, callId: string): string | undefined {
+  if (!Array.isArray(request.input)) return undefined;
+  const output = request.input.filter(isRecord).find((item) =>
+    item.type === "function_call_output" && item.call_id === callId
+  );
+  return typeof output?.output === "string" ? output.output : undefined;
 }
 
 function finalResponseSse(): string {

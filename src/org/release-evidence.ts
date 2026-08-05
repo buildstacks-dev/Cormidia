@@ -1463,11 +1463,17 @@ function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTri
       throw new Error("RQ-1 release campaign has an incomplete or invented L3 case inventory");
     }
     if (canonicalJson(scopes) !== canonicalJson(cases)) throw new Error("RQ-1 release campaign scopes must equal its exact case inventory");
-    const tupleParts = tuples.map((tuple) => tuple.split("/"));
-    if (tupleParts.some((parts) => parts.length !== 3 || parts[1]!.length === 0 || !["low", "medium", "high", "xhigh", "max"].includes(parts[2]!))) {
+    const tupleParts = tuples.map((tuple) => {
+      const [runtime = "", ...modelAndEffort] = tuple.split("/");
+      const effort = modelAndEffort.pop() ?? "";
+      return { runtime, modelParts: modelAndEffort, effort };
+    });
+    if (tupleParts.some(({ modelParts, effort }) =>
+      modelParts.length === 0 || modelParts.some((part) => part.length === 0)
+      || !["low", "medium", "high", "xhigh", "max"].includes(effort))) {
       throw new Error("RQ-1 release campaign tuples must be exact runtime/model/effort identities");
     }
-    const runtimes = tupleParts.map((parts) => parts[0]);
+    const runtimes = tupleParts.map(({ runtime }) => runtime);
     if (canonicalJson(runtimes) !== canonicalJson(["claude", "codex", "pi"])) {
       throw new Error("RQ-1 release campaign requires exact claude, codex, and pi tuples");
     }

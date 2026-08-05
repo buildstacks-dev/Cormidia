@@ -64,6 +64,22 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     expect(createReleaseManifest(producerOnlyChange).qualification_id).not.toBe(manifest.qualification_id);
   });
 
+  it("CF-REG-283 admits slash-bearing model ids and rejects malformed tuple boundaries", () => {
+    const slashBearing = fixtureBody();
+    slashBearing.triggered_campaigns[0]!.tuples[2] = "pi/openai-codex/gpt-5.6-sol/medium";
+    rebindSubject(slashBearing);
+    expect(() => createReleaseManifest(slashBearing)).not.toThrow();
+
+    for (const malformedTuple of ["pi//medium", "pi/openai-codex/gpt-5.6-sol/ultra"]) {
+      const seeded = fixtureBody();
+      seeded.triggered_campaigns[0]!.tuples[2] = malformedTuple;
+      rebindSubject(seeded);
+      expect(() => createReleaseManifest(seeded)).toThrow(
+        /release campaign tuples must be exact runtime\/model\/effort identities/,
+      );
+    }
+  });
+
   it("negative control: rejects unknown input, pending human reference, stale assignment bytes, and an L5 release obligation", () => {
     const body = fixtureBody();
     expect(() => createReleaseManifest({ ...body, invented_threshold: 0.95 } as ReleaseManifestBodyV1)).toThrow(/unknown/);
@@ -599,6 +615,11 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
 });
 
 function fixtureManifest(): ReleaseManifestV1 { return createReleaseManifest(fixtureBody()); }
+
+function rebindSubject(body: ReleaseManifestBodyV1): void {
+  const subject = releaseSubjectDigest(body);
+  for (const obligation of body.obligations) obligation.subject_digest = subject;
+}
 
 function fixtureBody(): ReleaseManifestBodyV1 {
   const l4: ReleaseManifestBodyV1["l4"] = {

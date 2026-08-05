@@ -69,13 +69,23 @@ conditional and chained skips, suite skips, and test options cannot disappear fr
 this execution-derived inventory.
 
 The L4 config schema is `tests/eval-runner/cli.ts`: exact tuples, absolute
-committed golden-set files, a token ceiling, provider-turn/equivalent-cost ceilings,
+committed golden-set files, an output-token ceiling, provider-turn/equivalent-cost ceilings,
 and an optional dated rotating shard. Results never pool tuples. The Reviewer, Planner,
 and Validation Designer sets retain their agent authors and carry attributable human
 validation by `bikramgupta` as of 2026-08-04.
 F-PT-009/010/011 and decision-register items 9–12 remain proposed, so
 threshold-dependent results are always `inconclusive`; the command exits 2 rather than
 misrepresenting data collection as a pass.
+
+Per PURPOSE's 2026-07-20 decision, L4 `token_reservation`, campaign `max_tokens`, and
+persisted `observed_tokens` count output tokens only. Input/cache tokens remain exact
+attempt and observation telemetry and contribute to equivalent-USD accounting, but do
+not consume the token envelope. Unknown-use failures conservatively debit the output
+reservation. A known result debits exact output tokens; if output exceeds its case
+reservation, the attempt and output hash remain preserved, the case is incomplete/
+inconclusive, and independent cases continue only while the remaining authorized
+output-token, turn, and USD envelopes admit them. F-PT-022 ratified this interpretation
+on 2026-08-05; it did not change golden expected behavior or quality thresholds.
 
 The L5 soak config schema is `tests/ops/soak-protocol.ts`: exact sandbox
 org/apps/repos, commit, local time zone, and the same human authorization envelope.

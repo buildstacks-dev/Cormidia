@@ -1,5 +1,5 @@
 // Hand-rolled L4 data-collection runner. It aggregates per exact tuple, rotates
-// committed shards, enforces a declared token ceiling before each case, and
+// committed shards, enforces a declared output-token ceiling before each case, and
 // always delegates final completeness/verdict semantics to DurableCampaignRunner.
 
 import { createHash } from "node:crypto";
@@ -114,6 +114,7 @@ export interface EvalResultsV1 {
   schema_version: 1;
   campaign_id: string;
   producer_digest: string;
+  token_unit: "output_tokens";
   token_ceiling: number;
   observed_tokens: number;
   selected_case_ids: string[];
@@ -147,6 +148,7 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
     schema_version: 1,
     campaign_id: options.campaignId,
     producer_digest: options.producerDigest,
+    token_unit: "output_tokens",
     token_ceiling: options.maxTokens,
     observed_tokens: 0,
     selected_case_ids: selected.map((item) => item.id),
@@ -190,9 +192,9 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
             await persist(options.stateHome, results);
             throw error;
           }
-          const tokens = execution.tokensIn + execution.tokensOut;
-          results.observed_tokens += tokens;
-          if (tokens > evalCase.token_reservation) {
+          const outputTokens = execution.tokensOut;
+          results.observed_tokens += outputTokens;
+          if (outputTokens > evalCase.token_reservation) {
             const error = new Error(`eval ${caseKey} exceeded its token reservation`);
             results.stopped_on_token_ceiling = results.observed_tokens >= options.maxTokens;
             results.attempts.push(attempt(tuple, evalCase, "token_reservation_exceeded", execution, error));
@@ -387,7 +389,7 @@ function aggregate(observations: EvalObservation[], tuples: EvalTuple[]): EvalRe
       reference_matches: rows.filter((item) => item.matches_reference === true).length,
       reference_mismatches: rows.filter((item) => item.matches_reference === false).length,
       unscored: rows.filter((item) => item.matches_reference === null).length,
-      tokens: rows.reduce((sum, item) => sum + item.tokens_in + item.tokens_out, 0),
+      tokens: rows.reduce((sum, item) => sum + item.tokens_out, 0),
       equiv_usd: Math.round(rows.reduce((sum, item) => sum + item.equiv_usd, 0) * 1_000_000) / 1_000_000,
     };
   });

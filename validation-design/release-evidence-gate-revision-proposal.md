@@ -118,7 +118,7 @@ SHA-256 becomes `qualification_id`. The closed schema binds:
 - every golden-set path/digest, reference status, rubric version, judge tuple, and
   candidate/baseline tuple;
 - exact required case/attempt identities for every lane;
-- L3/L4 ceiling envelopes and typed retry policies;
+- L3/L4 ceiling envelopes (L4 tokens are output-only per F-PT-022) and typed retry policies;
 - human campaign authorization identity, time, purpose, and approval reference; and
 - evidence-output namespace `release-evidence/<version>/<qualification_id>/`.
 
@@ -385,7 +385,10 @@ The underlying inconclusive/fail evidence is immutable in every row.
 - Future L5 assurance (outside RQ-1): 24 turns / $15 when separately authorized.
 - L4 has no ratified global numeric ceiling. The exact token, provider-turn, and
   equivalent-USD ceilings must therefore be supplied and human-authorized in each
-  immutable campaign manifest. This proposal does not invent one.
+  immutable campaign manifest. F-PT-022 ratified on 2026-08-05 that L4 token
+  reservations and ceilings count output tokens only; input/cache usage remains
+  preserved telemetry and equivalent-USD input. This proposal does not invent a
+  global numeric value.
 
 ### 10.4 Evaluator debt admission
 

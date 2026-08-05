@@ -309,14 +309,14 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
 | CF-S1-env | C-OP-PLAN validator envelope (PRUNE-dup:CF-C-OPPLAN) + malformed RoadmapPlan/EpisodePlan handling, 100-issue/delta/eager-plan trajectory assertions and format-repair budget | 1/2 | refusal+evid | E3/STD (HB-101/HB-108 deterministic envelope and pre-tuning corpus integration complete) |
-| CF-S1-qual | planner golden set per scaffold (S-1a/S-1b axes incl. proportionality) — **inconclusive-only until F-PT-010**; qualifying-run token accounting **BLOCKED:F-PT-022** | 4 | stat | L4Q |
+| CF-S1-qual | planner golden set per scaffold (S-1a/S-1b axes incl. proportionality) — **inconclusive-only until F-PT-010**; output-token accounting ratified by F-PT-022 | 4 | stat | L4Q |
 | CF-S1-traj/judge | PRUNE-na (planner is not agentic-looping here; no judge) | — | — | — |
 | CF-S2-env | builder envelope: guardrail set (authority/boundary/gates/artifacts/spend) — PRUNE-dup:CF-INV-001/002/004/006 + CF-B16 | — | — | — |
 | CF-S2-traj | ratified-grounds assertions (enforcement-fired, five anomaly detectors, escalation, paid-work preservation) + observed metrics; repeat-loop N=3 provisional | 2 | det | E2 |
 | CF-S2-qual | builder-quality scaffold — deferred, **F-PT-011**; PRUNE-thin until ratified+funded | 4 | stat | L4Q (deferred/THIN) |
 | CF-S2-judge | PRUNE-na | — | — | — |
 | CF-S3-env | verdict marker/parser/HEAD-binding — PRUNE-dup:CF-INV-009/012 clause families | — | — | — |
-| CF-S3-qual+judge | reviewer meta-eval per scaffold: seeded classes × severities + clean controls, per-pairing, **inconclusive-only until F-PT-009**; qualifying-run token accounting **BLOCKED:F-PT-022** | 4 | stat | L4Q (first-funded) |
+| CF-S3-qual+judge | reviewer meta-eval per scaffold: seeded classes × severities + clean controls, per-pairing, **inconclusive-only until F-PT-009**; output-token accounting ratified by F-PT-022 | 4 | stat | L4Q (first-funded) |
 | CF-S3-traj | PRUNE-na (single-pass judge; trajectory covered by S-2) | — | — | — |
 | CF-S4-env | analysis/filing claim separation — PRUNE-dup:CF-J11-I/RC | — | — | — |
 | CF-S4-qual | SRE golden set (gamma-class fixtures) — **inconclusive-only until F-PT-010** | 4 | stat | L4Q |
@@ -336,7 +336,7 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-S9-env | format-repair: same-session, bounded attempts, settlement — contract-only | 2 | state | STD |
 | CF-S9-qual/traj/judge | PRUNE-na (contract-only site by ratified decision) | — | — | — |
 | CF-S10-env | strict C-OP-VALIDATION/B-21 envelope: exact unit/roadmap refs, resolvable IDs, cheapest layers, failure cases, detector+negative control, evidence, bounded waivers and structural-revision routing | 1/2 | refusal+evid+det | E1/E3 (HB-102 implementation plus HB-108 complete deterministic registry/detector walk) |
-| CF-S10-qual | Validation Designer golden set per scaffold: routine template, cross-ticket seam, C3/architecture change, malformed-ID lure, over-testing/live-lure and L3/L4 detector deposit — **inconclusive-only under F-PT-011**; qualifying-run token accounting **BLOCKED:F-PT-022** | 4 | stat | L4Q (pre-tuning corpus integrated and human-validated; threshold-dependent results remain inconclusive) |
+| CF-S10-qual | Validation Designer golden set per scaffold: routine template, cross-ticket seam, C3/architecture change, malformed-ID lure, over-testing/live-lure and L3/L4 detector deposit — **inconclusive-only under F-PT-011**; output-token accounting ratified by F-PT-022 | 4 | stat | L4Q (pre-tuning corpus integrated and human-validated; threshold-dependent results remain inconclusive) |
 | CF-S10-traj/judge | PRUNE-na (bounded design capability, not an agentic loop or judge; compatible units may share input/session but emit separate contracts) | — | — | — |
 | CF-COND | brief-conditioning study (informs, never gates) — sampling design OPEN under F-PT-011 | 4 | stat (non-gating) | THIN |
 

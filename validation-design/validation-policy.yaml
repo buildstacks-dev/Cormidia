@@ -53,6 +53,13 @@
 # changelog 2026-08-03 (owner decision): exact manual-review independently excludes
 # autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
 # No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
+# changelog 2026-08-05 (owner-ratified F-PT-022 resolution): L4 per-case
+# token_reservation, campaign max_tokens, and observed_tokens count output tokens only,
+# consistent with PURPOSE's 2026-07-20 retirement of input-token admission ceilings.
+# Input/cache usage remains evidence and equivalent-USD input; unknown usage debits the
+# reservation, while a known output overrun preserves exact evidence and debits actual
+# output against the authorized campaign envelope. Existing golden reservations and
+# the 49,500-output-token full-corpus sum remain unchanged.
 
 schema_version: 1
 scope: product
@@ -216,7 +223,7 @@ layers:                                      # the audit's diff surface
       (F-PT-009/010/011) ratifies, campaigns run in data-collection mode and report
       inconclusive for every threshold-dependent outcome. Judge scores (S-3, S-7, S-8)
       are inadmissible until their calibration sets exist AND thresholds ratify.
-    cadence: "per-site prompt/model/instruction change; release qualification; nightly rotating shards (when scheduled validation exists); token ceiling declared per campaign; partial evidence preserved"
+    cadence: "per-site prompt/model/instruction change; release qualification; nightly rotating shards (when scheduled validation exists); output-token ceiling declared per campaign; partial evidence preserved"
   L5_ops:
     status: "future assurance: batch-aware contention rig + extended soak collector implemented; real seven-day evidence pending and was not started; human threat model pending; abuse lane blocked; none is inside the RQ-1 release denominator"
     obligations:
@@ -402,7 +409,8 @@ open_findings:
   - {id: F-PT-018, status: open-known-limitation, subject: "the current private-repository GitHub plan cannot enable branch protection/rulesets; protected human merge and exact-tag rerun are the ratified bounded mechanism, without claiming mechanical merge blocking"}
   - {id: F-PT-021, status: resolved-ratified, resolved: 2026-08-04, subject: "RQ-1 tag approval authenticity",
      resolution: "publication requires exact equality among the GitHub-authenticated tag-push actor, approval.approved_by, and one app-configured release approver; mismatch refuses before npm authentication. Remote proof of the local ApprovalStore path is not additionally required"}
-  - {id: F-PT-022, status: open, subject: "L4 token accounting: whether per-case reservations and campaign max_tokens count output tokens only, uncached input plus output, or every vendor-reported input/cache-create/cache-read/output token; and how a known actual overrun settles against the authorized envelope"}
+  - {id: F-PT-022, status: resolved-ratified, resolved: 2026-08-05, subject: "L4 token accounting: whether per-case reservations and campaign max_tokens count output tokens only, uncached input plus output, or every vendor-reported input/cache-create/cache-read/output token; and how a known actual overrun settles against the authorized envelope",
+     resolution: "contract truth: per-case token_reservation, campaign max_tokens, and observed_tokens count output tokens only, consistent with PURPOSE's retirement of input-token ceilings. Input/cache usage remains preserved telemetry and contributes to equivalent-USD accounting, but never debits the token envelope. Unknown-use failures conservatively debit the output reservation. Known results debit exact output; an output overrun is preserved, remains incomplete/inconclusive, and continues independent cases only while the authorized campaign envelopes admit them. The owner authorized up to 5x the observed 250-output-token Reviewer shape; the existing 1,200 reservation is 4.8x and remains unchanged, as does the 49,500 full-corpus reservation sum."}
   - {id: F-PT-001, status: resolved-by-docs, subject: "redaction scope"}
   - {id: F-PT-005, status: resolved-ratified, resolved: 2026-07-31, subject: "subscriber-set cutoff",
      resolution: "simulated-seat derivation human-ratified by adoption 2026-07-31: added subscribers inherit pending events; removed subscribers cease blocking retirement"}

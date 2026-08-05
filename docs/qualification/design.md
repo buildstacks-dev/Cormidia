@@ -4,8 +4,9 @@
 > L3/L4/L5 runners are implemented under `tests/`, with the current
 > contract in `validation-design/validation-policy.yaml`. Release gating remains
 > **SUSPENDED**: no authorized external campaign or seven-day soak was run in the
-> implementation change, reviewer/planner human references and thresholds remain
-> pending, the human-authored threat model does not yet exist, and required-check
+> implementation change, current Reviewer/Planner/Validation Designer references are
+> human-validated while thresholds remain pending, the human-authored threat model
+> does not yet exist, and required-check
 > enforcement remains blocked by F-PT-018. Implemented machinery is not release
 > evidence. PURPOSE v2.14 records one narrow owner-ratified exception permitting
 > publication of exactly `cormidia@0.1.1` after the complete token-free suite,
@@ -51,8 +52,9 @@ exceedable.
 
 The L4 config schema is `tests/eval-runner/cli.ts`: exact tuples, absolute
 committed golden-set files, a token ceiling, provider-turn/equivalent-cost ceilings,
-and an optional dated rotating shard. Results never pool tuples. The reviewer and
-planner sets are build-agent authored but still carry `human_validation=pending`.
+and an optional dated rotating shard. Results never pool tuples. The Reviewer, Planner,
+and Validation Designer sets retain their agent authors and carry attributable human
+validation by `bikramgupta` as of 2026-08-04.
 F-PT-009/010/011 and decision-register items 9–12 remain proposed, so
 threshold-dependent results are always `inconclusive`; the command exits 2 rather than
 misrepresenting data collection as a pass.

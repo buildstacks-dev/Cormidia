@@ -29,7 +29,7 @@ async function main(): Promise<number> {
   const cases = (await Promise.all(binding.trackedInputPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown[]))).flat() as EvalCaseV1[];
   validateCases(cases);
   const selected = config.shard === null ? cases : selectRotatingShard(cases, config.shard.date, config.shard.count);
-  const required = config.tuples.flatMap((tuple) => selected.map((evalCase) => `${tuple.id}::${evalCase.id}`));
+  const required = config.tuples.flatMap((tuple) => selected.filter((evalCase) => evalCase.site === tuple.site).map((evalCase) => `${tuple.id}::${evalCase.id}`));
   const campaign = new DurableCampaignRunner({
     stateHome: config.state_home,
     campaignId: config.campaign_id,

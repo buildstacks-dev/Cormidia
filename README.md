@@ -544,7 +544,7 @@ legacy suite remains frozen under `archive-do-not-read/` — never read, cite, o
 it. The ratified contract is `validation-design/validation-policy.yaml`; the executable
 L1/L2 harness plus opt-in L3/L4/L5 runners live in `tests/`. Release gating is
 still **suspended**: live campaigns and the real seven-day soak have not run, eval
-references/thresholds remain pending, the human threat model is not authored, and
+thresholds remain pending, the human threat model is not authored, and
 required-check enforcement is blocked by F-PT-018. Implemented machinery is not
 release evidence.
 
@@ -836,15 +836,16 @@ the validation rebuild — see Testing above.)
   complete seven-destination campaign authority, and exact role-safe context/session/
   cache evidence. Product-roadmap planning and ticket delivery now share the
   `orchestrateEpisode` façade without collapsing RoadmapPlan into EpisodePlan. HB-108
-  closes the deterministic catalog and integrates the still-human-pending pre-tuning
+  closes the deterministic catalog and integrates the now-human-validated pre-tuning
   corpora; HB-109 closes contention/collector machinery without running the seven-day
   soak; HB-110 adds shared Status/JSON/Report/Observe explanations. External evidence,
-  human reference review, and HB-111's separately approved protocol-surface proposal
+  threshold decisions and HB-111's separately approved protocol-surface proposal
   remain outstanding.
 
 - **Release gating remains suspended.** L3/L4/L5 runners exist, but no authorized
   external campaign or seven-day soak was executed in this implementation change;
-  reviewer/planner human references and thresholds remain pending, HB-072 awaits a
+  current Reviewer/Planner/Validation Designer references are human-validated while
+  thresholds remain pending, HB-072 awaits a
   human-authored threat model, B-17-L3 is blocked, and F-PT-018 prevents the current
   private-repo CI check from being enforced as merge-blocking. No green claim follows
   from any of those absences.

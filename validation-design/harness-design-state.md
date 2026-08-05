@@ -130,9 +130,14 @@ typecheck`, `pnpm build`, and `git diff --check` passed. No L3/L4/L5 campaign ra
   HB-051…054 evidence remains incomplete—not pass. B-17-L3 remains blocked.
 - L4: the per-tuple data-collection runner, rotating shards, token reservations, and
   reviewer/planner/Validation-Designer/builder-trajectory committed sets are implemented.
-  Reviewer, Planner and Validation Designer human reference review remains pending;
+  Reviewer, Planner and Validation Designer expected behaviors were human-validated by
+  `bikramgupta` on 2026-08-04 without replacing the agent authors;
   F-PT-009/010/011 keep every
   threshold-dependent verdict inconclusive.
+- Release enforcement: F-PT-021 is open-blocked-gate. The offline tag-envelope
+  binding is implemented, but the GitHub workflow cannot independently authenticate
+  that its asserted human approval originated in B-17; activation must not guess an
+  authenticity mechanism before the human threat-model/owner decision.
 - L5: CF-OPS-CONT's ratified contention rig is implemented through overlapping batches,
   duplicate stimuli, atomic multi-ticket claims, per-unit settlement, sibling isolation
   and stale frontiers. The resumable seven-day soak/rotation collector records the same

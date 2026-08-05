@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readValidationCampaignReports } from "../../../src/org/validation-campaign.js";
+import { compositeGradeKey, digestJson } from "../../../src/org/release-evidence.js";
 import { DurableCampaignRunner } from "../../campaign/campaign-runner.js";
 import { runEvalCampaign, selectRotatingShard, validateCases, type EvalCaseV1, type EvalTuple } from "../../eval-runner/eval-runner.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
@@ -18,8 +19,8 @@ const cases: EvalCaseV1[] = [
   golden("REV-CORR-001", "REJECT"),
 ];
 const tuples: EvalTuple[] = [
-  { id: "builder-a__reviewer-a", runtime: "claude", model: "m-a", effort: "medium", maxCaseCostUsd: 1 },
-  { id: "builder-a__reviewer-b", runtime: "codex", model: "m-b", effort: "medium", maxCaseCostUsd: 1 },
+  { id: "builder-a__reviewer-a", site: "reviewer", operation: "review", arm: "bootstrap", producerTuple: "fixture", evaluatorTuple: "reviewer/claude/m-a/medium", rubricVersion: "reviewer-v1", attemptId: "attempt-1", promptInputDigest: "a".repeat(64), rubricDigest: "b".repeat(64), graderDigest: "c".repeat(64), runtime: "claude", model: "m-a", effort: "medium", maxCaseCostUsd: 1 },
+  { id: "builder-a__reviewer-b", site: "reviewer", operation: "review", arm: "bootstrap", producerTuple: "fixture", evaluatorTuple: "reviewer/codex/m-b/medium", rubricVersion: "reviewer-v1", attemptId: "attempt-1", promptInputDigest: "a".repeat(64), rubricDigest: "b".repeat(64), graderDigest: "d".repeat(64), runtime: "codex", model: "m-b", effort: "medium", maxCaseCostUsd: 1 },
 ];
 
 function golden(id: string, verdict: "APPROVE" | "REJECT"): EvalCaseV1 {
@@ -60,6 +61,15 @@ describe("eval runner", () => {
       expect.objectContaining({ tuple_id: "builder-a__reviewer-a", observations: 3, reference_matches: 3 }),
       expect.objectContaining({ tuple_id: "builder-a__reviewer-b", observations: 3, reference_mismatches: 2 }),
     ]);
+    const first = results.observations[0]!;
+    expect(first.grading_key).toBe(compositeGradeKey({
+      output_sha256: first.output_sha256,
+      case_digest: digestJson(cases[0]!),
+      context_digest: digestJson({ case_digest: digestJson(cases[0]!), prompt_input_digest: tuples[0]!.promptInputDigest }),
+      rubric_digest: tuples[0]!.rubricDigest,
+      reference_digest: digestJson(cases[0]!.expected),
+      grader_digest: tuples[0]!.graderDigest,
+    }));
     expect((await runner.finish()).outcome).toMatchObject({ completeness: "complete", verdict: "inconclusive", decision_status: "proposed" });
   });
 
@@ -124,7 +134,17 @@ describe("eval runner", () => {
     })).rejects.toThrow(/invalid token usage/);
   });
 
-  it("integrates the pre-tuning Planner and Validation Designer corpora as pending, unscored data collection", async () => {
+  it("negative control: refuses a tuple or selected site with zero execution coverage", async () => {
+    const plannerTuple: EvalTuple = { ...tuples[0]!, site: "planner", operation: "plan" };
+    const runner = await campaign([`${plannerTuple.id}::${cases[0]!.id}`], 1);
+    await expect(runEvalCampaign({
+      campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
+      cases: [cases[0]!], tuples: [plannerTuple], maxTokens: 100,
+      executor: { execute: async () => { throw new Error("must not execute"); } },
+    })).rejects.toThrow(/tuple site planner has no selected cases|selected reviewer cases but no exact tuple/);
+  });
+
+  it("integrates the human-validated Planner and Validation Designer corpora as unscored data collection", async () => {
     const corpusPaths = [
       join(process.cwd(), "validation-design", "golden-sets", "planner", "cases.json"),
       join(process.cwd(), "validation-design", "golden-sets", "validation-designer", "cases.json"),
@@ -133,20 +153,24 @@ describe("eval runner", () => {
       JSON.parse(await readFile(path, "utf8")) as EvalCaseV1[]))).flat();
     validateCases(corpora);
     expect(new Set(corpora.map((item) => item.site))).toEqual(new Set(["planner", "validation-designer"]));
-    expect(corpora.every((item) => item.provenance.human_validation === "pending")).toBe(true);
+    expect(corpora.every((item) => item.provenance.human_validation === "validated" && item.provenance.validated_by === "bikramgupta")).toBe(true);
 
     const selected = [
       corpora.find((item) => item.id === "GS-PLAN-S1A-ROADMAP-100-001")!,
       corpora.find((item) => item.id === "GS-VAL-S10-CROSS-TICKET-001")!,
     ];
-    const required = selected.map((item) => `${tuples[0]!.id}::${item.id}`);
+    const siteTuples: EvalTuple[] = [
+      { ...tuples[0]!, site: "planner", operation: "plan", producerTuple: "planner/claude/m-a/medium", evaluatorTuple: "human:bikramgupta", rubricVersion: "planner-v1" },
+      { ...tuples[1]!, site: "validation-designer", operation: "validation-design", producerTuple: "validation-designer/codex/m-b/medium", evaluatorTuple: "human:bikramgupta", rubricVersion: "validation-designer-v1" },
+    ];
+    const required = siteTuples.map((tuple) => `${tuple.id}::${selected.find((item) => item.site === tuple.site)!.id}`);
     const runner = await campaign(required, required.length + 1);
     const results = await runEvalCampaign({
       campaign: runner,
       campaignId: "eval-test",
       stateHome: state!.stateHome,
       cases: selected,
-      tuples: [tuples[0]!],
+      tuples: siteTuples,
       maxTokens: 20_000,
       executor: { execute: async ({ evalCase }) => ({
         output: `Fixture response for ${evalCase.id}`,
@@ -160,7 +184,7 @@ describe("eval runner", () => {
     expect(results.observations.every((item) =>
       item.observed_verdict === "not_applicable"
       && item.matches_reference === null
-      && item.human_reference_status === "pending")).toBe(true);
+      && item.human_reference_status === "validated")).toBe(true);
     expect((await runner.finish()).outcome).toMatchObject({
       completeness: "complete",
       verdict: "inconclusive",

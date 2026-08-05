@@ -1,8 +1,9 @@
-# S-3 Reviewer meta-eval — STATUS: POPULATED / HUMAN REFERENCE REVIEW PENDING
+# S-3 Reviewer meta-eval — STATUS: POPULATED / HUMAN REFERENCES VALIDATED
 `cases.json` contains the first committed seeded-defect and clean-control set,
-authored before prompt tuning. It may be used for data collection now, but cannot
-support model-swap or qualification evidence until a human validates the reference
-labels and F-PT-009 ratifies the statistical decision rule. FIRST-FUNDED.
+authored before prompt tuning. It has human-validated reference labels as of
+2026-08-04, but cannot support automatic
+model-swap or qualification verdicts until F-PT-009 ratifies the statistical decision
+rule. FIRST-FUNDED.
 
 Rubric axes: catch-by-severity over seeded defect classes (correctness, security,
 evidence-fabrication, contract violation, secret exposure) · clean-change

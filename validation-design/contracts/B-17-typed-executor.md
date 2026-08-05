@@ -9,12 +9,19 @@ Status: DRAFT (Phase 4). Defends INV-003/014, T-12. Journeys J-05/J-11/J-17.
   execution consumes exactly one matching decided grant (INV-003).
 - Release handoff requires the app's declared `release:` mechanism and owner; a
   deployable milestone with no declared mechanism fails the ship gate (A4 `[doc]`).
+- An RQ-1 package/tag handoff additionally requires the exact squash-merge commit,
+  one qualified evidence-only packet for the declared version, and a canonical
+  post-merge attestation derived from immutable git objects. The queued action binds
+  that attestation digest; no plain-tag compatibility path is admissible.
 
 ## 2. Output guarantees
 - Durable execution record `approved → executing → executed | failed | ambiguous`, with
   attempt, actor, result, remote reference, and next action `[doc]`.
 - Acknowledgement is a distinct fact from the decision (T-12); no surface renders
   approved as executed (INV-008).
+- For RQ-1, the typed executor derives the release-approval record from the attributable
+  human decision, embeds approval plus attestation in the annotated tag, and invokes
+  `git tag`/`git push` as argument arrays rather than interpolated shell text.
 - **Acceptance vs completion:** for asynchronous targets, "accepted" (e.g. 202) is
   recorded as accepted — completion is a separately verified fact; the record never
   jumps to `executed` on acceptance alone `[elicited]`.
@@ -28,6 +35,8 @@ Status: DRAFT (Phase 4). Defends INV-003/014, T-12. Journeys J-05/J-11/J-17.
   target authentication failed.
 - Idempotency-marker disagreement (our record vs target state) → `ambiguous` with both
   states recorded — the machine never picks the greener story (INV-008).
+- Missing, modified, stale, non-human-approved, or digest-mismatched RQ-1 attestation
+  refuses before grant consumption and before tag creation.
 
 ## 4. Idempotency
 - At-most-once execution per grant; markers checked **before** any attempt and **typed

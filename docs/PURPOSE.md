@@ -142,6 +142,22 @@ and agent definitions.
   learning, budget, and CI boundary remains intact. `docs/DEVELOPMENT.md` and
   `docs/qualification/benchmark-runbook.md` carry the detailed shipping policy.
 
+- **Replacement release-evidence gate** (ratified 2026-08-04). Release
+  qualification is restored through RQ-1: deterministic contracts admit the
+  exact candidate before spend; bounded L3/L4/L5 evidence remains separate by
+  completeness and verdict; candidate/baseline quality evidence is paired per
+  site and exact producer/evaluator tuple; uncalibrated judge scores remain
+  advisory; evaluator debt can be accepted only as a separate immutable human
+  disposition and never rewrites failed or inconclusive evidence. One canonical
+  manifest binds commit, package bytes, policy, prompts, assignments, golden
+  references, tools and ceilings. A deterministic attestation admits only a
+  content-bound evidence-only descendant whose package and qualification inputs
+  are identical. The supported tag/npm path verifies that attestation and still
+  requires a separate exact human release approval. F-PT-018 remains an honest
+  merge-enforcement limitation; release verification reruns the mandatory gates
+  on the tag candidate. The gate cannot activate until the human-authored and
+  human-reviewed TM-01…TM-10 threat model and its abuse-case detectors exist.
+
 - **Cormidia platform-development authority is independently governed**
   (ratified 2026-07-16; original operational exclusion superseded by the
   self-hosting decision of 2026-08-02). The standing org may operate the
@@ -1057,3 +1073,11 @@ will resolve them.
   F-PT-008 (grant-expiry item disposition) is adjacent but **not** resolved
   here: it concerns an item whose grant expires after a decision, whereas
   F-PT-020 concerns an item that was never decided. It remains open.
+- 2026-08-04 — v2.16: RQ-1 replacement release qualification ratified. The
+  0.1.1 exception remains non-evidence; the first replacement campaign is a
+  bootstrap baseline. Absolute F-PT-009/010/011 hypotheses are not adopted.
+  L4 uses paired evidence and human disposition until separately ratified judge
+  calibration exists; deterministic trajectory remains outside the artifact
+  judge. Release currency, attestation, evaluator-debt disclosure, exact package
+  equivalence, and the supported human-approved tag/npm enforcement path are
+  binding as described in validation-design/release-evidence-gate-revision-proposal.md.

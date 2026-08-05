@@ -27,6 +27,7 @@ import { cmdRetro } from "./cli/retro.js";
 import { cmdRunRole } from "./cli/run-role.js";
 import { cmdStatus } from "./cli/status.js";
 import { cmdPublication } from "./cli/publication.js";
+import { cmdRelease } from "./cli/release.js";
 import { cmdTelemetry } from "./cli/telemetry.js";
 import { cmdTask } from "./cli/task.js";
 import { cmdOrg } from "./cli/org.js";
@@ -120,6 +121,9 @@ Usage:
                            show recent L1/L2 run status
   cormidia publication <list|resume> [--app <app>] [--id <publication-id>] [--json]
                            inspect or resume prepared Planner publication
+  cormidia release <package-manifest|snapshot|prepare|assess|attest|tag-message|verify> ...
+                           build or verify an offline RQ-1 evidence packet;
+                           never runs a campaign, tags, or publishes
   cormidia analyze [--state-home <path>] [--app <app>] [--json]
                            report L1/L2 anomaly flags and recommendations
   cormidia telemetry [--app <app>] [--date YYYY-MM-DD] [--json] [--html <path>]
@@ -185,6 +189,16 @@ Templates are selected explicitly; free-form goal text never selects one. typesc
   budget: `Usage: cormidia budget [--apps <apps.yaml-path>] [--reconcile] [--json]${HOME_HELP}\n\n--reconcile terminalizes stale provider receipts, settles missing terminal provider steps, and back-fills legacy runs/**/envelope.json evidence. Current rows are idempotent by app+provider_turn_id; legacy rows fall back to app+run_id.`,
   status: `Usage: cormidia status [--app <app-name>] [--limit N] [--json]${HOME_HELP}`,
   publication: `Usage:\n  cormidia publication list [--app <app-name>] [--json]\n  cormidia publication resume --app <app-name> --id <publication-id> [--json]${HOME_HELP}\n\nResume replays only the durable Planner publication transaction. It never invokes a provider, never creates a competing branch, and refuses a conflicting remote ref.`,
+  release: `Usage:
+  cormidia release package-manifest --tarball <absolute-path> --output <absolute-path> [--json]
+  cormidia release snapshot --repo <absolute-path> --output <absolute-path> [--json]
+  cormidia release prepare --repo <absolute-path> --input <absolute-path> --tarball <absolute-path> --output <absolute-path> [--json]
+  cormidia release assess --manifest <absolute-path> --deterministic-evidence <absolute-path> --l4-evidence <absolute-path> --campaign-evidence <absolute-path> [--debt-dispositions <absolute-path>] [--evidence-change-dispositions <absolute-path>] --generated-at <ISO-8601> --output <absolute-path> [--json]
+  cormidia release attest --repo <absolute-path> --packet <absolute-path> --release-commit <oid> --tag <vX.Y.Z> --tarball <absolute-path> --release-action <absolute-path> --created-at <ISO-8601> --output <absolute-path> [--json]
+  cormidia release tag-message --attestation <absolute-path> --approval <absolute-path> --output <absolute-path> [--json]
+  cormidia release verify --repo <absolute-path> --packet <absolute-path> --tag <vX.Y.Z> --tarball <absolute-path> [--tag-message <absolute-path>] [--json]${HOME_HELP}
+
+RQ-1 operator tooling is deterministic and provider-free. Outputs are immutable. Prepare binds a clean tracked HEAD and exact tarball; assess preserves every lane verdict and requires exact evaluator-debt dispositions; attest permits only the ratified evidence namespace; tag-message embeds the content-bound attestation and separate human approval in an annotated tag; verify binds packet, current commit/tag, tarball, and approval. These commands never run L3/L4/L5, create or push a tag, publish npm, or manufacture a human decision.`,
   analyze: `Usage: cormidia analyze [--app <app-name>] [--json]${HOME_HELP}`,
   telemetry: `Usage: cormidia telemetry [--app <app-name>] [--date YYYY-MM-DD] [--json] [--html <path>]${HOME_HELP}\n\nHistorical view over runs/**/envelope.json: per-ticket trace blocks, role/model/ticket cost totals, and still-running passes. --html writes a self-contained static report (Gantt + pass table + cost attribution).`,
   report: `Usage: cormidia report [--app <app-name>] [--period 7d|30d|90d|1y|all] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--bucket auto|day|week|month] [--json] [--html <path>] [--open] [--summary-only]${HOME_HELP}\n\nDeterministic, token-free, ledger-first management report. The default is the trailing 90 UTC calendar days. JSON and portable HTML are exhaustive unless --summary-only is explicit. --html writes only the selected target; report generation never reconciles or mutates Cormidia state.`,
@@ -241,6 +255,7 @@ const COMMANDS: Record<string, CliCommand> = {
   "run-role": { run: (args) => cmdRunRole(args), help: HELP["run-role"] },
   status: { run: (args) => cmdStatus(args), help: HELP.status },
   publication: { run: (args) => cmdPublication(args), help: HELP.publication },
+  release: { run: (args) => cmdRelease(args), help: HELP.release },
   telemetry: { run: (args) => cmdTelemetry(args), help: HELP.telemetry },
   report: { run: (args) => cmdReport(args), help: HELP.report },
   narrative: { run: (args) => cmdNarrative(args), help: HELP.narrative },

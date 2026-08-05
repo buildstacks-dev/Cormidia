@@ -1,9 +1,9 @@
-# S-10 Validation Designer — STATUS: POPULATED / HUMAN REFERENCE REVIEW PENDING
+# S-10 Validation Designer — STATUS: POPULATED / HUMAN REFERENCES VALIDATED
 
 `cases.json` is the pre-tuning seed set for the governed validation-design capability.
 It is not a new free-running organizational role. Data collection is permitted;
-qualification evidence remains inadmissible until human reference review and F-PT-011
-ratification.
+references were human-validated on 2026-08-04; automatic qualification verdicts remain
+inadmissible until F-PT-011 ratification.
 
 Rubric axes: consequence coverage · correct accepted IDs · boundary/state-owner
 recognition · cheapest falsifying layer · detector and negative-control quality ·

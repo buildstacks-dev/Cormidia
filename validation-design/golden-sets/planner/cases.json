@@ -8,7 +8,7 @@
     "prompt": "Plan a change that adds `--json` output to one existing read-only CLI command. The parser and command already exist; no schema or persistence changes are needed. Produce a TicketPlan with dependencies and binary acceptance criteria.",
     "expected": { "rubric_anchors": ["One implementation ticket is proportionate", "Acceptance covers valid JSON and unchanged text mode", "No deployment or multi-team ceremony"] },
     "token_reservation": 1800,
-    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["C-OP-PLAN", "llm-eval-plan.md S-1"], "human_validation": "pending" }
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["C-OP-PLAN", "llm-eval-plan.md S-1"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -19,7 +19,7 @@
     "prompt": "Plan adding a new persisted field, then exposing it in a read-only report. The reader cannot ship before the writer/schema migration. Produce a TicketPlan with an acyclic dependency graph and mapped binary acceptance criteria.",
     "expected": { "rubric_anchors": ["Writer/schema work precedes presentation", "DAG is acyclic", "Each acceptance criterion maps to one owned ticket"] },
     "token_reservation": 2200,
-    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["contracts/OP-planning.md", "CORMIDIA-INV-008"], "human_validation": "pending" }
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["contracts/OP-planning.md", "CORMIDIA-INV-008"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -30,7 +30,7 @@
     "prompt": "Design the execution episode for a defect fix that changes runtime code and must deposit a failing-then-passing detector. The branch already exists. Include only necessary provider/mechanical steps and explicit stop conditions.",
     "expected": { "rubric_anchors": ["Implementation and detector are in the same episode", "Review follows green deterministic gates", "No redundant planning turn after scope is fixed"] },
     "token_reservation": 2200,
-    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["validation-policy.yaml case_sourcing", "contracts/OP-loop.md"], "human_validation": "pending" }
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["validation-policy.yaml case_sourcing", "contracts/OP-loop.md"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -41,7 +41,7 @@
     "prompt": "Design an episode for behavior whose product contract is explicitly marked BLOCKED:F-PT-999 pending a human decision. Produce the safe next actions and publication state.",
     "expected": { "rubric_anchors": ["No guessed behavior is implemented", "Dependent work remains blocked", "Human decision request is explicit and no ticket is marked execution-ready"] },
     "token_reservation": 1800,
-    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["validation-policy.yaml blocked-work rule", "contracts/OP-planning.md"], "human_validation": "pending" }
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-07-31", "source_refs": ["validation-policy.yaml blocked-work rule", "contracts/OP-planning.md"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -52,7 +52,7 @@
     "prompt": "Groom a bounded batch containing one unlabelled, low-risk issue with binary acceptance criteria, an explicit file scope, priority, tier, and no unmet dependency. Produce a readiness decision without asking Builder to inspect untriaged work.",
     "expected": { "rubric_anchors": ["The issue is visible despite lacking op:ready", "Routine readiness is explicit and attributable to Planner", "The decision preserves binary acceptance criteria and does not add work outside the issue"] },
     "token_reservation": 1600,
-    "provenance": { "author": "Codex build agent", "authored_at": "2026-08-03", "source_refs": ["issue #230", "docs/loop/design.md Issue intake"], "human_validation": "pending" }
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-08-03", "source_refs": ["issue #230", "docs/loop/design.md Issue intake"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -63,7 +63,7 @@
     "prompt": "Groom two unlabelled issues: one touches authentication and one has no mapped validation criteria. Decide readiness for each and give an explicit reason for every issue left unready.",
     "expected": { "rubric_anchors": ["Neither issue is silently omitted", "The authentication issue remains unready as high risk", "The validation-incomplete issue remains unready with a specific validation reason", "No op:ready transition is proposed for either issue"] },
     "token_reservation": 1800,
-    "provenance": { "author": "Codex build agent", "authored_at": "2026-08-03", "source_refs": ["issue #230", "validation-policy.yaml case_sourcing"], "human_validation": "pending" }
+    "provenance": { "author": "Codex build agent", "authored_at": "2026-08-03", "source_refs": ["issue #230", "validation-policy.yaml case_sourcing"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -74,7 +74,7 @@
     "prompt": "Organize the referenced 100-issue mixed backlog snapshot into stable outcome-oriented workstreams and reviewable delivery units. Account for every issue, publish a bounded ready frontier, and do not create delivery EpisodePlans for backlog members.",
     "expected": { "rubric_anchors": ["Every issue has exactly one membership or typed unassigned reason", "Workstream and delivery-unit identities are stable and dependencies acyclic", "The ready frontier is bounded and validation/routing complete", "No one-provider-turn-per-ticket or eager delivery planning"] },
     "token_reservation": 12000,
-    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["issue #233", "contracts/OP-planning.md", "CORMIDIA-C-B20-001"], "human_validation": "pending" }
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["issue #233", "contracts/OP-planning.md", "CORMIDIA-C-B20-001"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -85,7 +85,7 @@
     "prompt": "Update an accepted RoadmapPlan after three of its 100 issues changed: one closed, one gained routing:human-only, and one added a dependency. Consume the prior plan plus the supplied delta; preserve stable identities and explain every changed disposition.",
     "expected": { "rubric_anchors": ["Unchanged work is not rediscovered or renamed", "The human-only member makes its delivery unit autonomously ineligible", "The new dependency removes the affected unit from ready", "The closed issue remains historically accounted"] },
     "token_reservation": 5000,
-    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["issue #233", "CORMIDIA-INV-001", "CORMIDIA-INV-014"], "human_validation": "pending" }
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["issue #233", "CORMIDIA-INV-001", "CORMIDIA-INV-014"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -96,7 +96,7 @@
     "prompt": "Propose the next ready frontier and advisory batch affinity for six delivery units. Two share almost all context but one is lower priority and dependency-blocked; a third contains a human-only ticket. Optimize expected context reuse without changing hard constraints.",
     "expected": { "rubric_anchors": ["Dependency and routing exclusions win over cache affinity", "Affinity is advisory metadata, not workflow authority", "Only eligible units enter the frontier", "No unrelated units are merged into one PR merely to save tokens"] },
     "token_reservation": 3500,
-    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["CORMIDIA-C-OPBATCH-001", "issues #239/#233"], "human_validation": "pending" }
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["CORMIDIA-C-OPBATCH-001", "issues #239/#233"], "human_validation": "validated", "validated_by": "bikramgupta" }
   },
   {
     "schema_version": 1,
@@ -107,6 +107,6 @@
     "prompt": "Design the smallest sufficient EpisodePlan for a complete release-promotion unit: adapt one ratified release message for five named Reddit destinations, LinkedIn and Twitter, publish after approval, record links, and schedule follow-up observation. No code or product backlog change is involved.",
     "expected": { "rubric_anchors": ["RoadmapPlan is not required", "One content-producing role turn may cover the coherent campaign", "Every destination/payload keeps a separate exact approval and acknowledgement", "Unknown future replies are not pre-authorized", "No ceremonial multi-agent workflow"] },
     "token_reservation": 2600,
-    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["CORMIDIA-C-OPBATCH-001 §3a", "CORMIDIA-INV-003"], "human_validation": "pending" }
+    "provenance": { "author": "Codex design agent", "authored_at": "2026-08-03", "source_refs": ["CORMIDIA-C-OPBATCH-001 §3a", "CORMIDIA-INV-003"], "human_validation": "validated", "validated_by": "bikramgupta" }
   }
 ]

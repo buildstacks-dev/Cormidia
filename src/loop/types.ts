@@ -57,6 +57,10 @@ export interface ReleaseTrigger {
   kind: ReleaseKind;
   command: string;
   owner: ReleaseOwner;
+  /** Exact tag/merge identity retained for package-evidence handoff. Older
+   * command-triggered records omit both fields and remain readable. */
+  tag?: string;
+  releaseCommit?: string;
 }
 
 export interface ScorecardEvent {

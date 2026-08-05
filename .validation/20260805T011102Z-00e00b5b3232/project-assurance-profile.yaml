@@ -1,0 +1,109 @@
+schema_version: "1.0"
+assessment:
+  id: "20260805T011102Z-00e00b5b3232"
+  mode: "assess/design"
+  started_at_utc: "2026-08-05T01:11:02Z"
+  target_revision: "00e00b5b3232f4a6f60dc0fc3ee38f84d51e106e"
+  repository_root: "/Users/bikram/Build/Cormidia-release-evidence-gate"
+  working_tree_state: "clean isolated origin/main worktree plus uncommitted proposal/audit artifacts"
+  assessor_roles: ["harness designer", "validation auditor"]
+  independence_level: "I1"
+
+project:
+  name: "Cormidia"
+  summary: "Installable standing AI-org runtime that can spend provider budget, mutate repositories, and hand approved releases to durable external mechanisms."
+  intended_release_use: "Offer an exact Cormidia npm package candidate to a separate human-approved tag/publication path."
+  permitted_users: ["Cormidia operators", "registered app teams"]
+  excluded_uses: ["unapproved publication", "unbounded provider work", "qualification by stale or partial evidence", "general safety certification"]
+  supported_platforms: ["macOS host", "Node.js >=26"]
+  deployment_shape: "single-user local standing org with supported provider adapters and private GitHub repositories"
+  rollback_model: "focused revert; disable publication rather than bypass qualification; retain immutable evidence"
+
+system_boundary:
+  in_scope_inspected:
+    - "replacement L1/L2 harness under tests/"
+    - "L3 live campaign configuration, runner, repository binding, and report semantics"
+    - "L4 golden corpora, runner, tuple selection, and verdict semantics"
+    - "L5 contention, soak, threat-model status, and activation triggers"
+    - "package scripts, CI workflows, B-17 release handoff, and app release declaration"
+    - "validation policy, case catalog, backlog, contracts, and open findings"
+  in_scope_unavailable:
+    - "human-authored and independently reviewed TM-01 through TM-10 threat model"
+    - "HB-073 abuse cases derived from that threat model"
+    - "human-validated golden references"
+    - "calibrated judge decision policy"
+    - "initial complete seven-day soak and release L3/L4 evidence"
+  external_assumed:
+    - "npm and GitHub implement their documented tag, workflow, and publication semantics"
+    - "provider APIs report usage sufficiently for conservative reservation accounting"
+  out_of_scope:
+    - "archive-do-not-read/**"
+    - "paid or real-time campaigns"
+    - "release publication or deployment"
+  human_roles_and_procedures:
+    - "Human ratifies protected/binding surfaces."
+    - "Human validates exact golden expected behavior without replacing agent authorship."
+    - "Human authors and a separate human reviews the threat model."
+    - "Human separately authorizes campaign envelopes and the exact release action."
+  material_boundary_limitations:
+    - "The private-repository plan does not expose ruleset/branch-protection enforcement through the inspected GitHub APIs."
+    - "A registry owner can bypass repository/local controls; RQ-1 governs Cormidia's supported release path."
+
+criticality:
+  system_level: "C3"
+  rationale:
+    - "A false release qualification can expose unvalidated autonomous repository mutation and provider spending to package users."
+    - "Qualification is an assurance root: common-mode failure can make missing or stale evidence appear green."
+  components:
+    - id: "COMP-ASSESSOR"
+      name: "Release assessor and attestor"
+      level: "C3"
+      function: "Bind exact candidate bytes, required evidence, completeness, verdict, debt, and approval prerequisites."
+      trust_boundary: "mutable campaign output to immutable release claim"
+      failure_propagation: "false qualification or stale evidence can admit publication"
+    - id: "COMP-L3"
+      name: "Live seam campaign"
+      level: "C3"
+      function: "Falsify supported adapter, GitHub, unattended, and scheduler seams that honest fakes cannot prove."
+      trust_boundary: "sandbox credentials and external services"
+      failure_propagation: "unproved integration can fail after release"
+    - id: "COMP-L4"
+      name: "Statistical quality campaign"
+      level: "C3"
+      function: "Collect exact site/tuple outputs and compare them against admitted references."
+      trust_boundary: "stochastic model output to release-quality inference"
+      failure_propagation: "uncalibrated grading can admit degraded behavior"
+    - id: "COMP-L5"
+      name: "Soak and adversarial baseline"
+      level: "C3"
+      function: "Exercise time, contention, natural rotation, and human-derived abuse cases."
+      trust_boundary: "long-running autonomous state and threat conclusions"
+      failure_propagation: "latent concurrency or abuse failures escape short campaigns"
+    - id: "COMP-RELEASE"
+      name: "B-17 tag and npm handoff"
+      level: "C3"
+      function: "Execute only a separately approved, attested package release."
+      trust_boundary: "human approval to externally durable tag/publication"
+      failure_propagation: "irreversible public artifact is published without current evidence"
+  current_change:
+    description: "Structural revision of the validation harness release lane; no product journey, product boundary, or runtime state owner changes."
+    level: "L3"
+    rationale: ["new C3 assurance root", "new release refusal and attestation semantics", "new CI/publication control path"]
+
+assurance_target:
+  scoped_claim: "After ratification, implementation, human-attributable prerequisites, and separately authorized campaigns, RQ-1 can determine whether one exact post-0.1.1 package candidate may be offered for separate human release approval."
+  required_confidence: "High for candidate identity, completeness, fail-closed refusal, and publication binding; explicitly bounded/inconclusive for unratified statistical rules."
+  mandatory_claim_categories: ["functional", "security", "integrity", "recovery", "integration", "statistical", "operational", "observability"]
+  mandatory_evidence_classes: ["L1/L2 negative controls", "exact CI SHA", "authorized L3", "authorized L4", "human references", "human threat model", "HB-073", "initial L5 soak", "attestation verification"]
+  minimum_independence: "I1 for design audit; human ratification and authorship for protected decisions; later I2 semantic review for the C3 implementation"
+  acceptance_authority: "Cormidia product owner for RQ-1 and evaluator debt; separate exact human approval for publication"
+  residual_risk_owner: "Cormidia product owner"
+  invalidation_triggers: ["candidate/package drift", "policy/prompt/assignment/golden drift", "runner/grader drift without disposition", "trust-boundary change", "release-path change", "ceiling exhaustion", "missing required evidence"]
+
+blocking_questions: []
+human_decisions_not_invented:
+  - "threat conclusions and abuse-case IDs"
+  - "golden reference validation"
+  - "judge sample size, threshold, aggregation, and admissibility"
+  - "F-PT-018 merge-enforcement alternative"
+  - "global L4 cost ceiling"

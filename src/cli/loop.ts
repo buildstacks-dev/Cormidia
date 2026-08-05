@@ -502,7 +502,13 @@ export async function cmdLoop(args: string[]): Promise<number> {
     // A4: a merged deploy/package milestone queues its release as a critical
     // op on the approval queue — the trigger, never the execution.
     if (!dryRun) {
-      const queuedReleases = await queueReleaseApprovals(homes.stateHome, selectedApp.name, result.items);
+      const queuedReleases = await queueReleaseApprovals(
+        homes.stateHome,
+        selectedApp.name,
+        result.items,
+        undefined,
+        { localRepo: inputs.localRepo },
+      );
       for (const queued of queuedReleases) {
         console.log(
           `release: ${queued.kind} for ${queued.ticketRef} queued as critical op ` +

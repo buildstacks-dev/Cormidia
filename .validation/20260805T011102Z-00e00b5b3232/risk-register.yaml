@@ -1,0 +1,59 @@
+schema_version: "1.0"
+assessment_id: "20260805T011102Z-00e00b5b3232"
+risks:
+  - id: "RSK-FALSE-GREEN"
+    severity: "blocker"
+    scenario: "A release is described as qualified because tests or one campaign are green while required evidence is missing, stale, or inconclusive."
+    current_controls: ["lane-level no-green-by-absence semantics"]
+    gaps: ["no release assessor", "no aggregate truth table detector"]
+    proposed_controls: ["RQ-1 completeness/verdict/qualification", "forged-pass negative control"]
+    owner: "Cormidia product owner"
+  - id: "RSK-WRONG-BYTES"
+    severity: "blocker"
+    scenario: "Evidence for one commit/package/prompt/assignment is attached to different published bytes."
+    current_controls: ["individual campaign config hashes", "exact GitHub ref in L3"]
+    gaps: ["no package subject digest", "no evidence-only descendant verifier", "no attestation"]
+    proposed_controls: ["canonical manifest", "subject/producer digests", "tarball equivalence", "tamper seeds"]
+    owner: "release assessor owner"
+  - id: "RSK-JUDGE-COMMON-MODE"
+    severity: "high"
+    scenario: "An uncalibrated model judge or self-tuned rubric labels degraded stochastic behavior acceptable."
+    current_controls: ["proposed thresholds remain inconclusive", "goldens committed before tuning"]
+    gaps: ["references pending", "no judge admission", "no paired comparison"]
+    proposed_controls: ["human reference review", "advisory-only uncalibrated output", "separate pairings"]
+    owner: "human evaluator authority"
+  - id: "RSK-THREAT-OMISSION"
+    severity: "blocker"
+    scenario: "Agent-authored assumptions stand in for the required human threat analysis, leaving abuse paths untested."
+    current_controls: ["HB-072/HB-073 blocked", "threat-model status refuses"]
+    gaps: ["human artifact absent", "derived detectors absent"]
+    proposed_controls: ["preserve human authorship/review", "HB-073 with negative controls"]
+    owner: "human threat-model author/reviewer"
+  - id: "RSK-COST-RETRY"
+    severity: "high"
+    scenario: "Retries hide merit failures, exceed cost bounds, or drop ambiguous usage from accounting."
+    current_controls: ["ratified L3/L5 ceilings", "reservation and terminal campaign rules"]
+    gaps: ["no release-wide manifest-bound ledger", "no ratified global L4 ceiling"]
+    proposed_controls: ["typed immutable retry policy", "human L4 campaign envelope", "all-attempt evidence"]
+    owner: "campaign authorizer"
+  - id: "RSK-PUBLISH-BYPASS"
+    severity: "high"
+    scenario: "The supported durable path tags or publishes without current evidence and exact approval."
+    current_controls: ["critical-operation approvals", "B-17 protocol"]
+    gaps: ["no package release declaration", "no release verifier/workflow", "F-PT-018"]
+    proposed_controls: ["release:verify", "prepublishOnly", "exact-tag workflow", "separate acknowledgement"]
+    owner: "release-path owner"
+  - id: "RSK-B17-UNPROVEN"
+    severity: "high"
+    scenario: "A real non-GitHub release target behaves differently from hermetic B-17 tests."
+    current_controls: ["B-17 L1/L2", "live cell honestly blocked"]
+    gaps: ["no disposable real target"]
+    proposed_controls: ["bounded pre-V1 evaluator debt only when bytes unchanged", "block on mechanism change"]
+    owner: "Cormidia product owner"
+  - id: "RSK-OPERATING-DRIFT"
+    severity: "medium"
+    scenario: "Repository docs or authority pointers claim a state that differs from actual publication/configuration."
+    current_controls: ["binding docs and authority digest"]
+    gaps: ["npm latest is 0.0.1 while repository package is 0.1.1", "root AGENTS authority digest does not match current authority file"]
+    proposed_controls: ["resolve as focused governance findings; do not silently rewrite"]
+    owner: "repository owner"

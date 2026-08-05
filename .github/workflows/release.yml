@@ -1,0 +1,141 @@
+name: Release
+
+# RQ-1 exact-tag release path. The annotated tag contains the canonical
+# attestation plus a separate human approval bound to its action hash. Missing,
+# stale, malformed, or mismatched evidence refuses before npm authentication.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test
+      - run: git diff --check
+      - run: pnpm smoke:onboarding
+      - name: Require successful Core checks on the exact tag commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for ATTEMPT in 1 2 3; do
+            gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" > "${RUNNER_TEMP}/check-runs.json"
+            if node --input-type=module -e '
+              import fs from "node:fs";
+              const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              const rows = Array.isArray(value.check_runs) ? value.check_runs : [];
+              const ok = (name) => rows.some((row) => row.name === name && row.status === "completed" && row.conclusion === "success" && row.head_sha === process.env.GITHUB_SHA);
+              process.exit(ok("core") && ok("gitleaks") ? 0 : 1);
+            ' "${RUNNER_TEMP}/check-runs.json"; then
+              break
+            fi
+            if [ "${ATTEMPT}" -eq 3 ]; then
+              echo "Core checks are missing, unfinished, stale, or non-success on ${GITHUB_SHA}"
+              exit 1
+            fi
+            DELAY=$(( (1 << (ATTEMPT - 1)) * 5 + RANDOM % 5 ))
+            sleep "${DELAY}"
+          done
+      - name: Install pinned gitleaks
+        env:
+          GITLEAKS_VERSION: 8.18.4
+          GITLEAKS_SHA256: ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
+        run: |
+          set -euo pipefail
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks version | grep -qx "${GITLEAKS_VERSION}"
+      - name: Prove gitleaks can fire
+        run: |
+          set -euo pipefail
+          CANARY_DIR="$(mktemp -d)"
+          CANARY_SUFFIX="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n' | tr 'a-f' 'A-F')"
+          printf 'aws_access_key_id = AKIA%s\n' "${CANARY_SUFFIX}" > "${CANARY_DIR}/canary.env"
+          if ./gitleaks detect --no-banner --no-git --source "${CANARY_DIR}" >/dev/null 2>&1; then
+            echo "NEGATIVE CONTROL FAILED: gitleaks did not fire"
+            exit 1
+          fi
+          rm -rf "${CANARY_DIR}"
+      - name: Scan release tree
+        run: ./gitleaks detect --no-banner --redact --no-git --source . --config .gitleaks.toml
+      - name: Pack exact candidate
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --ignore-scripts
+          npm pack --ignore-scripts --json > "${RUNNER_TEMP}/pack.json"
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import path from "node:path";
+            const rows = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (!Array.isArray(rows) || rows.length !== 1 || typeof rows[0]?.filename !== "string") process.exit(2);
+            fs.appendFileSync(process.env.GITHUB_ENV, `CORMIDIA_RELEASE_TARBALL=${path.resolve(rows[0].filename)}\n`);
+          ' "${RUNNER_TEMP}/pack.json"
+      - run: pnpm smoke:package -- "${CORMIDIA_RELEASE_TARBALL}"
+      - name: Verify RQ-1 packet, annotated-tag approval, and package currency
+        env:
+          CORMIDIA_RELEASE_TAG: ${{ github.ref_name }}
+        run: pnpm release:verify
+      - name: Seal verified package artifact
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/rq1-artifact"
+          cp "${CORMIDIA_RELEASE_TARBALL}" "${RUNNER_TEMP}/rq1-artifact/"
+          cd "${RUNNER_TEMP}/rq1-artifact"
+          sha256sum "$(basename "${CORMIDIA_RELEASE_TARBALL}")" > package.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rq1-verified-package
+          path: ${{ runner.temp }}/rq1-artifact/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: rq1-verified-package
+          path: ${{ runner.temp }}/rq1-package
+      - name: Recheck sealed artifact and publish exact verified tarball
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/rq1-package"
+          SHA_FILE="$(find . -maxdepth 1 -type f -name 'package.sha256' -print)"
+          TARBALL="$(find . -maxdepth 1 -type f -name '*.tgz' -print)"
+          [ -n "${SHA_FILE}" ] && [ -n "${TARBALL}" ]
+          [ "$(printf '%s\n' "${SHA_FILE}" | wc -l | tr -d ' ')" -eq 1 ]
+          [ "$(printf '%s\n' "${TARBALL}" | wc -l | tr -d ' ')" -eq 1 ]
+          sha256sum -c "${SHA_FILE}"
+          npm publish "${TARBALL}" --access public --provenance --ignore-scripts

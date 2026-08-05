@@ -1,8 +1,8 @@
-# S-1 Planning (S-1a RoadmapPlan / S-1b delivery EpisodePlan) — STATUS: POPULATED / HUMAN REFERENCE REVIEW PENDING
+# S-1 Planning (S-1a RoadmapPlan / S-1b delivery EpisodePlan) — STATUS: POPULATED / HUMAN REFERENCES VALIDATED
 `cases.json` contains the first committed S-1a/S-1b goals and rubric anchors,
 authored before prompt tuning. Data collection is permitted; model-swap and
-qualification evidence remain inadmissible until human reference review and
-F-PT-010 ratification.
+references were human-validated on 2026-08-04; automatic qualification verdicts remain
+inadmissible until F-PT-010 ratification.
 
 Rubric axes: workstream cohesion · complete issue accounting · stable identity ·
 delivery-unit reviewability · dependency/priority/frontier correctness · acceptance-

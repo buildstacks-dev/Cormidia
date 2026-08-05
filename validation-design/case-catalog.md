@@ -50,6 +50,11 @@ journey-acceptance.md alias table.
 |---|---|---|---|---|
 | CF-HARNESS-CI | Per-commit workflow shape, fail-closed jobs, detector canaries, and actual merge-blocking enforcement. Workflow-shape checks are implemented; required-check enforcement is **BLOCKED:F-PT-018**. | 1 + CI | evid+det | FLOOR |
 | CF-HARNESS-REPORT | Durable completeness/verdict truth table; exact-ceiling, unknown-partial-spend, corrupt-report, canonical-policy/golden-blob binding, and presentation negative controls | 1/2 | evid+refusal+det | FLOOR |
+| CF-HARNESS-RQ | RQ-1 manifest, deterministic-first admission, aggregate completeness/verdict/qualification truth table, debt disposition, exact site/pairing scope | 1/2 | evid+refusal+det | E3/FLOOR |
+| CF-HARNESS-CURRENCY | subject/producer digests, evidence-only descendant, identical package/policy/prompt/assignment/golden inputs, invalidation triggers | 1/2 | diff+evid+refusal+det | E3/FLOOR |
+| CF-HARNESS-ATTEST | canonical packet/attestation, path containment, packet hashes, exact release approval binding, tamper and missing-field refusal | 1/2 | evid+refusal+det | E1/E3/FLOOR |
+| CF-HARNESS-JUDGE | pending-reference refusal, uncalibrated-score refusal, exact pairing identity, composite-hash grade reuse, low-calibration triage without threshold/corpus weakening | 1/2 | stat-envelope+refusal+det | E3/L4Q |
+| CF-HARNESS-RELEASE | exact-tag offline rerun, current attestation, prepublish refusal, approval→tag→publish→ack separation; merge enforcement remains BLOCKED:F-PT-018 and workflow authentication of the B-17 human decision remains BLOCKED:F-PT-021 | 1/2 + CI | evid+refusal+det | E1/E3/FLOOR |
 
 ## 1. Journey matrix (J × success / refusal / interruption / recovery / alt-initiators+observations)
 
@@ -69,7 +74,7 @@ journey-acceptance.md alias table.
 | CF-J03-R | C-OP-PLAN refusal classes: incomplete creator scope marked execution-ready, unknown op/role, unapproved tuple, missing source/page, duplicate/unaccounted issue, cycle, invalid validation/routing, stale plan, or label-without-artifact; deterministic failures occur pre-provider/effect | 1/2 | refusal | E1/E3/STD (HB-101/HB-105; HB-108 closure complete) |
 | CF-J03-I | crash between RoadmapPlan validation/persistence/projection and between deterministic ticket publications; accepted predecessor stays readable, partial projection never becomes authority | 2 | state+evid | E2/E3 (HB-101/HB-105; HB-108 closure complete) |
 | CF-J03-RC | prior-plan+bounded-delta replay preserves stable IDs/history, applies publication/projection markers idempotently, and never duplicates issues or replans unchanged regions | 2 | state+evid | E2/E3 (HB-101/HB-105; HB-108 closure complete) |
-| CF-J03-A | provider-authored roadmap, complete structured zero-turn roadmap intake, creator-scope EpisodePlan normalization and dry-run preview preserve distinct schemas/turn counts; detailed prose or `planning:preplanned` without a valid artifact never bypasses planning | 1/2 | evid+refusal | E3/STD (HB-100/HB-105 plus pre-tuning Planner corpus; HB-108 closure complete, human reference pending) |
+| CF-J03-A | provider-authored roadmap, complete structured zero-turn roadmap intake, creator-scope EpisodePlan normalization and dry-run preview preserve distinct schemas/turn counts; detailed prose or `planning:preplanned` without a valid artifact never bypasses planning | 1/2 | evid+refusal | E3/STD (HB-100/HB-105 plus pre-tuning Planner corpus; HB-108 closure complete, human references validated; F-PT-010 remains open) |
 | CF-J04-S | one ready delivery unit with one-or-more tickets → atomic member claim → one EpisodePlan → build/gates → exactly one PR → independent exact-HEAD review → merge; every member projection follows shared artifacts | 2 | state+evid | E3 (HB-100/HB-103/HB-105; HB-108 closure complete) |
 | CF-J04-R | any changed/human-only member, validation mismatch, gate-red, review REJECT, or exhausted third repair cycle returns/refuses the entire unit; no partial PR/merge/member closure | 2 | state+refusal | E1/E3 (HB-100/HB-103; HB-108 closure complete) |
 | CF-J04-I | kill at every unit boundary (all-or-none claim, branch, evidence, PR, review, merge); no subset claim/closure. Recovery asserts plan authority order and the ratified F-PT-004 preserve-and-inspect rule | 2 | state | E2/E3 (HB-100/HB-103 crash detectors; HB-108 closure complete) |
@@ -131,7 +136,7 @@ journey-acceptance.md alias table.
 | CF-J16-I | each unhealthy state distinctly named (present-not-loaded, wrong identity, duplicate/orphan, stale hash, no ticks) | 2 | evid | E3 |
 | CF-J16-RC | PRUNE-dup:CF-J16-I (health = the recovery observation) |  |  |  |
 | CF-J16-A | real launchd proof per risk-allocation §5 trigger (unique test definition → loaded identity + attributable tick → exact removal) | 3 | live | STD (bounded) |
-| CF-J17-S | declared release: mechanism → fresh content-bound approval → at-most-once execution; acceptance vs completion recorded separately | 2 | evid | E1 (T-12) |
+| CF-J17-S | declared release: mechanism → fresh content-bound approval → at-most-once execution; RQ-1 package tags bind the evidence-only merge/attestation/human approval and reject pre-effect tamper; acceptance vs completion recorded separately | 2 | evid+refusal+det | E1/E3 (T-12) |
 | CF-J17-R | no declared mechanism → ship gate fails; scoped-grant attempt refused | 2 | refusal | E1 |
 | CF-J17-I | lost response / marker disagreement → ambiguous terminal | 2 | evid | E1 |
 | CF-J17-RC | completion-marker converts crashed attempt; acceptance marker never does | 2 | evid | E1 |
@@ -235,7 +240,7 @@ obligation exists.
 | CF-B18-* | scripted candidate-lane boundary: identical frozen input/base/authority; exact tuple identity; unavailable capability and spend refusal; partial/timeout/duplicate settlement; workspace mutation containment; stale evidence rejected; version skew named; no candidate outward effects | 1/2 | state+diff+refusal | E1/E2/E3 (design-only) |
 | CF-B19-* | scripted selection/materialization boundary: eligible set and policy hash binding; deterministic precedence over judge; stable tie-break; no-selection/inconclusive path; duplicate/retry idempotency; stale base/evidence refusal; exactly one winner namespace crosses and only to the declared continuation target | 1/2 | state+evid+diff | E1/E3 (design-only) |
 | CF-B20-* | 100+ issue and delta fixtures across success/timeout/partial projection/retry/duplicate/stale/version-skew: complete accounting, stable IDs, exact frontier hash, current routing/dependency/validation/WIP reread, no per-issue provider turn/eager EpisodePlan, labels never authority | 1/2 | state+evid+refusal | E1/E2/E3 (HB-101/HB-105; HB-108 deterministic closure complete) |
-| CF-B21-* | validation-contract fixtures across success/provider timeout/partial evidence/retry/duplicate/stale HEAD/version skew: ID resolution, bounded waivers, shared-boundary coverage, detector+negative control, exact unit/plan/HEAD binding and Reviewer independence | 1/2 | state+evid+refusal+det | E1/E3 (HB-102/HB-108 complete; human S-10 reference review pending) |
+| CF-B21-* | validation-contract fixtures across success/provider timeout/partial evidence/retry/duplicate/stale HEAD/version skew: ID resolution, bounded waivers, shared-boundary coverage, detector+negative control, exact unit/plan/HEAD binding and Reviewer independence | 1/2 | state+evid+refusal+det | E1/E3 (HB-102/HB-108 complete; human S-10 references validated; F-PT-011 remains open) |
 | CF-B22-* | batch/unit-set permutations across success/timeout/partial unit failure/retry/duplicate/stale frontier/version skew: token-free admission, lazy plans, atomic claims, budget conservation, session-role isolation, per-unit terminals and cache unknown/hit/miss evidence | 1/2 | state+evid+refusal | E1/E2/E3 (HB-103/HB-104/HB-107 plus HB-109 contention machinery complete; seven-day evidence pending) |
 
 ## 5. Contract matrix (C × valid/invalid inputs / outputs / typed errors / idempotency / ordering / freshness+latency)
@@ -276,12 +281,12 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-C-B18 | 1/2 | E1/E2/E3 | — | — (design-only; implementation pending) |
 | CF-C-B19 | 1/2 | E1/E3 | — | — (design-only; S-8 automatic-selection clause remains inadmissible under F-PT-011) |
 | CF-C-B20 | 1/2 | E1/E2/E3 | — | — (HB-101/HB-105 implementation plus HB-108 catalog/detector closure complete) |
-| CF-C-B21 | 1/2 | E1/E3 | — | — (HB-102/HB-105 implementation plus HB-108 catalog/detector closure complete; S-10 human reference review pending) |
+| CF-C-B21 | 1/2 | E1/E3 | — | — (HB-102/HB-105 implementation plus HB-108 catalog/detector closure complete; S-10 human references validated; F-PT-011 remains open) |
 | CF-C-B22 | 1/2 + 5 repeat trigger | E1/E2/E3 | dup: CF-OPS-CONT/CF-OPS-SOAK when trigger applies | — (HB-103/HB-104/HB-107 implementation plus HB-109 contention machinery complete; seven-day evidence pending) |
 | CF-C-OPLIFE | C-OP-LIFE §§1–6 + error split (precondition-refusal vs journaled-intermediate) | 2 | state+refusal | E1 (T-8 slices) |
 | CF-C-OPPLAN | C-OP-PLAN §§1–5 (bypass conditions, plan production, previews, boot boundary, sources fail-closed) | 1/2 | refusal+state | STD (HB-107 shared-façade wiring slice; validator depth per risk-allocation §3) |
 | CF-C-OPLOOP | C-OP-LOOP §§1–5 (vocabulary, claims, 3-cycle bound + fourth-cycle return, review/merge, parallelism) | 2 | state | E3 (HB-107 shared delivery-façade wiring slice) |
-| CF-C-OPVALIDATION | C-OP-VALIDATION §§1–5: timed authorship, strict shape/ID/waiver admission, exact Builder evidence, independent Reviewer closure, proportional fast path | 1/2 | state+refusal+evid+det | E1/E3 (HB-102/HB-105 implementation plus HB-108 complete deterministic registry/detector walk; S-10 human reference review pending) |
+| CF-C-OPVALIDATION | C-OP-VALIDATION §§1–5: timed authorship, strict shape/ID/waiver admission, exact Builder evidence, independent Reviewer closure, proportional fast path | 1/2 | state+refusal+evid+det | E1/E3 (HB-102/HB-105 implementation plus HB-108 complete deterministic registry/detector walk; S-10 human references validated; F-PT-011 remains open) |
 | CF-C-OPBATCH | C-OP-BATCH §§1–5: execution-unit union, hard-before-affinity grouping, lazy plans, direct effects, context/session isolation, per-unit recovery/completion | 1/2 | state+refusal+evid | E1/E2/E3 (HB-104/HB-106/HB-107 implementation plus HB-109 overlap/duplicate/atomic-claim/per-unit/sibling/stale-frontier machinery complete; seven-day evidence pending) |
 | CF-C-ACCEPT | journey-acceptance criteria as executable checks — PRUNE-dup: each criterion's cell in §1 (traces already resolve) | — | — | — |
 
@@ -329,7 +334,7 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-S9-env | format-repair: same-session, bounded attempts, settlement — contract-only | 2 | state | STD |
 | CF-S9-qual/traj/judge | PRUNE-na (contract-only site by ratified decision) | — | — | — |
 | CF-S10-env | strict C-OP-VALIDATION/B-21 envelope: exact unit/roadmap refs, resolvable IDs, cheapest layers, failure cases, detector+negative control, evidence, bounded waivers and structural-revision routing | 1/2 | refusal+evid+det | E1/E3 (HB-102 implementation plus HB-108 complete deterministic registry/detector walk) |
-| CF-S10-qual | Validation Designer golden set per scaffold: routine template, cross-ticket seam, C3/architecture change, malformed-ID lure, over-testing/live-lure and L3/L4 detector deposit — **inconclusive-only under F-PT-011** | 4 | stat | L4Q (pre-tuning corpus integrated; `human_validation=pending`, so threshold-dependent results remain inconclusive) |
+| CF-S10-qual | Validation Designer golden set per scaffold: routine template, cross-ticket seam, C3/architecture change, malformed-ID lure, over-testing/live-lure and L3/L4 detector deposit — **inconclusive-only under F-PT-011** | 4 | stat | L4Q (pre-tuning corpus integrated and human-validated; threshold-dependent results remain inconclusive) |
 | CF-S10-traj/judge | PRUNE-na (bounded design capability, not an agentic loop or judge; compatible units may share input/session but emit separate contracts) | — | — | — |
 | CF-COND | brief-conditioning study (informs, never gates) — sampling design OPEN under F-PT-011 | 4 | stat (non-gating) | THIN |
 
@@ -361,8 +366,8 @@ not change matrix allocation or unblock any finding.
 | CF-B01-L3 | Complete; failed external evidence preserved | The same authorized `ec60cd33` campaign collected 13/15 real-GitHub clauses; B01-CF-02 and B01-CF-08 failed (#273/#272). The failed report above is preserved and cannot qualify a successor candidate. |
 | CF-J16-A | Complete | Real launchd install/readback/attributable-tick/scoped-removal case implemented; no host campaign run. |
 | CF-J18-A | Complete | `src/org/validation-test-mode.ts` + L3 case; no unattended campaign run. |
-| CF-S1-qual | Runner + cases complete | Planner cases committed with `human_validation=pending`; threshold F-PT-010 open, so any run is inconclusive. |
-| CF-S3-qual+judge | Runner + cases complete | Seeded reviewer/clean cases committed with `human_validation=pending`; F-PT-009 open, so any run is inconclusive and judge scores remain inadmissible. |
+| CF-S1-qual | Runner + cases complete | Planner cases human-validated; threshold F-PT-010 open, so any run is inconclusive. |
+| CF-S3-qual+judge | Runner + cases complete | Seeded reviewer/clean cases human-validated; F-PT-009 open, so any run is inconclusive and judge scores remain inadmissible. |
 | CF-S2-traj | Complete | Deterministic trajectory scenarios committed; repeat-loop N=3 remains proposed only. |
 | CF-OPS-CONT | Complete | `tests/ops/contention-rig.ts`; ratified ≥10/≥3/WIP=2 shape green in hermetic self-test. |
 | CF-OPS-SOAK / CF-OPS-ROT | Collector complete | `tests/ops/soak-protocol.ts`; real seven-day/sleep/rotation evidence pending human scheduling. |
@@ -371,7 +376,7 @@ not change matrix allocation or unblock any finding.
 | CF-J19-* / CF-SM-COMP-* / CF-B18-* / CF-B19-* / CF-C-B18 / CF-C-B19 / CF-IF-COMPARE | Design only | Implementation is tracked by the comparative-execution backlog and GitHub epic; no executable coverage or evidence claim exists yet. |
 | CF-S8-env / CF-S8-qual+judge | Design/scaffold only | Empty truthful scaffold at `golden-sets/selection-judge/`; F-PT-011 keeps scores inadmissible for automatic selection and any threshold-dependent outcome inconclusive. |
 | CF-J03/J04 2026-08-03 slices; CF-J20-*; CF-SM-ROADMAP/VALIDATION/BATCH-*; CF-INV-016; CF-B20/21/22-*; CF-C-B20/21/22; CF-C-OPVALIDATION/OPBATCH | Complete deterministic families; external soak/human evidence separately pending | HB-100…107 provide the provider-free authority, atomic delivery, batching, direct-effect, and context/session/cache implementation. HB-108 expands the production validation catalog and content pin and walks all 30 deterministic family rows (including CF-IF-XSURF) to real seeded controls, with empty-walk and detector-never-fired harness controls. HB-109 adds overlapping-batch, duplicate-stimulus, all-or-none multi-ticket claim, per-unit settlement, sibling-isolation and stale-frontier contention machinery plus the extended soak collector; no seven-day campaign was run. HB-110 projects one shared explanation through Status/JSON/Report/Observe and tests exact cross-surface equality. No live-evidence claim follows. |
-| CF-S1 2026-08-03 slice; CF-S10-env/qual | Deterministic envelopes and pre-tuning corpora integrated; human evidence pending | HB-102/HB-108 implement the provider-free C-OP-VALIDATION/B-21 envelope and integrate Planner plus Validation Designer corpora. Every row remains `human_validation=pending`; F-PT-010/011 keep threshold-dependent outcomes inconclusive. |
+| CF-S1 2026-08-03 slice; CF-S10-env/qual | Deterministic envelopes and pre-tuning corpora integrated; human references validated | HB-102/HB-108 implement the provider-free C-OP-VALIDATION/B-21 envelope and integrate Planner plus Validation Designer corpora. Every current row is human-validated; F-PT-010/011 keep threshold-dependent outcomes inconclusive. |
 
 - HB-080 runbook: complete at `docs/qualification/validation-triage.md` and linked
   from campaign presentation surfaces.

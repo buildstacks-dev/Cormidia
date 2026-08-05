@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "assessment_id": "20260805T040848Z-4bbb360974f4",
+  "mode": "full/harden",
+  "started_at": "2026-08-05T04:08:48Z",
+  "created_at_utc": "2026-08-05T04:08:48Z",
+  "repository": "cormidia/Cormidia",
+  "branch": "codex/restore-release-evidence-gate",
+  "base_revision": "00e00b5b3232f4a6f60dc0fc3ee38f84d51e106e",
+  "target_kind": "uncommitted isolated-worktree implementation",
+  "target_content_sha256": "4bbb360974f4a817c6fbd397ede6ab960b97b4f8cce41408bf20dfa436e98ecf",
+  "tracked_diff_sha256": "2d361b7c9648b903beaa33e9d9e598cf71028ad42f361943e1080faeb83a39e7",
+  "untracked_implementation_index_sha256": "8ef44dbd947f1ff43002b9796220f992051ebd90d28977392605fc6e994a7794",
+  "proposal_sha256": "dc9e9fa83b88a1295cbb7e43125b81e71a74043136f0b55e75998e984b4cc278",
+  "environment": {
+    "kind": "developer-host",
+    "worktree": "/Users/bikram/Build/Cormidia-release-evidence-gate",
+    "node": "v26.4.0",
+    "pnpm": "11.10.0",
+    "provider_backed_validation": false,
+    "publication_or_tag_effect": false
+  },
+  "scope": [
+    "RQ-1 schemas, evaluators, packet derivation, equivalence and attestation",
+    "deterministic, L3, L4 and L5 release-evidence semantics",
+    "B-17 approval-to-annotated-tag handoff and exact-tag workflow",
+    "golden-reference attribution and protected/binding contract conformance",
+    "seeded negative controls, CLI and package surfaces"
+  ],
+  "independence": {
+    "level": "I1",
+    "reason": "the same agent performed role-separated implementation and audit; no independent subagent was authorized"
+  },
+  "assessment": "insufficient_for_stated_release_activation_target",
+  "implementation_disposition": "conditionally_sufficient_offline_with_activation_blockers",
+  "external_release_claim": "not_verified"
+}

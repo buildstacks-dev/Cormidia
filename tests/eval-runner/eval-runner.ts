@@ -30,6 +30,16 @@ export interface EvalCaseV1 {
 
 export interface EvalTuple {
   id: string;
+  site: EvalSite;
+  operation: "review" | "plan" | "validation-design";
+  arm: "bootstrap" | "candidate" | "baseline";
+  producerTuple: string;
+  evaluatorTuple: string;
+  rubricVersion: string;
+  attemptId: string;
+  promptInputDigest: string;
+  rubricDigest: string;
+  graderDigest: string;
   runtime: RuntimeKind;
   model: string;
   effort: Effort;
@@ -62,11 +72,23 @@ export interface EvalCampaignOptions {
 export interface EvalObservation {
   case_id: string;
   tuple_id: string;
+  site: EvalSite;
+  operation: EvalTuple["operation"];
+  arm: EvalTuple["arm"];
+  producer_tuple: string;
+  evaluator_tuple: string;
+  rubric_version: string;
+  attempt_id: string;
   session_id: string;
   tokens_in: number;
   tokens_out: number;
   equiv_usd: number;
   output_sha256: string;
+  grading_key: string;
+  grade_reused_from: string | null;
+  automatic_score_used: false;
+  outcome: "match" | "mismatch" | "unscored" | "invalid";
+  evidence_ref: string;
   observed_verdict: "APPROVE" | "REJECT" | "invalid" | "not_applicable";
   expected_verdict: "APPROVE" | "REJECT" | "not_applicable";
   matches_reference: boolean | null;
@@ -98,6 +120,11 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
   if (options.tuples.length === 0) throw new Error("eval runner requires at least one exact tuple");
   const selected = options.shard === undefined ? [...options.cases] : selectRotatingShard(options.cases, options.shard.date, options.shard.count);
   if (selected.length === 0) throw new Error("eval runner selected an empty shard");
+  validateTuples(options.tuples);
+  const selectedSites = new Set(selected.map((item) => item.site));
+  const tupleSites = new Set(options.tuples.map((item) => item.site));
+  for (const site of selectedSites) if (!tupleSites.has(site)) throw new Error(`eval runner has selected ${site} cases but no exact tuple`);
+  for (const site of tupleSites) if (!selectedSites.has(site)) throw new Error(`eval runner tuple site ${site} has no selected cases`);
   const results: EvalResultsV1 = {
     schema_version: 1,
     campaign_id: options.campaignId,
@@ -109,9 +136,10 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
     per_tuple: [],
   };
   await persist(options.stateHome, results);
+  const primaryByGrade = new Map<string, EvalObservation>();
 
   outer: for (const tuple of options.tuples) {
-    for (const evalCase of selected) {
+    for (const evalCase of selected.filter((item) => item.site === tuple.site)) {
       if (results.observed_tokens + evalCase.token_reservation > options.maxTokens) {
         results.stopped_on_token_ceiling = true;
         await options.campaign.noteIncomplete("eval_token_ceiling_reservation_refused");
@@ -138,7 +166,7 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
           await persist(options.stateHome, results);
           throw new Error(`eval ${caseKey} exceeded its token reservation`);
         }
-        const score = { ...scoreObservation(evalCase, execution), tuple_id: tuple.id };
+        const score = scoreObservation(evalCase, execution, tuple, options.campaignId, primaryByGrade);
         results.observations.push(score);
         results.per_tuple = aggregate(results.observations, options.tuples);
         await persist(options.stateHome, results);
@@ -157,6 +185,17 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
   results.per_tuple = aggregate(results.observations, options.tuples);
   await persist(options.stateHome, results);
   return results;
+}
+
+export function validateTuples(tuples: EvalTuple[]): void {
+  if (tuples.length === 0 || new Set(tuples.map((item) => item.id)).size !== tuples.length) throw new Error("eval tuple ids must be non-empty and unique");
+  for (const tuple of tuples) {
+    if (!nonEmpty(tuple.id) || !nonEmpty(tuple.producerTuple) || !nonEmpty(tuple.evaluatorTuple) || !nonEmpty(tuple.rubricVersion) || !nonEmpty(tuple.attemptId)) throw new Error("eval tuple identity fields must be non-empty");
+    for (const [name, value] of [["promptInputDigest", tuple.promptInputDigest], ["rubricDigest", tuple.rubricDigest], ["graderDigest", tuple.graderDigest]] as const) if (!/^[a-f0-9]{64}$/.test(value)) throw new Error(`eval tuple ${tuple.id} ${name} must be lowercase sha256`);
+    const expectedOperation = tuple.site === "reviewer" ? "review" : tuple.site === "planner" ? "plan" : "validation-design";
+    if (tuple.operation !== expectedOperation) throw new Error(`eval tuple ${tuple.id} operation does not match site ${tuple.site}`);
+    if (tuple.arm !== "bootstrap" && tuple.arm !== "candidate" && tuple.arm !== "baseline") throw new Error(`eval tuple ${tuple.id} has invalid arm`);
+  }
 }
 
 export function selectRotatingShard(cases: EvalCaseV1[], date: string, count: number): EvalCaseV1[] {
@@ -209,26 +248,62 @@ function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function scoreObservation(evalCase: EvalCaseV1, result: EvalExecutionResult): EvalObservation {
+function scoreObservation(evalCase: EvalCaseV1, result: EvalExecutionResult, tuple: EvalTuple, campaignId: string, primaryByGrade: Map<string, EvalObservation>): EvalObservation {
+  const outputSha = createHash("sha256").update(result.output).digest("hex");
+  const caseDigest = hashJson(evalCase);
+  const gradingKey = hashJson({
+    output_sha256: outputSha,
+    case_digest: caseDigest,
+    context_digest: hashJson({ case_digest: caseDigest, prompt_input_digest: tuple.promptInputDigest }),
+    rubric_digest: tuple.rubricDigest,
+    reference_digest: hashJson(evalCase.expected),
+    grader_digest: tuple.graderDigest,
+  });
+  const primary = primaryByGrade.get(gradingKey);
   const verdicts = [...result.output.matchAll(/(?:^|\n)VERDICT:\s*(APPROVE|REJECT)\s*(?:\n|$)/g)]
     .map((match) => match[1] as "APPROVE" | "REJECT");
   const observed: EvalObservation["observed_verdict"] = evalCase.site === "reviewer"
     ? (verdicts.length === 1 ? verdicts[0]! : "invalid")
     : "not_applicable";
   const expected = evalCase.expected.verdict ?? "not_applicable";
-  return {
+  const observation: EvalObservation = {
     case_id: evalCase.id,
-    tuple_id: "", // populated by caller immediately below
+    tuple_id: tuple.id,
+    site: tuple.site,
+    operation: tuple.operation,
+    arm: tuple.arm,
+    producer_tuple: tuple.producerTuple,
+    evaluator_tuple: tuple.evaluatorTuple,
+    rubric_version: tuple.rubricVersion,
+    attempt_id: tuple.attemptId,
     session_id: result.sessionId,
     tokens_in: result.tokensIn,
     tokens_out: result.tokensOut,
     equiv_usd: result.equivUsd,
-    output_sha256: createHash("sha256").update(result.output).digest("hex"),
-    observed_verdict: observed,
+    output_sha256: outputSha,
+    grading_key: gradingKey,
+    grade_reused_from: primary === undefined ? null : `${primary.tuple_id}::${primary.case_id}::${primary.attempt_id}`,
+    automatic_score_used: false,
+    outcome: evalCase.site !== "reviewer" ? "unscored" : observed === "invalid" ? "invalid" : observed === expected ? "match" : "mismatch",
+    evidence_ref: `validation/campaigns/${campaignId}/eval-results.json#${tuple.id}::${evalCase.id}::${tuple.attemptId}`,
+    observed_verdict: primary?.observed_verdict ?? observed,
     expected_verdict: expected,
-    matches_reference: evalCase.site === "reviewer" ? observed === expected : null,
+    matches_reference: primary?.matches_reference ?? (evalCase.site === "reviewer" ? observed === expected : null),
     human_reference_status: evalCase.provenance.human_validation,
   };
+  if (primary === undefined) primaryByGrade.set(gradingKey, observation);
+  return observation;
+}
+
+function hashJson(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(canonicalValue(value))).digest("hex");
+}
+
+function canonicalValue(value: unknown): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean" || typeof value === "number") return value;
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (typeof value !== "object") throw new Error("eval grading identity contains unsupported value");
+  return Object.fromEntries(Object.keys(value as Record<string, unknown>).sort().map((key) => [key, canonicalValue((value as Record<string, unknown>)[key])]));
 }
 
 function aggregate(observations: EvalObservation[], tuples: EvalTuple[]): EvalResultsV1["per_tuple"] {

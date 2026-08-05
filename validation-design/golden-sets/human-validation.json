@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "validation_kind": "RQ-1-golden-reference-review",
+  "validated_by": "bikramgupta",
+  "validated_on": "2026-08-04",
+  "source_commit": "00e00b5b3232f4a6f60dc0fc3ee38f84d51e106e",
+  "human_statement": "I ratify RQ-1 and confirm the workbook expected behaviors.",
+  "recorded_by": "Codex implementation agent; hashes are deterministic source-recording metadata, not human-authored conclusions",
+  "records": [
+    { "case_id": "GS-PLAN-S1A-BATCH-LURE-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "78072c4e8b4e8b8ae652da517c1e86fcb43b053baef426d03d3811bf09c0f42a", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1A-DAG-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "6cb3cb2143d38a02b7b9705d509e12654d4c5b669154e05f6cb37f341c4af67c", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1A-DELTA-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "d4bca2d6ed1bbf08beb0cbdc23576c576e5a816a7e076d7c98e2e52788101ca5", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1A-INTAKE-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "e4cbf19bd6c49605845e24d60383597b470d62ba4ead5acd39e31e7ba8ba1020", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1A-INTAKE-002", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "c5e37a3832c24dc69581ec8d02d90596936c99cea5bcecab48c1a9f1901ed035", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1A-ROADMAP-100-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "1c236e0e0d3fd945ea1b447820e58d27a25e77db438f5c6849da52ac87c37b6e", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1A-SMALL-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "22ea48be0c03e1298bbc8234a97768f5a457994aca956d8e2071eff8bfb770a8", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1B-BLOCKED-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "499b27c68569ce6c361003c44eb2ee4aa86098e664cf5b6d06202049a13d79ad", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1B-DIRECT-PROMOTION-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "55d5dd1040615490a819e0577b504e46c92c52ad897c73bc3a7b95a6752d677d", "result": "confirm" },
+    { "case_id": "GS-PLAN-S1B-REPAIR-001", "path": "validation-design/golden-sets/planner/cases.json", "source_case_digest": "fbf71500a2bfa1749af0bcfce582468d1941db5cc17be592670c1b8151293ccb", "result": "confirm" },
+    { "case_id": "GS-REV-CLEAN-001", "path": "validation-design/golden-sets/reviewer/cases.json", "source_case_digest": "2d32b06ea4b3042ab2d1210ecdd6d7982b181cfe06b021854d538faa2fd6bdc9", "result": "confirm" },
+    { "case_id": "GS-REV-CONTRACT-001", "path": "validation-design/golden-sets/reviewer/cases.json", "source_case_digest": "d212f4c3610f4789304893d1920be98701df4ef2a7d0fb44331b48801b101697", "result": "confirm" },
+    { "case_id": "GS-REV-CORRECTNESS-001", "path": "validation-design/golden-sets/reviewer/cases.json", "source_case_digest": "0447bd90196b26e4035ffbea14a9fbc8d510cced195f8a49d4c2385cf49d2382", "result": "confirm" },
+    { "case_id": "GS-REV-EVIDENCE-001", "path": "validation-design/golden-sets/reviewer/cases.json", "source_case_digest": "300d825414a6d4662bd3c07dc6332c90ba1f56ad3ed07d3c2f5a0d3d6b7bb9df", "result": "confirm" },
+    { "case_id": "GS-REV-SECRET-001", "path": "validation-design/golden-sets/reviewer/cases.json", "source_case_digest": "4846a9809f71397b3521d13ce1ce83ae34b749754536631f42af58a543bbb66f", "result": "confirm" },
+    { "case_id": "GS-REV-SECURITY-001", "path": "validation-design/golden-sets/reviewer/cases.json", "source_case_digest": "1a034dbff535f426e09ca4a55d21ccc0174ebc0049a6d660071464a9ec8c50aa", "result": "confirm" },
+    { "case_id": "GS-VAL-S10-CROSS-TICKET-001", "path": "validation-design/golden-sets/validation-designer/cases.json", "source_case_digest": "2fd0e2ec87a96e8f0d84c7d5f49f9d95d26a741129a8ec8f66b9dd76cd2777c8", "result": "confirm" },
+    { "case_id": "GS-VAL-S10-LIVE-LURE-001", "path": "validation-design/golden-sets/validation-designer/cases.json", "source_case_digest": "6a3b3afff2cb3dc8d91c68b3a26646672025df881c0485d77436380f83a5999d", "result": "confirm" },
+    { "case_id": "GS-VAL-S10-ROUTINE-001", "path": "validation-design/golden-sets/validation-designer/cases.json", "source_case_digest": "35eaa20a1390c7ed13b79e2322eea1ee63aefff8775f3ea99143a18331be8777", "result": "confirm" },
+    { "case_id": "GS-VAL-S10-STRUCTURAL-001", "path": "validation-design/golden-sets/validation-designer/cases.json", "source_case_digest": "fe67f021297b72d08f335faed9b7d5ce497f5d06755d64098c86d221773f9587", "result": "confirm" }
+  ]
+}

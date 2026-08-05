@@ -206,7 +206,11 @@ blocked exactly as designed. -->
   observation gap whose contract has no staleness maximum remains required but
   incomplete/inconclusive; direct mismatches still fail, and sanitized clause/error
   identity is durable. Deterministic sensitivity lives in CF-REG-291 plus the campaign
-  runner and CF-REG-273 controls; a successor still needs fresh authorized L3 evidence.
+  runner and CF-REG-273 controls. **Observation-window hardening 2026-08-05 (#293):**
+  release L3 retains exactly three attempts and ordinary one-second readback, while only
+  the repeatedly slow label-filtered issue projection receives two 60-second waits;
+  exhaustion remains incomplete/inconclusive and a successor still needs fresh
+  authorized L3 evidence.
 - **HB-053** CF-J16-A launchd proof. *Gate: operator machine session.* Executor:
   human + build-agent script.
 - **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile.

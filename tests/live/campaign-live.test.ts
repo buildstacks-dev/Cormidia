@@ -23,6 +23,7 @@ import { assertCampaignRepositoryBinding } from "../campaign/repository-binding.
 import { runAdapterConformance } from "../fixtures/adapters/conformance.js";
 import { GITHUB_CONFORMANCE_CLAUSE_COUNT, runGithubConformance } from "../fixtures/github-double/conformance/suite.js";
 import { loadLiveCampaignConfig, type LiveCampaignConfigV1 } from "./config.js";
+import { releaseGithubConformanceOptions } from "./github-conformance-policy.js";
 import { githubConformanceCaseResult } from "./github-conformance-result.js";
 import { RealGithubConformanceSurface } from "./real-github-surface.js";
 
@@ -110,7 +111,7 @@ describe("authorized L3 campaign", () => {
     try {
       surface = await RealGithubConformanceSurface.create(config.github.repo);
       await campaign.runCase("CF-B01-L3", { providerTurns: 0, maxEquivUsd: 0 }, async () => {
-        const report = await runGithubConformance(surface!, { readBackAttempts: 3, readBackDelayMs: 1_000 });
+        const report = await runGithubConformance(surface!, releaseGithubConformanceOptions());
         await surface!.cleanup();
         return githubConformanceCaseResult(config.github.repo, report);
       });

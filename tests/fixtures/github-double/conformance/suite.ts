@@ -49,6 +49,8 @@ export interface GithubConformanceOptions {
   /** Attempts for read-back assertions (default 1: strict; live may raise). */
   readBackAttempts?: number;
   readBackDelayMs?: number;
+  labelSearchReadBackDelayMs?: number;
+  wait?: (delayMs: number) => Promise<void>;
 }
 
 export interface ConformanceClauseFailure {
@@ -71,7 +73,8 @@ interface ClauseContext {
   ops: GhOps;
   tag: string;
   /** Retry `fn` up to readBackAttempts times for eventually-visible reads. */
-  eventually<T>(fn: () => Promise<T>): Promise<T>;
+  eventually<T>(fn: () => Promise<T>, delayMs?: number): Promise<T>;
+  labelSearchReadBackDelayMs: number;
 }
 
 interface Clause {
@@ -151,7 +154,7 @@ const CLAUSES: Clause[] = [
             listed.some((candidate) => candidate.number === reread.number),
             "label-filtered listIssues must find the created issue",
           );
-        });
+        }, ctx.labelSearchReadBackDelayMs);
       } catch (error) {
         throw new ObservationInconclusiveError(
           "label_filtered_issue_search_not_observed",
@@ -425,6 +428,10 @@ export async function runGithubConformance(
   }
   const attempts = Math.max(1, options.readBackAttempts ?? 1);
   const delayMs = options.readBackDelayMs ?? 250;
+  const labelSearchReadBackDelayMs = options.labelSearchReadBackDelayMs ?? delayMs;
+  const wait = options.wait ?? (async (durationMs: number) => {
+    await new Promise((resolve) => setTimeout(resolve, durationMs));
+  });
   const passed: string[] = [];
   const failures: ConformanceClauseFailure[] = [];
   for (const clause of selected) {
@@ -434,15 +441,17 @@ export async function runGithubConformance(
       surface,
       ops: surface.ops,
       tag,
-      async eventually<T>(fn: () => Promise<T>): Promise<T> {
+      labelSearchReadBackDelayMs,
+      async eventually<T>(fn: () => Promise<T>, overrideDelayMs?: number): Promise<T> {
         let lastError: unknown;
+        const activeDelayMs = overrideDelayMs ?? delayMs;
         for (let attempt = 0; attempt < attempts; attempt += 1) {
           try {
             return await fn();
           } catch (error) {
             lastError = error;
             if (attempt + 1 < attempts) {
-              await new Promise((resolve) => setTimeout(resolve, delayMs));
+              await wait(activeDelayMs);
             }
           }
         }

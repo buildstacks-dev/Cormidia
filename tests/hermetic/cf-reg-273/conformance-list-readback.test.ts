@@ -59,6 +59,22 @@ describe("CF-REG-273 — label-filtered conformance readback is eventually visib
     expect(calls()).toBe(3);
   });
 
+  it("uses the label-search-specific delay without slowing ordinary readback", async () => {
+    const { surface, calls } = await delayedListSurface(2);
+    const waits: number[] = [];
+    const report = await runGithubConformance(surface, {
+      clauseFilter: (id) => id === "B01-CF-02",
+      readBackAttempts: 3,
+      readBackDelayMs: 1_000,
+      labelSearchReadBackDelayMs: 60_000,
+      wait: async (delayMs) => { waits.push(delayMs); },
+    });
+
+    expect(report.failures).toEqual([]);
+    expect(calls()).toBe(3);
+    expect(waits).toEqual([60_000, 60_000]);
+  });
+
   it("negative control: the same delayed projection is caught when retry is seeded away", async () => {
     const { surface, calls } = await delayedListSurface(1);
     const report = await runGithubConformance(surface, {

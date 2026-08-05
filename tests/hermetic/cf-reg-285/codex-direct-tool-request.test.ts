@@ -23,6 +23,7 @@ import type { RoleConfig } from "../../../src/runtime/types.js";
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 const MODEL = "gpt-5.6-sol";
+const TRUST_BYPASS_CANARY = "CF_REG_285_TRUST_BYPASS_CANARY";
 const roots: string[] = [];
 const servers: Server[] = [];
 
@@ -63,13 +64,16 @@ describe("CF-REG-285 — assigned Codex models reach only direct gateable tools"
     expect(run.result.status).toBe("blocked_on_gate");
   });
 
-  it("negative control: dropping the typed hook-trust override reproduces the executed write", async () => {
+  it("negative control: dropping the typed hook-trust override reproduces an un-gated read", async () => {
     const run = await runAgainstLoopback(
       false,
-      (marker) => `touch ${JSON.stringify(marker)}`,
+      (marker) => {
+        writeFileSync(marker, `${TRUST_BYPASS_CANARY}\n`, "utf8");
+        return `cat ${JSON.stringify(marker)}`;
+      },
       true,
     );
-    expect(existsSync(run.marker)).toBe(true);
+    expect(JSON.stringify(run.requests[1])).toContain(TRUST_BYPASS_CANARY);
     expect(run.result.escalations).toHaveLength(0);
     expect(run.result.status).toBe("completed");
   });

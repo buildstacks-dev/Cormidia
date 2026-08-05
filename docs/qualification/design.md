@@ -53,8 +53,10 @@ exceedable.
 
 Release preparation and exact-tag verification execute the offline Vitest lane with
 its JSON reporter and derive the allowed skip inventory from executed assertions,
-not source-text patterns. Before execution, the release assessor pins the exact root
-Vitest config bytes; afterward, the report's file set must equal every tracked
+not source-text patterns. Before execution, the release assessor proves the working
+tree is the candidate commit or its evidence-only descendant, refusing staged,
+unstaged, or untracked non-evidence paths, and pins the exact root Vitest config
+bytes. Afterward, the report's file set must equal every tracked
 non-live `tests/**/*.test.ts` file at the candidate commit. Every skipped, pending, or
 todo assertion must carry exactly
 one current `BLOCKED:F-PT-nnn` identity; aggregate-count drift, a missing binding, a

@@ -448,6 +448,7 @@ export interface ReleaseRepositorySnapshotV1 {
  * producer rather than candidate-source currency. */
 export async function releaseRepositorySnapshot(repo: string, revision: string): Promise<ReleaseRepositorySnapshotV1> {
   commit(revision, "repository snapshot revision");
+  await validateReleaseExecutionTree(repo, revision);
   const [candidateVitestConfig, workingVitestConfig, trackedVitestFiles, canonicalRepo] = await Promise.all([
     gitFile(repo, revision, "vitest.config.ts"),
     readFile(join(repo, "vitest.config.ts")),
@@ -1964,6 +1965,25 @@ async function releaseTrackedVitestFiles(repo: string, revision: string): Promis
   if (paths.length === 0) throw new Error("release candidate has no tracked offline Vitest files");
   if (new Set(paths).size !== paths.length) throw new Error("release candidate has duplicate tracked offline Vitest files");
   return paths;
+}
+
+/** Vitest executes from the checkout, so prove that checkout is the candidate
+ * plus, at most, its evidence-only descendant. This check deliberately includes
+ * staged, unstaged, and untracked non-ignored paths and completes before Vitest
+ * starts; otherwise ambient bytes could make a failing candidate appear green. */
+async function validateReleaseExecutionTree(repo: string, revision: string): Promise<void> {
+  await git(repo, ["merge-base", "--is-ancestor", revision, "HEAD"]);
+  const [changed, untracked] = await Promise.all([
+    git(repo, ["diff", "--name-only", "-z", revision, "--"], false),
+    git(repo, ["ls-files", "--others", "--exclude-standard", "-z"], false),
+  ]);
+  const paths = [...changed.split("\0"), ...untracked.split("\0")]
+    .filter(Boolean)
+    .map((path) => safeRelativePath(path, "release execution path"));
+  const outsideEvidence = paths.filter((path) => !path.startsWith("release-evidence/"));
+  if (outsideEvidence.length > 0) {
+    throw new Error(`release execution tree differs from the candidate outside evidence namespace: ${outsideEvidence.sort().join(", ")}`);
+  }
 }
 
 async function runReleaseVitest(repo: string): Promise<unknown> {

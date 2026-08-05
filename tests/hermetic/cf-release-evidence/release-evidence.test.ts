@@ -111,6 +111,17 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     forgedSkips.deterministic.allowed_test_skips.push("BLOCKED:F-PT-009");
     await expect(validateReleaseRepositoryState(repo, forgedSkips)).rejects.toThrow(/allowed test skips/);
 
+    const passingCandidateTest = await readFile(join(repo, "tests", "fixture.test.ts"), "utf8");
+    const failingCandidateTest = `${passingCandidateTest}\n` +
+      "it('seeded candidate failure', () => { expect(false).toBe(true); });\n";
+    await writeFile(join(repo, "tests", "fixture.test.ts"), failingCandidateTest, "utf8");
+    await git(repo, ["add", "tests/fixture.test.ts"]); await git(repo, ["commit", "-qm", "seed failing candidate"]);
+    const failingCandidate = (await git(repo, ["rev-parse", "HEAD"])).trim();
+    await writeFile(join(repo, "tests", "fixture.test.ts"), failingCandidateTest.replace("expect(false)", "expect(true)"), "utf8");
+    await expect(releaseRepositorySnapshot(repo, failingCandidate)).rejects.toThrow(/execution tree differs from the candidate/);
+    await writeFile(join(repo, "tests", "fixture.test.ts"), passingCandidateTest, "utf8");
+    await git(repo, ["add", "tests/fixture.test.ts"]); await git(repo, ["commit", "-qm", "restore passing fixture"]);
+
     const alteredCases = repositoryGoldenCases("validated");
     alteredCases[0]!["prompt"] = "Changed after the human review";
     await writeRepositoryFixture(repo, alteredCases, false, sourceCommit, cases);

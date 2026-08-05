@@ -625,11 +625,19 @@ prepares the proposal and a human separately ratifies any such surface. -->
   acknowledgement as separate facts. F-PT-018 remains an open known limitation;
   F-PT-021 is resolved by authenticated actor/approver/repository equality. *Layer:* 1/2 + CI.
   *Executor:* build-agent + protected human merge. *Depends on:* HB-116.
-- **HB-118 — PENDING — RQ-1 implementation audit and holdout.** Independently verify the
-  completed C3 assessor and every seeded detector before the protected implementation
-  lands. *Layer:* audit. *Executor:* validation auditor. *Depends on:* HB-113…117.
-  Future HB-072/HB-073/L5 work is outside RQ-1; separately authorized L3/L4 campaigns
-  qualify each later candidate rather than activating the gate.
+- **HB-118 — COMPLETE 2026-08-05 — RQ-1 implementation audit and holdout.** Fresh-agent
+  I2 review of exact implementation commit `58596de4f03a1bf9ed3c102c904d0a0f6026e2d7`
+  closed two independently demonstrated false-green paths: ambient tracked checkout
+  bytes and ignored producer/environment bytes. The final assessor executes Vitest in
+  a sparse exact-candidate clone, performs a frozen offline dependency install with
+  scripts disabled and store integrity enabled, scrubs inherited environment, binds
+  the complete executed file/skip inventory, and cleans the isolated checkout. I2
+  passed 44 focused tests, the 169-file offline gate (1,089 pass; one policy skip),
+  typecheck, build, diff check, exact self-snapshot and exact-head hosted CI. Full
+  evidence: `.validation/20260805T102101Z-58596de4f03a/`. *Layer:* audit. *Executor:*
+  independent validation auditor. *Depends on:* HB-113…117. Future HB-072/HB-073/L5
+  work remains outside RQ-1; separately authorized L3/L4 campaigns qualify each later
+  candidate rather than activating the gate.
 
 ## Standing rules
 

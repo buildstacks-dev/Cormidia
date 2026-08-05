@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "assessment_id": "20260805T102101Z-58596de4f03a",
+  "mode": "full/verify",
+  "started_at": "2026-08-05T10:21:01Z",
+  "created_at_utc": "2026-08-05T10:21:01Z",
+  "repository": "cormidia/Cormidia",
+  "branch": "codex/restore-release-evidence-gate",
+  "base_revision": "00e00b5b3232f4a6f60dc0fc3ee38f84d51e106e",
+  "target_kind": "exact committed RQ-1 implementation",
+  "target_revision": "58596de4f03a1bf9ed3c102c904d0a0f6026e2d7",
+  "target_diff_sha256": "d03603f6403bd600d62f383657e5325e57b9ad6065079b4cc9cf98b2762b951c",
+  "origin_main_at_final_inspection": "5503f721feae0e89e358a9b4027860ca69589813",
+  "environment": {
+    "kind": "developer-host plus GitHub Actions hosted runner",
+    "worktree": "/Users/bikram/Build/Cormidia-release-evidence-gate",
+    "node": "v26.4.0",
+    "pnpm": "11.10.0",
+    "provider_backed_validation": false,
+    "publication_or_tag_effect": false
+  },
+  "scope": [
+    "RQ-1 manifest, campaign identity/currency, deterministic admission and verdict semantics",
+    "human-confirmed golden references, exact L4 pairings and evaluator-debt boundaries",
+    "cost/retry schema, candidate equivalence, packet and attestation",
+    "supported GitHub-tag/npm enforcement, migration and rollback surfaces",
+    "seeded detectors, CI/operator surfaces and evidence packet"
+  ],
+  "independence": {
+    "level": "I2",
+    "kind": "fresh-context independent subagent",
+    "not_claimed": ["I3", "human-independent", "organizational-independent", "vendor-independent"]
+  },
+  "assessment": "sufficient_for_stated_target",
+  "implementation_disposition": "ready_for_protected_human_merge",
+  "external_release_claim": "not_qualified",
+  "excluded_actions": ["live", "eval", "soak", "provider", "tag", "publish", "deploy", "release"]
+}

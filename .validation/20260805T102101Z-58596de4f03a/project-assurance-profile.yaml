@@ -1,0 +1,48 @@
+schema_version: "1.0"
+assessment:
+  id: "20260805T102101Z-58596de4f03a"
+  mode: "full/verify"
+  target_revision: "58596de4f03a1bf9ed3c102c904d0a0f6026e2d7"
+  repository_root: "/Users/bikram/Build/Cormidia-release-evidence-gate"
+  working_tree_state: "clean isolated worktree"
+  independence_level: "I2-fresh-agent"
+
+project:
+  name: "Cormidia"
+  intended_release_use: "Qualify an exact Cormidia package for the supported protected GitHub annotated-tag to npm path before a separate exact human release approval."
+  excluded_uses:
+    - "unapproved publication or deployment"
+    - "generic non-GitHub release targets"
+    - "general safety certification"
+    - "qualification by missing, stale, future, or pooled evidence"
+  rollback_model: "disable/revert the RQ-1 workflow and implementation while retaining immutable evidence; never restore the archived gate"
+
+criticality:
+  system_level: "C2"
+  assurance_control_level: "C3"
+  change_level: "L3"
+  rationale:
+    - "A false green can admit an externally durable npm package to a later human-approved publication action."
+    - "The control composes deterministic, stochastic, external and human-attributable evidence."
+
+human_authority:
+  ratified:
+    - "RQ-1 and every workbook expected behavior"
+    - "all 20 golden references under validator bikramgupta with agent authorship preserved"
+    - "exact protected-surface diff"
+    - "future/non-blocking L5 and generic B-17 scope"
+    - "F-PT-018 bounded process limitation"
+    - "GitHub actor/approval/configured-approver equality"
+  still_separate:
+    - "protected human squash merge"
+    - "each candidate's L3/L4 campaign authorization"
+    - "exact tag and npm publication approval"
+  not_invented:
+    - "thresholds, sample sizes, aggregation or judge admissibility"
+    - "threat conclusions"
+    - "merge-enforcement alternatives"
+
+assurance_target:
+  scoped_claim: "The offline implementation is fail-closed and sufficient to land RQ-1 machinery."
+  release_claim: "No candidate is qualified by this audit."
+  current_verdict: "SUFFICIENT_FOR_STATED_TARGET"

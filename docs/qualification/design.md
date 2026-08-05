@@ -36,8 +36,12 @@ CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finis
 The L3 config schema is `tests/live/config.ts` and admits only four exact
 campaign shapes: one changed adapter; one sandbox-GitHub smoke; one launchd proof; or
 a release campaign containing all three adapters, sandbox GitHub, and the unattended
-profile (launchd is additionally selected when its release trigger applies). A partial
-release cannot call itself complete. Bounds are 2 turns/$5 for a changed-adapter
+profile. RQ-1 currently requires the launchd proof in every release campaign: the
+policy trigger is conditional, but there is not yet a ratified, content-bound prior
+trigger baseline or material-host observation that can prove the condition absent.
+Restoring conditional omission requires that separately ratified baseline; a caller
+declaration is insufficient. A partial release cannot call itself complete. Bounds
+are 2 turns/$5 for a changed-adapter
 pre-merge campaign and 24 turns/$100 for release. GitHub operations use the ratified
 three-attempt jittered exponential retry budget. Launchd proof requires exact loaded
 identity, an attributable tick, and removal of exactly that definition inside the
@@ -46,6 +50,15 @@ before execution. If the callback throws before returning trustworthy usage, the
 runner conservatively debits the entire reservation; unknown partial spend can reduce
 remaining campaign capacity, but can never disappear and make the hard ceiling
 exceedable.
+
+Release preparation and exact-tag verification execute the offline Vitest lane with
+its JSON reporter and derive the allowed skip inventory from executed assertions,
+not source-text patterns. Every skipped, pending, or todo assertion must carry exactly
+one current `BLOCKED:F-PT-nnn` identity; aggregate-count drift, a missing binding, a
+resolved or unknown finding, a duplicate identity, a failed test, or any mismatch
+with the packet inventory refuses qualification. Aliases, bracket notation,
+conditional and chained skips, suite skips, and test options cannot disappear from
+this execution-derived inventory.
 
 The L4 config schema is `tests/eval-runner/cli.ts`: exact tuples, absolute
 committed golden-set files, a token ceiling, provider-turn/equivalent-cost ceilings,

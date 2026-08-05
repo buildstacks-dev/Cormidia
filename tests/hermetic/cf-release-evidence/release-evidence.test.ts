@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -22,6 +22,7 @@ import {
   evaluateL4Evidence,
   evaluateTriggeredCampaignEvidence,
   parseReleaseTagMessage,
+  releaseAllowedTestSkipsFromVitestReport,
   releaseRepositorySnapshot,
   releaseSubjectDigest,
   sha256,
@@ -82,6 +83,10 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     inventedL3.triggered_campaigns[0]!.required_case_ids = ["INVENTED-ONLY"];
     inventedL3.triggered_campaigns[0]!.scopes = ["INVENTED-ONLY"];
     expect(() => createReleaseManifest(inventedL3)).toThrow(/incomplete or invented L3 case inventory/);
+    const omittedLaunchd = fixtureBody();
+    omittedLaunchd.triggered_campaigns[0]!.required_case_ids = omittedLaunchd.triggered_campaigns[0]!.required_case_ids.filter((id) => id !== "CF-J16-A");
+    omittedLaunchd.triggered_campaigns[0]!.scopes = omittedLaunchd.triggered_campaigns[0]!.required_case_ids;
+    expect(() => createReleaseManifest(omittedLaunchd)).toThrow(/incomplete or invented L3 case inventory/);
   });
 
   it("recomputes candidate inputs, permits pending future assurance, and refuses caller-supplied policy bytes", async () => {
@@ -112,6 +117,34 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "seed post-review golden mutation"]);
     const alteredCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
     await expect(releaseRepositorySnapshot(repo, alteredCommit)).rejects.toThrow(/content changed after human review/);
+  });
+
+  it("negative control: machine inventory catches alternate skip syntax and refuses missing or forged skip rows", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "rq1-vitest-inventory-")); roots.push(repo);
+    const cases = repositoryGoldenCases("pending");
+    await writeRepositoryFixture(repo, cases, false, "0".repeat(40));
+    await git(repo, ["init", "-q"]); await git(repo, ["config", "user.email", "fixture@example.test"]); await git(repo, ["config", "user.name", "Fixture"]);
+    await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "source references"]);
+    const sourceCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
+    await writeRepositoryFixture(repo, repositoryGoldenCases("validated"), false, sourceCommit, cases);
+    await git(repo, ["add", "."]); await git(repo, ["commit", "-qm", "candidate"]);
+    const candidate = (await git(repo, ["rev-parse", "HEAD"])).trim();
+
+    expect(() => releaseAllowedTestSkipsFromVitestReport(
+      fixtureVitestReport("alternate it['skip'] syntax without a policy binding"),
+      new Set(["F-PT-012"]),
+    )).toThrow(/unbound skipped or pending test/);
+    expect(() => releaseAllowedTestSkipsFromVitestReport(
+      fixtureVitestReport("BLOCKED:F-PT-999 — forged closed finding"),
+      new Set(["F-PT-012"]),
+    )).toThrow(/not bound to a current open policy finding/);
+
+    const snapshot = await releaseRepositorySnapshot(repo, candidate);
+    expect(snapshot.allowed_test_skips).toEqual(["BLOCKED:F-PT-012"]);
+    const manifest = await repositoryFixtureManifest(repo, candidate);
+    const missing = deterministicEvidence(manifest);
+    missing.checks.find((item) => item.id === "pnpm-test")!.skipped_case_ids = [];
+    expect(evaluateDeterministicAdmission(manifest, missing)).toMatchObject({ verdict: "fail" });
   });
 
   it("admits every exact deterministic check and preserves the one ratified skip", () => {
@@ -810,6 +843,8 @@ async function writeRepositoryFixture(
   ].join("\n"), "utf8");
   await writeFile(join(repo, "tests", "fixture.test.ts"), [
     "import { it } from 'vitest';",
+    "const detectorFixtureText = \"it.skip(\";",
+    "void detectorFixtureText;",
     "it.skip(",
     "  'BLOCKED:F-PT-012 — fixture policy question',",
     "  () => {},",
@@ -827,7 +862,7 @@ async function writeRepositoryFixture(
     devDependencies: { typescript: "5.9.3", vitest: "3.2.6" },
   }, null, 2)}\n`, "utf8");
   for (const [packagePath, version] of [
-    ["typescript", "5.9.3"], ["vitest", "3.2.6"],
+    ["typescript", "5.9.3"],
     ["@anthropic-ai/claude-agent-sdk", "0.3.201"],
     ["@earendil-works/pi-coding-agent", "0.80.7"], ["@openai/codex", "0.144.4"],
   ]) {
@@ -835,6 +870,13 @@ async function writeRepositoryFixture(
     await mkdir(path, { recursive: true });
     await writeFile(join(path, "package.json"), `${JSON.stringify({ version })}\n`, "utf8");
   }
+  const fixtureVitest = join(repo, "node_modules", "vitest");
+  const fixtureVitestBin = join(repo, "node_modules", ".bin", "vitest");
+  await rm(fixtureVitest, { recursive: true, force: true });
+  await rm(fixtureVitestBin, { force: true });
+  await mkdir(join(repo, "node_modules", ".bin"), { recursive: true });
+  await symlink(join(process.cwd(), "node_modules", "vitest"), fixtureVitest, "dir");
+  await symlink(join(process.cwd(), "node_modules", ".bin", "vitest"), fixtureVitestBin, "file");
   for (const site of ["reviewer", "planner", "validation-designer"] as const) {
     await writeFile(join(validation, "golden-sets", site, "cases.json"), `${JSON.stringify(cases.filter((item) => item.site === site), null, 2)}\n`, "utf8");
   }
@@ -851,6 +893,24 @@ async function writeRepositoryFixture(
   const threatArtifact = "# Human-authored fixture threat model\n";
   await writeFile(join(validation, "threat-model.md"), threatArtifact, "utf8");
   await writeFile(join(validation, "threat-model-status.yaml"), threatStatus(threatRatified, sha256(threatArtifact)), "utf8");
+}
+
+function fixtureVitestReport(skipTitle = "BLOCKED:F-PT-012 — fixture policy question"): Record<string, unknown> {
+  return {
+    success: true,
+    numTotalTests: 2,
+    numPassedTests: 1,
+    numFailedTests: 0,
+    numPendingTests: 1,
+    numTodoTests: 0,
+    testResults: [{
+      name: "/fixture/tests/fixture.test.ts",
+      assertionResults: [
+        { fullName: "fixture executes", title: "fixture executes", status: "passed" },
+        { fullName: `fixture ${skipTitle}`, title: skipTitle, status: "skipped" },
+      ],
+    }],
+  };
 }
 
 function threatStatus(ratified: boolean, artifactSha: string): string {

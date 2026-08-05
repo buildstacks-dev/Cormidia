@@ -32,9 +32,13 @@ export const RELEASE_DETERMINISTIC_CHECKS = [
 ] as const;
 export const RELEASE_L4_SITES = ["reviewer", "planner", "validation-designer"] as const;
 export const RELEASE_L3_REQUIRED_CASES = [
-  "CF-B02-L3", "CF-B03-L3", "CF-B04-L3", "CF-B01-L3", "CF-J18-A",
+  "CF-B02-L3", "CF-B03-L3", "CF-B04-L3", "CF-B01-L3", "CF-J18-A", "CF-J16-A",
 ] as const;
-export const RELEASE_L3_CONDITIONAL_CASES = ["CF-J16-A"] as const;
+// RQ-1 currently has no ratified, content-bound prior trigger baseline or host
+// observation from which absence of the launchd trigger can be proved. The
+// policy remains conditional, but the implementation therefore tightens it to
+// mandatory. A future conditional omission needs its own ratified baseline.
+export const RELEASE_L3_CONDITIONAL_CASES = [] as const;
 
 const RELEASE_OBLIGATION_SPECS = [
   { id: "RQ-DET", lane: "deterministic", claim_class: "build", debt_eligible: false },
@@ -443,7 +447,7 @@ export interface ReleaseRepositorySnapshotV1 {
  * producer rather than candidate-source currency. */
 export async function releaseRepositorySnapshot(repo: string, revision: string): Promise<ReleaseRepositorySnapshotV1> {
   commit(revision, "repository snapshot revision");
-  const [policyBytes, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes] = await Promise.all([
+  const [policyBytes, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes, vitestReport] = await Promise.all([
     gitFile(repo, revision, "validation-design/validation-policy.yaml"),
     gitFile(repo, revision, "pnpm-lock.yaml"),
     gitTreeDigest(repo, revision, "prompts"),
@@ -452,12 +456,13 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
     gitFile(repo, revision, "TASTE.md"),
     gitTreeDigest(repo, revision, "validation-design/golden-sets"),
     gitFile(repo, revision, "validation-design/golden-sets/human-validation.json"),
+    runReleaseVitest(repo),
   ]);
   const assignments = assignmentProjection(parseYaml(rolesBytes.toString("utf8")));
   const toolchain = await currentReleaseToolchain(repo);
   const goldenReferences = await goldenReferenceProjection(repo, revision, validationRecordBytes);
   const policy = releasePolicyProjection(policyBytes);
-  const allowedTestSkips = await releaseAllowedTestSkips(repo, revision, policy.openFindingIds);
+  const allowedTestSkips = releaseAllowedTestSkipsFromVitestReport(vitestReport, policy.openFindingIds);
   const producerDigests = releaseProducerDigests(revision, sha256(policyBytes), toolchain);
   return {
     candidate_commit: revision,
@@ -509,8 +514,7 @@ export async function validateReleaseRepositoryState(
   }
   const campaignCases = manifest.triggered_campaigns[0]?.required_case_ids ?? [];
   const required = snapshot.l3_required_case_ids;
-  const requiredWithConditional = [...required, ...snapshot.l3_conditional_case_ids];
-  if (canonicalJson(campaignCases) !== canonicalJson(required) && canonicalJson(campaignCases) !== canonicalJson(requiredWithConditional)) {
+  if (canonicalJson(campaignCases) !== canonicalJson(required)) {
     throw new Error("release manifest L3 case inventory differs from the ratified policy obligations");
   }
 }
@@ -589,6 +593,9 @@ export function evaluateDeterministicAdmission(
     }
     const unlisted = check.skipped_case_ids.filter((skip) => !manifest.deterministic.allowed_test_skips.includes(skip));
     if (unlisted.length > 0) violationIds.push(...unlisted.map((skip) => `unlisted_skip:${skip}`));
+    if (id === "pnpm-test" && canonicalJson(check.skipped_case_ids) !== canonicalJson(manifest.deterministic.allowed_test_skips)) {
+      violationIds.push("test_skip_inventory_mismatch");
+    }
     if (id !== "pnpm-test" && check.skipped_case_ids.length > 0) violationIds.push(`unexpected_skip_surface:${id}`);
   }
   const obligation = manifest.obligations.find((item) => item.lane === "deterministic");
@@ -1433,8 +1440,7 @@ function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTri
       throw new Error("triggered campaign must target the exact RQ-L3 release lane");
     }
     const required = [...RELEASE_L3_REQUIRED_CASES];
-    const requiredWithConditional = [...required, ...RELEASE_L3_CONDITIONAL_CASES];
-    if (canonicalJson(cases) !== canonicalJson(required) && canonicalJson(cases) !== canonicalJson(requiredWithConditional)) {
+    if (canonicalJson(cases) !== canonicalJson(required)) {
       throw new Error("RQ-1 release campaign has an incomplete or invented L3 case inventory");
     }
     if (canonicalJson(scopes) !== canonicalJson(cases)) throw new Error("RQ-1 release campaign scopes must equal its exact case inventory");
@@ -1876,25 +1882,70 @@ function releasePolicyProjection(policyBytes: Buffer): {
   };
 }
 
-async function releaseAllowedTestSkips(repo: string, revision: string, openFindingIds: Set<string>): Promise<string[]> {
-  const result = await git(repo, ["ls-tree", "-r", "-z", "--name-only", revision, "--", "tests"], false);
-  const paths = result.split("\0").filter((path) => /\.(?:[cm]?[jt]sx?)$/.test(path)).sort();
-  if (paths.length === 0) throw new Error("release candidate has no tracked validation tests");
+export function releaseAllowedTestSkipsFromVitestReport(vitestReport: unknown, openFindingIds: ReadonlySet<string>): string[] {
+  const root = object(vitestReport, "Vitest JSON report");
+  if (root["success"] !== true) throw new Error("release candidate Vitest report is not successful");
+  const total = nonNegativeInteger(root["numTotalTests"], "Vitest numTotalTests");
+  const expectedPassed = nonNegativeInteger(root["numPassedTests"], "Vitest numPassedTests");
+  const expectedFailed = nonNegativeInteger(root["numFailedTests"], "Vitest numFailedTests");
+  const expectedPending = nonNegativeInteger(root["numPendingTests"], "Vitest numPendingTests");
+  const expectedTodo = nonNegativeInteger(root["numTodoTests"], "Vitest numTodoTests");
+  if (total === 0 || !Array.isArray(root["testResults"]) || root["testResults"].length === 0) {
+    throw new Error("release candidate Vitest report has no executed test inventory");
+  }
+  const observed = { passed: 0, failed: 0, pending: 0, todo: 0 };
   const skipIds: string[] = [];
-  for (const path of paths) {
-    const source = (await gitFile(repo, revision, path)).toString("utf8");
-    const calls = [...source.matchAll(/\b(?:it|test|describe)\.skip\s*\(/g)];
-    const bound = [...source.matchAll(/\b(?:it|test|describe)\.skip\s*\(\s*["'`](BLOCKED:([A-Z0-9-]+))\b/g)];
-    if (calls.length !== bound.length) throw new Error(`release candidate has an unbound skipped test in ${path}`);
-    for (const match of bound) {
-      const skipId = match[1]!;
-      const findingId = match[2]!;
-      if (!openFindingIds.has(findingId)) throw new Error(`skipped test ${skipId} is not bound to a current open policy finding`);
+  for (const rawFile of root["testResults"] as unknown[]) {
+    const file = object(rawFile, "Vitest test result");
+    const fileName = nonEmpty(file["name"], "Vitest test result name");
+    if (!Array.isArray(file["assertionResults"])) throw new Error(`Vitest test result ${fileName} lacks assertion inventory`);
+    for (const rawAssertion of file["assertionResults"] as unknown[]) {
+      const assertion = object(rawAssertion, `Vitest assertion in ${fileName}`);
+      const status = nonEmpty(assertion["status"], `Vitest assertion status in ${fileName}`);
+      if (status === "passed") observed.passed += 1;
+      else if (status === "failed") observed.failed += 1;
+      else if (status === "skipped" || status === "pending") observed.pending += 1;
+      else if (status === "todo") observed.todo += 1;
+      else throw new Error(`Vitest assertion in ${fileName} has unsupported status ${status}`);
+      if (status === "passed" || status === "failed") continue;
+      const fullName = nonEmpty(assertion["fullName"], `Vitest non-passing assertion identity in ${fileName}`);
+      const bindings = [...fullName.matchAll(/\b(BLOCKED:(F-PT-\d{3}))\b/g)];
+      if (bindings.length !== 1) throw new Error(`release candidate has an unbound skipped or pending test: ${fullName}`);
+      const skipId = bindings[0]![1]!;
+      const findingId = bindings[0]![2]!;
+      if (!openFindingIds.has(findingId)) throw new Error(`skipped or pending test ${skipId} is not bound to a current open policy finding`);
       skipIds.push(skipId);
     }
   }
+  if (observed.passed !== expectedPassed || observed.failed !== expectedFailed || observed.pending !== expectedPending || observed.todo !== expectedTodo) {
+    throw new Error("Vitest JSON report aggregate counts do not match its assertion inventory");
+  }
+  if (total !== observed.passed + observed.failed + observed.pending + observed.todo) {
+    throw new Error("Vitest JSON report total does not match its assertion inventory");
+  }
+  if (expectedFailed !== 0) throw new Error("release candidate Vitest inventory contains failed tests");
   if (new Set(skipIds).size !== skipIds.length) throw new Error("release candidate has duplicate policy-bound skipped-test identities");
   return skipIds.sort();
+}
+
+async function runReleaseVitest(repo: string): Promise<unknown> {
+  let stdout: string;
+  try {
+    const result = await execFile("pnpm", ["exec", "vitest", "run", "--reporter=json", "--no-cache"], {
+      cwd: repo,
+      encoding: "utf8",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    stdout = result.stdout;
+  } catch (error) {
+    const stderr = typeof error === "object" && error !== null && "stderr" in error ? String((error as { stderr?: unknown }).stderr) : "";
+    throw new Error(`release candidate Vitest execution failed${stderr.trim() ? `: ${stderr.trim()}` : ""}`);
+  }
+  try {
+    return JSON.parse(stdout) as unknown;
+  } catch (error) {
+    throw new Error("release candidate Vitest JSON report is malformed", { cause: error });
+  }
 }
 
 async function gitFile(repo: string, revision: string, path: string): Promise<Buffer> {

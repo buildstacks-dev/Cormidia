@@ -52,7 +52,7 @@ journey-acceptance.md alias table.
 |---|---|---|---|---|
 | CF-HARNESS-CI | Per-commit workflow shape, fail-closed jobs, detector canaries, and actual merge-blocking enforcement. Workflow-shape checks are implemented; mechanical merge blocking is **KNOWN-LIMITATION:F-PT-018**, bounded for RQ-1 by protected human merge plus exact-tag rerun. | 1 + CI | evid+det | FLOOR |
 | CF-HARNESS-REPORT | Durable completeness/verdict truth table; exact-ceiling, unknown-partial-spend, corrupt-report, canonical-policy/golden-blob binding, and presentation negative controls | 1/2 | evid+refusal+det | FLOOR |
-| CF-HARNESS-RQ | RQ-1 manifest, deterministic-first admission, aggregate completeness/verdict/qualification truth table, debt disposition, exact site/pairing scope | 1/2 | evid+refusal+det | E3/FLOOR |
+| CF-HARNESS-RQ | RQ-1 manifest, deterministic-first admission, executed machine-readable test/skip inventory, mandatory launchd proof until a ratified negative-trigger baseline exists, aggregate completeness/verdict/qualification truth table, debt disposition, exact site/pairing scope | 1/2 | evid+refusal+det | E3/FLOOR |
 | CF-HARNESS-CURRENCY | subject/producer digests, evidence-only descendant, identical package/policy/prompt/assignment/golden inputs, invalidation triggers | 1/2 | diff+evid+refusal+det | E3/FLOOR |
 | CF-HARNESS-ATTEST | canonical packet/attestation, path containment, packet hashes, exact release approval binding, tamper and missing-field refusal | 1/2 | evid+refusal+det | E1/E3/FLOOR |
 | CF-HARNESS-JUDGE | pending-reference refusal, uncalibrated-score refusal, exact pairing identity, composite-hash grade reuse, low-calibration triage without threshold/corpus weakening | 1/2 | stat-envelope+refusal+det | E3/L4Q |
@@ -370,7 +370,7 @@ not change matrix allocation or unblock any finding.
 | --- | --- | --- |
 | CF-B02-L3 / CF-B03-L3 / CF-B04-L3 | Complete; failed external evidence preserved | Authorized candidate `ec60cd33` campaign `cormidia-maintenance-l3-ec60cd33e7c7` collected all three real-pair cases but failed on the Codex `exec` gate bypass (#271); its immutable report SHA-256 is `709739891a8baf05a9cd2a48666ad8bd8c0b36bf19462e060ea3fbccb7bfbc48` and has no qualification value for a successor candidate. |
 | CF-B01-L3 | Complete; failed external evidence preserved | The same authorized `ec60cd33` campaign collected 13/15 real-GitHub clauses; B01-CF-02 and B01-CF-08 failed (#273/#272). The failed report above is preserved and cannot qualify a successor candidate. |
-| CF-J16-A | Complete | Real launchd install/readback/attributable-tick/scoped-removal case implemented; no host campaign run. |
+| CF-J16-A | Complete | Real launchd install/readback/attributable-tick/scoped-removal case implemented; no host campaign run. RQ-1 requires it in every release campaign until a separately ratified, content-bound trigger baseline can prove the policy condition absent. |
 | CF-J18-A | Complete | `src/org/validation-test-mode.ts` + L3 case; no unattended campaign run. |
 | CF-S1-qual | Runner + cases complete | Planner cases human-validated; threshold F-PT-010 open, so any run is inconclusive. |
 | CF-S3-qual+judge | Runner + cases complete | Seeded reviewer/clean cases human-validated; F-PT-009 open, so any run is inconclusive and judge scores remain inadmissible. |

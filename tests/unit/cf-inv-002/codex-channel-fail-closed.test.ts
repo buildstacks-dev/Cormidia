@@ -22,6 +22,8 @@ import {
   normalizeCodexHookActions,
 } from "../../../src/runtime/adapters/codex-gate-bridge.js";
 
+const MODEL_CATALOG = "/tmp/cormidia-direct-tool-model-catalog.json";
+
 /** The alternate channels current Codex hooks cannot fully intercept, each with
  *  the exact disable token the adapter must emit. If a channel's token is
  *  absent from the args, that channel is live and un-gateable — fail-open. */
@@ -53,15 +55,13 @@ describe("CF-INV-002 (seed b / T-11) — Codex un-gateable tool routes fail clos
   });
 
   it("codexAppServerArgs disables EVERY alternate channel the gate hook cannot intercept", () => {
-    const args = codexAppServerArgs();
+    const args = codexAppServerArgs(MODEL_CATALOG);
     expect(enabledUngateableChannels(args)).toEqual([]);
   });
 
   it("the gate hook is enabled and matches every gateable tool path (T-11: the hook sees every real tool)", () => {
-    const args = codexAppServerArgs();
+    const args = codexAppServerArgs(MODEL_CATALOG);
     expect(args).toContain("features.hooks=true");
-    // The ephemeral, already-vetted hook must be runnable for the boundary to hold.
-    expect(args).toContain("bypass_hook_trust=true");
     const matcherLine = args.find((a) => a.includes("hooks.PreToolUse"));
     expect(matcherLine).toBeDefined();
     // Bash, apply_patch, file writes, and every MCP tool route through the hook
@@ -72,18 +72,18 @@ describe("CF-INV-002 (seed b / T-11) — Codex un-gateable tool routes fail clos
   it("negative control: a seeded-allow args array that re-enables unified_exec is CAUGHT by the detector", () => {
     // Seed the INV-002(b) violation: an operator/regression flips one
     // un-gateable channel back on. The detector must fire (report the channel).
-    const seededAllow = codexAppServerArgs().map((a) =>
+    const seededAllow = codexAppServerArgs(MODEL_CATALOG).map((a) =>
       a === "features.unified_exec=false" ? "features.unified_exec=true" : a,
     );
     expect(enabledUngateableChannels(seededAllow)).toEqual(["unified_exec"]);
 
     // A second seed: the web_search runtime disable dropped while the feature
     // flag stays — a partial disable is still fail-open and must be caught.
-    const partialWebSearch = codexAppServerArgs().filter((a) => a !== 'web_search="disabled"');
+    const partialWebSearch = codexAppServerArgs(MODEL_CATALOG).filter((a) => a !== 'web_search="disabled"');
     expect(enabledUngateableChannels(partialWebSearch)).toContain("web_search");
 
     // The real args do NOT trip the detector (proves it is not a constant).
-    expect(enabledUngateableChannels(codexAppServerArgs())).toEqual([]);
+    expect(enabledUngateableChannels(codexAppServerArgs(MODEL_CATALOG))).toEqual([]);
   });
 
   it("the hook-input normalizer fails closed on an input shape it has never seen (unknown → throw → deny)", () => {

@@ -288,9 +288,9 @@ export class CodexRuntime implements Runtime {
 
     const startTime = Date.now();
     const escalations: GateEscalation[] = [];
-    const gateBridge = await startCodexGateBridge(req.workdir, hooks, escalations);
+    const gateBridge = await startCodexGateBridge(req.workdir, assignment.model, hooks, escalations);
     const client = this.clientFactory({
-      args: codexAppServerArgs(permissionMode),
+      args: codexAppServerArgs(gateBridge.modelCatalogPath, permissionMode),
       env: { ...withNonInteractiveEnv(this.appServerEnv ?? process.env), ...gateBridge.env },
     });
     const state: CodexTurnState = {
@@ -625,7 +625,13 @@ function threadParams(
     sandbox: "workspace-write",
     developerInstructions: renderContextBundle(req.context),
     ephemeral: false,
-    config: { model_reasoning_effort: mapCodexEffort(assignment.effort) },
+    config: {
+      model_reasoning_effort: mapCodexEffort(assignment.effort),
+      // App Server 0.144.4 drops the equivalent global CLI flag. This typed
+      // request override reaches ConfigOverrides and authorizes only the
+      // per-turn Cormidia hook whose command is pinned in the launch args.
+      bypass_hook_trust: true,
+    },
   };
 }
 

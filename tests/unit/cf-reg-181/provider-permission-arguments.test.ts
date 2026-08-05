@@ -46,7 +46,7 @@ function role(runtime: "codex" | "claude", codex: "untrusted" | "on-request" | "
   return {
     name: "builder",
     runtime,
-    model: "scripted",
+    model: runtime === "codex" ? "gpt-5.6-sol" : "scripted",
     effort: "medium",
     delegation: { allow: [] },
     triggers: [],
@@ -79,6 +79,7 @@ describe("CF-REG-181 — provider permission-mode construction", () => {
     expect(client.requests.find((entry) => entry.method === "thread/start")?.params).toMatchObject({
       approvalPolicy: "never",
       sandbox: "workspace-write",
+      config: { bypass_hook_trust: true },
     });
     expect(client.requests.find((entry) => entry.method === "turn/start")?.params).toMatchObject({
       approvalPolicy: "never",

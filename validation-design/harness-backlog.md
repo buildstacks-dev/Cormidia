@@ -200,7 +200,12 @@ blocked exactly as designed. -->
   completeness/verdict split). *Gate: none beyond CI merge of L1/L2 skeleton.*
 - **HB-051** CF-B02-L3/CF-B03-L3/CF-B04-L3 adapter conformance runs. *Gate: provider
   auth on the operator machine; spend authorization per policy triggers.* Executor:
-  campaign (human-initiated per trigger).
+  campaign (human-initiated per trigger). **Probe hardening 2026-08-05 (#297):** every
+  adapter retains a real forbidden-read denial and exact-session resume; Codex retains
+  its contract-required forbidden-write denial, while Claude/pi use a benign resumed
+  shell attempt that must still reach and be denied by Cormidia's gate. The
+  task-sensitive legacy-prompt seed proves provider-level refusal cannot masquerade as
+  product gate-bypass evidence.
 - **HB-052** CF-B01-L3 GitHub smoke on sandbox repos. *Gate: sandbox repo access.*
   Executor: campaign. **Case-level hardening 2026-08-05 (#291):** a finite search-index
   observation gap whose contract has no staleness maximum remains required but

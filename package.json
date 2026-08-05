@@ -31,7 +31,9 @@
     "README.md",
     "scripts/link-local.mjs",
     "scripts/cormidia-local.mjs",
-    "scripts/smoke-onboarding.mjs"
+    "scripts/smoke-onboarding.mjs",
+    "scripts/release-verify.mjs",
+    "scripts/smoke-package-install.mjs"
   ],
   "scripts": {
     "build": "tsc && chmod +x dist/cli.js",
@@ -42,9 +44,12 @@
     "test:eval": "tsx tests/eval-runner/cli.ts",
     "test:soak": "tsx tests/ops/soak-cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "release:verify": "node scripts/release-verify.mjs",
+    "smoke:package": "node scripts/smoke-package-install.mjs",
     "smoke:onboarding": "pnpm build && node scripts/smoke-onboarding.mjs",
     "link:local": "node scripts/link-local.mjs",
-    "prepack": "pnpm build"
+    "prepack": "pnpm build",
+    "prepublishOnly": "pnpm release:verify"
   },
   "engines": {
     "node": ">=26"

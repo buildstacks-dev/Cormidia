@@ -6,7 +6,7 @@ Provenance: `[elicited]` = stakeholder Phase 5 ramble; `[doc]`; `[rambling]` cit
 Grounding rule: the archived qualification machinery is prohibited design input; where
 0–8 artifact scoring or campaign semantics are cited, the citation is the **live
 contract** `docs/qualification/design.md` (canonical record; machinery archived,
-gating suspended) `[doc]`.
+RQ-1 replacement active) `[doc]`.
 
 Harness revision 2026-08-01: comparative execution adds S-8, the operation-specific
 selection judge. It is a judge site and therefore inherits the calibration rule. Its
@@ -263,26 +263,22 @@ its scores are admissible as evidence anywhere downstream.
 4. Verdict `pass | fail | inconclusive`; inconclusive → human judgment, never limbo,
    never a coin-flip veto.
 
-## 5. Release-qualification replacement (design owed; gating currently SUSPENDED)
+## 5. Release qualification — RQ-1
 
-The replacement campaign, when built, owes `[elicited, adopted as the design bar]`:
-1. Identity: exact commit, prompts, model/effort assignments, golden-set version,
-   policy identity.
-2. Deterministic contracts green first — no token-spending eval compensates for a red
-   guardrail.
-3. Seeded bad cases + clean controls; skipped/missing runs counted incomplete, never
-   silently removed.
-4. Reviewer results by defect severity and provider pairing, FP beside catch rate.
-5. Judge calibration before judge-produced scores are admitted.
-6. Comparison against the currently qualified assignment.
-7. Negative controls proving the harness turns red for known-bad outputs (skill rule
-   16 applied to evals).
-8. Bounded cost + a concise human-review packet focused on disagreements and
-   regressions.
-9. Verdict `pass | fail | inconclusive` — no one-shot coin flip promoted into a
-   release veto.
-Until this exists, release gating remains SUSPENDED and no surface may imply
-otherwise (INV-008; interim green-by-absence is not release evidence `[walk]`).
+The exact contract is `release-evidence-gate-revision-proposal.md` §§2–13.
+The current bootstrap scope is the complete committed Reviewer, Planner and
+Validation Designer corpora. `0.1.1` is not a baseline. The first qualified
+campaign establishes one; later assignment changes use paired candidate/baseline
+evidence over the same immutable manifest. Absolute F-PT-009/010/011 hypotheses
+remain unratified and are not release rules. Deterministic trajectory gates admit
+candidates before qualitative review; observed trajectory differences remain a
+separate human-review channel and do not enter the blinded artifact judge. Judge
+Current Reviewer, Planner, and Validation Designer expected behaviors were human-
+validated by `bikramgupta` on 2026-08-04 without replacing agent authorship. Judge
+scores remain inadmissible until the applicable calibration corpus, sample design,
+thresholds, and aggregation rule are separately ratified. Complete but threshold-inconclusive evidence
+may become disclosed evaluator debt only through a separate content-bound human
+disposition; the underlying verdict never changes.
 
 ## 6. CI cost tiering (→ validation-policy.yaml)
 
@@ -307,8 +303,11 @@ from rubric/threshold fields, marked N/A), and `brief-conditioning/` (the §1
 conditioning-surface study — NOT a model golden set; threshold N/A, never gates).
 Every **statistical** scaffold carries: rubric axes; threshold and sample-size status
 (OPEN with its owning finding where unknown); cadence; qualifying tuple dimensions;
-case schema + provenance requirements; and an explicit `SCAFFOLD/UNPOPULATED` status
-noting it cannot support model-swap or qualification evidence yet. Deterministic/study
+case schema + provenance requirements; and an explicit population/admissibility
+status. Reviewer, Planner, and Validation Designer are populated and human-validated;
+their threshold-dependent results remain inconclusive under F-PT-009/010/011. Empty
+sites remain `SCAFFOLD/UNPOPULATED` and cannot support model-swap or qualification
+evidence. Deterministic/study
 scaffolds carry the same headers with N/A where a field does not apply. Authoring
 priority `[elicited]`: **1) reviewer/ 2) planner/ 3) builder-trajectory/**, then the
 rest.

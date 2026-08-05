@@ -2185,7 +2185,13 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   }
   // A4: a merged deploy/package milestone queues its release as a critical
   // op — dispatch-driven merges must not bypass the approval boundary.
-  await queueReleaseApprovals(options.runtimeHome, options.app.name, result.items, options.now);
+  await queueReleaseApprovals(
+    options.runtimeHome,
+    options.app.name,
+    result.items,
+    options.now,
+    { localRepo: options.localRepo },
+  );
   for (const event of result.scorecardEvents) {
     await appendScorecardEvent(
       options.runtimeHome,

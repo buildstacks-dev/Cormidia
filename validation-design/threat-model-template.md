@@ -1,7 +1,8 @@
 # Cormidia validation threat model — human authoring template
 
 Status: **AWAITING HUMAN AUTHOR AND REVIEW**. This scaffold is not a threat model,
-does not resolve HB-072, and cannot reactivate release gating or the abuse lane.
+does not resolve HB-072, and cannot activate the abuse lane. HB-072/HB-073 are future
+L5 assurance outside the RQ-1 release denominator.
 
 The product owner ratified the scope and timing in `risk-allocation.md` §6. A human
 author must identify assets, actors, trust boundaries, STRIDE threats, existing
@@ -40,5 +41,6 @@ the exact artifact digest. Do not fill gaps from current code behavior.
 - Mark every residual risk accepted, mitigated, transferred, or blocking, with owner.
 - Identify any new product-truth finding; add it to `validation-policy.yaml` before
   encoding expected behavior.
-- Confirm whether the result is sufficient for each pending trigger separately:
-  release-gating reactivation, droplet migration, and first non-sandbox onboarding.
+- Confirm whether the result is sufficient for future HB-073 abuse-case authoring,
+  droplet migration, and first non-sandbox onboarding. It is not an RQ-1 activation
+  or qualification input.

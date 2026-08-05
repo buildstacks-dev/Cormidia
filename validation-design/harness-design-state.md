@@ -6,6 +6,21 @@ complete in the replacement harness worktree; audit loop CLOSED verdict
 "clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7;
 product-owner ratification record in ratification-package.md §9)
 
+## Harness revision — RQ-1 release-evidence gate (2026-08-04)
+
+The product owner ratified RQ-1 and the exact protected-surface amendment. RQ-1 is
+deterministic-first: an exact candidate requires complete L1/L2 plus separately
+authorized, candidate-bound L3/L4 evidence. GitHub's authenticated tag-push actor must
+equal both `approval.approved_by` and a configured release approver for the matching
+repository. F-PT-021 is resolved by that rule. F-PT-018 remains an open known
+limitation bounded by protected human merge and release-blocking exact-tag rerun,
+without claiming mechanical branch protection.
+
+The human threat model/HB-073, seven-day soak, natural rotation, and generic B-17
+non-GitHub live target remain visible future assurance outside RQ-1. They never become
+pass by absence and do not enter RQ-1 completeness, verdict, qualification, manifest
+campaigns, or cost ceilings. No paid campaign or release was run in this revision.
+
 ## Active harness revision — roadmap, validation, delivery units, batching (2026-08-03)
 
 Scope: combined #184/#233/#234/#240 lifecycle, `harness-revision` fast mode. Phase 0
@@ -130,15 +145,21 @@ typecheck`, `pnpm build`, and `git diff --check` passed. No L3/L4/L5 campaign ra
   HB-051…054 evidence remains incomplete—not pass. B-17-L3 remains blocked.
 - L4: the per-tuple data-collection runner, rotating shards, token reservations, and
   reviewer/planner/Validation-Designer/builder-trajectory committed sets are implemented.
-  Reviewer, Planner and Validation Designer human reference review remains pending;
+  Reviewer, Planner and Validation Designer expected behaviors were human-validated by
+  `bikramgupta` on 2026-08-04 without replacing the agent authors;
   F-PT-009/010/011 keep every
   threshold-dependent verdict inconclusive.
-- L5: CF-OPS-CONT's ratified contention rig is implemented through overlapping batches,
+- Release enforcement: F-PT-021 is resolved-ratified. The tag workflow supplies
+  GitHub's authenticated actor/repository context and refuses unless actor,
+  `approval.approved_by`, configured release approver, and repository match exactly.
+- Future L5 outside RQ-1: CF-OPS-CONT's ratified contention rig is implemented through overlapping batches,
   duplicate stimuli, atomic multi-ticket claims, per-unit settlement, sibling isolation
   and stale frontiers. The resumable seven-day soak/rotation collector records the same
   batch/session/cache/recovery dimensions but no real window was scheduled.
   The ten-surface threat-model worksheet is explicitly only a scaffold; HB-072 awaits
-  a human author/reviewer and the hash-bound gate keeps HB-073 blocked.
+  a human author/reviewer and the hash-bound gate keeps HB-073 blocked. Missing future
+  assurance remains visible and never pass, but is not an RQ-1 activation or
+  qualification input.
 - HB-080 and HB-081 are complete: the alert→action runbook is linked from all campaign
   surfaces, and product surfaces render inconclusive as not-a-pass/not-release-evidence.
   F-PT-017 and F-PT-018 remain parked exactly as recorded below.
@@ -213,7 +234,8 @@ process-identity probe.
 - F-PT-015 (open; raised Wave-1): B-14 §4 bootstrap re-run semantics — product refuses outright vs contract "idempotent; marked block replaced in place; regenerated deterministically". Unambiguous half asserted; disjunction documented in cf-b14 spec.
 - F-PT-016 (open; raised Wave-1): publish-origin identity comparison ownership — bootstrap publish pushes to an origin that is not the registered repo (no comparison exists); B-14 §3 wrong-remote vs B-15 remote-identity split unresolved. Parked leg in cf-b14-publish spec.
 - F-PT-017 (open-blocked-contract; raised Wave-2 harness revision 2026-07-31): provider terminal-status vocabulary conflicts — ratified CORMIDIA-C-CORE-001 says `interrupted`, while `Runtime`/all adapters expose `timed_out`. The contract was not rewritten from implementation behavior; its enum-conformance clause is parked in CF-C-CORE/HB-P6 pending the owner decision.
-- F-PT-018 (open-blocked-gate; raised harness audit/revision 2026-07-31): the per-commit workflow runs and is fail-closed internally, but the current private-repository GitHub plan does not offer branch protection/rulesets. The required merge-blocking target remains in policy; actual enforcement is parked in CF-HARNESS-CI/HB-P7 pending a plan change or ratified alternative.
+- F-PT-018 (open-known-limitation; raised harness audit/revision 2026-07-31; disposition ratified 2026-08-04): the per-commit workflow runs and is fail-closed internally, but the current private-repository GitHub plan does not offer branch protection/rulesets. RQ-1 is bounded by protected human merge plus the release-blocking exact-tag rerun and does not claim mechanical merge blocking; future mechanical enforcement remains parked in CF-HARNESS-CI/HB-P7 pending a plan change.
+- F-PT-021 (resolved-ratified 2026-08-04): the supported release workflow authenticates RQ-1 authority by requiring exact equality among GitHub's tag-push actor, `approval.approved_by`, and a configured release approver for the matching repository.
 - F-PT-019 (open; raised 2026-08-01 during the #202-#213 fix campaign): `secrets-or-auth` is operation-blind. It is a pure text rule over the projected effect fields, so a metadata-only query that never opens the file (`git check-ignore .env`, `git status --ignored -- .env.example`) matches exactly as a genuine contents read (`cat .env`) does. #204 shows the false-positive cost — a blocked promotion at 16/17 green, and an approval queue the human learns to rubber-stamp — while narrowing the rule would also loosen it for real exfiltration reads. Owner must decide whether the rule becomes operation-aware and, if so, which git subcommands count as contents reads. Pinned (not endorsed) in the CF-REG-204 spec.
 - F-PT-020 (open; raised 2026-08-01 during the #202-#213 fix campaign): undecided approval ITEMS have no documented lifetime. `docs/approvals/design.md` specifies TTL, use-count and revocation for *grants* (post-decision) and is silent on a pending item whose raising turn has ended. In the august-org run all seven items outlived their turns, and because `app verify` treats any pending item as a promotion blocker, the queue grows monotonically under the scheduler until promotion is permanently blocked — and the human is forced to record meaningless denials purely as queue hygiene, which corrupts the decision ledger the approvals exist to produce. Resolving it means adding a terminal non-blocking state to the ratified approval state machine (CF-SM-APPR) and changing what `app verify` counts; adjacent to F-PT-008. Not implemented (#205 parked).
 

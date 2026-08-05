@@ -24,8 +24,8 @@ used only on the owner-confirmed 2026-08-01 comparative-execution direction.
 - **ID namespace:** `CORMIDIA-` (`CORMIDIA-INV-NNN`, `CORMIDIA-B-NNN`, `CORMIDIA-C-<boundary>-NNN`).
   A later module-scope deep pass mints its own prefix and inherits by reference. `[PROPOSED, accepted by stakeholder]`
 - **Release-gating replacement** is a **campaign/policy obligation, not a product module**:
-  release gating is suspended (PURPOSE v2.9); the archived qualification machinery is not an
-  active module; the new harness's policy file will carry the replacement obligation,
+  RQ-1 is active under PURPOSE v2.17; the archived qualification machinery is not an
+  active module; the replacement harness policy carries the qualification obligation,
   proportionately (`[rambling: "I do not want the 83-contract apparatus back"; "something I
   trust AND afford"]`). Active release-*handoff* behavior remains under the build-loop and
   approvals boundaries. `[doc]` + stakeholder correction.

@@ -12,5 +12,6 @@ covered_surfaces: []
 abuse_case_ids: []
 release_gating_acknowledged: false
 note: >-
-  This status is intentionally blocking. The checked-in template is a scaffold,
-  not the human-authored threat model required by HB-072.
+  The checked-in template is a scaffold, not a human-authored threat model.
+  HB-072/HB-073 remain future L5 assurance and this status must never be
+  represented as a pass. It does not block RQ-1 release qualification.

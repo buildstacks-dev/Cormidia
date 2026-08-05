@@ -78,6 +78,7 @@ import {
   autonomousExecutionExclusionLabel,
   parseReleaseKind,
   parseReleaseVersion,
+  releaseTagFor,
   resolveReleaseCommand,
   STATE_LABELS,
 } from "./plan-tickets.js";
@@ -1455,8 +1456,9 @@ export async function advanceShipping(
     }
   }
 
+  let mergedPullRequest;
   try {
-    await options.gh.squashMerge(prNumber, {
+    mergedPullRequest = await options.gh.squashMerge(prNumber, {
       subject: squashSubject(item),
       body: deliveryUnitIssueNumbers(item).map((number) => `Closes #${number}`).join("\n"),
       ...(item.approvedCommitId !== undefined ? { matchHeadCommit: item.approvedCommitId } : {}),
@@ -1511,7 +1513,19 @@ export async function advanceShipping(
       : undefined;
   const releaseTrigger =
     releaseCommand !== undefined && requiredKind !== undefined && options.release !== undefined
-      ? { kind: requiredKind, command: releaseCommand, owner: options.release.owner }
+      ? {
+          kind: requiredKind,
+          command: releaseCommand,
+          owner: options.release.owner,
+          ...(options.release.trigger === "tag"
+            ? {
+                tag: releaseTagFor(parseReleaseVersion(item.body)!),
+                ...(mergedPullRequest.mergeCommitOid === undefined
+                  ? {}
+                  : { releaseCommit: mergedPullRequest.mergeCommitOid }),
+              }
+            : {}),
+        }
       : undefined;
   await journalBoundary(options.journal, "release", {
     disposition: releaseTrigger === undefined ? "merge-only" : "queued-for-scoped-approval",
@@ -1564,6 +1578,7 @@ export async function recoverAlreadyMergedTicket(
     removeWorktree(options.localRepo, item.worktree);
   }
   const requiredKind = parseReleaseKind(item.body);
+  const mergedPullRequest = await options.gh.readPR(requireField(item, "prNumber"));
   const releaseCommand =
     requiredKind !== undefined &&
     requiredKind !== "merge-only" &&
@@ -1576,6 +1591,14 @@ export async function recoverAlreadyMergedTicket(
           kind: requiredKind,
           command: releaseCommand,
           owner: options.release.owner,
+          ...(options.release.trigger === "tag"
+            ? {
+                tag: releaseTagFor(parseReleaseVersion(item.body)!),
+                ...(mergedPullRequest.mergeCommitOid === undefined
+                  ? {}
+                  : { releaseCommit: mergedPullRequest.mergeCommitOid }),
+              }
+            : {}),
         }
       : undefined;
   return {

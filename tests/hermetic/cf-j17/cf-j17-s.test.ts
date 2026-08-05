@@ -36,6 +36,11 @@ import {
   type ReleaseCommandResult,
   type ReleaseExecutionRecord,
 } from "../../../src/org/release.js";
+import {
+  digestJson,
+  parseReleaseTagMessage,
+  type ReleaseAttestationV1,
+} from "../../../src/org/release-evidence.js";
 import type { LoopItem } from "../../../src/loop/types.js";
 import { GhCliOps } from "../../../src/loop/github.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
@@ -87,6 +92,7 @@ interface Walk {
   appsFile: AppsFile;
   issueNumber: number;
   managedClone: string;
+  remote: string;
 }
 
 describe("CF-J17-S — declared release: fresh content-bound approval → at-most-once execution (L2)", () => {
@@ -116,6 +122,11 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     writeFileSync(join(managedClone, "README.md"), "fixture clone\n");
     gitIn(managedClone, "add", "README.md");
     gitIn(managedClone, "-c", "user.email=fixture@invalid", "-c", "user.name=fixture", "commit", "--no-gpg-sign", "-m", "init");
+    gitIn(managedClone, "config", "user.email", "fixture@invalid");
+    gitIn(managedClone, "config", "user.name", "fixture");
+    const remote = join(org.stateHome, "release-remote.git");
+    execFileSync("git", ["init", "--bare", remote], { env: HERMETIC_GIT_ENV, stdio: "ignore" });
+    gitIn(managedClone, "remote", "add", "origin", remote);
 
     const appsFile: AppsFile = {
       org: { name: "cf-j17-org", maxConcurrentTurns: 1 },
@@ -138,6 +149,7 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
       appsFile,
       issueNumber: issue.number,
       managedClone,
+      remote,
     };
   }
 
@@ -287,6 +299,116 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     expect(after.item.execution?.state).not.toBe("executed");
   });
 
+  it("executes an RQ-1 tag as an exact annotated envelope and pushes it once", async () => {
+    const walk = await makeWalk();
+    const clock = makeTestClock("2026-08-04T20:00:00.000Z");
+    const revision = gitIn(walk.managedClone, "rev-parse", "HEAD");
+    const attestation = rq1Attestation(revision);
+    const attestationSha = digestJson(attestation);
+    const attestationDir = join(walk.org.stateHome, "releases", "attestations");
+    mkdirSync(attestationDir, { recursive: true });
+    writeFileSync(join(attestationDir, `${attestationSha}.json`), `${JSON.stringify(attestation)}\n`);
+    const raised = await walk.store.raise({
+      app: APP,
+      role: "orchestrator",
+      rule: "production-deploy",
+      action: { tool: "bash", input: { command: `cormidia-internal rq1-tag ${attestationSha}` } },
+      ticketRef: `#${walk.issueNumber}`,
+      justification: `RQ-1 attestation ${attestationSha}`,
+      now: clock.nowDate(),
+    });
+    await walk.store.decide(raised.id, {
+      decision: "approved",
+      reason: "Exact packet and action reviewed",
+      decidedBy: { kind: "human", identity: "fixture-human" },
+      now: clock.nowDate(),
+    });
+    const outcomes = await executeApprovedReleases({
+      stateHome: walk.org.stateHome,
+      orgHome: walk.org.orgHome,
+      appsFile: walk.appsFile,
+      now: clock.dateFn,
+      ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
+      commandRunner: async () => {
+        throw new Error("RQ-1 tag must not enter the shell command runner");
+      },
+    });
+    expect(outcomes).toMatchObject([{ status: "completed", approvalId: raised.id }]);
+    expect(gitIn(walk.managedClone, "rev-parse", "v0.1.2^{}")).toBe(revision);
+    expect(gitIn(walk.remote, "rev-parse", "refs/tags/v0.1.2^{}")).toBe(revision);
+    const envelope = parseReleaseTagMessage(gitIn(walk.managedClone, "for-each-ref", "--format=%(contents)", "refs/tags/v0.1.2"));
+    expect(envelope.approval).toMatchObject({ approved_by: "fixture-human", attestation_sha256: attestationSha });
+    expect(await executeApprovedReleases({
+      stateHome: walk.org.stateHome,
+      orgHome: walk.org.orgHome,
+      appsFile: walk.appsFile,
+      now: clock.dateFn,
+      ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
+    })).toEqual([]);
+  });
+
+  it("negative control: a lost RQ-1 push response reconciles the exact remote tag marker", async () => {
+    const walk = await makeWalk();
+    const clock = makeTestClock("2026-08-04T20:00:00.000Z");
+    const revision = gitIn(walk.managedClone, "rev-parse", "HEAD");
+    const attestation = rq1Attestation(revision);
+    const attestationSha = digestJson(attestation);
+    const attestationDir = join(walk.org.stateHome, "releases", "attestations");
+    mkdirSync(attestationDir, { recursive: true });
+    writeFileSync(join(attestationDir, `${attestationSha}.json`), `${JSON.stringify(attestation)}\n`);
+    const raised = await walk.store.raise({
+      app: APP, role: "orchestrator", rule: "production-deploy",
+      action: { tool: "bash", input: { command: `cormidia-internal rq1-tag ${attestationSha}` } },
+      ticketRef: `#${walk.issueNumber}`, now: clock.nowDate(),
+    });
+    await walk.store.decide(raised.id, {
+      decision: "approved", decidedBy: { kind: "human", identity: "fixture-human" }, now: clock.nowDate(),
+    });
+    const outcomes = await executeApprovedReleases({
+      stateHome: walk.org.stateHome,
+      orgHome: walk.org.orgHome,
+      appsFile: walk.appsFile,
+      now: clock.dateFn,
+      ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
+      rq1GitRunner: async (cwd, args) => {
+        const stdout = gitIn(cwd, ...args);
+        if (args[0] === "push") return { exitCode: 1, stdout: "", stderr: "seeded lost response" };
+        return { exitCode: 0, stdout, stderr: "" };
+      },
+    });
+    expect(outcomes).toMatchObject([{ status: "completed", approvalId: raised.id }]);
+    expect(outcomes[0]!.summary).toContain("exact remote tag marker reconciled");
+    expect((await walk.store.show(raised.id)).item.execution?.state).toBe("executed");
+    expect(gitIn(walk.remote, "rev-parse", "refs/tags/v0.1.2^{}")).toBe(revision);
+  });
+
+  it("negative control: refuses a modified RQ-1 attestation before consuming the approved grant", async () => {
+    const walk = await makeWalk();
+    const clock = makeTestClock("2026-08-04T20:00:00.000Z");
+    const revision = gitIn(walk.managedClone, "rev-parse", "HEAD");
+    const attestation = rq1Attestation(revision);
+    const attestationSha = digestJson(attestation);
+    const attestationDir = join(walk.org.stateHome, "releases", "attestations");
+    mkdirSync(attestationDir, { recursive: true });
+    writeFileSync(join(attestationDir, `${attestationSha}.json`), `${JSON.stringify(attestation)}\n`);
+    const raised = await walk.store.raise({
+      app: APP, role: "orchestrator", rule: "production-deploy",
+      action: { tool: "bash", input: { command: `cormidia-internal rq1-tag ${attestationSha}` } },
+      ticketRef: `#${walk.issueNumber}`, now: clock.nowDate(),
+    });
+    await walk.store.decide(raised.id, {
+      decision: "approved", decidedBy: { kind: "human", identity: "fixture-human" }, now: clock.nowDate(),
+    });
+    writeFileSync(join(attestationDir, `${attestationSha}.json`), `${JSON.stringify({ ...attestation, tag: "v0.1.3" })}\n`);
+    const outcomes = await executeApprovedReleases({
+      stateHome: walk.org.stateHome, orgHome: walk.org.orgHome, appsFile: walk.appsFile,
+      now: clock.dateFn, ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
+    });
+    expect(outcomes).toMatchObject([{ status: "failed", approvalId: raised.id }]);
+    expect(gitIn(walk.managedClone, "tag", "--list")).toBe("");
+    expect((await walk.store.show(raised.id)).grant?.uses).toBe(1);
+  });
+
   // Revocation below is the RATIFIED disposition (revokeGrantSync
   // terminalizes an unused single-use grant's execution record). The sibling
   // question — what becomes of the ITEM when the grant merely EXPIRES before
@@ -326,3 +448,35 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     expect(existsSync(join(walk.org.stateHome, "releases", `${approvalId}.json`))).toBe(false);
   });
 });
+
+function rq1Attestation(revision: string): ReleaseAttestationV1 {
+  const releaseAction = {
+    kind: "npm_publish" as const,
+    package_name: "cormidia",
+    version: "0.1.2",
+    tag: "v0.1.2",
+    dist_tag: "latest",
+    registry: "https://registry.npmjs.org",
+  };
+  return {
+    schema_version: 1,
+    contract_id: "RQ-1",
+    qualification_id: "a".repeat(64),
+    prepared_commit: revision,
+    release_commit: revision,
+    tag: "v0.1.2",
+    package_name: "cormidia",
+    package_version: "0.1.2",
+    tarball_sha256: "b".repeat(64),
+    tarball_integrity: `sha512-${Buffer.alloc(64, 3).toString("base64")}`,
+    qualification_report_sha256: "c".repeat(64),
+    qualification_dispositions_sha256: "d".repeat(64),
+    packet_files: [
+      { path: "qualification-report.json", size: 1, sha256: "e".repeat(64) },
+      { path: "release-manifest.json", size: 1, sha256: "f".repeat(64) },
+    ],
+    release_action: releaseAction,
+    release_action_sha256: digestJson(releaseAction),
+    created_at: "2026-08-04T19:59:00.000Z",
+  };
+}

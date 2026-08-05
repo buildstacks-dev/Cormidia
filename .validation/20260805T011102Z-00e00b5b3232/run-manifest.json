@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "assessment_id": "20260805T011102Z-00e00b5b3232",
+  "mode": "assess/design",
+  "started_at": "2026-08-05T01:11:02Z",
+  "created_at_utc": "2026-08-05T01:11:02Z",
+  "repository": "cormidia/Cormidia",
+  "branch": "codex/restore-release-evidence-gate",
+  "base_revision": "00e00b5b3232f4a6f60dc0fc3ee38f84d51e106e",
+  "target_revision": "00e00b5b3232f4a6f60dc0fc3ee38f84d51e106e",
+  "origin_main_revision": "00e00b5b3232f4a6f60dc0fc3ee38f84d51e106e",
+  "proposal_path": "validation-design/release-evidence-gate-revision-proposal.md",
+  "proposal_sha256": "02a72f214aff4597a929c232ffec0f4322072ce2541d3d697951898575e543e2",
+  "environment": {
+    "kind": "developer-host",
+    "worktree": "/Users/bikram/Build/Cormidia-release-evidence-gate",
+    "node": "v26.4.0",
+    "pnpm": "11.10.0",
+    "networked_inspection": true,
+    "provider_backed_validation": false
+  },
+  "scope": [
+    "current L1/L2 and L3/L4/L5 validation capability",
+    "issue #248 and F-PT-009/F-PT-010/F-PT-011/F-PT-018",
+    "HB-072/HB-073, B-17, human reference status",
+    "release identity, currency, attestation, completeness, verdict, and enforcement design",
+    "exact protected and binding surface proposals"
+  ],
+  "excluded_actions": [
+    "protected or binding surface edits",
+    "human golden-reference attribution",
+    "human threat-model authorship or review",
+    "provider-backed/live/eval/soak campaigns",
+    "tag, npm publication, deployment, scheduler installation, or release"
+  ],
+  "independence": {
+    "level": "I1",
+    "reason": "one agent performed role-separated design and audit; human ratification and authorship boundaries remain external"
+  },
+  "evidence_index": "commands.md",
+  "assessment": "insufficient_for_stated_release_target",
+  "design_disposition": "exact_proposal_ready_for_human_ratification",
+  "external_release_claim": "not_verified"
+}

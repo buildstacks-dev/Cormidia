@@ -64,19 +64,21 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   validation-contract/readiness guard, and HB-103…107's production delivery-unit,
   execution-batch, strict zero-turn, direct-campaign, shared-façade and role-safe
   session/cache slices are executable. HB-108 closes the deterministic catalog and
-  integrates still-human-pending pre-tuning corpora; HB-109 closes contention and soak-
+  integrates the now-human-validated pre-tuning corpora; HB-109 closes contention and soak-
   collector machinery without running the campaign; HB-110 closes shared operator
   explanations. HB-111 and all separately named human/external evidence remain.
   M17/J-20/INV-016/B-20…22/S-10 and the two new operation contracts are only as
   evidenced as their named landed cases; no live evidence is implied.
-- **Release gating is SUSPENDED** (product decision, PURPOSE v2.9) and **B-17's live
-  deploy/publication cell is BLOCKED** — should a deploy/publication-shaped incident
-  occur, it would be operating in the least-verified part of the system. <!-- AUD-109 --> No surface may imply a gate
-  exists.
+- **RQ-1 release gating is active** (PURPOSE v2.17). It is deterministic-first and
+  requires exact-candidate L1/L2 plus separately authorized L3/L4 evidence. **B-17's
+  generic non-GitHub live-target cell remains future assurance**, not an npm-release
+  RQ-1 obligation; it stays visible and may never be called pass.
 - **Implemented does not mean evidenced.** L3 live machinery and the extended L5 soak collector
   exist, but no external campaign or seven-day window was run in this implementation
-  change. Reviewer/planner golden references still await human validation. These are
-  reported incomplete/inconclusive, never green.
+  change. Reviewer, Planner, and Validation Designer golden references were validated
+  by `bikramgupta` on 2026-08-04 without replacing agent authorship. Unrun required
+  per-candidate L3/L4 evidence is reported incomplete/inconclusive, never green; future
+  L5 absence is visible but outside the RQ-1 denominator.
 - **Twenty product-truth findings are tracked; nine still park exact cells**
   (F-PT-006/008/012…018). If an incident touches one of those seams, the named cell
   deliberately encodes **no expected behavior**. That is honesty, not coverage:

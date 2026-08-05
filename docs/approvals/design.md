@@ -406,6 +406,12 @@ release:
 
 Because the tag push *is* a command, it flows through the identical approval,
 grant, and execution machinery below — there is no separate release path.
+For an RQ-1 package tag, that recorded command is an internal content reference to
+the canonical post-merge attestation digest, not a plain `git tag` string. After the
+human decision, the typed executor creates the attributable release-approval record,
+embeds both records in the annotated tag, and runs `git tag`/`git push` without a
+shell. A missing or modified attestation refuses before grant consumption. Other
+declared tag mechanisms retain the ordinary derived command above.
 
 - **orchestrator** (default): after a squash-merge of a milestone whose plan
   declared a deploy disposition, the orchestrator triggers the declared

@@ -16,3 +16,8 @@ model-swap regression suite (plan §4).
 **Decision-status rule (plan §9):** no hypothesis-status number here yields pass/fail;
 until its finding is ratified, campaigns run in data-collection mode and report
 `inconclusive` for threshold-dependent outcomes.
+
+`human-validation.json` is the attributable RQ-1 review ledger for the currently
+populated Reviewer, Planner, and Validation Designer corpora. It preserves agent
+authorship, the human's exact confirmation statement/date, the source commit, and one
+agent-computed canonical source-row digest per confirmed case.

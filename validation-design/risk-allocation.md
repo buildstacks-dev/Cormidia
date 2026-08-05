@@ -130,7 +130,8 @@ tier. None of these can be risk-pruned `[elicited + owner correction]`.
 - S-5 (Support/Marketing) and S-6 (Distiller) quality: scaffolded, deferred while
   outputs are internal/inert; no large Distiller campaign before evidence volume.
 - systemd: nothing real until the droplet shape is supported (B-05).
-- B-17 non-GitHub live target: honestly BLOCKED until a disposable target exists.
+- B-17 non-GitHub live target: honestly future assurance until a disposable target
+  exists; it is not an npm-release RQ-1 obligation and may never be called pass.
 - Model-quality claims: Reviewer + Planner get the first statistical spend; Builder
   trajectory is deterministic scrutiny; the rest earn token budget from usage and
   consequence. "We ran the model three times" is three anecdotes wearing a badge —
@@ -166,7 +167,13 @@ Trigger rules `[elicited]`:
 - No $40 deep route for prompt adjustments. `[rambling]` governs: offline and
   hermetic first; live and expensive only where nothing cheaper can falsify the claim.
 
-## 6. Layer-5 obligations
+## 6. Future Layer-5 assurance outside RQ-1
+
+The obligations in this section retain their owners, collectors, triggers, and hard
+campaign ceiling, but do not enter RQ-1 completeness, verdict, qualification,
+manifest campaigns, or cost ceilings. Their absence remains visible and is never a
+pass. This is the owner-ratified 2026-08-04 disposition; the earlier activation timing
+below is superseded only where it named release-gate activation.
 
 - **Soak (owner-ratified, [simulated] seat):** initial autonomous qualification =
   **7 calendar days of ordinary laptop use**, ≥ 3 real sleep/wake cycles (one
@@ -182,9 +189,8 @@ Trigger rules `[elicited]`:
 - **Soak repeat trigger:** material change to scheduler, locking, settlement,
   retention, or deployment shape — never for prose, prompts, or renderer changes.
 - **Threat model (C2+ skill obligation) — owner-ratified scope and timing
-  (2026-07-31, `[simulated]` seat; human-confirmed 2026-07-31: human-authored, on
-  the critical path to release-gating reactivation):** authored **before the earliest of**: release
-  gating moving from `SUSPENDED` to active; droplet migration; first non-sandbox
+  (2026-07-31, `[simulated]` seat; human-confirmed 2026-07-31, then moved outside
+  RQ-1 on 2026-08-04):** authored before droplet migration or first non-sandbox
   production onboarding. Scope covers the **trust boundaries behind the C3 control
   points**, not merely E-1 plus selected confidentiality surfaces:
   authority/gates/grants/approvals/critical-effect execution; secrets and credentials;

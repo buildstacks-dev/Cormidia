@@ -1,16 +1,14 @@
 # Qualification and release gating
 
-> **Status 2026-07-31:** the replacement per-commit harness and the bounded
+> **Status 2026-08-04:** the replacement per-commit harness and the bounded
 > L3/L4/L5 runners are implemented under `tests/`, with the current
-> contract in `validation-design/validation-policy.yaml`. Release gating remains
-> **SUSPENDED**: no authorized external campaign or seven-day soak was run in the
-> implementation change, reviewer/planner human references and thresholds remain
-> pending, the human-authored threat model does not yet exist, and required-check
-> enforcement remains blocked by F-PT-018. Implemented machinery is not release
-> evidence. PURPOSE v2.14 records one narrow owner-ratified exception permitting
-> publication of exactly `cormidia@0.1.1` after the complete token-free suite,
-> build, packaging, and installed-command checks pass. It does not reactivate
-> this gate or authorize any later release.
+> contract in `validation-design/validation-policy.yaml`. RQ-1 is active and
+> fail-closed for versions after `0.1.1`: every exact candidate requires complete
+> L1/L2 plus separately authorized, candidate-bound L3/L4 evidence. No paid campaign
+> or release ran in the implementation change. The human threat model, HB-073,
+> seven-day soak, and natural rotation remain visible future L5 assurance outside
+> RQ-1. F-PT-018 remains an explicit merge-enforcement limitation bounded by
+> protected human merge and the release-blocking exact-tag rerun.
 
 ## Replacement campaign contract
 
@@ -38,8 +36,12 @@ CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finis
 The L3 config schema is `tests/live/config.ts` and admits only four exact
 campaign shapes: one changed adapter; one sandbox-GitHub smoke; one launchd proof; or
 a release campaign containing all three adapters, sandbox GitHub, and the unattended
-profile (launchd is additionally selected when its release trigger applies). A partial
-release cannot call itself complete. Bounds are 2 turns/$5 for a changed-adapter
+profile. RQ-1 currently requires the launchd proof in every release campaign: the
+policy trigger is conditional, but there is not yet a ratified, content-bound prior
+trigger baseline or material-host observation that can prove the condition absent.
+Restoring conditional omission requires that separately ratified baseline; a caller
+declaration is insufficient. A partial release cannot call itself complete. Bounds
+are 2 turns/$5 for a changed-adapter
 pre-merge campaign and 24 turns/$100 for release. GitHub operations use the ratified
 three-attempt jittered exponential retry budget. Launchd proof requires exact loaded
 identity, an attributable tick, and removal of exactly that definition inside the
@@ -49,10 +51,28 @@ runner conservatively debits the entire reservation; unknown partial spend can r
 remaining campaign capacity, but can never disappear and make the hard ceiling
 exceedable.
 
+Release preparation and exact-tag verification execute the offline Vitest lane with
+its JSON reporter and derive the allowed skip inventory from executed assertions,
+not source-text patterns. Before execution, the release assessor proves the working
+tree is the candidate commit or its evidence-only descendant, refusing staged,
+unstaged, or untracked non-evidence paths, and pins the exact root Vitest config
+bytes. It then sparsely checks out the exact candidate without the forbidden archive,
+installs the frozen lockfile offline with scripts disabled and store integrity enabled,
+scrubs the execution environment, and runs that isolated toolchain. Afterward, the
+report's file set must equal every tracked
+non-live `tests/**/*.test.ts` file at the candidate commit. Every skipped, pending, or
+todo assertion must carry exactly
+one current `BLOCKED:F-PT-nnn` identity; aggregate-count drift, a missing binding, a
+resolved or unknown finding, a duplicate identity, a failed test, or any mismatch
+with the packet inventory refuses qualification. Aliases, bracket notation,
+conditional and chained skips, suite skips, and test options cannot disappear from
+this execution-derived inventory.
+
 The L4 config schema is `tests/eval-runner/cli.ts`: exact tuples, absolute
 committed golden-set files, a token ceiling, provider-turn/equivalent-cost ceilings,
-and an optional dated rotating shard. Results never pool tuples. The reviewer and
-planner sets are build-agent authored but still carry `human_validation=pending`.
+and an optional dated rotating shard. Results never pool tuples. The Reviewer, Planner,
+and Validation Designer sets retain their agent authors and carry attributable human
+validation by `bikramgupta` as of 2026-08-04.
 F-PT-009/010/011 and decision-register items 9–12 remain proposed, so
 threshold-dependent results are always `inconclusive`; the command exits 2 rather than
 misrepresenting data collection as a pass.
@@ -70,11 +90,12 @@ series, retention sweep sanity, source health, zero new human decisions, and at 
 record with exact session and checkpoint preservation. Missing natural rotation makes
 the campaign incomplete; it is never injected or inferred.
 
-HB-072 remains human work. `validation-design/threat-model-template.md` is only a
+HB-072 remains future human work. `validation-design/threat-model-template.md` is only a
 ten-surface worksheet, and `threat-model-status.yaml` intentionally says
 `awaiting_human_author`. The admission gate hash-binds a human-authored and reviewed
-artifact covering TM-01…TM-10 before HB-073 abuse cases or release-gating
-reactivation can proceed.
+artifact covering TM-01…TM-10 before HB-073 abuse cases can proceed. Neither item is
+inside RQ-1 completeness, verdict, qualification, campaigns, or cost ceilings; absence
+remains visible and can never be represented as pass.
 
 Campaigns persist after every result at
 `<state-home>/validation/campaigns/<campaign-id>/report.json`. The product schema keeps

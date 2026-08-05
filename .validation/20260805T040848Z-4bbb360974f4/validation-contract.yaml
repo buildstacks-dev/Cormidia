@@ -1,0 +1,43 @@
+schema_version: "1.0"
+assessment_id: "20260805T040848Z-4bbb360974f4"
+target_contract: "RQ-1"
+claims:
+  - id: "CLM-IDENTITY"
+    statement: "Manifest, subject and producer identities bind exact release inputs."
+    status: "verified_offline"
+    evidence: ["CF-HARNESS-RQ", "CF-HARNESS-CURRENCY"]
+  - id: "CLM-DETERMINISTIC"
+    statement: "Red, missing, stale or skipped deterministic work cannot be compensated by triggered evidence."
+    status: "verified_offline"
+    evidence: ["complete pnpm test", "deterministic admission seeds", "exact Core-check query shape"]
+  - id: "CLM-L3"
+    statement: "Triggered reports are schema-derived and exact-target bound."
+    status: "machinery_verified_evidence_unrun"
+    evidence: ["campaign report derivation tests", "stale-target negative control"]
+  - id: "CLM-L4"
+    statement: "All 20 admitted references remain separate by exact site/pairing; automatic scores require a calibrated judge."
+    status: "collection_verified_numeric_decision_intentionally_inconclusive"
+    evidence: ["human-validation ledger", "pairing/grade-reuse/uncalibrated-score seeds"]
+  - id: "CLM-L5"
+    statement: "Human threat evidence, HB-073 and a complete seven-day soak are current."
+    status: "not_established"
+    blockers: ["HB-072-human", "HB-073", "unrun soak and natural rotation"]
+  - id: "CLM-VERDICT"
+    statement: "Completeness, verdict and qualification cannot rewrite one another."
+    status: "verified_offline"
+    evidence: ["aggregate truth-table and forged-pass controls"]
+  - id: "CLM-SPEND"
+    statement: "Ratified L3/L5 ceilings and human-authorized L4 envelopes are immutable; typed retries retain attempts."
+    status: "verified_schema_and_existing_collectors_campaign_unrun"
+  - id: "CLM-ATTEST"
+    statement: "Attestation re-derives lane results from exact packet evidence and permits only the evidence namespace."
+    status: "verified_offline"
+    evidence: ["packet re-derivation", "tarball", "tamper", "path escape", "lineage seeds"]
+  - id: "CLM-ENFORCEMENT"
+    statement: "Only the durable B-17 human-approved path can cause the supported tag/npm release."
+    status: "not_established"
+    blockers: ["F-PT-018", "F-PT-021"]
+acceptance_rule:
+  implementation: "CONDITIONALLY_SUFFICIENT_OFFLINE"
+  activation: "INSUFFICIENT_FOR_STATED_TARGET"
+  publication: "NOT_AUTHORIZED"

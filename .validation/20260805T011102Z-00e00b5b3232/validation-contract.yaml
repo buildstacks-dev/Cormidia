@@ -1,0 +1,54 @@
+schema_version: "1.0"
+assessment_id: "20260805T011102Z-00e00b5b3232"
+target_contract: "RQ-1"
+claims:
+  - id: "CLM-IDENTITY"
+    statement: "One qualification and every retained evidence row are bound to the exact candidate package, policy, prompt, assignment, golden, and tool inputs."
+    criticality: "C3"
+    evidence_required: ["canonical manifest", "subject digest", "producer digest", "equivalence detector", "negative controls"]
+    current_status: "not_implemented"
+  - id: "CLM-DETERMINISTIC"
+    statement: "No provider evidence can compensate for a red, missing, stale, skipped, or wrong-SHA deterministic obligation."
+    criticality: "C3"
+    evidence_required: ["pnpm test", "typecheck", "build", "diff check", "gitleaks", "pack/install smoke", "exact-SHA CI", "seeded omissions"]
+    current_status: "foundation_green_release_admission_missing"
+  - id: "CLM-L3"
+    statement: "Every triggered supported live seam is complete/pass within the ratified ceiling, or is an explicitly ineligible evaluator-debt row."
+    criticality: "C3"
+    evidence_required: ["CF-B01-L3", "CF-B02-L3", "CF-B03-L3", "CF-B04-L3", "CF-J18-A", "conditional CF-J16-A", "B-17 disposition"]
+    current_status: "collector_implemented_release_campaign_unrun_b17_blocked"
+  - id: "CLM-L4"
+    statement: "The full populated release corpus is collected by exact site and producer/evaluator tuple; only admitted references and calibrated judges support automatic quality claims."
+    criticality: "C3"
+    evidence_required: ["6 Reviewer cases", "10 Planner cases", "4 Validation Designer cases", "human references", "pairing report", "judge admission", "candidate/baseline pairs after bootstrap"]
+    current_status: "collection_partial_scoring_and_admission_missing"
+  - id: "CLM-L5"
+    statement: "The release baseline includes a current human-authored/reviewed threat model, its HB-073 detectors, and a complete initial seven-day soak."
+    criticality: "C3"
+    evidence_required: ["TM-01 through TM-10", "threat-model-status", "HB-073", "CF-OPS-SOAK", "CF-OPS-ROT"]
+    current_status: "blocked_and_unrun"
+  - id: "CLM-VERDICT"
+    statement: "Completeness, lane verdict, and aggregate qualification remain distinct; no absence, debt, or human disposition rewrites underlying evidence green."
+    criticality: "C3"
+    evidence_required: ["truth-table detector", "forged-pass negative control", "terminal debt disposition"]
+    current_status: "lane_semantics_exist_release_aggregate_missing"
+  - id: "CLM-SPEND"
+    statement: "Every retry is typed and predeclared, all attempts remain evidence, worst-case reservations are settled conservatively, and ceilings never widen automatically."
+    criticality: "C3"
+    evidence_required: ["L3 2/$5 and 24/$100", "L5 24/$15", "human L4 envelope", "retry ledger", "ceiling-stop detector"]
+    current_status: "lane_controls_exist_release_manifest_binding_missing"
+  - id: "CLM-ATTEST"
+    statement: "Only a content-bound evidence-only descendant with identical release inputs can produce a current sanitized attestation."
+    criticality: "C3"
+    evidence_required: ["packet manifest", "canonical attestation", "tamper/path-escape/staleness seeds", "tarball equivalence"]
+    current_status: "not_implemented"
+  - id: "CLM-ENFORCEMENT"
+    statement: "Cormidia's supported path refuses tag/publication without a current attestation and a separate exact human release approval."
+    criticality: "C3"
+    evidence_required: ["release:verify", "prepublish refusal", "exact-tag workflow", "approval-tag-publish-ack separation"]
+    current_status: "not_implemented_merge_enforcement_blocked_fpt018"
+acceptance_rule:
+  current_assessment: "INSUFFICIENT_FOR_STATED_TARGET"
+  proposal_disposition: "READY_FOR_EXPLICIT_HUMAN_RATIFICATION"
+  implementation_acceptance: "All claims implemented with seeded negative controls, offline gates green, exact protected surfaces approved, and I2 audit green."
+  activation_acceptance: "Human threat/reference prerequisites and separately authorized L3/L4/L5 evidence complete under RQ-1."

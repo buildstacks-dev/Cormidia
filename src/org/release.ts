@@ -4,10 +4,11 @@
 // and idempotent: an in-flight/terminal record prevents a deploy from being
 // guessed-and-retried after an ambiguous process death.
 
-import { spawn } from "node:child_process";
+import { execFile as execFileCallback, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import {
   readExecutionSteps,
 } from "../loop/efficiency.js";
@@ -60,6 +61,17 @@ import {
   type EpisodeOrchestrationFacts,
 } from "./episode-planner/orchestrator.js";
 import { loadRoles } from "./roles.js";
+import {
+  canonicalJson,
+  createReleaseAttestationFromCommit,
+  createReleaseTagMessage,
+  digestJson,
+  validateReleaseAttestation,
+  type ReleaseApprovalV1,
+  type ReleaseAttestationV1,
+} from "./release-evidence.js";
+
+const execFile = promisify(execFileCallback);
 
 const RELEASE_EPISODE_POLICY_VERSION = "approved-release/episode-plan-v1";
 const RELEASE_OPERATION = "release/sre-approved-command";
@@ -68,12 +80,20 @@ const RELEASE_PREFLIGHT_STEP = "release-preflight";
 const RELEASE_EXECUTION_STEP = "execute-release";
 const RELEASE_CONFIRM_STEP = "confirm-release-command";
 const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
+const RQ1_TAG_COMMAND = "cormidia-internal rq1-tag";
 
 export interface QueuedRelease {
   approvalId: string;
   ticketRef: string;
   kind: string;
   owner: string;
+}
+
+export interface QueueReleaseApprovalOptions {
+  /** Managed clone that can fetch and inspect the immutable merge commit.
+   * Required for the RQ-1 package/tag handoff; ordinary command releases do
+   * not inspect repository contents. */
+  localRepo?: string;
 }
 
 /** Raise one `production-deploy` approval item per merged loop item that
@@ -84,17 +104,38 @@ export async function queueReleaseApprovals(
   app: string,
   items: readonly LoopItem[],
   now?: () => Date,
+  options: QueueReleaseApprovalOptions = {},
 ): Promise<QueuedRelease[]> {
   const queued: QueuedRelease[] = [];
   const store = new ApprovalStore(stateHome);
   for (const item of items) {
     if (item.phase !== "merged" || item.releaseTrigger === undefined) continue;
     const trigger = item.releaseTrigger;
+    let command = trigger.command;
+    let rq1Binding: { attestationSha256: string; packetPath: string } | undefined;
+    if (trigger.kind === "package" && trigger.tag !== undefined) {
+      if (trigger.owner !== "orchestrator") {
+        throw new Error("RQ-1 package tag handoff must be owned by the orchestrator");
+      }
+      if (trigger.releaseCommit === undefined || options.localRepo === undefined) {
+        throw new Error("RQ-1 package tag handoff requires the exact merge commit and managed clone");
+      }
+      await ensureCommitAvailable(options.localRepo, trigger.releaseCommit);
+      const prepared = await createReleaseAttestationFromCommit({
+        repo: options.localRepo,
+        releaseCommit: trigger.releaseCommit,
+        tag: trigger.tag,
+      });
+      const attestationSha256 = digestJson(prepared.attestation);
+      await persistReleaseAttestation(stateHome, attestationSha256, prepared.attestation);
+      command = `${RQ1_TAG_COMMAND} ${attestationSha256}`;
+      rq1Binding = { attestationSha256, packetPath: prepared.packetPath };
+    }
     const action: ToolAction = {
       // Make the approval bind the executable action itself. A synthetic
       // `release` tool would mint a hash no bash action could consume.
       tool: "bash",
-      input: { command: trigger.command },
+      input: { command },
     };
     const classification = classifyWithEvidence(action);
     const raised = await store.raise({
@@ -113,7 +154,10 @@ export async function queueReleaseApprovals(
       ticketRef: item.ticketRef,
       justification:
         `milestone ${item.ticketRef} merged with a declared ${trigger.kind} disposition; ` +
-        `the app's release mechanism is owned by ${trigger.owner}`,
+        `the app's release mechanism is owned by ${trigger.owner}` +
+        (rq1Binding === undefined
+          ? ""
+          : `; RQ-1 packet ${rq1Binding.packetPath}, attestation ${rq1Binding.attestationSha256}`),
       ...(now !== undefined ? { now: now() } : {}),
     });
     queued.push({
@@ -126,10 +170,57 @@ export async function queueReleaseApprovals(
   return queued;
 }
 
+async function ensureCommitAvailable(repo: string, revision: string): Promise<void> {
+  try {
+    await execFile("git", ["-C", repo, "cat-file", "-e", `${revision}^{commit}`], {
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    });
+    return;
+  } catch {
+    // The squash merge happened on GitHub, so the managed clone commonly has
+    // the reviewed head but not the resulting merge object yet. Fetch only
+    // that immutable object and do not move a branch or checkout.
+  }
+  await execFile("git", ["-C", repo, "fetch", "--no-tags", "origin", revision], {
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  await execFile("git", ["-C", repo, "cat-file", "-e", `${revision}^{commit}`], {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  });
+}
+
+function attestationPath(stateHome: string, sha: string): string {
+  return join(stateHome, "releases", "attestations", `${sha}.json`);
+}
+
+async function persistReleaseAttestation(
+  stateHome: string,
+  sha: string,
+  attestation: ReleaseAttestationV1,
+): Promise<void> {
+  validateReleaseAttestation(attestation);
+  if (digestJson(attestation) !== sha) throw new Error("RQ-1 attestation storage digest mismatch");
+  const path = attestationPath(stateHome, sha);
+  if (existsSync(path)) {
+    const existing: unknown = JSON.parse(await readFile(path, "utf8"));
+    validateReleaseAttestation(existing);
+    if (canonicalJson(existing) !== canonicalJson(attestation)) {
+      throw new Error(`RQ-1 attestation digest collision at ${sha}`);
+    }
+    return;
+  }
+  await mkdir(join(stateHome, "releases", "attestations"), { recursive: true });
+  await writeFileAtomic(path, `${canonicalJson(attestation)}\n`);
+}
+
 export interface ReleaseCommandResult {
   exitCode: number;
   stdout: string;
   stderr: string;
+  outcome?: "completed" | "failed" | "ambiguous";
 }
 
 export interface ReleaseExecutionRecord {
@@ -139,7 +230,7 @@ export interface ReleaseExecutionRecord {
   ticketRef: string;
   owner: "orchestrator" | "sre";
   command: string;
-  status: "running" | "completed" | "failed";
+  status: "running" | "completed" | "failed" | "ambiguous";
   startedAt: string;
   finishedAt?: string;
   exitCode?: number;
@@ -154,6 +245,9 @@ export interface ExecuteApprovedReleasesOptions {
   appsFile: AppsFile;
   now?: () => Date;
   commandRunner?: (command: string, cwd: string, env: NodeJS.ProcessEnv) => Promise<ReleaseCommandResult>;
+  /** Deterministic seam for RQ-1 tag effect/readback tests. Production uses
+   * direct git argv execution and never a shell. */
+  rq1GitRunner?: (cwd: string, args: string[]) => Promise<ReleaseCommandResult>;
   ghFor?: (app: AppEntry) => GhOps;
   /** Exact assignment-aware factory. The legacy role-only seam remains for
    * existing callers, but it receives a role view carrying the persisted
@@ -167,7 +261,7 @@ export interface ExecuteApprovedReleasesOptions {
 export interface ReleaseExecutionOutcome {
   approvalId: string;
   app: string;
-  status: "completed" | "failed" | "skipped";
+  status: "completed" | "failed" | "ambiguous" | "skipped";
   summary: string;
 }
 
@@ -213,10 +307,12 @@ export async function executeApprovedReleases(
       } else if (item.execution?.state === "executing" || item.execution?.state === "ambiguous") {
         await store.finishExecution({
           id: item.id,
-          state: existing.status === "completed" ? "executed" : "failed",
+          state: existing.status === "completed" ? "executed" : existing.status === "ambiguous" ? "ambiguous" : "failed",
           actor: "orchestrator/release-reconcile",
           result: existing.summary ?? existing.status,
-          ...(existing.status === "failed" ? { failureCause: "release_failed" } : {}),
+          ...(existing.status === "failed"
+            ? { failureCause: "release_failed" }
+            : existing.status === "ambiguous" ? { failureCause: "ambiguous_release_result" } : {}),
           now: clock(),
         });
       }
@@ -308,7 +404,7 @@ export async function executeApprovedReleases(
       const result = await executeReleaseEpisode(options, store, item, app, command);
       record = {
         ...record,
-        status: result.exitCode === 0 ? "completed" : "failed",
+        status: result.outcome ?? (result.exitCode === 0 ? "completed" : "failed"),
         finishedAt: clock().toISOString(),
         exitCode: result.exitCode,
         summary: releaseSummary(result),
@@ -325,10 +421,12 @@ export async function executeApprovedReleases(
     if (item.execution?.executor === "release") {
       await store.finishExecution({
         id: item.id,
-        state: record.status === "completed" ? "executed" : "failed",
+        state: record.status === "completed" ? "executed" : record.status === "ambiguous" ? "ambiguous" : "failed",
         actor: "orchestrator/release",
         result: record.summary ?? record.status,
-        ...(record.status === "failed" ? { failureCause: "release_failed" } : {}),
+        ...(record.status === "failed"
+          ? { failureCause: "release_failed" }
+          : record.status === "ambiguous" ? { failureCause: "ambiguous_release_result" } : {}),
         now: clock(),
       });
     }
@@ -344,7 +442,7 @@ export async function executeApprovedReleases(
     outcomes.push({
       approvalId: item.id,
       app: item.app,
-      status: record.status === "completed" ? "completed" : "failed",
+      status: record.status === "completed" ? "completed" : record.status === "ambiguous" ? "ambiguous" : "failed",
       summary:
         persisted.commentError === undefined
           ? record.summary ?? record.status
@@ -828,11 +926,107 @@ async function runApprovedOrchestratorCommand(
 ): Promise<ReleaseCommandResult> {
   const grant = findReleaseGrant(options, store, item);
   if (grant === undefined) throw new Error(`release ${item.id}: approved grant does not match the command`);
+  const rq1 = await prepareRq1TagExecution(options.stateHome, item, command);
   // This is deliberately the first grant consumption in the plan. The prior
   // approval and release-preflight steps only observe the grant.
   store.consumeGrantSync(grant.grantId, options.now?.() ?? new Date());
   const cwd = managedClone(options.stateHome, app);
+  if (rq1 !== undefined) return runRq1TagPush(cwd, rq1, options.rq1GitRunner ?? runGitReleaseEffect);
   return (options.commandRunner ?? runReleaseCommand)(command, cwd, { ...process.env, CI: "1" });
+}
+
+interface PreparedRq1TagExecution {
+  attestation: ReleaseAttestationV1;
+  message: string;
+}
+
+async function prepareRq1TagExecution(
+  stateHome: string,
+  item: ApprovalItem,
+  command: string,
+): Promise<PreparedRq1TagExecution | undefined> {
+  const match = new RegExp(`^${RQ1_TAG_COMMAND} ([a-f0-9]{64})$`).exec(command);
+  if (match === null) {
+    if (command.startsWith("cormidia-internal")) {
+      throw new Error("release: malformed internal RQ-1 command");
+    }
+    return undefined;
+  }
+  if (item.decidedBy?.kind !== "human" || item.decidedAt === undefined) {
+    throw new Error("release: RQ-1 tag requires an attributable human approval decision");
+  }
+  const expectedSha = match[1]!;
+  const value: unknown = JSON.parse(await readFile(attestationPath(stateHome, expectedSha), "utf8"));
+  validateReleaseAttestation(value);
+  if (digestJson(value) !== expectedSha) throw new Error("release: stored RQ-1 attestation was modified");
+  const approval: ReleaseApprovalV1 = {
+    schema_version: 1,
+    contract_id: "RQ-1",
+    decision: "approved",
+    approved_by: item.decidedBy.identity,
+    approved_at: item.decidedAt,
+    attestation_sha256: expectedSha,
+    release_action_sha256: value.release_action_sha256,
+  };
+  return { attestation: value, message: createReleaseTagMessage(value, approval) };
+}
+
+async function runRq1TagPush(
+  cwd: string,
+  prepared: PreparedRq1TagExecution,
+  run: (cwd: string, args: string[]) => Promise<ReleaseCommandResult>,
+): Promise<ReleaseCommandResult> {
+  const tagResult = await run(cwd, [
+    "tag",
+    "-a",
+    prepared.attestation.tag,
+    prepared.attestation.release_commit,
+    "-m",
+    prepared.message,
+  ]);
+  if (tagResult.exitCode !== 0) return tagResult;
+  const pushResult = await run(cwd, [
+    "push",
+    "origin",
+    `refs/tags/${prepared.attestation.tag}`,
+  ]);
+  if (pushResult.exitCode === 0) return pushResult;
+  const local = await run(cwd, ["rev-parse", `refs/tags/${prepared.attestation.tag}`]);
+  const remote = await run(cwd, ["ls-remote", "--tags", "origin", `refs/tags/${prepared.attestation.tag}`]);
+  if (local.exitCode !== 0 || remote.exitCode !== 0) {
+    return { ...pushResult, outcome: "ambiguous", stderr: `${pushResult.stderr}\nRQ-1 tag push readback was unavailable`.trim() };
+  }
+  const matching = remote.stdout.split("\n").map((line) => line.trim().split(/\s+/, 2)).find((parts) => parts[1] === `refs/tags/${prepared.attestation.tag}`);
+  if (matching === undefined) return { ...pushResult, outcome: "failed" };
+  if (matching[0] !== local.stdout.trim()) {
+    return { ...pushResult, outcome: "ambiguous", stderr: `${pushResult.stderr}\nRQ-1 remote tag marker disagrees with the local annotated tag`.trim() };
+  }
+  return {
+    exitCode: 0,
+    outcome: "completed",
+    stdout: `${pushResult.stdout}\nRQ-1 tag push response lost; exact remote tag marker reconciled`.trim(),
+    stderr: pushResult.stderr,
+  };
+}
+
+async function runGitReleaseEffect(cwd: string, args: string[]): Promise<ReleaseCommandResult> {
+  try {
+    const result = await execFile("git", ["-C", cwd, ...args], {
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, CI: "1", GIT_TERMINAL_PROMPT: "0" },
+    });
+    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    const detail = error as { code?: unknown; stdout?: unknown; stderr?: unknown };
+    return {
+      exitCode: typeof detail.code === "number" ? detail.code : 1,
+      stdout: typeof detail.stdout === "string" ? detail.stdout : "",
+      stderr: typeof detail.stderr === "string"
+        ? detail.stderr
+        : error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function sreReleaseGate(

@@ -1,0 +1,50 @@
+schema_version: "1.0"
+assessment:
+  id: "20260805T040848Z-4bbb360974f4"
+  mode: "full/harden"
+  target_revision: "content:4bbb360974f4a817c6fbd397ede6ab960b97b4f8cce41408bf20dfa436e98ecf"
+  repository_root: "/Users/bikram/Build/Cormidia-release-evidence-gate"
+  working_tree_state: "isolated origin/main worktree with reviewed implementation"
+  assessor_roles: ["implementation verifier", "validation auditor"]
+  independence_level: "I1"
+
+project:
+  name: "Cormidia"
+  intended_release_use: "Determine whether one exact Cormidia npm package candidate may be offered to a separate human-approved publication path."
+  excluded_uses: ["unapproved publication", "general safety certification", "qualification by partial or stale evidence"]
+  supported_shape: "single-user local standing org, private GitHub repository, supported adapters, Node.js >=26"
+  rollback_model: "disable the release workflow/declaration and revert tooling; retain immutable evidence; never fall back to the archived gate"
+
+criticality:
+  system_level: "C3"
+  change_level: "L3"
+  rationale:
+    - "The assessor is an assurance root whose false green can admit an externally durable package."
+    - "It composes stochastic, external, deterministic and human-attributable evidence."
+  components:
+    - {id: "COMP-ASSESSOR", level: "C3", status: "offline implemented and tested"}
+    - {id: "COMP-L3", level: "C3", status: "collector implemented; release campaign unrun"}
+    - {id: "COMP-L4", level: "C3", status: "exact pairing collection implemented; numeric decisions remain unratified"}
+    - {id: "COMP-L5", level: "C3", status: "collector implemented; threat/HB-073/soak absent"}
+    - {id: "COMP-RELEASE", level: "C3", status: "B-17 and tag workflow implemented offline; approval authenticity blocked by F-PT-021"}
+
+human_authority:
+  ratified:
+    - "RQ-1 and the exact protected/binding proposal"
+    - "all 20 workbook expected behaviors, attributed to bikramgupta on 2026-08-04"
+  still_required:
+    - "human threat-model author and distinct reviewer"
+    - "HB-073 threat conclusions and abuse-case dispositions"
+    - "F-PT-021 approval-authenticity/enforcement decision"
+    - "F-PT-018 merge-enforcement decision"
+    - "future exact campaign and release approvals"
+  not_invented:
+    - "thresholds, sample sizes, aggregation or judge admissibility"
+    - "global L4 ceiling"
+    - "threat conclusions or enforcement alternatives"
+
+assurance_target:
+  scoped_claim: "The offline implementation derives a fail-closed RQ-1 claim from exact packet evidence and binds it to exact candidate/package/tag bytes."
+  activation_claim: "Not established."
+  minimum_independence_before_activation: "I2 semantic review plus the named human authorities"
+  current_verdict: "INSUFFICIENT_FOR_STATED_TARGET"

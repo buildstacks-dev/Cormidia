@@ -539,14 +539,16 @@ git root; there is no `.env.example` yet — the variables above are the full se
 
 ## Testing
 
-**Replacement harness implemented; triggered evidence pending (2026-07-31).** The
+**Replacement harness implemented; RQ-1 release gate active (2026-08-04).** The
 legacy suite remains frozen under `archive-do-not-read/` — never read, cite, or run
 it. The ratified contract is `validation-design/validation-policy.yaml`; the executable
-L1/L2 harness plus opt-in L3/L4/L5 runners live in `tests/`. Release gating is
-still **suspended**: live campaigns and the real seven-day soak have not run, eval
-references/thresholds remain pending, the human threat model is not authored, and
-required-check enforcement is blocked by F-PT-018. Implemented machinery is not
-release evidence.
+L1/L2 harness plus opt-in L3/L4/L5 runners live in `tests/`. RQ-1 qualifies an exact
+candidate only from complete deterministic L1/L2 plus separately authorized L3/L4
+campaign evidence bound to that candidate; missing work is incomplete/inconclusive,
+never green. The human threat model, HB-073 abuse cases, seven-day soak, and natural
+rotation remain visible future L5 assurance outside the RQ-1 denominator. F-PT-018 is
+an explicit merge-enforcement limitation bounded by protected human merge and an
+exact-tag rerun, not a claim of mechanical branch protection.
 
 The interim verification for source changes is:
 
@@ -836,18 +838,19 @@ the validation rebuild — see Testing above.)
   complete seven-destination campaign authority, and exact role-safe context/session/
   cache evidence. Product-roadmap planning and ticket delivery now share the
   `orchestrateEpisode` façade without collapsing RoadmapPlan into EpisodePlan. HB-108
-  closes the deterministic catalog and integrates the still-human-pending pre-tuning
+  closes the deterministic catalog and integrates the now-human-validated pre-tuning
   corpora; HB-109 closes contention/collector machinery without running the seven-day
   soak; HB-110 adds shared Status/JSON/Report/Observe explanations. External evidence,
-  human reference review, and HB-111's separately approved protocol-surface proposal
+  threshold decisions and HB-111's separately approved protocol-surface proposal
   remain outstanding.
 
-- **Release gating remains suspended.** L3/L4/L5 runners exist, but no authorized
-  external campaign or seven-day soak was executed in this implementation change;
-  reviewer/planner human references and thresholds remain pending, HB-072 awaits a
-  human-authored threat model, B-17-L3 is blocked, and F-PT-018 prevents the current
-  private-repo CI check from being enforced as merge-blocking. No green claim follows
-  from any of those absences.
+- **RQ-1 is active, but no candidate qualifies by absence.** Every release candidate
+  needs current L1/L2 and separately authorized L3/L4 evidence. No paid campaign or
+  release ran in the gate implementation change. The generic B-17 non-GitHub live
+  target and the L5 threat/abuse/soak/rotation program remain future assurance and
+  never report pass while absent. F-PT-018 prevents the current private-repo CI check
+  from being mechanically merge-blocking; protected human merge plus the release-
+  blocking exact-tag rerun is the ratified bounded mechanism.
 
 - **Live UI V1 is local-only.** It has no remote/public bind, TLS, multi-user
   auth, cloud ingestion, or workflow controls. Use SSH port forwarding to the

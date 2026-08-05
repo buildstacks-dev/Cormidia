@@ -4,7 +4,8 @@ Boundary: **B-21 validation contract authority ↔ readiness, Builder evidence, 
 Reviewer verdict**. Status: ACCEPTED implementation contract (2026-08-03);
 HB-102 deterministic authority/readiness enforcement and HB-108's complete accepted
 catalog/detector walk are implemented. The pre-tuning S-10 corpus remains
-`human_validation=pending`, so threshold-dependent results remain inconclusive.
+human-validated on 2026-08-04, while threshold-dependent results remain inconclusive
+under F-PT-011.
 
 ## Inputs
 - Exact RoadmapPlan and delivery-unit versions.

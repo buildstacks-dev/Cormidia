@@ -43,8 +43,15 @@ function validate(value: unknown): asserts value is EvalCliConfigV1 {
   if (!Array.isArray(root["tuples"]) || root["tuples"].length === 0) throw new Error("tuples must be non-empty");
   const ids: string[] = [];
   for (const [index, raw] of root["tuples"].entries()) {
-    const tuple = object(raw, `tuples[${index}]`); exact(tuple, ["id", "runtime", "model", "effort", "maxCaseCostUsd"]);
+    const tuple = object(raw, `tuples[${index}]`); exact(tuple, ["id", "site", "operation", "arm", "producerTuple", "evaluatorTuple", "rubricVersion", "attemptId", "promptInputDigest", "rubricDigest", "graderDigest", "runtime", "model", "effort", "maxCaseCostUsd"]);
     ids.push(required(tuple["id"], `tuples[${index}].id`)); required(tuple["model"], `tuples[${index}].model`);
+    const site = oneOf(tuple["site"], ["reviewer", "planner", "validation-designer"], `tuples[${index}].site`);
+    const operation = oneOf(tuple["operation"], ["review", "plan", "validation-design"], `tuples[${index}].operation`);
+    const expectedOperation = site === "reviewer" ? "review" : site === "planner" ? "plan" : "validation-design";
+    if (operation !== expectedOperation) throw new Error(`tuples[${index}].operation does not match site`);
+    oneOf(tuple["arm"], ["bootstrap", "candidate", "baseline"], `tuples[${index}].arm`);
+    required(tuple["producerTuple"], `tuples[${index}].producerTuple`); required(tuple["evaluatorTuple"], `tuples[${index}].evaluatorTuple`); required(tuple["rubricVersion"], `tuples[${index}].rubricVersion`); required(tuple["attemptId"], `tuples[${index}].attemptId`);
+    for (const field of ["promptInputDigest", "rubricDigest", "graderDigest"] as const) if (!/^[a-f0-9]{64}$/.test(required(tuple[field], `tuples[${index}].${field}`))) throw new Error(`tuples[${index}].${field} must be lowercase sha256`);
     oneOf(tuple["runtime"], ["claude", "codex", "pi"], `tuples[${index}].runtime`);
     oneOf(tuple["effort"], ["low", "medium", "high", "xhigh", "max"], `tuples[${index}].effort`);
     positive(tuple["maxCaseCostUsd"], `tuples[${index}].maxCaseCostUsd`);

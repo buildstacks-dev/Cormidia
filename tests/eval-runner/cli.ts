@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { ClaudeRuntime } from "../../src/runtime/adapters/claude.js";
 import { CodexRuntime } from "../../src/runtime/adapters/codex.js";
 import { PiRuntime } from "../../src/runtime/adapters/pi.js";
+import { releaseRepositorySnapshot } from "../../src/org/release-evidence.js";
 import type { RoleConfig, Runtime, RuntimeKind } from "../../src/runtime/types.js";
 import { DurableCampaignRunner } from "../campaign/campaign-runner.js";
 import { assertCampaignRepositoryBinding } from "../campaign/repository-binding.js";
@@ -27,9 +28,10 @@ async function main(): Promise<number> {
     trackedInputPaths: config.golden_set_files,
   });
   const cases = (await Promise.all(binding.trackedInputPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown[]))).flat() as EvalCaseV1[];
+  const producerDigest = (await releaseRepositorySnapshot(process.cwd(), config.commit)).producer_digests.L4;
   validateCases(cases);
   const selected = config.shard === null ? cases : selectRotatingShard(cases, config.shard.date, config.shard.count);
-  const required = config.tuples.flatMap((tuple) => selected.map((evalCase) => `${tuple.id}::${evalCase.id}`));
+  const required = config.tuples.flatMap((tuple) => selected.filter((evalCase) => evalCase.site === tuple.site).map((evalCase) => `${tuple.id}::${evalCase.id}`));
   const campaign = new DurableCampaignRunner({
     stateHome: config.state_home,
     campaignId: config.campaign_id,
@@ -56,6 +58,7 @@ async function main(): Promise<number> {
       stateHome: config.state_home,
       cases,
       tuples: config.tuples,
+      producerDigest,
       maxTokens: config.max_tokens,
       ...(config.shard === null ? {} : { shard: config.shard }),
       executor: {

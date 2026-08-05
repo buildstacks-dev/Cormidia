@@ -31,7 +31,7 @@ async function fixture(): Promise<{ path: string; value: Record<string, unknown>
     human_authorization: { human_initiated: true, authorized_by: "fixture-human", authorized_at: "2026-07-31T00:00:00.000Z", purpose: "fixture" },
     state_home: join(root, "state"), policy_path: join(root, "policy.yaml"), commit: "a".repeat(40), app: "sandbox-app",
     golden_set_files: [join(root, "golden.json")],
-    tuples: [{ id: "reviewer-a", runtime: "claude", model: "fixture-model", effort: "medium", maxCaseCostUsd: 1 }],
+    tuples: [{ id: "reviewer-a", site: "reviewer", operation: "review", arm: "bootstrap", producerTuple: "fixture", evaluatorTuple: "reviewer/claude/fixture-model/medium", rubricVersion: "reviewer-v1", attemptId: "attempt-1", promptInputDigest: "a".repeat(64), rubricDigest: "b".repeat(64), graderDigest: "c".repeat(64), runtime: "claude", model: "fixture-model", effort: "medium", maxCaseCostUsd: 1 }],
     max_tokens: 1000, max_provider_turns: 2, max_equiv_usd: 5, shard: null,
   } };
 }

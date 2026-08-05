@@ -218,8 +218,8 @@ blocked exactly as designed. -->
 <!-- implementation status 2026-07-31: HB-060 COMPLETE (per-tuple data collection,
 token reservation, bounded shard rotation, partial evidence, strict golden/provenance
 validation, and tracked-blob binding to the authorized commit). HB-061/HB-062 build-agent
-authoring is complete, but every reviewer/planner reference remains explicitly
-human_validation=pending; a human must validate them before they are admissible.
+authoring is complete; every current reviewer/planner reference was human-validated by
+`bikramgupta` on 2026-08-04 without changing agent authorship.
 HB-063 deterministic trajectory scenarios are complete. F-PT-009/010/011 and register
 items 9..12 remain PROPOSED, so threshold-dependent campaigns remain inconclusive. -->
 
@@ -231,13 +231,17 @@ items 9..12 remain PROPOSED, so threshold-dependent campaigns remain inconclusiv
 - **HB-062** Author planner/ sets; **HB-063** builder-trajectory scenario fixtures;
   later scaffolds per elicited priority. Executor: human + build-agent.
 
-## Wave L5 — ops lane (gated per obligation)
+## Wave L5 — future assurance outside RQ-1 (gated per obligation)
 
 <!-- implementation status 2026-07-31: HB-070 COMPLETE (ratified contention shape;
 deterministic rig green). HB-071 runner/collector COMPLETE but the seven-real-day
 human-started campaign and CF-OPS-ROT natural evidence are PENDING. HB-072 is
 AWAITING HUMAN AUTHOR: the ten-surface worksheet is only a scaffold. HB-073 remains
 BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed. -->
+
+<!-- owner disposition 2026-08-04: HB-072/HB-073, the seven-day soak and natural
+rotation retain their owners, collectors, triggers and ceiling, but are not RQ-1
+release obligations. Missing evidence remains visible and never pass. -->
 
 - **HB-070** Contention rig (CF-OPS-CONT; hermetic implementation, L5 question).
   Executor: build-agent. **HB-071** Soak protocol runner + evidence collector
@@ -275,10 +279,11 @@ BLOCKED; its hash-bound gate refuses until HB-072 is human-authored and reviewed
 - **HB-P6** F-PT-017 provider terminal-status enum decision and migration cases
   (CF-C-CORE). Executor: human + build-agent after the owner chooses the canonical
   vocabulary and compatibility path; no test may derive truth from the current code.
-- **HB-P7** F-PT-018 merge-blocking enforcement (CF-HARNESS-CI). Executor: human +
-  build-agent after GitHub required-check controls become available or the owner
-  ratifies an enforceable alternative. The PR workflow remains active and
-  fail-closed internally, but must not be represented as merge-blocking meanwhile.
+- **HB-P7** F-PT-018 mechanical merge-blocking enforcement (CF-HARNESS-CI), retained
+  as a known limitation/future improvement. Executor: human + build-agent after GitHub
+  required-check controls become available. The PR workflow remains active and
+  fail-closed internally; RQ-1 uses protected human merge plus release-blocking
+  exact-tag rerun and does not claim mechanical merge blocking.
 
 ## Post-ratification additions (2026-07-31)
 
@@ -436,7 +441,8 @@ prepares the proposal and a human separately ratifies any such surface. -->
   settlement, lifecycle ingestion is strict, and projections prove durable current
   readiness.
   HB-108 closes the deterministic matrix and HB-110 closes the operator surfaces below;
-  human S-10 reference review/thresholds, HB-109 live evidence and HB-111 remain pending.
+  S-10 references are human-validated; its thresholds, HB-109 live evidence and the
+  separately governed HB-111 application state remain pending.
 - **HB-103 — COMPLETE 2026-08-03 — Multi-ticket delivery units and one-PR atomicity.** Replace ticket-scoped
   claim/review/merge assumptions with a stable delivery-unit authority containing one or
   more members. Make claim/revalidation all-or-none; bind branch, gates, evidence,
@@ -543,9 +549,9 @@ prepares the proposal and a human separately ratifies any such surface. -->
   *Implementation:* `src/org/ratified-validation-catalog.ts` expands and content-pins
   the accepted deterministic registry; `tests/hermetic/cf-hb108/` fails empty walks and
   detector-never-fired families. The L4 runner accepts the committed Planner and
-  Validation Designer corpora with every reference still `human_validation=pending`;
-  F-PT-010/011 keep all threshold-dependent results inconclusive. No provider/eval
-  campaign ran.
+  Validation Designer corpora. Their current references were human-validated by
+  `bikramgupta` on 2026-08-04; F-PT-010/011 keep all threshold-dependent results
+  inconclusive. No provider/eval campaign ran.
 - **HB-109 — MACHINERY COMPLETE 2026-08-04; SEVEN-DAY EVIDENCE PENDING — Batch-aware contention and soak repeat cases.** Extend the existing
   deterministic contention rig with overlapping batches, duplicate unit stimuli,
   all-or-none multi-ticket claims, per-unit settlement and terminal isolation. Extend
@@ -597,6 +603,41 @@ prepares the proposal and a human separately ratifies any such surface. -->
   It is not an alias of `manual-review`, does not justify a `manual-*` wildcard, and any
   future scheduling meaning requires a separate product-owner decision plus detectors.
   *Layer:* process/read-only audit. *Executor:* build-agent + human taxonomy decision.
+- **HB-113 — COMPLETE 2026-08-04 — RQ-1 manifest, currency, and attestation schemas.** Implement
+  closed canonical schemas for candidate/package identity, subject and producer currency,
+  evidence-only descendant equivalence, sanitized packets, and release attestations.
+  *Layer:* 1/2. *Executor:* build-agent. *Depends on:* RQ-1 ratification.
+- **HB-114 — COMPLETE 2026-08-04 — RQ-1 deterministic detector families.** Deposit seeded
+  negative controls for forged completeness, stale inputs, changed package bytes,
+  path escape, tamper, unlisted skips, missing CI, pending references, uncalibrated
+  judges, and publish without attestation. *Layer:* 1/2 + CI. *Executor:* build-agent.
+  *Depends on:* HB-113.
+- **HB-115 — COMPLETE 2026-08-04 — Paired L4 evidence and human review packet.** Preserve exact
+  site/operation/producer/evaluator/rubric pairings, composite grading identity, bootstrap
+  versus candidate/baseline arms, and advisory-only uncalibrated results. *Layer:* 1/2 +
+  L4 machinery. *Executor:* build-agent; campaigns remain human-authorized. *Depends on:*
+  human reference validation and HB-113.
+- **HB-116 — COMPLETE 2026-08-04 — Packet sanitizer and operator surfaces.** Add deterministic
+  prepare/assess/attest/verify commands and concise disagreement/debt reports without
+  raw provider content. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* HB-113…115.
+- **HB-117 — COMPLETE 2026-08-04 — Release workflow, prepublish refusal, and B-17 tag path.** Add
+  exact-tag offline verification and keep approval, tag, npm publication, and
+  acknowledgement as separate facts. F-PT-018 remains an open known limitation;
+  F-PT-021 is resolved by authenticated actor/approver/repository equality. *Layer:* 1/2 + CI.
+  *Executor:* build-agent + protected human merge. *Depends on:* HB-116.
+- **HB-118 — COMPLETE 2026-08-05 — RQ-1 implementation audit and holdout.** Fresh-agent
+  I2 review of exact implementation commit `58596de4f03a1bf9ed3c102c904d0a0f6026e2d7`
+  closed two independently demonstrated false-green paths: ambient tracked checkout
+  bytes and ignored producer/environment bytes. The final assessor executes Vitest in
+  a sparse exact-candidate clone, performs a frozen offline dependency install with
+  scripts disabled and store integrity enabled, scrubs inherited environment, binds
+  the complete executed file/skip inventory, and cleans the isolated checkout. I2
+  passed 44 focused tests, the 169-file offline gate (1,089 pass; one policy skip),
+  typecheck, build, diff check, exact self-snapshot and exact-head hosted CI. Full
+  evidence: `.validation/20260805T102101Z-58596de4f03a/`. *Layer:* audit. *Executor:*
+  independent validation auditor. *Depends on:* HB-113…117. Future HB-072/HB-073/L5
+  work remains outside RQ-1; separately authorized L3/L4 campaigns qualify each later
+  candidate rather than activating the gate.
 
 ## Standing rules
 

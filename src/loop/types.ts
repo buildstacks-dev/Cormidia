@@ -48,6 +48,9 @@ export interface ReleaseConfig {
   command?: string;
   owner: ReleaseOwner;
   trigger?: ReleaseTriggerMode;
+  /** GitHub identities allowed to authorize a tag-triggered release. The
+   *  exact tag-push actor and RQ-1 approval identity must match one entry. */
+  approvers?: string[];
 }
 
 /** Data the loop returns when a merged milestone requires a release action.
@@ -57,6 +60,10 @@ export interface ReleaseTrigger {
   kind: ReleaseKind;
   command: string;
   owner: ReleaseOwner;
+  /** Exact tag/merge identity retained for package-evidence handoff. Older
+   * command-triggered records omit both fields and remain readable. */
+  tag?: string;
+  releaseCommit?: string;
 }
 
 export interface ScorecardEvent {

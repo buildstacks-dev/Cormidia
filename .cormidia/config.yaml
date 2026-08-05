@@ -37,6 +37,11 @@ apps:
     repo: cormidia/Cormidia
     status: live
     budget_usd_month: 1000
+    release:
+      kind: package
+      owner: orchestrator
+      trigger: tag
+      approvers: [bikramgupta]
     cadence: {}
     execution:
       assignment_mode: fixed

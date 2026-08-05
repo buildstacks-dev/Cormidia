@@ -415,7 +415,11 @@ export async function packageManifestFromTarball(path: string): Promise<ReleaseP
     }
     offset = contentStart + Math.ceil(size / 512) * 512;
   }
-  files.sort((left, right) => left.path.localeCompare(right.path));
+  // Manifest validation and canonical JSON use ECMAScript's code-unit order.
+  // localeCompare is locale-sensitive and places lower-case package paths ahead
+  // of README.md/TASTE.md on macOS, so a real npm tarball could sort into an
+  // order that the same release gate immediately rejected.
+  files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   if (files.length === 0 || new Set(files.map((item) => item.path)).size !== files.length) throw new Error("release tarball file manifest is empty or contains duplicate paths");
   const name = nonEmpty(packageJson?.name, "package.json name");
   const version = nonEmpty(packageJson?.version, "package.json version");

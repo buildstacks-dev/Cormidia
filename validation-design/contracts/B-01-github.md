@@ -22,6 +22,10 @@ Status: DRAFT (Phase 4). Defends INV-008/009/014, T-7/T-9. Journeys J-02/03/04/0
   Poll age and poll failure are always exposed to readers (INV-008; B-12).
 - No cross-entity ordering guarantee; per-entity read-after-write is NOT assumed —
   Cormidia re-reads before relying on a just-written state.
+- A finite validation observation window cannot falsify an eventually consistent
+  projection when this contract declares no staleness maximum. Exhausting that window
+  preserves the exact observation as incomplete/inconclusive — never pass and never a
+  product violation. Direct artifact or field disagreement remains a violation.
 - A Planner readiness snapshot is not routing authority and a Builder selection snapshot
   is not claim authority: each re-reads current issue labels at its mutation seam. A
   failed read narrows capability and refuses autonomous work (INV-001/015).

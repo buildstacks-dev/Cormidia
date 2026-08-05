@@ -32,6 +32,10 @@ export interface CampaignRunnerOptions {
 }
 
 export interface CampaignCaseResult {
+  /** False means the callback returned trustworthy partial evidence but did
+   * not complete this required case. Exact usage/evidence is retained, the
+   * case remains missing, and independent cases may continue. */
+  caseComplete?: boolean;
   providerTurns: number;
   equivUsd: number;
   violationIds?: string[];
@@ -154,13 +158,14 @@ export class DurableCampaignRunner {
     report.spend.observed_provider_turns += result.providerTurns;
     report.spend.observed_equiv_usd = money(report.spend.observed_equiv_usd + result.equivUsd);
     this.recomputeCeiling();
-    report.coverage.collected_case_ids.push(caseId);
+    if (result.caseComplete !== false) report.coverage.collected_case_ids.push(caseId);
     report.coverage.missing_case_ids = report.coverage.required_case_ids.filter(
       (required) => !report.coverage.collected_case_ids.includes(required),
     );
     report.outcome.violation_ids = unique([...report.outcome.violation_ids, ...(result.violationIds ?? [])]);
     report.outcome.reason_codes = unique([
       ...report.outcome.reason_codes.filter((code) => code !== "campaign_running"),
+      ...(result.caseComplete === false ? [`case_incomplete:${caseId}`] : []),
       ...(result.reasonCodes ?? []),
     ]);
     report.evidence_refs = unique([...report.evidence_refs, ...result.evidenceRefs]);

@@ -69,6 +69,44 @@ describe("CF-REG-273 — label-filtered conformance readback is eventually visib
 
     expect(report.passed).toEqual([]);
     expect(report.failures.map((failure) => failure.id)).toEqual(["B01-CF-02"]);
+    expect(report.failures).toMatchObject([{
+      classification: "observation_inconclusive",
+      code: "label_filtered_issue_search_not_observed",
+    }]);
     expect(calls()).toBe(1);
+  });
+
+  it("negative control: a direct artifact mismatch remains a product violation", async () => {
+    handle = await installGithubDouble();
+    restorePath = handle.activatePath();
+    const base = makeGithubDoubleSurface(handle);
+    const ops = new Proxy(base.ops, {
+      get(target, property) {
+        if (property === "readIssue") {
+          return async (number: number) => ({
+            ...(await target.readIssue(number)),
+            title: "seeded wrong title",
+          });
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as GhOps;
+
+    const report = await runGithubConformance(
+      { ...base, ops },
+      {
+        clauseFilter: (id) => id === "B01-CF-02",
+        readBackAttempts: 3,
+        readBackDelayMs: 0,
+      },
+    );
+
+    expect(report.passed).toEqual([]);
+    expect(report.failures).toMatchObject([{
+      id: "B01-CF-02",
+      classification: "violation",
+      code: "assertion_failed",
+    }]);
   });
 });

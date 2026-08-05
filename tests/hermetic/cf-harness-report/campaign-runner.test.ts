@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { writeFile } from "node:fs/promises";
-import { DurableCampaignRunner } from "../../campaign/campaign-runner.js";
+import { assertCompletedCampaignPass, DurableCampaignRunner } from "../../campaign/campaign-runner.js";
 import { readValidationCampaignReports } from "../../../src/org/validation-campaign.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
@@ -110,5 +110,41 @@ describe("durable campaign runner", () => {
       spend: { ceiling_exhausted: true },
       outcome: { completeness: "incomplete", verdict: "inconclusive" },
     });
+  });
+
+  it("negative control: a known observation gap preserves evidence, stays uncollected, and cannot become green", async () => {
+    const campaign = await runner(["OBSERVATION-GAP", "INDEPENDENT-CASE"]);
+    await campaign.start();
+    await campaign.runCase("OBSERVATION-GAP", { providerTurns: 0, maxEquivUsd: 0 }, async () => ({
+      caseComplete: false,
+      providerTurns: 0,
+      equivUsd: 0,
+      reasonCodes: ["github_clause_inconclusive:B01-CF-02"],
+      evidenceRefs: ["github:sandbox:clause:B01-CF-02:observation_inconclusive"],
+    }));
+    await campaign.runCase("INDEPENDENT-CASE", { providerTurns: 1, maxEquivUsd: 1 }, async () => ({
+      providerTurns: 1,
+      equivUsd: 0.1,
+      evidenceRefs: ["evidence/independent-case.json"],
+    }));
+
+    const report = await campaign.finish();
+    expect(report.coverage).toEqual({
+      required_case_ids: ["OBSERVATION-GAP", "INDEPENDENT-CASE"],
+      collected_case_ids: ["INDEPENDENT-CASE"],
+      missing_case_ids: ["OBSERVATION-GAP"],
+    });
+    expect(report.outcome).toMatchObject({
+      completeness: "incomplete",
+      verdict: "inconclusive",
+      violation_ids: [],
+      reason_codes: [
+        "case_incomplete:OBSERVATION-GAP",
+        "github_clause_inconclusive:B01-CF-02",
+      ],
+    });
+    expect(() => assertCompletedCampaignPass(report)).toThrow(
+      /completeness=incomplete.*verdict=inconclusive/,
+    );
   });
 });

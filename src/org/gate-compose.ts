@@ -6,7 +6,7 @@
 // with guidance and a durable lesson instead of burning a human decision —
 // the episode spent 20 decisions on attempts the protocol already forbade.
 
-import { actionEffectFields, classifyWithEvidence } from "../runtime/gate.js";
+import { actionEffectFields, decideDisposition } from "../runtime/gate.js";
 import { FORBIDDEN_BY_ROLE } from "../runtime/role-shaping.js";
 import type { GateDecision, GateFn, ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore } from "./approvals.js";
@@ -35,8 +35,8 @@ export function composeGate(
   return (action: ToolAction): GateDecision => {
     const now = context.now?.() ?? new Date();
     const hash = actionHash(action);
-    const classification = classifyWithEvidence(action);
-    const rule = classification.cls === "critical" ? classification.rule : undefined;
+    const disposition = decideDisposition(action);
+    const rule = disposition.tier !== "routine" ? disposition.rule : undefined;
     const grant = store.findMatchingGrantSync({
       app: context.app,
       role: context.role,
@@ -156,7 +156,7 @@ export function composeGate(
         ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
         ...(context.workdir !== undefined ? { workdir: context.workdir } : {}),
         justification: decision.reason,
-        ...(classification.cls === "critical" ? { classification: classification.evidence } : {}),
+        ...(disposition.tier !== "routine" ? { classification: disposition.evidence } : {}),
         now,
       });
     }

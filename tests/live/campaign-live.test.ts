@@ -22,7 +22,11 @@ import { assertCompletedCampaignPass, DurableCampaignRunner } from "../campaign/
 import { assertCampaignRepositoryBinding } from "../campaign/repository-binding.js";
 import { runAdapterConformance } from "../fixtures/adapters/conformance.js";
 import { GITHUB_CONFORMANCE_CLAUSE_COUNT, runGithubConformance } from "../fixtures/github-double/conformance/suite.js";
-import { loadLiveCampaignConfig, type LiveCampaignConfigV1 } from "./config.js";
+import {
+  liveCampaignRequiredCaseIds,
+  loadLiveCampaignConfig,
+  type LiveCampaignConfigV1,
+} from "./config.js";
 import { releaseGithubConformanceOptions } from "./github-conformance-policy.js";
 import { githubConformanceCaseResult } from "./github-conformance-result.js";
 import { RealGithubConformanceSurface } from "./real-github-surface.js";
@@ -38,12 +42,7 @@ beforeAll(async () => {
   workdir = await mkdtemp(join(tmpdir(), "cormidia-live-adapter-"));
   await mkdir(join(workdir, ".git"), { recursive: true });
   decidedBefore = new Set((await new ApprovalStore(config.state_home).listDecidedReadOnly()).map((row) => row.id));
-  const required = [
-    ...config.adapters.map((target) => ({ claude: "CF-B02-L3", codex: "CF-B03-L3", pi: "CF-B04-L3" })[target.runtime]),
-    ...(config.github.enabled ? ["CF-B01-L3"] : []),
-    ...(config.launchd.enabled ? ["CF-J16-A"] : []),
-    ...(config.unattended.enabled ? ["CF-J18-A"] : []),
-  ];
+  const required = liveCampaignRequiredCaseIds(config);
   const ceiling = config.campaign_kind === "release" ? { turns: 24, usd: 100 } : { turns: 2, usd: 5 };
   const profile = config.unattended.enabled ? createUnattendedValidationProfile(config.sandbox) : undefined;
   campaign = new DurableCampaignRunner({

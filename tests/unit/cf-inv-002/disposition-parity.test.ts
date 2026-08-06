@@ -57,6 +57,25 @@ function todayTier(action: ToolActionLike): DispositionTier {
     : "grantable";
 }
 
+/** The ratified per-rule tiers after the Stage 2 tightenings (#296; plan
+ *  Stage 2 table plus §4.2.1). This literal is an independent pin of the
+ *  ratified mapping — if the implementation's table drifts, this fails. */
+const RATIFIED_TIERS: Readonly<Record<string, DispositionTier>> = {
+  "production-deploy": "human-only",
+  "destructive-or-irreversible": "grantable",
+  "dns-or-domain": "human-only",
+  "secrets-or-auth": "grantable",
+  "external-publishing": "human-only",
+  "provider-global-memory": "grantable",
+  "outbound-network": "grantable",
+  "self-merge-or-approve": "human-only",
+  "protocol-self-edit": "un-grantable",
+  "scorecard-tamper": "un-grantable",
+  "learning-surface-tamper": "un-grantable",
+  "approval-store-tamper": "un-grantable",
+  "gate-implementation-edit": "un-grantable",
+};
+
 /** One fixture per classifier rule, each verified below to actually classify
  *  under the rule it names — a fixture that drifts to another rule fails the
  *  table, so the table cannot silently test the wrong thing. */
@@ -73,14 +92,15 @@ const RULE_FIXTURES: ReadonlyArray<{ rule: string; action: ToolActionLike }> = [
   { rule: "scorecard-tamper", action: { tool: "write_file", input: { path: "scorecards/builder.json", content: "{}" } } },
   { rule: "learning-surface-tamper", action: { tool: "write_file", input: { path: "learning/policy.yaml", content: "{}" } } },
   { rule: "approval-store-tamper", action: { tool: "write_file", input: { path: "approvals/grants/grant-1.json", content: "{}" } } },
+  { rule: "gate-implementation-edit", action: { tool: "edit_file", input: { path: "src/org/authority.ts", new_string: "// edited" } } },
 ];
 
-describe("CF-INV — Stage 1 disposition table (all 12 classifier rules, today's tiers)", () => {
+describe("CF-INV — disposition table (every classifier rule, ratified tiers)", () => {
   it("covers the classifier's exact rule set — a rule added or renamed without a table row fails here", () => {
     expect(CRITICAL_RULES.map((rule) => rule.name).sort()).toEqual(
       RULE_FIXTURES.map((fixture) => fixture.rule).sort(),
     );
-    expect(RULE_FIXTURES).toHaveLength(12);
+    expect(RULE_FIXTURES).toHaveLength(13);
   });
 
   for (const { rule, action } of RULE_FIXTURES) {
@@ -88,12 +108,11 @@ describe("CF-INV — Stage 1 disposition table (all 12 classifier rules, today's
       const classification = classify(action);
       expect(classification).toEqual({ cls: "critical", rule });
 
-      // The EXPECTATION is derived from NEVER_SCOPEABLE_RULES, never written
-      // as a literal, so tier and set cannot drift apart (plan Stage 1
-      // acceptance).
-      const expected: DispositionTier = NEVER_SCOPEABLE_RULES.includes(rule)
-        ? "human-only"
-        : "grantable";
+      // The ratified expectation, coupled to the A1 boundary: NEVER_SCOPEABLE
+      // membership must be exactly the human-only ∪ un-grantable tiers, so
+      // the set and the tier table cannot drift apart.
+      const expected: DispositionTier = RATIFIED_TIERS[rule]!;
+      expect(NEVER_SCOPEABLE_RULES.includes(rule)).toBe(expected !== "grantable");
       const disposition = decideDisposition(action);
       expect(disposition.tier).toBe(expected);
       if (disposition.tier === "routine") throw new Error("unreachable: fixture classified critical");

@@ -432,6 +432,23 @@ export const CRITICAL_RULES: CriticalRule[] = [
     },
   },
   {
+    // §4.2.1 (#296 Stage 2): the gate's implementation is the deeper protocol
+    // surface. protocol-self-edit guards the human-ratified DATA (roles.yaml,
+    // prompts/**); this class guards the CODE that decides what requires
+    // approval, stores and evaluates grants, composes the grant-aware gate,
+    // and derives prose authority. An agent write here is un-grantable
+    // self-modification — but the files are not frozen: a human, or an agent
+    // under direct human instruction with human merge, changes them through
+    // the ordinary reviewed PR path, which never routes through this gate.
+    // Reads stay routine (the point is the boundary, not friction on
+    // inspection). A same-named path in a foreign checkout also trips; that
+    // false positive costs one human tap, which is the fail-closed direction.
+    name: "gate-implementation-edit",
+    matches: (a) =>
+      isWrite(a) &&
+      /\bsrc\/(?:runtime\/gate|org\/(?:approvals|gate-compose|authority))\.ts\b/.test(asText(a)),
+  },
+  {
     name: "scorecard-tamper", // scorecards are orchestrator-written only, never
     // self-reported (docs/architecture.md §6) — an agent write is a distinct
     // integrity concern from rewriting the org's own rules, hence its own rule
@@ -622,40 +639,73 @@ export type Disposition =
       grantId?: string;
     };
 
-/** Rules the human may never widen beyond single-use (amendment A1): the
- *  review boundary, production deploys, external publication, the org's own
- *  protocol surfaces, and the gate's roots of trust. Canonical here so the
- *  disposition mapping below derives from the same list the approval store
- *  enforces (src/org/approvals.ts re-exports it — import sites are unchanged);
- *  runtime imports nothing above it, so the list lives at the bottom of the
- *  one-way import chain. */
-export const NEVER_SCOPEABLE_RULES: readonly string[] = [
-  "self-merge-or-approve",
-  "production-deploy",
+/** The ratified per-rule disposition tiers (#296 Stage 2: proposal §5 rows
+ *  B3/B9–B12 plus the §4.2.1 class — every move is a tightening; the §5.1–5.4
+ *  loosening splits are deliberately NOT here and stop at Stage 4 for
+ *  ratification).
+ *
+ *  `human-only`: a human decides every instance; no widened grant, no agent
+ *  decider. `un-grantable`: additionally, no standing grant of ANY kind may
+ *  ever cover it — the only path is a fresh, exact, single-use, per-instance
+ *  human approval. The un-grantable set is exactly the machinery of consent
+ *  (§4.2): what a grant means (protocol-self-edit), the evidence a grant
+ *  depends on (scorecard-tamper), the files grants live in
+ *  (approval-store-tamper), the agent's own future behavior
+ *  (learning-surface-tamper), and the gate's own source
+ *  (gate-implementation-edit, §4.2.1). */
+export const RULE_DISPOSITION_TIERS: Readonly<Record<string, Exclude<DispositionTier, "routine">>> = {
+  "production-deploy": "human-only",
+  "destructive-or-irreversible": "grantable",
+  // Cheap and permanent: a DNS/domain change costs under a dollar and cannot
+  // be undone. Tightened grantable → human-only (Stage 2).
+  "dns-or-domain": "human-only",
+  "secrets-or-auth": "grantable",
   // A durable publication must be represented by its own content-bound
   // action so the later executor can acknowledge exactly what ran. A broad
   // external-publishing grant would erase that decision/execution join.
-  "external-publishing",
-  "protocol-self-edit",
-  "scorecard-tamper",
-  "approval-store-tamper",
+  "external-publishing": "human-only",
+  "provider-global-memory": "grantable",
+  "outbound-network": "grantable",
+  "self-merge-or-approve": "human-only",
+  "protocol-self-edit": "un-grantable",
+  "scorecard-tamper": "un-grantable",
+  "learning-surface-tamper": "un-grantable",
+  "approval-store-tamper": "un-grantable",
+  "gate-implementation-edit": "un-grantable",
   // One human decision authorizes ONE content-hashed publish transaction
   // (learning-loop design §6.1/§11.1) — a multi-use scoped grant would turn
   // that into a standing authorization the binding contract forbids.
-  "learning-publish",
-];
+  "learning-publish": "human-only",
+};
 
-/** A raised item's rule name → the disposition tier it has today. Total over
+/** A raised item's rule name → its ratified disposition tier. Total over
  *  arbitrary strings, because an approval item can carry rule names beyond the
- *  classifier's twelve (`learning-publish` from the learning publisher, the
+ *  classifier's rules (`learning-publish` from the learning publisher, the
  *  synthetic budget-escalation rules, `critical-op` from a free-form deny
  *  reason) — and never `routine`: whatever was worth raising as an item is at
- *  least grantable. Deriving the mapping from NEVER_SCOPEABLE_RULES membership
- *  is the exact semantics the approval store applies today, so the tier and
- *  the set cannot drift apart. */
+ *  least grantable, which is exactly the semantics the approval store applied
+ *  before tiers existed (non-member of the never-scopeable set ⇒ widenable). */
 export function dispositionTierForRule(rule: string): Exclude<DispositionTier, "routine"> {
-  return NEVER_SCOPEABLE_RULES.includes(rule) ? "human-only" : "grantable";
+  return RULE_DISPOSITION_TIERS[rule] ?? "grantable";
 }
+
+/** True when the rule's tier admits no widened/standing grant and no agent
+ *  decider: a human decides each instance (`human-only`), or nothing but a
+ *  fresh per-instance human decision can ever cover it (`un-grantable`). */
+export function ruleRequiresPerInstanceHumanDecision(rule: string): boolean {
+  const tier = dispositionTierForRule(rule);
+  return tier === "human-only" || tier === "un-grantable";
+}
+
+/** Rules the human may never widen beyond single-use (amendment A1): the
+ *  review boundary, production deploys, external publication, the org's own
+ *  protocol surfaces, and the gate's roots of trust — since #296 Stage 2 also
+ *  DNS, the learning governance surfaces, and the gate's own source. Derived
+ *  from the tier table (human-only ∪ un-grantable) so the A1 boundary and the
+ *  disposition policy are one fact that cannot drift apart;
+ *  src/org/approvals.ts re-exports it, so import sites are unchanged. */
+export const NEVER_SCOPEABLE_RULES: readonly string[] = Object.keys(RULE_DISPOSITION_TIERS)
+  .filter((rule) => ruleRequiresPerInstanceHumanDecision(rule));
 
 /** ONE decision point (proposal §8): classify the action, then let disposition
  *  follow from the matched rule. Pure and total — no store access, no IO; an

@@ -24,8 +24,8 @@ import {
 import { join } from "node:path";
 import type { ToolAction, TurnEvent } from "../runtime/types.js";
 import {
-  dispositionTierForRule,
   normalizeSemanticAction,
+  ruleRequiresPerInstanceHumanDecision,
   type CriticalActionEvidence,
   type SemanticAction,
 } from "../runtime/gate.js";
@@ -509,16 +509,17 @@ export class ApprovalStore {
           `approval ${id} expired at ${now.toISOString()} before the decision could be recorded`,
         );
       }
-      // Routed through the Stage 1 disposition mapping: `human-only` is
-      // derived from NEVER_SCOPEABLE_RULES membership, so these checks keep
-      // the exact semantics they had as direct set-membership tests.
-      if (decidedBy.kind === "agent" && dispositionTierForRule(pending.rule) === "human-only") {
+      // Routed through the disposition tiers (#296 Stage 2): `human-only` and
+      // `un-grantable` alike admit no agent decider and no widened grant —
+      // un-grantable is the stricter class (no standing coverage of any kind),
+      // and both collapse to the same two refusals at this seam.
+      if (decidedBy.kind === "agent" && ruleRequiresPerInstanceHumanDecision(pending.rule)) {
         throw new Error(
           `approvals: rule "${pending.rule}" requires a human decision; ` +
             `${decidedBy.identity} is an agent identity`,
         );
       }
-      if (input.scope !== undefined && dispositionTierForRule(pending.rule) === "human-only") {
+      if (input.scope !== undefined && ruleRequiresPerInstanceHumanDecision(pending.rule)) {
         throw new Error(
           `approvals: rule "${pending.rule}" is never scopeable (docs/approvals/design.md A1) — ` +
             `decide it single-use`,
@@ -858,6 +859,13 @@ export class ApprovalStore {
         if (grant.actionHash === input.actionHash) return grant;
         continue;
       }
+      // A standing (multi-use) grant whose rule's tier is human-only or
+      // un-grantable never matches, whatever is on disk (#296 Stage 2):
+      // decide() refuses to MINT such a grant, and this guard refuses to
+      // HONOR one minted before a tightening or forged past the decision
+      // path. Single-use exact-action grants above are untouched — a fresh
+      // per-instance human approval remains the one covering path.
+      if (ruleRequiresPerInstanceHumanDecision(grant.scope.rule)) continue;
       // Scoped grant: same rule, same ticket when ticket-scoped, and the
       // path (when set) present in the action text at a repo-local boundary.
       if (input.rule === undefined || grant.scope.rule !== input.rule) continue;

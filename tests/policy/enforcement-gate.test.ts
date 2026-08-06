@@ -71,6 +71,7 @@ describe("CF-REG-278 — repository enforcement gate", () => {
       "pnpm typecheck",
       "node scripts/check-pinned-deps.mjs",
       "node scripts/check-import-direction.mjs",
+      "node scripts/check-size-ratchet.mjs",
     ]);
     expect(packageJson.scripts["prepare"]).toBe("node scripts/install-git-hooks.mjs");
 

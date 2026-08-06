@@ -38,7 +38,7 @@
   "scripts": {
     "build": "tsc && chmod +x dist/cli.js",
     "build:watch": "tsc --watch --preserveWatchOutput",
-    "check": "biome check --error-on-warnings . && pnpm typecheck && node scripts/check-pinned-deps.mjs && node scripts/check-import-direction.mjs",
+    "check": "biome check --error-on-warnings . && pnpm typecheck && node scripts/check-pinned-deps.mjs && node scripts/check-import-direction.mjs && node scripts/check-size-ratchet.mjs",
     "dev": "tsx src/cli.ts",
     "test": "bash scripts/test.sh",
     "test:live": "vitest run --config tests/live/vitest.config.ts",

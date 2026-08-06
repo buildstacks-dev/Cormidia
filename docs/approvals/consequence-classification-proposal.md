@@ -122,11 +122,68 @@ the second one is used far too often.
 | --- | --- | --- |
 | `routine` | Proceed. Record in the turn log. | None |
 | `budgeted` | Proceed while cumulative objective spend is under ceiling. Escalate **once**, at the ceiling. | One decision per objective, at the boundary |
-| `grantable` | Requires authorization, but a standing objective grant can cover it in advance | One decision per objective, up front |
-| `human-only` | Every instance. Never grantable, never scopeable, never agent-decidable. | Every time |
+| `grantable` | Requires authorization; a standing objective grant can cover it in advance | One decision per objective, up front |
+| `human-only` | Requires a human decision per instance **by default** — but see §4.1 | Every time, unless explicitly granted |
+| `un-grantable` | No grant of any kind can cover it, ever | Every time, without exception |
 
-`human-only` is `NEVER_SCOPEABLE_RULES` (`src/org/approvals.ts:205`) with its
-membership recomputed from consequence rather than inherited from rule name.
+`human-only` and `un-grantable` together replace today's
+`NEVER_SCOPEABLE_RULES` (`src/org/approvals.ts:205`), whose membership is
+currently inherited from rule name rather than derived from consequence.
+
+### 4.1 An explicit human grant may cover `human-only`
+
+**In plain language:** if the owner, in full knowledge of what it means, says
+"you may publish this package when qualification passes," the agent should
+publish. Not stop and ask again. The owner has a reason for saying it — usually
+that they do not want to sit at a keyboard waiting to press a button — and the
+system should not second-guess a decision the owner is entitled to make. The
+job of the gate is to make sure the owner knew exactly what they were granting,
+not to withhold the option.
+
+So `human-only` means *"a human must decide this"* — **not** *"a human must
+decide this again every time."* A pre-authorization is a human decision. It is
+made earlier, with more deliberation, and with a written scope, which makes it
+a **better** decision than the fortieth tap of a long session.
+
+An objective grant may therefore name `human-only` classes, subject to
+ceremony proportional to the stakes:
+
+| Requirement | Reason |
+| --- | --- |
+| Named explicitly, one class per line — never a wildcard | The owner must be able to read what they granted |
+| Bounded scope per class (package name, version pattern, repo, host, target) | "Publish `cormidia@0.1.x`" is a decision; "publish anything" is a blank cheque |
+| Optional precondition expression (e.g. RQ-1 evidence complete) | Lets the grant encode *when*, not just *whether* |
+| Use cap and TTL, both shorter than the `grantable` defaults | Stakes scale the blast radius of a mistake |
+| A distinct CLI verb — never a flag on the ordinary path | Granting a critical class must not be reachable by muscle memory |
+| Per-use audit row, and the verdict names the covering grant | The owner can always reconstruct what their grant actually authorized |
+| Revocable immediately, same as any grant | |
+
+### 4.2 The `un-grantable` set, and why it is exactly this small
+
+**In plain language:** there is one category that cannot be delegated, and it
+is not the dangerous stuff. It is the machinery that *records and enforces
+delegation itself*. If an agent can forge a grant, rewrite the rules that
+interpret grants, or fabricate the evidence a grant depends on, then every
+other grant becomes meaningless — because the agent can manufacture your
+consent for anything. A lock whose key can be copied by the thing it locks out
+is not a lock.
+
+This is not a safety preference. It is a logical requirement, and it is the
+only thing in this document that is not the owner's to override.
+
+| Rule | Why it is structurally un-grantable |
+| --- | --- |
+| `approval-store-tamper` | Writes the grant files. Could forge a grant, or extend its own. |
+| `protocol-self-edit` | Rewrites roles, prompts, and charter — i.e. what a grant *means*. |
+| `scorecard-tamper` | Fabricates the evidence a conditional grant is predicated on. |
+| `learning-surface-tamper` | Persistently rewrites the agent's own future behavior across episodes. |
+
+Everything else — `production-deploy`, `package-publish`, `dns-or-domain`,
+`secret-mutate`, `destructive-remote-data`, `self-merge-or-approve` — is
+`human-only` by default and **grantable under §4.1**, because a competent owner
+can understand and bound each of them. This shrinks the permanently locked set
+from six rules to four, and moves the shipping decision you actually care about
+into the delegable category.
 
 ---
 
@@ -138,28 +195,31 @@ rules split, because they currently bundle a routine action with a dangerous
 one under a single name. Two relax, with a compensating check that is tighter
 than what it replaces.
 
-Legend: **HO** = human-only, **G** = grantable, **B** = budgeted,
-**R** = routine.
+Legend: **UG** = un-grantable, **HO** = human-only (grantable under §4.1),
+**G** = grantable, **B** = budgeted, **R** = routine.
 
 | # | Rule | Today | Proposed | Change |
 | --- | --- | --- | --- | --- |
-| B1 | `production-deploy` | HO | **HO** | none |
+| B1 | `production-deploy` | HO | **HO** | now grantable under §4.1 |
 | B2 | `destructive-or-irreversible` | G | **split** | see 5.1 |
 | B3 | `dns-or-domain` | G | **HO** | **tighten** — cheap and permanent, currently grantable |
 | B4 | `secrets-or-auth` | G | **split** | see 5.2 |
 | B5 | `external-publishing` | HO | **split** | see 5.3 — the headline |
 | B6 | `provider-global-memory` | G | **G** | none |
 | B7 | `outbound-network` | G | **G + host allowlist** | see 5.4 |
-| B8 | `self-merge-or-approve` | HO | **HO** | none |
-| B9 | `protocol-self-edit` | HO | **HO** | none |
-| B10 | `scorecard-tamper` | HO | **HO** | none |
-| B11 | `learning-surface-tamper` | G | **G** | none |
-| B12 | `approval-store-tamper` | HO | **HO** | none |
+| B8 | `self-merge-or-approve` | HO | **HO** | now grantable under §4.1 |
+| B9 | `protocol-self-edit` | HO | **UG** | **tighten** — structurally un-grantable (§4.2) |
+| B10 | `scorecard-tamper` | HO | **UG** | **tighten** — structurally un-grantable (§4.2) |
+| B11 | `learning-surface-tamper` | G | **UG** | **tighten** — structurally un-grantable (§4.2) |
+| B12 | `approval-store-tamper` | HO | **UG** | **tighten** — structurally un-grantable (§4.2) |
 
-Net: **one rule tightens** (B3), four split, one gains a scoping mechanism,
-six are untouched. The review boundary (B8), the protocol surfaces (B9), the
-roots of trust (B10, B12), and production deploy (B1) are not negotiable and
-are not touched.
+Net: **four rules tighten** (B3, B9–B12 — three of which move from grantable or
+tappable to permanently un-grantable), four split, one gains a scoping
+mechanism, and two (B1, B8) become delegable in advance under §4.1 while
+remaining human decisions.
+
+The permanently locked set is now exactly the machinery of consent itself, and
+nothing else.
 
 ### 5.1 B2 `destructive-or-irreversible` → split by target
 
@@ -170,13 +230,31 @@ folder in its own checkout. The same logic applies one level up.
 | New class | Matches | Consequence | Tier |
 | --- | --- | --- | --- |
 | `destructive-remote-data` | `drop table`, `truncate`, `delete database\|bucket\|droplet` | irreversible / outside-world | **HO** |
-| `history-rewrite-protected` | force-push where target branch is the resolved default branch or matches a protected pattern | recoverable / app-repo | **HO** |
-| `history-rewrite-topic` | force-push to a topic branch the agent created this episode | recoverable / app-repo | **G** |
+| `history-rewrite-owned` | force-push where the target ref is inside the orchestrator-owned ticket branch namespace (`op/<issue>-…`) | recoverable / app-repo | **B** |
+| `history-rewrite-foreign` | force-push to any other ref, including the resolved default branch | recoverable / app-repo | **HO** |
 | `destructive-local` | `rm -rf` absolute, `~`, `$HOME`, or `..` escape | irreversible / worktree+ | **G** |
 | `gh-api-unrecognized` | mutating `gh api` no tighter rule recognizes; all `gh api graphql` | unknown / unknown | **HO** (fail closed, unchanged) |
 
 Branch resolution must use `resolveRemoteDefaultBranch()` per AGENTS.md — never
 a hardcoded name, and re-resolved per claim, not cached.
+
+**Why `history-rewrite-owned` is budgeted rather than human-only.** The
+question "is force-push expected workflow or an outlier?" is answered by the
+code. `src/loop/loop.ts:2574` pushes plainly first and force-pushes **only** on
+a non-fast-forward failure, and its comment states the boundary exactly:
+
+> *"The orchestrator owns the `op/<issue>-…` branch namespace and rebuilds the
+> branch from `origin/main` on every attempt. A prior interrupted attempt … can
+> leave a stale, divergent remote branch that makes a plain push fail
+> non-fast-forward and permanently wedge the ticket. The freshly rebuilt branch
+> is authoritative, so force-update this one ref (**never any other**; the
+> branch name is always the ticket's)."*
+
+So it is expected — routinely reachable whenever a turn is interrupted at its
+budget cap — but confined to a namespace the orchestrator owns and to refs it
+built itself. That scope is already enforced in code; the classification should
+mirror it rather than invent a looser one. Budgeted rather than routine so that
+a loop force-pushing repeatedly shows up as spend instead of as silence.
 
 ### 5.2 B4 `secrets-or-auth` → split read from mutate
 
@@ -202,11 +280,17 @@ tap, also covers publishing a package to npm permanently.
 
 | New class | Matches | Consequence | Tier |
 | --- | --- | --- | --- |
-| `repo-collaboration` | `gh issue create/comment`, `gh pr create/comment`, `cormidia.github.issue.*` — **only when the target repo is the app's own configured repository** | reversible / app-repo | **R** |
+| `repo-collaboration` | `gh issue create/comment`, `gh pr create/comment`, `cormidia.github.issue.*` — **only when the target repo is the app's own configured repository** | reversible / app-repo | **B** |
 | `repo-collaboration-foreign` | the same verbs against any other repository | reversible / outside-world | **HO** |
 | `package-publish` | `npm publish` | irreversible / outside-world | **HO** |
 | `release-artifact` | `gh release create`, tag creation | irreversible / outside-world | **HO** |
 | `outbound-message` | `sendmail`, `mail`, `tweet`, `CORMIDIA_VERB.publish` | irreversible / outside-world | **HO** |
+
+`repo-collaboration` is **budgeted, not routine** (owner decision, 2026-08-05).
+It is in scope for the org's own agents working on the org's own app in the
+org's own repository, but "in scope" is not "unbounded": routine gives an agent
+in a loop no ceiling and produces no signal, while budgeted makes runaway
+PR-opening visible as spend. Free until it isn't, which is the principle.
 
 Note the compensating control. Today, a human approving a `gh issue comment`
 is approving a comment on **any repository** — the gate never checks which.
@@ -277,6 +361,16 @@ anything costs are the budget escalations, and they are bolted on the side. In
 your policy they become the organizing principle: keep going until you would
 cross the ceiling, then ask once.
 
+**The ceiling is configured, never hardcoded** (owner decision, 2026-08-05).
+This already holds for the monthly budget: `src/org/bootstrap.ts:532` sets
+`budgetUsdMonth = 1000` as a **default**, overridable at onboarding and stored
+per-org as `budget_usd_month` in `config.yaml`. `Cormidia/.cormidia/config.yaml:34`
+reads 1000 because that value was chosen at onboarding, not because it is
+baked in. The objective ceiling inherits the same treatment: same default,
+same per-org override, same precedence. There is no separate rule for
+Cormidia-as-an-app versus any other customer's org — Cormidia is onboarded as
+an app like any other, and that is the point.
+
 - One cumulative ledger per objective grant, in the org state home.
 - Every `budgeted` action debits it before execution.
 - At the ceiling: escalate **once** as a single `objective-budget-exceeded`
@@ -321,12 +415,16 @@ conflated with it again.
 
 Stated explicitly so no reviewer has to infer it:
 
-- The review boundary. B8 stays human-only, including `gh pr review --comment`
-  (finding A-001: it is the self-approval marker's publish channel).
+- The review boundary. B8 stays a human decision, including
+  `gh pr review --comment` (finding A-001: it is the self-approval marker's
+  publish channel). It becomes delegable in advance under §4.1, which is a
+  human decision made earlier — not a removal of the boundary.
 - Protocol surfaces. TASTE.md, roles.yaml, pipelines.yaml, prompts/**,
-  PURPOSE.md remain human-ratified and human-merged.
-- The roots of trust. B10 and B12 stay human-only.
-- Production deploy. B1 unchanged, and its A4 release executor is untouched.
+  PURPOSE.md remain human-ratified and human-merged, and B9 moves from
+  human-only to permanently un-grantable.
+- The roots of trust. B10 and B12 tighten from human-only to un-grantable.
+- Production deploy. B1's classification and its A4 release executor are
+  untouched; only its delegability changes, under §4.1's ceremony.
 - Content-bound grant identity (A-002), `ACTION_IDENTITY_VERSION`, and the
   format-bump-cancels-grants migration behavior.
 - Fail-closed defaults everywhere, including `legacyConservativeAuthority()`,
@@ -360,40 +458,109 @@ These are not optional and are part of the same change.
 
 ---
 
-## 11. Open questions for the product owner
+## 11. Owner decisions (resolved 2026-08-05)
 
-Answers change the implementation; none should be guessed.
+1. **`repo-collaboration` is `budgeted`, not `routine`.** In scope, but not
+   unbounded. Applied in §5.3.
+2. **The spend ceiling is configured, never hardcoded**, with the same default
+   and override path as `budget_usd_month`, and no special case for Cormidia
+   as its own customer. Applied in §7.
+3. **Force-push follows the namespace the orchestrator already owns.**
+   `op/<issue>-…` is budgeted; every other ref is human-only. This mirrors the
+   scope already enforced at `src/loop/loop.ts:2574`. Applied in §5.1.
+4. **An explicit human grant may cover `human-only`.** A pre-authorization is a
+   human decision, made earlier and with a written scope. Only the machinery of
+   consent itself is permanently un-grantable. Added as §4.1 and §4.2.
+5. **Migration: in-flight grants cancel at landing.** Plain language: an
+   approval is stored as a fingerprint of the exact thing approved, and this
+   change alters how that fingerprint is computed, so old approvals stop
+   matching. Two options existed — cancel everything outstanding, or support
+   both fingerprint schemes in parallel. Cancelling is chosen: grants carry a
+   24-hour TTL, there are no external users, and running two schemes at once is
+   exactly the kind of overlap that produces a security hole. The observable
+   effect is that a turn mid-flight at landing raises one fresh approval. This
+   is the same choice made on 2026-07-17 for the same reason.
 
-1. **Is `repo-collaboration` genuinely routine, or should it be `budgeted`?**
-   Routine means the Builder opens PRs and comments with no ceiling at all. The
-   proposal says routine. A conservative first cut is `budgeted`.
-2. **What is the default objective spend ceiling?** You said $1,000. Confirm,
-   and confirm whether it is per objective or per calendar month.
-3. **Does `history-rewrite-topic` stay grantable, or is any force-push
-   human-only?** The proposal grants it; a stricter reading locks all of it.
-4. **Should this open a finding?** It changes what a boundary means, which per
-   AGENTS.md may be a *structural* change requiring re-entry into the
-   `validation-harness-design` skill in `harness-revision` mode rather than
-   case-level additions. My reading is that it is structural. If you agree, that
-   skill runs before implementation, not after.
-5. **Migration.** Reclassification changes action identity semantics. Do
-   in-flight grants cancel at landing, as A-002 did on 2026-07-17?
+### Still open
+
+6. **Structural-change classification.** See §13.
 
 ---
 
 ## 12. Rollout
 
-1. Owner reviews this proposal and answers §11.
-2. If §11.4 is structural: `validation-harness-design` in `harness-revision`
-   mode, existing artifacts as baseline.
-3. Land the consequence model and `decideDisposition` with **no tier changes** —
+1. **Finish 0.1.1 under the currently ratified rules.** See §14 — this is a
+   hard sequencing constraint, not a preference.
+2. Land the consequence model and `decideDisposition` with **no tier changes** —
    pure refactor, every current disposition preserved, full suite green. This
-   isolates the mechanism from the policy.
+   step is not structural (§13) and needs no harness revision.
+3. `validation-harness-design` in `harness-revision` mode, existing artifacts as
+   baseline, before any tier moves (§13).
 4. Land tier changes **one rule per PR**, each with its seeded negative control,
-   starting with B3 (`dns-or-domain`), the one that tightens.
-5. Land `ObjectiveGrant` and the budget ledger.
+   tightening first: B9–B12 to `un-grantable`, then B3.
+5. Land `ObjectiveGrant`, the budget ledger, and §4.1's grant ceremony.
 6. Land B5 last — the largest behavioral change, with the most calibration
    value once the mechanism underneath is proven.
+
+---
+
+## 13. Is this a structural change?
+
+**In plain language:** the underlying question is when you build a test
+framework. You want the framework in place early, so that as you build features
+you are adding cases to something that already exists. You only rebuild the
+framework itself when the architecture moves under it. That model is correct,
+and it is exactly what the two modes of the `validation-harness-design` skill
+encode: adding cases against existing structure is ordinary work, while
+changing the structure the cases hang from is a redesign.
+
+Applied here, the answer splits, and the split is useful:
+
+**Step 2 is not structural.** Introducing `decideDisposition` while preserving
+every current disposition adds no journey, boundary, or invariant. Every
+existing case must still pass unchanged — that is the definition of the step.
+It is a refactor with a strong oracle, and it can proceed immediately.
+
+**Steps 4–6 are structural.** They do not add cases to the invariant "critical
+operations require human approval." They *replace* that invariant with
+"operations require the disposition their consequence class specifies," and
+introduce a new authority object with a lifetime the boundary map does not
+currently describe. Per AGENTS.md, that is a redesign, not a case-level
+addition, and improvising it would pile cases onto a shape that no longer fits.
+
+So the recommendation is to **split the work at the behavior boundary** rather
+than block all of it on the redesign. Build the mechanism now under the existing
+harness; revise the harness before the policy moves. This also front-loads the
+riskiest refactor into the phase where the old tests are still a valid oracle —
+which is the strongest safety net this change will ever have.
+
+A finding should be opened in `validation-policy.yaml` → `open_findings:` with
+the next `F-PT-nnn` id at the point step 3 begins, mirrored into
+`harness-design-state.md`, with dependent catalog cells parked as
+`BLOCKED:<finding>`.
+
+---
+
+## 14. Sequencing constraint: do not touch these files before 0.1.1 ships
+
+**In plain language:** the release currently in flight has evidence bound to an
+exact commit and an exact policy. Editing the policy, the charter, or the
+candidate invalidates that evidence and forces a fresh paid campaign. This
+proposal touches precisely those files. So it waits.
+
+Raised by the release-candidate session operating `0.1.1`, and correct.
+
+Blocked until `0.1.1` completes: any non-evidence change to `docs/PURPOSE.md`,
+authority policy, `validation-design/validation-policy.yaml`, the release
+assessor, or the candidate commit.
+
+Not blocked: this document, which is a proposal in `docs/approvals/` and binds
+nothing until ratified.
+
+The cost of getting this wrong is concrete and already measured — session
+`019fd272` spent $81.90 re-establishing authorization four times because the
+candidate moved underneath it. Landing an autonomy redesign mid-qualification
+would reproduce that at a larger scale.
 
 ---
 

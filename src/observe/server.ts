@@ -1,20 +1,21 @@
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { lstat, realpath, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { randomBytes, timingSafeEqual } from "node:crypto";
 import { join, resolve, sep } from "node:path";
-import { OBSERVE_CSS, OBSERVE_HTML, OBSERVE_JS } from "./assets.js";
-import type { ObserveService } from "./live-source.js";
-import { OBSERVE_SCHEMA_VERSION } from "./types.js";
 import { REPORT_CSS, REPORT_HTML, REPORT_JS } from "../report/assets.js";
 import { ReportServiceError, type ReportService } from "../report/service.js";
 import type { ReportQuery } from "../report/types.js";
+import { OBSERVE_CSS, OBSERVE_HTML, OBSERVE_JS } from "./assets.js";
+import type { ObserveService } from "./live-source.js";
+import { OBSERVE_SCHEMA_VERSION } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024;
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
 
-export interface ObserveServerOptions {
+interface ObserveServerOptions {
   service: ObserveService;
   stateHome: string;
   token?: string;
@@ -31,11 +32,11 @@ export interface StartedObserveServer {
   close(): Promise<void>;
 }
 
-export function mintCapabilityToken(): string {
+function mintCapabilityToken(): string {
   return randomBytes(32).toString("base64url");
 }
 
-export function createObserveServer(options: ObserveServerOptions): { server: Server; token: string } {
+function createObserveServer(options: ObserveServerOptions): { server: Server; token: string } {
   const token = options.token ?? mintCapabilityToken();
   const server = createServer((request, response) => {
     void route(request, response, { ...options, token }).catch((error) => {
@@ -150,7 +151,7 @@ async function route(
       200,
       await service.sessions(reportQuery(url), {
         ...(url.searchParams.get("cursor") !== null ? { cursor: url.searchParams.get("cursor")! } : {}),
-        ...(limit !== undefined ? { limit } : {}),
+        ...definedProps({ limit }),
         refresh: url.searchParams.get("refresh") === "1",
         ...(url.searchParams.get("filter") !== null ? { filter: url.searchParams.get("filter")! } : {}),
         ...(url.searchParams.get("sort") !== null

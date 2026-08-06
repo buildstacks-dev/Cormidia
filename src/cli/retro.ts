@@ -1,8 +1,8 @@
 import { join, resolve } from "node:path";
 import { loadApps } from "../org/apps.js";
-import { loadRoles } from "../org/roles.js";
-import { runRetro } from "../org/retro.js";
 import { resolveCormidiaHomes } from "../org/home.js";
+import { runRetro } from "../org/retro.js";
+import { loadRoles } from "../org/roles.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdRetro(args: string[]): Promise<number> {

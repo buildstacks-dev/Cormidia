@@ -3,21 +3,22 @@
 // the fetched remote default-branch tip. Live planning itself runs through the
 // EpisodePlanner boundary; this module never constructs or spawns a provider.
 
+import { execFile } from "node:child_process";
 import { mkdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { loadApps, type AppEntry } from "./apps.js";
 import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
-import { resolveAppWorkdir } from "./app-workdir.js";
-import { loadRoles } from "./roles.js";
 import type { RoleConfig } from "../runtime/types.js";
+import { resolveAppWorkdir } from "./app-workdir.js";
+import { loadApps, type AppEntry } from "./apps.js";
 import { assembleContext } from "./context.js";
+import { loadRoles } from "./roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const execFileAsync = promisify(execFile);
 
-export interface PlanningContextRequest {
+interface PlanningContextRequest {
   /** Org home root (contains TASTE.md). */
   orgHome: string;
   /** App repo checkout/worktree (may contain .cormidia/TASTE.md). */
@@ -27,14 +28,14 @@ export interface PlanningContextRequest {
   topic?: string;
 }
 
-export interface PlanningContext {
+interface PlanningContext {
   systemPrompt: string;
   openingTask: string;
   byteSize: number;
   sources: string[];
 }
 
-export async function assemblePlanningContext(request: PlanningContextRequest): Promise<PlanningContext> {
+async function assemblePlanningContext(request: PlanningContextRequest): Promise<PlanningContext> {
   const openingTask = request.topic ? `Co-planning topic: ${request.topic}` : `Co-planning session for ${request.app}`;
   const assembled = await assembleContext({
     orgHome: request.orgHome,
@@ -51,7 +52,7 @@ export async function assemblePlanningContext(request: PlanningContextRequest): 
   };
 }
 
-export interface PlanningWorktree {
+interface PlanningWorktree {
   sourceRepo: string;
   path: string;
   branch: string;
@@ -63,7 +64,7 @@ export interface PlanningWorktree {
   tempParent?: string;
 }
 
-export interface CreatePlanningWorktreeOptions {
+interface CreatePlanningWorktreeOptions {
   slug: string;
   parentDir?: string;
   /** Skip the network fetch and cut from whatever the local clone already has.
@@ -87,7 +88,7 @@ export interface CreatePlanningWorktreeOptions {
  * Both failure modes now stop the session instead of degrading it: an
  * unreachable remote or an unresolvable default branch throws before any
  * worktree exists, so there is never a stale worktree to launch into. */
-export async function createPlanningWorktree(
+async function createPlanningWorktree(
   sourceRepoIn: string,
   options: CreatePlanningWorktreeOptions,
 ): Promise<PlanningWorktree> {
@@ -159,7 +160,7 @@ function slugify(input: string): string {
   return slug.length > 0 ? slug : "session";
 }
 
-export interface PreparePlanSessionOptions {
+interface PreparePlanSessionOptions {
   appName: string;
   topic?: string;
   /** App registry path; defaults to `${orgHome}/apps.yaml`. */
@@ -176,7 +177,7 @@ export interface PreparePlanSessionOptions {
   worktreeParent?: string;
 }
 
-export interface PlanSession {
+interface PlanSession {
   app: AppEntry;
   plannerRole: RoleConfig;
   context: PlanningContext;
@@ -203,7 +204,7 @@ export async function preparePlanSession(options: PreparePlanSessionOptions): Pr
   const appWorkdir = resolveAppWorkdir(app, {
     orgRoot: orgHome,
     runtimeHome: options.runtimeHome ?? join(homedir(), ".cormidia", appsFile.org.name),
-    ...(options.workdir !== undefined ? { explicitWorkdir: options.workdir } : {}),
+    ...definedProps({ explicitWorkdir: options.workdir }),
   });
 
   const contextOptions: PlanningContextRequest = {

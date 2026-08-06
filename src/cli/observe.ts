@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { resolveCormidiaHomes } from "../org/home.js";
 import { ObserveService } from "../observe/live-source.js";
 import { startObserveServer } from "../observe/server.js";
 import type { ObserveFiltersV1 } from "../observe/types.js";
-import { extractHomeFlags } from "./home-flags.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { ReportService } from "../report/service.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface ObserveArgs {
   app?: string;
@@ -24,8 +25,8 @@ export async function cmdObserve(args: string[]): Promise<number> {
   }
   await mkdir(homes.stateHome, { recursive: true });
   const filters: ObserveFiltersV1 = {
-    ...(parsed.app !== undefined ? { app: parsed.app } : {}),
-    ...(parsed.ticket !== undefined ? { ticket: parsed.ticket } : {}),
+    ...definedProps({ app: parsed.app }),
+    ...definedProps({ ticket: parsed.ticket }),
   };
   const service = new ObserveService({
     orgName: homes.appsFile.org.name,
@@ -41,9 +42,9 @@ export async function cmdObserve(args: string[]): Promise<number> {
       orgName: homes.appsFile.org.name,
       stateHome: homes.stateHome,
       appsFile: homes.appsFile,
-      ...(parsed.app !== undefined ? { appScope: parsed.app } : {}),
+      ...definedProps({ appScope: parsed.app }),
     }),
-    ...(parsed.port !== undefined ? { port: parsed.port } : {}),
+    ...definedProps({ port: parsed.port }),
   });
 
   const observerUrl = initialViewUrl(started.url, parsed);

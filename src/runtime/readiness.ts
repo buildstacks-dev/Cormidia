@@ -6,10 +6,6 @@
 // model and its credential/request configuration. A successful import or
 // constructor alone is deliberately not readiness.
 
-import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { execFile } from "node:child_process";
-import { join } from "node:path";
 import {
   query as claudeQuery,
   type AccountInfo,
@@ -17,16 +13,22 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import type { RuntimeKind } from "./types.js";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
 import { resolvePiModel } from "./adapters/pi.js";
+import { toErrorMessage as errorMessage } from "./error-message.js";
+import type { RuntimeKind } from "./types.js";
+import { definedProps } from "./optional-properties.js";
 
 // A clean, isolated Codex home can spend several seconds initializing its
 // local App Server caches even though no model request is sent. Keep the probe
 // bounded but leave enough startup headroom for that token-free first launch.
-export const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
+const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
 
-export type RuntimeReadinessStatus =
+type RuntimeReadinessStatus =
   | "ready"
   | "missing_binary"
   | "transport_unavailable"
@@ -54,7 +56,7 @@ export interface RuntimeReadinessResult {
   errorCode?: string;
 }
 
-export interface RuntimeReadinessImplementationRequest extends RuntimeReadinessRequest {
+interface RuntimeReadinessImplementationRequest extends RuntimeReadinessRequest {
   signal: AbortSignal;
 }
 
@@ -62,13 +64,13 @@ type ProbeOutcome = Pick<RuntimeReadinessResult, "status" | "detail"> & {
   errorCode?: string;
 };
 
-export type RuntimeReadinessImplementation = (request: RuntimeReadinessImplementationRequest) => Promise<ProbeOutcome>;
+type RuntimeReadinessImplementation = (request: RuntimeReadinessImplementationRequest) => Promise<ProbeOutcome>;
 
-export type RuntimeReadinessImplementations = Partial<Record<RuntimeKind, RuntimeReadinessImplementation>>;
+type RuntimeReadinessImplementations = Partial<Record<RuntimeKind, RuntimeReadinessImplementation>>;
 
 export type RuntimeReadinessProbe = (request: RuntimeReadinessRequest) => Promise<RuntimeReadinessResult>;
 
-export interface PiReadinessDependencies {
+interface PiReadinessDependencies {
   agentDir?: string;
   createAuthStorage?: (authPath: string) => AuthStorage;
   createModelRegistry?: (authStorage: AuthStorage, modelsPath: string) => ModelRegistry;
@@ -129,7 +131,7 @@ export async function probeRuntimeReadiness(
     detail: outcome.detail,
     durationMs: Date.now() - started,
     billable: false,
-    ...(outcome.errorCode !== undefined ? { errorCode: outcome.errorCode } : {}),
+    ...definedProps({ errorCode: outcome.errorCode }),
   };
 }
 
@@ -145,7 +147,7 @@ async function probeClaude(request: RuntimeReadinessImplementationRequest): Prom
       cwd: process.cwd(),
       settingSources: [],
       tools: [],
-      ...(request.processEnv !== undefined ? { env: request.processEnv } : {}),
+      ...definedProps({ env: request.processEnv }),
       abortController,
     },
   });
@@ -186,14 +188,14 @@ async function* idleClaudeInput(signal: AbortSignal): AsyncIterable<SDKUserMessa
   }
 }
 
-export interface ClaudeCliAuthStatus {
+interface ClaudeCliAuthStatus {
   loggedIn: boolean;
   authMethod?: string;
   apiProvider?: string;
   subscriptionType?: string;
 }
 
-export function claudeAuthIsConfigured(account: AccountInfo, status?: ClaudeCliAuthStatus): boolean {
+function claudeAuthIsConfigured(account: AccountInfo, status?: ClaudeCliAuthStatus): boolean {
   if (account.apiProvider !== undefined && account.apiProvider !== "firstParty") return true;
   // email/subscriptionType are durable account metadata and can outlive the
   // credential itself. API-key/token-backed first-party auth has an explicit
@@ -224,7 +226,7 @@ function claudeCliAuthStatus(env: NodeJS.ProcessEnv | undefined, signal: AbortSi
       "claude",
       ["auth", "status", "--json"],
       {
-        ...(env !== undefined ? { env } : {}),
+        ...definedProps({ env }),
         signal,
         encoding: "utf8",
       },
@@ -297,7 +299,7 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
   }
 }
 
-export async function probePi(
+async function probePi(
   request: RuntimeReadinessImplementationRequest,
   dependencies: PiReadinessDependencies = {},
 ): Promise<ProbeOutcome> {
@@ -430,8 +432,4 @@ function classifyProbeError(error: unknown): ProbeOutcome {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

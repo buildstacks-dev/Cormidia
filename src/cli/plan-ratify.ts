@@ -9,8 +9,8 @@
 // publishes that decomposition — the work the planner was already paid for —
 // with no further provider turn.
 
-import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { createInterface } from "node:readline/promises";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 import type { CormidiaHomes } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
@@ -21,13 +21,13 @@ import {
   type TicketBudgetRatificationPlan,
 } from "../org/ticket-budget-ratification.js";
 
-export interface PlanRatifyIo {
+interface PlanRatifyIo {
   interactive: boolean;
   ask(prompt: string): Promise<string>;
   out(line: string): void;
 }
 
-export interface PlanRatifyDependencies {
+interface PlanRatifyDependencies {
   ghFor?: (repo: string) => GhOps;
 }
 
@@ -163,7 +163,7 @@ function printPreview(io: PlanRatifyIo, plan: TicketBudgetRatificationPlan): voi
   );
 }
 
-export interface ParsedPlanRatifyArgs {
+interface ParsedPlanRatifyArgs {
   app: string;
   decomposition: string;
   actor: string;
@@ -178,7 +178,7 @@ export interface ParsedPlanRatifyArgs {
 
 /** Pure parser shared by the executable command and its tests. It resolves no
  * homes, reads no state, and constructs no runtime. */
-export function parsePlanRatifyArgs(args: string[]): ParsedPlanRatifyArgs {
+function parsePlanRatifyArgs(args: string[]): ParsedPlanRatifyArgs {
   let app: string | undefined;
   let decomposition: string | undefined;
   let actor: string | undefined;

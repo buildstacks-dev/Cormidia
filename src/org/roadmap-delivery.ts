@@ -9,6 +9,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { writeLoopFileAtomic, writeLoopFileOnce } from "../loop/durable.js";
 import {
   episodePlanHash,
   readCurrentEpisodePlan,
@@ -17,19 +18,18 @@ import {
   type EpisodePlan,
   type ProposedEpisodeStep,
 } from "../loop/episode-plan.js";
-import { writeLoopFileAtomic, writeLoopFileOnce } from "../loop/durable.js";
 import { autonomousExecutionExclusionLabel } from "../loop/plan-tickets.js";
 import {
-  DurableClaimStore,
   durableClaimSettlementId,
+  DurableClaimStore,
   type DurableClaimDisposition,
   type DurableClaimRecord,
   type DurableClaimToken,
 } from "../runtime/durable-claim.js";
 import { withFileLock } from "../runtime/file-lock.js";
 import type { RoleConfig, ToolAction, TurnAssignment } from "../runtime/types.js";
-import type { AppEntry } from "./apps.js";
 import { ApprovalStore } from "./approvals.js";
+import type { AppEntry } from "./apps.js";
 import {
   prepareEpisodePlan,
   type EpisodePlannerProposer,
@@ -40,19 +40,20 @@ import {
   type EpisodeIntentFacts,
   type EpisodePlanningPolicyOptions,
 } from "./episode-planner/policy.js";
+import { planningAppDir, planningAuthorityPath } from "./planning-artifact-path.js";
 
 export const ROADMAP_DELIVERY_SCHEMA_VERSION = 1 as const;
-export const VALIDATION_CATALOG_SCHEMA_VERSION = 1 as const;
-export const VALIDATION_CONTRACT_SCHEMA_VERSION = 1 as const;
-export const RATIFIED_HARNESS_REVISION_ID = "roadmap-validation-delivery-batching-2026-08-03" as const;
+const VALIDATION_CATALOG_SCHEMA_VERSION = 1 as const;
+const VALIDATION_CONTRACT_SCHEMA_VERSION = 1 as const;
+const RATIFIED_HARNESS_REVISION_ID = "roadmap-validation-delivery-batching-2026-08-03" as const;
 /** Content root for the complete deterministic HB-100..108 catalog. */
 export const RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 =
   "58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880" as const;
 
-export const VALIDATION_LAYERS = ["L1", "L2", "L3", "L4", "L5"] as const;
-export type ValidationLayer = (typeof VALIDATION_LAYERS)[number];
+const VALIDATION_LAYERS = ["L1", "L2", "L3", "L4", "L5"] as const;
+type ValidationLayer = (typeof VALIDATION_LAYERS)[number];
 
-export type RoadmapDeliveryFailureCode =
+type RoadmapDeliveryFailureCode =
   | "backlog_incomplete"
   | "roadmap_missing"
   | "roadmap_invalid"
@@ -130,7 +131,7 @@ export interface RoadmapDeliveryProjection {
   settlementId?: string;
 }
 
-export type RoadmapDeliveryProjector = (projection: Readonly<RoadmapDeliveryProjection>) => void | Promise<void>;
+type RoadmapDeliveryProjector = (projection: Readonly<RoadmapDeliveryProjection>) => void | Promise<void>;
 
 export interface RoadmapWorkstream {
   workstreamId: string;
@@ -165,7 +166,7 @@ export interface BacklogSnapshot {
   issues: BacklogSnapshotIssue[];
 }
 
-export interface BacklogDelta {
+interface BacklogDelta {
   previousSnapshotRef: AuthorityRef;
   currentSnapshotRef: AuthorityRef;
   addedIssueNumbers: number[];
@@ -219,7 +220,7 @@ export interface RoadmapIssueProjection {
   membershipHash: string | null;
 }
 
-export interface RoadmapProjectionRepair {
+interface RoadmapProjectionRepair {
   issueNumber: number;
   labels: string[];
   authorityRef: AuthorityRef;
@@ -228,18 +229,18 @@ export interface RoadmapProjectionRepair {
   reason: "missing" | "stale" | "contradictory" | "current";
 }
 
-export interface ValidationCatalogId {
+interface ValidationCatalogId {
   canonicalId: string;
   aliases: string[];
 }
 
-export interface ValidationCatalogBoundary extends ValidationCatalogId {
+interface ValidationCatalogBoundary extends ValidationCatalogId {
   requiresSharedDetector: boolean;
   sharedDetectorId: string | null;
   routineEligible: boolean;
 }
 
-export interface ValidationCatalogInvariant extends ValidationCatalogId {
+interface ValidationCatalogInvariant extends ValidationCatalogId {
   floor: boolean;
 }
 
@@ -261,14 +262,14 @@ export interface ValidationCatalogCase extends ValidationCatalogId {
   routineEligible: boolean;
 }
 
-export interface ValidationCatalogTemplate {
+interface ValidationCatalogTemplate {
   templateId: string;
   aliases: string[];
   version: number;
   kind: "routine" | "custom";
 }
 
-export interface ValidationWaiverClass {
+interface ValidationWaiverClass {
   classId: string;
   aliases: string[];
   maxDurationMs: number;
@@ -296,7 +297,7 @@ export interface ValidationCatalog {
   acceptedAt: string;
 }
 
-export interface ValidationTemplateRef {
+interface ValidationTemplateRef {
   templateId: string;
   version: number;
 }
@@ -604,9 +605,9 @@ export const VALIDATION_CONTRACT_SCHEMA = {
   },
 } as const;
 
-export type ValidationContractLifecycleState = "proposed" | "validated" | "accepted" | "superseded";
+type ValidationContractLifecycleState = "proposed" | "validated" | "accepted" | "superseded";
 
-export interface ValidationContractLifecycleRecord {
+interface ValidationContractLifecycleRecord {
   schemaVersion: typeof VALIDATION_CONTRACT_SCHEMA_VERSION;
   app: string;
   unitId: string;
@@ -630,7 +631,7 @@ export interface RoutingSnapshotEntry {
   observedLabels: string[];
 }
 
-export interface ExecutionBatchUnit {
+interface ExecutionBatchUnit {
   kind?: "roadmap_code";
   unitId: string;
   issueNumbers?: number[];
@@ -666,7 +667,7 @@ export interface DirectExecutionUnitAuthority {
   createdAt: string;
 }
 
-export interface DirectExecutionBatchUnit {
+interface DirectExecutionBatchUnit {
   kind: "direct_operation";
   unitId: string;
   authorityRef: AuthorityRef;
@@ -714,7 +715,7 @@ export interface ExecutionBatch {
   admittedAt: string;
 }
 
-export type ExecutionUnitJournalState =
+type ExecutionUnitJournalState =
   | "admitted"
   | "planning"
   | "claimed"
@@ -725,7 +726,7 @@ export type ExecutionUnitJournalState =
   | "failed"
   | "completed";
 
-export interface ExecutionUnitJournal {
+interface ExecutionUnitJournal {
   schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
   app: string;
   batchRef: AuthorityRef;
@@ -777,7 +778,7 @@ export interface DeliveryEpisodeBinding {
   createdAt: string;
 }
 
-export interface DirectEpisodeBinding {
+interface DirectEpisodeBinding {
   schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
   app: string;
   unitId: string;
@@ -789,7 +790,7 @@ export interface DirectEpisodeBinding {
   createdAt: string;
 }
 
-export interface DeliveryUnitClaimPayload {
+interface DeliveryUnitClaimPayload {
   app: string;
   unitId: string;
   issueNumbers: number[];
@@ -808,7 +809,7 @@ export interface DeliveryUnitClaim {
   token?: DurableClaimToken;
 }
 
-export interface CaseEvidence {
+interface CaseEvidence {
   caseId: string;
   detectorId: string;
   negativeControlId: string;
@@ -817,7 +818,7 @@ export interface CaseEvidence {
   evidence: string;
 }
 
-export interface GateEvidence {
+interface GateEvidence {
   gate: string;
   status: "passed";
   evidence: string;
@@ -878,9 +879,9 @@ export interface ReviewerVerdict {
 type DeliveryEpisodeFacts = Omit<EpisodeIntentFacts, "episodeId" | "app" | "roles" | "creatorScope">;
 
 const CLAIM_NAMESPACE = "planning/delivery-unit-claims";
-export const DEFAULT_EXECUTION_BATCH_MAX_UNITS = 8;
-export const DEFAULT_EXECUTION_BATCH_MAX_MANIFEST_BYTES = 64 * 1024;
-export const DEFAULT_EXECUTION_UNIT_BUDGET: ExecutionUnitBudget = {
+const DEFAULT_EXECUTION_BATCH_MAX_UNITS = 8;
+const DEFAULT_EXECUTION_BATCH_MAX_MANIFEST_BYTES = 64 * 1024;
+const DEFAULT_EXECUTION_UNIT_BUDGET: ExecutionUnitBudget = {
   maxProviderTurns: 24,
   maxEquivalentCostUsd: 100,
   maxMechanicalOverheadUsd: 10,
@@ -1323,11 +1324,7 @@ function assertValidationWaiversCurrent(contract: ValidationContract, at: Date |
   }
 }
 
-export function resolveCanonicalValidationContractId(catalog: ValidationCatalog, id: string): string {
-  return resolveValidationId(catalog.contracts, id, "contract");
-}
-
-export function resolveCanonicalValidationCaseId(catalog: ValidationCatalog, id: string): string {
+function resolveCanonicalValidationCaseId(catalog: ValidationCatalog, id: string): string {
   return resolveValidationId(catalog.cases, id, "case");
 }
 
@@ -2655,10 +2652,6 @@ export function currentRoadmapPointerPath(root: string, app: string): string {
 
 export function validationAuthorityPath(root: string, app: string, id: string, version: number): string {
   return authorityPath(root, app, "validation_contract", id, version);
-}
-
-export function validationCatalogAuthorityPath(root: string, app: string, id: string, version: number): string {
-  return authorityPath(root, app, "validation_catalog", id, version);
 }
 
 export function currentValidationCatalogPointerPath(root: string, app: string): string {
@@ -5224,12 +5217,7 @@ function isAcceptedAuthority(value: unknown): value is AcceptedAuthority<unknown
 function authorityPath(root: string, app: string, kind: AuthorityRef["kind"], id: string, version: number): string {
   assertId(id, `${kind} id`);
   assertVersion(version, `${kind} version`);
-  return join(planningAppDir(root, app), `${kind}s`, id, `v${version}.json`);
-}
-
-function planningAppDir(root: string, app: string): string {
-  const appKey = stableHash(app).slice(0, 32);
-  return join(resolve(root), "planning", "apps", appKey);
+  return planningAuthorityPath(root, app, kind, id, version);
 }
 
 function executionUnitIdentityHash(unit: ExecutionUnit): string {

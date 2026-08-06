@@ -21,6 +21,7 @@ import { rollupLearningSpend } from "../budget.js";
 import { isValidLoopScope } from "../memory.js";
 import { listCandidateArtifacts, openCandidateArtifact } from "./candidate-store.js";
 import type { CandidateArtifact } from "./candidate.js";
+import { projectCaptureEvents } from "./capture.js";
 import {
   appLearningRoot,
   listBundleScopeDirs,
@@ -29,7 +30,6 @@ import {
   rootKindForScope,
   type LearningRoot,
 } from "./concepts.js";
-import { projectCaptureEvents } from "./capture.js";
 import { readLearningEvents, type LearningEvent } from "./events.js";
 import type { LearningPolicy } from "./policy.js";
 import { appendRejection, checkSuppression, readRejections } from "./rejections.js";
@@ -39,7 +39,7 @@ import { sha256Ref } from "./validate.js";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OKF_FORBIDDEN = /(?:^|[._-])(auth|security|secret|permission|deploy|deployment|dns|gate|tool)(?:$|[._-])/i;
 
-export interface EvidenceCluster {
+interface EvidenceCluster {
   fingerprint: string;
   app: string;
   error_class: string;
@@ -54,8 +54,8 @@ export interface EvidenceCluster {
   events: LearningEvent[];
 }
 
-export type M6RunStatus = "skipped" | "capped" | "completed" | "failed";
-export type M6RunKind = "distillation" | "learning_review";
+type M6RunStatus = "skipped" | "capped" | "completed" | "failed";
+type M6RunKind = "distillation" | "learning_review";
 
 export interface M6RunRecord {
   schema_version: 1;
@@ -79,7 +79,7 @@ export interface M6RunRecord {
   reviewed_candidates?: string[];
 }
 
-export interface DistillationPreparation {
+interface DistillationPreparation {
   status: "ready" | "skipped" | "capped";
   reason: string | null;
   clusters: EvidenceCluster[];
@@ -91,7 +91,7 @@ export interface DistillationPreparation {
   cappedClusters: number;
 }
 
-export interface PrepareDistillationInput {
+interface PrepareDistillationInput {
   orgHome: string;
   stateHome: string;
   app: string;
@@ -101,11 +101,11 @@ export interface PrepareDistillationInput {
   now?: Date;
 }
 
-export function m6RunsDir(stateHome: string): string {
+function m6RunsDir(stateHome: string): string {
   return join(stateHome, "learning", "m6-runs");
 }
 
-export function m6RunPath(stateHome: string, runId: string): string {
+function m6RunPath(stateHome: string, runId: string): string {
   return join(m6RunsDir(stateHome), `${safeSegment(runId)}.json`);
 }
 
@@ -399,7 +399,7 @@ export async function persistDistillationOutput(input: {
   return created;
 }
 
-export interface LearningReviewPreparation {
+interface LearningReviewPreparation {
   status: "ready" | "skipped";
   reason: string | null;
   candidates: CandidateArtifact[];
@@ -515,14 +515,14 @@ export async function persistLearningReviewOutput(input: {
   return recorded;
 }
 
-export interface CompactionRecommendation {
+interface CompactionRecommendation {
   action: "deprecate" | "merge" | "promote" | "supersede";
   concept_ids: string[];
   rationale: string;
   proposed_scope?: string;
 }
 
-export function compactionSnapshotPath(stateHome: string, app: string, date: string): string {
+function compactionSnapshotPath(stateHome: string, app: string, date: string): string {
   return join(stateHome, "learning", "compaction", `${date}-${safeSegment(app)}.json`);
 }
 

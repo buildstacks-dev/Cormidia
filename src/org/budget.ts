@@ -7,13 +7,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { AppsFile } from "./apps.js";
-import { ApprovalStore, type ApprovalItem } from "./approvals.js";
-import { withFileLock } from "../runtime/file-lock.js";
-import { readSettledKeys, recordTurnOnce, settlementKey, type TurnRecord } from "../runtime/telemetry.js";
-import { finalizeRun, readEnvelope, type RunEnvelope } from "../runtime/runlog/envelope.js";
-import { scrubSecrets } from "../runtime/runlog/redact.js";
-import type { TurnResult } from "../runtime/types.js";
 import {
   finalizeEpisode,
   readEfficiencyEvidence,
@@ -22,6 +15,14 @@ import {
   routeRecordPath,
   type ExecutionStepRecord,
 } from "../loop/efficiency.js";
+import { withFileLock } from "../runtime/file-lock.js";
+import { finalizeRun, readEnvelope, type RunEnvelope } from "../runtime/runlog/envelope.js";
+import { scrubSecrets } from "../runtime/runlog/redact.js";
+import { readSettledKeys, recordTurnOnce, settlementKey, type TurnRecord } from "../runtime/telemetry.js";
+import type { TurnResult } from "../runtime/types.js";
+import { ApprovalStore, type ApprovalItem } from "./approvals.js";
+import type { AppsFile } from "./apps.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export interface BudgetRow {
   app: string;
@@ -43,7 +44,7 @@ export function isBudgetBlocking(status: BudgetRow["status"]): boolean {
   return status === "exceeded" || status === "unknown";
 }
 
-export interface BudgetOverlay {
+interface BudgetOverlay {
   pausedApps: string[];
 }
 
@@ -73,7 +74,7 @@ export async function rollupBudgets(orgHome: string, apps: AppsFile, now: Date =
  *  replay and eval passes settle into the same ledger as every provider
  *  turn, attributed by `experimentRef`/`candidateRef` — the overlay is a
  *  rollup over those rows, not a second ledger. */
-export interface LearningSpendRollup {
+interface LearningSpendRollup {
   /** All learning-attributed spend this month (USD). */
   monthUsd: number;
   /** Spend per experiment id, this month. */
@@ -181,7 +182,7 @@ export async function enforceBudgetOverlay(
 /** Deterministic crash seam for the replacement validation harness. Production
  * callers omit it. It sits at the ratified F-PT-003 boundary: the pause is
  * durable, while the human-visible budget item may not exist yet. */
-export interface BudgetOverlayHooks {
+interface BudgetOverlayHooks {
   afterOverlayWrite?: () => Promise<void> | void;
 }
 
@@ -320,7 +321,7 @@ export interface TurnBudgetEscalationInput {
  * durable suspension and the queue write is expected, and convergence is the
  * whole point of raising after the pause is durable (the F-PT-003 ordering
  * `enforceBudgetOverlay` already uses above). */
-export function turnBudgetEscalationKey(input: {
+function turnBudgetEscalationKey(input: {
   app: string;
   ticketRef: string;
   episodeId: string;
@@ -414,7 +415,7 @@ export function resumeCostEstimate(usage: {
   };
 }
 
-export interface ReconcileResult {
+interface ReconcileResult {
   /** Envelopes inspected across runs/<app>/<runId>/. */
   scanned: number;
   /** Rows appended to the ledger (envelopes the ledger had never seen). */
@@ -475,12 +476,8 @@ export async function reconcileLedger(
         wallClockMs: Math.max(0, new Date(observedAt).getTime() - new Date(receipt.started_at).getTime()),
         quality: envelope.usage.quality ?? (envelope.usage.cost_estimated ? "estimated" : "partial"),
         ...(envelope.usage.cost_estimated === true ? { costEstimated: true } : {}),
-        ...(envelope.usage.cache_read_tokens !== undefined
-          ? { cacheReadTokens: envelope.usage.cache_read_tokens }
-          : {}),
-        ...(envelope.usage.cache_write_tokens !== undefined
-          ? { cacheCreationTokens: envelope.usage.cache_write_tokens }
-          : {}),
+        ...definedProps({ cacheReadTokens: envelope.usage.cache_read_tokens }),
+        ...definedProps({ cacheCreationTokens: envelope.usage.cache_write_tokens }),
       };
     } catch {
       return undefined;
@@ -782,7 +779,7 @@ function recordFromEnvelope(envelope: RunEnvelope, runtimeByRole: Record<string,
     app: envelope.app,
     runId: envelope.run_id,
     traceId: envelope.trace_id,
-    ...(envelope.parent_task_id !== undefined ? { parentTaskId: envelope.parent_task_id } : {}),
+    ...definedProps({ parentTaskId: envelope.parent_task_id }),
     pipeline: envelope.pipeline,
     pass: envelope.pass,
   };

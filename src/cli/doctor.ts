@@ -4,30 +4,32 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { RuntimeKind } from "../runtime/types.js";
-import { RUNTIME_KINDS } from "../runtime/registry.js";
-import {
-  probeRuntimeReadiness,
-  type RuntimeReadinessProbe,
-  type RuntimeReadinessRequest,
-} from "../runtime/readiness.js";
-import { loadRoles } from "../org/roles.js";
-import { loadApps } from "../org/apps.js";
 import { loadPipelines } from "../loop/pipelines.js";
+import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
+import { loadApps } from "../org/apps.js";
+import { resolveAuthority } from "../org/authority.js";
 import {
   ORG_HOME_DEFINITION,
   resolveCormidiaHomes,
   STATE_HOME_DEFINITION,
   type CormidiaHomeOptions,
 } from "../org/home.js";
-import { extractHomeFlags } from "./home-flags.js";
-import { resolveAuthority } from "../org/authority.js";
-import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
-import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
 import { describeManagedClone, inspectManagedClones, type ManagedCloneHealth } from "../org/managed-clone-health.js";
 import { listOrgs } from "../org/org-archive.js";
+import { loadRoles } from "../org/roles.js";
+import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
+import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
+import {
+  probeRuntimeReadiness,
+  type RuntimeReadinessProbe,
+  type RuntimeReadinessRequest,
+} from "../runtime/readiness.js";
+import { RUNTIME_KINDS } from "../runtime/registry.js";
+import type { RuntimeKind } from "../runtime/types.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface DoctorOptions extends CormidiaHomeOptions {
+interface DoctorOptions extends CormidiaHomeOptions {
   launchAgentsDir?: string;
   json?: boolean;
   /** Validate files without starting non-billable adapter probes. Intended
@@ -59,7 +61,7 @@ export async function cmdDoctorArgs(args: string[]): Promise<number> {
   return cmdDoctor({ ...common, json, configOnly });
 }
 
-export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
+async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   const config: CheckRow[] = [];
   let homes: Awaited<ReturnType<typeof resolveCormidiaHomes>> | undefined;
   let roles: Awaited<ReturnType<typeof loadRoles>> | undefined;
@@ -101,7 +103,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
     new PlatformSchedulerManager({
       backend,
       platform,
-      ...(options.launchAgentsDir !== undefined ? { definitionDir: options.launchAgentsDir } : {}),
+      ...definedProps({ definitionDir: options.launchAgentsDir }),
     });
   let schedulerStatus: SchedulerOperationalStatus | null = null;
   let scheduler: CheckRow;
@@ -306,7 +308,7 @@ async function adapterChecks(
         const request: RuntimeReadinessRequest = {
           runtime: kind,
           models,
-          ...(options.readinessTimeoutMs !== undefined ? { timeoutMs: options.readinessTimeoutMs } : {}),
+          ...definedProps({ timeoutMs: options.readinessTimeoutMs }),
         };
         const result = await probe(request);
         return {
@@ -342,8 +344,4 @@ async function checked<T>(rows: CheckRow[], name: string, load: () => Promise<T>
 function printRows(title: string, rows: readonly CheckRow[]): void {
   console.log(`${title}:`);
   for (const row of rows) console.log(`  ${row.name.padEnd(15)} ${row.status.padEnd(4)} — ${row.detail}`);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

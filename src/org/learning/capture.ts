@@ -21,13 +21,15 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { readEfficiencyEvidence, type EfficiencyEpisodeEvidence } from "../../loop/efficiency.js";
+import { readExecutionJournal, type ExecutionJournal } from "../../loop/execution-journal.js";
 import { readEnvelope, type GateResultEntry, type RunEnvelope } from "../../runtime/runlog/envelope.js";
 import { readEvents, type RunlogEvent } from "../../runtime/runlog/events.js";
 import { RUN_ID_RE } from "../../runtime/runlog/paths.js";
-import { readEfficiencyEvidence, type EfficiencyEpisodeEvidence } from "../../loop/efficiency.js";
-import { readExecutionJournal, type ExecutionJournal } from "../../loop/execution-journal.js";
 import { writeFileAtomic } from "../atomic.js";
 import { readJournal } from "../journal.js";
+import { readSchedulerMissEvidence } from "../scheduler/evidence.js";
+import { isEfficiencyEvidenceEvent, projectEfficiencyEvidence } from "./efficiency-evidence.js";
 import { journalEpisodeAnchor, ticketEpisodeAnchor, turnEpisodeAnchor, type EpisodeAnchor } from "./episodes.js";
 import {
   appendLearningEventsDeduped,
@@ -36,10 +38,9 @@ import {
   type GateVerdictStatus,
   type LearningEvent,
 } from "./events.js";
-import { isEfficiencyEvidenceEvent, projectEfficiencyEvidence } from "./efficiency-evidence.js";
-import { readSchedulerMissEvidence } from "../scheduler/evidence.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
-export interface CaptureCursor {
+interface CaptureCursor {
   schema_version: 1;
   /** `<app>/<runId>` → projection receipt. Presence means fully projected. */
   runs: Record<
@@ -54,7 +55,7 @@ export interface CaptureCursor {
   >;
 }
 
-export type CaptureBlockingReason =
+type CaptureBlockingReason =
   | "unreadable_envelope"
   | "corrupt_envelope_identity"
   | "corrupt_events"
@@ -63,7 +64,7 @@ export type CaptureBlockingReason =
   | "stale_finalization"
   | "missing_finalization";
 
-export interface ProjectCaptureOptions {
+interface ProjectCaptureOptions {
   stateHome: string;
   /** App → lifecycle stage (apps.yaml `status`), stamped on events when known. */
   appStages?: Record<string, string>;
@@ -122,7 +123,7 @@ export interface CaptureProjectionResult {
   warnings: string[];
 }
 
-export function captureCursorPath(stateHome: string): string {
+function captureCursorPath(stateHome: string): string {
   return join(stateHome, "learning", "metrics", "capture-cursor.json");
 }
 
@@ -292,7 +293,7 @@ async function captureEvents(options: ProjectCaptureOptions, write: boolean): Pr
   const schedulerEvents = projectEfficiencyEvidence({
     runs: [],
     schedulerMisses: await readSchedulerMissEvidence(stateHome),
-    ...(options.appStages !== undefined ? { appStages: options.appStages } : {}),
+    ...definedProps({ appStages: options.appStages }),
   });
   const schedulerFresh: LearningEvent[] = [];
   for (const event of schedulerEvents) {
@@ -376,7 +377,7 @@ async function deriveRunEvents(
         payload: {
           gate: gate.gate,
           status: gateStatus(gate),
-          ...(gate.detail !== undefined ? { detail: gate.detail } : {}),
+          ...definedProps({ detail: gate.detail }),
         },
       });
     });
@@ -432,7 +433,7 @@ async function deriveRunEvents(
           steps: efficiency?.steps ?? [],
         },
       ],
-      ...(appStages !== undefined ? { appStages } : {}),
+      ...definedProps({ appStages }),
     }),
   );
 

@@ -27,6 +27,7 @@
 import assert from "node:assert/strict";
 
 import type { GhOps } from "../../../../src/loop/github.js";
+import { toErrorMessage as errorMessage } from "../../../../src/runtime/error-message.js";
 
 export interface GithubConformanceSurface {
   /** Human-readable target name for the report (e.g. "github-double:owner/repo"). */
@@ -475,8 +476,4 @@ export async function runGithubConformance(
     }
   }
   return { target: surface.label, total: selected.length, passed, failures };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

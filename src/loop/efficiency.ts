@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { lstat, mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,6 +10,9 @@ import {
   validateProviderFamily,
   validateTurnAssignment,
 } from "../runtime/assignment.js";
+import { withFileLock } from "../runtime/file-lock.js";
+import type { TurnRecord } from "../runtime/telemetry.js";
+import { ERROR_TURN_BUDGET_SUSPENDED } from "../runtime/turn-budget.js";
 import type {
   Effort,
   RoleConfig,
@@ -19,12 +22,10 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
-import type { TurnRecord } from "../runtime/telemetry.js";
-import { ERROR_TURN_BUDGET_SUSPENDED } from "../runtime/turn-budget.js";
-import { withFileLock } from "../runtime/file-lock.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import type { TicketTier } from "./pipelines.js";
 import { assertMonotonicRoute, executionBoundsFor, type RouteExecutionBounds } from "./route-policy.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export const EFFICIENCY_SCHEMA_VERSION = 1 as const;
 /** Floating-point comparison tolerance only. This is not a spend allowance:
@@ -696,7 +697,7 @@ function budgetCheck(
       requestedUsd: next.costUsd ?? 0,
     },
     ...(refusal !== undefined ? { errorCode: "error_route_budget_exhausted" as const } : {}),
-    ...(refusal !== undefined ? { reason: refusal } : {}),
+    ...definedProps({ reason: refusal }),
   };
 }
 
@@ -751,7 +752,7 @@ export async function beginProviderStep(input: {
     let budget = await checkProviderBudget({
       root: input.root,
       episodeId: input.episodeId,
-      ...(input.next !== undefined ? { next: input.next } : {}),
+      ...definedProps({ next: input.next }),
     });
     if (!budget.allowed) {
       throw new ProviderBudgetRefusalError(input.episodeId, input.operation, budget);
@@ -1433,13 +1434,13 @@ function validateEvidenceText(value: unknown, context: string): string {
 function metadataFromAuthorizedPass(pass: AuthorizedPass): ProviderStepPlanMetadata {
   return normalizeProviderStepPlanMetadata(
     {
-      ...(pass.assignment_source !== undefined ? { assignment_source: pass.assignment_source } : {}),
-      ...(pass.assignment_candidate_id !== undefined ? { assignment_candidate_id: pass.assignment_candidate_id } : {}),
-      ...(pass.plan_version !== undefined ? { plan_version: pass.plan_version } : {}),
-      ...(pass.plan_step_id !== undefined ? { plan_step_id: pass.plan_step_id } : {}),
-      ...(pass.selection_reason !== undefined ? { selection_reason: pass.selection_reason } : {}),
-      ...(pass.provider_family !== undefined ? { provider_family: pass.provider_family } : {}),
-      ...(pass.resolved_capabilities !== undefined ? { resolved_capabilities: pass.resolved_capabilities } : {}),
+      ...definedProps({ assignment_source: pass.assignment_source }),
+      ...definedProps({ assignment_candidate_id: pass.assignment_candidate_id }),
+      ...definedProps({ plan_version: pass.plan_version }),
+      ...definedProps({ plan_step_id: pass.plan_step_id }),
+      ...definedProps({ selection_reason: pass.selection_reason }),
+      ...definedProps({ provider_family: pass.provider_family }),
+      ...definedProps({ resolved_capabilities: pass.resolved_capabilities }),
     },
     `${pass.pipeline}/${pass.pass} authorization metadata`,
   );
@@ -1462,15 +1463,13 @@ function normalizeAuthorizedPass(pass: AuthorizedPass): AuthorizedPass {
 function metadataFromProviderReceipt(receipt: StartedProviderReceipt): ProviderStepPlanMetadata {
   return normalizeProviderStepPlanMetadata(
     {
-      ...(receipt.assignment_source !== undefined ? { assignment_source: receipt.assignment_source } : {}),
-      ...(receipt.assignment_candidate_id !== undefined
-        ? { assignment_candidate_id: receipt.assignment_candidate_id }
-        : {}),
-      ...(receipt.plan_version !== undefined ? { plan_version: receipt.plan_version } : {}),
-      ...(receipt.plan_step_id !== undefined ? { plan_step_id: receipt.plan_step_id } : {}),
-      ...(receipt.selection_reason !== undefined ? { selection_reason: receipt.selection_reason } : {}),
-      ...(receipt.provider_family !== undefined ? { provider_family: receipt.provider_family } : {}),
-      ...(receipt.resolved_capabilities !== undefined ? { resolved_capabilities: receipt.resolved_capabilities } : {}),
+      ...definedProps({ assignment_source: receipt.assignment_source }),
+      ...definedProps({ assignment_candidate_id: receipt.assignment_candidate_id }),
+      ...definedProps({ plan_version: receipt.plan_version }),
+      ...definedProps({ plan_step_id: receipt.plan_step_id }),
+      ...definedProps({ selection_reason: receipt.selection_reason }),
+      ...definedProps({ provider_family: receipt.provider_family }),
+      ...definedProps({ resolved_capabilities: receipt.resolved_capabilities }),
     },
     `provider step ${receipt.execution_step_id} receipt metadata`,
   );

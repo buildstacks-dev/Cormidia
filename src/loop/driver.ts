@@ -3,36 +3,11 @@
 // tickets once" wrapper for CLI and sandbox e2e use.
 
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { parse } from "yaml";
-import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
+import { runGit as git } from "../runtime/git.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
-import type { GhIssue, GhOps } from "./github.js";
-import { GhCliOps } from "./github.js";
-import {
-  advanceGates,
-  advanceReviewing,
-  advanceShipping,
-  branchNameForDeliveryUnit,
-  branchNameForIssue,
-  AutonomousRoutingExclusionError,
-  claimTicket,
-  claimDeliveryUnitIssues,
-  criterionTestMapFromContractText,
-  itemFromIssue,
-  parseAcceptanceCriteria,
-  readAutonomousClaimIssue,
-  rearmDependents,
-  type ReviewAuthorization,
-} from "./loop.js";
-import {
-  parkedDigestComment,
-  listTicketClaimStates,
-  readTicketClaimState,
-  rehydrateTicketState,
-  type RehydratedState,
-} from "./rehydrate.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import {
   beginTicketClaim,
   finishTicketClaim,
@@ -45,12 +20,6 @@ import {
   type ClaimLease,
 } from "./claim-recovery.js";
 import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "./default-branch.js";
-import type { PipelinesFile } from "./pipelines.js";
-import type { Policy } from "./policy.js";
-import { loadPolicy } from "./policy.js";
-import type { GateCommands } from "./qgates.js";
-import { assertCanonicalGateCommandPlacement } from "./gate-config.js";
-import { MANUAL_REVIEW_EXCLUSION_LABEL, autonomousExecutionExclusionLabel } from "./plan-tickets.js";
 import { episodeIdFor, readRouteRecord, type EpisodeTerminal } from "./efficiency.js";
 import {
   episodeIntentHash,
@@ -63,11 +32,42 @@ import {
   type ProviderTurnStep,
 } from "./episode-plan.js";
 import { EPISODE_PLAN_ROUTE_POLICY_VERSION, routeAdmissionForEpisodePlan } from "./episode-route.js";
-import { decideExecutionRoute, type RouteDecision } from "./route-policy.js";
+import { assertCanonicalGateCommandPlacement } from "./gate-config.js";
+import type { GhIssue, GhOps } from "./github.js";
+import { GhCliOps } from "./github.js";
+import {
+  AutonomousRoutingExclusionError,
+  advanceGates,
+  advanceReviewing,
+  advanceShipping,
+  branchNameForDeliveryUnit,
+  branchNameForIssue,
+  claimDeliveryUnitIssues,
+  claimTicket,
+  criterionTestMapFromContractText,
+  itemFromIssue,
+  parseAcceptanceCriteria,
+  readAutonomousClaimIssue,
+  rearmDependents,
+  type ReviewAuthorization,
+} from "./loop.js";
+import type { PipelinesFile } from "./pipelines.js";
+import { MANUAL_REVIEW_EXCLUSION_LABEL, autonomousExecutionExclusionLabel } from "./plan-tickets.js";
+import type { Policy } from "./policy.js";
+import { loadPolicy } from "./policy.js";
+import type { GateCommands } from "./qgates.js";
+import {
+  listTicketClaimStates,
+  parkedDigestComment,
+  readTicketClaimState,
+  rehydrateTicketState,
+  type RehydratedState,
+} from "./rehydrate.js";
 import { parseDependsOn, parseScope, selectReadyTickets, type SchedulableTicket } from "./scheduling.js";
 import type { LoopDeliveryUnit, LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface LoopPlanItem {
+interface LoopPlanItem {
   issueNumber: number;
   title: string;
   phase: LoopItem["phase"];
@@ -158,7 +158,7 @@ export interface AdmittedLoopDeliveryUnit {
   creatorScope?: CreatorEpisodeScope;
 }
 
-export interface BoundLoopDeliveryUnit extends AdmittedLoopDeliveryUnit {
+interface BoundLoopDeliveryUnit extends AdmittedLoopDeliveryUnit {
   bindingToken: string;
 }
 
@@ -224,14 +224,14 @@ export interface DeliveryUnitRuntime {
   }): Promise<string>;
 }
 
-export type ClaimFaultBoundary =
+type ClaimFaultBoundary =
   | "after_selection"
   | "after_label_transition"
   | "after_pass_selection"
   | "after_episode_lock"
   | "before_pipeline_start";
 
-export interface LoopEngineOptions {
+interface LoopEngineOptions {
   pipelines: PipelinesFile;
   roles: Record<string, RoleConfig>;
   runtimeFor: (role: RoleConfig) => Runtime;
@@ -318,7 +318,7 @@ export interface AcceptedTicketEpisodePlan {
 
 export type TicketEpisodePlanner = (request: TicketEpisodePlanningRequest) => Promise<AcceptedTicketEpisodePlan>;
 
-export type TicketEpisodeInspector = (request: TicketEpisodePlanningRequest) => Promise<void>;
+type TicketEpisodeInspector = (request: TicketEpisodePlanningRequest) => Promise<void>;
 
 export interface TicketEpisodeExecutionRequest {
   request: TicketEpisodePlanningRequest;
@@ -335,7 +335,7 @@ export interface TicketEpisodeExecutionRequest {
 
 export type TicketEpisodeExecutor = (request: TicketEpisodeExecutionRequest) => Promise<LoopItem>;
 
-export type TicketEpisodePlanningBoundaryErrorCode =
+type TicketEpisodePlanningBoundaryErrorCode =
   | "error_ticket_episode_planner_missing"
   | "error_ticket_episode_executor_missing"
   | "error_ticket_episode_identity_mismatch"
@@ -344,7 +344,7 @@ export type TicketEpisodePlanningBoundaryErrorCode =
   | "error_ticket_episode_route_not_admitted"
   | "error_ticket_episode_route_mismatch";
 
-export class TicketEpisodePlanningBoundaryError extends Error {
+class TicketEpisodePlanningBoundaryError extends Error {
   constructor(
     readonly code: TicketEpisodePlanningBoundaryErrorCode,
     message: string,
@@ -384,7 +384,7 @@ export interface LoopDriverResult {
   }>;
 }
 
-export function planLoopTick(
+function planLoopTick(
   issues: readonly GhIssue[],
   repo: string,
   maxConcurrent: number,
@@ -435,7 +435,7 @@ export function planLoopTick(
  * that adapter out of this boundary is intentional: accepting a plan must not
  * quietly authorize the pre-existing static pass graph.
  */
-export async function requireAcceptedTicketEpisodePlan(input: {
+async function requireAcceptedTicketEpisodePlan(input: {
   request: TicketEpisodePlanningRequest;
   planner?: TicketEpisodePlanner;
 }): Promise<AcceptedTicketEpisodePlan> {
@@ -910,7 +910,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             claims: begun.state.claims,
             maxClaims: begun.allowance,
             outcomes: begun.state.outcomes,
-            ...(rehydrated.prNumber !== undefined ? { prNumber: rehydrated.prNumber } : {}),
+            ...definedProps({ prNumber: rehydrated.prNumber }),
             openFindings: rehydrated.findings,
             hasContract: rehydrated.contract !== undefined,
           }),
@@ -964,10 +964,10 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       if (rehydrated !== undefined) {
         item = {
           ...item,
-          ...(rehydrated.contract !== undefined ? { contract: rehydrated.contract } : {}),
+          ...definedProps({ contract: rehydrated.contract }),
           findings: rehydrated.findings,
           cycles: rehydrated.cycles,
-          ...(rehydrated.prNumber !== undefined ? { prNumber: rehydrated.prNumber } : {}),
+          ...definedProps({ prNumber: rehydrated.prNumber }),
         };
         // An open PR with no open findings means build+gates already succeeded
         // once: re-validate gates and go to review — never a full rebuild. Open
@@ -1089,7 +1089,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             await options.injectReview?.(item);
             item = await advanceReviewing(item, {
               gh: options.gh,
-              ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
+              ...definedProps({ authorization: options.authorization }),
             });
             continue;
           }
@@ -1103,7 +1103,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
               base,
               criteria,
               criterionTests,
-              ...(options.release !== undefined ? { release: options.release } : {}),
+              ...definedProps({ release: options.release }),
             });
             continue;
           }
@@ -1229,7 +1229,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
   };
 }
 
-export interface DefaultLoopInputOptions {
+interface DefaultLoopInputOptions {
   /** True only when the operator supplied --repo-dir. Such a checkout is an
    * immutable source and must never be fetched/checked-out/reset. */
   supplied?: boolean;
@@ -1314,59 +1314,6 @@ async function loadRequiredPolicy(path: string): Promise<Policy> {
   return loadPolicy(path);
 }
 
-/** Historical, non-authoritative compatibility projection for legacy ticket
- *  artifacts and their tests. EpisodePlan validation is the sole workflow and
- *  safety authority for live ticket execution; this helper must not be used to
- *  admit, mutate, or execute a route. */
-export function routeDecisionForItem(item: LoopItem): RouteDecision {
-  const sensitiveDomains = item.labels
-    .filter((label) => /auth|security|secret|privacy|payment|data/.test(label))
-    .sort();
-  const profile =
-    item.tier === "quick"
-      ? {
-          blastRadius: "low" as const,
-          reversibility: "reversible" as const,
-          sensitiveDomains: [],
-          uncertainty: "low" as const,
-          componentCount: 1,
-          externalSystemCount: 0,
-          releaseConsequence: "none" as const,
-          novelty: "familiar" as const,
-          evidenceQuality: "high" as const,
-        }
-      : item.tier === "standard"
-        ? {
-            blastRadius: "medium" as const,
-            reversibility: "reversible" as const,
-            sensitiveDomains,
-            uncertainty: "medium" as const,
-            componentCount: 2,
-            externalSystemCount: 0,
-            releaseConsequence: "none" as const,
-            novelty: "familiar" as const,
-            evidenceQuality: "high" as const,
-          }
-        : {
-            blastRadius: "high" as const,
-            reversibility: "difficult" as const,
-            sensitiveDomains,
-            uncertainty: "high" as const,
-            componentCount: 3,
-            externalSystemCount: 1,
-            releaseConsequence: "internal" as const,
-            novelty: "new" as const,
-            evidenceQuality: "partial" as const,
-          };
-  const decision = decideExecutionRoute(profile);
-  if (decision.route !== item.tier) {
-    throw new Error(
-      `ticket ${item.ticketRef} route label ${item.tier} conflicts with structured decision ${decision.route}`,
-    );
-  }
-  return decision;
-}
-
 function terminalDisposition(item: LoopItem): {
   status: EpisodeTerminal["status"];
   reason: string;
@@ -1442,7 +1389,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
-export function githubRemoteUrl(repoSlug: string): string {
+function githubRemoteUrl(repoSlug: string): string {
   return `https://github.com/${repoSlug}.git`;
 }
 
@@ -1548,13 +1495,4 @@ function describeBaseHead(localRepo: string, base: BaseRevision): string {
   } catch {
     return "";
   }
-}
-
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
 }

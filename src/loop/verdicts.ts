@@ -43,11 +43,11 @@
 // Verdict types — docs/loop/design.md §6 sketch
 // ---------------------------------------------------------------------------
 
-export const FINDING_CATEGORIES = ["architecture", "testing", "security", "style", "scope"] as const;
-export type FindingCategory = (typeof FINDING_CATEGORIES)[number];
+const FINDING_CATEGORIES = ["architecture", "testing", "security", "style", "scope"] as const;
+type FindingCategory = (typeof FINDING_CATEGORIES)[number];
 
-export const FINDING_SEVERITIES = ["critical", "major", "minor"] as const;
-export type FindingSeverity = (typeof FINDING_SEVERITIES)[number];
+const FINDING_SEVERITIES = ["critical", "major", "minor"] as const;
+type FindingSeverity = (typeof FINDING_SEVERITIES)[number];
 
 export interface Finding {
   category: FindingCategory;
@@ -58,12 +58,12 @@ export interface Finding {
   action: string;
 }
 
-export const CONTRACT_COMPLEXITIES = ["low", "medium", "high"] as const;
+const CONTRACT_COMPLEXITIES = ["low", "medium", "high"] as const;
 /** The contract pass's complexity estimate — NOT policy.ts's RiskTier (that
  *  axis is resolved from changed-file globs, §4). */
-export type Complexity = (typeof CONTRACT_COMPLEXITIES)[number];
+type Complexity = (typeof CONTRACT_COMPLEXITIES)[number];
 
-export interface ContractCriterionTests {
+interface ContractCriterionTests {
   criterionId: string;
   tests: string[];
 }
@@ -78,15 +78,15 @@ export interface ContractVerdict {
 
 /** The §7 blocked protocol's structured comment: error verbatim, attempted
  *  fix, result, assessment — what the Planner's groom pipeline consumes. */
-export interface BlockedEntry {
+interface BlockedEntry {
   error: string;
   attempted: string;
   result: string;
   assessment: string;
 }
 
-export const FINDING_RESOLUTION_OUTCOMES = ["fixed", "rebutted"] as const;
-export type FindingResolutionOutcome = (typeof FINDING_RESOLUTION_OUTCOMES)[number];
+const FINDING_RESOLUTION_OUTCOMES = ["fixed", "rebutted"] as const;
+type FindingResolutionOutcome = (typeof FINDING_RESOLUTION_OUTCOMES)[number];
 
 /** A fix pass's per-finding disposition (proportionality campaign Stage 2 —
  *  findings stay open until individually fixed or rebutted, durably). */
@@ -148,7 +148,7 @@ export interface DistillationVerdict {
 
 /** M6 learning-reviewer output before orchestrator-owned provenance fields
  * are stamped and persisted through the review store. */
-export interface LearningReviewProposal {
+interface LearningReviewProposal {
   candidate_id: string;
   verdict: "approve" | "revise" | "reject" | "escalate";
   proposed_destination: DistillationProposal["destination"];
@@ -185,7 +185,7 @@ export type VerdictKind = keyof VerdictTypes;
 
 /** Typed parse-failure marker — parsers never throw; `reason` is written for
  *  the agent that must reformat (parseWithRetry feeds it to the callback). */
-export interface ParseFailure {
+interface ParseFailure {
   ok: false;
   kind: VerdictKind;
   reason: string;
@@ -624,7 +624,7 @@ export function parseVerdict<K extends VerdictKind>(kind: K, text: string): Pars
   return parser(text);
 }
 
-export interface ParseAttempt {
+interface ParseAttempt {
   text: string;
   reason: string;
 }
@@ -696,7 +696,7 @@ export async function parseWithRetry<K extends VerdictKind>(
  *  an interface) so schemas plug straight into `TurnRequest.verdictSchema`
  *  (Record<string, unknown>). `validateVerdict` interprets exactly this
  *  subset — the schema IS the validator's input, never a parallel truth. */
-export type VerdictSchema = {
+type VerdictSchema = {
   readonly title?: string;
   readonly description?: string;
   readonly type?: "object" | "string" | "array" | "boolean" | "integer";

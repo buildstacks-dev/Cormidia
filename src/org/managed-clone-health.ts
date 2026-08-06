@@ -41,7 +41,7 @@ export interface ManagedCloneHealth {
 }
 
 /** Inspect one managed clone without mutating it. */
-export function inspectManagedClone(stateHome: string, app: string): ManagedCloneHealth {
+function inspectManagedClone(stateHome: string, app: string): ManagedCloneHealth {
   const path = managedClonePath(stateHome, app);
   if (!existsSync(join(path, ".git"))) {
     return { app, path, present: false, dirty: false, statusEntries: 0, sample: [] };
@@ -76,7 +76,7 @@ export function inspectManagedClones(stateHome: string, apps: readonly string[])
   return apps.map((app) => inspectManagedClone(stateHome, app));
 }
 
-export function managedClonePath(stateHome: string, app: string): string {
+function managedClonePath(stateHome: string, app: string): string {
   return join(stateHome, "repos", app);
 }
 

@@ -27,8 +27,15 @@ import type { GhOps } from "../../loop/github.js";
 import type { ApprovalStore } from "../approvals.js";
 import { writeFileAtomic } from "../atomic.js";
 import type { LoopTier } from "../memory.js";
-import { assertCandidateCanProceed, type CandidateArtifact, type CandidateDestination } from "./candidate.js";
+import {
+  bindingMismatches,
+  bindingOf,
+  findLearningPublishItem,
+  raiseLearningPublish,
+  type LearningPublishBinding,
+} from "./binding.js";
 import { candidateArtifactHash, conceptDraftPath, findCandidateArtifact, sha256Ref } from "./candidate-store.js";
+import { assertCandidateCanProceed, type CandidateArtifact, type CandidateDestination } from "./candidate.js";
 import {
   bundleScopeDir,
   cutManifestVersion,
@@ -42,13 +49,6 @@ import {
   scopeShareKey,
   type LearningRoot,
 } from "./concepts.js";
-import {
-  bindingMismatches,
-  bindingOf,
-  findLearningPublishItem,
-  raiseLearningPublish,
-  type LearningPublishBinding,
-} from "./binding.js";
 import { appendLearningEventsDeduped, sanitizeIdSegment } from "./events.js";
 import { readExperimentRecord } from "./experiment.js";
 import {
@@ -62,8 +62,9 @@ import {
 import type { LearningPolicy } from "./policy.js";
 import { appendRejection, checkSuppression, readRejections, type RejectionEntry } from "./rejections.js";
 import { readReviewerVerdict, reviewDisposition, reviewerVerdictHash, type ReviewerVerdict } from "./review.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
-export const LEARNING_TICKET_LABEL = "op:learning";
+const LEARNING_TICKET_LABEL = "op:learning";
 const FINGERPRINT_MARKER = "cormidia:candidate-fingerprint";
 
 export interface PublisherDeps {
@@ -89,7 +90,7 @@ export type PublishOutcome =
   | { status: "denied"; approvalId: string; reason?: string }
   | { status: "refused"; reason: string };
 
-export interface PublishOptions {
+interface PublishOptions {
   /** Explicit human waiver for a T2/T3 activation without an experiment
    *  (design §9.1) — bound into the approval, quoted in the record. */
   waiver?: string;
@@ -97,7 +98,7 @@ export interface PublishOptions {
 
 /** Human approval gates exactly three things (design §6.1); in M4's surface
  *  that is: activation into future context, and anything T2/T3. */
-export function requiresHumanGate(destination: CandidateDestination, tier: LoopTier): boolean {
+function requiresHumanGate(destination: CandidateDestination, tier: LoopTier): boolean {
   if (destination === "okf_concept") return true;
   return tier === "T2" || tier === "T3";
 }
@@ -221,7 +222,7 @@ export async function publishCandidate(
   if (!requiresHumanGate(destination, tier)) {
     // Routine lane (design §6.1). The experiment gate still applies.
     const evaluability = assertCandidateCanProceed(gateInput, {
-      ...(experiment !== undefined ? { experiment } : {}),
+      ...definedProps({ experiment }),
     });
     return executePublish(deps, {
       journalId: routineJournalId,
@@ -262,8 +263,8 @@ export async function publishCandidate(
   // must never dead-end just because its bytes moved after a decision.
   const raiseFresh = async (note?: string): Promise<PublishOutcome> => {
     assertCandidateCanProceed(gateInput, {
-      ...(experiment !== undefined ? { experiment } : {}),
-      ...(options.waiver !== undefined ? { humanWaiver: options.waiver } : {}),
+      ...definedProps({ experiment }),
+      ...definedProps({ humanWaiver: options.waiver }),
       ...(options.waiver === undefined && binding.waivers.length > 0
         ? { humanWaiver: binding.waivers.join("; ") }
         : {}),
@@ -300,7 +301,7 @@ export async function publishCandidate(
     }
     // The waiver the human approved is the one that counts.
     const evaluability = assertCandidateCanProceed(gateInput, {
-      ...(experiment !== undefined ? { experiment } : {}),
+      ...definedProps({ experiment }),
       ...(approved.waivers.length > 0 ? { humanWaiver: approved.waivers.join("; ") } : {}),
     });
     return executePublish(deps, {
@@ -328,7 +329,7 @@ export async function publishCandidate(
       return {
         status: "denied",
         approvalId: decided.id,
-        ...(decided.reason !== undefined ? { reason: decided.reason } : {}),
+        ...definedProps({ reason: decided.reason }),
       };
     }
     // The content changed since the denial (re-review, amended draft) — a
@@ -685,7 +686,7 @@ async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise
         approval_ref: journal.approval_ref,
         intervention_id: journal.intervention_id,
         refs,
-        ...(journal.manifest_version !== undefined ? { bundle_version: journal.manifest_version } : {}),
+        ...definedProps({ bundle_version: journal.manifest_version }),
       },
     },
   ]);

@@ -1,5 +1,5 @@
-import { resolvedRuntimeCapabilities } from "../runtime/capabilities.js";
 import { turnAssignmentsEqual } from "../runtime/assignment.js";
+import { resolvedRuntimeCapabilities } from "../runtime/capabilities.js";
 import type { AdmissionFactor, AuthorizedPass, RouteAdmissionInput, RouteBudget } from "./efficiency.js";
 import type { AllowedTurnAssignment, EpisodeIntent, ProviderTurnStep, SafetyFactKind } from "./episode-plan.js";
 import { episodePlanHash, type EpisodePlan } from "./episode-plan.js";
@@ -7,7 +7,7 @@ import type { TicketTier } from "./pipelines.js";
 
 export const EPISODE_PLAN_ROUTE_POLICY_VERSION = "episode-plan-route/v1" as const;
 export const EPISODE_PLAN_EXECUTION_PIPELINE = "episode-plan-dag" as const;
-export const EPISODE_PLAN_FACTOR_RULE = "accepted_episode_plan" as const;
+const EPISODE_PLAN_FACTOR_RULE = "accepted_episode_plan" as const;
 
 /**
  * Convert an already accepted plan into the legacy route/accounting record.

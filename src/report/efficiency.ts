@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ContextManifest } from "../loop/context-manifest.js";
 import {
   readEfficiencyEvidence,
   settlementCoverage,
@@ -8,20 +9,20 @@ import {
   type ExecutionStepRecord,
   type RouteRecord,
 } from "../loop/efficiency.js";
+import { normalizeUsageQuality } from "../runtime/cost.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { settlementIdentity, type TurnRecord } from "../runtime/telemetry.js";
-import { normalizeUsageQuality } from "../runtime/cost.js";
-import type { ContextManifest } from "../loop/context-manifest.js";
-import type { LedgerRowSource } from "./ledger-source.js";
 import type { ReportDetailFacts } from "./detail-source.js";
+import type { LedgerRowSource } from "./ledger-source.js";
 import type {
   ReportEfficiencyEpisodeV1,
   ReportEfficiencyV1,
-  ReportRepeatedWorkStepV1,
-  ReportRepeatedWorkV1,
   ReportEvidenceMetricV1,
   ReportRangeV1,
+  ReportRepeatedWorkStepV1,
+  ReportRepeatedWorkV1,
 } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function buildEfficiencyReport(input: {
   stateHome: string;
@@ -128,7 +129,7 @@ export async function buildEfficiencyReport(input: {
     contextRuns.set(runKey, {
       app: envelope.app,
       runId: envelope.run_id,
-      ...(envelope.refs.context_manifest !== undefined ? { ref: envelope.refs.context_manifest } : {}),
+      ...definedProps({ ref: envelope.refs.context_manifest }),
     });
   }
   for (const step of steps) {

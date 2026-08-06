@@ -6,29 +6,29 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
-import type { CaptureProjectionResult } from "./capture.js";
+import { listCanaryAssignments, type CanaryAssignmentRecord } from "./canary.js";
 import { listCandidateArtifacts } from "./candidate-store.js";
 import type { CandidateArtifact } from "./candidate.js";
-import { listCanaryAssignments, type CanaryAssignmentRecord } from "./canary.js";
+import type { CaptureProjectionResult } from "./capture.js";
 import type { LearningRoot } from "./concepts.js";
+import { listM6RunRecords } from "./distillation.js";
+import { recommendationForEval, type EfficacyRecommendation } from "./efficacy.js";
 import {
   clusterEfficiencyEvidence,
   isEfficiencyEvidenceEvent,
   type CandidateDisposition,
   type CandidateDispositionKind,
 } from "./efficiency-evidence.js";
-import { recommendationForEval, type EfficacyRecommendation } from "./efficacy.js";
-import { listEvalResults, type EvalResult } from "./eval-result.js";
 import { readEpisodeRecords } from "./episode.js";
+import { listEvalResults, type EvalResult } from "./eval-result.js";
 import { readLearningEvents } from "./events.js";
 import { listExperimentRecords, type ExperimentRecord } from "./experiment.js";
 import { interventionChainGaps, listInterventionRecords, type InterventionRecord } from "./intervention.js";
 import type { LearningPolicy } from "./policy.js";
 import { readRejections } from "./rejections.js";
 import { listReviewerVerdicts } from "./review.js";
-import { listM6RunRecords } from "./distillation.js";
 
-export type HealthStatus = "healthy" | "degraded" | "invalid_measurement";
+type HealthStatus = "healthy" | "degraded" | "invalid_measurement";
 
 export interface LearningEfficiencyHealth {
   schema_version: 1;
@@ -79,7 +79,7 @@ export interface LearningEfficiencyHealth {
   };
 }
 
-export interface LearningEfficiencyHealthOptions {
+interface LearningEfficiencyHealthOptions {
   orgHome: string;
   stateHome: string;
   capture: CaptureProjectionResult;
@@ -89,7 +89,7 @@ export interface LearningEfficiencyHealthOptions {
   persist?: boolean;
 }
 
-export function learningEfficiencyHealthPath(stateHome: string): string {
+function learningEfficiencyHealthPath(stateHome: string): string {
   return join(stateHome, "learning", "metrics", "efficiency-health.json");
 }
 

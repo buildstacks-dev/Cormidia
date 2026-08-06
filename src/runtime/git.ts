@@ -15,7 +15,17 @@
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 
-export interface GitSnapshot {
+/** Run an ordinary read/write git command with prompting disabled. */
+export function runGit(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+interface GitSnapshot {
   head: string;
   branch: string;
 }

@@ -8,9 +8,6 @@ import { lstat, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse, parseDocument, stringify } from "yaml";
-import type { RoleConfig, Trigger } from "../runtime/types.js";
-import { isAssignmentCandidateId } from "../runtime/assignment.js";
-import { DEFAULT_NETWORK_ALLOWLIST } from "../runtime/gate.js";
 import { ASSIGNMENT_MODES, type AssignmentMode } from "../loop/episode-plan.js";
 import { assertCanonicalGateCommandPlacement } from "../loop/gate-config.js";
 import {
@@ -22,8 +19,9 @@ import {
   type ReleaseOwner,
   type ReleaseTriggerMode,
 } from "../loop/types.js";
-import { writeFileAtomic } from "./atomic.js";
-import { loadRoles, resolveApprovedAssignmentCandidates } from "./roles.js";
+import { isAssignmentCandidateId } from "../runtime/assignment.js";
+import { DEFAULT_NETWORK_ALLOWLIST } from "../runtime/gate.js";
+import type { RoleConfig, Trigger } from "../runtime/types.js";
 import {
   appRuntimePolicyYaml,
   normalizeAppRuntimePolicy,
@@ -31,6 +29,9 @@ import {
   shippedAppRuntimePolicy,
   type AppRuntimePolicy,
 } from "./app-execution-policy.js";
+import { writeFileAtomic } from "./atomic.js";
+import { loadRoles, resolveApprovedAssignmentCandidates } from "./roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export type AppStatus = "live" | "paused" | "onboarding";
 export type AppAssignmentMode = AssignmentMode;
@@ -42,7 +43,7 @@ const STATUSES: AppStatus[] = ["live", "paused", "onboarding"];
  * enable/disable switch. `allowedAssignments` only narrows role-local,
  * org-approved candidate IDs. Membership is validated where app and role
  * configuration are assembled; this loader owns syntax and normalization. */
-export interface AppExecutionConfig {
+interface AppExecutionConfig {
   assignmentMode: AppAssignmentMode;
   allowedAssignments: Record<string, string[]>;
   runtimePolicy?: AppRuntimePolicy;
@@ -104,7 +105,7 @@ export interface AppsFile {
   apps: AppEntry[];
 }
 
-export interface FindExistingOrgOptions {
+interface FindExistingOrgOptions {
   /** Explicit org home, e.g. CLI `--org-home`. */
   orgHome?: string;
   /** Environment source; defaults to process.env. */
@@ -125,19 +126,19 @@ export interface AppRegistration {
   execution?: AppExecutionConfig;
 }
 
-export interface JoinExistingOrgResult {
+interface JoinExistingOrgResult {
   orgHome: string;
   appsPath: string;
   app: AppEntry;
 }
 
-export interface RemoveExistingAppResult {
+interface RemoveExistingAppResult {
   orgHome: string;
   appsPath: string;
   app: AppEntry;
 }
 
-export interface UpdateAppStatusResult {
+interface UpdateAppStatusResult {
   orgHome: string;
   appsPath: string;
   before: AppStatus;
@@ -271,7 +272,7 @@ function parseApp(
     cadence,
     channels: parseChannels(spec["channels"], err),
     execution: parseExecution(spec["execution"], err),
-    ...(release !== undefined ? { release } : {}),
+    ...definedProps({ release }),
   };
 }
 
@@ -464,7 +465,7 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
     owner: owner as ReleaseOwner,
     trigger,
     ...(typeof command === "string" ? { command } : {}),
-    ...(approvers !== undefined ? { approvers } : {}),
+    ...definedProps({ approvers }),
   };
 }
 

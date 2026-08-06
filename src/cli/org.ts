@@ -1,9 +1,11 @@
 // `cormidia org init|show|use|list|archive|upgrade` — explicit organization-home
 // lifecycle.
 
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { findExistingOrg, loadApps } from "../org/apps.js";
+import { authorityPreview, resolveAuthority, type AuthorityProfile } from "../org/authority.js";
 import {
   CORMIDIA_HOME_DIRNAME,
   executeOrgInit,
@@ -18,10 +20,6 @@ import {
   type InitOrgHomePlanPreview,
   type InitOrgHomeResult,
 } from "../org/home.js";
-import { loadApps } from "../org/apps.js";
-import { findExistingOrg } from "../org/apps.js";
-import { authorityPreview, resolveAuthority, type AuthorityProfile } from "../org/authority.js";
-import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
 import { stableJson } from "../org/lifecycle.js";
 import {
   executeOrgArchive,
@@ -32,14 +30,16 @@ import {
   planOrgArchive,
   recordOrgBacklink,
 } from "../org/org-archive.js";
+import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
 import {
   bindCliInvocationStateHome,
   currentCliInvocationStateHome,
   redirectCliInvocationLedger,
   reportCliInvocation,
 } from "./invocation-audit.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface OrgCommandOptions {
+interface OrgCommandOptions {
   homeDir?: string;
   pointerPath?: string;
   templateRoot?: string;
@@ -221,11 +221,11 @@ async function upgrade(args: string[], options: OrgCommandOptions): Promise<numb
   const input = {
     orgHome,
     stateHome,
-    ...(authorityChoice !== undefined ? { authorityChoice } : {}),
-    ...(authorityCustomText !== undefined ? { authorityCustomText } : {}),
-    ...(authorityBy !== undefined ? { authorityGrantedBy: authorityBy } : {}),
-    ...(archiveRoot !== undefined ? { archiveRoot } : {}),
-    ...(options.templateRoot !== undefined ? { templateRoot: options.templateRoot } : {}),
+    ...definedProps({ authorityChoice }),
+    ...definedProps({ authorityCustomText }),
+    ...definedProps({ authorityGrantedBy: authorityBy }),
+    ...definedProps({ archiveRoot }),
+    ...definedProps({ templateRoot: options.templateRoot }),
   };
   const plan = await planOrgUpgrade(input);
   if (!execute) {
@@ -293,13 +293,13 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
   const plan = await planOrgInit({
     target,
     name,
-    ...(stateHome !== undefined ? { stateHome } : {}),
-    ...(options.homeDir !== undefined ? { homeDir: options.homeDir } : {}),
-    ...(options.pointerPath !== undefined ? { pointerPath: options.pointerPath } : {}),
-    ...(options.templateRoot !== undefined ? { templateRoot: options.templateRoot } : {}),
+    ...definedProps({ stateHome }),
+    ...definedProps({ homeDir: options.homeDir }),
+    ...definedProps({ pointerPath: options.pointerPath }),
+    ...definedProps({ templateRoot: options.templateRoot }),
     authorityProfile,
-    ...(authorityCustomText !== undefined ? { authorityCustomText } : {}),
-    ...(authorityBy !== undefined ? { authorityGrantedBy: authorityBy } : {}),
+    ...definedProps({ authorityCustomText }),
+    ...definedProps({ authorityGrantedBy: authorityBy }),
   });
   // org init has no pre-existing active state home. Bind its exact planned
   // target before the first domain mutation so creation itself has provenance.
@@ -389,8 +389,8 @@ async function show(args: string[], options: OrgCommandOptions): Promise<number>
     else throw new Error(`org show: unknown argument "${arg}"`);
   }
   const homes = await resolveCormidiaHomes({
-    ...(options.homeDir !== undefined ? { homeDir: options.homeDir } : {}),
-    ...(options.pointerPath !== undefined ? { pointerPath: options.pointerPath } : {}),
+    ...definedProps({ homeDir: options.homeDir }),
+    ...definedProps({ pointerPath: options.pointerPath }),
   });
   const authority = await resolveAuthority({ orgHome: homes.orgHome });
   printHomes({ ...homes, authority, authorityPreview: previewFor(authority.profile) }, json, "active");

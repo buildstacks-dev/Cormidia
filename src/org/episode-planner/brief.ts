@@ -1,14 +1,14 @@
-import { SECRET_PATTERNS } from "../../runtime/secret-patterns.js";
+import type { EpisodePlan } from "../../loop/episode-plan.js";
 import {
   EPISODE_PLAN_PROPOSAL_SCHEMA,
-  episodePlanProposalSchemaForOperations,
   episodeIntentHash,
+  episodePlanProposalSchemaForOperations,
 } from "../../loop/episode-plan.js";
-import type { EpisodePlan } from "../../loop/episode-plan.js";
 import type { EpisodeReplanRecord } from "../../loop/episode-replan.js";
+import { SECRET_PATTERNS } from "../../runtime/secret-patterns.js";
 import type { EpisodePlannerProposalRequest } from "./coordinator.js";
 
-export const MAX_EPISODE_PLANNER_BRIEF_BYTES = 512 * 1024;
+const MAX_EPISODE_PLANNER_BRIEF_BYTES = 512 * 1024;
 
 const DETERMINISTIC_PROPOSAL_CONTRACT = {
   mechanicalOverheadUsd: 0,
@@ -25,7 +25,7 @@ const DETERMINISTIC_PROPOSAL_CONTRACT = {
 
 /** Closed domain topology contract supplied by the caller. It is data the
  * planner is given before it generates, not prose the prompt has to carry. */
-export type EpisodePlanTopologyContract = Readonly<Record<string, unknown>>;
+type EpisodePlanTopologyContract = Readonly<Record<string, unknown>>;
 
 interface TopologyRuleLike {
   id: string;

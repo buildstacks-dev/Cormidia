@@ -44,7 +44,7 @@ export interface NarrativeMoment {
   evidence: string;
 }
 
-export interface NarrativeDeliveryStage {
+interface NarrativeDeliveryStage {
   boundary: string;
   status: "completed" | "invalidated";
   at: string;

@@ -1,9 +1,9 @@
-import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
-import { settlementKey } from "../runtime/telemetry.js";
 import { aggregateCost, normalizeUsageQuality, worstUsageQuality } from "../runtime/cost.js";
 import { classifyEnvelopeUsage } from "../runtime/runlog/envelope.js";
-import type { LedgerRowSource } from "./ledger-source.js";
+import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
+import { settlementKey } from "../runtime/telemetry.js";
 import type { ReportDetailFacts } from "./detail-source.js";
+import type { LedgerRowSource } from "./ledger-source.js";
 import type {
   CompletionIntegrity,
   ReportSessionDetailV1,
@@ -12,8 +12,9 @@ import type {
   ReportUsageQuality,
   SourceRefView,
 } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface GroupedSessions {
+interface GroupedSessions {
   sessions: ReportSessionDetailV1[];
   unattributed: ReportTurnV1[];
 }
@@ -84,9 +85,9 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
     provider_turn_id: row.providerTurnId ?? null,
     execution_step_id: row.executionStepId ?? null,
     episode_id: row.episodeId ?? envelope?.episode_id ?? null,
-    ...(planVersion !== undefined ? { plan_version: planVersion } : {}),
-    ...(planStepId !== undefined ? { plan_step_id: planStepId } : {}),
-    ...(assignmentSource !== undefined ? { assignment_source: assignmentSource } : {}),
+    ...definedProps({ plan_version: planVersion }),
+    ...definedProps({ plan_step_id: planStepId }),
+    ...definedProps({ assignment_source: assignmentSource }),
     trace_id: row.traceId ?? envelope?.trace_id ?? null,
     parent_task_id: row.parentTaskId ?? envelope?.parent_task_id ?? null,
     ticket: envelope?.ticket ?? null,
@@ -155,9 +156,9 @@ function envelopeTurn(
     provider_turn_id: null,
     execution_step_id: envelope.execution_step_ids?.[0] ?? null,
     episode_id: envelope.episode_id ?? null,
-    ...(envelope.plan_version !== undefined ? { plan_version: envelope.plan_version } : {}),
-    ...(envelope.plan_step_id !== undefined ? { plan_step_id: envelope.plan_step_id } : {}),
-    ...(envelope.assignment_source !== undefined ? { assignment_source: envelope.assignment_source } : {}),
+    ...definedProps({ plan_version: envelope.plan_version }),
+    ...definedProps({ plan_step_id: envelope.plan_step_id }),
+    ...definedProps({ assignment_source: envelope.assignment_source }),
     trace_id: envelope.trace_id,
     parent_task_id: envelope.parent_task_id ?? null,
     ticket: envelope.ticket ?? null,

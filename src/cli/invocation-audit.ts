@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
+import { resolveCormidiaHomes } from "../org/home.js";
 import {
   beginCliInvocation,
   finishCliInvocation,
@@ -8,7 +9,6 @@ import {
   type RunningCliInvocation,
 } from "../runtime/invocation-ledger.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
-import { resolveCormidiaHomes } from "../org/home.js";
 
 interface InvocationAuditState {
   readonly startedAt: Date;
@@ -29,7 +29,7 @@ interface InvocationAuditState {
   provenance?: Record<string, string>;
 }
 
-export interface CliInvocationResult {
+interface CliInvocationResult {
   outcome?: string;
   org?: string;
   app?: string;
@@ -237,7 +237,7 @@ export function reportCliInvocationFailure(error: unknown): void {
   });
 }
 
-export function redactArgv(argv: readonly string[]): string[] {
+function redactArgv(argv: readonly string[]): string[] {
   const redacted: string[] = [];
   let redactNext = false;
   for (const raw of argv) {
@@ -335,10 +335,3 @@ function valueAfter(args: readonly string[], flag: string): string | undefined {
   }
   return undefined;
 }
-
-/** Explicit policy anchor for docs/tests: a command with neither an explicit
- * nor a validated active state home cannot create a durable org-scoped row. */
-export const NO_STATE_HOME_AUDIT_POLICY =
-  "help/version/no-command and commands with no explicit or safely resolved state home are not journaled; " +
-  "a command that removes its own audit state home redirects its terminal row to a durable ledger outside " +
-  "that tree, so the row is still written and cannot recreate the removed state home";

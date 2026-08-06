@@ -17,7 +17,9 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { resolveAppRoles } from "../org/app-execution-policy.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
+import { runtimePolicyForApp } from "../org/apps.js";
 import { rollupLearningSpend } from "../org/budget.js";
 import type { CormidiaHomes } from "../org/home.js";
 import {
@@ -31,6 +33,7 @@ import {
 import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import type { CandidateArtifact } from "../org/learning/candidate.js";
 import { orgLearningRoot, readManifest, scopeApp } from "../org/learning/concepts.js";
+import { readEpisodeRecords, type EpisodeRecord } from "../org/learning/episode.js";
 import { listEvalResults } from "../org/learning/eval-result.js";
 import {
   declareExperiment,
@@ -39,7 +42,6 @@ import {
   type ExperimentGuardrail,
   type ExperimentRecord,
 } from "../org/learning/experiment.js";
-import { readEpisodeRecords, type EpisodeRecord } from "../org/learning/episode.js";
 import {
   computeSystemFingerprint,
   deriveFingerprintWithBundle,
@@ -52,10 +54,9 @@ import { loadLearningPolicy, type LearningPolicy, type TierPromoteRule } from ".
 import { createLoopReplayExecutor, gitIn, renderCandidateOverlay } from "../org/learning/replay.js";
 import { eligibleFixtures, runExperiment } from "../org/learning/runner.js";
 import { loadRoles } from "../org/roles.js";
-import { runtimePolicyForApp } from "../org/apps.js";
-import { resolveAppRoles } from "../org/app-execution-policy.js";
 import { getRuntime } from "../runtime/registry.js";
 import { flag, learningRoots, parseFlags, requireFlag, type Flags } from "./learn-activation.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 // ---------------------------------------------------------------------------
 // experiment
@@ -253,7 +254,7 @@ async function run(homes: CormidiaHomes, args: string[]): Promise<number> {
   const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
   const overlay = await renderCandidateOverlay({
     orgHome: homes.orgHome,
-    ...(appWorkdir !== undefined ? { appWorkdir } : {}),
+    ...definedProps({ appWorkdir }),
     candidateId: experiment.candidate_ref,
     policy,
   });
@@ -480,7 +481,7 @@ export async function canaryStatusLines(
   for (const root of roots) {
     const manifest = await readRootManifest(root.kind, {
       orgHome: homes.orgHome,
-      ...(root.appWorkdir !== undefined ? { appWorkdir: root.appWorkdir } : {}),
+      ...definedProps({ appWorkdir: root.appWorkdir }),
     });
     const meta = manifest?.canary_meta ?? null;
     if (meta === null) continue;
@@ -622,7 +623,7 @@ async function armFingerprints(
     orgHome: homes.orgHome,
     app: {
       name: appName,
-      ...(workdir !== undefined ? { workdir } : {}),
+      ...definedProps({ workdir }),
       ...(appEntry !== undefined ? { budgetUsdMonth: appEntry.budgetUsdMonth } : {}),
     },
     roles: Object.fromEntries(rolesFile.roles.map((role) => [role.name, role])),

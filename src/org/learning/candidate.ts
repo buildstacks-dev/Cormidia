@@ -24,8 +24,8 @@
 
 import type { LoopClaim, LoopTier } from "../memory.js";
 import { isReservedLoopScope, isValidLoopScope } from "../memory.js";
-import type { ExperimentRecord } from "./experiment.js";
 import type { EvalVerdict } from "./eval-result.js";
+import type { ExperimentRecord } from "./experiment.js";
 import {
   optionalString,
   requireBoolean,
@@ -36,6 +36,7 @@ import {
   requireString,
   requireStringArray,
 } from "./validate.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 export const CANDIDATE_DESTINATIONS = [
   "okf_concept",
@@ -97,7 +98,7 @@ export function validateCandidateArtifact(value: unknown): CandidateArtifact {
     event_ids: requireStringArray(spec, "event_ids", source),
     evidence_refs: requireStringArray(spec, "evidence_refs", source),
     content_hash: contentHash,
-    ...(draft !== undefined ? { draft } : {}),
+    ...definedProps({ draft }),
   };
 }
 
@@ -105,13 +106,13 @@ export function validateCandidateArtifact(value: unknown): CandidateArtifact {
 // the conditional experiment gate (design §9.1)
 // ---------------------------------------------------------------------------
 
-export interface ExperimentRequirement {
+interface ExperimentRequirement {
   required: boolean;
   /** Which rule triggered it — for the refusal/report message. */
   reason: "claims_efficacy" | "tier_t2_t3_activation" | null;
 }
 
-export function experimentRequirement(
+function experimentRequirement(
   candidate: Pick<CandidateArtifact, "claims_efficacy" | "proposed_tier">,
 ): ExperimentRequirement {
   if (candidate.claims_efficacy) return { required: true, reason: "claims_efficacy" };
@@ -121,7 +122,7 @@ export function experimentRequirement(
   return { required: false, reason: null };
 }
 
-export interface CandidateProceedOptions {
+interface CandidateProceedOptions {
   /** The resolved experiment the candidate references, when it references
    *  one. The caller resolves the ref (readExperimentRecord) so this check
    *  stays pure and testable. */
@@ -132,7 +133,7 @@ export interface CandidateProceedOptions {
   humanWaiver?: string;
 }
 
-export interface CandidateEvaluability {
+interface CandidateEvaluability {
   /** The claim the candidate's activation may carry today. Always
    *  `authorized` at this boundary — `validated` exists only downstream of a
    *  completed experiment with verdict `improved` (claimAfterEval). */

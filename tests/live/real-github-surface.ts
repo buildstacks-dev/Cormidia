@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { GhCliOps, type GhIssue, type GhOps, type GhPullRequest } from "../../src/loop/github.js";
+import { toErrorMessage as errorMessage } from "../../src/runtime/error-message.js";
 import type { GithubConformanceSurface } from "../fixtures/github-double/conformance/suite.js";
 
 const execFileAsync = promisify(execFile);
@@ -165,10 +166,6 @@ export class RealGithubConformanceSurface implements GithubConformanceSurface {
   private async head(): Promise<string> {
     return (await run(this.checkout, "git", ["rev-parse", "HEAD"])).trim();
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 async function run(cwd: string, command: string, args: string[]): Promise<string> {

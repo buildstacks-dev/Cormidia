@@ -11,7 +11,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import type { AppEntry } from "./apps.js";
 
-export interface ResolveAppWorkdirOptions {
+interface ResolveAppWorkdirOptions {
   explicitWorkdir?: string;
   orgRoot?: string;
   runtimeHome?: string;
@@ -30,7 +30,7 @@ export function resolveAppWorkdir(app: AppEntry, options: ResolveAppWorkdirOptio
   );
 }
 
-export function appWorkdirCandidates(app: AppEntry, options: ResolveAppWorkdirOptions = {}): string[] {
+function appWorkdirCandidates(app: AppEntry, options: ResolveAppWorkdirOptions = {}): string[] {
   const orgRoot = resolve(options.orgRoot ?? process.cwd());
   const runtimeHome = options.runtimeHome ?? join(homedir(), ".cormidia", "cormidia");
   const siblingRoot = dirname(orgRoot);

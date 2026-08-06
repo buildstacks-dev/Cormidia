@@ -2,18 +2,19 @@
 // reads the current GitHub work surface and changes nothing until the operator
 // repeats the app name in --confirm alongside --execute.
 
-import { GhCliOps } from "../loop/github.js";
-import { executeAppReset, finalizeInterruptedAppReset, planAppReset, type AppResetPlan } from "../org/app-reset.js";
-import { resolveCormidiaHomes } from "../org/home.js";
-import { executeAppPromotion, planAppPromotion, verifyApp } from "../org/app-lifecycle.js";
-import { latestResetArchiveForApp } from "../org/onboarding-answers.js";
-import { stableJson } from "../org/lifecycle.js";
-import { extractHomeFlags } from "./home-flags.js";
 import { dirname, join, resolve } from "node:path";
 import type { GhOps } from "../loop/github.js";
+import { GhCliOps } from "../loop/github.js";
+import { executeAppPromotion, planAppPromotion, verifyApp } from "../org/app-lifecycle.js";
+import { executeAppReset, finalizeInterruptedAppReset, planAppReset, type AppResetPlan } from "../org/app-reset.js";
+import { resolveCormidiaHomes } from "../org/home.js";
+import { stableJson } from "../org/lifecycle.js";
+import { latestResetArchiveForApp } from "../org/onboarding-answers.js";
 import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface AppCommandOptions {
+interface AppCommandOptions {
   ghFactory?: (repo: string) => GhOps;
   /** Test seam for the non-billable runtime-readiness probe used by `verify`
    * and `promote`. Unset in production so verify runs the real
@@ -89,7 +90,7 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
     appName,
     gh: options.ghFactory?.(app.repo) ?? new GhCliOps(app.repo),
     ...(force ? { force: true } : {}),
-    ...(archiveRoot !== undefined ? { archiveRoot } : {}),
+    ...definedProps({ archiveRoot }),
   };
   const plan = await planAppReset(input);
   if (json && !execute) console.log(stableJson(plan).trimEnd());
@@ -141,14 +142,14 @@ async function verify(
     synchronize: true,
     writeReadiness: true,
     githubFactory: options.ghFactory ?? ((repo) => new GhCliOps(repo)),
-    ...(options.readinessProbe !== undefined ? { readinessProbe: options.readinessProbe } : {}),
+    ...definedProps({ readinessProbe: options.readinessProbe }),
   });
   if (json) console.log(stableJson(report).trimEnd());
   else printVerification(report);
   return report.status === "ready" ? 0 : 2;
 }
 
-export interface ParsedAppVerifyArgs {
+interface ParsedAppVerifyArgs {
   appName: string;
   json: boolean;
 }
@@ -195,7 +196,7 @@ async function promote(
     appName,
     to: "live" as const,
     githubFactory: options.ghFactory ?? ((repo) => new GhCliOps(repo)),
-    ...(options.readinessProbe !== undefined ? { readinessProbe: options.readinessProbe } : {}),
+    ...definedProps({ readinessProbe: options.readinessProbe }),
   };
   const plan = await planAppPromotion(input);
   if (!execute) {

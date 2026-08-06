@@ -25,15 +25,24 @@ import { execFileSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { DEFAULT_LOOP_POLICY, loadGateCommands } from "../../loop/driver.js";
+import { writeLoopFileOnce } from "../../loop/durable.js";
 import {
-  fingerprint,
   efficiencyEpisodeDir,
+  fingerprint,
   readExecutionSteps,
   readRouteRecord,
   type AuthorizedPass,
   type ExecutionStepRecord,
 } from "../../loop/efficiency.js";
-import { writeLoopFileOnce } from "../../loop/durable.js";
+import {
+  readEpisodePlanExecutionJournal,
+  type EpisodePlanExecutionJournal,
+  type EpisodePlanExecutionResult,
+  type EpisodeStepCompletedOutcome,
+  type EpisodeStepExecutionContext,
+  type EpisodeStepFailedOutcome,
+} from "../../loop/episode-plan-executor.js";
 import {
   deriveEpisodeSafetyRoute,
   estimateEpisodePlanBudget,
@@ -49,17 +58,8 @@ import {
   type ProposedProviderTurnStep,
   type ProviderTurnStep,
 } from "../../loop/episode-plan.js";
-import {
-  readEpisodePlanExecutionJournal,
-  type EpisodePlanExecutionJournal,
-  type EpisodePlanExecutionResult,
-  type EpisodeStepCompletedOutcome,
-  type EpisodeStepExecutionContext,
-  type EpisodeStepFailedOutcome,
-} from "../../loop/episode-plan-executor.js";
 import { publishEpisodePlanRevision, requestEpisodeReplan } from "../../loop/episode-replan.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../../loop/episode-route.js";
-import { loadGateCommands, DEFAULT_LOOP_POLICY } from "../../loop/driver.js";
 import { criterionTestMapFromContractText, parseAcceptanceCriteria } from "../../loop/loop.js";
 import { executePipeline } from "../../loop/pipeline.js";
 import { loadPolicy, resolveTier } from "../../loop/policy.js";
@@ -68,25 +68,25 @@ import { parseVerdictEither, validateVerdict, VERDICT_SCHEMAS, type ReviewVerdic
 import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../../runtime/assignment.js";
 import { isRuntimeCapability, type RuntimeCapability } from "../../runtime/capabilities.js";
 import { defaultGate } from "../../runtime/gate.js";
-import { readEnvelope } from "../../runtime/runlog/envelope.js";
 import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../../runtime/readiness.js";
+import { readEnvelope } from "../../runtime/runlog/envelope.js";
 import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../../runtime/types.js";
 import type { AppEntry } from "../apps.js";
 import { assembleContext } from "../context.js";
-import { resolveAppAssignments } from "../execution-assignments.js";
-import { readPersistedEpisodeIntent, prepareEpisodePlan } from "../episode-planner/coordinator.js";
+import { prepareEpisodePlan, readPersistedEpisodeIntent } from "../episode-planner/coordinator.js";
 import { executeAcceptedEpisodePlan } from "../episode-planner/execution.js";
 import { buildEpisodeIntent, createEpisodePlanningPolicy } from "../episode-planner/policy.js";
-import { orgLearningRoot, appLearningRoot, renderActivatedConcept } from "./concepts.js";
+import { resolveAppAssignments } from "../execution-assignments.js";
+import { parseOkfDocument } from "../memory.js";
 import { conceptDraftPath, findCandidateArtifact } from "./candidate-store.js";
 import type { CandidateArtifact } from "./candidate.js";
+import { appLearningRoot, orgLearningRoot, renderActivatedConcept } from "./concepts.js";
 import { gradeBuildOutcome, type EvalFixture } from "./eval-fixture.js";
-import type { ExperimentRecord } from "./experiment.js";
 import { sanitizeIdSegment } from "./events.js";
+import type { ExperimentRecord } from "./experiment.js";
 import type { LearningPolicy } from "./policy.js";
 import { renderConcept } from "./resolver.js";
-import { parseOkfDocument } from "../memory.js";
 
 // Replay runs land under the reserved REPLAY_RUNLOG_APP namespace declared
 // in capture.ts — the projectors skip it so replays never contaminate the
@@ -95,10 +95,10 @@ import { parseOkfDocument } from "../memory.js";
 import { REPLAY_RUNLOG_APP } from "./capture.js";
 export { REPLAY_RUNLOG_APP };
 
-export type ReplayArm = "control" | "treatment";
-export type ReplayMode = "targeted" | "full";
+type ReplayArm = "control" | "treatment";
+type ReplayMode = "targeted" | "full";
 
-export interface ReplayAttemptRequest {
+interface ReplayAttemptRequest {
   fixture: EvalFixture;
   arm: ReplayArm;
   /** 0 for the targeted pre-check, 1..N for full paired trials. */
@@ -126,7 +126,7 @@ export interface ReplayExecutor {
   attempt(request: ReplayAttemptRequest): Promise<ReplayAttempt>;
 }
 
-export interface LoopReplayExecutorOptions {
+interface LoopReplayExecutorOptions {
   orgHome: string;
   stateHome: string;
   /** Local clone containing the fixture's seed commit (fetched by the CLI
@@ -159,7 +159,7 @@ export interface LoopReplayExecutorOptions {
   }) => void | Promise<void>;
 }
 
-export const REPLAY_OPERATION_CATALOG = {
+const REPLAY_OPERATION_CATALOG = {
   build: "learning-replay/build",
   review: "learning-replay/review",
   fix: "learning-replay/fix",
@@ -378,7 +378,7 @@ function validateReplayRequest(options: LoopReplayExecutorOptions, request: Repl
   }
 }
 
-export function replayEpisodeIdForAttempt(request: ReplayAttemptRequest): string {
+function replayEpisodeIdForAttempt(request: ReplayAttemptRequest): string {
   return `learning-replay:${stableHash({
     experiment: request.experiment.experiment_id,
     fixture: request.fixture.fixture_id,

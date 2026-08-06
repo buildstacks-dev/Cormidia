@@ -1,4 +1,5 @@
-export interface HomeFlags {
+import { definedProps } from "../runtime/optional-properties.js";
+interface HomeFlags {
   orgHome?: string;
   stateHome?: string;
   rest: string[];
@@ -18,8 +19,8 @@ export function extractHomeFlags(args: string[], command: string): HomeFlags {
     else rest.push(arg);
   }
   return {
-    ...(orgHome !== undefined ? { orgHome } : {}),
-    ...(stateHome !== undefined ? { stateHome } : {}),
+    ...definedProps({ orgHome }),
+    ...definedProps({ stateHome }),
     rest,
   };
 }

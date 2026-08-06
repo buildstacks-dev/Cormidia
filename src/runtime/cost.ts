@@ -55,7 +55,7 @@ export function worstUsageQuality(left: string | undefined, right: string | unde
 /** Worst-wins across a set. An empty set is `unavailable` — absence of evidence
  *  is not evidence of completeness. A set containing only mechanical passes is
  *  `none`, which is a known zero. */
-export function aggregateUsageQuality(qualities: readonly (string | undefined)[]): UsageQuality {
+function aggregateUsageQuality(qualities: readonly (string | undefined)[]): UsageQuality {
   if (qualities.length === 0) return "unavailable";
   return qualities.reduce<UsageQuality>((worst, quality) => worstUsageQuality(worst, quality), "none");
 }
@@ -71,10 +71,10 @@ export function aggregateUsageQuality(qualities: readonly (string | undefined)[]
  *                   must never be presented as zero.
  * - `unavailable` — provider turns exist and none has observable usage.
  */
-export type CostCoverage = "none" | "complete" | "partial" | "unavailable";
+type CostCoverage = "none" | "complete" | "partial" | "unavailable";
 
 /** One activity's contribution to an aggregate. */
-export interface CostContribution {
+interface CostContribution {
   /** Authoritatively recorded cost, or `null` when a genuine provider turn's
    *  usage could not be observed. A mechanical pass contributes 0 with
    *  `quality: "none"` — that is a known zero, not an unknown. */
@@ -101,22 +101,6 @@ export interface CostAggregate {
   coverage: CostCoverage;
   /** Worst-wins quality across provider turns; `none` when there are none. */
   usage_quality: UsageQuality;
-}
-
-/** A fresh empty aggregate. Deliberately a function, not a shared const: the
- *  value carries a mutable `unknown_refs` array, and handing the same object to
- *  every caller would let one of them poison the rest. */
-export function emptyCostAggregate(): CostAggregate {
-  return {
-    known_cost_usd: 0,
-    provider_turns: 0,
-    known_turns: 0,
-    unknown_turns: 0,
-    unknown_refs: [],
-    mechanical_passes: 0,
-    coverage: "none",
-    usage_quality: "none",
-  };
 }
 
 /**
@@ -173,28 +157,6 @@ export function aggregateCost(contributions: readonly CostContribution[]): CostA
     mechanical_passes: mechanical,
     coverage,
     usage_quality: providerTurns === 0 ? "none" : aggregateUsageQuality(qualities),
-  };
-}
-
-/** Merge already-computed aggregates without double-counting or losing refs. */
-export function mergeCostAggregates(parts: readonly CostAggregate[]): CostAggregate {
-  if (parts.length === 0) return emptyCostAggregate();
-  const knownTurns = parts.reduce((sum, part) => sum + part.known_turns, 0);
-  const providerTurns = parts.reduce((sum, part) => sum + part.provider_turns, 0);
-  const unknownTurns = providerTurns - knownTurns;
-  return {
-    known_cost_usd: roundCost(parts.reduce((sum, part) => sum + part.known_cost_usd, 0)),
-    provider_turns: providerTurns,
-    known_turns: knownTurns,
-    unknown_turns: unknownTurns,
-    unknown_refs: [...new Set(parts.flatMap((part) => part.unknown_refs))].sort(),
-    mechanical_passes: parts.reduce((sum, part) => sum + part.mechanical_passes, 0),
-    coverage:
-      providerTurns === 0 ? "none" : unknownTurns === 0 ? "complete" : knownTurns === 0 ? "unavailable" : "partial",
-    usage_quality:
-      providerTurns === 0
-        ? "none"
-        : aggregateUsageQuality(parts.filter((part) => part.provider_turns > 0).map((part) => part.usage_quality)),
   };
 }
 

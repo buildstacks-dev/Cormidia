@@ -2,15 +2,16 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { runtimeCapabilityProfile, type RuntimeCapabilityProfile } from "../runtime/capabilities.js";
 import { validateTurnExecutionFacts } from "../runtime/assignment.js";
-import type { ContextBundle, ContextComponent, RuntimeKind } from "../runtime/types.js";
+import { runtimeCapabilityProfile, type RuntimeCapabilityProfile } from "../runtime/capabilities.js";
 import { runPaths } from "../runtime/runlog/paths.js";
+import type { ContextBundle, ContextComponent, RuntimeKind } from "../runtime/types.js";
 import { renderContextBundle, renderTurnExecutionFacts } from "../runtime/worktree-context.js";
 import { writeLoopFileAtomic } from "./durable.js";
 import { efficiencyEpisodeDir, fingerprint, type EfficiencyRoute } from "./efficiency.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export type ContextCategory =
+type ContextCategory =
   | "authority"
   | "execution"
   | "taste"
@@ -26,7 +27,7 @@ export type ContextCategory =
   | "brief"
   | "template";
 
-export interface ContextManifestComponent {
+interface ContextManifestComponent {
   component_id: string;
   category: ContextCategory;
   source: string;
@@ -78,14 +79,14 @@ interface PreparedEntry {
   manifest: ContextManifestComponent;
 }
 
-export class ContextBudgetExceededError extends Error {
+class ContextBudgetExceededError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ContextBudgetExceededError";
   }
 }
 
-export const CONTEXT_ROUTE_CAPS: Readonly<Record<EfficiencyRoute, number>> = {
+const CONTEXT_ROUTE_CAPS: Readonly<Record<EfficiencyRoute, number>> = {
   deterministic: 64 * 1024,
   quick: 64 * 1024,
   standard: 128 * 1024,
@@ -164,8 +165,8 @@ export async function writeContextManifest(input: {
     episode_id: input.episodeId,
     app: input.app,
     run_id: input.runId,
-    ...(input.planVersion !== undefined ? { plan_version: input.planVersion } : {}),
-    ...(input.planStepId !== undefined ? { plan_step_id: input.planStepId } : {}),
+    ...definedProps({ plan_version: input.planVersion }),
+    ...definedProps({ plan_step_id: input.planStepId }),
     route,
     render_sha256: fingerprint({ context: renderedContext, brief: preparedBrief, template: preparedTemplate ?? null }),
     rendered_bytes: Buffer.byteLength(rendered),
@@ -191,17 +192,11 @@ export async function writeContextManifest(input: {
     relativeRef: "context-manifest.json",
     context: preparedContext,
     brief: preparedBrief,
-    ...(preparedTemplate !== undefined ? { template: preparedTemplate } : {}),
+    ...definedProps({ template: preparedTemplate }),
   };
 }
 
-export async function readContextManifest(root: string, app: string, runId: string): Promise<ContextManifest> {
-  return JSON.parse(
-    await readFile(join(runPaths(root, app, runId).dir, "context-manifest.json"), "utf8"),
-  ) as ContextManifest;
-}
-
-export interface ContextExplanation {
+interface ContextExplanation {
   episode_id: string;
   run_id: string;
   route: EfficiencyRoute;
@@ -359,7 +354,7 @@ function preparedContextBundle(context: ContextBundle, entries: PreparedEntry[])
       rendered: entry.submitted,
       inclusionReason: entry.input.inclusionReason,
       requirement: entry.input.requirement,
-      ...(entry.input.cacheIdentity !== undefined ? { cacheIdentity: entry.input.cacheIdentity } : {}),
+      ...definedProps({ cacheIdentity: entry.input.cacheIdentity }),
     }));
   return {
     ...(context.authority !== undefined && authority !== undefined
@@ -368,7 +363,7 @@ function preparedContextBundle(context: ContextBundle, entries: PreparedEntry[])
     taste,
     memoryExcerpts,
     components,
-    ...(context.execution !== undefined ? { execution: context.execution } : {}),
+    ...definedProps({ execution: context.execution }),
   };
 }
 

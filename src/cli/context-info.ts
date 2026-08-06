@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { authorityEvidence, resolveAuthority } from "../org/authority.js";
 import { ORG_HOME_DEFINITION, PACKAGE_ROOT, resolveCormidiaHomes, STATE_HOME_DEFINITION } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
-import { authorityEvidence, resolveAuthority } from "../org/authority.js";
 
 export async function cmdContext(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "context");

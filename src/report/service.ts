@@ -3,7 +3,7 @@ import { buildReport } from "./project.js";
 import { renderReportHtml } from "./render-html.js";
 import type { ReportQuery, ReportSessionDetailV1, ReportSnapshotV1 } from "./types.js";
 
-export interface ReportServiceOptions {
+interface ReportServiceOptions {
   orgName: string;
   stateHome: string;
   appsFile: AppsFile;
@@ -13,7 +13,7 @@ export interface ReportServiceOptions {
   maxPageSize?: number;
 }
 
-export interface ReportSessionPage {
+interface ReportSessionPage {
   source_fingerprint: string;
   total: number;
   returned: number;

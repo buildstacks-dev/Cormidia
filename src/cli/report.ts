@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { open, mkdir, rename, rm } from "node:fs/promises";
+import { mkdir, open, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { buildReport } from "../report/project.js";

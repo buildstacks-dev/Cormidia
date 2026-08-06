@@ -1,7 +1,7 @@
-import type { Finding } from "./verdicts.js";
-import type { CriterionTestMap, GateRunResult } from "./qgates.js";
 import type { SessionHandle, TurnAssignment } from "../runtime/types.js";
 import type { EpisodeReplanEventKind } from "./episode-replan.js";
+import type { CriterionTestMap, GateRunResult } from "./qgates.js";
+import type { Finding } from "./verdicts.js";
 
 export type LoopPhase = "ready" | "building" | "gates" | "reviewing" | "shipping" | "merged" | "returned" | "blocked";
 
@@ -48,7 +48,7 @@ export interface ReleaseConfig {
 /** Data the loop returns when a merged milestone requires a release action.
  *  The loop never raises approvals itself (one-way imports): the org layer
  *  turns this into a critical-op item on the approval queue. */
-export interface ReleaseTrigger {
+interface ReleaseTrigger {
   kind: ReleaseKind;
   command: string;
   owner: ReleaseOwner;
@@ -65,7 +65,7 @@ export interface ScorecardEvent {
   value: number;
 }
 
-export interface LoopEpisodeReplan {
+interface LoopEpisodeReplan {
   kind: EpisodeReplanEventKind;
   status: "pending" | "accepted" | "rejected";
   revisionVersion: number | null;
@@ -87,7 +87,7 @@ export interface LoopContinuationDecision {
  *  must treat absence as `approval`. The two differ on ONE rule: a denied
  *  approval resumes the turn without the operation, while a denied budget
  *  grant has nothing left to resume with and terminalizes the ticket. */
-export type LoopPauseKind = "approval" | "budget";
+type LoopPauseKind = "approval" | "budget";
 
 /** A critical operation that was requested during a turn and did not happen.
  *
@@ -102,7 +102,7 @@ export type LoopPauseKind = "approval" | "budget";
  *  - `denied`  — a human decided against it; the turn resumed without it.
  *  - `expired` — nobody decided within the TTL; the turn resolved blocked with
  *                its artifacts preserved (v2.15 (2)). */
-export type SuppressionDisposition = "denied" | "expired";
+type SuppressionDisposition = "denied" | "expired";
 
 export interface SuppressedOperation {
   approvalId: string;
@@ -193,7 +193,7 @@ export interface LoopItem {
   releaseTrigger?: ReleaseTrigger;
 }
 
-export interface LoopDeliveryUnitMember {
+interface LoopDeliveryUnitMember {
   issueNumber: number;
   ticketRef: string;
   contentHash: string;

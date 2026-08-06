@@ -12,7 +12,7 @@
 // serializeOkfDocument runs the loader's validator at write time, so the
 // writer can no longer produce a doc its own reader discards.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   OkfParseError,
@@ -22,23 +22,23 @@ import {
   type OkfDocument,
 } from "./memory.js";
 
-export interface DenialLesson {
+interface DenialLesson {
   app: string;
   rule: string;
   reason: string;
   at: string; // ISO
 }
 
-export interface DenialLessonRecord extends DenialLesson {
+interface DenialLessonRecord extends DenialLesson {
   schema_version: 1;
   role: string;
 }
 
-export function denialLessonsPath(orgHome: string, role: string): string {
+function denialLessonsPath(orgHome: string, role: string): string {
   return join(orgHome, "memory", "roles", role, "denial-lessons.md");
 }
 
-export function denialLessonsLedgerPath(orgHome: string, role: string): string {
+function denialLessonsLedgerPath(orgHome: string, role: string): string {
   return join(orgHome, "memory", "roles", role, "denial-lessons.jsonl");
 }
 

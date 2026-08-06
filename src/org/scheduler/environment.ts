@@ -7,7 +7,7 @@ import { delimiter, dirname, isAbsolute, resolve } from "node:path";
 
 export const DEFAULT_SCHEDULER_PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 export const SCHEDULER_REQUIRED_EXECUTABLES_ENV = "CORMIDIA_SCHEDULER_REQUIRED_EXECUTABLES";
-export const REQUIRED_SCHEDULER_TOOLS = ["gh"] as const;
+const REQUIRED_SCHEDULER_TOOLS = ["gh"] as const;
 
 export function resolveSchedulerRequiredExecutables(
   names: readonly string[] = REQUIRED_SCHEDULER_TOOLS,

@@ -6,39 +6,39 @@
 // (src/cli/roles.ts, src/cli/doctor.ts, ...). Adding a subcommand is a new
 // file + one registry line here — never a growing shared switch (M0.1).
 
-import { cmdRoles } from "./cli/roles.js";
-import { cmdApps } from "./cli/apps.js";
+import { cmdAnalyze } from "./cli/analyze.js";
 import { cmdApp } from "./cli/app.js";
 import { cmdApprovals } from "./cli/approvals.js";
-import { cmdAnalyze } from "./cli/analyze.js";
-import { cmdBootstrap } from "./cli/bootstrap.js";
+import { cmdApps } from "./cli/apps.js";
 import { cmdBootstrapPublish } from "./cli/bootstrap-publish.js";
+import { cmdBootstrap } from "./cli/bootstrap.js";
 import { cmdBudget } from "./cli/budget.js";
+import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.js";
 import { cmdDispatch } from "./cli/dispatch.js";
-import { cmdEpisode } from "./cli/episode.js";
 import { cmdDoctorArgs } from "./cli/doctor.js";
+import { cmdEpisode } from "./cli/episode.js";
+import { reportCliInvocation, reportCliInvocationFailure, runAuditedCliInvocation } from "./cli/invocation-audit.js";
+import { jsonCliFailure, runJsonCliCommand } from "./cli/json-failure.js";
 import { cmdLearn } from "./cli/learn.js";
 import { cmdLoop } from "./cli/loop.js";
+import { cmdNarrative } from "./cli/narrative.js";
 import { cmdNewApp } from "./cli/new-app.js";
-import { cmdPlan } from "./cli/plan.js";
-import { cmdPipelines } from "./cli/pipelines.js";
-import { cmdPruneRuns } from "./cli/prune-runs.js";
-import { cmdRetro } from "./cli/retro.js";
-import { cmdRunRole } from "./cli/run-role.js";
-import { cmdStatus } from "./cli/status.js";
-import { cmdPublication } from "./cli/publication.js";
-import { cmdRelease } from "./cli/release.js";
-import { cmdTelemetry } from "./cli/telemetry.js";
-import { cmdTask } from "./cli/task.js";
-import { cmdOrg } from "./cli/org.js";
 import { cmdObjective } from "./cli/objective.js";
 import { cmdObserve } from "./cli/observe.js";
+import { cmdOrg } from "./cli/org.js";
+import { cmdPipelines } from "./cli/pipelines.js";
+import { cmdPlan } from "./cli/plan.js";
+import { cmdPruneRuns } from "./cli/prune-runs.js";
+import { cmdPublication } from "./cli/publication.js";
+import { cmdRelease } from "./cli/release.js";
 import { cmdReport } from "./cli/report.js";
-import { cmdNarrative } from "./cli/narrative.js";
+import { cmdRetro } from "./cli/retro.js";
+import { cmdRoles } from "./cli/roles.js";
+import { cmdRunRole } from "./cli/run-role.js";
 import { cmdScheduler } from "./cli/scheduler.js";
-import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.js";
-import { jsonCliFailure, runJsonCliCommand } from "./cli/json-failure.js";
-import { reportCliInvocation, reportCliInvocationFailure, runAuditedCliInvocation } from "./cli/invocation-audit.js";
+import { cmdStatus } from "./cli/status.js";
+import { cmdTask } from "./cli/task.js";
+import { cmdTelemetry } from "./cli/telemetry.js";
 
 const USAGE = `cormidia — org runtime for a team of AI agents
 

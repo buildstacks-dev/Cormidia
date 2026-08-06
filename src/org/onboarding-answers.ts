@@ -18,7 +18,7 @@ import {
   writeLifecycleFileAtomic,
 } from "./lifecycle.js";
 
-export interface StoredOnboardingAnswers {
+interface StoredOnboardingAnswers {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "onboarding-answers";
   app: string;
@@ -26,7 +26,7 @@ export interface StoredOnboardingAnswers {
   answers_sha256: string;
 }
 
-export interface OnboardingRecoverySource {
+interface OnboardingRecoverySource {
   app: string;
   answers: BootstrapAnswers;
 }
@@ -41,7 +41,7 @@ export function onboardingAnswersPath(stateHome: string, app: string): string {
  * cannot write the full lifecycle record itself: at scaffold time there is no
  * commit, remote, or managed clone yet. This pointer captures the inputs verify
  * needs to build the record once the operator has pushed. */
-export interface OnboardingSourceRecord {
+interface OnboardingSourceRecord {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "onboarding-source";
   app: string;
@@ -132,10 +132,6 @@ export async function readStoredOnboardingAnswers(stateHome: string, app: string
   return record.answers;
 }
 
-export async function readAnswersFrom(sourceIn: string, stateHome: string): Promise<BootstrapAnswers> {
-  return (await readOnboardingRecoverySource(sourceIn, stateHome)).answers;
-}
-
 export async function readOnboardingRecoverySource(
   sourceIn: string,
   stateHome: string,
@@ -181,7 +177,7 @@ export async function readOnboardingRecoverySource(
   return { app: record.app, answers: record.answers };
 }
 
-export async function readAnswersFromResetArchive(archiveIn: string): Promise<BootstrapAnswers> {
+async function readAnswersFromResetArchive(archiveIn: string): Promise<BootstrapAnswers> {
   const archive = await assertDirectoryNoSymlink(resolve(archiveIn), "reset archive");
   const manifestPath = join(archive, "manifest.json");
   await assertRegularFile(manifestPath, "reset archive manifest");

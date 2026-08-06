@@ -8,23 +8,24 @@
 // boundaries and reject standalone scope overrides.
 
 import { join } from "node:path";
-import { loadRoles } from "../org/roles.js";
 import { runRole } from "../loop/runRole.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { assembleContext } from "../org/context.js";
-import { runDispatchedTurn, turnWorktreeIdentity } from "../org/turn-runner.js";
-import type { ContextBundle, RoleConfig } from "../runtime/types.js";
 import { resolveCormidiaHomes } from "../org/home.js";
-import { extractHomeFlags } from "./home-flags.js";
-import { installProcessCancellation } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
+import { loadRoles } from "../org/roles.js";
 import {
   inspectStandaloneRunRoleScope,
   prepareStandaloneRunRoleScope,
   type PreparedStandaloneRunRoleScope,
 } from "../org/run-role-episode.js";
+import { runDispatchedTurn, turnWorktreeIdentity } from "../org/turn-runner.js";
+import type { ContextBundle, RoleConfig } from "../runtime/types.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { installProcessCancellation } from "./process-signal.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface RunRoleCommandDependencies {
+interface RunRoleCommandDependencies {
   /** Test seam at the provider-owning boundary. Dry-run must never call it. */
   runDispatchedTurn?: typeof runDispatchedTurn;
 }
@@ -104,7 +105,7 @@ export async function cmdRunRole(args: string[], dependencies: RunRoleCommandDep
       orgRoot: homes.orgHome,
       runtimeHome: homes.stateHome,
       signal: cancellation.signal,
-      ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+      ...definedProps({ parentTaskId }),
       ...(prepared.creatorScope === undefined ? {} : { creatorScope: prepared.creatorScope }),
       ...(networkAccess ? { networkAccess: true } : {}),
     }).finally(() => cancellation.dispose());
@@ -137,11 +138,11 @@ export async function cmdRunRole(args: string[], dependencies: RunRoleCommandDep
     role,
     app,
     turnId,
-    ...(templatePath !== undefined ? { templatePath } : {}),
+    ...definedProps({ templatePath }),
     context,
     dryRun: true,
     workdir: resolvedWorkdir,
-    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+    ...definedProps({ parentTaskId }),
     ...(networkAccess ? { networkAccess: true } : {}),
   });
   printPreview({

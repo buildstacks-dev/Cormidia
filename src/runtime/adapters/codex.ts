@@ -10,24 +10,25 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
+import { resolveTurnRequestAssignment } from "../assignment.js";
+import { gitWorktreeWritableRoots } from "../git-worktree-sandbox.js";
+import { withNonInteractiveEnv } from "../non-interactive-env.js";
+import { permissionModeFor, type CodexPermissionMode } from "../permission-mode.js";
+import { toolUseEvent } from "../tool-events.js";
 import type {
   Artifact,
   GateEscalation,
   Runtime,
   ToolAction,
-  TurnHooks,
   TurnAssignment,
+  TurnHooks,
   TurnRequest,
   TurnResult,
   TurnUsage,
 } from "../types.js";
-import { resolveTurnRequestAssignment } from "../assignment.js";
-import { gitWorktreeWritableRoots } from "../git-worktree-sandbox.js";
-import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { renderContextBundle } from "../worktree-context.js";
-import { toolUseEvent } from "../tool-events.js";
 import { codexAppServerArgs, startCodexGateBridge } from "./codex-gate-bridge.js";
-import { permissionModeFor, type CodexPermissionMode } from "../permission-mode.js";
+import { definedProps } from "../optional-properties.js";
 
 export type JsonRpcId = number | string;
 
@@ -49,7 +50,7 @@ export interface CodexAppServerLaunchOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-export type CodexAppServerClientFactory = (options?: CodexAppServerLaunchOptions) => CodexAppServerClient;
+type CodexAppServerClientFactory = (options?: CodexAppServerLaunchOptions) => CodexAppServerClient;
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -71,7 +72,7 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
     const codexBin = require.resolve("@openai/codex/bin/codex.js");
     this.child = spawn(process.execPath, [codexBin, ...(options.args ?? ["app-server", "--listen", "stdio://"])], {
       stdio: ["pipe", "pipe", "pipe"],
-      ...(options.env !== undefined ? { env: options.env } : {}),
+      ...definedProps({ env: options.env }),
       // Own a process group so closing the adapter reaches App Server children,
       // not only the immediate Node wrapper.
       detached: process.platform !== "win32",
@@ -222,7 +223,7 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
   }
 }
 
-export interface CodexRuntimeOptions {
+interface CodexRuntimeOptions {
   clientFactory?: CodexAppServerClientFactory;
   /** Explicit environment for App Server and its hook subprocesses. Eval
    *  campaigns use this to pin provider scratch under the campaign root. */
@@ -670,7 +671,7 @@ function turnParams(
  *  demands: every property is required, and an originally-optional field is
  *  made nullable instead. The loop's return-path validator treats an explicit
  *  null on an optional field as absent, so the round-trip stays lossless. */
-export function toCodexStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
+function toCodexStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
   return strictSchemaNode(schema, false) as Record<string, unknown>;
 }
 
@@ -754,7 +755,7 @@ async function routeApproval(
 /** All tool actions an approval covers. Only a legacyPatch can carry more
  *  than one (its `fileChanges` map is per-patch, many files); every other
  *  approval kind is single-action. The gate must see EVERY file. */
-export function normalizeCodexApprovalActions(
+function normalizeCodexApprovalActions(
   kind: "commandExecution" | "fileChange" | "legacyExec" | "legacyPatch",
   params: unknown,
   workdir: string,
@@ -765,7 +766,7 @@ export function normalizeCodexApprovalActions(
   return [normalizeCodexApprovalAction(kind, params, workdir)];
 }
 
-export function normalizeCodexApprovalAction(
+function normalizeCodexApprovalAction(
   kind: "commandExecution" | "fileChange" | "legacyExec" | "legacyPatch",
   params: unknown,
   workdir: string,
@@ -927,7 +928,7 @@ interface CodexPrice {
 const CODEX_FLAGSHIP_PRICE: CodexPrice = { inputPerMTok: 5, outputPerMTok: 30 };
 const GPT_5_6_LONG_CONTEXT_THRESHOLD = 272_000;
 
-export function codexModelPrice(model: string): CodexPrice {
+function codexModelPrice(model: string): CodexPrice {
   const m = model.toLowerCase();
   if (m.startsWith("gpt-5.6")) return CODEX_FLAGSHIP_PRICE;
   if (m.startsWith("gpt-5.5")) return { inputPerMTok: 5, outputPerMTok: 30 };
@@ -937,7 +938,7 @@ export function codexModelPrice(model: string): CodexPrice {
   return CODEX_FLAGSHIP_PRICE;
 }
 
-export function estimateCodexCostUsd(tokensIn: number, tokensOut: number, model: string): number {
+function estimateCodexCostUsd(tokensIn: number, tokensOut: number, model: string): number {
   const price = codexModelPrice(model);
   const longContext = model.toLowerCase().startsWith("gpt-5.6") && tokensIn > GPT_5_6_LONG_CONTEXT_THRESHOLD;
   const inputMultiplier = longContext ? 2 : 1;

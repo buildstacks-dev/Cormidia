@@ -4,13 +4,13 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { AppEntry } from "./apps.js";
+import { writeFileAtomic } from "./atomic.js";
 import {
   CompanyEventValidationError,
   parseCompanyLifecycleEvent,
   type CompanyEventKind,
   type CompanyEventValidationCode,
 } from "./event-schemas.js";
-import { writeFileAtomic } from "./atomic.js";
 
 /** Transport kinds: GitHub-polled kinds plus the file-drop `alert-webhook`
  *  inbox transport. `alert-webhook` remains the dedup/transport identity for
@@ -22,7 +22,7 @@ export type EventKind = "ticket-ready" | "pr-opened" | "ci-failed" | "release-sh
  *  (docs/scheduler/event-schemas.md) so roles.yaml stays the source of truth for who
  *  subscribes to `support-feedback` / `adoption-signal` / `health-alert` /
  *  `launch-calendar`. */
-export type RoutedEventKind = EventKind | CompanyEventKind;
+type RoutedEventKind = EventKind | CompanyEventKind;
 
 export interface DueEvent {
   kind: RoutedEventKind;
@@ -31,16 +31,16 @@ export interface DueEvent {
   payload: Record<string, unknown>;
 }
 
-export interface EventPollError {
+interface EventPollError {
   code: EventPollErrorCode;
   app: string;
   kind: EventKind;
   message: string;
 }
 
-export type EventPollErrorCode = "error_event_source" | "invalid_event_transport" | CompanyEventValidationCode;
+type EventPollErrorCode = "error_event_source" | "invalid_event_transport" | CompanyEventValidationCode;
 
-export interface PollEventsResult {
+interface PollEventsResult {
   events: DueEvent[];
   errors: EventPollError[];
 }
@@ -75,7 +75,7 @@ export function roleConsumedKey(eventKey: string, role: string): string {
   return `${eventKey}::role::${role}`;
 }
 
-export function dedupKey(kind: EventKind, payload: Record<string, unknown>): string {
+function dedupKey(kind: EventKind, payload: Record<string, unknown>): string {
   switch (kind) {
     case "ticket-ready":
       return `ticket-ready:${mustNumber(payload, "issueNumber")}`;

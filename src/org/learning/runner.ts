@@ -20,18 +20,19 @@
 // decideExperiment is the only path that writes a verdict — this module
 // produces trials, nothing else has authority.
 
+import { existsSync } from "node:fs";
 import { listCandidateArtifacts } from "./candidate-store.js";
+import { claimAfterEval } from "./candidate.js";
 import { orgLearningRoot } from "./concepts.js";
+import { listEvalFixtures, type EvalFixture } from "./eval-fixture.js";
 import type { EvalResult, EvalTrial } from "./eval-result.js";
 import { computeEvalResult, decideExperiment, evaluateGuardrail } from "./eval-result.js";
-import { listEvalFixtures, type EvalFixture } from "./eval-fixture.js";
 import {
   markExperimentRunning,
   readExperimentRecord,
   requireEfficacyProtocol,
   type ExperimentRecord,
 } from "./experiment.js";
-import { claimAfterEval } from "./candidate.js";
 import {
   interventionIdForCandidate,
   interventionPath,
@@ -40,9 +41,8 @@ import {
 } from "./intervention.js";
 import type { LearningPolicy } from "./policy.js";
 import type { ReplayAttempt, ReplayExecutor } from "./replay.js";
-import { existsSync } from "node:fs";
 
-export interface LearningSpendSnapshot {
+interface LearningSpendSnapshot {
   monthUsd: number;
   candidateUsd: number;
   experimentsThisMonth: number;
@@ -51,7 +51,7 @@ export interface LearningSpendSnapshot {
   experimentCounted: boolean;
 }
 
-export interface RunExperimentOptions {
+interface RunExperimentOptions {
   orgHome: string;
   policy: LearningPolicy;
   executor: ReplayExecutor;
@@ -72,7 +72,7 @@ export interface RunExperimentOptions {
   clock?: () => Date;
 }
 
-export interface ExperimentRunOutcome {
+interface ExperimentRunOutcome {
   experiment: ExperimentRecord;
   result: EvalResult;
   attempts: ReplayAttempt[];

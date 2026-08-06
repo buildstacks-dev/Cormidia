@@ -14,7 +14,7 @@ import { readEnvelope } from "./envelope.js";
 
 const DAY_MS = 86_400_000;
 
-export interface PruneResult {
+interface PruneResult {
   /** `<app>/<runId>` of every deleted run dir. */
   deleted: string[];
   /** Run dirs inspected and kept (fresh, running, or unprovable). */

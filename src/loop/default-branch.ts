@@ -19,6 +19,7 @@
 // and the import direction is one-way (`src/org` → `src/loop` → `src/runtime`).
 
 import { execFileSync } from "node:child_process";
+import { definedProps } from "../runtime/optional-properties.js";
 
 /** Git invocation environment shared by every resolver call: never prompt for
  *  credentials (a hung tick is indistinguishable from a wedged org) and never
@@ -72,7 +73,7 @@ export function baseRevisionForBranch(defaultBranch: string): BaseRevision {
   return { ref: remoteTrackingRef(defaultBranch), defaultBranch };
 }
 
-export interface ResolveRemoteDefaultBranchOptions {
+interface ResolveRemoteDefaultBranchOptions {
   /** Directory to run git in. Required when `target` is a remote *name*
    *  (`origin`); optional when it is a URL or path. */
   cwd?: string;
@@ -95,7 +96,7 @@ export function resolveRemoteDefaultBranch(target: string, options: ResolveRemot
   let output: string;
   try {
     output = execFileSync("git", ["ls-remote", "--symref", target, "HEAD"], {
-      ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
+      ...definedProps({ cwd: options.cwd }),
       env: GIT_ENV,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -129,7 +130,7 @@ export function resolveRemoteDefaultBranch(target: string, options: ResolveRemot
  *  the parser's own tests: the shape (`ref: refs/heads/<name>\tHEAD`) is a git
  *  output contract, and a silent parse miss here degrades into the exact
  *  guessed-`main` behavior this module exists to prevent. */
-export function parseSymrefHead(output: string): string | undefined {
+function parseSymrefHead(output: string): string | undefined {
   const match = /^ref:\s+refs\/heads\/(\S+)\s+HEAD$/m.exec(output);
   return match?.[1];
 }

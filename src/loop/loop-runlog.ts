@@ -26,11 +26,12 @@ import {
   admitEpisode,
   episodeIdFor,
   fingerprint,
-  recordMechanicalStep,
   readRouteRecord,
+  recordMechanicalStep,
   routeRecordPath,
   type ExecutionStatus,
 } from "./efficiency.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 /** Where a loop step's run record lives, plus the correlation id every event
  *  shares. Optional on the phase-option interfaces — absent means the step
@@ -68,7 +69,7 @@ export async function openPhaseRun(runlog: LoopRunlog, pipeline: string, pass: s
     runlog.episodeId ??
     episodeIdFor({
       app: runlog.app,
-      ...(runlog.ticket !== undefined ? { ticket: runlog.ticket } : {}),
+      ...definedProps({ ticket: runlog.ticket }),
       traceId: runlog.traceId,
     });
   const ticketPart = runlog.ticket !== undefined ? { ticket: runlog.ticket } : {};
@@ -105,7 +106,7 @@ export async function openPhaseRun(runlog: LoopRunlog, pipeline: string, pass: s
       pipeline,
       pass,
       role: ORCHESTRATOR_ROLE,
-      ...(runlog.authority !== undefined ? { authority: runlog.authority } : {}),
+      ...definedProps({ authority: runlog.authority }),
     },
     clock(),
   );

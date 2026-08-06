@@ -318,10 +318,3 @@ export interface Runtime {
   readonly kind: RuntimeKind;
   runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult>;
 }
-
-export class NotImplementedError extends Error {
-  constructor(what: string, pointer: string) {
-    super(`${what} is not implemented yet. See ${pointer}`);
-    this.name = "NotImplementedError";
-  }
-}

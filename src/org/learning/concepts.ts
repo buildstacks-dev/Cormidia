@@ -27,6 +27,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { writeFileAtomic } from "../atomic.js";
 import {
   isValidLoopScope,
   loadBundle,
@@ -35,14 +36,14 @@ import {
   type LoopStatus,
   type OkfDocument,
 } from "../memory.js";
-import { writeFileAtomic } from "../atomic.js";
 import type { LearningPolicy } from "./policy.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 // ---------------------------------------------------------------------------
 // roots and scope mapping
 // ---------------------------------------------------------------------------
 
-export type LearningRootKind = "org" | "app";
+type LearningRootKind = "org" | "app";
 
 export interface LearningRoot {
   kind: LearningRootKind;
@@ -127,7 +128,7 @@ export function proposalsDir(root: LearningRoot, kind: "skills" | "protocol" | "
 // placement: directory ↔ loop.status agreement (spec §3 table)
 // ---------------------------------------------------------------------------
 
-export type ConceptPlacement = "candidates" | "quarantine" | "bundle";
+type ConceptPlacement = "candidates" | "quarantine" | "bundle";
 
 const PLACEMENT_STATUS: Record<ConceptPlacement, LoopStatus[]> = {
   candidates: ["candidate"],
@@ -168,7 +169,7 @@ export function assertConceptPlacement(doc: OkfDocument, placement: ConceptPlace
   return doc;
 }
 
-export interface LoadedConcept {
+interface LoadedConcept {
   doc: OkfDocument;
   /** Path the doc was loaded from. */
   path: string;
@@ -213,7 +214,7 @@ export async function loadConceptDir(
 }
 
 /** Find one concept by `loop.id` across a root's bundle scope dirs. */
-export async function findBundleConcept(root: LearningRoot, conceptId: string): Promise<LoadedConcept | undefined> {
+async function findBundleConcept(root: LearningRoot, conceptId: string): Promise<LoadedConcept | undefined> {
   for (const dir of await listBundleScopeDirs(root)) {
     for (const concept of await loadConceptDir(dir, "bundle")) {
       if (concept.doc.frontmatter.loop?.id === conceptId) return concept;
@@ -244,7 +245,7 @@ export async function listBundleScopeDirs(root: LearningRoot): Promise<string[]>
 // manifest and version cuts (spec §8)
 // ---------------------------------------------------------------------------
 
-export interface ManifestHistoryEntry {
+interface ManifestHistoryEntry {
   version: string;
   /** Git commit of the cut. Null at publish time — committing the org home
    *  is the human's act, after the publisher writes. */
@@ -282,7 +283,7 @@ export interface LearningManifest {
   history: ManifestHistoryEntry[];
 }
 
-export function manifestPath(root: LearningRoot): string {
+function manifestPath(root: LearningRoot): string {
   return join(root.dir, "manifest.yaml");
 }
 
@@ -401,7 +402,7 @@ function nextVersion(history: ManifestHistoryEntry[], now: Date): string {
   return `${day}-${n}`;
 }
 
-export interface CutVersionInput {
+interface CutVersionInput {
   approvalRef?: string;
   concepts: string[];
   note?: string;
@@ -442,7 +443,7 @@ export async function cutManifestVersion(root: LearningRoot, input: CutVersionIn
     promoted: now.toISOString(),
     approval_ref: input.approvalRef ?? null,
     concepts: [...input.concepts],
-    ...(input.note !== undefined ? { note: input.note } : {}),
+    ...definedProps({ note: input.note }),
   };
   manifest.history.push(entry);
   manifest.bundle_version = entry.version;
@@ -455,7 +456,7 @@ export async function cutManifestVersion(root: LearningRoot, input: CutVersionIn
 // disable and rollback (spec §16 Resolver.disable/rollback; milestone M4)
 // ---------------------------------------------------------------------------
 
-export interface DisableResult {
+interface DisableResult {
   conceptId: string;
   path: string;
   version: string;
@@ -503,12 +504,12 @@ export async function disableConcept(
   const cut = await cutManifestVersion(root, {
     concepts: [conceptId],
     note: `disable ${conceptId}`,
-    ...(options.now !== undefined ? { now: options.now } : {}),
+    ...definedProps({ now: options.now }),
   });
   return { conceptId, path: found.path, version: cut.version };
 }
 
-export interface RollbackResult {
+interface RollbackResult {
   revertedVersion: string;
   newVersion: string;
   deactivated: string[];
@@ -560,7 +561,7 @@ export async function rollbackRoot(root: LearningRoot, options: { now?: Date } =
   const cut = await cutManifestVersion(root, {
     concepts: deactivated,
     note: `rollback of ${last.version}`,
-    ...(options.now !== undefined ? { now: options.now } : {}),
+    ...definedProps({ now: options.now }),
   });
   return { revertedVersion: last.version, newVersion: cut.version, deactivated };
 }
@@ -570,7 +571,7 @@ export async function rollbackRoot(root: LearningRoot, options: { now?: Date } =
 // canary.ts — these functions own only the manifest mechanics)
 // ---------------------------------------------------------------------------
 
-export interface StartCanaryInput {
+interface StartCanaryInput {
   /** The bundle version under trial — must be the latest cut. */
   version: string;
   windowHours: number;
@@ -707,7 +708,7 @@ export async function stopCanaryOnManifest(
 /** Shared mid-trial write guard: the version pointers double as the trial's
  *  control/treatment boundary (design §8.4), so bundle mutations wait for
  *  promote/stop. Called BEFORE any file is touched. */
-export async function assertNoActiveCanary(root: LearningRoot, action: string): Promise<void> {
+async function assertNoActiveCanary(root: LearningRoot, action: string): Promise<void> {
   const manifest = await readManifest(root);
   if (manifest !== null && manifest.canary !== null) {
     throw new Error(
@@ -731,7 +732,7 @@ async function requireActiveCanary(
 // quarantine authoring — the human urgent lane (design §7, §10.1)
 // ---------------------------------------------------------------------------
 
-export interface WriteProvisionalInput {
+interface WriteProvisionalInput {
   doc: OkfDocument;
   policy: LearningPolicy;
 }
@@ -762,7 +763,7 @@ export async function writeProvisionalConcept(root: LearningRoot, input: WritePr
 // publish-time render (the publisher writes; spec §14 step 3)
 // ---------------------------------------------------------------------------
 
-export interface ActivatedConcept {
+interface ActivatedConcept {
   conceptId: string;
   name: string;
   scope: string;

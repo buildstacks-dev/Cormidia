@@ -3,10 +3,10 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { readEvents, type RunlogEvent } from "./events.js";
 import type { RunEnvelope } from "./envelope.js";
+import { readEvents, type RunlogEvent } from "./events.js";
 
-export type AnomalyFlag =
+type AnomalyFlag =
   | "low_tokens_high_time"
   | "single_turn_long_run"
   | "bash_heavy"
@@ -15,7 +15,7 @@ export type AnomalyFlag =
   | "stale_running"
   | "missing_finalization";
 
-export interface Anomaly {
+interface Anomaly {
   flag: AnomalyFlag;
   runId: string;
   app: string;
@@ -30,7 +30,7 @@ export interface RunEvidence {
   events: RunlogEvent[];
 }
 
-export const ANOMALY_RECOMMENDATIONS: Record<AnomalyFlag, string> = {
+const ANOMALY_RECOMMENDATIONS: Record<AnomalyFlag, string> = {
   low_tokens_high_time: "Check for environment stalls before spending more model time.",
   single_turn_long_run: "Split the pass or add a tighter maxTurns/wall-clock guard.",
   bash_heavy: "Review shell-heavy behavior; prefer targeted scripts and cached checks.",

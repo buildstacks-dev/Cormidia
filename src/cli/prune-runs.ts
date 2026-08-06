@@ -10,9 +10,9 @@
 // immediately (it does not consume the daily claim's exact-once semantics —
 // concurrent sweeps are idempotent) and records the day's sweep marker.
 
-import { pruneRuns } from "../runtime/runlog/retention.js";
-import { recordSweepMarker, sweepStateRetention, type StateSweepResult } from "../org/retention.js";
 import { resolveCormidiaHomes } from "../org/home.js";
+import { recordSweepMarker, sweepStateRetention, type StateSweepResult } from "../org/retention.js";
+import { pruneRuns } from "../runtime/runlog/retention.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 const DEFAULT_RETENTION_DAYS = 30;

@@ -59,7 +59,7 @@ const DAY_MS = 86_400_000;
 /** Reconciliation margin: how many extra days a ledger day-file (and every
  *  projection of evidence) must outlive the evidence that can regenerate it,
  *  covering reconcile's own 24h in-flight window plus clock skew. */
-export const RECONCILE_MARGIN_DAYS = 2;
+const RECONCILE_MARGIN_DAYS = 2;
 
 /** Per-subtree retention windows, in days. All windows are minimums — the
  *  clamps in `effectiveRetentionWindows` can only lengthen them. */
@@ -127,7 +127,7 @@ export function effectiveRetentionWindows(policy: StateRetentionPolicy): StateRe
   };
 }
 
-export interface SubtreeSweep {
+interface SubtreeSweep {
   pruned: number;
   kept: number;
 }
@@ -320,11 +320,11 @@ async function sweepNarrative(stateHome: string, cutoffMs: number): Promise<Subt
 // Daily scheduled sweep — exact-once per UTC day via an O_EXCL marker claim.
 // ---------------------------------------------------------------------------
 
-export function sweepRecordDir(stateHome: string): string {
+function sweepRecordDir(stateHome: string): string {
   return join(resolve(stateHome), "state", "retention", "sweeps");
 }
 
-export function sweepMarkerPath(stateHome: string, now: Date): string {
+function sweepMarkerPath(stateHome: string, now: Date): string {
   return join(sweepRecordDir(stateHome), `${now.toISOString().slice(0, 10)}.json`);
 }
 
@@ -332,7 +332,7 @@ export function sweepMarkerPath(stateHome: string, now: Date): string {
  *  concurrent caller per (state home, UTC day) wins; everyone else sees an
  *  ordinary `false`. A crash after a claim skips that day's sweep — the next
  *  day retries. */
-export async function claimDailySweep(stateHome: string, now: Date): Promise<{ claimed: boolean; path: string }> {
+async function claimDailySweep(stateHome: string, now: Date): Promise<{ claimed: boolean; path: string }> {
   const path = sweepMarkerPath(stateHome, now);
   await mkdir(dirname(path), { recursive: true });
   try {

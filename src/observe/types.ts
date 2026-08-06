@@ -1,15 +1,15 @@
-import type { CostAggregate, CostScope } from "../runtime/cost.js";
-import type { AppEntry } from "../org/apps.js";
-import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
-import type { ParentTaskRecord } from "../org/parent-task.js";
 import type { GhIssue, GhPullRequest, GhReview } from "../loop/github.js";
+import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
+import type { AppEntry } from "../org/apps.js";
+import type { BudgetRow } from "../org/budget.js";
+import type { TurnLock } from "../org/locks.js";
+import type { ParentTaskRecord } from "../org/parent-task.js";
+import type { RoadmapExplanationV1 } from "../org/roadmap-explanation.js";
+import type { ValidationCampaignReadResult } from "../org/validation-campaign.js";
+import type { CostAggregate, CostScope } from "../runtime/cost.js";
 import type { RunlogEvent } from "../runtime/runlog/events.js";
 import type { StatusRow } from "../runtime/runlog/status.js";
 import type { InvocationRecord, TurnRecord } from "../runtime/telemetry.js";
-import type { TurnLock } from "../org/locks.js";
-import type { BudgetRow } from "../org/budget.js";
-import type { ValidationCampaignReadResult } from "../org/validation-campaign.js";
-import type { RoadmapExplanationV1 } from "../org/roadmap-explanation.js";
 
 /** Bumped 1 → 2 once for the observer-diagnostics workstream (#91/#93/#94/#97).
  *  Additive fields alone would not have required it, but `intake` was REMOVED
@@ -26,11 +26,11 @@ import type { RoadmapExplanationV1 } from "../org/roadmap-explanation.js";
  *  happen. One bump covers the branch. */
 export const OBSERVE_SCHEMA_VERSION = 2 as const;
 
-export type SourceStatus = "healthy" | "degraded" | "unavailable";
+type SourceStatus = "healthy" | "degraded" | "unavailable";
 /** `none` is an authoritative zero for a pass that invoked no provider (#88).
  *  Mirrors UsageQuality in src/runtime/types.ts. */
 export type UsageQuality = "complete" | "partial" | "estimated" | "unavailable" | "none";
-export type Liveness = "live" | "stalled" | "terminal" | "unknown";
+type Liveness = "live" | "stalled" | "terminal" | "unknown";
 export type ActivityKind = "onboarding" | "planning" | "scheduled_role" | "company_event" | "manual_role" | "learning";
 export type DeliveryState =
   | "backlog"
@@ -86,7 +86,7 @@ export interface SectionScopeView {
  * start. Every other case is a typed, displayable reason — never a negative
  * number, never `Math.abs`, never a substituted `Date.now()` (invariant 11).
  */
-export type DurationQuality = "measured" | "running" | "unrecorded" | "clock_skew";
+type DurationQuality = "measured" | "running" | "unrecorded" | "clock_skew";
 
 export interface DurationView {
   ms: number | null;
@@ -102,7 +102,7 @@ export interface DurationView {
  * never occur) is a mechanical test failure rather than a reading an operator
  * has to discover is wrong.
  */
-export const GRAPH_NODE_STATES = Object.freeze([
+const GRAPH_NODE_STATES = Object.freeze([
   "not_started",
   "running",
   "completed",
@@ -185,7 +185,7 @@ export interface SourceHealthView {
   last_success_at: string | null;
 }
 
-export interface OrgView {
+interface OrgView {
   name: string;
   state_home_id: string;
   max_concurrent_turns: number;
@@ -193,7 +193,7 @@ export interface OrgView {
   read_only: true;
 }
 
-export interface AppView {
+interface AppView {
   id: string;
   name: string;
   repo: string;
@@ -258,9 +258,9 @@ export interface ActivityView {
   quality_reason: string | null;
 }
 
-export type IntakeSource = "event_inbox" | "app_lifecycle";
+type IntakeSource = "event_inbox" | "app_lifecycle";
 export type PendingIntakeState = "pending" | "corrupt" | "awaiting_promotion";
-export type TimestampBasis = "occurred" | "discovered" | "none";
+type TimestampBasis = "occurred" | "discovered" | "none";
 
 export interface PendingIntakeItemView {
   id: string;
@@ -563,7 +563,7 @@ export interface ApprovalView {
   source_refs: SourceRefView[];
 }
 
-export interface InvocationView {
+interface InvocationView {
   id: string;
   kind: InvocationRecord["kind"];
   app: string | null;
@@ -575,7 +575,7 @@ export interface InvocationView {
   wall_clock_ms: number;
 }
 
-export interface CompletionIntegrityView {
+interface CompletionIntegrityView {
   required_stages: "complete" | "incomplete" | "unknown";
   usage: UsageQuality;
   reviewer: "completed" | "missing" | "not_required" | "unknown";
@@ -648,7 +648,7 @@ export interface AttentionGroupView {
   observed_at: string;
 }
 
-export interface TotalsView {
+interface TotalsView {
   active_passes: number;
   pending_approvals: number;
   delivery_ready: number;

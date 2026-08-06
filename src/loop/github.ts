@@ -9,9 +9,9 @@
 import { spawn } from "node:child_process";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export type IssueState = "OPEN" | "CLOSED" | string;
-export type PullRequestState = "OPEN" | "CLOSED" | "MERGED" | string;
-export type ReviewState = "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | string;
+type IssueState = "OPEN" | "CLOSED" | string;
+type PullRequestState = "OPEN" | "CLOSED" | "MERGED" | string;
+type ReviewState = "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | string;
 
 export interface GhIssue {
   number: number;
@@ -48,7 +48,7 @@ export interface GhReview {
   author?: string;
 }
 
-export interface CreatePrInput {
+interface CreatePrInput {
   head: string;
   base: string;
   title: string;
@@ -56,7 +56,7 @@ export interface CreatePrInput {
   draft?: boolean;
 }
 
-export interface CreateReviewInput {
+interface CreateReviewInput {
   state: "approve" | "request_changes" | "comment";
   body: string;
   /** Content-bound delivery fence. The adapter refuses to publish if the PR
@@ -64,7 +64,7 @@ export interface CreateReviewInput {
   expectedCommit?: string;
 }
 
-export interface SquashMergeInput {
+interface SquashMergeInput {
   subject: string;
   body?: string;
   matchHeadCommit?: string;
@@ -76,24 +76,24 @@ export interface ListIssueOptions {
   limit?: number;
 }
 
-export interface ListPullRequestOptions {
+interface ListPullRequestOptions {
   state?: "open" | "closed" | "merged" | "all";
   limit?: number;
 }
 
-export interface GhIssueComment {
+interface GhIssueComment {
   body: string;
   /** ISO timestamp; absent when the backend does not report it. */
   createdAt?: string;
 }
 
-export interface CreateIssueInput {
+interface CreateIssueInput {
   title: string;
   body: string;
   labels: string[];
 }
 
-export interface EnsureLabelInput {
+interface EnsureLabelInput {
   name: string;
   color: string;
   description: string;
@@ -141,8 +141,8 @@ export interface GhOps {
 }
 
 const SELF_APPROVAL_FALLBACK_PREFIX = "<!-- cormidia:self-approval-fallback";
-export const SELF_APPROVAL_FALLBACK_MARKER = `${SELF_APPROVAL_FALLBACK_PREFIX} -->`;
-export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER = "<!-- cormidia:self-changes-requested-fallback -->";
+const SELF_APPROVAL_FALLBACK_MARKER = `${SELF_APPROVAL_FALLBACK_PREFIX} -->`;
+const SELF_CHANGES_REQUESTED_FALLBACK_MARKER = "<!-- cormidia:self-changes-requested-fallback -->";
 
 // The self-approval fallback (single-account pilot: GitHub rejects approving
 // your own PR) must not be authorizable by a static, repo-visible string —
@@ -160,7 +160,7 @@ export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER = "<!-- cormidia:self-change
 // mis-signed tag, an unset secret, or an unresolved reviewed commit is never
 // trusted.
 
-export function signSelfApproval(secret: string, prNumber: number, commit: string): string {
+function signSelfApproval(secret: string, prNumber: number, commit: string): string {
   return createHmac("sha256", secret).update(`cormidia-self-approval:${prNumber}:${commit}`).digest("hex");
 }
 
@@ -203,12 +203,12 @@ export interface GhExecResult {
 export type GhExec = (args: readonly string[], input?: string) => Promise<GhExecResult>;
 
 /** Injectable wait/random seam for the ratified B-01 retry schedule. */
-export interface GhRetryClock {
+interface GhRetryClock {
   sleep(delayMs: number): Promise<void>;
   random(): number;
 }
 
-export interface GhOpsErrorDetails {
+interface GhOpsErrorDetails {
   args: readonly string[];
   stdout: string;
   stderr: string;

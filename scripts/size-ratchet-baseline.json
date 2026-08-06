@@ -1,0 +1,1275 @@
+{
+  "schemaVersion": 1,
+  "modules": {
+    "src/cli.ts": {
+      "exports": 0,
+      "lines": 313,
+      "newModule": false
+    },
+    "src/cli/analyze.ts": {
+      "exports": 1,
+      "lines": 55,
+      "newModule": false
+    },
+    "src/cli/app.ts": {
+      "exports": 2,
+      "lines": 271,
+      "newModule": false
+    },
+    "src/cli/approvals.ts": {
+      "exports": 1,
+      "lines": 558,
+      "newModule": false
+    },
+    "src/cli/apps.ts": {
+      "exports": 1,
+      "lines": 67,
+      "newModule": false
+    },
+    "src/cli/bootstrap-publish.ts": {
+      "exports": 1,
+      "lines": 199,
+      "newModule": false
+    },
+    "src/cli/bootstrap.ts": {
+      "exports": 1,
+      "lines": 361,
+      "newModule": false
+    },
+    "src/cli/budget.ts": {
+      "exports": 1,
+      "lines": 159,
+      "newModule": false
+    },
+    "src/cli/claim-rearm.ts": {
+      "exports": 1,
+      "lines": 116,
+      "newModule": false
+    },
+    "src/cli/context-info.ts": {
+      "exports": 3,
+      "lines": 291,
+      "newModule": false
+    },
+    "src/cli/dispatch.ts": {
+      "exports": 1,
+      "lines": 105,
+      "newModule": false
+    },
+    "src/cli/doctor.ts": {
+      "exports": 1,
+      "lines": 347,
+      "newModule": false
+    },
+    "src/cli/episode.ts": {
+      "exports": 1,
+      "lines": 99,
+      "newModule": false
+    },
+    "src/cli/home-flags.ts": {
+      "exports": 1,
+      "lines": 32,
+      "newModule": false
+    },
+    "src/cli/invocation-audit.ts": {
+      "exports": 6,
+      "lines": 337,
+      "newModule": false
+    },
+    "src/cli/json-failure.ts": {
+      "exports": 2,
+      "lines": 136,
+      "newModule": false
+    },
+    "src/cli/learn-activation.ts": {
+      "exports": 13,
+      "lines": 468,
+      "newModule": false
+    },
+    "src/cli/learn-experiment.ts": {
+      "exports": 3,
+      "lines": 741,
+      "newModule": false
+    },
+    "src/cli/learn.ts": {
+      "exports": 1,
+      "lines": 1277,
+      "newModule": false
+    },
+    "src/cli/loop.ts": {
+      "exports": 2,
+      "lines": 568,
+      "newModule": false
+    },
+    "src/cli/narrative.ts": {
+      "exports": 1,
+      "lines": 152,
+      "newModule": false
+    },
+    "src/cli/new-app.ts": {
+      "exports": 1,
+      "lines": 161,
+      "newModule": false
+    },
+    "src/cli/objective.ts": {
+      "exports": 1,
+      "lines": 210,
+      "newModule": false
+    },
+    "src/cli/observe.ts": {
+      "exports": 1,
+      "lines": 123,
+      "newModule": false
+    },
+    "src/cli/org.ts": {
+      "exports": 1,
+      "lines": 505,
+      "newModule": false
+    },
+    "src/cli/pipelines.ts": {
+      "exports": 1,
+      "lines": 60,
+      "newModule": false
+    },
+    "src/cli/plan-ratify.ts": {
+      "exports": 1,
+      "lines": 264,
+      "newModule": false
+    },
+    "src/cli/plan.ts": {
+      "exports": 1,
+      "lines": 886,
+      "newModule": false
+    },
+    "src/cli/process-signal.ts": {
+      "exports": 2,
+      "lines": 57,
+      "newModule": false
+    },
+    "src/cli/prune-runs.ts": {
+      "exports": 1,
+      "lines": 83,
+      "newModule": false
+    },
+    "src/cli/publication.ts": {
+      "exports": 1,
+      "lines": 61,
+      "newModule": false
+    },
+    "src/cli/release.ts": {
+      "exports": 1,
+      "lines": 391,
+      "newModule": false
+    },
+    "src/cli/report.ts": {
+      "exports": 2,
+      "lines": 96,
+      "newModule": false
+    },
+    "src/cli/retro.ts": {
+      "exports": 1,
+      "lines": 50,
+      "newModule": false
+    },
+    "src/cli/roles.ts": {
+      "exports": 1,
+      "lines": 185,
+      "newModule": false
+    },
+    "src/cli/run-role.ts": {
+      "exports": 1,
+      "lines": 296,
+      "newModule": false
+    },
+    "src/cli/scheduler.ts": {
+      "exports": 1,
+      "lines": 162,
+      "newModule": false
+    },
+    "src/cli/status.ts": {
+      "exports": 1,
+      "lines": 260,
+      "newModule": false
+    },
+    "src/cli/task.ts": {
+      "exports": 1,
+      "lines": 322,
+      "newModule": false
+    },
+    "src/cli/telemetry.ts": {
+      "exports": 1,
+      "lines": 1193,
+      "newModule": false
+    },
+    "src/loop/brief.ts": {
+      "exports": 2,
+      "lines": 246,
+      "newModule": false
+    },
+    "src/loop/claim-recovery.ts": {
+      "exports": 20,
+      "lines": 774,
+      "newModule": false
+    },
+    "src/loop/context-manifest.ts": {
+      "exports": 3,
+      "lines": 513,
+      "newModule": false
+    },
+    "src/loop/default-branch.ts": {
+      "exports": 4,
+      "lines": 142,
+      "newModule": false
+    },
+    "src/loop/driver.ts": {
+      "exports": 16,
+      "lines": 1498,
+      "newModule": false
+    },
+    "src/loop/durable.ts": {
+      "exports": 2,
+      "lines": 36,
+      "newModule": false
+    },
+    "src/loop/efficiency.ts": {
+      "exports": 48,
+      "lines": 2049,
+      "newModule": false
+    },
+    "src/loop/episode-plan-executor.ts": {
+      "exports": 29,
+      "lines": 1304,
+      "newModule": false
+    },
+    "src/loop/episode-plan.ts": {
+      "exports": 59,
+      "lines": 3522,
+      "newModule": false
+    },
+    "src/loop/episode-replan.ts": {
+      "exports": 14,
+      "lines": 466,
+      "newModule": false
+    },
+    "src/loop/episode-route.ts": {
+      "exports": 4,
+      "lines": 149,
+      "newModule": false
+    },
+    "src/loop/execution-journal.ts": {
+      "exports": 7,
+      "lines": 246,
+      "newModule": false
+    },
+    "src/loop/gate-config.ts": {
+      "exports": 1,
+      "lines": 45,
+      "newModule": false
+    },
+    "src/loop/github.ts": {
+      "exports": 12,
+      "lines": 809,
+      "newModule": false
+    },
+    "src/loop/issue-snapshot.ts": {
+      "exports": 1,
+      "lines": 14,
+      "newModule": false
+    },
+    "src/loop/loop-runlog.ts": {
+      "exports": 3,
+      "lines": 172,
+      "newModule": false
+    },
+    "src/loop/loop.ts": {
+      "exports": 34,
+      "lines": 1844,
+      "newModule": false
+    },
+    "src/loop/pipeline.ts": {
+      "exports": 6,
+      "lines": 1884,
+      "newModule": false
+    },
+    "src/loop/pipelines.ts": {
+      "exports": 9,
+      "lines": 383,
+      "newModule": false
+    },
+    "src/loop/plan-publication-record.ts": {
+      "exports": 3,
+      "lines": 127,
+      "newModule": false
+    },
+    "src/loop/plan-tickets.ts": {
+      "exports": 30,
+      "lines": 1095,
+      "newModule": false
+    },
+    "src/loop/planner-admission.ts": {
+      "exports": 11,
+      "lines": 1535,
+      "newModule": false
+    },
+    "src/loop/planning-episode-plan.ts": {
+      "exports": 7,
+      "lines": 336,
+      "newModule": false
+    },
+    "src/loop/policy.ts": {
+      "exports": 6,
+      "lines": 339,
+      "newModule": false
+    },
+    "src/loop/preflight.ts": {
+      "exports": 2,
+      "lines": 154,
+      "newModule": false
+    },
+    "src/loop/qgates.ts": {
+      "exports": 10,
+      "lines": 907,
+      "newModule": false
+    },
+    "src/loop/rehydrate.ts": {
+      "exports": 13,
+      "lines": 458,
+      "newModule": false
+    },
+    "src/loop/route-policy.ts": {
+      "exports": 4,
+      "lines": 33,
+      "newModule": false
+    },
+    "src/loop/runRole.ts": {
+      "exports": 1,
+      "lines": 168,
+      "newModule": false
+    },
+    "src/loop/scheduling.ts": {
+      "exports": 4,
+      "lines": 66,
+      "newModule": false
+    },
+    "src/loop/setup-artifacts.ts": {
+      "exports": 3,
+      "lines": 255,
+      "newModule": false
+    },
+    "src/loop/ticket-episode-plan.ts": {
+      "exports": 11,
+      "lines": 948,
+      "newModule": false
+    },
+    "src/loop/types.ts": {
+      "exports": 15,
+      "lines": 209,
+      "newModule": false
+    },
+    "src/loop/verdicts.ts": {
+      "exports": 17,
+      "lines": 1150,
+      "newModule": false
+    },
+    "src/narrative/capture.ts": {
+      "exports": 6,
+      "lines": 186,
+      "newModule": false
+    },
+    "src/narrative/render.ts": {
+      "exports": 2,
+      "lines": 137,
+      "newModule": false
+    },
+    "src/narrative/sources.ts": {
+      "exports": 9,
+      "lines": 139,
+      "newModule": false
+    },
+    "src/narrative/story.ts": {
+      "exports": 1,
+      "lines": 325,
+      "newModule": false
+    },
+    "src/narrative/types.ts": {
+      "exports": 6,
+      "lines": 98,
+      "newModule": false
+    },
+    "src/observe/assets.ts": {
+      "exports": 3,
+      "lines": 1494,
+      "newModule": false
+    },
+    "src/observe/file-index.ts": {
+      "exports": 1,
+      "lines": 368,
+      "newModule": false
+    },
+    "src/observe/github-source.ts": {
+      "exports": 3,
+      "lines": 162,
+      "newModule": false
+    },
+    "src/observe/live-source.ts": {
+      "exports": 1,
+      "lines": 268,
+      "newModule": false
+    },
+    "src/observe/order.ts": {
+      "exports": 7,
+      "lines": 107,
+      "newModule": false
+    },
+    "src/observe/project.ts": {
+      "exports": 1,
+      "lines": 2121,
+      "newModule": false
+    },
+    "src/observe/server.ts": {
+      "exports": 2,
+      "lines": 476,
+      "newModule": false
+    },
+    "src/observe/types.ts": {
+      "exports": 36,
+      "lines": 769,
+      "newModule": false
+    },
+    "src/org/app-execution-policy.ts": {
+      "exports": 7,
+      "lines": 477,
+      "newModule": false
+    },
+    "src/org/app-lifecycle.ts": {
+      "exports": 8,
+      "lines": 1914,
+      "newModule": false
+    },
+    "src/org/app-reset.ts": {
+      "exports": 6,
+      "lines": 811,
+      "newModule": false
+    },
+    "src/org/app-workdir.ts": {
+      "exports": 1,
+      "lines": 65,
+      "newModule": false
+    },
+    "src/org/approval-command.ts": {
+      "exports": 3,
+      "lines": 548,
+      "newModule": false
+    },
+    "src/org/approval-delivery.ts": {
+      "exports": 3,
+      "lines": 483,
+      "newModule": false
+    },
+    "src/org/approvals.ts": {
+      "exports": 35,
+      "lines": 1896,
+      "newModule": false
+    },
+    "src/org/apps.ts": {
+      "exports": 17,
+      "lines": 832,
+      "newModule": false
+    },
+    "src/org/atomic.ts": {
+      "exports": 1,
+      "lines": 24,
+      "newModule": false
+    },
+    "src/org/authority.ts": {
+      "exports": 16,
+      "lines": 457,
+      "newModule": false
+    },
+    "src/org/bootstrap-publish.ts": {
+      "exports": 3,
+      "lines": 707,
+      "newModule": false
+    },
+    "src/org/bootstrap.ts": {
+      "exports": 11,
+      "lines": 1335,
+      "newModule": false
+    },
+    "src/org/budget.ts": {
+      "exports": 16,
+      "lines": 847,
+      "newModule": false
+    },
+    "src/org/context.ts": {
+      "exports": 2,
+      "lines": 303,
+      "newModule": false
+    },
+    "src/org/denial-lessons.ts": {
+      "exports": 1,
+      "lines": 126,
+      "newModule": false
+    },
+    "src/org/direct-operational-campaign.ts": {
+      "exports": 12,
+      "lines": 1009,
+      "newModule": false
+    },
+    "src/org/dispatch.ts": {
+      "exports": 4,
+      "lines": 1371,
+      "newModule": false
+    },
+    "src/org/episode-planner/assignment-readiness.ts": {
+      "exports": 3,
+      "lines": 120,
+      "newModule": false
+    },
+    "src/org/episode-planner/brief.ts": {
+      "exports": 3,
+      "lines": 250,
+      "newModule": false
+    },
+    "src/org/episode-planner/coordinator.ts": {
+      "exports": 10,
+      "lines": 341,
+      "newModule": false
+    },
+    "src/org/episode-planner/execution.ts": {
+      "exports": 5,
+      "lines": 838,
+      "newModule": false
+    },
+    "src/org/episode-planner/orchestrator.ts": {
+      "exports": 9,
+      "lines": 853,
+      "newModule": false
+    },
+    "src/org/episode-planner/policy.ts": {
+      "exports": 7,
+      "lines": 474,
+      "newModule": false
+    },
+    "src/org/episode-planner/repository-facts.ts": {
+      "exports": 1,
+      "lines": 168,
+      "newModule": false
+    },
+    "src/org/episode-planner/runtime.ts": {
+      "exports": 3,
+      "lines": 1719,
+      "newModule": false
+    },
+    "src/org/episode-safety-facts.ts": {
+      "exports": 4,
+      "lines": 141,
+      "newModule": false
+    },
+    "src/org/event-schemas.ts": {
+      "exports": 4,
+      "lines": 174,
+      "newModule": false
+    },
+    "src/org/events.ts": {
+      "exports": 7,
+      "lines": 296,
+      "newModule": false
+    },
+    "src/org/execution-affinity.ts": {
+      "exports": 13,
+      "lines": 647,
+      "newModule": false
+    },
+    "src/org/execution-assignments.ts": {
+      "exports": 3,
+      "lines": 93,
+      "newModule": false
+    },
+    "src/org/gate-compose.ts": {
+      "exports": 3,
+      "lines": 341,
+      "newModule": false
+    },
+    "src/org/governed-pipeline-episode.ts": {
+      "exports": 2,
+      "lines": 1288,
+      "newModule": false
+    },
+    "src/org/home.ts": {
+      "exports": 23,
+      "lines": 1689,
+      "newModule": false
+    },
+    "src/org/journal.ts": {
+      "exports": 11,
+      "lines": 214,
+      "newModule": false
+    },
+    "src/org/learning/binding.ts": {
+      "exports": 5,
+      "lines": 143,
+      "newModule": false
+    },
+    "src/org/learning/canary.ts": {
+      "exports": 14,
+      "lines": 471,
+      "newModule": false
+    },
+    "src/org/learning/candidate-store.ts": {
+      "exports": 7,
+      "lines": 125,
+      "newModule": false
+    },
+    "src/org/learning/candidate.ts": {
+      "exports": 6,
+      "lines": 240,
+      "newModule": false
+    },
+    "src/org/learning/capsule.ts": {
+      "exports": 4,
+      "lines": 244,
+      "newModule": false
+    },
+    "src/org/learning/capture.ts": {
+      "exports": 6,
+      "lines": 639,
+      "newModule": false
+    },
+    "src/org/learning/concepts.ts": {
+      "exports": 28,
+      "lines": 804,
+      "newModule": false
+    },
+    "src/org/learning/distillation.ts": {
+      "exports": 13,
+      "lines": 856,
+      "newModule": false
+    },
+    "src/org/learning/efficacy.ts": {
+      "exports": 2,
+      "lines": 13,
+      "newModule": false
+    },
+    "src/org/learning/efficiency-evidence.ts": {
+      "exports": 6,
+      "lines": 703,
+      "newModule": false
+    },
+    "src/org/learning/efficiency-health.ts": {
+      "exports": 2,
+      "lines": 576,
+      "newModule": false
+    },
+    "src/org/learning/episode.ts": {
+      "exports": 6,
+      "lines": 988,
+      "newModule": false
+    },
+    "src/org/learning/episodes.ts": {
+      "exports": 7,
+      "lines": 133,
+      "newModule": false
+    },
+    "src/org/learning/eval-fixture.ts": {
+      "exports": 5,
+      "lines": 414,
+      "newModule": false
+    },
+    "src/org/learning/eval-result.ts": {
+      "exports": 9,
+      "lines": 480,
+      "newModule": false
+    },
+    "src/org/learning/events.ts": {
+      "exports": 10,
+      "lines": 222,
+      "newModule": false
+    },
+    "src/org/learning/experiment.ts": {
+      "exports": 11,
+      "lines": 482,
+      "newModule": false
+    },
+    "src/org/learning/fingerprint.ts": {
+      "exports": 6,
+      "lines": 258,
+      "newModule": false
+    },
+    "src/org/learning/intervention.ts": {
+      "exports": 9,
+      "lines": 273,
+      "newModule": false
+    },
+    "src/org/learning/policy.ts": {
+      "exports": 6,
+      "lines": 535,
+      "newModule": false
+    },
+    "src/org/learning/publisher.ts": {
+      "exports": 4,
+      "lines": 849,
+      "newModule": false
+    },
+    "src/org/learning/records.ts": {
+      "exports": 3,
+      "lines": 69,
+      "newModule": false
+    },
+    "src/org/learning/rejections.ts": {
+      "exports": 4,
+      "lines": 113,
+      "newModule": false
+    },
+    "src/org/learning/replay.ts": {
+      "exports": 6,
+      "lines": 1622,
+      "newModule": false
+    },
+    "src/org/learning/resolver.ts": {
+      "exports": 4,
+      "lines": 582,
+      "newModule": false
+    },
+    "src/org/learning/review.ts": {
+      "exports": 7,
+      "lines": 198,
+      "newModule": false
+    },
+    "src/org/learning/runner.ts": {
+      "exports": 2,
+      "lines": 386,
+      "newModule": false
+    },
+    "src/org/learning/validate.ts": {
+      "exports": 12,
+      "lines": 111,
+      "newModule": false
+    },
+    "src/org/lifecycle.ts": {
+      "exports": 17,
+      "lines": 244,
+      "newModule": false
+    },
+    "src/org/locks.ts": {
+      "exports": 11,
+      "lines": 325,
+      "newModule": false
+    },
+    "src/org/managed-checkout.ts": {
+      "exports": 8,
+      "lines": 101,
+      "newModule": false
+    },
+    "src/org/managed-clone-health.ts": {
+      "exports": 3,
+      "lines": 128,
+      "newModule": false
+    },
+    "src/org/memory.ts": {
+      "exports": 13,
+      "lines": 379,
+      "newModule": false
+    },
+    "src/org/new-app.ts": {
+      "exports": 4,
+      "lines": 1337,
+      "newModule": false
+    },
+    "src/org/objective-grants.ts": {
+      "exports": 6,
+      "lines": 578,
+      "newModule": false
+    },
+    "src/org/onboarding-answers.ts": {
+      "exports": 9,
+      "lines": 299,
+      "newModule": false
+    },
+    "src/org/org-archive.ts": {
+      "exports": 7,
+      "lines": 608,
+      "newModule": false
+    },
+    "src/org/org-upgrade.ts": {
+      "exports": 4,
+      "lines": 431,
+      "newModule": false
+    },
+    "src/org/parent-task.ts": {
+      "exports": 10,
+      "lines": 267,
+      "newModule": false
+    },
+    "src/org/plan-auto.ts": {
+      "exports": 2,
+      "lines": 1822,
+      "newModule": false
+    },
+    "src/org/plan.ts": {
+      "exports": 2,
+      "lines": 224,
+      "newModule": false
+    },
+    "src/org/planner-intake.ts": {
+      "exports": 8,
+      "lines": 456,
+      "newModule": false
+    },
+    "src/org/planner-publication.ts": {
+      "exports": 9,
+      "lines": 1411,
+      "newModule": false
+    },
+    "src/org/planning-artifact-path.ts": {
+      "exports": 2,
+      "lines": 12,
+      "newModule": true
+    },
+    "src/org/planning-depth.ts": {
+      "exports": 8,
+      "lines": 39,
+      "newModule": false
+    },
+    "src/org/planning-inputs.ts": {
+      "exports": 8,
+      "lines": 522,
+      "newModule": false
+    },
+    "src/org/planning-stage.ts": {
+      "exports": 6,
+      "lines": 338,
+      "newModule": false
+    },
+    "src/org/ratified-validation-catalog.ts": {
+      "exports": 3,
+      "lines": 216,
+      "newModule": false
+    },
+    "src/org/recovery.ts": {
+      "exports": 1,
+      "lines": 105,
+      "newModule": false
+    },
+    "src/org/release-evidence.ts": {
+      "exports": 46,
+      "lines": 2896,
+      "newModule": false
+    },
+    "src/org/release.ts": {
+      "exports": 4,
+      "lines": 1265,
+      "newModule": false
+    },
+    "src/org/retention.ts": {
+      "exports": 7,
+      "lines": 782,
+      "newModule": false
+    },
+    "src/org/retro.ts": {
+      "exports": 1,
+      "lines": 122,
+      "newModule": false
+    },
+    "src/org/review-authorization-secret.ts": {
+      "exports": 1,
+      "lines": 113,
+      "newModule": false
+    },
+    "src/org/roadmap-delivery.ts": {
+      "exports": 81,
+      "lines": 5603,
+      "newModule": false
+    },
+    "src/org/roadmap-explanation.ts": {
+      "exports": 3,
+      "lines": 484,
+      "newModule": false
+    },
+    "src/org/roadmap-loop-runtime.ts": {
+      "exports": 1,
+      "lines": 904,
+      "newModule": false
+    },
+    "src/org/role-assignment.ts": {
+      "exports": 4,
+      "lines": 610,
+      "newModule": false
+    },
+    "src/org/roles.ts": {
+      "exports": 7,
+      "lines": 471,
+      "newModule": false
+    },
+    "src/org/run-role-episode.ts": {
+      "exports": 3,
+      "lines": 460,
+      "newModule": false
+    },
+    "src/org/schedule.ts": {
+      "exports": 4,
+      "lines": 144,
+      "newModule": false
+    },
+    "src/org/scheduled-role-eligibility.ts": {
+      "exports": 1,
+      "lines": 175,
+      "newModule": false
+    },
+    "src/org/scheduler/definition.ts": {
+      "exports": 3,
+      "lines": 253,
+      "newModule": false
+    },
+    "src/org/scheduler/due-window-claims.ts": {
+      "exports": 2,
+      "lines": 92,
+      "newModule": false
+    },
+    "src/org/scheduler/environment.ts": {
+      "exports": 8,
+      "lines": 93,
+      "newModule": false
+    },
+    "src/org/scheduler/evidence.ts": {
+      "exports": 5,
+      "lines": 932,
+      "newModule": false
+    },
+    "src/org/scheduler/lifecycle.ts": {
+      "exports": 8,
+      "lines": 547,
+      "newModule": false
+    },
+    "src/org/scheduler/manager.ts": {
+      "exports": 3,
+      "lines": 167,
+      "newModule": false
+    },
+    "src/org/scheduler/model.ts": {
+      "exports": 18,
+      "lines": 169,
+      "newModule": false
+    },
+    "src/org/scheduler/status.ts": {
+      "exports": 2,
+      "lines": 90,
+      "newModule": false
+    },
+    "src/org/scorecards.ts": {
+      "exports": 2,
+      "lines": 152,
+      "newModule": false
+    },
+    "src/org/standing-roles.ts": {
+      "exports": 5,
+      "lines": 767,
+      "newModule": false
+    },
+    "src/org/ticket-budget-ratification.ts": {
+      "exports": 8,
+      "lines": 664,
+      "newModule": false
+    },
+    "src/org/ticket-episode-approval.ts": {
+      "exports": 3,
+      "lines": 247,
+      "newModule": false
+    },
+    "src/org/ticket-episode-runtime.ts": {
+      "exports": 7,
+      "lines": 2594,
+      "newModule": false
+    },
+    "src/org/trigger-routing.ts": {
+      "exports": 2,
+      "lines": 125,
+      "newModule": false
+    },
+    "src/org/turn-runner.ts": {
+      "exports": 11,
+      "lines": 2629,
+      "newModule": false
+    },
+    "src/org/validation-campaign.ts": {
+      "exports": 7,
+      "lines": 310,
+      "newModule": false
+    },
+    "src/org/validation-test-mode.ts": {
+      "exports": 2,
+      "lines": 98,
+      "newModule": false
+    },
+    "src/report/assets.ts": {
+      "exports": 3,
+      "lines": 318,
+      "newModule": false
+    },
+    "src/report/detail-source.ts": {
+      "exports": 2,
+      "lines": 147,
+      "newModule": false
+    },
+    "src/report/efficiency.ts": {
+      "exports": 1,
+      "lines": 592,
+      "newModule": false
+    },
+    "src/report/ledger-source.ts": {
+      "exports": 3,
+      "lines": 197,
+      "newModule": false
+    },
+    "src/report/project.ts": {
+      "exports": 2,
+      "lines": 565,
+      "newModule": false
+    },
+    "src/report/range.ts": {
+      "exports": 3,
+      "lines": 91,
+      "newModule": false
+    },
+    "src/report/render-html.ts": {
+      "exports": 1,
+      "lines": 245,
+      "newModule": false
+    },
+    "src/report/render-terminal.ts": {
+      "exports": 1,
+      "lines": 105,
+      "newModule": false
+    },
+    "src/report/service.ts": {
+      "exports": 2,
+      "lines": 267,
+      "newModule": false
+    },
+    "src/report/sessions.ts": {
+      "exports": 3,
+      "lines": 359,
+      "newModule": false
+    },
+    "src/report/statistics.ts": {
+      "exports": 3,
+      "lines": 19,
+      "newModule": false
+    },
+    "src/report/time-policy.ts": {
+      "exports": 1,
+      "lines": 96,
+      "newModule": false
+    },
+    "src/report/types.ts": {
+      "exports": 21,
+      "lines": 387,
+      "newModule": false
+    },
+    "src/runtime/adapters/claude.ts": {
+      "exports": 4,
+      "lines": 573,
+      "newModule": false
+    },
+    "src/runtime/adapters/codex-gate-bridge.ts": {
+      "exports": 4,
+      "lines": 313,
+      "newModule": false
+    },
+    "src/runtime/adapters/codex-gate-hook.ts": {
+      "exports": 0,
+      "lines": 116,
+      "newModule": false
+    },
+    "src/runtime/adapters/codex.ts": {
+      "exports": 7,
+      "lines": 1033,
+      "newModule": false
+    },
+    "src/runtime/adapters/pi-gate.ts": {
+      "exports": 2,
+      "lines": 90,
+      "newModule": false
+    },
+    "src/runtime/adapters/pi.ts": {
+      "exports": 4,
+      "lines": 368,
+      "newModule": false
+    },
+    "src/runtime/assignment.ts": {
+      "exports": 16,
+      "lines": 297,
+      "newModule": false
+    },
+    "src/runtime/capabilities.ts": {
+      "exports": 8,
+      "lines": 176,
+      "newModule": false
+    },
+    "src/runtime/cost.ts": {
+      "exports": 8,
+      "lines": 200,
+      "newModule": false
+    },
+    "src/runtime/durable-claim.ts": {
+      "exports": 8,
+      "lines": 427,
+      "newModule": false
+    },
+    "src/runtime/error-message.ts": {
+      "exports": 1,
+      "lines": 4,
+      "newModule": true
+    },
+    "src/runtime/file-lock.ts": {
+      "exports": 8,
+      "lines": 294,
+      "newModule": false
+    },
+    "src/runtime/gate.ts": {
+      "exports": 18,
+      "lines": 2532,
+      "newModule": false
+    },
+    "src/runtime/git-worktree-sandbox.ts": {
+      "exports": 3,
+      "lines": 136,
+      "newModule": false
+    },
+    "src/runtime/git.ts": {
+      "exports": 3,
+      "lines": 56,
+      "newModule": false
+    },
+    "src/runtime/invocation-ledger.ts": {
+      "exports": 5,
+      "lines": 260,
+      "newModule": false
+    },
+    "src/runtime/model-catalog.ts": {
+      "exports": 4,
+      "lines": 136,
+      "newModule": false
+    },
+    "src/runtime/non-interactive-env.ts": {
+      "exports": 2,
+      "lines": 92,
+      "newModule": false
+    },
+    "src/runtime/optional-properties.ts": {
+      "exports": 1,
+      "lines": 12,
+      "newModule": true
+    },
+    "src/runtime/permission-mode.ts": {
+      "exports": 7,
+      "lines": 33,
+      "newModule": false
+    },
+    "src/runtime/process-identity.ts": {
+      "exports": 3,
+      "lines": 56,
+      "newModule": false
+    },
+    "src/runtime/readiness.ts": {
+      "exports": 4,
+      "lines": 435,
+      "newModule": false
+    },
+    "src/runtime/registry.ts": {
+      "exports": 2,
+      "lines": 16,
+      "newModule": false
+    },
+    "src/runtime/role-shaping.ts": {
+      "exports": 2,
+      "lines": 61,
+      "newModule": false
+    },
+    "src/runtime/runlog/anomalies.ts": {
+      "exports": 3,
+      "lines": 163,
+      "newModule": false
+    },
+    "src/runtime/runlog/envelope.ts": {
+      "exports": 12,
+      "lines": 472,
+      "newModule": false
+    },
+    "src/runtime/runlog/events.ts": {
+      "exports": 4,
+      "lines": 178,
+      "newModule": false
+    },
+    "src/runtime/runlog/forensics.ts": {
+      "exports": 4,
+      "lines": 54,
+      "newModule": false
+    },
+    "src/runtime/runlog/paths.ts": {
+      "exports": 4,
+      "lines": 83,
+      "newModule": false
+    },
+    "src/runtime/runlog/redact.ts": {
+      "exports": 3,
+      "lines": 44,
+      "newModule": false
+    },
+    "src/runtime/runlog/retention.ts": {
+      "exports": 1,
+      "lines": 63,
+      "newModule": false
+    },
+    "src/runtime/runlog/status.ts": {
+      "exports": 4,
+      "lines": 263,
+      "newModule": false
+    },
+    "src/runtime/runlog/verdict-digest.ts": {
+      "exports": 3,
+      "lines": 132,
+      "newModule": false
+    },
+    "src/runtime/secret-patterns.ts": {
+      "exports": 2,
+      "lines": 132,
+      "newModule": false
+    },
+    "src/runtime/telemetry.ts": {
+      "exports": 12,
+      "lines": 498,
+      "newModule": false
+    },
+    "src/runtime/testing/fakeRuntime.ts": {
+      "exports": 1,
+      "lines": 118,
+      "newModule": false
+    },
+    "src/runtime/tool-events.ts": {
+      "exports": 1,
+      "lines": 52,
+      "newModule": false
+    },
+    "src/runtime/turn-budget.ts": {
+      "exports": 7,
+      "lines": 301,
+      "newModule": false
+    },
+    "src/runtime/turn-usage.ts": {
+      "exports": 1,
+      "lines": 10,
+      "newModule": true
+    },
+    "src/runtime/types.ts": {
+      "exports": 27,
+      "lines": 320,
+      "newModule": false
+    },
+    "src/runtime/worktree-context.ts": {
+      "exports": 3,
+      "lines": 107,
+      "newModule": false
+    }
+  }
+}

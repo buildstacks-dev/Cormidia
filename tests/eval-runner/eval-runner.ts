@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "../../src/org/atomic.js";
+import { toErrorMessage as errorMessage } from "../../src/runtime/error-message.js";
 import type { Effort, RuntimeKind } from "../../src/runtime/types.js";
 import { DurableCampaignRunner } from "../campaign/campaign-runner.js";
 
@@ -483,10 +484,6 @@ function attempt(
         : null,
     error_sha256: error === undefined ? null : createHash("sha256").update(errorMessage(error)).digest("hex"),
   };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function exactKeys(value: Record<string, unknown>, allowed: string[], name: string): void {

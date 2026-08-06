@@ -12,16 +12,16 @@
 // still names `exec` as defense in depth: if a provider/version exposes it
 // anyway, the normalizer below throws and the bridge denies the whole call.
 
-import { createServer, type Server, type Socket } from "node:net";
 import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
 import { toolUseEvent } from "../tool-events.js";
+import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
 import { normalizeToolAction } from "./claude.js";
 
 const MAX_BRIDGE_BYTES = 8 * 1024 * 1024;
@@ -138,7 +138,7 @@ export async function startCodexGateBridge(
  * other capability and instruction byte remains the package's own. Direct
  * shell/file calls pass through the existing hook and approval boundaries.
  */
-export async function codexDirectToolCatalog(model: string): Promise<{ models: Array<Record<string, unknown>> }> {
+async function codexDirectToolCatalog(model: string): Promise<{ models: Array<Record<string, unknown>> }> {
   const parsed = await loadBundledCodexCatalog();
   if (!isRecord(parsed) || !Array.isArray(parsed.models)) {
     throw new Error("Codex bundled model catalog has no models array");
@@ -222,7 +222,7 @@ export function normalizeCodexHookActions(input: unknown, workdir: string): Tool
   return actions.length > 0 ? actions : [{ tool: "edit", input: { path: "." } }];
 }
 
-export function codexGateHookCommand(): string {
+function codexGateHookCommand(): string {
   const adapterPath = fileURLToPath(import.meta.url);
   const sourceMode = adapterPath.endsWith(".ts");
   const helperPath = join(dirname(adapterPath), `codex-gate-hook.${sourceMode ? "ts" : "js"}`);

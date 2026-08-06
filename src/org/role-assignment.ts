@@ -24,13 +24,13 @@ import {
   type RuntimeModelCatalogReader,
 } from "../runtime/model-catalog.js";
 import type { Effort, RuntimeKind } from "../runtime/types.js";
-import { parseRolesText, type RolesFile } from "./roles.js";
 import { sha256, writeLifecycleFileAtomic } from "./lifecycle.js";
+import { parseRolesText, type RolesFile } from "./roles.js";
 
-export const ROLE_ASSIGNMENT_JOURNAL_VERSION = 1 as const;
+const ROLE_ASSIGNMENT_JOURNAL_VERSION = 1 as const;
 
 /** `<state-home>/lifecycle/role-assignments.jsonl` — append-only. */
-export function roleAssignmentJournalPath(stateHome: string): string {
+function roleAssignmentJournalPath(stateHome: string): string {
   return join(stateHome, "lifecycle", "role-assignments.jsonl");
 }
 
@@ -41,7 +41,7 @@ export interface RoleAssignmentEdit {
   turnBudgetUsd?: number;
 }
 
-export interface RoleAssignmentSnapshot {
+interface RoleAssignmentSnapshot {
   runtime: RuntimeKind;
   model: string;
   effort: Effort;
@@ -50,13 +50,13 @@ export interface RoleAssignmentSnapshot {
   turnBudgetInherited: boolean;
 }
 
-export interface RoleAssignmentFieldChange {
+interface RoleAssignmentFieldChange {
   field: "runtime" | "model" | "effort" | "max_turn_budget_usd";
   from: string | number;
   to: string | number;
 }
 
-export interface RoleAssignmentBlocker {
+interface RoleAssignmentBlocker {
   code:
     | "unknown_role"
     | "no_change_requested"
@@ -75,7 +75,7 @@ export interface RoleAssignmentBlocker {
 /** The recorded outcome of the harness-roster check, without the roster
  *  itself: a pi registry lists thousands of ids and the journal wants the
  *  decision, not the catalog. */
-export interface RoleAssignmentModelCatalogCheck {
+interface RoleAssignmentModelCatalogCheck {
   runtime: RuntimeKind;
   model: string;
   /** True only when a roster existed AND it lists this id. */
@@ -87,7 +87,7 @@ export interface RoleAssignmentModelCatalogCheck {
   reason?: string;
 }
 
-export interface RoleAssignmentChangePlan {
+interface RoleAssignmentChangePlan {
   schema_version: typeof ROLE_ASSIGNMENT_JOURNAL_VERSION;
   kind: "role-assignment-change";
   rolesPath: string;
@@ -111,7 +111,7 @@ export interface RoleAssignmentChangePlan {
   rolesSha256After?: string;
 }
 
-export interface ApplyRoleAssignmentOptions {
+interface ApplyRoleAssignmentOptions {
   orgHome: string;
   stateHome: string;
   role: string;
@@ -303,7 +303,7 @@ export async function applyRoleAssignmentChange(
   return base;
 }
 
-export interface RoleAssignmentJournalEntry {
+interface RoleAssignmentJournalEntry {
   schema_version: typeof ROLE_ASSIGNMENT_JOURNAL_VERSION;
   at: string;
   roles_path: string;

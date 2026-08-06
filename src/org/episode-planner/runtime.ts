@@ -1,16 +1,27 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { writeContextManifest } from "../../loop/context-manifest.js";
+import {
+  beginProviderStep,
+  finalizeProviderStep,
+  fingerprint,
+  readExecutionSteps,
+  readPendingProviderSteps,
+  type ExecutionStepRecord,
+  type ProviderStepPlanMetadata,
+  type StartedProviderStep,
+} from "../../loop/efficiency.js";
 import { completedEpisodePlanStepIds, readEpisodePlanExecutionJournal } from "../../loop/episode-plan-executor.js";
 import {
-  deriveEpisodeSafetyRoute,
-  EpisodePlanValidationError,
-  EPISODE_PLAN_REASON_CODES,
   EPISODE_PLAN_PROPOSAL_SCHEMA,
+  EPISODE_PLAN_REASON_CODES,
+  EpisodePlanValidationError,
   annotateRepairRegression,
-  episodePlanProposalSchemaForOperations,
   assertEpisodePlanValid,
   assessCreatorScope,
+  deriveEpisodeSafetyRoute,
   episodeIntentHash,
+  episodePlanProposalSchemaForOperations,
   materializeEpisodePlanAssignments,
   parseNormalizedProposedEpisodePlan,
   readCurrentEpisodePlan,
@@ -34,17 +45,6 @@ import {
   type PlannerAdmissionLimits,
 } from "../../loop/planner-admission.js";
 import {
-  beginProviderStep,
-  fingerprint,
-  finalizeProviderStep,
-  readExecutionSteps,
-  readPendingProviderSteps,
-  type ExecutionStepRecord,
-  type ProviderStepPlanMetadata,
-  type StartedProviderStep,
-} from "../../loop/efficiency.js";
-import { writeContextManifest } from "../../loop/context-manifest.js";
-import {
   CONFIGURED_ASSIGNMENT_CANDIDATE_ID,
   buildTurnExecutionFacts,
   configuredProviderFamily,
@@ -66,6 +66,7 @@ import { createEventWriter, type EventWriter } from "../../runtime/runlog/events
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../../runtime/runlog/forensics.js";
 import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
 import { recordTurnOnce, toRecord, type TriggerKind } from "../../runtime/telemetry.js";
+import { ZERO_USAGE } from "../../runtime/turn-usage.js";
 import type {
   ContextBundle,
   RoleConfig,
@@ -78,6 +79,11 @@ import type {
 } from "../../runtime/types.js";
 import type { AppEntry } from "../apps.js";
 import {
+  renderEpisodePlannerBrief,
+  renderEpisodePlannerRevisionBrief,
+  type EpisodePlannerRevisionRequest,
+} from "./brief.js";
+import {
   CreatorScopeConflictError,
   EpisodePlannerFailedError,
   hasAuthoritativeCreatorScopeConflict,
@@ -86,11 +92,6 @@ import {
   type EpisodePlannerProposalRequest,
   type PreparedEpisodePlan,
 } from "./coordinator.js";
-import {
-  renderEpisodePlannerBrief,
-  renderEpisodePlannerRevisionBrief,
-  type EpisodePlannerRevisionRequest,
-} from "./brief.js";
 import type { EpisodePlanRevisionProposal, EpisodePlanRevisionProposalRequest } from "./execution.js";
 import {
   createEpisodePlanningPolicy,
@@ -98,10 +99,10 @@ import {
   type EpisodePlanningPolicyOptions,
 } from "./policy.js";
 
-export const EPISODE_PLANNER_PIPELINE = "episode-planner" as const;
-export const EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR = "error_episode_planner_acceptance_internal" as const;
-export const MAX_EPISODE_PLANNER_PROMPT_BYTES = 64 * 1024;
-export const MAX_EPISODE_PLANNER_CONTEXT_BYTES = 640 * 1024;
+const EPISODE_PLANNER_PIPELINE = "episode-planner" as const;
+const EPISODE_PLANNER_ACCEPTANCE_INTERNAL_ERROR = "error_episode_planner_acceptance_internal" as const;
+const MAX_EPISODE_PLANNER_PROMPT_BYTES = 64 * 1024;
+const MAX_EPISODE_PLANNER_CONTEXT_BYTES = 640 * 1024;
 
 const DEFAULT_REQUIRED_CAPABILITIES = [
   "cancellation",
@@ -168,12 +169,12 @@ export interface ProviderEpisodePlannerOptions {
   afterAttemptFinalized?: (input: { attempt: 1 | 2; step: ExecutionStepRecord }) => void | Promise<void>;
 }
 
-export type ProviderEpisodePlannerRevisionOptions = Omit<ProviderEpisodePlannerOptions, "intent">;
+type ProviderEpisodePlannerRevisionOptions = Omit<ProviderEpisodePlannerOptions, "intent">;
 
 /** A terminal provider receipt may exist before its run envelope or ledger
  * row is complete. Keep the typed replan request pending so a later invocation
  * can reconcile that exact turn; rejecting it would make a crash permanent. */
-export class EpisodePlannerRevisionDeferredError extends Error {
+class EpisodePlannerRevisionDeferredError extends Error {
   readonly code = "error_episode_replan_provider_in_flight" as const;
   constructor(message: string) {
     super(message);
@@ -1671,11 +1672,7 @@ function failedResult(
 
 function unavailableUsage(): TurnUsage {
   return {
-    tokensIn: 0,
-    tokensOut: 0,
-    costUsd: 0,
-    subagentTurns: 0,
-    wallClockMs: 0,
+    ...ZERO_USAGE,
     quality: "unavailable",
   };
 }

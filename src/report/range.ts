@@ -42,7 +42,7 @@ export function normalizeReportRange(
   };
 }
 
-export function parseUtcDate(value: string, label: string): Date {
+function parseUtcDate(value: string, label: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`report: ${label} must be YYYY-MM-DD`);
   const date = new Date(`${value}T00:00:00.000Z`);
   if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
@@ -51,7 +51,7 @@ export function parseUtcDate(value: string, label: string): Date {
   return date;
 }
 
-export function automaticBucket(days: number): ReportBucketKind {
+function automaticBucket(days: number): ReportBucketKind {
   if (!Number.isFinite(days) || days < 1) throw new Error("report: interval must contain at least one day");
   return days <= 45 ? "day" : days <= 180 ? "week" : "month";
 }
@@ -72,11 +72,11 @@ export function nextBucket(date: Date, kind: ReportBucketKind): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
 }
 
-export function utcDayStart(date: Date): Date {
+function utcDayStart(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-export function addUtcDays(date: Date, days: number): Date {
+function addUtcDays(date: Date, days: number): Date {
   const out = new Date(date);
   out.setUTCDate(out.getUTCDate() + days);
   return out;

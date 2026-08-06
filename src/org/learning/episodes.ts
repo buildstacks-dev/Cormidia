@@ -28,7 +28,7 @@ export interface EpisodeAnchor {
 }
 
 /** `ep_<app>_<kind-short>_<source-key>` (spec §5). */
-export function buildTicketEpisodeId(app: string, ticketRef: string): string {
+function buildTicketEpisodeId(app: string, ticketRef: string): string {
   return episodeId(app, "ticket", ticketKey(ticketRef));
 }
 
@@ -62,12 +62,12 @@ const EVENT_EPISODE_KIND: Record<string, EpisodeKind> = {
   "adoption-signal": "campaign",
 };
 
-export function eventEpisodeId(app: string, event: Pick<TurnEvent, "kind" | "key">): string {
+function eventEpisodeId(app: string, event: Pick<TurnEvent, "kind" | "key">): string {
   const short = EVENT_KIND_SHORT[event.kind] ?? sanitizeSegment(event.kind);
   return episodeId(app, short, event.key);
 }
 
-export function eventEpisodeAnchor(app: string, event: Pick<TurnEvent, "kind" | "key">): EpisodeAnchor {
+function eventEpisodeAnchor(app: string, event: Pick<TurnEvent, "kind" | "key">): EpisodeAnchor {
   return {
     episodeId: eventEpisodeId(app, event),
     kind: EVENT_EPISODE_KIND[event.kind] ?? "turn",
@@ -77,7 +77,7 @@ export function eventEpisodeAnchor(app: string, event: Pick<TurnEvent, "kind" | 
 
 /** Schedule-triggered turns (retro, hourly planner, …) have no durable anchor
  *  beyond the turn itself: the turn is its own episode. */
-export function turnEpisodeId(app: string, turnId: string): string {
+function turnEpisodeId(app: string, turnId: string): string {
   return episodeId(app, "turn", turnId);
 }
 

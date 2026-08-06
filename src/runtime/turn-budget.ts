@@ -29,7 +29,7 @@ export const ERROR_TURN_BUDGET_EXHAUSTED = "error_turn_budget_exhausted";
 export const ERROR_TURN_BUDGET_SUSPENDED = "error_turn_budget_suspended";
 
 /** Which ring a stop belongs to — see the module header. */
-export type BudgetRing = "per_turn" | "episode";
+type BudgetRing = "per_turn" | "episode";
 
 /** What the EPISODE still allows on each bounded dimension at the moment this
  * turn was admitted. Compared against the effective per-turn bounds to derive
@@ -66,7 +66,7 @@ export interface EffectiveTurnBounds {
   configuration_ref: string;
 }
 
-export type BudgetStopDimension = "equivalent_cost_usd" | "tool_calls" | "active_time_ms" | "provider_turns";
+type BudgetStopDimension = "equivalent_cost_usd" | "tool_calls" | "active_time_ms" | "provider_turns";
 
 export interface TurnBudgetStop {
   dimension: BudgetStopDimension;

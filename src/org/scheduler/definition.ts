@@ -1,6 +1,12 @@
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import {
+  DEFAULT_SCHEDULER_PATH,
+  SCHEDULER_REQUIRED_EXECUTABLES_ENV,
+  requiredExecutablesManifest,
+  schedulerEnvironmentPath,
+} from "./environment.js";
+import {
   DEFAULT_SCHEDULER_CADENCE_MINUTES,
   SCHEDULER_SCHEMA_VERSION,
   assertCadence,
@@ -13,12 +19,7 @@ import {
   type SchedulerDefinitionMetadata,
   type SchedulerExpectation,
 } from "./model.js";
-import {
-  DEFAULT_SCHEDULER_PATH,
-  requiredExecutablesManifest,
-  schedulerEnvironmentPath,
-  SCHEDULER_REQUIRED_EXECUTABLES_ENV,
-} from "./environment.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 const MARKER = "cormidia-scheduler-metadata-v1:";
 
@@ -35,7 +36,7 @@ export interface SchedulerDefinitionInput {
   requiredExecutables?: Record<string, string>;
 }
 
-export type ParsedSchedulerDefinition =
+type ParsedSchedulerDefinition =
   | { kind: "owned"; metadata: SchedulerDefinitionMetadata; definitionHash: string }
   | { kind: "foreign"; reason: "ownership_mismatch" }
   | { kind: "malformed"; reason: "malformed_definition"; detail: string };
@@ -58,7 +59,7 @@ export function buildSchedulerExpectation(input: SchedulerDefinitionInput): Sche
     packageEntryPath,
     orgHome,
     stateHome,
-    ...(input.tsxImportPath !== undefined ? { tsxImportPath: input.tsxImportPath } : {}),
+    ...definedProps({ tsxImportPath: input.tsxImportPath }),
     environmentPath,
     requiredExecutables,
   });
@@ -114,7 +115,7 @@ export function parseSchedulerDefinition(text: string): ParsedSchedulerDefinitio
   }
 }
 
-export function schedulerCommand(input: {
+function schedulerCommand(input: {
   executablePath: string;
   packageEntryPath: string;
   orgHome: string;

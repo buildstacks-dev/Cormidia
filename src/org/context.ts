@@ -13,8 +13,9 @@ import { ticketEpisodeAnchor } from "./learning/episodes.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import { resolveLearningContext, type ResolvedLearningContext } from "./learning/resolver.js";
 import { selectAttributedExcerpts } from "./memory.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface AssembleContextOptions {
+interface AssembleContextOptions {
   orgHome: string;
   appWorkdir: string;
   app: string;
@@ -42,7 +43,7 @@ export interface AssembleContextOptions {
   };
 }
 
-export interface AssembledContext {
+interface AssembledContext {
   bundle: ContextBundle;
   /** Rendered native-channel text for CLI integrations that need a string. */
   systemPrompt: string;
@@ -134,9 +135,9 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
       policy: await loadLearningPolicy(orgHome),
       // An explicit caller cap bounds the COMBINED memory section: governed
       // concepts spend from it first, legacy memory gets the remainder.
-      ...(options.memoryCapBytes !== undefined ? { budgetCapBytes: options.memoryCapBytes } : {}),
-      ...(options.learning.stateHome !== undefined ? { stateHome: options.learning.stateHome } : {}),
-      ...(options.learning.lineageOverride !== undefined ? { lineageOverride: options.learning.lineageOverride } : {}),
+      ...definedProps({ budgetCapBytes: options.memoryCapBytes }),
+      ...definedProps({ stateHome: options.learning.stateHome }),
+      ...definedProps({ lineageOverride: options.learning.lineageOverride }),
     });
     legacyCap = Math.min(legacyCap, resolved.bytes_remaining);
     sources.push(join(orgHome, "learning"), join(appWorkdir, ".cormidia", "learning"));
@@ -172,11 +173,11 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
     systemPrompt,
     byteSize: Buffer.byteLength(systemPrompt, "utf8"),
     sources,
-    ...(resolved !== undefined ? { resolvedLearning: resolved } : {}),
+    ...definedProps({ resolvedLearning: resolved }),
   };
 }
 
-export interface EpisodeContextResolverOptions {
+interface EpisodeContextResolverOptions {
   orgHome: string;
   appWorkdir: string;
   app: string;
@@ -218,7 +219,7 @@ export function createEpisodeContextResolver(
       app: options.app,
       role,
       taskText: `${item.title}\n\n${item.body}`,
-      ...(options.memoryCapBytes !== undefined ? { memoryCapBytes: options.memoryCapBytes } : {}),
+      ...definedProps({ memoryCapBytes: options.memoryCapBytes }),
       learning: {
         stateHome: options.stateHome,
         turnId: `${options.turnId}-i${item.issueNumber}-${role.name}`,
@@ -240,7 +241,7 @@ export function createEpisodeContextResolver(
   };
 }
 
-export function renderContextBundle(bundle: ContextBundle): string {
+function renderContextBundle(bundle: ContextBundle): string {
   const sections = [
     ...(bundle.authority !== undefined ? [`## Effective delegated authority\n\n${bundle.authority.text.trim()}`] : []),
     ...bundle.taste,

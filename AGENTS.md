@@ -100,6 +100,10 @@ rewrite; legacy test/eval scripts removed with the archive move).
   without a guard is incomplete — a live run is not a regression test.
 - **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the three
   provider SDKs. Adding one is a decision, not a convenience.
+- **Agent-authored engineering standard:**
+  `research/2026-08-05_pi-forensic-analysis/pi-engineering-standards-skill.md`
+  is binding for agent-authored code. The single module budget is public-symbol
+  count as the gate; physical line count is the smoke alarm.
 - **Model IDs** in roles.yaml were human-ratified 2026-07-15
   (`research/2026-07-15_model-assignment-refresh.md`); `gpt-5.6-sol`
   availability is proved by adapter calibration before a candidate campaign.

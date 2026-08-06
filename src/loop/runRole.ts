@@ -16,16 +16,17 @@
 import { basename, dirname } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
-import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import { assembleBrief, withAuthorityBrief } from "./brief.js";
 import type { RouteBudget } from "./efficiency.js";
 import { executePipeline, type PassRunRecord } from "./pipeline.js";
 import type { PipelineConfig } from "./pipelines.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const DEFAULT_BRIEF_BUDGET_TOKENS = 12_000;
 
-export interface RunRoleRequest {
+interface RunRoleRequest {
   role: RoleConfig;
   /** Target app slug — passed through to the run record when executing. */
   app?: string;
@@ -65,7 +66,7 @@ export interface RunRoleRequest {
   routeBudgetOverrides?: Partial<RouteBudget>;
 }
 
-export interface RunRoleResult {
+interface RunRoleResult {
   brief: string;
   executed: boolean;
   record?: PassRunRecord;
@@ -143,23 +144,23 @@ export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
       traceId: request.turnId ?? mintRunId(clock(), "manual", request.role.name),
     },
     clock,
-    ...(request.telemetry !== undefined ? { telemetry: request.telemetry } : {}),
-    ...(request.signal !== undefined ? { signal: request.signal } : {}),
-    ...(request.parentTaskId !== undefined ? { parentTaskId: request.parentTaskId } : {}),
+    ...definedProps({ telemetry: request.telemetry }),
+    ...definedProps({ signal: request.signal }),
+    ...definedProps({ parentTaskId: request.parentTaskId }),
     ...(request.networkAccess === true ? { networkAccess: true } : {}),
-    ...(request.contextBudgetBytes !== undefined ? { contextBudgetBytes: request.contextBudgetBytes } : {}),
+    ...definedProps({ contextBudgetBytes: request.contextBudgetBytes }),
     ...(request.route !== undefined || request.routeBudgetOverrides !== undefined
       ? {
           episode: {
-            ...(request.route !== undefined ? { route: request.route } : {}),
-            ...(request.routeBudgetOverrides !== undefined ? { budgetOverrides: request.routeBudgetOverrides } : {}),
+            ...definedProps({ route: request.route }),
+            ...definedProps({ budgetOverrides: request.routeBudgetOverrides }),
           },
         }
       : {}),
   });
 
   const record = result.passes[0];
-  return { brief, executed: true, ...(record !== undefined ? { record } : {}) };
+  return { brief, executed: true, ...definedProps({ record }) };
 }
 
 function countLabel(count: number, label: string): string {

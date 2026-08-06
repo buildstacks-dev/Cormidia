@@ -19,35 +19,33 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { loadApps } from "./apps.js";
-import { resolveActiveOrgSelection, writeActiveOrgPointer } from "./home.js";
+import { resolveActiveOrgSelection } from "./home.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
-  assertDirectoryNoSymlink,
-  assertRegularFile,
   sha256,
   stableJson,
   writeLifecycleFileAtomic,
   type LifecycleBlocker,
 } from "./lifecycle.js";
 
-export const ORG_ARCHIVE_SCHEMA_VERSION = LIFECYCLE_SCHEMA_VERSION;
+const ORG_ARCHIVE_SCHEMA_VERSION = LIFECYCLE_SCHEMA_VERSION;
 
 /** Written into each state home so the org home stays discoverable after the
  * active pointer moves on. Its absence is exactly the orphan condition
  * ENH-001 asks `doctor` to surface. */
-export const ORG_BACKLINK_FILE = "org-home.json";
+const ORG_BACKLINK_FILE = "org-home.json";
 
 /** Entries under the pointer's parent that are Cormidia's own, not an org. */
 const NON_ORG_ENTRIES = new Set(["archives", "questionnaire", "config"]);
 
-export interface OrgBacklink {
+interface OrgBacklink {
   schema_version: typeof ORG_ARCHIVE_SCHEMA_VERSION;
   kind: "org-home-backlink";
   org_home: string;
   recorded_at: string;
 }
 
-export function orgBacklinkPath(stateHome: string): string {
+function orgBacklinkPath(stateHome: string): string {
   return join(resolve(stateHome), ORG_BACKLINK_FILE);
 }
 
@@ -65,7 +63,7 @@ export async function recordOrgBacklink(stateHome: string, orgHome: string, now:
   await writeLifecycleFileAtomic(path, `${stableJson(backlink).trimEnd()}\n`);
 }
 
-export async function readOrgBacklink(stateHome: string): Promise<string | undefined> {
+async function readOrgBacklink(stateHome: string): Promise<string | undefined> {
   const path = orgBacklinkPath(stateHome);
   if (!existsSync(path)) return undefined;
   try {
@@ -80,7 +78,7 @@ export async function readOrgBacklink(stateHome: string): Promise<string | undef
 // org list
 // ---------------------------------------------------------------------------
 
-export interface DiscoveredOrg {
+interface DiscoveredOrg {
   name: string;
   stateHome: string;
   /** Resolved from the active pointer or the state home's backlink. */
@@ -99,7 +97,7 @@ export interface DiscoveredOrg {
   usageMeasured: boolean;
 }
 
-export interface ListOrgsOptions {
+interface ListOrgsOptions {
   /** Defaults to the active-pointer path (`~/.cormidia/config`). */
   pointerPath: string;
   /**
@@ -163,7 +161,7 @@ export async function listOrgs(options: ListOrgsOptions): Promise<DiscoveredOrg[
 // org archive
 // ---------------------------------------------------------------------------
 
-export interface OrgArchivePlan {
+interface OrgArchivePlan {
   schema_version: typeof ORG_ARCHIVE_SCHEMA_VERSION;
   kind: "org-archive-plan";
   org: DiscoveredOrg;
@@ -180,7 +178,7 @@ export interface OrgArchivePlan {
   executed: boolean;
 }
 
-export interface PlanOrgArchiveOptions {
+interface PlanOrgArchiveOptions {
   pointerPath: string;
   org: string;
   /** Archive parent. Must be outside the archived state home. */
@@ -239,11 +237,11 @@ export async function planOrgArchive(options: PlanOrgArchiveOptions): Promise<Or
   };
 }
 
-export interface ExecuteOrgArchiveOptions extends PlanOrgArchiveOptions {
+interface ExecuteOrgArchiveOptions extends PlanOrgArchiveOptions {
   confirm: string;
 }
 
-export interface OrgArchiveResult {
+interface OrgArchiveResult {
   plan: OrgArchivePlan;
   archivePath: string;
   manifestSha256: string;
@@ -340,13 +338,6 @@ export async function executeOrgArchive(options: ExecuteOrgArchiveOptions): Prom
     archivePath,
     manifestSha256,
   };
-}
-
-/** Re-point the pointer at another discoverable org, used by tests and by an
- * operator recovering after archiving the active org. */
-export async function selectDiscoveredOrg(pointerPath: string, org: DiscoveredOrg): Promise<void> {
-  if (org.orgHome === null) throw new Error(`org: ${org.name} has no recorded org home`);
-  await writeActiveOrgPointer(pointerPath, org.orgHome, org.stateHome);
 }
 
 export function formatOrgArchivePlan(plan: OrgArchivePlan): string {
@@ -541,13 +532,6 @@ async function assertArchiveCoversStateHome(stateHome: string, archivedState: st
         `${missing.slice(0, 5).join(", ")}${missing.length > 5 ? ", …" : ""}`,
     );
   }
-}
-
-export async function readOrgArchiveManifest(archivePath: string): Promise<Record<string, unknown>> {
-  const target = await assertDirectoryNoSymlink(resolve(archivePath), "org archive");
-  const manifestPath = join(target, "manifest.json");
-  await assertRegularFile(manifestPath, "org archive manifest");
-  return JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
 }
 
 /** Content identity of the retirement: same org, same paths, same base id. */

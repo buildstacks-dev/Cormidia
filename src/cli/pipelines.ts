@@ -7,8 +7,8 @@
 import { access } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { loadPipelines } from "../loop/pipelines.js";
-import { loadRoles } from "../org/roles.js";
 import { resolveCormidiaHomes } from "../org/home.js";
+import { loadRoles } from "../org/roles.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdPipelines(args: string[] = []): Promise<number> {

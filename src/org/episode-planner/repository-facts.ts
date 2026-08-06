@@ -1,11 +1,11 @@
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import type { BaseRevision } from "../../loop/default-branch.js";
+import { worktreeFingerprint } from "../../loop/efficiency.js";
 import type { JsonValue } from "../../loop/episode-plan.js";
 import { gitSnapshotOf } from "../../runtime/git.js";
-import { worktreeFingerprint } from "../../loop/efficiency.js";
 
 const GIT_TIMEOUT_MS = 5_000;
 const GIT_MAX_BUFFER = 16 * 1024 * 1024;
@@ -14,7 +14,7 @@ const MAX_SCRIPT_NAMES = 128;
 const MAX_PACKAGE_BYTES = 256 * 1024;
 const MAX_FACT_STRING = 512;
 
-export interface RepositoryInspection {
+interface RepositoryInspection {
   repositoryFacts: Record<string, JsonValue>;
   changeFacts: Record<string, JsonValue>;
 }

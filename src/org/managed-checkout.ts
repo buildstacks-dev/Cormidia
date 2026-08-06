@@ -4,10 +4,10 @@
 // Planner entry point can share the same managed checkout without creating an
 // import cycle through the dispatcher.
 
-import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
 import {
   acquireFileLock,
   releaseFileLock,
@@ -16,8 +16,9 @@ import {
   type FileLockOptions,
   type FileLockToken,
 } from "../runtime/file-lock.js";
-import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
+import { runGit as git } from "../runtime/git.js";
 import type { AppEntry } from "./apps.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;
 const GIT_CLONE_LOCK_MAX_WAIT_MS = GIT_CLONE_LOCK_STALE_MS + 60 * 1000;
@@ -32,7 +33,7 @@ function gitCloneLockOptions(clock?: FileLockClock): FileLockOptions {
   return {
     staleMs: GIT_CLONE_LOCK_STALE_MS,
     maxWaitMs: GIT_CLONE_LOCK_MAX_WAIT_MS,
-    ...(clock !== undefined ? { clock } : {}),
+    ...definedProps({ clock }),
   };
 }
 
@@ -97,13 +98,4 @@ function repoUrl(repo: string): string {
     return repo;
   }
   return `https://github.com/${repo}.git`;
-}
-
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
 }

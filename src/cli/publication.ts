@@ -1,6 +1,6 @@
 import { GhCliOps } from "../loop/github.js";
-import { listPlannerPublications, resumePlannerPublication } from "../org/planner-publication.js";
 import { resolveCormidiaHomes } from "../org/home.js";
+import { listPlannerPublications, resumePlannerPublication } from "../org/planner-publication.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdPublication(args: string[]): Promise<number> {

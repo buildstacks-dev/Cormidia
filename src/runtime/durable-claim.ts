@@ -13,7 +13,7 @@ import { dirname, join, resolve } from "node:path";
 import { withFileLock } from "./file-lock.js";
 import { currentProcessStartIdentity, processIdentityStatus } from "./process-identity.js";
 
-export type DurableClaimStatus = "claimed" | "committed" | "settled";
+type DurableClaimStatus = "claimed" | "committed" | "settled";
 export type DurableClaimOwnerStatus = "live" | "dead" | "unknown";
 export type DurableClaimDisposition =
   | "claimed"
@@ -35,7 +35,7 @@ export interface DurableClaimToken {
   nonce: string;
 }
 
-export interface DurableClaimAttemptHistory {
+interface DurableClaimAttemptHistory {
   attempt: number;
   status: DurableClaimStatus;
   claimed_at: string;
@@ -71,7 +71,7 @@ export interface DurableClaimResult<TPayload = unknown> {
   token?: DurableClaimToken;
 }
 
-export interface DurableClaimStoreOptions {
+interface DurableClaimStoreOptions {
   root: string;
   /** Relative state namespace. It is validated as path segments so a caller
    * cannot turn claim identity into filesystem authority. */

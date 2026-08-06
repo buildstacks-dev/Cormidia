@@ -11,8 +11,8 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { Effort, RoleConfig, Trigger, TurnAssignmentSource, TurnResult, UsageQuality } from "./types.js";
 import { scrubSecrets } from "./runlog/redact.js";
+import type { Effort, RoleConfig, Trigger, TurnAssignmentSource, TurnResult, UsageQuality } from "./types.js";
 export {
   recordInvocation,
   type InvocationRecord,
@@ -95,7 +95,7 @@ export interface TurnRecord {
 /** Optional per-turn attribution (build plan M3.2): which app the turn ran
  *  against and which trigger kind fired it, plus run-log correlation for
  *  pass-settled rows (Stage 1) and learning-loop refs (M5). */
-export interface TurnAttribution {
+interface TurnAttribution {
   app?: string;
   trigger?: TriggerKind;
   runId?: string;

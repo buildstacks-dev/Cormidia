@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
-import type { ContextBundle, TurnExecutionFacts } from "./types.js";
 import { validateTurnExecutionFacts } from "./assignment.js";
 import { runtimeCapabilityGuidance, runtimeCapabilityProfile } from "./capabilities.js";
+import type { ContextBundle, TurnExecutionFacts } from "./types.js";
 
 export function renderContextBundle(context: ContextBundle): string {
   const sections = [
@@ -47,7 +47,7 @@ export function renderTurnExecutionFacts(value: TurnExecutionFacts): string {
   ].join("\n");
 }
 
-export interface WorktreeContextFile {
+interface WorktreeContextFile {
   path: string;
   excludePath: string;
 }

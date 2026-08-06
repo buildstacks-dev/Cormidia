@@ -1,7 +1,7 @@
-import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
-import { resolveCormidiaHomes } from "../org/home.js";
-import { extractHomeFlags } from "./home-flags.js";
 import { resolve } from "node:path";
+import { resolveCormidiaHomes } from "../org/home.js";
+import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdAnalyze(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "analyze");

@@ -1,7 +1,3 @@
-export function sum(values: readonly number[]): number {
-  return values.reduce((total, value) => total + value, 0);
-}
-
 export function nearestRank(values: readonly number[], percentile: number): number | null {
   const eligible = values.filter(Number.isFinite).sort((a, b) => a - b);
   if (eligible.length === 0) return null;

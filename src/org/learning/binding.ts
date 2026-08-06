@@ -15,11 +15,12 @@
 import type { ApprovalItem, ApprovalStore } from "../approvals.js";
 import type { LoopTier } from "../memory.js";
 import type { CandidateDestination } from "./candidate.js";
-import { requireEnum, requireRecord, requireSha256Ref, requireString, requireStringArray } from "./validate.js";
 import { CANDIDATE_DESTINATIONS } from "./candidate.js";
+import { requireEnum, requireRecord, requireSha256Ref, requireString, requireStringArray } from "./validate.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
-export const LEARNING_PUBLISH_TOOL = "learning_publish";
-export const LEARNING_PUBLISH_RULE = "learning-publish";
+const LEARNING_PUBLISH_TOOL = "learning_publish";
+const LEARNING_PUBLISH_RULE = "learning-publish";
 
 export interface LearningPublishBinding {
   kind: "learning_publish";
@@ -42,7 +43,7 @@ export interface LearningPublishBinding {
   waivers: string[];
 }
 
-export function validateLearningPublishBinding(value: unknown): LearningPublishBinding {
+function validateLearningPublishBinding(value: unknown): LearningPublishBinding {
   const spec = requireRecord(value, "learning_publish");
   if (spec["kind"] !== "learning_publish") {
     throw new Error(`learning: learning_publish.kind must be "learning_publish"`);
@@ -63,7 +64,7 @@ export function validateLearningPublishBinding(value: unknown): LearningPublishB
   };
 }
 
-export interface RaiseLearningPublishInput {
+interface RaiseLearningPublishInput {
   binding: LearningPublishBinding;
   app: string;
   justification?: string;
@@ -92,8 +93,8 @@ export async function raiseLearningPublish(
         `learning publish: ${input.binding.destination} ${input.binding.candidate_id} ` +
         `(tier ${input.binding.tier}, scope ${input.binding.scope})`,
     },
-    ...(input.justification !== undefined ? { justification: input.justification } : {}),
-    ...(input.now !== undefined ? { now: input.now } : {}),
+    ...definedProps({ justification: input.justification }),
+    ...definedProps({ now: input.now }),
   });
   return { item, alreadyPending: false };
 }

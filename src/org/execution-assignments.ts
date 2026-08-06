@@ -8,7 +8,7 @@ import {
   type ApprovedTurnAssignment,
 } from "./roles.js";
 
-export interface ResolvedRoleAssignments {
+interface ResolvedRoleAssignments {
   role: string;
   candidates: ApprovedAssignmentCandidate[];
   assignments: ApprovedTurnAssignment[];

@@ -22,16 +22,19 @@
 // only writes here are human_correction / late_outcome events, fixture
 // drafts/validations, and the projections' own idempotent state.
 
-import { stdin as input, stdout as output } from "node:process";
-import { createInterface } from "node:readline/promises";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { stdin as input, stdout as output } from "node:process";
+import { createInterface } from "node:readline/promises";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { rollupLearningSpend } from "../org/budget.js";
 import { resolveCormidiaHomes, type CormidiaHomes } from "../org/home.js";
+import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
 import { previewCaptureEvents, projectCaptureEvents, type CaptureProjectionResult } from "../org/learning/capture.js";
+import { compactionReport, listM6RunRecords, prepareDistillation } from "../org/learning/distillation.js";
+import { projectLearningEfficiencyHealth, type LearningEfficiencyHealth } from "../org/learning/efficiency-health.js";
 import {
   createEpisodeProjector,
   readEpisodeRecord,
@@ -39,6 +42,8 @@ import {
   type EpisodeProjector,
   type EpisodeRecord,
 } from "../org/learning/episode.js";
+import { convertCapsuleToEvalFixture, trustEvalFixture } from "../org/learning/eval-fixture.js";
+import { listEvalResults, readEvalResult, type EvalResult } from "../org/learning/eval-result.js";
 import {
   createLearningEventSink,
   learningEventPath,
@@ -46,10 +51,8 @@ import {
   readLearningEventsWithDiagnostics,
   type LearningEvent,
 } from "../org/learning/events.js";
-import { computeSystemFingerprint, storeFingerprint } from "../org/learning/fingerprint.js";
-import { convertCapsuleToEvalFixture, trustEvalFixture } from "../org/learning/eval-fixture.js";
-import { listEvalResults, readEvalResult, type EvalResult } from "../org/learning/eval-result.js";
 import { listExperimentRecords, readExperimentRecord, type ExperimentRecord } from "../org/learning/experiment.js";
+import { computeSystemFingerprint, storeFingerprint } from "../org/learning/fingerprint.js";
 import {
   interventionChainGaps,
   interventionIdForCandidate,
@@ -57,14 +60,11 @@ import {
   listInterventionRecords,
   readInterventionRecord,
 } from "../org/learning/intervention.js";
-import { loadRoles } from "../org/roles.js";
-import { runDispatchedTurn } from "../org/turn-runner.js";
-import { compactionReport, listM6RunRecords, prepareDistillation } from "../org/learning/distillation.js";
-import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import { loadLearningPolicy } from "../org/learning/policy.js";
-import { projectLearningEfficiencyHealth, type LearningEfficiencyHealth } from "../org/learning/efficiency-health.js";
 import { readRejections } from "../org/learning/rejections.js";
 import { listReviewerVerdicts, readReviewerVerdict } from "../org/learning/review.js";
+import { loadRoles } from "../org/roles.js";
+import { runDispatchedTurn } from "../org/turn-runner.js";
 import { extractHomeFlags } from "./home-flags.js";
 import {
   activationReport,
@@ -79,6 +79,7 @@ import {
 } from "./learn-activation.js";
 import { canaryStatusLines, learnCanary, learnExperiment } from "./learn-experiment.js";
 import { installProcessCancellation } from "./process-signal.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function cmdLearn(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "learn");
@@ -412,7 +413,7 @@ async function assembleCapsule(
       orgHome: homes.orgHome,
       app: {
         name: record.app,
-        ...(workdir !== undefined ? { workdir } : {}),
+        ...definedProps({ workdir }),
         ...(appEntry !== undefined ? { budgetUsdMonth: appEntry.budgetUsdMonth } : {}),
       },
       roles: Object.fromEntries(rolesFile.roles.map((role) => [role.name, role])),
@@ -427,9 +428,9 @@ async function assembleCapsule(
   const capsule = await createCapsuleBuilder({
     stateHome: homes.stateHome,
     repoByApp: Object.fromEntries(homes.appsFile.apps.map((app) => [app.name, app.repo])),
-    ...(fingerprintRef !== undefined ? { fingerprintRef } : {}),
+    ...definedProps({ fingerprintRef }),
   }).assemble(record.episode_id);
-  return { capsule, ...(fingerprintFailure !== undefined ? { fingerprintFailure } : {}) };
+  return { capsule, ...definedProps({ fingerprintFailure }) };
 }
 
 /** Replay-capsule section for a closed build episode. */
@@ -508,7 +509,7 @@ async function emit(
     const event = await projector.recordLateOutcome(parsed.episode, {
       kind: parsed.lateOutcome,
       ref: parsed.ref,
-      ...(parsed.note !== undefined ? { note: parsed.note } : {}),
+      ...definedProps({ note: parsed.note }),
     });
     console.log(`recorded late outcome ${event.event_id} against ${event.episode_id}`);
     console.log(`  it folds into the episode record on the next projection`);
@@ -571,8 +572,8 @@ async function emit(
       // observation is trusted human evidence; the cause is a hypothesis
       // even from a human; the intervention still requires review.
       observation: parsed.observation,
-      ...(parsed.cause !== undefined ? { cause_hypothesis_text: parsed.cause } : {}),
-      ...(parsed.intervention !== undefined ? { suggested_intervention: parsed.intervention } : {}),
+      ...definedProps({ cause_hypothesis_text: parsed.cause }),
+      ...definedProps({ suggested_intervention: parsed.intervention }),
       ...(parsed.artifacts.length > 0 ? { artifacts: parsed.artifacts } : {}),
     },
   };
@@ -1032,7 +1033,7 @@ async function report(
                 },
               }
             : {}),
-          ...(efficiencyHealth !== undefined ? { efficiency_health: efficiencyHealth } : {}),
+          ...definedProps({ efficiency_health: efficiencyHealth }),
           ...(storeErrors.length > 0 ? { store_errors: storeErrors } : {}),
         },
         null,

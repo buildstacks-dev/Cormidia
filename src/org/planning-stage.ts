@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { JsonValue } from "../loop/episode-plan.js";
 import type { ProjectStage } from "../loop/plan-tickets.js";
-import type { AppEntry } from "./apps.js";
 import { resolveAppWorkdir } from "./app-workdir.js";
+import type { AppEntry } from "./apps.js";
 
 const GIT_TIMEOUT_MS = 5_000;
 const GIT_MAX_BUFFER = 16 * 1024;
@@ -17,7 +17,7 @@ const GREENFIELD_SEED_PATH = ".cormidia/planning/0001-greenfield-seed.md";
  * and repeated reachable tags so one scaffold tag or a long unversioned import
  * cannot silently buy the largest planning envelope.
  */
-export const PLANNING_STAGE_THRESHOLDS = Object.freeze({
+const PLANNING_STAGE_THRESHOLDS = Object.freeze({
   bootstrapMaxReachableCommits: 5,
   matureMinReachableCommits: 50,
   matureMinReachableTags: 3,
@@ -26,13 +26,9 @@ export const PLANNING_STAGE_THRESHOLDS = Object.freeze({
   reachableTagProbeLimit: 4,
 });
 
-export type PlanningStageResolutionSource =
-  | "explicit"
-  | "repository_evidence"
-  | "conservative_fallback"
-  | "persisted_intent";
+type PlanningStageResolutionSource = "explicit" | "repository_evidence" | "conservative_fallback" | "persisted_intent";
 
-export type PlanningStageResolutionReason =
+type PlanningStageResolutionReason =
   | "operator_supplied"
   | "greenfield_seed_low_history_no_releases"
   | "low_history_no_releases"
@@ -41,7 +37,7 @@ export type PlanningStageResolutionReason =
   | "repository_evidence_unavailable"
   | "legacy_intent_stage_preserved";
 
-export interface PlanningStageEvidence {
+interface PlanningStageEvidence {
   inspection: "not_required" | "complete" | "unavailable";
   checkoutSource: "explicit" | "managed_clone" | "registered_local_checkout" | "unavailable" | "persisted_intent";
   greenfieldSeedPresent: boolean | null;
@@ -58,7 +54,7 @@ export interface PlanningStageResolution {
   evidence: PlanningStageEvidence;
 }
 
-export interface PlanningStageCheckout {
+interface PlanningStageCheckout {
   checkout: string;
   source: PlanningStageEvidence["checkoutSource"];
 }

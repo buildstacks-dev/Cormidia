@@ -51,19 +51,20 @@ import {
 } from "./canary.js";
 import {
   appLearningRoot,
+  bundleDir,
   loadConceptDir,
   orgLearningRoot,
   provisionalExpiry,
   quarantineDir,
   readManifest,
-  bundleDir,
   type LearningManifest,
   type LearningRoot,
 } from "./concepts.js";
 import { appendLearningEventsDeduped, sanitizeIdSegment, type LearningEvent } from "./events.js";
 import type { LearningPolicy, ScopeShareKey } from "./policy.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
-export interface ResolveInput {
+interface ResolveInput {
   orgHome: string;
   /** App repo checkout — omitted when the app has none locally (its two
    *  scopes then contribute nothing). */
@@ -90,7 +91,7 @@ export interface ResolveInput {
   clock?: () => Date;
 }
 
-export interface ResolvedConcept {
+interface ResolvedConcept {
   id: string;
   name: string;
   scope: string;
@@ -132,7 +133,7 @@ export function resolvedContextDir(stateHome: string): string {
   return join(stateHome, "learning", "resolved");
 }
 
-export function resolvedContextPath(stateHome: string, turnId: string): string {
+function resolvedContextPath(stateHome: string, turnId: string): string {
   return join(resolvedContextDir(stateHome), `${sanitizeIdSegment(turnId)}.json`);
 }
 
@@ -533,7 +534,7 @@ function toResolved(
     keywordHit: keywordsMatchTask(doc.frontmatter.keywords, input.taskText),
     bytes: Buffer.byteLength(rendered, "utf8"),
     rendered,
-    ...(topicKey !== undefined ? { topicKey } : {}),
+    ...definedProps({ topicKey }),
   };
 }
 

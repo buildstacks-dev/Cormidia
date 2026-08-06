@@ -4,17 +4,18 @@
 // data: exact operator prompts and native task identifiers are forensic
 // evidence, not committed org policy.
 
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { gitSnapshotOf } from "../runtime/git.js";
 import type { AuthorityEvidence } from "../runtime/types.js";
 import { writeFileAtomic } from "./atomic.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export type ParentTaskStatus = "running" | "completed" | "failed" | "cancelled" | "timed_out";
-export type ParentTaskExecutionMode = "cormidia" | "mixed" | "external_manual";
+type ParentTaskExecutionMode = "cormidia" | "mixed" | "external_manual";
 
 export interface ParentTaskRecord {
   schemaVersion: 1;
@@ -64,7 +65,7 @@ export interface ParentTaskCompletionState {
   issuesCloseOnMerge: string[];
 }
 
-export interface BeginParentTaskOptions {
+interface BeginParentTaskOptions {
   stateHome: string;
   taskId: string;
   originalPrompt: string;
@@ -96,15 +97,15 @@ export async function beginParentTask(options: BeginParentTaskOptions): Promise<
   const record: ParentTaskRecord = {
     schemaVersion: 1,
     taskId,
-    ...(options.app !== undefined ? { app: options.app } : {}),
+    ...definedProps({ app: options.app }),
     objective: options.objective?.trim() || firstNonemptyLine(prompt),
-    ...(options.completionCriteria !== undefined ? { completionCriteria: options.completionCriteria } : {}),
+    ...definedProps({ completionCriteria: options.completionCriteria }),
     promptRef: "prompt.md",
     promptSha256: sha256(prompt),
-    ...(source !== undefined ? { source } : {}),
-    ...(repository !== undefined ? { repository } : {}),
+    ...definedProps({ source }),
+    ...definedProps({ repository }),
     requiredStages: options.requiredStages ?? ["planner", "builder", "reviewer"],
-    ...(options.charter !== undefined ? { charter: options.charter } : {}),
+    ...definedProps({ charter: options.charter }),
     executionMode: "cormidia",
     fallbackEvents: [],
     status: "running",
@@ -133,7 +134,7 @@ export async function markParentTaskFallback(options: {
   record.fallbackEvents.push({
     at: (options.now ?? new Date()).toISOString(),
     reason,
-    ...(options.actor !== undefined ? { actor: options.actor } : {}),
+    ...definedProps({ actor: options.actor }),
   });
   await writeTask(options.stateHome, record);
   return record;
@@ -190,7 +191,7 @@ export async function listParentTasks(stateHome: string): Promise<ParentTaskReco
   return records.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 }
 
-export function parentTaskIdFrom(explicit?: string): string | undefined {
+function parentTaskIdFrom(explicit?: string): string | undefined {
   const value = explicit ?? process.env["CORMIDIA_PARENT_TASK_ID"];
   return value !== undefined ? validateTaskId(value) : undefined;
 }
@@ -241,9 +242,9 @@ function repositoryEvidence(workdirInput: string): ParentTaskRecord["repository"
 
 function compactSource(options: BeginParentTaskOptions): ParentTaskRecord["source"] | undefined {
   const source = {
-    ...(options.harness !== undefined ? { harness: options.harness } : {}),
-    ...(options.nativeTaskId !== undefined ? { nativeTaskId: options.nativeTaskId } : {}),
-    ...(options.nativeRef !== undefined ? { nativeRef: options.nativeRef } : {}),
+    ...definedProps({ harness: options.harness }),
+    ...definedProps({ nativeTaskId: options.nativeTaskId }),
+    ...definedProps({ nativeRef: options.nativeRef }),
   };
   return Object.keys(source).length > 0 ? source : undefined;
 }

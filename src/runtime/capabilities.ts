@@ -8,7 +8,7 @@ import type { RuntimeKind } from "./types.js";
  * whether it can rely on the surface. Role tools and permissions deliberately
  * do not belong here: selecting a harness must never grant authority.
  */
-export const RUNTIME_CAPABILITIES = [
+const RUNTIME_CAPABILITIES = [
   "cache_telemetry",
   "cancellation",
   "intra_turn_fanout",
@@ -19,10 +19,10 @@ export const RUNTIME_CAPABILITIES = [
 
 export type RuntimeCapability = (typeof RUNTIME_CAPABILITIES)[number];
 
-export const RUNTIME_CAPABILITY_SUPPORT = ["native", "adapter", "fallback", "unsupported"] as const;
+const RUNTIME_CAPABILITY_SUPPORT = ["native", "adapter", "fallback", "unsupported"] as const;
 
 /** `fallback` is intentionally rendered to agents as "fallback (degraded)". */
-export type RuntimeCapabilitySupport = (typeof RUNTIME_CAPABILITY_SUPPORT)[number];
+type RuntimeCapabilitySupport = (typeof RUNTIME_CAPABILITY_SUPPORT)[number];
 
 export interface RuntimeCapabilityProfile {
   /** Versioned identifier also used by assignment qualification records. */
@@ -140,7 +140,7 @@ export function resolvedRuntimeCapabilities(runtime: RuntimeKind): RuntimeCapabi
   return RUNTIME_CAPABILITIES.filter((capability) => hasRuntimeCapability(profile, capability)).sort();
 }
 
-export function runtimeCapabilitySupportLabel(support: RuntimeCapabilitySupport): string {
+function runtimeCapabilitySupportLabel(support: RuntimeCapabilitySupport): string {
   if (support === "adapter") return "adapter-built";
   if (support === "fallback") return "fallback (degraded)";
   return support;

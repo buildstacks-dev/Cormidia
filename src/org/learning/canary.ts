@@ -32,13 +32,14 @@ import {
   type LearningRoot,
   type ManifestCanaryMeta,
 } from "./concepts.js";
-import { sanitizeIdSegment } from "./events.js";
-import { readEvalResult } from "./eval-result.js";
-import { readExperimentRecord } from "./experiment.js";
 import { readEpisodeRecords } from "./episode.js";
-import { listInFlightOkfJournals } from "./publisher.js";
+import { readEvalResult } from "./eval-result.js";
+import { sanitizeIdSegment } from "./events.js";
+import { readExperimentRecord } from "./experiment.js";
 import { readInterventionRecord, writeInterventionRecord, type InterventionRecord } from "./intervention.js";
 import type { LearningPolicy, TierCanaryPolicy } from "./policy.js";
+import { listInFlightOkfJournals } from "./publisher.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 export type BundleLineage = "stable" | "canary";
 export type CanaryRootKind = "org" | "app";
@@ -58,7 +59,7 @@ export function canaryBucket(episodeId: string): number {
 // assignment records (state home) — the sticky pin
 // ---------------------------------------------------------------------------
 
-export interface CanaryRootAssignment {
+interface CanaryRootAssignment {
   /** The canary version the assignment was made against. A later trial on
    *  the same root never inherits an old trial's assignment. */
   version: string;
@@ -83,11 +84,11 @@ export interface CanaryAssignmentRecord {
   lineage: BundleLineage;
 }
 
-export function canaryAssignmentsDir(stateHome: string): string {
+function canaryAssignmentsDir(stateHome: string): string {
   return join(stateHome, "learning", "canary", "assignments");
 }
 
-export function canaryAssignmentPath(stateHome: string, episodeId: string): string {
+function canaryAssignmentPath(stateHome: string, episodeId: string): string {
   return join(canaryAssignmentsDir(stateHome), `${sanitizeIdSegment(episodeId)}.json`);
 }
 
@@ -136,7 +137,7 @@ export async function settleCanaryAssignmentRoot(
   const undecided = (existing.undecided ?? []).filter((entry) => entry !== kind);
   const next: CanaryAssignmentRecord = {
     ...existing,
-    roots: { ...existing.roots, ...(assignment !== undefined ? { [kind]: assignment } : {}) },
+    roots: { ...existing.roots, ...definedProps({ [kind]: assignment }) },
     ...(undecided.length > 0 ? { undecided } : {}),
     lineage: assignment?.lineage === "canary" ? "canary" : existing.lineage,
   };
@@ -235,7 +236,7 @@ export function decideRootLineage(input: {
 // promotions are human acts; the CLI is the gate)
 // ---------------------------------------------------------------------------
 
-export interface StartCanaryOptions {
+interface StartCanaryOptions {
   orgHome: string;
   /** Required when the intervention published into an app root. */
   appWorkdir?: string;
@@ -248,7 +249,7 @@ export interface StartCanaryOptions {
   now?: Date;
 }
 
-export interface StartedCanary {
+interface StartedCanary {
   root: CanaryRootKind;
   version: string;
   meta: ManifestCanaryMeta;
@@ -328,7 +329,7 @@ export async function startCanary(options: StartCanaryOptions): Promise<StartedC
   };
 }
 
-export interface CloseCanaryOptions {
+interface CloseCanaryOptions {
   orgHome: string;
   appWorkdir?: string;
   root: CanaryRootKind;

@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
-import { schedulerEnvironmentProblems } from "./environment.js";
 import { buildSchedulerExpectation, parseSchedulerDefinition, type SchedulerDefinitionInput } from "./definition.js";
+import { schedulerEnvironmentProblems } from "./environment.js";
 import type { SchedulerManager, SchedulerManagerInspection } from "./manager.js";
 import {
   SCHEDULER_SCHEMA_VERSION,
@@ -45,7 +45,7 @@ interface SchedulerLifecycleTransaction {
   updated_at: string;
 }
 
-export interface SchedulerLifecycleOptions extends SchedulerDefinitionInput {
+interface SchedulerLifecycleOptions extends SchedulerDefinitionInput {
   manager: SchedulerManager;
   execute?: boolean;
   confirm?: string;
@@ -53,7 +53,7 @@ export interface SchedulerLifecycleOptions extends SchedulerDefinitionInput {
   fault?: (boundary: SchedulerLifecycleBoundary) => void | Promise<void>;
 }
 
-export type SchedulerLifecycleBoundary =
+type SchedulerLifecycleBoundary =
   | "after_transaction"
   | "after_definition_write"
   | "after_manager_update"

@@ -14,11 +14,11 @@
 // provenance — the reviewer-human agreement metric (spec §18) needs to know
 // who reviewed, and the sketch had no field for it.
 
-import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { isReservedLoopScope, isValidLoopScope, type LoopTier } from "../memory.js";
 import { writeFileAtomic } from "../atomic.js";
+import { isReservedLoopScope, isValidLoopScope, type LoopTier } from "../memory.js";
 import { CANDIDATE_DESTINATIONS, type CandidateDestination } from "./candidate.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";
 import {
@@ -31,11 +31,11 @@ import {
   sha256Ref,
 } from "./validate.js";
 
-export const REVIEW_VERDICTS = ["approve", "revise", "reject", "escalate"] as const;
-export type ReviewVerdictWord = (typeof REVIEW_VERDICTS)[number];
+const REVIEW_VERDICTS = ["approve", "revise", "reject", "escalate"] as const;
+type ReviewVerdictWord = (typeof REVIEW_VERDICTS)[number];
 
-export const INJECTION_SCREENS = ["clean", "suspicious", "flagged"] as const;
-export type InjectionScreen = (typeof INJECTION_SCREENS)[number];
+const INJECTION_SCREENS = ["clean", "suspicious", "flagged"] as const;
+type InjectionScreen = (typeof INJECTION_SCREENS)[number];
 
 export interface ReviewerVerdict {
   schema_version: 1;
@@ -62,7 +62,7 @@ export interface ReviewerVerdict {
   reviewed_at: string;
 }
 
-export function validateReviewerVerdict(value: unknown): ReviewerVerdict {
+function validateReviewerVerdict(value: unknown): ReviewerVerdict {
   const spec = requireRecord(value, "review");
   const candidateId = requirePrefixedId(spec, "candidate_id", "cand_", "review");
   const source = `review(${candidateId})`;
@@ -114,7 +114,7 @@ export function validateReviewerVerdict(value: unknown): ReviewerVerdict {
   };
 }
 
-export type ReviewDisposition = "proceed" | "revise" | "reject" | "escalate";
+type ReviewDisposition = "proceed" | "revise" | "reject" | "escalate";
 
 /** The fail-closed disposition: a non-clean injection screen escalates no
  *  matter what the verdict word says. */
@@ -136,11 +136,11 @@ export function reviewDisposition(verdict: ReviewerVerdict): ReviewDisposition {
 // storage (org home learning/reviews/ — gate-protected, spec §1)
 // ---------------------------------------------------------------------------
 
-export function reviewsDir(orgHome: string): string {
+function reviewsDir(orgHome: string): string {
   return join(orgHome, "learning", "reviews");
 }
 
-export function reviewPath(orgHome: string, candidateId: string): string {
+function reviewPath(orgHome: string, candidateId: string): string {
   return join(reviewsDir(orgHome), `${candidateId}.json`);
 }
 

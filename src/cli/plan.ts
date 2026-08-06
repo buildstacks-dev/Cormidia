@@ -3,29 +3,27 @@
 // process is intentionally unavailable because it bypassed durable plan,
 // assignment, gate, envelope, and settlement authority.
 
-import { cleanupPlanningWorktree, preparePlanSession } from "../org/plan.js";
-import { runAutoPlan } from "../org/plan-auto.js";
-import { loadApps } from "../org/apps.js";
-import { resolveCormidiaHomes } from "../org/home.js";
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { extractHomeFlags } from "./home-flags.js";
-import { installProcessCancellation } from "./process-signal.js";
-import { resolveParentTaskId } from "../org/parent-task.js";
-import { loadRoles } from "../org/roles.js";
-import { isBudgetBlocking, rollupBudgets } from "../org/budget.js";
-import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
-import type { PlanningSourceRequest } from "../org/planning-inputs.js";
-import { previewEpisode, type EpisodePlanningPreview } from "../org/episode-planner/orchestrator.js";
+import { toErrorMessage as errorText } from "../runtime/error-message.js";
 import {
   parseCreatorEpisodeScope,
   stableHash,
   type CreatorEpisodeScope,
   type JsonValue,
 } from "../loop/episode-plan.js";
+import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
+import { TICKET_BUDGETS, type ProjectStage } from "../loop/plan-tickets.js";
 import { assertPlanningEpisodePlanValid, PLANNING_PROVIDER_OPERATION_CATALOG } from "../loop/planning-episode-plan.js";
+import { loadApps } from "../org/apps.js";
+import { isBudgetBlocking, rollupBudgets } from "../org/budget.js";
+import { previewEpisode, type EpisodePlanningPreview } from "../org/episode-planner/orchestrator.js";
 import { safetyFactsFromPlanningRequest } from "../org/episode-safety-facts.js";
+import { resolveCormidiaHomes } from "../org/home.js";
+import { resolveParentTaskId } from "../org/parent-task.js";
+import { runAutoPlan } from "../org/plan-auto.js";
+import { cleanupPlanningWorktree, preparePlanSession } from "../org/plan.js";
 import {
   expectedTicketBandRange,
   type ExpectedTicketBand,
@@ -35,9 +33,7 @@ import {
   type PlanningReversibility,
   type PlanningWorkLifecycle,
 } from "../org/planning-depth.js";
-import { TICKET_BUDGETS, type ProjectStage } from "../loop/plan-tickets.js";
-import { listRefusedDecompositions, ratifyTicketBudgetCommand } from "../org/ticket-budget-ratification.js";
-import { cmdPlanRatifyTicketBudget } from "./plan-ratify.js";
+import type { PlanningSourceRequest } from "../org/planning-inputs.js";
 import {
   discoverPlanningStageCheckout,
   formatPlanningStage,
@@ -45,6 +41,12 @@ import {
   resolvePlanningStage,
   type PlanningStageResolution,
 } from "../org/planning-stage.js";
+import { loadRoles } from "../org/roles.js";
+import { listRefusedDecompositions, ratifyTicketBudgetCommand } from "../org/ticket-budget-ratification.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { cmdPlanRatifyTicketBudget } from "./plan-ratify.js";
+import { installProcessCancellation } from "./process-signal.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
@@ -202,11 +204,11 @@ export async function cmdPlan(args: string[]): Promise<number> {
       app,
       appsFile,
       goal,
-      ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
-      ...(parsed.stage !== undefined ? { stage: parsed.stage } : {}),
+      ...definedProps({ workdir: parsed.workdir }),
+      ...definedProps({ stage: parsed.stage }),
       ...(parsed.noPublish ? { publish: false } : {}),
       signal: cancellation.signal,
-      ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+      ...definedProps({ parentTaskId }),
       planning: planningOptions(parsed),
       ...(parsed.sources.length > 0 ? { sources: parsed.sources } : {}),
       ...(creatorScope === undefined ? {} : { creatorScope, requireExecutionReadyCreatorScope: true }),
@@ -275,8 +277,8 @@ export async function cmdPlan(args: string[]): Promise<number> {
     appName: parsed.app,
     orgHome: homes.orgHome,
     runtimeHome: homes.stateHome,
-    ...(parsed.topic !== undefined ? { topic: parsed.topic } : {}),
-    ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
+    ...definedProps({ topic: parsed.topic }),
+    ...definedProps({ workdir: parsed.workdir }),
   });
 
   try {
@@ -288,7 +290,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
 }
 
 /** Text rendering of the token-free ticket-budget preview. */
-export function formatTicketBudgetPreview(preview: TicketBudgetPreview): string[] {
+function formatTicketBudgetPreview(preview: TicketBudgetPreview): string[] {
   const lines = [`ticket budget: ${preview.budget} (${preview.stage})`];
   lines.push(`ticket budget fit: ${preview.fit} — ${preview.detail}`);
   for (const pending of preview.pendingRatifications) {
@@ -301,7 +303,7 @@ export function formatTicketBudgetPreview(preview: TicketBudgetPreview): string[
   return lines;
 }
 
-export function formatPlanTicketSummary(index: number, ticket: PlanTicket, projection?: FinalTicketProjection): string {
+function formatPlanTicketSummary(index: number, ticket: PlanTicket, projection?: FinalTicketProjection): string {
   return (
     `  ${index}: [${ticket.tier}/${ticket.priority}] ${ticket.title}` +
     (projection?.escalationReason !== undefined
@@ -310,7 +312,7 @@ export function formatPlanTicketSummary(index: number, ticket: PlanTicket, proje
   );
 }
 
-export interface ParsedPlanArgs {
+interface ParsedPlanArgs {
   app: string;
   topic?: string;
   dryRun: boolean;
@@ -337,7 +339,7 @@ export interface ParsedPlanArgs {
 
 /** Pure parser shared by the executable command and generated-guidance
  * conformance tests. It resolves no homes and constructs no runtime. */
-export function parsePlanArgs(args: string[]): ParsedPlanArgs {
+function parsePlanArgs(args: string[]): ParsedPlanArgs {
   const app = args[0];
   if (!app || app.startsWith("--")) {
     throw new Error(
@@ -490,35 +492,35 @@ export function parsePlanArgs(args: string[]): ParsedPlanArgs {
     explainRoute,
     json,
     sources,
-    ...(goal !== undefined ? { goal } : {}),
-    ...(stage !== undefined ? { stage } : {}),
-    ...(topic !== undefined ? { topic } : {}),
+    ...definedProps({ goal }),
+    ...definedProps({ stage }),
+    ...definedProps({ topic }),
     ...(workdir ? { workdir } : {}),
-    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
-    ...(depth !== undefined ? { depth } : {}),
-    ...(risk !== undefined ? { risk } : {}),
-    ...(ambiguity !== undefined ? { ambiguity } : {}),
-    ...(coupling !== undefined ? { coupling } : {}),
-    ...(reversibility !== undefined ? { reversibility } : {}),
-    ...(externalConsequence !== undefined ? { externalConsequence } : {}),
-    ...(expectedTickets !== undefined ? { expectedTickets } : {}),
-    ...(sensitiveDomains !== undefined ? { sensitiveDomains } : {}),
-    ...(workLifecycle !== undefined ? { workLifecycle } : {}),
-    ...(creatorScopePath !== undefined ? { creatorScopePath } : {}),
+    ...definedProps({ parentTaskId }),
+    ...definedProps({ depth }),
+    ...definedProps({ risk }),
+    ...definedProps({ ambiguity }),
+    ...definedProps({ coupling }),
+    ...definedProps({ reversibility }),
+    ...definedProps({ externalConsequence }),
+    ...definedProps({ expectedTickets }),
+    ...definedProps({ sensitiveDomains }),
+    ...definedProps({ workLifecycle }),
+    ...definedProps({ creatorScopePath }),
   };
 }
 
 function planningOptions(parsed: ParsedPlanArgs) {
   return {
-    ...(parsed.depth !== undefined ? { minimumDepth: parsed.depth } : {}),
-    ...(parsed.risk !== undefined ? { riskTier: parsed.risk } : {}),
-    ...(parsed.ambiguity !== undefined ? { ambiguity: parsed.ambiguity } : {}),
-    ...(parsed.coupling !== undefined ? { coupling: parsed.coupling } : {}),
-    ...(parsed.reversibility !== undefined ? { reversibility: parsed.reversibility } : {}),
-    ...(parsed.externalConsequence !== undefined ? { externalConsequence: parsed.externalConsequence } : {}),
-    ...(parsed.expectedTickets !== undefined ? { expectedTickets: parsed.expectedTickets } : {}),
-    ...(parsed.sensitiveDomains !== undefined ? { sensitiveDomains: parsed.sensitiveDomains } : {}),
-    ...(parsed.workLifecycle !== undefined ? { workLifecycle: parsed.workLifecycle } : {}),
+    ...definedProps({ minimumDepth: parsed.depth }),
+    ...definedProps({ riskTier: parsed.risk }),
+    ...definedProps({ ambiguity: parsed.ambiguity }),
+    ...definedProps({ coupling: parsed.coupling }),
+    ...definedProps({ reversibility: parsed.reversibility }),
+    ...definedProps({ externalConsequence: parsed.externalConsequence }),
+    ...definedProps({ expectedTickets: parsed.expectedTickets }),
+    ...definedProps({ sensitiveDomains: parsed.sensitiveDomains }),
+    ...definedProps({ workLifecycle: parsed.workLifecycle }),
   };
 }
 
@@ -528,7 +530,7 @@ function planningOptions(parsed: ParsedPlanArgs) {
  * been bought and refused: `--dry-run` happily reported the money budget and
  * said nothing about a ticket-count ceiling (ENH-011). Everything here is read
  * from local files and pure constants — no provider is constructed. */
-export interface TicketBudgetPreview {
+interface TicketBudgetPreview {
   stage: ProjectStage;
   /** Maximum tickets one plan may publish at this stage. */
   budget: number;
@@ -568,7 +570,7 @@ interface AutoPlanningPreviewResult {
 }
 
 /** Pure projection of the stage ticket budget against a requested band. */
-export function projectTicketBudget(input: {
+function projectTicketBudget(input: {
   stage: ProjectStage;
   requestedBand: ExpectedTicketBand | undefined;
   pending: Array<{ decompositionId: string; ticketCount: number; refusedAt: string; ratifyCommand: string }>;
@@ -801,7 +803,7 @@ async function previewAutoPlanningRequest(input: {
 /** Read a creator scope at the CLI boundary, then hand the decoded value to
  * the one canonical strict parser. JSON and YAML are transport formats only;
  * they do not define competing scope schemas. */
-export async function loadCreatorEpisodeScopeFile(path: string): Promise<CreatorEpisodeScope> {
+async function loadCreatorEpisodeScopeFile(path: string): Promise<CreatorEpisodeScope> {
   const absolute = resolve(path);
   const extension = extname(absolute).toLowerCase();
   if (extension !== ".json" && extension !== ".yaml" && extension !== ".yml") {
@@ -859,10 +861,6 @@ function assertExplicitCreatorScopeReady(
       { cause: error },
     );
   }
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function jsonPreviewValue(value: unknown): JsonValue {

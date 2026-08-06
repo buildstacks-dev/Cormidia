@@ -1,17 +1,17 @@
-import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import type { CormidiaHomes } from "../org/home.js";
-import { GhCliOps } from "../loop/github.js";
-import type { GhOps } from "../loop/github.js";
+import { createInterface } from "node:readline/promises";
 import { executeTicketRearm, planTicketRearm } from "../loop/claim-recovery.js";
+import type { GhOps } from "../loop/github.js";
+import { GhCliOps } from "../loop/github.js";
+import type { CormidiaHomes } from "../org/home.js";
 
-export interface ClaimRearmIo {
+interface ClaimRearmIo {
   interactive: boolean;
   ask(prompt: string): Promise<string>;
   out(line: string): void;
 }
 
-export interface ClaimRearmDependencies {
+interface ClaimRearmDependencies {
   ghFor?: (repo: string) => GhOps;
 }
 

@@ -6,7 +6,7 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const SCORECARD_EVENT_KINDS = [
+const SCORECARD_EVENT_KINDS = [
   "review_cycles",
   "escaped_bug",
   "rework",
@@ -15,9 +15,9 @@ export const SCORECARD_EVENT_KINDS = [
   "turn_cost",
 ] as const;
 
-export type ScorecardEventKind = (typeof SCORECARD_EVENT_KINDS)[number];
+type ScorecardEventKind = (typeof SCORECARD_EVENT_KINDS)[number];
 
-export interface ScorecardEvent {
+interface ScorecardEvent {
   type: ScorecardEventKind;
   app: string;
   role: string;
@@ -32,7 +32,7 @@ export interface ScorecardEvent {
   tokensOut?: number;
 }
 
-export interface ScorecardEventInput {
+interface ScorecardEventInput {
   type: ScorecardEventKind | string;
   app: string;
   role: string;
@@ -46,7 +46,7 @@ export interface ScorecardEventInput {
   tokensOut?: number;
 }
 
-export class ScorecardValidationError extends Error {
+class ScorecardValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ScorecardValidationError";
@@ -85,7 +85,7 @@ export async function readScorecards(root: string, app: string, role: string, si
   return since === undefined ? rows : rows.filter((row) => new Date(row.timestamp) >= since);
 }
 
-export function scorecardPath(root: string, app: string, role: string): string {
+function scorecardPath(root: string, app: string, role: string): string {
   return join(root, "scorecards", app, `${role}.jsonl`);
 }
 

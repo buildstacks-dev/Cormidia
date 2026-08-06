@@ -39,21 +39,22 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { dispositionTierForRule, RULE_DISPOSITION_TIERS } from "../runtime/gate.js";
 import { withFileLock } from "../runtime/file-lock.js";
+import { RULE_DISPOSITION_TIERS, dispositionTierForRule } from "../runtime/gate.js";
 import { ApprovalStore, approvalDeciderFromIdentity, type ApprovalItem } from "./approvals.js";
 import { OBJECTIVE_BUDGET_RULE } from "./budget.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 /** Tiers an objective grant may name in bulk. `human-only` is deliberately
  *  absent — human-only classes are covered only per-class through the §4.1
  *  ceremony — and `un-grantable` can never appear anywhere. */
-export type ObjectiveGrantTier = "routine" | "budgeted" | "grantable";
+type ObjectiveGrantTier = "routine" | "budgeted" | "grantable";
 
 const OBJECTIVE_GRANT_TIERS: readonly ObjectiveGrantTier[] = ["routine", "budgeted", "grantable"];
 
 /** §4.1 ceremony entry: one explicitly named human-only class with a bounded
  *  scope and an optional precondition, recorded verbatim for the audit. */
-export interface ObjectiveCriticalClass {
+interface ObjectiveCriticalClass {
   rule: string;
   /** Bounded scope for this class (package name, version pattern, repo, host,
    *  target). "Publish cormidia@0.1.x" is a decision; "publish anything" is a
@@ -91,15 +92,8 @@ export interface ObjectiveGrant {
  *  §4.1 ceremony requires BOTH strictly shorter than these. */
 export const OBJECTIVE_GRANT_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 export const OBJECTIVE_GRANT_DEFAULT_USE_CAP = 20;
-export const OBJECTIVE_CRITICAL_DEFAULT_TTL_MS = 12 * 60 * 60 * 1000;
-export const OBJECTIVE_CRITICAL_DEFAULT_USE_CAP = 10;
-
-/** Configured ceiling default — the same value and override path as
- *  `budget_usd_month` (apps.yaml `defaults.objective_budget_usd`, per-app
- *  `objective_budget_usd`). This constant is the parser fallback exactly like
- *  bootstrap's monthly default, not a policy baked into the store: creation
- *  always receives an explicit resolved number. */
-export const OBJECTIVE_BUDGET_USD_DEFAULT = 1000;
+const OBJECTIVE_CRITICAL_DEFAULT_TTL_MS = 12 * 60 * 60 * 1000;
+const OBJECTIVE_CRITICAL_DEFAULT_USE_CAP = 10;
 
 export interface CreateObjectiveGrantInput {
   app: string;
@@ -119,7 +113,7 @@ export interface CreateObjectiveGrantInput {
   now?: Date;
 }
 
-export type ObjectiveGrantLogEvent =
+type ObjectiveGrantLogEvent =
   | {
       type: "objective-grant-created";
       grantId: string;
@@ -172,7 +166,7 @@ interface LedgerRow {
   note?: string;
 }
 
-export interface ObjectiveDebitResult {
+interface ObjectiveDebitResult {
   ok: boolean;
   /** Cumulative spend after (ok) or without (refused) this debit. */
   totalUsd: number;
@@ -460,13 +454,13 @@ export class ObjectiveGrantStore {
           ok: false,
           totalUsd: total,
           ceilingUsd: grant.spendCeilingUsd,
-          ...(escalation !== undefined ? { escalation } : {}),
+          ...definedProps({ escalation }),
         };
       }
       const row: LedgerRow = {
         at: now.toISOString(),
         usd: input.usd,
-        ...(input.note !== undefined ? { note: input.note } : {}),
+        ...definedProps({ note: input.note }),
       };
       this.ensureDirSync();
       appendFileSync(this.ledgerPath(input.grantId), `${JSON.stringify(row)}\n`, "utf8");
@@ -477,7 +471,7 @@ export class ObjectiveGrantStore {
         at: row.at,
         usd: input.usd,
         totalUsd: next,
-        ...(input.note !== undefined ? { note: input.note } : {}),
+        ...definedProps({ note: input.note }),
       });
       return { ok: true, totalUsd: next, ceilingUsd: grant.spendCeilingUsd };
     });

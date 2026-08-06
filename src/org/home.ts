@@ -10,8 +10,8 @@ import {
   lstat,
   mkdir,
   mkdtemp,
-  readFile,
   readdir,
+  readFile,
   realpath,
   rename,
   rm,
@@ -25,10 +25,21 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { parse, stringify } from "yaml";
 import { loadPipelines } from "../loop/pipelines.js";
+import type { AuthorityContext, Effort, RuntimeKind, Trigger } from "../runtime/types.js";
 import { findExistingOrg, loadApps, OrgIdentityError, type AppsFile } from "./apps.js";
 import { writeFileAtomic } from "./atomic.js";
-import { stableJson } from "./lifecycle.js";
+import {
+  authorityPreview,
+  composeProjectInstructions,
+  CONSERVATIVE_VERSION,
+  createOrgAuthorityDocument,
+  DELEGATED_OPERATOR_VERSION,
+  projectAuthorityBlock,
+  resolveAuthority,
+  type AuthorityProfile,
+} from "./authority.js";
 import { resolveAppAssignments } from "./execution-assignments.js";
+import { stableJson } from "./lifecycle.js";
 import { loadRoles } from "./roles.js";
 import { buildSchedulerExpectation } from "./scheduler/definition.js";
 import {
@@ -44,17 +55,7 @@ import {
   sha256 as schedulerSha256,
   type SchedulerBackend,
 } from "./scheduler/model.js";
-import {
-  authorityPreview,
-  composeProjectInstructions,
-  CONSERVATIVE_VERSION,
-  createOrgAuthorityDocument,
-  DELEGATED_OPERATOR_VERSION,
-  projectAuthorityBlock,
-  resolveAuthority,
-  type AuthorityProfile,
-} from "./authority.js";
-import type { AuthorityContext, Effort, RuntimeKind, Trigger } from "../runtime/types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export const ORG_HOME_DEFINITION =
   "committed organization configuration: roles, apps, pipelines, prompts, authority, taste, and curated memory";
@@ -71,9 +72,9 @@ export const CORMIDIA_HOME_DIRNAME = ".cormidia";
 const LEGACY_STATE_ROOT_DIRNAME = ".operon";
 const execFileAsync = promisify(execFile);
 
-export type StateRootMigrationStatus = "not_needed" | "migrated" | "repaired";
+type StateRootMigrationStatus = "not_needed" | "migrated" | "repaired";
 
-export interface StateRootMigrationResult {
+interface StateRootMigrationResult {
   status: StateRootMigrationStatus;
   legacyRoot: string;
   currentRoot: string;
@@ -84,11 +85,11 @@ export interface StateRootMigrationResult {
   schedulersRepaired: number;
 }
 
-export interface StateRootMigrationOptions {
+interface StateRootMigrationOptions {
   schedulerManager?: (backend: SchedulerBackend) => SchedulerManager;
 }
 
-export class StateRootMigrationError extends Error {
+class StateRootMigrationError extends Error {
   constructor(
     readonly code:
       | "state_root_migration_collision"
@@ -393,8 +394,8 @@ async function repairMigratedScheduler(
     packageEntryPath: record.package_entry_path,
     executablePath: record.executable_path,
     cadenceMinutes: record.cadence_minutes,
-    ...(record.environment_path !== undefined ? { environmentPath: record.environment_path } : {}),
-    ...(record.required_executables !== undefined ? { requiredExecutables: record.required_executables } : {}),
+    ...definedProps({ environmentPath: record.environment_path }),
+    ...definedProps({ requiredExecutables: record.required_executables }),
   });
 
   const currentDefinition = await manager.readDefinition(expected.metadata.scheduler_id);
@@ -647,9 +648,9 @@ export { OrgIdentityError, type OrgIdentityStopCode } from "./apps.js";
  * (contracts/B-10-config-resolver.md §2). See ensureStateHomeIdentity for
  * the validation and legacy-adoption rules.
  */
-export const STATE_HOME_IDENTITY_FILE = "org-identity.json";
+const STATE_HOME_IDENTITY_FILE = "org-identity.json";
 
-export interface StateHomeIdentity {
+interface StateHomeIdentity {
   schema_version: 1;
   kind: "org-identity";
   org_name: string;
@@ -658,7 +659,7 @@ export interface StateHomeIdentity {
   created_at: string;
 }
 
-export function stateHomeIdentityPath(stateHome: string): string {
+function stateHomeIdentityPath(stateHome: string): string {
   return join(resolve(stateHome), STATE_HOME_IDENTITY_FILE);
 }
 
@@ -776,8 +777,8 @@ export async function resolveCormidiaHomes(options: CormidiaHomeOptions = {}): P
   }
   const pointerPath = options.pointerPath ?? join(homeDir, CORMIDIA_HOME_DIRNAME, "config");
   const orgHome = await findExistingOrg({
-    ...(options.orgHome !== undefined ? { orgHome: options.orgHome } : {}),
-    ...(options.env !== undefined ? { env: options.env } : {}),
+    ...definedProps({ orgHome: options.orgHome }),
+    ...definedProps({ env: options.env }),
     homeDir,
     pointerPath,
   });
@@ -845,7 +846,7 @@ export interface InitOrgHomeResult extends CormidiaHomes {
   authorityPreview: ReturnType<typeof authorityPreview>;
 }
 
-export interface InitOrgDestination {
+interface InitOrgDestination {
   relative_path: string;
   path: string;
   kind: "directory" | "file";
@@ -853,7 +854,7 @@ export interface InitOrgDestination {
   content_sha256?: string;
 }
 
-export interface InitOrgPlanBlocker {
+interface InitOrgPlanBlocker {
   code:
     | "existing_org"
     | "nested_org"
@@ -872,7 +873,7 @@ export interface InitOrgPlanBlocker {
   remediation: string;
 }
 
-export interface InitOrgRolePreview {
+interface InitOrgRolePreview {
   name: string;
   runtime: RuntimeKind;
   model: string;
@@ -1624,7 +1625,7 @@ export async function readActiveOrgPointer(pointerPath: string): Promise<{
   }
 }
 
-export interface ActiveOrgSelection {
+interface ActiveOrgSelection {
   orgHome?: string;
   stateHome?: string;
   /** True when `state_home` was absent and had to be derived from the org name. */

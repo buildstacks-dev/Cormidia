@@ -8,7 +8,9 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
 import { withFileLock } from "../runtime/file-lock.js";
+import { currentProcessStartIdentity, processIdentityStatus } from "../runtime/process-identity.js";
 import { episodeIdFor, readRouteRecord, routeRecordPath, type EpisodeTerminal } from "./efficiency.js";
 import type { GhIssue, GhOps } from "./github.js";
 import {
@@ -20,7 +22,7 @@ import {
   type TicketRearmRecord,
 } from "./rehydrate.js";
 import type { LoopContinuation, LoopContinuationDecision, LoopItem, SuppressedOperation } from "./types.js";
-import { currentProcessStartIdentity, processIdentityStatus } from "../runtime/process-identity.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const LOCK_STALE_MS = 10 * 60_000;
 const LOCK_WAIT_MS = 12 * 60_000;
@@ -304,7 +306,7 @@ export async function continueAfterApproval(input: {
         {
           approvalId: input.approvalId,
           decision: input.decision,
-          ...(input.reason !== undefined ? { reason: input.reason } : {}),
+          ...definedProps({ reason: input.reason }),
           decidedAt: at,
         },
       ];
@@ -386,7 +388,7 @@ function recordedSuppression(
         actionSha256: input.suppression.actionSha256,
         tool: input.suppression.tool,
         disposition: "denied",
-        ...(input.reason !== undefined ? { reason: input.reason } : {}),
+        ...definedProps({ reason: input.reason }),
         at,
       },
     ],
@@ -746,10 +748,6 @@ function validateRearmInput(input: RearmTicketInput): void {
   if (!Number.isInteger(input.intendedAllowance) || input.intendedAllowance <= input.priorAllowance) {
     throw new Error("loop rearm: --to-allowance must be an integer greater than --from-allowance");
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** Exact operator command embedded in parked comments and status output. */

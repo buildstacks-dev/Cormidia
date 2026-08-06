@@ -10,7 +10,6 @@ import { resolveAuthority, writeOrgAuthority, type AuthorityProfile } from "./au
 import { ORG_REQUIRED_FILES, PACKAGE_ROOT, validateOrgHome } from "./home.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
-  type LifecycleFaultHook,
   acquireLifecycleOperationLock,
   assertDirectoryNoSymlink,
   assertRegularFile,
@@ -19,6 +18,7 @@ import {
   isInside,
   sha256,
   stableJson,
+  type LifecycleFaultHook,
 } from "./lifecycle.js";
 
 const ADDITIVE_FILES = ["TASTE.md", "roles.yaml", "pipelines.yaml"] as const;
@@ -37,13 +37,13 @@ export interface OrgUpgradeOptions {
   fault?: LifecycleFaultHook;
 }
 
-export interface OrgUpgradeChange {
+interface OrgUpgradeChange {
   path: string;
   action: "add" | "schema_add";
   detail: string;
 }
 
-export interface OrgUpgradePlan {
+interface OrgUpgradePlan {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "org-upgrade-plan";
   org_home: string;
@@ -58,7 +58,7 @@ export interface OrgUpgradePlan {
   blockers: Array<{ code: string; remediation: string }>;
 }
 
-export interface OrgUpgradeResult {
+interface OrgUpgradeResult {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "org-upgrade-result";
   status: "upgraded" | "up_to_date";

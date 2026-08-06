@@ -17,7 +17,7 @@ interface CriticalRule {
  * approval request. Free-text payloads are deliberately absent: message and
  * review bodies, search patterns, comments, and heredoc content are data, not
  * executable intent. */
-export interface ActionEffectFields {
+interface ActionEffectFields {
   tool: string;
   operation: SemanticAction["operation"];
   executables: string[];
@@ -176,7 +176,7 @@ const MESSAGE_FLAG_ARG =
  *     costs one human re-approval, whereas keeping `$(cat .npmrc)` (or a
  *     `# .npmrc` smuggled inside a quoted value) would let it widen a
  *     .npmrc-scoped grant to arbitrary reads. */
-export function stripMessageArgs(command: string, options: { keepExecutable: boolean }): string {
+function stripMessageArgs(command: string, options: { keepExecutable: boolean }): string {
   return command.replace(MESSAGE_FLAG_ARG, (match: string, value: string) =>
     options.keepExecutable && hasExecutableEffect(value) ? match : " ",
   );
@@ -192,7 +192,7 @@ function hasExecutableEffect(value: string): boolean {
   return value.includes("$(") || value.includes("`") || value.includes("${");
 }
 
-export function semanticActionText(action: ToolAction): string {
+function semanticActionText(action: ToolAction): string {
   const fields = actionEffectFields(action);
   return [
     fields.tool,
@@ -885,7 +885,7 @@ function gitTagCreation(action: ToolAction): boolean {
   return false;
 }
 
-export interface CollaborationTargets {
+interface CollaborationTargets {
   /** Literal --repo/-R slugs (or the typed tool's input.repo). */
   explicit: string[];
   /** A target the projection cannot resolve statically: a dynamic slug, a
@@ -1074,13 +1074,13 @@ export function classifyWithEvidence(
 // are names no rule maps to.
 // ---------------------------------------------------------------------------
 
-export type Reversibility = "reversible" | "recoverable" | "irreversible" | "unknown";
-export type BlastRadius = "worktree" | "app-repo" | "org-state" | "outside-world" | "unknown";
-export type ConsequenceCost = { kind: "known"; usd: number } | { kind: "unknown" };
+type Reversibility = "reversible" | "recoverable" | "irreversible" | "unknown";
+type BlastRadius = "worktree" | "app-repo" | "org-state" | "outside-world" | "unknown";
+type ConsequenceCost = { kind: "known"; usd: number } | { kind: "unknown" };
 
 /** The three questions the gate should be able to answer about an action —
  *  can it be undone, who can see it, what does it cost (proposal §3). */
-export interface ConsequenceClass {
+interface ConsequenceClass {
   reversibility: Reversibility;
   blastRadius: BlastRadius;
   cost: ConsequenceCost;
@@ -1099,13 +1099,13 @@ function unknownConsequence(): ConsequenceClass {
   return { reversibility: "unknown", blastRadius: "unknown", cost: { kind: "unknown" } };
 }
 
-export interface DispositionContext {
+interface DispositionContext {
   /** The covering grant's identity, when the caller has already matched one;
    *  threaded through verbatim so a decision record can name it. */
   grantId?: string;
 }
 
-export type Disposition =
+type Disposition =
   | {
       tier: "routine";
       consequence: ConsequenceClass;
@@ -2352,7 +2352,7 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
 
 /** Remove shell comments without interpreting quoted `#` characters. Exported
  * so grant-scope matching uses the same parser boundary as classification. */
-export function stripShellComments(command: string): string {
+function stripShellComments(command: string): string {
   let out = "";
   let quote: '"' | "'" | null = null;
   for (let i = 0; i < command.length; i++) {

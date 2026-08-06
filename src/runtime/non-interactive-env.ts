@@ -48,11 +48,11 @@
  * can still reach the placeholder writer, which is why the setup gate keeps its
  * own detection backstop (`src/loop/setup-artifacts.ts`).
  */
-export const DEPENDENCY_BUILD_POLICY_ENV = {
+const DEPENDENCY_BUILD_POLICY_ENV = {
   PNPM_CONFIG_IGNORE_SCRIPTS: "true",
 } as const satisfies NodeJS.ProcessEnv;
 
-export const NON_INTERACTIVE_ENV = {
+const NON_INTERACTIVE_ENV = {
   CI: "true",
   NPM_CONFIG_YES: "true",
   DEBIAN_FRONTEND: "noninteractive",
@@ -62,12 +62,6 @@ export const NON_INTERACTIVE_ENV = {
 
 export function withNonInteractiveEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return { ...base, ...NON_INTERACTIVE_ENV };
-}
-
-/** The build policy alone, for a caller that owns the rest of its environment
- *  (the quality-gate subprocess keeps its own `CI=1`, Stage 3). */
-export function withDependencyBuildPolicy(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return { ...base, ...DEPENDENCY_BUILD_POLICY_ENV };
 }
 
 /**

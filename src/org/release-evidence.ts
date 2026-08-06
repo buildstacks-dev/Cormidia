@@ -4,14 +4,14 @@
 // claims. L5 threat/soak work remains separately declared future assurance and
 // is not part of RQ-1. This module does not authorize a campaign, tag, or publication.
 
-import { createHash } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
-import { gunzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { lstat, mkdtemp, readFile, readdir, realpath as realpathFs, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { platform, arch } from "node:process";
+import { arch, platform } from "node:process";
 import { promisify } from "node:util";
+import { gunzipSync } from "node:zlib";
 import { parse as parseYaml } from "yaml";
 import {
   validateValidationCampaignReport,
@@ -21,9 +21,9 @@ import {
 
 const execFile = promisify(execFileCallback);
 
-export const RELEASE_EVIDENCE_SCHEMA_VERSION = 1 as const;
-export const RELEASE_QUALIFICATION_CONTRACT = "RQ-1" as const;
-export const RELEASE_EVIDENCE_INPUT_KINDS = [
+const RELEASE_EVIDENCE_SCHEMA_VERSION = 1 as const;
+const RELEASE_QUALIFICATION_CONTRACT = "RQ-1" as const;
+const RELEASE_EVIDENCE_INPUT_KINDS = [
   "policy",
   "dependency_lock",
   "prompts",
@@ -45,7 +45,7 @@ export const RELEASE_DETERMINISTIC_CHECKS = [
   "package-install-smoke",
   "core-checks",
 ] as const;
-export const RELEASE_L4_SITES = ["reviewer", "planner", "validation-designer"] as const;
+const RELEASE_L4_SITES = ["reviewer", "planner", "validation-designer"] as const;
 export const RELEASE_L3_REQUIRED_CASES = [
   "CF-B02-L3",
   "CF-B03-L3",
@@ -58,7 +58,7 @@ export const RELEASE_L3_REQUIRED_CASES = [
 // observation from which absence of the launchd trigger can be proved. The
 // policy remains conditional, but the implementation therefore tightens it to
 // mandatory. A future conditional omission needs its own ratified baseline.
-export const RELEASE_L3_CONDITIONAL_CASES = [] as const;
+const RELEASE_L3_CONDITIONAL_CASES = [] as const;
 
 const RELEASE_OBLIGATION_SPECS = [
   { id: "RQ-DET", lane: "deterministic", claim_class: "build", debt_eligible: false },
@@ -72,21 +72,21 @@ const COMMIT = /^[a-f0-9]{40}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const RELEASE_VITEST_CONFIG_SHA256 = "92f349841deb5b188b9301230f18f5d65b325022d787d06ae42f0eb1b71d9733";
 
-export type ReleaseInputKind = (typeof RELEASE_EVIDENCE_INPUT_KINDS)[number];
-export type DeterministicCheckId = (typeof RELEASE_DETERMINISTIC_CHECKS)[number];
-export type ReleaseL4Site = (typeof RELEASE_L4_SITES)[number];
-export type ReleaseLane = "deterministic" | "L3" | "L4";
-export type EvidenceCompleteness = "complete" | "incomplete";
-export type EvidenceVerdict = "pass" | "fail" | "inconclusive";
-export type ReleaseQualification = "qualified" | "not_qualified" | "needs_human_disposition";
+type ReleaseInputKind = (typeof RELEASE_EVIDENCE_INPUT_KINDS)[number];
+type DeterministicCheckId = (typeof RELEASE_DETERMINISTIC_CHECKS)[number];
+type ReleaseL4Site = (typeof RELEASE_L4_SITES)[number];
+type ReleaseLane = "deterministic" | "L3" | "L4";
+type EvidenceCompleteness = "complete" | "incomplete";
+type EvidenceVerdict = "pass" | "fail" | "inconclusive";
+type ReleaseQualification = "qualified" | "not_qualified" | "needs_human_disposition";
 
-export interface ReleasePackageFileV1 {
+interface ReleasePackageFileV1 {
   path: string;
   size: number;
   sha256: string;
 }
 
-export interface ReleasePackageManifestV1 {
+interface ReleasePackageManifestV1 {
   name: string;
   version: string;
   filename: string;
@@ -95,7 +95,7 @@ export interface ReleasePackageManifestV1 {
   files: ReleasePackageFileV1[];
 }
 
-export interface ReleaseGoldenReferenceV1 {
+interface ReleaseGoldenReferenceV1 {
   case_id: string;
   site: ReleaseL4Site;
   path: string;
@@ -107,7 +107,7 @@ export interface ReleaseGoldenReferenceV1 {
   source_commit: string;
 }
 
-export interface ReleaseAssignmentV1 {
+interface ReleaseAssignmentV1 {
   assignment_id: string;
   role: string;
   source: "fixed" | "adaptive";
@@ -116,7 +116,7 @@ export interface ReleaseAssignmentV1 {
   efforts: string[];
 }
 
-export interface ReleaseToolchainV1 {
+interface ReleaseToolchainV1 {
   node: string;
   pnpm: string;
   typescript: string;
@@ -128,7 +128,7 @@ export interface ReleaseToolchainV1 {
   architecture: string;
 }
 
-export interface ReleaseL4PairingV1 {
+interface ReleaseL4PairingV1 {
   id: string;
   comparison_group: string;
   site: ReleaseL4Site;
@@ -155,7 +155,7 @@ export interface ReleaseObligationV1 {
   producer_digest: string;
 }
 
-export interface ReleaseTriggeredCampaignV1 {
+interface ReleaseTriggeredCampaignV1 {
   obligation_id: string;
   campaign_id: string;
   lane: "L3";
@@ -218,7 +218,7 @@ export interface ReleaseManifestV1 extends ReleaseManifestBodyV1 {
   qualification_id: string;
 }
 
-export interface DeterministicCheckResultV1 {
+interface DeterministicCheckResultV1 {
   id: DeterministicCheckId;
   status: "pass" | "fail" | "missing" | "cancelled" | "neutral";
   candidate_commit: string;
@@ -234,7 +234,7 @@ export interface DeterministicEvidenceV1 {
   checks: DeterministicCheckResultV1[];
 }
 
-export interface L4ReleaseObservationV1 {
+interface L4ReleaseObservationV1 {
   pairing_id: string;
   case_id: string;
   attempt_id: string;
@@ -457,7 +457,7 @@ export async function packageManifestFromTarball(path: string): Promise<ReleaseP
   return manifest;
 }
 
-export interface ReleaseRepositorySnapshotV1 {
+interface ReleaseRepositorySnapshotV1 {
   candidate_commit: string;
   inputs: Record<ReleaseInputKind, string>;
   assignments: ReleaseAssignmentV1[];
@@ -588,7 +588,7 @@ function releaseProducerDigests(
   ) as Record<ReleaseLane, string>;
 }
 
-export async function currentReleaseToolchain(repo: string): Promise<ReleaseToolchainV1> {
+async function currentReleaseToolchain(repo: string): Promise<ReleaseToolchainV1> {
   const packageVersion = async (path: string): Promise<string> => {
     const value: unknown = JSON.parse(
       await readFile(join(repo, "node_modules", ...path.split("/"), "package.json"), "utf8"),

@@ -4,21 +4,22 @@
 // wall clock (captured_at is the newest source timestamp folded in), no
 // network, no writes.
 
+import { listPlannerPublications, type PlannerPublicationTransaction } from "../org/planner-publication.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { hashedFileStem } from "../runtime/runlog/paths.js";
+import { formatDurableVerdictDigest, summarizeDurableVerdict } from "../runtime/runlog/verdict-digest.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
 import {
   boundQuote,
+  MOMENT_QUOTE_MAX,
+  ORIGIN_QUOTE_MAX,
   readAppRunSources,
   readDeliveryJournal,
   readLedgerRows,
   readRunQuote,
   readTaskOriginQuote,
   scrubCaptureText,
-  MOMENT_QUOTE_MAX,
-  ORIGIN_QUOTE_MAX,
 } from "./sources.js";
-import { formatDurableVerdictDigest, summarizeDurableVerdict } from "../runtime/runlog/verdict-digest.js";
 import {
   NARRATIVE_SCHEMA_VERSION,
   type NarrativeMoment,
@@ -26,9 +27,9 @@ import {
   type StoryKind,
   type StoryStatus,
 } from "./types.js";
-import { listPlannerPublications, type PlannerPublicationTransaction } from "../org/planner-publication.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface NarrativeFoldResult {
+interface NarrativeFoldResult {
   stories: NarrativeStory[];
   problems: string[];
 }
@@ -125,13 +126,13 @@ async function foldStory(
       pipeline: envelope.pipeline,
       pass: envelope.pass,
       role: envelope.role,
-      ...(envelope.model !== undefined ? { model: envelope.model } : {}),
-      ...(envelope.plan_version !== undefined ? { plan_version: envelope.plan_version } : {}),
-      ...(envelope.plan_step_id !== undefined ? { plan_step_id: envelope.plan_step_id } : {}),
-      ...(envelope.assignment_source !== undefined ? { assignment_source: envelope.assignment_source } : {}),
+      ...definedProps({ model: envelope.model }),
+      ...definedProps({ plan_version: envelope.plan_version }),
+      ...definedProps({ plan_step_id: envelope.plan_step_id }),
+      ...definedProps({ assignment_source: envelope.assignment_source }),
       status: envelope.status,
       headline: `${envelope.pass} (${envelope.role}) — ${envelope.status}`,
-      ...(quote !== undefined ? { quote } : {}),
+      ...definedProps({ quote }),
       evidence: `runs/${app}/${envelope.run_id}/`,
     });
   }
@@ -231,8 +232,8 @@ async function foldStory(
       ? {
           origin: {
             kind: origin.kind,
-            ...(origin.ref !== undefined ? { ref: origin.ref } : {}),
-            ...(origin.quote !== undefined ? { quote: origin.quote } : {}),
+            ...definedProps({ ref: origin.ref }),
+            ...definedProps({ quote: origin.quote }),
           },
         }
       : {}),
@@ -252,8 +253,8 @@ async function foldStory(
         }),
     ...(first.ticket !== undefined ? { ticket_ref: normalizeTicketRef(first.ticket) } : {}),
     moments,
-    ...(delivery !== undefined ? { delivery } : {}),
-    ...(cost !== undefined ? { cost } : {}),
+    ...definedProps({ delivery }),
+    ...definedProps({ cost }),
     captured_at: timestamps[timestamps.length - 1] ?? first.started_at,
   };
 }

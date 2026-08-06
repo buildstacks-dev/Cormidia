@@ -19,11 +19,11 @@ import {
   type ExecutionUnitBudget,
 } from "./roadmap-delivery.js";
 
-export const DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION = 1 as const;
-export const DIRECT_CAMPAIGN_CONTENT_OPERATION = "marketing/campaign-content-plan" as const;
+const DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION = 1 as const;
+const DIRECT_CAMPAIGN_CONTENT_OPERATION = "marketing/campaign-content-plan" as const;
 
-export type CampaignChannel = "reddit" | "linkedin" | "twitter";
-export type CampaignFailureCode =
+type CampaignChannel = "reddit" | "linkedin" | "twitter";
+type CampaignFailureCode =
   | "campaign_shape_invalid"
   | "campaign_content_invalid"
   | "campaign_effect_broadened"
@@ -31,7 +31,7 @@ export type CampaignFailureCode =
   | "campaign_authority_corrupt"
   | "campaign_effect_not_acknowledged";
 
-export class DirectCampaignError extends Error {
+class DirectCampaignError extends Error {
   constructor(
     readonly code: CampaignFailureCode,
     message: string,
@@ -60,14 +60,14 @@ export interface DirectOperationalCampaignInput {
   createdAt: string;
 }
 
-export interface CampaignAuthorityRef {
+interface CampaignAuthorityRef {
   kind: "direct_operational_campaign";
   id: string;
   version: 1;
   sha256: string;
 }
 
-export interface DirectOperationalCampaignAuthority {
+interface DirectOperationalCampaignAuthority {
   schemaVersion: typeof DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION;
   kind: "direct_operational_campaign";
   unitId: string;
@@ -103,12 +103,12 @@ export interface DirectOperationalCampaignAuthority {
   createdAt: string;
 }
 
-export interface AcceptedCampaignAuthority {
+interface AcceptedCampaignAuthority {
   ref: CampaignAuthorityRef;
   value: DirectOperationalCampaignAuthority;
 }
 
-export interface CampaignContentDraft {
+interface CampaignContentDraft {
   schemaVersion: typeof DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION;
   campaignRef: CampaignAuthorityRef;
   contentTurnRef: string;
@@ -120,7 +120,7 @@ export interface CampaignContentDraft {
   createdAt: string;
 }
 
-export interface CampaignEffectLink {
+interface CampaignEffectLink {
   destinationId: string;
   effectId: string;
   approvalId: string;
@@ -128,7 +128,7 @@ export interface CampaignEffectLink {
   payloadSha256: string;
 }
 
-export interface CampaignEffectLinks {
+interface CampaignEffectLinks {
   schemaVersion: typeof DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION;
   campaignRef: CampaignAuthorityRef;
   contentDraftSha256: string;
@@ -136,7 +136,7 @@ export interface CampaignEffectLinks {
   createdAt: string;
 }
 
-export type CampaignAcknowledgement =
+type CampaignAcknowledgement =
   | "pending_approval"
   | "denied"
   | "expired"
@@ -146,7 +146,7 @@ export type CampaignAcknowledgement =
   | "failed"
   | "ambiguous";
 
-export interface CampaignEffectOutcome {
+interface CampaignEffectOutcome {
   destinationId: string;
   effectId: string;
   approvalId: string;
@@ -156,13 +156,13 @@ export interface CampaignEffectOutcome {
   followUpOutcome: "blocked_on_effect" | "ready_to_schedule" | "scheduled";
 }
 
-export interface CampaignEffectLedger {
+interface CampaignEffectLedger {
   schemaVersion: typeof DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION;
   campaignRef: CampaignAuthorityRef;
   effects: CampaignEffectOutcome[];
 }
 
-export interface CampaignFollowUpSchedule {
+interface CampaignFollowUpSchedule {
   schemaVersion: typeof DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION;
   campaignRef: CampaignAuthorityRef;
   destinations: Array<{
@@ -354,15 +354,6 @@ export async function acceptDirectOperationalCampaign(input: {
     return { direct, campaign: existing };
   }
   return { direct, campaign: accepted };
-}
-
-export async function readDirectOperationalCampaign(
-  root: string,
-  app: string,
-  unitId: string,
-): Promise<AcceptedCampaignAuthority | undefined> {
-  const path = campaignAuthorityPath(root, app, unitId);
-  return existsSync(path) ? readAcceptedCampaign(path) : undefined;
 }
 
 export function createCampaignContentDraft(input: {
@@ -580,7 +571,7 @@ export async function readCampaignEffectLedger(input: {
   };
 }
 
-export function projectCampaignEffectOutcome(
+function projectCampaignEffectOutcome(
   link: CampaignEffectLink,
   item: ApprovalItem,
   followUpScheduled = false,
@@ -771,7 +762,7 @@ export function campaignAuthorityPath(root: string, app: string, unitId: string)
   return join(campaignDir(root, app, unitId), "authority.json");
 }
 
-export function campaignEffectLinksPath(root: string, app: string, unitId: string): string {
+function campaignEffectLinksPath(root: string, app: string, unitId: string): string {
   return join(campaignDir(root, app, unitId), "effect-links.json");
 }
 
@@ -779,7 +770,7 @@ export function campaignContentDraftPath(root: string, app: string, unitId: stri
   return join(campaignDir(root, app, unitId), "content-draft.json");
 }
 
-export function campaignFollowUpPath(root: string, app: string, unitId: string): string {
+function campaignFollowUpPath(root: string, app: string, unitId: string): string {
   return join(campaignDir(root, app, unitId), "follow-up.json");
 }
 

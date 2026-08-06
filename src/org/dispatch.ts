@@ -5,8 +5,10 @@ import { existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Trigger } from "../runtime/types.js";
 import { GhCliOps } from "../loop/github.js";
+import type { DurableClaimOwner, DurableClaimOwnerStatus } from "../runtime/durable-claim.js";
+import { processIdentityStatus } from "../runtime/process-identity.js";
+import type { Trigger } from "../runtime/types.js";
 import { loadApps, resolveTriggers, type AppEntry, type AppsFile } from "./apps.js";
 import { enforceBudgetOverlay, isOverlayPaused } from "./budget.js";
 import {
@@ -19,17 +21,19 @@ import {
 } from "./events.js";
 import { listJournals, readJournal, writeJournalPatch, type TurnEvent } from "./journal.js";
 import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./locks.js";
+import {
+  listPlannerPublications,
+  resumePlannerPublication,
+  type PlannerPublicationGit,
+} from "./planner-publication.js";
 import { recoverStaleTurn } from "./recovery.js";
 import { runScheduledRetentionSweep, type StateSweepResult } from "./retention.js";
 import { loadRoles, type RolesFile } from "./roles.js";
 import { isDue, scheduleDueWindow, ScheduleStore } from "./schedule.js";
-import { resolveTriggerRoute } from "./trigger-routing.js";
 import { scheduledRoleEligibility } from "./scheduled-role-eligibility.js";
-import { processIdentityStatus } from "../runtime/process-identity.js";
-import type { DurableClaimOwner, DurableClaimOwnerStatus } from "../runtime/durable-claim.js";
-import { SchedulerEvidenceStore, type SchedulerInvocationRecord } from "./scheduler/evidence.js";
 import { ScheduleDueClaimStore, type ScheduleDueClaimPayload } from "./scheduler/due-window-claims.js";
 import { assertScheduledRequiredExecutables } from "./scheduler/environment.js";
+import { SchedulerEvidenceStore, type SchedulerInvocationRecord } from "./scheduler/evidence.js";
 import {
   cadenceWindow,
   scheduledEpisodeId,
@@ -38,13 +42,10 @@ import {
   schedulerOrgId,
   type SchedulerReasonCode,
 } from "./scheduler/model.js";
-import {
-  listPlannerPublications,
-  resumePlannerPublication,
-  type PlannerPublicationGit,
-} from "./planner-publication.js";
+import { resolveTriggerRoute } from "./trigger-routing.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface DispatchTickOptions {
+interface DispatchTickOptions {
   orgRoot?: string;
   runtimeHome?: string;
   appsPath?: string;
@@ -125,7 +126,7 @@ export interface DueTurn {
 /** Reconcile prepared Planner effects before admitting any new provider work.
  * A pending transaction therefore cannot compete with a fresh grooming turn,
  * and a successful retry consumes zero provider turns. */
-export async function reconcilePendingPlannerPublications(input: {
+async function reconcilePendingPlannerPublications(input: {
   stateHome: string;
   apps: readonly AppEntry[];
   result: Pick<DispatchTickResult, "skipped" | "errors">;
@@ -225,7 +226,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     schedulerId,
   });
   const dueClaims = new ScheduleDueClaimStore(runtimeHome, {
-    ...(options.dueClaimOwnerStatus !== undefined ? { ownerStatus: options.dueClaimOwnerStatus } : {}),
+    ...definedProps({ ownerStatus: options.dueClaimOwnerStatus }),
   });
   const invocation = options.dryRun === true ? undefined : await evidence.beginInvocation(tickAt);
   if (invocation !== undefined)
@@ -367,7 +368,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       triggerKind:
         turn.trigger === "blocked-retry" ? "recovery" : turn.triggerKind === "schedule" ? "schedule" : "event",
       trigger: turn.trigger,
-      ...(turn.eventKey !== undefined ? { eventKey: turn.eventKey } : {}),
+      ...definedProps({ eventKey: turn.eventKey }),
       now: tickAt,
     });
     const decisionId = claimed.record.decision_id;
@@ -489,12 +490,10 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
         attempt: 0,
         triggerKind: turn.triggerKind,
         trigger: turn.trigger,
-        ...(turn.event !== undefined ? { event: turn.event } : {}),
+        ...definedProps({ event: turn.event }),
         pid: lock.lock.pid,
-        ...(lock.lock.processStartIdentity !== undefined
-          ? { processStartIdentity: lock.lock.processStartIdentity }
-          : {}),
-        ...(lock.lock.nonce !== undefined ? { processNonce: lock.lock.nonce } : {}),
+        ...definedProps({ processStartIdentity: lock.lock.processStartIdentity }),
+        ...definedProps({ processNonce: lock.lock.nonce }),
       },
       tickAt,
     );
@@ -972,7 +971,7 @@ function withDecision(
     role: turn.role,
     triggerKind: turn.trigger === "blocked-retry" ? "recovery" : turn.triggerKind,
     trigger: turn.trigger,
-    ...(turn.eventKey !== undefined ? { eventKey: turn.eventKey } : {}),
+    ...definedProps({ eventKey: turn.eventKey }),
   });
   return { ...turn, decisionId, cadenceWindow: input.cadenceWindow, turnId: scheduledEpisodeId(decisionId) };
 }
@@ -990,7 +989,7 @@ async function recordBlockedDecision(
     role: blocker.role,
     triggerKind: blocker.triggerKind,
     trigger: blocker.trigger,
-    ...(blocker.eventKey !== undefined ? { eventKey: blocker.eventKey } : {}),
+    ...definedProps({ eventKey: blocker.eventKey }),
     now,
   });
   if (claimed.record.stage !== "terminal") {
@@ -1132,7 +1131,7 @@ async function killHungTurns(
     try {
       const ownedProcess = {
         pid: journal.pid,
-        ...(journal.processGroupId !== undefined ? { processGroupId: journal.processGroupId } : {}),
+        ...definedProps({ processGroupId: journal.processGroupId }),
       };
       const lockBeforeSignal = await readLock(runtimeHome, journal.app, journal.role).catch(() => undefined);
       const ownershipBound =

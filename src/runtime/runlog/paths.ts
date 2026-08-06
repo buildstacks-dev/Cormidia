@@ -16,7 +16,7 @@ import { join } from "node:path";
 /** Path-safe id segment: anything outside [A-Za-z0-9-] collapses to a
  *  single dash (deterministically), so a pipeline/pass id can never smuggle
  *  a path separator into the run directory name. */
-export function sanitizeIdPart(part: string): string {
+function sanitizeIdPart(part: string): string {
   const cleaned = part.replace(/[^A-Za-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
   if (cleaned === "") {
     throw new Error(`runlog: id part "${part}" has no path-safe characters`);
@@ -49,7 +49,7 @@ export function mintRunId(now: Date, pipeline: string, pass: string): string {
 
 export const RUN_ID_RE = /^\d{8}-\d{6}-[A-Za-z0-9-]+-[A-Za-z0-9-]+$/;
 
-export interface RunPaths {
+interface RunPaths {
   dir: string;
   /** L1 — ids, status, rollups, gate results, truncated previews. */
   envelope: string;
@@ -65,7 +65,7 @@ export interface RunPaths {
   sessionLog: string;
 }
 
-export function runDir(root: string, app: string, runId: string): string {
+function runDir(root: string, app: string, runId: string): string {
   return join(root, "runs", app, runId);
 }
 

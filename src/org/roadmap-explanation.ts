@@ -5,13 +5,14 @@
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { readEpisodePlanVersion } from "../loop/episode-plan.js";
-import { stableHash } from "../loop/episode-plan.js";
+import { readEpisodePlanVersion, stableHash } from "../loop/episode-plan.js";
+import { toErrorMessage as message } from "../runtime/error-message.js";
 import {
   recoverExecutionAffinityTurn,
   type CacheMeasurement,
   type ExecutionAffinityRecord,
 } from "./execution-affinity.js";
+import { planningAppDir, planningAuthorityPath } from "./planning-artifact-path.js";
 import {
   readBacklogSnapshotAuthority,
   readCurrentRoadmapPlan,
@@ -26,9 +27,9 @@ import {
   type ExecutionUnit,
 } from "./roadmap-delivery.js";
 
-export const ROADMAP_EXPLANATION_SCHEMA_VERSION = 1 as const;
+const ROADMAP_EXPLANATION_SCHEMA_VERSION = 1 as const;
 
-export type PlanningSourceStatus = "healthy" | "degraded" | "unavailable";
+type PlanningSourceStatus = "healthy" | "degraded" | "unavailable";
 export type UnitRecoveryState =
   | "not_started"
   | "in_progress"
@@ -40,7 +41,7 @@ export type UnitRecoveryState =
   | "terminal_failed"
   | "unavailable";
 
-export interface PlanningAuthorityRefView {
+interface PlanningAuthorityRefView {
   kind: AuthorityRef["kind"];
   id: string;
   version: number;
@@ -48,7 +49,7 @@ export interface PlanningAuthorityRefView {
   durable_ref: string;
 }
 
-export interface RoadmapUnitExplanationV1 {
+interface RoadmapUnitExplanationV1 {
   unit_id: string;
   kind: "roadmap_code" | "direct_operation";
   artifact_authority: {
@@ -87,7 +88,7 @@ export interface RoadmapUnitExplanationV1 {
   } | null;
 }
 
-export interface RoadmapBatchExplanationV1 {
+interface RoadmapBatchExplanationV1 {
   batch_id: string;
   authority: PlanningAuthorityRefView;
   complete: boolean;
@@ -95,7 +96,7 @@ export interface RoadmapBatchExplanationV1 {
   unit_outcomes: Array<{ unit_id: string; state: string; outcome: "completed" | "returned" | "failed" | null }>;
 }
 
-export interface RoadmapAppExplanationV1 {
+interface RoadmapAppExplanationV1 {
   app: string;
   source: { status: PlanningSourceStatus; detail: string; affected_claims: string[] };
   roadmap_plan: PlanningAuthorityRefView | null;
@@ -443,12 +444,8 @@ async function indexAffinity(stateHome: string, app: string, errors: string[]): 
   return out;
 }
 
-function planningAppDir(stateHome: string, app: string): string {
-  return join(resolve(stateHome), "planning", "apps", stableHash(app).slice(0, 32));
-}
-
 function authorityFile(stateHome: string, app: string, ref: AuthorityRef): string {
-  return join(planningAppDir(stateHome, app), `${ref.kind}s`, ref.id, `v${ref.version}.json`);
+  return planningAuthorityPath(stateHome, app, ref.kind, ref.id, ref.version);
 }
 
 function refView(ref: AuthorityRef): PlanningAuthorityRefView {
@@ -476,10 +473,6 @@ function affectedClaims(errors: string[]): string[] {
 
 function versionSort(left: string, right: string): number {
   return Number.parseInt(left.slice(1), 10) - Number.parseInt(right.slice(1), 10);
-}
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function record(value: unknown): value is Record<string, unknown> {

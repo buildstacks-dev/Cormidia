@@ -5,12 +5,12 @@
 // documents whose keywords overlap the task text, capped by bytes.
 
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-export type OkfType = "lesson" | "fact" | "procedure";
-export type OkfStatus = "active" | "deprecated";
+type OkfType = "lesson" | "fact" | "procedure";
+type OkfStatus = "active" | "deprecated";
 
 export type LoopTier = "T0" | "T1" | "T2" | "T3";
 export type LoopStatus = "candidate" | "provisional" | "active" | "deprecated" | "archived";
@@ -22,7 +22,7 @@ export type LoopClaim = "authorized" | "validated";
  *  reconstructs only the fields it knows silently destroys governance
  *  metadata on every rewrite (the exact defect this extension fixes for the
  *  eight top-level fields). */
-export interface OkfLoopBlock {
+interface OkfLoopBlock {
   id: string;
   tier: LoopTier;
   status: LoopStatus;
@@ -32,7 +32,7 @@ export interface OkfLoopBlock {
   [key: string]: unknown;
 }
 
-export interface OkfFrontmatter {
+interface OkfFrontmatter {
   name: string;
   description: string;
   type: OkfType;
@@ -51,7 +51,7 @@ export interface OkfDocument {
   path?: string;
 }
 
-export interface MemoryBundle {
+interface MemoryBundle {
   dir: string;
   index: string;
   docs: OkfDocument[];
@@ -61,7 +61,7 @@ export interface MemoryBundle {
   errors: MemoryLoadError[];
 }
 
-export interface MemoryLoadError {
+interface MemoryLoadError {
   path: string;
   message: string;
 }
@@ -123,7 +123,7 @@ export async function loadBundle(dir: string): Promise<MemoryBundle> {
   return { dir, index, docs, errors };
 }
 
-export interface SelectedMemoryExcerpt {
+interface SelectedMemoryExcerpt {
   source: string;
   rendered: string;
 }
@@ -166,63 +166,6 @@ export async function selectAttributedExcerpts(
   }
 
   return out;
-}
-
-export async function selectExcerpts(
-  bundleDirs: readonly string[],
-  taskText: string,
-  capBytes = 16 * 1024,
-): Promise<string[]> {
-  return (await selectAttributedExcerpts(bundleDirs, taskText, capBytes)).map((item) => item.rendered);
-}
-
-export async function writeMemoryDoc(
-  bundleDir: string,
-  doc: OkfDocument,
-  options: { now?: Date } = {},
-): Promise<string> {
-  const stamped = stampUpdated(doc, options.now ?? new Date());
-  validateFrontmatter(stamped.frontmatter, stamped.frontmatter.name);
-  const path = join(bundleDir, `${stamped.frontmatter.name}.md`);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, serializeOkfDocument(stamped), "utf8");
-  await regenerateIndex(bundleDir);
-  return path;
-}
-
-export async function deprecateMemoryDoc(
-  bundleDir: string,
-  name: string,
-  options: { now?: Date } = {},
-): Promise<string> {
-  const path = join(bundleDir, `${name}.md`);
-  const parsed = parseOkfDocument(await readFile(path, "utf8"), path);
-  await writeMemoryDoc(
-    bundleDir,
-    {
-      ...parsed,
-      frontmatter: { ...parsed.frontmatter, status: "deprecated" },
-    },
-    options,
-  );
-  return path;
-}
-
-export async function deleteMemoryDoc(bundleDir: string, name: string): Promise<void> {
-  await rm(join(bundleDir, `${name}.md`), { force: true });
-  await regenerateIndex(bundleDir);
-}
-
-export async function regenerateIndex(bundleDir: string): Promise<string> {
-  await mkdir(bundleDir, { recursive: true });
-  const bundle = await loadBundle(bundleDir);
-  const lines = bundle.docs
-    .filter((doc) => doc.frontmatter.status !== "deprecated")
-    .sort((a, b) => a.frontmatter.name.localeCompare(b.frontmatter.name))
-    .map((doc) => `- ${doc.frontmatter.name}: ${doc.frontmatter.description}`);
-  const content = lines.length === 0 ? "" : `${lines.join("\n")}\n`;
-  await writeFile(join(bundleDir, "INDEX.md"), content, "utf8");
-  return content;
 }
 
 export function serializeOkfDocument(doc: OkfDocument): string {
@@ -378,20 +321,6 @@ function requireDate(spec: Record<string, unknown>, key: string, source: string)
     throw new OkfValidationError(`${source}: frontmatter.${key} must be YYYY-MM-DD`);
   }
   return value;
-}
-
-function stampUpdated(doc: OkfDocument, now: Date): OkfDocument {
-  return {
-    ...doc,
-    frontmatter: {
-      ...doc.frontmatter,
-      updated: isoDate(now),
-    },
-  };
-}
-
-function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 function signalWords(text: string): Set<string> {

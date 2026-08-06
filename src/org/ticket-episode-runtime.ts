@@ -1,72 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../runtime/types.js";
-import { isRuntimeCapability, type RuntimeCapability } from "../runtime/capabilities.js";
-import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../runtime/assignment.js";
-import { mintRunId, hashedFileStem, runPaths } from "../runtime/runlog/paths.js";
 import type {
   AcceptedTicketEpisodePlan,
+  DeliveryUnitRuntime,
   TicketEpisodeExecutionRequest,
   TicketEpisodeExecutor,
   TicketEpisodePlanner,
   TicketEpisodePlanningRequest,
-  DeliveryUnitRuntime,
 } from "../loop/driver.js";
 import { gateCommandsForWorktree } from "../loop/driver.js";
-import {
-  advanceGates,
-  advanceProvisionSetup,
-  advanceReviewing,
-  advanceShipping,
-  criterionTestMapFromContract,
-  parseAcceptanceCriteria,
-  recoverAlreadyMergedTicket,
-  repairPrGateEvidence,
-  renderBuildBlockedComment,
-  renderContractComment,
-  renderReviewBody,
-  isPrGateEvidenceOnlyFinding,
-  latestActionableReview,
-  deliveryUnitIssueNumbers,
-  swapDeliveryUnitLabel,
-  type ReviewAuthorization,
-} from "../loop/loop.js";
-import type { GhOps, GhReview } from "../loop/github.js";
-import type { Policy } from "../loop/policy.js";
-import type { GateCommands } from "../loop/qgates.js";
-import type { LoopItem, ReleaseConfig, SuppressedOperation } from "../loop/types.js";
-import { resolveReleaseCommand } from "../loop/plan-tickets.js";
-import { createRoadmapLoopRuntime } from "./roadmap-loop-runtime.js";
-import {
-  createExecutionContextAffinityManifest,
-  prepareExecutionAffinityTurn,
-  readExecutionAffinityRecord,
-  settleExecutionAffinityTurn,
-} from "./execution-affinity.js";
-import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
-import {
-  assertTicketEpisodePlanValid,
-  isTicketMechanicalGateKind,
-  ticketProviderOperation,
-  ticketGovernedWorkflowTemplates,
-  TICKET_EPISODE_TOPOLOGY_CONTRACT,
-  TICKET_MECHANICAL_GATE_CATALOG,
-  TICKET_MECHANICAL_GATE_KINDS,
-  TICKET_PROVIDER_OPERATION_CATALOG,
-  TICKET_PROVIDER_OPERATIONS,
-  type TicketProviderOperationDefinition,
-} from "../loop/ticket-episode-plan.js";
-import { createProviderEpisodePlanRevisionProposer } from "./episode-planner/runtime.js";
-import {
-  inspectEpisodeInvocation,
-  orchestrateEpisode,
-  previewEpisode,
-  type EpisodeOrchestrationFacts,
-} from "./episode-planner/orchestrator.js";
-import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
-import type { EpisodeSafetyFloorMapping } from "./episode-planner/policy.js";
-import { inspectEpisodeRepository } from "./episode-planner/repository-facts.js";
-import type { AppEntry } from "./apps.js";
+import { writeLoopFileOnce } from "../loop/durable.js";
 import {
   efficiencyEpisodeDir,
   fingerprint,
@@ -78,6 +21,12 @@ import {
   type ExecutionStepRecord,
   type RouteBudget,
 } from "../loop/efficiency.js";
+import type {
+  EpisodeStepCompletedOutcome,
+  EpisodeStepExecutionContext,
+  EpisodeStepFailedOutcome,
+  ProviderStepOutcome,
+} from "../loop/episode-plan-executor.js";
 import {
   episodeIntentHash,
   episodePlanHash,
@@ -92,24 +41,56 @@ import {
   type SafetyFact,
 } from "../loop/episode-plan.js";
 import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
-import type {
-  EpisodeStepCompletedOutcome,
-  EpisodeStepExecutionContext,
-  EpisodeStepFailedOutcome,
-  ProviderStepOutcome,
-} from "../loop/episode-plan-executor.js";
-import type { PlannerAdmissionLimits } from "../loop/planner-admission.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
+import type { GhOps, GhReview } from "../loop/github.js";
+import {
+  advanceGates,
+  advanceProvisionSetup,
+  advanceReviewing,
+  advanceShipping,
+  criterionTestMapFromContract,
+  deliveryUnitIssueNumbers,
+  isPrGateEvidenceOnlyFinding,
+  latestActionableReview,
+  parseAcceptanceCriteria,
+  recoverAlreadyMergedTicket,
+  renderBuildBlockedComment,
+  renderContractComment,
+  renderReviewBody,
+  repairPrGateEvidence,
+  swapDeliveryUnitLabel,
+  type ReviewAuthorization,
+} from "../loop/loop.js";
 import {
   executePipeline,
   type PassRunRecord,
   type PipelineRunResult,
   type VerdictRecordOutcome,
 } from "../loop/pipeline.js";
-import { ERROR_TURN_BUDGET_SUSPENDED, type TurnBudgetStop } from "../runtime/turn-budget.js";
-import { readEnvelope } from "../runtime/runlog/envelope.js";
-import { resumeCostEstimate, type ResumeCostEstimate, type TurnBudgetEscalationInput } from "./budget.js";
-import type { ApprovalItem } from "./approvals.js";
 import type { PipelineConfig } from "../loop/pipelines.js";
+import { resolveReleaseCommand } from "../loop/plan-tickets.js";
+import type { PlannerAdmissionLimits } from "../loop/planner-admission.js";
+import type { Policy } from "../loop/policy.js";
+import type { GateCommands } from "../loop/qgates.js";
+import {
+  contractMarker,
+  hashTicketBody,
+  readTicketClaimState,
+  renderFixResolutionsComment,
+} from "../loop/rehydrate.js";
+import {
+  assertTicketEpisodePlanValid,
+  isTicketMechanicalGateKind,
+  TICKET_EPISODE_TOPOLOGY_CONTRACT,
+  TICKET_MECHANICAL_GATE_CATALOG,
+  TICKET_MECHANICAL_GATE_KINDS,
+  TICKET_PROVIDER_OPERATION_CATALOG,
+  TICKET_PROVIDER_OPERATIONS,
+  ticketGovernedWorkflowTemplates,
+  ticketProviderOperation,
+  type TicketProviderOperationDefinition,
+} from "../loop/ticket-episode-plan.js";
+import type { LoopItem, ReleaseConfig, SuppressedOperation } from "../loop/types.js";
 import {
   parseVerdictEither,
   VERDICT_SCHEMAS,
@@ -119,21 +100,40 @@ import {
   type ReviewVerdict,
   type VerdictTypes,
 } from "../loop/verdicts.js";
-import {
-  contractMarker,
-  hashTicketBody,
-  readTicketClaimState,
-  renderFixResolutionsComment,
-} from "../loop/rehydrate.js";
-import { writeLoopFileOnce } from "../loop/durable.js";
-import type { TriggerKind } from "../runtime/telemetry.js";
+import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../runtime/assignment.js";
+import { isRuntimeCapability, type RuntimeCapability } from "../runtime/capabilities.js";
 import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../runtime/readiness.js";
-import type { TicketEpisodeApprovalHandler } from "./ticket-episode-approval.js";
-import { mergeEpisodeSafetyFacts, safetyFactsFromTicketLabels } from "./episode-safety-facts.js";
+import { readEnvelope } from "../runtime/runlog/envelope.js";
+import { hashedFileStem, mintRunId, runPaths } from "../runtime/runlog/paths.js";
+import type { TriggerKind } from "../runtime/telemetry.js";
+import { ERROR_TURN_BUDGET_SUSPENDED, type TurnBudgetStop } from "../runtime/turn-budget.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../runtime/types.js";
 import { effectiveEpisodeHardCeiling } from "./app-execution-policy.js";
+import type { ApprovalItem } from "./approvals.js";
+import type { AppEntry } from "./apps.js";
 import { runtimePolicyForApp } from "./apps.js";
+import { resumeCostEstimate, type ResumeCostEstimate, type TurnBudgetEscalationInput } from "./budget.js";
+import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
+import {
+  inspectEpisodeInvocation,
+  orchestrateEpisode,
+  previewEpisode,
+  type EpisodeOrchestrationFacts,
+} from "./episode-planner/orchestrator.js";
+import type { EpisodeSafetyFloorMapping } from "./episode-planner/policy.js";
+import { inspectEpisodeRepository } from "./episode-planner/repository-facts.js";
+import { createProviderEpisodePlanRevisionProposer } from "./episode-planner/runtime.js";
+import { mergeEpisodeSafetyFacts, safetyFactsFromTicketLabels } from "./episode-safety-facts.js";
+import {
+  createExecutionContextAffinityManifest,
+  prepareExecutionAffinityTurn,
+  readExecutionAffinityRecord,
+  settleExecutionAffinityTurn,
+} from "./execution-affinity.js";
+import { createRoadmapLoopRuntime } from "./roadmap-loop-runtime.js";
+import type { TicketEpisodeApprovalHandler } from "./ticket-episode-approval.js";
 
-export const TICKET_EPISODE_PLANNER_POLICY_VERSION = "ticket-episode/episode-planner-v1" as const;
+const TICKET_EPISODE_PLANNER_POLICY_VERSION = "ticket-episode/episode-planner-v1" as const;
 
 const MAX_TICKET_BODY_BYTES = 128 * 1024;
 const DEFAULT_PLANNER_ACTIVE_TIME_MS = 5 * 60_000;
@@ -152,7 +152,7 @@ const TICKET_SAFETY_FLOOR_MAPPING = {
   },
 } as const satisfies EpisodeSafetyFloorMapping;
 
-export interface TicketEpisodeRuntimeOptions {
+interface TicketEpisodeRuntimeOptions {
   /** Durable org state home (`efficiency/`, `runs/`, and telemetry live here). */
   root: string;
   /** Committed org home containing the protected prompt/template surfaces. */
@@ -206,13 +206,13 @@ export interface TicketEpisodeRuntimeOptions {
   now?: () => Date;
 }
 
-export interface TicketEpisodeRuntime {
+interface TicketEpisodeRuntime {
   planTicket: TicketEpisodePlanner;
   executeTicketPlan: TicketEpisodeExecutor;
   deliveryUnits: DeliveryUnitRuntime;
 }
 
-export interface TicketEpisodeInspectionOptions {
+interface TicketEpisodeInspectionOptions {
   root: string;
   app: AppEntry;
   roles: readonly RoleConfig[];
@@ -224,7 +224,7 @@ export interface TicketEpisodeInspectionOptions {
   ) => CreatorEpisodeScope | undefined | Promise<CreatorEpisodeScope | undefined>;
 }
 
-export interface TicketEpisodeInvocationInspection {
+interface TicketEpisodeInvocationInspection {
   facts: EpisodeOrchestrationFacts;
   intent: ReturnType<typeof previewEpisode>["intent"];
   planningPath: ReturnType<typeof previewEpisode>["planningPath"];
@@ -683,7 +683,7 @@ async function ticketExecutionPlan(
  *  the same evidence question before any execution context exists. `plan` is
  *  the immutable plan the step belongs to, so `plan.version` is the version
  *  the evidence must be bound to. */
-export interface TicketProviderEvidenceInput {
+interface TicketProviderEvidenceInput {
   /** Deliberately narrower than the full runtime options: resolving durable
    *  evidence reads state-home files and nothing else. Keeping the type honest
    *  is what lets the #202 detector construct this input without inventing a
@@ -1082,7 +1082,7 @@ export async function completableProviderEvidence(
  *  testable decision rather than a shape duplicated per verdict kind — the
  *  duplication is precisely what left the review path uncovered when the build
  *  path was fixed (#175 fixed one half; #202 was the other). */
-export interface PriorPlanEvidenceFacts {
+interface PriorPlanEvidenceFacts {
   /** Version of the plan now executing. A v1 plan has no prior to reconcile. */
   planVersion: number;
   /** Prior plan version an accepted revision at `planVersion` named this step

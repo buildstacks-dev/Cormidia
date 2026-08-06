@@ -35,16 +35,16 @@ import { parse } from "yaml";
  * readers; live provider-step selection comes from the accepted EpisodePlan. */
 export type RiskTier = "low" | "medium" | "high";
 /** Ascending severity — resolveTier folds with "highest wins". */
-export const RISK_TIERS: RiskTier[] = ["low", "medium", "high"];
+const RISK_TIERS: RiskTier[] = ["low", "medium", "high"];
 
 /** Gates a policy may schedule per tier (docs/loop/design.md §5 table).
  *  `review-freshness` is absent by design — see the header note. */
 export type GateName = "tests" | "lint" | "e2e" | "security" | "completeness";
-export const GATE_NAMES: GateName[] = ["tests", "lint", "e2e", "security", "completeness"];
+const GATE_NAMES: GateName[] = ["tests", "lint", "e2e", "security", "completeness"];
 
-export const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_MAX_ATTEMPTS = 3;
 
-export interface RemediationPolicy {
+interface RemediationPolicy {
   /** Bounded fix re-dispatches after a gate failure before the ticket goes
    *  `op:returned` (docs/loop/design.md §5; default 3). Persistence of the counter
    *  is the caller's job — this is the configured cap. */
@@ -226,7 +226,7 @@ export function gatesForTier(policy: Policy, tier: RiskTier): GateName[] {
 }
 
 /** Extra, content-aware inputs for {@link matchedDimensions}. */
-export interface DimensionMatchContext {
+interface DimensionMatchContext {
   /** Repo-relative `package.json` paths whose diff actually touched a
    *  dependency or run-script key (see {@link packageJsonTouchesSecurityKeys}).
    *  When provided, a `package.json` path counts toward a dimension only if it
@@ -246,11 +246,7 @@ export interface DimensionMatchContext {
  *  dependency or run-script keys change, so widening a test glob no longer
  *  over-escalates standard → deep (L1-05). Lock files (`pnpm-lock.yaml`) stay
  *  path-matched — they change only as a consequence of a dependency change. */
-export function matchedDimensions(
-  policy: Policy,
-  changedFiles: string[],
-  context: DimensionMatchContext = {},
-): string[] {
+function matchedDimensions(policy: Policy, changedFiles: string[], context: DimensionMatchContext = {}): string[] {
   const relevant = context.dependencyRelevantPackageJson;
   const counts = (file: string): boolean => relevant === undefined || !isPackageJson(file) || relevant.has(file);
   return Object.entries(policy.dimensionGlobs)
@@ -272,7 +268,7 @@ function isPackageJson(path: string): boolean {
 /** The package.json keys whose change signals real dependency/supply-chain or
  *  build/run-script risk — the only edits that should trip the security
  *  review dimension. */
-export const SECURITY_RELEVANT_PACKAGE_JSON_KEYS = [
+const SECURITY_RELEVANT_PACKAGE_JSON_KEYS = [
   "dependencies",
   "devDependencies",
   "optionalDependencies",
@@ -286,7 +282,7 @@ export const SECURITY_RELEVANT_PACKAGE_JSON_KEYS = [
  *  empty; an unparseable side errs toward escalation ("tiering makes the loop
  *  cheaper, never less safe" — when we cannot tell, we treat it as risky).
  *  Key order is ignored, so a purely cosmetic re-sort is not a change. */
-export function packageJsonTouchesSecurityKeys(before: string | undefined, after: string | undefined): boolean {
+function packageJsonTouchesSecurityKeys(before: string | undefined, after: string | undefined): boolean {
   const beforeObj = parsePackageJsonObject(before);
   const afterObj = parsePackageJsonObject(after);
   if (beforeObj === undefined || afterObj === undefined) return true; // cannot compare → escalate

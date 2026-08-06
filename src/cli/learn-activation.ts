@@ -11,6 +11,7 @@ import { GhCliOps } from "../loop/github.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { ApprovalStore } from "../org/approvals.js";
 import type { CormidiaHomes } from "../org/home.js";
+import { bindingOf } from "../org/learning/binding.js";
 import {
   candidateArtifactPath,
   findCandidateArtifact,
@@ -27,7 +28,6 @@ import {
   type LearningRoot,
 } from "../org/learning/concepts.js";
 import { loadLearningPolicy, type LearningPolicy } from "../org/learning/policy.js";
-import { bindingOf } from "../org/learning/binding.js";
 import { publishCandidate, type PublisherDeps } from "../org/learning/publisher.js";
 import { appendRejection, readRejections } from "../org/learning/rejections.js";
 import { resolveLearningContext } from "../org/learning/resolver.js";
@@ -39,6 +39,7 @@ import {
   type ReviewerVerdict,
 } from "../org/learning/review.js";
 import type { OkfDocument } from "../org/memory.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export interface Flags {
   values: Map<string, string[]>;
@@ -202,7 +203,7 @@ export async function learnPublish(homes: CormidiaHomes, args: string[]): Promis
   };
   const waiver = flag(flags, "waiver");
   const outcome = await publishCandidate(deps, candidateId, {
-    ...(waiver !== undefined ? { waiver } : {}),
+    ...definedProps({ waiver }),
   });
 
   switch (outcome.status) {
@@ -265,7 +266,7 @@ export async function learnResolve(homes: CormidiaHomes, args: string[]): Promis
   }
   const resolved = await resolveLearningContext({
     orgHome: homes.orgHome,
-    ...(appWorkdir !== undefined ? { appWorkdir } : {}),
+    ...definedProps({ appWorkdir }),
     app,
     role,
     turnId: "dry-resolve",
@@ -404,7 +405,7 @@ export async function learnProvisional(homes: CormidiaHomes, args: string[]): Pr
 // report sections (activation, review SLA, agreement)
 // ---------------------------------------------------------------------------
 
-export interface ActivationReport {
+interface ActivationReport {
   pendingReview: Array<{ candidate_id: string; ageHours: number; overSla: boolean }>;
   slaHours: number;
   agreement: { compared: number; agreed: number };

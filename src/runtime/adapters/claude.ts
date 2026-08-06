@@ -35,29 +35,30 @@
 // tool_use — they are escalations, not tool activity. The L2 bridge
 // (src/loop/pipeline.ts) turns these into tool.called rows + tool_counts.
 
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
   HookInput,
   HookJSONOutput,
-  Options as SdkOptions,
   PermissionResult,
   SDKMessage,
+  Options as SdkOptions,
 } from "@anthropic-ai/claude-agent-sdk";
+import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import * as path from "node:path";
-import { gitWorktreeWritableRoots } from "../git-worktree-sandbox.js";
-import type { GateEscalation, Runtime, ToolAction, TurnHooks, TurnRequest, TurnResult, TurnUsage } from "../types.js";
 import { resolveTurnRequestAssignment } from "../assignment.js";
+import { gitWorktreeWritableRoots } from "../git-worktree-sandbox.js";
 import { withNonInteractiveEnv } from "../non-interactive-env.js";
+import { permissionModeFor, type ClaudePermissionMode } from "../permission-mode.js";
 import { claudeDenyRulesForRole } from "../role-shaping.js";
 import { toolUseEvent } from "../tool-events.js";
+import type { GateEscalation, Runtime, ToolAction, TurnHooks, TurnRequest, TurnResult, TurnUsage } from "../types.js";
 import { renderContextBundle } from "../worktree-context.js";
-import { permissionModeFor, type ClaudePermissionMode } from "../permission-mode.js";
+import { definedProps } from "../optional-properties.js";
 
 /** The SDK's query() shape, injectable so unit tests run with a scripted
  *  stand-in and zero network/CLI dependency. */
 export type QueryFn = (params: { prompt: string; options?: SdkOptions }) => AsyncIterable<SDKMessage>;
 
-export interface ClaudeRuntimeOptions {
+interface ClaudeRuntimeOptions {
   /** Test injection point; defaults to the real SDK's query(). */
   queryFn?: QueryFn;
   /** Extra SDK options merged UNDER the adapter's own — adapter-computed
@@ -128,7 +129,7 @@ export function normalizeToolAction(toolName: string, input: Record<string, unkn
 
 /** Layers joined in ContextBundle order: authority, org TASTE, role addendum,
  * app override, then memory excerpts (docs/architecture.md §5). */
-export function buildSystemPromptAppend(req: TurnRequest): string {
+function buildSystemPromptAppend(req: TurnRequest): string {
   return renderContextBundle(req.context);
 }
 
@@ -269,7 +270,7 @@ export class ClaudeRuntime implements Runtime {
     }
     const options: SdkOptions = {
       ...this.baseOptions,
-      ...(settings !== undefined ? { settings } : {}),
+      ...definedProps({ settings }),
       env: withNonInteractiveEnv(this.baseOptions.env ?? process.env),
       model: assignment.model,
       effort: assignment.effort,
@@ -290,7 +291,7 @@ export class ClaudeRuntime implements Runtime {
       // "overrun = incident note, not silent spend").
       maxBudgetUsd: req.role.maxTurnBudgetUsd,
       ...(req.session !== undefined ? { resume: req.session.id } : {}),
-      ...(req.maxTurns !== undefined ? { maxTurns: req.maxTurns } : {}),
+      ...definedProps({ maxTurns: req.maxTurns }),
       // Native structured output when the pass demands a typed verdict —
       // the CLI constrains the final response to the schema, so the result
       // text (→ summary) is the JSON itself. Absent verdictSchema, the key

@@ -15,12 +15,13 @@ import {
 } from "./bootstrap.js";
 import { onboardingAnswersPath, onboardingSourcePath, storeOnboardingSource } from "./onboarding-answers.js";
 import { loadRoles } from "./roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export const NEW_APP_TEMPLATES = ["typescript-node", "bare"] as const;
 export type NewAppTemplate = (typeof NEW_APP_TEMPLATES)[number];
 export const DEFAULT_NEW_APP_TEMPLATE: NewAppTemplate = "typescript-node";
 
-export interface NewAppOptions {
+interface NewAppOptions {
   /** Cormidia app key. Defaults to the target directory basename. */
   appName?: string;
   /** Local directory to create. Must be absent or empty. */
@@ -43,7 +44,7 @@ export interface NewAppOptions {
   dryRun?: boolean;
 }
 
-export interface NewAppResult {
+interface NewAppResult {
   appName: string;
   targetDir: string;
   repoSlug: string;
@@ -128,7 +129,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     appName,
     repoSlug: options.repoSlug,
     orgHome,
-    ...(options.stateHome !== undefined ? { stateHome: options.stateHome } : {}),
+    ...definedProps({ stateHome: options.stateHome }),
   });
 
   // Record where this greenfield app was scaffolded so `cormidia app verify` can

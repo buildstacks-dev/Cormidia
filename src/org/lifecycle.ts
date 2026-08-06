@@ -3,13 +3,13 @@
 // public lifecycle operation emits a deterministic mechanical execution step.
 
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
 import { lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { admitEpisode, finalizeEpisode, recordMechanicalStep, type ExecutionStatus } from "../loop/efficiency.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export const LIFECYCLE_SCHEMA_VERSION = 1 as const;
-export const LIFECYCLE_POLICY_VERSION = "lifecycle/v1";
+const LIFECYCLE_POLICY_VERSION = "lifecycle/v1";
 
 export type LifecycleFaultPoint =
   | "before_archive_creation"
@@ -190,20 +190,6 @@ export async function assertDirectoryNoSymlink(path: string, label: string): Pro
   return realpath(path);
 }
 
-export async function fingerprintFiles(paths: readonly string[]): Promise<string> {
-  const records: string[] = [];
-  for (const path of [...paths].sort()) {
-    if (!existsSync(path)) {
-      records.push(`${resolve(path)}\0missing`);
-      continue;
-    }
-    await assertRegularFile(path, "lifecycle fingerprint");
-    const content = await readFile(path);
-    records.push(`${resolve(path)}\0${content.byteLength}\0${sha256(content)}`);
-  }
-  return sha256(records.join("\n"));
-}
-
 export async function emitLifecycleStep(input: {
   stateHome: string;
   app: string;
@@ -244,7 +230,7 @@ export async function emitLifecycleStep(input: {
     finishedAt: input.finishedAt ?? new Date(),
     status: input.status,
     reason: input.reason,
-    ...(input.nextStep !== undefined ? { nextStep: input.nextStep } : {}),
+    ...definedProps({ nextStep: input.nextStep }),
     inputFingerprint: input.inputFingerprint,
   });
   await finalizeEpisode({
@@ -252,7 +238,7 @@ export async function emitLifecycleStep(input: {
     episodeId,
     status: input.status === "completed" ? "completed" : input.status === "blocked" ? "blocked" : "failed",
     reason: input.reason,
-    ...(input.nextStep !== undefined ? { nextStep: input.nextStep } : {}),
+    ...definedProps({ nextStep: input.nextStep }),
     now: input.finishedAt ?? new Date(),
   });
 }

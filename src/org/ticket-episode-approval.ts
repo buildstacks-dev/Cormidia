@@ -1,10 +1,7 @@
 import { existsSync } from "node:fs";
-import type { LoopItem } from "../loop/types.js";
 import type { AcceptedTicketEpisodePlan } from "../loop/driver.js";
-import type { ApprovalStep } from "../loop/episode-plan.js";
 import type { ApprovalStepOutcome, EpisodeStepExecutionContext } from "../loop/episode-plan-executor.js";
-import { actionHash, ApprovalStore, type ApprovalItem } from "./approvals.js";
-import { withFileLock } from "../runtime/file-lock.js";
+import type { ApprovalStep } from "../loop/episode-plan.js";
 import {
   readTicketClaimState,
   ticketStatePath,
@@ -12,6 +9,9 @@ import {
   type TicketClaimEvent,
   type TicketClaimState,
 } from "../loop/rehydrate.js";
+import type { LoopItem } from "../loop/types.js";
+import { withFileLock } from "../runtime/file-lock.js";
+import { actionHash, ApprovalStore, type ApprovalItem } from "./approvals.js";
 import { isBudgetEscalationRule } from "./budget.js";
 
 const APPROVAL_ACTION_REF = /^approval:([A-Za-z0-9][A-Za-z0-9._-]{0,199}):action-sha256:([a-f0-9]{64})$/;
@@ -19,7 +19,7 @@ const CLAIM_LOCK_STALE_MS = 10 * 60_000;
 const CLAIM_LOCK_WAIT_MS = 12 * 60_000;
 const CLAIM_EVENT_LIMIT = 100;
 
-export interface ExistingTicketApprovalHandlerOptions {
+interface ExistingTicketApprovalHandlerOptions {
   store: ApprovalStore;
   app: string;
   roleNames: readonly string[];
@@ -232,7 +232,7 @@ function expirySuppression(
 }
 
 /** Canonical reference accepted by the ticket approval observer. */
-export function ticketApprovalActionRef(item: ApprovalItem): string {
+function ticketApprovalActionRef(item: ApprovalItem): string {
   return `approval:${item.id}:action-sha256:${actionHash(item.action)}`;
 }
 

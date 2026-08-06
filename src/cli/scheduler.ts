@@ -1,15 +1,15 @@
-import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { resolveCormidiaHomes, type CormidiaHomeOptions } from "../org/home.js";
-import { buildSchedulerExpectation } from "../org/scheduler/definition.js";
+import { resolveSchedulerRequiredExecutables, schedulerEnvironmentPath } from "../org/scheduler/environment.js";
 import { installScheduler, uninstallScheduler, type SchedulerLifecycleResult } from "../org/scheduler/lifecycle.js";
 import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
 import { DEFAULT_SCHEDULER_CADENCE_MINUTES, type SchedulerBackend } from "../org/scheduler/model.js";
-import { resolveSchedulerRequiredExecutables, schedulerEnvironmentPath } from "../org/scheduler/environment.js";
 import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
-export interface SchedulerCommandOptions extends CormidiaHomeOptions {
+interface SchedulerCommandOptions extends CormidiaHomeOptions {
   manager?: SchedulerManager;
   platform?: NodeJS.Platform;
   packageEntryPath?: string;
@@ -23,7 +23,7 @@ export async function cmdScheduler(args: string[]): Promise<number> {
   return runSchedulerCommand(args);
 }
 
-export async function runSchedulerCommand(args: string[], options: SchedulerCommandOptions = {}): Promise<number> {
+async function runSchedulerCommand(args: string[], options: SchedulerCommandOptions = {}): Promise<number> {
   const common = extractHomeFlags(args, "scheduler");
   const [verb, ...rest] = common.rest;
   if (!verb || !["install", "status", "uninstall"].includes(verb)) {
@@ -78,14 +78,14 @@ export async function runSchedulerCommand(args: string[], options: SchedulerComm
       ? await installScheduler({
           ...input,
           execute,
-          ...(confirm !== undefined ? { confirm } : {}),
-          ...(options.now !== undefined ? { now: options.now } : {}),
+          ...definedProps({ confirm }),
+          ...definedProps({ now: options.now }),
         })
       : await uninstallScheduler({
           ...input,
           execute,
-          ...(confirm !== undefined ? { confirm } : {}),
-          ...(options.now !== undefined ? { now: options.now } : {}),
+          ...definedProps({ confirm }),
+          ...definedProps({ now: options.now }),
         });
   printLifecycle(result, json);
   return result.action === "refuse" ? 1 : 0;
@@ -100,10 +100,6 @@ function schedulerEnvironmentForInstall(options: SchedulerCommandOptions): {
     requiredExecutables,
     environmentPath: schedulerEnvironmentPath(requiredExecutables, options.environmentPath),
   };
-}
-
-export function schedulerExpectationForCli(input: Parameters<typeof buildSchedulerExpectation>[0]) {
-  return buildSchedulerExpectation(input);
 }
 
 function printLifecycle(result: SchedulerLifecycleResult, json: boolean): void {

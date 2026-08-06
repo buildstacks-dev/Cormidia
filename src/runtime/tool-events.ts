@@ -11,6 +11,7 @@
 // tool activity.
 
 import type { ToolAction, TurnEvent } from "./types.js";
+import { definedProps } from "./optional-properties.js";
 
 /** Environment-setup and wait commands — the docker/install/wait-loop
  *  signal. Matching is per command; the >= 3 threshold lives in the
@@ -18,7 +19,7 @@ import type { ToolAction, TurnEvent } from "./types.js";
 const ENVIRONMENT_COMMAND =
   /(?:^|[;&|]\s*)(?:sudo\s+)?(?:docker(?:-compose)?(?:\s+compose)?|podman|apt(?:-get)?|yum|dnf|brew|pip3?|npm|pnpm|yarn|corepack)\s+(?:install|ci|add|enable|restart|start|stop|up|pull|build)\b|(?:^|[;&|]\s*)(?:sleep\s+\d|wait-for)/;
 
-export function environmentCategory(action: ToolAction): "environment_retry" | undefined {
+function environmentCategory(action: ToolAction): "environment_retry" | undefined {
   const command = commandOf(action);
   if (command === undefined) return undefined;
   return ENVIRONMENT_COMMAND.test(command) ? "environment_retry" : undefined;
@@ -44,8 +45,8 @@ export function toolUseEvent(action: ToolAction, outcome: { success?: boolean; d
     name: action.tool,
     detail: command !== undefined && command.length > 0 ? `${action.tool}: ${command}` : action.tool,
     args: action.input,
-    ...(category !== undefined ? { category } : {}),
-    ...(outcome.success !== undefined ? { success: outcome.success } : {}),
-    ...(outcome.durationMs !== undefined ? { durationMs: outcome.durationMs } : {}),
+    ...definedProps({ category }),
+    ...definedProps({ success: outcome.success }),
+    ...definedProps({ durationMs: outcome.durationMs }),
   };
 }

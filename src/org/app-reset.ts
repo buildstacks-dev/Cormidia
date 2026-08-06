@@ -8,20 +8,15 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import type { GhIssue, GhOps, GhPullRequest } from "../loop/github.js";
+import { readStatusRows } from "../runtime/runlog/status.js";
+import { readLifecycleRecord } from "./app-lifecycle.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { loadApps, removeExistingApp } from "./apps.js";
-import { acquireLock, releaseLock, type TurnLock } from "./locks.js";
 import { listJournals, type TurnJournal } from "./journal.js";
-import { loadRoles } from "./roles.js";
-import { readStatusRows } from "../runtime/runlog/status.js";
-import type { GhIssue, GhOps, GhPullRequest } from "../loop/github.js";
-import { onboardingAnswersPath } from "./onboarding-answers.js";
 import { markAppEpisodesResetAbandoned } from "./learning/episode.js";
-import { readLifecycleRecord } from "./app-lifecycle.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
-  type LifecycleBlocker,
-  type LifecycleFaultHook,
   assertDirectoryNoSymlink,
   assertRegularFile,
   assertSafeRelativePath,
@@ -30,7 +25,12 @@ import {
   sha256,
   stableJson,
   writeLifecycleFileAtomic,
+  type LifecycleBlocker,
+  type LifecycleFaultHook,
 } from "./lifecycle.js";
+import { acquireLock, releaseLock, type TurnLock } from "./locks.js";
+import { onboardingAnswersPath } from "./onboarding-answers.js";
+import { loadRoles } from "./roles.js";
 
 const RESET_SCHEMA_VERSION = LIFECYCLE_SCHEMA_VERSION;
 const OPERATIONAL_LABEL_PREFIX = "op:";
@@ -58,7 +58,7 @@ export interface AppResetOptions {
   fault?: LifecycleFaultHook;
 }
 
-export interface ResetGitHubPlan {
+interface ResetGitHubPlan {
   issues: Array<Pick<GhIssue, "number" | "title" | "url">>;
   pullRequests: Array<Pick<GhPullRequest, "number" | "title" | "headRefName" | "url">>;
   branches: string[];
@@ -83,7 +83,7 @@ export interface AppResetPlan {
   answersPath: string | null;
 }
 
-export interface AppResetResult {
+interface AppResetResult {
   plan: AppResetPlan;
   archivePath: string;
 }

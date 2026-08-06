@@ -15,11 +15,7 @@ import {
   type EpisodePlanExecutionJournal,
 } from "../../loop/episode-plan-executor.js";
 import {
-  episodeReplanJournalPath,
-  readEpisodeReplanJournal,
-  type EpisodeReplanJournal,
-} from "../../loop/episode-replan.js";
-import {
+  assessCreatorScope,
   episodeIntentHash,
   episodePlanHash,
   readCurrentEpisodePlan,
@@ -29,12 +25,19 @@ import {
   type EpisodeStep,
   type ProviderTurnStep,
 } from "../../loop/episode-plan.js";
+import {
+  episodeReplanJournalPath,
+  readEpisodeReplanJournal,
+  type EpisodeReplanJournal,
+} from "../../loop/episode-replan.js";
 import { routeAdmissionForEpisodePlan } from "../../loop/episode-route.js";
 import { admitPlannedEpisodeRoute, type PlannerAdmissionLimits } from "../../loop/planner-admission.js";
 import { configuredProviderFamily, turnAssignmentsEqual } from "../../runtime/assignment.js";
+import { toErrorMessage as describe } from "../../runtime/error-message.js";
 import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../../runtime/readiness.js";
 import type { RoleConfig, TurnAssignment } from "../../runtime/types.js";
 import { normalizeAppExecution, type AppEntry } from "../apps.js";
+import { probeApprovedAssignmentReadiness, type AssignmentReadinessSnapshot } from "./assignment-readiness.js";
 import { readPersistedEpisodeIntent, type PreparedEpisodePlan } from "./coordinator.js";
 import {
   executeAcceptedEpisodePlan,
@@ -53,21 +56,19 @@ import {
   prepareEpisodePlanWithRuntime,
   type ProviderEpisodePlannerOptions,
 } from "./runtime.js";
-import { assessCreatorScope } from "../../loop/episode-plan.js";
-import { probeApprovedAssignmentReadiness, type AssignmentReadinessSnapshot } from "./assignment-readiness.js";
 
-export const EPISODE_ORCHESTRATOR_PREVIEW_VERSION = 1 as const;
+const EPISODE_ORCHESTRATOR_PREVIEW_VERSION = 1 as const;
 /** v2 makes the explanation total: every field is nullable, every unresolved
  * lookup becomes an inline annotation, and nothing throws. */
-export const EPISODE_ORCHESTRATOR_EXPLAIN_VERSION = 2 as const;
+const EPISODE_ORCHESTRATOR_EXPLAIN_VERSION = 2 as const;
 
-export type EpisodeOrchestrationMode = "plan_only" | "execute";
+type EpisodeOrchestrationMode = "plan_only" | "execute";
 
 export type EpisodeOrchestrationFacts = Omit<EpisodeIntentFacts, "app" | "roles">;
 
-export type EpisodePlannerRuntimeInput = Omit<ProviderEpisodePlannerOptions, "root" | "app" | "roles" | "intent">;
+type EpisodePlannerRuntimeInput = Omit<ProviderEpisodePlannerOptions, "root" | "app" | "roles" | "intent">;
 
-export type EpisodeDeliveryInput = Omit<ExecuteAcceptedEpisodePlanOptions, "root" | "intent" | "plan" | "roles">;
+type EpisodeDeliveryInput = Omit<ExecuteAcceptedEpisodePlanOptions, "root" | "intent" | "plan" | "roles">;
 
 interface EpisodeOrchestrationBase {
   root: string;
@@ -81,7 +82,7 @@ interface EpisodeOrchestrationBase {
   assignmentReadinessTimeoutMs?: number;
 }
 
-export type OrchestrateEpisodeOptions = EpisodeOrchestrationBase &
+type OrchestrateEpisodeOptions = EpisodeOrchestrationBase &
   ({ mode: "plan_only"; execution?: never } | { mode: "execute"; execution: EpisodeDeliveryInput });
 
 export interface OrchestratedEpisode {
@@ -93,14 +94,14 @@ export interface OrchestratedEpisode {
   execution: AcceptedEpisodePlanExecutionResult | null;
 }
 
-export interface InspectEpisodeInvocationOptions {
+interface InspectEpisodeInvocationOptions {
   root: string;
   app: AppEntry;
   roles: readonly RoleConfig[];
   facts: EpisodeOrchestrationFacts;
 }
 
-export interface EpisodeInvocationInspection {
+interface EpisodeInvocationInspection {
   persistedIntent: EpisodeIntent | undefined;
   persistedPlan: EpisodePlan | undefined;
 }
@@ -217,7 +218,7 @@ export async function orchestrateEpisode(options: OrchestrateEpisodeOptions): Pr
   return { mode: options.mode, intent, prepared, route, execution };
 }
 
-export class EpisodeAssignmentReadinessError extends Error {
+class EpisodeAssignmentReadinessError extends Error {
   readonly code = "plan_assignment_unavailable" as const;
   constructor(message: string) {
     super(message);
@@ -289,7 +290,7 @@ function assertPlannerBootReadyWhenRequired(
   );
 }
 
-export interface PreviewEpisodeOptions {
+interface PreviewEpisodeOptions {
   app: AppEntry;
   roles: readonly RoleConfig[];
   facts: EpisodeOrchestrationFacts;
@@ -381,7 +382,7 @@ export function previewEpisode(options: PreviewEpisodeOptions): EpisodePlanningP
   };
 }
 
-export type ExplainedStepStatus = "pending" | "running" | "waiting_approval" | "denied" | "failed" | "completed";
+type ExplainedStepStatus = "pending" | "running" | "waiting_approval" | "denied" | "failed" | "completed";
 
 interface ExplainedStepBase {
   id: string;
@@ -399,13 +400,9 @@ interface ExplainedStepBase {
  * (and re-budget) a step that already completed under an earlier version, so
  * its only authorization stays filed at the version that actually paid for it.
  */
-export type StepAuthorizationStatus =
-  | "authorized"
-  | "authorized_at_prior_plan_version"
-  | "route_missing"
-  | "unresolved";
+type StepAuthorizationStatus = "authorized" | "authorized_at_prior_plan_version" | "route_missing" | "unresolved";
 
-export interface ExplainedProviderStep extends ExplainedStepBase {
+interface ExplainedProviderStep extends ExplainedStepBase {
   kind: "provider_turn";
   operation: string;
   role: string;
@@ -423,12 +420,12 @@ export interface ExplainedProviderStep extends ExplainedStepBase {
   authorizationDetail: string | null;
 }
 
-export interface ExplainedMechanicalStep extends ExplainedStepBase {
+interface ExplainedMechanicalStep extends ExplainedStepBase {
   kind: "mechanical_gate";
   gate: string;
 }
 
-export interface ExplainedApprovalStep extends ExplainedStepBase {
+interface ExplainedApprovalStep extends ExplainedStepBase {
   kind: "approval";
   approvalKind: string;
   actionRef: string;
@@ -438,7 +435,7 @@ export type ExplainedEpisodeStep = ExplainedProviderStep | ExplainedMechanicalSt
 
 /** Every way durable episode evidence can be missing, unreadable, or
  * internally inconsistent. Each one degrades the explanation; none aborts it. */
-export type EpisodeExplanationProblemCode =
+type EpisodeExplanationProblemCode =
   | "episode_evidence_missing"
   | "intent_missing"
   | "intent_unreadable"
@@ -457,7 +454,7 @@ export type EpisodeExplanationProblemCode =
   | "step_authorization_unresolved"
   | "step_authorization_stale";
 
-export interface EpisodeExplanationProblem {
+interface EpisodeExplanationProblem {
   code: EpisodeExplanationProblemCode;
   message: string;
   /** Plan step the problem is about, when it is about one. */
@@ -467,7 +464,7 @@ export interface EpisodeExplanationProblem {
 /** Durable execution-step evidence, projected for a diagnostic reader. It is
  * the only step evidence a route-only episode (deterministic lifecycle work,
  * or an episode that never reached an accepted plan) has. */
-export interface ExplainedExecutionStep {
+interface ExplainedExecutionStep {
   executionStepId: string;
   kind: ExecutionStepRecord["kind"];
   operation: string;
@@ -690,10 +687,6 @@ async function readOrAnnotate<T>(
     onError(error);
     return undefined;
   }
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function explainExecutionStep(record: ExecutionStepRecord): ExplainedExecutionStep {

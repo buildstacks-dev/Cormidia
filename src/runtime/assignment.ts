@@ -1,4 +1,3 @@
-import type { Effort, RoleConfig, RuntimeKind, TurnAssignment, TurnExecutionFacts, TurnRequest } from "./types.js";
 import {
   hasRuntimeCapability,
   resolvedRuntimeCapabilities,
@@ -6,6 +5,7 @@ import {
   validateRuntimeCapabilities,
   type RuntimeCapability,
 } from "./capabilities.js";
+import type { Effort, RoleConfig, RuntimeKind, TurnAssignment, TurnExecutionFacts, TurnRequest } from "./types.js";
 
 export const TURN_ASSIGNMENT_HARNESSES = ["claude", "codex", "pi"] as const satisfies readonly RuntimeKind[];
 export const TURN_ASSIGNMENT_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly Effort[];

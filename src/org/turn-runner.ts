@@ -5,11 +5,38 @@ import { existsSync, mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { defaultGate } from "../runtime/gate.js";
+import type { BaseRevision } from "../loop/default-branch.js";
+import { loadGateCommands, runLoopOnce, type LoopDriverResult } from "../loop/driver.js";
+import { episodeIdFor, finalizeEpisode, fingerprint } from "../loop/efficiency.js";
+import type {
+  ApprovalStepOutcome,
+  EpisodePlanExecutionResult,
+  EpisodeStepCompletedOutcome,
+  EpisodeStepExecutionContext,
+  EpisodeStepFailedOutcome,
+} from "../loop/episode-plan-executor.js";
+import type {
+  ApprovalStep,
+  CreatorEpisodeScope,
+  EpisodeIntent,
+  JsonValue,
+  MechanicalGateStep,
+  SafetyFact,
+} from "../loop/episode-plan.js";
+import { stableHash } from "../loop/episode-plan.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
+import { GhCliOps, type GhOps } from "../loop/github.js";
+import { type PipelineRunResult, type VerdictRecordContext, type VerdictRecordOutcome } from "../loop/pipeline.js";
+import { getPipeline, loadPipelines, selectPasses, type PassConfig, type PipelineConfig } from "../loop/pipelines.js";
+import type { PlannerAdmissionLimits } from "../loop/planner-admission.js";
+import { loadPolicy } from "../loop/policy.js";
+import { VERDICT_SCHEMAS, VerdictParseError, type ParseResult, type VerdictTypes } from "../loop/verdicts.js";
 import { worstUsageQuality } from "../runtime/cost.js";
+import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { readEnvelope } from "../runtime/runlog/envelope.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
+import { ZERO_USAGE } from "../runtime/turn-usage.js";
 import type {
   ContextBundle,
   RoleConfig,
@@ -21,95 +48,70 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
-import { loadGateCommands, runLoopOnce, type LoopDriverResult } from "../loop/driver.js";
-import type { BaseRevision } from "../loop/default-branch.js";
-import { queueReleaseApprovals } from "./release.js";
-import { GhCliOps, type GhOps } from "../loop/github.js";
-import { type PipelineRunResult, type VerdictRecordContext, type VerdictRecordOutcome } from "../loop/pipeline.js";
-import { getPipeline, loadPipelines, selectPasses, type PassConfig, type PipelineConfig } from "../loop/pipelines.js";
-import { loadPolicy } from "../loop/policy.js";
-import { episodeIdFor, finalizeEpisode, fingerprint } from "../loop/efficiency.js";
-import type {
-  ApprovalStep,
-  CreatorEpisodeScope,
-  EpisodeIntent,
-  JsonValue,
-  MechanicalGateStep,
-  SafetyFact,
-} from "../loop/episode-plan.js";
-import { stableHash } from "../loop/episode-plan.js";
-import type {
-  ApprovalStepOutcome,
-  EpisodePlanExecutionResult,
-  EpisodeStepCompletedOutcome,
-  EpisodeStepExecutionContext,
-  EpisodeStepFailedOutcome,
-} from "../loop/episode-plan-executor.js";
-import type { PlannerAdmissionLimits } from "../loop/planner-admission.js";
-import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
-import { VerdictParseError, VERDICT_SCHEMAS, type ParseResult, type VerdictTypes } from "../loop/verdicts.js";
-import { approvedCommand, ApprovalStore, type ApprovalItem } from "./approvals.js";
-import { executeApprovedCommands, type ApprovedCommandResult } from "./approval-command.js";
-import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
 import { effectiveEpisodeHardCeiling, resolveAppRoles } from "./app-execution-policy.js";
+import { executeApprovedCommands, type ApprovedCommandResult } from "./approval-command.js";
+import { ApprovalStore, approvedCommand, type ApprovalItem } from "./approvals.js";
+import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
 import { isBudgetBlocking, raiseTurnBudgetEscalation, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
-import { orchestrateEpisode, previewEpisode, type EpisodeOrchestrationFacts } from "./episode-planner/orchestrator.js";
 import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
+import { orchestrateEpisode, previewEpisode, type EpisodeOrchestrationFacts } from "./episode-planner/orchestrator.js";
 import { inspectEpisodeRepository } from "./episode-planner/repository-facts.js";
+import { mergeEpisodeSafetyFacts, safetyFactsFromTurnEvent } from "./episode-safety-facts.js";
+import { composeGate } from "./gate-compose.js";
 import {
   orchestrateGovernedPipelineEpisode,
   type GovernedPipelineProviderEvidence,
 } from "./governed-pipeline-episode.js";
-import { composeGate } from "./gate-compose.js";
+import { readJournal, writeJournalPatch, type TurnJournal, type TurnRecoveryEvidence } from "./journal.js";
+import { appLearningRoot, orgLearningRoot } from "./learning/concepts.js";
 import {
-  distillationBrief,
   compactionReport,
+  distillationBrief,
   learningReviewBrief,
+  listM6RunRecords,
   parseDistillationOutput,
   parseLearningReviewOutput,
   persistDistillationOutput,
   persistLearningReviewOutput,
   prepareDistillation,
   prepareLearningReview,
-  listM6RunRecords,
-  writeM6RunRecord,
   writeCompactionSnapshot,
+  writeM6RunRecord,
   type M6RunRecord,
 } from "./learning/distillation.js";
-import { appLearningRoot, orgLearningRoot } from "./learning/concepts.js";
 import { journalEpisodeAnchor } from "./learning/episodes.js";
 import { readLearningEvents } from "./learning/events.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import { acquireLock, adoptLock, heartbeatLock, readLockOrUndefined, releaseLock, type TurnLock } from "./locks.js";
-import { readJournal, writeJournalPatch, type TurnJournal, type TurnRecoveryEvidence } from "./journal.js";
-import { loadRoles } from "./roles.js";
-import { appendScorecardEvent } from "./scorecards.js";
-import { createTicketEpisodeRuntime } from "./ticket-episode-runtime.js";
-import { createExistingTicketApprovalHandler } from "./ticket-episode-approval.js";
-import { resolveReviewAuthorizationSecret } from "./review-authorization-secret.js";
-import { resolveTriggerRoute } from "./trigger-routing.js";
-import { mergeEpisodeSafetyFacts, safetyFactsFromTurnEvent } from "./episode-safety-facts.js";
-import { SchedulerEvidenceStore } from "./scheduler/evidence.js";
-import { schedulerIdentity } from "./scheduler/model.js";
-import {
-  commitPlannerFeedConsumption,
-  consumedPlannerFeedBatchManifest,
-  persistStandingRoleOutcome,
-  preparePlannerFeedBatch,
-} from "./standing-roles.js";
+import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
 import {
   parsePlannerReadinessDecisions,
   plannerIssueIntakeBrief,
   preparePlannerIssueIntake,
   type PlannerIssueIntake,
 } from "./planner-intake.js";
-import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
 import {
   preparePlannerPublication,
   resumePlannerPublication,
   type PlannerPublicationGit,
 } from "./planner-publication.js";
+import { queueReleaseApprovals } from "./release.js";
+import { resolveReviewAuthorizationSecret } from "./review-authorization-secret.js";
+import { loadRoles } from "./roles.js";
+import { SchedulerEvidenceStore } from "./scheduler/evidence.js";
+import { schedulerIdentity } from "./scheduler/model.js";
+import { appendScorecardEvent } from "./scorecards.js";
+import {
+  commitPlannerFeedConsumption,
+  consumedPlannerFeedBatchManifest,
+  persistStandingRoleOutcome,
+  preparePlannerFeedBatch,
+} from "./standing-roles.js";
+import { createExistingTicketApprovalHandler } from "./ticket-episode-approval.js";
+import { createTicketEpisodeRuntime } from "./ticket-episode-runtime.js";
+import { resolveTriggerRoute } from "./trigger-routing.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export {
   acquireGitCloneLock,
@@ -122,7 +124,7 @@ export {
   type ManagedClone,
 } from "./managed-checkout.js";
 
-export interface RunDispatchedTurnOptions {
+interface RunDispatchedTurnOptions {
   role: RoleConfig;
   app: AppEntry;
   appsFile: AppsFile;
@@ -173,7 +175,7 @@ export interface RunDispatchedTurnOptions {
   plannerPublicationFault?: (boundary: "after_push" | "after_readiness" | "after_roadmap") => void | Promise<void>;
 }
 
-export interface RunDispatchedTurnResult {
+interface RunDispatchedTurnResult {
   status: TurnResult["status"];
   summary: string;
   errorCode?: string;
@@ -206,10 +208,8 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
           triggerKind: "manual",
           trigger: "manual",
           pid: process.pid,
-          ...(turnLock.processStartIdentity !== undefined
-            ? { processStartIdentity: turnLock.processStartIdentity }
-            : {}),
-          ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
+          ...definedProps({ processStartIdentity: turnLock.processStartIdentity }),
+          ...definedProps({ processNonce: turnLock.nonce }),
           ...(process.env.CORMIDIA_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
         });
 
@@ -218,8 +218,8 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
       app: options.app.name,
       phase: "assembling",
       pid: process.pid,
-      ...(turnLock.processStartIdentity !== undefined ? { processStartIdentity: turnLock.processStartIdentity } : {}),
-      ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
+      ...definedProps({ processStartIdentity: turnLock.processStartIdentity }),
+      ...definedProps({ processNonce: turnLock.nonce }),
       ...(process.env.CORMIDIA_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
     });
 
@@ -282,7 +282,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
         app: options.app.name,
         role: options.role.name,
         appRepo: options.app.repo,
-        ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
+        ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
         turnId: options.turnId,
         ...(journal.event !== undefined ? { ticketRef: `event:${journal.event.key}` } : {}),
         orgHome: orgRoot,
@@ -423,7 +423,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
         runtimeHome,
         toRecord(options.role, result, clock(), {
           app: options.app.name,
-          ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind } : {}),
+          ...definedProps({ trigger: journal.triggerKind }),
         }),
       );
     }
@@ -558,7 +558,7 @@ async function settleActorRetriesForTurn(
  * turn was live, but the actor returned before either retrying the gated tool
  * or reaching the same-turn command bridge. The claim increments TRY before
  * this terminal result, so no approved action can end a turn at attempts=0. */
-export async function terminalizeUndeliveredTurnApprovals(
+async function terminalizeUndeliveredTurnApprovals(
   store: ApprovalStore,
   app: string,
   turnId: string,
@@ -691,7 +691,7 @@ async function runGenericEpisodeTurn(
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
+      ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
       turnId: options.turnId,
       ...(options.journal.event !== undefined ? { ticketRef: `event:${options.journal.event.key}` } : {}),
       orgHome: options.orgRoot,
@@ -1157,7 +1157,7 @@ async function runProtocolPipelineTurn(
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
+      ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
       turnId: options.turnId,
       ...(options.journal.event === undefined ? {} : { ticketRef: `event:${options.journal.event.key}` }),
       orgHome: options.orgRoot,
@@ -1959,7 +1959,7 @@ async function runBuilderTicketTurn(
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
+      ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
       turnId: options.turnId,
       ...(options.journal.ticketRef === undefined ? {} : { ticketRef: options.journal.ticketRef }),
       orgHome: options.orgRoot,
@@ -2036,7 +2036,7 @@ async function runBuilderTicketTurn(
     maxConcurrent: 1,
     turnId: options.turnId,
     authorization: { selfApprovalSecret },
-    ...(options.app.release !== undefined ? { release: options.app.release } : {}),
+    ...definedProps({ release: options.app.release }),
     deliveryUnits: ticketEpisode.deliveryUnits,
     engine: {
       pipelines,
@@ -2064,12 +2064,12 @@ async function runBuilderTicketTurn(
           episodeId: terminal.episodeId,
           status: terminal.status,
           reason: terminal.reason,
-          ...(terminal.nextStep !== undefined ? { nextStep: terminal.nextStep } : {}),
+          ...definedProps({ nextStep: terminal.nextStep }),
           now: terminal.now,
         });
       },
-      ...(options.signal !== undefined ? { signal: options.signal } : {}),
-      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+      ...definedProps({ signal: options.signal }),
+      ...definedProps({ parentTaskId: options.parentTaskId }),
       budgetGuard: async () => {
         if (isBudgetBlocking(budgetRow.status)) {
           const reason =
@@ -2080,7 +2080,7 @@ async function runBuilderTicketTurn(
         }
         return { allowed: true };
       },
-      ...(options.now !== undefined ? { clock: options.now } : {}),
+      ...definedProps({ clock: options.now }),
     },
   });
   if (options.signal?.aborted) {
@@ -2109,7 +2109,7 @@ async function runBuilderTicketTurn(
   return classifyBuilderTicketLoopResult(result, options.role);
 }
 
-export function classifyBuilderTicketLoopResult(result: LoopDriverResult, role: RoleConfig): TurnResult {
+function classifyBuilderTicketLoopResult(result: LoopDriverResult, role: RoleConfig): TurnResult {
   if (result.budgetRefusal !== undefined) {
     // The tick never claimed — say so. "completed / no-ready-ticket" would
     // hide an exhausted cap behind an idle-looking turn.
@@ -2271,11 +2271,7 @@ function resultFromPipeline(
     result.passes.length > 0
       ? sumUsage(result.passes.map((record) => record.result.usage))
       : {
-          tokensIn: 0,
-          tokensOut: 0,
-          costUsd: 0,
-          subagentTurns: 0,
-          wallClockMs: 0,
+          ...ZERO_USAGE,
           quality: stopped !== undefined ? ("unavailable" as const) : ("complete" as const),
         };
   const last = result.passes[result.passes.length - 1]?.result;
@@ -2386,7 +2382,7 @@ async function ensureTurnLock(
   return acquired.lock;
 }
 
-export interface TurnWorktree {
+interface TurnWorktree {
   path: string;
   branch: string;
   /** Planner grooming starts detached so a read-only turn creates no branch.
@@ -2414,7 +2410,7 @@ export function turnWorktreeIdentity(runtimeHome: string, app: string, turnId: s
 /** Register or rediscover the standalone turn's durable worktree. Existing
  * branch/path state is authoritative WIP: never reset, clean, delete, or move
  * it merely because the remote default advanced between invocations. */
-export function createTurnWorktree(
+function createTurnWorktree(
   localRepo: string,
   runtimeHome: string,
   app: string,
@@ -2584,11 +2580,7 @@ function zeroResult(status: TurnResult["status"], summary: string, role: RoleCon
     artifacts: [],
     session: { runtime: role.runtime, id: `turn-${Date.now()}` },
     usage: {
-      tokensIn: 0,
-      tokensOut: 0,
-      costUsd: 0,
-      subagentTurns: 0,
-      wallClockMs: 0,
+      ...ZERO_USAGE,
       ...(status === "cancelled" || status === "timed_out" ? { quality: "unavailable" as const } : {}),
     },
     escalations: [],

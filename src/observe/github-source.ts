@@ -1,8 +1,8 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { GhCliOps } from "../loop/github.js";
 import type { AppEntry } from "../org/apps.js";
 import type { GitHubAppSnapshot, SourceHealthView } from "./types.js";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,7 +15,7 @@ export interface GitHubReadResult {
   health: SourceHealthView;
 }
 
-export interface GhObserveOptions {
+interface GhObserveOptions {
   timeoutMs?: number;
   issueLimit?: number;
   pullRequestLimit?: number;

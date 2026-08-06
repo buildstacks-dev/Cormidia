@@ -3,12 +3,13 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { readEvents } from "./events.js";
+import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
+import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
 import { classifyEnvelopeUsage } from "./envelope.js";
+import { readEvents } from "./events.js";
 import { truncatePreview } from "./redact.js";
 import { formatDurableVerdictDigest, summarizeDurableVerdict, type DurableVerdictDigest } from "./verdict-digest.js";
-import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
-import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
+import { definedProps } from "../optional-properties.js";
 
 export interface StatusRow {
   runId: string;
@@ -89,18 +90,18 @@ export async function readStatusRows(
       rows.push({
         runId,
         app,
-        ...(envelope.ticket !== undefined ? { ticket: envelope.ticket } : {}),
+        ...definedProps({ ticket: envelope.ticket }),
         traceId: envelope.trace_id,
-        ...(envelope.parent_task_id !== undefined ? { parentTaskId: envelope.parent_task_id } : {}),
+        ...definedProps({ parentTaskId: envelope.parent_task_id }),
         pipeline: envelope.pipeline,
         pass: envelope.pass,
         role: envelope.role,
-        ...(envelope.runtime !== undefined ? { runtime: envelope.runtime } : {}),
-        ...(envelope.model !== undefined ? { model: envelope.model } : {}),
-        ...(envelope.effort !== undefined ? { effort: envelope.effort } : {}),
-        ...(envelope.workdir !== undefined ? { workdir: envelope.workdir } : {}),
-        ...(envelope.git_head !== undefined ? { gitHead: envelope.git_head } : {}),
-        ...(envelope.git_branch !== undefined ? { gitBranch: envelope.git_branch } : {}),
+        ...definedProps({ runtime: envelope.runtime }),
+        ...definedProps({ model: envelope.model }),
+        ...definedProps({ effort: envelope.effort }),
+        ...definedProps({ workdir: envelope.workdir }),
+        ...definedProps({ gitHead: envelope.git_head }),
+        ...definedProps({ gitBranch: envelope.git_branch }),
         status: statusLabel(envelope),
         durationMs: envelope.wall_clock_ms ?? 0,
         tokensIn: envelope.usage?.tokens_in ?? 0,
@@ -114,18 +115,18 @@ export async function readStatusRows(
         escalations: events.filter((event) => event.event === "escalation.raised").length,
         toolCalls: Object.values(envelope.tool_counts ?? {}).reduce((sum, count) => sum + count, 0),
         startedAt: envelope.started_at,
-        ...(envelope.last_seen_at !== undefined ? { lastSeenAt: envelope.last_seen_at } : {}),
-        ...(envelope.verdict_summary !== undefined ? { verdictSummary: envelope.verdict_summary } : {}),
+        ...definedProps({ lastSeenAt: envelope.last_seen_at }),
+        ...definedProps({ verdictSummary: envelope.verdict_summary }),
         ...verdictDigestFor(envelope.verdict_summary),
-        ...(envelope.previews !== undefined ? { previews: envelope.previews } : {}),
-        ...(envelope.terminal_reason !== undefined ? { terminalReason: envelope.terminal_reason } : {}),
-        ...(envelope.session !== undefined ? { session: envelope.session } : {}),
-        ...(envelope.artifacts !== undefined ? { artifacts: envelope.artifacts } : {}),
-        ...(envelope.gate_results !== undefined ? { gateResults: envelope.gate_results } : {}),
+        ...definedProps({ previews: envelope.previews }),
+        ...definedProps({ terminalReason: envelope.terminal_reason }),
+        ...definedProps({ session: envelope.session }),
+        ...definedProps({ artifacts: envelope.artifacts }),
+        ...definedProps({ gateResults: envelope.gate_results }),
         refs: envelope.refs,
-        ...(envelope.trace_plan !== undefined ? { tracePlan: envelope.trace_plan } : {}),
-        ...(envelope.planning_route !== undefined ? { planningRoute: envelope.planning_route } : {}),
-        ...(envelope.authority !== undefined ? { authority: envelope.authority } : {}),
+        ...definedProps({ tracePlan: envelope.trace_plan }),
+        ...definedProps({ planningRoute: envelope.planning_route }),
+        ...definedProps({ authority: envelope.authority }),
       });
     }
   }

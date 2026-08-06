@@ -11,8 +11,8 @@
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { hashedFileStem } from "../runtime/runlog/paths.js";
 import { writeLoopFileAtomic } from "../loop/durable.js";
+import { hashedFileStem } from "../runtime/runlog/paths.js";
 import { NARRATIVE_SCHEMA_VERSION, type NarrativeStory } from "./types.js";
 
 export function narrativeDir(stateHome: string, app: string): string {

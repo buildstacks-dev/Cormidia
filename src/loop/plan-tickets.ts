@@ -19,8 +19,8 @@ import { RELEASE_KINDS, type ReleaseConfig, type ReleaseKind } from "./types.js"
 // ---------------------------------------------------------------------------
 
 export const STATE_LABELS = ["op:ready", "op:building", "op:in-review", "op:returned", "op:blocked"] as const;
-export const TIER_LABELS = ["op:tier-quick", "op:tier-standard", "op:tier-deep"] as const;
-export const PRIORITY_LABELS = ["p1", "p2", "p3"] as const;
+const TIER_LABELS = ["op:tier-quick", "op:tier-standard", "op:tier-deep"] as const;
+const PRIORITY_LABELS = ["p1", "p2", "p3"] as const;
 /** Durable PR-routing decision. This deliberately does not share the op:*
  * phase namespace: state transitions swap one phase label at a time, while
  * this exclusion must survive every phase and be removable only by a human
@@ -31,7 +31,7 @@ export const AUTONOMOUS_EXECUTION_EXCLUSION_LABEL = "routing:human-only" as cons
  * scheduling meaning unless a human ratifies it separately. */
 export const MANUAL_REVIEW_EXCLUSION_LABEL = "manual-review" as const;
 
-export type AutonomousExecutionExclusionLabel =
+type AutonomousExecutionExclusionLabel =
   | typeof AUTONOMOUS_EXECUTION_EXCLUSION_LABEL
   | typeof MANUAL_REVIEW_EXCLUSION_LABEL;
 
@@ -48,26 +48,26 @@ export function autonomousExecutionExclusionLabel(
   return undefined;
 }
 
-export type TierLabel = (typeof TIER_LABELS)[number];
-export type PriorityLabel = (typeof PRIORITY_LABELS)[number];
+type TierLabel = (typeof TIER_LABELS)[number];
+type PriorityLabel = (typeof PRIORITY_LABELS)[number];
 
 /** Sensitive risk domains retained in published ticket metadata. These labels
  *  remain useful to historical readers and the non-authoritative legacy route
  *  projection, but live workflow/safety authority comes from the validated
  *  EpisodePlan. Attaching them still preserves the Planner's risk signal as
  *  durable structured evidence instead of unowned prose (Theme 6). */
-export const SENSITIVE_DOMAINS = ["auth", "security", "secret", "privacy", "payment", "data"] as const;
-export type SensitiveDomain = (typeof SENSITIVE_DOMAINS)[number];
+const SENSITIVE_DOMAINS = ["auth", "security", "secret", "privacy", "payment", "data"] as const;
+type SensitiveDomain = (typeof SENSITIVE_DOMAINS)[number];
 
 /** The published label for a sensitive domain. The name deliberately contains
  *  the bare keyword so the route policy's `/auth|.../` regex matches it. */
-export function domainLabelName(domain: SensitiveDomain): string {
+function domainLabelName(domain: SensitiveDomain): string {
   return `domain:${domain}`;
 }
 
 export type CanonicalLabelKind = "state" | "tier" | "priority" | "domain" | "routing";
 
-export interface CanonicalLabelDefinition {
+interface CanonicalLabelDefinition {
   name: string;
   color: string;
   description: string;
@@ -358,7 +358,7 @@ function canonicalPlanValue(value: unknown): unknown {
   return value;
 }
 
-export interface TicketBudgetDecision {
+interface TicketBudgetDecision {
   /** The stage default from TICKET_BUDGETS. */
   stageBudget: number;
   /** The budget actually enforced for this plan. */
@@ -372,7 +372,7 @@ export interface TicketBudgetDecision {
 /** Resolve the ticket budget for one plan. This is the ONE place a ratified
  *  budget can raise the stage default, and it only ever does so for the exact
  *  attributable decomposition the ratification names. */
-export function decideTicketBudget(plan: TicketPlan, ratification?: TicketBudgetRatification): TicketBudgetDecision {
+function decideTicketBudget(plan: TicketPlan, ratification?: TicketBudgetRatification): TicketBudgetDecision {
   const stageBudget = TICKET_BUDGETS[plan.stage];
   if (ratification === undefined) return { stageBudget, budget: stageBudget };
   const digest = ticketPlanDigest(plan);
@@ -457,7 +457,7 @@ export const PLAN_SCHEMA: Record<string, unknown> = {
 // Validation — ALL of it before ANY GitHub mutation (transactional publication)
 // ---------------------------------------------------------------------------
 
-export interface PlanValidation {
+interface PlanValidation {
   ok: boolean;
   problems: string[];
 }
@@ -591,7 +591,7 @@ export interface PlanProvenance {
  *  back (P7) — undefined omits the line (pre-A4 bodies parse unchanged).
  *  `provenance` renders as a `Planned-by:` trailer (#128) — undefined omits
  *  the line (pre-provenance bodies parse unchanged). */
-export function renderTicketBody(
+function renderTicketBody(
   ticket: PlanTicket,
   issueNumbers: readonly (number | undefined)[],
   releaseKind?: ReleaseKind,
@@ -790,7 +790,7 @@ const DOMAIN_PATTERNS: Record<SensitiveDomain, RegExp> = {
  *  `src/data/**` is too noisy to floor a whole ticket on, and genuine
  *  auth/crypto file surfaces are already caught by the review dimension's
  *  path match at diff/route time (L1-05). */
-export function sensitiveDomainsForTicket(ticket: PlanTicket): SensitiveDomain[] {
+function sensitiveDomainsForTicket(ticket: PlanTicket): SensitiveDomain[] {
   const prose = [
     ticket.title,
     ticket.goal,
@@ -806,7 +806,7 @@ export function sensitiveDomainsForTicket(ticket: PlanTicket): SensitiveDomain[]
 
 /** One ticket's publication shape: its (possibly tier-escalated) ticket plus
  *  the sensitive-domain labels to attach. */
-export interface TicketPublication {
+interface TicketPublication {
   ticket: PlanTicket;
   domainLabels: string[];
 }
@@ -841,7 +841,7 @@ export interface FinalPlanProjection {
  *  Bootstrap is the deliberate exception: a greenfield scaffold "with no
  *  users" must not be deep (validatePlan enforces this, P2), so a bootstrap
  *  ticket keeps its tier and takes no domain label. */
-export function applySensitiveDomainFloor(plan: TicketPlan): TicketPublication[] {
+function applySensitiveDomainFloor(plan: TicketPlan): TicketPublication[] {
   return plan.tickets.map((ticket) => {
     const domains = plan.stage === "bootstrap" ? [] : sensitiveDomainsForTicket(ticket);
     if (domains.length === 0) return { ticket, domainLabels: [] };
@@ -963,7 +963,7 @@ export interface PublishedTicket {
   labels: string[];
 }
 
-export interface PublishResult {
+interface PublishResult {
   published: PublishedTicket[];
 }
 

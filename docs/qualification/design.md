@@ -276,6 +276,14 @@ workflow, and install/build-environment config such as
 `pnpm-workspace.yaml`, `pnpm-lock.yaml`, and `tsconfig.json` — are outside
 qualification scope and do not invalidate it.
 
+The portable L4 projection names its composite SHA-256 identity
+`grading_digest`; the raw, out-of-tree evaluator artifact may retain its native
+`grading_key` field. Promotion sanitization refuses raw prompt/output/session
+fields and the retired product identity, so private sandbox repository names
+cannot be copied into a committed packet. Operators preserve the immutable raw
+campaign separately and pseudonymize those external identities in the portable
+campaign projection before aggregate assessment.
+
 The executable-eval-suite hash deliberately covers more than the eval code:
 beyond the `scripts/eval`, `test`, and `eval` trees and the workflow, it
 includes the test-runner and grading configs (`vitest.config.ts`,

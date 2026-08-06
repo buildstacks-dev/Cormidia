@@ -11,6 +11,7 @@ import {
   RELEASE_DETERMINISTIC_CHECKS,
   RELEASE_L3_REQUIRED_CASES,
   assessReleaseQualification,
+  assertSanitizedEvidence,
   canonicalJson,
   compositeGradeKey,
   createReleaseAttestation,
@@ -253,6 +254,32 @@ describe("RQ-1 L4 pairing and calibrated-judge admission", () => {
     expect(evaluateL4Evidence(manifest, evidence).violation_ids.some((item) => item.includes("uncalibrated_judge_score"))).toBe(true);
   });
 
+  it("CF-REG-306 emits a commit-safe grading digest and rejects the legacy key-shaped projection", () => {
+    const manifest = fixtureManifest();
+    const evidence = l4Evidence(manifest);
+    const first = evidence.observations[0]!;
+    expect(first.grading_digest).toBe(compositeGradeKey({
+      output_sha256: first.output_sha256,
+      case_digest: manifest.l4.references[0]!.case_digest,
+      context_digest: digestJson({ case_digest: manifest.l4.references[0]!.case_digest, prompt_input_digest: manifest.inputs.prompts }),
+      rubric_digest: manifest.l4.pairings[0]!.rubric_digest,
+      reference_digest: manifest.l4.references[0]!.reference_digest,
+      grader_digest: manifest.l4.pairings[0]!.grader_digest,
+    }));
+
+    const legacy = structuredClone(evidence) as unknown as { observations: Array<Record<string, unknown>> };
+    legacy.observations[0]!["grading_key"] = legacy.observations[0]!["grading_digest"];
+    delete legacy.observations[0]!["grading_digest"];
+    expect(() => evaluateL4Evidence(manifest, legacy as unknown as L4ReleaseEvidenceV1)).toThrow(/L4 observation.*closed schema.*unknown: grading_key.*missing: grading_digest/);
+  });
+
+  it("negative control: release-packet sanitization rejects a retired external identity", () => {
+    expect(() => assertSanitizedEvidence({
+      evidence_ref: `github:bikramgupta/${["ope", "ron"].join("")}-sandbox-alpha:clauses:15/15`,
+    })).toThrow(/retired product identity/);
+    expect(() => assertSanitizedEvidence({ evidence_ref: "github-target-sha256:" + "a".repeat(64) })).not.toThrow();
+  });
+
   it("negative control: comparison arms must share one exact case/attempt/evaluator/rubric manifest", () => {
     const body = fixtureBody();
     body.l4.mode = "comparison";
@@ -277,7 +304,7 @@ describe("RQ-1 L4 pairing and calibrated-judge admission", () => {
     const first = evidence.observations.find((item) => item.pairing_id === pairing.id && item.attempt_id === "attempt-1")!;
     const second = evidence.observations.find((item) => item.pairing_id === pairing.id && item.attempt_id === "attempt-2")!;
     second.output_sha256 = first.output_sha256;
-    second.grading_key = first.grading_key;
+    second.grading_digest = first.grading_digest;
     expect(evaluateL4Evidence(repaired, evidence).violation_ids.some((item) => item.includes("duplicate_grade_execution"))).toBe(true);
     second.grade_reused_from = `${first.pairing_id}::${first.case_id}::${first.attempt_id}`;
     expect(evaluateL4Evidence(repaired, evidence).violation_ids.some((item) => item.includes("duplicate_grade_execution"))).toBe(false);
@@ -754,7 +781,7 @@ function l4Evidence(manifest: ReleaseManifestV1): L4ReleaseEvidenceV1 {
     return {
       pairing_id: pairing.id, case_id: caseId, attempt_id: attemptId,
       output_sha256: outputSha,
-      grading_key: compositeGradeKey({ output_sha256: outputSha, case_digest: reference.case_digest, context_digest: digestJson({ case_digest: reference.case_digest, prompt_input_digest: manifest.inputs.prompts }), rubric_digest: pairing.rubric_digest, reference_digest: reference.reference_digest, grader_digest: pairing.grader_digest }),
+      grading_digest: compositeGradeKey({ output_sha256: outputSha, case_digest: reference.case_digest, context_digest: digestJson({ case_digest: reference.case_digest, prompt_input_digest: manifest.inputs.prompts }), rubric_digest: pairing.rubric_digest, reference_digest: reference.reference_digest, grader_digest: pairing.grader_digest }),
       grade_reused_from: null, automatic_score_used: false, outcome: "match" as const,
       evidence_ref: `campaign:l4#${pairing.id}:${caseId}:${attemptId}`,
     };

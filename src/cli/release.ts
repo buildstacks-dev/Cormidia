@@ -266,7 +266,7 @@ function normalizeL4Evidence(manifest: ReleaseManifestV1, value: unknown): L4Rel
     case_id: row["case_id"],
     attempt_id: row["attempt_id"],
     output_sha256: row["output_sha256"],
-    grading_key: row["grading_key"],
+    grading_digest: row["grading_key"],
     grade_reused_from: row["grade_reused_from"],
     automatic_score_used: row["automatic_score_used"],
     outcome: row["outcome"],

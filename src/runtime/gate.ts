@@ -565,14 +565,138 @@ export function classifyWithEvidence(action: ToolAction):
   };
 }
 
-/** Default policy: routine ops flow, critical ops are denied and escalated
- *  to the human approval surface. */
-export const defaultGate: GateFn = (action: ToolAction): GateDecision => {
+// ---------------------------------------------------------------------------
+// Consequence classification (docs/approvals/consequence-classification-
+// proposal.md §3–§4; implementation plan Stage 1). Stage 1 is vocabulary and
+// routing only: every disposition below reproduces the decision the gate makes
+// today, and the consequence axes are carried as `unknown` — nothing in the
+// decision path measures reversibility, blast radius, or cost yet. Tier moves
+// are later, separately gated stages; until then `budgeted` and `un-grantable`
+// are names no rule maps to.
+// ---------------------------------------------------------------------------
+
+export type Reversibility = "reversible" | "recoverable" | "irreversible" | "unknown";
+export type BlastRadius = "worktree" | "app-repo" | "org-state" | "outside-world" | "unknown";
+export type ConsequenceCost = { kind: "known"; usd: number } | { kind: "unknown" };
+
+/** The three questions the gate should be able to answer about an action —
+ *  can it be undone, who can see it, what does it cost (proposal §3). */
+export interface ConsequenceClass {
+  reversibility: Reversibility;
+  blastRadius: BlastRadius;
+  cost: ConsequenceCost;
+}
+
+/** The four useful answers to "does this need a human?", plus the one class no
+ *  grant of any kind can ever cover (proposal §4). */
+export type DispositionTier = "routine" | "budgeted" | "grantable" | "human-only" | "un-grantable";
+
+/** Stage 1 carries the conservative unknown consequence on every axis: the
+ *  decision path does not yet measure any of the three questions, and claiming
+ *  a value it did not measure would be exactly the verb-family guessing the
+ *  proposal replaces. A fresh object per call keeps decideDisposition's result
+ *  safe to hold or mutate. */
+function unknownConsequence(): ConsequenceClass {
+  return { reversibility: "unknown", blastRadius: "unknown", cost: { kind: "unknown" } };
+}
+
+export interface DispositionContext {
+  /** The covering grant's identity, when the caller has already matched one;
+   *  threaded through verbatim so a decision record can name it. */
+  grantId?: string;
+}
+
+export type Disposition =
+  | {
+      tier: "routine";
+      consequence: ConsequenceClass;
+      reason: string;
+      grantId?: string;
+    }
+  | {
+      tier: Exclude<DispositionTier, "routine">;
+      rule: string;
+      consequence: ConsequenceClass;
+      reason: string;
+      evidence: CriticalActionEvidence;
+      grantId?: string;
+    };
+
+/** Rules the human may never widen beyond single-use (amendment A1): the
+ *  review boundary, production deploys, external publication, the org's own
+ *  protocol surfaces, and the gate's roots of trust. Canonical here so the
+ *  disposition mapping below derives from the same list the approval store
+ *  enforces (src/org/approvals.ts re-exports it — import sites are unchanged);
+ *  runtime imports nothing above it, so the list lives at the bottom of the
+ *  one-way import chain. */
+export const NEVER_SCOPEABLE_RULES: readonly string[] = [
+  "self-merge-or-approve",
+  "production-deploy",
+  // A durable publication must be represented by its own content-bound
+  // action so the later executor can acknowledge exactly what ran. A broad
+  // external-publishing grant would erase that decision/execution join.
+  "external-publishing",
+  "protocol-self-edit",
+  "scorecard-tamper",
+  "approval-store-tamper",
+  // One human decision authorizes ONE content-hashed publish transaction
+  // (learning-loop design §6.1/§11.1) — a multi-use scoped grant would turn
+  // that into a standing authorization the binding contract forbids.
+  "learning-publish",
+];
+
+/** A raised item's rule name → the disposition tier it has today. Total over
+ *  arbitrary strings, because an approval item can carry rule names beyond the
+ *  classifier's twelve (`learning-publish` from the learning publisher, the
+ *  synthetic budget-escalation rules, `critical-op` from a free-form deny
+ *  reason) — and never `routine`: whatever was worth raising as an item is at
+ *  least grantable. Deriving the mapping from NEVER_SCOPEABLE_RULES membership
+ *  is the exact semantics the approval store applies today, so the tier and
+ *  the set cannot drift apart. */
+export function dispositionTierForRule(rule: string): Exclude<DispositionTier, "routine"> {
+  return NEVER_SCOPEABLE_RULES.includes(rule) ? "human-only" : "grantable";
+}
+
+/** ONE decision point (proposal §8): classify the action, then let disposition
+ *  follow from the matched rule. Pure and total — no store access, no IO; an
+ *  unknown action shape flows through classifyWithEvidence's fail-closed
+ *  rules, and grants are consulted upstream by the org layer's composeGate.
+ *  Stage 1 reproduces today's decisions exactly: `routine` iff no critical
+ *  rule matched; a matched rule's tier comes from dispositionTierForRule
+ *  (never-scopeable ⇒ human-only, every other critical rule ⇒ grantable). */
+export function decideDisposition(action: ToolAction, context: DispositionContext = {}): Disposition {
+  const grantId = context.grantId !== undefined ? { grantId: context.grantId } : {};
   const classification = classifyWithEvidence(action);
-  if (classification.cls === "critical") {
+  if (classification.cls === "routine") {
+    return {
+      tier: "routine",
+      consequence: unknownConsequence(),
+      reason: "no critical rule matched",
+      ...grantId,
+    };
+  }
+  return {
+    tier: dispositionTierForRule(classification.rule),
+    rule: classification.rule,
+    consequence: unknownConsequence(),
+    reason: classification.evidence.reason,
+    evidence: classification.evidence,
+    ...grantId,
+  };
+}
+
+/** Default policy: routine ops flow, critical ops are denied and escalated
+ *  to the human approval surface. Routed through decideDisposition (proposal
+ *  §8) so the tier is decided in exactly one place: today every tier above
+ *  `routine` denies-and-escalates identically — grant lookup lives upstream
+ *  in the org layer's composeGate, and no rule maps to `budgeted` or
+ *  `un-grantable` yet. */
+export const defaultGate: GateFn = (action: ToolAction): GateDecision => {
+  const disposition = decideDisposition(action);
+  if (disposition.tier !== "routine") {
     return {
       allow: false,
-      reason: `critical op (${classification.rule}) requires human approval`,
+      reason: `critical op (${disposition.rule}) requires human approval`,
       escalate: true,
     };
   }

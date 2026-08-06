@@ -24,6 +24,7 @@ import {
 import { join } from "node:path";
 import type { ToolAction, TurnEvent } from "../runtime/types.js";
 import {
+  dispositionTierForRule,
   normalizeSemanticAction,
   type CriticalActionEvidence,
   type SemanticAction,
@@ -170,9 +171,6 @@ export interface ApprovalGrant {
   identityVersion?: number;
 }
 
-/** Rules the human may never widen beyond single-use (amendment A1): the
- *  review boundary, production deploys, the org's own protocol surfaces, and
- *  the gate's root of trust. */
 /** A1 scope semantics: `pathContains` is a repo-local path bound, not a bare
  *  substring. An occurrence matches only when the path TOKEN containing it is
  *  repo-relative: the token may be nested (`config/credentials.json`,
@@ -202,21 +200,11 @@ export function pathBoundaryMatch(actionText: string, pathContains: string): boo
   return false;
 }
 
-export const NEVER_SCOPEABLE_RULES: readonly string[] = [
-  "self-merge-or-approve",
-  "production-deploy",
-  // A durable publication must be represented by its own content-bound
-  // action so the later executor can acknowledge exactly what ran. A broad
-  // external-publishing grant would erase that decision/execution join.
-  "external-publishing",
-  "protocol-self-edit",
-  "scorecard-tamper",
-  "approval-store-tamper",
-  // One human decision authorizes ONE content-hashed publish transaction
-  // (learning-loop design §6.1/§11.1) — a multi-use scoped grant would turn
-  // that into a standing authorization the binding contract forbids.
-  "learning-publish",
-];
+/** Canonical definition moved to src/runtime/gate.ts (Stage 1 of the
+ *  consequence-classification plan) so the disposition mapping derives from
+ *  the same list this store enforces; re-exported here so every existing
+ *  import site keeps working unchanged. */
+export { NEVER_SCOPEABLE_RULES } from "../runtime/gate.js";
 
 /**
  * Rules whose approved shell action the ORCHESTRATOR may execute itself.
@@ -521,13 +509,16 @@ export class ApprovalStore {
           `approval ${id} expired at ${now.toISOString()} before the decision could be recorded`,
         );
       }
-      if (decidedBy.kind === "agent" && NEVER_SCOPEABLE_RULES.includes(pending.rule)) {
+      // Routed through the Stage 1 disposition mapping: `human-only` is
+      // derived from NEVER_SCOPEABLE_RULES membership, so these checks keep
+      // the exact semantics they had as direct set-membership tests.
+      if (decidedBy.kind === "agent" && dispositionTierForRule(pending.rule) === "human-only") {
         throw new Error(
           `approvals: rule "${pending.rule}" requires a human decision; ` +
             `${decidedBy.identity} is an agent identity`,
         );
       }
-      if (input.scope !== undefined && NEVER_SCOPEABLE_RULES.includes(pending.rule)) {
+      if (input.scope !== undefined && dispositionTierForRule(pending.rule) === "human-only") {
         throw new Error(
           `approvals: rule "${pending.rule}" is never scopeable (docs/approvals/design.md A1) — ` +
             `decide it single-use`,

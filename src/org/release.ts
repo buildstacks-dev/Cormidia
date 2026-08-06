@@ -31,7 +31,7 @@ import type {
 } from "../loop/episode-plan-executor.js";
 import type { LoopItem } from "../loop/types.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
-import { actionEffectFields, classifyWithEvidence, defaultGate } from "../runtime/gate.js";
+import { actionEffectFields, decideDisposition, defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { readEnvelope } from "../runtime/runlog/envelope.js";
 import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
@@ -137,14 +137,14 @@ export async function queueReleaseApprovals(
       tool: "bash",
       input: { command },
     };
-    const classification = classifyWithEvidence(action);
+    const disposition = decideDisposition(action);
     const raised = await store.raise({
       app,
       role: trigger.owner,
       rule: "production-deploy",
       action,
-      classification: classification.cls === "critical"
-        ? classification.evidence
+      classification: disposition.tier !== "routine"
+        ? disposition.evidence
         : {
             schemaVersion: 1,
             rule: "production-deploy",

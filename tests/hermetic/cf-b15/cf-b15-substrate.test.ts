@@ -71,7 +71,9 @@ describe("CF-B15 — FS/git substrate faults and preserve-and-inspect (L2, HB-02
     });
     let spawned = false;
     const recovered = await recoverStaleTurn(state.stateHome, lock.lock, journal, {
-      spawn: async () => { spawned = true; },
+      spawn: async () => {
+        spawned = true;
+      },
     });
 
     expect(recovered).toMatchObject({ decision: { action: "preserve_inspect" }, spawned: false });
@@ -96,9 +98,7 @@ describe("CF-B15 — FS/git substrate faults and preserve-and-inspect (L2, HB-02
     const path = join(repo.dir, "ambiguous.txt");
     await writeFile(path, "valuable bytes\n", "utf8");
     repo.git(["clean", "-fd"]); // seeded old behavior; test repo only
-    await expect(assertBytesPreserved(path, "valuable bytes\n")).rejects.toBeInstanceOf(
-      AmbiguousBytesLostViolation,
-    );
+    await expect(assertBytesPreserved(path, "valuable bytes\n")).rejects.toBeInstanceOf(AmbiguousBytesLostViolation);
   });
 
   it("a foreign index.lock fails typed and bounded without deleting or stealing the lock", async () => {

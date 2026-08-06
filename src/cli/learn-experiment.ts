@@ -30,11 +30,7 @@ import {
 } from "../org/learning/canary.js";
 import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import type { CandidateArtifact } from "../org/learning/candidate.js";
-import {
-  orgLearningRoot,
-  readManifest,
-  scopeApp,
-} from "../org/learning/concepts.js";
+import { orgLearningRoot, readManifest, scopeApp } from "../org/learning/concepts.js";
 import { listEvalResults } from "../org/learning/eval-result.js";
 import {
   declareExperiment,
@@ -52,11 +48,7 @@ import {
   storeFingerprint,
   type SystemFingerprint,
 } from "../org/learning/fingerprint.js";
-import {
-  loadLearningPolicy,
-  type LearningPolicy,
-  type TierPromoteRule,
-} from "../org/learning/policy.js";
+import { loadLearningPolicy, type LearningPolicy, type TierPromoteRule } from "../org/learning/policy.js";
 import { createLoopReplayExecutor, gitIn, renderCandidateOverlay } from "../org/learning/replay.js";
 import { eligibleFixtures, runExperiment } from "../org/learning/runner.js";
 import { loadRoles } from "../org/roles.js";
@@ -125,14 +117,12 @@ async function declare(homes: CormidiaHomes, args: string[]): Promise<number> {
   );
   const minImprovement = Number(flag(flags, "min-improvement-pct") ?? 0);
 
-  const guardrails: ExperimentGuardrail[] =
-    flags.values.get("guardrail")?.map(parseGuardrail) ?? [
-      { metric: "merged", rule: "must_not_decrease" },
-    ];
+  const guardrails: ExperimentGuardrail[] = flags.values.get("guardrail")?.map(parseGuardrail) ?? [
+    { metric: "merged", rule: "must_not_decrease" },
+  ];
 
   const arms = await armFingerprints(homes, appName, candidate);
-  const experimentId =
-    flag(flags, "id") ?? (await nextExperimentId(homes.orgHome, candidateId));
+  const experimentId = flag(flags, "id") ?? (await nextExperimentId(homes.orgHome, candidateId));
 
   const record: ExperimentRecord = {
     schema_version: 1,
@@ -269,8 +259,7 @@ async function run(homes: CormidiaHomes, args: string[]): Promise<number> {
   });
 
   const spendRollup = await rollupLearningSpend(homes.stateHome);
-  const worktreeRoot =
-    flag(flags, "worktree-root") ?? join(homes.stateHome, "worktrees", "learning-replay");
+  const worktreeRoot = flag(flags, "worktree-root") ?? join(homes.stateHome, "worktrees", "learning-replay");
   await mkdir(worktreeRoot, { recursive: true });
 
   // Drift check (design §9.1: arms are declared before results): refuse on
@@ -288,9 +277,7 @@ async function run(homes: CormidiaHomes, args: string[]): Promise<number> {
   } else if (arms.controlId !== experiment.control.fingerprint_ref) {
     const delta = fingerprintDelta(declaredControl, arms.control);
     const material = delta.filter((path) =>
-      MATERIAL_FINGERPRINT_PREFIXES.some(
-        (prefix) => path === prefix || path.startsWith(`${prefix}.`),
-      ),
+      MATERIAL_FINGERPRINT_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}.`)),
     );
     if (material.length > 0) {
       throw new Error(
@@ -369,9 +356,7 @@ async function list(homes: CormidiaHomes): Promise<number> {
     console.log("no experiments declared");
     return 0;
   }
-  const results = new Map(
-    (await listEvalResults(homes.orgHome)).map((result) => [result.eval_id, result]),
-  );
+  const results = new Map((await listEvalResults(homes.orgHome)).map((result) => [result.eval_id, result]));
   const spend = await rollupLearningSpend(homes.stateHome);
   for (const experiment of experiments) {
     const result = experiment.result !== null ? results.get(experiment.result) : undefined;
@@ -413,8 +398,7 @@ export async function learnCanary(homes: CormidiaHomes, args: string[]): Promise
           `window ${started.meta.window_hours}h)`,
       );
       console.log(
-        "  new episodes assign by hash of episode id (design §8.4); " +
-          "watch it with: cormidia learn canary status",
+        "  new episodes assign by hash of episode id (design §8.4); " + "watch it with: cormidia learn canary status",
       );
       return 0;
     }
@@ -476,9 +460,7 @@ export async function canaryStatusLines(
   const episodes = preloadedEpisodes ?? (await readEpisodeRecords(homes.stateHome));
   const byEpisode = new Map(episodes.map((episode) => [episode.episode_id, episode]));
 
-  const roots: Array<{ label: string; kind: CanaryRootKind; appWorkdir?: string }> = [
-    { label: "org", kind: "org" },
-  ];
+  const roots: Array<{ label: string; kind: CanaryRootKind; appWorkdir?: string }> = [{ label: "org", kind: "org" }];
   for (const app of homes.appsFile.apps) {
     try {
       roots.push({
@@ -503,29 +485,19 @@ export async function canaryStatusLines(
     const meta = manifest?.canary_meta ?? null;
     if (meta === null) continue;
     anyActive = true;
-    const windowEnd = new Date(
-      new Date(meta.started_at).getTime() + meta.window_hours * 60 * 60 * 1000,
-    );
+    const windowEnd = new Date(new Date(meta.started_at).getTime() + meta.window_hours * 60 * 60 * 1000);
     // Match on THIS root's assignment entry: version strings are minted
     // per root (org and app can both cut "YYYY.MM.DD-1" the same day), and
     // an episode's lineage in this trial is its entry for this root, never
     // the episode-level fold.
-    const inTrial = assignments.filter(
-      (assignment) => assignment.roots[root.kind]?.version === meta.version,
-    );
-    const canaryIds = inTrial
-      .filter((a) => a.roots[root.kind]?.lineage === "canary")
-      .map((a) => a.episode_id);
-    const stableIds = inTrial
-      .filter((a) => a.roots[root.kind]?.lineage === "stable")
-      .map((a) => a.episode_id);
+    const inTrial = assignments.filter((assignment) => assignment.roots[root.kind]?.version === meta.version);
+    const canaryIds = inTrial.filter((a) => a.roots[root.kind]?.lineage === "canary").map((a) => a.episode_id);
+    const stableIds = inTrial.filter((a) => a.roots[root.kind]?.lineage === "stable").map((a) => a.episode_id);
     lines.push(
       `${root.label}: canary ${meta.version} (tier ${meta.tier}, fraction ${meta.fraction}, ` +
         `window until ${windowEnd.toISOString()}) — intervention ${meta.intervention_ref}`,
     );
-    lines.push(
-      `  assignments: ${canaryIds.length} canary / ${stableIds.length} stable (in-window control)`,
-    );
+    lines.push(`  assignments: ${canaryIds.length} canary / ${stableIds.length} stable (in-window control)`);
     const canaryStats = lineageStats(canaryIds, byEpisode);
     const stableStats = lineageStats(stableIds, byEpisode);
     lines.push(`  canary episodes: ${renderStats(canaryStats)}`);
@@ -550,10 +522,7 @@ interface LineageStats {
   meanCostUsd: number | null;
 }
 
-function lineageStats(
-  episodeIds: string[],
-  byEpisode: Map<string, EpisodeRecord>,
-): LineageStats {
+function lineageStats(episodeIds: string[], byEpisode: Map<string, EpisodeRecord>): LineageStats {
   const closed = episodeIds
     .map((id) => byEpisode.get(id))
     .filter((record): record is EpisodeRecord => record?.outcome !== undefined);
@@ -575,20 +544,14 @@ function renderStats(stats: LineageStats): string {
   return (
     `${stats.total} assigned, ${stats.closed} closed` +
     (stats.mergedRate !== null ? `, merged ${(stats.mergedRate * 100).toFixed(0)}%` : "") +
-    (stats.meanReviewCycles !== null
-      ? `, review cycles avg ${stats.meanReviewCycles.toFixed(1)}`
-      : "") +
+    (stats.meanReviewCycles !== null ? `, review cycles avg ${stats.meanReviewCycles.toFixed(1)}` : "") +
     (stats.meanCostUsd !== null ? `, cost avg $${stats.meanCostUsd.toFixed(2)}` : "")
   );
 }
 
 /** The design §10 three-part decision rule, rendered as a recommendation the
  *  human executes: insufficient volume reads `inconclusive`, never limbo. */
-function recommend(
-  rule: TierPromoteRule | null,
-  canary: LineageStats,
-  stable: LineageStats,
-): string {
+function recommend(rule: TierPromoteRule | null, canary: LineageStats, stable: LineageStats): string {
   if (rule === null) return "no promote rule for this tier — human judgment";
   if (canary.closed < rule.min_canary_episodes) {
     return (
@@ -679,9 +642,7 @@ async function armFingerprints(
 
 async function nextExperimentId(orgHome: string, candidateId: string): Promise<string> {
   const suffix = candidateId.replace(/^cand_/, "");
-  const existing = new Set(
-    (await listExperimentRecords(orgHome)).map((record) => record.experiment_id),
-  );
+  const existing = new Set((await listExperimentRecords(orgHome)).map((record) => record.experiment_id));
   for (let n = 1; n < 100; n++) {
     const id = `exp_${suffix}_${String(n).padStart(2, "0")}`;
     if (!existing.has(id)) return id;

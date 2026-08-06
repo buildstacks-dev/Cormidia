@@ -23,9 +23,11 @@ function scenarios(runtime: RuntimeKind, session = "session-conformance") {
     }),
     script.turn({
       sessionId: session,
-      steps: [script.tool("Bash", {
-        command: runtime === "codex" ? "printf forbidden > ../cormidia-live-forbidden" : "pwd",
-      })],
+      steps: [
+        script.tool("Bash", {
+          command: runtime === "codex" ? "printf forbidden > ../cormidia-live-forbidden" : "pwd",
+        }),
+      ],
       outcome: script.success("denied resume probe", { usage: { inputTokens: 10, outputTokens: 2 }, costUsd: 0.01 }),
     }),
   ];
@@ -33,17 +35,25 @@ function scenarios(runtime: RuntimeKind, session = "session-conformance") {
 
 describe("shared adapter conformance suite", () => {
   it.each([
-    { runtime: "claude" as const, model: "claude-scripted-model", make: () => claudeDouble(scenarios("claude")).runtime },
+    {
+      runtime: "claude" as const,
+      model: "claude-scripted-model",
+      make: () => claudeDouble(scenarios("claude")).runtime,
+    },
     { runtime: "codex" as const, model: "gpt-5.6-sol", make: () => codexDouble(scenarios("codex")).runtime },
     { runtime: "pi" as const, model: "claude-scripted-model", make: () => piDouble(scenarios("pi")).runtime },
   ])("passes against the real $runtime adapter over its scripted transport", async ({ runtime, model, make }) => {
     repo = await makeTempGitRepo();
-    const report = await runAdapterConformance(make(), {
-      runtime,
-      model,
-      effort: "medium",
-      maxTurnBudgetUsd: 1,
-    }, repo.dir);
+    const report = await runAdapterConformance(
+      make(),
+      {
+        runtime,
+        model,
+        effort: "medium",
+        maxTurnBudgetUsd: 1,
+      },
+      repo.dir,
+    );
     expect(report.providerTurns).toBe(2);
     expect(report.gateActions).toHaveLength(2);
     expect(report.violationIds).toEqual([]);
@@ -52,9 +62,16 @@ describe("shared adapter conformance suite", () => {
   it("negative control: catches a transport that bypasses the gate", async () => {
     repo = await makeTempGitRepo();
     const runtime = claudeDouble(scenarios("claude"), { violations: ["bypass_gate"] }).runtime;
-    const report = await runAdapterConformance(runtime, {
-      runtime: "claude", model: "claude-scripted-model", effort: "medium", maxTurnBudgetUsd: 1,
-    }, repo.dir);
+    const report = await runAdapterConformance(
+      runtime,
+      {
+        runtime: "claude",
+        model: "claude-scripted-model",
+        effort: "medium",
+        maxTurnBudgetUsd: 1,
+      },
+      repo.dir,
+    );
     expect(report.violationIds).toContain("CORMIDIA-INV-002:gate-path-not-observed");
   });
 
@@ -63,12 +80,16 @@ describe("shared adapter conformance suite", () => {
     async (runtime) => {
       repo = await makeTempGitRepo();
       const probe = taskAwareRuntime(runtime);
-      const report = await runAdapterConformance(probe.runtime, {
-        runtime,
-        model: "safety-aware-model",
-        effort: "medium",
-        maxTurnBudgetUsd: 1,
-      }, repo.dir);
+      const report = await runAdapterConformance(
+        probe.runtime,
+        {
+          runtime,
+          model: "safety-aware-model",
+          effort: "medium",
+          maxTurnBudgetUsd: 1,
+        },
+        repo.dir,
+      );
 
       expect(report.gateActions).toHaveLength(2);
       expect(report.violationIds).toEqual([]);
@@ -80,12 +101,16 @@ describe("shared adapter conformance suite", () => {
   it("retains the contract-required forbidden write on the Codex resume turn", async () => {
     repo = await makeTempGitRepo();
     const probe = taskAwareRuntime("codex");
-    const report = await runAdapterConformance(probe.runtime, {
-      runtime: "codex",
-      model: "gpt-5.6-sol",
-      effort: "medium",
-      maxTurnBudgetUsd: 1,
-    }, repo.dir);
+    const report = await runAdapterConformance(
+      probe.runtime,
+      {
+        runtime: "codex",
+        model: "gpt-5.6-sol",
+        effort: "medium",
+        maxTurnBudgetUsd: 1,
+      },
+      repo.dir,
+    );
 
     expect(report.gateActions).toHaveLength(2);
     expect(report.violationIds).toEqual([]);
@@ -95,18 +120,22 @@ describe("shared adapter conformance suite", () => {
   it("negative control: the legacy forbidden Claude resume prompt is refused before the gate", async () => {
     repo = await makeTempGitRepo();
     const probe = taskAwareRuntime("claude");
-    const report = await runAdapterConformance(probe.runtime, {
-      runtime: "claude",
-      model: "safety-aware-model",
-      effort: "medium",
-      maxTurnBudgetUsd: 1,
-    }, repo.dir, { seededLegacyForbiddenResumeProbe: true });
+    const report = await runAdapterConformance(
+      probe.runtime,
+      {
+        runtime: "claude",
+        model: "safety-aware-model",
+        effort: "medium",
+        maxTurnBudgetUsd: 1,
+      },
+      repo.dir,
+      { seededLegacyForbiddenResumeProbe: true },
+    );
 
     expect(report.gateActions).toHaveLength(1);
-    expect(report.violationIds).toEqual(expect.arrayContaining([
-      "CORMIDIA-INV-002:denial-not-terminal",
-      "CORMIDIA-INV-002:gate-path-not-observed",
-    ]));
+    expect(report.violationIds).toEqual(
+      expect.arrayContaining(["CORMIDIA-INV-002:denial-not-terminal", "CORMIDIA-INV-002:gate-path-not-observed"]),
+    );
   });
 });
 
@@ -140,11 +169,7 @@ function taskAwareRuntime(kind: RuntimeKind): { runtime: Runtime; tasks: string[
   return { runtime, tasks };
 }
 
-function result(
-  status: TurnResult["status"],
-  session: TurnResult["session"],
-  summary: string,
-): TurnResult {
+function result(status: TurnResult["status"], session: TurnResult["session"], summary: string): TurnResult {
   return {
     status,
     summary,

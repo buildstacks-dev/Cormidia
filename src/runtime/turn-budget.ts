@@ -19,14 +19,7 @@
 // The ring is derived, never declared: a dimension is `per_turn` only when its
 // effective bound is strictly tighter than what the episode still allows.
 
-import type {
-  GateDecision,
-  GateFn,
-  RuntimeKind,
-  ToolAction,
-  TurnResult,
-  TurnUsage,
-} from "./types.js";
+import type { GateDecision, GateFn, RuntimeKind, ToolAction, TurnResult, TurnUsage } from "./types.js";
 
 export const ERROR_TURN_BUDGET_EXHAUSTED = "error_turn_budget_exhausted";
 /** Soft-ring stop: the turn is parked, not returned. Distinct from
@@ -73,11 +66,7 @@ export interface EffectiveTurnBounds {
   configuration_ref: string;
 }
 
-export type BudgetStopDimension =
-  | "equivalent_cost_usd"
-  | "tool_calls"
-  | "active_time_ms"
-  | "provider_turns";
+export type BudgetStopDimension = "equivalent_cost_usd" | "tool_calls" | "active_time_ms" | "provider_turns";
 
 export interface TurnBudgetStop {
   dimension: BudgetStopDimension;
@@ -94,9 +83,7 @@ export interface TurnBudgetStop {
   episode_remaining: number | null;
 }
 
-export function costEnforcementFor(
-  runtime: RuntimeKind,
-): EffectiveTurnBounds["cost_enforcement"] {
+export function costEnforcementFor(runtime: RuntimeKind): EffectiveTurnBounds["cost_enforcement"] {
   if (runtime === "claude") return "native_cap_and_progress";
   if (runtime === "codex") return "estimated_progress_no_strict_provider_cap";
   return "measured_progress_no_strict_provider_cap";
@@ -153,9 +140,9 @@ export class HardTurnBudget {
   observeUsage(usage: TurnUsage): TurnBudgetStop | undefined {
     this.latestUsage = usage;
     if (
-      this.terminalStop === undefined
-      && Number.isFinite(usage.costUsd)
-      && usage.costUsd >= this.bounds.equivalent_cost_usd
+      this.terminalStop === undefined &&
+      Number.isFinite(usage.costUsd) &&
+      usage.costUsd >= this.bounds.equivalent_cost_usd
     ) {
       return this.stopNow({
         dimension: "equivalent_cost_usd",
@@ -178,16 +165,15 @@ export class HardTurnBudget {
 
   admitTool(action: ToolAction, delegate: GateFn): GateDecision {
     if (this.terminalStop !== undefined) return denial(this.terminalStop);
-    if (
-      this.bounds.tool_calls !== null
-      && this.admittedToolActions >= this.bounds.tool_calls
-    ) {
-      return denial(this.stopNow({
-        dimension: "tool_calls",
-        cap: this.bounds.tool_calls,
-        observed: this.admittedToolActions,
-        preventedNextAction: action.tool,
-      }));
+    if (this.bounds.tool_calls !== null && this.admittedToolActions >= this.bounds.tool_calls) {
+      return denial(
+        this.stopNow({
+          dimension: "tool_calls",
+          cap: this.bounds.tool_calls,
+          observed: this.admittedToolActions,
+          preventedNextAction: action.tool,
+        }),
+      );
     }
 
     // Budget admission runs before the safety gate. A budget refusal is a
@@ -209,8 +195,7 @@ export class HardTurnBudget {
     if (this.terminalStop === undefined) return result;
     const stop = this.terminalStop;
     const observed =
-      `cap=${stop.cap}, observed=${stop.observed}, ` +
-      `prevented_next_action=${stop.prevented_next_action}`;
+      `cap=${stop.cap}, observed=${stop.observed}, ` + `prevented_next_action=${stop.prevented_next_action}`;
     if (stop.ring === "per_turn") {
       return {
         ...result,
@@ -226,8 +211,7 @@ export class HardTurnBudget {
       ...result,
       status: "failed",
       errorCode: ERROR_TURN_BUDGET_EXHAUSTED,
-      summary:
-        `Hard turn budget stopped ${stop.dimension}: ${observed}; partial usage retained.`,
+      summary: `Hard turn budget stopped ${stop.dimension}: ${observed}; partial usage retained.`,
     };
   }
 
@@ -241,10 +225,7 @@ export class HardTurnBudget {
     if (dimension === "equivalent_cost_usd") {
       const remaining = this.episodeAllowance.equivalent_cost_usd;
       return {
-        ring:
-          this.bounds.equivalent_cost_usd < remaining - COST_RING_TOLERANCE_USD
-            ? "per_turn"
-            : "episode",
+        ring: this.bounds.equivalent_cost_usd < remaining - COST_RING_TOLERANCE_USD ? "per_turn" : "episode",
         episodeRemaining: remaining,
       };
     }
@@ -314,11 +295,7 @@ function denial(stop: TurnBudgetStop): GateDecision {
   };
 }
 
-function costMeasurement(
-  usage: TurnUsage | undefined,
-): TurnBudgetStop["cost_measurement"] {
+function costMeasurement(usage: TurnUsage | undefined): TurnBudgetStop["cost_measurement"] {
   if (usage === undefined || usage.quality === "unavailable") return "unavailable";
-  return usage.costEstimated === true || usage.quality === "estimated"
-    ? "estimated"
-    : "measured";
+  return usage.costEstimated === true || usage.quality === "estimated" ? "estimated" : "measured";
 }

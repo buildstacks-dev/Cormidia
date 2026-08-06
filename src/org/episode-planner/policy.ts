@@ -1,12 +1,5 @@
-import {
-  runtimeCapabilityProfile,
-  type RuntimeCapability,
-} from "../../runtime/capabilities.js";
-import {
-  fixedAssignmentFromRole,
-  turnAssignmentKey,
-  turnAssignmentsEqual,
-} from "../../runtime/assignment.js";
+import { runtimeCapabilityProfile, type RuntimeCapability } from "../../runtime/capabilities.js";
+import { fixedAssignmentFromRole, turnAssignmentKey, turnAssignmentsEqual } from "../../runtime/assignment.js";
 import type { RoleConfig, TurnAssignment } from "../../runtime/types.js";
 import { stableHash } from "../../loop/episode-plan.js";
 import type {
@@ -25,10 +18,7 @@ import type {
   BudgetCeiling,
 } from "../../loop/episode-plan.js";
 import type { AppEntry } from "../apps.js";
-import {
-  resolveAppAssignments,
-  type ResolvedAppAssignments,
-} from "../execution-assignments.js";
+import { resolveAppAssignments, type ResolvedAppAssignments } from "../execution-assignments.js";
 
 export interface EpisodeIntentFacts {
   episodeId: string;
@@ -49,11 +39,7 @@ export interface EpisodeIntentFacts {
   /** Readiness/qualification is gathered outside the plan. Omission means the
    * already-loaded, org-approved config is available; callers with fresher
    * readiness evidence can narrow individual exact tuples to unavailable. */
-  assignmentAvailable?: (input: {
-    role: RoleConfig;
-    candidateId: string;
-    assignment: TurnAssignment;
-  }) => boolean;
+  assignmentAvailable?: (input: { role: RoleConfig; candidateId: string; assignment: TurnAssignment }) => boolean;
 }
 
 export interface EpisodePlanningPolicyOptions {
@@ -113,19 +99,15 @@ export function buildEpisodeIntent(input: EpisodeIntentFacts): EpisodeIntent {
         // separately in availableRoles and must never manufacture support a
         // selected harness does not actually provide.
         capabilities: adapterCapabilities(candidate.assignment.harness),
-        qualificationRef:
-          candidate.qualificationRef ??
-          `configured-role-assignment:${entry.role}`,
-        priceRef:
-          candidate.pricing.kind === "catalog_ref"
-            ? candidate.pricing.ref
-            : candidate.pricing.sourceRef,
+        qualificationRef: candidate.qualificationRef ?? `configured-role-assignment:${entry.role}`,
+        priceRef: candidate.pricing.kind === "catalog_ref" ? candidate.pricing.ref : candidate.pricing.sourceRef,
         maxTurnCostUsd: candidate.maxTurnCostUsd,
-        available: input.assignmentAvailable?.({
-          role,
-          candidateId: candidate.candidateId,
-          assignment: candidate.assignment,
-        }) ?? true,
+        available:
+          input.assignmentAvailable?.({
+            role,
+            candidateId: candidate.candidateId,
+            assignment: candidate.assignment,
+          }) ?? true,
       };
     });
   });
@@ -139,9 +121,7 @@ export function buildEpisodeIntent(input: EpisodeIntentFacts): EpisodeIntent {
     lifecycle: input.lifecycle,
     appStage: input.appStage,
     repositoryFacts: structuredClone(input.repositoryFacts),
-    ...(input.changeFacts === undefined
-      ? {}
-      : { changeFacts: structuredClone(input.changeFacts) }),
+    ...(input.changeFacts === undefined ? {} : { changeFacts: structuredClone(input.changeFacts) }),
     requestedConstraints: structuredClone(input.requestedConstraints),
     hardBudget: structuredClone(input.hardBudget),
     availableRoles: input.roles
@@ -161,9 +141,7 @@ export function buildEpisodeIntent(input: EpisodeIntentFacts): EpisodeIntent {
       ...input.requiredSafetyFacts,
       ...(input.creatorScope?.safetyFacts ?? []),
     ]),
-    ...(input.creatorScope === undefined
-      ? {}
-      : { creatorScope: structuredClone(input.creatorScope) }),
+    ...(input.creatorScope === undefined ? {} : { creatorScope: structuredClone(input.creatorScope) }),
   };
 }
 
@@ -173,9 +151,7 @@ export function createEpisodePlanningPolicy(
   options: EpisodePlanningPolicyOptions,
 ): EpisodePlanningPolicy {
   const persistedAuthority = options.assignmentAuthority === "persisted_intent";
-  const resolvedAssignments = persistedAuthority
-    ? undefined
-    : resolveAppAssignments(app, options.roles);
+  const resolvedAssignments = persistedAuthority ? undefined : resolveAppAssignments(app, options.roles);
   if (resolvedAssignments !== undefined) {
     if (resolvedAssignments.mode !== options.intent.assignmentMode) {
       throw new Error(
@@ -185,11 +161,9 @@ export function createEpisodePlanningPolicy(
     assertIntentAssignmentsMatchResolved(options.intent, resolvedAssignments, options.roles);
   }
   const roleByName = new Map(options.roles.map((role) => [role.name, role]));
-  const persistedRoleByName = new Map(
-    options.intent.availableRoles.map((role) => [role.role, role]),
-  );
-  const plannerBootAssignment = resolvedAssignments?.plannerBootAssignment ??
-    persistedRoleByName.get("planner")?.configuredAssignment;
+  const persistedRoleByName = new Map(options.intent.availableRoles.map((role) => [role.role, role]));
+  const plannerBootAssignment =
+    resolvedAssignments?.plannerBootAssignment ?? persistedRoleByName.get("planner")?.configuredAssignment;
   if (plannerBootAssignment === undefined) {
     throw new Error("episode planning policy has no persisted Planner boot assignment");
   }
@@ -210,10 +184,7 @@ export function createEpisodePlanningPolicy(
     const role = roleByName.get(roleName);
     return role === undefined ? undefined : fixedAssignmentFromRole(role);
   };
-  const metadataFor = (
-    roleName: string,
-    assignment: TurnAssignment,
-  ): AllowedTurnAssignment | undefined => {
+  const metadataFor = (roleName: string, assignment: TurnAssignment): AllowedTurnAssignment | undefined => {
     const metadata = intentByRoleAndTuple.get(roleAssignmentKey(roleName, assignment));
     return metadata === undefined ? undefined : structuredClone(metadata);
   };
@@ -239,9 +210,8 @@ export function createEpisodePlanningPolicy(
       return steps === undefined ? undefined : structuredClone(steps);
     },
   };
-  const requiredOutputs = options.intent.creatorScope?.expectedArtifacts
-    .filter((output) => output.required)
-    .map((output) => output.id) ?? [];
+  const requiredOutputs =
+    options.intent.creatorScope?.expectedArtifacts.filter((output) => output.required).map((output) => output.id) ?? [];
   const safetyKinds = new Set(options.intent.requiredSafetyFacts.map((fact) => fact.kind));
   const requiredGateKinds = requirementsForSafetyFacts(
     safetyKinds,
@@ -259,9 +229,7 @@ export function createEpisodePlanningPolicy(
   const requiredProviderRoles = safetyKinds.has("incident_response")
     ? [options.roles.find((role) => role.name.toLowerCase() === "sre")?.name ?? "sre"]
     : [];
-  const defaultReview = safetyKinds.has("independent_review")
-    ? defaultBuilderReviewerPolicy(options.roles)
-    : undefined;
+  const defaultReview = safetyKinds.has("independent_review") ? defaultBuilderReviewerPolicy(options.roles) : undefined;
   const review = options.independentReview ?? defaultReview;
   const validation: EpisodePlanValidationPolicy = {
     ...materialization,
@@ -287,8 +255,11 @@ export function createEpisodePlanningPolicy(
             isIndependent: (subject, reviewer) => {
               const subjectMetadata = metadataFor(subject.role, subject.assignment);
               const reviewerMetadata = metadataFor(reviewer.role, reviewer.assignment);
-              return subjectMetadata !== undefined && reviewerMetadata !== undefined &&
-                subjectMetadata.providerFamily !== reviewerMetadata.providerFamily;
+              return (
+                subjectMetadata !== undefined &&
+                reviewerMetadata !== undefined &&
+                subjectMetadata.providerFamily !== reviewerMetadata.providerFamily
+              );
             },
           },
         }),
@@ -305,10 +276,7 @@ export function createEpisodePlanningPolicy(
 /** Verify caller-owned episode facts without re-resolving mutable assignment
  * defaults. Accepted plans resume from the content-addressed intent/plan; a
  * later role model edit must not rewrite that persisted tuple. */
-export function assertEpisodeIntentMatchesInvocationFacts(
-  intent: EpisodeIntent,
-  input: EpisodeIntentFacts,
-): void {
+export function assertEpisodeIntentMatchesInvocationFacts(intent: EpisodeIntent, input: EpisodeIntentFacts): void {
   const expected = {
     episodeId: input.episodeId,
     app: input.app.name,
@@ -341,15 +309,11 @@ export function assertEpisodeIntentMatchesInvocationFacts(
     creatorScope: intent.creatorScope ?? null,
   };
   if (stableHash(expected) !== stableHash(persisted)) {
-    throw new Error(
-      `episode ${intent.episodeId} resume facts differ from persisted immutable intent`,
-    );
+    throw new Error(`episode ${intent.episodeId} resume facts differ from persisted immutable intent`);
   }
 }
 
-function defaultBuilderReviewerPolicy(
-  roles: readonly RoleConfig[],
-): EpisodePlanningPolicyOptions["independentReview"] {
+function defaultBuilderReviewerPolicy(roles: readonly RoleConfig[]): EpisodePlanningPolicyOptions["independentReview"] {
   const builder = roles.find((role) => role.name.toLowerCase() === "builder");
   const reviewer = roles.find((role) => role.name.toLowerCase() === "reviewer");
   if (builder === undefined || reviewer === undefined) return undefined;
@@ -383,12 +347,8 @@ function assertIntentAssignmentsMatchResolved(
         assignment: { ...candidate.assignment },
         providerFamily: candidate.providerFamily,
         capabilities: adapterCapabilities(candidate.assignment.harness),
-        qualificationRef:
-          candidate.qualificationRef ?? `configured-role-assignment:${entry.role}`,
-        priceRef:
-          candidate.pricing.kind === "catalog_ref"
-            ? candidate.pricing.ref
-            : candidate.pricing.sourceRef,
+        qualificationRef: candidate.qualificationRef ?? `configured-role-assignment:${entry.role}`,
+        priceRef: candidate.pricing.kind === "catalog_ref" ? candidate.pricing.ref : candidate.pricing.sourceRef,
         maxTurnCostUsd: candidate.maxTurnCostUsd,
       };
       expected.set(intentAssignmentIdentity(row), row);
@@ -445,10 +405,9 @@ export function providerFamilyFor(
 
 function adapterCapabilities(harness: TurnAssignment["harness"]): string[] {
   const profile = runtimeCapabilityProfile(harness);
-  return (Object.entries(profile.capabilities) as Array<[
-    RuntimeCapability,
-    (typeof profile.capabilities)[RuntimeCapability],
-  ]>)
+  return (
+    Object.entries(profile.capabilities) as Array<[RuntimeCapability, (typeof profile.capabilities)[RuntimeCapability]]>
+  )
     .filter(([, support]) => support !== "unsupported")
     .map(([capability]) => capability)
     .sort();
@@ -458,13 +417,12 @@ function roleAssignmentKey(role: string, assignment: TurnAssignment): string {
   return `${role}\0${turnAssignmentKey(assignment)}`;
 }
 
-function compareAllowedAssignments(
-  left: AllowedTurnAssignment,
-  right: AllowedTurnAssignment,
-): number {
-  return left.role.localeCompare(right.role) ||
+function compareAllowedAssignments(left: AllowedTurnAssignment, right: AllowedTurnAssignment): number {
+  return (
+    left.role.localeCompare(right.role) ||
     left.candidateId.localeCompare(right.candidateId) ||
-    turnAssignmentKey(left.assignment).localeCompare(turnAssignmentKey(right.assignment));
+    turnAssignmentKey(left.assignment).localeCompare(turnAssignmentKey(right.assignment))
+  );
 }
 
 function uniqueSorted(values: readonly string[]): string[] {
@@ -497,9 +455,7 @@ function requirementsForSafetyFacts(
 ): string[] {
   const requirements: string[] = [];
   for (const kind of [...facts].sort()) {
-    const mapped = overrides !== undefined && Object.hasOwn(overrides, kind)
-      ? overrides[kind]
-      : defaults[kind];
+    const mapped = overrides !== undefined && Object.hasOwn(overrides, kind) ? overrides[kind] : defaults[kind];
     for (const value of mapped ?? []) {
       if (value.trim().length === 0) {
         throw new Error(`safety floor mapping for ${kind} contains an empty requirement`);
@@ -519,14 +475,13 @@ function normalizeSafetyFacts(facts: readonly SafetyFact[]): SafetyFact[] {
     };
     byIdentity.set(`${normalized.kind}\0${normalized.evidenceRefs.join("\0")}`, normalized);
   }
-  return [...byIdentity.values()].sort((left, right) =>
-    left.kind.localeCompare(right.kind) || left.evidenceRefs.join("\0").localeCompare(right.evidenceRefs.join("\0")));
+  return [...byIdentity.values()].sort(
+    (left, right) =>
+      left.kind.localeCompare(right.kind) || left.evidenceRefs.join("\0").localeCompare(right.evidenceRefs.join("\0")),
+  );
 }
 
 /** Exported for tests and policy joins without exposing mutable catalog rows. */
-export function assignmentIsConfiguredForRole(
-  role: RoleConfig,
-  assignment: TurnAssignment,
-): boolean {
+export function assignmentIsConfiguredForRole(role: RoleConfig, assignment: TurnAssignment): boolean {
   return turnAssignmentsEqual(fixedAssignmentFromRole(role), assignment);
 }

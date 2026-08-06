@@ -16,11 +16,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sha256Ref } from "../../../src/org/learning/candidate-store.js";
 import { bindingOf } from "../../../src/org/learning/binding.js";
-import {
-  assertConceptPlacement,
-  readManifest,
-  type LearningManifest,
-} from "../../../src/org/learning/concepts.js";
+import { assertConceptPlacement, readManifest, type LearningManifest } from "../../../src/org/learning/concepts.js";
 import {
   appendLearningEventsDeduped,
   readLearningEvents,
@@ -245,8 +241,8 @@ describe("CF-J12-S — capture→episode→candidate→review→publish happy pa
     const { appendFile } = await import("node:fs/promises");
     const dir = join(world.state.stateHome, "learning", "events", committed.ts.slice(0, 10));
     await appendFile(join(dir, "publisher.jsonl"), JSON.stringify(committed) + "\n", "utf8");
-    await expect(
-      assertExactlyOncePublish({ world, candidateId: CAND, conceptId: CONCEPT }),
-    ).rejects.toThrow(PublishConservationViolation);
+    await expect(assertExactlyOncePublish({ world, candidateId: CAND, conceptId: CONCEPT })).rejects.toThrow(
+      PublishConservationViolation,
+    );
   });
 });

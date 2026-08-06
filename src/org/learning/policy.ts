@@ -245,19 +245,11 @@ export async function loadLearningPolicy(orgHome: string): Promise<LearningPolic
   const rejections = section(spec, "rejections");
   if (rejections !== undefined) {
     mergeNumber(rejections, "suppress_days", path, (v) => (policy.rejections.suppress_days = v));
-    mergeNumber(
-      rejections,
-      "override_if_evidence_x",
-      path,
-      (v) => (policy.rejections.override_if_evidence_x = v),
-    );
+    mergeNumber(rejections, "override_if_evidence_x", path, (v) => (policy.rejections.override_if_evidence_x = v));
   }
 
   if (spec["reviewer_sla_hours"] !== undefined) {
-    policy.reviewer_sla_hours = requirePositiveNumber(
-      spec["reviewer_sla_hours"],
-      `${path}: reviewer_sla_hours`,
-    );
+    policy.reviewer_sla_hours = requirePositiveNumber(spec["reviewer_sla_hours"], `${path}: reviewer_sla_hours`);
   }
 
   const budget = section(spec, "context_budget");
@@ -266,10 +258,7 @@ export async function loadLearningPolicy(orgHome: string): Promise<LearningPolic
     const roles = section(budget, "roles");
     if (roles !== undefined) {
       for (const [role, bytes] of Object.entries(roles)) {
-        policy.context_budget.roles[role] = requirePositiveNumber(
-          bytes,
-          `${path}: context_budget.roles.${role}`,
-        );
+        policy.context_budget.roles[role] = requirePositiveNumber(bytes, `${path}: context_budget.roles.${role}`);
       }
     }
     const shares = section(budget, "shares");
@@ -301,13 +290,8 @@ export async function loadLearningPolicy(orgHome: string): Promise<LearningPolic
       }
       const tiers = eviction["protected_tiers"];
       if (tiers !== undefined) {
-        if (
-          !Array.isArray(tiers) ||
-          tiers.some((tier) => !["T0", "T1", "T2", "T3"].includes(tier as string))
-        ) {
-          throw new Error(
-            `learning: ${path}: context_budget.eviction.protected_tiers must list tiers T0-T3`,
-          );
+        if (!Array.isArray(tiers) || tiers.some((tier) => !["T0", "T1", "T2", "T3"].includes(tier as string))) {
+          throw new Error(`learning: ${path}: context_budget.eviction.protected_tiers must list tiers T0-T3`);
         }
         policy.context_budget.eviction.protected_tiers = [...tiers] as LoopTier[];
       }
@@ -353,7 +337,12 @@ export async function loadLearningPolicy(orgHome: string): Promise<LearningPolic
     const lb = policy.learning_budget;
     mergeNumber(learningBudget, "monthly_usd", path, (v) => (lb.monthly_usd = v));
     mergeNumber(learningBudget, "per_candidate_replay_usd", path, (v) => (lb.per_candidate_replay_usd = v));
-    mergePositiveInt(learningBudget, "max_repetitions_per_experiment", path, (v) => (lb.max_repetitions_per_experiment = v));
+    mergePositiveInt(
+      learningBudget,
+      "max_repetitions_per_experiment",
+      path,
+      (v) => (lb.max_repetitions_per_experiment = v),
+    );
     mergePositiveInt(learningBudget, "max_experiments_per_month", path, (v) => (lb.max_experiments_per_month = v));
     mergePositiveInt(learningBudget, "max_distillations_per_week", path, (v) => (lb.max_distillations_per_week = v));
     mergeBoolean(learningBudget, "require_benefit_justification", path, (v) => (lb.require_benefit_justification = v));
@@ -479,10 +468,7 @@ function mergeTier(tier: TierPolicy, spec: Record<string, unknown>, source: stri
   }
 }
 
-function section(
-  spec: Record<string, unknown>,
-  key: string,
-): Record<string, unknown> | undefined {
+function section(spec: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
   const value = spec[key];
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "object" || Array.isArray(value)) {
@@ -491,12 +477,7 @@ function section(
   return value as Record<string, unknown>;
 }
 
-function mergeNumber(
-  spec: Record<string, unknown>,
-  key: string,
-  path: string,
-  apply: (value: number) => void,
-): void {
+function mergeNumber(spec: Record<string, unknown>, key: string, path: string, apply: (value: number) => void): void {
   if (spec[key] === undefined) return;
   apply(requirePositiveNumber(spec[key], `${path}: ${key}`));
 }
@@ -515,12 +496,7 @@ function mergePositiveInt(
   apply(value);
 }
 
-function mergeBoolean(
-  spec: Record<string, unknown>,
-  key: string,
-  path: string,
-  apply: (value: boolean) => void,
-): void {
+function mergeBoolean(spec: Record<string, unknown>, key: string, path: string, apply: (value: boolean) => void): void {
   if (spec[key] === undefined) return;
   if (typeof spec[key] !== "boolean") {
     throw new Error(`learning: ${path}: ${key} must be a boolean`);
@@ -528,12 +504,7 @@ function mergeBoolean(
   apply(spec[key]);
 }
 
-function mergeString(
-  spec: Record<string, unknown>,
-  key: string,
-  path: string,
-  apply: (value: string) => void,
-): void {
+function mergeString(spec: Record<string, unknown>, key: string, path: string, apply: (value: string) => void): void {
   if (spec[key] === undefined) return;
   const value = spec[key];
   if (typeof value !== "string" || value.trim() === "") {
@@ -542,12 +513,7 @@ function mergeString(
   apply(value);
 }
 
-function mergeSchedule(
-  spec: Record<string, unknown>,
-  key: string,
-  path: string,
-  apply: (value: string) => void,
-): void {
+function mergeSchedule(spec: Record<string, unknown>, key: string, path: string, apply: (value: string) => void): void {
   if (spec[key] === undefined) return;
   const value = spec[key];
   if (typeof value !== "string" || value.trim() === "") {

@@ -24,11 +24,7 @@ import { extractHomeFlags } from "./home-flags.js";
 import { resolveAuthority } from "../org/authority.js";
 import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
 import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
-import {
-  describeManagedClone,
-  inspectManagedClones,
-  type ManagedCloneHealth,
-} from "../org/managed-clone-health.js";
+import { describeManagedClone, inspectManagedClones, type ManagedCloneHealth } from "../org/managed-clone-health.js";
 import { listOrgs } from "../org/org-archive.js";
 
 export interface DoctorOptions extends CormidiaHomeOptions {
@@ -100,15 +96,21 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
 
   const platform = options.platform ?? process.platform;
   const backend = platform === "darwin" ? "launchd" : "systemd";
-  const manager = options.schedulerManager ?? new PlatformSchedulerManager({
-    backend,
-    platform,
-    ...(options.launchAgentsDir !== undefined ? { definitionDir: options.launchAgentsDir } : {}),
-  });
+  const manager =
+    options.schedulerManager ??
+    new PlatformSchedulerManager({
+      backend,
+      platform,
+      ...(options.launchAgentsDir !== undefined ? { definitionDir: options.launchAgentsDir } : {}),
+    });
   let schedulerStatus: SchedulerOperationalStatus | null = null;
   let scheduler: CheckRow;
   if (homes === undefined) {
-    scheduler = { name: backend, status: "FAIL", detail: "scheduler identity cannot resolve until the org and state homes resolve" };
+    scheduler = {
+      name: backend,
+      status: "FAIL",
+      detail: "scheduler identity cannot resolve until the org and state homes resolve",
+    };
   } else {
     schedulerStatus = await schedulerOperationalStatus({
       backend: manager.backend,
@@ -135,9 +137,13 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   // ISSUE-010: a budget-stopped or crashed turn can leave uncommitted work in
   // the org-managed clone, and the next turn silently inherits it. This is a
   // local read of state doctor already owns; it never fetches or mutates.
-  const managedClones: ManagedCloneHealth[] = homes === undefined
-    ? []
-    : inspectManagedClones(homes.stateHome, homes.appsFile.apps.map((entry) => entry.name));
+  const managedClones: ManagedCloneHealth[] =
+    homes === undefined
+      ? []
+      : inspectManagedClones(
+          homes.stateHome,
+          homes.appsFile.apps.map((entry) => entry.name),
+        );
   const clones: CheckRow[] = managedClones.map((health) => ({
     name: `repos/${health.app}`,
     ...describeManagedClone(health),
@@ -151,9 +157,8 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   // org: retiring the active org is precisely when no active org resolves, and
   // that is the moment an operator most needs to be told what state homes are
   // still on this machine.
-  const orgsPointerPath = homes?.pointerPath
-    ?? options.pointerPath
-    ?? join(options.homeDir ?? homedir(), ".cormidia", "config");
+  const orgsPointerPath =
+    homes?.pointerPath ?? options.pointerPath ?? join(options.homeDir ?? homedir(), ".cormidia", "config");
   const discoveredOrgs = await listOrgs({
     pointerPath: orgsPointerPath,
     includeUsage: false,
@@ -169,9 +174,7 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
           `"cormidia org use <path>" or retire it with "cormidia org archive ${org.name}"`,
     }));
 
-  const ok = ![...adapters, ...config, state, scheduler, ...clones, ...orphans].some(
-    (row) => row.status === "FAIL",
-  );
+  const ok = ![...adapters, ...config, state, scheduler, ...clones, ...orphans].some((row) => row.status === "FAIL");
   if (options.json === true) {
     console.log(
       JSON.stringify(
@@ -215,34 +218,57 @@ export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   if (clones.length > 0) printRows("managed clones", clones);
   if (orphans.length > 0) printRows("orgs", orphans);
   printRows("scheduler", [scheduler]);
-  if (schedulerStatus?.definition.installed === true) console.log(`  ${manager.backend} installed; inspect/repair with: cormidia scheduler status`);
-  else if (homes) console.log(`  ${manager.backend} not installed; preview with: cormidia scheduler install --backend ${manager.backend}`);
+  if (schedulerStatus?.definition.installed === true)
+    console.log(`  ${manager.backend} installed; inspect/repair with: cormidia scheduler status`);
+  else if (homes)
+    console.log(
+      `  ${manager.backend} not installed; preview with: cormidia scheduler install --backend ${manager.backend}`,
+    );
   return ok ? 0 : 1;
 }
 
 function schedulerCheck(status: SchedulerOperationalStatus, configOnly: boolean): CheckRow {
   if (!status.definition.installed) {
-    return { name: status.definition.backend, status: "WARN", detail: "not installed; autonomous dispatch is not scheduled" };
+    return {
+      name: status.definition.backend,
+      status: "WARN",
+      detail: "not installed; autonomous dispatch is not scheduled",
+    };
   }
-  const definitionFailure = status.definition.reason_codes.some((reason) => [
-    "malformed_definition",
-    "ownership_mismatch",
-    "wrong_org",
-    "wrong_state_home",
-    "wrong_executable",
-    "missing_required_executable",
-    "cadence_drift",
-    "stale_definition",
-    "scheduler_state_missing",
-    "scheduler_state_corrupt",
-  ].includes(reason));
-  if (definitionFailure) return { name: status.definition.backend, status: "FAIL", detail: status.blocking_reasons.join(", ") };
+  const definitionFailure = status.definition.reason_codes.some((reason) =>
+    [
+      "malformed_definition",
+      "ownership_mismatch",
+      "wrong_org",
+      "wrong_state_home",
+      "wrong_executable",
+      "missing_required_executable",
+      "cadence_drift",
+      "stale_definition",
+      "scheduler_state_missing",
+      "scheduler_state_corrupt",
+    ].includes(reason),
+  );
+  if (definitionFailure)
+    return { name: status.definition.backend, status: "FAIL", detail: status.blocking_reasons.join(", ") };
   if (configOnly) {
-    return { name: status.definition.backend, status: "WARN", detail: "definition valid; execution health not inspected (--config-only)" };
+    return {
+      name: status.definition.backend,
+      status: "WARN",
+      detail: "definition valid; execution health not inspected (--config-only)",
+    };
   }
   return status.healthy
-    ? { name: status.definition.backend, status: "OK", detail: `healthy; last tick ${status.evidence.last_completed_tick}` }
-    : { name: status.definition.backend, status: "FAIL", detail: status.blocking_reasons.join(", ") || "health cannot be measured" };
+    ? {
+        name: status.definition.backend,
+        status: "OK",
+        detail: `healthy; last tick ${status.evidence.last_completed_tick}`,
+      }
+    : {
+        name: status.definition.backend,
+        status: "FAIL",
+        detail: status.blocking_reasons.join(", ") || "health cannot be measured",
+      };
 }
 
 async function adapterChecks(
@@ -259,9 +285,7 @@ async function adapterChecks(
           detail: "not probed because roles.yaml is unavailable",
         };
       }
-      const models = [
-        ...new Set(roles.filter((role) => role.runtime === kind).map((role) => role.model)),
-      ].sort();
+      const models = [...new Set(roles.filter((role) => role.runtime === kind).map((role) => role.model))].sort();
       if (models.length === 0) {
         return {
           name: kind,
@@ -282,9 +306,7 @@ async function adapterChecks(
         const request: RuntimeReadinessRequest = {
           runtime: kind,
           models,
-          ...(options.readinessTimeoutMs !== undefined
-            ? { timeoutMs: options.readinessTimeoutMs }
-            : {}),
+          ...(options.readinessTimeoutMs !== undefined ? { timeoutMs: options.readinessTimeoutMs } : {}),
         };
         const result = await probe(request);
         return {

@@ -15,21 +15,11 @@ import { describe, expect, it } from "vitest";
 import { SECRET_PATTERNS } from "../../../src/runtime/secret-patterns.js";
 import { scrubSecrets } from "../../../src/runtime/runlog/redact.js";
 import { makeSyntheticSecret, SYNTHETIC_SECRET_KINDS } from "../../fixtures/synthetic-secret.js";
-import {
-  detectSecretEgress,
-  findSecretEgress,
-  makeAllSeeds,
-  SecretEgressViolation,
-} from "./secret-egress-detector.js";
+import { detectSecretEgress, findSecretEgress, makeAllSeeds, SecretEgressViolation } from "./secret-egress-detector.js";
 
 /** A realistic multi-line run-log context around one planted secret. */
 function logAround(secret: string): string {
-  return [
-    "== pass output (excerpt) ==",
-    "$ deploy --dry-run",
-    `provider says: ${secret}`,
-    "exit status 0",
-  ].join("\n");
+  return ["== pass output (excerpt) ==", "$ deploy --dry-run", `provider says: ${secret}`, "exit status 0"].join("\n");
 }
 
 describe("CF-INV-011 — one shared secret policy scrubs every egress (L1 guardrail, HB-016)", () => {

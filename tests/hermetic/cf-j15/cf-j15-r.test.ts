@@ -41,14 +41,18 @@ describe("CF-J15-R — observer capability, read-only, traversal, and symlink re
 
     expect(server.host).toBe("127.0.0.1");
     assertRefused(await fetch(`http://${server.host}:${server.port}/api/v1/snapshot`));
-    expect((await fetch(`http://${server.host}:${server.port}/api/v1/snapshot`, {
-      headers: { Authorization: "Bearer wrong-token" },
-    })).status).toBe(401);
+    expect(
+      (
+        await fetch(`http://${server.host}:${server.port}/api/v1/snapshot`, {
+          headers: { Authorization: "Bearer wrong-token" },
+        })
+      ).status,
+    ).toBe(401);
 
     const authorized = { Authorization: `Bearer ${server.token}` };
     const snapshot = await fetch(`http://${server.host}:${server.port}/api/v1/snapshot`, { headers: authorized });
     expect(snapshot.status).toBe(200);
-    expect((await snapshot.json() as { org: { read_only: boolean } }).org.read_only).toBe(true);
+    expect(((await snapshot.json()) as { org: { read_only: boolean } }).org.read_only).toBe(true);
 
     const mutation = await fetch(`http://${server.host}:${server.port}/api/v1/approvals/appr-j15`, {
       method: "POST",
@@ -56,9 +60,13 @@ describe("CF-J15-R — observer capability, read-only, traversal, and symlink re
     });
     expect(mutation.status).toBe(405);
     expect(await mutation.json()).toMatchObject({ error: "method_not_allowed", read_only: true });
-    expect((await fetch(`http://${server.host}:${server.port}/api/v1/approvals/appr-j15`, {
-      headers: authorized,
-    })).status).toBe(404);
+    expect(
+      (
+        await fetch(`http://${server.host}:${server.port}/api/v1/approvals/appr-j15`, {
+          headers: authorized,
+        })
+      ).status,
+    ).toBe(404);
   });
 
   it("serves only allowlisted in-home files and refuses encoded traversal and every symlink component", async () => {
@@ -95,7 +103,8 @@ describe("CF-J15-R — observer capability, read-only, traversal, and symlink re
       `/api/v1/artifacts/%2e%2e/run-15/output`,
       `/api/v1/artifacts/${J15_APP}/%2e%2e/output`,
       `/api/v1/artifacts/${J15_APP}/run-15/not-allowlisted`,
-    ]) assertRefused(await fetch(`${root}${path}`, { headers }));
+    ])
+      assertRefused(await fetch(`${root}${path}`, { headers }));
 
     const escaped = await fetch(`${root}/api/v1/artifacts/${J15_APP}/run-link/output`, { headers });
     expect(escaped.status).toBe(403);

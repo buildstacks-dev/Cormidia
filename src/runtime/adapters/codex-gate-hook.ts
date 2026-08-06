@@ -30,10 +30,7 @@ async function main(): Promise<void> {
     }
     deny(response.reason ?? "Cormidia gate denied the tool action");
   } catch (error) {
-    deny(
-      `Cormidia Codex gate bridge failed closed: ` +
-        `${error instanceof Error ? error.message : String(error)}`,
-    );
+    deny(`Cormidia Codex gate bridge failed closed: ` + `${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -61,10 +58,7 @@ function readStdin(): Promise<unknown> {
   });
 }
 
-function requestDecision(
-  socketPath: string,
-  input: unknown,
-): Promise<{ allow: boolean; reason?: string }> {
+function requestDecision(socketPath: string, input: unknown): Promise<{ allow: boolean; reason?: string }> {
   return new Promise((resolve, reject) => {
     const socket = createConnection(socketPath);
     let output = "";
@@ -101,11 +95,7 @@ function requestDecision(
           ...(typeof record["reason"] === "string" ? { reason: record["reason"] } : {}),
         });
       } catch (error) {
-        finish(
-          new Error(
-            `invalid gate bridge response: ${error instanceof Error ? error.message : String(error)}`,
-          ),
-        );
+        finish(new Error(`invalid gate bridge response: ${error instanceof Error ? error.message : String(error)}`));
       }
     });
   });

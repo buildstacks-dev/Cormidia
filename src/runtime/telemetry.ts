@@ -11,14 +11,7 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type {
-  Effort,
-  RoleConfig,
-  Trigger,
-  TurnAssignmentSource,
-  TurnResult,
-  UsageQuality,
-} from "./types.js";
+import type { Effort, RoleConfig, Trigger, TurnAssignmentSource, TurnResult, UsageQuality } from "./types.js";
 import { scrubSecrets } from "./runlog/redact.js";
 export {
   recordInvocation,
@@ -222,9 +215,7 @@ export function settlementIdentity(record: Pick<TurnRecord, "providerTurnId" | "
 export async function recordTurnOnce(orgDir: string, record: TurnRecord): Promise<boolean> {
   const identity = settlementIdentity(record);
   if (identity === undefined) {
-    throw new Error(
-      "recordTurnOnce: providerTurnId or legacy runId is required for idempotent settlement",
-    );
+    throw new Error("recordTurnOnce: providerTurnId or legacy runId is required for idempotent settlement");
   }
   const key = settlementKey(record.app, identity);
   const release = await acquireSettlementLock(orgDir);
@@ -295,10 +286,7 @@ function pendingSettlementPath(orgDir: string): string {
 /** Persist intent before the ledger append. The global settlement lock means
  * one fixed journal path is sufficient and makes an interrupted transaction
  * discoverable by any later settlement/resume process. */
-async function writePendingSettlement(
-  orgDir: string,
-  pending: PendingSettlement,
-): Promise<void> {
+async function writePendingSettlement(orgDir: string, pending: PendingSettlement): Promise<void> {
   const path = pendingSettlementPath(orgDir);
   await writeTelemetryIndexFileAtomic(path, `${JSON.stringify(pending)}\n`);
 }
@@ -331,18 +319,16 @@ async function repairPendingSettlement(orgDir: string): Promise<void> {
 function isPendingSettlement(value: unknown): value is PendingSettlement {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const item = value as Record<string, unknown>;
-  return item["schema_version"] === 1 &&
+  return (
+    item["schema_version"] === 1 &&
     typeof item["key"] === "string" &&
     item["key"].length > 0 &&
     typeof item["ledger_day"] === "string" &&
-    /^\d{4}-\d{2}-\d{2}$/.test(item["ledger_day"]);
+    /^\d{4}-\d{2}-\d{2}$/.test(item["ledger_day"])
+  );
 }
 
-async function ledgerDayContainsSettlement(
-  orgDir: string,
-  day: string,
-  key: string,
-): Promise<boolean> {
+async function ledgerDayContainsSettlement(orgDir: string, day: string, key: string): Promise<boolean> {
   const path = join(orgDir, "telemetry", `${day}.jsonl`);
   if (!existsSync(path)) return false;
   const text = await readFile(path, "utf8");
@@ -384,7 +370,10 @@ async function loadSettledIndex(orgDir: string): Promise<Set<string>> {
     for (const key of await readSettledKeys(orgDir)) ids.add(key);
     await writeTelemetryIndexFileAtomic(
       path,
-      [...ids].sort().map((id) => `${id}\n`).join(""),
+      [...ids]
+        .sort()
+        .map((id) => `${id}\n`)
+        .join(""),
     );
     await writeTelemetryIndexFileAtomic(recoveryMarker, "1\n");
   }

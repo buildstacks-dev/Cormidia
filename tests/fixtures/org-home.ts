@@ -19,11 +19,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AuthorityProfile } from "../../src/org/authority.js";
-import {
-  initOrgHome,
-  ORG_REQUIRED_FILES,
-  type CormidiaHomeOptions,
-} from "../../src/org/home.js";
+import { initOrgHome, ORG_REQUIRED_FILES, type CormidiaHomeOptions } from "../../src/org/home.js";
 
 /** The human-ratified YAML surfaces the resolver validates. */
 export type OrgYamlSurface = "apps.yaml" | "roles.yaml" | "pipelines.yaml";
@@ -72,9 +68,7 @@ export interface MakeTempOrgHomeOptions {
   authorityProfile?: AuthorityProfile;
 }
 
-export async function makeTempOrgHome(
-  options: MakeTempOrgHomeOptions = {},
-): Promise<TempOrgHome> {
+export async function makeTempOrgHome(options: MakeTempOrgHomeOptions = {}): Promise<TempOrgHome> {
   const root = await mkdtemp(join(tmpdir(), "cormidia-fixture-org-"));
   const name = options.name ?? "fixture-org";
   const homeDir = join(root, "home");
@@ -88,9 +82,7 @@ export async function makeTempOrgHome(
     stateHome,
     homeDir,
     pointerPath,
-    ...(options.authorityProfile !== undefined
-      ? { authorityProfile: options.authorityProfile }
-      : {}),
+    ...(options.authorityProfile !== undefined ? { authorityProfile: options.authorityProfile } : {}),
   });
 
   const surfacePath = (file?: OrgYamlSurface): string => join(orgHome, file ?? "apps.yaml");

@@ -22,14 +22,18 @@ describe("HB-103/104/105 production wiring detector", () => {
 
     // Seeded negative control: a green domain-only implementation is not
     // enough if autonomous dispatch drops the delivery-unit runtime.
-    expect(() => assertProductionWiring({
-      ...sources,
-      dispatch: sources.dispatch.replace("deliveryUnits: ticketEpisode.deliveryUnits", ""),
-    })).toThrow("dispatch");
-    expect(() => assertProductionWiring({
-      ...sources,
-      factory: sources.factory.replace("workflowTemplates: ticketWorkflowTemplates(options)", ""),
-    })).toThrow("factory");
+    expect(() =>
+      assertProductionWiring({
+        ...sources,
+        dispatch: sources.dispatch.replace("deliveryUnits: ticketEpisode.deliveryUnits", ""),
+      }),
+    ).toThrow("dispatch");
+    expect(() =>
+      assertProductionWiring({
+        ...sources,
+        factory: sources.factory.replace("workflowTemplates: ticketWorkflowTemplates(options)", ""),
+      }),
+    ).toThrow("factory");
   });
 
   it("projects Planner execution groups into real multi-ticket RoadmapPlan authority", async () => {
@@ -65,8 +69,9 @@ describe("HB-103/104/105 production wiring detector", () => {
     const roadmap = await readCurrentRoadmapPlan(home.stateHome, APP.name);
     expect(roadmap?.value.deliveryUnits.map((unit) => unit.issueNumbers)).toEqual([[501, 502], [503]]);
     expect(roadmap?.value.readyFrontier).toHaveLength(1);
-    expect(roadmap?.value.deliveryUnits.find((unit) =>
-      unit.unitId === roadmap.value.readyFrontier[0])?.issueNumbers).toEqual([501, 502]);
+    expect(
+      roadmap?.value.deliveryUnits.find((unit) => unit.unitId === roadmap.value.readyFrontier[0])?.issueNumbers,
+    ).toEqual([501, 502]);
 
     // Exact replay is a no-op; a later Planner publication advances one
     // predecessor-bound version while preserving every prior open member.
@@ -82,16 +87,18 @@ describe("HB-103/104/105 production wiring detector", () => {
 
     // Seeded negative control: a two-member unit with only one member still
     // open is not normalized into a smaller authority during replanning.
-    await expect(persistPublishedRoadmap({
-      stateHome: home.stateHome,
-      app: APP,
-      gh: {
-        listIssues: async () => structuredClone(issues.filter((entry) => entry.number !== 502)),
-      } as unknown as GhOps,
-      plan,
-      published,
-      now: new Date("2026-08-03T23:31:30.000Z"),
-    })).rejects.toThrow("subset closure");
+    await expect(
+      persistPublishedRoadmap({
+        stateHome: home.stateHome,
+        app: APP,
+        gh: {
+          listIssues: async () => structuredClone(issues.filter((entry) => entry.number !== 502)),
+        } as unknown as GhOps,
+        plan,
+        published,
+        now: new Date("2026-08-03T23:31:30.000Z"),
+      }),
+    ).rejects.toThrow("subset closure");
     expect((await readCurrentRoadmapPlan(home.stateHome, APP.name))?.value.version).toBe(1);
 
     const successorPublished: PublishedTicket[] = [
@@ -101,10 +108,7 @@ describe("HB-103/104/105 production wiring detector", () => {
     const successorPlan: TicketPlan = {
       ...plan,
       ticketCountRationale: "One new cohesive successor unit.",
-      tickets: [
-        planTicket("Successor A", "successor", []),
-        planTicket("Successor B", "successor", []),
-      ],
+      tickets: [planTicket("Successor A", "successor", []), planTicket("Successor B", "successor", [])],
     };
     const successorIssues = [
       ...issues,
@@ -121,19 +125,18 @@ describe("HB-103/104/105 production wiring detector", () => {
     const successor = await readCurrentRoadmapPlan(home.stateHome, APP.name);
     expect(successor?.value.version).toBe(2);
     expect(successor?.value.predecessor).toEqual(roadmap?.ref);
-    expect(successor?.value.deliveryUnits.flatMap((unit) => unit.issueNumbers).sort((a, b) => a - b))
-      .toEqual([501, 502, 503, 601, 602]);
-    expect(successor?.value.deliveryUnits.find((unit) => unit.issueNumbers.includes(601))?.issueNumbers)
-      .toEqual([601, 602]);
+    expect(successor?.value.deliveryUnits.flatMap((unit) => unit.issueNumbers).sort((a, b) => a - b)).toEqual([
+      501, 502, 503, 601, 602,
+    ]);
+    expect(successor?.value.deliveryUnits.find((unit) => unit.issueNumbers.includes(601))?.issueNumbers).toEqual([
+      601, 602,
+    ]);
   });
 
   it("moves a previously unplanned backlog member into the next scheduled Planner unit", async () => {
     const home = await makeTempStateHome({ name: "hb105-scheduled-replan" });
     homes.push(home);
-    const issues = [
-      issue(701, "Already planned", ["op:ready"]),
-      issue(702, "Awaiting Planner", ["op:ready"]),
-    ];
+    const issues = [issue(701, "Already planned", ["op:ready"]), issue(702, "Awaiting Planner", ["op:ready"])];
     await persistPublishedRoadmap({
       stateHome: home.stateHome,
       app: APP,
@@ -148,8 +151,11 @@ describe("HB-103/104/105 production wiring detector", () => {
       published: [{ index: 0, issueNumber: 701, title: "Already planned", ready: true, labels: ["op:ready"] }],
       now: new Date("2026-08-04T00:00:00.000Z"),
     });
-    expect((await readCurrentRoadmapPlan(home.stateHome, APP.name))?.value.deliveryUnits
-      .find((unit) => unit.issueNumbers.includes(702))?.workstreamId).toBe("backlog-unplanned");
+    expect(
+      (await readCurrentRoadmapPlan(home.stateHome, APP.name))?.value.deliveryUnits.find((unit) =>
+        unit.issueNumbers.includes(702),
+      )?.workstreamId,
+    ).toBe("backlog-unplanned");
 
     await persistPublishedRoadmap({
       stateHome: home.stateHome,
@@ -181,7 +187,7 @@ const APP: AppEntry = {
   repo: "fixture/hb105",
   status: "live",
   budgetUsdMonth: 100,
-      objectiveBudgetUsd: 1000,
+  objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };

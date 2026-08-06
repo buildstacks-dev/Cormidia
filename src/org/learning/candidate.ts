@@ -81,8 +81,7 @@ export function validateCandidateArtifact(value: unknown): CandidateArtifact {
   const contentHash = requireSha256Ref(spec, "content_hash", source);
   const errorClass = optionalString(spec, "error_class", source);
   const causeHypothesis = optionalString(spec, "cause_hypothesis", source);
-  const draft =
-    spec["draft"] !== undefined ? requireRecord(spec["draft"], `${source}.draft`) : undefined;
+  const draft = spec["draft"] !== undefined ? requireRecord(spec["draft"], `${source}.draft`) : undefined;
 
   return {
     candidate_id: candidateId,

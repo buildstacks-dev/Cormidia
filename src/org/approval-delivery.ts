@@ -70,7 +70,9 @@ export interface ExecuteApprovedDeliveriesOptions {
   fault?: (boundary: "after_claim" | "after_remote") => void | Promise<void>;
 }
 
-export function githubIssueCreateAction(input: Omit<DurableGitHubIssueCreateInput, "schema_version" | "destination" | "effect">): ToolAction {
+export function githubIssueCreateAction(
+  input: Omit<DurableGitHubIssueCreateInput, "schema_version" | "destination" | "effect">,
+): ToolAction {
   validateIdempotencyKey(input.idempotency_key);
   return {
     tool: GITHUB_ISSUE_CREATE_TOOL,
@@ -84,7 +86,9 @@ export function githubIssueCreateAction(input: Omit<DurableGitHubIssueCreateInpu
   };
 }
 
-export function githubIssueCommentAction(input: Omit<DurableGitHubIssueCommentInput, "schema_version" | "destination" | "effect">): ToolAction {
+export function githubIssueCommentAction(
+  input: Omit<DurableGitHubIssueCommentInput, "schema_version" | "destination" | "effect">,
+): ToolAction {
   validateIdempotencyKey(input.idempotency_key);
   return {
     tool: GITHUB_ISSUE_COMMENT_TOOL,
@@ -114,7 +118,15 @@ export async function executeApprovedDeliveries(
     const app = options.appsFile.apps.find((entry) => entry.name === item.app);
     const parsed = parseDurableGitHubAction(item.action);
     if (app === undefined || parsed === undefined || parsed.input.repo !== app.repo) {
-      outcomes.push(await failWithoutRemote(store, item, "invalid_action", "approved GitHub delivery has invalid app/repo/action metadata", clock));
+      outcomes.push(
+        await failWithoutRemote(
+          store,
+          item,
+          "invalid_action",
+          "approved GitHub delivery has invalid app/repo/action metadata",
+          clock,
+        ),
+      );
       continue;
     }
     const gh = options.ghFor?.(app) ?? new GhCliOps(app.repo);
@@ -137,7 +149,13 @@ export async function executeApprovedDeliveries(
             now: clock(),
           });
         }
-        outcomes.push({ approvalId: item.id, app: item.app, status: "ambiguous", summary, cause: classification.cause });
+        outcomes.push({
+          approvalId: item.id,
+          app: item.app,
+          status: "ambiguous",
+          summary,
+          cause: classification.cause,
+        });
         continue;
       }
       if (reconciled !== undefined) {
@@ -149,7 +167,13 @@ export async function executeApprovedDeliveries(
           remoteRef: reconciled,
           now: clock(),
         });
-        outcomes.push({ approvalId: item.id, app: item.app, status: "executed", summary: finished.execution!.result!, remoteRef: reconciled });
+        outcomes.push({
+          approvalId: item.id,
+          app: item.app,
+          status: "executed",
+          summary: finished.execution!.result!,
+          remoteRef: reconciled,
+        });
       } else if (item.execution.state === "executing") {
         const finished = await store.finishExecution({
           id: item.id,
@@ -159,9 +183,20 @@ export async function executeApprovedDeliveries(
           failureCause: "ambiguous_remote_response",
           now: clock(),
         });
-        outcomes.push({ approvalId: item.id, app: item.app, status: "ambiguous", summary: finished.execution!.result!, cause: "ambiguous_remote_response" });
+        outcomes.push({
+          approvalId: item.id,
+          app: item.app,
+          status: "ambiguous",
+          summary: finished.execution!.result!,
+          cause: "ambiguous_remote_response",
+        });
       } else {
-        outcomes.push({ approvalId: item.id, app: item.app, status: "skipped", summary: "ambiguous delivery still requires reconciliation or human disposition" });
+        outcomes.push({
+          approvalId: item.id,
+          app: item.app,
+          status: "skipped",
+          summary: "ambiguous delivery still requires reconciliation or human disposition",
+        });
       }
       continue;
     }
@@ -179,7 +214,9 @@ export async function executeApprovedDeliveries(
       now: clock(),
     });
     if (grant === undefined) {
-      outcomes.push(await terminalFailure(store, item, "grant_unavailable", "approved action has no live matching grant", clock));
+      outcomes.push(
+        await terminalFailure(store, item, "grant_unavailable", "approved action has no live matching grant", clock),
+      );
       continue;
     }
     store.consumeGrantSync(grant.grantId, clock());
@@ -191,7 +228,7 @@ export async function executeApprovedDeliveries(
       // No mutation has been attempted yet, so even a timeout/5xx here is a
       // confirmed failed attempt rather than an ambiguous outward effect.
       const classification = classifyDeliveryError(error);
-      const state = error instanceof NonUniqueDeliveryMarkerError ? "ambiguous" as const : "failed" as const;
+      const state = error instanceof NonUniqueDeliveryMarkerError ? ("ambiguous" as const) : ("failed" as const);
       await store.finishExecution({
         id: item.id,
         state,
@@ -200,7 +237,13 @@ export async function executeApprovedDeliveries(
         failureCause: classification.cause,
         now: clock(),
       });
-      outcomes.push({ approvalId: item.id, app: item.app, status: state, summary: `preflight ${classification.summary}`, cause: classification.cause });
+      outcomes.push({
+        approvalId: item.id,
+        app: item.app,
+        status: state,
+        summary: `preflight ${classification.summary}`,
+        cause: classification.cause,
+      });
       continue;
     }
     if (existing !== undefined) {
@@ -212,7 +255,13 @@ export async function executeApprovedDeliveries(
         remoteRef: existing,
         now: clock(),
       });
-      outcomes.push({ approvalId: item.id, app: item.app, status: "executed", summary: "existing remote action matched the idempotency marker", remoteRef: existing });
+      outcomes.push({
+        approvalId: item.id,
+        app: item.app,
+        status: "executed",
+        summary: "existing remote action matched the idempotency marker",
+        remoteRef: existing,
+      });
       continue;
     }
 
@@ -224,12 +273,25 @@ export async function executeApprovedDeliveries(
       if (classification.ambiguous) {
         const reconciled = await safeReconcileExisting(gh, parsed);
         if (reconciled !== undefined) {
-          await store.finishExecution({ id: item.id, state: "executed", actor: "orchestrator/dispatch-reconcile", result: "ambiguous response reconciled to a unique remote marker", remoteRef: reconciled, now: clock() });
-          outcomes.push({ approvalId: item.id, app: item.app, status: "executed", summary: "ambiguous response reconciled to a unique remote marker", remoteRef: reconciled });
+          await store.finishExecution({
+            id: item.id,
+            state: "executed",
+            actor: "orchestrator/dispatch-reconcile",
+            result: "ambiguous response reconciled to a unique remote marker",
+            remoteRef: reconciled,
+            now: clock(),
+          });
+          outcomes.push({
+            approvalId: item.id,
+            app: item.app,
+            status: "executed",
+            summary: "ambiguous response reconciled to a unique remote marker",
+            remoteRef: reconciled,
+          });
           continue;
         }
       }
-      const state = classification.ambiguous ? "ambiguous" as const : "failed" as const;
+      const state = classification.ambiguous ? ("ambiguous" as const) : ("failed" as const);
       await store.finishExecution({
         id: item.id,
         state,
@@ -238,7 +300,13 @@ export async function executeApprovedDeliveries(
         failureCause: classification.cause,
         now: clock(),
       });
-      outcomes.push({ approvalId: item.id, app: item.app, status: state, summary: classification.summary, cause: classification.cause });
+      outcomes.push({
+        approvalId: item.id,
+        app: item.app,
+        status: state,
+        summary: classification.summary,
+        cause: classification.cause,
+      });
       continue;
     }
 
@@ -251,7 +319,13 @@ export async function executeApprovedDeliveries(
       remoteRef,
       now: clock(),
     });
-    outcomes.push({ approvalId: item.id, app: item.app, status: "executed", summary: "remote action acknowledged", remoteRef });
+    outcomes.push({
+      approvalId: item.id,
+      app: item.app,
+      status: "executed",
+      summary: "remote action acknowledged",
+      remoteRef,
+    });
   }
   return outcomes;
 }
@@ -261,22 +335,31 @@ function parseDurableGitHubAction(action: ApprovalItem["action"]): DurableGitHub
   const input = action.input;
   if (action.tool === GITHUB_ISSUE_CREATE_TOOL) {
     if (
-      input["schema_version"] !== 1 || typeof input["repo"] !== "string" ||
-      typeof input["title"] !== "string" || typeof input["body"] !== "string" ||
-      !Array.isArray(input["labels"]) || input["labels"].some((label) => typeof label !== "string") ||
-      typeof input["idempotency_key"] !== "string" || input["destination"] !== "github" ||
+      input["schema_version"] !== 1 ||
+      typeof input["repo"] !== "string" ||
+      typeof input["title"] !== "string" ||
+      typeof input["body"] !== "string" ||
+      !Array.isArray(input["labels"]) ||
+      input["labels"].some((label) => typeof label !== "string") ||
+      typeof input["idempotency_key"] !== "string" ||
+      input["destination"] !== "github" ||
       input["effect"] !== "create_issue"
-    ) return undefined;
+    )
+      return undefined;
     validateIdempotencyKey(input["idempotency_key"]);
     return { tool: GITHUB_ISSUE_CREATE_TOOL, input: input as unknown as DurableGitHubIssueCreateInput };
   }
   if (action.tool === GITHUB_ISSUE_COMMENT_TOOL) {
     if (
-      input["schema_version"] !== 1 || typeof input["repo"] !== "string" ||
-      !Number.isInteger(input["issue_number"]) || typeof input["body"] !== "string" ||
-      typeof input["idempotency_key"] !== "string" || input["destination"] !== "github" ||
+      input["schema_version"] !== 1 ||
+      typeof input["repo"] !== "string" ||
+      !Number.isInteger(input["issue_number"]) ||
+      typeof input["body"] !== "string" ||
+      typeof input["idempotency_key"] !== "string" ||
+      input["destination"] !== "github" ||
       input["effect"] !== "comment_issue"
-    ) return undefined;
+    )
+      return undefined;
     validateIdempotencyKey(input["idempotency_key"]);
     return { tool: GITHUB_ISSUE_COMMENT_TOOL, input: input as unknown as DurableGitHubIssueCommentInput };
   }
@@ -297,10 +380,7 @@ async function executeGitHubAction(gh: GhOps, action: DurableGitHubAction): Prom
     });
     return issue.url ?? `#${issue.number}`;
   }
-  await gh.commentIssue(
-    action.input.issue_number,
-    withMarker(action.input.body, action.input.idempotency_key),
-  );
+  await gh.commentIssue(action.input.issue_number, withMarker(action.input.body, action.input.idempotency_key));
   return `#${action.input.issue_number}#comment`;
 }
 
@@ -309,19 +389,25 @@ async function reconcileExisting(gh: GhOps, action: DurableGitHubAction): Promis
   if (action.tool === GITHUB_ISSUE_CREATE_TOOL) {
     // Search independently of mutable labels: removing `op:incident` must
     // not hide the marker and let a later dispatch create a duplicate.
-    const matches = (await gh.listIssues({ state: "all", limit: 1_000 }))
-      .filter((issue) => issue.body.includes(marker));
+    const matches = (await gh.listIssues({ state: "all", limit: 1_000 })).filter((issue) =>
+      issue.body.includes(marker),
+    );
     if (matches.length > 1) throw new NonUniqueDeliveryMarkerError(matches.length);
     return uniqueIssueRef(matches);
   }
-  const matches = (await gh.listIssueComments(action.input.issue_number)).filter((comment) => comment.body.includes(marker));
+  const matches = (await gh.listIssueComments(action.input.issue_number)).filter((comment) =>
+    comment.body.includes(marker),
+  );
   if (matches.length > 1) throw new NonUniqueDeliveryMarkerError(matches.length);
   return matches.length === 1 ? `#${action.input.issue_number}#comment` : undefined;
 }
 
 async function safeReconcileExisting(gh: GhOps, action: DurableGitHubAction): Promise<string | undefined> {
-  try { return await reconcileExisting(gh, action); }
-  catch { return undefined; }
+  try {
+    return await reconcileExisting(gh, action);
+  } catch {
+    return undefined;
+  }
 }
 
 function uniqueIssueRef(matches: GhIssue[]): string | undefined {
@@ -340,12 +426,17 @@ function classifyDeliveryError(error: unknown): { cause: DeliveryFailureCause; a
   const detail = error instanceof Error ? error.message : String(error);
   const raw = error instanceof GhOpsError ? `${error.stderr}\n${error.stdout}\n${detail}` : detail;
   const lower = raw.toLowerCase();
-  if (/sandbox|operation not permitted|permission denied by policy/.test(lower)) return result("sandbox_denied", false, detail);
-  if (/enotfound|could not resolve|name or service not known|dns/.test(lower)) return result("dns_failure", false, detail);
+  if (/sandbox|operation not permitted|permission denied by policy/.test(lower))
+    return result("sandbox_denied", false, detail);
+  if (/enotfound|could not resolve|name or service not known|dns/.test(lower))
+    return result("dns_failure", false, detail);
   if (/certificate|tls|ssl/.test(lower)) return result("tls_failure", false, detail);
-  if (/authentication|not logged|http 401|http 403|bad credentials/.test(lower)) return result("authentication_failure", false, detail);
-  if (/validation failed|unprocessable|http 4\d\d|not found/.test(lower)) return result("remote_rejection", false, detail);
-  if (/timeout|timed out|econnreset|socket hang up|unexpected eof|unreachable/.test(lower)) return result("ambiguous_remote_response", true, detail);
+  if (/authentication|not logged|http 401|http 403|bad credentials/.test(lower))
+    return result("authentication_failure", false, detail);
+  if (/validation failed|unprocessable|http 4\d\d|not found/.test(lower))
+    return result("remote_rejection", false, detail);
+  if (/timeout|timed out|econnreset|socket hang up|unexpected eof|unreachable/.test(lower))
+    return result("ambiguous_remote_response", true, detail);
   if (/http 5\d\d|api\.github\.com/.test(lower)) return result("remote_api_failure", true, detail);
   return result("ambiguous_remote_response", true, detail);
 }
@@ -361,7 +452,14 @@ async function terminalFailure(
   summary: string,
   clock: () => Date,
 ): Promise<ApprovalDeliveryOutcome> {
-  await store.finishExecution({ id: item.id, state: "failed", actor: "orchestrator/dispatch", result: summary, failureCause: cause, now: clock() });
+  await store.finishExecution({
+    id: item.id,
+    state: "failed",
+    actor: "orchestrator/dispatch",
+    result: summary,
+    failureCause: cause,
+    now: clock(),
+  });
   return { approvalId: item.id, app: item.app, status: "failed", summary, cause };
 }
 

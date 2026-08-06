@@ -1,19 +1,7 @@
-import {
-  resolvedRuntimeCapabilities,
-} from "../runtime/capabilities.js";
+import { resolvedRuntimeCapabilities } from "../runtime/capabilities.js";
 import { turnAssignmentsEqual } from "../runtime/assignment.js";
-import type {
-  AdmissionFactor,
-  AuthorizedPass,
-  RouteAdmissionInput,
-  RouteBudget,
-} from "./efficiency.js";
-import type {
-  AllowedTurnAssignment,
-  EpisodeIntent,
-  ProviderTurnStep,
-  SafetyFactKind,
-} from "./episode-plan.js";
+import type { AdmissionFactor, AuthorizedPass, RouteAdmissionInput, RouteBudget } from "./efficiency.js";
+import type { AllowedTurnAssignment, EpisodeIntent, ProviderTurnStep, SafetyFactKind } from "./episode-plan.js";
 import { episodePlanHash, type EpisodePlan } from "./episode-plan.js";
 import type { TicketTier } from "./pipelines.js";
 
@@ -65,17 +53,10 @@ export function planRouteLabel(plan: EpisodePlan): TicketTier {
   return label;
 }
 
-function authorizedPassForStep(
-  step: ProviderTurnStep,
-  plan: EpisodePlan,
-  intent: EpisodeIntent,
-): AuthorizedPass {
+function authorizedPassForStep(step: ProviderTurnStep, plan: EpisodePlan, intent: EpisodeIntent): AuthorizedPass {
   const candidate = exactCandidate(intent.allowedAssignments, step);
   const canonicalCapabilities = resolvedRuntimeCapabilities(step.assignment.harness);
-  if (
-    JSON.stringify([...candidate.capabilities].sort()) !==
-      JSON.stringify(canonicalCapabilities)
-  ) {
+  if (JSON.stringify([...candidate.capabilities].sort()) !== JSON.stringify(canonicalCapabilities)) {
     throw new Error(
       `assignment metadata for ${step.id} does not match the registered ${step.assignment.harness} capability profile`,
     );
@@ -98,14 +79,9 @@ function authorizedPassForStep(
   };
 }
 
-function exactCandidate(
-  candidates: readonly AllowedTurnAssignment[],
-  step: ProviderTurnStep,
-): AllowedTurnAssignment {
+function exactCandidate(candidates: readonly AllowedTurnAssignment[], step: ProviderTurnStep): AllowedTurnAssignment {
   const matching = candidates.filter(
-    (candidate) =>
-      candidate.role === step.role &&
-      turnAssignmentsEqual(candidate.assignment, step.assignment),
+    (candidate) => candidate.role === step.role && turnAssignmentsEqual(candidate.assignment, step.assignment),
   );
   if (matching.length !== 1) {
     throw new Error(
@@ -134,11 +110,13 @@ function hardBudgetProjection(intent: EpisodeIntent): Partial<RouteBudget> {
 }
 
 function factorsForPlan(plan: EpisodePlan, intent: EpisodeIntent): AdmissionFactor[] {
-  const factors: AdmissionFactor[] = [{
-    kind: "evidence_quality",
-    evidence: `validated EpisodePlan v${plan.version} (${plan.workflowClass})`,
-    policy_rule: EPISODE_PLAN_FACTOR_RULE,
-  }];
+  const factors: AdmissionFactor[] = [
+    {
+      kind: "evidence_quality",
+      evidence: `validated EpisodePlan v${plan.version} (${plan.workflowClass})`,
+      policy_rule: EPISODE_PLAN_FACTOR_RULE,
+    },
+  ];
   for (const fact of intent.requiredSafetyFacts) {
     const kind = factorKindForSafetyFact(fact.kind);
     factors.push({

@@ -10,12 +10,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadApps } from "../../src/org/apps.js";
 import { resolveAuthority } from "../../src/org/authority.js";
-import {
-  ORG_REQUIRED_FILES,
-  readActiveOrgPointer,
-  resolveCormidiaHomes,
-  validateOrgHome,
-} from "../../src/org/home.js";
+import { ORG_REQUIRED_FILES, readActiveOrgPointer, resolveCormidiaHomes, validateOrgHome } from "../../src/org/home.js";
 import { makeTempOrgHome, type TempOrgHome } from "./org-home.js";
 import { assertNonEmptyWalk } from "./walk.js";
 

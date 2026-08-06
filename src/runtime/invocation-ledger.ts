@@ -79,10 +79,7 @@ export async function recordInvocation(stateHome: string, record: InvocationReco
 /** Persist command intent before command execution. If a process dies, the
  * running journal remains explicit evidence instead of disappearing. A later
  * terminalization of the same identity is idempotent. */
-export async function beginCliInvocation(
-  stateHome: string,
-  invocation: RunningCliInvocation,
-): Promise<void> {
+export async function beginCliInvocation(stateHome: string, invocation: RunningCliInvocation): Promise<void> {
   assertInvocationId(invocation.invocationId);
   await reconcileCliInvocations(stateHome);
   await mkdir(invocationJournalDir(stateHome), { recursive: true });
@@ -99,12 +96,19 @@ export async function beginCliInvocation(
     }
     return;
   }
-  await writeAtomic(path, `${JSON.stringify({
-    schema_version: 1,
-    state: "running",
-    pid: process.pid,
-    invocation,
-  } satisfies RunningInvocationJournal, null, 2)}\n`);
+  await writeAtomic(
+    path,
+    `${JSON.stringify(
+      {
+        schema_version: 1,
+        state: "running",
+        pid: process.pid,
+        invocation,
+      } satisfies RunningInvocationJournal,
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 /** Write terminal intent before touching the append-only ledger, then append
@@ -118,12 +122,19 @@ export async function finishCliInvocation(
   assertInvocationId(record.invocationId);
   await mkdir(invocationJournalDir(stateHome), { recursive: true });
   const path = invocationJournalPath(stateHome, record.invocationId);
-  await writeAtomic(path, `${JSON.stringify({
-    schema_version: 1,
-    state: "terminal",
-    pid: process.pid,
-    invocation: record,
-  } satisfies TerminalInvocationJournal, null, 2)}\n`);
+  await writeAtomic(
+    path,
+    `${JSON.stringify(
+      {
+        schema_version: 1,
+        state: "terminal",
+        pid: process.pid,
+        invocation: record,
+      } satisfies TerminalInvocationJournal,
+      null,
+      2,
+    )}\n`,
+  );
   await appendInvocationOnce(stateHome, record);
   await rm(path, { force: true });
 }
@@ -132,10 +143,7 @@ export async function finishCliInvocation(
  * success/failure row: it is durable crash evidence that an operator can
  * inspect, while a later process may terminalize it with the original stable
  * identity once the outcome is known. */
-export async function reconcileCliInvocations(
-  stateHome: string,
-  now: Date = new Date(),
-): Promise<number> {
+export async function reconcileCliInvocations(stateHome: string, now: Date = new Date()): Promise<number> {
   let names: string[];
   try {
     names = await readdir(invocationJournalDir(stateHome));
@@ -148,9 +156,7 @@ export async function reconcileCliInvocations(
     if (!name.endsWith(".json")) continue;
     const path = join(invocationJournalDir(stateHome), name);
     const journal = parseJournal(await readFile(path, "utf8"));
-    const terminal = journal.state === "terminal"
-      ? journal.invocation
-      : abandonedInvocation(journal, now);
+    const terminal = journal.state === "terminal" ? journal.invocation : abandonedInvocation(journal, now);
     if (terminal === undefined) continue;
     await appendInvocationOnce(stateHome, terminal);
     await rm(path, { force: true });
@@ -165,31 +171,27 @@ export async function appendInvocationOnce(
 ): Promise<boolean> {
   assertInvocationId(record.invocationId);
   const lockPath = join(stateHome, "state", "invocation-ledger.lock");
-  return withFileLock(
-    lockPath,
-    { staleMs: LOCK_STALE_MS, maxWaitMs: LOCK_WAIT_MS },
-    async () => {
-      const day = record.at.slice(0, 10);
-      const ledgerPath = join(stateHome, "invocations", `${day}.jsonl`);
-      try {
-        const text = await readFile(ledgerPath, "utf8");
-        for (const line of text.split("\n")) {
-          if (line.trim().length === 0) continue;
-          try {
-            const row = JSON.parse(line) as Partial<InvocationRecord>;
-            if (row.invocationId === record.invocationId) return false;
-          } catch {
-            // A torn unrelated line is not authority to duplicate this id.
-            // Keep scanning the remaining complete rows.
-          }
+  return withFileLock(lockPath, { staleMs: LOCK_STALE_MS, maxWaitMs: LOCK_WAIT_MS }, async () => {
+    const day = record.at.slice(0, 10);
+    const ledgerPath = join(stateHome, "invocations", `${day}.jsonl`);
+    try {
+      const text = await readFile(ledgerPath, "utf8");
+      for (const line of text.split("\n")) {
+        if (line.trim().length === 0) continue;
+        try {
+          const row = JSON.parse(line) as Partial<InvocationRecord>;
+          if (row.invocationId === record.invocationId) return false;
+        } catch {
+          // A torn unrelated line is not authority to duplicate this id.
+          // Keep scanning the remaining complete rows.
         }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
-      await recordInvocation(stateHome, record);
-      return true;
-    },
-  );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    await recordInvocation(stateHome, record);
+    return true;
+  });
 }
 
 export function invocationJournalPath(stateHome: string, invocationId: string): string {

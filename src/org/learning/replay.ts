@@ -57,61 +57,27 @@ import {
   type EpisodeStepExecutionContext,
   type EpisodeStepFailedOutcome,
 } from "../../loop/episode-plan-executor.js";
-import {
-  publishEpisodePlanRevision,
-  requestEpisodeReplan,
-} from "../../loop/episode-replan.js";
-import {
-  EPISODE_PLAN_EXECUTION_PIPELINE,
-  planRouteLabel,
-} from "../../loop/episode-route.js";
+import { publishEpisodePlanRevision, requestEpisodeReplan } from "../../loop/episode-replan.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../../loop/episode-route.js";
 import { loadGateCommands, DEFAULT_LOOP_POLICY } from "../../loop/driver.js";
 import { criterionTestMapFromContractText, parseAcceptanceCriteria } from "../../loop/loop.js";
 import { executePipeline } from "../../loop/pipeline.js";
 import { loadPolicy, resolveTier } from "../../loop/policy.js";
 import { runGates, type GateRunResult } from "../../loop/qgates.js";
-import {
-  parseVerdictEither,
-  validateVerdict,
-  VERDICT_SCHEMAS,
-  type ReviewVerdict,
-} from "../../loop/verdicts.js";
-import {
-  fixedAssignmentFromRole,
-  turnAssignmentsEqual,
-} from "../../runtime/assignment.js";
-import {
-  isRuntimeCapability,
-  type RuntimeCapability,
-} from "../../runtime/capabilities.js";
+import { parseVerdictEither, validateVerdict, VERDICT_SCHEMAS, type ReviewVerdict } from "../../loop/verdicts.js";
+import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../../runtime/assignment.js";
+import { isRuntimeCapability, type RuntimeCapability } from "../../runtime/capabilities.js";
 import { defaultGate } from "../../runtime/gate.js";
 import { readEnvelope } from "../../runtime/runlog/envelope.js";
-import {
-  probeRuntimeReadiness,
-  type RuntimeReadinessProbe,
-} from "../../runtime/readiness.js";
+import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../../runtime/readiness.js";
 import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
-import type {
-  ContextBundle,
-  RoleConfig,
-  Runtime,
-  TurnAssignment,
-  TurnHooks,
-} from "../../runtime/types.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../../runtime/types.js";
 import type { AppEntry } from "../apps.js";
 import { assembleContext } from "../context.js";
 import { resolveAppAssignments } from "../execution-assignments.js";
-import {
-  readPersistedEpisodeIntent,
-  prepareEpisodePlan,
-} from "../episode-planner/coordinator.js";
-import {
-  executeAcceptedEpisodePlan,
-} from "../episode-planner/execution.js";
-import {
-  buildEpisodeIntent,
-  createEpisodePlanningPolicy,
-} from "../episode-planner/policy.js";
+import { readPersistedEpisodeIntent, prepareEpisodePlan } from "../episode-planner/coordinator.js";
+import { executeAcceptedEpisodePlan } from "../episode-planner/execution.js";
+import { buildEpisodeIntent, createEpisodePlanningPolicy } from "../episode-planner/policy.js";
 import { orgLearningRoot, appLearningRoot, renderActivatedConcept } from "./concepts.js";
 import { conceptDraftPath, findCandidateArtifact } from "./candidate-store.js";
 import type { CandidateArtifact } from "./candidate.js";
@@ -230,10 +196,8 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
     async attempt(request: ReplayAttemptRequest): Promise<ReplayAttempt> {
       validateReplayRequest(options, request);
       const fixture = request.fixture;
-      const brief = fixture.input.brief!;
       const seedCommit = fixture.seed.commit!;
-      const roles = Object.values(options.roles)
-        .sort((left, right) => left.name.localeCompare(right.name));
+      const roles = Object.values(options.roles).sort((left, right) => left.name.localeCompare(right.name));
       const builder = requireRole(options.roles, "builder");
       const reviewer = requireRole(options.roles, "reviewer");
       const app = replayApp(options.app, request);
@@ -249,9 +213,8 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
         learningPolicy: options.policy,
       });
       const intent = replayIntent(request, app, roles, definition);
-      const independentReview = request.mode === "full"
-        ? { subjectRoles: [builder.name], reviewerRoles: [reviewer.name] }
-        : undefined;
+      const independentReview =
+        request.mode === "full" ? { subjectRoles: [builder.name], reviewerRoles: [reviewer.name] } : undefined;
       const planningPolicy = createEpisodePlanningPolicy(app, {
         intent,
         roles,
@@ -262,9 +225,7 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
       if (plan !== undefined) {
         const persistedIntent = await readPersistedEpisodeIntent(options.stateHome, episodeId);
         if (persistedIntent === undefined || stableHash(persistedIntent) !== stableHash(intent)) {
-          throw new Error(
-            `learning: durable replay episode ${episodeId} belongs to different immutable inputs`,
-          );
+          throw new Error(`learning: durable replay episode ${episodeId} belongs to different immutable inputs`);
         }
         assertReplayPlan(plan, definition);
         if (!existsSync(worktree)) {
@@ -274,10 +235,7 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
             plan.version === 1 &&
             journal?.status === "failed" &&
             journalFailureCode(journal) === "error_learning_replay_review_findings";
-          if (
-            !pendingFindingsRevision &&
-            (journal?.status === "completed" || journal?.status === "failed")
-          ) {
+          if (!pendingFindingsRevision && (journal?.status === "completed" || journal?.status === "failed")) {
             return deriveReplayAttempt(options.stateHome, request, plan, journal);
           }
           throw new Error(
@@ -287,24 +245,21 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
         }
       }
 
-      ensureSeedWorktree(
-        options.localRepo,
-        worktree,
-        `replay/${attemptSlug}`,
-        seedCommit,
-      );
+      ensureSeedWorktree(options.localRepo, worktree, `replay/${attemptSlug}`, seedCommit);
       let terminalAttempt = false;
       try {
         if (plan === undefined) {
-          plan = (await prepareEpisodePlan({
-            root: options.stateHome,
-            app,
-            roles,
-            intent,
-            now: clock,
-            ...(independentReview === undefined ? {} : { independentReview }),
-            validateAcceptedPlan: (accepted) => assertReplayPlan(accepted, definition),
-          })).plan;
+          plan = (
+            await prepareEpisodePlan({
+              root: options.stateHome,
+              app,
+              roles,
+              intent,
+              now: clock,
+              ...(independentReview === undefined ? {} : { independentReview }),
+              validateAcceptedPlan: (accepted) => assertReplayPlan(accepted, definition),
+            })
+          ).plan;
         }
 
         let execution = await executeReplayPlan({
@@ -396,10 +351,7 @@ interface ReplayVerdictEvidence {
   verdict: ReviewVerdict;
 }
 
-function validateReplayRequest(
-  options: LoopReplayExecutorOptions,
-  request: ReplayAttemptRequest,
-): void {
+function validateReplayRequest(options: LoopReplayExecutorOptions, request: ReplayAttemptRequest): void {
   const { fixture, arm } = request;
   if (fixture.validated_by === null) {
     throw new Error(
@@ -421,8 +373,7 @@ function validateReplayRequest(
   }
   if (options.app.name !== request.experiment.eligibility.app) {
     throw new Error(
-      `learning: replay app ${options.app.name} does not match experiment app ` +
-        request.experiment.eligibility.app,
+      `learning: replay app ${options.app.name} does not match experiment app ` + request.experiment.eligibility.app,
     );
   }
 }
@@ -467,15 +418,14 @@ function buildReplayDefinition(input: {
 }): ReplayPlanDefinition {
   const resolved = resolveAppAssignments(input.app, input.roles);
   const builderChoice = selectReplayAssignment(resolved, input.builder.name);
-  const reviewerChoice = input.request.mode === "full"
-    ? selectReplayAssignment(resolved, input.reviewer.name, builderChoice.providerFamily)
-    : undefined;
-  const experimentCap = input.request.experiment.efficacy_protocol?.budget.max_usd ??
+  const reviewerChoice =
+    input.request.mode === "full"
+      ? selectReplayAssignment(resolved, input.reviewer.name, builderChoice.providerFamily)
+      : undefined;
+  const experimentCap =
+    input.request.experiment.efficacy_protocol?.budget.max_usd ??
     input.learningPolicy.learning_budget.per_candidate_replay_usd;
-  const maxEquivalentCostUsd = Math.min(
-    input.learningPolicy.learning_budget.per_candidate_replay_usd,
-    experimentCap,
-  );
+  const maxEquivalentCostUsd = Math.min(input.learningPolicy.learning_budget.per_candidate_replay_usd, experimentCap);
   if (!Number.isFinite(maxEquivalentCostUsd) || maxEquivalentCostUsd <= 0) {
     throw new Error("learning: replay has no positive bounded learning budget");
   }
@@ -503,9 +453,10 @@ function buildReplayDefinition(input: {
       objective: spec.objective,
       dependsOn: [...spec.dependsOn],
       requiredCapabilities: [],
-      inputRefs: spec.dependsOn.length === 0
-        ? [{ ref: `fixture:${input.request.fixture.fixture_id}`, required: true }]
-        : spec.dependsOn.map((id) => ({ ref: `plan-step:${id}`, required: true })),
+      inputRefs:
+        spec.dependsOn.length === 0
+          ? [{ ref: `fixture:${input.request.fixture.fixture_id}`, required: true }]
+          : spec.dependsOn.map((id) => ({ ref: `plan-step:${id}`, required: true })),
       expectedOutputs: [{ id: spec.outputId, kind: spec.outputKind, required: true }],
       maxTurnBudgetUsd: budgetFor(spec.choice),
       selectionReason:
@@ -600,15 +551,7 @@ function buildReplayDefinition(input: {
       outputId: "replay-rereview-verdict",
       outputKind: "review-verdict",
     });
-    v2Steps = [
-      build,
-      gates,
-      review,
-      fix,
-      regate,
-      rereview,
-      { ...decision, dependsOn: [REPLAY_STEP_IDS.rereview] },
-    ];
+    v2Steps = [build, gates, review, fix, regate, rereview, { ...decision, dependsOn: [REPLAY_STEP_IDS.rereview] }];
   }
 
   const finalOutput: PlannedOutput = {
@@ -616,8 +559,7 @@ function buildReplayDefinition(input: {
     kind: input.request.mode === "targeted" ? "targeted-replay-outcome" : "full-replay-outcome",
     required: true,
   };
-  const declaredAt = input.request.experiment.efficacy_protocol?.declared_at ??
-    input.request.fixture.drafted_at;
+  const declaredAt = input.request.experiment.efficacy_protocol?.declared_at ?? input.request.fixture.drafted_at;
   const scope: CreatorEpisodeScope = {
     planningDisposition: "execution_ready",
     provenance: {
@@ -631,9 +573,10 @@ function buildReplayDefinition(input: {
       ],
     },
     workKind: `learning-replay:${input.request.mode}`,
-    objective: input.request.mode === "targeted"
-      ? "Run one bounded Builder replay and deterministic quality gates"
-      : "Run a bounded Builder replay, deterministic gates, and independent review",
+    objective:
+      input.request.mode === "targeted"
+        ? "Run one bounded Builder replay and deterministic quality gates"
+        : "Run a bounded Builder replay, deterministic gates, and independent review",
     inScope: [
       "the independently validated fixture brief",
       "the fixture seed worktree",
@@ -645,9 +588,10 @@ function buildReplayDefinition(input: {
       "deployment",
       "expected outcomes and grader targets in provider-visible context",
     ],
-    acceptanceCriteria: input.request.mode === "targeted"
-      ? ["the build provider turn completes and deterministic quality gates pass"]
-      : ["deterministic quality gates pass and an independent reviewer approves"],
+    acceptanceCriteria:
+      input.request.mode === "targeted"
+        ? ["the build provider turn completes and deterministic quality gates pass"]
+        : ["deterministic quality gates pass and an independent reviewer approves"],
     expectedArtifacts: [finalOutput],
     declaredConstraints: {
       operationCatalog: { ...REPLAY_OPERATION_CATALOG },
@@ -656,9 +600,10 @@ function buildReplayDefinition(input: {
       deployment: "forbidden",
       maximumFindingsRevisionCount: input.request.mode === "full" ? 1 : 0,
     },
-    safetyFacts: input.request.mode === "full"
-      ? [{ kind: "independent_review", evidenceRefs: ["learning-replay:full-mode"] }]
-      : [],
+    safetyFacts:
+      input.request.mode === "full"
+        ? [{ kind: "independent_review", evidenceRefs: ["learning-replay:full-mode"] }]
+        : [],
     steps: structuredClone(v1Steps),
   };
   return {
@@ -683,9 +628,9 @@ function selectReplayAssignment(
   independentFromProviderFamily?: string,
 ) {
   const candidates = resolved.roles.find((entry) => entry.role === roleName)?.assignments ?? [];
-  const selected = candidates.find((candidate) =>
-    independentFromProviderFamily === undefined ||
-    candidate.providerFamily !== independentFromProviderFamily,
+  const selected = candidates.find(
+    (candidate) =>
+      independentFromProviderFamily === undefined || candidate.providerFamily !== independentFromProviderFamily,
   );
   if (selected === undefined) {
     throw new Error(
@@ -735,11 +680,12 @@ function replayIntent(
 }
 
 function assertReplayPlan(plan: EpisodePlan, definition: ReplayPlanDefinition): void {
-  const expected = plan.version === 1
-    ? definition.v1Steps
-    : plan.version === 2 && definition.v2Steps !== null
-      ? definition.v2Steps
-      : undefined;
+  const expected =
+    plan.version === 1
+      ? definition.v1Steps
+      : plan.version === 2 && definition.v2Steps !== null
+        ? definition.v2Steps
+        : undefined;
   if (
     expected === undefined ||
     plan.episodeId !== definition.episodeId ||
@@ -813,28 +759,28 @@ async function publishFindingsRevision(input: {
     },
     now: new Date(detectedAt),
   });
-  const materialized = materializeEpisodePlanAssignments({
-    ...structuredClone(input.previous),
-    version: 2,
-    summary: "Address review findings, re-run gates, and independently re-review",
-    steps: structuredClone(input.definition.v2Steps),
-    // Assignment materialization does not consume this field; exact
-    // arithmetic is recomputed immediately from the materialized steps.
-    estimatedBudget: {
-      providerTurns: 0,
-      providerTurnBudgetUsd: 0,
-      mechanicalOverheadUsd: 0,
-      totalBudgetUsd: 0,
+  const materialized = materializeEpisodePlanAssignments(
+    {
+      ...structuredClone(input.previous),
+      version: 2,
+      summary: "Address review findings, re-run gates, and independently re-review",
+      steps: structuredClone(input.definition.v2Steps),
+      // Assignment materialization does not consume this field; exact
+      // arithmetic is recomputed immediately from the materialized steps.
+      estimatedBudget: {
+        providerTurns: 0,
+        providerTurnBudgetUsd: 0,
+        mechanicalOverheadUsd: 0,
+        totalBudgetUsd: 0,
+      },
+      createdAt: detectedAt,
     },
-    createdAt: detectedAt,
-  }, input.policy);
+    input.policy,
+  );
   const plan: EpisodePlan = {
     ...materialized,
     estimatedBudget: estimateEpisodePlanBudget(materialized.steps, 0),
-    derivedSafetyRoute: deriveEpisodeSafetyRoute(
-      materialized.steps,
-      input.intent.requiredSafetyFacts,
-    ),
+    derivedSafetyRoute: deriveEpisodeSafetyRoute(materialized.steps, input.intent.requiredSafetyFacts),
   };
   assertReplayPlan(plan, input.definition);
   await publishEpisodePlanRevision({
@@ -890,12 +836,7 @@ async function executeReplayProviderStep(
   execution: EpisodeStepExecutionContext,
 ): Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome> {
   assertReplayProviderOperation(step);
-  const prior = await replayProviderEvidence(
-    input.options.stateHome,
-    input.app.name,
-    input.plan,
-    step,
-  );
+  const prior = await replayProviderEvidence(input.options.stateHome, input.app.name, input.plan, step);
   if (prior !== undefined) {
     await input.options.afterProviderEvidence?.({
       episodeId: input.plan.episodeId,
@@ -923,8 +864,7 @@ async function executeReplayProviderStep(
       },
       selection: { tier: planRouteLabel(input.plan) },
       roles: { [role.name]: role },
-      runtimeFor: (selected) =>
-        input.options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
+      runtimeFor: (selected) => input.options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
       runtimeForAssignment: input.options.runtimeForAssignment,
       briefFor: () => task,
       promptsDir: input.options.orgHome,
@@ -958,9 +898,9 @@ async function executeReplayProviderStep(
       ...(withReviewVerdict
         ? {
             verdictSchemaFor: () => VERDICT_SCHEMAS.review,
-            recordVerdict: async (ctx: Parameters<NonNullable<
-              Parameters<typeof executePipeline>[0]["recordVerdict"]
-            >>[0]) => {
+            recordVerdict: async (
+              ctx: Parameters<NonNullable<Parameters<typeof executePipeline>[0]["recordVerdict"]>>[0],
+            ) => {
               const parsed = parseVerdictEither("review", ctx.result.summary);
               if (!parsed.ok) {
                 return {
@@ -991,20 +931,13 @@ async function executeReplayProviderStep(
         orgDir: input.options.stateHome,
         trigger: "manual",
         experimentRef: input.request.experiment.experiment_id,
-        ...(input.options.candidateRef === undefined
-          ? {}
-          : { candidateRef: input.options.candidateRef }),
+        ...(input.options.candidateRef === undefined ? {} : { candidateRef: input.options.candidateRef }),
       },
     });
   } catch (error) {
     transportError = error;
   }
-  const evidence = await replayProviderEvidence(
-    input.options.stateHome,
-    input.app.name,
-    input.plan,
-    step,
-  );
+  const evidence = await replayProviderEvidence(input.options.stateHome, input.app.name, input.plan, step);
   if (evidence === undefined) {
     throw new Error(
       `learning: replay provider step ${step.id} ended without terminal evidence` +
@@ -1049,20 +982,14 @@ async function executeReplayMechanicalStep(
         };
   }
   if (step.gate === REPLAY_OPERATION_CATALOG.reviewDecision) {
-    const reviewStepId = input.plan.version === 1
-      ? REPLAY_STEP_IDS.review
-      : REPLAY_STEP_IDS.rereview;
-    const reviewStep = input.plan.steps.find((candidate): candidate is ProviderTurnStep =>
-      candidate.kind === "provider_turn" && candidate.id === reviewStepId);
+    const reviewStepId = input.plan.version === 1 ? REPLAY_STEP_IDS.review : REPLAY_STEP_IDS.rereview;
+    const reviewStep = input.plan.steps.find(
+      (candidate): candidate is ProviderTurnStep => candidate.kind === "provider_turn" && candidate.id === reviewStepId,
+    );
     if (reviewStep === undefined) {
       throw new Error(`learning: replay decision has no ${reviewStepId} provider step`);
     }
-    const evidence = await replayProviderEvidence(
-      input.options.stateHome,
-      input.app.name,
-      input.plan,
-      reviewStep,
-    );
+    const evidence = await replayProviderEvidence(input.options.stateHome, input.app.name, input.plan, reviewStep);
     if (evidence === undefined || evidence.record.status !== "completed") {
       return {
         status: "failed",
@@ -1070,11 +997,7 @@ async function executeReplayMechanicalStep(
         summary: `replay decision lacks completed evidence for ${reviewStepId}`,
       };
     }
-    const verdict = await replayVerdictForEvidence(
-      input.options.stateHome,
-      input.plan.episodeId,
-      evidence,
-    );
+    const verdict = await replayVerdictForEvidence(input.options.stateHome, input.plan.episodeId, evidence);
     if (verdict === undefined) {
       return {
         status: "failed",
@@ -1116,22 +1039,14 @@ async function replayTaskForStep(
     return reviewBrief(brief, input.worktree, input.request.fixture.seed.commit!);
   }
   if (step.operation === REPLAY_OPERATION_CATALOG.fix) {
-    const review = input.plan.steps.find((candidate): candidate is ProviderTurnStep =>
-      candidate.kind === "provider_turn" && candidate.id === REPLAY_STEP_IDS.review);
+    const review = input.plan.steps.find(
+      (candidate): candidate is ProviderTurnStep =>
+        candidate.kind === "provider_turn" && candidate.id === REPLAY_STEP_IDS.review,
+    );
     if (review === undefined) throw new Error("learning: replay fix lacks the initial review step");
-    const evidence = await replayProviderEvidence(
-      input.options.stateHome,
-      input.app.name,
-      input.plan,
-      review,
-      true,
-    );
+    const evidence = await replayProviderEvidence(input.options.stateHome, input.app.name, input.plan, review, true);
     if (evidence === undefined) throw new Error("learning: replay fix lacks durable review evidence");
-    const verdict = await replayVerdictForEvidence(
-      input.options.stateHome,
-      input.plan.episodeId,
-      evidence,
-    );
+    const verdict = await replayVerdictForEvidence(input.options.stateHome, input.plan.episodeId, evidence);
     if (verdict?.verdict !== "findings") {
       throw new Error("learning: replay fix requires one durable findings verdict");
     }
@@ -1141,13 +1056,14 @@ async function replayTaskForStep(
 }
 
 function assertReplayProviderOperation(step: ProviderTurnStep): void {
-  const expected = step.id === REPLAY_STEP_IDS.build
-    ? REPLAY_OPERATION_CATALOG.build
-    : step.id === REPLAY_STEP_IDS.fix
-      ? REPLAY_OPERATION_CATALOG.fix
-      : step.id === REPLAY_STEP_IDS.review || step.id === REPLAY_STEP_IDS.rereview
-        ? REPLAY_OPERATION_CATALOG.review
-        : undefined;
+  const expected =
+    step.id === REPLAY_STEP_IDS.build
+      ? REPLAY_OPERATION_CATALOG.build
+      : step.id === REPLAY_STEP_IDS.fix
+        ? REPLAY_OPERATION_CATALOG.fix
+        : step.id === REPLAY_STEP_IDS.review || step.id === REPLAY_STEP_IDS.rereview
+          ? REPLAY_OPERATION_CATALOG.review
+          : undefined;
   if (expected === undefined || step.operation !== expected) {
     throw new Error(`learning: replay provider operation ${step.operation}/${step.id} is not catalogued`);
   }
@@ -1160,11 +1076,12 @@ async function replayProviderEvidence(
   step: ProviderTurnStep,
   includePriorVersions = false,
 ): Promise<ReplayProviderEvidence | undefined> {
-  const matches = (await readExecutionSteps(root, plan.episodeId)).filter((record) =>
-    record.kind === "provider" &&
-    (record.plan_version === plan.version ||
-      (includePriorVersions && record.plan_version !== undefined && record.plan_version < plan.version)) &&
-    record.plan_step_id === step.id,
+  const matches = (await readExecutionSteps(root, plan.episodeId)).filter(
+    (record) =>
+      record.kind === "provider" &&
+      (record.plan_version === plan.version ||
+        (includePriorVersions && record.plan_version !== undefined && record.plan_version < plan.version)) &&
+      record.plan_step_id === step.id,
   );
   if (matches.length > 1) {
     throw new Error(`learning: replay step ${step.id} has ${matches.length} terminal provider records`);
@@ -1188,16 +1105,8 @@ async function replayProviderEvidence(
   };
 }
 
-function replayVerdictPath(
-  root: string,
-  episodeId: string,
-  planVersion: number,
-  stepId: string,
-): string {
-  return join(
-    efficiencyEpisodeDir(root, episodeId),
-    `replay-verdict-v${planVersion}-${stepId}.json`,
-  );
+function replayVerdictPath(root: string, episodeId: string, planVersion: number, stepId: string): string {
+  return join(efficiencyEpisodeDir(root, episodeId), `replay-verdict-v${planVersion}-${stepId}.json`);
 }
 
 async function persistReplayVerdict(input: {
@@ -1218,19 +1127,12 @@ async function persistReplayVerdict(input: {
     outputSha256: fingerprint(input.output),
     verdict: structuredClone(input.verdict),
   };
-  const path = replayVerdictPath(
-    input.root,
-    input.episodeId,
-    input.planVersion,
-    input.stepId,
-  );
+  const path = replayVerdictPath(input.root, input.episodeId, input.planVersion, input.stepId);
   const won = await writeLoopFileOnce(path, `${JSON.stringify(evidence, null, 2)}\n`);
   if (won) return;
   const prior = await readReplayVerdictFile(path);
   if (stableHash(prior) !== stableHash(evidence)) {
-    throw new Error(
-      `learning: replay verdict evidence for ${input.stepId} already contains different bytes`,
-    );
+    throw new Error(`learning: replay verdict evidence for ${input.stepId} already contains different bytes`);
   }
 }
 
@@ -1252,9 +1154,7 @@ async function replayVerdictForEvidence(
     evidence.runId !== provider.record.run_id ||
     evidence.outputSha256 !== fingerprint(provider.output)
   ) {
-    throw new Error(
-      `learning: replay verdict evidence for ${stepId} does not match its provider output`,
-    );
+    throw new Error(`learning: replay verdict evidence for ${stepId} does not match its provider output`);
   }
   return structuredClone(evidence.verdict);
 }
@@ -1264,25 +1164,14 @@ async function readReplayVerdictFile(path: string): Promise<ReplayVerdictEvidenc
   try {
     raw = JSON.parse(await readFile(path, "utf8")) as unknown;
   } catch (error) {
-    throw new Error(
-      `learning: replay verdict evidence ${path} is not valid JSON`,
-      { cause: error },
-    );
+    throw new Error(`learning: replay verdict evidence ${path} is not valid JSON`, { cause: error });
   }
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error(`learning: replay verdict evidence ${path} is not a strict object`);
   }
   const spec = raw as Record<string, unknown>;
   const keys = Object.keys(spec).sort();
-  const expectedKeys = [
-    "episodeId",
-    "outputSha256",
-    "planVersion",
-    "runId",
-    "schemaVersion",
-    "stepId",
-    "verdict",
-  ];
+  const expectedKeys = ["episodeId", "outputSha256", "planVersion", "runId", "schemaVersion", "stepId", "verdict"];
   const parsed = validateVerdict("review", spec["verdict"]);
   if (
     stableHash(keys) !== stableHash(expectedKeys) ||
@@ -1307,21 +1196,14 @@ async function readReplayVerdictFile(path: string): Promise<ReplayVerdictEvidenc
   };
 }
 
-function assertReplayEvidenceMatches(
-  planVersion: number,
-  step: ProviderTurnStep,
-  record: ExecutionStepRecord,
-): void {
+function assertReplayEvidenceMatches(planVersion: number, step: ProviderTurnStep, record: ExecutionStepRecord): void {
   if (
     record.operation !== `${EPISODE_PLAN_EXECUTION_PIPELINE}/${step.id}` ||
     record.role !== step.role ||
     record.runtime === null ||
     record.model === null ||
     record.effort === null ||
-    !turnAssignmentsEqual(
-      { harness: record.runtime, model: record.model, effort: record.effort },
-      step.assignment,
-    ) ||
+    !turnAssignmentsEqual({ harness: record.runtime, model: record.model, effort: record.effort }, step.assignment) ||
     record.assignment_source !== step.assignmentSource ||
     record.plan_version !== planVersion ||
     record.plan_step_id !== step.id
@@ -1343,7 +1225,9 @@ function replayEvidenceOutcome(
     ? { status: "completed", artifact }
     : {
         status: "failed",
-        reasonCode: evidence.envelopeErrorCode ?? evidence.record.error_code ??
+        reasonCode:
+          evidence.envelopeErrorCode ??
+          evidence.record.error_code ??
           `error_learning_replay_provider_${evidence.envelopeStatus}`,
         summary: evidence.envelopeSummary ?? evidence.record.reason,
         artifact,
@@ -1356,16 +1240,17 @@ async function replayAuthorization(
   execution: EpisodeStepExecutionContext,
 ): Promise<AuthorizedPass> {
   const route = await readRouteRecord(root, execution.episodeId);
-  const matches = route.authorized_passes.filter((pass) =>
-    pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
-    pass.pass === step.id &&
-    pass.role === step.role &&
-    pass.plan_version === execution.planVersion &&
-    pass.plan_step_id === step.id &&
-    pass.runtime === step.assignment.harness &&
-    pass.model === step.assignment.model &&
-    pass.effort === step.assignment.effort &&
-    pass.assignment_source === step.assignmentSource,
+  const matches = route.authorized_passes.filter(
+    (pass) =>
+      pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
+      pass.pass === step.id &&
+      pass.role === step.role &&
+      pass.plan_version === execution.planVersion &&
+      pass.plan_step_id === step.id &&
+      pass.runtime === step.assignment.harness &&
+      pass.model === step.assignment.model &&
+      pass.effort === step.assignment.effort &&
+      pass.assignment_source === step.assignmentSource,
   );
   if (matches.length !== 1) {
     throw new Error(`learning: replay step ${step.id} requires one exact route authorization`);
@@ -1386,10 +1271,9 @@ function replayProviderRunId(
 }
 
 function providerRuntimeCapabilities(step: ProviderTurnStep): RuntimeCapability[] {
-  return [...new Set([
-    ...BASELINE_PROVIDER_CAPABILITIES,
-    ...step.requiredCapabilities.filter(isRuntimeCapability),
-  ])].sort();
+  return [
+    ...new Set([...BASELINE_PROVIDER_CAPABILITIES, ...step.requiredCapabilities.filter(isRuntimeCapability)]),
+  ].sort();
 }
 
 function replayGateArtifact(result: GateRunResult): Record<string, unknown> {
@@ -1405,22 +1289,18 @@ async function deriveReplayAttempt(
   plan: EpisodePlan,
   journal: EpisodePlanExecutionJournal,
 ): Promise<ReplayAttempt> {
-  if (
-    journal.episode_id !== plan.episodeId ||
-    journal.current_plan_version !== plan.version
-  ) {
+  if (journal.episode_id !== plan.episodeId || journal.current_plan_version !== plan.version) {
     throw new Error("learning: replay outcome journal does not match the current plan");
   }
-  const providerRecords = (await readExecutionSteps(root, plan.episodeId))
-    .filter((record) => record.kind === "provider");
-  const uniqueRecords = [...new Map(
-    providerRecords.map((record) => [record.execution_step_id, record]),
-  ).values()];
+  const providerRecords = (await readExecutionSteps(root, plan.episodeId)).filter(
+    (record) => record.kind === "provider",
+  );
+  const uniqueRecords = [...new Map(providerRecords.map((record) => [record.execution_step_id, record])).values()];
   const costUsd = uniqueRecords.reduce((sum, record) => sum + (record.usage?.costUsd ?? 0), 0);
   const runIds = [...new Set(uniqueRecords.map((record) => record.run_id))];
   const gateIds = new Set<string>([REPLAY_STEP_IDS.gates, REPLAY_STEP_IDS.regate]);
-  const gateFailures = journal.events.filter((event) =>
-    event.kind === "step_failed" && gateIds.has(event.step_id),
+  const gateFailures = journal.events.filter(
+    (event) => event.kind === "step_failed" && gateIds.has(event.step_id),
   ).length;
 
   if (request.mode === "targeted") {
@@ -1442,8 +1322,9 @@ async function deriveReplayAttempt(
 
   const reviews: ReviewVerdict[] = [];
   for (const stepId of [REPLAY_STEP_IDS.review, REPLAY_STEP_IDS.rereview]) {
-    const record = uniqueRecords.find((candidate) =>
-      candidate.plan_step_id === stepId && candidate.status === "completed");
+    const record = uniqueRecords.find(
+      (candidate) => candidate.plan_step_id === stepId && candidate.status === "completed",
+    );
     if (record === undefined) continue;
     const output = await readFile(runPaths(root, REPLAY_RUNLOG_APP, record.run_id).output, "utf8");
     const verdict = await replayVerdictForEvidence(root, plan.episodeId, {
@@ -1463,7 +1344,9 @@ async function deriveReplayAttempt(
   return finish(
     grade.pass
       ? "merge-equivalent within expected review cycles"
-      : grade.reasons.length > 0 ? grade.reasons.join("; ") : journalFailureDetail(journal),
+      : grade.reasons.length > 0
+        ? grade.reasons.join("; ")
+        : journalFailureDetail(journal),
     {
       arm: request.arm,
       pair: request.pair,
@@ -1567,9 +1450,7 @@ export async function renderCandidateOverlay(input: {
     .map((root) => conceptDraftPath(root, input.candidateId))
     .find((path) => existsSync(path));
   if (draft === undefined) {
-    throw new Error(
-      `learning: ${input.candidateId} has no concept draft (.md beside the candidate JSON)`,
-    );
+    throw new Error(`learning: ${input.candidateId} has no concept draft (.md beside the candidate JSON)`);
   }
   const activated = await renderActivatedConcept(draft);
   const doc = parseOkfDocument(activated.bytes, draft);
@@ -1636,11 +1517,7 @@ function fixBrief(brief: string, findings: ReviewVerdict["findings"]): string {
  *  first, exactly like a loop tick). Acceptance criteria parse from the
  *  original brief — it embeds the ticket body — and the typed contract map
  *  is recovered from those same immutable brief bytes. */
-async function runReplayGates(
-  worktree: string,
-  seedCommit: string,
-  brief: string,
-): Promise<GateRunResult> {
+async function runReplayGates(worktree: string, seedCommit: string, brief: string): Promise<GateRunResult> {
   const policyPath = join(worktree, ".cormidia", "policy.yaml");
   const policy = existsSync(policyPath) ? await loadPolicy(policyPath) : DEFAULT_LOOP_POLICY;
   const changed = gitIn(worktree, "diff", "--name-only", seedCommit, "HEAD")
@@ -1668,18 +1545,11 @@ async function runReplayGates(
 // seed worktrees
 // ---------------------------------------------------------------------------
 
-function ensureSeedWorktree(
-  localRepo: string,
-  path: string,
-  branch: string,
-  seedCommit: string,
-): void {
+function ensureSeedWorktree(localRepo: string, path: string, branch: string, seedCommit: string): void {
   if (existsSync(path)) {
     const actualBranch = gitIn(path, "branch", "--show-current");
     if (actualBranch !== branch) {
-      throw new Error(
-        `learning: replay worktree ${path} is on ${actualBranch || "detached HEAD"}, expected ${branch}`,
-      );
+      throw new Error(`learning: replay worktree ${path} is on ${actualBranch || "detached HEAD"}, expected ${branch}`);
     }
     try {
       execFileSync("git", ["merge-base", "--is-ancestor", seedCommit, "HEAD"], {
@@ -1688,21 +1558,18 @@ function ensureSeedWorktree(
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
       });
     } catch {
-      throw new Error(
-        `learning: replay worktree ${path} no longer descends from seed ${seedCommit}`,
-      );
+      throw new Error(`learning: replay worktree ${path} no longer descends from seed ${seedCommit}`);
     }
     return;
   }
-  const branchExists = execFileSync(
-    "git",
-    ["branch", "--list", branch],
-    { cwd: localRepo, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-  ).trim() !== "";
+  const branchExists =
+    execFileSync("git", ["branch", "--list", branch], {
+      cwd: localRepo,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim() !== "";
   if (branchExists) {
-    throw new Error(
-      `learning: replay branch ${branch} exists without its durable worktree; refusing to reset it`,
-    );
+    throw new Error(`learning: replay branch ${branch} exists without its durable worktree; refusing to reset it`);
   }
   execFileSync("git", ["worktree", "add", "-b", branch, path, seedCommit], {
     cwd: localRepo,

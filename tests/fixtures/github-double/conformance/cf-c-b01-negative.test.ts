@@ -27,7 +27,9 @@ describe("CF-C-B01 — conformance suite negative controls (lying fakes must fai
     return handle;
   }
 
-  it("negative control: conformance suite rejects a fake that reports merge success without recording it", { timeout: 120_000 }, async () => {
+  it("negative control: conformance suite rejects a fake that reports merge success without recording it", {
+    timeout: 120_000,
+  }, async () => {
     const handle = await activatedDouble({ lies: { mergeNotRecorded: true } });
     const report = await runGithubConformance(makeGithubDoubleSurface(handle));
 
@@ -43,7 +45,9 @@ describe("CF-C-B01 — conformance suite negative controls (lying fakes must fai
     expect(report.passed.length + report.failures.length).toBe(report.total);
   });
 
-  it("negative control: conformance suite rejects a fake reporting the wrong default branch", { timeout: 120_000 }, async () => {
+  it("negative control: conformance suite rejects a fake reporting the wrong default branch", {
+    timeout: 120_000,
+  }, async () => {
     // The subtle variant: "trunk" really exists, every direct call succeeds,
     // only the SEMANTIC cross-check (linked-issue close happens solely on the
     // true default branch) exposes that the reported default is a lie — the
@@ -63,8 +67,8 @@ describe("CF-C-B01 — conformance suite negative controls (lying fakes must fai
 
   it("negative control: an empty clause walk fails loudly instead of passing", async () => {
     const handle = await activatedDouble({});
-    await expect(
-      runGithubConformance(makeGithubDoubleSurface(handle), { clauseFilter: () => false }),
-    ).rejects.toThrow(/empty clause walk/);
+    await expect(runGithubConformance(makeGithubDoubleSurface(handle), { clauseFilter: () => false })).rejects.toThrow(
+      /empty clause walk/,
+    );
   });
 });

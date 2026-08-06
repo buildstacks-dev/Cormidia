@@ -8,22 +8,22 @@ import { describe, expect, it } from "vitest";
 import type { GithubConformanceReport } from "../../fixtures/github-double/conformance/suite.js";
 import { githubConformanceCaseResult } from "../../live/github-conformance-result.js";
 
-function report(
-  classification: "violation" | "observation_inconclusive",
-  code: string,
-): GithubConformanceReport {
+function report(classification: "violation" | "observation_inconclusive", code: string): GithubConformanceReport {
   return {
     target: "github:sandbox/example",
     total: 15,
-    passed: Array.from({ length: 15 }, (_, index) => `B01-CF-${String(index + 1).padStart(2, "0")}`)
-      .filter((id) => id !== "B01-CF-02"),
-    failures: [{
-      id: "B01-CF-02",
-      name: "createIssue returns the created artifact identity and round-trips",
-      classification,
-      code,
-      error: "seeded diagnostic detail",
-    }],
+    passed: Array.from({ length: 15 }, (_, index) => `B01-CF-${String(index + 1).padStart(2, "0")}`).filter(
+      (id) => id !== "B01-CF-02",
+    ),
+    failures: [
+      {
+        id: "B01-CF-02",
+        name: "createIssue returns the created artifact identity and round-trips",
+        classification,
+        code,
+        error: "seeded diagnostic detail",
+      },
+    ],
   };
 }
 
@@ -39,9 +39,7 @@ describe("CF-REG-291 — GitHub observation gaps are never product violations or
       providerTurns: 0,
       equivUsd: 0,
       violationIds: [],
-      reasonCodes: [
-        "github_clause_inconclusive:B01-CF-02:label_filtered_issue_search_not_observed",
-      ],
+      reasonCodes: ["github_clause_inconclusive:B01-CF-02:label_filtered_issue_search_not_observed"],
     });
     expect(result.evidenceRefs).toEqual([
       "github:sandbox/example:clauses:14/15",
@@ -52,18 +50,13 @@ describe("CF-REG-291 — GitHub observation gaps are never product violations or
   });
 
   it("seeded negative control: a true direct-artifact mismatch remains a product violation", () => {
-    const result = githubConformanceCaseResult(
-      "sandbox/example",
-      report("violation", "assertion_failed"),
-    );
+    const result = githubConformanceCaseResult("sandbox/example", report("violation", "assertion_failed"));
 
     expect(result).toMatchObject({
       caseComplete: true,
       violationIds: ["CORMIDIA-C-B01-001:B01-CF-02"],
       reasonCodes: ["github_clause_failed:B01-CF-02:assertion_failed"],
     });
-    expect(result.evidenceRefs[1]).toContain(
-      ":clause:B01-CF-02:violation:assertion_failed:error-sha256:",
-    );
+    expect(result.evidenceRefs[1]).toContain(":clause:B01-CF-02:violation:assertion_failed:error-sha256:");
   });
 });

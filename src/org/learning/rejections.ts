@@ -36,17 +36,14 @@ export function rejectionsPath(orgHome: string): string {
   return join(orgHome, "learning", "rejections.jsonl");
 }
 
-export function suppressKeyFor(
-  candidate: Pick<CandidateArtifact, "error_class" | "content_hash">,
-): string {
+export function suppressKeyFor(candidate: Pick<CandidateArtifact, "error_class" | "content_hash">): string {
   return candidate.error_class ?? candidate.content_hash;
 }
 
 export function evidenceCountFor(
   candidate: Pick<CandidateArtifact, "episode_ids" | "event_ids" | "evidence_refs">,
 ): number {
-  return new Set([...candidate.episode_ids, ...candidate.event_ids, ...candidate.evidence_refs])
-    .size;
+  return new Set([...candidate.episode_ids, ...candidate.event_ids, ...candidate.evidence_refs]).size;
 }
 
 export interface AppendRejectionInput {
@@ -56,10 +53,7 @@ export interface AppendRejectionInput {
   now?: Date;
 }
 
-export async function appendRejection(
-  orgHome: string,
-  input: AppendRejectionInput,
-): Promise<RejectionEntry> {
+export async function appendRejection(orgHome: string, input: AppendRejectionInput): Promise<RejectionEntry> {
   const entry: RejectionEntry = {
     rejected_at: (input.now ?? new Date()).toISOString(),
     candidate_id: input.candidate.candidate_id,
@@ -104,9 +98,7 @@ export async function checkSuppression(
   const key = suppressKeyFor(candidate);
   const windowMs = policy.rejections.suppress_days * 24 * 60 * 60 * 1000;
   const entries = (await readRejections(orgHome)).filter(
-    (entry) =>
-      entry.suppress_key === key &&
-      now.getTime() - new Date(entry.rejected_at).getTime() < windowMs,
+    (entry) => entry.suppress_key === key && now.getTime() - new Date(entry.rejected_at).getTime() < windowMs,
   );
   if (entries.length === 0) return { suppressed: false };
 

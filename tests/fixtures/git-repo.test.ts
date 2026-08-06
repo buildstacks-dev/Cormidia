@@ -9,12 +9,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveRemoteDefaultBranch } from "../../src/loop/default-branch.js";
 import { gitSnapshotOf } from "../../src/runtime/git.js";
-import {
-  makeTempClone,
-  makeTempGitRepo,
-  makeTempWorktree,
-  type TempGitRepo,
-} from "./git-repo.js";
+import { makeTempClone, makeTempGitRepo, makeTempWorktree, type TempGitRepo } from "./git-repo.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {

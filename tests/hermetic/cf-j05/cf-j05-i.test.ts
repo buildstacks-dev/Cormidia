@@ -33,7 +33,16 @@ const CRITICAL_COMMAND = "rm -rf /var/data/legacy-exports";
 const APPS_FILE: AppsFile = {
   org: { name: "cf-j05-i", maxConcurrentTurns: 1 },
   defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
-  apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
+  apps: [
+    {
+      name: APP,
+      repo: "cormidia-double/unused",
+      status: "live",
+      budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000,
+      cadence: {},
+    },
+  ],
 };
 
 /** The child walks gate-block → raise → approve, then (unless killed first)
@@ -121,7 +130,9 @@ describe("CF-J05-I — kill between decision/continuation and between effect/ack
       approvalId,
       effectLines: () =>
         existsSync(effectPath)
-          ? readFileSync(effectPath, "utf8").split("\n").filter((line) => line === "EFFECT").length
+          ? readFileSync(effectPath, "utf8")
+              .split("\n")
+              .filter((line) => line === "EFFECT").length
           : 0,
       store: new ApprovalStore(stateHome),
     };

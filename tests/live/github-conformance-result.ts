@@ -7,14 +7,9 @@ import type { GithubConformanceReport } from "../fixtures/github-double/conforma
  * contract mismatch is a violation. Exhausting a finite observation window
  * for a backend projection whose contract has no staleness maximum is missing
  * evidence: incomplete/inconclusive, never pass and never product fail. */
-export function githubConformanceCaseResult(
-  repo: string,
-  report: GithubConformanceReport,
-): CampaignCaseResult {
+export function githubConformanceCaseResult(repo: string, report: GithubConformanceReport): CampaignCaseResult {
   const violations = report.failures.filter((failure) => failure.classification === "violation");
-  const inconclusive = report.failures.filter(
-    (failure) => failure.classification === "observation_inconclusive",
-  );
+  const inconclusive = report.failures.filter((failure) => failure.classification === "observation_inconclusive");
   return {
     caseComplete: inconclusive.length === 0,
     providerTurns: 0,
@@ -26,8 +21,10 @@ export function githubConformanceCaseResult(
     ],
     evidenceRefs: [
       `github:${repo}:clauses:${report.passed.length}/${report.total}`,
-      ...report.failures.map((failure) =>
-        `github:${repo}:clause:${failure.id}:${failure.classification}:${failure.code}:error-sha256:${sha256(failure.error)}`),
+      ...report.failures.map(
+        (failure) =>
+          `github:${repo}:clause:${failure.id}:${failure.classification}:${failure.code}:error-sha256:${sha256(failure.error)}`,
+      ),
     ],
   };
 }

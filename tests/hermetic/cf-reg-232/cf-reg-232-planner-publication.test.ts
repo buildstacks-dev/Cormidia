@@ -22,20 +22,14 @@ import {
   type PlannerPublicationGit,
   type PlannerPublicationTransaction,
 } from "../../../src/org/planner-publication.js";
-import {
-  preparePlannerIssueIntake,
-  type PlannerReadinessDecision,
-} from "../../../src/org/planner-intake.js";
+import { preparePlannerIssueIntake, type PlannerReadinessDecision } from "../../../src/org/planner-intake.js";
 import { persistPublishedRoadmap } from "../../../src/org/plan-auto.js";
 import {
   readCurrentDeliveryUnitReadiness,
   readCurrentRoadmapPlan,
   readCurrentValidationContract,
 } from "../../../src/org/roadmap-delivery.js";
-import {
-  createPlannerTurnWorktree,
-  turnWorktreeIdentity,
-} from "../../../src/org/turn-runner.js";
+import { createPlannerTurnWorktree, turnWorktreeIdentity } from "../../../src/org/turn-runner.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const homes: TempStateHome[] = [];
@@ -62,7 +56,8 @@ describe("CF-REG-232 — exactly-once Planner publication", () => {
       ".cormidia/config.yaml",
       "prompts/build/contract.md",
       "taste/reviewer.md",
-    ]) expect(plannerPublicationProtectedSurface(path), path).toBe(true);
+    ])
+      expect(plannerPublicationProtectedSurface(path), path).toBe(true);
     for (const path of [
       "README.md",
       "docs/purpose-notes.md",
@@ -70,7 +65,8 @@ describe("CF-REG-232 — exactly-once Planner publication", () => {
       "prompt-examples/build.md",
       "tasteful/reviewer.md",
       "policy.yml",
-    ]) expect(plannerPublicationProtectedSurface(path), path).toBe(false);
+    ])
+      expect(plannerPublicationProtectedSurface(path), path).toBe(false);
   });
 
   it("recovers crash-before-push without repeating provider work and publishes lifecycle authority", async () => {
@@ -85,13 +81,15 @@ describe("CF-REG-232 — exactly-once Planner publication", () => {
       error: null,
     });
     expect(world.transaction.intended_effects.map((effect) => effect.kind)).toEqual([
-      "git_branch", "planner_readiness", "roadmap_plan", "validation_readiness",
+      "git_branch",
+      "planner_readiness",
+      "roadmap_plan",
+      "validation_readiness",
     ]);
-    expect(world.transaction.intended_effects.find((effect) => effect.kind === "roadmap_plan")?.detail)
-      .toEqual({
-        source: `planner-publication:${world.transaction.publication_id}:complete-open-backlog`,
-        predecessor: null,
-      });
+    expect(world.transaction.intended_effects.find((effect) => effect.kind === "roadmap_plan")?.detail).toEqual({
+      source: `planner-publication:${world.transaction.publication_id}:complete-open-backlog`,
+      predecessor: null,
+    });
     expect(world.transaction.recovery.identity).toMatch(/^[0-9a-f]{64}$/);
 
     const recovered = await resume(world);
@@ -254,33 +252,27 @@ describe("CF-REG-232 — exactly-once Planner publication", () => {
 
   it("rejects tampered recovery commands and planning intent", async () => {
     const world = await setup("tampered-identity", "turn-tampered");
-    const path = plannerPublicationPath(
-      world.home.stateHome,
-      APP.name,
-      world.transaction.publication_id,
-    );
+    const path = plannerPublicationPath(world.home.stateHome, APP.name, world.transaction.publication_id);
     const original = JSON.parse(await readFile(path, "utf8")) as PlannerPublicationTransaction;
     const unsafeCommand = structuredClone(original);
     unsafeCommand.recovery.command = "cormidia publication resume --app somebody-else --id wrong";
     await writeFile(path, `${JSON.stringify(unsafeCommand, null, 2)}\n`);
-    await expect(readPlannerPublication(world.home.stateHome, APP.name, original.publication_id))
-      .rejects.toThrow("not a valid v1 transaction");
+    await expect(readPlannerPublication(world.home.stateHome, APP.name, original.publication_id)).rejects.toThrow(
+      "not a valid v1 transaction",
+    );
 
     const changedIntent = structuredClone(original);
     changedIntent.planner_input.decisions[0]!.reason = "tampered after provider completion";
     await writeFile(path, `${JSON.stringify(changedIntent, null, 2)}\n`);
-    await expect(readPlannerPublication(world.home.stateHome, APP.name, original.publication_id))
-      .rejects.toThrow("not a valid v1 transaction");
+    await expect(readPlannerPublication(world.home.stateHome, APP.name, original.publication_id)).rejects.toThrow(
+      "not a valid v1 transaction",
+    );
   });
 
   it("projects pending state and the exact recovery action through status and narrative", async () => {
     const world = await setup("operator-projection", "turn-operator-projection");
     const jsonLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    await expect(cmdStatus([
-      "--state-home", world.home.stateHome,
-      "--app", APP.name,
-      "--json",
-    ])).resolves.toBe(0);
+    await expect(cmdStatus(["--state-home", world.home.stateHome, "--app", APP.name, "--json"])).resolves.toBe(0);
     const report = JSON.parse(String(jsonLog.mock.calls[0]![0])) as {
       plannerPublications: PlannerPublicationTransaction[];
     };
@@ -322,8 +314,9 @@ describe("CF-REG-232 — exactly-once Planner publication", () => {
 
   it("seeded negative control fires on completed-with-unpublished state", async () => {
     const world = await setup("negative-control", "turn-negative");
-    expect(() => assertTurnCompletionAdmissible("completed", world.transaction))
-      .toThrow("completed turn has publication_pending");
+    expect(() => assertTurnCompletionAdmissible("completed", world.transaction)).toThrow(
+      "completed turn has publication_pending",
+    );
     expect(() => assertTurnCompletionAdmissible("failed", world.transaction)).not.toThrow();
   });
 
@@ -400,11 +393,7 @@ describe("CF-REG-232 — exactly-once Planner publication", () => {
     );
     await mkdir(join(protectedWorktree.path, ".cormidia"), { recursive: true });
     await writeFile(join(protectedWorktree.path, ".cormidia", "AUTHORITY.md"), "human-ratified fixture\n");
-    const protectedTx = await prepareRealGitTransaction(
-      stateHome,
-      protectedWorktree,
-      "turn-protected-app-authority",
-    );
+    const protectedTx = await prepareRealGitTransaction(stateHome, protectedWorktree, "turn-protected-app-authority");
     expect(protectedTx).toMatchObject({
       state: "refused",
       error: { code: "error_planner_protected_surface", permanence: "permanent" },
@@ -440,7 +429,7 @@ const APP: AppEntry = {
   repo: "fixture/planner-app",
   status: "live",
   budgetUsdMonth: 100,
-      objectiveBudgetUsd: 1000,
+  objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };
@@ -477,7 +466,15 @@ async function setup(name: string, turnId: string): Promise<World> {
     now: NOW,
     git,
   });
-  return { home, gh, git, transaction, get providerCalls() { return providerCalls; } };
+  return {
+    home,
+    gh,
+    git,
+    transaction,
+    get providerCalls() {
+      return providerCalls;
+    },
+  };
 }
 
 async function resume(world: World): Promise<PlannerPublicationTransaction> {

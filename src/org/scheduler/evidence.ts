@@ -165,7 +165,9 @@ export async function readSchedulerMissEvidence(stateHome: string): Promise<Sche
         observed_at: value.updated_at,
         schedule_ref: `${value.trigger_kind}:${value.trigger}`,
       });
-    } catch { /* scheduler health owns corrupt-record visibility */ }
+    } catch {
+      /* scheduler health owns corrupt-record visibility */
+    }
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -205,9 +207,13 @@ export class SchedulerEvidenceStore {
       this.latestInvocationLoaded = true;
     }
     const prior = this.latestInvocation;
-    const missed = prior === undefined
-      ? 0
-      : Math.max(0, Math.floor((Date.parse(window) - Date.parse(prior.cadence_window)) / (this.cadenceMinutes * 60_000)) - 1);
+    const missed =
+      prior === undefined
+        ? 0
+        : Math.max(
+            0,
+            Math.floor((Date.parse(window) - Date.parse(prior.cadence_window)) / (this.cadenceMinutes * 60_000)) - 1,
+          );
     const record: SchedulerInvocationRecord = {
       schema_version: 1,
       invocation_id: id,
@@ -272,17 +278,22 @@ export class SchedulerEvidenceStore {
     const existing = await this.readDecision(baseId);
     if (existing !== undefined && existing.stage !== "terminal") return { record: existing, created: false };
     if (existing?.outcome === "executed") return { record: existing, created: false };
-    const prior = existing === undefined ? [] : (await this.listDecisions()).filter((item) =>
-      item.cadence_window === input.cadenceWindow
-      && item.app === input.app
-      && item.role === input.role
-      && item.trigger_kind === input.triggerKind
-      && item.trigger === input.trigger
-      && item.event_key === (input.eventKey ?? null),
-    );
-    const decisionId = prior.length === 0
-      ? baseId
-      : schedulerDecisionId({ ...baseInput, trigger: `${input.trigger}\0retry:${prior.length}` });
+    const prior =
+      existing === undefined
+        ? []
+        : (await this.listDecisions()).filter(
+            (item) =>
+              item.cadence_window === input.cadenceWindow &&
+              item.app === input.app &&
+              item.role === input.role &&
+              item.trigger_kind === input.triggerKind &&
+              item.trigger === input.trigger &&
+              item.event_key === (input.eventKey ?? null),
+          );
+    const decisionId =
+      prior.length === 0
+        ? baseId
+        : schedulerDecisionId({ ...baseInput, trigger: `${input.trigger}\0retry:${prior.length}` });
     const retryExisting = await this.readDecision(decisionId);
     if (retryExisting !== undefined) return { record: retryExisting, created: false };
     const record: SchedulerDecisionRecord = {
@@ -347,9 +358,9 @@ export class SchedulerEvidenceStore {
     const record = await this.mustDecision(decisionId);
     if (record.schedule_claim_id !== undefined) {
       if (
-        record.schedule_claim_id !== input.settlementId
-        || record.schedule_claim_attempt !== input.attempt
-        || record.episode_id !== input.episodeId
+        record.schedule_claim_id !== input.settlementId ||
+        record.schedule_claim_attempt !== input.attempt ||
+        record.episode_id !== input.episodeId
       ) {
         throw new Error(`scheduler decision ${decisionId}: schedule claim binding conflict`);
       }
@@ -403,17 +414,38 @@ export class SchedulerEvidenceStore {
     const settledIds = await settlementIdsForTrace(this.stateHome, decision.app, turnId);
     const journal = await readJsonFile(join(this.stateHome, "state", "turns", `${turnId}.json`));
     const phase = typeof journal?.phase === "string" ? journal.phase : "failed";
-    const emptyLearning = phase === "done" && providerTurnIds.size === 0 && /learning (?:distillation|review) (?:skipped|capped)/i.test(summary ?? "");
-    const outcome: SchedulerDecisionOutcome = emptyLearning ? "skipped" : phase === "done" ? "executed" : phase === "blocked_on_gate" ? "blocked" : "failed";
-    const reason: SchedulerReasonCode = emptyLearning ? "empty_learning_window" : phase === "done" ? "executed" : phase === "blocked_on_gate" ? "approval_blocked" : "scheduler_state_failure";
+    const emptyLearning =
+      phase === "done" &&
+      providerTurnIds.size === 0 &&
+      /learning (?:distillation|review) (?:skipped|capped)/i.test(summary ?? "");
+    const outcome: SchedulerDecisionOutcome = emptyLearning
+      ? "skipped"
+      : phase === "done"
+        ? "executed"
+        : phase === "blocked_on_gate"
+          ? "blocked"
+          : "failed";
+    const reason: SchedulerReasonCode = emptyLearning
+      ? "empty_learning_window"
+      : phase === "done"
+        ? "executed"
+        : phase === "blocked_on_gate"
+          ? "approval_blocked"
+          : "scheduler_state_failure";
     const next: SchedulerDecisionRecord = {
       ...decision,
       stage: "terminal",
       outcome,
       classification: classifyDecision(outcome, reason),
       reason_code: reason,
-      provider_turns: emptyLearning || phase !== "done" ? providerTurnIds.size : providerTurnIds.size === 0 ? null : providerTurnIds.size,
-      provider_settlements: emptyLearning || phase !== "done" ? settledIds.size : providerTurnIds.size === 0 ? null : settledIds.size,
+      provider_turns:
+        emptyLearning || phase !== "done"
+          ? providerTurnIds.size
+          : providerTurnIds.size === 0
+            ? null
+            : providerTurnIds.size,
+      provider_settlements:
+        emptyLearning || phase !== "done" ? settledIds.size : providerTurnIds.size === 0 ? null : settledIds.size,
       terminal_at: at.toISOString(),
       updated_at: at.toISOString(),
       detail: phase,
@@ -437,16 +469,20 @@ export class SchedulerEvidenceStore {
   }
 
   async hasSpawnedEvent(eventKey: string, role: string): Promise<boolean> {
-    return (await this.listDecisions()).some((item) =>
-      item.event_key === eventKey
-      && item.role === role
-      && (["spawn_committed", "spawned"].includes(item.stage) || item.outcome === "executed"),
+    return (await this.listDecisions()).some(
+      (item) =>
+        item.event_key === eventKey &&
+        item.role === role &&
+        (["spawn_committed", "spawned"].includes(item.stage) || item.outcome === "executed"),
     );
   }
 
   async lastSpawnedScheduleWindow(app: string, role: string, trigger: string): Promise<Date | undefined> {
     const windows = (await this.listDecisions())
-      .filter((item) => item.app === app && item.role === role && item.trigger === trigger && item.trigger_kind === "schedule")
+      .filter(
+        (item) =>
+          item.app === app && item.role === role && item.trigger === trigger && item.trigger_kind === "schedule",
+      )
       .filter((item) => ["spawn_committed", "spawned"].includes(item.stage) || item.outcome === "executed")
       .map((item) => item.cadence_window)
       .sort();
@@ -473,25 +509,52 @@ export class SchedulerEvidenceStore {
 
   async summarize(now: Date): Promise<SchedulerEvidenceSummary> {
     const corrupt: string[] = [];
-    const invocations = await this.listRecords<SchedulerInvocationRecord>(this.invocationsDir(), validInvocation, corrupt);
+    const invocations = await this.listRecords<SchedulerInvocationRecord>(
+      this.invocationsDir(),
+      validInvocation,
+      corrupt,
+    );
     const decisions = await this.listRecords<SchedulerDecisionRecord>(this.decisionsDir(), validDecision, corrupt);
     const alerts = await this.listRecords<SchedulerAlertRecord>(this.alertsDir(), validAlert, corrupt);
     const last = invocations.at(-1);
-    const nextExpected = last === undefined ? null : new Date(Date.parse(last.cadence_window) + this.cadenceMinutes * 60_000).toISOString();
-    const overdue = nextExpected === null ? null : now.getTime() > Date.parse(nextExpected) + this.cadenceMinutes * 60_000;
+    const nextExpected =
+      last === undefined
+        ? null
+        : new Date(Date.parse(last.cadence_window) + this.cadenceMinutes * 60_000).toISOString();
+    const overdue =
+      nextExpected === null ? null : now.getTime() > Date.parse(nextExpected) + this.cadenceMinutes * 60_000;
     const decisionCounts = countValues(decisions.map((item) => item.decision_id));
-    const episodeCounts = countValues(decisions.flatMap((item) => item.episode_id === null ? [] : [item.episode_id]));
+    const episodeCounts = countValues(decisions.flatMap((item) => (item.episode_id === null ? [] : [item.episode_id])));
     const missing = decisions
-      .filter((item) => item.outcome === "executed" && (item.provider_turns === null || item.provider_settlements === null))
+      .filter(
+        (item) => item.outcome === "executed" && (item.provider_turns === null || item.provider_settlements === null),
+      )
       .map((item) => item.decision_id);
-    missing.push(...invocations.filter((item) => item.terminal === null).map((item) => `invocation:${item.invocation_id}:terminal`));
+    missing.push(
+      ...invocations
+        .filter((item) => item.terminal === null)
+        .map((item) => `invocation:${item.invocation_id}:terminal`),
+    );
     const providerTurns = missing.length === 0 ? sum(decisions.map((item) => item.provider_turns ?? 0)) : null;
-    const providerSettlements = missing.length === 0 ? sum(decisions.map((item) => item.provider_settlements ?? 0)) : null;
-    const orphans = await findOrphans(this.stateHome, new Set(decisions.map((item) => item.episode_id).filter((id): id is string => id !== null)), corrupt);
+    const providerSettlements =
+      missing.length === 0 ? sum(decisions.map((item) => item.provider_settlements ?? 0)) : null;
+    const orphans = await findOrphans(
+      this.stateHome,
+      new Set(decisions.map((item) => item.episode_id).filter((id): id is string => id !== null)),
+      corrupt,
+    );
     const grouped = new Map<string, SchedulerEvidenceSummary["attribution"][number]>();
     for (const decision of decisions) {
       const key = `${decision.app}\0${decision.role}\0${decision.trigger}`;
-      const row = grouped.get(key) ?? { app: decision.app, role: decision.role, trigger: decision.trigger, due: 0, executed: 0, blocked: 0, skipped: 0 };
+      const row = grouped.get(key) ?? {
+        app: decision.app,
+        role: decision.role,
+        trigger: decision.trigger,
+        due: 0,
+        executed: 0,
+        blocked: 0,
+        skipped: 0,
+      };
       row.due += 1;
       if (decision.outcome === "executed") row.executed += 1;
       if (decision.outcome === "blocked") row.blocked += 1;
@@ -505,7 +568,8 @@ export class SchedulerEvidenceStore {
       cadence_minutes: this.cadenceMinutes,
       last_due_window: last?.cadence_window ?? null,
       last_invocation: last?.invoked_at ?? null,
-      last_completed_tick: [...invocations].reverse().find((item) => item.terminal === "completed")?.completed_at ?? null,
+      last_completed_tick:
+        [...invocations].reverse().find((item) => item.terminal === "completed")?.completed_at ?? null,
       next_expected_tick: nextExpected,
       overdue,
       missed_windows: sum(invocations.map((item) => item.missed_windows)),
@@ -514,10 +578,20 @@ export class SchedulerEvidenceStore {
         executed: decisions.filter((item) => item.outcome === "executed").length,
         skipped: decisions.filter((item) => item.outcome === "skipped").length,
         blocked: decisions.filter((item) => item.outcome === "blocked").length,
-        missed: decisions.filter((item) => item.outcome === "missed").length + sum(invocations.map((item) => item.missed_windows)),
-        reconciled: decisions.filter((item) => item.outcome === "reconciled").length + sum(invocations.map((item) => item.reconciled_windows)),
+        missed:
+          decisions.filter((item) => item.outcome === "missed").length +
+          sum(invocations.map((item) => item.missed_windows)),
+        reconciled:
+          decisions.filter((item) => item.outcome === "reconciled").length +
+          sum(invocations.map((item) => item.reconciled_windows)),
       },
-      reason_counts: Object.fromEntries([...countValues(decisions.map((item) => item.reason_code).filter((code): code is SchedulerReasonCode => code !== null)).entries()].sort()),
+      reason_counts: Object.fromEntries(
+        [
+          ...countValues(
+            decisions.map((item) => item.reason_code).filter((code): code is SchedulerReasonCode => code !== null),
+          ).entries(),
+        ].sort(),
+      ),
       duplicate_decisions: duplicateCount(decisionCounts),
       duplicate_episodes: duplicateCount(episodeCounts),
       orphaned_locks: orphans.locks,
@@ -527,11 +601,14 @@ export class SchedulerEvidenceStore {
       corrupt_records: corrupt.sort(),
       provider_turns: providerTurns,
       provider_settlements: providerSettlements,
-      provider_settlement_agreement: providerTurns === null || providerSettlements === null ? null : providerTurns === providerSettlements,
+      provider_settlement_agreement:
+        providerTurns === null || providerSettlements === null ? null : providerTurns === providerSettlements,
       measurement_valid: corrupt.length === 0 && missing.length === 0,
       missing_denominators: missing.sort(),
       alerts,
-      attribution: [...grouped.values()].sort((a, b) => a.app.localeCompare(b.app) || a.role.localeCompare(b.role) || a.trigger.localeCompare(b.trigger)),
+      attribution: [...grouped.values()].sort(
+        (a, b) => a.app.localeCompare(b.app) || a.role.localeCompare(b.role) || a.trigger.localeCompare(b.trigger),
+      ),
     };
   }
 
@@ -601,12 +678,13 @@ export class SchedulerEvidenceStore {
       if (alert.resolved) continue;
       const prior = decisions.get(alert.evidence_id);
       if (
-        prior === undefined
-        || prior.app !== decision.app
-        || prior.role !== decision.role
-        || prior.trigger_kind !== decision.trigger_kind
-        || prior.trigger !== decision.trigger
-      ) continue;
+        prior === undefined ||
+        prior.app !== decision.app ||
+        prior.role !== decision.role ||
+        prior.trigger_kind !== decision.trigger_kind ||
+        prior.trigger !== decision.trigger
+      )
+        continue;
       await this.resolveAlert(alert, at, `later decision ${decision.decision_id} completed without error`);
     }
   }
@@ -627,7 +705,11 @@ export class SchedulerEvidenceStore {
     return value;
   }
 
-  private async listRecords<T>(dir: string, validate: (value: unknown) => value is T, corrupt: string[] = []): Promise<T[]> {
+  private async listRecords<T>(
+    dir: string,
+    validate: (value: unknown) => value is T,
+    corrupt: string[] = [],
+  ): Promise<T[]> {
     if (!existsSync(dir)) return [];
     const out: T[] = [];
     for (const file of (await readdir(dir)).filter((name) => name.endsWith(".json")).sort()) {
@@ -642,12 +724,24 @@ export class SchedulerEvidenceStore {
     return out.sort(byIdentity);
   }
 
-  private root(): string { return join(this.stateHome, "scheduler", "evidence"); }
-  private invocationsDir(): string { return join(this.root(), "invocations"); }
-  private decisionsDir(): string { return join(this.root(), "decisions"); }
-  private alertsDir(): string { return join(this.root(), "alerts"); }
-  private invocationPath(id: string): string { return join(this.invocationsDir(), `${id}.json`); }
-  private decisionPath(id: string): string { return join(this.decisionsDir(), `${id}.json`); }
+  private root(): string {
+    return join(this.stateHome, "scheduler", "evidence");
+  }
+  private invocationsDir(): string {
+    return join(this.root(), "invocations");
+  }
+  private decisionsDir(): string {
+    return join(this.root(), "decisions");
+  }
+  private alertsDir(): string {
+    return join(this.root(), "alerts");
+  }
+  private invocationPath(id: string): string {
+    return join(this.invocationsDir(), `${id}.json`);
+  }
+  private decisionPath(id: string): string {
+    return join(this.decisionsDir(), `${id}.json`);
+  }
 }
 
 async function writeRecord(path: string, value: unknown): Promise<void> {
@@ -674,14 +768,25 @@ async function writeRecordOnce(path: string, value: unknown): Promise<boolean> {
 
 function validInvocation(value: unknown): value is SchedulerInvocationRecord {
   const row = record(value);
-  return row?.schema_version === 1 && typeof row.invocation_id === "string" && typeof row.org_id === "string"
-    && typeof row.cadence_window === "string" && Array.isArray(row.decision_ids);
+  return (
+    row?.schema_version === 1 &&
+    typeof row.invocation_id === "string" &&
+    typeof row.org_id === "string" &&
+    typeof row.cadence_window === "string" &&
+    Array.isArray(row.decision_ids)
+  );
 }
 
 function validDecision(value: unknown): value is SchedulerDecisionRecord {
   const row = record(value);
-  return row?.schema_version === 1 && typeof row.decision_id === "string" && typeof row.invocation_id === "string"
-    && typeof row.app === "string" && typeof row.role === "string" && typeof row.stage === "string";
+  return (
+    row?.schema_version === 1 &&
+    typeof row.decision_id === "string" &&
+    typeof row.invocation_id === "string" &&
+    typeof row.app === "string" &&
+    typeof row.role === "string" &&
+    typeof row.stage === "string"
+  );
 }
 
 function validAlert(value: unknown): value is SchedulerAlertRecord {
@@ -690,7 +795,9 @@ function validAlert(value: unknown): value is SchedulerAlertRecord {
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function byIdentity(a: unknown, b: unknown): number {
@@ -733,7 +840,9 @@ function classifyDecision(
   return "blocked_error";
 }
 
-function sum(values: number[]): number { return values.reduce((total, value) => total + value, 0); }
+function sum(values: number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
 
 async function providerTurnIdsForTrace(stateHome: string, app: string, traceId: string): Promise<Set<string>> {
   const root = join(stateHome, "runs", app);
@@ -756,8 +865,11 @@ async function settlementIdsForTrace(stateHome: string, app: string, traceId: st
     for (const line of text.split("\n").filter(Boolean)) {
       try {
         const row = JSON.parse(line) as Record<string, unknown>;
-        if (row.app === app && row.traceId === traceId && typeof row.providerTurnId === "string") ids.add(row.providerTurnId);
-      } catch { /* corrupt ledger rows are surfaced by reporting; not inferred as settlement */ }
+        if (row.app === app && row.traceId === traceId && typeof row.providerTurnId === "string")
+          ids.add(row.providerTurnId);
+      } catch {
+        /* corrupt ledger rows are surfaced by reporting; not inferred as settlement */
+      }
     }
   }
   return ids;
@@ -765,40 +877,66 @@ async function settlementIdsForTrace(stateHome: string, app: string, traceId: st
 
 async function readJsonFile(path: string): Promise<Record<string, unknown> | undefined> {
   if (!existsSync(path)) return undefined;
-  try { return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>; }
-  catch { return undefined; }
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
 }
 
-async function findOrphans(stateHome: string, episodes: Set<string>, corrupt: string[]): Promise<{ locks: number; journals: number; runs: number; settlements: number }> {
-  let locks = 0; let journals = 0; let runs = 0; let settlements = 0;
+async function findOrphans(
+  stateHome: string,
+  episodes: Set<string>,
+  corrupt: string[],
+): Promise<{ locks: number; journals: number; runs: number; settlements: number }> {
+  let locks = 0;
+  let journals = 0;
+  let runs = 0;
+  let settlements = 0;
   const lockDir = join(stateHome, "locks");
-  if (existsSync(lockDir)) for (const file of (await readdir(lockDir)).filter((name) => name.endsWith(".lock"))) {
-    try {
-      const value = JSON.parse(await readFile(join(lockDir, file), "utf8")) as Record<string, unknown>;
-      if (typeof value.turnId === "string" && value.turnId.startsWith("scheduled_") && !episodes.has(value.turnId)) locks += 1;
-    } catch { corrupt.push(join(lockDir, file)); locks += 1; }
-  }
-  const journalDir = join(stateHome, "state", "turns");
-  if (existsSync(journalDir)) for (const file of (await readdir(journalDir)).filter((name) => name.endsWith(".json"))) {
-    const id = file.slice(0, -5);
-    if (id.startsWith("scheduled_") && !episodes.has(id)) journals += 1;
-  }
-  const runsRoot = join(stateHome, "runs");
-  if (existsSync(runsRoot)) for (const app of await readdir(runsRoot)) {
-    const appRoot = join(runsRoot, app);
-    for (const run of await readdir(appRoot).catch(() => [])) {
-      const envelope = await readJsonFile(join(appRoot, run, "envelope.json"));
-      if (typeof envelope?.trace_id === "string" && envelope.trace_id.startsWith("scheduled_") && !episodes.has(envelope.trace_id)) runs += 1;
-    }
-  }
-  const telemetry = join(stateHome, "telemetry");
-  if (existsSync(telemetry)) for (const file of (await readdir(telemetry)).filter((name) => name.endsWith(".jsonl"))) {
-    for (const line of (await readFile(join(telemetry, file), "utf8")).split("\n").filter(Boolean)) {
+  if (existsSync(lockDir))
+    for (const file of (await readdir(lockDir)).filter((name) => name.endsWith(".lock"))) {
       try {
-        const row = JSON.parse(line) as Record<string, unknown>;
-        if (typeof row.traceId === "string" && row.traceId.startsWith("scheduled_") && !episodes.has(row.traceId)) settlements += 1;
-      } catch { corrupt.push(join(telemetry, file)); }
+        const value = JSON.parse(await readFile(join(lockDir, file), "utf8")) as Record<string, unknown>;
+        if (typeof value.turnId === "string" && value.turnId.startsWith("scheduled_") && !episodes.has(value.turnId))
+          locks += 1;
+      } catch {
+        corrupt.push(join(lockDir, file));
+        locks += 1;
+      }
     }
-  }
+  const journalDir = join(stateHome, "state", "turns");
+  if (existsSync(journalDir))
+    for (const file of (await readdir(journalDir)).filter((name) => name.endsWith(".json"))) {
+      const id = file.slice(0, -5);
+      if (id.startsWith("scheduled_") && !episodes.has(id)) journals += 1;
+    }
+  const runsRoot = join(stateHome, "runs");
+  if (existsSync(runsRoot))
+    for (const app of await readdir(runsRoot)) {
+      const appRoot = join(runsRoot, app);
+      for (const run of await readdir(appRoot).catch(() => [])) {
+        const envelope = await readJsonFile(join(appRoot, run, "envelope.json"));
+        if (
+          typeof envelope?.trace_id === "string" &&
+          envelope.trace_id.startsWith("scheduled_") &&
+          !episodes.has(envelope.trace_id)
+        )
+          runs += 1;
+      }
+    }
+  const telemetry = join(stateHome, "telemetry");
+  if (existsSync(telemetry))
+    for (const file of (await readdir(telemetry)).filter((name) => name.endsWith(".jsonl"))) {
+      for (const line of (await readFile(join(telemetry, file), "utf8")).split("\n").filter(Boolean)) {
+        try {
+          const row = JSON.parse(line) as Record<string, unknown>;
+          if (typeof row.traceId === "string" && row.traceId.startsWith("scheduled_") && !episodes.has(row.traceId))
+            settlements += 1;
+        } catch {
+          corrupt.push(join(telemetry, file));
+        }
+      }
+    }
   return { locks, journals, runs, settlements };
 }

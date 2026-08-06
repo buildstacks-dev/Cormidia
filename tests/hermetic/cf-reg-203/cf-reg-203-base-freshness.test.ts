@@ -166,10 +166,7 @@ describe("CF-REG-203 — each ticket claim cuts from the base resolved at that c
   /** Drive one tick. `afterClaim` lands the predecessor merge after the FIRST
    *  ticket is claimed and short-circuits each item to `merged`, so the walk
    *  isolates exactly the claim/worktree seam under test. */
-  async function tick(
-    rig: Rig,
-    options: { wireRefresh: boolean; landAfterFirstClaim: boolean },
-  ): Promise<LoopItem[]> {
+  async function tick(rig: Rig, options: { wireRefresh: boolean; landAfterFirstClaim: boolean }): Promise<LoopItem[]> {
     let claims = 0;
     const result = await runLoopOnce({
       app: APP,
@@ -255,9 +252,7 @@ describe("CF-REG-203 — each ticket claim cuts from the base resolved at that c
     expect(existsSync(join(worktree, LANDED_PATH))).toBe(true);
     // Cut from the landed revision itself, not merely containing the file.
     expect(rig.managed.git(["rev-list", "--count", `${landed}..HEAD`, "--"])).toBeDefined();
-    expect(
-      rig.managed.git(["merge-base", "--is-ancestor", landed, `refs/heads/${second.items[0]!.branch!}`]),
-    ).toBe("");
+    expect(rig.managed.git(["merge-base", "--is-ancestor", landed, `refs/heads/${second.items[0]!.branch!}`])).toBe("");
   });
 
   it("-NC negative control: with no per-claim refresh wired, the later ticket IS cut from the stale base and the detector fires", async () => {

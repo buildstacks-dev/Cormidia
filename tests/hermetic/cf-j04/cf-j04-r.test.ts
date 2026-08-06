@@ -3,18 +3,8 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_LOOP_POLICY } from "../../../src/loop/driver.js";
-import {
-  advanceGates,
-  advanceReviewing,
-  parseAcceptanceCriteria,
-} from "../../../src/loop/loop.js";
-import {
-  buildJ04Item,
-  j04Git,
-  makeJ04World,
-  reviewJ04Item,
-  type J04World,
-} from "./support.js";
+import { advanceGates, advanceReviewing, parseAcceptanceCriteria } from "../../../src/loop/loop.js";
+import { buildJ04Item, j04Git, makeJ04World, reviewJ04Item, type J04World } from "./support.js";
 
 describe("CF-J04-R — delivery refusal and bounded-return branches", () => {
   const worlds: J04World[] = [];

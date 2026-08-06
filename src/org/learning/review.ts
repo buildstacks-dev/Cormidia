@@ -147,10 +147,7 @@ export function reviewPath(orgHome: string, candidateId: string): string {
 export async function writeReviewerVerdict(orgHome: string, value: unknown): Promise<ReviewerVerdict> {
   const verdict = validateReviewerVerdict(value);
   await mkdir(reviewsDir(orgHome), { recursive: true });
-  await writeFileAtomic(
-    reviewPath(orgHome, verdict.candidate_id),
-    JSON.stringify(verdict, null, 2) + "\n",
-  );
+  await writeFileAtomic(reviewPath(orgHome, verdict.candidate_id), JSON.stringify(verdict, null, 2) + "\n");
   return verdict;
 }
 
@@ -180,10 +177,7 @@ export async function openReviewerVerdict(
 }
 
 /** Undefined when no verdict exists — the caller's fail-closed branch. */
-export async function readReviewerVerdict(
-  orgHome: string,
-  candidateId: string,
-): Promise<ReviewerVerdict | undefined> {
+export async function readReviewerVerdict(orgHome: string, candidateId: string): Promise<ReviewerVerdict | undefined> {
   const path = reviewPath(orgHome, candidateId);
   if (!existsSync(path)) return undefined;
   return readJsonRecord(path, validateReviewerVerdict, `learning: no review at ${path}`);

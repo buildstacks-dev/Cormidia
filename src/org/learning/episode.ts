@@ -57,11 +57,7 @@ import { writeFileAtomic } from "../atomic.js";
 import { deriveEpisodeAnchor, listRuns } from "./capture.js";
 import { ticketNumber, type EpisodeAnchor, type EpisodeKind, type EpisodeSource } from "./episodes.js";
 import { resolvedContextDir } from "./resolver.js";
-import {
-  appendLearningEventsDeduped,
-  readLearningEvents,
-  type LearningEvent,
-} from "./events.js";
+import { appendLearningEventsDeduped, readLearningEvents, type LearningEvent } from "./events.js";
 
 // ---------------------------------------------------------------------------
 // record shape (spec §5; deltas noted per field)
@@ -73,14 +69,7 @@ export type EpisodeStatus = "open" | "closed";
  *  `running` envelope: `running` means a live heartbeat, `stalled` means the
  *  pass died without finalizing (killed, crashed) — reconcile recovers its
  *  spend but the envelope stays `running` on disk forever. */
-export type EpisodeTurnStatus =
-  | "completed"
-  | "failed"
-  | "blocked"
-  | "cancelled"
-  | "timed_out"
-  | "running"
-  | "stalled";
+export type EpisodeTurnStatus = "completed" | "failed" | "blocked" | "cancelled" | "timed_out" | "running" | "stalled";
 
 /** One (turn, pipeline, pass) with its run ids — retries append run ids;
  *  `status` reads the latest attempt. `status` is a spec §5 delta: without
@@ -241,13 +230,7 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
     async project(): Promise<EpisodeRecord[]> {
       const learningEvents = await readLearningEvents(stateHome);
       const resolvedLineages = await readResolvedLineages(stateHome);
-      const folded = await foldEpisodes(
-        stateHome,
-        options.appStages,
-        clock(),
-        learningEvents,
-        resolvedLineages,
-      );
+      const folded = await foldEpisodes(stateHome, options.appStages, clock(), learningEvents, resolvedLineages);
       const records: EpisodeRecord[] = [];
       const foldedIds = new Set<string>();
       for (const record of folded) {
@@ -268,11 +251,7 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
       // (a re-closed episode, an opened anchor shifting), which would land
       // the same event_id in a different date file than the one the
       // per-file dedup checks — filter against every id already captured.
-      await emitLifecycleEvents(
-        stateHome,
-        records,
-        new Set(learningEvents.map((event) => event.event_id)),
-      );
+      await emitLifecycleEvents(stateHome, records, new Set(learningEvents.map((event) => event.event_id)));
       return records;
     },
 
@@ -280,10 +259,7 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
       return readEpisodeRecord(stateHome, episodeId);
     },
 
-    async recordLateOutcome(
-      episodeId: string,
-      outcome: LateOutcomeInput,
-    ): Promise<LearningEvent> {
+    async recordLateOutcome(episodeId: string, outcome: LateOutcomeInput): Promise<LearningEvent> {
       const record = await this.get(episodeId);
       const hash = createHash("sha256")
         .update(`${episodeId}\n${outcome.kind}\n${outcome.ref}`, "utf8")
@@ -373,9 +349,7 @@ async function foldEpisodes(
   );
 
   const records: EpisodeRecord[] = [];
-  for (const [episodeId, views] of [...byEpisode.entries()].sort((a, b) =>
-    a[0].localeCompare(b[0]),
-  )) {
+  for (const [episodeId, views] of [...byEpisode.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
     records.push(
       await foldOne(stateHome, episodeId, views, {
         appStages,
@@ -434,9 +408,7 @@ async function foldOne(
   const anchor = views[0]!.anchor;
   const app = views[0]!.envelope.app;
 
-  const opened = views
-    .map((view) => view.envelope.started_at)
-    .sort()[0]!;
+  const opened = views.map((view) => view.envelope.started_at).sort()[0]!;
   const lastActivity = views
     .map((view) => lastSeen(view.envelope))
     .sort()
@@ -483,8 +455,7 @@ async function foldOne(
   }
 
   // Ticket state machine: merge evidence + PR artifact (build episodes).
-  const claim =
-    anchor.kind === "build_ticket" ? readClaimEvidence(stateHome, app, views) : undefined;
+  const claim = anchor.kind === "build_ticket" ? readClaimEvidence(stateHome, app, views) : undefined;
 
   // Approvals joined by (app, ticket) or (app, turn).
   const traceIds = new Set(views.map((view) => view.envelope.trace_id));
@@ -505,9 +476,7 @@ async function foldOne(
   // mid-flight — closure needs the last activity to predate the stall
   // window, not merely the absence of a live envelope.
   const quiescent =
-    views.length > 0 &&
-    !liveWork &&
-    context.now.getTime() - new Date(lastActivity).getTime() >= EPISODE_STALL_MS;
+    views.length > 0 && !liveWork && context.now.getTime() - new Date(lastActivity).getTime() >= EPISODE_STALL_MS;
   // Non-numeric ticket refs (bootstrap milestone keys) have no claim state
   // to consult, so merge evidence can never arrive — they close on
   // quiescence like every non-build kind instead of staying open forever.
@@ -521,8 +490,10 @@ async function foldOne(
   const terminalInterrupted = quiescent && terminalReasonFor(views) !== "completed";
   const closed = ticketTracked ? merged || terminalInterrupted : quiescent;
 
-  const { late_outcomes: lateOutcomes, human_observations: humanObservations } =
-    appendOnlyFields(episodeId, context.learningEvents);
+  const { late_outcomes: lateOutcomes, human_observations: humanObservations } = appendOnlyFields(
+    episodeId,
+    context.learningEvents,
+  );
 
   const artifacts: string[] = [];
   const sideEffects: EpisodeSideEffect[] = [];
@@ -593,7 +564,9 @@ function foldOutcome(
       if (row.costEstimated === true) costEstimated = true;
     }
     const expectedProviderTurns = view.envelope.provider_turn_ids;
-    const settledProviderTurns = new Set(rows.map((row) => row.providerTurnId).filter((id): id is string => id !== undefined));
+    const settledProviderTurns = new Set(
+      rows.map((row) => row.providerTurnId).filter((id): id is string => id !== undefined),
+    );
     const incompleteNewRun =
       expectedProviderTurns !== undefined &&
       expectedProviderTurns.some((providerTurnId) => !settledProviderTurns.has(providerTurnId));
@@ -605,9 +578,7 @@ function foldOutcome(
   }
 
   const reviewCycles = new Set(
-    views
-      .filter((view) => view.envelope.pipeline === "review")
-      .map((view) => view.envelope.trace_id),
+    views.filter((view) => view.envelope.pipeline === "review").map((view) => view.envelope.trace_id),
   ).size;
 
   // Non-build completion reads the chronologically LAST turn entry: a failed
@@ -634,13 +605,13 @@ function foldOutcome(
   };
 }
 
-function terminalReasonFor(
-  views: RunView[],
-): Exclude<EpisodeOutcome["terminal_reason"], undefined> {
-  const latest = [...views].sort(
-    (a, b) => lastSeen(a.envelope).localeCompare(lastSeen(b.envelope)) ||
-      a.envelope.run_id.localeCompare(b.envelope.run_id),
-  ).at(-1);
+function terminalReasonFor(views: RunView[]): Exclude<EpisodeOutcome["terminal_reason"], undefined> {
+  const latest = [...views]
+    .sort(
+      (a, b) =>
+        lastSeen(a.envelope).localeCompare(lastSeen(b.envelope)) || a.envelope.run_id.localeCompare(b.envelope.run_id),
+    )
+    .at(-1);
   if (latest === undefined) return "crash";
   const reason = `${latest.envelope.error_code ?? ""} ${latest.envelope.terminal_reason ?? ""}`.toLowerCase();
   if (reason.includes("cap") || reason.includes("budget")) return "cap_stop";
@@ -651,11 +622,7 @@ function terminalReasonFor(
   return "completed";
 }
 
-function releaseDisposition(
-  kind: EpisodeKind,
-  merged: boolean,
-  approvals: ApprovalItem[],
-): string | null {
+function releaseDisposition(kind: EpisodeKind, merged: boolean, approvals: ApprovalItem[]): string | null {
   if (kind !== "build_ticket" || !merged) return null;
   const deploy = approvals.filter((item) => item.rule === "production-deploy").at(-1);
   if (deploy === undefined) return "merged";
@@ -712,9 +679,7 @@ async function runGates(stateHome: string, envelope: RunEnvelope): Promise<Episo
       gate: String(event.detail?.["gate"] ?? "unknown"),
       status: (event.event === "gate.passed" ? "pass" : "fail") as "pass" | "fail",
       run_id: envelope.run_id,
-      ...(typeof event.detail?.["detail"] === "string"
-        ? { detail: event.detail["detail"] }
-        : {}),
+      ...(typeof event.detail?.["detail"] === "string" ? { detail: event.detail["detail"] } : {}),
     }));
 }
 
@@ -731,11 +696,7 @@ interface ClaimEvidence {
  *  durable local record of a ticket ending: `advanceShipping` merges on
  *  GitHub but opens no phase run, while the driver appends
  *  `claim N: ended merged (PR #n)` at claim end (src/loop/driver.ts). */
-function readClaimEvidence(
-  stateHome: string,
-  app: string,
-  views: RunView[],
-): ClaimEvidence | undefined {
+function readClaimEvidence(stateHome: string, app: string, views: RunView[]): ClaimEvidence | undefined {
   const issue = buildTicketNumber(views);
   if (issue === undefined) return undefined;
   const state = readTicketClaimState(stateHome, app, issue);
@@ -800,9 +761,7 @@ function appendOnlyFields(
         kind: String(event.payload?.["kind"] ?? "unknown"),
         ref: String(event.payload?.["ref"] ?? ""),
         recorded: event.ts,
-        ...(typeof event.payload?.["note"] === "string"
-          ? { note: event.payload["note"] }
-          : {}),
+        ...(typeof event.payload?.["note"] === "string" ? { note: event.payload["note"] } : {}),
       }))
       .sort((a, b) => a.recorded.localeCompare(b.recorded) || a.ref.localeCompare(b.ref)),
     human_observations: unique
@@ -815,10 +774,7 @@ function appendOnlyFields(
 /** Sticky-lineage agreement across the episode's pinned resolves; `mixed`
  *  surfaces loudly in reports — a canaried episode whose turns disagreed is
  *  a stickiness bug, not a rendering choice. */
-function foldLineage(
-  episodeId: string,
-  resolvedLineages: Map<string, Set<string>>,
-): EpisodeRecord["bundle_lineage"] {
+function foldLineage(episodeId: string, resolvedLineages: Map<string, Set<string>>): EpisodeRecord["bundle_lineage"] {
   const lineages = resolvedLineages.get(episodeId);
   if (lineages === undefined || lineages.size === 0) return null;
   if (lineages.size > 1) return "mixed";
@@ -943,9 +899,7 @@ async function emitLifecycleEvents(
           // evidence — episode-level closes are not per-cause recurrence
           // signal, and smuggling one in would turn every unmerged ticket
           // into a candidate.
-          ...(record.outcome?.terminal_reason !== undefined
-            ? { terminal_reason: record.outcome.terminal_reason }
-            : {}),
+          ...(record.outcome?.terminal_reason !== undefined ? { terminal_reason: record.outcome.terminal_reason } : {}),
         },
       });
     }
@@ -955,10 +909,7 @@ async function emitLifecycleEvents(
 
 /** One projected record by id; throws with a pointer when it was never
  *  projected. The capsule builder and CLI read through this. */
-export async function readEpisodeRecord(
-  stateHome: string,
-  episodeId: string,
-): Promise<EpisodeRecord> {
+export async function readEpisodeRecord(stateHome: string, episodeId: string): Promise<EpisodeRecord> {
   const path = episodePath(stateHome, episodeId);
   if (!existsSync(path)) {
     throw new Error(
@@ -990,11 +941,7 @@ export async function readEpisodeRecords(stateHome: string): Promise<EpisodeReco
 /** App reset is a terminal lifecycle disposition, not disappearance. Close
  * every still-open projected episode after reset commits so future reports
  * cannot silently strand it forever. Idempotent event ids make recovery safe. */
-export async function markAppEpisodesResetAbandoned(
-  stateHome: string,
-  app: string,
-  now: Date,
-): Promise<string[]> {
+export async function markAppEpisodesResetAbandoned(stateHome: string, app: string, now: Date): Promise<string[]> {
   const records = (await readEpisodeRecords(stateHome)).filter(
     (record) => record.app === app && record.status === "open",
   );
@@ -1008,9 +955,8 @@ export async function markAppEpisodesResetAbandoned(
         completed: false,
         ...(record.kind === "build_ticket" ? { merged: false } : {}),
         release_disposition: "reset_abandoned",
-        review_cycles: new Set(
-          record.turns.filter((turn) => turn.pipeline === "review").map((turn) => turn.turn_id),
-        ).size,
+        review_cycles: new Set(record.turns.filter((turn) => turn.pipeline === "review").map((turn) => turn.turn_id))
+          .size,
         gate_failures: record.gates.filter((gate) => gate.status === "fail").length,
         human_interventions: record.approvals.length,
         cost_usd: record.outcome?.cost_usd ?? 0,

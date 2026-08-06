@@ -2,7 +2,7 @@ import { createReadStream, existsSync } from "node:fs";
 import { lstat, realpath, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { dirname, join, resolve, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { OBSERVE_CSS, OBSERVE_HTML, OBSERVE_JS } from "./assets.js";
 import type { ObserveService } from "./live-source.js";
 import { OBSERVE_SCHEMA_VERSION } from "./types.js";
@@ -87,9 +87,10 @@ async function route(
     response.end(JSON.stringify({ error: "capability_required" }));
     return;
   }
-  const cookie = url.searchParams.get("token") === options.token
-    ? { "Set-Cookie": `cormidia_observe=${encodeURIComponent(options.token)}; HttpOnly; SameSite=Strict; Path=/` }
-    : undefined;
+  const cookie =
+    url.searchParams.get("token") === options.token
+      ? { "Set-Cookie": `cormidia_observe=${encodeURIComponent(options.token)}; HttpOnly; SameSite=Strict; Path=/` }
+      : undefined;
 
   if (url.pathname === "/" || url.pathname === "/index.html") {
     sendText(response, method, 200, "text/html; charset=utf-8", OBSERVE_HTML, cookie);
@@ -119,7 +120,12 @@ async function route(
     return;
   }
   if (url.pathname === "/healthz") {
-    sendJson(response, method, 200, { status: "ok", read_only: true, schema_version: OBSERVE_SCHEMA_VERSION, cursor: options.service.snapshot().cursor });
+    sendJson(response, method, 200, {
+      status: "ok",
+      read_only: true,
+      schema_version: OBSERVE_SCHEMA_VERSION,
+      cursor: options.service.snapshot().cursor,
+    });
     return;
   }
   if (url.pathname === "/api/v1/snapshot") {
@@ -128,20 +134,30 @@ async function route(
   }
   if (url.pathname === "/api/v1/reports/summary") {
     const service = requireReportService(options);
-    sendJson(response, method, 200, { ...(await service.summary(reportQuery(url), url.searchParams.get("refresh") === "1")), server_scope: service.immutableAppScope() });
+    sendJson(response, method, 200, {
+      ...(await service.summary(reportQuery(url), url.searchParams.get("refresh") === "1")),
+      server_scope: service.immutableAppScope(),
+    });
     return;
   }
   if (url.pathname === "/api/v1/reports/sessions") {
     const service = requireReportService(options);
     const limitValue = url.searchParams.get("limit");
     const limit = limitValue === null ? undefined : Number(limitValue);
-    sendJson(response, method, 200, await service.sessions(reportQuery(url), {
-      ...(url.searchParams.get("cursor") !== null ? { cursor: url.searchParams.get("cursor")! } : {}),
-      ...(limit !== undefined ? { limit } : {}),
-      refresh: url.searchParams.get("refresh") === "1",
-      ...(url.searchParams.get("filter") !== null ? { filter: url.searchParams.get("filter")! } : {}),
-      ...(url.searchParams.get("sort") !== null ? { sort: url.searchParams.get("sort")! as "newest" | "oldest" | "cost" | "tokens" | "status" | "app" } : {}),
-    }));
+    sendJson(
+      response,
+      method,
+      200,
+      await service.sessions(reportQuery(url), {
+        ...(url.searchParams.get("cursor") !== null ? { cursor: url.searchParams.get("cursor")! } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+        refresh: url.searchParams.get("refresh") === "1",
+        ...(url.searchParams.get("filter") !== null ? { filter: url.searchParams.get("filter")! } : {}),
+        ...(url.searchParams.get("sort") !== null
+          ? { sort: url.searchParams.get("sort")! as "newest" | "oldest" | "cost" | "tokens" | "status" | "app" }
+          : {}),
+      }),
+    );
     return;
   }
   const reportSession = /^\/api\/v1\/reports\/sessions\/([^/]+)$/.exec(url.pathname);
@@ -152,12 +168,24 @@ async function route(
   }
   if (url.pathname === "/api/v1/reports/export.json") {
     const service = requireReportService(options);
-    sendDownload(response, method, "application/json; charset=utf-8", await service.exportJson(reportQuery(url)), "cormidia-report.json");
+    sendDownload(
+      response,
+      method,
+      "application/json; charset=utf-8",
+      await service.exportJson(reportQuery(url)),
+      "cormidia-report.json",
+    );
     return;
   }
   if (url.pathname === "/api/v1/reports/export.html") {
     const service = requireReportService(options);
-    sendDownload(response, method, "text/html; charset=utf-8", await service.exportHtml(reportQuery(url)), "cormidia-report.html");
+    sendDownload(
+      response,
+      method,
+      "text/html; charset=utf-8",
+      await service.exportHtml(reportQuery(url)),
+      "cormidia-report.html",
+    );
     return;
   }
   if (url.pathname === "/api/v1/events") {
@@ -180,7 +208,14 @@ async function route(
   }
   const artifact = /^\/api\/v1\/artifacts\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(url.pathname);
   if (artifact !== null) {
-    await serveRunArtifact(response, method, options, decodeSegment(artifact[1]!), decodeSegment(artifact[2]!), decodeSegment(artifact[3]!));
+    await serveRunArtifact(
+      response,
+      method,
+      options,
+      decodeSegment(artifact[1]!),
+      decodeSegment(artifact[2]!),
+      decodeSegment(artifact[3]!),
+    );
     return;
   }
   const task = /^\/api\/v1\/tasks\/([^/]+)\/([^/]+)$/.exec(url.pathname);
@@ -254,7 +289,9 @@ async function serveSafeFile(
     response.end();
     return;
   }
-  createReadStream(actual).on("error", () => response.destroy()).pipe(response);
+  createReadStream(actual)
+    .on("error", () => response.destroy())
+    .pipe(response);
 }
 
 async function rejectSymlinkComponents(root: string, target: string): Promise<void> {
@@ -299,7 +336,12 @@ function secureEqual(candidate: string, expected: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-function writeHeaders(response: ServerResponse, status: number, contentType: string, extra: Record<string, string> = {}): void {
+function writeHeaders(
+  response: ServerResponse,
+  status: number,
+  contentType: string,
+  extra: Record<string, string> = {},
+): void {
   response.writeHead(status, {
     "Content-Type": contentType,
     "Cache-Control": "no-store, max-age=0",
@@ -307,13 +349,21 @@ function writeHeaders(response: ServerResponse, status: number, contentType: str
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "Content-Security-Policy":
+      "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     "Cross-Origin-Resource-Policy": "same-origin",
     ...extra,
   });
 }
 
-function sendText(response: ServerResponse, method: string, status: number, type: string, body: string, extra?: Record<string, string>): void {
+function sendText(
+  response: ServerResponse,
+  method: string,
+  status: number,
+  type: string,
+  body: string,
+  extra?: Record<string, string>,
+): void {
   writeHeaders(response, status, type, { "Content-Length": String(Buffer.byteLength(body)), ...(extra ?? {}) });
   response.end(method === "HEAD" ? undefined : body);
 }
@@ -332,8 +382,22 @@ function requireReportService(options: ObserveServerOptions): ReportService {
 }
 
 function reportQuery(url: URL): ReportQuery {
-  const allowed = new Set(["token", "app", "period", "since", "until", "bucket", "summary_only", "refresh", "cursor", "limit", "sort", "filter"]);
-  for (const key of url.searchParams.keys()) if (!allowed.has(key)) throw new HttpError(400, "invalid_report_parameter");
+  const allowed = new Set([
+    "token",
+    "app",
+    "period",
+    "since",
+    "until",
+    "bucket",
+    "summary_only",
+    "refresh",
+    "cursor",
+    "limit",
+    "sort",
+    "filter",
+  ]);
+  for (const key of url.searchParams.keys())
+    if (!allowed.has(key)) throw new HttpError(400, "invalid_report_parameter");
   const query: ReportQuery = {};
   const app = url.searchParams.get("app");
   const period = url.searchParams.get("period");
@@ -352,7 +416,8 @@ function reportQuery(url: URL): ReportQuery {
     query.bucket = bucket as NonNullable<ReportQuery["bucket"]>;
   }
   const summaryOnly = url.searchParams.get("summary_only");
-  if (summaryOnly !== null && summaryOnly !== "0" && summaryOnly !== "1") throw new HttpError(400, "invalid_summary_only");
+  if (summaryOnly !== null && summaryOnly !== "0" && summaryOnly !== "1")
+    throw new HttpError(400, "invalid_summary_only");
   if (summaryOnly === "1") query.summaryOnly = true;
   return query;
 }
@@ -376,15 +441,19 @@ function listen(server: Server, port: number): Promise<number> {
     server.listen(port, LOOPBACK_HOST, () => {
       server.off("error", onError);
       const address = server.address();
-      if (address === null || typeof address === "string") return reject(new Error("observer did not bind a TCP address"));
-      if (address.address !== LOOPBACK_HOST) return reject(new Error(`observer refused non-loopback bind ${address.address}`));
+      if (address === null || typeof address === "string")
+        return reject(new Error("observer did not bind a TCP address"));
+      if (address.address !== LOOPBACK_HOST)
+        return reject(new Error(`observer refused non-loopback bind ${address.address}`));
       resolvePromise(address.port);
     });
   });
 }
 
 function closeServer(server: Server): Promise<void> {
-  return new Promise((resolvePromise, reject) => server.close((error) => error === undefined ? resolvePromise() : reject(error)));
+  return new Promise((resolvePromise, reject) =>
+    server.close((error) => (error === undefined ? resolvePromise() : reject(error))),
+  );
 }
 
 function isAddressInUse(error: unknown): boolean {
@@ -397,7 +466,10 @@ function safeError(error: unknown): string {
 }
 
 class HttpError extends Error {
-  constructor(readonly status: number, readonly code: string) {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+  ) {
     super(code);
   }
 }

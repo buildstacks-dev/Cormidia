@@ -26,7 +26,9 @@ describe("CF-C-B01 — GitHub surface conformance, fake target (pair of CF-B01-L
     return handle;
   }
 
-  it("the honest double passes every conformance clause through unmodified GhCliOps", { timeout: 120_000 }, async () => {
+  it("the honest double passes every conformance clause through unmodified GhCliOps", {
+    timeout: 120_000,
+  }, async () => {
     const handle = await activatedDouble();
     const report = await runGithubConformance(makeGithubDoubleSurface(handle), {
       // Strict read-back: the fake never gets to hide behind retries.

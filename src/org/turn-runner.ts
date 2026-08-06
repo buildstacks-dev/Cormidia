@@ -2,7 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
@@ -21,32 +21,14 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
-import {
-  loadGateCommands,
-  runLoopOnce,
-  type LoopDriverResult,
-} from "../loop/driver.js";
+import { loadGateCommands, runLoopOnce, type LoopDriverResult } from "../loop/driver.js";
 import type { BaseRevision } from "../loop/default-branch.js";
 import { queueReleaseApprovals } from "./release.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
-import {
-  type PipelineRunResult,
-  type VerdictRecordContext,
-  type VerdictRecordOutcome,
-} from "../loop/pipeline.js";
-import {
-  getPipeline,
-  loadPipelines,
-  selectPasses,
-  type PassConfig,
-  type PipelineConfig,
-} from "../loop/pipelines.js";
+import { type PipelineRunResult, type VerdictRecordContext, type VerdictRecordOutcome } from "../loop/pipeline.js";
+import { getPipeline, loadPipelines, selectPasses, type PassConfig, type PipelineConfig } from "../loop/pipelines.js";
 import { loadPolicy } from "../loop/policy.js";
-import {
-  episodeIdFor,
-  finalizeEpisode,
-  fingerprint,
-} from "../loop/efficiency.js";
+import { episodeIdFor, finalizeEpisode, fingerprint } from "../loop/efficiency.js";
 import type {
   ApprovalStep,
   CreatorEpisodeScope,
@@ -65,33 +47,14 @@ import type {
 } from "../loop/episode-plan-executor.js";
 import type { PlannerAdmissionLimits } from "../loop/planner-admission.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
-import {
-  VerdictParseError,
-  VERDICT_SCHEMAS,
-  type ParseResult,
-  type VerdictTypes,
-} from "../loop/verdicts.js";
-import {
-  approvedCommand,
-  ApprovalStore,
-  type ApprovalItem,
-} from "./approvals.js";
-import {
-  executeApprovedCommands,
-  type ApprovedCommandResult,
-} from "./approval-command.js";
+import { VerdictParseError, VERDICT_SCHEMAS, type ParseResult, type VerdictTypes } from "../loop/verdicts.js";
+import { approvedCommand, ApprovalStore, type ApprovalItem } from "./approvals.js";
+import { executeApprovedCommands, type ApprovedCommandResult } from "./approval-command.js";
 import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
-import {
-  effectiveEpisodeHardCeiling,
-  resolveAppRoles,
-} from "./app-execution-policy.js";
+import { effectiveEpisodeHardCeiling, resolveAppRoles } from "./app-execution-policy.js";
 import { isBudgetBlocking, raiseTurnBudgetEscalation, rollupBudgets } from "./budget.js";
 import { assembleContext, createEpisodeContextResolver } from "./context.js";
-import {
-  orchestrateEpisode,
-  previewEpisode,
-  type EpisodeOrchestrationFacts,
-} from "./episode-planner/orchestrator.js";
+import { orchestrateEpisode, previewEpisode, type EpisodeOrchestrationFacts } from "./episode-planner/orchestrator.js";
 import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
 import { inspectEpisodeRepository } from "./episode-planner/repository-facts.js";
 import {
@@ -119,22 +82,14 @@ import { journalEpisodeAnchor } from "./learning/episodes.js";
 import { readLearningEvents } from "./learning/events.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import { acquireLock, adoptLock, heartbeatLock, readLockOrUndefined, releaseLock, type TurnLock } from "./locks.js";
-import {
-  readJournal,
-  writeJournalPatch,
-  type TurnJournal,
-  type TurnRecoveryEvidence,
-} from "./journal.js";
+import { readJournal, writeJournalPatch, type TurnJournal, type TurnRecoveryEvidence } from "./journal.js";
 import { loadRoles } from "./roles.js";
 import { appendScorecardEvent } from "./scorecards.js";
 import { createTicketEpisodeRuntime } from "./ticket-episode-runtime.js";
 import { createExistingTicketApprovalHandler } from "./ticket-episode-approval.js";
 import { resolveReviewAuthorizationSecret } from "./review-authorization-secret.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
-import {
-  mergeEpisodeSafetyFacts,
-  safetyFactsFromTurnEvent,
-} from "./episode-safety-facts.js";
+import { mergeEpisodeSafetyFacts, safetyFactsFromTurnEvent } from "./episode-safety-facts.js";
 import { SchedulerEvidenceStore } from "./scheduler/evidence.js";
 import { schedulerIdentity } from "./scheduler/model.js";
 import {
@@ -149,10 +104,7 @@ import {
   preparePlannerIssueIntake,
   type PlannerIssueIntake,
 } from "./planner-intake.js";
-import {
-  ensureManagedClone,
-  withAppGitLock,
-} from "./managed-checkout.js";
+import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
 import {
   preparePlannerPublication,
   resumePlannerPublication,
@@ -198,10 +150,7 @@ export interface RunDispatchedTurnOptions {
     step: MechanicalGateStep,
     execution: EpisodeStepExecutionContext,
   ) => Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome>;
-  episodeApprovalHandler?: (
-    step: ApprovalStep,
-    execution: EpisodeStepExecutionContext,
-  ) => Promise<ApprovalStepOutcome>;
+  episodeApprovalHandler?: (step: ApprovalStep, execution: EpisodeStepExecutionContext) => Promise<ApprovalStepOutcome>;
   now?: () => Date;
   /** Cooperative cancellation sent by the owning CLI/dispatcher process. */
   signal?: AbortSignal;
@@ -221,9 +170,7 @@ export interface RunDispatchedTurnOptions {
   }) => Promise<ApprovedCommandResult>;
   /** Deterministic publication seams used by the L2 crash/recovery harness. */
   plannerPublicationGit?: PlannerPublicationGit;
-  plannerPublicationFault?: (
-    boundary: "after_push" | "after_readiness" | "after_roadmap",
-  ) => void | Promise<void>;
+  plannerPublicationFault?: (boundary: "after_push" | "after_readiness" | "after_roadmap") => void | Promise<void>;
 }
 
 export interface RunDispatchedTurnResult {
@@ -233,15 +180,11 @@ export interface RunDispatchedTurnResult {
   recovery?: TurnRecoveryEvidence;
 }
 
-export async function runDispatchedTurn(
-  options: RunDispatchedTurnOptions,
-): Promise<RunDispatchedTurnResult> {
+export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Promise<RunDispatchedTurnResult> {
   const clock = options.now ?? (() => new Date());
   const orgRoot = resolve(options.orgRoot ?? process.cwd());
   const runtimeHome = resolve(
-    options.runtimeHome ??
-      process.env.CORMIDIA_STATE_HOME ??
-      join(homedir(), ".cormidia", options.appsFile.org.name),
+    options.runtimeHome ?? process.env.CORMIDIA_STATE_HOME ?? join(homedir(), ".cormidia", options.appsFile.org.name),
   );
   const store = new ApprovalStore(runtimeHome);
   const actorEvents: TurnEvent[] = [];
@@ -275,9 +218,7 @@ export async function runDispatchedTurn(
       app: options.app.name,
       phase: "assembling",
       pid: process.pid,
-      ...(turnLock.processStartIdentity !== undefined
-        ? { processStartIdentity: turnLock.processStartIdentity }
-        : {}),
+      ...(turnLock.processStartIdentity !== undefined ? { processStartIdentity: turnLock.processStartIdentity } : {}),
       ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
       ...(process.env.CORMIDIA_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
     });
@@ -317,11 +258,12 @@ export async function runDispatchedTurn(
         : resolveTriggerRoute({ role: options.role.name, trigger: triggerFromJournal(journal) });
     const checkout = await withAppGitLock(runtimeHome, options.app.name, async () => {
       const clone = await ensureManagedClone(options.app, runtimeHome);
-      const worktree = options.role.name === "planner"
-        ? createPlannerTurnWorktree(clone.path, runtimeHome, options.app.name, options.turnId, clone.base)
-        : usesStandaloneTurnWorktree(route, options.creatorScope)
-          ? createTurnWorktree(clone.path, runtimeHome, options.app.name, options.turnId, clone.base)
-          : undefined;
+      const worktree =
+        options.role.name === "planner"
+          ? createPlannerTurnWorktree(clone.path, runtimeHome, options.app.name, options.turnId, clone.base)
+          : usesStandaloneTurnWorktree(route, options.creatorScope)
+            ? createTurnWorktree(clone.path, runtimeHome, options.app.name, options.turnId, clone.base)
+            : undefined;
       return {
         clone,
         localRepo: worktree?.path ?? clone.path,
@@ -340,9 +282,7 @@ export async function runDispatchedTurn(
         app: options.app.name,
         role: options.role.name,
         appRepo: options.app.repo,
-        ...(options.app.networkAllowlist !== undefined
-          ? { networkAllowlist: options.app.networkAllowlist }
-          : {}),
+        ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
         turnId: options.turnId,
         ...(journal.event !== undefined ? { ticketRef: `event:${journal.event.key}` } : {}),
         orgHome: orgRoot,
@@ -425,20 +365,17 @@ export async function runDispatchedTurn(
       stateHome: runtimeHome,
       appsFile: options.appsFile,
       turnId: options.turnId,
-      ...(options.approvalCommandRunner === undefined
-        ? {}
-        : { runner: options.approvalCommandRunner }),
+      ...(options.approvalCommandRunner === undefined ? {} : { runner: options.approvalCommandRunner }),
       now: clock,
     });
-    const commandFailure = commandDeliveries.find((delivery) =>
-      delivery.status === "failed" || delivery.status === "ambiguous");
+    const commandFailure = commandDeliveries.find(
+      (delivery) => delivery.status === "failed" || delivery.status === "ambiguous",
+    );
     if (commandFailure !== undefined) {
       result = {
         ...result,
         status: "blocked_on_gate",
-        summary:
-          `approval ${commandFailure.approvalId} delivery ${commandFailure.status}: ` +
-          commandFailure.summary,
+        summary: `approval ${commandFailure.approvalId} delivery ${commandFailure.status}: ` + commandFailure.summary,
       };
     }
     const actorSettlements = await settleActorRetriesForTurn(
@@ -454,8 +391,7 @@ export async function runDispatchedTurn(
       options.turnId,
       clock(),
     );
-    const unresolvedActorRetry = [...actorSettlements, ...endedBeforeDispatch]
-      .find(actorRetryIsUnresolved);
+    const unresolvedActorRetry = [...actorSettlements, ...endedBeforeDispatch].find(actorRetryIsUnresolved);
     if (unresolvedActorRetry !== undefined) {
       result = {
         ...result,
@@ -463,9 +399,10 @@ export async function runDispatchedTurn(
         summary: actorRetryReconciliationSummary(unresolvedActorRetry, true),
       };
     }
-    const recovery = isolatedWorktree !== undefined && result.errorCode === "error_max_budget_usd"
-      ? inspectBudgetStopRecovery(isolatedWorktree)
-      : undefined;
+    const recovery =
+      isolatedWorktree !== undefined && result.errorCode === "error_max_budget_usd"
+        ? inspectBudgetStopRecovery(isolatedWorktree)
+        : undefined;
     if (recovery !== undefined) result = appendBudgetStopRecovery(result, recovery);
 
     await writeJournalPatch(runtimeHome, options.turnId, {
@@ -497,20 +434,35 @@ export async function runDispatchedTurn(
       session: result.session,
       ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
       ...(recovery === undefined ? {} : { recovery }),
-      ...(result.status === "cancelled" || result.status === "timed_out" ||
-          result.status === "failed" || result.status === "blocked_on_gate" || recovery !== undefined
+      ...(result.status === "cancelled" ||
+      result.status === "timed_out" ||
+      result.status === "failed" ||
+      result.status === "blocked_on_gate" ||
+      recovery !== undefined
         ? { message: result.summary }
         : {}),
     });
     try {
-      await recordSchedulerReceipt(runtimeHome, orgRoot, options.appsFile.org.name, options.turnId, result.summary, clock());
+      await recordSchedulerReceipt(
+        runtimeHome,
+        orgRoot,
+        options.appsFile.org.name,
+        options.turnId,
+        result.summary,
+        clock(),
+      );
     } catch (error) {
-      await writeJournalPatch(runtimeHome, options.turnId, {
-        role: options.role.name,
-        app: options.app.name,
-        phase: journalPhaseForStatus(result.status),
-        message: `scheduler terminal receipt failed: ${error instanceof Error ? error.message : String(error)}`,
-      }, clock());
+      await writeJournalPatch(
+        runtimeHome,
+        options.turnId,
+        {
+          role: options.role.name,
+          app: options.app.name,
+          phase: journalPhaseForStatus(result.status),
+          message: `scheduler terminal receipt failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+        clock(),
+      );
     }
     return {
       status: result.status,
@@ -533,16 +485,20 @@ export async function runDispatchedTurn(
       clock(),
     ).catch(() => [] as ApprovalItem[]);
     const pending = await store.listPending();
-    const actorRetryStall = [...actorSettlements, ...endedBeforeDispatch]
-      .find(actorRetryIsUnresolved) ??
-      (await store.listActorRetryStalls({ app: options.app.name, role: options.role.name }))
-        .find((item) => item.execution?.actor?.endsWith(`/${options.turnId}`) === true);
+    const actorRetryStall =
+      [...actorSettlements, ...endedBeforeDispatch].find(actorRetryIsUnresolved) ??
+      (await store.listActorRetryStalls({ app: options.app.name, role: options.role.name })).find(
+        (item) => item.execution?.actor?.endsWith(`/${options.turnId}`) === true,
+      );
     const blocked = pending.some((item) => item.turnId === options.turnId) || actorRetryStall !== undefined;
     const stopped = options.signal?.aborted === true;
     const stop = stopped ? stopDescriptor(options.signal?.reason) : undefined;
-    const failureSummary = actorRetryStall === undefined
-      ? (error instanceof Error ? error.message : String(error))
-      : actorRetryReconciliationSummary(actorRetryStall, true);
+    const failureSummary =
+      actorRetryStall === undefined
+        ? error instanceof Error
+          ? error.message
+          : String(error)
+        : actorRetryReconciliationSummary(actorRetryStall, true);
     await writeJournalPatch(runtimeHome, options.turnId, {
       role: options.role.name,
       app: options.app.name,
@@ -550,12 +506,15 @@ export async function runDispatchedTurn(
       message: stop?.reason ?? failureSummary,
     });
     const status: TurnResult["status"] = stop?.status ?? (blocked ? "blocked_on_gate" : "failed");
-    const result = zeroResult(
-      status,
-      stop?.reason ?? failureSummary,
-      options.role,
-    );
-    await recordSchedulerReceipt(runtimeHome, orgRoot, options.appsFile.org.name, options.turnId, result.summary, clock()).catch(() => {});
+    const result = zeroResult(status, stop?.reason ?? failureSummary, options.role);
+    await recordSchedulerReceipt(
+      runtimeHome,
+      orgRoot,
+      options.appsFile.org.name,
+      options.turnId,
+      result.summary,
+      clock(),
+    ).catch(() => {});
     // Provider failures are already terminalized and settled by the pass
     // executor. Failures before provider construction are journal/invocation
     // facts, not zero-cost provider turns; do not synthesize a ledger row.
@@ -575,22 +534,22 @@ async function settleActorRetriesForTurn(
 ): Promise<ApprovalItem[]> {
   const actors = new Set(
     (await store.listDecided())
-      .filter((item) =>
-        item.app === app &&
-        // `orchestrator-command` approvals stay actor-claimable (ISSUE-020), so
-        // a turn that consumed one through the gate must settle it here too —
-        // otherwise its claim would sit `executing` forever and the loop's
-        // circuit breaker would block every later turn for this app/role.
-        (item.execution?.executor === "actor-retry" ||
-          item.execution?.executor === "orchestrator-command") &&
-        item.execution.state === "executing" &&
-        item.execution.actor?.endsWith(`/${turnId}`) === true
+      .filter(
+        (item) =>
+          item.app === app &&
+          // `orchestrator-command` approvals stay actor-claimable (ISSUE-020), so
+          // a turn that consumed one through the gate must settle it here too —
+          // otherwise its claim would sit `executing` forever and the loop's
+          // circuit breaker would block every later turn for this app/role.
+          (item.execution?.executor === "actor-retry" || item.execution?.executor === "orchestrator-command") &&
+          item.execution.state === "executing" &&
+          item.execution.actor?.endsWith(`/${turnId}`) === true,
       )
       .map((item) => item.execution!.actor!),
   );
   const settled: ApprovalItem[] = [];
   for (const actor of actors) {
-    settled.push(...await store.settleActorRetryExecutions({ actor, events, now }));
+    settled.push(...(await store.settleActorRetryExecutions({ actor, events, now })));
   }
   return settled;
 }
@@ -605,42 +564,43 @@ export async function terminalizeUndeliveredTurnApprovals(
   turnId: string,
   now: Date,
 ): Promise<ApprovalItem[]> {
-  const approved = (await store.listDecided()).filter((item) =>
-    item.app === app &&
-    item.turnId === turnId &&
-    item.decision === "approved" &&
-    item.execution?.state === "approved" &&
-    (item.execution.executor === "actor-retry" ||
-      item.execution.executor === "orchestrator-command") &&
-    approvedCommand(item.action) !== undefined);
+  const approved = (await store.listDecided()).filter(
+    (item) =>
+      item.app === app &&
+      item.turnId === turnId &&
+      item.decision === "approved" &&
+      item.execution?.state === "approved" &&
+      (item.execution.executor === "actor-retry" || item.execution.executor === "orchestrator-command") &&
+      approvedCommand(item.action) !== undefined,
+  );
   const terminal: ApprovalItem[] = [];
   for (const item of approved) {
     const actor = `orchestrator/turn-finalizer/${turnId}`;
     const claimed = await store.beginExecution(item.id, actor, now);
     if (claimed === undefined) continue;
-    terminal.push(await store.finishExecution({
-      id: item.id,
-      state: "failed",
-      actor,
-      result:
-        `originating turn ${turnId} ended before the approved command could be dispatched`,
-      failureCause: "actor_ended_before_dispatch",
-      now,
-    }));
+    terminal.push(
+      await store.finishExecution({
+        id: item.id,
+        state: "failed",
+        actor,
+        result: `originating turn ${turnId} ended before the approved command could be dispatched`,
+        failureCause: "actor_ended_before_dispatch",
+        now,
+      }),
+    );
   }
   return terminal;
 }
 
 function actorRetryIsUnresolved(item: ApprovalItem): boolean {
-  return item.execution?.state === "executing" ||
+  return (
+    item.execution?.state === "executing" ||
     item.execution?.state === "ambiguous" ||
-    (item.execution?.state === "failed" && item.execution.nextAction !== "none");
+    (item.execution?.state === "failed" && item.execution.nextAction !== "none")
+  );
 }
 
-function actorRetryReconciliationSummary(
-  item: ApprovalItem,
-  providerStarted: boolean,
-): string {
+function actorRetryReconciliationSummary(item: ApprovalItem, providerStarted: boolean): string {
   const execution = item.execution!;
   return (
     `approval ${item.id} actor retry is ${execution.state} after ${execution.attempts} attempt(s); ` +
@@ -660,22 +620,26 @@ function usesStandaloneTurnWorktree(
   route: ReturnType<typeof resolveTriggerRoute>,
   creatorScope: CreatorEpisodeScope | undefined,
 ): boolean {
-  return route.kind === "skip" &&
+  return (
+    route.kind === "skip" &&
     creatorScope?.planningDisposition === "execution_ready" &&
-    creatorScope.workKind === "standalone-role-turn";
+    creatorScope.workKind === "standalone-role-turn"
+  );
 }
 
-async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
-  runtimeHome: string;
-  orgRoot: string;
-  localRepo: string;
-  base: BaseRevision;
-  context: ContextBundle;
-  hooks: TurnHooks;
-  journal: TurnJournal;
-  telemetry: { orgDir: string; trigger?: TriggerKind };
-  store: ApprovalStore;
-}): Promise<TurnResult> {
+async function runGenericEpisodeTurn(
+  options: RunDispatchedTurnOptions & {
+    runtimeHome: string;
+    orgRoot: string;
+    localRepo: string;
+    base: BaseRevision;
+    context: ContextBundle;
+    hooks: TurnHooks;
+    journal: TurnJournal;
+    telemetry: { orgDir: string; trigger?: TriggerKind };
+    store: ApprovalStore;
+  },
+): Promise<TurnResult> {
   const clock = options.now ?? (() => new Date());
   const configured = await loadRoles(join(options.orgRoot, "roles.yaml"));
   const roles = resolveAppRoles(configured.roles, runtimePolicyForApp(options.app));
@@ -687,8 +651,9 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
     throw new Error("generic episode planning requires a configured planner role in roles.yaml");
   }
 
-  const budget = (await rollupBudgets(options.runtimeHome, options.appsFile, clock()))
-    .find((row) => row.app === options.app.name);
+  const budget = (await rollupBudgets(options.runtimeHome, options.appsFile, clock())).find(
+    (row) => row.app === options.app.name,
+  );
   if (budget === undefined) {
     throw new Error(`generic episode planning could not resolve the app budget for ${options.app.name}`);
   }
@@ -713,8 +678,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
   const persistedIntent = await readPersistedEpisodeIntent(options.runtimeHome, episodeId);
   if (
     persistedIntent !== undefined &&
-    (persistedIntent.requestedConstraints["networkAccess"] === true) !==
-      (options.networkAccess === true)
+    (persistedIntent.requestedConstraints["networkAccess"] === true) !== (options.networkAccess === true)
   ) {
     throw new Error(
       `generic episode ${episodeId} requested network access ` +
@@ -727,13 +691,9 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined
-        ? { networkAllowlist: options.app.networkAllowlist }
-        : {}),
+      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
       turnId: options.turnId,
-      ...(options.journal.event !== undefined
-        ? { ticketRef: `event:${options.journal.event.key}` }
-        : {}),
+      ...(options.journal.event !== undefined ? { ticketRef: `event:${options.journal.event.key}` } : {}),
       orgHome: options.orgRoot,
       // The pass executor passes the cwd it will actually run in (a builder
       // ticket pass runs in the per-ticket worktree). Falling back to the
@@ -750,20 +710,15 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
   const contextForRole = async (role: RoleConfig): Promise<ContextBundle> => {
     const existing = contextByRole.get(role.name);
     if (existing !== undefined) return existing;
-    const assembled = await buildContext(
-      options.orgRoot,
-      options.localRepo,
-      options.app.name,
-      role,
-      options.journal,
-      { stateHome: options.runtimeHome, turnId: options.turnId },
-    );
+    const assembled = await buildContext(options.orgRoot, options.localRepo, options.app.name, role, options.journal, {
+      stateHome: options.runtimeHome,
+      turnId: options.turnId,
+    });
     contextByRole.set(role.name, assembled);
     return assembled;
   };
   const plannerContext = await contextForRole(plannerRole);
-  const plannerLimits = options.episodePlannerLimits ??
-    defaultGenericPlannerLimits(plannerRole, remainingBudgetUsd);
+  const plannerLimits = options.episodePlannerLimits ?? defaultGenericPlannerLimits(plannerRole, remainingBudgetUsd);
   const trigger = genericTriggerFacts(options.journal, options.turnId);
 
   const provisionalFacts: EpisodeOrchestrationFacts = {
@@ -825,16 +780,10 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
     ...provisionalFacts,
     hardBudget: {
       ...provisionalFacts.hardBudget,
-      maxProviderTurns: Math.max(
-        0,
-        provisionalFacts.hardBudget.maxProviderTurns - plannerReserveTurns,
-      ),
+      maxProviderTurns: Math.max(0, provisionalFacts.hardBudget.maxProviderTurns - plannerReserveTurns),
       maxEquivalentCostUsd: deliveryBudgetUsd,
       maxMechanicalOverheadUsd: deliveryBudgetUsd,
-      maxActiveTimeMs: Math.max(
-        0,
-        (provisionalFacts.hardBudget.maxActiveTimeMs ?? 0) - plannerReserveActiveTimeMs,
-      ),
+      maxActiveTimeMs: Math.max(0, (provisionalFacts.hardBudget.maxActiveTimeMs ?? 0) - plannerReserveActiveTimeMs),
     },
   };
   const promptText = deterministicPreview.plannerBoot.providerTurnRequired
@@ -887,11 +836,7 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
   return genericExecutionResult(orchestrated.execution, orchestrated.intent.episodeId, options.role);
 }
 
-function genericEfficiencyEpisodeId(
-  app: string,
-  journal: TurnJournal,
-  turnId: string,
-): string {
+function genericEfficiencyEpisodeId(app: string, journal: TurnJournal, turnId: string): string {
   if (journal.event !== undefined) {
     return episodeIdFor({
       app,
@@ -904,9 +849,11 @@ function genericEfficiencyEpisodeId(
   return episodeIdFor({ app, traceId: turnId });
 }
 
-async function resolveEpisodePlannerPrompt(options: RunDispatchedTurnOptions & {
-  orgRoot: string;
-}): Promise<string> {
+async function resolveEpisodePlannerPrompt(
+  options: RunDispatchedTurnOptions & {
+    orgRoot: string;
+  },
+): Promise<string> {
   if (options.episodePlannerPromptText !== undefined) {
     if (options.episodePlannerPromptText.trim().length === 0) {
       throw new Error("injected EpisodePlanner prompt must not be empty");
@@ -930,25 +877,20 @@ function exactRuntimeFactory(
 ): (assignment: TurnAssignment, role: RoleConfig) => Runtime {
   if (options.runtimeForAssignment !== undefined) return options.runtimeForAssignment;
   if (options.runtimeFor !== undefined) {
-    return (assignment, role) => options.runtimeFor!({
-      ...role,
-      runtime: assignment.harness,
-      model: assignment.model,
-      effort: assignment.effort,
-    });
+    return (assignment, role) =>
+      options.runtimeFor!({
+        ...role,
+        runtime: assignment.harness,
+        model: assignment.model,
+        effort: assignment.effort,
+      });
   }
   return (assignment) => getRuntime(assignment.harness);
 }
 
-function defaultGenericPlannerLimits(
-  plannerRole: RoleConfig,
-  remainingBudgetUsd: number,
-): PlannerAdmissionLimits {
+function defaultGenericPlannerLimits(plannerRole: RoleConfig, remainingBudgetUsd: number): PlannerAdmissionLimits {
   const maxAttempts = 2;
-  const equivalentCostUsd = Math.min(
-    plannerRole.maxTurnBudgetUsd,
-    remainingBudgetUsd / maxAttempts,
-  );
+  const equivalentCostUsd = Math.min(plannerRole.maxTurnBudgetUsd, remainingBudgetUsd / maxAttempts);
   if (!Number.isFinite(equivalentCostUsd) || equivalentCostUsd <= 0) {
     throw new Error("remaining app budget cannot admit one bounded EpisodePlanner attempt");
   }
@@ -988,9 +930,7 @@ function genericTriggerFacts(
         source: journal.event.source,
         key: journal.event.key,
         payloadHash,
-        ...(payload === undefined
-          ? { payloadIncluded: false }
-          : { payloadIncluded: true, payload }),
+        ...(payload === undefined ? { payloadIncluded: false } : { payloadIncluded: true, payload }),
       },
     };
   }
@@ -1012,23 +952,18 @@ function boundedTriggerPayload(payload: Record<string, unknown>): JsonValue | un
   }
 }
 
-function genericSafetyFacts(
-  journal: TurnJournal,
-  creatorScope: CreatorEpisodeScope | undefined,
-): SafetyFact[] {
-  return mergeEpisodeSafetyFacts(
-    safetyFactsFromTurnEvent(journal.event),
-    creatorScope?.safetyFacts ?? [],
-  );
+function genericSafetyFacts(journal: TurnJournal, creatorScope: CreatorEpisodeScope | undefined): SafetyFact[] {
+  return mergeEpisodeSafetyFacts(safetyFactsFromTurnEvent(journal.event), creatorScope?.safetyFacts ?? []);
 }
 
 function genericEpisodeGoal(
   options: Pick<RunDispatchedTurnOptions, "app" | "role" | "turnId"> & { journal: TurnJournal },
   lifecycle: string,
 ): string {
-  const trigger = options.journal.event === undefined
-    ? `${options.journal.triggerKind ?? "manual"}:${options.journal.trigger ?? options.turnId}`
-    : `event:${options.journal.event.kind}:${options.journal.event.key}`;
+  const trigger =
+    options.journal.event === undefined
+      ? `${options.journal.triggerKind ?? "manual"}:${options.journal.trigger ?? options.turnId}`
+      : `event:${options.journal.event.kind}:${options.journal.event.key}`;
   return `Execute the bounded ${options.role.name} responsibility for ${options.app.name} (${lifecycle}; ${trigger}).`;
 }
 
@@ -1062,38 +997,40 @@ function genericExecutionResult(
   if (execution === null) {
     return zeroResult("failed", `episode ${episodeId} was planned but not executed`, role);
   }
-  const blockedByProviderGate = execution.status === "failed" &&
-    execution.reasonCode?.includes("blocked_on_gate") === true;
-  const status: TurnResult["status"] = execution.status === "completed"
-    ? "completed"
-    : execution.status === "waiting_approval" || execution.status === "denied" || blockedByProviderGate
-      ? "blocked_on_gate"
-      : "failed";
-  const summary = execution.summary ??
+  const blockedByProviderGate =
+    execution.status === "failed" && execution.reasonCode?.includes("blocked_on_gate") === true;
+  const status: TurnResult["status"] =
+    execution.status === "completed"
+      ? "completed"
+      : execution.status === "waiting_approval" || execution.status === "denied" || blockedByProviderGate
+        ? "blocked_on_gate"
+        : "failed";
+  const summary =
+    execution.summary ??
     (execution.status === "completed"
       ? `episode ${episodeId} completed accepted plan v${execution.planVersion}`
       : `episode ${episodeId} stopped with ${execution.status}`);
   const result = zeroResult(status, summary, role);
-  return execution.reasonCode === undefined
-    ? result
-    : { ...result, errorCode: execution.reasonCode };
+  return execution.reasonCode === undefined ? result : { ...result, errorCode: execution.reasonCode };
 }
 
-async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
-  runtimeHome: string;
-  orgRoot: string;
-  localRepo: string;
-  base: BaseRevision;
-  context: ContextBundle;
-  hooks: TurnHooks;
-  journal: TurnJournal;
-  pipelineName: string;
-  telemetry: {
-    orgDir: string;
-    trigger?: TriggerKind;
-    learningActivity?: "distillation" | "review";
-  };
-}): Promise<TurnResult> {
+async function runProtocolPipelineTurn(
+  options: RunDispatchedTurnOptions & {
+    runtimeHome: string;
+    orgRoot: string;
+    localRepo: string;
+    base: BaseRevision;
+    context: ContextBundle;
+    hooks: TurnHooks;
+    journal: TurnJournal;
+    pipelineName: string;
+    telemetry: {
+      orgDir: string;
+      trigger?: TriggerKind;
+      learningActivity?: "distillation" | "review";
+    };
+  },
+): Promise<TurnResult> {
   const rolesFile = await loadRoles(join(options.orgRoot, "roles.yaml"));
   const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(options.app));
   const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
@@ -1147,33 +1084,32 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     );
   }
   const remainingBudgetUsd = Math.max(0, appBudget.budgetUsd - appBudget.spentUsd);
-  const budgetRows = allBudgetRows.filter(
-    (row) => row.status !== "ok",
-  );
-  const plannerFeedBatch = options.role.name === "planner"
-    ? await preparePlannerFeedBatch({
-        stateHome: options.runtimeHome,
-        app: options.app.name,
-        turnId: options.turnId,
-        now,
-      })
-    : undefined;
-  const plannerIssueIntake = options.role.name === "planner" && options.pipelineName === "groom"
-    ? await preparePlannerIssueIntake({
-        gh: options.gh ?? new GhCliOps(options.app.repo),
-        app: options.app.name,
-        turnId: options.turnId,
-      })
-    : undefined;
+  const budgetRows = allBudgetRows.filter((row) => row.status !== "ok");
+  const plannerFeedBatch =
+    options.role.name === "planner"
+      ? await preparePlannerFeedBatch({
+          stateHome: options.runtimeHome,
+          app: options.app.name,
+          turnId: options.turnId,
+          now,
+        })
+      : undefined;
+  const plannerIssueIntake =
+    options.role.name === "planner" && options.pipelineName === "groom"
+      ? await preparePlannerIssueIntake({
+          gh: options.gh ?? new GhCliOps(options.app.repo),
+          app: options.app.name,
+          turnId: options.turnId,
+        })
+      : undefined;
   if (
-    plannerIssueIntake !== undefined
-    && [
+    plannerIssueIntake !== undefined &&
+    [
       "github_unavailable",
       "missing_required_executable",
       "ready_only_filtering",
       "backlog_completeness_bound",
-    ]
-      .includes(plannerIssueIntake.diagnostic.code)
+    ].includes(plannerIssueIntake.diagnostic.code)
   ) {
     return {
       ...zeroResult(
@@ -1184,37 +1120,36 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
       errorCode: `error_${plannerIssueIntake.diagnostic.code}`,
     };
   }
-  if (
-    plannerIssueIntake?.diagnostic.code === "empty_repository"
-    && plannerFeedBatch?.selected.length === 0
-  ) {
+  if (plannerIssueIntake?.diagnostic.code === "empty_repository" && plannerFeedBatch?.selected.length === 0) {
     return zeroResult("completed", "Planner no-op: empty repository and no pending standing-role feeds", options.role);
   }
-  const repository = persistedIntent === undefined
-    ? inspectEpisodeRepository({ workdir: options.localRepo, baseRevision: options.base })
-    : undefined;
-  const facts = persistedIntent === undefined
-    ? {
-        episodeId,
-        trigger: trigger.descriptor,
-        lifecycle: journalEpisodeAnchor(options.app.name, options.journal, options.turnId).kind,
-        appStage: options.app.status,
-        repositoryFacts: repository!.repositoryFacts,
-        changeFacts: repository!.changeFacts,
-        requestedConstraints: {
-          dispatchRole: options.role.name,
-          trigger: trigger.details,
-          networkAccess: false,
-        },
-        hardBudget: {
-          maxProviderTurns: selectedPasses.length,
-          maxEquivalentCostUsd: remainingBudgetUsd,
-          maxMechanicalOverheadUsd: 0,
-          maxActiveTimeMs: 60 * 60 * 1_000,
-          maxHumanDecisions: 0,
-        },
-      }
-    : governedFactsFromPersistedIntent(persistedIntent);
+  const repository =
+    persistedIntent === undefined
+      ? inspectEpisodeRepository({ workdir: options.localRepo, baseRevision: options.base })
+      : undefined;
+  const facts =
+    persistedIntent === undefined
+      ? {
+          episodeId,
+          trigger: trigger.descriptor,
+          lifecycle: journalEpisodeAnchor(options.app.name, options.journal, options.turnId).kind,
+          appStage: options.app.status,
+          repositoryFacts: repository!.repositoryFacts,
+          changeFacts: repository!.changeFacts,
+          requestedConstraints: {
+            dispatchRole: options.role.name,
+            trigger: trigger.details,
+            networkAccess: false,
+          },
+          hardBudget: {
+            maxProviderTurns: selectedPasses.length,
+            maxEquivalentCostUsd: remainingBudgetUsd,
+            maxMechanicalOverheadUsd: 0,
+            maxActiveTimeMs: 60 * 60 * 1_000,
+            maxHumanDecisions: 0,
+          },
+        }
+      : governedFactsFromPersistedIntent(persistedIntent);
   const store = new ApprovalStore(options.runtimeHome);
   const clock = options.now ?? (() => new Date());
   const gateForRole = (role: RoleConfig, workdir?: string): TurnHooks["gate"] =>
@@ -1222,13 +1157,9 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined
-        ? { networkAllowlist: options.app.networkAllowlist }
-        : {}),
+      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
       turnId: options.turnId,
-      ...(options.journal.event === undefined
-        ? {}
-        : { ticketRef: `event:${options.journal.event.key}` }),
+      ...(options.journal.event === undefined ? {} : { ticketRef: `event:${options.journal.event.key}` }),
       orgHome: options.orgRoot,
       // The pass executor passes the cwd it will actually run in (a builder
       // ticket pass runs in the per-ticket worktree). Falling back to the
@@ -1241,14 +1172,10 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
   const contextForRole = async (role: RoleConfig): Promise<ContextBundle> => {
     const cached = contexts.get(role.name);
     if (cached !== undefined) return cached;
-    const context = await buildContext(
-      options.orgRoot,
-      options.localRepo,
-      options.app.name,
-      role,
-      options.journal,
-      { stateHome: options.runtimeHome, turnId: options.turnId },
-    );
+    const context = await buildContext(options.orgRoot, options.localRepo, options.app.name, role, options.journal, {
+      stateHome: options.runtimeHome,
+      turnId: options.turnId,
+    });
     contexts.set(role.name, context);
     return context;
   };
@@ -1310,9 +1237,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
           pipelineName: options.pipelineName,
           pass,
           journal: options.journal,
-          priorOutputs: new Map(
-            dependencyOutputs.map((entry) => [entry.passId, entry.output]),
-          ),
+          priorOutputs: new Map(dependencyOutputs.map((entry) => [entry.passId, entry.output])),
           approvalRows: approvalRows.map((item) => ({
             id: item.id,
             app: item.app,
@@ -1326,18 +1251,19 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
             .map((feed) => ({ id: feed.feed_id, summary: feed.summary })),
           ...(plannerIssueIntake === undefined ? {} : { plannerIssueIntake }),
         }),
-      inputManifestForStep: () => plannerFeedBatch === undefined && plannerIssueIntake === undefined
-        ? undefined
-        : {
-            fileName: "planner-inputs.json",
-            pendingContents: plannerInputsManifestJson(plannerIssueIntake, plannerFeedBatch?.manifest),
-            completedContents: plannerInputsManifestJson(
-              plannerIssueIntake,
-              plannerFeedBatch === undefined
-                ? undefined
-                : consumedPlannerFeedBatchManifest(plannerFeedBatch.manifest),
-            ),
-          },
+      inputManifestForStep: () =>
+        plannerFeedBatch === undefined && plannerIssueIntake === undefined
+          ? undefined
+          : {
+              fileName: "planner-inputs.json",
+              pendingContents: plannerInputsManifestJson(plannerIssueIntake, plannerFeedBatch?.manifest),
+              completedContents: plannerInputsManifestJson(
+                plannerIssueIntake,
+                plannerFeedBatch === undefined
+                  ? undefined
+                  : consumedPlannerFeedBatchManifest(plannerFeedBatch.manifest),
+              ),
+            },
     },
   });
   const result = await pipelineResultFromGovernedEvidence(
@@ -1371,11 +1297,7 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
         app: options.app,
         turnId: options.turnId,
         worktree: options.localRepo,
-        branch: turnWorktreeIdentity(
-          options.runtimeHome,
-          options.app.name,
-          options.turnId,
-        ).branch,
+        branch: turnWorktreeIdentity(options.runtimeHome, options.app.name, options.turnId).branch,
         base: options.base,
         intake: plannerIssueIntake,
         decisions,
@@ -1383,25 +1305,20 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
         providerRunIds: result.passes.map((record) => record.runId),
         providerOutput: result.passes.map((record) => record.result.summary).join("\n"),
         now: clock(),
-        ...(options.plannerPublicationGit === undefined
-          ? {}
-          : { git: options.plannerPublicationGit }),
+        ...(options.plannerPublicationGit === undefined ? {} : { git: options.plannerPublicationGit }),
       });
-      const reconciled = publication.state === "publication_pending"
-        ? await resumePlannerPublication({
-            stateHome: options.runtimeHome,
-            app: options.app,
-            publicationId: publication.publication_id,
-            gh: options.gh ?? new GhCliOps(options.app.repo),
-            now: clock(),
-            ...(options.plannerPublicationGit === undefined
-              ? {}
-              : { git: options.plannerPublicationGit }),
-            ...(options.plannerPublicationFault === undefined
-              ? {}
-              : { fault: options.plannerPublicationFault }),
-          })
-        : publication;
+      const reconciled =
+        publication.state === "publication_pending"
+          ? await resumePlannerPublication({
+              stateHome: options.runtimeHome,
+              app: options.app,
+              publicationId: publication.publication_id,
+              gh: options.gh ?? new GhCliOps(options.app.repo),
+              now: clock(),
+              ...(options.plannerPublicationGit === undefined ? {} : { git: options.plannerPublicationGit }),
+              ...(options.plannerPublicationFault === undefined ? {} : { fault: options.plannerPublicationFault }),
+            })
+          : publication;
       if (reconciled.state !== "published") {
         turnResult = {
           ...turnResult,
@@ -1409,9 +1326,8 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
           summary:
             `Planner publication ${reconciled.state}: ${reconciled.error?.message ?? "publication is incomplete"}. ` +
             `Resume with: ${reconciled.recovery.command}`,
-          errorCode: reconciled.state === "refused"
-            ? "error_planner_publication_refused"
-            : "error_planner_publication_pending",
+          errorCode:
+            reconciled.state === "refused" ? "error_planner_publication_refused" : "error_planner_publication_pending",
         };
       } else {
         turnResult = {
@@ -1503,18 +1419,17 @@ async function runM6PipelineTurn(
     options.runtimeHome,
     genericEfficiencyEpisodeId(options.app.name, options.journal, options.turnId),
   );
-  const existingRecord = (await listM6RunRecords(options.runtimeHome))
-    .find((record) =>
+  const existingRecord = (await listM6RunRecords(options.runtimeHome)).find(
+    (record) =>
       record.run_id === options.turnId &&
       record.model_turns > 0 &&
-      record.kind === (options.pipelineName === "learning-distill"
-        ? "distillation"
-        : "learning_review"),
-    );
+      record.kind === (options.pipelineName === "learning-distill" ? "distillation" : "learning_review"),
+  );
   if (existingIntent !== undefined && existingRecord !== undefined) {
-    const result = options.pipelineName === "learning-distill"
-      ? await executeM6Pipeline(options, m6RecoveryFlow("learning-distill"))
-      : await executeM6Pipeline(options, m6RecoveryFlow("learning-review"));
+    const result =
+      options.pipelineName === "learning-distill"
+        ? await executeM6Pipeline(options, m6RecoveryFlow("learning-distill"))
+        : await executeM6Pipeline(options, m6RecoveryFlow("learning-review"));
     await recordM6Scorecard(options, result);
     return resultFromPipeline(options.role, options.pipelineName, result, options.signal);
   }
@@ -1639,11 +1554,7 @@ async function runM6PipelineTurn(
       capped_candidates: preparation.cappedCandidates,
       reviewed_candidates: [],
     });
-    return zeroResult(
-      "completed",
-      `learning review skipped: ${preparation.reason}`,
-      options.role,
-    );
+    return zeroResult("completed", `learning review skipped: ${preparation.reason}`, options.role);
   }
 
   const result = await executeM6Pipeline(options, {
@@ -1782,8 +1693,9 @@ async function executeM6Pipeline<K extends "learning-distill" | "learning-review
   const episodeId = genericEfficiencyEpisodeId(options.app.name, options.journal, options.turnId);
   const trigger = genericTriggerFacts(options.journal, options.turnId);
   const persistedIntent = await readPersistedEpisodeIntent(options.runtimeHome, episodeId);
-  const budget = (await rollupBudgets(options.runtimeHome, options.appsFile, clock()))
-    .find((row) => row.app === options.app.name);
+  const budget = (await rollupBudgets(options.runtimeHome, options.appsFile, clock())).find(
+    (row) => row.app === options.app.name,
+  );
   if (budget === undefined) {
     throw new Error(`M6 pipeline could not resolve the app budget for ${options.app.name}`);
   }
@@ -1794,32 +1706,34 @@ async function executeM6Pipeline<K extends "learning-distill" | "learning-review
         : `${options.app.name} has exhausted its monthly budget`,
     );
   }
-  const repository = persistedIntent === undefined
-    ? inspectEpisodeRepository({ workdir: options.localRepo, baseRevision: options.base })
-    : undefined;
-  const facts = persistedIntent === undefined
-    ? {
-        episodeId,
-        trigger: trigger.descriptor,
-        lifecycle: journalEpisodeAnchor(options.app.name, options.journal, options.turnId).kind,
-        appStage: options.app.status,
-        repositoryFacts: repository!.repositoryFacts,
-        changeFacts: repository!.changeFacts,
-        requestedConstraints: {
-          dispatchRole: options.role.name,
-          trigger: trigger.details,
-          learningActivity: options.telemetry.learningActivity ?? flow.kind,
-          networkAccess: false,
-        },
-        hardBudget: {
-          maxProviderTurns: selectedPasses.length,
-          maxEquivalentCostUsd: Math.max(0, budget.budgetUsd - budget.spentUsd),
-          maxMechanicalOverheadUsd: 0,
-          maxActiveTimeMs: 60 * 60 * 1_000,
-          maxHumanDecisions: 0,
-        },
-      }
-    : governedFactsFromPersistedIntent(persistedIntent);
+  const repository =
+    persistedIntent === undefined
+      ? inspectEpisodeRepository({ workdir: options.localRepo, baseRevision: options.base })
+      : undefined;
+  const facts =
+    persistedIntent === undefined
+      ? {
+          episodeId,
+          trigger: trigger.descriptor,
+          lifecycle: journalEpisodeAnchor(options.app.name, options.journal, options.turnId).kind,
+          appStage: options.app.status,
+          repositoryFacts: repository!.repositoryFacts,
+          changeFacts: repository!.changeFacts,
+          requestedConstraints: {
+            dispatchRole: options.role.name,
+            trigger: trigger.details,
+            learningActivity: options.telemetry.learningActivity ?? flow.kind,
+            networkAccess: false,
+          },
+          hardBudget: {
+            maxProviderTurns: selectedPasses.length,
+            maxEquivalentCostUsd: Math.max(0, budget.budgetUsd - budget.spentUsd),
+            maxMechanicalOverheadUsd: 0,
+            maxActiveTimeMs: 60 * 60 * 1_000,
+            maxHumanDecisions: 0,
+          },
+        }
+      : governedFactsFromPersistedIntent(persistedIntent);
   const pipelineEvidenceRef = `pipeline-config:${stableHash(options.pipeline)}`;
   const triggerEvidenceRef = trigger.descriptor.sourceRef ?? `turn:${options.turnId}`;
   const orchestrated = await orchestrateGovernedPipelineEpisode({
@@ -1861,8 +1775,10 @@ async function executeM6Pipeline<K extends "learning-distill" | "learning-review
       contextForStep: () => options.context,
       briefForStep: () => flow.brief,
       verdictSchemaForStep: () => VERDICT_SCHEMAS[flow.kind] as Record<string, unknown>,
-      recordVerdictForStep: ({ step }) => async (ctx) =>
-        recordM6Verdict(flow, ctx, step.assignment),
+      recordVerdictForStep:
+        ({ step }) =>
+        async (ctx) =>
+          recordM6Verdict(flow, ctx, step.assignment),
     },
   });
   return pipelineResultFromGovernedEvidence(
@@ -1886,10 +1802,12 @@ async function recordM6Verdict<K extends "learning-distill" | "learning-review">
   try {
     const parsed = flow.parse(ctx.result.summary);
     if (!parsed.ok) {
-      throw new VerdictParseError(flow.kind, [{
-        text: ctx.result.summary,
-        reason: parsed.reason,
-      }]);
+      throw new VerdictParseError(flow.kind, [
+        {
+          text: ctx.result.summary,
+          reason: parsed.reason,
+        },
+      ]);
     }
     const records = await flow.onVerdict(parsed.verdict, assignment);
     await ctx.events.append({
@@ -1913,14 +1831,10 @@ function governedFactsFromPersistedIntent(intent: EpisodeIntent) {
     lifecycle: intent.lifecycle,
     appStage: intent.appStage,
     repositoryFacts: structuredClone(intent.repositoryFacts),
-    ...(intent.changeFacts === undefined
-      ? {}
-      : { changeFacts: structuredClone(intent.changeFacts) }),
+    ...(intent.changeFacts === undefined ? {} : { changeFacts: structuredClone(intent.changeFacts) }),
     requestedConstraints: structuredClone(intent.requestedConstraints),
     hardBudget: structuredClone(intent.hardBudget),
-    responsibilityByRole: Object.fromEntries(
-      intent.availableRoles.map((role) => [role.role, role.responsibility]),
-    ),
+    responsibilityByRole: Object.fromEntries(intent.availableRoles.map((role) => [role.role, role.responsibility])),
   };
 }
 
@@ -1932,65 +1846,56 @@ async function pipelineResultFromGovernedEvidence(
   aborted: boolean,
 ): Promise<PipelineRunResult> {
   const passById = new Map(pipeline.passes.map((pass) => [pass.id, pass]));
-  const passes = await Promise.all(evidence.map(async (entry) => {
-    const pass = passById.get(entry.passId);
-    if (pass === undefined) {
-      throw new Error(
-        `governed provider evidence references unknown pass ${pipeline.name}/${entry.passId}`,
-      );
-    }
-    const envelope = await readEnvelope(root, app, entry.record.run_id);
-    const result: TurnResult = {
-      status: entry.envelopeStatus === "blocked" ? "blocked_on_gate" : entry.envelopeStatus,
-      summary: entry.output,
-      artifacts: structuredClone(envelope.artifacts ?? []),
-      session: envelope.session === undefined
-        ? { runtime: entry.assignment.harness, id: `governed-${entry.record.run_id}` }
-        : structuredClone(envelope.session),
-      usage: entry.record.usage ?? turnUsageFromEnvelope(envelope),
-      escalations: [],
-      ...(envelope.error_code === undefined ? {} : { errorCode: envelope.error_code }),
-    };
-    return {
-      pass: structuredClone(pass),
-      runId: entry.record.run_id,
-      result,
-      assignment: { ...entry.assignment },
-      planMetadata: {
-        ...(entry.record.assignment_source === undefined
-          ? {}
-          : { assignment_source: entry.record.assignment_source }),
-        ...(entry.record.assignment_candidate_id === undefined
-          ? {}
-          : { assignment_candidate_id: entry.record.assignment_candidate_id }),
-        ...(entry.record.plan_version === undefined
-          ? {}
-          : { plan_version: entry.record.plan_version }),
-        ...(entry.record.plan_step_id === undefined
-          ? {}
-          : { plan_step_id: entry.record.plan_step_id }),
-        ...(entry.record.selection_reason === undefined
-          ? {}
-          : { selection_reason: entry.record.selection_reason }),
-        ...(entry.record.provider_family === undefined
-          ? {}
-          : { provider_family: entry.record.provider_family }),
-        ...(entry.record.resolved_capabilities === undefined
-          ? {}
-          : { resolved_capabilities: [...entry.record.resolved_capabilities] }),
-      },
-      // The durable execution record is the authoritative bounded input and
-      // work snapshot. These projection-only fields are not written back.
-      contextFingerprint: entry.record.input_fingerprint,
-      workFingerprint: entry.record.work_fingerprint_after,
-    };
-  }));
+  const passes = await Promise.all(
+    evidence.map(async (entry) => {
+      const pass = passById.get(entry.passId);
+      if (pass === undefined) {
+        throw new Error(`governed provider evidence references unknown pass ${pipeline.name}/${entry.passId}`);
+      }
+      const envelope = await readEnvelope(root, app, entry.record.run_id);
+      const result: TurnResult = {
+        status: entry.envelopeStatus === "blocked" ? "blocked_on_gate" : entry.envelopeStatus,
+        summary: entry.output,
+        artifacts: structuredClone(envelope.artifacts ?? []),
+        session:
+          envelope.session === undefined
+            ? { runtime: entry.assignment.harness, id: `governed-${entry.record.run_id}` }
+            : structuredClone(envelope.session),
+        usage: entry.record.usage ?? turnUsageFromEnvelope(envelope),
+        escalations: [],
+        ...(envelope.error_code === undefined ? {} : { errorCode: envelope.error_code }),
+      };
+      return {
+        pass: structuredClone(pass),
+        runId: entry.record.run_id,
+        result,
+        assignment: { ...entry.assignment },
+        planMetadata: {
+          ...(entry.record.assignment_source === undefined
+            ? {}
+            : { assignment_source: entry.record.assignment_source }),
+          ...(entry.record.assignment_candidate_id === undefined
+            ? {}
+            : { assignment_candidate_id: entry.record.assignment_candidate_id }),
+          ...(entry.record.plan_version === undefined ? {} : { plan_version: entry.record.plan_version }),
+          ...(entry.record.plan_step_id === undefined ? {} : { plan_step_id: entry.record.plan_step_id }),
+          ...(entry.record.selection_reason === undefined ? {} : { selection_reason: entry.record.selection_reason }),
+          ...(entry.record.provider_family === undefined ? {} : { provider_family: entry.record.provider_family }),
+          ...(entry.record.resolved_capabilities === undefined
+            ? {}
+            : { resolved_capabilities: [...entry.record.resolved_capabilities] }),
+        },
+        // The durable execution record is the authoritative bounded input and
+        // work snapshot. These projection-only fields are not written back.
+        contextFingerprint: entry.record.input_fingerprint,
+        workFingerprint: entry.record.work_fingerprint_after,
+      };
+    }),
+  );
   return { passes, aborted };
 }
 
-function turnUsageFromEnvelope(
-  envelope: Awaited<ReturnType<typeof readEnvelope>>,
-): TurnUsage {
+function turnUsageFromEnvelope(envelope: Awaited<ReturnType<typeof readEnvelope>>): TurnUsage {
   const usage = envelope.usage;
   return {
     tokensIn: usage?.tokens_in ?? 0,
@@ -1999,28 +1904,26 @@ function turnUsageFromEnvelope(
     subagentTurns: usage?.subagent_turns ?? 0,
     wallClockMs: envelope.wall_clock_ms ?? 0,
     quality: usage?.quality ?? (usage === undefined ? "unavailable" : "complete"),
-    ...(usage?.cache_read_tokens === undefined
-      ? {}
-      : { cacheReadTokens: usage.cache_read_tokens }),
-    ...(usage?.cache_write_tokens === undefined
-      ? {}
-      : { cacheCreationTokens: usage.cache_write_tokens }),
+    ...(usage?.cache_read_tokens === undefined ? {} : { cacheReadTokens: usage.cache_read_tokens }),
+    ...(usage?.cache_write_tokens === undefined ? {} : { cacheCreationTokens: usage.cache_write_tokens }),
   };
 }
 
-async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
-  runtimeHome: string;
-  orgRoot: string;
-  localRepo: string;
-  /** Resolved by ensureManagedClone under the app git lock — the same base the
-   *  clone was synchronized to, so the loop never re-derives or guesses it. */
-  base: BaseRevision;
-  context: ContextBundle;
-  hooks: TurnHooks;
-  journal: TurnJournal;
-  store: ApprovalStore;
-  telemetry: { orgDir: string; trigger?: TriggerKind };
-}): Promise<TurnResult> {
+async function runBuilderTicketTurn(
+  options: RunDispatchedTurnOptions & {
+    runtimeHome: string;
+    orgRoot: string;
+    localRepo: string;
+    /** Resolved by ensureManagedClone under the app git lock — the same base the
+     *  clone was synchronized to, so the loop never re-derives or guesses it. */
+    base: BaseRevision;
+    context: ContextBundle;
+    hooks: TurnHooks;
+    journal: TurnJournal;
+    store: ApprovalStore;
+    telemetry: { orgDir: string; trigger?: TriggerKind };
+  },
+): Promise<TurnResult> {
   const clock = options.now ?? (() => new Date());
   const rolesFile = await loadRoles(join(options.orgRoot, "roles.yaml"));
   const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(options.app));
@@ -2056,13 +1959,9 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined
-        ? { networkAllowlist: options.app.networkAllowlist }
-        : {}),
+      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
       turnId: options.turnId,
-      ...(options.journal.ticketRef === undefined
-        ? {}
-        : { ticketRef: options.journal.ticketRef }),
+      ...(options.journal.ticketRef === undefined ? {} : { ticketRef: options.journal.ticketRef }),
       orgHome: options.orgRoot,
       // The pass executor passes the cwd it will actually run in (a builder
       // ticket pass runs in the per-ticket worktree). Falling back to the
@@ -2099,11 +1998,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     runtimeForAssignment,
     plannerContext,
     contextForProviderStep: async ({ item, role }) =>
-      (await resolveEpisodeContext(
-        item,
-        EPISODE_PLAN_EXECUTION_PIPELINE,
-        role.name,
-      )) ?? options.context,
+      (await resolveEpisodeContext(item, EPISODE_PLAN_EXECUTION_PIPELINE, role.name)) ?? options.context,
     remainingBudgetUsd,
     gateForRole,
     approval: createExistingTicketApprovalHandler({
@@ -2113,17 +2008,10 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     }),
     // One inbox, never two: a per-turn budget grant is a synthetic item in the
     // same store the critical-op approvals live in.
-    raiseTurnBudgetEscalation: (escalation) =>
-      raiseTurnBudgetEscalation(options.store.root, escalation, clock()),
-    ...(options.creatorScope === undefined
-      ? {}
-      : { creatorScopeForTicket: () => options.creatorScope }),
-    ...(options.episodePlannerPromptText === undefined
-      ? {}
-      : { plannerPromptText: options.episodePlannerPromptText }),
-    ...(options.episodePlannerLimits === undefined
-      ? {}
-      : { plannerLimits: options.episodePlannerLimits }),
+    raiseTurnBudgetEscalation: (escalation) => raiseTurnBudgetEscalation(options.store.root, escalation, clock()),
+    ...(options.creatorScope === undefined ? {} : { creatorScopeForTicket: () => options.creatorScope }),
+    ...(options.episodePlannerPromptText === undefined ? {} : { plannerPromptText: options.episodePlannerPromptText }),
+    ...(options.episodePlannerLimits === undefined ? {} : { plannerLimits: options.episodePlannerLimits }),
     authorization: { selfApprovalSecret },
     ...(options.app.release === undefined ? {} : { release: options.app.release }),
     telemetry: options.telemetry,
@@ -2201,13 +2089,9 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   }
   // A4: a merged deploy/package milestone queues its release as a critical
   // op — dispatch-driven merges must not bypass the approval boundary.
-  await queueReleaseApprovals(
-    options.runtimeHome,
-    options.app.name,
-    result.items,
-    options.now,
-    { localRepo: options.localRepo },
-  );
+  await queueReleaseApprovals(options.runtimeHome, options.app.name, result.items, options.now, {
+    localRepo: options.localRepo,
+  });
   for (const event of result.scorecardEvents) {
     await appendScorecardEvent(
       options.runtimeHome,
@@ -2225,10 +2109,7 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
   return classifyBuilderTicketLoopResult(result, options.role);
 }
 
-export function classifyBuilderTicketLoopResult(
-  result: LoopDriverResult,
-  role: RoleConfig,
-): TurnResult {
+export function classifyBuilderTicketLoopResult(result: LoopDriverResult, role: RoleConfig): TurnResult {
   if (result.budgetRefusal !== undefined) {
     // The tick never claimed — say so. "completed / no-ready-ticket" would
     // hide an exhausted cap behind an idle-looking turn.
@@ -2240,9 +2121,7 @@ export function classifyBuilderTicketLoopResult(
   }
   const terminalEpisodeRefusals = result.terminalEpisodeRefusals ?? [];
   if (terminalEpisodeRefusals.length > 0) {
-    const refused = terminalEpisodeRefusals
-      .map((entry) => `#${entry.issueNumber} (${entry.episodeId})`)
-      .join(", ");
+    const refused = terminalEpisodeRefusals.map((entry) => `#${entry.issueNumber} (${entry.episodeId})`).join(", ");
     return zeroResult(
       "blocked_on_gate",
       `builder ticket turn refused terminal episode(s) ${refused}; ` +
@@ -2271,9 +2150,7 @@ function protocolBrief(input: {
   const prior =
     input.priorOutputs.size === 0
       ? "None yet."
-      : [...input.priorOutputs.entries()]
-          .map(([pass, output]) => `### ${pass}\n\n${output}`)
-          .join("\n\n");
+      : [...input.priorOutputs.entries()].map(([pass, output]) => `### ${pass}\n\n${output}`).join("\n\n");
   const approvals =
     input.approvalRows.length === 0
       ? "No pending approvals."
@@ -2289,12 +2166,14 @@ function protocolBrief(input: {
               `- ${row.app}: ${row.status} ${row.spentUsd.toFixed(2)} / ${row.budgetUsd.toFixed(2)} (${row.percent.toFixed(1)}%)`,
           )
           .join("\n");
-  const plannerFeeds = input.plannerFeeds.length === 0
-    ? "No standing-role feeds."
-    : input.plannerFeeds.map((item) => `- ${item.id}: ${item.summary}`).join("\n");
-  const plannerIssues = input.plannerIssueIntake === undefined
-    ? "Not a Planner groom input."
-    : plannerIssueIntakeBrief(input.plannerIssueIntake);
+  const plannerFeeds =
+    input.plannerFeeds.length === 0
+      ? "No standing-role feeds."
+      : input.plannerFeeds.map((item) => `- ${item.id}: ${item.summary}`).join("\n");
+  const plannerIssues =
+    input.plannerIssueIntake === undefined
+      ? "Not a Planner groom input."
+      : plannerIssueIntakeBrief(input.plannerIssueIntake);
 
   // The original event payload, verbatim, with a provenance stamp — a
   // dispatched Support/Marketing/SRE/Planner turn must be able to quote what
@@ -2357,12 +2236,16 @@ function plannerInputsManifestJson(
   issueIntake: PlannerIssueIntake | undefined,
   feedManifest: ReturnType<typeof consumedPlannerFeedBatchManifest> | undefined,
 ): string {
-  return `${JSON.stringify({
-    schema_version: 1,
-    kind: "planner-input-manifest",
-    issue_intake: issueIntake ?? null,
-    standing_role_feeds: feedManifest ?? null,
-  }, null, 2)}\n`;
+  return `${JSON.stringify(
+    {
+      schema_version: 1,
+      kind: "planner-input-manifest",
+      issue_intake: issueIntake ?? null,
+      standing_role_feeds: feedManifest ?? null,
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 function resultFromPipeline(
@@ -2378,12 +2261,12 @@ function resultFromPipeline(
     : statuses.includes("cancelled")
       ? "cancelled"
       : statuses.includes("blocked_on_gate")
-    ? "blocked_on_gate"
-    : stopped !== undefined
-      ? stopped.status
-      : statuses.includes("failed") || result.aborted
-      ? "failed"
-      : "completed";
+        ? "blocked_on_gate"
+        : stopped !== undefined
+          ? stopped.status
+          : statuses.includes("failed") || result.aborted
+            ? "failed"
+            : "completed";
   const usage =
     result.passes.length > 0
       ? sumUsage(result.passes.map((record) => record.result.usage))
@@ -2393,7 +2276,7 @@ function resultFromPipeline(
           costUsd: 0,
           subagentTurns: 0,
           wallClockMs: 0,
-          quality: stopped !== undefined ? "unavailable" as const : "complete" as const,
+          quality: stopped !== undefined ? ("unavailable" as const) : ("complete" as const),
         };
   const last = result.passes[result.passes.length - 1]?.result;
   return {
@@ -2412,23 +2295,26 @@ function resultFromPipeline(
 }
 
 function sumUsage(usages: TurnUsage[]): TurnUsage {
-  return usages.reduce<TurnUsage>((acc, usage) => {
-    const next: TurnUsage = {
-      tokensIn: acc.tokensIn + usage.tokensIn,
-      tokensOut: acc.tokensOut + usage.tokensOut,
-      costUsd: acc.costUsd + usage.costUsd,
-      subagentTurns: acc.subagentTurns + usage.subagentTurns,
-      wallClockMs: acc.wallClockMs + usage.wallClockMs,
-    };
-    const tokensInUncached = (acc.tokensInUncached ?? 0) + (usage.tokensInUncached ?? 0);
-    const cacheCreationTokens = (acc.cacheCreationTokens ?? 0) + (usage.cacheCreationTokens ?? 0);
-    const cacheReadTokens = (acc.cacheReadTokens ?? 0) + (usage.cacheReadTokens ?? 0);
-    if (tokensInUncached > 0) next.tokensInUncached = tokensInUncached;
-    if (cacheCreationTokens > 0) next.cacheCreationTokens = cacheCreationTokens;
-    if (cacheReadTokens > 0) next.cacheReadTokens = cacheReadTokens;
-    next.quality = leastCompleteUsageQuality(acc.quality, usage.quality);
-    return next;
-  }, { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0, quality: "complete" });
+  return usages.reduce<TurnUsage>(
+    (acc, usage) => {
+      const next: TurnUsage = {
+        tokensIn: acc.tokensIn + usage.tokensIn,
+        tokensOut: acc.tokensOut + usage.tokensOut,
+        costUsd: acc.costUsd + usage.costUsd,
+        subagentTurns: acc.subagentTurns + usage.subagentTurns,
+        wallClockMs: acc.wallClockMs + usage.wallClockMs,
+      };
+      const tokensInUncached = (acc.tokensInUncached ?? 0) + (usage.tokensInUncached ?? 0);
+      const cacheCreationTokens = (acc.cacheCreationTokens ?? 0) + (usage.cacheCreationTokens ?? 0);
+      const cacheReadTokens = (acc.cacheReadTokens ?? 0) + (usage.cacheReadTokens ?? 0);
+      if (tokensInUncached > 0) next.tokensInUncached = tokensInUncached;
+      if (cacheCreationTokens > 0) next.cacheCreationTokens = cacheCreationTokens;
+      if (cacheReadTokens > 0) next.cacheReadTokens = cacheReadTokens;
+      next.quality = leastCompleteUsageQuality(acc.quality, usage.quality);
+      return next;
+    },
+    { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns: 0, wallClockMs: 0, quality: "complete" },
+  );
 }
 
 /** Worst-wins over the shared ranking (src/runtime/cost.ts) so every surface
@@ -2455,10 +2341,7 @@ function stopDescriptor(reason: unknown): {
 } {
   if (reason !== null && typeof reason === "object") {
     const value = reason as Record<string, unknown>;
-    if (
-      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
-      typeof value["reason"] === "string"
-    ) {
+    if ((value["status"] === "cancelled" || value["status"] === "timed_out") && typeof value["reason"] === "string") {
       return { status: value["status"], reason: value["reason"] };
     }
   }
@@ -2496,9 +2379,7 @@ async function ensureTurnLock(
   // (F-007). acquireLock below (re)acquires atomically via O_EXCL.
   const existing = await readLockOrUndefined(runtimeHome, app, role);
   if (existing?.turnId === turnId) {
-    return existing.pid === process.pid
-      ? existing
-      : adoptLock(runtimeHome, app, role, turnId, now);
+    return existing.pid === process.pid ? existing : adoptLock(runtimeHome, app, role, turnId, now);
   }
   const acquired = await acquireLock(runtimeHome, { app, role, turnId, now });
   if (!acquired.acquired) throw new Error(`turn lock busy for ${app}/${role}`);
@@ -2516,15 +2397,12 @@ export interface TurnWorktree {
 /** Pure identity used by both live checkout selection and CLI preview. The
  * bounded slug is readable; the stable 128-bit suffix prevents two valid
  * invocation ids that sanitize alike from sharing a ref or path. */
-export function turnWorktreeIdentity(
-  runtimeHome: string,
-  app: string,
-  turnId: string,
-): TurnWorktree {
-  const readable = turnId
-    .replace(/[^A-Za-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "invocation";
+export function turnWorktreeIdentity(runtimeHome: string, app: string, turnId: string): TurnWorktree {
+  const readable =
+    turnId
+      .replace(/[^A-Za-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "invocation";
   const suffix = stableHash({ app, turnId }).slice(0, 32);
   const leaf = `turn-${readable}-${suffix}`;
   return {
@@ -2586,9 +2464,7 @@ export function createPlannerTurnWorktree(
     }
     const actual = gitOptional(identity.path, "symbolic-ref", "--quiet", "--short", "HEAD");
     if (actual !== null && actual !== identity.branch) {
-      throw new Error(
-        `Planner worktree ${identity.path} is on ${actual}, expected detached or ${identity.branch}`,
-      );
+      throw new Error(`Planner worktree ${identity.path} is on ${actual}, expected detached or ${identity.branch}`);
     }
     return { ...identity, attached: actual === identity.branch };
   }
@@ -2645,10 +2521,7 @@ function inspectBudgetStopRecovery(worktree: TurnWorktree): TurnRecoveryEvidence
   };
 }
 
-function appendBudgetStopRecovery(
-  result: TurnResult,
-  recovery: TurnRecoveryEvidence,
-): TurnResult {
+function appendBudgetStopRecovery(result: TurnResult, recovery: TurnRecoveryEvidence): TurnResult {
   const state = recovery.dirty
     ? `dirty with ${recovery.statusEntries} status entr${recovery.statusEntries === 1 ? "y" : "ies"}`
     : "clean with 0 status entries";
@@ -2659,10 +2532,7 @@ function appendBudgetStopRecovery(
   return {
     ...result,
     summary: `${result.summary}; ${detail}`,
-    artifacts: [
-      ...result.artifacts,
-      { kind: "file", ref: recovery.path, summary: detail },
-    ],
+    artifacts: [...result.artifacts, { kind: "file", ref: recovery.path, summary: detail }],
   };
 }
 

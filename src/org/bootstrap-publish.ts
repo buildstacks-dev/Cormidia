@@ -35,11 +35,7 @@ import { AUTHORITY_BLOCK_END, AUTHORITY_BLOCK_START } from "./authority.js";
 import { loadApps, type AppEntry } from "./apps.js";
 import { loadRoles } from "./roles.js";
 import { appArtifactFiles, type BootstrapAnswers } from "./bootstrap.js";
-import {
-  baseRevisionForBranch,
-  resolveRemoteDefaultBranch,
-  type BaseRevision,
-} from "../loop/default-branch.js";
+import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
 
 /** Project instruction files bootstrap composes an authority block into. They
@@ -107,9 +103,7 @@ export interface BootstrapPublishOptions {
 // planning — pure inspection, never mutates
 // ---------------------------------------------------------------------------
 
-export async function planBootstrapPublish(
-  options: BootstrapPublishOptions,
-): Promise<BootstrapPublishPlan> {
+export async function planBootstrapPublish(options: BootstrapPublishOptions): Promise<BootstrapPublishPlan> {
   const orgHome = resolve(options.orgHome);
   const appDir = resolve(options.appDir);
   const blockers: string[] = [];
@@ -159,8 +153,7 @@ export async function planBootstrapPublish(
       ownedPaths: ["apps.yaml"],
       branch: `op/bootstrap-${entry.name}`,
       commitMessage:
-        `chore(cormidia): register ${entry.name}\n\n` +
-        `Registers ${entry.repo} in the org app registry.\n`,
+        `chore(cormidia): register ${entry.name}\n\n` + `Registers ${entry.repo} in the org app registry.\n`,
       // An org home that is not a git repo is a normal, supported setup — it
       // is simply not publishable, which is reported rather than treated as
       // a failure of the app side.
@@ -185,8 +178,7 @@ export async function planBootstrapPublish(
 
   if (repos.length === 0 && blockers.length === 0) {
     blockers.push(
-      `bootstrap publish: no bootstrap-owned changes are pending for "${entry.name}" — ` +
-        "nothing to publish",
+      `bootstrap publish: no bootstrap-owned changes are pending for "${entry.name}" — ` + "nothing to publish",
     );
   }
 
@@ -239,8 +231,7 @@ function inspectRepo(input: InspectRepoInput): RepoPublishPlan | undefined {
   for (const marker of ["MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD"]) {
     if (existsSync(join(root, ".git", marker))) {
       input.blockers.push(
-        `bootstrap publish: ${label} has an operation in progress (${marker}) — ` +
-          "finish or abort it, then re-run",
+        `bootstrap publish: ${label} has an operation in progress (${marker}) — ` + "finish or abort it, then re-run",
       );
       return undefined;
     }
@@ -249,9 +240,7 @@ function inspectRepo(input: InspectRepoInput): RepoPublishPlan | undefined {
   // Detached HEAD has no branch to return the operator to.
   const head = safeGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
   if (head === undefined) {
-    input.blockers.push(
-      `bootstrap publish: ${label} is on a detached HEAD — check out a branch, then re-run`,
-    );
+    input.blockers.push(`bootstrap publish: ${label} is on a detached HEAD — check out a branch, then re-run`);
     return undefined;
   }
 
@@ -273,8 +262,8 @@ function inspectRepo(input: InspectRepoInput): RepoPublishPlan | undefined {
   }
 
   // Conflicted bootstrap-owned paths must never be committed.
-  const conflicted = requiredGitLines(root, ["diff", "--name-only", "--diff-filter=U"]).filter(
-    (path) => input.ownedPaths.includes(path),
+  const conflicted = requiredGitLines(root, ["diff", "--name-only", "--diff-filter=U"]).filter((path) =>
+    input.ownedPaths.includes(path),
   );
   if (conflicted.length > 0) {
     input.blockers.push(
@@ -342,9 +331,7 @@ function inspectRepo(input: InspectRepoInput): RepoPublishPlan | undefined {
 
   if (files.length === 0 && !alreadyPublished && !unpushedCommit) {
     if (input.optional === true) return undefined;
-    input.blockers.push(
-      `bootstrap publish: ${label} has no pending bootstrap-owned changes — nothing to publish`,
-    );
+    input.blockers.push(`bootstrap publish: ${label} has no pending bootstrap-owned changes — nothing to publish`);
     return undefined;
   }
 
@@ -368,11 +355,7 @@ function inspectRepo(input: InspectRepoInput): RepoPublishPlan | undefined {
  *  never fetched it fails outright, and one that fetched days ago would
  *  silently cut from a stale tip — the same staleness bug #60 fixed in
  *  interactive planning. Fetch, then verify the tip is really there. */
-function resolveBase(
-  root: string,
-  input: InspectRepoInput,
-  label: string,
-): BaseRevision | undefined {
+function resolveBase(root: string, input: InspectRepoInput, label: string): BaseRevision | undefined {
   try {
     const base = baseRevisionForBranch(
       resolveRemoteDefaultBranch("origin", { cwd: root, errorPrefix: "bootstrap publish" }),

@@ -40,7 +40,9 @@ export async function cmdPruneRuns(args: string[]): Promise<number> {
     }
   }
   if (sweep && retentionDays !== undefined) {
-    throw new Error("prune-runs: --sweep applies the documented per-subtree windows; it cannot be combined with --retention-days");
+    throw new Error(
+      "prune-runs: --sweep applies the documented per-subtree windows; it cannot be combined with --retention-days",
+    );
   }
 
   const effectiveRoot = root ?? (await resolveCormidiaHomes(common)).stateHome;

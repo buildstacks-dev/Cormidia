@@ -3,11 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { GhIssue, GhOps } from "../../../src/loop/github.js";
-import {
-  claimDeliveryUnitIssues,
-  claimTicket,
-  deliveryUnitClosingReferences,
-} from "../../../src/loop/loop.js";
+import { claimDeliveryUnitIssues, claimTicket, deliveryUnitClosingReferences } from "../../../src/loop/loop.js";
 import { stableHash } from "../../../src/loop/episode-plan.js";
 import { issueContentHash } from "../../../src/loop/issue-snapshot.js";
 import type { LoopDeliveryUnit } from "../../../src/loop/types.js";
@@ -54,14 +50,16 @@ describe("HB-103 — delivery-unit loop atomicity", () => {
     const worktrees = await temporaryDirectory();
     const gh = new UnitGh([issue(41), issue(42)]);
     gh.failNextSwapFor = 42;
-    await expect(claimDeliveryUnitIssues([issue(41), issue(42)], {
-      gh: gh as unknown as GhOps,
-      targetRepo: "fixture/repo",
-      localRepo: repo.dir,
-      worktreeRoot: worktrees,
-      base: { ref: "HEAD", defaultBranch: repo.defaultBranch },
-      unit: deliveryUnit("seeded-subset-failure", [41, 42]),
-    })).rejects.toThrow("seeded label failure");
+    await expect(
+      claimDeliveryUnitIssues([issue(41), issue(42)], {
+        gh: gh as unknown as GhOps,
+        targetRepo: "fixture/repo",
+        localRepo: repo.dir,
+        worktreeRoot: worktrees,
+        base: { ref: "HEAD", defaultBranch: repo.defaultBranch },
+        unit: deliveryUnit("seeded-subset-failure", [41, 42]),
+      }),
+    ).rejects.toThrow("seeded label failure");
 
     expect(gh.labels(41)).toContain("op:ready");
     expect(gh.labels(41)).not.toContain("op:building");
@@ -75,14 +73,16 @@ describe("HB-103 — delivery-unit loop atomicity", () => {
     const unit = deliveryUnit("seeded-member-change", [51, 52]);
     gh.issues.get(52)!.body += "\nchanged after admission";
 
-    await expect(claimDeliveryUnitIssues([issue(51), issue(52)], {
-      gh: gh as unknown as GhOps,
-      targetRepo: "fixture/repo",
-      localRepo: repo.dir,
-      worktreeRoot: worktrees,
-      base: { ref: "HEAD", defaultBranch: repo.defaultBranch },
-      unit,
-    })).rejects.toThrow("member #52 changed after admission");
+    await expect(
+      claimDeliveryUnitIssues([issue(51), issue(52)], {
+        gh: gh as unknown as GhOps,
+        targetRepo: "fixture/repo",
+        localRepo: repo.dir,
+        worktreeRoot: worktrees,
+        base: { ref: "HEAD", defaultBranch: repo.defaultBranch },
+        unit,
+      }),
+    ).rejects.toThrow("member #52 changed after admission");
     expect(gh.labels(51)).toContain("op:ready");
     expect(gh.labels(52)).toContain("op:ready");
   });
@@ -109,7 +109,7 @@ class UnitGh {
     }
     const value = this.issues.get(number)!;
     if (!value.labels.includes(from)) throw new Error(`#${number} lacks ${from}`);
-    value.labels = value.labels.map((label) => label === from ? to : label);
+    value.labels = value.labels.map((label) => (label === from ? to : label));
   }
 
   labels(number: number): string[] {

@@ -39,7 +39,7 @@ function usage(costUsd: number): TurnUsage {
   };
 }
 
-function stopped(req: TurnRequest, finalUsage: TurnUsage, reason: string): TurnResult {
+function stopped(_req: TurnRequest, finalUsage: TurnUsage, reason: string): TurnResult {
   return {
     status: "failed",
     errorCode: "scripted_runtime_stopped",
@@ -221,7 +221,9 @@ describe("CF-REG-229 — hard per-turn execution budget", () => {
       runtime,
       "episode-active-time-bound",
       { equivalent_cost_usd: 5, active_time_ms: 0 },
-      () => { runtimeFactoryCalls += 1; },
+      () => {
+        runtimeFactoryCalls += 1;
+      },
     );
 
     expect(runtimeFactoryCalls).toBe(0);

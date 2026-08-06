@@ -1,11 +1,4 @@
-import type {
-  Effort,
-  RoleConfig,
-  RuntimeKind,
-  TurnAssignment,
-  TurnExecutionFacts,
-  TurnRequest,
-} from "./types.js";
+import type { Effort, RoleConfig, RuntimeKind, TurnAssignment, TurnExecutionFacts, TurnRequest } from "./types.js";
 import {
   hasRuntimeCapability,
   resolvedRuntimeCapabilities,
@@ -50,18 +43,13 @@ export function validateProviderFamily(value: unknown, context = "provider famil
 export function validateTurnAssignment(value: unknown, context = "turn assignment"): TurnAssignment {
   if (!isRecord(value)) throw new Error(`${context} must be a mapping`);
 
-  const unknown = Object.keys(value).filter(
-    (key) => key !== "harness" && key !== "model" && key !== "effort",
-  );
+  const unknown = Object.keys(value).filter((key) => key !== "harness" && key !== "model" && key !== "effort");
   if (unknown.length > 0) {
     throw new Error(`${context} has unknown field(s): ${unknown.sort().join(", ")}`);
   }
 
   const harness = value["harness"];
-  if (
-    typeof harness !== "string" ||
-    !TURN_ASSIGNMENT_HARNESSES.includes(harness as RuntimeKind)
-  ) {
+  if (typeof harness !== "string" || !TURN_ASSIGNMENT_HARNESSES.includes(harness as RuntimeKind)) {
     throw new Error(`${context}.harness must be one of ${TURN_ASSIGNMENT_HARNESSES.join(" | ")}`);
   }
 
@@ -105,9 +93,7 @@ export function turnAssignmentsEqual(left: TurnAssignment, right: TurnAssignment
   return turnAssignmentKey(left) === turnAssignmentKey(right);
 }
 
-export function fixedAssignmentFromRole(
-  role: Pick<RoleConfig, "runtime" | "model" | "effort">,
-): TurnAssignment {
+export function fixedAssignmentFromRole(role: Pick<RoleConfig, "runtime" | "model" | "effort">): TurnAssignment {
   return validateTurnAssignment({
     harness: role.runtime,
     model: role.model,
@@ -174,9 +160,7 @@ export function buildTurnExecutionFacts(
   const profile = runtimeCapabilityProfile(assignment.harness);
   for (const capability of requiredCapabilities) {
     if (!hasRuntimeCapability(profile, capability)) {
-      throw new Error(
-        `${assignment.harness} lacks required capability ${capability}`,
-      );
+      throw new Error(`${assignment.harness} lacks required capability ${capability}`);
     }
   }
   return {
@@ -185,19 +169,13 @@ export function buildTurnExecutionFacts(
     resolvedCapabilities: resolvedRuntimeCapabilities(assignment.harness),
     requiredCapabilities,
     roleDelegation: {
-      allow: validateDelegationAllow(
-        role.delegation.allow,
-        "turn execution facts.roleDelegation.allow",
-      ),
+      allow: validateDelegationAllow(role.delegation.allow, "turn execution facts.roleDelegation.allow"),
     },
   };
 }
 
 /** Validate facts before they cross a native prompt/context boundary. */
-export function validateTurnExecutionFacts(
-  value: unknown,
-  context = "turn execution facts",
-): TurnExecutionFacts {
+export function validateTurnExecutionFacts(value: unknown, context = "turn execution facts"): TurnExecutionFacts {
   if (!isRecord(value)) throw new Error(`${context} must be a mapping`);
   const unknown = Object.keys(value).filter(
     (key) =>
@@ -229,9 +207,7 @@ export function validateTurnExecutionFacts(
   );
   for (const capability of requiredCapabilities) {
     if (!resolvedCapabilities.includes(capability)) {
-      throw new Error(
-        `${context}.requiredCapabilities includes unsupported ${JSON.stringify(capability)}`,
-      );
+      throw new Error(`${context}.requiredCapabilities includes unsupported ${JSON.stringify(capability)}`);
     }
   }
   const roleDelegation = value["roleDelegation"];
@@ -240,14 +216,9 @@ export function validateTurnExecutionFacts(
   }
   const delegationUnknown = Object.keys(roleDelegation).filter((key) => key !== "allow");
   if (delegationUnknown.length > 0) {
-    throw new Error(
-      `${context}.roleDelegation has unknown field(s): ${delegationUnknown.sort().join(", ")}`,
-    );
+    throw new Error(`${context}.roleDelegation has unknown field(s): ${delegationUnknown.sort().join(", ")}`);
   }
-  const allow = validateDelegationAllow(
-    roleDelegation["allow"],
-    `${context}.roleDelegation.allow`,
-  );
+  const allow = validateDelegationAllow(roleDelegation["allow"], `${context}.roleDelegation.allow`);
   return {
     role,
     assignment,
@@ -258,10 +229,7 @@ export function validateTurnExecutionFacts(
 }
 
 function validateExecutionRole(value: unknown, context: string): string {
-  if (
-    typeof value !== "string" ||
-    !/^[A-Za-z0-9](?:[A-Za-z0-9._/-]{0,126}[A-Za-z0-9])?$/u.test(value)
-  ) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9](?:[A-Za-z0-9._/-]{0,126}[A-Za-z0-9])?$/u.test(value)) {
     throw new Error(`${context} must be a stable role identifier`);
   }
   return value;
@@ -270,10 +238,7 @@ function validateExecutionRole(value: unknown, context: string): string {
 function validateDelegationAllow(value: unknown, context: string): string[] {
   if (!Array.isArray(value)) throw new Error(`${context} must be an array`);
   const allow = value.map((entry, index) => {
-    if (
-      typeof entry !== "string" ||
-      !/^[a-z0-9](?:[a-z0-9._/-]{0,126}[a-z0-9])?$/u.test(entry)
-    ) {
+    if (typeof entry !== "string" || !/^[a-z0-9](?:[a-z0-9._/-]{0,126}[a-z0-9])?$/u.test(entry)) {
       throw new Error(`${context}[${index}] must be a lowercase stable delegation identifier`);
     }
     return entry;

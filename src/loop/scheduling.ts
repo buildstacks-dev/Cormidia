@@ -9,10 +9,7 @@ export interface SchedulableTicket {
   priority?: number;
 }
 
-export function selectReadyTickets(
-  tickets: readonly SchedulableTicket[],
-  maxConcurrent: number,
-): SchedulableTicket[] {
+export function selectReadyTickets(tickets: readonly SchedulableTicket[], maxConcurrent: number): SchedulableTicket[] {
   const cap = Math.max(0, Math.trunc(maxConcurrent));
   if (cap === 0) return [];
 

@@ -13,13 +13,15 @@ export function resolveSchedulerRequiredExecutables(
   names: readonly string[] = REQUIRED_SCHEDULER_TOOLS,
   path = process.env.PATH ?? DEFAULT_SCHEDULER_PATH,
 ): Record<string, string> {
-  return Object.fromEntries(names.map((name) => {
-    const found = resolveExecutableOnPath(name, path);
-    if (found === undefined) {
-      throw new Error(`required scheduler tool '${name}' was not found on the operator PATH`);
-    }
-    return [name, found];
-  }));
+  return Object.fromEntries(
+    names.map((name) => {
+      const found = resolveExecutableOnPath(name, path);
+      if (found === undefined) {
+        throw new Error(`required scheduler tool '${name}' was not found on the operator PATH`);
+      }
+      return [name, found];
+    }),
+  );
 }
 
 export function schedulerEnvironmentPath(
@@ -37,7 +39,9 @@ export function resolveExecutableOnPath(name: string, path: string): string | un
     try {
       accessSync(candidate, constants.X_OK);
       return candidate;
-    } catch { /* continue */ }
+    } catch {
+      /* continue */
+    }
   }
   return undefined;
 }
@@ -56,16 +60,14 @@ export function schedulerEnvironmentProblems(input: {
     if (observed !== recorded) {
       problems.push(
         `required tool '${name}' not found on scheduled-turn PATH at recorded path ${recorded}` +
-        (observed === undefined ? "" : ` (resolved ${observed} instead)`),
+          (observed === undefined ? "" : ` (resolved ${observed} instead)`),
       );
     }
   }
   return problems;
 }
 
-export function assertScheduledRequiredExecutables(
-  env: Readonly<Record<string, string | undefined>>,
-): void {
+export function assertScheduledRequiredExecutables(env: Readonly<Record<string, string | undefined>>): void {
   const raw = env[SCHEDULER_REQUIRED_EXECUTABLES_ENV];
   if (raw === undefined) return;
   let required: Record<string, string>;

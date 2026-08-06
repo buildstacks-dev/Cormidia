@@ -108,14 +108,15 @@ export function mergeStory(captured: NarrativeStory | undefined, fresh: Narrativ
         : freshMoment,
     );
   }
-  merged.moments = [...moments.values()].sort(
-    (a, b) => a.at.localeCompare(b.at) || a.run_id.localeCompare(b.run_id),
-  );
+  merged.moments = [...moments.values()].sort((a, b) => a.at.localeCompare(b.at) || a.run_id.localeCompare(b.run_id));
 
   // Monotonic story-level fields — never regress regardless of which side
   // won the spread above.
   if (captured.opened.localeCompare(merged.opened) < 0) merged.opened = captured.opened;
-  if (captured.closed !== undefined && (merged.closed === undefined || merged.closed.localeCompare(captured.closed) < 0)) {
+  if (
+    captured.closed !== undefined &&
+    (merged.closed === undefined || merged.closed.localeCompare(captured.closed) < 0)
+  ) {
     // A completed capture only loses `closed` when a complete fresh fold
     // says the story genuinely re-opened.
     if (!(freshIsComplete && fresh.status === "in_progress")) merged.closed = captured.closed;

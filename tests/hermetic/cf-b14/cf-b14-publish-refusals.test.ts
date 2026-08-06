@@ -29,10 +29,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  executeBootstrapPublish,
-  planBootstrapPublish,
-} from "../../../src/org/bootstrap-publish.js";
+import { executeBootstrapPublish, planBootstrapPublish } from "../../../src/org/bootstrap-publish.js";
 import { bootstrapRun, registerAppWithExistingOrg } from "../../../src/org/bootstrap.js";
 import { loadRoles } from "../../../src/org/roles.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
@@ -128,7 +125,7 @@ describe("CF-B14-* — publish-only refusals (bootstrap publish planning, contra
     await repo.commitFile("AGENTS.md", "trunk version\n", "trunk edit");
     expect(() => repo.git(["merge", "feature"])).toThrow(); // real conflict
 
-    const plan = (kind?: string) =>
+    const plan = (_kind?: string) =>
       planBootstrapPublish({
         app: APP,
         orgHome: org.orgHome,

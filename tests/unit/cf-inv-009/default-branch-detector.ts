@@ -38,9 +38,7 @@ function isReserved(text: string): boolean {
  *  (`origin/main...HEAD`) or a rev spec (`origin/main^{commit}`) is the same
  *  guessed base as the bare ref. Matching on the literal's parsed text, rather
  *  than on source bytes, is what keeps comments and template markup out. */
-const REMOTE_TRACKING = new RegExp(
-  `(^|[^\\w./-])origin/(${RESERVED_DEFAULT_BRANCHES.join("|")})(?![\\w-])`,
-);
+const REMOTE_TRACKING = new RegExp(`(^|[^\\w./-])origin/(${RESERVED_DEFAULT_BRANCHES.join("|")})(?![\\w-])`);
 
 function remoteTrackingRefIn(text: string): string | undefined {
   const match = REMOTE_TRACKING.exec(text);
@@ -53,11 +51,7 @@ function remoteTrackingRefIn(text: string): string | undefined {
  *  `execFileSync("git", [...])`. */
 function isGitCall(node: ts.CallExpression): boolean {
   const callee = node.expression;
-  const name = ts.isIdentifier(callee)
-    ? callee.text
-    : ts.isPropertyAccessExpression(callee)
-      ? callee.name.text
-      : "";
+  const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : "";
   if (/^git/i.test(name) || /git$/i.test(name)) return true;
   const first = node.arguments[0];
   return first !== undefined && ts.isStringLiteralLike(first) && first.text === "git";
@@ -68,8 +62,7 @@ function isGitCall(node: ts.CallExpression): boolean {
 export function defaultBranchViolations(path: string, sourceText: string): string[] {
   const source = ts.createSourceFile(path, sourceText, ts.ScriptTarget.Latest, true);
   const found: string[] = [];
-  const at = (node: ts.Node): number =>
-    source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+  const at = (node: ts.Node): number => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
 
   const visit = (node: ts.Node): void => {
     // 1. The remote-tracking ref #101 removed. It has no correct hardcoded

@@ -6,14 +6,7 @@ import { dispatchTick, type DispatchTickResult, type DueTurn } from "../../../sr
 import { SchedulerEvidenceStore } from "../../../src/org/scheduler/evidence.js";
 import { schedulerIdentity } from "../../../src/org/scheduler/model.js";
 import { makeTestClock } from "../../fixtures/clock.js";
-import {
-  APP,
-  FIXED_NOW,
-  NO_EVENTS,
-  ROLE,
-  makeBudgetOrg,
-  type BudgetOrg,
-} from "../cf-j07/support.js";
+import { APP, FIXED_NOW, NO_EVENTS, ROLE, makeBudgetOrg, type BudgetOrg } from "../cf-j07/support.js";
 
 class DuplicateDispatchViolation extends Error {
   constructor(app: string, role: string, count: number) {
@@ -23,7 +16,8 @@ class DuplicateDispatchViolation extends Error {
 }
 
 function assertAtMostOneSpawn(results: readonly DispatchTickResult[], app: string, role: string): void {
-  const count = results.flatMap((result) => result.spawned)
+  const count = results
+    .flatMap((result) => result.spawned)
     .filter((turn) => turn.app === app && turn.role === role).length;
   if (count > 1) throw new DuplicateDispatchViolation(app, role, count);
 }
@@ -41,8 +35,12 @@ describe("CF-J09-RC — double-fire tick race (L2, HB-021)", () => {
     const clock = makeTestClock(FIXED_NOW);
     let releaseWinner!: () => void;
     let winnerLocked!: () => void;
-    const locked = new Promise<void>((resolve) => { winnerLocked = resolve; });
-    const release = new Promise<void>((resolve) => { releaseWinner = resolve; });
+    const locked = new Promise<void>((resolve) => {
+      winnerLocked = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseWinner = resolve;
+    });
     let held = false;
     const spawns: string[] = [];
 
@@ -51,7 +49,9 @@ describe("CF-J09-RC — double-fire tick race (L2, HB-021)", () => {
       runtimeHome: rig.org.stateHome,
       now: clock.nowDate,
       eventSource: NO_EVENTS,
-      spawn: async (turn) => { spawns.push(turn.turnId); },
+      spawn: async (turn) => {
+        spawns.push(turn.turnId);
+      },
       schedulerFault: async (boundary) => {
         if (boundary === "after_scheduler_lock" && !held) {
           held = true;
@@ -67,7 +67,9 @@ describe("CF-J09-RC — double-fire tick race (L2, HB-021)", () => {
       runtimeHome: rig.org.stateHome,
       now: clock.nowDate,
       eventSource: NO_EVENTS,
-      spawn: async (turn) => { spawns.push(turn.turnId); },
+      spawn: async (turn) => {
+        spawns.push(turn.turnId);
+      },
     });
     releaseWinner();
     const winner = await first;
@@ -100,7 +102,15 @@ describe("CF-J09-RC — double-fire tick race (L2, HB-021)", () => {
   });
 
   it("negative control: two forged spawns in the same window make the race detector FIRE", () => {
-    const turn: DueTurn = { app: APP, role: ROLE, turnId: "dup", triggerKind: "schedule", trigger: "hourly", decisionId: "d", cadenceWindow: FIXED_NOW };
+    const turn: DueTurn = {
+      app: APP,
+      role: ROLE,
+      turnId: "dup",
+      triggerKind: "schedule",
+      trigger: "hourly",
+      decisionId: "d",
+      cadenceWindow: FIXED_NOW,
+    };
     const forged = [
       { spawned: [turn], skipped: [], errors: [] },
       { spawned: [{ ...turn, turnId: "dup-2" }], skipped: [], errors: [] },

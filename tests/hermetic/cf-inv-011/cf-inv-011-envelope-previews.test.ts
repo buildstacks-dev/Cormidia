@@ -19,12 +19,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { readFile, writeFile } from "node:fs/promises";
-import {
-  finalizeRun,
-  readEnvelope,
-  startRun,
-  updateEnvelope,
-} from "../../../src/runtime/runlog/envelope.js";
+import { finalizeRun, readEnvelope, startRun, updateEnvelope } from "../../../src/runtime/runlog/envelope.js";
 import { createEventWriter } from "../../../src/runtime/runlog/events.js";
 import { runPaths } from "../../../src/runtime/runlog/paths.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
@@ -182,8 +177,6 @@ describe("CF-INV-011 — envelope + event bytes are scrubbed and previews bounde
     await writeFile(path, JSON.stringify(tampered), "utf8");
 
     const bytes = await readFile(path, "utf8");
-    expect(() => detectSecretEgressInJson("tampered envelope.json", bytes, [leak])).toThrow(
-      /github-token/,
-    );
+    expect(() => detectSecretEgressInJson("tampered envelope.json", bytes, [leak])).toThrow(/github-token/);
   });
 });

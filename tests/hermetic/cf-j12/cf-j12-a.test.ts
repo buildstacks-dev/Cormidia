@@ -33,9 +33,7 @@ describe("CF-J12-A — candidate/published/authorized/active/validated render di
   let flags: string[];
 
   /** Run the real CLI in-process, capturing both console streams. */
-  const runLearn = async (
-    args: string[],
-  ): Promise<{ code: number; out: string; err: string }> => {
+  const runLearn = async (args: string[]): Promise<{ code: number; out: string; err: string }> => {
     const outLines: string[] = [];
     const errLines: string[] = [];
     const logSpy = vi.spyOn(console, "log").mockImplementation((...parts: unknown[]) => {
@@ -64,31 +62,16 @@ describe("CF-J12-A — candidate/published/authorized/active/validated render di
     flags = ["--org-home", world.org.orgHome, "--state-home", world.state.stateHome];
 
     // State 1 — candidate awaiting review (fails closed).
-    await openCandidateArtifact(
-      world.orgRoot,
-      candidateSpec({ id: "cand_a_awaiting", destination: "skill_draft" }),
-    );
+    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: "cand_a_awaiting", destination: "skill_draft" }));
 
     // State 2 — reviewed, not yet published.
-    await openCandidateArtifact(
-      world.orgRoot,
-      candidateSpec({ id: "cand_a_reviewed", destination: "skill_draft" }),
-    );
-    await writeReviewerVerdict(
-      world.org.orgHome,
-      verdictSpec({ id: "cand_a_reviewed", destination: "skill_draft" }),
-    );
+    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: "cand_a_reviewed", destination: "skill_draft" }));
+    await writeReviewerVerdict(world.org.orgHome, verdictSpec({ id: "cand_a_reviewed", destination: "skill_draft" }));
 
     // State 3 — published (routine proposal draft; activation is a SEPARATE
     // fact this record does not carry).
-    await openCandidateArtifact(
-      world.orgRoot,
-      candidateSpec({ id: "cand_a_published", destination: "skill_draft" }),
-    );
-    await writeReviewerVerdict(
-      world.org.orgHome,
-      verdictSpec({ id: "cand_a_published", destination: "skill_draft" }),
-    );
+    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: "cand_a_published", destination: "skill_draft" }));
+    await writeReviewerVerdict(world.org.orgHome, verdictSpec({ id: "cand_a_published", destination: "skill_draft" }));
     const routine = await publishCandidate(world.deps, "cand_a_published");
     if (routine.status !== "published") {
       throw new Error(`routine publish failed: ${JSON.stringify(routine)}`);

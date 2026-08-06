@@ -78,11 +78,7 @@ export function parseRolesText(text: string, path: string): RolesFile {
 
   const defaultsRaw = (raw["defaults"] ?? {}) as Record<string, unknown>;
   const defaults = {
-    maxTurnBudgetUsd: positiveNumberOr(
-      defaultsRaw["max_turn_budget_usd"],
-      5,
-      `${path}: defaults.max_turn_budget_usd`,
-    ),
+    maxTurnBudgetUsd: positiveNumberOr(defaultsRaw["max_turn_budget_usd"], 5, `${path}: defaults.max_turn_budget_usd`),
   };
 
   const rolesRaw = raw["roles"];
@@ -137,10 +133,7 @@ function parseRole(
     `${path}: role "${name}": configured assignment`,
   );
 
-  const turnBudgetInherited = !Object.prototype.hasOwnProperty.call(
-    spec,
-    "max_turn_budget_usd",
-  );
+  const turnBudgetInherited = !Object.prototype.hasOwnProperty.call(spec, "max_turn_budget_usd");
   const maxTurnBudgetUsd = positiveNumberOr(
     spec["max_turn_budget_usd"],
     defaultBudget,
@@ -154,9 +147,7 @@ function parseRole(
   );
 
   const delegationRaw = (spec["delegation"] ?? {}) as Record<string, unknown>;
-  const allow = Array.isArray(delegationRaw["allow"])
-    ? (delegationRaw["allow"] as unknown[]).map(String)
-    : [];
+  const allow = Array.isArray(delegationRaw["allow"]) ? (delegationRaw["allow"] as unknown[]).map(String) : [];
 
   const triggers: Trigger[] = [];
   if (Array.isArray(spec["triggers"])) {
@@ -172,9 +163,7 @@ function parseRole(
     }
   }
 
-  const outputs = Array.isArray(spec["outputs"])
-    ? (spec["outputs"] as unknown[]).map(String)
-    : [];
+  const outputs = Array.isArray(spec["outputs"]) ? (spec["outputs"] as unknown[]).map(String) : [];
 
   return {
     role: {
@@ -237,9 +226,7 @@ export function resolveApprovedAssignmentCandidates(
       qualificationRef: candidate.qualificationRef,
       pricing: clonePricing(candidate.pricing),
       maxTurnCostUsd:
-        candidate.pricing.kind === "conservative_estimate"
-          ? candidate.pricing.maxTurnCostUsd
-          : role.maxTurnBudgetUsd,
+        candidate.pricing.kind === "conservative_estimate" ? candidate.pricing.maxTurnCostUsd : role.maxTurnBudgetUsd,
     })),
   ];
 
@@ -250,10 +237,7 @@ export function resolveApprovedAssignmentCandidates(
 
   const allowed = new Set<string>();
   for (const rawId of allowedCandidateIds) {
-    const id = validateAssignmentCandidateId(
-      rawId,
-      `role "${role.name}": allowed assignment candidate id`,
-    );
+    const id = validateAssignmentCandidateId(rawId, `role "${role.name}": allowed assignment candidate id`);
     if (allowed.has(id)) {
       throw new Error(`role "${role.name}": duplicate allowed assignment candidate id "${id}"`);
     }
@@ -290,9 +274,7 @@ export function resolveApprovedTurnAssignments(
       }),
       providerFamily: candidate.providerFamily,
       ...(candidate.capabilityRef === undefined ? {} : { capabilityRef: candidate.capabilityRef }),
-      ...(candidate.qualificationRef === undefined
-        ? {}
-        : { qualificationRef: candidate.qualificationRef }),
+      ...(candidate.qualificationRef === undefined ? {} : { qualificationRef: candidate.qualificationRef }),
       pricing: clonePricing(candidate.pricing),
       maxTurnCostUsd: candidate.maxTurnCostUsd,
     })),
@@ -369,10 +351,7 @@ function parseAdaptiveAssignments(
       `${context}.provider_family`,
     );
 
-    const capabilityRef = validateReference(
-      valueCandidate["capability_ref"],
-      `${context}.capability_ref`,
-    );
+    const capabilityRef = validateReference(valueCandidate["capability_ref"], `${context}.capability_ref`);
     const registeredCapabilityRef = runtimeCapabilityProfile(firstAssignment.harness).ref;
     if (capabilityRef !== registeredCapabilityRef) {
       throw err(`${context}.capability_ref must be registered profile ${registeredCapabilityRef}`);
@@ -382,10 +361,7 @@ function parseAdaptiveAssignments(
       `${context}.qualification_ref`,
     );
     const pricing = parsePricing(valueCandidate, context, err);
-    if (
-      pricing.kind === "conservative_estimate" &&
-      pricing.maxTurnCostUsd > maxTurnBudgetUsd
-    ) {
+    if (pricing.kind === "conservative_estimate" && pricing.maxTurnCostUsd > maxTurnBudgetUsd) {
       throw err(
         `${context}.conservative_estimate.max_turn_cost_usd exceeds the role's ` +
           `max_turn_budget_usd (${pricing.maxTurnCostUsd} > ${maxTurnBudgetUsd})`,
@@ -430,9 +406,7 @@ function parsePricing(
   }
   if (estimate === undefined) throw err(`${context} requires conservative_estimate`);
   if (!isRecord(estimate)) throw err(`${context}.conservative_estimate must be a mapping`);
-  const unknown = Object.keys(estimate).filter(
-    (key) => key !== "max_turn_cost_usd" && key !== "source",
-  );
+  const unknown = Object.keys(estimate).filter((key) => key !== "max_turn_cost_usd" && key !== "source");
   if (unknown.length > 0) {
     throw err(`${context}.conservative_estimate has unknown field(s): ${unknown.sort().join(", ")}`);
   }
@@ -450,9 +424,7 @@ function parsePricing(
 function validateQualificationReference(value: unknown, context: string): string {
   const ref = validateReference(value, context);
   if (!/^(?:campaign:[a-z0-9][a-z0-9._-]*|qualification(?:[:/])[A-Za-z0-9][A-Za-z0-9._:/-]*)$/u.test(ref)) {
-    throw new Error(
-      `${context} must be a campaign:<id> or qualification:<id> evidence reference`,
-    );
+    throw new Error(`${context} must be a campaign:<id> or qualification:<id> evidence reference`);
   }
   return ref;
 }
@@ -460,9 +432,7 @@ function validateQualificationReference(value: unknown, context: string): string
 function validateEstimateSource(value: unknown, context: string): string {
   const ref = validateReference(value, context);
   if (!/^(?:https:\/\/|research\/|qualification(?:[:/])|campaign:)/u.test(ref)) {
-    throw new Error(
-      `${context} must be an https URL or a research/qualification/campaign evidence reference`,
-    );
+    throw new Error(`${context} must be an https URL or a research/qualification/campaign evidence reference`);
   }
   return ref;
 }

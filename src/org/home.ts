@@ -199,10 +199,7 @@ export async function migrateLegacyStateRoot(
   };
 }
 
-async function repairMigratedActivePointer(
-  currentRoot: string,
-  legacyRoot: string,
-): Promise<boolean> {
+async function repairMigratedActivePointer(currentRoot: string, legacyRoot: string): Promise<boolean> {
   const pointerPath = join(currentRoot, "config");
   const pointer = await readActiveOrgPointer(pointerPath);
   const orgHome = relocateLegacyPath(pointer.orgHome, legacyRoot, currentRoot);
@@ -291,11 +288,7 @@ async function repairMigratedLifecycleRecords(
   return rewritten;
 }
 
-async function repairMigratedTurnJournals(
-  stateHome: string,
-  legacyRoot: string,
-  currentRoot: string,
-): Promise<number> {
+async function repairMigratedTurnJournals(stateHome: string, legacyRoot: string, currentRoot: string): Promise<number> {
   const turnsRoot = join(stateHome, "state", "turns");
   const turnsStat = await lstatMaybe(turnsRoot);
   if (turnsStat === undefined) return 0;
@@ -362,7 +355,7 @@ async function repairMigratedScheduler(
       `cormidia: migrated scheduler installation record is not a regular file: ${installationPath}`,
     );
   }
-  if (await lstatMaybe(schedulerTransactionPath(stateHome)) !== undefined) {
+  if ((await lstatMaybe(schedulerTransactionPath(stateHome))) !== undefined) {
     throw new StateRootMigrationError(
       "state_root_migration_scheduler_invalid",
       `cormidia: scheduler lifecycle transaction is interrupted at ${schedulerTransactionPath(stateHome)}; ` +
@@ -495,7 +488,8 @@ async function repairMigratedScheduler(
 function validSchedulerInstallationRecord(
   value: Record<string, unknown>,
 ): value is Record<string, unknown> & SchedulerInstallationRecord {
-  return value["schema_version"] === 1 &&
+  return (
+    value["schema_version"] === 1 &&
     typeof value["scheduler_id"] === "string" &&
     typeof value["org_id"] === "string" &&
     typeof value["org_name"] === "string" &&
@@ -507,7 +501,8 @@ function validSchedulerInstallationRecord(
     typeof value["state_home"] === "string" &&
     typeof value["definition_path"] === "string" &&
     typeof value["rendered_definition_hash"] === "string" &&
-    typeof value["installed_at"] === "string";
+    typeof value["installed_at"] === "string"
+  );
 }
 
 function parseRetiredSchedulerMetadata(definition: string): Record<string, unknown> | undefined {
@@ -520,7 +515,7 @@ function parseRetiredSchedulerMetadata(definition: string): Record<string, unkno
   try {
     const parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as unknown;
     return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
+      ? (parsed as Record<string, unknown>)
       : undefined;
   } catch {
     return undefined;
@@ -531,7 +526,8 @@ function retiredSchedulerMetadataMatches(
   metadata: Record<string, unknown>,
   record: SchedulerInstallationRecord,
 ): boolean {
-  return metadata["schema_version"] === 1 &&
+  return (
+    metadata["schema_version"] === 1 &&
     metadata["owner"] === RETIRED_SCHEDULER_OWNER &&
     metadata["scheduler_id"] === record.scheduler_id &&
     metadata["org_id"] === record.org_id &&
@@ -542,7 +538,8 @@ function retiredSchedulerMetadataMatches(
     metadata["package_entry_path"] === record.package_entry_path &&
     metadata["org_home"] === record.org_home &&
     metadata["state_home"] === record.state_home &&
-    typeof metadata["command_sha256"] === "string";
+    typeof metadata["command_sha256"] === "string"
+  );
 }
 
 async function readMigrationJsonRecord(path: string, kind: string): Promise<Record<string, unknown>> {
@@ -569,9 +566,10 @@ async function repairMigratedGitWorktrees(stateHome: string): Promise<number> {
     if (!existsSync(join(repo, ".git"))) continue;
     const worktreesRoot = join(stateHome, "worktrees", app.name);
     const worktreesStat = await lstatMaybe(worktreesRoot);
-    const worktrees = worktreesStat !== undefined && worktreesStat.isDirectory() && !worktreesStat.isSymbolicLink()
-      ? await registeredWorktreesForRepair(repo, worktreesRoot)
-      : [];
+    const worktrees =
+      worktreesStat !== undefined && worktreesStat.isDirectory() && !worktreesStat.isSymbolicLink()
+        ? await registeredWorktreesForRepair(repo, worktreesRoot)
+        : [];
     if (worktrees.length === 0) continue;
     try {
       await execFileAsync("git", ["-C", repo, "worktree", "repair", ...worktrees], {
@@ -611,11 +609,7 @@ async function registeredWorktreesForRepair(repo: string, worktreesRoot: string)
   return registered;
 }
 
-function relocateLegacyPath(
-  value: string | undefined,
-  legacyRoot: string,
-  currentRoot: string,
-): string | undefined {
+function relocateLegacyPath(value: string | undefined, legacyRoot: string, currentRoot: string): string | undefined {
   if (value === undefined) return undefined;
   const rel = relative(legacyRoot, resolve(value));
   if (rel === "") return currentRoot;
@@ -729,11 +723,7 @@ async function readStateHomeIdentity(stateHome: string): Promise<StateHomeIdenti
  * - An unreadable marker fails closed (INV-013/015): refuse with remediation,
  *   never guess or silently re-adopt.
  */
-async function ensureStateHomeIdentity(
-  stateHome: string,
-  orgHome: string,
-  orgName: string,
-): Promise<void> {
+async function ensureStateHomeIdentity(stateHome: string, orgHome: string, orgName: string): Promise<void> {
   const stateStat = await lstatMaybe(stateHome);
   if (stateStat === undefined || stateStat.isSymbolicLink() || !stateStat.isDirectory()) return;
   const markerPath = stateHomeIdentityPath(stateHome);
@@ -742,8 +732,7 @@ async function ensureStateHomeIdentity(
     throw new OrgIdentityError({
       code: "state_home_identity_unreadable",
       publicMessage: "state home identity marker is unreadable",
-      remediation:
-        `Inspect ${markerPath}; restore it, or remove it to re-adopt the state home for the org it belongs to.`,
+      remediation: `Inspect ${markerPath}; restore it, or remove it to re-adopt the state home for the org it belongs to.`,
       message:
         `cormidia: state home identity marker is unreadable: ${markerPath} — cannot prove ${stateHome} ` +
         `belongs to org "${orgName}"; inspect the file, or remove it to re-adopt this state home for the current org`,
@@ -782,11 +771,7 @@ async function readFileMaybe(path: string): Promise<string | undefined> {
 export async function resolveCormidiaHomes(options: CormidiaHomeOptions = {}): Promise<CormidiaHomes> {
   const homeDir = options.homeDir ?? homedir();
   const env = options.env ?? process.env;
-  if (
-    options.pointerPath === undefined &&
-    options.stateHome === undefined &&
-    env.CORMIDIA_STATE_HOME === undefined
-  ) {
+  if (options.pointerPath === undefined && options.stateHome === undefined && env.CORMIDIA_STATE_HOME === undefined) {
     await migrateLegacyStateRoot(homeDir, options.migration);
   }
   const pointerPath = options.pointerPath ?? join(homeDir, CORMIDIA_HOME_DIRNAME, "config");
@@ -975,10 +960,7 @@ export async function planOrgInit(options: InitOrgHomeOptions): Promise<InitOrgH
   manifest.addGeneratedFile("AUTHORITY.md", authorityText);
   const instructionBlock = projectAuthorityBlock("AUTHORITY.md", authority);
   for (const rel of ["AGENTS.md", "CLAUDE.md"]) {
-    manifest.addGeneratedFile(
-      rel,
-      composeProjectInstructions(`# ${rel}\n`, instructionBlock),
-    );
+    manifest.addGeneratedFile(rel, composeProjectInstructions(`# ${rel}\n`, instructionBlock));
   }
   manifest.addGeneratedFile("apps.yaml", emptyAppsYaml(name));
   for (const role of rolesFile.roles) {
@@ -1086,9 +1068,8 @@ export async function executeOrgInit(plan: InitOrgHomePlan): Promise<InitOrgHome
     });
     identityMarkerWritten = true;
     await writeActiveOrgPointer(preview.pointer_path, target, preview.state_home);
-    const createdEntries = preview.effects.org_home.action === "create"
-      ? preview.effects.generated_destinations
-      : populatedEntries;
+    const createdEntries =
+      preview.effects.org_home.action === "create" ? preview.effects.generated_destinations : populatedEntries;
 
     return {
       packageRoot: PACKAGE_ROOT,
@@ -1097,7 +1078,7 @@ export async function executeOrgInit(plan: InitOrgHomePlan): Promise<InitOrgHome
       appsFile,
       pointerPath: preview.pointer_path,
       created: createdEntries.map((entry) =>
-        entry.kind === "directory" ? `${entry.relative_path}/` : entry.relative_path
+        entry.kind === "directory" ? `${entry.relative_path}/` : entry.relative_path,
       ),
       authority: plan.authority,
       authorityPreview: {
@@ -1145,9 +1126,7 @@ function assertInitPlanIntegrity(plan: InitOrgHomePlan): void {
 
     const expectedPath = join(target, relativePath);
     if (!isAbsolute(destination.path) || destination.path !== expectedPath) {
-      throw initPlanIntegrityError(
-        `preview destination does not match its org-relative path: ${destination.path}`,
-      );
+      throw initPlanIntegrityError(`preview destination does not match its org-relative path: ${destination.path}`);
     }
     if (destination.kind === "file") fileDestinations.set(relativePath, destination);
   }
@@ -1265,8 +1244,7 @@ async function preflightInitEffects(input: InitPreflightInput): Promise<InitPref
       detail:
         `cormidia org init: target is nested inside an existing Cormidia org home: ${enclosingOrg}; ` +
         "nested orgs are not allowed",
-      remediation:
-        `Choose a target outside ${enclosingOrg}, or select that org with \`cormidia org use ${enclosingOrg}\`.`,
+      remediation: `Choose a target outside ${enclosingOrg}, or select that org with \`cormidia org use ${enclosingOrg}\`.`,
     });
   }
 
@@ -1502,23 +1480,25 @@ class InitManifestBuilder {
   }
 
   destinations(): InitOrgDestination[] {
-    const directories = [...this.#directories]
-      .sort(compareRelativePaths)
-      .map((relativePath): InitOrgDestination => ({
+    const directories = [...this.#directories].sort(compareRelativePaths).map(
+      (relativePath): InitOrgDestination => ({
         relative_path: relativePath,
         path: join(this.#target, relativePath),
         kind: "directory",
         disposition: "create",
-      }));
+      }),
+    );
     const files = [...this.#files.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([relativePath, contents]): InitOrgDestination => ({
-        relative_path: relativePath,
-        path: join(this.#target, relativePath),
-        kind: "file",
-        disposition: "create",
-        content_sha256: sha256(contents),
-      }));
+      .map(
+        ([relativePath, contents]): InitOrgDestination => ({
+          relative_path: relativePath,
+          path: join(this.#target, relativePath),
+          kind: "file",
+          disposition: "create",
+          content_sha256: sha256(contents),
+        }),
+      );
     return [...directories, ...files];
   }
 
@@ -1533,8 +1513,7 @@ class InitManifestBuilder {
 
   private async addPackagedTreeEntries(templateRoot: string, rel: string): Promise<void> {
     const source = join(templateRoot, rel);
-    const entries = (await readdir(source, { withFileTypes: true }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const entries = (await readdir(source, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
       const child = safeRelative(join(rel, entry.name));
       if (entry.isSymbolicLink()) {
@@ -1573,12 +1552,7 @@ class InitManifestBuilder {
 
 function safeRelative(value: string): string {
   const normalized = normalize(value);
-  if (
-    normalized === "." ||
-    isAbsolute(normalized) ||
-    normalized === ".." ||
-    normalized.startsWith(`..${sep}`)
-  ) {
+  if (normalized === "." || isAbsolute(normalized) || normalized === ".." || normalized.startsWith(`..${sep}`)) {
     throw new Error(`cormidia org init: unsafe generated relative path: ${value}`);
   }
   return normalized;
@@ -1670,9 +1644,7 @@ export interface ActiveOrgSelection {
  * `state_home` raw; the derivation is anchored on the pointer's own directory,
  * which is the `~/.cormidia/<org>` that `resolveCormidiaHomes` falls back to.
  */
-export async function resolveActiveOrgSelection(
-  pointerPathIn: string,
-): Promise<ActiveOrgSelection> {
+export async function resolveActiveOrgSelection(pointerPathIn: string): Promise<ActiveOrgSelection> {
   const pointerPath = resolve(pointerPathIn);
   const pointer = await readActiveOrgPointer(pointerPath);
   if (pointer.stateHome !== undefined || pointer.orgHome === undefined) {
@@ -1698,7 +1670,10 @@ export async function resolveActiveOrgSelection(
 }
 
 function sanitizeOrgName(value: string): string {
-  const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  const cleaned = value
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   if (cleaned.length === 0) throw new Error("cormidia org init: --name must contain a letter or number");
   return cleaned;
 }

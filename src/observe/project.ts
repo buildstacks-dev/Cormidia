@@ -4,9 +4,23 @@ import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
 import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
 import type { StatusRow } from "../runtime/runlog/status.js";
 import { settlementKey, settlementIdentity } from "../runtime/telemetry.js";
-import { aggregateCost, normalizeUsageQuality, providerPassRef, worstUsageQuality, type CostAggregate } from "../runtime/cost.js";
+import {
+  aggregateCost,
+  normalizeUsageQuality,
+  providerPassRef,
+  worstUsageQuality,
+  type CostAggregate,
+} from "../runtime/cost.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
-import { ACTIVITY_ORDER, ORDER_SEPARATOR, buildOrderKey, compareStable, orderRows, orderingView, sectionScope } from "./order.js";
+import {
+  ACTIVITY_ORDER,
+  ORDER_SEPARATOR,
+  buildOrderKey,
+  compareStable,
+  orderRows,
+  orderingView,
+  sectionScope,
+} from "./order.js";
 import {
   OBSERVE_SCHEMA_VERSION,
   type ActivityKind,
@@ -17,7 +31,6 @@ import {
   type AttentionGroupView,
   type AttentionItemView,
   type AttentionOccurrenceView,
-  type CompletionIntegrityView,
   type DeliveryState,
   type DeliveryTicketView,
   type DurationView,
@@ -90,29 +103,44 @@ function descendingNullsLast(a: string | null, b: string | null): number {
 }
 
 const EVENT_KINDS: Record<string, EventKind> = {
-  "run.started": "run", "run.completed": "run",
-  "pass.started": "pass", "pass.completed": "pass", "pass.failed": "pass",
-  "pass.cancelled": "pass", "pass.timed_out": "pass",
+  "run.started": "run",
+  "run.completed": "run",
+  "pass.started": "pass",
+  "pass.completed": "pass",
+  "pass.failed": "pass",
+  "pass.cancelled": "pass",
+  "pass.timed_out": "pass",
   // Heartbeats get their OWN kind so coalescing them can never swallow a
   // pass outcome carried on the same pass.
   "pass.heartbeat": "heartbeat",
-  "gate.started": "gate", "gate.passed": "gate", "gate.failed": "gate",
+  "gate.started": "gate",
+  "gate.passed": "gate",
+  "gate.failed": "gate",
   "tool.called": "tool",
-  "subagent.started": "subagent", "subagent.completed": "subagent",
+  "subagent.started": "subagent",
+  "subagent.completed": "subagent",
   "ticket.transition": "ticket",
   "verdict.recorded": "verdict",
   "plan.ticket_finalized": "plan",
   "escalation.raised": "escalation",
-  "telemetry.settle_skipped": "telemetry", "telemetry.settle_failed": "telemetry",
+  "telemetry.settle_skipped": "telemetry",
+  "telemetry.settle_failed": "telemetry",
 };
 
 const EVENT_OUTCOMES: Record<string, EventOutcome> = {
-  "run.started": "pending", "run.completed": "success",
-  "pass.started": "pending", "pass.completed": "success",
-  "pass.failed": "failure", "pass.cancelled": "failure", "pass.timed_out": "failure",
+  "run.started": "pending",
+  "run.completed": "success",
+  "pass.started": "pending",
+  "pass.completed": "success",
+  "pass.failed": "failure",
+  "pass.cancelled": "failure",
+  "pass.timed_out": "failure",
   "pass.heartbeat": "not_applicable",
-  "gate.started": "pending", "gate.passed": "success", "gate.failed": "failure",
-  "subagent.started": "pending", "subagent.completed": "success",
+  "gate.started": "pending",
+  "gate.passed": "success",
+  "gate.failed": "failure",
+  "subagent.started": "pending",
+  "subagent.completed": "success",
   "ticket.transition": "not_applicable",
   "verdict.recorded": "not_applicable",
   "plan.ticket_finalized": "not_applicable",
@@ -189,7 +217,12 @@ function ledgerRowsByRun(rows: readonly TurnRecord[]): Map<string, TurnRecord[]>
 function costForPasses(
   passes: readonly PassView[],
   byRun: Map<string, TurnRecord[]>,
-): { cost: CostAggregate; usage_quality: UsageQuality; rows: TurnRecord[]; scope: { settled_provider_turns: number; unsettled_provider_turns: number } } {
+): {
+  cost: CostAggregate;
+  usage_quality: UsageQuality;
+  rows: TurnRecord[];
+  scope: { settled_provider_turns: number; unsettled_provider_turns: number };
+} {
   const rows: TurnRecord[] = [];
   const contributions: Array<{ costUsd: number | null; quality: string; ref: string }> = [];
   let unsettledProviderTurns = 0;
@@ -279,25 +312,28 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
   const observedAt = input.now.toISOString();
   const ledger = aggregatePassSettlements(input.ledger);
   const passes = input.passes
-    .map((indexed) => projectPass(
-      indexed,
-      ledger.get(settlementKey(indexed.row.app, indexed.row.runId)),
-      input.locks.find((lock) => lock.app === indexed.row.app && lock.turnId === indexed.row.traceId),
-      input.now,
-    ))
+    .map((indexed) =>
+      projectPass(
+        indexed,
+        ledger.get(settlementKey(indexed.row.app, indexed.row.runId)),
+        input.locks.find((lock) => lock.app === indexed.row.app && lock.turnId === indexed.row.traceId),
+        input.now,
+      ),
+    )
     .filter((pass) => passMatches(pass, input.filters));
   const byRun = ledgerRowsByRun(input.ledger);
   const traces = projectTraces(passes, observedAt, byRun).filter((trace) => traceMatches(trace, input.filters));
-  const parentTasks = projectParentTasks(input, passes, traces, observedAt, byRun).filter((task) =>
-    input.filters.parent_task === undefined || task.task_id === input.filters.parent_task,
+  const parentTasks = projectParentTasks(input, passes, traces, observedAt, byRun).filter(
+    (task) => input.filters.parent_task === undefined || task.task_id === input.filters.parent_task,
   );
   const approvals = input.approvals
     .map(({ item, grant }) => projectApproval(item, grant, input.now))
     .filter((approval) => input.filters.app === undefined || approval.app === input.filters.app);
   const github = input.github.filter((source) => input.filters.app === undefined || source.app === input.filters.app);
-  const delivery = projectDelivery(github, passes, approvals, input.max_concurrent_turns, observedAt).filter((ticket) =>
-    (input.filters.ticket === undefined || ticket.issue_number === input.filters.ticket) &&
-    (input.filters.status === undefined || ticket.state === input.filters.status),
+  const delivery = projectDelivery(github, passes, approvals, input.max_concurrent_turns, observedAt).filter(
+    (ticket) =>
+      (input.filters.ticket === undefined || ticket.issue_number === input.filters.ticket) &&
+      (input.filters.status === undefined || ticket.state === input.filters.status),
   );
   const apps = input.apps
     .filter((app) => input.filters.app === undefined || app.name === input.filters.app)
@@ -323,8 +359,10 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
         app_wide: true as const,
       };
       const channelGates: string[] = [];
-      if ((app.channels?.support ?? []).length === 0) channelGates.push("Support disabled: no support channel configured");
-      if ((app.channels?.marketing ?? []).length === 0) channelGates.push("Marketing disabled: no marketing channel configured");
+      if ((app.channels?.support ?? []).length === 0)
+        channelGates.push("Support disabled: no support channel configured");
+      if ((app.channels?.marketing ?? []).length === 0)
+        channelGates.push("Marketing disabled: no marketing channel configured");
       return {
         id: `app:${app.name}`,
         name: app.name,
@@ -334,7 +372,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
         recorded_monthly_cost_usd: cost.known_cost_usd,
         cost,
         cost_window: costWindow,
-        usage_quality: rows.length === 0 ? "unavailable" as const : cost.usage_quality,
+        usage_quality: rows.length === 0 ? ("unavailable" as const) : cost.usage_quality,
         budget_status: input.budget_rows?.find((row) => row.app === app.name)?.status ?? "unknown",
         budget_paused: input.budget_paused_apps?.includes(app.name) === true,
         channels: {
@@ -350,12 +388,13 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
   // recorded chronology is dated by type; pending intake is explicitly not a
   // sequence and carries its own count and state (#94).
   const direction: OrderDirection = input.filters.order ?? "newest_first";
-  const activityRows = projectActivityHistory(input, passes, observedAt, direction).filter((activity) =>
-    (input.filters.app === undefined || activity.app === input.filters.app) &&
-    (input.filters.parent_task === undefined || activity.parent_task_id === input.filters.parent_task),
+  const activityRows = projectActivityHistory(input, passes, observedAt, direction).filter(
+    (activity) =>
+      (input.filters.app === undefined || activity.app === input.filters.app) &&
+      (input.filters.parent_task === undefined || activity.parent_task_id === input.filters.parent_task),
   );
-  const pendingRows = projectPendingIntake(input, observedAt).filter((item) =>
-    input.filters.app === undefined || item.app === input.filters.app,
+  const pendingRows = projectPendingIntake(input, observedAt).filter(
+    (item) => input.filters.app === undefined || item.app === input.filters.app,
   );
   const activityHistory = sectionScope(
     "Recorded activity",
@@ -528,7 +567,8 @@ function projectActivityMeta(indexed: IndexedPass[], passes: PassView[], observe
     .filter((value): value is string => value !== null);
   const reasons: string[] = [];
   for (const pass of indexed) {
-    if (pass.events_corrupt !== undefined) reasons.push(`${passId(pass.row.app, pass.row.runId)}: ${pass.events_corrupt}`);
+    if (pass.events_corrupt !== undefined)
+      reasons.push(`${passId(pass.row.app, pass.row.runId)}: ${pass.events_corrupt}`);
   }
   for (const pass of passes) {
     const artifact = pass.artifacts.find((entry) => entry.kind === "events");
@@ -602,7 +642,9 @@ function collectSkew(snapshot: ObserveSnapshotV1, nowMs: number): TimePolicyView
 /** Observe remains pass-oriented, so multiple provider-turn settlements under
  * one parent run are aggregated for its pass card without changing ledger
  * identity or hiding the provider-turn rows from Reports. */
-function aggregatePassSettlements(rows: ObserveProjectionInput["ledger"]): Map<string, ObserveProjectionInput["ledger"][number]> {
+function aggregatePassSettlements(
+  rows: ObserveProjectionInput["ledger"],
+): Map<string, ObserveProjectionInput["ledger"][number]> {
   const grouped = new Map<string, ObserveProjectionInput["ledger"][number]>();
   for (const row of rows) {
     if (row.runId === undefined) continue;
@@ -652,9 +694,8 @@ function projectPass(
   const row = indexed.row;
   const status = row.status;
   const liveness = passLiveness(row, now);
-  const usageQuality = settled !== undefined
-    ? normalizeQuality(settled.usageQuality)
-    : normalizeQuality(row.usageQuality);
+  const usageQuality =
+    settled !== undefined ? normalizeQuality(settled.usageQuality) : normalizeQuality(row.usageQuality);
   const events: EventView[] = indexed.events.map((event, index) => {
     const detail = scrubEventDetail(event.detail ?? {});
     const tsUtc = instant(event.ts);
@@ -714,7 +755,9 @@ function projectPass(
       quality: usageQuality,
       settled: settled !== undefined,
     },
-    previews: Object.fromEntries(Object.entries(row.previews ?? {}).map(([key, value]) => [key, truncatePreview(scrubSecrets(value), 240)])),
+    previews: Object.fromEntries(
+      Object.entries(row.previews ?? {}).map(([key, value]) => [key, truncatePreview(scrubSecrets(value), 240)]),
+    ),
     verdict_summary: row.verdictSummary !== undefined ? truncatePreview(scrubSecrets(row.verdictSummary), 240) : null,
     terminal_reason: row.terminalReason !== undefined ? truncatePreview(scrubSecrets(row.terminalReason), 240) : null,
     gates: (row.gateResults ?? []).map((gate) => ({
@@ -728,20 +771,26 @@ function projectPass(
     escalations: events.filter((event) => event.event === "escalation.raised").length,
     artifacts: refs,
     result_refs: resultRefs,
-    session: row.session === undefined ? null : {
-      id: row.session.id ?? null,
-      native_ref: row.session.native_ref ?? null,
-      transcript: row.session.transcript,
-      transcript_note: scrubSecrets(row.session.transcript_note),
-    },
+    session:
+      row.session === undefined
+        ? null
+        : {
+            id: row.session.id ?? null,
+            native_ref: row.session.native_ref ?? null,
+            transcript: row.session.transcript,
+            transcript_note: scrubSecrets(row.session.transcript_note),
+          },
     authority: row.authority ?? null,
     trace_plan: row.tracePlan ?? null,
     planning_route: row.planningRoute ?? null,
-    lock: lock === undefined ? null : {
-      pid: lock.pid,
-      heartbeat_at: instant(lock.heartbeatAt),
-      fresh: now.getTime() - new Date(lock.heartbeatAt).getTime() <= 2 * 60 * 1000,
-    },
+    lock:
+      lock === undefined
+        ? null
+        : {
+            pid: lock.pid,
+            heartbeat_at: instant(lock.heartbeatAt),
+            fresh: now.getTime() - new Date(lock.heartbeatAt).getTime() <= 2 * 60 * 1000,
+          },
     observed_at: instant(now)!,
     quality_reason: passQualityReason(indexed, status),
   };
@@ -753,23 +802,30 @@ function passQualityReason(indexed: IndexedPass, status: string): string | null 
   const reasons: string[] = [];
   if (indexed.events_corrupt !== undefined) reasons.push(indexed.events_corrupt);
   else if (status.startsWith("corrupt")) reasons.push("Envelope is unreadable");
-  const unreadable = ([
-    ["started_at", indexed.row.startedAt],
-    ["last_seen_at", indexed.row.lastSeenAt],
-    ["finished_at", indexed.envelope_finished_at],
-  ] as const).filter(([, value]) => unreadableInstant(value)).map(([field]) => field);
+  const unreadable = (
+    [
+      ["started_at", indexed.row.startedAt],
+      ["last_seen_at", indexed.row.lastSeenAt],
+      ["finished_at", indexed.envelope_finished_at],
+    ] as const
+  )
+    .filter(([, value]) => unreadableInstant(value))
+    .map(([field]) => field);
   if (unreadable.length > 0) reasons.push(`Recorded timestamp is unreadable: ${unreadable.join(", ")}`);
   return reasons.length === 0 ? null : reasons.join("; ");
 }
 
 export function passLiveness(row: StatusRow, now: Date): { state: PassView["liveness"]; reason: string } {
   if (row.status !== "running") return { state: "terminal", reason: `Pass status is ${row.status}` };
-  if (row.lastSeenAt === undefined) return { state: "unknown", reason: "Running legacy envelope has no recorded heartbeat" };
+  if (row.lastSeenAt === undefined)
+    return { state: "unknown", reason: "Running legacy envelope has no recorded heartbeat" };
   const stamp = new Date(row.lastSeenAt).getTime();
   if (!Number.isFinite(stamp)) return { state: "unknown", reason: "Heartbeat timestamp is invalid" };
   const age = now.getTime() - stamp;
-  if (age < -30_000) return { state: "unknown", reason: `Heartbeat is ${Math.abs(age)}ms in the future; clock skew suspected` };
-  if (age <= PASS_STALE_AFTER_MS) return { state: "live", reason: `Heartbeat age ${Math.max(0, age)}ms is within the 180000ms threshold` };
+  if (age < -30_000)
+    return { state: "unknown", reason: `Heartbeat is ${Math.abs(age)}ms in the future; clock skew suspected` };
+  if (age <= PASS_STALE_AFTER_MS)
+    return { state: "live", reason: `Heartbeat age ${Math.max(0, age)}ms is within the 180000ms threshold` };
   return { state: "stalled", reason: `Heartbeat age ${age}ms exceeds the 180000ms threshold` };
 }
 
@@ -791,7 +847,9 @@ function artifactRefs(indexed: IndexedPass): ArtifactRefView[] {
       label,
       available,
       expired: !available && row.status !== "running",
-      href: available ? `/api/v1/artifacts/${encodeURIComponent(row.app)}/${encodeURIComponent(row.runId)}/${kind}` : null,
+      href: available
+        ? `/api/v1/artifacts/${encodeURIComponent(row.app)}/${encodeURIComponent(row.runId)}/${kind}`
+        : null,
       sensitive,
       sha256: artifact?.sha256 ?? null,
     };
@@ -805,7 +863,9 @@ function projectTraces(passes: PassView[], observedAt: string, byRun: Map<string
     groups.set(key, [...(groups.get(key) ?? []), pass]);
   }
   const projected = [...groups.values()].map<TraceView>((group) => {
-    const ordered = [...group].sort((a, b) => ascendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
+    const ordered = [...group].sort(
+      (a, b) => ascendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id),
+    );
     const sourceRows = ordered;
     const indexed = sourceRows.map((pass) => pass.pass);
     const raw = group[0];
@@ -820,7 +880,10 @@ function projectTraces(passes: PassView[], observedAt: string, byRun: Map<string
     if (group.some((pass) => pass.status !== "completed")) reasons.push("One or more observed passes did not complete");
     const startedAt = ordered[0]!.started_at;
     const finishedAt = group.every((pass) => pass.finished_at !== null)
-      ? [...group].map((pass) => pass.finished_at!).sort(compareStable).at(-1) ?? null
+      ? ([...group]
+          .map((pass) => pass.finished_at!)
+          .sort(compareStable)
+          .at(-1) ?? null)
       : null;
     // Observed passes first in the already-stable `ordered` sequence, then
     // skipped, then missing. `missing` is empty whenever the manifest was not
@@ -839,20 +902,22 @@ function projectTraces(passes: PassView[], observedAt: string, byRun: Map<string
         state_token: graphState(pass),
         reason: null,
       })),
-      ...[...skipped].sort((a, b) => compareStable(a.pass, b.pass)).map<Omit<TraceNodeView, "order">>((entry) => ({
-        kind: "skipped",
-        pass_id: null,
-        pass: entry.pass,
-        role: null,
-        runtime: null,
-        model: null,
-        status: "skipped",
-        liveness: null,
-        state_token: "skipped",
-        // Verbatim. A completeness diff would report this deliberate routing
-        // decision as a gap and lose the reason entirely.
-        reason: entry.reason,
-      })),
+      ...[...skipped]
+        .sort((a, b) => compareStable(a.pass, b.pass))
+        .map<Omit<TraceNodeView, "order">>((entry) => ({
+          kind: "skipped",
+          pass_id: null,
+          pass: entry.pass,
+          role: null,
+          runtime: null,
+          model: null,
+          status: "skipped",
+          liveness: null,
+          state_token: "skipped",
+          // Verbatim. A completeness diff would report this deliberate routing
+          // decision as a gap and lose the reason entirely.
+          reason: entry.reason,
+        })),
       ...[...missing].sort(compareStable).map<Omit<TraceNodeView, "order">>((pass) => ({
         kind: "missing",
         pass_id: null,
@@ -907,12 +972,20 @@ function projectTraces(passes: PassView[], observedAt: string, byRun: Map<string
       usage_quality: aggregate.usage_quality,
       graph_nodes: graphNodes,
       completion_integrity: {
-        required_stages: required === null ? "unknown" : missing.length === 0 && group.every((pass) => pass.status === "completed") ? "complete" : "incomplete",
+        required_stages:
+          required === null
+            ? "unknown"
+            : missing.length === 0 && group.every((pass) => pass.status === "completed")
+              ? "complete"
+              : "incomplete",
         usage,
-        reviewer: group.some((pass) => pass.role === "reviewer" && pass.status === "completed") ? "completed" : "unknown",
+        reviewer: group.some((pass) => pass.role === "reviewer" && pass.status === "completed")
+          ? "completed"
+          : "unknown",
         manual_fallback: "not_recorded",
         durable_outcome: status,
-        cormidia_end_to_end_complete: required !== null && missing.length === 0 && group.every((pass) => pass.status === "completed"),
+        cormidia_end_to_end_complete:
+          required !== null && missing.length === 0 && group.every((pass) => pass.status === "completed"),
         reasons,
       },
       observed_at: observedAt,
@@ -923,7 +996,12 @@ function projectTraces(passes: PassView[], observedAt: string, byRun: Map<string
   // LAST under newest-first, and `orderRows`' always-ascending identity
   // tie-break is what keeps two same-instant traces from silently reversing —
   // which `[...traces].sort(byStartedAt).reverse()` would do.
-  return orderRows(projected, (trace) => trace.order_key, (trace) => trace.id, "newest_first");
+  return orderRows(
+    projected,
+    (trace) => trace.order_key,
+    (trace) => trace.id,
+    "newest_first",
+  );
 }
 
 function findTraceRequired(group: PassView[]): string[] | null {
@@ -936,76 +1014,103 @@ function findTraceSkipped(group: PassView[]): Array<{ pass: string; reason: stri
 
 function traceStatus(group: PassView[], missing: string[]): string {
   if (group.some((pass) => pass.status === "running")) return "running";
-  if (group.some((pass) => pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled")) return "failed";
+  if (
+    group.some((pass) => pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled")
+  )
+    return "failed";
   if (group.some((pass) => pass.status === "blocked")) return "blocked";
   if (missing.length > 0) return "incomplete";
   return group.every((pass) => pass.status === "completed") ? "completed" : "unknown";
 }
 
-function projectParentTasks(input: ObserveProjectionInput, passes: PassView[], traces: TraceView[], observedAt: string, byRun: Map<string, TurnRecord[]>): ParentTaskView[] {
-  return input.parent_tasks.map<ParentTaskView>((record) => {
-    const taskPasses = passes.filter((pass) => pass.parent_task_id === record.taskId);
-    const taskTraces = traces.filter((trace) => trace.parent_task_id === record.taskId);
-    const observedStages = [...new Set(taskPasses.filter((pass) => pass.status === "completed").map((pass) => pass.role))];
-    const missing = record.requiredStages.filter((stage) => !observedStages.includes(stage));
-    const usage = aggregateQuality(taskPasses.map((pass) => pass.usage.quality));
-    const reasons: string[] = [];
-    if (record.status !== "completed") reasons.push(`Parent task is ${record.status}`);
-    if (record.executionMode !== "cormidia") reasons.push(`Execution mode is ${record.executionMode}`);
-    if (missing.length > 0) reasons.push(`Missing required stages: ${missing.join(", ")}`);
-    if (taskTraces.length === 0) reasons.push("No correlated trace recorded");
-    if (taskTraces.some((trace) => !trace.completion_integrity.cormidia_end_to_end_complete)) reasons.push("One or more correlated traces is incomplete");
-    const complete = reasons.length === 0;
-    const taskCost = costForPasses(taskPasses, byRun);
-    return {
-      id: `task:${record.taskId}`,
-      task_id: record.taskId,
-      app: record.app ?? null,
-      objective: truncatePreview(scrubSecrets(record.objective), 320),
-      completion_criteria: record.completionCriteria !== undefined ? truncatePreview(scrubSecrets(record.completionCriteria), 400) : null,
-      status: record.status,
-      execution_mode: record.executionMode,
-      started_at: instant(record.startedAt),
-      ended_at: instant(record.endedAt),
-      prompt: {
-        kind: "task",
-        label: "Exact original operator prompt",
-        available: input.parent_task_prompts[record.taskId] === true,
-        expired: input.parent_task_prompts[record.taskId] !== true,
-        href: input.parent_task_prompts[record.taskId] === true ? `/api/v1/tasks/${encodeURIComponent(record.taskId)}/prompt` : null,
-        sensitive: true,
-        sha256: record.promptSha256,
-      } as const,
-      prompt_sha256: record.promptSha256,
-      required_stages: record.requiredStages,
-      observed_stages: observedStages,
-      missing_required_stages: missing,
-      trace_ids: [...new Set([...record.refs.traces, ...taskPasses.map((pass) => pass.trace_id)])],
-      ticket_refs: [...new Set([...record.refs.tickets, ...taskPasses.map((pass) => pass.ticket).filter((value): value is string => value !== null)])],
-      completion_integrity: {
-        required_stages: missing.length === 0 ? "complete" : "incomplete",
-        usage,
-        reviewer: record.requiredStages.includes("reviewer")
-          ? observedStages.includes("reviewer") ? "completed" : "missing"
-          : "not_required",
-        manual_fallback: record.executionMode === "cormidia" ? "none" : "present",
-        durable_outcome: record.completionState?.pr ?? "not_recorded",
-        cormidia_end_to_end_complete: complete,
-        reasons,
-      },
-      duration: durationBetween(instant(record.startedAt), instant(record.endedAt), "Parent task"),
-      // Counted from the already-correlated pass/trace sets — never from text,
-      // titles, or timestamp proximity (invariant 2).
-      trace_count: taskTraces.length,
-      pass_count: taskPasses.length,
-      active_passes: taskPasses.filter((pass) => pass.status === "running").length,
-      cost: taskCost.cost,
-      recorded_cost_usd: taskCost.cost.known_cost_usd,
-      usage_quality: taskCost.usage_quality,
-      observed_at: observedAt,
-      source_refs: [{ source: "parent_task", ref: `tasks/${record.taskId}/task.json` }],
-    };
-  }).sort((a, b) => descendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
+function projectParentTasks(
+  input: ObserveProjectionInput,
+  passes: PassView[],
+  traces: TraceView[],
+  observedAt: string,
+  byRun: Map<string, TurnRecord[]>,
+): ParentTaskView[] {
+  return input.parent_tasks
+    .map<ParentTaskView>((record) => {
+      const taskPasses = passes.filter((pass) => pass.parent_task_id === record.taskId);
+      const taskTraces = traces.filter((trace) => trace.parent_task_id === record.taskId);
+      const observedStages = [
+        ...new Set(taskPasses.filter((pass) => pass.status === "completed").map((pass) => pass.role)),
+      ];
+      const missing = record.requiredStages.filter((stage) => !observedStages.includes(stage));
+      const usage = aggregateQuality(taskPasses.map((pass) => pass.usage.quality));
+      const reasons: string[] = [];
+      if (record.status !== "completed") reasons.push(`Parent task is ${record.status}`);
+      if (record.executionMode !== "cormidia") reasons.push(`Execution mode is ${record.executionMode}`);
+      if (missing.length > 0) reasons.push(`Missing required stages: ${missing.join(", ")}`);
+      if (taskTraces.length === 0) reasons.push("No correlated trace recorded");
+      if (taskTraces.some((trace) => !trace.completion_integrity.cormidia_end_to_end_complete))
+        reasons.push("One or more correlated traces is incomplete");
+      const complete = reasons.length === 0;
+      const taskCost = costForPasses(taskPasses, byRun);
+      return {
+        id: `task:${record.taskId}`,
+        task_id: record.taskId,
+        app: record.app ?? null,
+        objective: truncatePreview(scrubSecrets(record.objective), 320),
+        completion_criteria:
+          record.completionCriteria !== undefined
+            ? truncatePreview(scrubSecrets(record.completionCriteria), 400)
+            : null,
+        status: record.status,
+        execution_mode: record.executionMode,
+        started_at: instant(record.startedAt),
+        ended_at: instant(record.endedAt),
+        prompt: {
+          kind: "task",
+          label: "Exact original operator prompt",
+          available: input.parent_task_prompts[record.taskId] === true,
+          expired: input.parent_task_prompts[record.taskId] !== true,
+          href:
+            input.parent_task_prompts[record.taskId] === true
+              ? `/api/v1/tasks/${encodeURIComponent(record.taskId)}/prompt`
+              : null,
+          sensitive: true,
+          sha256: record.promptSha256,
+        } as const,
+        prompt_sha256: record.promptSha256,
+        required_stages: record.requiredStages,
+        observed_stages: observedStages,
+        missing_required_stages: missing,
+        trace_ids: [...new Set([...record.refs.traces, ...taskPasses.map((pass) => pass.trace_id)])],
+        ticket_refs: [
+          ...new Set([
+            ...record.refs.tickets,
+            ...taskPasses.map((pass) => pass.ticket).filter((value): value is string => value !== null),
+          ]),
+        ],
+        completion_integrity: {
+          required_stages: missing.length === 0 ? "complete" : "incomplete",
+          usage,
+          reviewer: record.requiredStages.includes("reviewer")
+            ? observedStages.includes("reviewer")
+              ? "completed"
+              : "missing"
+            : "not_required",
+          manual_fallback: record.executionMode === "cormidia" ? "none" : "present",
+          durable_outcome: record.completionState?.pr ?? "not_recorded",
+          cormidia_end_to_end_complete: complete,
+          reasons,
+        },
+        duration: durationBetween(instant(record.startedAt), instant(record.endedAt), "Parent task"),
+        // Counted from the already-correlated pass/trace sets — never from text,
+        // titles, or timestamp proximity (invariant 2).
+        trace_count: taskTraces.length,
+        pass_count: taskPasses.length,
+        active_passes: taskPasses.filter((pass) => pass.status === "running").length,
+        cost: taskCost.cost,
+        recorded_cost_usd: taskCost.cost.known_cost_usd,
+        usage_quality: taskCost.usage_quality,
+        observed_at: observedAt,
+        source_refs: [{ source: "parent_task", ref: `tasks/${record.taskId}/task.json` }],
+      };
+    })
+    .sort((a, b) => descendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
 }
 
 function projectApproval(item: ApprovalItem, grant: ApprovalGrant | undefined, now: Date): ApprovalView {
@@ -1028,19 +1133,25 @@ function projectApproval(item: ApprovalItem, grant: ApprovalGrant | undefined, n
     raised_at: instant(item.raisedAt)!,
     decided_at: instant(item.decidedAt),
     expires_at: instant(grant?.expiresAt),
-    scope: grant?.scope === undefined ? null : `${grant.scope.kind}:${grant.scope.rule}${grant.scope.pathContains === undefined ? "" : `:${grant.scope.pathContains}`}`,
+    scope:
+      grant?.scope === undefined
+        ? null
+        : `${grant.scope.kind}:${grant.scope.rule}${grant.scope.pathContains === undefined ? "" : `:${grant.scope.pathContains}`}`,
     reason: item.reason !== undefined ? truncatePreview(scrubSecrets(item.reason), 240) : null,
     execution_state: item.execution?.state ?? null,
     execution_attempts: item.execution?.attempts ?? 0,
     execution_actor: item.execution?.actor ?? null,
-    execution_result: item.execution?.result === undefined ? null : truncatePreview(scrubSecrets(item.execution.result), 240),
+    execution_result:
+      item.execution?.result === undefined ? null : truncatePreview(scrubSecrets(item.execution.result), 240),
     execution_failure_cause: item.execution?.failureCause ?? null,
     execution_next_action: item.execution?.nextAction ?? null,
     execution_remote_ref: item.execution?.remoteRef ?? null,
     execution_attempted_at: instant(item.execution?.attemptedAt),
     execution_finished_at: instant(item.execution?.finishedAt),
     observed_at: instant(now)!,
-    source_refs: [{ source: "approvals", ref: `approvals/${item.status === "pending" ? "pending" : "decided"}/${item.id}.json` }],
+    source_refs: [
+      { source: "approvals", ref: `approvals/${item.status === "pending" ? "pending" : "decided"}/${item.id}.json` },
+    ],
   };
 }
 
@@ -1055,18 +1166,26 @@ function projectDelivery(
   for (const source of github) {
     const mapped = source.issues.map((issue) => {
       const labels = [...issue.labels];
-      const ticketPasses = passes.filter((pass) => pass.app === source.app && ticketNumber(pass.ticket) === issue.number);
+      const ticketPasses = passes.filter(
+        (pass) => pass.app === source.app && ticketNumber(pass.ticket) === issue.number,
+      );
       const linkedPrNumbers = new Set(
-        ticketPasses.flatMap((pass) => pass.result_refs.filter((ref) => ref.source === "pr").map((ref) => explicitNumber(ref.ref)).filter(isNumber)),
+        ticketPasses.flatMap((pass) =>
+          pass.result_refs
+            .filter((ref) => ref.source === "pr")
+            .map((ref) => explicitNumber(ref.ref))
+            .filter(isNumber),
+        ),
       );
       const prs = source.pull_requests
-        .filter(({ pull_request }) =>
-          linkedPrNumbers.has(pull_request.number) ||
-          pull_request.closingIssueNumbers?.includes(issue.number) === true
+        .filter(
+          ({ pull_request }) =>
+            linkedPrNumbers.has(pull_request.number) ||
+            pull_request.closingIssueNumbers?.includes(issue.number) === true,
         )
         .map(({ pull_request, reviews, checks }) => projectPullRequest(pull_request, reviews, checks ?? []));
-      const ticketApprovals = approvals.filter((approval) =>
-        approval.app === source.app && ticketNumber(approval.ticket_ref) === issue.number,
+      const ticketApprovals = approvals.filter(
+        (approval) => approval.app === source.app && ticketNumber(approval.ticket_ref) === issue.number,
       );
       const mappedState = deliveryState(issue.state, labels, prs, ticketPasses, ticketApprovals);
       const deps = parseDependsOn(issue.body);
@@ -1096,8 +1215,12 @@ function projectDelivery(
       // Same total order as the activity stream: a raw `ts` string compare has
       // no tie-break and sorts a non-UTC offset wrong, so the two surfaces
       // could disagree about which event is latest.
-      const latestEvent = entry.passes.flatMap((pass) => pass.events).sort((a, b) => compareStable(b.order_key, a.order_key))[0];
-      const branches = [...new Set(entry.passes.map((pass) => pass.git_branch).filter((value): value is string => value !== null))];
+      const latestEvent = entry.passes
+        .flatMap((pass) => pass.events)
+        .sort((a, b) => compareStable(b.order_key, a.order_key))[0];
+      const branches = [
+        ...new Set(entry.passes.map((pass) => pass.git_branch).filter((value): value is string => value !== null)),
+      ];
       out.push({
         id: `ticket:${source.app}:${entry.issue.number}`,
         app: source.app,
@@ -1122,7 +1245,12 @@ function projectDelivery(
       });
     }
   }
-  return out.sort((a, b) => deliveryOrder(a.state) - deliveryOrder(b.state) || (a.scheduler_rank ?? 9999) - (b.scheduler_rank ?? 9999) || a.issue_number - b.issue_number);
+  return out.sort(
+    (a, b) =>
+      deliveryOrder(a.state) - deliveryOrder(b.state) ||
+      (a.scheduler_rank ?? 9999) - (b.scheduler_rank ?? 9999) ||
+      a.issue_number - b.issue_number,
+  );
 }
 
 function projectPullRequest(
@@ -1133,23 +1261,26 @@ function projectPullRequest(
   // Which review is "latest" decides `review_integrity`, so it must be an
   // instant compare, not a raw-string one: GitHub can emit a non-UTC offset,
   // and the `?? ""` fallback silently ranked an undated review as oldest-wins.
-  const latest = [...reviews]
-    .sort((a, b) => descendingNullsLast(instant(a.submittedAt), instant(b.submittedAt)))[0];
-  const reviewIntegrity: PullRequestView["review_integrity"] = latest === undefined
-    ? "missing"
-    : latest.state === "CHANGES_REQUESTED"
-      ? "changes_requested"
-      : latest.state === "APPROVED" && latest.commitId !== undefined && pr.headRefOid !== undefined
-        ? latest.commitId === pr.headRefOid ? "fresh_approved" : "stale_approval"
-        : "unknown";
+  const latest = [...reviews].sort((a, b) => descendingNullsLast(instant(a.submittedAt), instant(b.submittedAt)))[0];
+  const reviewIntegrity: PullRequestView["review_integrity"] =
+    latest === undefined
+      ? "missing"
+      : latest.state === "CHANGES_REQUESTED"
+        ? "changes_requested"
+        : latest.state === "APPROVED" && latest.commitId !== undefined && pr.headRefOid !== undefined
+          ? latest.commitId === pr.headRefOid
+            ? "fresh_approved"
+            : "stale_approval"
+          : "unknown";
   const checkStates = checks.map((check) => check.state.toUpperCase());
-  const checkIntegrity: PullRequestView["check_integrity"] = checks.length === 0
-    ? "unknown"
-    : checkStates.some((state) => ["FAILURE", "FAILED", "ERROR", "CANCELLED", "TIMED_OUT"].includes(state))
-      ? "red"
-      : checkStates.every((state) => ["SUCCESS", "PASS", "PASSED", "NEUTRAL", "SKIPPED"].includes(state))
-        ? "green"
-        : "pending";
+  const checkIntegrity: PullRequestView["check_integrity"] =
+    checks.length === 0
+      ? "unknown"
+      : checkStates.some((state) => ["FAILURE", "FAILED", "ERROR", "CANCELLED", "TIMED_OUT"].includes(state))
+        ? "red"
+        : checkStates.every((state) => ["SUCCESS", "PASS", "PASSED", "NEUTRAL", "SKIPPED"].includes(state))
+          ? "green"
+          : "pending";
   return {
     number: pr.number,
     url: pr.url ?? null,
@@ -1233,10 +1364,13 @@ function projectActivityHistory(
     traces.set(key, [...(traces.get(key) ?? []), pass]);
   }
   for (const group of traces.values()) {
-    const ordered = [...group].sort((a, b) => ascendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id));
+    const ordered = [...group].sort(
+      (a, b) => ascendingNullsLast(a.started_at, b.started_at) || compareStable(a.id, b.id),
+    );
     const first = ordered[0]!;
-    const latest = [...group].sort((a, b) =>
-      descendingNullsLast(a.finished_at ?? a.started_at, b.finished_at ?? b.started_at) || compareStable(a.id, b.id),
+    const latest = [...group].sort(
+      (a, b) =>
+        descendingNullsLast(a.finished_at ?? a.started_at, b.finished_at ?? b.started_at) || compareStable(a.id, b.id),
     )[0]!;
     const startedAt = first.started_at;
     const occurredAt = latest.finished_at ?? latest.started_at;
@@ -1260,9 +1394,10 @@ function projectActivityHistory(
       // Real identity only. The trace form is byte-identical to projectTraces'
       // `trace:${app}:${trace_id}` template, so a cross-app trace-id collision
       // can never collapse two rows onto one session (invariant 3).
-      session_ref: first.parent_task_id !== null
-        ? { id: `task:${first.parent_task_id}`, kind: "task" as const }
-        : { id: `trace:${first.app}:${first.trace_id}`, kind: "trace" as const },
+      session_ref:
+        first.parent_task_id !== null
+          ? { id: `task:${first.parent_task_id}`, kind: "task" as const }
+          : { id: `trace:${first.app}:${first.trace_id}`, kind: "trace" as const },
       started_at: startedAt,
       latest_at: occurredAt,
       occurred_at: occurredAt,
@@ -1271,7 +1406,12 @@ function projectActivityHistory(
       quality_reason: null,
     });
   }
-  return orderRows(rows, (row) => row.occurred_at, (row) => row.id, direction);
+  return orderRows(
+    rows,
+    (row) => row.occurred_at,
+    (row) => row.id,
+    direction,
+  );
 }
 
 const PENDING_STATE_LABELS: Readonly<Record<PendingIntakeState, string>> = Object.freeze({
@@ -1333,12 +1473,18 @@ function projectPendingIntake(input: ObserveProjectionInput, observedAt: string)
       timestamp_basis: basis,
       result_refs: [{ source: "event_inbox", ref: `state/events/inbox/${item.filename}` }],
       observed_at: observedAt,
-      quality_reason: item.error ?? (unreadableInstant(item.occurred_at) ? "Recorded event timestamp is unreadable" : null),
+      quality_reason:
+        item.error ?? (unreadableInstant(item.occurred_at) ? "Recorded event timestamp is unreadable" : null),
     });
   }
   // Section-local presentation order ONLY. This ordering must never be used to
   // correlate or group anything (invariant 2).
-  return orderRows(rows, (row) => row.occurred_at ?? row.discovered_at ?? "", (row) => row.id, "newest_first");
+  return orderRows(
+    rows,
+    (row) => row.occurred_at ?? row.discovered_at ?? "",
+    (row) => row.id,
+    "newest_first",
+  );
 }
 
 /**
@@ -1399,9 +1545,9 @@ function attention(spec: AttentionSpec): AttentionEmission {
     : [spec.kind, spec.cause, scope, spec.entityId ?? spec.title].join(ORDER_SEPARATOR);
   const groupId = spec.groupable
     ? `attention-group:${idSafe(spec.kind)}:${idSafe(spec.cause)}:${idSafe(spec.app ?? "org")}`
-    // Without the entity id appended, two independently actionable conditions
-    // would collide on one id (e.g. two returned tickets on the same app).
-    : `attention-group:${idSafe(spec.kind)}:${idSafe(spec.cause)}:${idSafe(spec.app ?? "org")}:${idSafe(spec.entityId ?? spec.title)}`;
+    : // Without the entity id appended, two independently actionable conditions
+      // would collide on one id (e.g. two returned tickets on the same app).
+      `attention-group:${idSafe(spec.kind)}:${idSafe(spec.cause)}:${idSafe(spec.app ?? "org")}:${idSafe(spec.entityId ?? spec.title)}`;
   const item: AttentionItemView = {
     id: `attention:${spec.kind}:${spec.entityId ?? spec.title}`,
     severity: spec.severity,
@@ -1435,151 +1581,299 @@ function projectAttention(
 ): { items: AttentionItemView[]; groups: AttentionGroupView[] } {
   const out: AttentionEmission[] = [];
   for (const approval of approvals.filter((item) => item.status === "pending")) {
-    out.push(attention({
-      severity: "warning", kind: "pending_approval", cause: approval.rule, groupable: true,
-      app: approval.app, entityId: approval.id, entityKind: "approval",
-      title: `Approval ${approval.approval_id} is waiting`, detail: approval.rule,
-      groupTitle: "Approval is waiting", groupDetail: approval.rule,
-      summary: `${approval.approval_id} · ${approval.role}`,
-      occurrenceDetail: approval.reason ?? "No reason recorded",
-      occurredAt: approval.raised_at, evidenceRefs: approval.source_refs, observedAt,
-    }));
+    out.push(
+      attention({
+        severity: "warning",
+        kind: "pending_approval",
+        cause: approval.rule,
+        groupable: true,
+        app: approval.app,
+        entityId: approval.id,
+        entityKind: "approval",
+        title: `Approval ${approval.approval_id} is waiting`,
+        detail: approval.rule,
+        groupTitle: "Approval is waiting",
+        groupDetail: approval.rule,
+        summary: `${approval.approval_id} · ${approval.role}`,
+        occurrenceDetail: approval.reason ?? "No reason recorded",
+        occurredAt: approval.raised_at,
+        evidenceRefs: approval.source_refs,
+        observedAt,
+      }),
+    );
   }
-  for (const approval of approvals.filter((item) => item.execution_state === "failed" || item.execution_state === "ambiguous")) {
-    out.push(attention({
-      severity: "error", kind: "approval_delivery", cause: approval.execution_state!, groupable: true,
-      app: approval.app, entityId: approval.id, entityKind: "approval",
-      title: `Approval ${approval.approval_id} delivery is ${approval.execution_state}`,
-      detail:
-        `attempt ${approval.execution_attempts}; actor ${approval.execution_actor ?? "unrecorded"}; ` +
-        `result ${approval.execution_result ?? "unrecorded"}; next ${approval.execution_next_action ?? "unrecorded"}`,
-      groupTitle: `Approval delivery is ${approval.execution_state}`,
-      groupDetail: "Delivery requires reconciliation before the action can be trusted",
-      summary: `${approval.approval_id} · ${approval.role}`,
-      occurrenceDetail:
-        `attempt ${approval.execution_attempts}; actor ${approval.execution_actor ?? "unrecorded"}; ` +
-        `result ${approval.execution_result ?? "unrecorded"}; next ${approval.execution_next_action ?? "unrecorded"}`,
-      occurredAt: approval.execution_finished_at ?? approval.execution_attempted_at ?? approval.raised_at,
-      evidenceRefs: approval.source_refs, observedAt,
-    }));
+  for (const approval of approvals.filter(
+    (item) => item.execution_state === "failed" || item.execution_state === "ambiguous",
+  )) {
+    out.push(
+      attention({
+        severity: "error",
+        kind: "approval_delivery",
+        cause: approval.execution_state!,
+        groupable: true,
+        app: approval.app,
+        entityId: approval.id,
+        entityKind: "approval",
+        title: `Approval ${approval.approval_id} delivery is ${approval.execution_state}`,
+        detail:
+          `attempt ${approval.execution_attempts}; actor ${approval.execution_actor ?? "unrecorded"}; ` +
+          `result ${approval.execution_result ?? "unrecorded"}; next ${approval.execution_next_action ?? "unrecorded"}`,
+        groupTitle: `Approval delivery is ${approval.execution_state}`,
+        groupDetail: "Delivery requires reconciliation before the action can be trusted",
+        summary: `${approval.approval_id} · ${approval.role}`,
+        occurrenceDetail:
+          `attempt ${approval.execution_attempts}; actor ${approval.execution_actor ?? "unrecorded"}; ` +
+          `result ${approval.execution_result ?? "unrecorded"}; next ${approval.execution_next_action ?? "unrecorded"}`,
+        occurredAt: approval.execution_finished_at ?? approval.execution_attempted_at ?? approval.raised_at,
+        evidenceRefs: approval.source_refs,
+        observedAt,
+      }),
+    );
   }
   for (const pass of passes) {
-    const passRefs: SourceRefView[] = [{ source: "runs", ref: `runs/${pass.app}/${pass.run_id}/` }, ...pass.result_refs];
+    const passRefs: SourceRefView[] = [
+      { source: "runs", ref: `runs/${pass.app}/${pass.run_id}/` },
+      ...pass.result_refs,
+    ];
     const passSummary = `${pass.role}/${pass.pass}`;
     const correlation = { traceId: pass.trace_id, ticket: pass.ticket };
     if (pass.liveness === "stalled") {
-      out.push(attention({
-        severity: "error", kind: "stale_pass", cause: "stalled", groupable: true,
-        app: pass.app, entityId: pass.id, entityKind: "pass",
-        title: `${pass.role}/${pass.pass} is stalled`, detail: pass.liveness_reason,
-        groupTitle: "Pass is stalled", groupDetail: "No heartbeat within the liveness threshold",
-        summary: passSummary, occurrenceDetail: pass.liveness_reason,
-        occurredAt: pass.started_at, evidenceRefs: passRefs, observedAt, ...correlation,
-      }));
+      out.push(
+        attention({
+          severity: "error",
+          kind: "stale_pass",
+          cause: "stalled",
+          groupable: true,
+          app: pass.app,
+          entityId: pass.id,
+          entityKind: "pass",
+          title: `${pass.role}/${pass.pass} is stalled`,
+          detail: pass.liveness_reason,
+          groupTitle: "Pass is stalled",
+          groupDetail: "No heartbeat within the liveness threshold",
+          summary: passSummary,
+          occurrenceDetail: pass.liveness_reason,
+          occurredAt: pass.started_at,
+          evidenceRefs: passRefs,
+          observedAt,
+          ...correlation,
+        }),
+      );
     }
     if (pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled") {
-      out.push(attention({
-        // Cause-level title: `${role}/${pass} ${status}` differs per occurrence
-        // and therefore belongs on the occurrence, not the group.
-        severity: "error", kind: "failed_pass", cause: pass.status, groupable: true,
-        app: pass.app, entityId: pass.id, entityKind: "pass",
-        title: `${pass.role}/${pass.pass} ${pass.status}`, detail: pass.terminal_reason ?? "No terminal reason recorded",
-        groupTitle: `Pass ${pass.status}`, groupDetail: "A terminal pass did not complete",
-        summary: passSummary, occurrenceDetail: pass.terminal_reason ?? "No terminal reason recorded",
-        occurredAt: pass.started_at, evidenceRefs: passRefs, observedAt, ...correlation,
-      }));
+      out.push(
+        attention({
+          // Cause-level title: `${role}/${pass} ${status}` differs per occurrence
+          // and therefore belongs on the occurrence, not the group.
+          severity: "error",
+          kind: "failed_pass",
+          cause: pass.status,
+          groupable: true,
+          app: pass.app,
+          entityId: pass.id,
+          entityKind: "pass",
+          title: `${pass.role}/${pass.pass} ${pass.status}`,
+          detail: pass.terminal_reason ?? "No terminal reason recorded",
+          groupTitle: `Pass ${pass.status}`,
+          groupDetail: "A terminal pass did not complete",
+          summary: passSummary,
+          occurrenceDetail: pass.terminal_reason ?? "No terminal reason recorded",
+          occurredAt: pass.started_at,
+          evidenceRefs: passRefs,
+          observedAt,
+          ...correlation,
+        }),
+      );
     }
     // `none` is an authoritative zero for a pass that invoked no provider: it
     // raises NO item and is excluded from provider-turn counts. Widening this
     // to `!== "complete"` is the classic none/unavailable conflation (#88).
     if (pass.usage.quality === "partial" || pass.usage.quality === "unavailable") {
-      out.push(attention({
-        severity: "warning", kind: "usage_incomplete", cause: pass.usage.quality, groupable: true,
-        app: pass.app, entityId: pass.id, entityKind: "pass",
-        title: `Usage is ${pass.usage.quality}`, detail: "Unknown cost is not free",
-        groupTitle: `Usage is ${pass.usage.quality}`, groupDetail: "Unknown cost is not free",
-        summary: passSummary,
-        occurrenceDetail: pass.usage.settled ? "Settled into the ledger with incomplete usage" : "Not settled into the ledger",
-        occurredAt: pass.started_at, evidenceRefs: passRefs, observedAt, ...correlation,
-      }));
+      out.push(
+        attention({
+          severity: "warning",
+          kind: "usage_incomplete",
+          cause: pass.usage.quality,
+          groupable: true,
+          app: pass.app,
+          entityId: pass.id,
+          entityKind: "pass",
+          title: `Usage is ${pass.usage.quality}`,
+          detail: "Unknown cost is not free",
+          groupTitle: `Usage is ${pass.usage.quality}`,
+          groupDetail: "Unknown cost is not free",
+          summary: passSummary,
+          occurrenceDetail: pass.usage.settled
+            ? "Settled into the ledger with incomplete usage"
+            : "Not settled into the ledger",
+          occurredAt: pass.started_at,
+          evidenceRefs: passRefs,
+          observedAt,
+          ...correlation,
+        }),
+      );
     }
     if (pass.quality_reason !== null) {
-      out.push(attention({
-        severity: "error", kind: "corrupt_run", cause: "degraded_run_evidence", groupable: true,
-        app: pass.app, entityId: pass.id, entityKind: "pass",
-        title: "Run evidence is degraded", detail: pass.quality_reason,
-        groupTitle: "Run evidence is degraded", groupDetail: "Durable run evidence could not be read in full",
-        summary: passSummary, occurrenceDetail: pass.quality_reason,
-        occurredAt: pass.started_at, evidenceRefs: passRefs, observedAt, ...correlation,
-      }));
+      out.push(
+        attention({
+          severity: "error",
+          kind: "corrupt_run",
+          cause: "degraded_run_evidence",
+          groupable: true,
+          app: pass.app,
+          entityId: pass.id,
+          entityKind: "pass",
+          title: "Run evidence is degraded",
+          detail: pass.quality_reason,
+          groupTitle: "Run evidence is degraded",
+          groupDetail: "Durable run evidence could not be read in full",
+          summary: passSummary,
+          occurrenceDetail: pass.quality_reason,
+          occurredAt: pass.started_at,
+          evidenceRefs: passRefs,
+          observedAt,
+          ...correlation,
+        }),
+      );
     }
   }
   for (const ticket of delivery.filter((item) => item.state === "returned")) {
-    out.push(attention({
-      // Independently actionable: two returned tickets are two decisions, so
-      // they must never collapse into one card.
-      severity: "warning", kind: "returned_ticket", cause: "returned", groupable: false,
-      app: ticket.app, entityId: ticket.id, entityKind: "ticket",
-      title: `Ticket #${ticket.issue_number} was returned`, detail: ticket.title,
-      groupTitle: `Ticket #${ticket.issue_number} was returned`, groupDetail: ticket.title,
-      summary: `#${ticket.issue_number} ${ticket.title}`, occurrenceDetail: ticket.quality_reason ?? "Returned for rework",
-      occurredAt: ticket.observed_at, evidenceRefs: ticket.source_refs, observedAt, ticket: `#${ticket.issue_number}`,
-    }));
+    out.push(
+      attention({
+        // Independently actionable: two returned tickets are two decisions, so
+        // they must never collapse into one card.
+        severity: "warning",
+        kind: "returned_ticket",
+        cause: "returned",
+        groupable: false,
+        app: ticket.app,
+        entityId: ticket.id,
+        entityKind: "ticket",
+        title: `Ticket #${ticket.issue_number} was returned`,
+        detail: ticket.title,
+        groupTitle: `Ticket #${ticket.issue_number} was returned`,
+        groupDetail: ticket.title,
+        summary: `#${ticket.issue_number} ${ticket.title}`,
+        occurrenceDetail: ticket.quality_reason ?? "Returned for rework",
+        occurredAt: ticket.observed_at,
+        evidenceRefs: ticket.source_refs,
+        observedAt,
+        ticket: `#${ticket.issue_number}`,
+      }),
+    );
   }
   for (const ticket of delivery.filter((item) => item.state === "merged" && item.quality_reason !== null)) {
-    out.push(attention({
-      severity: "warning", kind: "delivery_integrity", cause: "delivery_integrity", groupable: false,
-      app: ticket.app, entityId: ticket.id, entityKind: "ticket",
-      title: `Ticket #${ticket.issue_number} completion needs attention`, detail: ticket.quality_reason!,
-      groupTitle: `Ticket #${ticket.issue_number} completion needs attention`, groupDetail: ticket.quality_reason!,
-      summary: `#${ticket.issue_number} ${ticket.title}`, occurrenceDetail: ticket.quality_reason!,
-      occurredAt: ticket.observed_at, evidenceRefs: ticket.source_refs, observedAt, ticket: `#${ticket.issue_number}`,
-    }));
+    out.push(
+      attention({
+        severity: "warning",
+        kind: "delivery_integrity",
+        cause: "delivery_integrity",
+        groupable: false,
+        app: ticket.app,
+        entityId: ticket.id,
+        entityKind: "ticket",
+        title: `Ticket #${ticket.issue_number} completion needs attention`,
+        detail: ticket.quality_reason!,
+        groupTitle: `Ticket #${ticket.issue_number} completion needs attention`,
+        groupDetail: ticket.quality_reason!,
+        summary: `#${ticket.issue_number} ${ticket.title}`,
+        occurrenceDetail: ticket.quality_reason!,
+        occurredAt: ticket.observed_at,
+        evidenceRefs: ticket.source_refs,
+        observedAt,
+        ticket: `#${ticket.issue_number}`,
+      }),
+    );
   }
   for (const source of input.source_health.filter((source) => source.status !== "healthy")) {
-    out.push(attention({
-      severity: source.status === "unavailable" ? "error" : "warning",
-      kind: "source_health", cause: source.id, groupable: false,
-      app: null, entityId: `source:${source.id}`, entityKind: "source",
-      title: `${source.id} is ${source.status}`, detail: source.detail,
-      groupTitle: `${source.id} is ${source.status}`, groupDetail: source.detail,
-      summary: source.id, occurrenceDetail: source.detail,
-      occurredAt: source.observed_at,
-      // No durable run directory exists for a source; a plausible-looking path
-      // would be a fabricated reference.
-      evidenceRefs: [], observedAt,
-    }));
+    out.push(
+      attention({
+        severity: source.status === "unavailable" ? "error" : "warning",
+        kind: "source_health",
+        cause: source.id,
+        groupable: false,
+        app: null,
+        entityId: `source:${source.id}`,
+        entityKind: "source",
+        title: `${source.id} is ${source.status}`,
+        detail: source.detail,
+        groupTitle: `${source.id} is ${source.status}`,
+        groupDetail: source.detail,
+        summary: source.id,
+        occurrenceDetail: source.detail,
+        occurredAt: source.observed_at,
+        // No durable run directory exists for a source; a plausible-looking path
+        // would be a fabricated reference.
+        evidenceRefs: [],
+        observedAt,
+      }),
+    );
   }
   for (const run of input.corrupt_runs) {
-    out.push(attention({
-      severity: "error", kind: "corrupt_run", cause: "corrupt_envelope", groupable: true,
-      app: run.app, entityId: passId(run.app, run.run_id), entityKind: "pass",
-      title: "Envelope is corrupt", detail: run.detail,
-      groupTitle: "Envelope is corrupt", groupDetail: "The run envelope could not be parsed",
-      summary: run.run_id, occurrenceDetail: run.detail,
-      occurredAt: null, evidenceRefs: [{ source: "runs", ref: `runs/${run.app}/${run.run_id}/` }], observedAt,
-    }));
+    out.push(
+      attention({
+        severity: "error",
+        kind: "corrupt_run",
+        cause: "corrupt_envelope",
+        groupable: true,
+        app: run.app,
+        entityId: passId(run.app, run.run_id),
+        entityKind: "pass",
+        title: "Envelope is corrupt",
+        detail: run.detail,
+        groupTitle: "Envelope is corrupt",
+        groupDetail: "The run envelope could not be parsed",
+        summary: run.run_id,
+        occurrenceDetail: run.detail,
+        occurredAt: null,
+        evidenceRefs: [{ source: "runs", ref: `runs/${run.app}/${run.run_id}/` }],
+        observedAt,
+      }),
+    );
   }
   for (const task of input.corrupt_tasks) {
-    out.push(attention({
-      severity: "error", kind: "corrupt_task", cause: "corrupt_task", groupable: false,
-      app: null, entityId: `task:${task.task_id}`, entityKind: "task",
-      title: "Parent task record is corrupt", detail: task.detail,
-      groupTitle: "Parent task record is corrupt", groupDetail: task.detail,
-      summary: task.task_id, occurrenceDetail: task.detail,
-      occurredAt: null, evidenceRefs: [{ source: "task", ref: `tasks/${task.task_id}/task.json` }], observedAt,
-    }));
+    out.push(
+      attention({
+        severity: "error",
+        kind: "corrupt_task",
+        cause: "corrupt_task",
+        groupable: false,
+        app: null,
+        entityId: `task:${task.task_id}`,
+        entityKind: "task",
+        title: "Parent task record is corrupt",
+        detail: task.detail,
+        groupTitle: "Parent task record is corrupt",
+        groupDetail: task.detail,
+        summary: task.task_id,
+        occurrenceDetail: task.detail,
+        occurredAt: null,
+        evidenceRefs: [{ source: "task", ref: `tasks/${task.task_id}/task.json` }],
+        observedAt,
+      }),
+    );
   }
   for (const event of input.inbox.filter((item) => item.error !== undefined)) {
-    out.push(attention({
-      severity: "error", kind: "corrupt_intake", cause: "corrupt_intake", groupable: true,
-      app: event.app, entityId: `event:${event.filename}`, entityKind: "intake_event",
-      title: "Intake event is corrupt", detail: event.error!,
-      groupTitle: "Intake event is corrupt", groupDetail: "A company-event file could not be read",
-      summary: event.filename, occurrenceDetail: event.error!,
-      occurredAt: instant(event.discovered_at),
-      evidenceRefs: [{ source: "event_inbox", ref: `state/events/inbox/${event.filename}` }], observedAt,
-    }));
+    out.push(
+      attention({
+        severity: "error",
+        kind: "corrupt_intake",
+        cause: "corrupt_intake",
+        groupable: true,
+        app: event.app,
+        entityId: `event:${event.filename}`,
+        entityKind: "intake_event",
+        title: "Intake event is corrupt",
+        detail: event.error!,
+        groupTitle: "Intake event is corrupt",
+        groupDetail: "A company-event file could not be read",
+        summary: event.filename,
+        occurrenceDetail: event.error!,
+        occurredAt: instant(event.discovered_at),
+        evidenceRefs: [{ source: "event_inbox", ref: `state/events/inbox/${event.filename}` }],
+        observedAt,
+      }),
+    );
   }
   // Dedupe BEFORE counting. `corrupt_run` is emitted from two call sites and
   // both can produce the same item id; grouping before this step would inflate
@@ -1610,7 +1904,9 @@ function groupAttention(emissions: AttentionEmission[]): AttentionGroupView[] {
     const occurrences = [...members]
       .map((member) => member.occurrence)
       .sort((a, b) => ascendingNullsLast(a.occurred_at, b.occurred_at) || compareStable(a.id, b.id));
-    const dated = occurrences.map((occurrence) => occurrence.occurred_at).filter((value): value is string => value !== null);
+    const dated = occurrences
+      .map((occurrence) => occurrence.occurred_at)
+      .filter((value): value is string => value !== null);
     const delivered = occurrences.slice(0, ATTENTION_OCCURRENCE_CAP);
     const passRefs = members.filter((member) => member.spec.entityKind === "pass");
     return {
@@ -1641,10 +1937,11 @@ function groupAttention(emissions: AttentionEmission[]): AttentionGroupView[] {
       observed_at: head.item.observed_at,
     } satisfies AttentionGroupView;
   });
-  return groups.sort((a, b) =>
-    SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
-    b.occurrence_count - a.occurrence_count ||
-    compareStable(a.cause_key, b.cause_key),
+  return groups.sort(
+    (a, b) =>
+      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+      b.occurrence_count - a.occurrence_count ||
+      compareStable(a.cause_key, b.cause_key),
   );
 }
 
@@ -1659,12 +1956,18 @@ function deliveryState(
   passes: PassView[],
   approvals: ApprovalView[],
 ): { state: DeliveryState; reason?: string } {
-  const operation = labels.filter((label) => ["op:ready", "op:building", "op:in-review", "op:blocked", "op:returned"].includes(label));
-  if (operation.length > 1) return { state: "closed_unknown", reason: `Conflicting delivery labels: ${operation.join(", ")}` };
+  const operation = labels.filter((label) =>
+    ["op:ready", "op:building", "op:in-review", "op:blocked", "op:returned"].includes(label),
+  );
+  if (operation.length > 1)
+    return { state: "closed_unknown", reason: `Conflicting delivery labels: ${operation.join(", ")}` };
   if (prs.some((pr) => pr.state === "MERGED")) {
     return issueState === "CLOSED"
       ? { state: "merged" }
-      : { state: "merged", reason: "Explicitly correlated PR is merged, but the issue remains open; finalization is incomplete" };
+      : {
+          state: "merged",
+          reason: "Explicitly correlated PR is merged, but the issue remains open; finalization is incomplete",
+        };
   }
   if (issueState === "CLOSED") {
     return { state: "closed_unknown", reason: "Issue is closed but no explicitly correlated merged PR is recorded" };
@@ -1705,7 +2008,16 @@ function deliveryPhase(state: DeliveryState): SchedulableTicket["phase"] {
 }
 
 function deliveryOrder(state: DeliveryState): number {
-  return ["ready", "building", "in_review", "blocked_on_approval", "returned", "merged", "backlog", "closed_unknown"].indexOf(state);
+  return [
+    "ready",
+    "building",
+    "in_review",
+    "blocked_on_approval",
+    "returned",
+    "merged",
+    "backlog",
+    "closed_unknown",
+  ].indexOf(state);
 }
 
 function priority(labels: string[]): number | null {
@@ -1716,13 +2028,16 @@ function priority(labels: string[]): number | null {
 }
 
 function tier(labels: string[]): string | null {
-  const label = labels.find((candidate) => ["quick", "standard", "deep", "op:tier-quick", "op:tier-standard", "op:tier-deep"].includes(candidate));
+  const label = labels.find((candidate) =>
+    ["quick", "standard", "deep", "op:tier-quick", "op:tier-standard", "op:tier-deep"].includes(candidate),
+  );
   return label?.replace("op:tier-", "") ?? null;
 }
 
 function activityKind(pass: PassView): ActivityKind {
   if (pass.pipeline.includes("plan") || pass.role === "planner") return "planning";
-  if (pass.role === "distiller" || pass.role === "learning-reviewer" || pass.pipeline.includes("learning")) return "learning";
+  if (pass.role === "distiller" || pass.role === "learning-reviewer" || pass.pipeline.includes("learning"))
+    return "learning";
   return "manual_role";
 }
 
@@ -1731,17 +2046,16 @@ function ledgerTrigger(input: ObserveProjectionInput, pass: PassView): string | 
 }
 
 function aggregateQuality(qualities: UsageQuality[]): UsageQuality {
-  return qualities.reduce<UsageQuality>((worst, value) => QUALITY_RANK[value] > QUALITY_RANK[worst] ? value : worst, "complete");
+  return qualities.reduce<UsageQuality>(
+    (worst, value) => (QUALITY_RANK[value] > QUALITY_RANK[worst] ? value : worst),
+    "complete",
+  );
 }
 
 /** Delegates to the shared primitive so Observe and Report cannot classify the
  *  same stored quality differently (#89). */
 function normalizeQuality(value: string | undefined): UsageQuality {
   return normalizeUsageQuality(value);
-}
-
-function sum(values: number[]): number {
-  return values.reduce((total, value) => total + value, 0);
 }
 
 /** Delegates to the shared runtime primitive: an unsettled provider pass is
@@ -1766,8 +2080,15 @@ function isNumber(value: number | null): value is number {
   return value !== null;
 }
 
-function scrubEventDetail(detail: Record<string, string | number | boolean>): Record<string, string | number | boolean> {
-  return Object.fromEntries(Object.entries(detail).map(([key, value]) => [key, typeof value === "string" ? truncatePreview(scrubSecrets(value), 400) : value]));
+function scrubEventDetail(
+  detail: Record<string, string | number | boolean>,
+): Record<string, string | number | boolean> {
+  return Object.fromEntries(
+    Object.entries(detail).map(([key, value]) => [
+      key,
+      typeof value === "string" ? truncatePreview(scrubSecrets(value), 400) : value,
+    ]),
+  );
 }
 
 function passMatches(pass: PassView, filters: ObserveProjectionInput["filters"]): boolean {

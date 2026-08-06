@@ -25,10 +25,7 @@ function source(openIssues: GitHubIssueSummary[] = []): GitHubEventSource {
   };
 }
 
-function appsYaml(input: {
-  channels?: "support" | "marketing";
-  release?: boolean;
-} = {}): string {
+function appsYaml(input: { channels?: "support" | "marketing"; release?: boolean } = {}): string {
   return [
     "schema_version: 1",
     "org:",
@@ -41,9 +38,7 @@ function appsYaml(input: {
     "    repo: fixture/eligibility-app",
     "    status: live",
     "    cadence: {}",
-    ...(input.channels === undefined
-      ? []
-      : ["    channels:", `      ${input.channels}: [fixture]`]),
+    ...(input.channels === undefined ? [] : ["    channels:", `      ${input.channels}: [fixture]`]),
     ...(input.release === true
       ? [
           "    release:",
@@ -119,7 +114,9 @@ describe("CF-REG-228 — scheduled paid-turn eligibility", () => {
       runtimeHome: org!.stateHome,
       now: () => new Date(NOW),
       eventSource: source(),
-      spawn: async () => { providerConstructions += 1; },
+      spawn: async () => {
+        providerConstructions += 1;
+      },
     });
 
     expect(tick.errors).toEqual([]);
@@ -144,7 +141,9 @@ describe("CF-REG-228 — scheduled paid-turn eligibility", () => {
       runtimeHome: org!.stateHome,
       now: () => new Date(NOW),
       eventSource: source(),
-      spawn: async () => { providerConstructions += 1; },
+      spawn: async () => {
+        providerConstructions += 1;
+      },
     });
 
     expect(tick.errors).toEqual([]);
@@ -160,14 +159,18 @@ describe("CF-REG-228 — scheduled paid-turn eligibility", () => {
       runtimeHome: org!.stateHome,
       now: () => new Date(NOW),
       eventSource: source([{ number: 228, title: "already building", labels: ["op:building"] }]),
-      spawn: async () => { providerConstructions += 1; },
+      spawn: async () => {
+        providerConstructions += 1;
+      },
     });
 
     expect(tick.errors).toEqual([]);
     expect(tick.spawned).toEqual([]);
     expect(providerConstructions).toBe(0);
-    expect((await evidence().listDecisions()).find((item) => item.role === "planner"))
-      .toMatchObject({ outcome: "skipped", reason_code: "no_actionable_input" });
+    expect((await evidence().listDecisions()).find((item) => item.role === "planner")).toMatchObject({
+      outcome: "skipped",
+      reason_code: "no_actionable_input",
+    });
   });
 
   for (const role of ["support", "marketing"] as const) {
@@ -175,13 +178,16 @@ describe("CF-REG-228 — scheduled paid-turn eligibility", () => {
       await configure(role, { channels: role });
       const clock = makeTestClock(NOW);
       let providerConstructions = 0;
-      const run = () => dispatchTick({
-        orgRoot: org!.orgHome,
-        runtimeHome: org!.stateHome,
-        now: clock.nowDate,
-        eventSource: source(),
-        spawn: async () => { providerConstructions += 1; },
-      });
+      const run = () =>
+        dispatchTick({
+          orgRoot: org!.orgHome,
+          runtimeHome: org!.stateHome,
+          now: clock.nowDate,
+          eventSource: source(),
+          spawn: async () => {
+            providerConstructions += 1;
+          },
+        });
 
       const first = await run();
       clock.advance(5 * 60_000);
@@ -192,12 +198,15 @@ describe("CF-REG-228 — scheduled paid-turn eligibility", () => {
       expect(providerConstructions).toBe(0);
       const decisions = (await evidence().listDecisions()).filter((item) => item.role === role);
       expect(decisions).toHaveLength(2);
-      expect(decisions.every((item) =>
-        item.reason_code === "no_actionable_input"
-        && item.provider_turns === 0
-        && item.provider_settlements === 0
-        && item.detail?.includes('"configuration":"declared"') === true
-      )).toBe(true);
+      expect(
+        decisions.every(
+          (item) =>
+            item.reason_code === "no_actionable_input" &&
+            item.provider_turns === 0 &&
+            item.provider_settlements === 0 &&
+            item.detail?.includes('"configuration":"declared"') === true,
+        ),
+      ).toBe(true);
       expect(await evidence().listAlerts()).toEqual([]);
     });
   }

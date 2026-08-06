@@ -31,13 +31,7 @@ export type SourceStatus = "healthy" | "degraded" | "unavailable";
  *  Mirrors UsageQuality in src/runtime/types.ts. */
 export type UsageQuality = "complete" | "partial" | "estimated" | "unavailable" | "none";
 export type Liveness = "live" | "stalled" | "terminal" | "unknown";
-export type ActivityKind =
-  | "onboarding"
-  | "planning"
-  | "scheduled_role"
-  | "company_event"
-  | "manual_role"
-  | "learning";
+export type ActivityKind = "onboarding" | "planning" | "scheduled_role" | "company_event" | "manual_role" | "learning";
 export type DeliveryState =
   | "backlog"
   | "ready"
@@ -484,8 +478,18 @@ export interface PassView {
  *  string — never from free text. `pass.heartbeat` gets its own kind so visual
  *  coalescing can never swallow a real pass outcome. */
 export type EventKind =
-  | "run" | "pass" | "heartbeat" | "gate" | "tool" | "subagent"
-  | "ticket" | "verdict" | "plan" | "escalation" | "telemetry" | "other";
+  | "run"
+  | "pass"
+  | "heartbeat"
+  | "gate"
+  | "tool"
+  | "subagent"
+  | "ticket"
+  | "verdict"
+  | "plan"
+  | "escalation"
+  | "telemetry"
+  | "other";
 
 /** Derived from the typed event plus typed `detail` fields — never from
  *  `severity` alone: `telemetry.settle_skipped` is a benign exactly-once skip

@@ -65,9 +65,7 @@ export function assertWritesContained(
   const allowedChanged = new Set(authorized.changed);
   const violations: string[] = [
     ...diff.added.filter((rel) => !allowedAdded.has(rel)).map((rel) => `unauthorized add: ${rel}`),
-    ...diff.changed
-      .filter((rel) => !allowedChanged.has(rel))
-      .map((rel) => `unauthorized change: ${rel}`),
+    ...diff.changed.filter((rel) => !allowedChanged.has(rel)).map((rel) => `unauthorized change: ${rel}`),
     ...diff.removed.map((rel) => `unauthorized removal: ${rel}`),
   ];
   if (violations.length > 0) {

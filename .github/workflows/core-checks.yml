@@ -43,6 +43,7 @@ jobs:
         run: echo "LANE_START=$(date +%s)" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm check
       - run: pnpm build
       - run: pnpm test
       - name: Report wall clock (ratified 5-min target — reported, not enforced)

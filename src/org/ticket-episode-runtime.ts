@@ -1,20 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type {
-  ContextBundle,
-  RoleConfig,
-  Runtime,
-  TurnAssignment,
-  TurnHooks,
-} from "../runtime/types.js";
-import {
-  isRuntimeCapability,
-  type RuntimeCapability,
-} from "../runtime/capabilities.js";
-import {
-  fixedAssignmentFromRole,
-  turnAssignmentsEqual,
-} from "../runtime/assignment.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../runtime/types.js";
+import { isRuntimeCapability, type RuntimeCapability } from "../runtime/capabilities.js";
+import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../runtime/assignment.js";
 import { mintRunId, hashedFileStem, runPaths } from "../runtime/runlog/paths.js";
 import type {
   AcceptedTicketEpisodePlan,
@@ -55,10 +43,7 @@ import {
   readExecutionAffinityRecord,
   settleExecutionAffinityTurn,
 } from "./execution-affinity.js";
-import {
-  EPISODE_PLAN_EXECUTION_PIPELINE,
-  planRouteLabel,
-} from "../loop/episode-route.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
 import {
   assertTicketEpisodePlanValid,
   isTicketMechanicalGateKind,
@@ -69,12 +54,9 @@ import {
   TICKET_MECHANICAL_GATE_KINDS,
   TICKET_PROVIDER_OPERATION_CATALOG,
   TICKET_PROVIDER_OPERATIONS,
-  type TicketMechanicalGateKind,
   type TicketProviderOperationDefinition,
 } from "../loop/ticket-episode-plan.js";
-import {
-  createProviderEpisodePlanRevisionProposer,
-} from "./episode-planner/runtime.js";
+import { createProviderEpisodePlanRevisionProposer } from "./episode-planner/runtime.js";
 import {
   inspectEpisodeInvocation,
   orchestrateEpisode,
@@ -123,16 +105,9 @@ import {
   type PipelineRunResult,
   type VerdictRecordOutcome,
 } from "../loop/pipeline.js";
-import {
-  ERROR_TURN_BUDGET_SUSPENDED,
-  type TurnBudgetStop,
-} from "../runtime/turn-budget.js";
+import { ERROR_TURN_BUDGET_SUSPENDED, type TurnBudgetStop } from "../runtime/turn-budget.js";
 import { readEnvelope } from "../runtime/runlog/envelope.js";
-import {
-  resumeCostEstimate,
-  type ResumeCostEstimate,
-  type TurnBudgetEscalationInput,
-} from "./budget.js";
+import { resumeCostEstimate, type ResumeCostEstimate, type TurnBudgetEscalationInput } from "./budget.js";
 import type { ApprovalItem } from "./approvals.js";
 import type { PipelineConfig } from "../loop/pipelines.js";
 import {
@@ -152,20 +127,13 @@ import {
 } from "../loop/rehydrate.js";
 import { writeLoopFileOnce } from "../loop/durable.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
-import {
-  probeRuntimeReadiness,
-  type RuntimeReadinessProbe,
-} from "../runtime/readiness.js";
+import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../runtime/readiness.js";
 import type { TicketEpisodeApprovalHandler } from "./ticket-episode-approval.js";
-import {
-  mergeEpisodeSafetyFacts,
-  safetyFactsFromTicketLabels,
-} from "./episode-safety-facts.js";
+import { mergeEpisodeSafetyFacts, safetyFactsFromTicketLabels } from "./episode-safety-facts.js";
 import { effectiveEpisodeHardCeiling } from "./app-execution-policy.js";
 import { runtimePolicyForApp } from "./apps.js";
 
-export const TICKET_EPISODE_PLANNER_POLICY_VERSION =
-  "ticket-episode/episode-planner-v1" as const;
+export const TICKET_EPISODE_PLANNER_POLICY_VERSION = "ticket-episode/episode-planner-v1" as const;
 
 const MAX_TICKET_BODY_BYTES = 128 * 1024;
 const DEFAULT_PLANNER_ACTIVE_TIME_MS = 5 * 60_000;
@@ -268,9 +236,7 @@ export interface TicketEpisodeInvocationInspection {
  * Both autonomous dispatch and `cormidia loop` use this factory so ticket
  * planning/execution cannot drift between entry points.
  */
-export function createTicketEpisodeRuntime(
-  options: TicketEpisodeRuntimeOptions,
-): TicketEpisodeRuntime {
+export function createTicketEpisodeRuntime(options: TicketEpisodeRuntimeOptions): TicketEpisodeRuntime {
   assertFactoryOptions(options);
   return {
     planTicket: (request) => planTicketEpisode(options, request),
@@ -292,9 +258,10 @@ async function planTicketEpisode(
   const plannerRole = requireRole(options.roles, "planner");
   const plannerLimits = inspected.plannerLimits;
   const workflowTemplates = ticketWorkflowTemplates(options);
-  const promptText = inspected.planningPath === "creator_scope_normalization"
-    ? "Creator scope normalization path: no provider prompt is executed."
-    : await resolvePlannerPrompt(options);
+  const promptText =
+    inspected.planningPath === "creator_scope_normalization"
+      ? "Creator scope normalization path: no provider prompt is executed."
+      : await resolvePlannerPrompt(options);
   const result = await orchestrateEpisode({
     root: options.root,
     app: options.app,
@@ -368,14 +335,10 @@ export async function inspectTicketEpisodeInvocation(
   }
   const creatorScope = resolvedCreatorScope ?? request.creatorScope;
   const persistedIntent = await readPersistedEpisodeIntent(options.root, request.episodeId);
-  let hardBudget = persistedIntent === undefined
-    ? ticketHardBudget(options, 0)
-    : structuredClone(persistedIntent.hardBudget);
+  let hardBudget =
+    persistedIntent === undefined ? ticketHardBudget(options, 0) : structuredClone(persistedIntent.hardBudget);
   const catalog = ticketPlanningCatalog();
-  const plannerLimits = options.plannerLimits ?? defaultPlannerLimits(
-    plannerRole,
-    options.remainingBudgetUsd,
-  );
+  const plannerLimits = options.plannerLimits ?? defaultPlannerLimits(plannerRole, options.remainingBudgetUsd);
   const requiredSafetyFacts = mergeTicketSafetyFacts(
     request.deliveryUnit?.members.flatMap((member) => member.labels) ?? request.ticket.labels,
     request.deliveryUnit?.members.map((member) => member.ticketRef).join(",") ?? request.ticket.ticketRef,
@@ -385,15 +348,18 @@ export async function inspectTicketEpisodeInvocation(
     episodeId: request.episodeId,
     trigger: {
       kind: "github_issue",
-      sourceRef: request.deliveryUnit === undefined
-        ? `${request.targetRepo}${request.ticket.ticketRef}`
-        : `${request.targetRepo}:delivery-unit:${request.deliveryUnit.unitId}`,
+      sourceRef:
+        request.deliveryUnit === undefined
+          ? `${request.targetRepo}${request.ticket.ticketRef}`
+          : `${request.targetRepo}:delivery-unit:${request.deliveryUnit.unitId}`,
       payloadHash: stableHash(request.deliveryUnit ?? request.ticket),
     },
-    goal: creatorScope?.objective ?? (request.deliveryUnit === undefined
-      ? `Deliver ${request.ticket.ticketRef}: ${request.ticket.title}`
-      : `Deliver ${request.deliveryUnit.unitId}: ` +
-        request.deliveryUnit.members.map((member) => member.ticketRef).join(", ")),
+    goal:
+      creatorScope?.objective ??
+      (request.deliveryUnit === undefined
+        ? `Deliver ${request.ticket.ticketRef}: ${request.ticket.title}`
+        : `Deliver ${request.deliveryUnit.unitId}: ` +
+          request.deliveryUnit.members.map((member) => member.ticketRef).join(", ")),
     lifecycle: "existing-ticket",
     appStage: options.app.status,
     repositoryFacts: repository.repositoryFacts,
@@ -410,24 +376,26 @@ export async function inspectTicketEpisodeInvocation(
           checked: entry.checked,
         })),
       },
-      ...(request.deliveryUnit === undefined ? {} : {
-        deliveryUnit: {
-          unitId: request.deliveryUnit.unitId,
-          membershipHash: request.deliveryUnit.membershipHash,
-          members: request.deliveryUnit.members.map((member) => ({
-            issueNumber: member.issueNumber,
-            ticketRef: member.ticketRef,
-            title: member.title,
-            body: member.body,
-            labels: [...member.labels].sort(),
-            acceptanceCriteria: parseAcceptanceCriteria(member.body).map((entry) => ({
-              id: entry.id,
-              text: entry.text,
-              checked: entry.checked,
-            })),
-          })),
-        },
-      }),
+      ...(request.deliveryUnit === undefined
+        ? {}
+        : {
+            deliveryUnit: {
+              unitId: request.deliveryUnit.unitId,
+              membershipHash: request.deliveryUnit.membershipHash,
+              members: request.deliveryUnit.members.map((member) => ({
+                issueNumber: member.issueNumber,
+                ticketRef: member.ticketRef,
+                title: member.title,
+                body: member.body,
+                labels: [...member.labels].sort(),
+                acceptanceCriteria: parseAcceptanceCriteria(member.body).map((entry) => ({
+                  id: entry.id,
+                  text: entry.text,
+                  checked: entry.checked,
+                })),
+              })),
+            },
+          }),
       baseRevision: {
         ref: request.base.ref,
         defaultBranch: request.base.defaultBranch,
@@ -438,16 +406,18 @@ export async function inspectTicketEpisodeInvocation(
     },
     hardBudget,
     requiredSafetyFacts,
-    responsibilityByRole: Object.fromEntries(options.roles.map((role) => [
-      role.name,
-      role.name === "builder"
-        ? "Own bounded diagnosis, contract, implementation, and fixes for this ticket"
-        : role.name === "reviewer"
-          ? "Independently verify the exact delivered revision and release readiness"
-          : role.name === "planner"
-            ? "Design the smallest sufficient ticket workflow from the code-owned operation catalog"
-            : `Configured ${role.name} responsibility`,
-    ])),
+    responsibilityByRole: Object.fromEntries(
+      options.roles.map((role) => [
+        role.name,
+        role.name === "builder"
+          ? "Own bounded diagnosis, contract, implementation, and fixes for this ticket"
+          : role.name === "reviewer"
+            ? "Independently verify the exact delivered revision and release readiness"
+            : role.name === "planner"
+              ? "Design the smallest sufficient ticket workflow from the code-owned operation catalog"
+              : `Configured ${role.name} responsibility`,
+      ]),
+    ),
     ...(creatorScope === undefined ? {} : { creatorScope }),
   } as const;
   // Assess the creator path without touching the protected prompt. A complete
@@ -470,10 +440,7 @@ export async function inspectTicketEpisodeInvocation(
   if (preview.planningPath === "episode_planner_provider_turn") {
     assertPlannerFitsCombinedBudget(plannerLimits, options.remainingBudgetUsd);
     if (persistedIntent === undefined) {
-      hardBudget = ticketHardBudget(
-        options,
-        plannerLimits.aggregate.equivalentCostUsd,
-      );
+      hardBudget = ticketHardBudget(options, plannerLimits.aggregate.equivalentCostUsd);
       facts = { ...facts, hardBudget };
       preview = previewEpisode({
         app: options.app,
@@ -534,10 +501,7 @@ async function executeTicketEpisode(
   const plannerRole = requireRole(options.roles, "planner");
   const clock = options.now ?? (() => new Date());
   const workdir = requireWorktree(input.item);
-  const plannerLimits = options.plannerLimits ?? defaultPlannerLimits(
-    plannerRole,
-    options.remainingBudgetUsd,
-  );
+  const plannerLimits = options.plannerLimits ?? defaultPlannerLimits(plannerRole, options.remainingBudgetUsd);
   const inspected = await inspectTicketEpisodeInvocation(options, input.request);
   const workflowTemplates = ticketWorkflowTemplates(options);
   let item = structuredClone(input.item);
@@ -581,105 +545,95 @@ async function executeTicketEpisode(
       workdir,
       hooks: options.hooks,
       runtimeForAssignment: options.runtimeForAssignment,
-      proposeRevision: async (request) => createProviderEpisodePlanRevisionProposer({
-        root: options.root,
-        app: options.app,
-        roles: options.roles,
-        promptText: await resolvePlannerPrompt(options),
-        context: options.plannerContext,
-        workdir,
-        hooks: plannerHooks(options, plannerRole),
-        runtimeForAssignment: options.runtimeForAssignment,
-        policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
-        providerOperations: TICKET_PROVIDER_OPERATIONS,
-        mechanicalGates: TICKET_MECHANICAL_GATE_KINDS,
-        topologyContract: TICKET_EPISODE_TOPOLOGY_CONTRACT,
-        limits: plannerLimits,
-        independentReview: {
-          subjectRoles: ["builder"],
-          reviewerRoles: ["reviewer"],
-        },
-        safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
-        validateAcceptedPlan: assertTicketEpisodePlanValid,
-        traceId: `${input.request.ticket.ticketRef}:episode-planner-revision`,
-        ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
-        ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
-        ...(options.signal === undefined ? {} : { signal: options.signal }),
-        now: clock,
-      })(request),
+      proposeRevision: async (request) =>
+        createProviderEpisodePlanRevisionProposer({
+          root: options.root,
+          app: options.app,
+          roles: options.roles,
+          promptText: await resolvePlannerPrompt(options),
+          context: options.plannerContext,
+          workdir,
+          hooks: plannerHooks(options, plannerRole),
+          runtimeForAssignment: options.runtimeForAssignment,
+          policyVersion: TICKET_EPISODE_PLANNER_POLICY_VERSION,
+          providerOperations: TICKET_PROVIDER_OPERATIONS,
+          mechanicalGates: TICKET_MECHANICAL_GATE_KINDS,
+          topologyContract: TICKET_EPISODE_TOPOLOGY_CONTRACT,
+          limits: plannerLimits,
+          independentReview: {
+            subjectRoles: ["builder"],
+            reviewerRoles: ["reviewer"],
+          },
+          safetyFloorMapping: TICKET_SAFETY_FLOOR_MAPPING,
+          validateAcceptedPlan: assertTicketEpisodePlanValid,
+          traceId: `${input.request.ticket.ticketRef}:episode-planner-revision`,
+          ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
+          ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+          now: clock,
+        })(request),
       contextForProviderStep: async ({ step }) => {
-      const role = requireRole(options.roles, step.role);
-      return options.contextForProviderStep?.({
-        request: input.request,
-        item: structuredClone(item),
-        step: structuredClone(step),
-        role,
-      }) ?? options.plannerContext;
+        const role = requireRole(options.roles, step.role);
+        return (
+          options.contextForProviderStep?.({
+            request: input.request,
+            item: structuredClone(item),
+            step: structuredClone(step),
+            role,
+          }) ?? options.plannerContext
+        );
       },
-    // Asked before an adopted revision would re-enter the exact step it was
-    // authored to repair. The ticket domain can settle such a step from a
-    // preserved prior material event, so it answers from the same evidence
-    // code the handler below uses instead of spending a second turn (#175).
-    // Evidence that fails its own integrity checks is not "completable": the
-    // step is withheld here and enters normally on the next tick, where the
-    // executor turns the same error into that step's typed failure.
+      // Asked before an adopted revision would re-enter the exact step it was
+      // authored to repair. The ticket domain can settle such a step from a
+      // preserved prior material event, so it answers from the same evidence
+      // code the handler below uses instead of spending a second turn (#175).
+      // Evidence that fails its own integrity checks is not "completable": the
+      // step is withheld here and enters normally on the next tick, where the
+      // executor turns the same error into that step's typed failure.
       providerStepCompletableWithoutNewTurn: async (step, plan) => {
-      const definition = ticketProviderOperation(step.operation);
-      if (definition === undefined || definition.role !== step.role) return false;
-      try {
-        return (await completableProviderEvidence({ options, plan, step }, definition)) !== undefined;
-      } catch {
-        return false;
-      }
+        const definition = ticketProviderOperation(step.operation);
+        if (definition === undefined || definition.role !== step.role) return false;
+        try {
+          return (await completableProviderEvidence({ options, plan, step }, definition)) !== undefined;
+        } catch {
+          return false;
+        }
       },
       provider: async (step, context) => {
-      const plan = await ticketExecutionPlan(
-        options.root,
-        input.accepted.plan.episodeId,
-        context,
-      );
-      const outcome = await executeTicketProviderStep({
-        options,
-        input,
-        item,
-        plan,
-        step,
-        context,
-      });
-      item = outcome.item;
-      return outcome.outcome;
+        const plan = await ticketExecutionPlan(options.root, input.accepted.plan.episodeId, context);
+        const outcome = await executeTicketProviderStep({
+          options,
+          input,
+          item,
+          plan,
+          step,
+          context,
+        });
+        item = outcome.item;
+        return outcome.outcome;
       },
       mechanical: async (step, context) => {
-      const plan = await ticketExecutionPlan(
-        options.root,
-        input.accepted.plan.episodeId,
-        context,
-      );
-      const outcome = await executeTicketMechanicalStep({
-        options,
-        input,
-        item,
-        plan,
-        step,
-        context,
-      });
-      item = outcome.item;
-      return outcome.outcome;
+        const plan = await ticketExecutionPlan(options.root, input.accepted.plan.episodeId, context);
+        const outcome = await executeTicketMechanicalStep({
+          options,
+          input,
+          item,
+          plan,
+          step,
+          context,
+        });
+        item = outcome.item;
+        return outcome.outcome;
       },
       approval: async (step, context) => {
-      if (options.approval === undefined) {
-        return {
-          status: "failed",
-          reasonCode: "error_ticket_episode_approval_handler_missing",
-          summary: `ticket plan approval ${step.approvalKind} has no registered org handler`,
-        };
-      }
-      return options.approval(
-        step,
-        context,
-        structuredClone(item),
-        structuredClone(input.accepted),
-      );
+        if (options.approval === undefined) {
+          return {
+            status: "failed",
+            reasonCode: "error_ticket_episode_approval_handler_missing",
+            summary: `ticket plan approval ${step.approvalKind} has no registered org handler`,
+          };
+        }
+        return options.approval(step, context, structuredClone(item), structuredClone(input.accepted));
       },
       ...(options.gateForRole === undefined ? {} : { gateForRole: options.gateForRole }),
       ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
@@ -759,10 +713,10 @@ function ticketExecutionAffinityManifest(
   const memory = (context.components ?? []).filter((component) => component.category === "memory");
   const unitId = input.input.request.deliveryUnit?.unitId ?? input.input.request.ticket.ticketRef;
   const planRef = `episode-plan:${input.plan.episodeId}:v${input.plan.version}`;
-  const unitRef = input.input.request.deliveryUnit === undefined
-    ? `ticket:${input.input.request.ticket.ticketRef}`
-    : `delivery-unit:${input.input.request.deliveryUnit.unitId}:` +
-      input.input.request.deliveryUnit.membershipHash;
+  const unitRef =
+    input.input.request.deliveryUnit === undefined
+      ? `ticket:${input.input.request.ticket.ticketRef}`
+      : `delivery-unit:${input.input.request.deliveryUnit.unitId}:` + input.input.request.deliveryUnit.membershipHash;
   return createExecutionContextAffinityManifest({
     unitId,
     compatibility: {
@@ -784,7 +738,7 @@ function ticketExecutionAffinityManifest(
       },
       ...shared.map((component, index) => ({
         id: `shared-${index}`,
-        kind: component.category === "authority" ? "authority" as const : "shared_context" as const,
+        kind: component.category === "authority" ? ("authority" as const) : ("shared_context" as const),
         sourceRef: component.source,
         sha256: stableHash(component.rendered),
       })),
@@ -815,13 +769,13 @@ function ticketExecutionAffinityManifest(
         sha256: stableHash(dependencyOutputs),
       },
     ],
-    requiredAuthorityRefs: [...new Set([
-      ...shared
-        .filter((component) => component.category === "authority")
-        .map((component) => component.source),
-      planRef,
-      unitRef,
-    ])],
+    requiredAuthorityRefs: [
+      ...new Set([
+        ...shared.filter((component) => component.category === "authority").map((component) => component.source),
+        planRef,
+        unitRef,
+      ]),
+    ],
   });
 }
 
@@ -836,9 +790,7 @@ interface TicketProviderStepResult {
   outcome: ProviderStepOutcome;
 }
 
-async function executeTicketProviderStep(
-  input: TicketProviderExecutionInput,
-): Promise<TicketProviderStepResult> {
+async function executeTicketProviderStep(input: TicketProviderExecutionInput): Promise<TicketProviderStepResult> {
   const definition = ticketProviderOperation(input.step.operation);
   if (definition === undefined || definition.role !== input.step.role) {
     return failedTicketProvider(
@@ -858,11 +810,13 @@ async function executeTicketProviderStep(
     const pipeline: PipelineConfig = {
       name: EPISODE_PLAN_EXECUTION_PIPELINE,
       mechanical: false,
-      passes: [{
-        id: input.step.id,
-        role: input.step.role,
-        template: definition.template ?? "",
-      }],
+      passes: [
+        {
+          id: input.step.id,
+          role: input.step.role,
+          template: definition.template ?? "",
+        },
+      ],
     };
     const dependencyOutputs = await requiredPlanOutputs(input);
     let pipelineError: unknown;
@@ -882,35 +836,27 @@ async function executeTicketProviderStep(
     // A continuation is consumed only by the exact step that parked. The
     // driver hands the ticket its durable continuation; if it targets a
     // different pass, this step starts a fresh session as usual.
-    const continuation =
-      input.item.continuation?.pass === input.step.id ? input.item.continuation : undefined;
+    const continuation = input.item.continuation?.pass === input.step.id ? input.item.continuation : undefined;
     try {
       run = await executePipeline({
         pipeline,
         selection: { tier: planRouteLabel(input.plan) },
         roles: { [role.name]: role },
-        runtimeFor: (selected) =>
-          input.options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
+        runtimeFor: (selected) => input.options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
         runtimeForAssignment: input.options.runtimeForAssignment,
         briefFor: () => renderTicketProviderBrief(input, definition, dependencyOutputs),
         promptsDir: join(input.options.orgRoot, "prompts"),
         context,
         workdir: requireWorktree(input.item),
         hooks: input.options.hooks,
-        ...(input.options.gateForRole === undefined
-          ? {}
-          : { gateForRole: input.options.gateForRole }),
+        ...(input.options.gateForRole === undefined ? {} : { gateForRole: input.options.gateForRole }),
         runlog: {
           root: input.options.root,
           app: input.options.app.name,
           ticket: input.item.ticketRef,
           traceId: input.context.executionId,
         },
-        runIdForPass: () => ticketProviderRunId(
-          input.plan,
-          input.step,
-          input.context,
-        ),
+        runIdForPass: () => ticketProviderRunId(input.plan, input.step, input.context),
         episode: {
           id: input.plan.episodeId,
           route: planRouteLabel(input.plan),
@@ -930,10 +876,12 @@ async function executeTicketProviderStep(
                   return {
                     ok: false,
                     errorCode: "error_verdict_unparseable",
-                    error: new VerdictParseError(definition.verdictKind!, [{
-                      text: ctx.result.summary,
-                      reason: parsed.reason,
-                    }]),
+                    error: new VerdictParseError(definition.verdictKind!, [
+                      {
+                        text: ctx.result.summary,
+                        reason: parsed.reason,
+                      },
+                    ]),
                   };
                 }
                 await ctx.events.append({
@@ -949,8 +897,7 @@ async function executeTicketProviderStep(
                 });
                 return {
                   ok: true,
-                  ...(definition.verdictKind === "build" &&
-                    (parsed.verdict as BuildVerdict).status === "blocked"
+                  ...(definition.verdictKind === "build" && (parsed.verdict as BuildVerdict).status === "blocked"
                     ? { terminalStatus: "blocked" as const }
                     : {}),
                 };
@@ -959,9 +906,7 @@ async function executeTicketProviderStep(
         ...(continuation === undefined ? {} : { continuation }),
         beforeProviderTurn: async () => input.input.beforeProviderTurn(input.step),
         ...(input.options.telemetry === undefined ? {} : { telemetry: input.options.telemetry }),
-        ...(input.options.parentTaskId === undefined
-          ? {}
-          : { parentTaskId: input.options.parentTaskId }),
+        ...(input.options.parentTaskId === undefined ? {} : { parentTaskId: input.options.parentTaskId }),
         ...(input.options.signal === undefined ? {} : { signal: input.options.signal }),
         ...(input.options.networkAccess === true ? { networkAccess: true } : {}),
         ...(input.options.now === undefined ? {} : { clock: input.options.now }),
@@ -1012,10 +957,7 @@ async function executeTicketProviderStep(
     }
   }
 
-  if (
-    evidence.record.status !== "completed" &&
-    evidence.reconciledFromPlanVersion === undefined
-  ) {
+  if (evidence.record.status !== "completed" && evidence.reconciledFromPlanVersion === undefined) {
     return failedTicketProvider(
       input,
       evidence.record.error_code ?? "error_ticket_provider_turn_failed",
@@ -1040,17 +982,10 @@ async function executeTicketProviderStep(
 
   let verdict: ContractVerdict | BuildVerdict | ReviewVerdict | undefined;
   try {
-    verdict = definition.verdictKind === null
-      ? undefined
-      : parseStoredVerdict(definition.verdictKind, evidence.output);
+    verdict = definition.verdictKind === null ? undefined : parseStoredVerdict(definition.verdictKind, evidence.output);
   } catch (error) {
     if (error instanceof VerdictParseError) {
-      return failedTicketProvider(
-        input,
-        "error_verdict_unparseable",
-        error.message,
-        evidence,
-      );
+      return failedTicketProvider(input, "error_verdict_unparseable", error.message, evidence);
     }
     throw error;
   }
@@ -1101,11 +1036,7 @@ async function reconcileTicketExecutionAffinity(
   if (affinity === undefined || affinity.state === "settled") return;
   let envelope;
   try {
-    envelope = await readEnvelope(
-      input.options.root,
-      input.options.app.name,
-      evidence.record.run_id,
-    );
+    envelope = await readEnvelope(input.options.root, input.options.app.name, evidence.record.run_id);
   } catch {
     // Retained provider evidence without its expired run envelope cannot prove
     // a session. Leave the prepared record explicitly non-reusable; missing
@@ -1143,8 +1074,7 @@ export async function completableProviderEvidence(
   input: TicketProviderEvidenceInput,
   definition: TicketProviderOperationDefinition,
 ): Promise<ProviderEvidence | undefined> {
-  return await ticketProviderEvidence(input, definition)
-    ?? await reconciledPriorPlanEvidence(input, definition);
+  return (await ticketProviderEvidence(input, definition)) ?? (await reconciledPriorPlanEvidence(input, definition));
 }
 
 /** The facts an accepted revision's repaired provider step is judged on. Split
@@ -1165,10 +1095,7 @@ export interface PriorPlanEvidenceFacts {
   /** Transport status of the prior version's terminal provider record. */
   priorRecordStatus: ExecutionStepRecord["status"] | undefined;
   /** The prior record's content-bound verdict, already parsed. */
-  priorVerdict:
-    | { kind: "build"; status: BuildVerdict["status"] }
-    | { kind: "review"; findings: number }
-    | undefined;
+  priorVerdict: { kind: "build"; status: BuildVerdict["status"] } | { kind: "review"; findings: number } | undefined;
 }
 
 /** The prior plan version this step may be settled from, or undefined.
@@ -1200,9 +1127,7 @@ export function reconcilablePriorEvidence(facts: PriorPlanEvidenceFacts): number
       ? facts.repairedFromPlanVersion
       : undefined;
   }
-  return facts.priorRecordStatus === "completed" && verdict.findings > 0
-    ? facts.repairedFromPlanVersion
-    : undefined;
+  return facts.priorRecordStatus === "completed" && verdict.findings > 0 ? facts.repairedFromPlanVersion : undefined;
 }
 
 async function ticketProviderEvidence(
@@ -1212,13 +1137,9 @@ async function ticketProviderEvidence(
   // Budget-suspended records are terminal executions but not step evidence
   // (`settledProviderSteps`). A step legitimately holds one per budget grant,
   // and settling from one would report a parked turn as a finished step.
-  const terminal = settledProviderSteps(await readExecutionSteps(
-    input.options.root,
-    input.plan.episodeId,
-  )).filter((record) =>
-    record.kind === "provider" &&
-    record.plan_version === input.plan.version &&
-    record.plan_step_id === input.step.id,
+  const terminal = settledProviderSteps(await readExecutionSteps(input.options.root, input.plan.episodeId)).filter(
+    (record) =>
+      record.kind === "provider" && record.plan_version === input.plan.version && record.plan_step_id === input.step.id,
   );
   if (terminal.length > 1) {
     throw new Error(`ticket plan step ${input.step.id} has multiple terminal provider records`);
@@ -1240,29 +1161,30 @@ async function reconciledPriorPlanEvidence(
   if (input.plan.version <= 1) return undefined;
   if (definition.verdictKind !== "build" && definition.verdictKind !== "review") return undefined;
   const journal = await readEpisodeReplanJournal(input.options.root, input.plan.episodeId);
-  const accepted = journal?.records.findLast((record) =>
-    record.status === "accepted" &&
-    record.revisionVersion === input.plan.version &&
-    record.trigger.affectedStepIds.includes(input.step.id));
+  const accepted = journal?.records.findLast(
+    (record) =>
+      record.status === "accepted" &&
+      record.revisionVersion === input.plan.version &&
+      record.trigger.affectedStepIds.includes(input.step.id),
+  );
   if (accepted === undefined) return undefined;
   const priorPlan = await readEpisodePlanVersion(
     input.options.root,
     input.plan.episodeId,
     accepted.trigger.planVersion,
   );
-  const priorStep = priorPlan?.steps.find((step): step is ProviderTurnStep =>
-    step.kind === "provider_turn" && step.id === input.step.id);
-  const stepPreserved =
-    priorStep !== undefined && stableHash(priorStep) === stableHash(input.step);
-  const terminal = (await readExecutionSteps(input.options.root, input.plan.episodeId))
-    .filter((record) =>
+  const priorStep = priorPlan?.steps.find(
+    (step): step is ProviderTurnStep => step.kind === "provider_turn" && step.id === input.step.id,
+  );
+  const stepPreserved = priorStep !== undefined && stableHash(priorStep) === stableHash(input.step);
+  const terminal = (await readExecutionSteps(input.options.root, input.plan.episodeId)).filter(
+    (record) =>
       record.kind === "provider" &&
       record.plan_version === accepted.trigger.planVersion &&
-      record.plan_step_id === input.step.id);
+      record.plan_step_id === input.step.id,
+  );
   if (terminal.length > 1) {
-    throw new Error(
-      `ticket plan step ${input.step.id} has multiple prior terminal provider records`,
-    );
+    throw new Error(`ticket plan step ${input.step.id} has multiple prior terminal provider records`);
   }
   const record = terminal[0];
   if (!stepPreserved || record === undefined) return undefined;
@@ -1270,9 +1192,10 @@ async function reconciledPriorPlanEvidence(
   const output = await providerOutput(input, record);
   let priorVerdict: PriorPlanEvidenceFacts["priorVerdict"];
   try {
-    priorVerdict = definition.verdictKind === "build"
-      ? { kind: "build", status: parseStoredVerdict("build", output).status }
-      : { kind: "review", findings: parseStoredVerdict("review", output).findings.length };
+    priorVerdict =
+      definition.verdictKind === "build"
+        ? { kind: "build", status: parseStoredVerdict("build", output).status }
+        : { kind: "review", findings: parseStoredVerdict("review", output).findings.length };
   } catch {
     // Unparseable stored evidence is not evidence. The step is withheld here
     // and enters normally on the next tick, where the executor turns the same
@@ -1290,21 +1213,12 @@ async function reconciledPriorPlanEvidence(
   return { record, output, reconciledFromPlanVersion };
 }
 
-async function providerOutput(
-  input: TicketProviderEvidenceInput,
-  record: ExecutionStepRecord,
-): Promise<string> {
+async function providerOutput(input: TicketProviderEvidenceInput, record: ExecutionStepRecord): Promise<string> {
   let output: string;
   try {
-    output = await readFile(
-      runPaths(input.options.root, input.options.app.name, record.run_id).output,
-      "utf8",
-    );
+    output = await readFile(runPaths(input.options.root, input.options.app.name, record.run_id).output, "utf8");
   } catch (error) {
-    throw new Error(
-      `terminal provider evidence for ${input.step.id} has no recoverable output.md`,
-      { cause: error },
-    );
+    throw new Error(`terminal provider evidence for ${input.step.id} has no recoverable output.md`, { cause: error });
   }
   return output;
 }
@@ -1349,16 +1263,17 @@ async function exactProviderAuthorization(
   role: RoleConfig,
 ): Promise<{ pass: AuthorizedPass; budget: RouteBudget }> {
   const route = await readRouteRecord(input.options.root, input.plan.episodeId);
-  const matches = route.authorized_passes.filter((pass) =>
-    pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
-    pass.pass === input.step.id &&
-    pass.role === role.name &&
-    pass.plan_version === input.context.planVersion &&
-    pass.plan_step_id === input.step.id &&
-    pass.runtime === input.step.assignment.harness &&
-    pass.model === input.step.assignment.model &&
-    pass.effort === input.step.assignment.effort &&
-    pass.assignment_source === input.step.assignmentSource,
+  const matches = route.authorized_passes.filter(
+    (pass) =>
+      pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
+      pass.pass === input.step.id &&
+      pass.role === role.name &&
+      pass.plan_version === input.context.planVersion &&
+      pass.plan_step_id === input.step.id &&
+      pass.runtime === input.step.assignment.harness &&
+      pass.model === input.step.assignment.model &&
+      pass.effort === input.step.assignment.effort &&
+      pass.assignment_source === input.step.assignmentSource,
   );
   if (matches.length !== 1) {
     throw new Error(`ticket provider step ${input.step.id} lacks one exact route authorization`);
@@ -1366,22 +1281,18 @@ async function exactProviderAuthorization(
   return { pass: matches[0]!, budget: { ...route.budget } };
 }
 
-async function providerContext(
-  input: TicketProviderExecutionInput,
-  role: RoleConfig,
-): Promise<ContextBundle> {
-  return input.options.contextForProviderStep?.({
-    request: input.input.request,
-    item: structuredClone(input.item),
-    step: structuredClone(input.step),
-    role,
-  }) ?? input.options.plannerContext;
+async function providerContext(input: TicketProviderExecutionInput, role: RoleConfig): Promise<ContextBundle> {
+  return (
+    input.options.contextForProviderStep?.({
+      request: input.input.request,
+      item: structuredClone(input.item),
+      step: structuredClone(input.step),
+      role,
+    }) ?? input.options.plannerContext
+  );
 }
 
-function parseStoredVerdict<K extends "contract" | "build" | "review">(
-  kind: K,
-  output: string,
-): VerdictTypes[K] {
+function parseStoredVerdict<K extends "contract" | "build" | "review">(kind: K, output: string): VerdictTypes[K] {
   const parsed = parseVerdictEither(kind, output);
   if (parsed.ok) return parsed.verdict;
   throw new VerdictParseError(kind, [{ text: output, reason: parsed.reason }]);
@@ -1445,9 +1356,10 @@ export async function applyProviderOutcome(
         },
       };
     }
-    const resumed = evidence.reconciledFromPlanVersion === undefined
-      ? input.item
-      : await resumeReconciledTicket(input.options.gh, input.item);
+    const resumed =
+      evidence.reconciledFromPlanVersion === undefined
+        ? input.item
+        : await resumeReconciledTicket(input.options.gh, input.item);
     return { item: { ...resumed, phase: "gates" } };
   }
   if (definition.verdictKind === "review") {
@@ -1482,15 +1394,9 @@ export async function applyProviderOutcome(
         review = resolvePrGateEvidenceFindings(review, repair.artifactReferences);
       }
     }
-    const reviewMarker = ticketReviewMarker(
-      input.context,
-      evidence.record.run_id,
-      reviewedCommit,
-      review,
-    );
+    const reviewMarker = ticketReviewMarker(input.context, evidence.record.run_id, reviewedCommit, review);
     const body =
-      `${reviewMarker}\n\n` +
-      renderReviewBody([{ pass: input.step.id, verdict: review }], ticketSuppressions(input));
+      `${reviewMarker}\n\n` + renderReviewBody([{ pass: input.step.id, verdict: review }], ticketSuppressions(input));
     await ensureIssueComment(
       input.options.gh,
       input.item.issueNumber,
@@ -1506,11 +1412,7 @@ export async function applyProviderOutcome(
       reviewedCommit,
     );
     if (review.findings.length === 0) {
-      const authorized = latestActionableReview(
-        [published],
-        prNumber,
-        input.options.authorization,
-      );
+      const authorized = latestActionableReview([published], prNumber, input.options.authorization);
       if (authorized?.state !== "APPROVED" || authorized.commitId !== reviewedCommit) {
         throw new Error(
           `${definition.operation} review was published but did not authorize exact commit ${reviewedCommit}`,
@@ -1526,9 +1428,8 @@ export async function applyProviderOutcome(
       return {
         item: returned,
         failure: {
-          reasonCode: definition.operation === "ship/ship-check"
-            ? "ticket_ship_check_findings"
-            : "ticket_review_findings",
+          reasonCode:
+            definition.operation === "ship/ship-check" ? "ticket_ship_check_findings" : "ticket_review_findings",
           summary: `${definition.operation} produced ${review.findings.length} finding(s); a plan revision is required`,
         },
       };
@@ -1554,24 +1455,21 @@ function ticketSuppressions(input: {
   item: LoopItem;
 }): SuppressedOperation[] {
   try {
-    return readTicketClaimState(
-      input.options.root,
-      input.options.app.name,
-      input.item.issueNumber,
-    ).suppressed ?? [];
+    return readTicketClaimState(input.options.root, input.options.app.name, input.item.issueNumber).suppressed ?? [];
   } catch {
-    return [{
-      approvalId: "unreadable",
-      rule: "suppression-record-unreadable",
-      actionSha256: "0".repeat(64),
-      tool: "cormidia.ticket-claim-state",
-      disposition: "denied",
-      reason:
-        "the ticket's suppression record could not be read; treat this verdict as unverified " +
-        "for suppressed critical operations",
-      at: (input as { options: { now?: () => Date } }).options.now?.().toISOString()
-        ?? new Date().toISOString(),
-    }];
+    return [
+      {
+        approvalId: "unreadable",
+        rule: "suppression-record-unreadable",
+        actionSha256: "0".repeat(64),
+        tool: "cormidia.ticket-claim-state",
+        disposition: "denied",
+        reason:
+          "the ticket's suppression record could not be read; treat this verdict as unverified " +
+          "for suppressed critical operations",
+        at: (input as { options: { now?: () => Date } }).options.now?.().toISOString() ?? new Date().toISOString(),
+      },
+    ];
   }
 }
 
@@ -1613,11 +1511,7 @@ async function suspendTicketProvider(
   // one thing standing between a parked paid session and re-running that work.
   let stop: TurnBudgetStop | undefined;
   try {
-    stop = (await readEnvelope(
-      input.options.root,
-      input.options.app.name,
-      parked.runId,
-    )).budget_stop;
+    stop = (await readEnvelope(input.options.root, input.options.app.name, parked.runId)).budget_stop;
   } catch {
     stop = undefined;
   }
@@ -1756,8 +1650,9 @@ function ticketBudgetSuspensionComment(input: {
  * touches a ticket already parked terminal. */
 async function blockTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
   const durable = await Promise.all(deliveryUnitIssueNumbers(item).map((number) => gh.readIssue(number)));
-  const transitions = durable.map((issue) => issue.labels.find((label) =>
-    ["op:ready", "op:building", "op:in-review"].includes(label)));
+  const transitions = durable.map((issue) =>
+    issue.labels.find((label) => ["op:ready", "op:building", "op:in-review"].includes(label)),
+  );
   const distinct = [...new Set(transitions.filter((value): value is string => value !== undefined))];
   if (distinct.length > 1) throw new Error("delivery unit has divergent labels before block");
   if (distinct[0] !== undefined) {
@@ -1830,17 +1725,8 @@ async function executeTicketMechanicalStep(input: {
     execution: input.context,
   });
   if (priorOutput !== undefined) {
-    const restored = restoreItemFromStepOutput(
-      input.item,
-      priorOutput,
-      input.options.release,
-    );
-    const artifact = ticketStepOutputArtifact(
-      input.options.root,
-      input.plan,
-      input.step,
-      priorOutput,
-    );
+    const restored = restoreItemFromStepOutput(input.item, priorOutput, input.options.release);
+    const artifact = ticketStepOutputArtifact(input.options.root, input.plan, input.step, priorOutput);
     if (priorOutput.status === "completed") {
       return { item: restored, outcome: { status: "completed", artifact } };
     }
@@ -1866,109 +1752,108 @@ async function executeTicketMechanicalStep(input: {
   if (recovered !== undefined) {
     item = recovered.item;
     failure = recovered.failure;
-  } else switch (input.step.gate) {
-    case "ticket/provision":
-      item = await advanceProvisionSetup(item, {
-        gh: input.options.gh,
-        commands,
-        runlog,
-      });
-      if (item.phase === "returned") {
-        failure = {
-          reasonCode: "ticket_provision_failed",
-          summary: "worktree provision setup failed; no provider remediation was launched",
-        };
+  } else
+    switch (input.step.gate) {
+      case "ticket/provision":
+        item = await advanceProvisionSetup(item, {
+          gh: input.options.gh,
+          commands,
+          runlog,
+        });
+        if (item.phase === "returned") {
+          failure = {
+            reasonCode: "ticket_provision_failed",
+            summary: "worktree provision setup failed; no provider remediation was launched",
+          };
+        }
+        break;
+      case "ticket/gates-and-pr": {
+        item = await advanceGates(item, {
+          gh: input.options.gh,
+          policy: input.options.policy,
+          commands,
+          base: input.input.request.base,
+          criteria: parseAcceptanceCriteria(item.body),
+          criterionTests: item.criterionTests ?? {},
+          runlog,
+          // A failed gate is a typed plan failure. The old hidden fix callback is
+          // intentionally absent and the explicit cap is zero.
+          maxRemediationAttempts: 0,
+        });
+        if (item.phase !== "reviewing") {
+          failure = {
+            reasonCode: "ticket_quality_gate_failed",
+            summary: "quality gates failed; an explicit fix step or plan revision is required",
+          };
+        } else {
+          await input.input.deliveryLifecycle?.afterGates(structuredClone(item), input.plan);
+        }
+        break;
       }
-      break;
-    case "ticket/gates-and-pr": {
-      item = await advanceGates(item, {
-        gh: input.options.gh,
-        policy: input.options.policy,
-        commands,
-        base: input.input.request.base,
-        criteria: parseAcceptanceCriteria(item.body),
-        criterionTests: item.criterionTests ?? {},
-        runlog,
-        // A failed gate is a typed plan failure. The old hidden fix callback is
-        // intentionally absent and the explicit cap is zero.
-        maxRemediationAttempts: 0,
-      });
-      if (item.phase !== "reviewing") {
-        failure = {
-          reasonCode: "ticket_quality_gate_failed",
-          summary: "quality gates failed; an explicit fix step or plan revision is required",
-        };
-      } else {
-        await input.input.deliveryLifecycle?.afterGates(structuredClone(item), input.plan);
+      case "ticket/security":
+      case "ticket/rollback":
+      case "ticket/performance":
+        // The ticket-plan validator proves the required typed provider evidence
+        // is on this dependency path. The DAG executor proves those ancestors
+        // completed before this durable join is recorded.
+        break;
+      case "ticket/data-integrity": {
+        const lastGateRun = item.gateResults.at(-1);
+        if (lastGateRun?.status !== "pass") {
+          failure = {
+            reasonCode: "ticket_data_integrity_evidence_missing",
+            summary: "data-integrity floor requires a completed passing ticket quality-gate run",
+          };
+        }
+        break;
       }
-      break;
+      case "ticket/review-authorization":
+        item = await advanceReviewing(item, {
+          gh: input.options.gh,
+          maxCycles: 0,
+          ...(input.options.authorization === undefined ? {} : { authorization: input.options.authorization }),
+        });
+        if (item.phase !== "shipping") {
+          item = await returnTicket(input.options.gh, item);
+          failure = {
+            reasonCode: "ticket_review_not_authorized",
+            summary: "independent review did not authorize the exact current revision",
+          };
+        } else {
+          await input.input.deliveryLifecycle?.afterReview(structuredClone(item), input.plan);
+        }
+        break;
+      case "ticket/ship":
+        await input.input.deliveryLifecycle?.beforeShip(structuredClone(item), input.plan);
+        item = await advanceShipping(item, {
+          gh: input.options.gh,
+          localRepo: input.input.request.localRepo,
+          policy: input.options.policy,
+          commands,
+          base: input.input.request.base,
+          criteria: parseAcceptanceCriteria(item.body),
+          criterionTests: item.criterionTests ?? {},
+          ...(input.options.release === undefined ? {} : { release: input.options.release }),
+        });
+        if (item.phase !== "merged") {
+          item = await returnTicket(input.options.gh, item);
+          failure = {
+            reasonCode: "ticket_ship_failed",
+            summary: "ship gate or merge failed; no implicit provider remediation was launched",
+          };
+        }
+        break;
+      case "release/handoff":
+        if (item.phase !== "merged") {
+          failure = {
+            reasonCode: "ticket_release_handoff_before_merge",
+            summary: "release handoff requires a durably merged ticket",
+          };
+        }
+        break;
+      default:
+        return assertNeverTicketGate(input.step.gate);
     }
-    case "ticket/security":
-    case "ticket/rollback":
-    case "ticket/performance":
-      // The ticket-plan validator proves the required typed provider evidence
-      // is on this dependency path. The DAG executor proves those ancestors
-      // completed before this durable join is recorded.
-      break;
-    case "ticket/data-integrity": {
-      const lastGateRun = item.gateResults.at(-1);
-      if (lastGateRun?.status !== "pass") {
-        failure = {
-          reasonCode: "ticket_data_integrity_evidence_missing",
-          summary: "data-integrity floor requires a completed passing ticket quality-gate run",
-        };
-      }
-      break;
-    }
-    case "ticket/review-authorization":
-      item = await advanceReviewing(item, {
-        gh: input.options.gh,
-        maxCycles: 0,
-        ...(input.options.authorization === undefined
-          ? {}
-          : { authorization: input.options.authorization }),
-      });
-      if (item.phase !== "shipping") {
-        item = await returnTicket(input.options.gh, item);
-        failure = {
-          reasonCode: "ticket_review_not_authorized",
-          summary: "independent review did not authorize the exact current revision",
-        };
-      } else {
-        await input.input.deliveryLifecycle?.afterReview(structuredClone(item), input.plan);
-      }
-      break;
-    case "ticket/ship":
-      await input.input.deliveryLifecycle?.beforeShip(structuredClone(item), input.plan);
-      item = await advanceShipping(item, {
-        gh: input.options.gh,
-        localRepo: input.input.request.localRepo,
-        policy: input.options.policy,
-        commands,
-        base: input.input.request.base,
-        criteria: parseAcceptanceCriteria(item.body),
-        criterionTests: item.criterionTests ?? {},
-        ...(input.options.release === undefined ? {} : { release: input.options.release }),
-      });
-      if (item.phase !== "merged") {
-        item = await returnTicket(input.options.gh, item);
-        failure = {
-          reasonCode: "ticket_ship_failed",
-          summary: "ship gate or merge failed; no implicit provider remediation was launched",
-        };
-      }
-      break;
-    case "release/handoff":
-      if (item.phase !== "merged") {
-        failure = {
-          reasonCode: "ticket_release_handoff_before_merge",
-          summary: "release handoff requires a durably merged ticket",
-        };
-      }
-      break;
-    default:
-      return assertNeverTicketGate(input.step.gate);
-  }
   const output = await persistTicketStepOutput({
     root: input.options.root,
     plan: input.plan,
@@ -2002,15 +1887,15 @@ async function recoverTicketMechanicalBoundary(input: {
   plan: EpisodePlan;
   step: MechanicalGateStep;
   context: EpisodeStepExecutionContext;
-}): Promise<{
-  item: LoopItem;
-  failure?: { reasonCode: string; summary: string };
-} | undefined> {
+}): Promise<
+  | {
+      item: LoopItem;
+      failure?: { reasonCode: string; summary: string };
+    }
+  | undefined
+> {
   const durableIssue = await input.options.gh.readIssue(input.item.issueNumber);
-  if (
-    input.step.gate === "ticket/provision" &&
-    durableIssue.labels.includes("op:returned")
-  ) {
+  if (input.step.gate === "ticket/provision" && durableIssue.labels.includes("op:returned")) {
     return {
       item: { ...input.item, labels: durableIssue.labels, phase: "returned" },
       failure: {
@@ -2021,10 +1906,7 @@ async function recoverTicketMechanicalBoundary(input: {
   }
   const branch = input.item.branch;
   if (branch === undefined) return undefined;
-  if (
-    input.step.gate === "ticket/gates-and-pr" &&
-    durableIssue.labels.includes("op:in-review")
-  ) {
+  if (input.step.gate === "ticket/gates-and-pr" && durableIssue.labels.includes("op:in-review")) {
     const pull = (await input.options.gh.listPRsForBranch(branch, { state: "open" }))[0];
     if (pull !== undefined) {
       return {
@@ -2038,8 +1920,9 @@ async function recoverTicketMechanicalBoundary(input: {
     }
   }
   if (input.step.gate === "ticket/ship") {
-    const merged = (await input.options.gh.listPRsForBranch(branch, { state: "merged" }))
-      .find((pull) => input.item.prNumber === undefined || pull.number === input.item.prNumber);
+    const merged = (await input.options.gh.listPRsForBranch(branch, { state: "merged" })).find(
+      (pull) => input.item.prNumber === undefined || pull.number === input.item.prNumber,
+    );
     if (merged !== undefined) {
       return {
         item: await recoverAlreadyMergedTicket(
@@ -2127,11 +2010,7 @@ async function persistTicketStepOutput(input: {
     payload,
     payloadSha256: stableHash(payload),
   };
-  const relative = join(
-    "ticket-step-outputs",
-    `v${input.plan.version}`,
-    `${hashedFileStem(input.step.id)}.json`,
-  );
+  const relative = join("ticket-step-outputs", `v${input.plan.version}`, `${hashedFileStem(input.step.id)}.json`);
   const path = join(efficiencyEpisodeDir(input.root, input.plan.episodeId), relative);
   const contents = `${JSON.stringify(record, null, 2)}\n`;
   const won = await writeLoopFileOnce(path, contents);
@@ -2170,7 +2049,8 @@ function ticketStepOutputArtifact(
 function isTicketStepOutputRecord(value: unknown): value is TicketStepOutputRecord {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  return record["schemaVersion"] === 1 &&
+  return (
+    record["schemaVersion"] === 1 &&
     typeof record["episodeId"] === "string" &&
     Number.isInteger(record["planVersion"]) &&
     typeof record["planHash"] === "string" &&
@@ -2180,12 +2060,11 @@ function isTicketStepOutputRecord(value: unknown): value is TicketStepOutputReco
     (record["status"] === "completed" || record["status"] === "failed") &&
     Array.isArray(record["expectedOutputs"]) &&
     typeof record["payloadSha256"] === "string" &&
-    record["payload"] !== undefined;
+    record["payload"] !== undefined
+  );
 }
 
-function failureFromStepOutput(
-  output: TicketStepOutputRecord,
-): { reasonCode: string; summary: string } {
+function failureFromStepOutput(output: TicketStepOutputRecord): { reasonCode: string; summary: string } {
   const payload = output.payload;
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error(`failed ticket step output ${output.stepId} has no typed failure payload`);
@@ -2217,9 +2096,8 @@ function restoreItemFromStepOutput(
   const releaseSnapshot = snapshot["releaseTrigger"];
   const restored: LoopItem = {
     ...item,
-    ...(typeof phase === "string" && [
-      "ready", "building", "gates", "reviewing", "shipping", "merged", "returned", "blocked",
-    ].includes(phase)
+    ...(typeof phase === "string" &&
+    ["ready", "building", "gates", "reviewing", "shipping", "merged", "returned", "blocked"].includes(phase)
       ? { phase: phase as LoopItem["phase"] }
       : {}),
     ...(Array.isArray(labels) && labels.every((entry) => typeof entry === "string")
@@ -2254,14 +2132,8 @@ function restoreItemFromStepOutput(
   return restored;
 }
 
-async function readPlanOutput(
-  root: string,
-  plan: EpisodePlan,
-  outputId: string,
-): Promise<TicketStepOutputRecord> {
-  const owners = plan.steps.filter((step) =>
-    step.expectedOutputs.some((output) => output.id === outputId),
-  );
+async function readPlanOutput(root: string, plan: EpisodePlan, outputId: string): Promise<TicketStepOutputRecord> {
+  const owners = plan.steps.filter((step) => step.expectedOutputs.some((output) => output.id === outputId));
   if (owners.length !== 1) throw new Error(`plan-output:${outputId} does not have one owner`);
   const owner = owners[0]!;
   const path = join(
@@ -2314,11 +2186,7 @@ function renderTicketProviderBrief(
     JSON.stringify(input.step.inputRefs, null, 2),
     ...(dependencyOutputs.length === 0
       ? []
-      : [
-          "",
-          "## Durable dependency outputs",
-          JSON.stringify(dependencyOutputs, null, 2),
-        ]),
+      : ["", "## Durable dependency outputs", JSON.stringify(dependencyOutputs, null, 2)]),
     "",
     "## Expected outputs",
     JSON.stringify(input.step.expectedOutputs, null, 2),
@@ -2329,18 +2197,12 @@ function renderTicketProviderBrief(
   ].join("\n");
 }
 
-async function requiredPlanOutputs(
-  input: TicketProviderExecutionInput,
-): Promise<TicketStepOutputRecord[]> {
+async function requiredPlanOutputs(input: TicketProviderExecutionInput): Promise<TicketStepOutputRecord[]> {
   const outputs: TicketStepOutputRecord[] = [];
   let bytes = 0;
   for (const ref of input.step.inputRefs) {
     if (!ref.ref.startsWith("plan-output:")) continue;
-    const output = await readPlanOutput(
-      input.options.root,
-      input.plan,
-      ref.ref.slice("plan-output:".length),
-    );
+    const output = await readPlanOutput(input.options.root, input.plan, ref.ref.slice("plan-output:".length));
     const rendered = JSON.stringify(output);
     bytes += Buffer.byteLength(rendered);
     if (bytes > 512 * 1024) {
@@ -2364,12 +2226,14 @@ function ticketProviderRunId(
 }
 
 function ticketRuntimeCapabilities(step: ProviderTurnStep): RuntimeCapability[] {
-  return [...new Set<RuntimeCapability>([
-    "tool_gate",
-    "cancellation",
-    "session_resume",
-    ...step.requiredCapabilities.filter(isRuntimeCapability),
-  ])].sort();
+  return [
+    ...new Set<RuntimeCapability>([
+      "tool_gate",
+      "cancellation",
+      "session_resume",
+      ...step.requiredCapabilities.filter(isRuntimeCapability),
+    ]),
+  ].sort();
 }
 
 function ticketStepMarker(execution: EpisodeStepExecutionContext): string {
@@ -2391,13 +2255,8 @@ function ticketReviewMarker(
   return `<!-- cormidia:ticket-review execution-id=${execution.executionId} reviewed-commit=${reviewedCommit} content-sha256=${contentSha256} -->`;
 }
 
-function resolvePrGateEvidenceFindings(
-  review: ReviewVerdict,
-  artifactReferences: readonly string[],
-): ReviewVerdict {
-  const resolved = review.findings.map((finding) =>
-    `${finding.location}: ${finding.description} -> ${finding.action}`
-  );
+function resolvePrGateEvidenceFindings(review: ReviewVerdict, artifactReferences: readonly string[]): ReviewVerdict {
+  const resolved = review.findings.map((finding) => `${finding.location}: ${finding.description} -> ${finding.action}`);
   return {
     verdict: "approve",
     findings: [],
@@ -2423,12 +2282,7 @@ function resolvePrGateEvidenceFindings(
   };
 }
 
-async function ensureIssueComment(
-  gh: GhOps,
-  issueNumber: number,
-  marker: string,
-  body: string,
-): Promise<void> {
+async function ensureIssueComment(gh: GhOps, issueNumber: number, marker: string, body: string): Promise<void> {
   const comments = await gh.listIssueComments(issueNumber);
   if (comments.some((comment) => comment.body.includes(marker))) return;
   await gh.commentIssue(issueNumber, body);
@@ -2453,9 +2307,7 @@ async function ensureReview(
   // The create call can only acknowledge what the client attempted. Re-read
   // GitHub's review record so a concurrent head advance is caught from the
   // commit GitHub actually stamped, never a synthesized expected commit.
-  const delivered = (await gh.listReviews(prNumber)).filter((review) =>
-    review.body.includes(marker),
-  );
+  const delivered = (await gh.listReviews(prNumber)).filter((review) => review.body.includes(marker));
   if (delivered.length !== 1) {
     throw new Error(
       `review delivery ${marker} has ${delivered.length} remote effects on PR #${prNumber}; expected exactly one`,
@@ -2484,8 +2336,9 @@ function publishedReviewBodyMatches(actual: string, expected: string): boolean {
 async function returnTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
   if (item.phase === "merged" || item.phase === "returned") return item;
   const durable = await Promise.all(deliveryUnitIssueNumbers(item).map((number) => gh.readIssue(number)));
-  const transitions = durable.map((issue) => issue.labels.find((label) =>
-    ["op:ready", "op:building", "op:in-review", "op:blocked"].includes(label)));
+  const transitions = durable.map((issue) =>
+    issue.labels.find((label) => ["op:ready", "op:building", "op:in-review", "op:blocked"].includes(label)),
+  );
   const distinct = [...new Set(transitions.filter((value): value is string => value !== undefined))];
   if (distinct.length > 1) throw new Error("delivery unit has divergent labels before return");
   if (distinct[0] !== undefined) {
@@ -2501,9 +2354,7 @@ async function returnTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
 
 async function resumeReconciledTicket(gh: GhOps, item: LoopItem): Promise<LoopItem> {
   if (item.phase === "merged" || item.phase === "blocked") {
-    throw new Error(
-      `accepted revision cannot resume terminal ticket ${item.ticketRef} from ${item.phase}`,
-    );
+    throw new Error(`accepted revision cannot resume terminal ticket ${item.ticketRef} from ${item.phase}`);
   }
   const durable = await Promise.all(deliveryUnitIssueNumbers(item).map((number) => gh.readIssue(number)));
   if (durable.every((issue) => issue.labels.includes("op:returned"))) {
@@ -2511,7 +2362,7 @@ async function resumeReconciledTicket(gh: GhOps, item: LoopItem): Promise<LoopIt
   } else if (!durable.every((issue) => issue.labels.includes("op:building"))) {
     throw new Error(
       `accepted revision cannot resume ticket ${item.ticketRef} from labels ` +
-      durable.map((issue) => `#${issue.number}:${issue.labels.join(",")}`).join("; "),
+        durable.map((issue) => `#${issue.number}:${issue.labels.join(",")}`).join("; "),
     );
   }
   const labels = (await gh.readIssue(item.issueNumber)).labels;
@@ -2553,19 +2404,18 @@ function mergeTicketSafetyFacts(
   creatorScope: CreatorEpisodeScope | undefined,
 ): SafetyFact[] {
   return mergeEpisodeSafetyFacts(
-    [{
-      kind: "independent_review" as const,
-      evidenceRefs: ["ticket:independent-delivery-review"],
-    }],
+    [
+      {
+        kind: "independent_review" as const,
+        evidenceRefs: ["ticket:independent-delivery-review"],
+      },
+    ],
     safetyFactsFromTicketLabels(labels, ticketRef),
     creatorScope?.safetyFacts ?? [],
   );
 }
 
-function ticketHardBudget(
-  options: TicketEpisodeInspectionOptions,
-  plannerReserveUsd: number,
-): BudgetCeiling {
+function ticketHardBudget(options: TicketEpisodeInspectionOptions, plannerReserveUsd: number): BudgetCeiling {
   const remaining = Math.max(0, options.remainingBudgetUsd - plannerReserveUsd);
   if (remaining <= 0) {
     throw new Error(
@@ -2576,35 +2426,17 @@ function ticketHardBudget(
   }
   const requested = options.hardBudget ?? {};
   return effectiveEpisodeHardCeiling(runtimePolicyForApp(options.app), "ticket", {
-    ...(requested.maxProviderTurns === undefined
-      ? {}
-      : { maxProviderTurns: requested.maxProviderTurns }),
-    maxEquivalentCostUsd: Math.min(
-      requested.maxEquivalentCostUsd ?? remaining,
-      remaining,
-    ),
-    maxMechanicalOverheadUsd: Math.min(
-      requested.maxMechanicalOverheadUsd ?? remaining,
-      remaining,
-    ),
-    ...(requested.maxActiveTimeMs === undefined
-      ? {}
-      : { maxActiveTimeMs: requested.maxActiveTimeMs }),
-    ...(requested.maxHumanDecisions === undefined
-      ? {}
-      : { maxHumanDecisions: requested.maxHumanDecisions }),
+    ...(requested.maxProviderTurns === undefined ? {} : { maxProviderTurns: requested.maxProviderTurns }),
+    maxEquivalentCostUsd: Math.min(requested.maxEquivalentCostUsd ?? remaining, remaining),
+    maxMechanicalOverheadUsd: Math.min(requested.maxMechanicalOverheadUsd ?? remaining, remaining),
+    ...(requested.maxActiveTimeMs === undefined ? {} : { maxActiveTimeMs: requested.maxActiveTimeMs }),
+    ...(requested.maxHumanDecisions === undefined ? {} : { maxHumanDecisions: requested.maxHumanDecisions }),
   });
 }
 
-function defaultPlannerLimits(
-  planner: RoleConfig,
-  remainingBudgetUsd: number,
-): PlannerAdmissionLimits {
+function defaultPlannerLimits(planner: RoleConfig, remainingBudgetUsd: number): PlannerAdmissionLimits {
   const maxAttempts = 2;
-  const perAttemptCost = Math.min(
-    planner.maxTurnBudgetUsd,
-    remainingBudgetUsd / (maxAttempts * 4),
-  );
+  const perAttemptCost = Math.min(planner.maxTurnBudgetUsd, remainingBudgetUsd / (maxAttempts * 4));
   if (!Number.isFinite(perAttemptCost) || perAttemptCost <= 0) {
     throw new Error("ticket EpisodePlanner has no positive admitted budget");
   }
@@ -2622,10 +2454,7 @@ function defaultPlannerLimits(
   };
 }
 
-function assertPlannerFitsCombinedBudget(
-  limits: PlannerAdmissionLimits,
-  remainingBudgetUsd: number,
-): void {
+function assertPlannerFitsCombinedBudget(limits: PlannerAdmissionLimits, remainingBudgetUsd: number): void {
   if (
     !Number.isFinite(limits.aggregate.equivalentCostUsd) ||
     limits.aggregate.equivalentCostUsd <= 0 ||
@@ -2651,20 +2480,12 @@ async function resolvePlannerPrompt(options: TicketEpisodeRuntimeOptions): Promi
     if (prompt.trim().length === 0) throw new Error("prompt is empty");
     return prompt;
   } catch (error) {
-    throw new Error(
-      `ticket episode requires the human-ratified EpisodePlanner prompt at ${path}`,
-      { cause: error },
-    );
+    throw new Error(`ticket episode requires the human-ratified EpisodePlanner prompt at ${path}`, { cause: error });
   }
 }
 
-function plannerHooks(
-  options: TicketEpisodeRuntimeOptions,
-  planner: RoleConfig,
-): TurnHooks {
-  return options.gateForRole === undefined
-    ? options.hooks
-    : { ...options.hooks, gate: options.gateForRole(planner) };
+function plannerHooks(options: TicketEpisodeRuntimeOptions, planner: RoleConfig): TurnHooks {
+  return options.gateForRole === undefined ? options.hooks : { ...options.hooks, gate: options.gateForRole(planner) };
 }
 
 function assertFactoryOptions(options: TicketEpisodeRuntimeOptions): void {
@@ -2748,16 +2569,15 @@ function itemOutput(item: LoopItem): JsonValue {
     remediationAttempts: item.remediationAttempts,
     prNumber: item.prNumber ?? null,
     approvedCommitId: item.approvedCommitId ?? null,
-    worktreeFingerprint: item.worktree === undefined
-      ? null
-      : worktreeFingerprint(item.worktree) ?? null,
-    releaseTrigger: item.releaseTrigger === undefined
-      ? null
-      : {
-          kind: item.releaseTrigger.kind,
-          commandSha256: fingerprint(item.releaseTrigger.command),
-          owner: item.releaseTrigger.owner,
-        },
+    worktreeFingerprint: item.worktree === undefined ? null : (worktreeFingerprint(item.worktree) ?? null),
+    releaseTrigger:
+      item.releaseTrigger === undefined
+        ? null
+        : {
+            kind: item.releaseTrigger.kind,
+            commandSha256: fingerprint(item.releaseTrigger.command),
+            owner: item.releaseTrigger.owner,
+          },
   };
 }
 

@@ -14,35 +14,42 @@ export const J15_RUN = "20260731-120000-build-implement";
 export const J15_APPS: AppsFile = {
   org: { name: "cf-j15-org", maxConcurrentTurns: 2 },
   defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
-  apps: [{
-    name: J15_APP,
-    repo: "cormidia-double/evidence-app",
-    status: "live",
-    budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
-    cadence: {},
-  }],
+  apps: [
+    {
+      name: J15_APP,
+      repo: "cormidia-double/evidence-app",
+      status: "live",
+      budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000,
+      cadence: {},
+    },
+  ],
 };
 
-export function githubResult(
-  at: string,
-  options: { unavailable?: boolean; issue?: boolean } = {},
-): GitHubReadResult {
+export function githubResult(at: string, options: { unavailable?: boolean; issue?: boolean } = {}): GitHubReadResult {
   const unavailable = options.unavailable === true;
   return {
-    apps: [{
-      app: J15_APP,
-      repo: J15_APPS.apps[0]!.repo,
-      issues: options.issue === false || unavailable ? [] : [{
-        number: 15,
-        title: "Observe evidence truth",
-        body: "No dependencies.",
-        labels: ["op:ready"],
-        state: "OPEN",
-      }],
-      pull_requests: [],
-      observed_at: at,
-      ...(unavailable ? { error: "seeded GitHub outage" } : {}),
-    }],
+    apps: [
+      {
+        app: J15_APP,
+        repo: J15_APPS.apps[0]!.repo,
+        issues:
+          options.issue === false || unavailable
+            ? []
+            : [
+                {
+                  number: 15,
+                  title: "Observe evidence truth",
+                  body: "No dependencies.",
+                  labels: ["op:ready"],
+                  state: "OPEN",
+                },
+              ],
+        pull_requests: [],
+        observed_at: at,
+        ...(unavailable ? { error: "seeded GitHub outage" } : {}),
+      },
+    ],
     health: {
       id: "github",
       status: unavailable ? "unavailable" : "healthy",
@@ -66,18 +73,22 @@ export function scriptedGithubSource(results: GitHubReadResult[]): ObserveGitHub
 }
 
 export async function seedJ15Run(state: TempStateHome): Promise<void> {
-  await startRun(state.stateHome, {
-    runId: J15_RUN,
-    traceId: "trace-cf-j15",
-    ticket: "#15",
-    app: J15_APP,
-    pipeline: "build",
-    pass: "implement",
-    role: "builder",
-    runtime: "claude",
-    model: "claude-scripted-model",
-    tracePlan: { required_passes: ["implement"], skipped_passes: [] },
-  }, new Date("2026-07-31T12:00:00.000Z"));
+  await startRun(
+    state.stateHome,
+    {
+      runId: J15_RUN,
+      traceId: "trace-cf-j15",
+      ticket: "#15",
+      app: J15_APP,
+      pipeline: "build",
+      pass: "implement",
+      role: "builder",
+      runtime: "claude",
+      model: "claude-scripted-model",
+      tracePlan: { required_passes: ["implement"], skipped_passes: [] },
+    },
+    new Date("2026-07-31T12:00:00.000Z"),
+  );
   await finalizeRun(
     state.stateHome,
     J15_APP,
@@ -106,15 +117,19 @@ export async function seedJ15Run(state: TempStateHome): Promise<void> {
     pass: "implement",
   });
   await mkdir(join(state.stateHome, "approvals", "decided"), { recursive: true });
-  await writeFile(join(state.stateHome, "approvals", "decided", "appr-j15.json"), `${JSON.stringify({
-    id: "appr-j15",
-    app: J15_APP,
-    role: "sre",
-    rule: "publish",
-    action: { tool: "Bash", input: { command: "publish" }, description: "publish" },
-    raisedAt: "2026-07-31T11:50:00.000Z",
-    status: "approved",
-    decidedAt: "2026-07-31T11:55:00.000Z",
-    reason: "approved only; no execution evidence",
-  })}\n`, "utf8");
+  await writeFile(
+    join(state.stateHome, "approvals", "decided", "appr-j15.json"),
+    `${JSON.stringify({
+      id: "appr-j15",
+      app: J15_APP,
+      role: "sre",
+      rule: "publish",
+      action: { tool: "Bash", input: { command: "publish" }, description: "publish" },
+      raisedAt: "2026-07-31T11:50:00.000Z",
+      status: "approved",
+      decidedAt: "2026-07-31T11:55:00.000Z",
+      reason: "approved only; no execution evidence",
+    })}\n`,
+    "utf8",
+  );
 }

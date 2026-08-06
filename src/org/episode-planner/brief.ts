@@ -32,15 +32,16 @@ interface TopologyRuleLike {
   statement: string;
 }
 
-function topologyRules(
-  contract: EpisodePlanTopologyContract | undefined,
-): TopologyRuleLike[] {
+function topologyRules(contract: EpisodePlanTopologyContract | undefined): TopologyRuleLike[] {
   const declared = contract?.["topologyRules"];
   if (!Array.isArray(declared)) return [];
-  return declared.filter((entry): entry is TopologyRuleLike =>
-    entry !== null && typeof entry === "object" &&
-    typeof (entry as { id?: unknown }).id === "string" &&
-    typeof (entry as { statement?: unknown }).statement === "string");
+  return declared.filter(
+    (entry): entry is TopologyRuleLike =>
+      entry !== null &&
+      typeof entry === "object" &&
+      typeof (entry as { id?: unknown }).id === "string" &&
+      typeof (entry as { statement?: unknown }).statement === "string",
+  );
 }
 
 /**
@@ -87,22 +88,23 @@ function renderDiagnostics(
       ...(entry.expected === undefined ? {} : { expected: entry.expected }),
       ...(entry.received === undefined ? {} : { received: entry.received }),
     }))
-    .sort((left, right) =>
-      left.code.localeCompare(right.code) ||
-      (left.stepId ?? "").localeCompare(right.stepId ?? "") ||
-      left.message.localeCompare(right.message));
+    .sort(
+      (left, right) =>
+        left.code.localeCompare(right.code) ||
+        (left.stepId ?? "").localeCompare(right.stepId ?? "") ||
+        left.message.localeCompare(right.message),
+    );
 }
 
 /** Exact bounded data envelope consumed by the human-ratified planner prompt. */
-export function renderEpisodePlannerBrief(
-  request: EpisodePlannerProposalRequest,
-): string {
-  const proposalSchema = request.providerOperations === undefined
-    ? EPISODE_PLAN_PROPOSAL_SCHEMA
-    : episodePlanProposalSchemaForOperations(
-      request.providerOperations,
-      request.mechanicalGates === undefined ? {} : { mechanicalGates: request.mechanicalGates },
-    );
+export function renderEpisodePlannerBrief(request: EpisodePlannerProposalRequest): string {
+  const proposalSchema =
+    request.providerOperations === undefined
+      ? EPISODE_PLAN_PROPOSAL_SCHEMA
+      : episodePlanProposalSchemaForOperations(
+          request.providerOperations,
+          request.mechanicalGates === undefined ? {} : { mechanicalGates: request.mechanicalGates },
+        );
   const diagnostics = renderDiagnostics(request.validationDiagnostics);
   const repair = repairContract(request.topologyContract, diagnostics);
   const payload = {
@@ -130,9 +132,7 @@ export function renderEpisodePlannerBrief(
       ? {}
       : { mechanicalGateRegistry: [...new Set(request.mechanicalGates)].sort() }),
     deterministicProposalContract: DETERMINISTIC_PROPOSAL_CONTRACT,
-    ...(request.topologyContract === undefined
-      ? {}
-      : { topologyContract: request.topologyContract }),
+    ...(request.topologyContract === undefined ? {} : { topologyContract: request.topologyContract }),
     ...(repair === undefined ? {} : { repairContract: repair }),
     intent: request.intent,
     validationDiagnostics: diagnostics,
@@ -155,15 +155,10 @@ export function renderEpisodePlannerBrief(
       },
     },
   };
-  const rendered = [
-    "[episode_planner_input]",
-    JSON.stringify(payload, null, 2),
-  ].join("\n");
+  const rendered = ["[episode_planner_input]", JSON.stringify(payload, null, 2)].join("\n");
   const bytes = Buffer.byteLength(rendered);
   if (bytes > MAX_EPISODE_PLANNER_BRIEF_BYTES) {
-    throw new Error(
-      `EpisodePlanner input is ${bytes} bytes; bounded limit is ${MAX_EPISODE_PLANNER_BRIEF_BYTES}`,
-    );
+    throw new Error(`EpisodePlanner input is ${bytes} bytes; bounded limit is ${MAX_EPISODE_PLANNER_BRIEF_BYTES}`);
   }
   const secret = SECRET_PATTERNS.find((candidate) => candidate.pattern.test(rendered));
   if (secret !== undefined) {
@@ -187,15 +182,14 @@ export interface EpisodePlannerRevisionRequest {
 /** Bounded revision data for the same ratified EpisodePlanner protocol. The
  * prior accepted plan and typed material event are facts, not an authority to
  * rewrite completed work or expand the immutable EpisodeIntent. */
-export function renderEpisodePlannerRevisionBrief(
-  request: EpisodePlannerRevisionRequest,
-): string {
-  const proposalSchema = request.providerOperations === undefined
-    ? EPISODE_PLAN_PROPOSAL_SCHEMA
-    : episodePlanProposalSchemaForOperations(
-      request.providerOperations,
-      request.mechanicalGates === undefined ? {} : { mechanicalGates: request.mechanicalGates },
-    );
+export function renderEpisodePlannerRevisionBrief(request: EpisodePlannerRevisionRequest): string {
+  const proposalSchema =
+    request.providerOperations === undefined
+      ? EPISODE_PLAN_PROPOSAL_SCHEMA
+      : episodePlanProposalSchemaForOperations(
+          request.providerOperations,
+          request.mechanicalGates === undefined ? {} : { mechanicalGates: request.mechanicalGates },
+        );
   const diagnostics = renderDiagnostics(request.validationDiagnostics);
   const repair = repairContract(request.topologyContract, diagnostics);
   const payload = {
@@ -219,9 +213,7 @@ export function renderEpisodePlannerRevisionBrief(
       ? {}
       : { mechanicalGateRegistry: [...new Set(request.mechanicalGates)].sort() }),
     deterministicProposalContract: DETERMINISTIC_PROPOSAL_CONTRACT,
-    ...(request.topologyContract === undefined
-      ? {}
-      : { topologyContract: request.topologyContract }),
+    ...(request.topologyContract === undefined ? {} : { topologyContract: request.topologyContract }),
     ...(repair === undefined ? {} : { repairContract: repair }),
     immutableIntent: request.intent,
     previousAcceptedPlan: request.previousPlan,
@@ -239,16 +231,11 @@ export function renderEpisodePlannerRevisionBrief(
         dependentFutureWorkMustUseReplacement: true,
       },
       futureWorkOnly: true,
-      preserveCreatorProvenance:
-        request.previousPlan.planningSource === "creator_scope",
-      unavailableAssignmentsMustNotBeReusedForFutureWork:
-        request.replan.trigger.kind === "assignment_unavailable",
+      preserveCreatorProvenance: request.previousPlan.planningSource === "creator_scope",
+      unavailableAssignmentsMustNotBeReusedForFutureWork: request.replan.trigger.kind === "assignment_unavailable",
     },
   };
-  const rendered = [
-    "[episode_planner_input]",
-    JSON.stringify(payload, null, 2),
-  ].join("\n");
+  const rendered = ["[episode_planner_input]", JSON.stringify(payload, null, 2)].join("\n");
   const bytes = Buffer.byteLength(rendered);
   if (bytes > MAX_EPISODE_PLANNER_BRIEF_BYTES) {
     throw new Error(

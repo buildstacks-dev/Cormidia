@@ -28,12 +28,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  actionHash,
-  ApprovalStore,
-  type ApprovalGrant,
-  type ApprovalLogEvent,
-} from "../../../src/org/approvals.js";
+import { actionHash, ApprovalStore, type ApprovalGrant, type ApprovalLogEvent } from "../../../src/org/approvals.js";
 import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
@@ -52,7 +47,10 @@ const ROLE = "sre";
 // ---------------------------------------------------------------------------
 
 class GrantAuditDriftViolation extends Error {
-  constructor(readonly grantId: string, readonly detail: string) {
+  constructor(
+    readonly grantId: string,
+    readonly detail: string,
+  ) {
     super(`CF-SM-GRANT-C: grant ${grantId} audit drift: ${detail}`);
     this.name = "GrantAuditDriftViolation";
   }
@@ -97,10 +95,7 @@ function detectGrantAuditDrift(root: string): void {
       continue; // revocation zeroes uses; use-conservation no longer applies
     }
     const reArms = events.filter(
-      (event) =>
-        event.type === "execution-transition" &&
-        event.id === grant.approvalId &&
-        event.to === "approved",
+      (event) => event.type === "execution-transition" && event.id === grant.approvalId && event.to === "approved",
     ).length;
     const expectedRows = minted - grant.uses + reArms;
     if (expectedRows !== consumedRows) {
@@ -156,9 +151,7 @@ async function mint(
   });
   const decided = await rig.store.decide(item.id, {
     decision: "approved",
-    ...(options.scoped !== undefined
-      ? { scope: { kind: "ticket" as const }, maxUses: options.scoped.maxUses }
-      : {}),
+    ...(options.scoped !== undefined ? { scope: { kind: "ticket" as const }, maxUses: options.scoped.maxUses } : {}),
     now: rig.clock.nowDate(),
   });
   return { itemId: item.id, grantId: decided.grantId! };
@@ -174,9 +167,7 @@ async function withTornAudit(rig: Rig, act: () => void): Promise<void> {
 }
 
 function readGrant(rig: Rig, grantId: string): ApprovalGrant {
-  return JSON.parse(
-    readFileSync(rig.state.path("approvals", "grants", `${grantId}.json`), "utf8"),
-  ) as ApprovalGrant;
+  return JSON.parse(readFileSync(rig.state.path("approvals", "grants", `${grantId}.json`), "utf8")) as ApprovalGrant;
 }
 
 describe("CF-SM-GRANT-C — crash between use and audit row (L2, HB-011)", () => {

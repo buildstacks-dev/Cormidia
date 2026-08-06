@@ -44,11 +44,7 @@ export interface GateContext {
   now?: () => Date;
 }
 
-export function composeGate(
-  baseGate: GateFn,
-  store: ApprovalStore,
-  context: GateContext,
-): GateFn {
+export function composeGate(baseGate: GateFn, store: ApprovalStore, context: GateContext): GateFn {
   const objectiveGrants = new ObjectiveGrantStore(store.root);
   return (action: ToolAction): GateDecision => {
     const now = context.now?.() ?? new Date();
@@ -80,11 +76,7 @@ export function composeGate(
     });
     if (grant !== undefined) {
       if (grant.scope === undefined) {
-        const claim = store.claimActorRetryGrantSync(
-          grant.grantId,
-          actorRetryActor(context.role, context.turnId),
-          now,
-        );
+        const claim = store.claimActorRetryGrantSync(grant.grantId, actorRetryActor(context.role, context.turnId), now);
         if (claim.status !== "claimed") {
           const execution = claim.item.execution;
           return {
@@ -207,17 +199,12 @@ export function composeGate(
     // into the classifier.
     const allowlist = context.networkAllowlist ?? DEFAULT_NETWORK_ALLOWLIST;
     const effectiveTier =
-      tier === "grantable" &&
-      rule === "outbound-network" &&
-      destinationsAllAllowlisted(action, allowlist)
+      tier === "grantable" && rule === "outbound-network" && destinationsAllAllowlisted(action, allowlist)
         ? "budgeted"
         : tier;
 
     if (rule !== undefined && effectiveTier === "budgeted") {
-      objectiveGrants.recordBudgetedActionSync(
-        { app: context.app, rule, actionHash: hash },
-        now,
-      );
+      objectiveGrants.recordBudgetedActionSync({ app: context.app, rule, actionHash: hash }, now);
       return { allow: true };
     }
 
@@ -306,9 +293,7 @@ function destinationsAllAllowlisted(action: ToolAction, allowlist: readonly stri
   return (
     destinations !== null &&
     destinations.length > 0 &&
-    destinations.every(
-      (host) => host !== "" && allowlist.some((entry) => entry.toLowerCase() === host.toLowerCase()),
-    )
+    destinations.every((host) => host !== "" && allowlist.some((entry) => entry.toLowerCase() === host.toLowerCase()))
   );
 }
 

@@ -63,7 +63,16 @@ describe("CF-J05-S — gate block → item → approve → typed execution → e
     const appsFile: AppsFile = {
       org: { name: "cf-j05-s", maxConcurrentTurns: 1 },
       defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
-      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
+      apps: [
+        {
+          name: APP,
+          repo: "cormidia-double/unused",
+          status: "live",
+          budgetUsdMonth: 100,
+          objectiveBudgetUsd: 1000,
+          cadence: {},
+        },
+      ],
     };
     return { home, repo, store: new ApprovalStore(home.stateHome), clock, appsFile };
   }
@@ -143,9 +152,7 @@ describe("CF-J05-S — gate block → item → approve → typed execution → e
     expect(acked.grant!.consumedAt).toBeDefined();
 
     const log = await walk.store.readLog();
-    const rows = log
-      .filter((event) => "id" in event && event.id === raised.id)
-      .map((event) => event.type);
+    const rows = log.filter((event) => "id" in event && event.id === raised.id).map((event) => event.type);
     expect(rows).toEqual([
       "raised",
       "decided",
@@ -188,8 +195,7 @@ describe("CF-J05-S — gate block → item → approve → typed execution → e
     // the orchestrator would run with its own credentials.
     const decidedPath = join(walk.home.stateHome, "approvals", "decided", `${raised.id}.json`);
     const tampered = JSON.parse(readFileSync(decidedPath, "utf8")) as ApprovalItem;
-    (tampered.action.input as { command: string }).command =
-      `env INJECTED=pwned bash -c '${CRITICAL_COMMAND}'`;
+    (tampered.action.input as { command: string }).command = `env INJECTED=pwned bash -c '${CRITICAL_COMMAND}'`;
     writeFileSync(decidedPath, `${JSON.stringify(tampered, null, 2)}\n`);
     // The fold really is identity-preserving — which is exactly why the
     // separately-stored raw-byte binding must exist and fire.

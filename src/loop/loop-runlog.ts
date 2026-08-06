@@ -60,17 +60,17 @@ export interface PhaseRun {
 
 const ORCHESTRATOR_ROLE = "orchestrator";
 
-export async function openPhaseRun(
-  runlog: LoopRunlog,
-  pipeline: string,
-  pass: string,
-): Promise<PhaseRun> {
+export async function openPhaseRun(runlog: LoopRunlog, pipeline: string, pass: string): Promise<PhaseRun> {
   const clock = runlog.clock ?? ((): Date => new Date());
   const runId = mintRunId(clock(), pipeline, pass);
   const startedAt = clock();
   const episodeId =
     runlog.episodeId ??
-    episodeIdFor({ app: runlog.app, ...(runlog.ticket !== undefined ? { ticket: runlog.ticket } : {}), traceId: runlog.traceId });
+    episodeIdFor({
+      app: runlog.app,
+      ...(runlog.ticket !== undefined ? { ticket: runlog.ticket } : {}),
+      traceId: runlog.traceId,
+    });
   const ticketPart = runlog.ticket !== undefined ? { ticket: runlog.ticket } : {};
 
   if (existsSync(routeRecordPath(runlog.root, episodeId))) {
@@ -82,11 +82,13 @@ export async function openPhaseRun(
       app: runlog.app,
       route: "deterministic",
       policyVersion: "efficiency/v1-mechanical",
-      factors: [{
-        kind: "evidence_quality",
-        evidence: `${pipeline}/${pass} is a deterministic state-machine operation`,
-        policy_rule: "mechanical_state_machine",
-      }],
+      factors: [
+        {
+          kind: "evidence_quality",
+          evidence: `${pipeline}/${pass} is a deterministic state-machine operation`,
+          policy_rule: "mechanical_state_machine",
+        },
+      ],
       passes: [],
       now: startedAt,
     });

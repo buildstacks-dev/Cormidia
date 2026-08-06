@@ -10,18 +10,10 @@
 // caller; never imports src/org.
 
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isTurnAssignment } from "../runtime/assignment.js";
-import type { GhIssueComment, GhOps } from "./github.js";
+import type { GhOps } from "./github.js";
 import type { LoopContinuation, LoopItem, SuppressedOperation } from "./types.js";
 import { parseVerdict, type Finding, type FindingResolution } from "./verdicts.js";
 
@@ -257,11 +249,7 @@ export function ticketStatePath(runlogRoot: string, app: string, issueNumber: nu
   return join(runlogRoot, "tickets", app, `${issueNumber}.json`);
 }
 
-export function readTicketClaimState(
-  runlogRoot: string,
-  app: string,
-  issueNumber: number,
-): TicketClaimState {
+export function readTicketClaimState(runlogRoot: string, app: string, issueNumber: number): TicketClaimState {
   const path = ticketStatePath(runlogRoot, app, issueNumber);
   if (!existsSync(path)) return { claims: 0, outcomes: [] };
   try {
@@ -277,18 +265,15 @@ export function readTicketClaimState(
       ...(validContinuation(raw.continuation) ? { continuation: raw.continuation } : {}),
       ...(Array.isArray(raw.rearms) ? { rearms: raw.rearms.filter(validRearm) } : {}),
       ...(Array.isArray(raw.events) ? { events: raw.events.filter(validClaimEvent) } : {}),
-      ...(Array.isArray(raw.suppressed)
-        ? { suppressed: raw.suppressed.filter(validSuppressedOperation) }
-        : {}),
+      ...(Array.isArray(raw.suppressed) ? { suppressed: raw.suppressed.filter(validSuppressedOperation) } : {}),
     };
   } catch (error) {
     // Claim allowance is a safety/accounting boundary. Treating corrupt state
     // as zero silently loses attempts and can repeat paid work; fail closed
     // with an actionable path while atomic writes prevent new torn files.
-    throw new Error(
-      `ticket claim state is unreadable at ${path}; restore or explicitly archive it before re-arming`,
-      { cause: error },
-    );
+    throw new Error(`ticket claim state is unreadable at ${path}; restore or explicitly archive it before re-arming`, {
+      cause: error,
+    });
   }
 }
 
@@ -315,12 +300,19 @@ export function writeTicketClaimState(
 export function listTicketClaimStates(runlogRoot: string, app?: string): TicketClaimStateEntry[] {
   const root = join(runlogRoot, "tickets");
   if (!existsSync(root)) return [];
-  const apps = app === undefined ? readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name) : [app];
+  const apps =
+    app === undefined
+      ? readdirSync(root, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => entry.name)
+      : [app];
   const entries: TicketClaimStateEntry[] = [];
   for (const appName of apps.sort()) {
     const dir = join(root, appName);
     if (!existsSync(dir)) continue;
-    for (const file of readdirSync(dir).filter((name) => /^\d+\.json$/.test(name)).sort((a, b) => Number(a.slice(0, -5)) - Number(b.slice(0, -5)))) {
+    for (const file of readdirSync(dir)
+      .filter((name) => /^\d+\.json$/.test(name))
+      .sort((a, b) => Number(a.slice(0, -5)) - Number(b.slice(0, -5)))) {
       const issueNumber = Number(file.slice(0, -5));
       try {
         entries.push({ app: appName, issueNumber, state: readTicketClaimState(runlogRoot, appName, issueNumber) });
@@ -336,11 +328,16 @@ export function listTicketClaimStates(runlogRoot: string, app?: string): TicketC
 function validActiveClaim(value: unknown): value is NonNullable<TicketClaimState["active"]> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const active = value as NonNullable<TicketClaimState["active"]>;
-  return typeof active.claimId === "string" && Number.isInteger(active.claimNumber) &&
-    Number.isInteger(active.ownerPid) && typeof active.acquiredAt === "string" &&
+  return (
+    typeof active.claimId === "string" &&
+    Number.isInteger(active.claimNumber) &&
+    Number.isInteger(active.ownerPid) &&
+    typeof active.acquiredAt === "string" &&
     (active.ownerProcessStartIdentity === undefined || typeof active.ownerProcessStartIdentity === "string") &&
     (active.ownerNonce === undefined || typeof active.ownerNonce === "string") &&
-    ["acquiring", "claimed", "provider_started"].includes(active.phase) && typeof active.resume === "boolean";
+    ["acquiring", "claimed", "provider_started"].includes(active.phase) &&
+    typeof active.resume === "boolean"
+  );
 }
 
 function validContinuation(value: unknown): value is NonNullable<TicketClaimState["continuation"]> {
@@ -352,26 +349,42 @@ function validContinuation(value: unknown): value is NonNullable<TicketClaimStat
       (continuation.planVersion ?? 0) > 0 &&
       typeof continuation.planStepId === "string" &&
       continuation.planStepId.length > 0);
-  return typeof continuation.pipeline === "string" && typeof continuation.pass === "string" &&
-    typeof continuation.role === "string" && continuation.session !== undefined &&
+  return (
+    typeof continuation.pipeline === "string" &&
+    typeof continuation.pass === "string" &&
+    typeof continuation.role === "string" &&
+    continuation.session !== undefined &&
     (continuation.assignment === undefined || isTurnAssignment(continuation.assignment)) &&
     planIdentityValid &&
-    typeof continuation.session.id === "string" && ["claude", "codex", "pi"].includes(continuation.session.runtime) &&
-    Array.isArray(continuation.completedPasses) && typeof continuation.contextFingerprint === "string" &&
-    typeof continuation.runId === "string" && typeof continuation.pausedAt === "string" &&
-    Array.isArray(continuation.decisions) && ["waiting_approval", "ready"].includes(continuation.status) &&
-    Number.isInteger(continuation.claimNumber) && Number.isInteger(continuation.pauseCount) &&
-    typeof continuation.pauseCostUsd === "number";
+    typeof continuation.session.id === "string" &&
+    ["claude", "codex", "pi"].includes(continuation.session.runtime) &&
+    Array.isArray(continuation.completedPasses) &&
+    typeof continuation.contextFingerprint === "string" &&
+    typeof continuation.runId === "string" &&
+    typeof continuation.pausedAt === "string" &&
+    Array.isArray(continuation.decisions) &&
+    ["waiting_approval", "ready"].includes(continuation.status) &&
+    Number.isInteger(continuation.claimNumber) &&
+    Number.isInteger(continuation.pauseCount) &&
+    typeof continuation.pauseCostUsd === "number"
+  );
 }
 
 function validRearm(value: unknown): value is TicketRearmRecord {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as TicketRearmRecord;
-  return typeof record.rearmId === "string" && typeof record.app === "string" &&
-    Number.isInteger(record.issueNumber) && typeof record.reason === "string" &&
-    typeof record.actor === "string" && Number.isInteger(record.priorAllowance) &&
-    Number.isInteger(record.intendedAllowance) && typeof record.priorLabel === "string" &&
-    ["prepared", "completed"].includes(record.status) && typeof record.preparedAt === "string";
+  return (
+    typeof record.rearmId === "string" &&
+    typeof record.app === "string" &&
+    Number.isInteger(record.issueNumber) &&
+    typeof record.reason === "string" &&
+    typeof record.actor === "string" &&
+    Number.isInteger(record.priorAllowance) &&
+    Number.isInteger(record.intendedAllowance) &&
+    typeof record.priorLabel === "string" &&
+    ["prepared", "completed"].includes(record.status) &&
+    typeof record.preparedAt === "string"
+  );
 }
 
 /** A suppression record is evidence that something did NOT happen, so a
@@ -381,20 +394,31 @@ function validRearm(value: unknown): value is TicketRearmRecord {
 function validSuppressedOperation(value: unknown): value is SuppressedOperation {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as SuppressedOperation;
-  return typeof record.approvalId === "string" && record.approvalId.length > 0 &&
-    typeof record.rule === "string" && record.rule.length > 0 &&
-    typeof record.actionSha256 === "string" && /^[a-f0-9]{64}$/.test(record.actionSha256) &&
-    typeof record.tool === "string" && record.tool.length > 0 &&
+  return (
+    typeof record.approvalId === "string" &&
+    record.approvalId.length > 0 &&
+    typeof record.rule === "string" &&
+    record.rule.length > 0 &&
+    typeof record.actionSha256 === "string" &&
+    /^[a-f0-9]{64}$/.test(record.actionSha256) &&
+    typeof record.tool === "string" &&
+    record.tool.length > 0 &&
     ["denied", "expired"].includes(record.disposition) &&
-    typeof record.at === "string" && record.at.length > 0 &&
-    (record.reason === undefined || typeof record.reason === "string");
+    typeof record.at === "string" &&
+    record.at.length > 0 &&
+    (record.reason === undefined || typeof record.reason === "string")
+  );
 }
 
 function validClaimEvent(value: unknown): value is TicketClaimEvent {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const event = value as TicketClaimEvent;
-  return typeof event.at === "string" && typeof event.kind === "string" &&
-    Number.isInteger(event.claimNumber) && typeof event.detail === "string";
+  return (
+    typeof event.at === "string" &&
+    typeof event.kind === "string" &&
+    Number.isInteger(event.claimNumber) &&
+    typeof event.detail === "string"
+  );
 }
 
 /** The parked-ticket digest: the assembled evidence a human needs to decide,
@@ -428,9 +452,7 @@ export function parkedDigestComment(input: {
     `**Contract:** ${input.hasContract ? "derived and still applicable" : "none applicable"}`,
     `**Open PR:** ${input.prNumber !== undefined ? `#${input.prNumber}` : "none"}`,
     `**Open findings:** ${input.openFindings.length}`,
-    ...input.openFindings.map(
-      (f) => `- ${f.category}/${f.severity} ${f.location} — ${f.description}`,
-    ),
+    ...input.openFindings.map((f) => `- ${f.category}/${f.severity} ${f.location} — ${f.description}`),
   ];
   return lines.join("\n");
 }

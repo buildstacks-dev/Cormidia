@@ -54,6 +54,8 @@ rewrite; legacy test/eval scripts removed with the archive move).
   `npm install -g corepack && corepack enable` once per Node install.
 - Install: `pnpm install` — pnpm pinned via `packageManager`. Deliberately NOT
   a workspace; `pnpm-workspace.yaml` is per-repo pnpm config only.
+- Check: `pnpm check` (Biome warnings-as-errors, typecheck, exact dependency
+  pins, and source import direction).
 - Test: `pnpm test` (offline L1/L2 vitest over `tests/`; passWithNoTests
   disabled) · typecheck: `pnpm typecheck` · build: `pnpm build`
 - Triggered validation (human authorization + reviewed absolute config required):
@@ -73,7 +75,8 @@ rewrite; legacy test/eval scripts removed with the archive move).
 
 ## Working rules
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;
-  runtime imports nothing above it. Not lint-enforced — hold the line manually.
+  runtime imports nothing above it. `scripts/check-import-direction.mjs`
+  enforces the rule through `pnpm check`.
 - **Never hardcode a default branch.** Resolve with
   `resolveRemoteDefaultBranch()` from `src/loop/default-branch.ts` and thread
   the resulting `BaseRevision` through; the option types make it required.

@@ -68,12 +68,17 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
 
   it("SEEDED VIOLATION: a grant naming an un-grantable class is rejected at creation — on both verbs", async () => {
     const { store, clock } = await makeStore();
-    for (const rule of ["approval-store-tamper", "protocol-self-edit", "gate-implementation-edit", "scorecard-tamper", "learning-surface-tamper"]) {
-      expect(() => store.createSync({ ...baseInput(clock), classes: [rule] }))
-        .toThrow(/un-grantable/);
-      expect(() =>
-        store.createSync({ ...baseInput(clock), criticalClasses: [{ rule, scope: "anything" }] }),
-      ).toThrow(/un-grantable/);
+    for (const rule of [
+      "approval-store-tamper",
+      "protocol-self-edit",
+      "gate-implementation-edit",
+      "scorecard-tamper",
+      "learning-surface-tamper",
+    ]) {
+      expect(() => store.createSync({ ...baseInput(clock), classes: [rule] })).toThrow(/un-grantable/);
+      expect(() => store.createSync({ ...baseInput(clock), criticalClasses: [{ rule, scope: "anything" }] })).toThrow(
+        /un-grantable/,
+      );
     }
     expect(store.listSync()).toHaveLength(0);
   });
@@ -81,9 +86,9 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
   it("SEEDED VIOLATION: an agent identity cannot create a grant", async () => {
     const { store, clock } = await makeStore();
     for (const identity of ["agent/builder", "agent:ops"]) {
-      expect(() =>
-        store.createSync({ ...baseInput(clock), createdBy: identity, classes: ["secret-read"] }),
-      ).toThrow(/human-facing CLI path/);
+      expect(() => store.createSync({ ...baseInput(clock), createdBy: identity, classes: ["secret-read"] })).toThrow(
+        /human-facing CLI path/,
+      );
     }
     expect(store.listSync()).toHaveLength(0);
   });
@@ -94,15 +99,16 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
     expect(() => store.createSync({ ...baseInput(clock), classes: ["no-such-rule"] })).toThrow(/not a known rule/);
     expect(() => store.createSync({ ...baseInput(clock), classes: [] })).toThrow(/at least one class/);
     // A human-only class through the ordinary list must point at the ceremony.
-    expect(() => store.createSync({ ...baseInput(clock), classes: ["package-publish"] }))
-      .toThrow(/§4.1|ceremony|grant-critical/);
+    expect(() => store.createSync({ ...baseInput(clock), classes: ["package-publish"] })).toThrow(
+      /§4.1|ceremony|grant-critical/,
+    );
     // A grantable class through the ceremony list is a category error too.
     expect(() =>
       store.createSync({ ...baseInput(clock), criticalClasses: [{ rule: "secret-read", scope: "x" }] }),
     ).toThrow(/not human-only/);
-    expect(() =>
-      store.createSync({ ...baseInput(clock), classes: ["secret-read"], outwardEffects: true }),
-    ).toThrow(/invariant/);
+    expect(() => store.createSync({ ...baseInput(clock), classes: ["secret-read"], outwardEffects: true })).toThrow(
+      /invariant/,
+    );
   });
 
   it("§4.1 ceremony: covers a human-only class only with a bounded scope and strictly-shorter TTL/use cap", async () => {
@@ -130,16 +136,15 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
 
     const grant = store.createSync({
       ...baseInput(clock),
-      criticalClasses: [
-        { rule: "package-publish", scope: "cormidia@0.1.x", precondition: "RQ-1 evidence complete" },
-      ],
+      criticalClasses: [{ rule: "package-publish", scope: "cormidia@0.1.x", precondition: "RQ-1 evidence complete" }],
     });
     expect(grant.usesRemaining).toBeLessThan(OBJECTIVE_GRANT_DEFAULT_USE_CAP);
-    expect(new Date(grant.expiresAt).getTime() - clock.nowDate().getTime())
-      .toBeLessThan(OBJECTIVE_GRANT_DEFAULT_TTL_MS);
-    expect(
-      store.findCoveringGrantSync({ app: APP, rule: "package-publish", now: clock.nowDate() })?.grantId,
-    ).toBe(grant.grantId);
+    expect(new Date(grant.expiresAt).getTime() - clock.nowDate().getTime()).toBeLessThan(
+      OBJECTIVE_GRANT_DEFAULT_TTL_MS,
+    );
+    expect(store.findCoveringGrantSync({ app: APP, rule: "package-publish", now: clock.nowDate() })?.grantId).toBe(
+      grant.grantId,
+    );
   });
 
   it("fail-closed at use: a FORGED grant file naming an un-grantable class never covers, whatever is on disk", async () => {
@@ -213,14 +218,12 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
     expect(items[0]?.justification).toBe(objectiveBudgetEscalationKey(grant.grantId));
 
     // Under the ceiling the grant still covers; AT the ceiling it does not.
-    expect(
-      store.findCoveringGrantSync({ app: APP, rule: "secret-read", now: clock.nowDate() })?.grantId,
-    ).toBe(grant.grantId);
+    expect(store.findCoveringGrantSync({ app: APP, rule: "secret-read", now: clock.nowDate() })?.grantId).toBe(
+      grant.grantId,
+    );
     expect((await store.debit({ grantId: grant.grantId, usd: 1, now: clock.nowDate() })).ok).toBe(true);
     expect(store.ledgerTotalSync(grant.grantId)).toBe(10);
-    expect(
-      store.findCoveringGrantSync({ app: APP, rule: "secret-read", now: clock.nowDate() }),
-    ).toBeUndefined();
+    expect(store.findCoveringGrantSync({ app: APP, rule: "secret-read", now: clock.nowDate() })).toBeUndefined();
   });
 
   it("concurrent debits on one ledger serialize: no lost update, exact cumulative total", async () => {

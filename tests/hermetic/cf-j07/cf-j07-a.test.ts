@@ -81,7 +81,13 @@ describe("CF-J07-A — all operator surfaces render the same budget pause", () =
     await seedSpend(rig.org.stateHome, { costUsd: 120, at: now.toISOString() });
     await enforceBudgetOverlay(rig.org.stateHome, rig.appsFile, now);
     const durable = projectObserveSnapshot({
-      ...(await indexLocalSources({ orgName: rig.appsFile.org.name, stateHome: rig.org.stateHome, appsFile: rig.appsFile, filters: {}, now })),
+      ...(await indexLocalSources({
+        orgName: rig.appsFile.org.name,
+        stateHome: rig.org.stateHome,
+        appsFile: rig.appsFile,
+        filters: {},
+        now,
+      })),
       cursor: "0",
       github: [],
     }).apps[0]!;

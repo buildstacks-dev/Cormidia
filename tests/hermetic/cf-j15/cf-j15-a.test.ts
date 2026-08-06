@@ -79,7 +79,7 @@ describe("CF-J15-A / CF-IF-XSURF — report and observe surfaces agree", () => {
     const root = `http://${server.host}:${server.port}`;
     const api = await fetch(`${root}/api/v1/reports/summary?period=all`, { headers });
     expect(api.status).toBe(200);
-    const apiReport = await api.json() as typeof report;
+    const apiReport = (await api.json()) as typeof report;
     const exportHtml = await fetch(`${root}/api/v1/reports/export.html?period=all`, { headers });
     expect(exportHtml.status).toBe(200);
     const servedHtml = await exportHtml.text();

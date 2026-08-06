@@ -3,16 +3,9 @@
 // re-arm is never inferred from a label-only edit.
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  beginTicketClaim,
-  markTicketProviderStarted,
-  planTicketRearm,
-} from "../../../src/loop/claim-recovery.js";
+import { beginTicketClaim, markTicketProviderStarted, planTicketRearm } from "../../../src/loop/claim-recovery.js";
 import type { GhOps } from "../../../src/loop/github.js";
-import {
-  readTicketClaimState,
-  type TicketClaimState,
-} from "../../../src/loop/rehydrate.js";
+import { readTicketClaimState, type TicketClaimState } from "../../../src/loop/rehydrate.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const APP = "claim-race-app";

@@ -117,9 +117,10 @@ export async function projectLearningEfficiencyHealth(
   const rejected = new Set(rejections.map((entry) => entry.candidate_id));
   const byCluster = new Map<string, CandidateArtifact>();
   for (const cluster of clustered.clusters) {
-    const candidate = candidates.find((item) =>
-      item.draft?.["cluster_fingerprint"] === cluster.fingerprint ||
-      cluster.event_ids.some((id) => item.event_ids.includes(id)),
+    const candidate = candidates.find(
+      (item) =>
+        item.draft?.["cluster_fingerprint"] === cluster.fingerprint ||
+        cluster.event_ids.some((id) => item.event_ids.includes(id)),
     );
     if (candidate !== undefined) byCluster.set(cluster.fingerprint, candidate);
   }
@@ -137,12 +138,27 @@ export async function projectLearningEfficiencyHealth(
     }
     if (candidate === undefined) return item;
     if (rejected.has(candidate.candidate_id)) {
-      return { ...item, disposition: "rejected", reason_code: "independent_review_rejected", candidate_ref: candidate.candidate_id };
+      return {
+        ...item,
+        disposition: "rejected",
+        reason_code: "independent_review_rejected",
+        candidate_ref: candidate.candidate_id,
+      };
     }
     if (!reviewed.has(candidate.candidate_id)) {
-      return { ...item, disposition: "awaiting_review", reason_code: "independent_review_pending", candidate_ref: candidate.candidate_id };
+      return {
+        ...item,
+        disposition: "awaiting_review",
+        reason_code: "independent_review_pending",
+        candidate_ref: candidate.candidate_id,
+      };
     }
-    return { ...item, disposition: "deduplicated", reason_code: "governed_candidate_exists", candidate_ref: candidate.candidate_id };
+    return {
+      ...item,
+      disposition: "deduplicated",
+      reason_code: "governed_candidate_exists",
+      candidate_ref: candidate.candidate_id,
+    };
   });
 
   const pending = candidates.filter((candidate) => !reviewed.has(candidate.candidate_id));
@@ -165,9 +181,7 @@ export async function projectLearningEfficiencyHealth(
 
   const resultById = new Map(results.map((result) => [result.eval_id, result]));
   const interventionByExperiment = new Map(
-    interventions
-      .filter((item) => item.experiment_ref !== null)
-      .map((item) => [item.experiment_ref!, item]),
+    interventions.filter((item) => item.experiment_ref !== null).map((item) => [item.experiment_ref!, item]),
   );
   const outcomeCounts = { improved: 0, inconclusive: 0, regressed: 0, invalid: 0, missing: 0 };
   let validComparisons = 0;
@@ -179,7 +193,8 @@ export async function projectLearningEfficiencyHealth(
   for (const experiment of experiments) {
     const result = experiment.result === null ? undefined : resultById.get(experiment.result);
     const intervention = interventionByExperiment.get(experiment.experiment_id);
-    if (experiment.efficacy_protocol === null) invalidReasons.push(`${experiment.experiment_id}:missing_efficacy_protocol`);
+    if (experiment.efficacy_protocol === null)
+      invalidReasons.push(`${experiment.experiment_id}:missing_efficacy_protocol`);
     if (result === undefined) {
       outcomeCounts.missing += 1;
       recommendations.push({
@@ -212,15 +227,14 @@ export async function projectLearningEfficiencyHealth(
       comparablePostActivation += post.comparisons;
       postActivationConcern ||= post.recommendation !== "retain";
       invalidReasons.push(...post.invalid_reasons.map((reason) => `${experiment.experiment_id}:${reason}`));
-      guardrailFailures.push(...post.guardrail_failures.map((metric) => `${experiment.experiment_id}:post_activation:${metric}`));
+      guardrailFailures.push(
+        ...post.guardrail_failures.map((metric) => `${experiment.experiment_id}:post_activation:${metric}`),
+      );
     }
     recommendations.push({
       experiment_ref: experiment.experiment_id,
       eval_ref: result.eval_id,
-      recommendation:
-        post === null
-          ? recommendationForEval(result, false)
-          : post.recommendation,
+      recommendation: post === null ? recommendationForEval(result, false) : post.recommendation,
       evidence_refs: [
         ...result.capsule_refs.map((ref) => `learning:capsule:${ref}`),
         `learning:eval:${result.eval_id}`,
@@ -256,7 +270,10 @@ export async function projectLearningEfficiencyHealth(
   const efficacyStatus: HealthStatus =
     experiments.length === 0 || validComparisons === 0
       ? "invalid_measurement"
-      : invalidReasons.length > 0 || guardrailFailures.length > 0 || comparablePostActivation === 0 || postActivationConcern
+      : invalidReasons.length > 0 ||
+          guardrailFailures.length > 0 ||
+          comparablePostActivation === 0 ||
+          postActivationConcern
         ? "degraded"
         : "healthy";
 
@@ -327,10 +344,18 @@ function postActivationComparison(
   const version = intervention.publish?.ref;
   const activatedAt = Date.parse(intervention.activation!.activated_at);
   if (version === undefined || !Number.isFinite(activatedAt)) {
-    return { comparisons: 0, recommendation: "revise", guardrail_failures: [], invalid_reasons: ["invalid_activation_lineage"] };
+    return {
+      comparisons: 0,
+      recommendation: "revise",
+      guardrail_failures: [],
+      invalid_reasons: ["invalid_activation_lineage"],
+    };
   }
   const byEpisode = new Map(episodes.map((episode) => [episode.episode_id, episode]));
-  const arms = { control: [] as NonNullable<(typeof episodes)[number]["outcome"]>[], treatment: [] as NonNullable<(typeof episodes)[number]["outcome"]>[] };
+  const arms = {
+    control: [] as NonNullable<(typeof episodes)[number]["outcome"]>[],
+    treatment: [] as NonNullable<(typeof episodes)[number]["outcome"]>[],
+  };
   const invalidReasons: string[] = [];
   for (const assignment of assignments) {
     const root = Object.values(assignment.roots).find((entry) => entry?.version === version);
@@ -345,12 +370,22 @@ function postActivationComparison(
   }
   const comparisons = Math.min(arms.control.length, arms.treatment.length);
   if (comparisons === 0) {
-    return { comparisons: 0, recommendation: "revise", guardrail_failures: [], invalid_reasons: [...invalidReasons, "missing_comparable_post_activation_arms"].sort() };
+    return {
+      comparisons: 0,
+      recommendation: "revise",
+      guardrail_failures: [],
+      invalid_reasons: [...invalidReasons, "missing_comparable_post_activation_arms"].sort(),
+    };
   }
   const primaryControl = metricMean(arms.control, experiment.primary_metric.name);
   const primaryTreatment = metricMean(arms.treatment, experiment.primary_metric.name);
   if (primaryControl === null || primaryTreatment === null) {
-    return { comparisons, recommendation: "revise", guardrail_failures: [], invalid_reasons: [...invalidReasons, `missing_primary_metric:${experiment.primary_metric.name}`].sort() };
+    return {
+      comparisons,
+      recommendation: "revise",
+      guardrail_failures: [],
+      invalid_reasons: [...invalidReasons, `missing_primary_metric:${experiment.primary_metric.name}`].sort(),
+    };
   }
   const guardrailFailures = experiment.guardrails
     .filter((guardrail) => {
@@ -361,11 +396,17 @@ function postActivationComparison(
     .map((guardrail) => guardrail.metric)
     .sort();
   if (guardrailFailures.length > 0) {
-    return { comparisons, recommendation: "roll_back", guardrail_failures: guardrailFailures, invalid_reasons: invalidReasons.sort() };
+    return {
+      comparisons,
+      recommendation: "roll_back",
+      guardrail_failures: guardrailFailures,
+      invalid_reasons: invalidReasons.sort(),
+    };
   }
-  const delta = experiment.primary_metric.expected_direction === "increase"
-    ? primaryTreatment - primaryControl
-    : primaryControl - primaryTreatment;
+  const delta =
+    experiment.primary_metric.expected_direction === "increase"
+      ? primaryTreatment - primaryControl
+      : primaryControl - primaryTreatment;
   return {
     comparisons,
     recommendation: delta > 0 ? "retain" : delta < 0 ? "roll_back" : "revise",
@@ -389,17 +430,25 @@ function episodeMetric(
 ): number | null {
   switch (metric) {
     case "held_in_pass":
-    case "completed": return outcome.completed ? 1 : 0;
+    case "completed":
+      return outcome.completed ? 1 : 0;
     case "merged":
-    case "merge_success_rate": return outcome.merged === undefined ? null : outcome.merged ? 1 : 0;
-    case "gate_pass_rate": return outcome.gate_failures === 0 ? 1 : 0;
+    case "merge_success_rate":
+      return outcome.merged === undefined ? null : outcome.merged ? 1 : 0;
+    case "gate_pass_rate":
+      return outcome.gate_failures === 0 ? 1 : 0;
     case "review_cycles":
-    case "average_review_cycles": return outcome.review_cycles;
-    case "gate_failures": return outcome.gate_failures;
+    case "average_review_cycles":
+      return outcome.review_cycles;
+    case "gate_failures":
+      return outcome.gate_failures;
     case "cost_usd":
-    case "average_cost_usd": return outcome.cost_usd;
-    case "human_interventions": return outcome.human_interventions;
-    default: return null;
+    case "average_cost_usd":
+      return outcome.cost_usd;
+    case "human_interventions":
+      return outcome.human_interventions;
+    default:
+      return null;
   }
 }
 
@@ -409,10 +458,14 @@ function guardrailRegressed(
   treatment: number,
 ): boolean {
   switch (guardrail.rule) {
-    case "must_not_decrease": return treatment < control;
-    case "must_not_increase": return treatment > control;
-    case "max_increase_pct": return control <= 0 ? treatment > control : ((treatment - control) / control) * 100 > guardrail.pct!;
-    case "max_decrease_pct": return control <= 0 ? treatment < control : ((control - treatment) / control) * 100 > guardrail.pct!;
+    case "must_not_decrease":
+      return treatment < control;
+    case "must_not_increase":
+      return treatment > control;
+    case "max_increase_pct":
+      return control <= 0 ? treatment > control : ((treatment - control) / control) * 100 > guardrail.pct!;
+    case "max_decrease_pct":
+      return control <= 0 ? treatment < control : ((control - treatment) / control) * 100 > guardrail.pct!;
   }
 }
 
@@ -469,20 +522,24 @@ function resultValidity(result: EvalResult, protocolPresent: boolean): "valid" |
   if (result.execution?.validity === "invalid_measurement") return "invalid";
   if (result.execution?.validity === "missing_measurement") return "missing";
   if ((result.execution?.invalid_reasons.length ?? 0) > 0) return "invalid";
-  if (result.trials.length === 0 || result.primary_metric.control === null || result.primary_metric.treatment === null) return "missing";
-  if (result.guardrails.length === 0 || result.guardrails.some((guardrail) => guardrail.detail?.includes("not measured"))) return "invalid";
+  if (result.trials.length === 0 || result.primary_metric.control === null || result.primary_metric.treatment === null)
+    return "missing";
+  if (
+    result.guardrails.length === 0 ||
+    result.guardrails.some((guardrail) => guardrail.detail?.includes("not measured"))
+  )
+    return "invalid";
   return "valid";
 }
 
-function latestCapReason(
-  runs: Awaited<ReturnType<typeof listM6RunRecords>>,
-  app: string,
-): string | null {
-  return [...runs]
-    .filter((run) => run.app === app)
-    .sort((a, b) => a.finished_at.localeCompare(b.finished_at) || a.run_id.localeCompare(b.run_id))
-    .reverse()
-    .find((run) => run.status === "capped" || run.reason?.includes("cap") === true)?.reason ?? null;
+function latestCapReason(runs: Awaited<ReturnType<typeof listM6RunRecords>>, app: string): string | null {
+  return (
+    [...runs]
+      .filter((run) => run.app === app)
+      .sort((a, b) => a.finished_at.localeCompare(b.finished_at) || a.run_id.localeCompare(b.run_id))
+      .reverse()
+      .find((run) => run.status === "capped" || run.reason?.includes("cap") === true)?.reason ?? null
+  );
 }
 
 function capDisposition(reason: string): CandidateDispositionKind {

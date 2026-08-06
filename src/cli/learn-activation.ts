@@ -153,9 +153,7 @@ export async function learnReview(homes: CormidiaHomes, args: string[]): Promise
   const disposition = reviewDisposition(verdict);
   console.log(`recorded review for ${candidateId}: ${verdict.verdict} → disposition ${disposition}`);
   if (verdict.rubric.injection_screen !== "clean") {
-    console.log(
-      `  injection screen "${verdict.rubric.injection_screen}" — escalates regardless of verdict (spec §15)`,
-    );
+    console.log(`  injection screen "${verdict.rubric.injection_screen}" — escalates regardless of verdict (spec §15)`);
   }
   if (disposition === "reject") {
     const entry = await appendRejection(homes.orgHome, {
@@ -163,9 +161,7 @@ export async function learnReview(homes: CormidiaHomes, args: string[]): Promise
       reason: verdict.rationale,
       by: verdict.reviewed_by,
     });
-    console.log(
-      `  rejection recorded (suppress key "${entry.suppress_key}"; window per policy §13)`,
-    );
+    console.log(`  rejection recorded (suppress key "${entry.suppress_key}"; window per policy §13)`);
   } else if (disposition === "proceed") {
     console.log(`  next: cormidia learn publish ${candidateId}`);
   }
@@ -180,7 +176,7 @@ export async function learnPublish(homes: CormidiaHomes, args: string[]): Promis
   const flags = parseFlags(args, "learn publish");
   const candidateId = flags.positionals[0];
   if (candidateId === undefined) throw new Error("learn publish: <candidate-id> is required");
-  const { orgRoot, appRoots } = learningRoots(homes);
+  const { appRoots } = learningRoots(homes);
   const policy = await loadLearningPolicy(homes.orgHome);
 
   // Tickets land in the repo of the scope's app (or --repo). The gh client
@@ -234,9 +230,7 @@ export async function learnPublish(homes: CormidiaHomes, args: string[]): Promis
       );
       return 0;
     case "awaiting_approval":
-      console.log(
-        `approval ${outcome.approvalId} is still pending — decide with \`cormidia approvals\``,
-      );
+      console.log(`approval ${outcome.approvalId} is still pending — decide with \`cormidia approvals\``);
       return 0;
     case "denied":
       console.error(
@@ -309,9 +303,7 @@ export async function learnDisable(homes: CormidiaHomes, args: string[]): Promis
     if (result === undefined) continue;
     console.log(`disabled ${conceptId} (${name} root, version ${result.version})`);
     console.log(`  ${result.path}`);
-    console.log(
-      "  takes effect for every subsequently resolved turn; in-flight turns keep their pin",
-    );
+    console.log("  takes effect for every subsequently resolved turn; in-flight turns keep their pin");
     return 0;
   }
   console.error(`learn disable: no active concept ${conceptId} in any bundle`);
@@ -366,7 +358,10 @@ export async function learnProvisional(homes: CormidiaHomes, args: string[]): Pr
       name,
       description: requireFlag(flags, "description", "learn provisional"),
       type: "lesson",
-      keywords: (flag(flags, "keywords") ?? "").split(",").map((k) => k.trim()).filter((k) => k !== ""),
+      keywords: (flag(flags, "keywords") ?? "")
+        .split(",")
+        .map((k) => k.trim())
+        .filter((k) => k !== ""),
       evidence: flags.values.get("evidence") ?? [],
       status: "active",
       created: today,
@@ -434,9 +429,7 @@ export async function activationReport(
     for (const candidate of await listCandidateArtifacts(root)) {
       if (reviewed.has(candidate.candidate_id)) continue;
       const path = candidateArtifactPath(root, candidate.candidate_id);
-      const ageMs = existsSync(path)
-        ? now.getTime() - (await stat(path)).mtime.getTime()
-        : 0;
+      const ageMs = existsSync(path) ? now.getTime() - (await stat(path)).mtime.getTime() : 0;
       const ageHours = ageMs / (60 * 60 * 1000);
       pendingReview.push({
         candidate_id: candidate.candidate_id,
@@ -453,9 +446,7 @@ export async function activationReport(
   let compared = 0;
   let agreed = 0;
   for (const verdict of allVerdicts) {
-    const item = decided
-      .filter((entry) => bindingOf(entry)?.candidate_id === verdict.candidate_id)
-      .at(-1);
+    const item = decided.filter((entry) => bindingOf(entry)?.candidate_id === verdict.candidate_id).at(-1);
     if (item === undefined || item.decision === undefined) continue;
     compared++;
     const reviewerSaysYes = reviewDisposition(verdict) === "proceed";

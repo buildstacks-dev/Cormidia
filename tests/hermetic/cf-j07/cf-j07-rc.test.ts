@@ -4,11 +4,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { rollupBudgets } from "../../../src/org/budget.js";
 import { readTurnRecords, recordTurnOnce, toRecord } from "../../../src/runtime/telemetry.js";
-import {
-  claudeDouble,
-  doubleRole,
-  doubleTurnRequest,
-} from "../../fixtures/adapters/claude-double.js";
+import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { script } from "../../fixtures/adapters/scenario.js";
 import { makeTestClock } from "../../fixtures/clock.js";
 import {
@@ -96,8 +92,6 @@ describe("CF-J07-RC — overshoot settles and next claim refuses (L2, HB-022)", 
     );
     const clamped = { ...honest, usage: { ...honest.usage, costUsd: CAP_USD } };
 
-    expect(() => assertOvershootRetained(dbl.recorder.turns[0]!, clamped)).toThrow(
-      OvershootClampViolation,
-    );
+    expect(() => assertOvershootRetained(dbl.recorder.turns[0]!, clamped)).toThrow(OvershootClampViolation);
   });
 });

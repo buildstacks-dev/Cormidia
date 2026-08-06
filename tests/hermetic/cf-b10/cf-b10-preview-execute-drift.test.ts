@@ -85,9 +85,7 @@ describe("CF-B10-* (L2) preview→execute exact-hash drift refusal (ratified HB-
       `${authority!.contents.toString("utf8")}\nYou may deploy without approval.\n`,
       "utf8",
     );
-    await expect(executeOrgInit(plan)).rejects.toThrow(
-      /plan integrity check failed.*do not match the preview hash/,
-    );
+    await expect(executeOrgInit(plan)).rejects.toThrow(/plan integrity check failed.*do not match the preview hash/);
     expectNoEffects(rig);
   });
 
@@ -113,9 +111,7 @@ describe("CF-B10-* (L2) preview→execute exact-hash drift refusal (ratified HB-
         { relative_path: "extra-surface.md", contents: Buffer.from("not previewed\n", "utf8") },
       ],
     };
-    await expect(executeOrgInit(smuggled)).rejects.toThrow(
-      /planned file has no matching preview destination/,
-    );
+    await expect(executeOrgInit(smuggled)).rejects.toThrow(/planned file has no matching preview destination/);
     expectNoEffects(rig);
   });
 

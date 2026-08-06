@@ -57,7 +57,14 @@ function semanticActionWithShell(action: ToolAction): { semantic: SemanticAction
   const tool = action.tool.trim().toLowerCase();
   if (VERDICT_TOOLS.has(tool)) {
     return {
-      semantic: { tool, operation: "return_data", command: null, paths: [], destination: "orchestrator", effect: "typed_data" },
+      semantic: {
+        tool,
+        operation: "return_data",
+        command: null,
+        paths: [],
+        destination: "orchestrator",
+        effect: "typed_data",
+      },
       shell: null,
     };
   }
@@ -97,14 +104,14 @@ function semanticActionWithShell(action: ToolAction): { semantic: SemanticAction
   // write-shaped signal still escalates.
   const shell = command === null ? null : analyzeShell(command);
   const operation = VERDICT_TOOLS.has(tool)
-    ? "return_data" as const
+    ? ("return_data" as const)
     : isDataMutationTool(tool) || shell?.writes === true
-      ? "write" as const
+      ? ("write" as const)
       : /(?:^|[_-])(read|view|get)(?:$|[_-])/.test(tool) || readsOnly(shell)
-        ? "read" as const
+        ? ("read" as const)
         : command !== null || isShellTool(tool)
-          ? "execute" as const
-          : "unknown" as const;
+          ? ("execute" as const)
+          : ("unknown" as const);
   const destination = typeof input?.["destination"] === "string" ? input["destination"].trim().toLowerCase() : null;
   const effect = typeof input?.["effect"] === "string" ? input["effect"].trim().toLowerCase() : null;
   return { semantic: { tool, operation, command, paths, destination, effect }, shell };
@@ -351,9 +358,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
     matches: (a) => {
       const destinations = forcePushDestinations(a);
       return (
-        destinations !== null &&
-        destinations.length > 0 &&
-        destinations.every((ref) => OWNED_TICKET_REF.test(ref))
+        destinations !== null && destinations.length > 0 && destinations.every((ref) => OWNED_TICKET_REF.test(ref))
       );
     },
   },
@@ -377,11 +382,9 @@ export const CRITICAL_RULES: CriticalRule[] = [
     matches: (a) => {
       const fields = actionEffectFields(a);
       if (!fields.executables.includes("rm")) return false;
-      return fields.targets.some((target) =>
-        target.startsWith("/") ||
-        target.startsWith("~") ||
-        /^\$\{?home\}?/i.test(target) ||
-        target.includes(".."),
+      return fields.targets.some(
+        (target) =>
+          target.startsWith("/") || target.startsWith("~") || /^\$\{?home\}?/i.test(target) || target.includes(".."),
       );
     },
   },
@@ -398,8 +401,12 @@ export const CRITICAL_RULES: CriticalRule[] = [
     matches: (a) => {
       const t = asText(a);
       return (
-        /\bgh\s+(?:auth\s+(?:login|logout|refresh)|secret\s+(?:set|delete))\b|\bnpm\s+(?:login|logout|token)\b/.test(t) ||
-        /\b(?:docker\s+(?:login|logout)|gcloud\s+auth\s+(?:login|revoke)|aws\s+configure|kubectl\s+config\s+set-credentials)\b/.test(t) ||
+        /\bgh\s+(?:auth\s+(?:login|logout|refresh)|secret\s+(?:set|delete))\b|\bnpm\s+(?:login|logout|token)\b/.test(
+          t,
+        ) ||
+        /\b(?:docker\s+(?:login|logout)|gcloud\s+auth\s+(?:login|revoke)|aws\s+configure|kubectl\s+config\s+set-credentials)\b/.test(
+          t,
+        ) ||
         /\brotate[- ]?key\b/.test(t)
       );
     },
@@ -425,13 +432,12 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // scrub is retained verbatim from the pre-split rule.
     name: "secret-read",
     matches: (a) => {
-      const scrubbed = asText(a).replace(
-        /(^|[\s"'=([])(?:\.\/)?\.(npmrc|netrc)\b/g,
-        "$1repo-local-rc-file",
-      );
+      const scrubbed = asText(a).replace(/(^|[\s"'=([])(?:\.\/)?\.(npmrc|netrc)\b/g, "$1repo-local-rc-file");
       return (
         /\bprintenv\b/.test(scrubbed) ||
-        /\b(secrets?|api[_ ]?key|credentials?|oauth client)\b|\.env\b|\b(id_rsa|id_ed25519)\b|\.(pem|npmrc|netrc)\b/.test(scrubbed)
+        /\b(secrets?|api[_ ]?key|credentials?|oauth client)\b|\.env\b|\b(id_rsa|id_ed25519)\b|\.(pem|npmrc|netrc)\b/.test(
+          scrubbed,
+        )
       );
     },
   },
@@ -449,11 +455,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
     name: "release-artifact",
     matches: (a) => {
       const t = effectText(a);
-      return (
-        /\bgh\s+release\s+create\b/.test(t) ||
-        ghApiRoutesTo(t, "release-artifact") ||
-        gitTagCreation(a)
-      );
+      return /\bgh\s+release\s+create\b/.test(t) || ghApiRoutesTo(t, "release-artifact") || gitTagCreation(a);
     },
   },
   {
@@ -577,8 +579,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // false positive costs one human tap, which is the fail-closed direction.
     name: "gate-implementation-edit",
     matches: (a) =>
-      isWrite(a) &&
-      /\bsrc\/(?:runtime\/gate|org\/(?:approvals|gate-compose|authority))\.ts\b/.test(asText(a)),
+      isWrite(a) && /\bsrc\/(?:runtime\/gate|org\/(?:approvals|gate-compose|authority))\.ts\b/.test(asText(a)),
   },
   {
     name: "scorecard-tamper", // scorecards are orchestrator-written only, never
@@ -618,8 +619,10 @@ export const CRITICAL_RULES: CriticalRule[] = [
       // Deciding an approval from inside a turn is self-approval by CLI: the
       // same forged grant, reached through the supported command instead of a
       // file write.
-      return CORMIDIA_VERB.approvalWrite.test(t) ||
-        (isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(t));
+      return (
+        CORMIDIA_VERB.approvalWrite.test(t) ||
+        (isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(t))
+      );
     },
   },
   {
@@ -655,8 +658,7 @@ const GIT_PUSH_VALUE_FLAGS = new Set(["-o", "--push-option", "--receive-pack", "
  *  rather than invisible. */
 function forcePushDestinations(action: ToolAction): string[] | null {
   const text = asText(action);
-  const textual =
-    /\bforce[- ]?push\b/.test(text) || /\bgit\s+push\s+(?:--force(?:-with-lease)?|-f)\b/.test(text);
+  const textual = /\bforce[- ]?push\b/.test(text) || /\bgit\s+push\s+(?:--force(?:-with-lease)?|-f)\b/.test(text);
   const { semantic } = semanticActionWithShell(action);
   if (semantic.command === null) return textual ? [""] : null;
 
@@ -668,7 +670,8 @@ function forcePushDestinations(action: ToolAction): string[] | null {
     const argv = segment.filter((token) => token.kind === "word").map((token) => token.text);
     let cursor = 0;
     while (isAssignment(argv[cursor])) cursor += 1;
-    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? ""))) cursor += 1;
+    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? "")))
+      cursor += 1;
     if (baseExecutable(argv[cursor] ?? "") !== "git") continue;
     const args = argv.slice(cursor + 1);
     if (gitSubcommand(args) !== "push") continue;
@@ -681,7 +684,10 @@ function forcePushDestinations(action: ToolAction): string[] | null {
     const positionals: string[] = [];
     for (let i = 0; i < pushArgs.length; i += 1) {
       const arg = pushArgs[i]!;
-      if (GIT_PUSH_VALUE_FLAGS.has(arg)) { i += 1; continue; }
+      if (GIT_PUSH_VALUE_FLAGS.has(arg)) {
+        i += 1;
+        continue;
+      }
       if (arg.startsWith("-")) continue;
       positionals.push(arg);
     }
@@ -707,11 +713,7 @@ function forcePushDestinations(action: ToolAction): string[] | null {
  *  apps.yaml `network_allowlist` (per app, with an org-level default) replaces
  *  it; nothing decides a tier off this constant except through configuration
  *  resolution at the composed gate. */
-export const DEFAULT_NETWORK_ALLOWLIST: readonly string[] = [
-  "registry.npmjs.org",
-  "api.github.com",
-  "github.com",
-];
+export const DEFAULT_NETWORK_ALLOWLIST: readonly string[] = ["registry.npmjs.org", "api.github.com", "github.com"];
 
 const EGRESS_EXECUTABLES = new Set(["curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"]);
 
@@ -720,11 +722,37 @@ const EGRESS_EXECUTABLES = new Set(["curl", "wget", "nc", "ncat", "scp", "sftp",
  *  merely OVER-detects (a non-allowlisted host stays grantable), which is the
  *  fail-closed direction for the budgeted refinement. */
 const EGRESS_VALUE_FLAGS = new Set([
-  "-H", "--header", "-d", "--data", "--data-raw", "--data-binary", "--data-urlencode",
-  "-F", "--form", "-o", "--output", "-T", "--upload-file", "-u", "--user",
-  "-A", "--user-agent", "-e", "--referer", "-X", "--request", "-K", "--config",
-  "--connect-timeout", "--max-time", "--retry", "-w", "--write-out",
-  "-P", "-i", "-p",
+  "-H",
+  "--header",
+  "-d",
+  "--data",
+  "--data-raw",
+  "--data-binary",
+  "--data-urlencode",
+  "-F",
+  "--form",
+  "-o",
+  "--output",
+  "-T",
+  "--upload-file",
+  "-u",
+  "--user",
+  "-A",
+  "--user-agent",
+  "-e",
+  "--referer",
+  "-X",
+  "--request",
+  "-K",
+  "--config",
+  "--connect-timeout",
+  "--max-time",
+  "--retry",
+  "-w",
+  "--write-out",
+  "-P",
+  "-i",
+  "-p",
 ]);
 
 const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
@@ -771,7 +799,8 @@ export function outboundDestinations(action: ToolAction): string[] | null {
     const argv = segment.filter((token) => token.kind === "word").map((token) => token.text);
     let cursor = 0;
     while (isAssignment(argv[cursor])) cursor += 1;
-    while (["sudo", "command", "builtin", "nohup", "exec", "env", "xargs"].includes(baseExecutable(argv[cursor] ?? ""))) cursor += 1;
+    while (["sudo", "command", "builtin", "nohup", "exec", "env", "xargs"].includes(baseExecutable(argv[cursor] ?? "")))
+      cursor += 1;
     const executable = baseExecutable(argv[cursor] ?? "");
     if (!EGRESS_EXECUTABLES.has(executable)) continue;
     sawEgress = true;
@@ -779,24 +808,45 @@ export function outboundDestinations(action: ToolAction): string[] | null {
     let found = false;
     for (let i = 0; i < args.length; i += 1) {
       const arg = args[i]!;
-      if (EGRESS_VALUE_FLAGS.has(arg)) { i += 1; continue; }
+      if (EGRESS_VALUE_FLAGS.has(arg)) {
+        i += 1;
+        continue;
+      }
       if (arg.startsWith("-")) continue;
-      if (tokenIsDynamic(arg)) { destinations.push(""); found = true; continue; }
+      if (tokenIsDynamic(arg)) {
+        destinations.push("");
+        found = true;
+        continue;
+      }
       if (executable === "scp" || executable === "sftp") {
         // Only remote-spec tokens ([user@]host:path) name a destination; the
         // rest are local paths.
         const match = /^(?:[^@\s]+@)?([A-Za-z0-9.-]+):/.exec(arg);
-        if (match !== null) { destinations.push(match[1]!.toLowerCase()); found = true; }
+        if (match !== null) {
+          destinations.push(match[1]!.toLowerCase());
+          found = true;
+        }
         continue;
       }
       const fromUrl = urlHost(arg);
-      if (fromUrl !== null) { destinations.push(fromUrl); found = true; continue; }
+      if (fromUrl !== null) {
+        destinations.push(fromUrl);
+        found = true;
+        continue;
+      }
       if (executable === "nc" || executable === "ncat" || executable === "telnet") {
-        if (IPV4.test(arg) || BARE_DOMAIN.test(arg)) { destinations.push(arg.toLowerCase()); found = true; break; }
+        if (IPV4.test(arg) || BARE_DOMAIN.test(arg)) {
+          destinations.push(arg.toLowerCase());
+          found = true;
+          break;
+        }
         continue;
       }
       // curl/wget bare-host form (`curl example.com`).
-      if (IPV4.test(arg) || BARE_DOMAIN.test(arg)) { destinations.push(arg.toLowerCase()); found = true; }
+      if (IPV4.test(arg) || BARE_DOMAIN.test(arg)) {
+        destinations.push(arg.toLowerCase());
+        found = true;
+      }
     }
     // An egress invocation that named no destination at all (config-file
     // driven, stdin-driven) is undeterminable.
@@ -819,7 +869,8 @@ function gitTagCreation(action: ToolAction): boolean {
     const argv = segment.filter((token) => token.kind === "word").map((token) => token.text);
     let cursor = 0;
     while (isAssignment(argv[cursor])) cursor += 1;
-    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? ""))) cursor += 1;
+    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? "")))
+      cursor += 1;
     if (baseExecutable(argv[cursor] ?? "") !== "git") continue;
     const args = argv.slice(cursor + 1);
     if (gitSubcommand(args) !== "tag") continue;
@@ -861,7 +912,8 @@ export function collaborationTargets(action: ToolAction): CollaborationTargets |
   }
 
   const text = asText(action);
-  const textual = /\bgh\s+(?:issue\s+(?:create|comment)|pr\s+(?:create|comment))\b/.test(text) ||
+  const textual =
+    /\bgh\s+(?:issue\s+(?:create|comment)|pr\s+(?:create|comment))\b/.test(text) ||
     /\bgh api (?:post|put|patch|delete|unknown) \S*(?:issues|comments)/.test(text);
   const { semantic } = semanticActionWithShell(action);
   if (semantic.command === null) {
@@ -876,7 +928,8 @@ export function collaborationTargets(action: ToolAction): CollaborationTargets |
     const argv = segment.filter((token) => token.kind === "word").map((token) => token.text);
     let cursor = 0;
     while (isAssignment(argv[cursor])) cursor += 1;
-    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? ""))) cursor += 1;
+    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? "")))
+      cursor += 1;
     const executable = baseExecutable(argv[cursor] ?? "");
     if (executable === "cd" || executable === "pushd") {
       sawCwdShift = true;
@@ -885,10 +938,11 @@ export function collaborationTargets(action: ToolAction): CollaborationTargets |
     if (executable !== "gh") continue;
     const args = argv.slice(cursor + 1);
     const positionals = args.filter((arg) => !arg.startsWith("-"));
-    const isVerb = (positionals[0] === "issue" || positionals[0] === "pr") &&
+    const isVerb =
+      (positionals[0] === "issue" || positionals[0] === "pr") &&
       (positionals[1] === "create" || positionals[1] === "comment");
-    const isApiCollab = positionals[0] === "api" &&
-      positionals.some((arg) => /(?:^|\/)(?:issues|comments)\b/.test(arg));
+    const isApiCollab =
+      positionals[0] === "api" && positionals.some((arg) => /(?:^|\/)(?:issues|comments)\b/.test(arg));
     if (!isVerb && !isApiCollab) continue;
     sawCollaboration = true;
     if (isApiCollab) {
@@ -952,8 +1006,7 @@ const WRITE_VERB_NAME = /\b(write|edit|create|replace|append|mv|cp\b|tee\b|rm|se
 
 /** Exact protocol filenames, matched anywhere in the repo tree (e.g. root
  *  `roles.yaml`, an app's `.cormidia/TASTE.md`, a nested `apps.yaml`). */
-const PROTOCOL_FILENAMES =
-  /\b(taste\.md|roles\.yaml|agents\.md|purpose\.md|pipelines\.yaml|apps\.yaml)\b/;
+const PROTOCOL_FILENAMES = /\b(taste\.md|roles\.yaml|agents\.md|purpose\.md|pipelines\.yaml|apps\.yaml)\b/;
 
 /** Path-qualified protocol directories, where the file basename varies and so
  *  the exact-filename check above can't catch it — e.g. `taste/reviewer.md`
@@ -968,9 +1021,7 @@ const PROTOCOL_DIRS = /\b(taste|prompts)\/[^\s"']+/;
 const PROTOCOL_CONFIG_FILE = /\.cormidia\/config\.yaml\b/;
 
 function isProtocolSurface(text: string): boolean {
-  return (
-    PROTOCOL_FILENAMES.test(text) || PROTOCOL_DIRS.test(text) || PROTOCOL_CONFIG_FILE.test(text)
-  );
+  return PROTOCOL_FILENAMES.test(text) || PROTOCOL_DIRS.test(text) || PROTOCOL_CONFIG_FILE.test(text);
 }
 
 /** The structured-output pseudo-tool is the typed verdict channel back to
@@ -996,9 +1047,9 @@ export function classify(action: ToolAction): { cls: OpClass; rule?: string } {
  * keeps its compact compatibility shape for callers that only need the rule;
  * approval evidence gets the structured action fields that explain why the
  * rule fired without persisting prose as executable intent. */
-export function classifyWithEvidence(action: ToolAction):
-  | { cls: "routine" }
-  | { cls: "critical"; rule: string; evidence: CriticalActionEvidence } {
+export function classifyWithEvidence(
+  action: ToolAction,
+): { cls: "routine" } | { cls: "critical"; rule: string; evidence: CriticalActionEvidence } {
   const classification = classify(action);
   if (classification.cls === "routine" || classification.rule === undefined) return { cls: "routine" };
   return {
@@ -1179,8 +1230,9 @@ export function ruleRequiresPerInstanceHumanDecision(rule: string): boolean {
  *  from the tier table (human-only ∪ un-grantable) so the A1 boundary and the
  *  disposition policy are one fact that cannot drift apart;
  *  src/org/approvals.ts re-exports it, so import sites are unchanged. */
-export const NEVER_SCOPEABLE_RULES: readonly string[] = Object.keys(RULE_DISPOSITION_TIERS)
-  .filter((rule) => ruleRequiresPerInstanceHumanDecision(rule));
+export const NEVER_SCOPEABLE_RULES: readonly string[] = Object.keys(RULE_DISPOSITION_TIERS).filter((rule) =>
+  ruleRequiresPerInstanceHumanDecision(rule),
+);
 
 /** ONE decision point (proposal §8): classify the action, then let disposition
  *  follow from the matched rule. Pure and total — no store access, no IO; an
@@ -1279,12 +1331,50 @@ interface ShellEffects {
 }
 
 const FILE_ARGUMENT_TOOLS = new Set([
-  "cat", "head", "tail", "less", "more", "wc", "stat", "readlink", "realpath",
-  "file", "cksum", "md5", "md5sum", "shasum", "sha1sum", "sha256sum", "nl",
-  "ls", "du", "diff", "sort", "cut", "uniq",
-  "rm", "mv", "cp", "tee", "touch", "chmod", "chown", "chgrp", "install", "ln",
-  "truncate", "mkdir", "mkfifo", "rmdir", "unlink", "shred", "rsync", "patch",
-  "ed", "source", ".",
+  "cat",
+  "head",
+  "tail",
+  "less",
+  "more",
+  "wc",
+  "stat",
+  "readlink",
+  "realpath",
+  "file",
+  "cksum",
+  "md5",
+  "md5sum",
+  "shasum",
+  "sha1sum",
+  "sha256sum",
+  "nl",
+  "ls",
+  "du",
+  "diff",
+  "sort",
+  "cut",
+  "uniq",
+  "rm",
+  "mv",
+  "cp",
+  "tee",
+  "touch",
+  "chmod",
+  "chown",
+  "chgrp",
+  "install",
+  "ln",
+  "truncate",
+  "mkdir",
+  "mkfifo",
+  "rmdir",
+  "unlink",
+  "shred",
+  "rsync",
+  "patch",
+  "ed",
+  "source",
+  ".",
 ]);
 
 /** Utilities whose invocation READS the paths it names, whatever those paths
@@ -1298,19 +1388,72 @@ const FILE_ARGUMENT_TOOLS = new Set([
  *  `sed`/`awk`/`sort`/`find` are read-only only while their mutating flags are
  *  absent (see `mutatingFlag`). */
 const READ_ONLY_EXECUTABLES = new Set([
-  "awk", "basename", "cat", "cksum", "column", "comm", "cut", "diff", "dirname",
-  "du", "egrep", "fgrep", "file", "find", "grep", "head", "jq", "less", "ls",
-  "md5", "md5sum", "more", "nl", "od", "pwd", "readlink", "realpath", "rg",
-  "ripgrep", "sed", "sha1sum", "sha256sum", "shasum", "sort", "stat", "tail",
-  "tr", "uniq", "wc", "which", "xxd",
+  "awk",
+  "basename",
+  "cat",
+  "cksum",
+  "column",
+  "comm",
+  "cut",
+  "diff",
+  "dirname",
+  "du",
+  "egrep",
+  "fgrep",
+  "file",
+  "find",
+  "grep",
+  "head",
+  "jq",
+  "less",
+  "ls",
+  "md5",
+  "md5sum",
+  "more",
+  "nl",
+  "od",
+  "pwd",
+  "readlink",
+  "realpath",
+  "rg",
+  "ripgrep",
+  "sed",
+  "sha1sum",
+  "sha256sum",
+  "shasum",
+  "sort",
+  "stat",
+  "tail",
+  "tr",
+  "uniq",
+  "wc",
+  "which",
+  "xxd",
 ]);
 
 /** Programs whose whole job is to change the filesystem. Naming a path with one
  *  of these IS the write-shaped signal — no redirection required. */
 const MUTATING_EXECUTABLES = new Set([
-  "chgrp", "chmod", "chown", "cp", "dd", "ed", "install", "ln", "mkdir",
-  "mkfifo", "mv", "patch", "rm", "rmdir", "rsync", "shred", "tee", "touch",
-  "truncate", "unlink",
+  "chgrp",
+  "chmod",
+  "chown",
+  "cp",
+  "dd",
+  "ed",
+  "install",
+  "ln",
+  "mkdir",
+  "mkfifo",
+  "mv",
+  "patch",
+  "rm",
+  "rmdir",
+  "rsync",
+  "shred",
+  "tee",
+  "touch",
+  "truncate",
+  "unlink",
 ]);
 
 /** `git` subcommands that only report. Every other subcommand — `commit`,
@@ -1319,18 +1462,42 @@ const MUTATING_EXECUTABLES = new Set([
  *  Shared with `gitArguments` so "which git subcommands are reads" is stated
  *  exactly once. */
 const GIT_READ_SUBCOMMANDS = new Set([
-  "log", "show", "diff", "status", "rev-parse", "cat-file", "grep", "blame",
-  "describe", "ls-files", "ls-tree", "ls-remote", "shortlog",
+  "log",
+  "show",
+  "diff",
+  "status",
+  "rev-parse",
+  "cat-file",
+  "grep",
+  "blame",
+  "describe",
+  "ls-files",
+  "ls-tree",
+  "ls-remote",
+  "shortlog",
   // #204: plumbing that only reports. `git check-ignore` is the one that cost
   // a promotion — the Reviewer ran it to PROVE the secret-protection criterion
   // (`git check-ignore -v .env .env.local`), the classifier called the whole
   // command a write because `check-ignore` was not on this list, and the
   // resulting `secrets-or-auth` approval blocked `app verify` at 16/17 green.
   // A reviewer penalized for doing security verification verifies less.
-  "check-ignore", "check-attr", "check-ref-format", "rev-list", "merge-base",
-  "name-rev", "for-each-ref", "diff-tree", "diff-index", "diff-files",
-  "verify-commit", "verify-tag", "count-objects", "whatchanged", "cherry",
-  "annotate", "var",
+  "check-ignore",
+  "check-attr",
+  "check-ref-format",
+  "rev-list",
+  "merge-base",
+  "name-rev",
+  "for-each-ref",
+  "diff-tree",
+  "diff-index",
+  "diff-files",
+  "verify-commit",
+  "verify-tag",
+  "count-objects",
+  "whatchanged",
+  "cherry",
+  "annotate",
+  "var",
 ]);
 
 /** Subcommands that read or write depending on how they are invoked, with the
@@ -1341,8 +1508,7 @@ const GIT_READ_SUBCOMMANDS = new Set([
 const GIT_CONDITIONAL_READ_SUBCOMMANDS: Record<string, (args: readonly string[]) => boolean> = {
   // `--get`/`--get-all`/`--get-regexp`/`--get-urlmatch`/`--list`/`-l` report;
   // every other form assigns, unsets, renames, or edits.
-  config: (args) =>
-    args.some((arg) => /^(?:--get(?:-all|-regexp|-urlmatch)?|--list|-l)$/.test(arg)),
+  config: (args) => args.some((arg) => /^(?:--get(?:-all|-regexp|-urlmatch)?|--list|-l)$/.test(arg)),
   // `get-url`, `show`, and the bare/verbose listing report; `add`, `remove`,
   // `rename`, `set-url`, `prune`, and `update` change the repository.
   remote: (args) => {
@@ -1391,7 +1557,14 @@ const OUTPUT_SHORT_FLAG = /^-(?!-)[a-z]*o/;
 /** `find` predicates that ACT on what they match rather than print it.
  *  `-exec`/`-ok` can run anything at all, so they fail closed as writes. */
 const FIND_ACTING_PREDICATES = new Set([
-  "-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprintf", "-fls",
+  "-delete",
+  "-exec",
+  "-execdir",
+  "-ok",
+  "-okdir",
+  "-fprint",
+  "-fprintf",
+  "-fls",
 ]);
 
 /** Whether running `executable` with `args` changes files. Order matters: a
@@ -1421,8 +1594,15 @@ function readsFiles(executable: string, args: readonly string[]): boolean {
  *  invocation classified as a write no matter what it actually did (#204).
  *  Narrowing only: a write subcommand behind `-C` still resolves to itself. */
 const GIT_GLOBAL_OPTIONS_WITH_VALUE = new Set([
-  "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path",
-  "--config-env", "--super-prefix", "--attr-source",
+  "-C",
+  "-c",
+  "--git-dir",
+  "--work-tree",
+  "--namespace",
+  "--exec-path",
+  "--config-env",
+  "--super-prefix",
+  "--attr-source",
 ]);
 
 function gitSubcommand(args: readonly string[]): string {
@@ -1463,10 +1643,22 @@ function gitInvocationReads(args: readonly string[]): boolean {
  *  command position and only unquoted (`grep if src` still searches for "if").
  *  `for`/`select`/`case`/`function` need their own header handling below. */
 const RESERVED_WORDS = new Set([
-  "if", "then", "elif", "else", "fi",
-  "while", "until", "do", "done",
-  "esac", "in",
-  "{", "}", "!", "time", "coproc",
+  "if",
+  "then",
+  "elif",
+  "else",
+  "fi",
+  "while",
+  "until",
+  "do",
+  "done",
+  "esac",
+  "in",
+  "{",
+  "}",
+  "!",
+  "time",
+  "coproc",
 ]);
 
 /** Shell builtins with no reachable effect of their own. They contribute no
@@ -1476,8 +1668,18 @@ const RESERVED_WORDS = new Set([
  *  and listing it as one both misleads the operator reading the escalation and
  *  dilutes the evidence that names the real effect. */
 const INERT_BUILTINS = new Set([
-  "break", "continue", "return", "exit", "shift", "true", "false", ":",
-  "[", "[[", "]]", "test",
+  "break",
+  "continue",
+  "return",
+  "exit",
+  "shift",
+  "true",
+  "false",
+  ":",
+  "[",
+  "[[",
+  "]]",
+  "test",
 ]);
 
 function emptyShellEffects(): ShellEffects {
@@ -1502,8 +1704,7 @@ function analyzeShell(raw: string, depth = 0): ShellEffects {
   // `$()` fragments. Remove it before every executable-intent projection, not
   // only before the top-level tokenizer (ISSUE-019).
   const withoutHeredocs = stripHeredocBodies(unwrapped);
-  const nested = extractCommandSubstitutions(withoutHeredocs)
-    .map((command) => analyzeShell(command, depth + 1));
+  const nested = extractCommandSubstitutions(withoutHeredocs).map((command) => analyzeShell(command, depth + 1));
   const executableMessages = [...withoutHeredocs.matchAll(MESSAGE_FLAG_ARG)]
     .map((match) => match[1] ?? "")
     .filter(hasExecutableEffect)
@@ -1554,8 +1755,7 @@ function analyzeSegment(
       i++;
       // `2>&1` / `>&2` duplicate a file descriptor; nothing is written to a
       // path. `>&file` (a real file target) keeps the fail-closed direction.
-      const duplicatesFd = (token.text === ">&" || token.text === "<&") &&
-        /^-?\d*-?$/.test(target.text);
+      const duplicatesFd = (token.text === ">&" || token.text === "<&") && /^-?\d*-?$/.test(target.text);
       // The literal `/dev/null` sink is the ONE known-harmless destination, and
       // only when it is spelled completely: a word left open by an unterminated
       // quote (`2>"/dev/null`) is malformed input, not a proven null sink.
@@ -1715,7 +1915,28 @@ function relevantArguments(executable: string, args: string[]): { verb: string; 
   // `cormidia app reset --execute` and `cormidia roles` were the same action to
   // every rule — which is how the CLI's own human-gated verbs classified
   // routine while the shell equivalents of the same effects did not.
-  if (["kubectl", "doctl", "npm", "pnpm", "npx", "cormidia", "helm", "terraform", "docker", "gcloud", "aws", "curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"].includes(executable)) {
+  if (
+    [
+      "kubectl",
+      "doctl",
+      "npm",
+      "pnpm",
+      "npx",
+      "cormidia",
+      "helm",
+      "terraform",
+      "docker",
+      "gcloud",
+      "aws",
+      "curl",
+      "wget",
+      "nc",
+      "ncat",
+      "scp",
+      "sftp",
+      "telnet",
+    ].includes(executable)
+  ) {
     return {
       verb: leadingSubcommands(args).join(" "),
       targets: args.filter(looksLikePathOrUrl),
@@ -1748,7 +1969,10 @@ function searchArguments(args: string[]): { verb: string; targets: string[] } {
   const optionsWithValue = new Set(["-e", "--regexp", "-g", "--glob", "-t", "--type", "--type-add"]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (optionsWithValue.has(arg)) { i++; continue; }
+    if (optionsWithValue.has(arg)) {
+      i++;
+      continue;
+    }
     if (arg.startsWith("-")) continue;
     positional.push(arg);
   }
@@ -1792,8 +2016,16 @@ function ghArguments(args: string[]): { verb: string; targets: string[] } {
 /** `gh api` flags that take a separate VALUE which must never be mistaken for
  *  the endpoint (`-H "Accept: …"`, `--jq .name`, `-t <template>`, …). */
 const GH_API_VALUE_FLAGS = new Set([
-  "-H", "--header", "--hostname", "--jq", "-q", "-t", "--template",
-  "--cache", "-p", "--preview",
+  "-H",
+  "--header",
+  "--hostname",
+  "--jq",
+  "-q",
+  "-t",
+  "--template",
+  "--cache",
+  "-p",
+  "--preview",
 ]);
 
 /** Body-carrying `gh api` flags. Their presence with no explicit method is the
@@ -1920,8 +2152,15 @@ function lexShell(command: string): ShellToken[] {
       else text += ch;
       continue;
     }
-    if (ch === "'" || ch === '"') { quote = ch; quoted = true; continue; }
-    if (ch === "\\" && command[i + 1] !== undefined) { text += command[++i]!; continue; }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      quoted = true;
+      continue;
+    }
+    if (ch === "\\" && command[i + 1] !== undefined) {
+      text += command[++i]!;
+      continue;
+    }
     if (/\s/.test(ch)) {
       flushWord();
       if (ch === "\n") out.push({ text: "\n", kind: "control", quoted: false });
@@ -1929,7 +2168,11 @@ function lexShell(command: string): ShellToken[] {
     }
     // A backtick substitution's body is analyzed separately
     // (extractCommandSubstitutions); here it is only a command boundary.
-    if (ch === "`") { flushWord(); out.push({ text: "`", kind: "control", quoted: false }); continue; }
+    if (ch === "`") {
+      flushWord();
+      out.push({ text: "`", kind: "control", quoted: false });
+      continue;
+    }
     const operator = SHELL_OPERATORS.find((candidate) => command.startsWith(candidate.text, i));
     if (operator !== undefined) {
       if (operator.kind === "redirect" && !quoted && /^\d+$/.test(text)) {
@@ -2009,8 +2252,14 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
         flush();
         continue;
       }
-      if (token.kind === "control" && token.text === ")") { casePattern = false; continue; }
-      if (token.kind === "control" && token.text === "|") { patternSawWord = false; continue; }
+      if (token.kind === "control" && token.text === ")") {
+        casePattern = false;
+        continue;
+      }
+      if (token.kind === "control" && token.text === "|") {
+        patternSawWord = false;
+        continue;
+      }
       if (token.kind === "control" && token.text === "\n" && patternSawWord) {
         casePattern = false;
         continue;
@@ -2024,8 +2273,14 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
         continue;
       }
       if (token.kind === "redirect") continue;
-      if (!token.quoted && token.text === "do") { mode = "normal"; continue; }
-      if (!token.quoted && token.text === "in" && !sawLoopIn) { sawLoopIn = true; continue; }
+      if (!token.quoted && token.text === "do") {
+        mode = "normal";
+        continue;
+      }
+      if (!token.quoted && token.text === "in" && !sawLoopIn) {
+        sawLoopIn = true;
+        continue;
+      }
       // Whitespace-free words only (a quoted prose word is data), and never a
       // bare number — `for attempt in 1 2 3 4 5` is a counter, not a path.
       if (sawLoopIn && !/\s/.test(token.text) && !/^\d+$/.test(token.text)) {
@@ -2051,7 +2306,10 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
     }
     if (token.kind === "control") {
       flush();
-      if (token.text === ";;" && caseDepth > 0) { casePattern = true; patternSawWord = false; }
+      if (token.text === ";;" && caseDepth > 0) {
+        casePattern = true;
+        patternSawWord = false;
+      }
       continue;
     }
     if (token.kind === "redirect") {
@@ -2064,7 +2322,10 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
         flush();
         continue;
       }
-      if (RESERVED_WORDS.has(token.text)) { flush(); continue; }
+      if (RESERVED_WORDS.has(token.text)) {
+        flush();
+        continue;
+      }
       if (token.text === "for" || token.text === "select") {
         flush();
         mode = "loop-header";
@@ -2077,7 +2338,11 @@ function parseShell(tokens: readonly ShellToken[]): ParsedShell {
         mode = "case-header";
         continue;
       }
-      if (token.text === "function") { flush(); mode = "function-name"; continue; }
+      if (token.text === "function") {
+        flush();
+        mode = "function-name";
+        continue;
+      }
     }
     segment.push(token);
   }
@@ -2097,7 +2362,11 @@ export function stripShellComments(command: string): string {
       if (ch === quote && command[i - 1] !== "\\") quote = null;
       continue;
     }
-    if (ch === '"' || ch === "'") { quote = ch; out += ch; continue; }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      out += ch;
+      continue;
+    }
     if (ch === "#" && (i === 0 || /\s/.test(command[i - 1]!))) {
       while (i + 1 < command.length && command[i + 1] !== "\n") i++;
       continue;
@@ -2117,10 +2386,13 @@ function stripHeredocBodies(command: string): string {
       continue;
     }
     const delimiters: string[] = [];
-    const header = line.replace(/<<-?\s*(?:'([^']+)'|"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))/g, (_match, a: string, b: string, c: string) => {
-      delimiters.push(a || b || c);
-      return " ";
-    });
+    const header = line.replace(
+      /<<-?\s*(?:'([^']+)'|"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))/g,
+      (_match, a: string, b: string, c: string) => {
+        delimiters.push(a || b || c);
+        return " ";
+      },
+    );
     out.push(header);
     delimiter = delimiters[0];
   }
@@ -2170,7 +2442,8 @@ function baseExecutable(value: string): string {
 }
 
 function unquote(value: string): string {
-  return value.length >= 2 && ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'")))
+  return value.length >= 2 &&
+    ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
     ? value.slice(1, -1)
     : value;
 }
@@ -2181,7 +2454,7 @@ function looksLikePathOrUrl(value: string): boolean {
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : undefined;
 }
 
@@ -2210,7 +2483,11 @@ function hasMaterialRedirect(command: string): boolean {
 }
 
 function normalizePath(value: string): string {
-  return value.trim().replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/{2,}/g, "/");
+  return value
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^\.\//, "")
+    .replace(/\/{2,}/g, "/");
 }
 
 /** Decode common execution wrappers without executing anything. This makes
@@ -2223,7 +2500,10 @@ function unwrapCommand(value: string): string {
     // Invalid percent escapes remain literal and still pass ordinary rules.
   }
   for (let depth = 0; depth < 4; depth++) {
-    const wrapper = /^(?:(?:sudo|command)\s+|(?:\/usr\/bin\/)?env(?:\s+[A-Za-z_][A-Za-z0-9_]*=[^\s]+)*\s+)*(?:bash|sh|zsh)\s+-c\s+(["'])([\s\S]*)\1$/.exec(command);
+    const wrapper =
+      /^(?:(?:sudo|command)\s+|(?:\/usr\/bin\/)?env(?:\s+[A-Za-z_][A-Za-z0-9_]*=[^\s]+)*\s+)*(?:bash|sh|zsh)\s+-c\s+(["'])([\s\S]*)\1$/.exec(
+        command,
+      );
     if (wrapper?.[2] !== undefined) {
       command = wrapper[2].trim();
       continue;
@@ -2235,7 +2515,9 @@ function unwrapCommand(value: string): string {
     }
     break;
   }
-  const encoded = /(?:echo|printf)\s+['"]?([A-Za-z0-9+/]{12,}={0,2})['"]?\s*\|\s*base64\s+(?:--decode|-d)\b/.exec(command);
+  const encoded = /(?:echo|printf)\s+['"]?([A-Za-z0-9+/]{12,}={0,2})['"]?\s*\|\s*base64\s+(?:--decode|-d)\b/.exec(
+    command,
+  );
   if (encoded?.[1] !== undefined) {
     try {
       const decoded = Buffer.from(encoded[1], "base64").toString("utf8");

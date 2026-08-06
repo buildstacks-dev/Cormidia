@@ -66,9 +66,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
       defaultBranch: "trunk", // deliberately not main (#101)
       seedFiles: [
         { path: "README.md", contents: README_SEED },
-        ...(options.seedAgents === false
-          ? []
-          : [{ path: "AGENTS.md", contents: options.seedAgents ?? AGENTS_SEED }]),
+        ...(options.seedAgents === false ? [] : [{ path: "AGENTS.md", contents: options.seedAgents ?? AGENTS_SEED }]),
       ],
     });
     cleanups.push(() => repo.cleanup());
@@ -197,9 +195,9 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     const walk = await makeWalk();
     // SEEDED VIOLATION: generated-style bytes written over the human's file.
     writeFileSync(join(walk.repo.dir, "AGENTS.md"), "# generated content\n");
-    expect(() =>
-      assertHumanBytesPreserved(join(walk.repo.dir, "AGENTS.md"), AGENTS_SEED),
-    ).toThrow(/clobber detector: human bytes .* were altered/);
+    expect(() => assertHumanBytesPreserved(join(walk.repo.dir, "AGENTS.md"), AGENTS_SEED)).toThrow(
+      /clobber detector: human bytes .* were altered/,
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -247,9 +245,7 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
       `${AUTHORITY_BLOCK_START}\nx\n${AUTHORITY_BLOCK_END}\n${AUTHORITY_BLOCK_END}\n`, // duplicate end
     ];
     for (const existing of malformed) {
-      expect(() => composeProjectInstructions(existing, block)).toThrow(
-        /malformed Cormidia authority block/,
-      );
+      expect(() => composeProjectInstructions(existing, block)).toThrow(/malformed Cormidia authority block/);
     }
   });
 

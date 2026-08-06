@@ -53,7 +53,7 @@ import { script } from "../fixtures/adapters/scenario.js";
 import { makeTestClock } from "../fixtures/clock.js";
 import { runKillPointScenario, type KillPointResult } from "../fixtures/kill-point.js";
 import { makeTempOrgHome, type TempOrgHome } from "../fixtures/org-home.js";
-import { makeTempStateHome, type TempStateHome } from "../fixtures/state-home.js";
+import { makeTempStateHome } from "../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../fixtures/walk.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -154,9 +154,7 @@ async function settleScriptedTurn(input: {
     app: APP,
     route: "quick",
     policyVersion: "hb005-skeleton",
-    factors: [
-      { kind: "uncertainty", evidence: "HB-005 skeleton composition", policy_rule: "hb005-skeleton" },
-    ],
+    factors: [{ kind: "uncertainty", evidence: "HB-005 skeleton composition", policy_rule: "hb005-skeleton" }],
     passes: [
       {
         pipeline: "sre-health",
@@ -447,9 +445,7 @@ describe("CF-J04-RC/CF-INV-006 skeleton — dispatch tick → claim → scripted
     expect(first.recoveredUsd).toBeCloseTo(0.55, 10);
     const rows = await readTurnRecords(state.stateHome);
     expect(rows).toHaveLength(1);
-    expect(settlementKey(rows[0]!.app, settlementIdentity(rows[0]!)!)).toBe(
-      settlementKey(APP, providerTurnId!),
-    );
+    expect(settlementKey(rows[0]!.app, settlementIdentity(rows[0]!)!)).toBe(settlementKey(APP, providerTurnId!));
     detectDoubleSettlement(rows);
 
     // …and a second reconcile finds nothing more to pay.

@@ -21,11 +21,7 @@ export function requireRecord(value: unknown, source: string): Record<string, un
   return value as Record<string, unknown>;
 }
 
-export function requireString(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): string {
+export function requireString(spec: Record<string, unknown>, key: string, source: string): string {
   const value = spec[key];
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`learning: ${source}.${key} must be a non-empty string`);
@@ -33,11 +29,7 @@ export function requireString(
   return value;
 }
 
-export function optionalString(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): string | null {
+export function optionalString(spec: Record<string, unknown>, key: string, source: string): string | null {
   const value = spec[key];
   if (value === undefined || value === null) return null;
   if (typeof value !== "string" || value.trim() === "") {
@@ -59,11 +51,7 @@ export function requireEnum<const T extends readonly string[]>(
   return value as T[number];
 }
 
-export function requireBoolean(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): boolean {
+export function requireBoolean(spec: Record<string, unknown>, key: string, source: string): boolean {
   const value = spec[key];
   if (typeof value !== "boolean") {
     throw new Error(`learning: ${source}.${key} must be a boolean`);
@@ -71,11 +59,7 @@ export function requireBoolean(
   return value;
 }
 
-export function requireFiniteNumber(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): number {
+export function requireFiniteNumber(spec: Record<string, unknown>, key: string, source: string): number {
   const value = spec[key];
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`learning: ${source}.${key} must be a finite number`);
@@ -83,21 +67,13 @@ export function requireFiniteNumber(
   return value;
 }
 
-export function requireNonNegativeNumber(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): number {
+export function requireNonNegativeNumber(spec: Record<string, unknown>, key: string, source: string): number {
   const value = requireFiniteNumber(spec, key, source);
   if (value < 0) throw new Error(`learning: ${source}.${key} must be >= 0`);
   return value;
 }
 
-export function requirePositiveInt(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): number {
+export function requirePositiveInt(spec: Record<string, unknown>, key: string, source: string): number {
   const value = spec[key];
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
     throw new Error(`learning: ${source}.${key} must be a positive integer`);
@@ -105,11 +81,7 @@ export function requirePositiveInt(
   return value;
 }
 
-export function requireStringArray(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): string[] {
+export function requireStringArray(spec: Record<string, unknown>, key: string, source: string): string[] {
   const value = spec[key];
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
     throw new Error(`learning: ${source}.${key} must be a string array`);
@@ -120,11 +92,7 @@ export function requireStringArray(
 /** `sha256:<64 hex>` content refs — candidate.content_hash and
  *  intervention.reviewed_content_hash must accept the SAME grammar (M4 binds
  *  one to the other), so both validate through this one check. */
-export function requireSha256Ref(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): string {
+export function requireSha256Ref(spec: Record<string, unknown>, key: string, source: string): string {
   const value = requireString(spec, key, source);
   if (!/^sha256:[0-9a-f]{64}$/.test(value)) {
     throw new Error(`learning: ${source}.${key} must be "sha256:<64 hex>"`);
@@ -134,12 +102,7 @@ export function requireSha256Ref(
 
 /** Ids carry their kind as a prefix (`exp_`, `int_`, `eval_`, `cand_`) —
  *  `learn show` routes on it, and a mislabeled id would trace to nothing. */
-export function requirePrefixedId(
-  spec: Record<string, unknown>,
-  key: string,
-  prefix: string,
-  source: string,
-): string {
+export function requirePrefixedId(spec: Record<string, unknown>, key: string, prefix: string, source: string): string {
   const value = requireString(spec, key, source);
   if (!value.startsWith(prefix)) {
     throw new Error(`learning: ${source}.${key} must start with "${prefix}"`);

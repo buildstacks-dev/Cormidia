@@ -49,9 +49,7 @@ export interface CodexAppServerLaunchOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-export type CodexAppServerClientFactory = (
-  options?: CodexAppServerLaunchOptions,
-) => CodexAppServerClient;
+export type CodexAppServerClientFactory = (options?: CodexAppServerLaunchOptions) => CodexAppServerClient;
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -168,9 +166,7 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
 
     if (method !== undefined) {
       const serverMessage: CodexServerMessage =
-        id === undefined
-          ? { method, params: message.params }
-          : { method, params: message.params, id };
+        id === undefined ? { method, params: message.params } : { method, params: message.params, id };
       const waiter = this.waiters.shift();
       if (waiter !== undefined) {
         waiter({ done: false, value: serverMessage });
@@ -347,13 +343,11 @@ export class CodexRuntime implements Runtime {
         ? "failed"
         : escalations.length > 0
           ? "blocked_on_gate"
-          : state.status ?? "failed";
+          : (state.status ?? "failed");
       return {
         status,
         summary: state.finalSummary ?? "Codex App Server turn completed without an agent message",
-        artifacts: state.budgetOverrun
-          ? [budgetOverrunNote(threadId, state.usage?.costUsd ?? 0, req)]
-          : [],
+        artifacts: state.budgetOverrun ? [budgetOverrunNote(threadId, state.usage?.costUsd ?? 0, req)] : [],
         session: { runtime: "codex", id: threadId },
         usage:
           state.usage === undefined
@@ -457,7 +451,9 @@ export class CodexRuntime implements Runtime {
         return;
       default:
         if (message.id !== undefined) {
-          await client.respond(message.id, { error: `Cormidia does not implement App Server request ${message.method}` });
+          await client.respond(message.id, {
+            error: `Cormidia does not implement App Server request ${message.method}`,
+          });
           state.status = "failed";
           state.finalSummary = `Unsupported Codex App Server request: ${message.method}`;
         }
@@ -537,7 +533,11 @@ export class CodexRuntime implements Runtime {
       if (code !== undefined) state.errorCode ??= code;
     }
     if (state.usage !== undefined) {
-      state.usage = { ...state.usage, subagentTurns: state.subagentTurns, wallClockMs: state.durationMs ?? state.usage.wallClockMs };
+      state.usage = {
+        ...state.usage,
+        subagentTurns: state.subagentTurns,
+        wallClockMs: state.durationMs ?? state.usage.wallClockMs,
+      };
     }
   }
 }
@@ -656,9 +656,7 @@ function turnParams(
     },
     model: assignment.model,
     effort: mapCodexEffort(assignment.effort),
-    ...(req.verdictSchema !== undefined
-      ? { outputSchema: toCodexStrictSchema(req.verdictSchema) }
-      : {}),
+    ...(req.verdictSchema !== undefined ? { outputSchema: toCodexStrictSchema(req.verdictSchema) } : {}),
   };
 }
 
@@ -672,9 +670,7 @@ function turnParams(
  *  demands: every property is required, and an originally-optional field is
  *  made nullable instead. The loop's return-path validator treats an explicit
  *  null on an optional field as absent, so the round-trip stays lossless. */
-export function toCodexStrictSchema(
-  schema: Record<string, unknown>,
-): Record<string, unknown> {
+export function toCodexStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
   return strictSchemaNode(schema, false) as Record<string, unknown>;
 }
 
@@ -795,7 +791,10 @@ export function normalizeCodexApprovalAction(
       );
     }
     case "fileChange": {
-      const path = relativize(typeof p.path === "string" ? p.path : typeof p.grantRoot === "string" ? p.grantRoot : ".", workdir);
+      const path = relativize(
+        typeof p.path === "string" ? p.path : typeof p.grantRoot === "string" ? p.grantRoot : ".",
+        workdir,
+      );
       return withOptionalDescription(
         { tool: "edit", input: { path } },
         typeof p.reason === "string" ? p.reason : undefined,
@@ -943,8 +942,10 @@ export function estimateCodexCostUsd(tokensIn: number, tokensOut: number, model:
   const longContext = model.toLowerCase().startsWith("gpt-5.6") && tokensIn > GPT_5_6_LONG_CONTEXT_THRESHOLD;
   const inputMultiplier = longContext ? 2 : 1;
   const outputMultiplier = longContext ? 1.5 : 1;
-  return (tokensIn / 1_000_000) * price.inputPerMTok * inputMultiplier
-    + (tokensOut / 1_000_000) * price.outputPerMTok * outputMultiplier;
+  return (
+    (tokensIn / 1_000_000) * price.inputPerMTok * inputMultiplier +
+    (tokensOut / 1_000_000) * price.outputPerMTok * outputMultiplier
+  );
 }
 
 function finalAgentMessage(turn: Record<string, unknown>): string | undefined {
@@ -989,13 +990,6 @@ function extractThreadId(response: unknown): string | undefined {
   if (!isRecord(response)) return undefined;
   if (isRecord(response.thread) && typeof response.thread.id === "string") return response.thread.id;
   if (typeof response.threadId === "string") return response.threadId;
-  return undefined;
-}
-
-function extractTurnId(response: unknown): string | undefined {
-  if (!isRecord(response)) return undefined;
-  if (isRecord(response.turn) && typeof response.turn.id === "string") return response.turn.id;
-  if (typeof response.turnId === "string") return response.turnId;
   return undefined;
 }
 

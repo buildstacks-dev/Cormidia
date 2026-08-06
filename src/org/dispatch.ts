@@ -17,7 +17,7 @@ import {
   type EventKind,
   type GitHubEventSource,
 } from "./events.js";
-import { listJournals, readJournal, writeJournalPatch, type TurnEvent, type TurnJournal } from "./journal.js";
+import { listJournals, readJournal, writeJournalPatch, type TurnEvent } from "./journal.js";
 import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./locks.js";
 import { recoverStaleTurn } from "./recovery.js";
 import { runScheduledRetentionSweep, type StateSweepResult } from "./retention.js";
@@ -28,10 +28,7 @@ import { scheduledRoleEligibility } from "./scheduled-role-eligibility.js";
 import { processIdentityStatus } from "../runtime/process-identity.js";
 import type { DurableClaimOwner, DurableClaimOwnerStatus } from "../runtime/durable-claim.js";
 import { SchedulerEvidenceStore, type SchedulerInvocationRecord } from "./scheduler/evidence.js";
-import {
-  ScheduleDueClaimStore,
-  type ScheduleDueClaimPayload,
-} from "./scheduler/due-window-claims.js";
+import { ScheduleDueClaimStore, type ScheduleDueClaimPayload } from "./scheduler/due-window-claims.js";
 import { assertScheduledRequiredExecutables } from "./scheduler/environment.js";
 import {
   cadenceWindow,
@@ -76,18 +73,18 @@ export interface DispatchTickOptions {
   explicitScheduleRetries?: readonly string[];
   /** Sealed host-restart seam for deterministic claim recovery tests. */
   dueClaimOwnerStatus?: (owner: DurableClaimOwner) => DurableClaimOwnerStatus;
-  schedulerFault?: (boundary:
-    | "after_scheduler_lock"
-    | "after_tick_journal"
-    | "after_child_spawn"
-    | "post_spawn_bookkeeping"
-    | "after_terminal_receipt"
+  schedulerFault?: (
+    boundary:
+      | "after_scheduler_lock"
+      | "after_tick_journal"
+      | "after_child_spawn"
+      | "post_spawn_bookkeeping"
+      | "after_terminal_receipt",
   ) => void | Promise<void>;
   /** L2 seam for token-free Planner publication reconciliation. */
-  plannerPublicationGh?: (app: AppEntry) => Pick<
-    import("../loop/github.js").GhOps,
-    "addLabel" | "removeLabel" | "readIssue" | "listIssues"
-  >;
+  plannerPublicationGh?: (
+    app: AppEntry,
+  ) => Pick<import("../loop/github.js").GhOps, "addLabel" | "removeLabel" | "readIssue" | "listIssues">;
   plannerPublicationGit?: PlannerPublicationGit;
 }
 
@@ -133,15 +130,15 @@ export async function reconcilePendingPlannerPublications(input: {
   apps: readonly AppEntry[];
   result: Pick<DispatchTickResult, "skipped" | "errors">;
   now: Date;
-  ghFor?: (app: AppEntry) => Pick<
-    import("../loop/github.js").GhOps,
-    "addLabel" | "removeLabel" | "readIssue" | "listIssues"
-  >;
+  ghFor?: (
+    app: AppEntry,
+  ) => Pick<import("../loop/github.js").GhOps, "addLabel" | "removeLabel" | "readIssue" | "listIssues">;
   git?: PlannerPublicationGit;
 }): Promise<void> {
   const apps = new Map(input.apps.map((app) => [app.name, app]));
-  for (const publication of (await listPlannerPublications(input.stateHome))
-    .filter((entry) => entry.state === "publication_pending")) {
+  for (const publication of (await listPlannerPublications(input.stateHome)).filter(
+    (entry) => entry.state === "publication_pending",
+  )) {
     const app = apps.get(publication.app);
     if (app === undefined) {
       input.result.errors.push(
@@ -165,18 +162,18 @@ export async function reconcilePendingPlannerPublications(input: {
       } else if (reconciled.state === "refused") {
         input.result.errors.push(
           `${app.name}/planner: publication ${reconciled.publication_id} permanently refused: ` +
-          `${reconciled.error?.message ?? "unknown refusal"}; ${reconciled.recovery.command}`,
+            `${reconciled.error?.message ?? "unknown refusal"}; ${reconciled.recovery.command}`,
         );
       } else {
         input.result.errors.push(
           `${app.name}/planner: publication ${reconciled.publication_id} remains pending: ` +
-          `${reconciled.error?.message ?? "publication incomplete"}; ${reconciled.recovery.command}`,
+            `${reconciled.error?.message ?? "publication incomplete"}; ${reconciled.recovery.command}`,
         );
       }
     } catch (error) {
       input.result.errors.push(
         `${app.name}/planner: publication ${publication.publication_id} reconciliation failed: ` +
-        `${error instanceof Error ? error.message : String(error)}`,
+          `${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -228,12 +225,11 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     schedulerId,
   });
   const dueClaims = new ScheduleDueClaimStore(runtimeHome, {
-    ...(options.dueClaimOwnerStatus !== undefined
-      ? { ownerStatus: options.dueClaimOwnerStatus }
-      : {}),
+    ...(options.dueClaimOwnerStatus !== undefined ? { ownerStatus: options.dueClaimOwnerStatus } : {}),
   });
   const invocation = options.dryRun === true ? undefined : await evidence.beginInvocation(tickAt);
-  if (invocation !== undefined) result.scheduler = { invocationId: invocation.invocation_id, cadenceWindow: invocation.cadence_window };
+  if (invocation !== undefined)
+    result.scheduler = { invocationId: invocation.invocation_id, cadenceWindow: invocation.cadence_window };
   if (invocation !== undefined && invocation.missed_windows > 0 && invocation.decision_ids.length === 0) {
     const missed = await evidence.claimDecision({
       invocationId: invocation.invocation_id,
@@ -257,12 +253,8 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       apps: appsFile.apps,
       result,
       now: tickAt,
-      ...(options.plannerPublicationGh === undefined
-        ? {}
-        : { ghFor: options.plannerPublicationGh }),
-      ...(options.plannerPublicationGit === undefined
-        ? {}
-        : { git: options.plannerPublicationGit }),
+      ...(options.plannerPublicationGh === undefined ? {} : { ghFor: options.plannerPublicationGh }),
+      ...(options.plannerPublicationGit === undefined ? {} : { git: options.plannerPublicationGit }),
     });
   }
 
@@ -277,21 +269,13 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     result.errors.push(`budget overlay refresh failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  const killed = await killHungTurns(
-    runtimeHome,
-    tickAt,
-    result,
-    options.kill,
-    spawn,
-    options.wallClockCapMs,
-    {
-      pidAlive: options.pidAlive ?? defaultPidAlive,
-      groupAlive: options.groupAlive ?? defaultGroupAlive,
-      identityStatus: options.processIdentityStatus ?? processIdentityStatus,
-      graceMs: options.killGraceMs ?? 5_000,
-      pollMs: options.killPollMs ?? 250,
-    },
-  );
+  const killed = await killHungTurns(runtimeHome, tickAt, result, options.kill, spawn, options.wallClockCapMs, {
+    pidAlive: options.pidAlive ?? defaultPidAlive,
+    groupAlive: options.groupAlive ?? defaultGroupAlive,
+    identityStatus: options.processIdentityStatus ?? processIdentityStatus,
+    graceMs: options.killGraceMs ?? 5_000,
+    pollMs: options.killPollMs ?? 250,
+  });
   const staleSpawns = await recoverableStaleLocks(
     runtimeHome,
     tickAt,
@@ -360,9 +344,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     for (const event of retirable) {
       try {
         await eventStore.retireEvent(event.key);
-        result.skipped.push(
-          `${event.app}: event ${event.kind} (${event.key}) retired: all subscribers consumed`,
-        );
+        result.skipped.push(`${event.app}: event ${event.kind} (${event.key}) retired: all subscribers consumed`);
       } catch (error) {
         result.errors.push(
           `${event.app}: retiring event ${event.key} failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -382,16 +364,24 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       cadenceWindow: turn.cadenceWindow,
       app: turn.app,
       role: turn.role,
-      triggerKind: turn.trigger === "blocked-retry" ? "recovery" : turn.triggerKind === "schedule" ? "schedule" : "event",
+      triggerKind:
+        turn.trigger === "blocked-retry" ? "recovery" : turn.triggerKind === "schedule" ? "schedule" : "event",
       trigger: turn.trigger,
       ...(turn.eventKey !== undefined ? { eventKey: turn.eventKey } : {}),
       now: tickAt,
     });
     const decisionId = claimed.record.decision_id;
-    let executingTurn = turn.triggerKind === "schedule"
-      ? { ...turn, decisionId }
-      : claimed.record.episode_id === null ? turn : { ...turn, turnId: claimed.record.episode_id, decisionId };
-    if (claimed.record.stage === "terminal" || claimed.record.stage === "spawned" || claimed.record.stage === "spawn_committed") {
+    let executingTurn =
+      turn.triggerKind === "schedule"
+        ? { ...turn, decisionId }
+        : claimed.record.episode_id === null
+          ? turn
+          : { ...turn, turnId: claimed.record.episode_id, decisionId };
+    if (
+      claimed.record.stage === "terminal" ||
+      claimed.record.stage === "spawned" ||
+      claimed.record.stage === "spawn_committed"
+    ) {
       if (turn.scheduleClaimId !== undefined) {
         const scheduleClaim = await dueClaims.read(turn.scheduleClaimId);
         const reason = scheduleClaim?.status === "settled" ? "already_settled" : "already_claimed";
@@ -434,9 +424,9 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     }
     let scheduleClaim: Awaited<ReturnType<ScheduleDueClaimStore["claim"]>> | undefined;
     if (
-      turn.triggerKind === "schedule"
-      && turn.scheduleClaimId !== undefined
-      && turn.scheduleClaimAttempt !== undefined
+      turn.triggerKind === "schedule" &&
+      turn.scheduleClaimId !== undefined &&
+      turn.scheduleClaimAttempt !== undefined
     ) {
       const payload = scheduleClaimPayload(
         schedulerOrgId(appsFile.org.name, orgRoot),
@@ -447,9 +437,9 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       );
       scheduleClaim = await dueClaims.claim(payload, tickAt, turn.explicitRetry === true);
       if (
-        scheduleClaim.disposition === "already_claimed"
-        || scheduleClaim.disposition === "already_settled"
-        || scheduleClaim.disposition === "retry_exhausted"
+        scheduleClaim.disposition === "already_claimed" ||
+        scheduleClaim.disposition === "already_settled" ||
+        scheduleClaim.disposition === "retry_exhausted"
       ) {
         await releaseLock(runtimeHome, turn.app, turn.role, lock.lock);
         const reason: SchedulerReasonCode = scheduleClaim.disposition;
@@ -464,20 +454,22 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       const runId = dueClaims.turnId(scheduleClaim.record.settlement_id, scheduleClaim.record.attempt);
       if (runId !== executingTurn.turnId) {
         await releaseLock(runtimeHome, turn.app, turn.role, lock.lock);
-        throw new Error(
-          `schedule claim run identity changed after lock: ${executingTurn.turnId} != ${runId}`,
-        );
+        throw new Error(`schedule claim run identity changed after lock: ${executingTurn.turnId} != ${runId}`);
       }
       executingTurn = {
         ...executingTurn,
         scheduleClaimId: scheduleClaim.record.settlement_id,
         scheduleClaimAttempt: scheduleClaim.record.attempt,
       };
-      await evidence.bindScheduleClaim(decisionId, {
-        settlementId: scheduleClaim.record.settlement_id,
-        attempt: scheduleClaim.record.attempt,
-        episodeId: runId,
-      }, tickAt);
+      await evidence.bindScheduleClaim(
+        decisionId,
+        {
+          settlementId: scheduleClaim.record.settlement_id,
+          attempt: scheduleClaim.record.attempt,
+          episodeId: runId,
+        },
+        tickAt,
+      );
       if (scheduleClaim.disposition === "explicit_retry") {
         result.skipped.push(
           `${turn.app}/${turn.role}: explicit_retry ${scheduleClaim.record.settlement_id} attempt ${scheduleClaim.record.attempt}`,
@@ -487,20 +479,25 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     await evidence.advanceDecision(decisionId, "lock_acquired", tickAt);
     await options.schedulerFault?.("after_scheduler_lock");
 
-    await writeJournalPatch(runtimeHome, executingTurn.turnId, {
-      role: turn.role,
-      app: turn.app,
-      phase: "assembling",
-      attempt: 0,
-      triggerKind: turn.triggerKind,
-      trigger: turn.trigger,
-      ...(turn.event !== undefined ? { event: turn.event } : {}),
-      pid: lock.lock.pid,
-      ...(lock.lock.processStartIdentity !== undefined
-        ? { processStartIdentity: lock.lock.processStartIdentity }
-        : {}),
-      ...(lock.lock.nonce !== undefined ? { processNonce: lock.lock.nonce } : {}),
-    }, tickAt);
+    await writeJournalPatch(
+      runtimeHome,
+      executingTurn.turnId,
+      {
+        role: turn.role,
+        app: turn.app,
+        phase: "assembling",
+        attempt: 0,
+        triggerKind: turn.triggerKind,
+        trigger: turn.trigger,
+        ...(turn.event !== undefined ? { event: turn.event } : {}),
+        pid: lock.lock.pid,
+        ...(lock.lock.processStartIdentity !== undefined
+          ? { processStartIdentity: lock.lock.processStartIdentity }
+          : {}),
+        ...(lock.lock.nonce !== undefined ? { processNonce: lock.lock.nonce } : {}),
+      },
+      tickAt,
+    );
     await evidence.advanceDecision(decisionId, "journaled", tickAt);
     await options.schedulerFault?.("after_tick_journal");
     if (scheduleClaim?.token !== undefined) {
@@ -579,9 +576,12 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
   }
   if (invocation !== undefined) {
     const terminal = result.errors.length > 0 ? "failed" : "completed";
-    const reason: SchedulerReasonCode = result.errors.length > 0
-      ? "scheduler_state_failure"
-      : due.length === 0 && blocked.length === 0 ? "no_due_work" : "executed";
+    const reason: SchedulerReasonCode =
+      result.errors.length > 0
+        ? "scheduler_state_failure"
+        : due.length === 0 && blocked.length === 0
+          ? "no_due_work"
+          : "executed";
     await evidence.finishInvocation(invocation.invocation_id, terminal, reason, tickAt);
     await options.schedulerFault?.("after_terminal_receipt");
   }
@@ -637,12 +637,15 @@ async function computeDueTurns(input: {
   const consumed = new Set(await input.eventStore.readConsumed());
   for (const journal of await listJournals(input.runtimeHome)) {
     if (journal.phase === "blocked_on_gate") {
-      due.push({ ...withDecision(input, {
-        app: journal.app,
-        role: journal.role,
-        triggerKind: journal.triggerKind ?? "event",
-        trigger: journal.trigger ?? "blocked-retry",
-      }), turnId: journal.turnId });
+      due.push({
+        ...withDecision(input, {
+          app: journal.app,
+          role: journal.role,
+          triggerKind: journal.triggerKind ?? "event",
+          trigger: journal.trigger ?? "blocked-retry",
+        }),
+        turnId: journal.turnId,
+      });
     }
   }
 
@@ -656,7 +659,15 @@ async function computeDueTurns(input: {
     }
     if (await isOverlayPaused(input.runtimeHome, app.name)) {
       input.result.skipped.push(`${app.name}: budget overlay paused`);
-      blocked.push({ app: app.name, role: "*", triggerKind: "mechanical", trigger: "budget-overlay", outcome: "blocked", reason: "budget_paused", detail: "app budget overlay paused" });
+      blocked.push({
+        app: app.name,
+        role: "*",
+        triggerKind: "mechanical",
+        trigger: "budget-overlay",
+        outcome: "blocked",
+        reason: "budget_paused",
+        detail: "app budget overlay paused",
+      });
       continue;
     }
 
@@ -723,7 +734,16 @@ async function computeDueTurns(input: {
             const route = resolveTriggerRoute({ role: role.name, trigger, channels });
             if (route.kind === "skip") {
               input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
-              blocked.push({ app: app.name, role: role.name, triggerKind: "event", trigger: trigger.event, eventKey: event.key, outcome: "blocked", reason: "channel_gated", detail: route.reason });
+              blocked.push({
+                app: app.name,
+                role: role.name,
+                triggerKind: "event",
+                trigger: trigger.event,
+                eventKey: event.key,
+                outcome: "blocked",
+                reason: "channel_gated",
+                detail: route.reason,
+              });
               continue;
             }
             due.push(eventTurn(input, app, role.name, trigger.event, event));
@@ -732,22 +752,29 @@ async function computeDueTurns(input: {
         if (trigger.schedule !== undefined) {
           const explicitRetry = existingScheduleClaims
             .filter((claim) => input.explicitScheduleRetries.has(claim.settlement_id))
-            .find((claim) => claim.payload.app === app.name
-              && claim.payload.role === role.name
-              && claim.payload.trigger === trigger.schedule);
+            .find(
+              (claim) =>
+                claim.payload.app === app.name &&
+                claim.payload.role === role.name &&
+                claim.payload.trigger === trigger.schedule,
+            );
           if (explicitRetry !== undefined) {
             matchedExplicitRetries.add(explicitRetry.settlement_id);
-            due.push(scheduleTurn(input, app.name, role.name, trigger.schedule, {
-              dueWindow: explicitRetry.payload.due_window,
-              settlementId: explicitRetry.settlement_id,
-              attempt: explicitRetry.attempt + 1,
-              explicitRetry: true,
-            }));
+            due.push(
+              scheduleTurn(input, app.name, role.name, trigger.schedule, {
+                dueWindow: explicitRetry.payload.due_window,
+                settlementId: explicitRetry.settlement_id,
+                attempt: explicitRetry.attempt + 1,
+                explicitRetry: true,
+              }),
+            );
             continue;
           }
           const stored = await input.schedule.lastFired(app.name, role.name, trigger.schedule);
           const evidenced = await input.evidence.lastSpawnedScheduleWindow(app.name, role.name, trigger.schedule);
-          const last = [stored, evidenced].filter((value): value is Date => value !== undefined).sort((a, b) => b.getTime() - a.getTime())[0];
+          const last = [stored, evidenced]
+            .filter((value): value is Date => value !== undefined)
+            .sort((a, b) => b.getTime() - a.getTime())[0];
           if (!isDue(trigger.schedule, last, input.now)) {
             input.result.skipped.push(`${app.name}/${role.name}: not_due (${trigger.schedule})`);
             blocked.push({
@@ -792,19 +819,29 @@ async function computeDueTurns(input: {
           }
           const route = resolveTriggerRoute({ role: role.name, trigger, channels });
           if (route.kind === "skip") {
-              input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
-              blocked.push({ app: app.name, role: role.name, triggerKind: "schedule", trigger: trigger.schedule, outcome: "blocked", reason: "channel_gated", detail: route.reason });
-              continue;
-            }
+            input.result.skipped.push(`${app.name}/${role.name}: ${route.reason}`);
+            blocked.push({
+              app: app.name,
+              role: role.name,
+              triggerKind: "schedule",
+              trigger: trigger.schedule,
+              outcome: "blocked",
+              reason: "channel_gated",
+              detail: route.reason,
+            });
+            continue;
+          }
           const dueWindow = scheduleDueWindow(trigger.schedule, input.now).toISOString();
           const payload = scheduleClaimPayload(input.orgId, app.name, role.name, trigger.schedule, dueWindow);
           const settlementId = input.dueClaims.settlementId(payload);
           const existing = existingScheduleClaims.find((claim) => claim.settlement_id === settlementId);
-          due.push(scheduleTurn(input, app.name, role.name, trigger.schedule, {
-            dueWindow,
-            settlementId,
-            attempt: existing?.attempt ?? 1,
-          }));
+          due.push(
+            scheduleTurn(input, app.name, role.name, trigger.schedule, {
+              dueWindow,
+              settlementId,
+              attempt: existing?.attempt ?? 1,
+            }),
+          );
         }
       }
     }
@@ -821,10 +858,17 @@ async function computeDueTurns(input: {
         input.result.skipped.push(
           `no_subscriber: ${app.name} event ${event.kind} (${event.key}) has no current subscriber`,
         );
-        blocked.push({ app: app.name, role: "*", triggerKind: "event", trigger: event.kind, eventKey: event.key, outcome: "skipped", reason: "no_subscriber", detail: "event has no current subscriber" });
-      } else if (
-        [...subscribers].every((name) => consumed.has(roleConsumedKey(event.key, name)))
-      ) {
+        blocked.push({
+          app: app.name,
+          role: "*",
+          triggerKind: "event",
+          trigger: event.kind,
+          eventKey: event.key,
+          outcome: "skipped",
+          reason: "no_subscriber",
+          detail: "event has no current subscriber",
+        });
+      } else if ([...subscribers].every((name) => consumed.has(roleConsumedKey(event.key, name)))) {
         retirable.push({ app: app.name, kind: event.kind, key: event.key });
       }
     }
@@ -839,7 +883,13 @@ async function computeDueTurns(input: {
   };
 }
 
-function eventTurn(input: { orgId: string; cadenceWindow: string }, app: AppEntry, role: string, trigger: string, event: DueEvent): DueTurn {
+function eventTurn(
+  input: { orgId: string; cadenceWindow: string },
+  app: AppEntry,
+  role: string,
+  trigger: string,
+  event: DueEvent,
+): DueTurn {
   return withDecision(input, {
     app: app.name,
     role,
@@ -883,12 +933,15 @@ function scheduleTurn(
   trigger: string,
   claim: { dueWindow: string; settlementId: string; attempt: number; explicitRetry?: boolean },
 ): DueTurn {
-  const turn = withDecision({ ...input, cadenceWindow: claim.dueWindow }, {
-    app,
-    role,
-    triggerKind: "schedule",
-    trigger,
-  });
+  const turn = withDecision(
+    { ...input, cadenceWindow: claim.dueWindow },
+    {
+      app,
+      role,
+      triggerKind: "schedule",
+      trigger,
+    },
+  );
   return {
     ...turn,
     turnId: scheduledEpisodeId(`${claim.settlementId}\0attempt:${claim.attempt}`),
@@ -941,7 +994,9 @@ async function recordBlockedDecision(
     now,
   });
   if (claimed.record.stage !== "terminal") {
-    await evidence.finishDecision(claimed.record.decision_id, blocker.outcome, blocker.reason, now, { detail: blocker.detail });
+    await evidence.finishDecision(claimed.record.decision_id, blocker.outcome, blocker.reason, now, {
+      detail: blocker.detail,
+    });
   }
 }
 
@@ -1004,13 +1059,9 @@ async function recoverableStaleLocks(
     if (!isStale(lock, now)) continue;
     try {
       const journal = await readJournal(runtimeHome, lock.turnId);
-      const deadOwner = lock.processStartIdentity !== undefined
-        && identityStatus(lock.pid, lock.processStartIdentity) === "mismatch";
-      if (
-        journal.phase === "assembling"
-        && precommitScheduleTurns.has(journal.turnId)
-        && deadOwner
-      ) {
+      const deadOwner =
+        lock.processStartIdentity !== undefined && identityStatus(lock.pid, lock.processStartIdentity) === "mismatch";
+      if (journal.phase === "assembling" && precommitScheduleTurns.has(journal.turnId) && deadOwner) {
         // A scheduled turn journals before its durable claim commit. If the
         // host dies in that exact window, the journal proves no provider was
         // constructed yet. Release only the dead process lock: the next tick
@@ -1030,8 +1081,8 @@ async function recoverableStaleLocks(
       result.skipped.push(`${lock.app}/${lock.role}: recovered ${recovered.decision.action}`);
     } catch (error) {
       const missingJournal = !existsSync(join(runtimeHome, "state", "turns", `${lock.turnId}.json`));
-      const deadOwner = lock.processStartIdentity !== undefined
-        && identityStatus(lock.pid, lock.processStartIdentity) === "mismatch";
+      const deadOwner =
+        lock.processStartIdentity !== undefined && identityStatus(lock.pid, lock.processStartIdentity) === "mismatch";
       if (missingJournal && deadOwner) {
         await releaseLock(runtimeHome, lock.app, lock.role, lock);
         result.skipped.push(`${lock.app}/${lock.role}: recovered stale pre-journal claim`);
@@ -1084,13 +1135,14 @@ async function killHungTurns(
         ...(journal.processGroupId !== undefined ? { processGroupId: journal.processGroupId } : {}),
       };
       const lockBeforeSignal = await readLock(runtimeHome, journal.app, journal.role).catch(() => undefined);
-      const ownershipBound = lockBeforeSignal !== undefined
-        && lockBeforeSignal.turnId === journal.turnId
-        && lockBeforeSignal.pid === journal.pid
-        && journal.processStartIdentity !== undefined
-        && lockBeforeSignal.processStartIdentity === journal.processStartIdentity
-        && journal.processNonce !== undefined
-        && lockBeforeSignal.nonce === journal.processNonce;
+      const ownershipBound =
+        lockBeforeSignal !== undefined &&
+        lockBeforeSignal.turnId === journal.turnId &&
+        lockBeforeSignal.pid === journal.pid &&
+        journal.processStartIdentity !== undefined &&
+        lockBeforeSignal.processStartIdentity === journal.processStartIdentity &&
+        journal.processNonce !== undefined &&
+        lockBeforeSignal.nonce === journal.processNonce;
       if (!ownershipBound) {
         result.skipped.push(
           `${journal.app}/${journal.role}: hung turn ${journal.turnId} ownership token mismatch; refusing to signal or recover`,
@@ -1098,9 +1150,10 @@ async function killHungTurns(
         recovered.add(journal.turnId);
         continue;
       }
-      const identity = journal.processStartIdentity === undefined
-        ? "unknown"
-        : death.identityStatus(journal.pid, journal.processStartIdentity);
+      const identity =
+        journal.processStartIdentity === undefined
+          ? "unknown"
+          : death.identityStatus(journal.pid, journal.processStartIdentity);
       if (identity === "unknown") {
         result.skipped.push(
           `${journal.app}/${journal.role}: hung turn ${journal.turnId} process identity unverified; refusing to signal or recover`,
@@ -1109,19 +1162,22 @@ async function killHungTurns(
         continue;
       }
       if (identity === "match") await signalTurnProcess(ownedProcess, "SIGTERM", kill);
-      await writeJournalPatch(runtimeHome, journal.turnId, {
-        role: journal.role,
-        app: journal.app,
-        message: "wall-clock cap exceeded; process killed for recovery",
-      }, now);
+      await writeJournalPatch(
+        runtimeHome,
+        journal.turnId,
+        {
+          role: journal.role,
+          app: journal.app,
+          message: "wall-clock cap exceeded; process killed for recovery",
+        },
+        now,
+      );
       // Do not enter recovery until the entire owned process tree is confirmed
       // dead. SIGTERM only requests termination; inspecting/resuming while the
       // old child (or a git/agent descendant) is still alive would let two
       // workers mutate one managed clone. Escalate to SIGKILL, and if any
       // owned process still refuses to die this tick, defer recovery.
-      const dead = identity === "mismatch"
-        ? true
-        : await ensureProcessDead(ownedProcess, { kill, ...death });
+      const dead = identity === "mismatch" ? true : await ensureProcessDead(ownedProcess, { kill, ...death });
       if (!dead) {
         result.skipped.push(
           `${journal.app}/${journal.role}: killed hung turn ${journal.turnId}; pid ${journal.pid} still alive, deferring recovery`,
@@ -1202,8 +1258,7 @@ async function ensureProcessDead(
   },
 ): Promise<boolean> {
   const alive = (): boolean =>
-    opts.pidAlive(journal.pid) ||
-    (journal.processGroupId !== undefined && opts.groupAlive(journal.processGroupId));
+    opts.pidAlive(journal.pid) || (journal.processGroupId !== undefined && opts.groupAlive(journal.processGroupId));
   if (!alive()) return true;
   const pollMs = Math.max(0, opts.pollMs);
   const attempts = Math.max(1, Math.ceil(opts.graceMs / Math.max(1, pollMs)));
@@ -1253,9 +1308,9 @@ async function listLocks(runtimeHome: string): Promise<TurnLock[]> {
 
 class GhEventSource implements GitHubEventSource {
   async ticketReady(app: AppEntry): Promise<{ issueNumber: number }[]> {
-    return (await new GhCliOps(app.repo).listIssues({ labels: ["op:ready"], state: "open" })).map(
-      (issue) => ({ issueNumber: issue.number }),
-    );
+    return (await new GhCliOps(app.repo).listIssues({ labels: ["op:ready"], state: "open" })).map((issue) => ({
+      issueNumber: issue.number,
+    }));
   }
 
   async prOpened(): Promise<{ prNumber: number; headSha: string }[]> {
@@ -1279,12 +1334,15 @@ class GhEventSource implements GitHubEventSource {
   }
 }
 
-async function spawnDetached(input: {
-  role: string;
-  app: string;
-  turnId: string;
-  runtimeHome: string;
-}, orgRoot: string): Promise<void> {
+async function spawnDetached(
+  input: {
+    role: string;
+    app: string;
+    turnId: string;
+    runtimeHome: string;
+  },
+  orgRoot: string,
+): Promise<void> {
   const args = [
     "run-role",
     input.role,

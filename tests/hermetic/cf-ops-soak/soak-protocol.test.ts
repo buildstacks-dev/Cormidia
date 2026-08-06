@@ -31,45 +31,65 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
       ];
       for (const [index, sleep] of sleeps.entries()) {
         clock.set(sleep[1]);
-        state = await recordSoakCheckpoint(config, checkpoint(`cp-${index}`, clock.nowIso(), sleep, index === 2), clock.nowDate());
+        state = await recordSoakCheckpoint(
+          config,
+          checkpoint(`cp-${index}`, clock.nowIso(), sleep, index === 2),
+          clock.nowDate(),
+        );
       }
       clock.set("2026-07-07T08:00:01.000Z");
       expect(evaluateSoak(state, clock.nowDate()).missing_reason_codes).toContain("soak_duration_incomplete");
       clock.set("2026-07-08T08:00:01.000Z");
-      state = await recordSoakCheckpoint(config, checkpoint("cp-final", clock.nowIso(), undefined, false, true), clock.nowDate());
+      state = await recordSoakCheckpoint(
+        config,
+        checkpoint("cp-final", clock.nowIso(), undefined, false, true),
+        clock.nowDate(),
+      );
       const blind = structuredClone(state);
       for (const item of blind.checkpoints) {
         item.source_health = item.source_health.map((source) =>
-          source.id === "ledger" ? { ...source, status: "unavailable" } : source);
+          source.id === "ledger" ? { ...source, status: "unavailable" } : source,
+        );
       }
       expect(evaluateSoak(blind, clock.nowDate()).missing_reason_codes).toContain("source_health_incomplete");
       expect(evaluateSoak(blind, clock.nowDate()).collected_case_ids).not.toContain("CF-OPS-SOAK");
       const report = await finishSoak(config, clock.nowDate());
       expect(report.outcome).toMatchObject({ completeness: "complete", verdict: "pass", violation_ids: [] });
       expect(report.coverage.missing_case_ids).toEqual([]);
-    } finally { await org.cleanup(); }
+    } finally {
+      await org.cleanup();
+    }
   });
 
   it("negative control: sleep cannot manufacture permission or a green result", async () => {
     const org = await makeTempOrgHome({ name: "soak-negative" });
     try {
-      const policy = join(org.root, "validation-policy.yaml"); await writeFile(policy, "schema_version: 1\n", "utf8");
+      const policy = join(org.root, "validation-policy.yaml");
+      await writeFile(policy, "schema_version: 1\n", "utf8");
       const config = await configFor(org, policy, "2026-07-01T00:00:00.000Z");
       await startSoak(config, new Date("2026-07-01T00:00:00.000Z"));
-      const seeded = checkpoint("seeded", "2026-07-09T12:00:00.000Z", ["2026-07-08T04:00:00.000Z", "2026-07-08T12:00:00.000Z"], false);
+      const seeded = checkpoint(
+        "seeded",
+        "2026-07-09T12:00:00.000Z",
+        ["2026-07-08T04:00:00.000Z", "2026-07-08T12:00:00.000Z"],
+        false,
+      );
       seeded.human_decision_rows = 1;
       await recordSoakCheckpoint(config, seeded);
       const report = await finishSoak(config, new Date("2026-07-09T12:00:00.000Z"));
       expect(report.outcome.verdict).toBe("fail");
       expect(report.outcome.violation_ids).toContain("CF-OPS-SOAK:sleep_permission_delta");
       expect(report.outcome.completeness).toBe("incomplete");
-    } finally { await org.cleanup(); }
+    } finally {
+      await org.cleanup();
+    }
   });
 
   it("negative control: config or policy drift cannot rewrite a resumed campaign", async () => {
     const org = await makeTempOrgHome({ name: "soak-binding" });
     try {
-      const policy = join(org.root, "validation-policy.yaml"); await writeFile(policy, "schema_version: 1\n", "utf8");
+      const policy = join(org.root, "validation-policy.yaml");
+      await writeFile(policy, "schema_version: 1\n", "utf8");
       const config = await configFor(org, policy, "2026-07-01T00:00:00.000Z");
       await startSoak(config, new Date("2026-07-01T00:00:00.000Z"));
       const evidence = checkpoint("bound", "2026-07-02T00:00:00.000Z");
@@ -77,7 +97,9 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
       await expect(recordSoakCheckpoint(drifted, evidence)).rejects.toThrow(/config drifted/);
       await writeFile(policy, "schema_version: 2\n", "utf8");
       await expect(recordSoakCheckpoint(config, evidence)).rejects.toThrow(/policy drifted/);
-    } finally { await org.cleanup(); }
+    } finally {
+      await org.cleanup();
+    }
   });
 
   it("negative control: batch success and cache/recovery accounting cannot exceed their durable denominators", () => {
@@ -101,26 +123,48 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
       units_observed: 1,
       cache_evidence: { hit: 1, miss: 1, unknown: 0 },
     };
-    expect(evaluateSoak(state, new Date("2026-07-09T12:00:00.000Z")).violation_ids).toEqual(expect.arrayContaining([
-      "CF-OPS-SOAK:batch_completion_exceeds_observed",
-      "CF-OPS-SOAK:batch_success_exceeds_completion",
-      "CF-OPS-SOAK:cache_evidence_accounting_mismatch",
-    ]));
+    expect(evaluateSoak(state, new Date("2026-07-09T12:00:00.000Z")).violation_ids).toEqual(
+      expect.arrayContaining([
+        "CF-OPS-SOAK:batch_completion_exceeds_observed",
+        "CF-OPS-SOAK:batch_success_exceeds_completion",
+        "CF-OPS-SOAK:cache_evidence_accounting_mismatch",
+      ]),
+    );
   });
 });
 
-async function configFor(org: Awaited<ReturnType<typeof makeTempOrgHome>>, policy: string, authorizedAt: string): Promise<SoakConfigV1> {
-  await writeFile(join(org.orgHome, "apps.yaml"), [
-    "schema_version: 1", `org: {name: ${org.orgName}, max_concurrent_turns: 2}`,
-    "defaults: {budget_usd_month: 100}",
-    "apps:", "  sandbox-app:", "    repo: fixture/sandbox-app", "    status: live",
-    "    budget_usd_month: 100", "    cadence: {}", "    channels: {}", "",
-  ].join("\n"), "utf8");
+async function configFor(
+  org: Awaited<ReturnType<typeof makeTempOrgHome>>,
+  policy: string,
+  authorizedAt: string,
+): Promise<SoakConfigV1> {
+  await writeFile(
+    join(org.orgHome, "apps.yaml"),
+    [
+      "schema_version: 1",
+      `org: {name: ${org.orgName}, max_concurrent_turns: 2}`,
+      "defaults: {budget_usd_month: 100}",
+      "apps:",
+      "  sandbox-app:",
+      "    repo: fixture/sandbox-app",
+      "    status: live",
+      "    budget_usd_month: 100",
+      "    cadence: {}",
+      "    channels: {}",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
   const apps = await loadApps(join(org.orgHome, "apps.yaml"));
   return {
     schema_version: 1,
     campaign_id: `soak-${org.orgName}`,
-    human_authorization: { human_initiated: true, authorized_by: "fixture-human", authorized_at: authorizedAt, purpose: "fixture" },
+    human_authorization: {
+      human_initiated: true,
+      authorized_by: "fixture-human",
+      authorized_at: authorizedAt,
+      purpose: "fixture",
+    },
     state_home: org.stateHome,
     org_home: org.orgHome,
     policy_path: policy,
@@ -140,23 +184,49 @@ function checkpoint(
   return {
     checkpoint_id: id,
     captured_at: at,
-    ...(sleep === undefined ? {} : { sleep_cycle: { slept_at: sleep[0], woke_at: sleep[1], overnight: localDay(sleep[0]) !== localDay(sleep[1]) } }),
-    ...(rotation ? { rotation: {
-      schema_version: 1, runtime: "codex", cause: "provider_auth_rotation", observed_without_injection: true,
-      interrupted_at: "2026-07-06T02:00:00.000Z", resumed_at: "2026-07-06T02:05:00.000Z",
-      session_id_before: "thread-rotation", session_id_after: "thread-rotation",
-      checkpoint_before_sha256: "b".repeat(64), checkpoint_after_sha256: "b".repeat(64), evidence_refs: ["runs/sandbox/rotation/events.jsonl"],
-    } } : {}),
+    ...(sleep === undefined
+      ? {}
+      : {
+          sleep_cycle: { slept_at: sleep[0], woke_at: sleep[1], overnight: localDay(sleep[0]) !== localDay(sleep[1]) },
+        }),
+    ...(rotation
+      ? {
+          rotation: {
+            schema_version: 1,
+            runtime: "codex",
+            cause: "provider_auth_rotation",
+            observed_without_injection: true,
+            interrupted_at: "2026-07-06T02:00:00.000Z",
+            resumed_at: "2026-07-06T02:05:00.000Z",
+            session_id_before: "thread-rotation",
+            session_id_after: "thread-rotation",
+            checkpoint_before_sha256: "b".repeat(64),
+            checkpoint_after_sha256: "b".repeat(64),
+            evidence_refs: ["runs/sandbox/rotation/events.jsonl"],
+          },
+        }
+      : {}),
     scheduler: {
       measurement_valid: true,
       reason_counts: { ...(missed ? { missed_window_reconciled: 1 } : {}) },
-      duplicate_decisions: 0, duplicate_episodes: 0, orphaned_locks: 0, orphaned_journals: 0, orphaned_runs: 0, orphaned_settlements: 0,
-      provider_settlement_agreement: true, active_locks: 0, wip_limit: 2,
+      duplicate_decisions: 0,
+      duplicate_episodes: 0,
+      orphaned_locks: 0,
+      orphaned_journals: 0,
+      orphaned_runs: 0,
+      orphaned_settlements: 0,
+      provider_settlement_agreement: true,
+      active_locks: 0,
+      wip_limit: 2,
     },
     spend: { provider_turns: 2, equiv_usd: 1, partial_usage_rows: 1 },
     state_growth: { files: 10, bytes: 1000 },
     retention: { completed_sweeps: 1, sweeps_with_errors: 0 },
-    source_health: [{ id: "local_files", status: "healthy" }, { id: "approvals", status: "healthy" }, { id: "ledger", status: "healthy" }],
+    source_health: [
+      { id: "local_files", status: "healthy" },
+      { id: "approvals", status: "healthy" },
+      { id: "ledger", status: "healthy" },
+    ],
     roadmap_delivery: {
       batches_observed: 1,
       batches_complete: 1,
@@ -166,9 +236,15 @@ function checkpoint(
       session_reuse: { consider_exact_reuse: 1, rerun_without_session: 1, no_cross_unit_reuse: 0 },
       cache_evidence: { hit: 1, miss: 0, unknown: 1 },
       recovery_states: {
-        not_started: 0, in_progress: 0, rerun_without_session: 1,
-        consider_exact_session_reuse: 1, no_cross_unit_reuse: 0,
-        terminal_completed: 0, terminal_returned: 0, terminal_failed: 0, unavailable: 0,
+        not_started: 0,
+        in_progress: 0,
+        rerun_without_session: 1,
+        consider_exact_session_reuse: 1,
+        no_cross_unit_reuse: 0,
+        terminal_completed: 0,
+        terminal_returned: 0,
+        terminal_failed: 0,
+        unavailable: 0,
       },
     },
     human_decision_rows: 0,
@@ -176,5 +252,10 @@ function checkpoint(
 }
 
 function localDay(value: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
 }

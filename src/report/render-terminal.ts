@@ -12,7 +12,9 @@ export function renderReportTerminal(report: ReportSnapshotV1): string {
   ];
   if (report.scope.kind === "app" && report.apps[0] !== undefined) {
     const app = report.apps[0];
-    lines.push(`Current month budget  $${app.current_month_spend_usd.toFixed(2)} / $${app.monthly_budget_usd.toFixed(2)} (${app.budget_percent.toFixed(1)}%, ${app.budget_status}, ${app.budget_paused ? "PAUSED" : "active"})`);
+    lines.push(
+      `Current month budget  $${app.current_month_spend_usd.toFixed(2)} / $${app.monthly_budget_usd.toFixed(2)} (${app.budget_percent.toFixed(1)}%, ${app.budget_status}, ${app.budget_paused ? "PAUSED" : "active"})`,
+    );
   } else {
     const warn = report.apps.filter((app) => app.budget_status !== "ok");
     lines.push(`Current month budgets  ${warn.length} app(s) warning or exceeded`);
@@ -23,12 +25,13 @@ export function renderReportTerminal(report: ReportSnapshotV1): string {
   if (report.validation_campaigns.reports.length > 0 || report.validation_campaigns.corrupt.length > 0) {
     lines.push("", "Validation campaigns");
     for (const campaign of report.validation_campaigns.reports) {
-      const verdict = campaign.outcome.verdict === "inconclusive"
-        ? "INCONCLUSIVE (NOT A PASS; NOT RELEASE EVIDENCE)"
-        : campaign.outcome.verdict.toUpperCase();
+      const verdict =
+        campaign.outcome.verdict === "inconclusive"
+          ? "INCONCLUSIVE (NOT A PASS; NOT RELEASE EVIDENCE)"
+          : campaign.outcome.verdict.toUpperCase();
       lines.push(
         `  ${campaign.campaign_id} · ${campaign.lane} · ${verdict} · completeness ${campaign.outcome.completeness} · ` +
-        `${campaign.coverage.collected_case_ids.length}/${campaign.coverage.required_case_ids.length} cases`,
+          `${campaign.coverage.collected_case_ids.length}/${campaign.coverage.required_case_ids.length} cases`,
       );
     }
     for (const corrupt of report.validation_campaigns.corrupt) {
@@ -39,15 +42,20 @@ export function renderReportTerminal(report: ReportSnapshotV1): string {
   if (report.roadmap_explanation.apps.length > 0) {
     lines.push("", "Roadmap / validation / delivery");
     for (const app of report.roadmap_explanation.apps) {
-      lines.push(`  ${app.app} · source ${app.source.status} · roadmap ${app.roadmap_plan?.durable_ref ?? "unavailable"}`);
-      if (app.source.affected_claims.length > 0) lines.push(`    affected claims: ${app.source.affected_claims.join(", ")}`);
+      lines.push(
+        `  ${app.app} · source ${app.source.status} · roadmap ${app.roadmap_plan?.durable_ref ?? "unavailable"}`,
+      );
+      if (app.source.affected_claims.length > 0)
+        lines.push(`    affected claims: ${app.source.affected_claims.join(", ")}`);
       for (const batch of app.batches) {
-        lines.push(`    batch ${batch.batch_id} · complete ${batch.complete} · every-unit-success ${batch.every_unit_success ?? "unknown"}`);
+        lines.push(
+          `    batch ${batch.batch_id} · complete ${batch.complete} · every-unit-success ${batch.every_unit_success ?? "unknown"}`,
+        );
       }
       for (const unit of app.delivery_units) {
         lines.push(
           `    unit ${unit.unit_id} · ${unit.kind} · fast-path ${unit.fast_path.reason} · cache ${unit.cache_evidence.measurement} · ` +
-          `routing-excluded ${unit.routing_exclusion.excluded ?? "unknown"} · recovery ${unit.recovery.state} · labels projection-only`,
+            `routing-excluded ${unit.routing_exclusion.excluded ?? "unknown"} · recovery ${unit.recovery.state} · labels projection-only`,
         );
       }
     }
@@ -77,13 +85,21 @@ export function renderReportTerminal(report: ReportSnapshotV1): string {
   const allocation = (report.scope.kind === "org" ? report.breakdowns.by_app : report.breakdowns.by_role).slice(0, 5);
   if (allocation.length > 0) {
     lines.push("", `Top ${report.scope.kind === "org" ? "apps" : "roles"}`);
-    for (const row of allocation) lines.push(`  ${row.label.padEnd(28)} ${formatInt(row.known_total_tokens).padStart(12)} tokens  $${row.recorded_equivalent_cost_usd.toFixed(2).padStart(8)}  ${row.turns} turn(s)`);
+    for (const row of allocation)
+      lines.push(
+        `  ${row.label.padEnd(28)} ${formatInt(row.known_total_tokens).padStart(12)} tokens  $${row.recorded_equivalent_cost_usd.toFixed(2).padStart(8)}  ${row.turns} turn(s)`,
+      );
   }
   if (report.sessions.items.length > 0) {
     lines.push("", "Recent sessions");
-    for (const session of report.sessions.items.slice(0, 5)) lines.push(`  ${session.id} · ${session.outcome} · ${session.provider_turns} turn(s) · $${session.recorded_equivalent_cost_usd.toFixed(2)}`);
+    for (const session of report.sessions.items.slice(0, 5))
+      lines.push(
+        `  ${session.id} · ${session.outcome} · ${session.provider_turns} turn(s) · $${session.recorded_equivalent_cost_usd.toFixed(2)}`,
+      );
   }
   return lines.join("\n");
 }
 
-function formatInt(value: number): string { return Math.round(value).toLocaleString("en-US"); }
+function formatInt(value: number): string {
+  return Math.round(value).toLocaleString("en-US");
+}

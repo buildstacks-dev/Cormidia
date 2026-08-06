@@ -1,9 +1,8 @@
 import type { GithubConformanceOptions } from "../fixtures/github-double/conformance/suite.js";
 
-export type ReleaseGithubConformanceOptions = Required<Pick<
-  GithubConformanceOptions,
-  "readBackAttempts" | "readBackDelayMs" | "labelSearchReadBackDelayMs"
->>;
+export type ReleaseGithubConformanceOptions = Required<
+  Pick<GithubConformanceOptions, "readBackAttempts" | "readBackDelayMs" | "labelSearchReadBackDelayMs">
+>;
 
 const DEFAULT_RELEASE_GITHUB_CONFORMANCE_OPTIONS: ReleaseGithubConformanceOptions = {
   readBackAttempts: 3,

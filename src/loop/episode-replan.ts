@@ -3,11 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { withFileLock, type FileLockOptions } from "../runtime/file-lock.js";
 import { writeLoopFileAtomic } from "./durable.js";
-import {
-  efficiencyEpisodeDir,
-  readRouteRecord,
-  routeRecordPath,
-} from "./efficiency.js";
+import { efficiencyEpisodeDir, readRouteRecord, routeRecordPath } from "./efficiency.js";
 import {
   EpisodePlanPersistenceError,
   episodePlanHash,
@@ -71,7 +67,10 @@ export type EpisodeReplanErrorCode =
   | "error_episode_replan_journal_corrupt";
 
 export class EpisodeReplanError extends Error {
-  constructor(readonly code: EpisodeReplanErrorCode, message: string) {
+  constructor(
+    readonly code: EpisodeReplanErrorCode,
+    message: string,
+  ) {
     super(message);
     this.name = "EpisodeReplanError";
   }
@@ -134,71 +133,66 @@ export async function requestEpisodeReplan(input: {
   const maxRevisions = input.maxRevisions ?? 2;
   assertMaxRevisions(maxRevisions);
   const now = input.now ?? new Date();
-  return withFileLock(
-    episodeReplanLockPath(input.root, input.episodeId),
-    DEFAULT_REPLAN_LOCK,
-    async () => {
-      const current = await readCurrentEpisodePlan(input.root, input.episodeId);
-      if (current === undefined) {
-        throw new EpisodeReplanError(
-          "error_episode_replan_plan_missing",
-          `episode ${input.episodeId} has no accepted plan to revise`,
-        );
-      }
-      if (current.version !== input.trigger.planVersion) {
-        throw new EpisodeReplanError(
-          "error_episode_replan_plan_version_changed",
-          `replan trigger targets v${input.trigger.planVersion}; current plan is v${current.version}`,
-        );
-      }
-      await assertEpisodeAcceptsReplan(input.root, input.episodeId);
-      const existing = await readEpisodeReplanJournal(input.root, input.episodeId);
-      const journal = existing ?? newJournal(input.episodeId, maxRevisions, now);
-      if (journal.maxRevisions !== maxRevisions) {
+  return withFileLock(episodeReplanLockPath(input.root, input.episodeId), DEFAULT_REPLAN_LOCK, async () => {
+    const current = await readCurrentEpisodePlan(input.root, input.episodeId);
+    if (current === undefined) {
+      throw new EpisodeReplanError(
+        "error_episode_replan_plan_missing",
+        `episode ${input.episodeId} has no accepted plan to revise`,
+      );
+    }
+    if (current.version !== input.trigger.planVersion) {
+      throw new EpisodeReplanError(
+        "error_episode_replan_plan_version_changed",
+        `replan trigger targets v${input.trigger.planVersion}; current plan is v${current.version}`,
+      );
+    }
+    await assertEpisodeAcceptsReplan(input.root, input.episodeId);
+    const existing = await readEpisodeReplanJournal(input.root, input.episodeId);
+    const journal = existing ?? newJournal(input.episodeId, maxRevisions, now);
+    if (journal.maxRevisions !== maxRevisions) {
+      throw new EpisodeReplanError(
+        "error_episode_replan_invalid",
+        `replan allowance is already fixed at ${journal.maxRevisions}`,
+      );
+    }
+    const hash = stableHash(input.trigger);
+    const prior = journal.records.find((record) => record.trigger.id === input.trigger.id);
+    if (prior !== undefined) {
+      if (prior.triggerSha256 !== hash) {
         throw new EpisodeReplanError(
           "error_episode_replan_invalid",
-          `replan allowance is already fixed at ${journal.maxRevisions}`,
+          `replan trigger id ${input.trigger.id} was reused with different content`,
         );
       }
-      const hash = stableHash(input.trigger);
-      const prior = journal.records.find((record) => record.trigger.id === input.trigger.id);
-      if (prior !== undefined) {
-        if (prior.triggerSha256 !== hash) {
-          throw new EpisodeReplanError(
-            "error_episode_replan_invalid",
-            `replan trigger id ${input.trigger.id} was reused with different content`,
-          );
-        }
-        return prior;
-      }
-      // Version is the durable bound even if a historical journal is absent;
-      // every accepted revision increments it exactly once.
-      if (current.version - 1 >= maxRevisions ||
-          journal.records.some((record) => record.status === "pending")) {
-        throw new EpisodeReplanError(
-          "error_episode_replan_allowance_exhausted",
-          current.version - 1 >= maxRevisions
-            ? `episode ${input.episodeId} exhausted its ${maxRevisions} revision allowance`
-            : `episode ${input.episodeId} already has a pending replan request`,
-        );
-      }
-      const record: EpisodeReplanRecord = {
-        trigger: structuredClone(input.trigger),
-        triggerSha256: hash,
-        status: "pending",
-        requestedAt: now.toISOString(),
-        resolvedAt: null,
-        revisionVersion: null,
-        reason: null,
-      };
-      await writeJournal(input.root, {
-        ...journal,
-        records: [...journal.records, record],
-        updatedAt: now.toISOString(),
-      });
-      return record;
-    },
-  );
+      return prior;
+    }
+    // Version is the durable bound even if a historical journal is absent;
+    // every accepted revision increments it exactly once.
+    if (current.version - 1 >= maxRevisions || journal.records.some((record) => record.status === "pending")) {
+      throw new EpisodeReplanError(
+        "error_episode_replan_allowance_exhausted",
+        current.version - 1 >= maxRevisions
+          ? `episode ${input.episodeId} exhausted its ${maxRevisions} revision allowance`
+          : `episode ${input.episodeId} already has a pending replan request`,
+      );
+    }
+    const record: EpisodeReplanRecord = {
+      trigger: structuredClone(input.trigger),
+      triggerSha256: hash,
+      status: "pending",
+      requestedAt: now.toISOString(),
+      resolvedAt: null,
+      revisionVersion: null,
+      reason: null,
+    };
+    await writeJournal(input.root, {
+      ...journal,
+      records: [...journal.records, record],
+      updatedAt: now.toISOString(),
+    });
+    return record;
+  });
 }
 
 /** Publish one already-proposed revision through the same deterministic plan
@@ -215,121 +209,114 @@ export async function publishEpisodePlanRevision(input: {
   afterPlanPersisted?: () => void | Promise<void>;
 }): Promise<EpisodeReplanRecord> {
   const now = input.now ?? new Date();
-  return withFileLock(
-    episodeReplanLockPath(input.root, input.intent.episodeId),
-    DEFAULT_REPLAN_LOCK,
-    async () => {
-      const journal = await requireJournal(input.root, input.intent.episodeId);
-      const index = journal.records.findIndex((record) => record.trigger.id === input.requestId);
-      if (index < 0) {
-        throw new EpisodeReplanError(
-          "error_episode_replan_request_missing",
-          `replan request ${input.requestId} does not exist`,
-        );
-      }
-      const request = journal.records[index]!;
-      if (request.status === "accepted") {
-        const current = await readCurrentEpisodePlan(input.root, input.intent.episodeId);
-        if (current?.version === request.revisionVersion && stableHash(current) === stableHash(input.plan)) {
-          return request;
-        }
-      }
-      if (request.status === "pending") {
-        const current = await readCurrentEpisodePlan(input.root, input.intent.episodeId);
-        // Crash recovery: immutable plan publication and pointer advancement
-        // deliberately precede the replan-journal projection. If the process
-        // died between those writes, the identical retry completes the
-        // journal transition instead of rejecting its own already-published
-        // revision as a version mismatch.
-        if (
-          current?.version === request.trigger.planVersion + 1 &&
-          input.plan.version === current.version &&
-          stableHash(current) === stableHash(input.plan)
-        ) {
-          const accepted: EpisodeReplanRecord = {
-            ...request,
-            status: "accepted",
-            resolvedAt: now.toISOString(),
-            revisionVersion: current.version,
-            reason: null,
-          };
-          const records = [...journal.records];
-          records[index] = accepted;
-          await writeJournal(input.root, { ...journal, records, updatedAt: now.toISOString() });
-          return accepted;
-        }
-      }
-      if (request.status !== "pending") {
-        throw new EpisodeReplanError(
-          "error_episode_replan_request_not_pending",
-          `replan request ${input.requestId} is ${request.status}`,
-        );
-      }
+  return withFileLock(episodeReplanLockPath(input.root, input.intent.episodeId), DEFAULT_REPLAN_LOCK, async () => {
+    const journal = await requireJournal(input.root, input.intent.episodeId);
+    const index = journal.records.findIndex((record) => record.trigger.id === input.requestId);
+    if (index < 0) {
+      throw new EpisodeReplanError(
+        "error_episode_replan_request_missing",
+        `replan request ${input.requestId} does not exist`,
+      );
+    }
+    const request = journal.records[index]!;
+    if (request.status === "accepted") {
       const current = await readCurrentEpisodePlan(input.root, input.intent.episodeId);
-      if (current === undefined) {
+      if (current?.version === request.revisionVersion && stableHash(current) === stableHash(input.plan)) {
+        return request;
+      }
+    }
+    if (request.status === "pending") {
+      const current = await readCurrentEpisodePlan(input.root, input.intent.episodeId);
+      // Crash recovery: immutable plan publication and pointer advancement
+      // deliberately precede the replan-journal projection. If the process
+      // died between those writes, the identical retry completes the
+      // journal transition instead of rejecting its own already-published
+      // revision as a version mismatch.
+      if (
+        current?.version === request.trigger.planVersion + 1 &&
+        input.plan.version === current.version &&
+        stableHash(current) === stableHash(input.plan)
+      ) {
+        const accepted: EpisodeReplanRecord = {
+          ...request,
+          status: "accepted",
+          resolvedAt: now.toISOString(),
+          revisionVersion: current.version,
+          reason: null,
+        };
+        const records = [...journal.records];
+        records[index] = accepted;
+        await writeJournal(input.root, { ...journal, records, updatedAt: now.toISOString() });
+        return accepted;
+      }
+    }
+    if (request.status !== "pending") {
+      throw new EpisodeReplanError(
+        "error_episode_replan_request_not_pending",
+        `replan request ${input.requestId} is ${request.status}`,
+      );
+    }
+    const current = await readCurrentEpisodePlan(input.root, input.intent.episodeId);
+    if (current === undefined) {
+      throw new EpisodeReplanError(
+        "error_episode_replan_plan_missing",
+        `episode ${input.intent.episodeId} has no accepted plan to revise`,
+      );
+    }
+    if (current.version !== request.trigger.planVersion || input.plan.version !== current.version + 1) {
+      throw new EpisodeReplanError(
+        "error_episode_replan_plan_version_changed",
+        `request ${input.requestId} targets v${request.trigger.planVersion}; current is v${current.version} and proposal is v${input.plan.version}`,
+      );
+    }
+    await assertEpisodeAcceptsReplan(input.root, input.intent.episodeId);
+    try {
+      // persistEpisodePlan acquires the shared plan/execution lock before it
+      // reads journal authority. Keep the global order replan -> plan so a
+      // provider step and a revision can never cross between that read and
+      // current-pointer publication.
+      await persistEpisodePlanRevisionFromReplan({
+        root: input.root,
+        plan: input.plan,
+        intent: input.intent,
+        policy: input.policy,
+        authority: {
+          requestId: input.requestId,
+          expectedCurrentVersion: current.version,
+          expectedCurrentPlanHash: episodePlanHash(current),
+        },
+      });
+      await input.afterPlanPersisted?.();
+    } catch (error) {
+      if (
+        error instanceof EpisodePlanPersistenceError &&
+        error.code === "error_episode_plan_revision_execution_active"
+      ) {
         throw new EpisodeReplanError(
-          "error_episode_replan_plan_missing",
-          `episode ${input.intent.episodeId} has no accepted plan to revise`,
+          "error_episode_replan_execution_active",
+          `episode ${input.intent.episodeId} has an unterminated step execution`,
         );
       }
-      if (current.version !== request.trigger.planVersion || input.plan.version !== current.version + 1) {
+      if (error instanceof EpisodePlanPersistenceError && error.code === "error_episode_plan_revision_terminal") {
         throw new EpisodeReplanError(
-          "error_episode_replan_plan_version_changed",
-          `request ${input.requestId} targets v${request.trigger.planVersion}; current is v${current.version} and proposal is v${input.plan.version}`,
+          "error_episode_replan_terminal",
+          `terminal episode ${input.intent.episodeId} cannot publish a plan revision`,
         );
       }
-      await assertEpisodeAcceptsReplan(input.root, input.intent.episodeId);
-      try {
-        // persistEpisodePlan acquires the shared plan/execution lock before it
-        // reads journal authority. Keep the global order replan -> plan so a
-        // provider step and a revision can never cross between that read and
-        // current-pointer publication.
-        await persistEpisodePlanRevisionFromReplan({
-          root: input.root,
-          plan: input.plan,
-          intent: input.intent,
-          policy: input.policy,
-          authority: {
-            requestId: input.requestId,
-            expectedCurrentVersion: current.version,
-            expectedCurrentPlanHash: episodePlanHash(current),
-          },
-        });
-        await input.afterPlanPersisted?.();
-      } catch (error) {
-        if (
-          error instanceof EpisodePlanPersistenceError &&
-          error.code === "error_episode_plan_revision_execution_active"
-        ) {
-          throw new EpisodeReplanError(
-            "error_episode_replan_execution_active",
-            `episode ${input.intent.episodeId} has an unterminated step execution`,
-          );
-        }
-        if (
-          error instanceof EpisodePlanPersistenceError &&
-          error.code === "error_episode_plan_revision_terminal"
-        ) {
-          throw new EpisodeReplanError(
-            "error_episode_replan_terminal",
-            `terminal episode ${input.intent.episodeId} cannot publish a plan revision`,
-          );
-        }
-        throw error;
-      }
-      const accepted: EpisodeReplanRecord = {
-        ...request,
-        status: "accepted",
-        resolvedAt: now.toISOString(),
-        revisionVersion: input.plan.version,
-        reason: null,
-      };
-      const records = [...journal.records];
-      records[index] = accepted;
-      await writeJournal(input.root, { ...journal, records, updatedAt: now.toISOString() });
-      return accepted;
-    },
-  );
+      throw error;
+    }
+    const accepted: EpisodeReplanRecord = {
+      ...request,
+      status: "accepted",
+      resolvedAt: now.toISOString(),
+      revisionVersion: input.plan.version,
+      reason: null,
+    };
+    const records = [...journal.records];
+    records[index] = accepted;
+    await writeJournal(input.root, { ...journal, records, updatedAt: now.toISOString() });
+    return accepted;
+  });
 }
 
 async function assertEpisodeAcceptsReplan(root: string, episodeId: string): Promise<void> {
@@ -345,10 +332,7 @@ async function assertEpisodeAcceptsReplan(root: string, episodeId: string): Prom
   const execution = await import("./episode-plan-executor.js");
   const journal = await execution.readEpisodePlanExecutionJournal(root, episodeId);
   if (journal?.status === "completed") {
-    throw new EpisodeReplanError(
-      "error_episode_replan_terminal",
-      `completed episode ${episodeId} cannot be replanned`,
-    );
+    throw new EpisodeReplanError("error_episode_replan_terminal", `completed episode ${episodeId} cannot be replanned`);
   }
 }
 
@@ -363,32 +347,34 @@ export async function rejectEpisodeReplan(input: {
     throw new EpisodeReplanError("error_episode_replan_invalid", "replan rejection requires a reason");
   }
   const now = input.now ?? new Date();
-  return withFileLock(
-    episodeReplanLockPath(input.root, input.episodeId),
-    DEFAULT_REPLAN_LOCK,
-    async () => {
-      const journal = await requireJournal(input.root, input.episodeId);
-      const index = journal.records.findIndex((record) => record.trigger.id === input.requestId);
-      if (index < 0) {
-        throw new EpisodeReplanError("error_episode_replan_request_missing", `replan request ${input.requestId} does not exist`);
-      }
-      const request = journal.records[index]!;
-      if (request.status !== "pending") {
-        throw new EpisodeReplanError("error_episode_replan_request_not_pending", `replan request ${input.requestId} is ${request.status}`);
-      }
-      const rejected: EpisodeReplanRecord = {
-        ...request,
-        status: "rejected",
-        resolvedAt: now.toISOString(),
-        revisionVersion: null,
-        reason: input.reason.trim(),
-      };
-      const records = [...journal.records];
-      records[index] = rejected;
-      await writeJournal(input.root, { ...journal, records, updatedAt: now.toISOString() });
-      return rejected;
-    },
-  );
+  return withFileLock(episodeReplanLockPath(input.root, input.episodeId), DEFAULT_REPLAN_LOCK, async () => {
+    const journal = await requireJournal(input.root, input.episodeId);
+    const index = journal.records.findIndex((record) => record.trigger.id === input.requestId);
+    if (index < 0) {
+      throw new EpisodeReplanError(
+        "error_episode_replan_request_missing",
+        `replan request ${input.requestId} does not exist`,
+      );
+    }
+    const request = journal.records[index]!;
+    if (request.status !== "pending") {
+      throw new EpisodeReplanError(
+        "error_episode_replan_request_not_pending",
+        `replan request ${input.requestId} is ${request.status}`,
+      );
+    }
+    const rejected: EpisodeReplanRecord = {
+      ...request,
+      status: "rejected",
+      resolvedAt: now.toISOString(),
+      revisionVersion: null,
+      reason: input.reason.trim(),
+    };
+    const records = [...journal.records];
+    records[index] = rejected;
+    await writeJournal(input.root, { ...journal, records, updatedAt: now.toISOString() });
+    return rejected;
+  });
 }
 
 function newJournal(episodeId: string, maxRevisions: number, now: Date): EpisodeReplanJournal {
@@ -411,18 +397,21 @@ async function requireJournal(root: string, episodeId: string): Promise<EpisodeR
 }
 
 async function writeJournal(root: string, journal: EpisodeReplanJournal): Promise<void> {
-  await writeLoopFileAtomic(
-    episodeReplanJournalPath(root, journal.episodeId),
-    `${JSON.stringify(journal, null, 2)}\n`,
-  );
+  await writeLoopFileAtomic(episodeReplanJournalPath(root, journal.episodeId), `${JSON.stringify(journal, null, 2)}\n`);
 }
 
 function validateTrigger(trigger: EpisodeReplanTrigger): void {
-  if (!ID.test(trigger.id) || !EPISODE_REPLAN_EVENT_KINDS.includes(trigger.kind) ||
-      !Number.isSafeInteger(trigger.planVersion) || trigger.planVersion < 1 ||
-      !validTimestamp(trigger.detectedAt) || trigger.summary.trim().length === 0 ||
-      !nonEmptyStrings(trigger.evidenceRefs) ||
-      !Array.isArray(trigger.affectedStepIds) || trigger.affectedStepIds.some((id) => !ID.test(id))) {
+  if (
+    !ID.test(trigger.id) ||
+    !EPISODE_REPLAN_EVENT_KINDS.includes(trigger.kind) ||
+    !Number.isSafeInteger(trigger.planVersion) ||
+    trigger.planVersion < 1 ||
+    !validTimestamp(trigger.detectedAt) ||
+    trigger.summary.trim().length === 0 ||
+    !nonEmptyStrings(trigger.evidenceRefs) ||
+    !Array.isArray(trigger.affectedStepIds) ||
+    trigger.affectedStepIds.some((id) => !ID.test(id))
+  ) {
     throw new EpisodeReplanError(
       "error_episode_replan_invalid",
       "replan trigger requires a typed event, current plan version, summary, evidence, and stable affected step ids",
@@ -437,22 +426,35 @@ function assertMaxRevisions(value: number): void {
 }
 
 function isJournal(value: unknown): value is EpisodeReplanJournal {
-  if (!isRecord(value) || value["schemaVersion"] !== EPISODE_REPLAN_JOURNAL_VERSION ||
-      typeof value["episodeId"] !== "string" || !Number.isSafeInteger(value["maxRevisions"]) ||
-      !Array.isArray(value["records"]) || typeof value["createdAt"] !== "string" ||
-      typeof value["updatedAt"] !== "string") return false;
-  return value["records"].every((record) => isRecord(record) && isRecord(record["trigger"]) &&
-    typeof record["triggerSha256"] === "string" &&
-    ["pending", "accepted", "rejected"].includes(String(record["status"])) &&
-    typeof record["requestedAt"] === "string" &&
-    (record["resolvedAt"] === null || typeof record["resolvedAt"] === "string") &&
-    (record["revisionVersion"] === null || Number.isSafeInteger(record["revisionVersion"])) &&
-    (record["reason"] === null || typeof record["reason"] === "string"));
+  if (
+    !isRecord(value) ||
+    value["schemaVersion"] !== EPISODE_REPLAN_JOURNAL_VERSION ||
+    typeof value["episodeId"] !== "string" ||
+    !Number.isSafeInteger(value["maxRevisions"]) ||
+    !Array.isArray(value["records"]) ||
+    typeof value["createdAt"] !== "string" ||
+    typeof value["updatedAt"] !== "string"
+  )
+    return false;
+  return value["records"].every(
+    (record) =>
+      isRecord(record) &&
+      isRecord(record["trigger"]) &&
+      typeof record["triggerSha256"] === "string" &&
+      ["pending", "accepted", "rejected"].includes(String(record["status"])) &&
+      typeof record["requestedAt"] === "string" &&
+      (record["resolvedAt"] === null || typeof record["resolvedAt"] === "string") &&
+      (record["revisionVersion"] === null || Number.isSafeInteger(record["revisionVersion"])) &&
+      (record["reason"] === null || typeof record["reason"] === "string"),
+  );
 }
 
 function nonEmptyStrings(value: unknown): value is string[] {
-  return Array.isArray(value) && value.length > 0 &&
-    value.every((entry) => typeof entry === "string" && entry.trim().length > 0);
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((entry) => typeof entry === "string" && entry.trim().length > 0)
+  );
 }
 
 function validTimestamp(value: string): boolean {

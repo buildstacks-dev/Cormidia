@@ -11,11 +11,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultGate } from "../../../src/runtime/gate.js";
 import type { ToolAction } from "../../../src/runtime/types.js";
-import {
-  ApprovalStore,
-  NEVER_SCOPEABLE_RULES,
-  type ApprovalLogEvent,
-} from "../../../src/org/approvals.js";
+import { ApprovalStore, NEVER_SCOPEABLE_RULES, type ApprovalLogEvent } from "../../../src/org/approvals.js";
 import { composeGate } from "../../../src/org/gate-compose.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
@@ -111,14 +107,11 @@ describe("CF-J05-R — deny path, never-scopeable refusals, unknown-item refusal
         ticketRef: "#12",
         now: clock.nowDate(),
       });
-      for (const scope of [
-        { kind: "app" as const },
-        { kind: "ticket" as const, pathContains: "src/" },
-      ]) {
+      for (const scope of [{ kind: "app" as const }, { kind: "ticket" as const, pathContains: "src/" }]) {
         // SEEDED VIOLATION: the human tries to widen this rule's grant.
-        await expect(
-          store.decide(raised.id, { decision: "approved", scope, now: clock.nowDate() }),
-        ).rejects.toThrow(/never scopeable/);
+        await expect(store.decide(raised.id, { decision: "approved", scope, now: clock.nowDate() })).rejects.toThrow(
+          /never scopeable/,
+        );
       }
       // Refusal left the item pending, grantless, execution-free.
       const stillPending = (await store.listPending()).find((item) => item.id === raised.id);
@@ -135,7 +128,9 @@ describe("CF-J05-R — deny path, never-scopeable refusals, unknown-item refusal
 
   it("unknown items are refused on every decision/read surface", async () => {
     const { store, clock } = await makeStore();
-    await expect(store.decide("20260731T000000Z-none", { decision: "approved", now: clock.nowDate() })).rejects.toThrow();
+    await expect(
+      store.decide("20260731T000000Z-none", { decision: "approved", now: clock.nowDate() }),
+    ).rejects.toThrow();
     await expect(store.show("20260731T000000Z-none")).rejects.toThrow(/not found/);
     await expect(
       store.dispositionExecution({

@@ -45,26 +45,36 @@ async function makeWorld(name: string): Promise<OnboardingWorld> {
       { path: "README.md", contents: `# ${name}\n`, message: "fixture: readme" },
       {
         path: "package.json",
-        contents: JSON.stringify({
-          name,
-          version: "1.0.0",
-          private: true,
-          scripts: {
-            test: "node -e \"process.exit(0)\"",
-            lint: "node -e \"process.exit(0)\"",
-          },
-        }, null, 2) + "\n",
+        contents:
+          JSON.stringify(
+            {
+              name,
+              version: "1.0.0",
+              private: true,
+              scripts: {
+                test: 'node -e "process.exit(0)"',
+                lint: 'node -e "process.exit(0)"',
+              },
+            },
+            null,
+            2,
+          ) + "\n",
         message: "fixture: package contract",
       },
       {
         path: "package-lock.json",
-        contents: JSON.stringify({
-          name,
-          version: "1.0.0",
-          lockfileVersion: 3,
-          requires: true,
-          packages: { "": { name, version: "1.0.0" } },
-        }, null, 2) + "\n",
+        contents:
+          JSON.stringify(
+            {
+              name,
+              version: "1.0.0",
+              lockfileVersion: 3,
+              requires: true,
+              packages: { "": { name, version: "1.0.0" } },
+            },
+            null,
+            2,
+          ) + "\n",
         message: "fixture: lock dependencies",
       },
     ],
@@ -150,40 +160,36 @@ describe("CF-J02-S/R — onboarding earns only registered until verification", (
     );
     expect(second.onboardingCommit).toBe(first.onboardingCommit);
     expect(second.managedClone).toBe(first.managedClone);
-    expect((await loadApps(join(world.lifecycle.target, "apps.yaml"))).apps.filter(
-      (entry) => entry.name === world.appName,
-    )).toHaveLength(1);
+    expect(
+      (await loadApps(join(world.lifecycle.target, "apps.yaml"))).apps.filter((entry) => entry.name === world.appName),
+    ).toHaveLength(1);
   });
 
   it("refuses incomplete non-interactive answers before creating lifecycle state", async () => {
     const world = await makeWorld("onboarding-refusal");
-    await expect(bootstrapFromRecoveredAnswers(
-      world.source.dir,
-      { product: "missing required answers" },
-      bootstrapOptions(world),
-    )).rejects.toThrow(/good.*required|roles must be a non-empty list/);
-    expect((await loadApps(join(world.lifecycle.target, "apps.yaml"))).apps.some(
-      (entry) => entry.name === world.appName,
-    )).toBe(false);
+    await expect(
+      bootstrapFromRecoveredAnswers(world.source.dir, { product: "missing required answers" }, bootstrapOptions(world)),
+    ).rejects.toThrow(/good.*required|roles must be a non-empty list/);
+    expect(
+      (await loadApps(join(world.lifecycle.target, "apps.yaml"))).apps.some((entry) => entry.name === world.appName),
+    ).toBe(false);
   });
 });
 
 describe("CF-J02-I/RC — lifecycle interruption and convergence", () => {
   it("rolls back a bootstrap interrupted after registry write and converges on rerun", async () => {
     const world = await makeWorld("onboarding-recovery");
-    await expect(bootstrapFromRecoveredAnswers(
-      world.source.dir,
-      answers(world.appName),
-      {
+    await expect(
+      bootstrapFromRecoveredAnswers(world.source.dir, answers(world.appName), {
         ...bootstrapOptions(world),
         fault: (point) => {
           if (point === "after_registry_write") throw new Error("fixture bootstrap crash");
         },
-      },
-    )).rejects.toThrow(/fixture bootstrap crash/);
-    expect((await loadApps(join(world.lifecycle.target, "apps.yaml"))).apps.some(
-      (entry) => entry.name === world.appName,
-    )).toBe(false);
+      }),
+    ).rejects.toThrow(/fixture bootstrap crash/);
+    expect(
+      (await loadApps(join(world.lifecycle.target, "apps.yaml"))).apps.some((entry) => entry.name === world.appName),
+    ).toBe(false);
 
     const recovered = await bootstrapFromRecoveredAnswers(
       world.source.dir,
@@ -191,9 +197,9 @@ describe("CF-J02-I/RC — lifecycle interruption and convergence", () => {
       bootstrapOptions(world),
     );
     expect(recovered.onboardingCommit).toMatch(/^[a-f0-9]{40}$/);
-    expect((await loadApps(join(world.lifecycle.target, "apps.yaml"))).apps.filter(
-      (entry) => entry.name === world.appName,
-    )).toHaveLength(1);
+    expect(
+      (await loadApps(join(world.lifecycle.target, "apps.yaml"))).apps.filter((entry) => entry.name === world.appName),
+    ).toHaveLength(1);
   });
 
   it("resumes promotion after the push boundary and becomes idempotently live", async () => {
@@ -211,16 +217,25 @@ describe("CF-J02-I/RC — lifecycle interruption and convergence", () => {
       runtimeReadiness: runtimeReady,
     };
     const readiness = await verifyApp(common);
-    expect(readiness).toMatchObject({ status: "ready", evidence_state: "runtime-ready", registry_status: "onboarding" });
+    expect(readiness).toMatchObject({
+      status: "ready",
+      evidence_state: "runtime-ready",
+      registry_status: "onboarding",
+    });
     const preview = await planAppPromotion(common);
     expect(preview).toMatchObject({ executable: true, idempotent: false, from: "onboarding", to: "live" });
 
-    await expect(executeAppPromotion({
-      ...common,
-      fault: (point) => {
-        if (point === "after_push") throw new Error("fixture promotion crash after push");
-      },
-    }, preview)).rejects.toThrow(/fixture promotion crash after push/);
+    await expect(
+      executeAppPromotion(
+        {
+          ...common,
+          fault: (point) => {
+            if (point === "after_push") throw new Error("fixture promotion crash after push");
+          },
+        },
+        preview,
+      ),
+    ).rejects.toThrow(/fixture promotion crash after push/);
     const journalPath = join(world.lifecycle.stateHome, "lifecycle", "apps", world.appName, "promotion.json");
     expect(JSON.parse(await readFile(journalPath, "utf8"))).toMatchObject({ phase: "config_committed" });
 

@@ -50,7 +50,10 @@ export class DurableCampaignRunner {
   private reservationRefused = false;
 
   constructor(options: CampaignRunnerOptions) {
-    if (new Set(options.requiredCaseIds).size !== options.requiredCaseIds.length || options.requiredCaseIds.length === 0) {
+    if (
+      new Set(options.requiredCaseIds).size !== options.requiredCaseIds.length ||
+      options.requiredCaseIds.length === 0
+    ) {
       throw new Error("campaign runner requires a non-empty unique case walk");
     }
     this.options = options;
@@ -117,8 +120,10 @@ export class DurableCampaignRunner {
     execute: () => Promise<CampaignCaseResult>,
   ): Promise<CampaignCaseResult | undefined> {
     const report = this.mutableReport();
-    if (!report.coverage.required_case_ids.includes(caseId)) throw new Error(`campaign case ${caseId} is not in the required walk`);
-    if (report.coverage.collected_case_ids.includes(caseId)) throw new Error(`campaign case ${caseId} was already collected`);
+    if (!report.coverage.required_case_ids.includes(caseId))
+      throw new Error(`campaign case ${caseId} is not in the required walk`);
+    if (report.coverage.collected_case_ids.includes(caseId))
+      throw new Error(`campaign case ${caseId} was already collected`);
     assertSpend(reservation.providerTurns, reservation.maxEquivUsd, `case ${caseId} reservation`);
     if (
       report.spend.observed_provider_turns + reservation.providerTurns > report.spend.max_provider_turns ||
@@ -177,7 +182,8 @@ export class DurableCampaignRunner {
   async finish(): Promise<ValidationCampaignReportV1> {
     const report = this.mutableReport();
     report.outcome.reason_codes = report.outcome.reason_codes.filter((code) => code !== "campaign_running");
-    if (this.reservationRefused) report.outcome.reason_codes = unique([...report.outcome.reason_codes, "spend_reservation_refused"]);
+    if (this.reservationRefused)
+      report.outcome.reason_codes = unique([...report.outcome.reason_codes, "spend_reservation_refused"]);
     this.recomputeOutcome(true);
     report.status = "completed";
     report.finished_at = this.clock().toISOString();
@@ -201,9 +207,10 @@ export class DurableCampaignRunner {
     if (report.spend.ceiling_exhausted) {
       report.outcome.reason_codes = unique([...report.outcome.reason_codes, "spend_ceiling_exhausted"]);
     }
-    report.outcome.completeness = terminal && fullCoverage && !this.reservationRefused && !report.spend.ceiling_exhausted
-      ? "complete"
-      : "incomplete";
+    report.outcome.completeness =
+      terminal && fullCoverage && !this.reservationRefused && !report.spend.ceiling_exhausted
+        ? "complete"
+        : "incomplete";
     if (report.outcome.violation_ids.length > 0) report.outcome.verdict = "fail";
     else if (report.outcome.completeness === "incomplete" || report.outcome.decision_status === "proposed") {
       report.outcome.verdict = "inconclusive";
@@ -235,11 +242,8 @@ export class DurableCampaignRunner {
 export function assertCompletedCampaignPass(
   report: Pick<ValidationCampaignReportV1, "campaign_id" | "status" | "outcome">,
 ): void {
-  if (
-    report.status === "completed" &&
-    report.outcome.completeness === "complete" &&
-    report.outcome.verdict === "pass"
-  ) return;
+  if (report.status === "completed" && report.outcome.completeness === "complete" && report.outcome.verdict === "pass")
+    return;
   throw new Error(
     `validation campaign ${report.campaign_id} did not pass: ` +
       `status=${report.status} completeness=${report.outcome.completeness} ` +
@@ -248,10 +252,18 @@ export function assertCompletedCampaignPass(
   );
 }
 
-function unique(values: string[]): string[] { return [...new Set(values)]; }
-function money(value: number): number { return Math.round(value * 1_000_000) / 1_000_000; }
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
+}
+function money(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 function assertSpend(providerTurns: number, equivUsd: number, name: string): void {
-  if (!Number.isInteger(providerTurns) || providerTurns < 0) throw new Error(`${name} providerTurns must be a non-negative integer`);
-  if (!Number.isFinite(equivUsd) || equivUsd < 0) throw new Error(`${name} equivUsd must be a non-negative finite number`);
+  if (!Number.isInteger(providerTurns) || providerTurns < 0)
+    throw new Error(`${name} providerTurns must be a non-negative integer`);
+  if (!Number.isFinite(equivUsd) || equivUsd < 0)
+    throw new Error(`${name} equivUsd must be a non-negative finite number`);
 }

@@ -12,20 +12,10 @@ import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
-import {
-  bootstrapRun,
-  scanRepo,
-  type CommandDetection,
-  type RepoScan,
-} from "../org/bootstrap.js";
+import { bootstrapRun, scanRepo, type CommandDetection, type RepoScan } from "../org/bootstrap.js";
 import { findExistingOrg } from "../org/apps.js";
 import { loadRoles } from "../org/roles.js";
-import {
-  ORG_HOME_DEFINITION,
-  resolveCormidiaHomes,
-  STATE_HOME_DEFINITION,
-  validateOrgHome,
-} from "../org/home.js";
+import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION, validateOrgHome } from "../org/home.js";
 import { authorityPreview, resolveAuthority } from "../org/authority.js";
 import { readOnboardingRecoverySource } from "../org/onboarding-answers.js";
 import { bootstrapFromRecoveredAnswers, type RecoveredBootstrapResult } from "../org/app-lifecycle.js";
@@ -98,16 +88,18 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   if (scanOnly) {
     const scan = await scanRepo(root);
     if (json) {
-      console.log(stableJson({
-        schema_version: 1,
-        kind: "bootstrap-scan",
-        app_root: scan.root,
-        org_home: homes?.orgHome ?? null,
-        state_home: homes?.stateHome ?? null,
-        scan,
-        mutating: false,
-        provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
-      }).trimEnd());
+      console.log(
+        stableJson({
+          schema_version: 1,
+          kind: "bootstrap-scan",
+          app_root: scan.root,
+          org_home: homes?.orgHome ?? null,
+          state_home: homes?.stateHome ?? null,
+          scan,
+          mutating: false,
+          provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
+        }).trimEnd(),
+      );
       return 0;
     }
     printHomes(scan.root, homes?.orgHome, homes?.stateHome);
@@ -126,9 +118,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   }
 
   if (existingOrgHome === undefined) {
-    throw new Error(
-      "bootstrap: no active org home — create one first with `cormidia org init <path> --name <name>`",
-    );
+    throw new Error("bootstrap: no active org home — create one first with `cormidia org init <path> --name <name>`");
   }
   if (homes === undefined) throw new Error("bootstrap: active org resolution failed");
   if (!json) printHomes(resolve(root), homes.orgHome, homes.stateHome);
@@ -156,38 +146,40 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   }
 
   if (answersRaw !== undefined) {
-    const result = answersFrom !== undefined
-      ? await bootstrapFromRecoveredAnswers(root, answersRaw, {
-          orgHome: homes.orgHome,
-          stateHome: homes.stateHome,
-          ...(recoveredAppName !== undefined ? { appName: recoveredAppName } : {}),
-        })
-      : await bootstrapRun(root, answersRaw, {
-          orgHome: homes.orgHome,
-          stateHome: homes.stateHome,
-        });
+    const result =
+      answersFrom !== undefined
+        ? await bootstrapFromRecoveredAnswers(root, answersRaw, {
+            orgHome: homes.orgHome,
+            stateHome: homes.stateHome,
+            ...(recoveredAppName !== undefined ? { appName: recoveredAppName } : {}),
+          })
+        : await bootstrapRun(root, answersRaw, {
+            orgHome: homes.orgHome,
+            stateHome: homes.stateHome,
+          });
     const { scan, created, updated, joinedOrgHome } = result;
-    const recovered = "immutableSource" in result && result.immutableSource === true
-      ? result as RecoveredBootstrapResult
-      : undefined;
+    const recovered =
+      "immutableSource" in result && result.immutableSource === true ? (result as RecoveredBootstrapResult) : undefined;
     const authority = await resolveAuthority({ orgHome: homes.orgHome, appWorkdir: recovered?.managedClone ?? root });
     if (json) {
-      console.log(stableJson({
-        schema_version: 1,
-        kind: "bootstrap-result",
-        status: "registered",
-        app_root: scan.root,
-        org_home: joinedOrgHome,
-        state_home: homes.stateHome,
-        created,
-        updated,
-        immutable_source: recovered !== undefined,
-        managed_clone: recovered?.managedClone ?? null,
-        onboarding_commit: recovered?.onboardingCommit ?? null,
-        default_branch: recovered?.defaultBranch ?? null,
-        authority: { profile: authority.profile, version: authority.version, sha256: authority.sha256 },
-        provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
-      }).trimEnd());
+      console.log(
+        stableJson({
+          schema_version: 1,
+          kind: "bootstrap-result",
+          status: "registered",
+          app_root: scan.root,
+          org_home: joinedOrgHome,
+          state_home: homes.stateHome,
+          created,
+          updated,
+          immutable_source: recovered !== undefined,
+          managed_clone: recovered?.managedClone ?? null,
+          onboarding_commit: recovered?.onboardingCommit ?? null,
+          default_branch: recovered?.defaultBranch ?? null,
+          authority: { profile: authority.profile, version: authority.version, sha256: authority.sha256 },
+          provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
+        }).trimEnd(),
+      );
       return 0;
     }
     printScan(scan);
@@ -202,7 +194,9 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
       console.log(`\nmanaged onboarding commit: ${recovered.onboardingCommit}`);
       console.log(`default branch: ${recovered.defaultBranch}`);
       console.log(`source checkout unchanged: ${root}`);
-      console.log("next: make the onboarding commit reachable from the remote default branch, then run `cormidia app verify <app>`.");
+      console.log(
+        "next: make the onboarding commit reachable from the remote default branch, then run `cormidia app verify <app>`.",
+      );
     }
     const preview = authorityPreview(
       authority.profile === "conservative"
@@ -245,7 +239,12 @@ function validateLocalTarget(rootIn: string): void {
 }
 
 function safeSegment(value: string): string {
-  return value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "org";
+  return (
+    value
+      .trim()
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "org"
+  );
 }
 
 function printHomes(appRoot: string, orgHome?: string, stateHome?: string): void {
@@ -259,16 +258,12 @@ async function readAnswersFile(path: string): Promise<unknown> {
   try {
     text = await readFile(path, "utf8");
   } catch (e) {
-    throw new Error(
-      `bootstrap: cannot read --answers file ${path}: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    throw new Error(`bootstrap: cannot read --answers file ${path}: ${e instanceof Error ? e.message : String(e)}`);
   }
   try {
     return JSON.parse(text) as unknown;
   } catch (e) {
-    throw new Error(
-      `bootstrap: --answers ${path} is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    throw new Error(`bootstrap: --answers ${path} is not valid JSON: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -295,9 +290,7 @@ export async function collectAnswers(
     const product = await ask("What is this product? (one paragraph — the app charter's identity)");
     const good = await ask('What does "good" mean for this product?');
 
-    const rolesText = await ask(
-      `Roles to enable [${knownRoles.join(", ")}] (comma-separated, empty = all)`,
-    );
+    const rolesText = await ask(`Roles to enable [${knownRoles.join(", ")}] (comma-separated, empty = all)`);
     const rolesAnswered = rolesText
       .split(",")
       .map((s) => s.trim())
@@ -309,8 +302,7 @@ export async function collectAnswers(
     const answers: Record<string, unknown> = { product, good, roles };
     if (budgetText.length > 0) answers["budgetUsdMonth"] = Number(budgetText);
 
-    const authorityMode =
-      (await ask("App authority [inherit | conservative | custom] [inherit]")) || "inherit";
+    const authorityMode = (await ask("App authority [inherit | conservative | custom] [inherit]")) || "inherit";
     if (authorityMode === "custom") {
       answers["authority"] = {
         mode: "custom",
@@ -344,20 +336,13 @@ export async function collectAnswers(
 }
 
 function printScan(scan: RepoScan): void {
-  const cmd = (d: CommandDetection | undefined) =>
-    d ? `${d.command}  (${d.source})` : "none detected";
+  const cmd = (d: CommandDetection | undefined) => (d ? `${d.command}  (${d.source})` : "none detected");
   const list = (items: string[]) => (items.length > 0 ? items.join(", ") : "none detected");
-  const docSummary = scan.docInventory
-    .map((category) => `${category.label}: ${list(category.paths)}`)
-    .join("; ");
-  const missing = scan.docInventory
-    .filter((category) => category.paths.length === 0)
-    .map((category) => category.label);
+  const docSummary = scan.docInventory.map((category) => `${category.label}: ${list(category.paths)}`).join("; ");
+  const missing = scan.docInventory.filter((category) => category.paths.length === 0).map((category) => category.label);
 
   console.log(`bootstrap scan: ${scan.root}`);
-  console.log(
-    `  language:     ${scan.language ? `${scan.language} (${scan.languageSource})` : "none detected"}`,
-  );
+  console.log(`  language:     ${scan.language ? `${scan.language} (${scan.languageSource})` : "none detected"}`);
   console.log(`  package mgr:  ${scan.packageManager ?? "none detected"}`);
   console.log(`  build:        ${cmd(scan.build)}`);
   console.log(`  test:         ${cmd(scan.test)}`);

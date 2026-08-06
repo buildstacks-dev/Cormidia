@@ -74,14 +74,15 @@ describe("CF-J02-A — lifecycle evidence ladder claims per surface", () => {
       source_health: [],
     });
     expect(snapshot.apps.find((app) => app.name === TARGET_APP)?.lifecycle).toBe("onboarding");
-    expect(snapshot.pending_intake.rows).toEqual(expect.arrayContaining([
-      expect.objectContaining({ app: TARGET_APP, state: "awaiting_promotion" }),
-    ]));
+    expect(snapshot.pending_intake.rows).toEqual(
+      expect.arrayContaining([expect.objectContaining({ app: TARGET_APP, state: "awaiting_promotion" })]),
+    );
     expect(JSON.stringify(snapshot)).not.toContain("autonomously scheduled");
   });
 
   it("negative control: the ladder detector fires when registered is seeded as live", () => {
-    expect(() => assertHighestClaim('{"evidence_state":"live"}', "registered", ["live"]))
-      .toThrow(/evidence ladder overclaim/);
+    expect(() => assertHighestClaim('{"evidence_state":"live"}', "registered", ["live"])).toThrow(
+      /evidence ladder overclaim/,
+    );
   });
 });

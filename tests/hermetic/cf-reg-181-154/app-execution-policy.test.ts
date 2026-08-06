@@ -24,13 +24,7 @@ import {
 } from "../../../src/org/app-execution-policy.js";
 import { appExecutionYaml, loadApps, runtimePolicyForApp } from "../../../src/org/apps.js";
 import { readEnvelope } from "../../../src/runtime/runlog/envelope.js";
-import type {
-  RoleConfig,
-  Runtime,
-  TurnHooks,
-  TurnRequest,
-  TurnResult,
-} from "../../../src/runtime/types.js";
+import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult } from "../../../src/runtime/types.js";
 import { makeTempGitRepo, makeTempWorktree, type TempGitRepo } from "../../fixtures/git-repo.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
@@ -74,11 +68,7 @@ function assertAppliedPolicyEvidence(input: {
   turnToolCalls: number | null | undefined;
   permissionMode: string | undefined;
 }): void {
-  if (
-    input.routeToolCalls !== 130 ||
-    input.turnToolCalls !== 7 ||
-    input.permissionMode !== "never"
-  ) {
+  if (input.routeToolCalls !== 130 || input.turnToolCalls !== 7 || input.permissionMode !== "never") {
     throw new Error("effective app execution policy is not preserved in durable evidence");
   }
 }
@@ -98,11 +88,15 @@ describe("CF-REG-181/154 — app execution policy resolution", () => {
     const root = await mkdtemp(join(tmpdir(), "cormidia-app-policy-"));
     roots.push(root);
     const path = join(root, "apps.yaml");
-    await writeFile(path, stringify({
-      org: { name: "fixture", max_concurrent_turns: 2 },
-      defaults: { budget_usd_month: 1000 },
-      apps,
-    }), "utf8");
+    await writeFile(
+      path,
+      stringify({
+        org: { name: "fixture", max_concurrent_turns: 2 },
+        defaults: { budget_usd_month: 1000 },
+        apps,
+      }),
+      "utf8",
+    );
     return { path, loaded: await loadApps(path) };
   }
 
@@ -229,20 +223,24 @@ describe("CF-REG-181/154 — app execution policy resolution", () => {
       maxTurnBudgetUsd: 5,
       permissionModes: { codex: "on-request", claude: "auto" },
     });
-    expect(effectiveEpisodeHardCeiling(boundedPolicy, "ticket", {
-      maxProviderTurns: 12,
-      maxEquivalentCostUsd: 20,
-      maxActiveTimeMs: 10_000_000,
-      maxHumanDecisions: 4,
-    })).toMatchObject({
+    expect(
+      effectiveEpisodeHardCeiling(boundedPolicy, "ticket", {
+        maxProviderTurns: 12,
+        maxEquivalentCostUsd: 20,
+        maxActiveTimeMs: 10_000_000,
+        maxHumanDecisions: 4,
+      }),
+    ).toMatchObject({
       maxProviderTurns: 10,
       maxEquivalentCostUsd: 12,
       maxActiveTimeMs: 7_200_000,
       maxHumanDecisions: 2,
     });
-    expect(effectiveEpisodeHardCeiling(runtimePolicyForApp(loaded.apps[2]!), "ticket", {
-      maxEquivalentCostUsd: 100,
-    }).maxProviderTurns).toBe(20);
+    expect(
+      effectiveEpisodeHardCeiling(runtimePolicyForApp(loaded.apps[2]!), "ticket", {
+        maxEquivalentCostUsd: 100,
+      }).maxProviderTurns,
+    ).toBe(20);
 
     const state = await makeTempStateHome({ name: "bounded" });
     states.push(state);
@@ -285,11 +283,7 @@ describe("CF-REG-181/154 — app execution policy resolution", () => {
       repairAttempts: 2,
       reviewCycles: 2,
     });
-    const envelope = await readEnvelope(
-      state.stateHome,
-      "bounded",
-      run.passes[0]!.runId,
-    );
+    const envelope = await readEnvelope(state.stateHome, "bounded", run.passes[0]!.runId);
     expect(envelope.effective_bounds).toMatchObject({
       equivalent_cost_usd: 3,
       active_time_ms: 600_000,
@@ -298,16 +292,20 @@ describe("CF-REG-181/154 — app execution policy resolution", () => {
       permission_mode: "never",
       configuration_ref: "apps.yaml#apps.bounded.execution",
     });
-    expect(() => assertAppliedPolicyEvidence({
-      routeToolCalls: 100,
-      turnToolCalls: 7,
-      permissionMode: "never",
-    })).toThrow(/not preserved/);
-    expect(() => assertAppliedPolicyEvidence({
-      routeToolCalls: route.execution_bounds?.toolCalls,
-      turnToolCalls: envelope.effective_bounds?.tool_calls,
-      permissionMode: envelope.effective_bounds?.permission_mode,
-    })).not.toThrow();
+    expect(() =>
+      assertAppliedPolicyEvidence({
+        routeToolCalls: 100,
+        turnToolCalls: 7,
+        permissionMode: "never",
+      }),
+    ).toThrow(/not preserved/);
+    expect(() =>
+      assertAppliedPolicyEvidence({
+        routeToolCalls: route.execution_bounds?.toolCalls,
+        turnToolCalls: envelope.effective_bounds?.tool_calls,
+        permissionMode: envelope.effective_bounds?.permission_mode,
+      }),
+    ).not.toThrow();
   });
 
   it("bounded linked-worktree matrix edits, stages, and commits under both shipped auto modes", async () => {
@@ -315,7 +313,10 @@ describe("CF-REG-181/154 — app execution policy resolution", () => {
     repos.push(repo);
     const policy = shippedAppRuntimePolicy();
 
-    for (const [runtime, expectedMode] of [["codex", "on-request"], ["claude", "auto"]] as const) {
+    for (const [runtime, expectedMode] of [
+      ["codex", "on-request"],
+      ["claude", "auto"],
+    ] as const) {
       const worktree = await makeTempWorktree(repo, { branch: `mode-${runtime}` });
       try {
         const role = resolveAppRoles([{ ...BASE_ROLE, runtime }], policy)[0]!;
@@ -325,9 +326,7 @@ describe("CF-REG-181/154 — app execution policy resolution", () => {
         await writeFile(join(worktree.dir, file), `${runtime}:${expectedMode}\n`, "utf8");
         execFileSync("git", ["-C", worktree.dir, "add", "--", file]);
         execFileSync("git", ["-C", worktree.dir, "commit", "--no-gpg-sign", "-m", `test: ${runtime} auto mode`]);
-        expect(
-          execFileSync("git", ["-C", worktree.dir, "status", "--porcelain"], { encoding: "utf8" }),
-        ).toBe("");
+        expect(execFileSync("git", ["-C", worktree.dir, "status", "--porcelain"], { encoding: "utf8" })).toBe("");
         expect(
           execFileSync("git", ["-C", worktree.dir, "show", "--format=", "--name-only", "HEAD"], { encoding: "utf8" }),
         ).toContain(file);

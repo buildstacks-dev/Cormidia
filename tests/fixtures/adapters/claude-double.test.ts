@@ -9,13 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import { ClaudeSessionResumeMismatchError } from "../../../src/runtime/adapters/claude.js";
-import type {
-  GateFn,
-  ToolAction,
-  TurnEvent,
-  TurnHooks,
-  TurnProgress,
-} from "../../../src/runtime/types.js";
+import type { GateFn, ToolAction, TurnEvent, TurnHooks, TurnProgress } from "../../../src/runtime/types.js";
 import {
   claudeDouble,
   doubleRole,
@@ -73,15 +67,13 @@ describe("claude-double fixture self-test", () => {
   it("over-calling the scripted double throws instead of reusing a script", async () => {
     const dbl = claudeDouble([]);
     const { hooks } = recordingHooks();
-    await expect(
-      dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks),
-    ).rejects.toThrow(/over-called/);
+    await expect(dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks)).rejects.toThrow(/over-called/);
   });
 
   it("scenario builder refuses an empty session id", () => {
-    expect(() =>
-      script.turn({ sessionId: "", outcome: script.success("x", { usage: "absent" }) }),
-    ).toThrow(/non-empty/);
+    expect(() => script.turn({ sessionId: "", outcome: script.success("x", { usage: "absent" }) })).toThrow(
+      /non-empty/,
+    );
   });
 
   it("scripted latencies play and the scripted provider wall-clock lands in the envelope", async () => {
@@ -138,9 +130,7 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
   });
 
   it("§1 typed refusal before provider construction: harness mismatch (fail closed pre-spend)", async () => {
-    const dbl = claudeDouble([
-      script.turn({ sessionId: "s", outcome: script.success("x", { usage: "absent" }) }),
-    ]);
+    const dbl = claudeDouble([script.turn({ sessionId: "s", outcome: script.success("x", { usage: "absent" }) })]);
     const { hooks } = recordingHooks();
     await expect(
       dbl.runtime.runTurn(
@@ -155,9 +145,7 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
   });
 
   it("§1 typed refusal before provider construction: malformed model id", async () => {
-    const dbl = claudeDouble([
-      script.turn({ sessionId: "s", outcome: script.success("x", { usage: "absent" }) }),
-    ]);
+    const dbl = claudeDouble([script.turn({ sessionId: "s", outcome: script.success("x", { usage: "absent" }) })]);
     const { hooks } = recordingHooks();
     await expect(
       dbl.runtime.runTurn(
@@ -172,9 +160,7 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
   });
 
   it("§1 typed refusal before provider construction: cross-runtime session resume", async () => {
-    const dbl = claudeDouble([
-      script.turn({ sessionId: "s", outcome: script.success("x", { usage: "absent" }) }),
-    ]);
+    const dbl = claudeDouble([script.turn({ sessionId: "s", outcome: script.success("x", { usage: "absent" }) })]);
     const { hooks } = recordingHooks();
     await expect(
       dbl.runtime.runTurn(
@@ -257,10 +243,7 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
       controller.abort();
       return { allow: true };
     });
-    const result = await dbl.runtime.runTurn(
-      doubleTurnRequest({ workdir: WORKDIR, signal: controller.signal }),
-      hooks,
-    );
+    const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR, signal: controller.signal }), hooks);
     const turn = onlyTurn(dbl);
     expect(result.status).toBe("cancelled");
     expect(turn.usageReported).toBe(false);
@@ -288,10 +271,7 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
       controller.abort();
       return { allow: true };
     });
-    const result = await dbl.runtime.runTurn(
-      doubleTurnRequest({ workdir: WORKDIR, signal: controller.signal }),
-      hooks,
-    );
+    const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR, signal: controller.signal }), hooks);
     const turn = onlyTurn(dbl);
     expect(result.usage.quality).toBe("complete"); // the seeded lie
     expect(() => checkUsageAbsentRenderedUnknown(turn, result)).toThrow(AdapterContractViolation);
@@ -434,9 +414,7 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
       }),
     ]);
     const { hooks, events } = recordingHooks((action) =>
-      action.tool === "bash"
-        ? { allow: false, reason: "critical op", escalate: true }
-        : { allow: true },
+      action.tool === "bash" ? { allow: false, reason: "critical op", escalate: true } : { allow: true },
     );
     const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks);
     const turn = onlyTurn(dbl);
@@ -460,9 +438,7 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
       }),
     ]);
     const { hooks, progress } = recordingHooks();
-    await expect(
-      dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks),
-    ).rejects.toThrow(/TLS reset/);
+    await expect(dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks)).rejects.toThrow(/TLS reset/);
     expect(dbl.recorder.turns).toHaveLength(1); // exactly one construction — retry belongs to the orchestrator
     expect(onlyTurn(dbl).endedBy).toBe("stream_drop");
     const lastUsage = [...progress].reverse().find((entry) => entry.usage !== undefined)?.usage;
@@ -528,11 +504,7 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
         sessionId: "sess-sub",
         steps: [
           script.tool("Bash", { command: "echo main" }),
-          script.tool(
-            "Read",
-            { file_path: `${WORKDIR}/README.md` },
-            { fromSubagent: true },
-          ),
+          script.tool("Read", { file_path: `${WORKDIR}/README.md` }, { fromSubagent: true }),
         ],
         outcome: script.success("ok", { usage: { inputTokens: 9, outputTokens: 2 } }),
       }),
@@ -665,19 +637,13 @@ describe("CF-B02 — CORMIDIA-C-B02-001 deltas and scripted B-02 failure modes",
         sessionId: "sess-bs",
         steps: [
           script.tool("Bash", { command: "ls" }, { channel: "permission" }),
-          script.tool(
-            "Write",
-            { file_path: `${WORKDIR}/x.txt`, content: "x" },
-            { channel: "permission" },
-          ),
+          script.tool("Write", { file_path: `${WORKDIR}/x.txt`, content: "x" }, { channel: "permission" }),
         ],
         outcome: script.success("ok", { usage: { inputTokens: 5, outputTokens: 1 } }),
       }),
     ]);
     const { hooks, gateActions } = recordingHooks((action) =>
-      action.tool === "write"
-        ? { allow: false, reason: "no writes", escalate: false }
-        : { allow: true },
+      action.tool === "write" ? { allow: false, reason: "no writes", escalate: false } : { allow: true },
     );
     await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks);
     const turn = onlyTurn(dbl);
@@ -697,23 +663,18 @@ describe("CF-B02 — CORMIDIA-C-B02-001 deltas and scripted B-02 failure modes",
       }),
     ]);
     const { hooks } = recordingHooks();
-    await dbl.runtime.runTurn(
-      doubleTurnRequest({ workdir: WORKDIR, role: doubleRole({ name: "builder" }) }),
-      hooks,
-    );
+    await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR, role: doubleRole({ name: "builder" }) }), hooks);
     const denyRules = onlyTurn(dbl).options.permissionDenyRules;
     expect(denyRules).toContain("Bash(gh pr merge:*)");
     expect(denyRules).toContain("Write(~/.claude/**)");
   });
 
   it("stream ends with no result: the adapter refuses to fabricate an envelope", async () => {
-    const dbl = claudeDouble([
-      script.turn({ sessionId: "sess-nr", outcome: script.noResult() }),
-    ]);
+    const dbl = claudeDouble([script.turn({ sessionId: "sess-nr", outcome: script.noResult() })]);
     const { hooks } = recordingHooks();
-    await expect(
-      dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks),
-    ).rejects.toThrow(/without a result/);
+    await expect(dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks)).rejects.toThrow(
+      /without a result/,
+    );
   });
 
   it("cancellation mid-turn preserves checkpointed usage as partial, never fabricated-complete", async () => {
@@ -734,10 +695,7 @@ describe("CF-B02 — CORMIDIA-C-B02-001 deltas and scripted B-02 failure modes",
       controller.abort();
       return { allow: true };
     });
-    const result = await dbl.runtime.runTurn(
-      doubleTurnRequest({ workdir: WORKDIR, signal: controller.signal }),
-      hooks,
-    );
+    const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR, signal: controller.signal }), hooks);
     expect(result.status).toBe("cancelled");
     expect(result.errorCode).toBe("error_cancelled");
     expect(result.session).toEqual({ runtime: "claude", id: "sess-cx" });
@@ -818,8 +776,6 @@ describe("CF-B02 — CORMIDIA-C-B02-001 deltas and scripted B-02 failure modes",
     const result = await dbl.runtime.runTurn(req, hooks);
     expect(result.session.id).toBe("sess-A");
     // …and the identity detector fires on the echoed id.
-    expect(() =>
-      checkSessionIdentityHonest(onlyTurn(dbl), req.session, result),
-    ).toThrow(AdapterContractViolation);
+    expect(() => checkSessionIdentityHonest(onlyTurn(dbl), req.session, result)).toThrow(AdapterContractViolation);
   });
 });

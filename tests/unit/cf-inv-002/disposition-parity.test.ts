@@ -32,13 +32,7 @@ type ToolActionLike = ToolAction;
 /** Strictness order for the loosening guard. A LOWER index is looser; Stage 1
  *  may never move an action to a lower index than today's classification
  *  gives it (proposal §10: "no input yields a tier looser than today's"). */
-const TIER_STRICTNESS: readonly DispositionTier[] = [
-  "routine",
-  "budgeted",
-  "grantable",
-  "human-only",
-  "un-grantable",
-];
+const TIER_STRICTNESS: readonly DispositionTier[] = ["routine", "budgeted", "grantable", "human-only", "un-grantable"];
 
 function strictness(tier: DispositionTier): number {
   const index = TIER_STRICTNESS.indexOf(tier);
@@ -57,9 +51,7 @@ function todayTier(action: ToolActionLike): DispositionTier {
   if (classification.cls === "routine") return "routine";
   const ratified = RATIFIED_TIERS[classification.rule ?? ""];
   if (ratified !== undefined) return ratified;
-  return NEVER_SCOPEABLE_RULES.includes(classification.rule ?? "")
-    ? "human-only"
-    : "grantable";
+  return NEVER_SCOPEABLE_RULES.includes(classification.rule ?? "") ? "human-only" : "grantable";
 }
 
 /** The ratified per-rule tiers after the Stage 2 tightenings (#296; plan
@@ -108,30 +100,52 @@ const RULE_FIXTURES: ReadonlyArray<{ rule: string; action: ToolActionLike }> = [
   { rule: "history-rewrite-owned", action: { tool: "bash", input: { command: "git push --force origin op/7-fix" } } },
   { rule: "history-rewrite-foreign", action: { tool: "bash", input: { command: "git push --force origin main" } } },
   { rule: "destructive-local", action: { tool: "bash", input: { command: "rm -rf /var/data/exports" } } },
-  { rule: "gh-api-unrecognized", action: { tool: "bash", input: { command: "gh api -X DELETE repos/o/r/git/refs/heads/x" } } },
-  { rule: "dns-or-domain", action: { tool: "write_file", input: { path: "dns/nameserver.conf", content: "ns1.example.com" } } },
+  {
+    rule: "gh-api-unrecognized",
+    action: { tool: "bash", input: { command: "gh api -X DELETE repos/o/r/git/refs/heads/x" } },
+  },
+  {
+    rule: "dns-or-domain",
+    action: { tool: "write_file", input: { path: "dns/nameserver.conf", content: "ns1.example.com" } },
+  },
   { rule: "secret-mutate", action: { tool: "bash", input: { command: "gh secret set NPM_TOKEN" } } },
   { rule: "secret-read", action: { tool: "bash", input: { command: "cat .env" } } },
   { rule: "repo-collaboration", action: { tool: "bash", input: { command: "gh issue comment 12 --body done" } } },
   { rule: "package-publish", action: { tool: "bash", input: { command: "npm publish --access public" } } },
   { rule: "release-artifact", action: { tool: "bash", input: { command: "gh release create v1.2.3 --notes done" } } },
   { rule: "outbound-message", action: { tool: "bash", input: { command: "sendmail ops@example.com" } } },
-  { rule: "provider-global-memory", action: { tool: "write_file", input: { path: "/Users/dev/.claude/CLAUDE.md", content: "memo" } } },
+  {
+    rule: "provider-global-memory",
+    action: { tool: "write_file", input: { path: "/Users/dev/.claude/CLAUDE.md", content: "memo" } },
+  },
   { rule: "outbound-network", action: { tool: "bash", input: { command: "curl https://example.com/data.json" } } },
   { rule: "outbound-network-undeterminable", action: { tool: "bash", input: { command: 'curl "$HOST"' } } },
   { rule: "self-merge-or-approve", action: { tool: "bash", input: { command: "gh pr merge 7 --squash" } } },
-  { rule: "protocol-self-edit", action: { tool: "edit_file", input: { path: "roles.yaml", new_string: "builder: {}" } } },
-  { rule: "scorecard-tamper", action: { tool: "write_file", input: { path: "scorecards/builder.json", content: "{}" } } },
-  { rule: "learning-surface-tamper", action: { tool: "write_file", input: { path: "learning/policy.yaml", content: "{}" } } },
-  { rule: "approval-store-tamper", action: { tool: "write_file", input: { path: "approvals/grants/grant-1.json", content: "{}" } } },
-  { rule: "gate-implementation-edit", action: { tool: "edit_file", input: { path: "src/org/authority.ts", new_string: "// edited" } } },
+  {
+    rule: "protocol-self-edit",
+    action: { tool: "edit_file", input: { path: "roles.yaml", new_string: "builder: {}" } },
+  },
+  {
+    rule: "scorecard-tamper",
+    action: { tool: "write_file", input: { path: "scorecards/builder.json", content: "{}" } },
+  },
+  {
+    rule: "learning-surface-tamper",
+    action: { tool: "write_file", input: { path: "learning/policy.yaml", content: "{}" } },
+  },
+  {
+    rule: "approval-store-tamper",
+    action: { tool: "write_file", input: { path: "approvals/grants/grant-1.json", content: "{}" } },
+  },
+  {
+    rule: "gate-implementation-edit",
+    action: { tool: "edit_file", input: { path: "src/org/authority.ts", new_string: "// edited" } },
+  },
 ];
 
 describe("CF-INV — disposition table (every classifier rule, ratified tiers)", () => {
   it("covers the classifier's exact rule set — a rule added or renamed without a table row fails here", () => {
-    expect(CRITICAL_RULES.map((rule) => rule.name).sort()).toEqual(
-      RULE_FIXTURES.map((fixture) => fixture.rule).sort(),
-    );
+    expect(CRITICAL_RULES.map((rule) => rule.name).sort()).toEqual(RULE_FIXTURES.map((fixture) => fixture.rule).sort());
     expect(RULE_FIXTURES).toHaveLength(22);
   });
 
@@ -145,9 +159,7 @@ describe("CF-INV — disposition table (every classifier rule, ratified tiers)",
       // the set and the tier table cannot drift apart (budgeted and grantable
       // classes are the widenable, agent-decidable side of the boundary).
       const expected: DispositionTier = RATIFIED_TIERS[rule]!;
-      expect(NEVER_SCOPEABLE_RULES.includes(rule)).toBe(
-        expected === "human-only" || expected === "un-grantable",
-      );
+      expect(NEVER_SCOPEABLE_RULES.includes(rule)).toBe(expected === "human-only" || expected === "un-grantable");
       const disposition = decideDisposition(action);
       expect(disposition.tier).toBe(expected);
       if (disposition.tier === "routine") throw new Error("unreachable: fixture classified critical");
@@ -188,10 +200,12 @@ describe("CF-INV — disposition table (every classifier rule, ratified tiers)",
   });
 
   it("threads a caller-supplied covering grant id through verbatim", () => {
-    expect(decideDisposition({ tool: "bash", input: { command: "git status" } }, { grantId: "grant-x" }).grantId)
-      .toBe("grant-x");
-    expect(decideDisposition({ tool: "bash", input: { command: "npm publish" } }, { grantId: "grant-y" }).grantId)
-      .toBe("grant-y");
+    expect(decideDisposition({ tool: "bash", input: { command: "git status" } }, { grantId: "grant-x" }).grantId).toBe(
+      "grant-x",
+    );
+    expect(decideDisposition({ tool: "bash", input: { command: "npm publish" } }, { grantId: "grant-y" }).grantId).toBe(
+      "grant-y",
+    );
     expect(decideDisposition({ tool: "bash", input: { command: "git status" } }).grantId).toBeUndefined();
   });
 

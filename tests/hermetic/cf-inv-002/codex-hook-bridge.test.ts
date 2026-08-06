@@ -21,10 +21,7 @@
 
 import { createConnection } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  startCodexGateBridge,
-  type CodexGateBridge,
-} from "../../../src/runtime/adapters/codex-gate-bridge.js";
+import { startCodexGateBridge, type CodexGateBridge } from "../../../src/runtime/adapters/codex-gate-bridge.js";
 import { defaultGate } from "../../../src/runtime/gate.js";
 import type { GateDecision, GateEscalation, ToolAction, TurnHooks } from "../../../src/runtime/types.js";
 
@@ -80,12 +77,7 @@ describe("CF-INV-002 (hook bridge / seed d) — forbidden reads & writes are den
   });
 
   async function startBridge(hooks: TurnHooks, escalations: GateEscalation[] = []): Promise<CodexGateBridge> {
-    const bridge = await startCodexGateBridge(
-      "/tmp/cf-inv-002-wd",
-      "gpt-5.6-sol",
-      hooks,
-      escalations,
-    );
+    const bridge = await startCodexGateBridge("/tmp/cf-inv-002-wd", "gpt-5.6-sol", hooks, escalations);
     bridges.push(bridge);
     return bridge;
   }

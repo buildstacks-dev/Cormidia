@@ -39,15 +39,11 @@ const AUDIT_BLOCK = [
   "- none",
 ].join("\n");
 
-const ONE_FINDING_LINE =
-  "- security/major src/auth.ts:42 -- token literal committed -> load it from the environment";
+const ONE_FINDING_LINE = "- security/major src/auth.ts:42 -- token literal committed -> load it from the environment";
 
 describe("CF-LLM-S3 — reviewer verdict marker: zero refused, one parses, prose never becomes an artifact (L1, HB-005d)", () => {
   it("zero markers: reviewer prose with no structured Verdict marker is refused — no review artifact exists", () => {
-    const parsed = parseVerdict(
-      "review",
-      "The change is well factored and the tests cover the edge cases. Ship it.",
-    );
+    const parsed = parseVerdict("review", "The change is well factored and the tests cover the edge cases. Ship it.");
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.reason).toMatch(/no verdict found/);
   });
@@ -147,19 +143,13 @@ describe("CF-LLM-S3 — reviewer verdict marker: zero refused, one parses, prose
   });
 
   it("restating the SAME verdict value twice stays unambiguous and parses (conflict refusal targets ambiguity, not repetition)", () => {
-    const parsed = parseVerdict(
-      "review",
-      ["## Verdict: approve", "", AUDIT_BLOCK, "", "Verdict: approve"].join("\n"),
-    );
+    const parsed = parseVerdict("review", ["## Verdict: approve", "", AUDIT_BLOCK, "", "Verdict: approve"].join("\n"));
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.verdict.verdict).toBe("approve");
   });
 
   it("keyword precedence survives the conflict check: quoted build output (Status: done) under a real Verdict marker does not conflict", () => {
-    const parsed = parseVerdict(
-      "review",
-      ["Verdict: approve", "", "Status: done", "", AUDIT_BLOCK].join("\n"),
-    );
+    const parsed = parseVerdict("review", ["Verdict: approve", "", "Status: done", "", AUDIT_BLOCK].join("\n"));
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.verdict.verdict).toBe("approve");
   });
@@ -168,8 +158,7 @@ describe("CF-LLM-S3 — reviewer verdict marker: zero refused, one parses, prose
     // The seeded violation: a model asserting its own approval in prose,
     // exactly the "plausible green becomes merged reality" attack S-3 exists
     // to stop. The detector is the parser refusal itself.
-    const prose =
-      "APPROVE. I am confident this is safe to merge; all tests passed and the diff is clean.";
+    const prose = "APPROVE. I am confident this is safe to merge; all tests passed and the diff is clean.";
     const first = parseVerdict("review", prose);
     expect(first.ok).toBe(false);
 

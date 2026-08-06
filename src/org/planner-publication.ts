@@ -48,10 +48,7 @@ import { readBacklogSnapshotAuthority } from "./roadmap-delivery.js";
 export const PLANNER_PUBLICATION_SCHEMA_VERSION = 1 as const;
 export const PLANNER_PUBLICATION_BACKLOG_LIMIT = 10_001;
 
-export type PlannerPublicationState =
-  | "publication_pending"
-  | "published"
-  | "refused";
+export type PlannerPublicationState = "publication_pending" | "published" | "refused";
 
 export interface PlannerPublicationError {
   code: string;
@@ -155,7 +152,8 @@ export async function preparePlannerPublication(
 ): Promise<PlannerPublicationTransaction> {
   const publicationId = plannerPublicationId(input.app.name, input.turnId);
   return withPlannerPublicationLock(input.stateHome, input.app.name, publicationId, () =>
-    preparePlannerPublicationUnlocked(input, publicationId));
+    preparePlannerPublicationUnlocked(input, publicationId),
+  );
 }
 
 async function preparePlannerPublicationUnlocked(
@@ -179,11 +177,13 @@ async function preparePlannerPublicationUnlocked(
   const roadmapSource = plannerPublicationRoadmapSource(publicationId);
   const effects: PlannerPublicationTransaction["intended_effects"] = [
     ...(prepared.branchCreated
-      ? [{
-          kind: "git_branch" as const,
-          identity: `${input.app.repo}:refs/heads/${input.branch}@${prepared.commit}`,
-          detail: { branch: input.branch, commit: prepared.commit, changed_paths: prepared.changedPaths },
-        }]
+      ? [
+          {
+            kind: "git_branch" as const,
+            identity: `${input.app.repo}:refs/heads/${input.branch}@${prepared.commit}`,
+            detail: { branch: input.branch, commit: prepared.commit, changed_paths: prepared.changedPaths },
+          },
+        ]
       : []),
     {
       kind: "planner_readiness",
@@ -213,7 +213,8 @@ async function preparePlannerPublicationUnlocked(
     providerOutputSha256,
     intendedEffectsSha256: stableHash(effects),
   });
-  const repositoryMismatch = prepared.remoteRepository !== undefined &&
+  const repositoryMismatch =
+    prepared.remoteRepository !== undefined &&
     normalizeRepository(prepared.remoteRepository) !== normalizeRepository(input.app.repo);
   const publicationRefusal = repositoryMismatch
     ? publicationError(
@@ -224,11 +225,11 @@ async function preparePlannerPublicationUnlocked(
       )
     : prepared.protectedPaths.length > 0
       ? publicationError(
-        "error_planner_protected_surface",
-        `Planner publication contains protected paths: ${prepared.protectedPaths.join(", ")}`,
-        "permanent",
-        createdAt,
-      )
+          "error_planner_protected_surface",
+          `Planner publication contains protected paths: ${prepared.protectedPaths.join(", ")}`,
+          "permanent",
+          createdAt,
+        )
       : prepared.secretPatterns.length > 0
         ? publicationError(
             "error_planner_publication_secret",
@@ -297,17 +298,14 @@ export async function resumePlannerPublication(
   input: ResumePlannerPublicationInput,
 ): Promise<PlannerPublicationTransaction> {
   return withPlannerPublicationLock(input.stateHome, input.app.name, input.publicationId, () =>
-    resumePlannerPublicationUnlocked(input));
+    resumePlannerPublicationUnlocked(input),
+  );
 }
 
 async function resumePlannerPublicationUnlocked(
   input: ResumePlannerPublicationInput,
 ): Promise<PlannerPublicationTransaction> {
-  let transaction = await requiredPlannerPublication(
-    input.stateHome,
-    input.app.name,
-    input.publicationId,
-  );
+  let transaction = await requiredPlannerPublication(input.stateHome, input.app.name, input.publicationId);
   if (transaction.repository !== input.app.repo) {
     throw new PermanentPlannerPublicationError(
       "error_planner_publication_repository_mismatch",
@@ -407,12 +405,10 @@ async function resumePlannerPublicationUnlocked(
     try {
       const expectedRoadmap = plannerPublicationRoadmapEffect(transaction);
       let roadmap = await readCurrentRoadmapPlan(input.stateHome, input.app.name);
-      if (roadmap !== undefined && await roadmapHasSource(
-        input.stateHome,
-        input.app.name,
-        roadmap,
-        expectedRoadmap.source,
-      )) {
+      if (
+        roadmap !== undefined &&
+        (await roadmapHasSource(input.stateHome, input.app.name, roadmap, expectedRoadmap.source))
+      ) {
         // Crash/lost acknowledgement after the atomic RoadmapPlan pointer:
         // observe the exact content-bound authority and never publish v+1.
       } else {
@@ -454,7 +450,7 @@ async function resumePlannerPublicationUnlocked(
   }
 
   try {
-    const issues = currentIssues ?? await completeOpenBacklog(input.gh);
+    const issues = currentIssues ?? (await completeOpenBacklog(input.gh));
     const authorities = await acceptRoutineValidationReadiness({
       stateHome: input.stateHome,
       app: input.app,
@@ -485,9 +481,10 @@ export async function listPlannerPublications(
 ): Promise<PlannerPublicationTransaction[]> {
   const root = plannerPublicationRoot(stateHome);
   if (!existsSync(root)) return [];
-  const appDirs = app === undefined
-    ? (await readdir(root, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
-    : [hashedFileStem(app)];
+  const appDirs =
+    app === undefined
+      ? (await readdir(root, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+      : [hashedFileStem(app)];
   const records: PlannerPublicationTransaction[] = [];
   for (const appDir of appDirs.sort()) {
     const dir = join(root, appDir);
@@ -497,8 +494,10 @@ export async function listPlannerPublications(
       if (app === undefined || parsed.app === app) records.push(parsed);
     }
   }
-  return records.sort((left, right) =>
-    right.updated_at.localeCompare(left.updated_at) || left.publication_id.localeCompare(right.publication_id));
+  return records.sort(
+    (left, right) =>
+      right.updated_at.localeCompare(left.updated_at) || left.publication_id.localeCompare(right.publication_id),
+  );
 }
 
 export async function readPlannerPublication(
@@ -603,7 +602,9 @@ async function acceptRoutineValidationReadiness(input: {
       return issue;
     });
     const current = await readCurrentValidationContract(input.stateHome, input.app.name, unitId);
-    const sameRoadmap = current !== undefined && sameAuthority(current.value.roadmapRef, roadmap.ref) &&
+    const sameRoadmap =
+      current !== undefined &&
+      sameAuthority(current.value.roadmapRef, roadmap.ref) &&
       current.value.unitMembershipHash === unitMembershipHash(unit.issueNumbers);
     const accepted = sameRoadmap
       ? current
@@ -629,16 +630,18 @@ async function acceptRoutineValidationReadiness(input: {
       disposition: issue.labels.includes("routing:human-only") ? "human_only" : "automated",
       observedLabels: [...issue.labels],
     }));
-    readiness.push(await acceptDeliveryUnitReadiness({
-      root: input.stateHome,
-      app: input.app.name,
-      roadmapRef: roadmap.ref,
-      expectedFrontierHash: stableHash(roadmap.value.readyFrontier),
-      validationRef: accepted.ref,
-      unitId,
-      routing,
-      readyAt: input.acceptedAt,
-    }));
+    readiness.push(
+      await acceptDeliveryUnitReadiness({
+        root: input.stateHome,
+        app: input.app.name,
+        roadmapRef: roadmap.ref,
+        expectedFrontierHash: stableHash(roadmap.value.readyFrontier),
+        validationRef: accepted.ref,
+        unitId,
+        routing,
+        readyAt: input.acceptedAt,
+      }),
+    );
   }
   return { validation, readiness };
 }
@@ -669,35 +672,37 @@ function routineValidationContract(input: {
     unitMembershipHash: unitMembershipHash(input.issueNumbers),
     templateRef: { templateId: "routine-v1", version: 1 },
     affected: structuredClone(input.affected),
-    acceptanceCriteria: criteria.length > 0 ? criteria : [`Delivery unit ${input.unitId} satisfies its issue acceptance criteria.`],
+    acceptanceCriteria:
+      criteria.length > 0 ? criteria : [`Delivery unit ${input.unitId} satisfies its issue acceptance criteria.`],
     requiresHarnessRevision: false,
     harnessRevisionReason: null,
     sharedBoundaryDetectorRefs: input.affected.boundaryIds.includes("B-21")
       ? [{ boundaryId: "B-21", caseId: input.caseId, detectorId: input.detectorId }]
       : [],
-    obligations: [{
-      obligationId: `obligation-${stableHash({ unitId: input.unitId, caseId: input.caseId }).slice(0, 20)}`,
-      caseId: input.caseId,
-      covers: structuredClone(input.affected),
-      cheapestFalsifyingLayer: "L2",
-      failureCases: ["delivery evidence loses the accepted validation lineage"],
-      detectorId: input.detectorId,
-      negativeControlId: "seed-swap-boundary-lineage",
-      expectedEvidence: ["exact accepted validation-contract ref and hash"],
-      waiver: null,
-    }],
+    obligations: [
+      {
+        obligationId: `obligation-${stableHash({ unitId: input.unitId, caseId: input.caseId }).slice(0, 20)}`,
+        caseId: input.caseId,
+        covers: structuredClone(input.affected),
+        cheapestFalsifyingLayer: "L2",
+        failureCases: ["delivery evidence loses the accepted validation lineage"],
+        detectorId: input.detectorId,
+        negativeControlId: "seed-swap-boundary-lineage",
+        expectedEvidence: ["exact accepted validation-contract ref and hash"],
+        waiver: null,
+      },
+    ],
     requiredGates: ["pnpm-test", "pnpm-typecheck"],
     proposedAt: input.acceptedAt,
     acceptedAt: input.acceptedAt,
   };
 }
 
-async function ensureValidationCatalog(
-  stateHome: string,
-  app: string,
-): Promise<AcceptedAuthority<ValidationCatalog>> {
-  return (await readCurrentValidationCatalog(stateHome, app)) ??
-    acceptValidationCatalog({ root: stateHome, catalog: ratifiedRoadmapValidationCatalog(app) });
+async function ensureValidationCatalog(stateHome: string, app: string): Promise<AcceptedAuthority<ValidationCatalog>> {
+  return (
+    (await readCurrentValidationCatalog(stateHome, app)) ??
+    acceptValidationCatalog({ root: stateHome, catalog: ratifiedRoadmapValidationCatalog(app) })
+  );
 }
 
 function authorizedReadyIssueNumbers(
@@ -710,10 +715,8 @@ function authorizedReadyIssueNumbers(
       .map((outcome) => outcome.issue_number) ?? [],
   );
   for (const intakeIssue of transaction.planner_input.intake.issues) {
-    if (
-      intakeIssue.labels.includes("op:ready") &&
-      plannerRoutineReadinessGuard(intakeIssue) === undefined
-    ) fromApplication.add(intakeIssue.number);
+    if (intakeIssue.labels.includes("op:ready") && plannerRoutineReadinessGuard(intakeIssue) === undefined)
+      fromApplication.add(intakeIssue.number);
   }
   const current = new Map(currentIssues.map((issue) => [issue.number, issue]));
   return [...fromApplication]
@@ -721,14 +724,10 @@ function authorizedReadyIssueNumbers(
     .sort(numeric);
 }
 
-async function completeOpenBacklog(
-  gh: Pick<GhOps, "listIssues">,
-): Promise<GhIssue[]> {
+async function completeOpenBacklog(gh: Pick<GhOps, "listIssues">): Promise<GhIssue[]> {
   const issues = await gh.listIssues({ state: "open", limit: PLANNER_PUBLICATION_BACKLOG_LIMIT });
   if (issues.length >= PLANNER_PUBLICATION_BACKLOG_LIMIT) {
-    throw new Error(
-      `open backlog reached the ${PLANNER_PUBLICATION_BACKLOG_LIMIT - 1} issue completeness bound`,
-    );
+    throw new Error(`open backlog reached the ${PLANNER_PUBLICATION_BACKLOG_LIMIT - 1} issue completeness bound`);
   }
   return issues
     .filter((issue) => issue.state.toUpperCase() === "OPEN")
@@ -774,7 +773,9 @@ const defaultPlannerPublicationGit: PlannerPublicationGit = {
     }
     const commit = git(worktree, "rev-parse", "HEAD");
     const changedPaths = git(worktree, "diff", "--name-only", `${baseCommit}..${commit}`)
-      .split("\n").filter(Boolean).sort();
+      .split("\n")
+      .filter(Boolean)
+      .sort();
     const patch = git(worktree, "diff", "--no-ext-diff", "--binary", `${baseCommit}..${commit}`);
     return {
       branchCreated: true,
@@ -783,9 +784,9 @@ const defaultPlannerPublicationGit: PlannerPublicationGit = {
       remoteRepository,
       changedPaths,
       protectedPaths: changedPaths.filter(plannerPublicationProtectedSurface),
-      secretPatterns: SECRET_PATTERNS
-        .filter((candidate) => candidate.pattern.test(patch))
-        .map((candidate) => candidate.name),
+      secretPatterns: SECRET_PATTERNS.filter((candidate) => candidate.pattern.test(patch)).map(
+        (candidate) => candidate.name,
+      ),
     };
   },
   remoteCommit: (worktree, branch) => {
@@ -832,7 +833,11 @@ function git(cwd: string, ...args: string[]): string {
   } catch (error) {
     const stderr = String((error as { stderr?: unknown }).stderr ?? "").trim();
     const message = stderr === "" ? (error instanceof Error ? error.message : String(error)) : stderr;
-    if (/authentication failed|permission denied|repository not found|protected branch|remote rejected|access denied/i.test(message)) {
+    if (
+      /authentication failed|permission denied|repository not found|protected branch|remote rejected|access denied/i.test(
+        message,
+      )
+    ) {
       throw new PermanentPlannerPublicationError("error_planner_publication_permanent_refusal", message);
     }
     throw new Error(message);
@@ -915,10 +920,7 @@ async function requiredPlannerPublication(
   return transaction;
 }
 
-async function writePlannerPublication(
-  stateHome: string,
-  transaction: PlannerPublicationTransaction,
-): Promise<void> {
+async function writePlannerPublication(stateHome: string, transaction: PlannerPublicationTransaction): Promise<void> {
   const path = plannerPublicationPath(stateHome, transaction.app, transaction.publication_id);
   await mkdir(dirname(path), { recursive: true });
   await writeLoopFileAtomic(path, `${JSON.stringify(transaction, null, 2)}\n`);
@@ -932,13 +934,14 @@ function parsePlannerPublication(raw: string, path: string): PlannerPublicationT
     throw new Error(`planner publication ${path} is not valid JSON`);
   }
   if (!isPlannerPublication(parsed)) {
-    const keys = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-      ? Object.keys(parsed).sort().join(",")
-      : typeof parsed;
+    const keys =
+      parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+        ? Object.keys(parsed).sort().join(",")
+        : typeof parsed;
     const failures = plannerPublicationValidationFailures(parsed);
     throw new Error(
       `planner publication ${path} is not a valid v1 transaction ` +
-      `(keys: ${keys}; invalid: ${failures.join(",") || "top-level-shape"})`,
+        `(keys: ${keys}; invalid: ${failures.join(",") || "top-level-shape"})`,
     );
   }
   return parsed;
@@ -952,8 +955,12 @@ function plannerPublicationValidationFailures(value: unknown): string[] {
   const plannerInput = value["planner_input"];
   const evidence = value["evidence"];
   const recovery = value["recovery"];
-  if (!isNonemptyString(app) || !isNonemptyString(turnId) ||
-      value["publication_id"] !== plannerPublicationId(String(app), String(turnId))) failures.push("publication_id");
+  if (
+    !isNonemptyString(app) ||
+    !isNonemptyString(turnId) ||
+    value["publication_id"] !== plannerPublicationId(String(app), String(turnId))
+  )
+    failures.push("publication_id");
   if (!isRecord(plannerInput)) failures.push("planner_input.record");
   else {
     if (!isPlannerIssueIntake(plannerInput["intake"])) failures.push("planner_input.intake");
@@ -967,8 +974,8 @@ function plannerPublicationValidationFailures(value: unknown): string[] {
     if (!isAuthorityRefArray(evidence["validation_refs"])) failures.push("evidence.validation_refs");
     if (!isAuthorityRefArray(evidence["readiness_refs"])) failures.push("evidence.readiness_refs");
   }
-  if (!isRecord(recovery) || !isNonemptyString(recovery["identity"]) ||
-      !isNonemptyString(recovery["command"])) failures.push("recovery");
+  if (!isRecord(recovery) || !isNonemptyString(recovery["identity"]) || !isNonemptyString(recovery["command"]))
+    failures.push("recovery");
   if (!isIsoDate(value["created_at"]) || !isIsoDate(value["updated_at"])) failures.push("timestamps");
   return failures;
 }
@@ -988,18 +995,32 @@ function isPlannerPublication(value: unknown): value is PlannerPublicationTransa
   const recovery = row["recovery"];
   const error = row["error"];
   if (
-    row["schema_version"] !== 1 || row["kind"] !== "planner-publication" ||
+    row["schema_version"] !== 1 ||
+    row["kind"] !== "planner-publication" ||
     !isOneOf(state, ["publication_pending", "published", "refused"]) ||
-    !isNonemptyString(app) || !isNonemptyString(turnId) || !isNonemptyString(repository) ||
-    !isNonemptyString(row["worktree_path"]) || !isNonemptyString(branch) || !isNonemptyString(commit) ||
+    !isNonemptyString(app) ||
+    !isNonemptyString(turnId) ||
+    !isNonemptyString(repository) ||
+    !isNonemptyString(row["worktree_path"]) ||
+    !isNonemptyString(branch) ||
+    !isNonemptyString(commit) ||
     row["publication_id"] !== plannerPublicationId(app, turnId) ||
-    typeof row["branch_created"] !== "boolean" || !isStringArray(row["changed_paths"]) ||
-    !isIsoDate(row["created_at"]) || !isIsoDate(row["updated_at"]) || !isRecord(base) ||
-    !isNonemptyString(base["ref"]) || !isNonemptyString(base["default_branch"]) ||
-    !isNonemptyString(base["commit"]) || !isRecord(plannerInput) ||
-    !isPlannerIssueIntake(plannerInput["intake"]) || !isPlannerDecisions(plannerInput["decisions"]) ||
-    !isPlannerEffects(row["intended_effects"]) || !isRecord(evidence) || !isRecord(recovery)
-  ) return false;
+    typeof row["branch_created"] !== "boolean" ||
+    !isStringArray(row["changed_paths"]) ||
+    !isIsoDate(row["created_at"]) ||
+    !isIsoDate(row["updated_at"]) ||
+    !isRecord(base) ||
+    !isNonemptyString(base["ref"]) ||
+    !isNonemptyString(base["default_branch"]) ||
+    !isNonemptyString(base["commit"]) ||
+    !isRecord(plannerInput) ||
+    !isPlannerIssueIntake(plannerInput["intake"]) ||
+    !isPlannerDecisions(plannerInput["decisions"]) ||
+    !isPlannerEffects(row["intended_effects"]) ||
+    !isRecord(evidence) ||
+    !isRecord(recovery)
+  )
+    return false;
   const expectedRecovery = plannerPublicationRecoveryIdentity({
     app,
     turnId,
@@ -1009,29 +1030,40 @@ function isPlannerPublication(value: unknown): value is PlannerPublicationTransa
     commit,
     intakeSha256: plannerInput["intake"].manifest_sha256,
     decisionsSha256: stableHash(plannerInput["decisions"]),
-    providerOutputSha256: isSha256(evidence["provider_output_sha256"])
-      ? evidence["provider_output_sha256"]
-      : "invalid",
+    providerOutputSha256: isSha256(evidence["provider_output_sha256"]) ? evidence["provider_output_sha256"] : "invalid",
     intendedEffectsSha256: stableHash(row["intended_effects"]),
   });
   const expectedRecoveryCommand = plannerPublicationRecoveryCommand(app, row["publication_id"]);
   if (
-    recovery["identity"] !== expectedRecovery || recovery["command"] !== expectedRecoveryCommand ||
-    plannerInput["intake"].app !== app || plannerInput["intake"].turn_id !== turnId ||
-    !isNonemptyString(evidence["episode_id"]) || !isStringArray(evidence["provider_run_ids"]) ||
-    !isSha256(evidence["provider_output_sha256"]) || !isContentHash(evidence["intake_sha256"]) ||
+    recovery["identity"] !== expectedRecovery ||
+    recovery["command"] !== expectedRecoveryCommand ||
+    plannerInput["intake"].app !== app ||
+    plannerInput["intake"].turn_id !== turnId ||
+    !isNonemptyString(evidence["episode_id"]) ||
+    !isStringArray(evidence["provider_run_ids"]) ||
+    !isSha256(evidence["provider_output_sha256"]) ||
+    !isContentHash(evidence["intake_sha256"]) ||
     evidence["intake_sha256"] !== plannerInput["intake"].manifest_sha256 ||
     !(evidence["remote_commit"] === null || isNonemptyString(evidence["remote_commit"])) ||
     !(evidence["readiness_application"] === null || isPlannerReadinessApplication(evidence["readiness_application"])) ||
     (isPlannerReadinessApplication(evidence["readiness_application"]) &&
       evidence["readiness_application"].intake_sha256 !== plannerInput["intake"].manifest_sha256) ||
     !(evidence["roadmap_ref"] === null || isAuthorityRef(evidence["roadmap_ref"])) ||
-    !isAuthorityRefArray(evidence["validation_refs"]) || !isAuthorityRefArray(evidence["readiness_refs"])
-  ) return false;
-  if (error !== null && !(
-    isRecord(error) && isNonemptyString(error["code"]) && isNonemptyString(error["message"]) &&
-    isOneOf(error["permanence"], ["retryable", "permanent"]) && isIsoDate(error["observed_at"])
-  )) return false;
+    !isAuthorityRefArray(evidence["validation_refs"]) ||
+    !isAuthorityRefArray(evidence["readiness_refs"])
+  )
+    return false;
+  if (
+    error !== null &&
+    !(
+      isRecord(error) &&
+      isNonemptyString(error["code"]) &&
+      isNonemptyString(error["message"]) &&
+      isOneOf(error["permanence"], ["retryable", "permanent"]) &&
+      isIsoDate(error["observed_at"])
+    )
+  )
+    return false;
   if (state === "published") {
     if (error !== null || evidence["readiness_application"] === null || evidence["roadmap_ref"] === null) return false;
     if (row["branch_created"] === true && evidence["remote_commit"] !== commit) return false;
@@ -1042,65 +1074,120 @@ function isPlannerPublication(value: unknown): value is PlannerPublicationTransa
 }
 
 function isPlannerIssueIntake(value: unknown): value is PlannerIssueIntake {
-  if (!(isRecord(value) && value["schema_version"] === 1 && value["kind"] === "planner-issue-intake" &&
-    isNonemptyString(value["app"]) && isNonemptyString(value["turn_id"]) && isRecord(value["query"]) &&
-    Number.isInteger(value["budget_bytes"]) && Number.isInteger(value["included_bytes"]) &&
-    Number.isInteger(value["deferred_count"]) && Array.isArray(value["issues"]) &&
-    value["issues"].every((issue) => isRecord(issue) && Number.isInteger(issue["number"]) &&
-      isNonemptyString(issue["title"]) && typeof issue["body"] === "string" && isStringArray(issue["labels"]) &&
-      Number.isInteger(issue["source_bytes"]) && Number.isInteger(issue["included_bytes"]) &&
-      isOneOf(issue["inclusion"], ["full", "truncated"])) &&
-    isRecord(value["diagnostic"]) && isNonemptyString(value["diagnostic"]["code"]) &&
-    typeof value["diagnostic"]["detail"] === "string" && isContentHash(value["manifest_sha256"]))) return false;
+  if (
+    !(
+      isRecord(value) &&
+      value["schema_version"] === 1 &&
+      value["kind"] === "planner-issue-intake" &&
+      isNonemptyString(value["app"]) &&
+      isNonemptyString(value["turn_id"]) &&
+      isRecord(value["query"]) &&
+      Number.isInteger(value["budget_bytes"]) &&
+      Number.isInteger(value["included_bytes"]) &&
+      Number.isInteger(value["deferred_count"]) &&
+      Array.isArray(value["issues"]) &&
+      value["issues"].every(
+        (issue) =>
+          isRecord(issue) &&
+          Number.isInteger(issue["number"]) &&
+          isNonemptyString(issue["title"]) &&
+          typeof issue["body"] === "string" &&
+          isStringArray(issue["labels"]) &&
+          Number.isInteger(issue["source_bytes"]) &&
+          Number.isInteger(issue["included_bytes"]) &&
+          isOneOf(issue["inclusion"], ["full", "truncated"]),
+      ) &&
+      isRecord(value["diagnostic"]) &&
+      isNonemptyString(value["diagnostic"]["code"]) &&
+      typeof value["diagnostic"]["detail"] === "string" &&
+      isContentHash(value["manifest_sha256"])
+    )
+  )
+    return false;
   const { manifest_sha256: manifestSha256, ...withoutHash } = value;
   return schedulerSha256(schedulerCanonicalJson(withoutHash)) === manifestSha256;
 }
 
 function isPlannerDecisions(value: unknown): value is PlannerReadinessDecision[] {
-  return Array.isArray(value) && value.every((decision) => isRecord(decision) &&
-    Number.isInteger(decision["issue_number"]) &&
-    isOneOf(decision["disposition"], ["ready", "unready"]) &&
-    isNonemptyString(decision["reason_code"]) && isNonemptyString(decision["reason"]));
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (decision) =>
+        isRecord(decision) &&
+        Number.isInteger(decision["issue_number"]) &&
+        isOneOf(decision["disposition"], ["ready", "unready"]) &&
+        isNonemptyString(decision["reason_code"]) &&
+        isNonemptyString(decision["reason"]),
+    )
+  );
 }
 
 function isPlannerReadinessApplication(value: unknown): value is PlannerReadinessApplication {
-  return isRecord(value) && value["schema_version"] === 1 &&
+  return (
+    isRecord(value) &&
+    value["schema_version"] === 1 &&
     value["kind"] === "planner-readiness-application" &&
     isContentHash(value["intake_sha256"]) &&
     Array.isArray(value["applied_issue_numbers"]) &&
     value["applied_issue_numbers"].every((number) => Number.isInteger(number)) &&
-    Array.isArray(value["outcomes"]) && value["outcomes"].every((outcome) =>
-      isRecord(outcome) && Number.isInteger(outcome["issue_number"]) &&
-      isOneOf(outcome["disposition"], ["ready", "unready"]) &&
-      isOneOf(outcome["requested_disposition"], ["ready", "unready"]) &&
-      isNonemptyString(outcome["reason_code"]) && isNonemptyString(outcome["reason"]));
+    Array.isArray(value["outcomes"]) &&
+    value["outcomes"].every(
+      (outcome) =>
+        isRecord(outcome) &&
+        Number.isInteger(outcome["issue_number"]) &&
+        isOneOf(outcome["disposition"], ["ready", "unready"]) &&
+        isOneOf(outcome["requested_disposition"], ["ready", "unready"]) &&
+        isNonemptyString(outcome["reason_code"]) &&
+        isNonemptyString(outcome["reason"]),
+    )
+  );
 }
 
 function isPlannerEffects(value: unknown): value is PlannerPublicationTransaction["intended_effects"] {
-  return Array.isArray(value) && value.every((effect) => {
-    if (!(isRecord(effect) &&
-      isOneOf(effect["kind"], ["git_branch", "planner_readiness", "roadmap_plan", "validation_readiness"]) &&
-      isNonemptyString(effect["identity"]) && isRecord(effect["detail"]))) return false;
-    const detail = effect["detail"];
-    if (effect["kind"] === "git_branch") {
-      return isNonemptyString(detail["branch"]) && isNonemptyString(detail["commit"]) &&
-        isStringArray(detail["changed_paths"]);
-    }
-    if (effect["kind"] === "planner_readiness") {
-      return Array.isArray(detail["issue_numbers"]) &&
-        detail["issue_numbers"].every((number) => Number.isInteger(number));
-    }
-    if (effect["kind"] === "roadmap_plan") {
-      return isNonemptyString(detail["source"]) &&
-        (detail["predecessor"] === null || isAuthorityRef(detail["predecessor"]));
-    }
-    return detail["template"] === "routine-v1" && detail["after"] === "roadmap_plan";
-  });
+  return (
+    Array.isArray(value) &&
+    value.every((effect) => {
+      if (
+        !(
+          isRecord(effect) &&
+          isOneOf(effect["kind"], ["git_branch", "planner_readiness", "roadmap_plan", "validation_readiness"]) &&
+          isNonemptyString(effect["identity"]) &&
+          isRecord(effect["detail"])
+        )
+      )
+        return false;
+      const detail = effect["detail"];
+      if (effect["kind"] === "git_branch") {
+        return (
+          isNonemptyString(detail["branch"]) &&
+          isNonemptyString(detail["commit"]) &&
+          isStringArray(detail["changed_paths"])
+        );
+      }
+      if (effect["kind"] === "planner_readiness") {
+        return (
+          Array.isArray(detail["issue_numbers"]) && detail["issue_numbers"].every((number) => Number.isInteger(number))
+        );
+      }
+      if (effect["kind"] === "roadmap_plan") {
+        return (
+          isNonemptyString(detail["source"]) &&
+          (detail["predecessor"] === null || isAuthorityRef(detail["predecessor"]))
+        );
+      }
+      return detail["template"] === "routine-v1" && detail["after"] === "roadmap_plan";
+    })
+  );
 }
 
 function isAuthorityRef(value: unknown): value is AuthorityRef {
-  return isRecord(value) && isNonemptyString(value["kind"]) && isNonemptyString(value["id"]) &&
-    Number.isInteger(value["version"]) && isSha256(value["sha256"]);
+  return (
+    isRecord(value) &&
+    isNonemptyString(value["kind"]) &&
+    isNonemptyString(value["id"]) &&
+    Number.isInteger(value["version"]) &&
+    isSha256(value["sha256"])
+  );
 }
 
 function isAuthorityRefArray(value: unknown): value is AuthorityRef[] {
@@ -1145,26 +1232,25 @@ function withPlannerPublicationLock<T>(
   publicationId: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const lockPath = join(
-    plannerPublicationRoot(stateHome),
-    hashedFileStem(app),
-    `${publicationId}.lock`,
+  const lockPath = join(plannerPublicationRoot(stateHome), hashedFileStem(app), `${publicationId}.lock`);
+  return withFileLock(
+    lockPath,
+    {
+      staleMs: 10 * 60_000,
+      maxWaitMs: 30_000,
+      retryMinMs: 20,
+      retryMaxMs: 60,
+    },
+    fn,
   );
-  return withFileLock(lockPath, {
-    staleMs: 10 * 60_000,
-    maxWaitMs: 30_000,
-    retryMinMs: 20,
-    retryMaxMs: 60,
-  }, fn);
 }
 
-function assertResumeIdentity(
-  transaction: PlannerPublicationTransaction,
-  input: PreparePlannerPublicationInput,
-): void {
+function assertResumeIdentity(transaction: PlannerPublicationTransaction, input: PreparePlannerPublicationInput): void {
   if (
-    transaction.app !== input.app.name || transaction.repository !== input.app.repo ||
-    transaction.turn_id !== input.turnId || transaction.worktree_path !== input.worktree ||
+    transaction.app !== input.app.name ||
+    transaction.repository !== input.app.repo ||
+    transaction.turn_id !== input.turnId ||
+    transaction.worktree_path !== input.worktree ||
     transaction.branch !== input.branch ||
     transaction.planner_input.intake.manifest_sha256 !== input.intake.manifest_sha256 ||
     stableHash(transaction.planner_input.decisions) !== stableHash(input.decisions) ||
@@ -1201,8 +1287,11 @@ function plannerPublicationRoadmapEffect(transaction: PlannerPublicationTransact
   predecessor: AuthorityRef | null;
 } {
   const effect = transaction.intended_effects.find((candidate) => candidate.kind === "roadmap_plan");
-  if (effect === undefined || !isNonemptyString(effect.detail["source"]) ||
-      !(effect.detail["predecessor"] === null || isAuthorityRef(effect.detail["predecessor"]))) {
+  if (
+    effect === undefined ||
+    !isNonemptyString(effect.detail["source"]) ||
+    !(effect.detail["predecessor"] === null || isAuthorityRef(effect.detail["predecessor"]))
+  ) {
     throw new PermanentPlannerPublicationError(
       "error_planner_publication_intent_invalid",
       `publication ${transaction.publication_id} has no valid RoadmapPlan effect`,
@@ -1217,11 +1306,7 @@ async function roadmapHasSource(
   roadmap: AcceptedAuthority<import("./roadmap-delivery.js").RoadmapPlan>,
   source: string,
 ): Promise<boolean> {
-  const snapshot = await readBacklogSnapshotAuthority(
-    stateHome,
-    app,
-    roadmap.value.backlogSnapshotRef,
-  );
+  const snapshot = await readBacklogSnapshotAuthority(stateHome, app, roadmap.value.backlogSnapshotRef);
   return snapshot.value.source === source;
 }
 
@@ -1240,13 +1325,15 @@ function executionGroup(body: string): string | undefined {
 }
 
 function tierFor(issue: GhIssue): "op:tier-quick" | "op:tier-standard" | "op:tier-deep" {
-  return issue.labels.find((label): label is "op:tier-quick" | "op:tier-standard" | "op:tier-deep" =>
-    ["op:tier-quick", "op:tier-standard", "op:tier-deep"].includes(label)) ?? "op:tier-standard";
+  return (
+    issue.labels.find((label): label is "op:tier-quick" | "op:tier-standard" | "op:tier-deep" =>
+      ["op:tier-quick", "op:tier-standard", "op:tier-deep"].includes(label),
+    ) ?? "op:tier-standard"
+  );
 }
 
 function priorityFor(issue: GhIssue): "p1" | "p2" | "p3" {
-  return issue.labels.find((label): label is "p1" | "p2" | "p3" =>
-    ["p1", "p2", "p3"].includes(label)) ?? "p2";
+  return issue.labels.find((label): label is "p1" | "p2" | "p3" => ["p1", "p2", "p3"].includes(label)) ?? "p2";
 }
 
 function section(body: string, heading: string): string | undefined {
@@ -1263,7 +1350,9 @@ function acceptanceCriteria(body: string): string[] {
 
 function fileScope(body: string): string[] {
   const source = section(body, "Scope") ?? "";
-  const entries = unique([...source.matchAll(/^\s*-\s+(.+\S)\s*$/gm)].map((match) => match[1]!.replace(/^`|`$/g, "").trim()));
+  const entries = unique(
+    [...source.matchAll(/^\s*-\s+(.+\S)\s*$/gm)].map((match) => match[1]!.replace(/^`|`$/g, "").trim()),
+  );
   return entries.length > 0 ? entries : ["."];
 }
 
@@ -1274,23 +1363,32 @@ function unique(values: readonly string[]): string[] {
 export function plannerPublicationProtectedSurface(path: string): boolean {
   const normalized = path.replace(/\\/g, "/").toLowerCase();
   const basename = normalized.split("/").at(-1) ?? normalized;
-  if ([
-    "taste.md",
-    "roles.yaml",
-    "agents.md",
-    "purpose.md",
-    "pipelines.yaml",
-    "apps.yaml",
-    "authority.md",
-    "policy.yaml",
-  ].includes(basename)) return true;
+  if (
+    [
+      "taste.md",
+      "roles.yaml",
+      "agents.md",
+      "purpose.md",
+      "pipelines.yaml",
+      "apps.yaml",
+      "authority.md",
+      "policy.yaml",
+    ].includes(basename)
+  )
+    return true;
   if (normalized === ".cormidia/config.yaml") return true;
-  return normalized.startsWith("prompts/") || normalized.includes("/prompts/") ||
-    normalized.startsWith("taste/") || normalized.includes("/taste/");
+  return (
+    normalized.startsWith("prompts/") ||
+    normalized.includes("/prompts/") ||
+    normalized.startsWith("taste/") ||
+    normalized.includes("/taste/")
+  );
 }
 
 function sameAuthority(left: AuthorityRef, right: AuthorityRef): boolean {
-  return left.kind === right.kind && left.id === right.id && left.version === right.version && left.sha256 === right.sha256;
+  return (
+    left.kind === right.kind && left.id === right.id && left.version === right.version && left.sha256 === right.sha256
+  );
 }
 
 function shellQuote(value: string): string {
@@ -1298,9 +1396,13 @@ function shellQuote(value: string): string {
 }
 
 function normalizeRepository(value: string): string {
-  const trimmed = value.trim().replace(/\/+$/, "").replace(/\.git$/i, "");
-  const github = /^(?:https?:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)?([^/:\s]+\/[^/\s]+)$/i
-    .exec(trimmed)?.[1];
+  const trimmed = value
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\.git$/i, "");
+  const github = /^(?:https?:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)?([^/:\s]+\/[^/\s]+)$/i.exec(
+    trimmed,
+  )?.[1];
   return github === undefined ? trimmed : `github:${github.toLowerCase()}`;
 }
 

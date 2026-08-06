@@ -3,14 +3,7 @@
 // synchronous path; operator-facing queue operations remain async.
 
 import { createHash, randomBytes } from "node:crypto";
-import {
-  appendFile,
-  mkdir,
-  readFile,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import {
   appendFileSync,
   existsSync,
@@ -57,11 +50,7 @@ export interface ApprovalDecider {
  *  record. It remains actor-claimable (see claimActorRetryGrantSync): a live
  *  actor that legitimately re-attempts still wins the race and the orchestrator
  *  then finds nothing to do. */
-export type ApprovalExecutor =
-  | "durable-github"
-  | "release"
-  | "orchestrator-command"
-  | "actor-retry";
+export type ApprovalExecutor = "durable-github" | "release" | "orchestrator-command" | "actor-retry";
 
 export interface ApprovalExecution {
   state: ApprovalExecutionState;
@@ -331,9 +320,7 @@ export interface ApprovalStoreOptions {
   policy?: ApprovalPolicyConfig;
   /** Deterministic kill points for crash-recovery detectors. Production never
    * supplies this hook. */
-  decisionFault?: (
-    boundary: "after_grant" | "after_decision_log" | "after_item_move",
-  ) => void | Promise<void>;
+  decisionFault?: (boundary: "after_grant" | "after_decision_log" | "after_item_move") => void | Promise<void>;
 }
 
 export interface ApprovalPolicyConfig {
@@ -384,7 +371,10 @@ export function approvalDeciderFromIdentity(identity: string): ApprovalDecider {
 export class ApprovalDecisionConflictError extends Error {
   readonly code = "approval_already_decided";
 
-  constructor(readonly approvalId: string, message: string) {
+  constructor(
+    readonly approvalId: string,
+    message: string,
+  ) {
     super(message);
     this.name = "ApprovalDecisionConflictError";
   }
@@ -618,9 +608,7 @@ export class ApprovalStore {
         await this.reconcileDecisionLocked(id, log, now);
         if (!existsSync(this.pendingPath(id))) return undefined;
         const pending = await readJson<ApprovalItem>(this.pendingPath(id));
-        return this.pendingItemExpired(pending, now)
-          ? this.expirePendingLocked(pending, now)
-          : undefined;
+        return this.pendingItemExpired(pending, now) ? this.expirePendingLocked(pending, now) : undefined;
       });
       if (item !== undefined) expired.push(item);
     }
@@ -638,9 +626,7 @@ export class ApprovalStore {
         return decided.status === "expired" ? decided : undefined;
       }
       const pending = await readJson<ApprovalItem>(this.pendingPath(id));
-      return this.pendingItemExpired(pending, now)
-        ? this.expirePendingLocked(pending, now)
-        : undefined;
+      return this.pendingItemExpired(pending, now) ? this.expirePendingLocked(pending, now) : undefined;
     });
   }
 
@@ -674,14 +660,9 @@ export class ApprovalStore {
 
   /** Complete only a previously logged decision and clean recognizable
    * intermediates. This method always runs under decision-locks/<id>.lock. */
-  private async reconcileDecisionLocked(
-    id: string,
-    log: readonly ApprovalLogEvent[],
-    now: Date,
-  ): Promise<void> {
+  private async reconcileDecisionLocked(id: string, log: readonly ApprovalLogEvent[], now: Date): Promise<void> {
     const decisionEvents = log.filter(
-      (event): event is Extract<ApprovalLogEvent, { type: "decided" }> =>
-        event.type === "decided" && event.id === id,
+      (event): event is Extract<ApprovalLogEvent, { type: "decided" }> => event.type === "decided" && event.id === id,
     );
     if (decisionEvents.length > 1) {
       throw new Error(
@@ -719,9 +700,7 @@ export class ApprovalStore {
       }
       if (
         event.grantId !== undefined &&
-        !log.some((candidate) =>
-          candidate.type === "grant-minted" && candidate.grantId === event.grantId
-        )
+        !log.some((candidate) => candidate.type === "grant-minted" && candidate.grantId === event.grantId)
       ) {
         await appendJsonLine(this.logPath(), {
           type: "grant-minted",
@@ -744,10 +723,7 @@ export class ApprovalStore {
         } satisfies ApprovalLogEvent);
       }
     }
-    if (
-      decided.status === "expired" &&
-      !log.some((candidate) => candidate.type === "expired" && candidate.id === id)
-    ) {
+    if (decided.status === "expired" && !log.some((candidate) => candidate.type === "expired" && candidate.id === id)) {
       await appendJsonLine(this.logPath(), {
         type: "expired",
         id,
@@ -983,11 +959,7 @@ export class ApprovalStore {
    * a crash can strand only a visible/reconcilable attempt — never a consumed
    * grant whose durable execution still claims TRY 0. The per-item O_EXCL lock
    * is shared with async delivery transitions through the same lock path. */
-  claimActorRetryGrantSync(
-    grantId: string,
-    actor: string,
-    now: Date = new Date(),
-  ): ActorRetryGrantClaim {
+  claimActorRetryGrantSync(grantId: string, actor: string, now: Date = new Date()): ActorRetryGrantClaim {
     this.ensureDirsSync();
     const initialGrant = readJsonSync<ApprovalGrant>(this.grantPath(grantId));
     return this.withExecutionLockSync(initialGrant.approvalId, () => {
@@ -1000,11 +972,7 @@ export class ApprovalStore {
       if (execution.state !== "approved") {
         return { status: "blocked", item };
       }
-      if (
-        grant.revokedAt !== undefined ||
-        grant.uses <= 0 ||
-        new Date(grant.expiresAt).getTime() <= now.getTime()
-      ) {
+      if (grant.revokedAt !== undefined || grant.uses <= 0 || new Date(grant.expiresAt).getTime() <= now.getTime()) {
         return { status: "blocked", item };
       }
 
@@ -1052,25 +1020,27 @@ export class ApprovalStore {
     const settled: ApprovalItem[] = [];
     for (const item of items) {
       const outcomes = explicitOutcomesFor(item.action, input.events);
-      const explicit = outcomes.length > 0 && outcomes.every((value) => value === outcomes[0])
-        ? outcomes[0]
-        : undefined;
-      settled.push(await this.finishExecution({
-        id: item.id,
-        state: explicit === true ? "executed" : explicit === false ? "failed" : "ambiguous",
-        actor: input.actor,
-        result: explicit === true
-          ? "provider reported exact tool execution success"
-          : explicit === false
-            ? "provider reported exact tool execution failure"
-            : "provider returned no unambiguous outcome for the exact approved action",
-        ...(explicit === false
-          ? { failureCause: "actor_tool_failed" }
-          : explicit === undefined
-            ? { failureCause: "actor_outcome_unacknowledged" }
-            : {}),
-        now,
-      }));
+      const explicit =
+        outcomes.length > 0 && outcomes.every((value) => value === outcomes[0]) ? outcomes[0] : undefined;
+      settled.push(
+        await this.finishExecution({
+          id: item.id,
+          state: explicit === true ? "executed" : explicit === false ? "failed" : "ambiguous",
+          actor: input.actor,
+          result:
+            explicit === true
+              ? "provider reported exact tool execution success"
+              : explicit === false
+                ? "provider reported exact tool execution failure"
+                : "provider returned no unambiguous outcome for the exact approved action",
+          ...(explicit === false
+            ? { failureCause: "actor_tool_failed" }
+            : explicit === undefined
+              ? { failureCause: "actor_outcome_unacknowledged" }
+              : {}),
+          now,
+        }),
+      );
     }
     return settled;
   }
@@ -1138,11 +1108,7 @@ export class ApprovalStore {
           ...(input.remoteRef !== undefined ? { remoteRef: input.remoteRef } : {}),
           ...(input.failureCause !== undefined ? { failureCause: input.failureCause } : {}),
           nextAction:
-            input.state === "executed"
-              ? "none"
-              : input.state === "ambiguous"
-                ? "reconcile"
-                : "retry_with_disposition",
+            input.state === "executed" ? "none" : input.state === "ambiguous" ? "reconcile" : "retry_with_disposition",
         },
       };
       await writeJsonAtomic(this.decidedPath(input.id), next);
@@ -1170,10 +1136,10 @@ export class ApprovalStore {
       const item = await this.readItem(input.id);
       const current = item.execution;
       const terminalDisposition = input.disposition === "executed" || input.disposition === "failed";
-      const supported = current !== undefined && (
-        ["ambiguous", "failed"].includes(current.state) ||
-        (terminalDisposition && ["approved", "executing"].includes(current.state))
-      );
+      const supported =
+        current !== undefined &&
+        (["ambiguous", "failed"].includes(current.state) ||
+          (terminalDisposition && ["approved", "executing"].includes(current.state)));
       if (!supported || current === undefined) {
         throw new Error(
           `approval ${input.id} execution cannot accept ${input.disposition} from ` +
@@ -1212,18 +1178,16 @@ export class ApprovalStore {
           } satisfies ApprovalLogEvent);
         }
       }
-      const grant = item.grantId === undefined || !existsSync(this.grantPath(item.grantId))
-        ? undefined
-        : readJsonSync<ApprovalGrant>(this.grantPath(item.grantId));
-      const attempts = current.state === "approved" && grant?.consumedAt !== undefined
-        ? Math.max(1, current.attempts)
-        : current.attempts;
+      const grant =
+        item.grantId === undefined || !existsSync(this.grantPath(item.grantId))
+          ? undefined
+          : readJsonSync<ApprovalGrant>(this.grantPath(item.grantId));
+      const attempts =
+        current.state === "approved" && grant?.consumedAt !== undefined
+          ? Math.max(1, current.attempts)
+          : current.attempts;
       const attemptedAt = current.attemptedAt ?? grant?.consumedAt;
-      const {
-        failureCause: _failureCause,
-        remoteRef: _remoteRef,
-        ...executionBase
-      } = current;
+      const { failureCause: _failureCause, remoteRef: _remoteRef, ...executionBase } = current;
       const next: ApprovalItem = {
         ...item,
         execution: {
@@ -1259,10 +1223,7 @@ export class ApprovalStore {
   async hasOpenItemFor(input: { app: string; role: string; actionHash: string }): Promise<boolean> {
     const pending = await this.listPending();
     return pending.some(
-      (item) =>
-        item.app === input.app &&
-        item.role === input.role &&
-        actionHash(item.action) === input.actionHash,
+      (item) => item.app === input.app && item.role === input.role && actionHash(item.action) === input.actionHash,
     );
   }
 
@@ -1292,13 +1253,14 @@ export class ApprovalStore {
     return readdirSync(this.decidedDir())
       .filter((file) => file.endsWith(".json"))
       .map((file) => readJsonSync<ApprovalItem>(join(this.decidedDir(), file)))
-      .find((item) =>
-        item.status === "denied" &&
-        item.app === input.app &&
-        item.role === input.role &&
-        item.rule === input.rule &&
-        item.ticketRef === input.ticketRef &&
-        actionHash(item.action) === hash,
+      .find(
+        (item) =>
+          item.status === "denied" &&
+          item.app === input.app &&
+          item.role === input.role &&
+          item.rule === input.rule &&
+          item.ticketRef === input.ticketRef &&
+          actionHash(item.action) === hash,
       );
   }
 
@@ -1308,15 +1270,16 @@ export class ApprovalStore {
     return readdirSync(this.decidedDir())
       .filter((file) => file.endsWith(".json"))
       .map((file) => readJsonSync<ApprovalItem>(join(this.decidedDir(), file)))
-      .find((item) =>
-        item.app === input.app &&
-        item.role === input.role &&
-        item.rule === input.rule &&
-        item.ticketRef === input.ticketRef &&
-        actionHash(item.action) === hash &&
-        isActorClaimable(item.execution?.executor) &&
-        item.execution !== undefined &&
-        actorRetryNeedsReconciliation(item.execution),
+      .find(
+        (item) =>
+          item.app === input.app &&
+          item.role === input.role &&
+          item.rule === input.rule &&
+          item.ticketRef === input.ticketRef &&
+          actionHash(item.action) === hash &&
+          isActorClaimable(item.execution?.executor) &&
+          item.execution !== undefined &&
+          actorRetryNeedsReconciliation(item.execution),
       );
   }
 
@@ -1336,12 +1299,13 @@ export class ApprovalStore {
     return readdirSync(this.pendingDir())
       .filter((file) => file.endsWith(".json"))
       .map((file) => readJsonSync<ApprovalItem>(join(this.pendingDir(), file)))
-      .find((item) =>
-        item.app === input.app &&
-        item.role === input.role &&
-        item.rule === input.rule &&
-        item.ticketRef === input.ticketRef &&
-        actionHash(item.action) === hash,
+      .find(
+        (item) =>
+          item.app === input.app &&
+          item.role === input.role &&
+          item.rule === input.rule &&
+          item.ticketRef === input.ticketRef &&
+          actionHash(item.action) === hash,
       );
   }
 
@@ -1416,9 +1380,7 @@ export class ApprovalStore {
             result: attempted
               ? "legacy actor retry consumed its grant without an acknowledged outcome"
               : "approval grant was revoked before actor execution",
-            failureCause: attempted
-              ? "legacy_actor_outcome_unacknowledged"
-              : "grant_revoked",
+            failureCause: attempted ? "legacy_actor_outcome_unacknowledged" : "grant_revoked",
             nextAction: attempted ? "reconcile" : "none",
           },
         };
@@ -1504,11 +1466,7 @@ export class ApprovalStore {
   }
 
   private withExecutionLockSync<T>(id: string, fn: () => T): T {
-    return withFileLockSync(
-      this.executionLockPath(id),
-      { staleMs: EXECUTION_LOCK_STALE_MS },
-      fn,
-    );
+    return withFileLockSync(this.executionLockPath(id), { staleMs: EXECUTION_LOCK_STALE_MS }, fn);
   }
 
   private async appendExecutionTransition(
@@ -1532,12 +1490,7 @@ export class ApprovalStore {
     } satisfies ApprovalLogEvent);
   }
 
-  private appendExecutionTransitionSync(
-    before: ApprovalItem,
-    after: ApprovalItem,
-    actor: string,
-    now: Date,
-  ): void {
+  private appendExecutionTransitionSync(before: ApprovalItem, after: ApprovalItem, actor: string, now: Date): void {
     const from = before.execution?.state;
     const to = after.execution?.state;
     if (from === undefined || to === undefined || from === to) return;
@@ -1575,9 +1528,7 @@ function decisionReason(input: DecideApprovalInput, decidedBy: ApprovalDecider):
     throw new Error("approval decision requires a non-empty reason");
   }
   if (supplied !== undefined && /^[ads]$/i.test(supplied)) {
-    throw new Error(
-      `approval decision reason "${supplied}" is a bare decision token; provide an actual justification`,
-    );
+    throw new Error(`approval decision reason "${supplied}" is a bare decision token; provide an actual justification`);
   }
   return supplied ?? `approved by ${decidedBy.identity}`;
 }
@@ -1593,13 +1544,14 @@ export function approvalLifecycleState(item: ApprovalItem): ApprovalLifecycleSta
 }
 
 function initialExecution(item: ApprovalItem): ApprovalExecution {
-  const executor = item.rule === "production-deploy"
-    ? "release" as const
-    : item.action.tool === "cormidia.github.issue.create" || item.action.tool === "cormidia.github.issue.comment"
-      ? "durable-github" as const
-      : approvedCommand(item.action) !== undefined && isOrchestratorExecutableRule(item.rule)
-        ? "orchestrator-command" as const
-        : "actor-retry" as const;
+  const executor =
+    item.rule === "production-deploy"
+      ? ("release" as const)
+      : item.action.tool === "cormidia.github.issue.create" || item.action.tool === "cormidia.github.issue.comment"
+        ? ("durable-github" as const)
+        : approvedCommand(item.action) !== undefined && isOrchestratorExecutableRule(item.rule)
+          ? ("orchestrator-command" as const)
+          : ("actor-retry" as const);
   return {
     state: "approved",
     executor,
@@ -1613,9 +1565,7 @@ function initialExecution(item: ApprovalItem): ApprovalExecution {
  *  an approval authorizes one recorded action, so the executor must recognize
  *  the action shape it can reproduce byte-for-byte and refuse everything
  *  else. */
-const SHELL_TOOLS: ReadonlySet<string> = new Set([
-  "bash", "shell", "sh", "zsh", "terminal", "exec", "exec_command",
-]);
+const SHELL_TOOLS: ReadonlySet<string> = new Set(["bash", "shell", "sh", "zsh", "terminal", "exec", "exec_command"]);
 
 /** The exact command an approved shell action authorizes, or undefined when
  *  the action is not one. This is the ONLY thing an `orchestrator-command`
@@ -1626,11 +1576,12 @@ export function approvedCommand(action: ApprovalAction | ToolAction): string | u
   const input = action.input;
   if (input === null || typeof input !== "object" || Array.isArray(input)) return undefined;
   const record = input as Record<string, unknown>;
-  const command = typeof record["command"] === "string"
-    ? record["command"]
-    : typeof record["cmd"] === "string"
-      ? record["cmd"]
-      : undefined;
+  const command =
+    typeof record["command"] === "string"
+      ? record["command"]
+      : typeof record["cmd"] === "string"
+        ? record["cmd"]
+        : undefined;
   return command === undefined || command.trim() === "" ? undefined : command;
 }
 
@@ -1801,16 +1752,14 @@ function mintGrant(
     ...(literal !== undefined ? { commandSha256: commandIdentityHash(literal) } : {}),
     identityVersion: ACTION_IDENTITY_VERSION,
     expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
-    uses: scope !== undefined ? maxUses ?? DEFAULT_SCOPED_MAX_USES : 1,
+    uses: scope !== undefined ? (maxUses ?? DEFAULT_SCOPED_MAX_USES) : 1,
     createdAt: now.toISOString(),
     ...(scope !== undefined
       ? {
           scope: {
             kind: scope.kind,
             rule: item.rule,
-            ...(scope.kind === "ticket" && item.ticketRef !== undefined
-              ? { ticketRef: item.ticketRef }
-              : {}),
+            ...(scope.kind === "ticket" && item.ticketRef !== undefined ? { ticketRef: item.ticketRef } : {}),
             ...(scope.pathContains !== undefined ? { pathContains: scope.pathContains } : {}),
           },
         }
@@ -1846,7 +1795,10 @@ function stableStringify(value: unknown): string {
 }
 
 function defaultId(now: Date): string {
-  const compact = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const compact = now
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
   const rand4 = randomBytes(3).toString("base64url").slice(0, 4).toLowerCase();
   return `${compact}-${rand4}`;
 }
@@ -1935,7 +1887,9 @@ function explicitOutcomesFor(action: ApprovalAction, events: readonly TurnEvent[
 }
 
 function actorRetryNeedsReconciliation(execution: ApprovalExecution): boolean {
-  return execution.state === "executing" ||
+  return (
+    execution.state === "executing" ||
     execution.state === "ambiguous" ||
-    (execution.state === "failed" && execution.nextAction !== "none");
+    (execution.state === "failed" && execution.nextAction !== "none")
+  );
 }

@@ -33,9 +33,7 @@ const SOURCE_LAUNCHER = join(REPO_ROOT, "src", "cormidia-local.cjs");
 
 /** Run `node <launcher> <args>` from a working directory that is removed
  *  before exec — the removed-cwd seeded violation. */
-async function runFromRemovedCwd(
-  launcher: string,
-): Promise<{ code: number; stdout: string; stderr: string }> {
+async function runFromRemovedCwd(launcher: string): Promise<{ code: number; stdout: string; stderr: string }> {
   const doomed = await mkdtemp(join(tmpdir(), "cormidia-cf-j01a-cwd-"));
   try {
     const { stdout, stderr } = await execFileAsync(

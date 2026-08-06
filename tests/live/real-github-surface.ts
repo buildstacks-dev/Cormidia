@@ -18,25 +18,31 @@ export interface GithubConformanceArtifactTracker {
 /** Track effects created through the real conformance surface. A successful
  * branch deletion is itself a consumed cleanup effect: remove it from the
  * outstanding set immediately so final cleanup never re-performs it. */
-export function trackGithubConformanceOps(
-  raw: GhOps,
-  tracker: GithubConformanceArtifactTracker,
-): GhOps {
+export function trackGithubConformanceOps(raw: GhOps, tracker: GithubConformanceArtifactTracker): GhOps {
   return new Proxy(raw, {
     get(target, property) {
-      if (property === "createIssue") return async (input: Parameters<GhOps["createIssue"]>[0]): Promise<GhIssue> => {
-        const result = await target.createIssue(input); tracker.issues.add(result.number); return result;
-      };
-      if (property === "createPR") return async (input: Parameters<GhOps["createPR"]>[0]): Promise<GhPullRequest> => {
-        const result = await target.createPR(input); tracker.prs.add(result.number); return result;
-      };
-      if (property === "ensureLabel") return async (input: Parameters<GhOps["ensureLabel"]>[0]): Promise<void> => {
-        await target.ensureLabel(input); tracker.labels.add(input.name);
-      };
-      if (property === "deleteBranch") return async (branch: string): Promise<void> => {
-        await target.deleteBranch(branch);
-        tracker.branches.delete(branch);
-      };
+      if (property === "createIssue")
+        return async (input: Parameters<GhOps["createIssue"]>[0]): Promise<GhIssue> => {
+          const result = await target.createIssue(input);
+          tracker.issues.add(result.number);
+          return result;
+        };
+      if (property === "createPR")
+        return async (input: Parameters<GhOps["createPR"]>[0]): Promise<GhPullRequest> => {
+          const result = await target.createPR(input);
+          tracker.prs.add(result.number);
+          return result;
+        };
+      if (property === "ensureLabel")
+        return async (input: Parameters<GhOps["ensureLabel"]>[0]): Promise<void> => {
+          await target.ensureLabel(input);
+          tracker.labels.add(input.name);
+        };
+      if (property === "deleteBranch")
+        return async (branch: string): Promise<void> => {
+          await target.deleteBranch(branch);
+          tracker.branches.delete(branch);
+        };
       const value = Reflect.get(target, property, target);
       return typeof value === "function" ? value.bind(target) : value;
     },
@@ -58,7 +64,11 @@ export class RealGithubConformanceSurface implements GithubConformanceSurface {
   private sequence = 0;
   private cleaned = false;
 
-  private constructor(readonly repo: string, root: string, checkout: string) {
+  private constructor(
+    readonly repo: string,
+    root: string,
+    checkout: string,
+  ) {
     this.label = `github:${repo}`;
     this.root = root;
     this.checkout = checkout;
@@ -77,7 +87,17 @@ export class RealGithubConformanceSurface implements GithubConformanceSurface {
   }
 
   async resolveDefaultBranch(): Promise<string> {
-    return (await run(this.checkout, "gh", ["repo", "view", this.repo, "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"])).trim();
+    return (
+      await run(this.checkout, "gh", [
+        "repo",
+        "view",
+        this.repo,
+        "--json",
+        "defaultBranchRef",
+        "--jq",
+        ".defaultBranchRef.name",
+      ])
+    ).trim();
   }
 
   async prepareBranch(prefix: string): Promise<{ branch: string; headOid: string }> {
@@ -110,30 +130,46 @@ export class RealGithubConformanceSurface implements GithubConformanceSurface {
     this.cleaned = true;
     const failures: string[] = [];
     for (const pr of this.artifacts.prs) {
-      try { if ((await this.raw.readPR(pr)).state === "OPEN") await this.raw.closePullRequest(pr); }
-      catch (error) { failures.push(`pr:${pr}:${errorMessage(error)}`); }
+      try {
+        if ((await this.raw.readPR(pr)).state === "OPEN") await this.raw.closePullRequest(pr);
+      } catch (error) {
+        failures.push(`pr:${pr}:${errorMessage(error)}`);
+      }
     }
     for (const issue of this.artifacts.issues) {
-      try { if ((await this.raw.readIssue(issue)).state === "OPEN") await this.raw.closeIssue(issue); }
-      catch (error) { failures.push(`issue:${issue}:${errorMessage(error)}`); }
+      try {
+        if ((await this.raw.readIssue(issue)).state === "OPEN") await this.raw.closeIssue(issue);
+      } catch (error) {
+        failures.push(`issue:${issue}:${errorMessage(error)}`);
+      }
     }
     for (const branch of this.artifacts.branches) {
-      try { await this.raw.deleteBranch(branch); }
-      catch (error) { failures.push(`branch:${branch}:${errorMessage(error)}`); }
+      try {
+        await this.raw.deleteBranch(branch);
+      } catch (error) {
+        failures.push(`branch:${branch}:${errorMessage(error)}`);
+      }
     }
     for (const label of this.artifacts.labels) {
-      try { await run(this.checkout, "gh", ["label", "delete", label, "--repo", this.repo, "--yes"]); }
-      catch (error) { failures.push(`label:${label}:${errorMessage(error)}`); }
+      try {
+        await run(this.checkout, "gh", ["label", "delete", label, "--repo", this.repo, "--yes"]);
+      } catch (error) {
+        failures.push(`label:${label}:${errorMessage(error)}`);
+      }
     }
     await rm(this.root, { recursive: true, force: true });
-    if (failures.length > 0) throw new AggregateError(failures, `GitHub conformance cleanup failed for ${failures.length} artifact(s)`);
+    if (failures.length > 0)
+      throw new AggregateError(failures, `GitHub conformance cleanup failed for ${failures.length} artifact(s)`);
   }
 
-  private async head(): Promise<string> { return (await run(this.checkout, "git", ["rev-parse", "HEAD"])).trim(); }
-
+  private async head(): Promise<string> {
+    return (await run(this.checkout, "git", ["rev-parse", "HEAD"])).trim();
+  }
 }
 
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 async function run(cwd: string, command: string, args: string[]): Promise<string> {
   const result = await execFileAsync(command, args, {

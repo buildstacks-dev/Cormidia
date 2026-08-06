@@ -25,7 +25,7 @@ describe("CF-J15-RC — torn local reads are rejected and source-scoped", () => 
     const state = await makeTempStateHome({ name: "cf-j15-rc-torn-ledger" });
     states.push(state);
     await seedJ15Run(state);
-    await appendFile(state.path("telemetry", "2026-07-31.jsonl"), "{\"at\":\"torn", "utf8");
+    await appendFile(state.path("telemetry", "2026-07-31.jsonl"), '{"at":"torn', "utf8");
 
     const local = await indexLocalSources({
       orgName: J15_APPS.org.name,
@@ -44,9 +44,11 @@ describe("CF-J15-RC — torn local reads are rejected and source-scoped", () => 
       github: githubResult(J15_NOW.toISOString()).apps,
     });
     expect(snapshot.sources.find((source) => source.id === "ledger")?.status).toBe("degraded");
-    expect(snapshot.attention).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "source_health", detail: expect.stringMatching(/torn final append/) }),
-    ]));
+    expect(snapshot.attention).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "source_health", detail: expect.stringMatching(/torn final append/) }),
+      ]),
+    );
     expect(snapshot.totals.cost.known_cost_usd).toBe(1.25);
 
     const report = await buildReport({
@@ -57,9 +59,9 @@ describe("CF-J15-RC — torn local reads are rejected and source-scoped", () => 
       now: J15_NOW,
     });
     expect(report.quality.torn_tails).toBe(1);
-    expect(report.quality.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "torn_tail", day: "2026-07-31" }),
-    ]));
+    expect(report.quality.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "torn_tail", day: "2026-07-31" })]),
+    );
     expect(report.quality.notices.join(" ")).toMatch(/torn/i);
   });
 
@@ -68,7 +70,7 @@ describe("CF-J15-RC — torn local reads are rejected and source-scoped", () => 
     states.push(state);
     const runDir = state.path("runs", J15_APP, "corrupt-run");
     await mkdir(runDir, { recursive: true });
-    await writeFile(state.path("runs", J15_APP, "corrupt-run", "envelope.json"), "{\"status\":", "utf8");
+    await writeFile(state.path("runs", J15_APP, "corrupt-run", "envelope.json"), '{"status":', "utf8");
 
     const local = await indexLocalSources({
       orgName: J15_APPS.org.name,
@@ -84,9 +86,15 @@ describe("CF-J15-RC — torn local reads are rejected and source-scoped", () => 
       cursor: "0",
       github: githubResult(J15_NOW.toISOString()).apps,
     });
-    expect(snapshot.passes).toEqual(expect.arrayContaining([
-      expect.objectContaining({ run_id: "corrupt-run", status: "corrupt(envelope)", usage: expect.objectContaining({ quality: "unavailable" }) }),
-    ]));
+    expect(snapshot.passes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          run_id: "corrupt-run",
+          status: "corrupt(envelope)",
+          usage: expect.objectContaining({ quality: "unavailable" }),
+        }),
+      ]),
+    );
     expect(snapshot.passes.find((pass) => pass.run_id === "corrupt-run")?.quality_reason).toMatch(/unreadable/i);
   });
 

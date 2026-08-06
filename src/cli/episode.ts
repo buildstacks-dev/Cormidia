@@ -57,23 +57,20 @@ function renderExplanation(explanation: EpisodeExplanation): void {
   if (latestReplan !== undefined) {
     console.log(
       `replan: ${latestReplan.trigger.id} ${latestReplan.status}` +
-      (latestReplan.revisionVersion === null ? "" : ` -> v${latestReplan.revisionVersion}`) +
-      (latestReplan.reason === null ? "" : ` — ${latestReplan.reason}`),
+        (latestReplan.revisionVersion === null ? "" : ` -> v${latestReplan.revisionVersion}`) +
+        (latestReplan.reason === null ? "" : ` — ${latestReplan.reason}`),
     );
   }
   for (const step of explanation.steps) console.log(renderStep(step));
   if (explanation.executionSteps.length > 0) {
     console.log(`durable execution steps (${explanation.executionSteps.length}):`);
     for (const record of explanation.executionSteps) {
-      const assignment = record.assignment === null
-        ? record.kind
-        : `${record.assignment.harness}/${record.assignment.model}/${record.assignment.effort}`;
-      const planRef = record.planStepId === null
-        ? ""
-        : ` plan v${record.planVersion ?? "?"}/${record.planStepId}`;
-      console.log(
-        `  ${record.startedAt} ${record.status} ${record.operation} ${assignment}${planRef}`,
-      );
+      const assignment =
+        record.assignment === null
+          ? record.kind
+          : `${record.assignment.harness}/${record.assignment.model}/${record.assignment.effort}`;
+      const planRef = record.planStepId === null ? "" : ` plan v${record.planVersion ?? "?"}/${record.planStepId}`;
+      console.log(`  ${record.startedAt} ${record.status} ${record.operation} ${assignment}${planRef}`);
     }
   }
   if (explanation.problems.length > 0) {
@@ -92,10 +89,11 @@ function renderStep(step: ExplainedEpisodeStep): string {
   if (step.kind === "approval") {
     return `${step.id}: ${step.status} approval ${step.approvalKind} (${step.actionRef})`;
   }
-  const annotation = step.authorizationDetail === null
-    ? ""
-    : ` (assignment ${step.authorizationStatus}: ${step.authorizationDetail})`;
-  return `${step.id}: ${step.status} provider ${step.role} ` +
+  const annotation =
+    step.authorizationDetail === null ? "" : ` (assignment ${step.authorizationStatus}: ${step.authorizationDetail})`;
+  return (
+    `${step.id}: ${step.status} provider ${step.role} ` +
     `${step.assignment.harness}/${step.assignment.model}/${step.assignment.effort} ` +
-    `[${step.assignmentSource}] — ${step.selectionReason}${annotation}`;
+    `[${step.assignmentSource}] — ${step.selectionReason}${annotation}`
+  );
 }

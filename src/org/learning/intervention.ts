@@ -165,9 +165,7 @@ export function validateInterventionRecord(value: unknown): InterventionRecord {
     );
   }
   if (rollback === null && status === "rolled_back") {
-    throw new Error(
-      `learning: ${source}: status "rolled_back" requires the rollback block saying when and why`,
-    );
+    throw new Error(`learning: ${source}: status "rolled_back" requires the rollback block saying when and why`);
   }
   if (publish === null && status !== "proposed") {
     throw new Error(
@@ -244,10 +242,7 @@ export function interventionPath(orgHome: string, interventionId: string): strin
 /** Validate and persist. Lineage is history: an existing record may only be
  *  rewritten by a strictly forward status transition (proposed -> published
  *  -> active -> rolled_back/retired) — never sideways or back. */
-export async function writeInterventionRecord(
-  orgHome: string,
-  value: unknown,
-): Promise<InterventionRecord> {
+export async function writeInterventionRecord(orgHome: string, value: unknown): Promise<InterventionRecord> {
   const record = validateInterventionRecord(value);
   const path = interventionPath(orgHome, record.intervention_id);
   if (existsSync(path)) {
@@ -265,10 +260,7 @@ export async function writeInterventionRecord(
   return record;
 }
 
-export async function readInterventionRecord(
-  orgHome: string,
-  interventionId: string,
-): Promise<InterventionRecord> {
+export async function readInterventionRecord(orgHome: string, interventionId: string): Promise<InterventionRecord> {
   return readJsonRecord(
     interventionPath(orgHome, interventionId),
     validateInterventionRecord,

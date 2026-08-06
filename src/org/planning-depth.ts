@@ -23,9 +23,7 @@ export type PlanningDisposition = "direct-execution" | "shape-ticket" | "plan-mi
  *  makes the token-free planning preview able to say whether the requested
  *  decomposition can possibly fit the stage ticket budget BEFORE a provider
  *  turn is spent (ENH-011). `max: null` is the open-ended `7+` band. */
-export function expectedTicketBandRange(
-  band: ExpectedTicketBand,
-): { min: number; max: number | null } {
+export function expectedTicketBandRange(band: ExpectedTicketBand): { min: number; max: number | null } {
   if (band === "1-2") return { min: 1, max: 2 };
   if (band === "3-6") return { min: 3, max: 6 };
   return { min: 7, max: null };
@@ -94,10 +92,10 @@ export function decidePlanningDepth(input: PlanningDepthInput): PlanningDepthDec
     reversibility: reversibility === "costly-to-reverse" ? "difficult" : reversibility,
     sensitiveDomains,
     uncertainty: ambiguity,
-    componentCount: coupling === "high" || expectedTickets === "7+" ? 7 : coupling === "medium" || expectedTickets === "3-6" ? 3 : 1,
+    componentCount:
+      coupling === "high" || expectedTickets === "7+" ? 7 : coupling === "medium" || expectedTickets === "3-6" ? 3 : 1,
     externalSystemCount: coupling === "high" ? 3 : 0,
-    releaseConsequence:
-      externalConsequence === "customer-public-production" ? "production" : externalConsequence,
+    releaseConsequence: externalConsequence === "customer-public-production" ? "production" : externalConsequence,
     novelty: "familiar",
     evidenceQuality: "high",
   });

@@ -7,7 +7,6 @@ import type { RoleConfig } from "../../../src/runtime/types.js";
 import type { AppEntry } from "../../../src/org/apps.js";
 import { ApprovalStore } from "../../../src/org/approvals.js";
 import {
-  DirectCampaignError,
   acceptDirectOperationalCampaign,
   assertCampaignEffectIsolation,
   campaignAuthorityPath,
@@ -34,14 +33,12 @@ const APP: AppEntry = {
   name: "campaign-app",
   repo: "fixture/campaign",
   status: "live",
-  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
+  budgetUsdMonth: 100,
+  objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };
-const ROLES: RoleConfig[] = [
-  role("planner", "claude", "planner-model"),
-  role("marketing", "codex", "marketing-model"),
-];
+const ROLES: RoleConfig[] = [role("planner", "claude", "planner-model"), role("marketing", "codex", "marketing-model")];
 const homes: TempStateHome[] = [];
 
 afterEach(async () => Promise.all(homes.splice(0).map((home) => home.cleanup())));
@@ -54,7 +51,13 @@ describe("HB-106 — direct operational campaign", () => {
       campaign: campaign(),
     });
     expect(accepted.campaign.value.destinations.map((entry) => entry.channel)).toEqual([
-      "reddit", "reddit", "reddit", "reddit", "reddit", "linkedin", "twitter",
+      "reddit",
+      "reddit",
+      "reddit",
+      "reddit",
+      "reddit",
+      "linkedin",
+      "twitter",
     ]);
     expect(accepted.direct.value.steps).toHaveLength(9);
     expect(accepted.direct.value.steps?.filter((step) => step.kind === "provider_turn")).toHaveLength(1);
@@ -99,23 +102,27 @@ describe("HB-106 — direct operational campaign", () => {
     const draft = createCampaignContentDraft({
       campaign: accepted.campaign,
       contentTurnRef: "turn:marketing:campaign-content-plan",
-      payloads: Object.fromEntries(DESTINATIONS.map((destination) => [
-        destination.destinationId,
-        `Exact ${destination.channel} payload for ${destination.target}`,
-      ])),
+      payloads: Object.fromEntries(
+        DESTINATIONS.map((destination) => [
+          destination.destinationId,
+          `Exact ${destination.channel} payload for ${destination.target}`,
+        ]),
+      ),
       createdAt: AT,
     });
 
-    await expect(prepareCampaignEffectApprovals({
-      root: home.stateHome,
-      campaign: accepted.campaign,
-      draft,
-      store,
-      now: EFFECT_AT,
-      fault: (_boundary, completed) => {
-        if (completed === 3) throw new Error("SIMULATED CRASH after third exact approval");
-      },
-    })).rejects.toThrow(/SIMULATED CRASH/);
+    await expect(
+      prepareCampaignEffectApprovals({
+        root: home.stateHome,
+        campaign: accepted.campaign,
+        draft,
+        store,
+        now: EFFECT_AT,
+        fault: (_boundary, completed) => {
+          if (completed === 3) throw new Error("SIMULATED CRASH after third exact approval");
+        },
+      }),
+    ).rejects.toThrow(/SIMULATED CRASH/);
     expect(await store.listPending()).toHaveLength(3);
 
     const links = await prepareCampaignEffectApprovals({
@@ -126,38 +133,40 @@ describe("HB-106 — direct operational campaign", () => {
       now: EFFECT_AT,
     });
     expect(links.effects).toHaveLength(7);
-    expect(existsSync(campaignContentDraftPath(
-      home.stateHome,
-      APP.name,
-      "launch-campaign",
-    ))).toBe(true);
+    expect(existsSync(campaignContentDraftPath(home.stateHome, APP.name, "launch-campaign"))).toBe(true);
     expect(new Set(links.effects.map((effect) => effect.approvalId)).size).toBe(7);
     expect(await store.listPending()).toHaveLength(7);
-    expect(await prepareCampaignEffectApprovals({
-      root: home.stateHome,
-      campaign: accepted.campaign,
-      draft,
-      store,
-      now: new Date(EFFECT_AT.getTime() + 60_000),
-    })).toEqual(links);
+    expect(
+      await prepareCampaignEffectApprovals({
+        root: home.stateHome,
+        campaign: accepted.campaign,
+        draft,
+        store,
+        now: new Date(EFFECT_AT.getTime() + 60_000),
+      }),
+    ).toEqual(links);
     const changedDraft = createCampaignContentDraft({
       campaign: accepted.campaign,
       contentTurnRef: draft.contentTurnRef,
-      payloads: Object.fromEntries(DESTINATIONS.map((destination) => [
-        destination.destinationId,
-        destination.destinationId === "reddit-one"
-          ? "changed after immutable preparation"
-          : `Exact ${destination.channel} payload for ${destination.target}`,
-      ])),
+      payloads: Object.fromEntries(
+        DESTINATIONS.map((destination) => [
+          destination.destinationId,
+          destination.destinationId === "reddit-one"
+            ? "changed after immutable preparation"
+            : `Exact ${destination.channel} payload for ${destination.target}`,
+        ]),
+      ),
       createdAt: draft.createdAt,
     });
-    await expect(prepareCampaignEffectApprovals({
-      root: home.stateHome,
-      campaign: accepted.campaign,
-      draft: changedDraft,
-      store,
-      now: EFFECT_AT,
-    })).rejects.toThrowError(expect.objectContaining({ code: "campaign_authority_conflict" }));
+    await expect(
+      prepareCampaignEffectApprovals({
+        root: home.stateHome,
+        campaign: accepted.campaign,
+        draft: changedDraft,
+        store,
+        now: EFFECT_AT,
+      }),
+    ).rejects.toThrowError(expect.objectContaining({ code: "campaign_authority_conflict" }));
 
     const pending = await readCampaignEffectLedger({
       root: home.stateHome,
@@ -213,13 +222,15 @@ describe("HB-106 — direct operational campaign", () => {
       createdAt: AT,
     });
     expect(schedule.destinations).toHaveLength(7);
-    expect(await scheduleCampaignFollowUps({
-      root: home.stateHome,
-      campaign: accepted.campaign,
-      ledger: acknowledged,
-      observeAtByDestination,
-      createdAt: new Date(Date.parse(AT) + 60_000).toISOString(),
-    })).toEqual(schedule);
+    expect(
+      await scheduleCampaignFollowUps({
+        root: home.stateHome,
+        campaign: accepted.campaign,
+        ledger: acknowledged,
+        observeAtByDestination,
+        createdAt: new Date(Date.parse(AT) + 60_000).toISOString(),
+      }),
+    ).toEqual(schedule);
     const scheduledLedger = await readCampaignEffectLedger({
       root: home.stateHome,
       campaign: accepted.campaign,
@@ -231,8 +242,9 @@ describe("HB-106 — direct operational campaign", () => {
     // two destinations must turn this detector red.
     const broadened = structuredClone(links.effects);
     broadened[1]!.approvalId = broadened[0]!.approvalId;
-    expect(() => assertCampaignEffectIsolation(accepted.campaign, broadened))
-      .toThrowError(expect.objectContaining({ code: "campaign_effect_broadened" }));
+    expect(() => assertCampaignEffectIsolation(accepted.campaign, broadened)).toThrowError(
+      expect.objectContaining({ code: "campaign_effect_broadened" }),
+    );
   });
 
   it("turns an unknown interaction into a new authority and new EpisodePlan", async () => {
@@ -297,10 +309,12 @@ describe("HB-106 — direct operational campaign", () => {
     const draft = createCampaignContentDraft({
       campaign: accepted.campaign,
       contentTurnRef: "turn:marketing:missing-remote-control",
-      payloads: Object.fromEntries(DESTINATIONS.map((destination) => [
-        destination.destinationId,
-        `Exact ${destination.channel} payload for ${destination.target}`,
-      ])),
+      payloads: Object.fromEntries(
+        DESTINATIONS.map((destination) => [
+          destination.destinationId,
+          `Exact ${destination.channel} payload for ${destination.target}`,
+        ]),
+      ),
       createdAt: AT,
     });
     let sequence = 0;
@@ -343,8 +357,9 @@ describe("HB-106 — direct operational campaign", () => {
   it("refuses a prose-complete campaign whose destination cardinality is wrong", () => {
     const invalid = campaign();
     invalid.destinations = invalid.destinations.slice(0, 6);
-    expect(() => createDirectOperationalCampaignAuthority(invalid))
-      .toThrowError(expect.objectContaining({ code: "campaign_shape_invalid" }));
+    expect(() => createDirectOperationalCampaignAuthority(invalid)).toThrowError(
+      expect.objectContaining({ code: "campaign_shape_invalid" }),
+    );
   });
 });
 

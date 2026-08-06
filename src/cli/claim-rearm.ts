@@ -68,7 +68,9 @@ export async function cmdClaimRearm(
       `actor=${actor}; reason=${reason}; rearm=${plan.rearmId}`,
   );
   if (!execute) {
-    io.out(`No changes made to the claim (dispatched CLI: invocation audit only). Execute with --execute --confirm ${exactConfirmation}.`);
+    io.out(
+      `No changes made to the claim (dispatched CLI: invocation audit only). Execute with --execute --confirm ${exactConfirmation}.`,
+    );
     return 0;
   }
   if (plan.replay) {

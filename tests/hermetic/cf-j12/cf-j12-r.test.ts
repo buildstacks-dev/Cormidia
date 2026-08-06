@@ -24,12 +24,7 @@ import { openCandidateArtifact } from "../../../src/org/learning/candidate-store
 import { bundleDir, loadConceptDir, quarantineDir } from "../../../src/org/learning/concepts.js";
 import { resolveLearningContext } from "../../../src/org/learning/resolver.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
-import {
-  candidateSpec,
-  conceptDraftMarkdown,
-  makeLearningWorld,
-  type LearningWorld,
-} from "./learning-seams.js";
+import { candidateSpec, conceptDraftMarkdown, makeLearningWorld, type LearningWorld } from "./learning-seams.js";
 
 // ---------------------------------------------------------------------------
 // L1 — the tamper gate (guardrails enforce; evals never do)
@@ -96,9 +91,9 @@ describe("CF-J12-R — L1 tamper gate on the learning governance surfaces (T-10)
   });
 
   it("reads of protected surfaces stay routine — the gate guards writes, not visibility", () => {
-    expect(
-      classify({ tool: "bash", input: { command: "cat /tmp/org-home/learning/manifest.yaml" } }),
-    ).toEqual({ cls: "routine" });
+    expect(classify({ tool: "bash", input: { command: "cat /tmp/org-home/learning/manifest.yaml" } })).toEqual({
+      cls: "routine",
+    });
   });
 });
 

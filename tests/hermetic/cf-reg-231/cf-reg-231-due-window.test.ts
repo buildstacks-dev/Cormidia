@@ -37,7 +37,8 @@ class DuplicateDueWindowViolation extends Error {
 }
 
 function assertSingleDueWindowSpawn(ticks: readonly DispatchTickResult[]): void {
-  const count = ticks.flatMap((tick) => tick.spawned)
+  const count = ticks
+    .flatMap((tick) => tick.spawned)
     .filter((turn) => turn.app === APP && turn.role === ROLE && turn.trigger === TRIGGER).length;
   if (count > 1) throw new DuplicateDueWindowViolation(count);
 }
@@ -52,39 +53,47 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
 
   async function makeOrg(): Promise<TempOrgHome> {
     const next = await makeTempOrgHome({ name: "daily-org" });
-    await writeFile(join(next.orgHome, "apps.yaml"), [
-      "schema_version: 1",
-      "org:",
-      "  name: daily-org",
-      "  max_concurrent_turns: 1",
-      "defaults:",
-      "  budget_usd_month: 1000",
-      "apps:",
-      `  ${APP}:`,
-      "    repo: fixture/daily-app",
-      "    status: live",
-      "    cadence: {}",
-      "    release:",
-      "      kind: deploy",
-      "      owner: sre",
-      "      trigger: command",
-      "      command: ./deploy.sh",
-      "",
-    ].join("\n"), "utf8");
-    await writeFile(join(next.orgHome, "roles.yaml"), [
-      "defaults:",
-      "  max_turn_budget_usd: 5",
-      "roles:",
-      `  ${ROLE}:`,
-      "    runtime: claude",
-      "    model: claude-scripted-model",
-      "    effort: medium",
-      "    delegation: {allow: []}",
-      "    triggers:",
-      `      - schedule: \"${TRIGGER}\"`,
-      "    outputs: [notes]",
-      "",
-    ].join("\n"), "utf8");
+    await writeFile(
+      join(next.orgHome, "apps.yaml"),
+      [
+        "schema_version: 1",
+        "org:",
+        "  name: daily-org",
+        "  max_concurrent_turns: 1",
+        "defaults:",
+        "  budget_usd_month: 1000",
+        "apps:",
+        `  ${APP}:`,
+        "    repo: fixture/daily-app",
+        "    status: live",
+        "    cadence: {}",
+        "    release:",
+        "      kind: deploy",
+        "      owner: sre",
+        "      trigger: command",
+        "      command: ./deploy.sh",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(next.orgHome, "roles.yaml"),
+      [
+        "defaults:",
+        "  max_turn_budget_usd: 5",
+        "roles:",
+        `  ${ROLE}:`,
+        "    runtime: claude",
+        "    model: claude-scripted-model",
+        "    effort: medium",
+        "    delegation: {allow: []}",
+        "    triggers:",
+        `      - schedule: \"${TRIGGER}\"`,
+        "    outputs: [notes]",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
     return next;
   }
 
@@ -98,24 +107,32 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
     org = await makeOrg();
     const clock = makeTestClock("2026-08-03T07:41:00.000Z");
     const spawned: string[] = [];
-    const run = () => dispatchTick({
-      orgRoot: org!.orgHome,
-      runtimeHome: org!.stateHome,
-      now: clock.nowDate,
-      eventSource: NO_EVENTS,
-      spawn: async ({ turnId }) => { spawned.push(turnId); },
-    });
+    const run = () =>
+      dispatchTick({
+        orgRoot: org!.orgHome,
+        runtimeHome: org!.stateHome,
+        now: clock.nowDate,
+        eventSource: NO_EVENTS,
+        spawn: async ({ turnId }) => {
+          spawned.push(turnId);
+        },
+      });
 
     const first = await run();
     expect(first.errors).toEqual([]);
     expect(first.spawned).toHaveLength(1);
     const turnId = first.spawned[0]!.turnId;
-    await writeJournalPatch(org.stateHome, turnId, {
-      app: APP,
-      role: ROLE,
-      phase: "failed",
-      message: "scripted provider failure",
-    }, clock.nowDate());
+    await writeJournalPatch(
+      org.stateHome,
+      turnId,
+      {
+        app: APP,
+        role: ROLE,
+        phase: "failed",
+        message: "scripted provider failure",
+      },
+      clock.nowDate(),
+    );
     const evidence = new SchedulerEvidenceStore({
       stateHome: org.stateHome,
       orgName: "daily-org",
@@ -141,16 +158,20 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
     org = await makeOrg();
     const clock = makeTestClock("2026-08-03T07:41:00.000Z");
     const spawned: string[] = [];
-    await expect(dispatchTick({
-      orgRoot: org.orgHome,
-      runtimeHome: org.stateHome,
-      now: clock.nowDate,
-      eventSource: NO_EVENTS,
-      spawn: async ({ turnId }) => { spawned.push(turnId); },
-      schedulerFault: async (boundary) => {
-        if (boundary === "after_scheduler_lock") throw new Error("seeded crash after due claim");
-      },
-    })).rejects.toThrow("seeded crash after due claim");
+    await expect(
+      dispatchTick({
+        orgRoot: org.orgHome,
+        runtimeHome: org.stateHome,
+        now: clock.nowDate,
+        eventSource: NO_EVENTS,
+        spawn: async ({ turnId }) => {
+          spawned.push(turnId);
+        },
+        schedulerFault: async (boundary) => {
+          if (boundary === "after_scheduler_lock") throw new Error("seeded crash after due claim");
+        },
+      }),
+    ).rejects.toThrow("seeded crash after due claim");
 
     clock.advance(3 * 60_000);
     const restarted = await dispatchTick({
@@ -158,7 +179,9 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
       runtimeHome: org.stateHome,
       now: clock.nowDate,
       eventSource: NO_EVENTS,
-      spawn: async ({ turnId }) => { spawned.push(turnId); },
+      spawn: async ({ turnId }) => {
+        spawned.push(turnId);
+      },
       processIdentityStatus: () => "mismatch",
       dueClaimOwnerStatus: () => "dead",
     });
@@ -176,16 +199,20 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
     org = await makeOrg();
     const clock = makeTestClock("2026-08-03T07:41:00.000Z");
     const spawned: string[] = [];
-    await expect(dispatchTick({
-      orgRoot: org.orgHome,
-      runtimeHome: org.stateHome,
-      now: clock.nowDate,
-      eventSource: NO_EVENTS,
-      spawn: async ({ turnId }) => { spawned.push(turnId); },
-      schedulerFault: async (boundary) => {
-        if (boundary === "after_tick_journal") throw new Error("seeded crash before claim commit");
-      },
-    })).rejects.toThrow("seeded crash before claim commit");
+    await expect(
+      dispatchTick({
+        orgRoot: org.orgHome,
+        runtimeHome: org.stateHome,
+        now: clock.nowDate,
+        eventSource: NO_EVENTS,
+        spawn: async ({ turnId }) => {
+          spawned.push(turnId);
+        },
+        schedulerFault: async (boundary) => {
+          if (boundary === "after_tick_journal") throw new Error("seeded crash before claim commit");
+        },
+      }),
+    ).rejects.toThrow("seeded crash before claim commit");
 
     clock.advance(3 * 60_000);
     const restarted = await dispatchTick({
@@ -193,7 +220,9 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
       runtimeHome: org.stateHome,
       now: clock.nowDate,
       eventSource: NO_EVENTS,
-      spawn: async ({ turnId }) => { spawned.push(turnId); },
+      spawn: async ({ turnId }) => {
+        spawned.push(turnId);
+      },
       processIdentityStatus: () => "mismatch",
       dueClaimOwnerStatus: () => "dead",
     });
@@ -218,25 +247,42 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
       runtimeHome: org.stateHome,
       now: clock.nowDate,
       eventSource: NO_EVENTS,
-      spawn: async () => { providerConstructions += 1; },
+      spawn: async () => {
+        providerConstructions += 1;
+      },
     });
     const turn = first.spawned[0]!;
-    await writeJournalPatch(org.stateHome, turn.turnId, {
-      app: APP,
-      role: ROLE,
-      phase: "running",
-    }, clock.nowDate());
-    await writeJournalPatch(org.stateHome, turn.turnId, {
-      app: APP,
-      role: ROLE,
-      phase: "collecting",
-    }, clock.nowDate());
-    await writeJournalPatch(org.stateHome, turn.turnId, {
-      app: APP,
-      role: ROLE,
-      phase: "done",
-      message: "provider finished; settlement process crashed",
-    }, clock.nowDate());
+    await writeJournalPatch(
+      org.stateHome,
+      turn.turnId,
+      {
+        app: APP,
+        role: ROLE,
+        phase: "running",
+      },
+      clock.nowDate(),
+    );
+    await writeJournalPatch(
+      org.stateHome,
+      turn.turnId,
+      {
+        app: APP,
+        role: ROLE,
+        phase: "collecting",
+      },
+      clock.nowDate(),
+    );
+    await writeJournalPatch(
+      org.stateHome,
+      turn.turnId,
+      {
+        app: APP,
+        role: ROLE,
+        phase: "done",
+        message: "provider finished; settlement process crashed",
+      },
+      clock.nowDate(),
+    );
     await releaseLock(org.stateHome, APP, ROLE, await readLock(org.stateHome, APP, ROLE));
 
     clock.advance(5 * 60_000);
@@ -245,7 +291,9 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
       runtimeHome: org.stateHome,
       now: clock.nowDate,
       eventSource: NO_EVENTS,
-      spawn: async () => { providerConstructions += 1; },
+      spawn: async () => {
+        providerConstructions += 1;
+      },
     });
 
     expect(restarted.errors).toEqual([]);
@@ -261,16 +309,17 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
     org = await makeOrg();
     const clock = makeTestClock("2026-08-03T07:41:00.000Z");
     const spawned: string[] = [];
-    const run = () => dispatchTick({
-      orgRoot: org!.orgHome,
-      runtimeHome: org!.stateHome,
-      now: clock.nowDate,
-      eventSource: NO_EVENTS,
-      spawn: async ({ turnId }) => {
-        await Promise.resolve();
-        spawned.push(turnId);
-      },
-    });
+    const run = () =>
+      dispatchTick({
+        orgRoot: org!.orgHome,
+        runtimeHome: org!.stateHome,
+        now: clock.nowDate,
+        eventSource: NO_EVENTS,
+        spawn: async ({ turnId }) => {
+          await Promise.resolve();
+          spawned.push(turnId);
+        },
+      });
 
     const ticks = await Promise.all([run(), run()]);
     expect(ticks.flatMap((tick) => tick.errors)).toEqual([]);
@@ -282,7 +331,9 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
     org = await makeOrg();
     const clock = makeTestClock("2026-08-03T07:41:00.000Z");
     const spawned: string[] = [];
-    const spawn = async ({ turnId }: { turnId: string }) => { spawned.push(turnId); };
+    const spawn = async ({ turnId }: { turnId: string }) => {
+      spawned.push(turnId);
+    };
     const first = await dispatchTick({
       orgRoot: org.orgHome,
       runtimeHome: org.stateHome,
@@ -291,9 +342,17 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
       spawn,
     });
     const initial = first.spawned[0]!;
-    await writeJournalPatch(org.stateHome, initial.turnId, {
-      app: APP, role: ROLE, phase: "failed", message: "retryable fixture failure",
-    }, clock.nowDate());
+    await writeJournalPatch(
+      org.stateHome,
+      initial.turnId,
+      {
+        app: APP,
+        role: ROLE,
+        phase: "failed",
+        message: "retryable fixture failure",
+      },
+      clock.nowDate(),
+    );
     const evidence = new SchedulerEvidenceStore({
       stateHome: org.stateHome,
       orgName: "daily-org",
@@ -322,9 +381,17 @@ describe("CF-REG-231 — scheduled due-window settlement", () => {
     expect(retried.spawned[0]!.turnId).not.toBe(initial.turnId);
 
     const retryTurn = retried.spawned[0]!;
-    await writeJournalPatch(org.stateHome, retryTurn.turnId, {
-      app: APP, role: ROLE, phase: "failed", message: "second fixture failure",
-    }, clock.nowDate());
+    await writeJournalPatch(
+      org.stateHome,
+      retryTurn.turnId,
+      {
+        app: APP,
+        role: ROLE,
+        phase: "failed",
+        message: "second fixture failure",
+      },
+      clock.nowDate(),
+    );
     await evidence.recordTurnReceipt(retryTurn.turnId, clock.nowDate(), "second fixture failure");
     await releaseLock(org.stateHome, APP, ROLE, await readLock(org.stateHome, APP, ROLE));
     clock.advance(5 * 60_000);

@@ -98,9 +98,7 @@ export async function beginParentTask(options: BeginParentTaskOptions): Promise<
     taskId,
     ...(options.app !== undefined ? { app: options.app } : {}),
     objective: options.objective?.trim() || firstNonemptyLine(prompt),
-    ...(options.completionCriteria !== undefined
-      ? { completionCriteria: options.completionCriteria }
-      : {}),
+    ...(options.completionCriteria !== undefined ? { completionCriteria: options.completionCriteria } : {}),
     promptRef: "prompt.md",
     promptSha256: sha256(prompt),
     ...(source !== undefined ? { source } : {}),
@@ -197,10 +195,7 @@ export function parentTaskIdFrom(explicit?: string): string | undefined {
   return value !== undefined ? validateTaskId(value) : undefined;
 }
 
-export async function resolveParentTaskId(
-  stateHome: string,
-  explicit?: string,
-): Promise<string | undefined> {
+export async function resolveParentTaskId(stateHome: string, explicit?: string): Promise<string | undefined> {
   const id = parentTaskIdFrom(explicit);
   if (id !== undefined) await readParentTask(stateHome, id);
   return id;
@@ -254,7 +249,12 @@ function compactSource(options: BeginParentTaskOptions): ParentTaskRecord["sourc
 }
 
 function firstNonemptyLine(prompt: string): string {
-  return prompt.split("\n").map((line) => line.trim()).find((line) => line.length > 0) ?? "delegated task";
+  return (
+    prompt
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? "delegated task"
+  );
 }
 
 function sha256(value: string): string {

@@ -23,11 +23,7 @@ import {
 import { assembleContext } from "../../../src/org/context.js";
 import { resolveCormidiaHomes } from "../../../src/org/home.js";
 import type { RoleConfig } from "../../../src/runtime/types.js";
-import {
-  makeTempOrgHome,
-  type OrgYamlSurface,
-  type TempOrgHome,
-} from "../../fixtures/org-home.js";
+import { makeTempOrgHome, type OrgYamlSurface, type TempOrgHome } from "../../fixtures/org-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -81,9 +77,7 @@ describe("CF-B10-* (L2) corruption sweep — the resolver refuses every staged s
   it("package/org schema skew is a typed, directional refusal naming the unknown field", async () => {
     const t = await orgHomeFixture();
     await t.corrupt.schemaSkew();
-    await expect(resolveCormidiaHomes(t.resolveOptions)).rejects.toThrow(
-      /unknown field.*from_a_newer_package_schema/,
-    );
+    await expect(resolveCormidiaHomes(t.resolveOptions)).rejects.toThrow(/unknown field.*from_a_newer_package_schema/);
   });
 
   it("a mid-edit torn read is refused and the stray editor temp is never adopted as recovery", async () => {
@@ -103,9 +97,7 @@ describe("CF-B10-* (L2) corruption sweep — the resolver refuses every staged s
 
     const missingPrompts = await orgHomeFixture();
     await missingPrompts.corrupt.removeRequired("prompts");
-    await expect(resolveCormidiaHomes(missingPrompts.resolveOptions)).rejects.toThrow(
-      /missing prompts/,
-    );
+    await expect(resolveCormidiaHomes(missingPrompts.resolveOptions)).rejects.toThrow(/missing prompts/);
   });
 });
 

@@ -19,12 +19,7 @@ export const RUNTIME_CAPABILITIES = [
 
 export type RuntimeCapability = (typeof RUNTIME_CAPABILITIES)[number];
 
-export const RUNTIME_CAPABILITY_SUPPORT = [
-  "native",
-  "adapter",
-  "fallback",
-  "unsupported",
-] as const;
+export const RUNTIME_CAPABILITY_SUPPORT = ["native", "adapter", "fallback", "unsupported"] as const;
 
 /** `fallback` is intentionally rendered to agents as "fallback (degraded)". */
 export type RuntimeCapabilitySupport = (typeof RUNTIME_CAPABILITY_SUPPORT)[number];
@@ -116,36 +111,25 @@ export function runtimeCapabilityProfile(runtime: RuntimeKind): RuntimeCapabilit
 }
 
 export function isRuntimeCapability(value: unknown): value is RuntimeCapability {
-  return typeof value === "string" &&
-    RUNTIME_CAPABILITIES.includes(value as RuntimeCapability);
+  return typeof value === "string" && RUNTIME_CAPABILITIES.includes(value as RuntimeCapability);
 }
 
-export function validateRuntimeCapabilities(
-  values: unknown,
-  context = "runtime capabilities",
-): RuntimeCapability[] {
+export function validateRuntimeCapabilities(values: unknown, context = "runtime capabilities"): RuntimeCapability[] {
   if (!Array.isArray(values)) throw new Error(`${context} must be an array`);
   const capabilities = values.map((value, index) => {
     if (!isRuntimeCapability(value)) {
-      throw new Error(
-        `${context}[${index}] must be one of ${RUNTIME_CAPABILITIES.join(" | ")}`,
-      );
+      throw new Error(`${context}[${index}] must be one of ${RUNTIME_CAPABILITIES.join(" | ")}`);
     }
     return value;
   });
-  const duplicate = capabilities.find(
-    (capability, index) => capabilities.indexOf(capability) !== index,
-  );
+  const duplicate = capabilities.find((capability, index) => capabilities.indexOf(capability) !== index);
   if (duplicate !== undefined) {
     throw new Error(`${context} duplicates ${JSON.stringify(duplicate)}`);
   }
   return capabilities.sort();
 }
 
-export function hasRuntimeCapability(
-  profile: RuntimeCapabilityProfile,
-  capability: RuntimeCapability,
-): boolean {
+export function hasRuntimeCapability(profile: RuntimeCapabilityProfile, capability: RuntimeCapability): boolean {
   const support = profile.capabilities[capability];
   return support !== undefined && support !== "unsupported";
 }
@@ -153,14 +137,10 @@ export function hasRuntimeCapability(
 /** Stable evidence projection: known, non-unsupported surface names only. */
 export function resolvedRuntimeCapabilities(runtime: RuntimeKind): RuntimeCapability[] {
   const profile = runtimeCapabilityProfile(runtime);
-  return RUNTIME_CAPABILITIES.filter((capability) =>
-    hasRuntimeCapability(profile, capability)
-  ).sort();
+  return RUNTIME_CAPABILITIES.filter((capability) => hasRuntimeCapability(profile, capability)).sort();
 }
 
-export function runtimeCapabilitySupportLabel(
-  support: RuntimeCapabilitySupport,
-): string {
+export function runtimeCapabilitySupportLabel(support: RuntimeCapabilitySupport): string {
   if (support === "adapter") return "adapter-built";
   if (support === "fallback") return "fallback (degraded)";
   return support;
@@ -185,11 +165,12 @@ export function runtimeCapabilityGuidance(
   return RUNTIME_CAPABILITIES.map((capability) => {
     const support = profile.capabilities[capability];
     const requirement = required.has(capability) ? "; required for this turn" : "";
-    const constraint = capability === "intra_turn_fanout" && support === "unsupported"
-      ? "; unavailable—work serially"
-      : support === "unsupported"
-        ? "; do not rely on this surface"
-        : "";
+    const constraint =
+      capability === "intra_turn_fanout" && support === "unsupported"
+        ? "; unavailable—work serially"
+        : support === "unsupported"
+          ? "; do not rely on this surface"
+          : "";
     return `- ${CAPABILITY_LABELS[capability]}: ${runtimeCapabilitySupportLabel(support)}${requirement}${constraint}`;
   });
 }

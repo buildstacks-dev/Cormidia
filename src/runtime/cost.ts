@@ -141,9 +141,7 @@ export function aggregateCost(contributions: readonly CostContribution[]): CostA
   const qualities: UsageQuality[] = [];
 
   for (const contribution of contributions) {
-    const quality = normalizeUsageQuality(
-      typeof contribution.quality === "string" ? contribution.quality : undefined,
-    );
+    const quality = normalizeUsageQuality(typeof contribution.quality === "string" ? contribution.quality : undefined);
     if (quality === "none") {
       // An authoritative zero. It is not a provider turn, so it neither adds to
       // the unknown component nor influences provider usage quality.

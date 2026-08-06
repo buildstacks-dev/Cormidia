@@ -169,8 +169,10 @@ export async function runExperiment(
   }
   const leakedIdentity = fixtures.find((fixture) => {
     const visible = fixture.input.brief ?? "";
-    return visible.includes(experiment.treatment.fingerprint_ref) ||
-      visible.includes(efficacy.hidden_guardrail_commitment.sha256);
+    return (
+      visible.includes(experiment.treatment.fingerprint_ref) ||
+      visible.includes(efficacy.hidden_guardrail_commitment.sha256)
+    );
   });
   if (leakedIdentity !== undefined) {
     throw new Error(`learning: actor_blindness_violated in ${leakedIdentity.fixture_id}`);
@@ -179,9 +181,7 @@ export async function runExperiment(
   // (design §10). When the candidate names episodes and the eval set covers
   // NONE of them, running would early-stop the one-shot experiment on
   // evidence the candidate never claimed to affect — refuse instead.
-  const heldInIds = new Set(
-    options.heldInEpisodeIds ?? (await candidateEpisodeIds(options.orgHome, experiment)),
-  );
+  const heldInIds = new Set(options.heldInEpisodeIds ?? (await candidateEpisodeIds(options.orgHome, experiment)));
   const heldInMatch = fixtures.find((fixture) => heldInIds.has(fixture.episode_ref));
   if (heldInIds.size > 0 && heldInMatch === undefined) {
     throw new Error(
@@ -198,17 +198,11 @@ export async function runExperiment(
   const trials: EvalTrial[] = [];
   let halted: string | null = null;
 
-  const runPair = async (
-    pair: number,
-    mode: "targeted" | "full",
-    fixture: EvalFixture,
-  ): Promise<EvalTrial> => {
+  const runPair = async (pair: number, mode: "targeted" | "full", fixture: EvalFixture): Promise<EvalTrial> => {
     // Alternating order makes order effects observable while preserving an
     // exact deterministic pair. The executor receives an arm internally;
     // actor-visible bytes never receive the treatment label.
-    const order = pair % 2 === 0
-      ? (["control", "treatment"] as const)
-      : (["treatment", "control"] as const);
+    const order = pair % 2 === 0 ? (["control", "treatment"] as const) : (["treatment", "control"] as const);
     const rows = new Map<"control" | "treatment", ReplayAttempt>();
     for (const arm of order) {
       const attempt = await options.executor.attempt({ fixture, arm, pair, mode, experiment });
@@ -241,9 +235,9 @@ export async function runExperiment(
       }
       const fixture = fixtures[(pair - 1) % fixtures.length]!;
       await runPair(pair, "full", fixture);
-      const treatment = [...attempts].reverse().find(
-        (attempt) => attempt.pair === pair && attempt.arm === "treatment",
-      )!;
+      const treatment = [...attempts]
+        .reverse()
+        .find((attempt) => attempt.pair === pair && attempt.arm === "treatment")!;
       if (experiment.trials.early_stop.on_held_in_failure && !treatment.heldInPass) {
         halted = `held-in failure on pair ${pair} — remaining pairs skipped`;
         break;
@@ -281,21 +275,29 @@ function executionEvidence(
   const attemptedPairs = [...new Set(attempts.map((attempt) => attempt.pair))].sort((a, b) => a - b);
   const pairOrder = attemptedPairs.map((pair) => ({
     pair,
-    order: attempts
-      .filter((attempt) => attempt.pair === pair)
-      .map((attempt) => attempt.arm) as ["control", "treatment"] | ["treatment", "control"],
+    order: attempts.filter((attempt) => attempt.pair === pair).map((attempt) => attempt.arm) as
+      | ["control", "treatment"]
+      | ["treatment", "control"],
   }));
   const invalidReasons: string[] = [];
   const full = trials.filter((trial) => trial.pair > 0);
-  if (trials.every((trial) =>
-    !Number.isFinite(trial.control[experiment.primary_metric.name]) ||
-    !Number.isFinite(trial.treatment[experiment.primary_metric.name])
-  )) invalidReasons.push("missing_primary_metric");
+  if (
+    trials.every(
+      (trial) =>
+        !Number.isFinite(trial.control[experiment.primary_metric.name]) ||
+        !Number.isFinite(trial.treatment[experiment.primary_metric.name]),
+    )
+  )
+    invalidReasons.push("missing_primary_metric");
   for (const guardrail of experiment.guardrails) {
-    if (full.length === 0 || full.every((trial) =>
-      !Number.isFinite(trial.control[guardrail.metric]) ||
-      !Number.isFinite(trial.treatment[guardrail.metric])
-    )) invalidReasons.push(`missing_guardrail:${guardrail.metric}`);
+    if (
+      full.length === 0 ||
+      full.every(
+        (trial) =>
+          !Number.isFinite(trial.control[guardrail.metric]) || !Number.isFinite(trial.treatment[guardrail.metric]),
+      )
+    )
+      invalidReasons.push(`missing_guardrail:${guardrail.metric}`);
   }
   const validity = invalidReasons.some((reason) => reason.startsWith("missing_guardrail"))
     ? "invalid_measurement"
@@ -319,10 +321,7 @@ function executionEvidence(
 /** Trusted, replayable fixtures for the experiment's eval-set ref
  *  (`evals/<scope>/<set>` per spec §10). Exported so the CLI can prepare
  *  seed clones for exactly the fixtures the runner will use. */
-export async function eligibleFixtures(
-  orgHome: string,
-  experiment: ExperimentRecord,
-): Promise<EvalFixture[]> {
+export async function eligibleFixtures(orgHome: string, experiment: ExperimentRecord): Promise<EvalFixture[]> {
   const ref = experiment.eligibility.episodes;
   const set = ref.startsWith("evals/") ? ref.slice("evals/".length) : ref;
   return (await listEvalFixtures(orgHome)).filter(
@@ -335,17 +334,11 @@ export async function eligibleFixtures(
   );
 }
 
-async function candidateEpisodeIds(
-  orgHome: string,
-  experiment: ExperimentRecord,
-): Promise<string[]> {
+async function candidateEpisodeIds(orgHome: string, experiment: ExperimentRecord): Promise<string[]> {
   if (experiment.candidate_ref === null) return [];
   try {
     const candidates = await listCandidateArtifacts(orgLearningRoot(orgHome));
-    return (
-      candidates.find((candidate) => candidate.candidate_id === experiment.candidate_ref)
-        ?.episode_ids ?? []
-    );
+    return candidates.find((candidate) => candidate.candidate_id === experiment.candidate_ref)?.episode_ids ?? [];
   } catch {
     return [];
   }
@@ -358,9 +351,7 @@ async function candidateEpisodeIds(
 function guardrailTripped(experiment: ExperimentRecord, trials: EvalTrial[]): boolean {
   const fullTrials = trials.filter((trial) => trial.pair > 0);
   if (fullTrials.length === 0) return false;
-  return experiment.guardrails.some(
-    (guardrail) => !evaluateGuardrail(guardrail, fullTrials).pass,
-  );
+  return experiment.guardrails.some((guardrail) => !evaluateGuardrail(guardrail, fullTrials).pass);
 }
 
 /** Post-verdict lineage: when the candidate was already activated (an
@@ -369,11 +360,7 @@ function guardrailTripped(experiment: ExperimentRecord, trials: EvalTrial[]): bo
  *  verdict upgrades the claim (`claimAfterEval`; `authorized` never upgrades
  *  silently, spec §17). Pre-activation experiments have no intervention yet;
  *  the publisher links them at publish time. */
-async function linkIntervention(
-  orgHome: string,
-  experiment: ExperimentRecord,
-  result: EvalResult,
-): Promise<void> {
+async function linkIntervention(orgHome: string, experiment: ExperimentRecord, result: EvalResult): Promise<void> {
   if (experiment.candidate_ref === null) return;
   const interventionId = interventionIdForCandidate(experiment.candidate_ref);
   if (!existsSync(interventionPath(orgHome, interventionId))) return;

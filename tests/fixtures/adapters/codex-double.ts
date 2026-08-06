@@ -3,11 +3,7 @@
 // logic (resume binding, usage estimation, budget stop, approvals) remains in
 // product code.
 
-import type {
-  CodexAppServerClient,
-  CodexServerMessage,
-  JsonRpcId,
-} from "../../../src/runtime/adapters/codex.js";
+import type { CodexAppServerClient, CodexServerMessage, JsonRpcId } from "../../../src/runtime/adapters/codex.js";
 import { CodexRuntime } from "../../../src/runtime/adapters/codex.js";
 import type { Runtime } from "../../../src/runtime/types.js";
 import {
@@ -36,10 +32,7 @@ export interface CodexDouble {
   recorder: { turns: CodexRecordedTurn[] };
 }
 
-export function codexDouble(
-  scenarios: CodexScenario[],
-  opts: { violations?: EnvelopeViolation[] } = {},
-): CodexDouble {
+export function codexDouble(scenarios: CodexScenario[], opts: { violations?: EnvelopeViolation[] } = {}): CodexDouble {
   const recorder: CodexDouble["recorder"] = { turns: [] };
   let next = 0;
   const inner = new CodexRuntime({
@@ -53,10 +46,7 @@ export function codexDouble(
   });
   const violations = new Set(opts.violations ?? []);
   return {
-    runtime:
-      violations.size === 0
-        ? inner
-        : new SeededEnvelopeViolationRuntime(inner, violations),
+    runtime: violations.size === 0 ? inner : new SeededEnvelopeViolationRuntime(inner, violations),
     recorder,
   };
 }

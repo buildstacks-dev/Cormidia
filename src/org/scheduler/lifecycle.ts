@@ -133,15 +133,18 @@ export async function installScheduler(options: SchedulerLifecycleOptions): Prom
   const unsupported = !options.manager.supported;
   const refuse = combinedAssessment.refuse || unsupported;
   const same = assessment.valid && assessment.hash === expected.definitionHash;
-  const stateConverged = state.kind === "valid"
-    && state.value.scheduler_id === expected.metadata.scheduler_id
-    && state.value.org_id === expected.metadata.org_id
-    && state.value.rendered_definition_hash === expected.definitionHash;
+  const stateConverged =
+    state.kind === "valid" &&
+    state.value.scheduler_id === expected.metadata.scheduler_id &&
+    state.value.org_id === expected.metadata.org_id &&
+    state.value.rendered_definition_hash === expected.definitionHash;
   const action: SchedulerLifecycleResult["action"] = refuse
     ? "refuse"
     : same && stateConverged && inspection.active === true && transactionState.kind === "missing"
       ? "noop"
-      : observed === undefined ? "install" : "repair";
+      : observed === undefined
+        ? "install"
+        : "repair";
   const result = lifecycleResult("install", options, expected, action, combinedAssessment, statePath);
   if (options.execute !== true || action === "noop" || action === "refuse") return result;
   assertConfirmation(options.confirm, expected);
@@ -188,26 +191,31 @@ export async function uninstallScheduler(options: SchedulerLifecycleOptions): Pr
   const state = await readInstallationState(statePath);
   const transactionState = await readLifecycleTransaction(expected.metadata.state_home);
   const transactionAssessment = assessTransaction(expected, transactionState);
-  const stateReasons: SchedulerReasonCode[] = state.kind === "corrupt"
-    ? ["scheduler_state_corrupt"]
-    : state.kind === "valid" && (state.value.scheduler_id !== expected.metadata.scheduler_id || state.value.org_id !== expected.metadata.org_id)
-      ? ["wrong_org"]
-      : [];
+  const stateReasons: SchedulerReasonCode[] =
+    state.kind === "corrupt"
+      ? ["scheduler_state_corrupt"]
+      : state.kind === "valid" &&
+          (state.value.scheduler_id !== expected.metadata.scheduler_id ||
+            state.value.org_id !== expected.metadata.org_id)
+        ? ["wrong_org"]
+        : [];
   const stateUnsafe = stateReasons.length > 0;
   const combinedAssessment = {
     ...assessment,
     refuse: assessment.refuse || transactionAssessment.refuse || stateUnsafe,
     reasons: [...new Set([...assessment.reasons, ...transactionAssessment.reasons, ...stateReasons])],
   };
-  const residualOwnedState = state.kind === "valid"
-    && state.value.scheduler_id === expected.metadata.scheduler_id
-    && state.value.org_id === expected.metadata.org_id;
+  const residualOwnedState =
+    state.kind === "valid" &&
+    state.value.scheduler_id === expected.metadata.scheduler_id &&
+    state.value.org_id === expected.metadata.org_id;
   const residualOwnedTransaction = transactionState.kind === "valid" && !transactionAssessment.refuse;
-  const action: SchedulerLifecycleResult["action"] = combinedAssessment.refuse || !options.manager.supported
+  const action: SchedulerLifecycleResult["action"] =
+    combinedAssessment.refuse || !options.manager.supported
       ? "refuse"
-    : observed === undefined && !residualOwnedState && !residualOwnedTransaction
-      ? "noop"
-      : "uninstall";
+      : observed === undefined && !residualOwnedState && !residualOwnedTransaction
+        ? "noop"
+        : "uninstall";
   const result = lifecycleResult("uninstall", options, expected, action, combinedAssessment, statePath);
   if (options.execute !== true || action === "noop" || action === "refuse") return result;
   assertConfirmation(options.confirm, expected);
@@ -233,10 +241,12 @@ export async function uninstallScheduler(options: SchedulerLifecycleOptions): Pr
   return { ...result, changed: true };
 }
 
-export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput & {
-  manager: SchedulerManager;
-  runtime?: boolean;
-}): Promise<SchedulerDefinitionStatus> {
+export async function schedulerDefinitionStatus(
+  input: SchedulerDefinitionInput & {
+    manager: SchedulerManager;
+    runtime?: boolean;
+  },
+): Promise<SchedulerDefinitionStatus> {
   const expected = await expectationForExistingDefinition(input);
   const definition = await input.manager.readDefinition(expected.metadata.scheduler_id);
   const assessment = assessObserved(expected, definition);
@@ -249,7 +259,8 @@ export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput 
     path: expected.metadata.environment_path,
     requiredExecutables: expected.metadata.required_executables,
   });
-  if (!input.manager.supported) reasons.add(input.manager.backend === "systemd" ? "unsupported_backend" : "unsupported_platform");
+  if (!input.manager.supported)
+    reasons.add(input.manager.backend === "systemd" ? "unsupported_backend" : "unsupported_platform");
   if (definition === undefined) reasons.add("not_installed");
   for (const reason of assessment.reasons) reasons.add(reason);
   if (inspection.installed && inspection.active === false) reasons.add("inactive");
@@ -257,12 +268,15 @@ export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput 
   if (state.kind === "missing" && definition !== undefined) reasons.add("scheduler_state_missing");
   if (state.kind === "corrupt") reasons.add("scheduler_state_corrupt");
   if (state.kind === "valid") {
-    if (state.value.scheduler_id !== expected.metadata.scheduler_id || state.value.org_id !== expected.metadata.org_id) reasons.add("wrong_org");
+    if (state.value.scheduler_id !== expected.metadata.scheduler_id || state.value.org_id !== expected.metadata.org_id)
+      reasons.add("wrong_org");
     if (state.value.rendered_definition_hash !== expected.definitionHash) reasons.add("stale_definition");
   }
-  if (!existsSync(expected.metadata.executable_path) || !existsSync(expected.metadata.package_entry_path)) reasons.add("wrong_executable");
+  if (!existsSync(expected.metadata.executable_path) || !existsSync(expected.metadata.package_entry_path))
+    reasons.add("wrong_executable");
   if (environmentProblems.length > 0) reasons.add("missing_required_executable");
-  if (assessment.valid && assessment.hash === expected.definitionHash && environmentProblems.length === 0) reasons.add("definition_valid");
+  if (assessment.valid && assessment.hash === expected.definitionHash && environmentProblems.length === 0)
+    reasons.add("definition_valid");
   detail.push(inspection.detail);
   detail.push(...environmentProblems);
   if (state.kind === "corrupt") detail.push(state.detail);
@@ -278,7 +292,8 @@ export async function schedulerDefinitionStatus(input: SchedulerDefinitionInput 
     installed: inspection.installed,
     loaded: inspection.loaded,
     active: inspection.active,
-    definition_valid: assessment.valid && assessment.hash === expected.definitionHash && environmentProblems.length === 0,
+    definition_valid:
+      assessment.valid && assessment.hash === expected.definitionHash && environmentProblems.length === 0,
     installation_state_valid: state.kind === "valid",
     expected_definition_hash: expected.definitionHash,
     observed_definition_hash: assessment.hash,
@@ -318,7 +333,10 @@ export function schedulerTransactionPath(stateHome: string): string {
   return join(resolve(stateHome), "scheduler", "lifecycle-transaction.json");
 }
 
-function assessObserved(expected: SchedulerExpectation, definition: string | undefined): {
+function assessObserved(
+  expected: SchedulerExpectation,
+  definition: string | undefined,
+): {
   valid: boolean;
   refuse: boolean;
   hash: string | null;
@@ -331,14 +349,20 @@ function assessObserved(expected: SchedulerExpectation, definition: string | und
   if (parsed.kind === "malformed") return { valid: false, refuse: true, hash: null, reasons: ["malformed_definition"] };
   const reasons: SchedulerReasonCode[] = [];
   const actual = parsed.metadata;
-  if (actual.scheduler_id !== expected.metadata.scheduler_id || actual.org_id !== expected.metadata.org_id) reasons.push("wrong_org");
+  if (actual.scheduler_id !== expected.metadata.scheduler_id || actual.org_id !== expected.metadata.org_id)
+    reasons.push("wrong_org");
   if (actual.state_home !== expected.metadata.state_home) reasons.push("wrong_state_home");
   if (actual.org_home !== expected.metadata.org_home) reasons.push("wrong_org");
-  if (actual.executable_path !== expected.metadata.executable_path || actual.package_entry_path !== expected.metadata.package_entry_path) reasons.push("wrong_executable");
   if (
-    actual.environment_path !== expected.metadata.environment_path
-    || canonicalJson(actual.required_executables) !== canonicalJson(expected.metadata.required_executables)
-  ) reasons.push("wrong_executable");
+    actual.executable_path !== expected.metadata.executable_path ||
+    actual.package_entry_path !== expected.metadata.package_entry_path
+  )
+    reasons.push("wrong_executable");
+  if (
+    actual.environment_path !== expected.metadata.environment_path ||
+    canonicalJson(actual.required_executables) !== canonicalJson(expected.metadata.required_executables)
+  )
+    reasons.push("wrong_executable");
   if (actual.cadence_minutes !== expected.metadata.cadence_minutes) reasons.push("cadence_drift");
   if (parsed.definitionHash !== expected.definitionHash) reasons.push("stale_definition");
   const wrongOwner = reasons.includes("wrong_org");
@@ -360,7 +384,8 @@ function lifecycleResult(
   statePath: string,
 ): SchedulerLifecycleResult {
   const reasons = new Set(assessment.reasons);
-  if (!options.manager.supported) reasons.add(options.manager.backend === "systemd" ? "unsupported_backend" : "unsupported_platform");
+  if (!options.manager.supported)
+    reasons.add(options.manager.backend === "systemd" ? "unsupported_backend" : "unsupported_platform");
   return {
     schema_version: 1,
     operation,
@@ -379,21 +404,28 @@ function lifecycleResult(
     expected_definition_hash: expected.definitionHash,
     observed_definition_hash: assessment.hash,
     reason_codes: [...reasons].sort(),
-    detail: action === "refuse"
-      ? "existing definition cannot be proven safe for this exact org"
-      : action === "noop"
-        ? `${operation} is already converged`
-        : `${action} is ${options.execute === true ? "authorized" : "preview only"}`,
+    detail:
+      action === "refuse"
+        ? "existing definition cannot be proven safe for this exact org"
+        : action === "noop"
+          ? `${operation} is already converged`
+          : `${action} is ${options.execute === true ? "authorized" : "preview only"}`,
   };
 }
 
 function assertConfirmation(value: string | undefined, expected: SchedulerExpectation): void {
   if (value !== expected.metadata.scheduler_id && value !== expected.metadata.org_name) {
-    throw new Error(`scheduler: --confirm must exactly equal ${expected.metadata.scheduler_id} or ${expected.metadata.org_name}`);
+    throw new Error(
+      `scheduler: --confirm must exactly equal ${expected.metadata.scheduler_id} or ${expected.metadata.org_name}`,
+    );
   }
 }
 
-async function writeInstallationRecord(manager: SchedulerManager, expected: SchedulerExpectation, at: Date): Promise<void> {
+async function writeInstallationRecord(
+  manager: SchedulerManager,
+  expected: SchedulerExpectation,
+  at: Date,
+): Promise<void> {
   const path = schedulerInstallationPath(expected.metadata.state_home);
   const record: SchedulerInstallationRecord = {
     schema_version: 1,
@@ -433,7 +465,11 @@ async function advanceTransaction(
   await writeTransaction(stateHome, value);
 }
 
-async function safeInspect(manager: SchedulerManager, schedulerId: string, runtime: boolean): Promise<SchedulerManagerInspection> {
+async function safeInspect(
+  manager: SchedulerManager,
+  schedulerId: string,
+  runtime: boolean,
+): Promise<SchedulerManagerInspection> {
   try {
     return await manager.inspect(schedulerId, { runtime });
   } catch (error) {
@@ -446,15 +482,19 @@ async function safeInspect(manager: SchedulerManager, schedulerId: string, runti
   }
 }
 
-async function readInstallationState(path: string): Promise<
-  | { kind: "missing" }
-  | { kind: "corrupt"; detail: string }
-  | { kind: "valid"; value: SchedulerInstallationRecord }
+async function readInstallationState(
+  path: string,
+): Promise<
+  { kind: "missing" } | { kind: "corrupt"; detail: string } | { kind: "valid"; value: SchedulerInstallationRecord }
 > {
   if (!existsSync(path)) return { kind: "missing" };
   try {
     const value = JSON.parse(await readFile(path, "utf8")) as SchedulerInstallationRecord;
-    if (value.schema_version !== 1 || value.scheduler_id === undefined || value.rendered_definition_hash === undefined) {
+    if (
+      value.schema_version !== 1 ||
+      value.scheduler_id === undefined ||
+      value.rendered_definition_hash === undefined
+    ) {
       throw new Error("installation schema mismatch");
     }
     return { kind: "valid", value };
@@ -463,21 +503,23 @@ async function readInstallationState(path: string): Promise<
   }
 }
 
-async function readLifecycleTransaction(stateHome: string): Promise<
-  | { kind: "missing" }
-  | { kind: "corrupt"; detail: string }
-  | { kind: "valid"; value: SchedulerLifecycleTransaction }
+async function readLifecycleTransaction(
+  stateHome: string,
+): Promise<
+  { kind: "missing" } | { kind: "corrupt"; detail: string } | { kind: "valid"; value: SchedulerLifecycleTransaction }
 > {
   const path = schedulerTransactionPath(stateHome);
   if (!existsSync(path)) return { kind: "missing" };
   try {
     const value = JSON.parse(await readFile(path, "utf8")) as SchedulerLifecycleTransaction;
-    if (value.schema_version !== 1
-      || !["install", "uninstall"].includes(value.operation)
-      || typeof value.scheduler_id !== "string"
-      || typeof value.org_id !== "string"
-      || typeof value.definition_hash !== "string"
-      || !["prepared", "definition_written", "manager_updated", "committed"].includes(value.stage)) {
+    if (
+      value.schema_version !== 1 ||
+      !["install", "uninstall"].includes(value.operation) ||
+      typeof value.scheduler_id !== "string" ||
+      typeof value.org_id !== "string" ||
+      typeof value.definition_hash !== "string" ||
+      !["prepared", "definition_written", "manager_updated", "committed"].includes(value.stage)
+    ) {
       throw new Error("lifecycle transaction schema mismatch");
     }
     return { kind: "valid", value };
@@ -492,7 +534,10 @@ function assessTransaction(
 ): { refuse: boolean; reasons: SchedulerReasonCode[] } {
   if (transaction.kind === "missing") return { refuse: false, reasons: [] };
   if (transaction.kind === "corrupt") return { refuse: true, reasons: ["scheduler_state_corrupt"] };
-  if (transaction.value.scheduler_id !== expected.metadata.scheduler_id || transaction.value.org_id !== expected.metadata.org_id) {
+  if (
+    transaction.value.scheduler_id !== expected.metadata.scheduler_id ||
+    transaction.value.org_id !== expected.metadata.org_id
+  ) {
     return { refuse: true, reasons: ["wrong_org"] };
   }
   if (transaction.value.definition_hash !== expected.definitionHash) {

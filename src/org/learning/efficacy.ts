@@ -46,23 +46,25 @@ export function evaluateEfficacy(
   if (!Number.isFinite(decidedAt) || declaredAt >= decidedAt) {
     throw new Error("learning: experiment_not_declared_before_results");
   }
-  if (observations.some((row) => {
-    const observedAt = Date.parse(row.observed_at);
-    return !Number.isFinite(observedAt) || observedAt <= declaredAt || observedAt >= decidedAt;
-  })) {
+  if (
+    observations.some((row) => {
+      const observedAt = Date.parse(row.observed_at);
+      return !Number.isFinite(observedAt) || observedAt <= declaredAt || observedAt >= decidedAt;
+    })
+  ) {
     throw new Error("learning: observation_outside_declared_result_window");
   }
-  const secrets = [
-    experiment.treatment.fingerprint_ref,
-    protocol.hidden_guardrail_commitment.sha256,
-  ];
+  const secrets = [experiment.treatment.fingerprint_ref, protocol.hidden_guardrail_commitment.sha256];
   if (observations.some((row) => secrets.some((secret) => row.actor_visible_bytes.includes(secret)))) {
     throw new Error("learning: actor_blindness_violated");
   }
-  if (observations.some((row) =>
-    row.fingerprint_ref !==
-      (row.arm === "control" ? experiment.control.fingerprint_ref : experiment.treatment.fingerprint_ref)
-  )) {
+  if (
+    observations.some(
+      (row) =>
+        row.fingerprint_ref !==
+        (row.arm === "control" ? experiment.control.fingerprint_ref : experiment.treatment.fingerprint_ref),
+    )
+  ) {
     throw new Error("learning: system_fingerprint_drift");
   }
 
@@ -77,7 +79,10 @@ export function evaluateEfficacy(
     const rows = byPair.get(pair)!;
     const control = rows.find((row) => row.arm === "control");
     const treatment = rows.find((row) => row.arm === "treatment");
-    if (rows.filter((row) => row.arm === "control").length > 1 || rows.filter((row) => row.arm === "treatment").length > 1) {
+    if (
+      rows.filter((row) => row.arm === "control").length > 1 ||
+      rows.filter((row) => row.arm === "treatment").length > 1
+    ) {
       invalid = true;
       reasons.push(`pair_${pair}:duplicate_arm`);
       continue;
@@ -93,14 +98,20 @@ export function evaluateEfficacy(
       continue;
     }
     if (
-      control.weakness_score === null || treatment.weakness_score === null ||
-      control.guardrail_score === null || treatment.guardrail_score === null
+      control.weakness_score === null ||
+      treatment.weakness_score === null ||
+      control.guardrail_score === null ||
+      treatment.guardrail_score === null
     ) {
       missing = true;
       reasons.push(`pair_${pair}:missing_metric`);
       continue;
     }
-    if (![control.weakness_score, treatment.weakness_score, control.guardrail_score, treatment.guardrail_score].every(Number.isFinite)) {
+    if (
+      ![control.weakness_score, treatment.weakness_score, control.guardrail_score, treatment.guardrail_score].every(
+        Number.isFinite,
+      )
+    ) {
       invalid = true;
       reasons.push(`pair_${pair}:non_finite_metric`);
       continue;
@@ -122,13 +133,18 @@ export function evaluateEfficacy(
   }
   if (verdict === "improved") reasons.push("held_in_weakness_improved", "hidden_guardrails_preserved");
   if (verdict === "inconclusive") reasons.push("no_measured_improvement");
-  if (verdict === "regressed") reasons.push(guardrailDelta !== null && guardrailDelta < 0 ? "hidden_guardrail_regressed" : "primary_metric_regressed");
+  if (verdict === "regressed")
+    reasons.push(
+      guardrailDelta !== null && guardrailDelta < 0 ? "hidden_guardrail_regressed" : "primary_metric_regressed",
+    );
 
   const recommendation: EfficacyRecommendation =
     verdict === "improved"
       ? "retain"
       : verdict === "regressed"
-        ? (options.activated === true ? "roll_back" : "disable")
+        ? options.activated === true
+          ? "roll_back"
+          : "disable"
         : "revise";
   const canonical = JSON.stringify({
     experiment: experiment.experiment_id,
@@ -155,21 +171,13 @@ export function evaluateEfficacy(
 }
 
 /** Episode-sticky assignment used by deterministic sandbox trials. */
-export function stickyEfficacyArm(
-  episodeId: string,
-  experimentId: string,
-): "control" | "treatment" {
-  return (Number.parseInt(digest(`${experimentId}\0${episodeId}`).slice(0, 2), 16) & 1) === 0
-    ? "control"
-    : "treatment";
+export function stickyEfficacyArm(episodeId: string, experimentId: string): "control" | "treatment" {
+  return (Number.parseInt(digest(`${experimentId}\0${episodeId}`).slice(0, 2), 16) & 1) === 0 ? "control" : "treatment";
 }
 
 /** Existing replay verdicts map into the same retain/revise/disable decision
  * vocabulary. Counts alone never enter this function. */
-export function recommendationForEval(
-  result: EvalResult,
-  activated: boolean,
-): EfficacyRecommendation {
+export function recommendationForEval(result: EvalResult, activated: boolean): EfficacyRecommendation {
   if (result.verdict === "improved" && result.guardrails.every((guardrail) => guardrail.pass)) return "retain";
   if (result.verdict === "regressed") return activated ? "roll_back" : "disable";
   return "revise";

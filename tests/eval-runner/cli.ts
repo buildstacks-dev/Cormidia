@@ -28,12 +28,18 @@ async function main(): Promise<number> {
     policyPath: config.policy_path,
     trackedInputPaths: config.golden_set_files,
   });
-  const cases = (await Promise.all(binding.trackedInputPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown[]))).flat() as EvalCaseV1[];
+  const cases = (
+    await Promise.all(
+      binding.trackedInputPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown[]),
+    )
+  ).flat() as EvalCaseV1[];
   const producerDigest = (await releaseRepositorySnapshot(process.cwd(), config.commit)).producer_digests.L4;
   validateCases(cases);
   const selected = config.shard === null ? cases : selectRotatingShard(cases, config.shard.date, config.shard.count);
   validateEffectiveTokenReservations(selected, config.tuples, config.case_token_reservations, config.max_tokens);
-  const required = config.tuples.flatMap((tuple) => selected.filter((evalCase) => evalCase.site === tuple.site).map((evalCase) => `${tuple.id}::${evalCase.id}`));
+  const required = config.tuples.flatMap((tuple) =>
+    selected.filter((evalCase) => evalCase.site === tuple.site).map((evalCase) => `${tuple.id}::${evalCase.id}`),
+  );
   const campaign = new DurableCampaignRunner({
     stateHome: config.state_home,
     campaignId: config.campaign_id,
@@ -80,23 +86,34 @@ async function main(): Promise<number> {
   return report.outcome.verdict === "pass" ? 0 : report.outcome.verdict === "fail" ? 1 : 2;
 }
 
-async function execute(runtime: Runtime, tuple: EvalTuple, evalCase: EvalCaseV1, workdir: string): Promise<EvalExecutionResult> {
+async function execute(
+  runtime: Runtime,
+  tuple: EvalTuple,
+  evalCase: EvalCaseV1,
+  workdir: string,
+): Promise<EvalExecutionResult> {
   const role: RoleConfig = {
     name: `eval-${evalCase.site}`,
     runtime: tuple.runtime,
     model: tuple.model,
     effort: tuple.effort,
-    delegation: { allow: [] }, triggers: [], outputs: [], maxTurnBudgetUsd: tuple.maxCaseCostUsd,
+    delegation: { allow: [] },
+    triggers: [],
+    outputs: [],
+    maxTurnBudgetUsd: tuple.maxCaseCostUsd,
   };
-  const result = await runtime.runTurn({
-    role,
-    assignment: { harness: tuple.runtime, model: tuple.model, effort: tuple.effort },
-    workdir,
-    task: evalCase.prompt,
-    context: { taste: [], memoryExcerpts: [] },
-    maxTurns: 1,
-    networkAccess: false,
-  }, { gate: () => ({ allow: false, reason: "eval cases are prose-only", escalate: true }) });
+  const result = await runtime.runTurn(
+    {
+      role,
+      assignment: { harness: tuple.runtime, model: tuple.model, effort: tuple.effort },
+      workdir,
+      task: evalCase.prompt,
+      context: { taste: [], memoryExcerpts: [] },
+      maxTurns: 1,
+      networkAccess: false,
+    },
+    { gate: () => ({ allow: false, reason: "eval cases are prose-only", escalate: true }) },
+  );
   return {
     output: result.summary,
     tokensIn: result.usage.tokensIn,
@@ -106,6 +123,15 @@ async function execute(runtime: Runtime, tuple: EvalTuple, evalCase: EvalCaseV1,
   };
 }
 
-function runtime(kind: RuntimeKind): Runtime { return kind === "claude" ? new ClaudeRuntime() : kind === "codex" ? new CodexRuntime() : new PiRuntime(); }
+function runtime(kind: RuntimeKind): Runtime {
+  return kind === "claude" ? new ClaudeRuntime() : kind === "codex" ? new CodexRuntime() : new PiRuntime();
+}
 
-main().then((code) => { process.exitCode = code; }).catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 2; });
+main()
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 2;
+  });

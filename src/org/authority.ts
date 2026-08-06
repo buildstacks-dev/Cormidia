@@ -58,10 +58,7 @@ export function createOrgAuthorityDocument(
   if (profile !== "custom" && grantedBy !== undefined) {
     throw new Error("authority: granted-by is valid only with the custom profile");
   }
-  if (
-    customText?.includes(AUTHORITY_BLOCK_START) ||
-    customText?.includes(AUTHORITY_BLOCK_END)
-  ) {
+  if (customText?.includes(AUTHORITY_BLOCK_START) || customText?.includes(AUTHORITY_BLOCK_END)) {
     throw new Error("authority: custom charter text may not contain Cormidia instruction markers");
   }
   const version =
@@ -95,10 +92,7 @@ export async function writeOrgAuthority(
 /** Resolve the effective authority for one app turn. Missing AUTHORITY.md on
  * a pre-feature org fails closed to a built-in conservative charter; it never
  * inherits the new delegated default without an attributable human choice. */
-export async function resolveAuthority(options: {
-  orgHome: string;
-  appWorkdir?: string;
-}): Promise<AuthorityContext> {
+export async function resolveAuthority(options: { orgHome: string; appWorkdir?: string }): Promise<AuthorityContext> {
   const orgPath = join(resolve(options.orgHome), "AUTHORITY.md");
   const org = existsSync(orgPath)
     ? authorityFromDocument(await readFile(orgPath, "utf8"), orgPath)
@@ -112,10 +106,7 @@ export async function resolveAuthority(options: {
 
   // A snapshot from a different org charter can accidentally preserve a
   // broader old grant. Fail closed until onboarding refreshes the snapshot.
-  if (
-    metadata.org_charter_sha256 !== org.sha256 ||
-    metadata.org_charter_version !== org.version
-  ) {
+  if (metadata.org_charter_sha256 !== org.sha256 || metadata.org_charter_version !== org.version) {
     const conservative = authorityFromDocument(
       createOrgAuthorityDocument("conservative"),
       "builtin:stale-app-authority-conservative/v1",
@@ -164,10 +155,7 @@ export function applyAppAuthority(
 /** App-owned, session-readable snapshot. It includes the effective prose for
  * Codex/Claude launched directly in the repo, but explicitly records that the
  * org document is the grant source and the app can only narrow it. */
-export function createAppAuthorityDocument(
-  org: AuthorityContext,
-  selection: AppAuthoritySelection,
-): string {
+export function createAppAuthorityDocument(org: AuthorityContext, selection: AppAuthoritySelection): string {
   validateAppSelection(selection);
   const frontmatter: AppAuthorityFrontmatter = {
     schema_version: AUTHORITY_SCHEMA_VERSION,
@@ -175,9 +163,7 @@ export function createAppAuthorityDocument(
     mode: selection.mode,
     org_charter_version: org.version,
     org_charter_sha256: org.sha256,
-    ...(selection.restrictions !== undefined
-      ? { restrictions: selection.restrictions.trim() }
-      : {}),
+    ...(selection.restrictions !== undefined ? { restrictions: selection.restrictions.trim() } : {}),
   };
   const effective = effectiveAuthorityText(org, selection);
   return [
@@ -266,12 +252,7 @@ export function composeProjectInstructions(existing: string, block: string): str
   const end = existing.indexOf(AUTHORITY_BLOCK_END);
   const duplicateStart = start !== -1 && existing.lastIndexOf(AUTHORITY_BLOCK_START) !== start;
   const duplicateEnd = end !== -1 && existing.lastIndexOf(AUTHORITY_BLOCK_END) !== end;
-  if (
-    (start === -1) !== (end === -1) ||
-    (start !== -1 && end < start) ||
-    duplicateStart ||
-    duplicateEnd
-  ) {
+  if ((start === -1) !== (end === -1) || (start !== -1 && end < start) || duplicateStart || duplicateEnd) {
     throw new Error("authority: malformed Cormidia authority block in project instructions");
   }
   if (start !== -1) {
@@ -320,9 +301,7 @@ function parseAppAuthority(text: string, source: string): AppAuthorityFrontmatte
   }
   const selection: AppAuthoritySelection = {
     mode: metadata["mode"] as AppAuthorityMode,
-    ...(typeof metadata["restrictions"] === "string"
-      ? { restrictions: metadata["restrictions"] }
-      : {}),
+    ...(typeof metadata["restrictions"] === "string" ? { restrictions: metadata["restrictions"] } : {}),
   };
   validateAppSelection(selection);
   return {
@@ -331,9 +310,7 @@ function parseAppAuthority(text: string, source: string): AppAuthorityFrontmatte
     mode: selection.mode,
     org_charter_version: metadata["org_charter_version"],
     org_charter_sha256: metadata["org_charter_sha256"],
-    ...(selection.restrictions !== undefined
-      ? { restrictions: selection.restrictions }
-      : {}),
+    ...(selection.restrictions !== undefined ? { restrictions: selection.restrictions } : {}),
   };
 }
 
@@ -374,7 +351,8 @@ function validateRestrictionText(text: string): void {
     .map((line) => line.trim().replace(/^[-*]\s+/, ""))
     .filter(Boolean);
   const narrowing = /^(?:ask before\b|do not\b|never\b|require human approval before\b|limit\b)/i;
-  const removesGuard = /^(?:do not|never)\s+(?:ask|escalate|require|wait)\b|\b(?:bypass|ignore)\s+(?:the\s+)?(?:gate|approval)|\b(?:may|can|authorized to|permission to)\b/i;
+  const removesGuard =
+    /^(?:do not|never)\s+(?:ask|escalate|require|wait)\b|\b(?:bypass|ignore)\s+(?:the\s+)?(?:gate|approval)|\b(?:may|can|authorized to|permission to)\b/i;
   if (lines.some((line) => !narrowing.test(line) || removesGuard.test(line))) {
     throw new Error(
       "authority: app restrictions must only narrow: use one statement per line beginning " +
@@ -443,13 +421,7 @@ function authorityBody(profile: AuthorityProfile, customText?: string): string {
     ].join("\n");
   }
   if (profile === "custom") {
-    return [
-      "# Delegated authority — custom human grant",
-      "",
-      customText!.trim(),
-      "",
-      fixed,
-    ].join("\n");
+    return ["# Delegated authority — custom human grant", "", customText!.trim(), "", fixed].join("\n");
   }
   return [
     "# Delegated authority — delegated operator",

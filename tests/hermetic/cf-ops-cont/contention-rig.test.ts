@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 // detector). Keep the new-lock invariant intact by giving this process a
 // deterministic kernel-style start identity at the real probe boundary.
 vi.mock("node:child_process", async (importOriginal) => ({
-  ...await importOriginal<typeof import("node:child_process")>(),
+  ...(await importOriginal<typeof import("node:child_process")>()),
   execFileSync: vi.fn(() => "Thu Jul 31 18:00:00 2026\n"),
 }));
 
@@ -24,7 +24,9 @@ describe("CF-OPS-CONT contention rig", () => {
     expect(result.provider_turns).toBe(result.provider_settlements);
     expect(result.duplicate_decisions).toBe(0);
     expect(result.duplicate_episodes).toBe(0);
-    expect(result.orphaned_locks + result.orphaned_journals + result.orphaned_runs + result.orphaned_settlements).toBe(0);
+    expect(result.orphaned_locks + result.orphaned_journals + result.orphaned_runs + result.orphaned_settlements).toBe(
+      0,
+    );
     expect(result.settlement_idempotence_refusals).toBeGreaterThanOrEqual(2);
     expect(result.terminal_integrity).toBe(true);
     expect(result.overlapping_batch_refusals).toBe(1);
@@ -47,11 +49,13 @@ describe("CF-OPS-CONT contention rig", () => {
       sibling_isolation: false,
       stale_frontier_refusals: 0,
     });
-    expect(violations).toEqual(expect.arrayContaining([
-      "CF-OPS-CONT:wip_exceeded",
-      "CF-OPS-CONT:untyped_non_admission",
-      "CF-OPS-CONT:sibling_contamination",
-      "CF-OPS-CONT:stale_frontier_admitted",
-    ]));
+    expect(violations).toEqual(
+      expect.arrayContaining([
+        "CF-OPS-CONT:wip_exceeded",
+        "CF-OPS-CONT:untyped_non_admission",
+        "CF-OPS-CONT:sibling_contamination",
+        "CF-OPS-CONT:stale_frontier_admitted",
+      ]),
+    );
   });
 });

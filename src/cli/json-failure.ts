@@ -50,10 +50,7 @@ type WriteCallback = (error?: Error | null) => void;
  * has finished. On success it is replayed unchanged. On a throw, every partial
  * write is discarded and replaced by exactly one JSON document on stdout.
  */
-export async function runJsonCliCommand(
-  command: string,
-  run: () => number | Promise<number>,
-): Promise<number> {
+export async function runJsonCliCommand(command: string, run: () => number | Promise<number>): Promise<number> {
   const originalLog = console.log;
   const originalError = console.error;
   const originalStdoutWrite = process.stdout.write;

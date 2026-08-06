@@ -24,16 +24,8 @@ import { initOrgHome } from "../../../src/org/home.js";
 import { joinExistingOrg, loadApps, type AppsFile } from "../../../src/org/apps.js";
 import { writeJournalPatch } from "../../../src/org/journal.js";
 import { stableJson } from "../../../src/org/lifecycle.js";
-import {
-  installGithubDouble,
-  type GithubDoubleHandle,
-} from "../../fixtures/github-double/install.js";
-import {
-  diffSnapshots,
-  snapshotTree,
-  type SnapshotDiff,
-  type TreeSnapshot,
-} from "../cf-j01/support.js";
+import { installGithubDouble, type GithubDoubleHandle } from "../../fixtures/github-double/install.js";
+import { diffSnapshots, snapshotTree, type SnapshotDiff, type TreeSnapshot } from "../cf-j01/support.js";
 
 export { diffIsEmpty, diffPaths, diffSnapshots, snapshotTree } from "../cf-j01/support.js";
 export type { SnapshotDiff, TreeSnapshot } from "../cf-j01/support.js";
@@ -143,7 +135,12 @@ export async function makeResetWorld(options: MakeResetWorldOptions = {}): Promi
         remote_url: `https://github.com/${handle.repo}.git`,
         default_branch: options.recordDefaultBranch,
         default_base: "0000000000000000000000000000000000000000",
-        source: { path: humanCheckout, branch: options.recordDefaultBranch, head: "0".repeat(40), status_sha256: "0".repeat(64) },
+        source: {
+          path: humanCheckout,
+          branch: options.recordDefaultBranch,
+          head: "0".repeat(40),
+          status_sha256: "0".repeat(64),
+        },
         onboarding_commit: "0".repeat(40),
         managed_clone: join(stateHome, "repos", TARGET_APP),
         authority_sha256: "0".repeat(64),
@@ -269,11 +266,7 @@ export function mutatingOpsSince(world: ResetWorld, since = world.baseCallCount)
 
 /** A `running` run row at the product envelope path; staleness is decided
  *  against last_seen_at (>10 min per journey-acceptance J-14). */
-export async function seedRunningRun(
-  world: ResetWorld,
-  runId: string,
-  lastSeenAt: Date,
-): Promise<void> {
+export async function seedRunningRun(world: ResetWorld, runId: string, lastSeenAt: Date): Promise<void> {
   const dir = join(world.stateHome, "runs", TARGET_APP, runId);
   await mkdir(dir, { recursive: true });
   await writeFile(
@@ -381,7 +374,10 @@ export function diffWorld(before: WorldSnapshots, after: WorldSnapshots): WorldD
  *  state-home-relative regexes (C-OP-LIFE §6, INV-010). `extraExact` names
  *  the world-specific shared files a legitimate rewrite may touch
  *  (attributable approval files, seeded mixed ledgers). */
-export function completedResetAllowance(app: string, extraExact: readonly string[]): {
+export function completedResetAllowance(
+  app: string,
+  extraExact: readonly string[],
+): {
   state: (rel: string) => boolean;
   org: (rel: string) => boolean;
 } {

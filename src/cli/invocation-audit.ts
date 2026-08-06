@@ -47,10 +47,7 @@ const SECRET_FLAG = /^--[^=]*(?:api[-_]?key|secret|token|password|passwd|pwd|cre
 /** Run one top-level CLI dispatch inside the command-level audit scope. Help,
  * version, and the no-command usage banner are intentionally handled outside
  * this function: they have no command execution and therefore no state audit. */
-export async function runAuditedCliInvocation(
-  rawArgv: string[],
-  run: () => Promise<number>,
-): Promise<number> {
+export async function runAuditedCliInvocation(rawArgv: string[], run: () => Promise<number>): Promise<number> {
   const command = rawArgv[0] ?? "unknown";
   const subcommand = inferSubcommand(command, rawArgv.slice(1));
   const inferredApp = inferApp(command, rawArgv.slice(1));
@@ -193,10 +190,7 @@ export function currentCliInvocationStateHome(): string | undefined {
  * is not the one this invocation is journaling to (the ordinary cross-org
  * case, where the invoking org's ledger is the right home for the row).
  */
-export async function redirectCliInvocationLedger(
-  removedStateHome: string,
-  ledgerHome: string,
-): Promise<boolean> {
+export async function redirectCliInvocationLedger(removedStateHome: string, ledgerHome: string): Promise<boolean> {
   const state = storage.getStore();
   if (state === undefined || state.stateHome !== resolve(removedStateHome)) return false;
   const destination = resolve(ledgerHome);
@@ -268,10 +262,9 @@ export function redactArgv(argv: readonly string[]): string[] {
   return redacted;
 }
 
-async function safelyResolveInitialHome(
-  argv: string[],
-): Promise<{ stateHome: string; org?: string } | undefined> {
-  const explicitState = valueAfter(argv, "--state-home") ?? valueAfter(argv, "--home") ?? process.env["CORMIDIA_STATE_HOME"];
+async function safelyResolveInitialHome(argv: string[]): Promise<{ stateHome: string; org?: string } | undefined> {
+  const explicitState =
+    valueAfter(argv, "--state-home") ?? valueAfter(argv, "--home") ?? process.env["CORMIDIA_STATE_HOME"];
   const explicitOrg = valueAfter(argv, "--org-home") ?? process.env["CORMIDIA_ORG_HOME"];
 
   // org init/use select a new state home. Even an explicit path is not enough
@@ -283,10 +276,12 @@ async function safelyResolveInitialHome(
   if (explicitState !== undefined) {
     if (explicitOrg !== undefined) {
       try {
-        const org = (await resolveCormidiaHomes({
-          stateHome: explicitState,
-          orgHome: explicitOrg,
-        })).appsFile.org.name;
+        const org = (
+          await resolveCormidiaHomes({
+            stateHome: explicitState,
+            orgHome: explicitOrg,
+          })
+        ).appsFile.org.name;
         return { stateHome: resolve(explicitState), org };
       } catch {
         // The explicit state path is still safe audit authority even when org
@@ -315,7 +310,8 @@ function inferSubcommand(command: string, args: string[]): string | undefined {
   if (FIRST_POSITIONAL_SUBCOMMANDS.has(command)) return first;
   if (command === "bootstrap" && first === "publish") return first;
   if (command === "loop" && first === "rearm") return first;
-  if (command === "approvals" && ["list", "review", "show", "status", "revoke", "disposition"].includes(first)) return first;
+  if (command === "approvals" && ["list", "review", "show", "status", "revoke", "disposition"].includes(first))
+    return first;
   return undefined;
 }
 

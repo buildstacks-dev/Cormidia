@@ -15,13 +15,7 @@
 import type { ApprovalItem, ApprovalStore } from "../approvals.js";
 import type { LoopTier } from "../memory.js";
 import type { CandidateDestination } from "./candidate.js";
-import {
-  requireEnum,
-  requireRecord,
-  requireSha256Ref,
-  requireString,
-  requireStringArray,
-} from "./validate.js";
+import { requireEnum, requireRecord, requireSha256Ref, requireString, requireStringArray } from "./validate.js";
 import { CANDIDATE_DESTINATIONS } from "./candidate.js";
 
 export const LEARNING_PUBLISH_TOOL = "learning_publish";
@@ -121,18 +115,13 @@ export async function findLearningPublishItem(
   queue: "pending" | "decided",
 ): Promise<ApprovalItem | undefined> {
   const items = queue === "pending" ? await store.listPending() : await store.listDecided();
-  return items
-    .filter((item) => bindingOf(item)?.candidate_id === candidateId)
-    .at(-1);
+  return items.filter((item) => bindingOf(item)?.candidate_id === candidateId).at(-1);
 }
 
 /** Field-by-field comparison of an approved binding against the binding
  *  rebuilt from CURRENT bytes. Any difference names itself — the refusal
  *  message must say what moved, or the human cannot fix it. */
-export function bindingMismatches(
-  approved: LearningPublishBinding,
-  current: LearningPublishBinding,
-): string[] {
+export function bindingMismatches(approved: LearningPublishBinding, current: LearningPublishBinding): string[] {
   const fields: Array<keyof LearningPublishBinding> = [
     "candidate_id",
     "candidate_hash",

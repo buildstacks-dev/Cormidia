@@ -72,10 +72,7 @@ export function inspectManagedClone(stateHome: string, app: string): ManagedClon
   }
 }
 
-export function inspectManagedClones(
-  stateHome: string,
-  apps: readonly string[],
-): ManagedCloneHealth[] {
+export function inspectManagedClones(stateHome: string, apps: readonly string[]): ManagedCloneHealth[] {
   return apps.map((app) => inspectManagedClone(stateHome, app));
 }
 

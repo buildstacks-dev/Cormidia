@@ -138,8 +138,7 @@ export const CANONICAL_LABELS: readonly CanonicalLabelDefinition[] = [
     description: "Held for human review and excluded from autonomous readiness and claims",
     kind: "routing",
     appliedBy: "A human requiring manual review before autonomous scheduling",
-    operatorResponse:
-      "Keep the ticket out of the autonomous loop; only a human may remove manual-review",
+    operatorResponse: "Keep the ticket out of the autonomous loop; only a human may remove manual-review",
   },
   {
     name: "op:tier-quick",
@@ -373,28 +372,18 @@ export interface TicketBudgetDecision {
 /** Resolve the ticket budget for one plan. This is the ONE place a ratified
  *  budget can raise the stage default, and it only ever does so for the exact
  *  attributable decomposition the ratification names. */
-export function decideTicketBudget(
-  plan: TicketPlan,
-  ratification?: TicketBudgetRatification,
-): TicketBudgetDecision {
+export function decideTicketBudget(plan: TicketPlan, ratification?: TicketBudgetRatification): TicketBudgetDecision {
   const stageBudget = TICKET_BUDGETS[plan.stage];
   if (ratification === undefined) return { stageBudget, budget: stageBudget };
   const digest = ticketPlanDigest(plan);
   const problems: string[] = [];
   if (ratification.stage !== plan.stage) {
-    problems.push(
-      `ratified stage "${String(ratification.stage)}" is not this plan's stage "${plan.stage}"`,
-    );
+    problems.push(`ratified stage "${String(ratification.stage)}" is not this plan's stage "${plan.stage}"`);
   }
   if (ratification.decompositionId !== digest) {
-    problems.push(
-      `ratified decomposition ${ratification.decompositionId} is not this decomposition (${digest})`,
-    );
+    problems.push(`ratified decomposition ${ratification.decompositionId} is not this decomposition (${digest})`);
   }
-  if (
-    !Number.isSafeInteger(ratification.ratifiedTicketCount) ||
-    ratification.ratifiedTicketCount < stageBudget
-  ) {
+  if (!Number.isSafeInteger(ratification.ratifiedTicketCount) || ratification.ratifiedTicketCount < stageBudget) {
     problems.push(
       `ratified ticket count ${String(ratification.ratifiedTicketCount)} is not an integer at or above ` +
         `the ${plan.stage} budget of ${stageBudget}`,
@@ -477,10 +466,7 @@ export interface PlanValidation {
  *  ratification of THIS decomposition when one is supplied. A supplied-but-
  *  inapplicable ratification is itself a problem: it must never silently
  *  degrade into "no ratification". */
-export function validatePlan(
-  plan: TicketPlan,
-  ratification?: TicketBudgetRatification,
-): PlanValidation {
+export function validatePlan(plan: TicketPlan, ratification?: TicketBudgetRatification): PlanValidation {
   const decision = decideTicketBudget(plan, ratification);
   const problems = planProblems(plan, decision.budget);
   if (decision.ratificationProblem !== undefined) {
@@ -496,10 +482,7 @@ export function validatePlan(
 export function isTicketBudgetOnlyRefusal(plan: TicketPlan): boolean {
   const stageBudget = TICKET_BUDGETS[plan.stage];
   if (plan.tickets.length <= stageBudget) return false;
-  return (
-    planProblems(plan, stageBudget).length > 0 &&
-    planProblems(plan, plan.tickets.length).length === 0
-  );
+  return planProblems(plan, stageBudget).length > 0 && planProblems(plan, plan.tickets.length).length === 0;
 }
 
 function planProblems(plan: TicketPlan, budget: number): string[] {
@@ -890,7 +873,9 @@ export function finalizePlanForPublication(
       requestedTier,
       finalTier: ticket.tier,
       ...(requestedTier !== ticket.tier
-        ? { escalationReason: `sensitive-domain floor: ${domainLabels.map((label) => label.replace("domain:", "")).join(", ")}` }
+        ? {
+            escalationReason: `sensitive-domain floor: ${domainLabels.map((label) => label.replace("domain:", "")).join(", ")}`,
+          }
         : {}),
       domainLabels,
       labels: [ticket.tier, ticket.priority, ...domainLabels, ...(ready ? ["op:ready"] : [])],
@@ -1025,7 +1010,9 @@ export async function publishPlanProjection(
       }
       const expected = projection.tickets[index]!;
       if (issueNumbers[index] !== undefined || issue.title !== expected.ticket.title) {
-        throw new Error(`publishTickets: existing Planned-by issue #${issue.number} conflicts at ticket index ${index}`);
+        throw new Error(
+          `publishTickets: existing Planned-by issue #${issue.number} conflicts at ticket index ${index}`,
+        );
       }
       issueNumbers[index] = issue.number;
       recoveredIssues.set(index, { state: issue.state, labels: new Set(issue.labels) });
@@ -1047,7 +1034,9 @@ export async function publishPlanProjection(
     // no later state label proves that the ticket has already advanced.
     for (const [index, issue] of recoveredIssues) {
       const expected = projection.tickets[index]!;
-      const hasCurrentState = [...issue.labels].some((label) => STATE_LABELS.includes(label as (typeof STATE_LABELS)[number]));
+      const hasCurrentState = [...issue.labels].some((label) =>
+        STATE_LABELS.includes(label as (typeof STATE_LABELS)[number]),
+      );
       for (const label of expected.labels) {
         if (issue.labels.has(label)) continue;
         if (label === "op:ready" && (issue.state !== "OPEN" || hasCurrentState)) continue;
@@ -1059,7 +1048,15 @@ export async function publishPlanProjection(
       if (issueNumbers[index] !== undefined) continue;
       const issue = await gh.createIssue({
         title: ticket.title,
-        body: renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, projection.plan.releaseVersion, planningSources, provenance, index),
+        body: renderTicketBody(
+          ticket,
+          issueNumbers,
+          projection.plan.releaseKind,
+          projection.plan.releaseVersion,
+          planningSources,
+          provenance,
+          index,
+        ),
         labels,
       });
       issueNumbers[index] = issue.number;
@@ -1071,7 +1068,15 @@ export async function publishPlanProjection(
       if (ticket.dependsOn.some((dep) => dep > index) || provenance !== undefined) {
         await gh.updateIssueBody(
           issueNumbers[index]!,
-          renderTicketBody(ticket, issueNumbers, projection.plan.releaseKind, projection.plan.releaseVersion, planningSources, provenance, index),
+          renderTicketBody(
+            ticket,
+            issueNumbers,
+            projection.plan.releaseKind,
+            projection.plan.releaseVersion,
+            planningSources,
+            provenance,
+            index,
+          ),
         );
       }
     }

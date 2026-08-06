@@ -13,11 +13,7 @@
 import { join, resolve } from "node:path";
 import { loadApps } from "../org/apps.js";
 import { resolveCormidiaHomes } from "../org/home.js";
-import {
-  ObjectiveGrantStore,
-  type CreateObjectiveGrantInput,
-  type ObjectiveGrant,
-} from "../org/objective-grants.js";
+import { ObjectiveGrantStore, type CreateObjectiveGrantInput, type ObjectiveGrant } from "../org/objective-grants.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 interface ParsedObjectiveArgs {
@@ -56,11 +52,12 @@ export async function cmdObjective(args: string[]): Promise<number> {
       console.log("no objective grants");
     } else {
       for (const grant of grants) {
-        const state = grant.revokedAt !== undefined
-          ? "revoked"
-          : new Date(grant.expiresAt).getTime() <= parsed.now.getTime()
-            ? "expired"
-            : "live";
+        const state =
+          grant.revokedAt !== undefined
+            ? "revoked"
+            : new Date(grant.expiresAt).getTime() <= parsed.now.getTime()
+              ? "expired"
+              : "live";
         console.log(
           `${grant.grantId}  ${grant.app}  ${state}  $${grant.spentUsd.toFixed(2)}/$${grant.spendCeilingUsd}  ` +
             `uses ${grant.usesRemaining}  ${grant.objective}`,
@@ -120,9 +117,7 @@ export async function cmdObjective(args: string[]): Promise<number> {
       throw new Error("objective grant-critical: --class <rule> required (exactly one per invocation)");
     }
     if (parsed.scope === undefined) {
-      throw new Error(
-        'objective grant-critical: --scope <bound> required — "publish anything" is a blank cheque',
-      );
+      throw new Error('objective grant-critical: --scope <bound> required — "publish anything" is a blank cheque');
     }
     if (parsed.classes.length > 0) {
       throw new Error("objective grant-critical: use --class, never --classes (one class per invocation)");
@@ -174,14 +169,18 @@ function parseArgs(args: string[]): ParsedObjectiveArgs {
     else if (arg === "--app") parsed.app = needValue(args, ++i, "--app");
     else if (arg === "--objective") parsed.objective = needValue(args, ++i, "--objective");
     else if (arg === "--classes") {
-      parsed.classes = needValue(args, ++i, "--classes").split(",").map((value) => value.trim()).filter(Boolean);
+      parsed.classes = needValue(args, ++i, "--classes")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
     } else if (arg === "--class") parsed.criticalClass = needValue(args, ++i, "--class");
     else if (arg === "--scope") parsed.scope = needValue(args, ++i, "--scope");
     else if (arg === "--precondition") parsed.precondition = needValue(args, ++i, "--precondition");
     else if (arg === "--repo") parsed.repo = needValue(args, ++i, "--repo");
     else if (arg === "--by") parsed.by = needValue(args, ++i, "--by");
     else if (arg === "--ceiling") parsed.ceilingUsd = positiveNumber(needValue(args, ++i, "--ceiling"), "--ceiling");
-    else if (arg === "--ttl-hours") parsed.ttlHours = positiveNumber(needValue(args, ++i, "--ttl-hours"), "--ttl-hours");
+    else if (arg === "--ttl-hours")
+      parsed.ttlHours = positiveNumber(needValue(args, ++i, "--ttl-hours"), "--ttl-hours");
     else if (arg === "--uses") parsed.uses = positiveNumber(needValue(args, ++i, "--uses"), "--uses");
     else if (["grant", "grant-critical", "list", "revoke"].includes(arg) && subcommand === undefined) {
       subcommand = arg as ParsedObjectiveArgs["subcommand"];

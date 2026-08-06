@@ -85,17 +85,12 @@ describe("CF-SPLIT-NETWORK — undeterminable destinations fail closed to human-
 
 describe("CF-SPLIT-NETWORK — the allowlist is configuration, and the default is the ratified trio", () => {
   it("names exactly the ratified default hosts", () => {
-    expect([...DEFAULT_NETWORK_ALLOWLIST].sort()).toEqual([
-      "api.github.com",
-      "github.com",
-      "registry.npmjs.org",
-    ]);
+    expect([...DEFAULT_NETWORK_ALLOWLIST].sort()).toEqual(["api.github.com", "github.com", "registry.npmjs.org"]);
   });
 
   it("direction guard: undeterminable is above the old tier; determinable equals it", () => {
     const strictness = { routine: 0, budgeted: 1, grantable: 2, "human-only": 3, "un-grantable": 4 } as const;
-    expect(strictness[dispositionTierForRule("outbound-network-undeterminable")])
-      .toBeGreaterThan(strictness.grantable);
+    expect(strictness[dispositionTierForRule("outbound-network-undeterminable")]).toBeGreaterThan(strictness.grantable);
     expect(dispositionTierForRule("outbound-network")).toBe("grantable");
   });
 });

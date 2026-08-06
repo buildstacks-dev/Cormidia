@@ -24,11 +24,7 @@ import { ERROR_TURN_BUDGET_SUSPENDED } from "../runtime/turn-budget.js";
 import { withFileLock } from "../runtime/file-lock.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import type { TicketTier } from "./pipelines.js";
-import {
-  assertMonotonicRoute,
-  executionBoundsFor,
-  type RouteExecutionBounds,
-} from "./route-policy.js";
+import { assertMonotonicRoute, executionBoundsFor, type RouteExecutionBounds } from "./route-policy.js";
 
 export const EFFICIENCY_SCHEMA_VERSION = 1 as const;
 /** Floating-point comparison tolerance only. This is not a spend allowance:
@@ -196,13 +192,7 @@ export interface RouteRecord {
   terminal: EpisodeTerminal | null;
 }
 
-export type ExecutionStatus =
-  | "completed"
-  | "failed"
-  | "blocked"
-  | "cancelled"
-  | "timed_out"
-  | "interrupted";
+export type ExecutionStatus = "completed" | "failed" | "blocked" | "cancelled" | "timed_out" | "interrupted";
 
 export interface ExecutionStepRecord {
   schema_version: typeof EFFICIENCY_SCHEMA_VERSION;
@@ -260,9 +250,7 @@ export function isSuspendedProviderStep(record: ExecutionStepRecord): boolean {
 /** Records that answer "did this plan step settle?" — every terminal provider
  *  record except the parked ones. A step may accumulate several suspensions
  *  (one per budget grant) and still have at most one settlement. */
-export function settledProviderSteps(
-  records: readonly ExecutionStepRecord[],
-): ExecutionStepRecord[] {
+export function settledProviderSteps(records: readonly ExecutionStepRecord[]): ExecutionStepRecord[] {
   return records.filter((record) => !isSuspendedProviderStep(record));
 }
 
@@ -371,9 +359,7 @@ export class ProviderBudgetRefusalError extends Error {
 }
 
 export function episodeIdFor(input: { app: string; ticket?: string; traceId: string }): string {
-  return input.ticket === undefined
-    ? `trace:${input.app}:${input.traceId}`
-    : `ticket:${input.app}:${input.ticket}`;
+  return input.ticket === undefined ? `trace:${input.app}:${input.traceId}` : `ticket:${input.app}:${input.ticket}`;
 }
 
 export function efficiencyEpisodeDir(root: string, episodeId: string): string {
@@ -395,10 +381,8 @@ export function executionStepPath(root: string, episodeId: string, stepId: strin
 /** First writer fixes planned_route. Subsequent passes may prove that their
  * predeclared pass authorization was already included, but cannot rewrite it. */
 export async function admitEpisode(input: RouteAdmissionInput): Promise<RouteRecord> {
-  return withFileLock(
-    routeMutationLockPath(input.root, input.episodeId),
-    ROUTE_MUTATION_LOCK_OPTIONS,
-    async () => admitEpisodeLocked(input),
+  return withFileLock(routeMutationLockPath(input.root, input.episodeId), ROUTE_MUTATION_LOCK_OPTIONS, async () =>
+    admitEpisodeLocked(input),
   );
 }
 
@@ -422,8 +406,8 @@ async function admitEpisodeLocked(input: RouteAdmissionInput): Promise<RouteReco
     }
     if (
       existing.current_plan_version !== undefined &&
-      requestedPasses.some((pass) =>
-        pass.plan_version !== undefined && pass.plan_version !== existing.current_plan_version
+      requestedPasses.some(
+        (pass) => pass.plan_version !== undefined && pass.plan_version !== existing.current_plan_version,
       )
     ) {
       throw new Error(
@@ -503,10 +487,8 @@ export async function reassessEpisode(input: {
   budgetOverrides?: Partial<RouteBudget>;
   authorizedPasses?: AuthorizedPass[];
 }): Promise<RouteRecord> {
-  return withFileLock(
-    routeMutationLockPath(input.root, input.episodeId),
-    ROUTE_MUTATION_LOCK_OPTIONS,
-    async () => reassessEpisodeLocked(input),
+  return withFileLock(routeMutationLockPath(input.root, input.episodeId), ROUTE_MUTATION_LOCK_OPTIONS, async () =>
+    reassessEpisodeLocked(input),
   );
 }
 
@@ -556,10 +538,8 @@ export async function finalizeEpisode(input: {
   nextStep?: string;
   now: Date;
 }): Promise<RouteRecord> {
-  return withFileLock(
-    routeMutationLockPath(input.root, input.episodeId),
-    ROUTE_MUTATION_LOCK_OPTIONS,
-    async () => finalizeEpisodeLocked(input),
+  return withFileLock(routeMutationLockPath(input.root, input.episodeId), ROUTE_MUTATION_LOCK_OPTIONS, async () =>
+    finalizeEpisodeLocked(input),
   );
 }
 
@@ -693,17 +673,14 @@ function budgetCheck(
     equivalent_cost_usd: route.budget.equivalent_cost_usd - counters.equivalent_cost_usd,
     active_time_ms: route.budget.active_time_ms - counters.active_time_ms,
     human_decisions:
-      route.budget.human_decisions === null
-        ? null
-        : route.budget.human_decisions - counters.human_decisions,
+      route.budget.human_decisions === null ? null : route.budget.human_decisions - counters.human_decisions,
   };
   const refusal =
     remaining.provider_turns < 1
       ? "provider-turn budget exhausted"
       : remaining.equivalent_cost_usd <= EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
         ? "equivalent-cost budget exhausted"
-        : (next.costUsd ?? 0) >
-            remaining.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+        : (next.costUsd ?? 0) > remaining.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
           ? "declared equivalent-cost allowance is insufficient"
           : (next.activeTimeMs ?? 0) > remaining.active_time_ms
             ? "declared active-time allowance is insufficient"
@@ -748,13 +725,11 @@ export async function beginProviderStep(input: {
   now: Date;
   next?: { costUsd?: number; activeTimeMs?: number };
 }): Promise<StartedProviderStep> {
-  const assignment = input.assignment === undefined
-    ? fixedAssignmentFromRole(input.role)
-    : validateTurnAssignment(input.assignment, `${input.operation} assignment`);
-  const planMetadata = normalizeProviderStepPlanMetadata(
-    input.planMetadata,
-    `${input.operation} plan metadata`,
-  );
+  const assignment =
+    input.assignment === undefined
+      ? fixedAssignmentFromRole(input.role)
+      : validateTurnAssignment(input.assignment, `${input.operation} assignment`);
+  const planMetadata = normalizeProviderStepPlanMetadata(input.planMetadata, `${input.operation} plan metadata`);
   const settlementAttribution = normalizeProviderStepSettlementAttribution(
     input.settlementAttribution,
     `${input.operation} settlement attribution`,
@@ -764,8 +739,7 @@ export async function beginProviderStep(input: {
   }
   if (
     input.next?.costUsd !== undefined &&
-    input.next.costUsd >
-      input.role.maxTurnBudgetUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+    input.next.costUsd > input.role.maxTurnBudgetUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
   ) {
     throw new TypeError(
       `declared equivalent-cost allowance $${formatUsd(input.next.costUsd)} exceeds ` +
@@ -784,8 +758,7 @@ export async function beginProviderStep(input: {
     }
     const reservation = {
       equivalentCostUsd:
-        input.next?.costUsd ??
-        Math.min(input.role.maxTurnBudgetUsd, Math.max(0, budget.remaining.equivalent_cost_usd)),
+        input.next?.costUsd ?? Math.min(input.role.maxTurnBudgetUsd, Math.max(0, budget.remaining.equivalent_cost_usd)),
       activeTimeMs: input.next?.activeTimeMs ?? 0,
     };
     // Production callers normally omit an estimate. In that case the
@@ -835,10 +808,7 @@ export async function beginProviderStep(input: {
         active_time_ms: reservation.activeTimeMs,
       },
     };
-    await writeLoopFileAtomic(
-      `${path}.started`,
-      `${JSON.stringify(receipt, null, 2)}\n`,
-    );
+    await writeLoopFileAtomic(`${path}.started`, `${JSON.stringify(receipt, null, 2)}\n`);
     return {
       executionStepId,
       providerTurnId,
@@ -907,9 +877,7 @@ export async function finalizeProviderStep(input: {
         receiptAssignment,
       )
     ) {
-      throw new Error(
-        `provider step ${input.started.executionStepId} assignment disagrees with its started receipt`,
-      );
+      throw new Error(`provider step ${input.started.executionStepId} assignment disagrees with its started receipt`);
     }
     const receiptMetadata = metadataFromProviderReceipt(receipt);
     const assertedMetadata = input.planMetadata ?? input.started.planMetadata;
@@ -977,10 +945,7 @@ export async function recordMechanicalStep(input: {
   inputFingerprint: string;
   planMetadata?: Pick<ProviderStepPlanMetadata, "plan_version" | "plan_step_id">;
 }): Promise<ExecutionStepRecord> {
-  const planMetadata = normalizeProviderStepPlanMetadata(
-    input.planMetadata,
-    `${input.operation} plan metadata`,
-  );
+  const planMetadata = normalizeProviderStepPlanMetadata(input.planMetadata, `${input.operation} plan metadata`);
   const stepId = `${input.runId}:mechanical:${sha256(input.operation).slice(0, 12)}`;
   const path = executionStepPath(input.root, input.episodeId, stepId);
   if (existsSync(path)) return JSON.parse(await readFile(path, "utf8")) as ExecutionStepRecord;
@@ -1037,21 +1002,18 @@ export async function readExecutionSteps(root: string, episodeId: string): Promi
       // omitted here and named by the report's directory diagnostics.
     }
   }
-  return records.sort((a, b) => a.started_at.localeCompare(b.started_at) || a.execution_step_id.localeCompare(b.execution_step_id));
+  return records.sort(
+    (a, b) => a.started_at.localeCompare(b.started_at) || a.execution_step_id.localeCompare(b.execution_step_id),
+  );
 }
 
 /** Pending reservations for one episode, exposed for outer durable-step
  * reconciliation. Corruption is a hard error; a caller must never mistake an
  * unreadable reservation for permission to start another provider turn. */
-export async function readPendingProviderSteps(
-  root: string,
-  episodeId: string,
-): Promise<StartedProviderReceipt[]> {
+export async function readPendingProviderSteps(root: string, episodeId: string): Promise<StartedProviderReceipt[]> {
   const pending = await pendingProviderReservations(root, episodeId);
   if (pending.corrupt.length > 0) {
-    throw new Error(
-      `episode ${episodeId} has corrupt provider reservation(s): ${pending.corrupt.join(", ")}`,
-    );
+    throw new Error(`episode ${episodeId} has corrupt provider reservation(s): ${pending.corrupt.join(", ")}`);
   }
   return pending.receipts.map((receipt) => structuredClone(receipt));
 }
@@ -1062,8 +1024,9 @@ export async function readEfficiencyEvidence(root: string): Promise<EfficiencyEp
   const episodesDir = join(root, "efficiency", "episodes");
   if (!existsSync(episodesDir)) return [];
   const evidence: EfficiencyEpisodeEvidence[] = [];
-  const episodeEntries = (await readdir(episodesDir, { withFileTypes: true }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const episodeEntries = (await readdir(episodesDir, { withFileTypes: true })).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
   for (const entry of episodeEntries) {
     const directory = entry.name;
     const base = join(episodesDir, directory);
@@ -1137,13 +1100,7 @@ export async function reconcileStaleProviderSteps(
   const inFlight: string[] = [];
   const evidence = await readEfficiencyEvidence(root);
   for (const episode of evidence) {
-    const reconciled = await reconcileProviderReceipts(
-      root,
-      episode.pending_started,
-      now,
-      staleAfterMs,
-      recoverUsage,
-    );
+    const reconciled = await reconcileProviderReceipts(root, episode.pending_started, now, staleAfterMs, recoverUsage);
     finalized.push(...reconciled.finalized);
     inFlight.push(...reconciled.inFlight);
   }
@@ -1271,16 +1228,11 @@ export async function deriveEpisodeCounters(root: string, episodeId: string): Pr
  * planning result, matching the preview calculation that reserves one planner
  * slot before the accepted delivery graph.
  */
-export async function deriveRouteBudgetCounters(
-  root: string,
-  episodeId: string,
-): Promise<EpisodeCounters> {
+export async function deriveRouteBudgetCounters(root: string, episodeId: string): Promise<EpisodeCounters> {
   const steps = await readExecutionSteps(root, episodeId);
   const counters = await deriveEpisodeCounters(root, episodeId);
   const provider = steps.filter((step) => step.kind === "provider");
-  const initialPlanner = provider.filter((step) =>
-    /^episode-planner:attempt:\d+$/.test(step.execution_step_id)
-  );
+  const initialPlanner = provider.filter((step) => /^episode-planner:attempt:\d+$/.test(step.execution_step_id));
   if (initialPlanner.length === 0) return counters;
   const otherProviderTurnIds = new Set(
     provider
@@ -1331,9 +1283,15 @@ export function settlementCoverage(
     if (row.providerTurnId !== undefined) counts.set(row.providerTurnId, (counts.get(row.providerTurnId) ?? 0) + 1);
   }
   const provider = steps.filter((step) => step.kind === "provider");
-  const missing = provider.filter((step) => (counts.get(step.provider_turn_id!) ?? 0) === 0).map((step) => step.execution_step_id);
-  const duplicate = provider.filter((step) => (counts.get(step.provider_turn_id!) ?? 0) > 1).map((step) => step.execution_step_id);
-  const mechanicalIds = new Set(steps.filter((step) => step.kind === "mechanical").map((step) => step.execution_step_id));
+  const missing = provider
+    .filter((step) => (counts.get(step.provider_turn_id!) ?? 0) === 0)
+    .map((step) => step.execution_step_id);
+  const duplicate = provider
+    .filter((step) => (counts.get(step.provider_turn_id!) ?? 0) > 1)
+    .map((step) => step.execution_step_id);
+  const mechanicalIds = new Set(
+    steps.filter((step) => step.kind === "mechanical").map((step) => step.execution_step_id),
+  );
   const mechanicalWithSettlement = settlements
     .filter((row) => row.executionStepId !== undefined && mechanicalIds.has(row.executionStepId))
     .map((row) => row.executionStepId!);
@@ -1396,10 +1354,7 @@ const PROVIDER_PLAN_METADATA_FIELDS = [
   "resolved_capabilities",
 ] as const;
 
-function normalizeProviderStepPlanMetadata(
-  value: unknown,
-  context: string,
-): ProviderStepPlanMetadata {
+function normalizeProviderStepPlanMetadata(value: unknown, context: string): ProviderStepPlanMetadata {
   if (value === undefined) return {};
   if (!isRecord(value)) throw new Error(`${context} must be a mapping`);
   const unknown = Object.keys(value).filter(
@@ -1442,16 +1397,10 @@ function normalizeProviderStepPlanMetadata(
     normalized.plan_step_id = validateEvidenceText(planStepId, `${context}.plan_step_id`);
   }
   if (value["selection_reason"] !== undefined) {
-    normalized.selection_reason = validateEvidenceText(
-      value["selection_reason"],
-      `${context}.selection_reason`,
-    );
+    normalized.selection_reason = validateEvidenceText(value["selection_reason"], `${context}.selection_reason`);
   }
   if (value["provider_family"] !== undefined) {
-    normalized.provider_family = validateProviderFamily(
-      value["provider_family"],
-      `${context}.provider_family`,
-    );
+    normalized.provider_family = validateProviderFamily(value["provider_family"], `${context}.provider_family`);
   }
   const resolvedCapabilities = value["resolved_capabilities"];
   if (resolvedCapabilities !== undefined) {
@@ -1459,7 +1408,7 @@ function normalizeProviderStepPlanMetadata(
       throw new Error(`${context}.resolved_capabilities must be an array`);
     }
     const capabilities = resolvedCapabilities.map((capability, index) =>
-      validateEvidenceText(capability, `${context}.resolved_capabilities[${index}]`)
+      validateEvidenceText(capability, `${context}.resolved_capabilities[${index}]`),
     );
     if (new Set(capabilities).size !== capabilities.length) {
       throw new Error(`${context}.resolved_capabilities must not contain duplicates`);
@@ -1485,16 +1434,12 @@ function metadataFromAuthorizedPass(pass: AuthorizedPass): ProviderStepPlanMetad
   return normalizeProviderStepPlanMetadata(
     {
       ...(pass.assignment_source !== undefined ? { assignment_source: pass.assignment_source } : {}),
-      ...(pass.assignment_candidate_id !== undefined
-        ? { assignment_candidate_id: pass.assignment_candidate_id }
-        : {}),
+      ...(pass.assignment_candidate_id !== undefined ? { assignment_candidate_id: pass.assignment_candidate_id } : {}),
       ...(pass.plan_version !== undefined ? { plan_version: pass.plan_version } : {}),
       ...(pass.plan_step_id !== undefined ? { plan_step_id: pass.plan_step_id } : {}),
       ...(pass.selection_reason !== undefined ? { selection_reason: pass.selection_reason } : {}),
       ...(pass.provider_family !== undefined ? { provider_family: pass.provider_family } : {}),
-      ...(pass.resolved_capabilities !== undefined
-        ? { resolved_capabilities: pass.resolved_capabilities }
-        : {}),
+      ...(pass.resolved_capabilities !== undefined ? { resolved_capabilities: pass.resolved_capabilities } : {}),
     },
     `${pass.pipeline}/${pass.pass} authorization metadata`,
   );
@@ -1517,9 +1462,7 @@ function normalizeAuthorizedPass(pass: AuthorizedPass): AuthorizedPass {
 function metadataFromProviderReceipt(receipt: StartedProviderReceipt): ProviderStepPlanMetadata {
   return normalizeProviderStepPlanMetadata(
     {
-      ...(receipt.assignment_source !== undefined
-        ? { assignment_source: receipt.assignment_source }
-        : {}),
+      ...(receipt.assignment_source !== undefined ? { assignment_source: receipt.assignment_source } : {}),
       ...(receipt.assignment_candidate_id !== undefined
         ? { assignment_candidate_id: receipt.assignment_candidate_id }
         : {}),
@@ -1527,19 +1470,13 @@ function metadataFromProviderReceipt(receipt: StartedProviderReceipt): ProviderS
       ...(receipt.plan_step_id !== undefined ? { plan_step_id: receipt.plan_step_id } : {}),
       ...(receipt.selection_reason !== undefined ? { selection_reason: receipt.selection_reason } : {}),
       ...(receipt.provider_family !== undefined ? { provider_family: receipt.provider_family } : {}),
-      ...(receipt.resolved_capabilities !== undefined
-        ? { resolved_capabilities: receipt.resolved_capabilities }
-        : {}),
+      ...(receipt.resolved_capabilities !== undefined ? { resolved_capabilities: receipt.resolved_capabilities } : {}),
     },
     `provider step ${receipt.execution_step_id} receipt metadata`,
   );
 }
 
-const PROVIDER_SETTLEMENT_ATTRIBUTION_FIELDS = [
-  "experiment_ref",
-  "candidate_ref",
-  "learning_activity",
-] as const;
+const PROVIDER_SETTLEMENT_ATTRIBUTION_FIELDS = ["experiment_ref", "candidate_ref", "learning_activity"] as const;
 
 function normalizeProviderStepSettlementAttribution(
   value: unknown,
@@ -1555,16 +1492,10 @@ function normalizeProviderStepSettlementAttribution(
   }
   const normalized: ProviderStepSettlementAttribution = {};
   if (value["experiment_ref"] !== undefined) {
-    normalized.experiment_ref = validateEvidenceText(
-      value["experiment_ref"],
-      `${context}.experiment_ref`,
-    );
+    normalized.experiment_ref = validateEvidenceText(value["experiment_ref"], `${context}.experiment_ref`);
   }
   if (value["candidate_ref"] !== undefined) {
-    normalized.candidate_ref = validateEvidenceText(
-      value["candidate_ref"],
-      `${context}.candidate_ref`,
-    );
+    normalized.candidate_ref = validateEvidenceText(value["candidate_ref"], `${context}.candidate_ref`);
   }
   const learningActivity = value["learning_activity"];
   if (learningActivity !== undefined) {
@@ -1576,23 +1507,19 @@ function normalizeProviderStepSettlementAttribution(
   return normalized;
 }
 
-function settlementAttributionFromProviderReceipt(
-  receipt: StartedProviderReceipt,
-): ProviderStepSettlementAttribution {
+function settlementAttributionFromProviderReceipt(receipt: StartedProviderReceipt): ProviderStepSettlementAttribution {
   return normalizeProviderStepSettlementAttribution(
     Object.fromEntries(
-      PROVIDER_SETTLEMENT_ATTRIBUTION_FIELDS
-        .filter((field) => receipt[field] !== undefined)
-        .map((field) => [field, receipt[field]]),
+      PROVIDER_SETTLEMENT_ATTRIBUTION_FIELDS.filter((field) => receipt[field] !== undefined).map((field) => [
+        field,
+        receipt[field],
+      ]),
     ),
     `provider step ${receipt.execution_step_id} settlement attribution`,
   );
 }
 
-function providerStepPlanMetadataEqual(
-  left: ProviderStepPlanMetadata,
-  right: ProviderStepPlanMetadata,
-): boolean {
+function providerStepPlanMetadataEqual(left: ProviderStepPlanMetadata, right: ProviderStepPlanMetadata): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
@@ -1629,9 +1556,7 @@ function assertStartedProviderIdentity(
     receipt.started_at === input.started.startedAt.toISOString() &&
     receipt.input_fingerprint === input.started.inputFingerprint;
   if (!same) {
-    throw new Error(
-      `provider step ${input.started.executionStepId} identity disagrees with its started receipt`,
-    );
+    throw new Error(`provider step ${input.started.executionStepId} identity disagrees with its started receipt`);
   }
 }
 
@@ -1661,8 +1586,10 @@ function planAuthorityFromRoute(record: RouteRecord): PlanRouteAuthority | undef
   const hash = record.current_plan_hash;
   if (version === undefined && hash === undefined) return undefined;
   if (
-    version === undefined || hash === undefined ||
-    !Number.isSafeInteger(version) || version < 1 ||
+    version === undefined ||
+    hash === undefined ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
     !/^[a-f0-9]{64}$/u.test(hash)
   ) {
     throw new Error(`efficiency route ${record.episode_id} has invalid current-plan authority`);
@@ -1683,11 +1610,12 @@ async function admitPlanRouteRevision(
     );
   }
   const requestedBudget = { ...ROUTE_BUDGETS[input.route], ...input.budgetOverrides };
-  const requestedBounds = input.executionBounds !== undefined
-    ? input.executionBounds
-    : input.route === "deterministic"
-      ? null
-      : executionBoundsFor(input.route);
+  const requestedBounds =
+    input.executionBounds !== undefined
+      ? input.executionBounds
+      : input.route === "deterministic"
+        ? null
+        : executionBoundsFor(input.route);
   if (requestedBounds !== null || existing.execution_bounds !== null) {
     throw new Error(
       `efficiency admission conflict for ${input.episodeId}: plan-DAG route revisions require null static execution bounds`,
@@ -1708,9 +1636,7 @@ async function admitPlanRouteRevision(
     );
   }
 
-  const existingCurrent = existing.authorized_passes.filter(
-    (pass) => pass.plan_version === requestedPlan.version,
-  );
+  const existingCurrent = existing.authorized_passes.filter((pass) => pass.plan_version === requestedPlan.version);
   if (requestedPlan.version === inferredVersion) {
     if (existingPlan !== undefined && existingPlan.hash !== requestedPlan.hash) {
       throw new Error(
@@ -1739,15 +1665,14 @@ async function admitPlanRouteRevision(
       current_plan_version: requestedPlan.version,
       current_plan_hash: requestedPlan.hash,
     };
-    await writeLoopFileAtomic(
-      routeRecordPath(input.root, input.episodeId),
-      `${JSON.stringify(migrated, null, 2)}\n`,
-    );
+    await writeLoopFileAtomic(routeRecordPath(input.root, input.episodeId), `${JSON.stringify(migrated, null, 2)}\n`);
     return migrated;
   }
 
   if (existing.terminal !== null) {
-    throw new Error(`efficiency admission conflict for ${input.episodeId}: terminal route cannot adopt a plan revision`);
+    throw new Error(
+      `efficiency admission conflict for ${input.episodeId}: terminal route cannot adopt a plan revision`,
+    );
   }
   assertMonotonicRoute(existing.current_route, input.route);
   assertRouteBudgetMonotonic(existing.budget, requestedBudget, input.episodeId);
@@ -1780,10 +1705,7 @@ async function admitPlanRouteRevision(
     current_plan_hash: requestedPlan.hash,
     reassessments: [...existing.reassessments, reassessment],
   };
-  await writeLoopFileAtomic(
-    routeRecordPath(input.root, input.episodeId),
-    `${JSON.stringify(updated, null, 2)}\n`,
-  );
+  await writeLoopFileAtomic(routeRecordPath(input.root, input.episodeId), `${JSON.stringify(updated, null, 2)}\n`);
   return updated;
 }
 
@@ -1817,10 +1739,12 @@ function samePassSet(left: AuthorizedPass[], right: AuthorizedPass[]): boolean {
 }
 
 function routeBudgetsEqual(left: RouteBudget, right: RouteBudget): boolean {
-  return left.provider_turns === right.provider_turns &&
+  return (
+    left.provider_turns === right.provider_turns &&
     left.equivalent_cost_usd === right.equivalent_cost_usd &&
     left.active_time_ms === right.active_time_ms &&
-    left.human_decisions === right.human_decisions;
+    left.human_decisions === right.human_decisions
+  );
 }
 
 function assertRouteBudgetMonotonic(previous: RouteBudget, next: RouteBudget, episodeId: string): void {
@@ -1830,7 +1754,9 @@ function assertRouteBudgetMonotonic(previous: RouteBudget, next: RouteBudget, ep
     next.active_time_ms < previous.active_time_ms ||
     nullableBudgetDecreased(previous.human_decisions, next.human_decisions);
   if (decreased) {
-    throw new Error(`efficiency admission conflict for ${episodeId}: a plan revision cannot reduce route budget authority`);
+    throw new Error(
+      `efficiency admission conflict for ${episodeId}: a plan revision cannot reduce route budget authority`,
+    );
   }
 }
 
@@ -1849,11 +1775,7 @@ function mergeAdmissionFactors(existing: AdmissionFactor[], added: AdmissionFact
   return sortedFactors([...merged.values()]);
 }
 
-function assertAuthorizedPassFactors(
-  passes: AuthorizedPass[],
-  factors: AdmissionFactor[],
-  episodeId: string,
-): void {
+function assertAuthorizedPassFactors(passes: AuthorizedPass[], factors: AdmissionFactor[], episodeId: string): void {
   const knownRules = new Set(factors.map((factor) => factor.policy_rule));
   for (const pass of passes) {
     if (pass.factor_rules.length === 0 || pass.factor_rules.some((rule) => !knownRules.has(rule))) {
@@ -1867,14 +1789,13 @@ function assertAuthorizedPassFactors(
 
 function passIdentity(pass: AuthorizedPass): string {
   const normalized = normalizeAuthorizedPass(pass);
-  return `${normalized.pipeline}\0${normalized.pass}\0${normalized.role}\0${normalized.runtime}\0` +
-    `${normalized.model}\0${normalized.effort}\0${JSON.stringify(metadataFromAuthorizedPass(normalized))}`;
+  return (
+    `${normalized.pipeline}\0${normalized.pass}\0${normalized.role}\0${normalized.runtime}\0` +
+    `${normalized.model}\0${normalized.effort}\0${JSON.stringify(metadataFromAuthorizedPass(normalized))}`
+  );
 }
 
-function mergeAuthorizedPasses(
-  existing: AuthorizedPass[],
-  added: AuthorizedPass[],
-): AuthorizedPass[] {
+function mergeAuthorizedPasses(existing: AuthorizedPass[], added: AuthorizedPass[]): AuthorizedPass[] {
   const merged = new Map(existing.map((pass) => [passIdentity(pass), pass]));
   for (const pass of added) {
     if (pass.factor_rules.length === 0) {
@@ -1985,14 +1906,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function hasValidPreRouteEpisodeMarker(base: string): Promise<boolean> {
   for (const [file, valid] of [
     ["planner-admission.json", isValidPlannerAdmissionMarker],
-    ["plan-current.json", (value: Record<string, unknown>) =>
-      value.schemaVersion === 1 &&
-      typeof value.episodeId === "string" &&
-      Number.isSafeInteger(value.version) &&
-      (value.version as number) > 0 &&
-      typeof value.planHash === "string" &&
-      /^[a-f0-9]{64}$/u.test(value.planHash) &&
-      value.file === `plan-v${value.version as number}.json`],
+    [
+      "plan-current.json",
+      (value: Record<string, unknown>) =>
+        value.schemaVersion === 1 &&
+        typeof value.episodeId === "string" &&
+        Number.isSafeInteger(value.version) &&
+        (value.version as number) > 0 &&
+        typeof value.planHash === "string" &&
+        /^[a-f0-9]{64}$/u.test(value.planHash) &&
+        value.file === `plan-v${value.version as number}.json`,
+    ],
   ] as const) {
     try {
       const value: unknown = JSON.parse(await readFile(join(base, file), "utf8"));
@@ -2012,14 +1936,20 @@ function isValidPlannerAdmissionMarker(value: Record<string, unknown>): boolean 
   } catch {
     return false;
   }
-  return value.schema_version === 1 &&
-    typeof value.episode_id === "string" && value.episode_id.length > 0 &&
-    typeof value.app === "string" && value.app.length > 0 &&
-    typeof value.admitted_at === "string" && Number.isFinite(Date.parse(value.admitted_at)) &&
-    typeof value.intent_hash === "string" && /^[a-f0-9]{64}$/u.test(value.intent_hash) &&
+  return (
+    value.schema_version === 1 &&
+    typeof value.episode_id === "string" &&
+    value.episode_id.length > 0 &&
+    typeof value.app === "string" &&
+    value.app.length > 0 &&
+    typeof value.admitted_at === "string" &&
+    Number.isFinite(Date.parse(value.admitted_at)) &&
+    typeof value.intent_hash === "string" &&
+    /^[a-f0-9]{64}$/u.test(value.intent_hash) &&
     value.assignment_source === "configured" &&
     value.assignment_candidate_id === "configured" &&
-    isRecord(value.budget);
+    isRecord(value.budget)
+  );
 }
 
 function isRouteRecord(value: unknown): value is RouteRecord {
@@ -2027,13 +1957,12 @@ function isRouteRecord(value: unknown): value is RouteRecord {
   const routes = new Set<EfficiencyRoute>(["deterministic", "quick", "standard", "deep"]);
   const planAuthorityValid =
     (value.current_plan_version === undefined && value.current_plan_hash === undefined) ||
-    (
-      Number.isSafeInteger(value.current_plan_version) &&
+    (Number.isSafeInteger(value.current_plan_version) &&
       (value.current_plan_version as number) > 0 &&
       typeof value.current_plan_hash === "string" &&
-      /^[a-f0-9]{64}$/u.test(value.current_plan_hash)
-    );
-  return value.schema_version === EFFICIENCY_SCHEMA_VERSION &&
+      /^[a-f0-9]{64}$/u.test(value.current_plan_hash));
+  return (
+    value.schema_version === EFFICIENCY_SCHEMA_VERSION &&
     typeof value.episode_id === "string" &&
     typeof value.app === "string" &&
     typeof value.policy_version === "string" &&
@@ -2046,7 +1975,8 @@ function isRouteRecord(value: unknown): value is RouteRecord {
     isRecord(value.budget) &&
     planAuthorityValid &&
     Array.isArray(value.reassessments) &&
-    (value.terminal === null || isRecord(value.terminal));
+    (value.terminal === null || isRecord(value.terminal))
+  );
 }
 
 function isExecutionStepRecord(value: unknown): value is ExecutionStepRecord {
@@ -2056,7 +1986,8 @@ function isExecutionStepRecord(value: unknown): value is ExecutionStepRecord {
     kind === "provider"
       ? typeof value.provider_turn_id === "string"
       : kind === "mechanical" && value.provider_turn_id === null;
-  return value.schema_version === EFFICIENCY_SCHEMA_VERSION &&
+  return (
+    value.schema_version === EFFICIENCY_SCHEMA_VERSION &&
     typeof value.execution_step_id === "string" &&
     typeof value.episode_id === "string" &&
     typeof value.app === "string" &&
@@ -2067,11 +1998,13 @@ function isExecutionStepRecord(value: unknown): value is ExecutionStepRecord {
     typeof value.finished_at === "string" &&
     typeof value.status === "string" &&
     typeof value.input_fingerprint === "string" &&
-    hasValidOptionalProviderMetadata(value);
+    hasValidOptionalProviderMetadata(value)
+  );
 }
 
 function isStartedProviderReceipt(value: unknown): value is StartedProviderReceipt {
-  return isRecord(value) &&
+  return (
+    isRecord(value) &&
     value.schema_version === EFFICIENCY_SCHEMA_VERSION &&
     value.kind === "provider" &&
     typeof value.execution_step_id === "string" &&
@@ -2086,24 +2019,27 @@ function isStartedProviderReceipt(value: unknown): value is StartedProviderRecei
     typeof value.effort === "string" &&
     typeof value.started_at === "string" &&
     typeof value.input_fingerprint === "string" &&
-    hasValidOptionalProviderMetadata(value);
+    hasValidOptionalProviderMetadata(value)
+  );
 }
 
 function hasValidOptionalProviderMetadata(value: Record<string, unknown>): boolean {
   try {
     normalizeProviderStepPlanMetadata(
       Object.fromEntries(
-        PROVIDER_PLAN_METADATA_FIELDS
-          .filter((field) => value[field] !== undefined)
-          .map((field) => [field, value[field]]),
+        PROVIDER_PLAN_METADATA_FIELDS.filter((field) => value[field] !== undefined).map((field) => [
+          field,
+          value[field],
+        ]),
       ) as ProviderStepPlanMetadata,
       "persisted provider metadata",
     );
     normalizeProviderStepSettlementAttribution(
       Object.fromEntries(
-        PROVIDER_SETTLEMENT_ATTRIBUTION_FIELDS
-          .filter((field) => value[field] !== undefined)
-          .map((field) => [field, value[field]]),
+        PROVIDER_SETTLEMENT_ATTRIBUTION_FIELDS.filter((field) => value[field] !== undefined).map((field) => [
+          field,
+          value[field],
+        ]),
       ),
       "persisted provider settlement attribution",
     );

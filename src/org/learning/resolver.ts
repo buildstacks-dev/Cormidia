@@ -204,9 +204,7 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
       now,
     });
   }
-  const lineage: BundleLineage = Object.values(decisions).some((d) => d.lineage === "canary")
-    ? "canary"
-    : "stable";
+  const lineage: BundleLineage = Object.values(decisions).some((d) => d.lineage === "canary") ? "canary" : "stable";
   const excludedByRoot: Record<CanaryRootKind, Set<string>> = {
     org: new Set(decisions.org?.excluded ?? []),
     app: new Set(decisions.app?.excluded ?? []),
@@ -325,8 +323,7 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
   const eligible = gathered.filter((concept) => !excluded.has(concept.id));
 
   // -- budget by scope share, redistribute narrowest-first ------------------
-  const policyBudget =
-    input.policy.context_budget.roles[input.role] ?? input.policy.context_budget.default_bytes;
+  const policyBudget = input.policy.context_budget.roles[input.role] ?? input.policy.context_budget.default_bytes;
   const totalBudget = Math.min(policyBudget, input.budgetCapBytes ?? Infinity);
   const selected = new Set<string>();
   let used = 0;
@@ -341,8 +338,7 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
           // scope's protected concepts always fit its share, and that check
           // is only sufficient if selection can never let an unprotected
           // concept crowd a protected one into the fail-loud eviction path.
-          Number(protectedTiers.includes(b.tier as never)) -
-            Number(protectedTiers.includes(a.tier as never)) ||
+          Number(protectedTiers.includes(b.tier as never)) - Number(protectedTiers.includes(a.tier as never)) ||
           // provisional_first eviction => active concepts are selected first;
           Number(a.provisional) - Number(b.provisional) ||
           // keyword relevance is ONLY a tie-breaker inside an overflowing
@@ -546,19 +542,12 @@ function toResolved(
  *  for the M5 replay treatment overlay: an unpublished candidate must render
  *  EXACTLY as the resolver would render it once active, or the replay
  *  measures the rendering difference instead of the concept. */
-export function renderConcept(
-  doc: OkfDocument,
-  scope: string,
-  provisional: boolean,
-  policy: LearningPolicy,
-): string {
+export function renderConcept(doc: OkfDocument, scope: string, provisional: boolean, policy: LearningPolicy): string {
   const fm = doc.frontmatter;
   const lines = [
     `## Learning concept ${fm.name} (${scope})`,
     ...(provisional
-      ? [
-          `${policy.quarantine.context_label} — expires ${provisionalExpiry(doc).toISOString().slice(0, 10)}`,
-        ]
+      ? [`${policy.quarantine.context_label} — expires ${provisionalExpiry(doc).toISOString().slice(0, 10)}`]
       : []),
     `Description: ${fm.description}`,
     `Keywords: ${fm.keywords.join(", ")}`,

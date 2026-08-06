@@ -126,9 +126,7 @@ export async function makeTempGitRepo(options: MakeTempGitRepoOptions = {}): Pro
   runGit(dir, ["config", "user.email", "fixture@cormidia.invalid"]);
   runGit(dir, ["config", "commit.gpgsign", "false"]);
   const repo = makeRepoHandle(dir, defaultBranch, roots);
-  const seeds = options.seedFiles ?? [
-    { path: "README.md", contents: "# fixture repo\n", message: "fixture: seed" },
-  ];
+  const seeds = options.seedFiles ?? [{ path: "README.md", contents: "# fixture repo\n", message: "fixture: seed" }];
   for (const seed of seeds) {
     await repo.commitFile(seed.path, seed.contents, seed.message);
   }
@@ -152,9 +150,7 @@ export async function makeTempClone(
   runGit(dir, ["config", "commit.gpgsign", "false"]);
   const defaultBranch =
     options.defaultBranch ??
-    (typeof source === "string"
-      ? runGit(dir, ["rev-parse", "--abbrev-ref", "HEAD"])
-      : source.defaultBranch);
+    (typeof source === "string" ? runGit(dir, ["rev-parse", "--abbrev-ref", "HEAD"]) : source.defaultBranch);
   return makeRepoHandle(dir, defaultBranch, roots);
 }
 

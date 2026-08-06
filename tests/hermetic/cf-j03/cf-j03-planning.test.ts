@@ -14,30 +14,15 @@ import {
   type PlanTicket,
   type TicketPlan,
 } from "../../../src/loop/plan-tickets.js";
-import {
-  readPublishedTicketsRecord,
-  writePublishedTicketsRecord,
-} from "../../../src/loop/plan-publication-record.js";
+import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../../../src/loop/plan-publication-record.js";
 import { GhCliOps } from "../../../src/loop/github.js";
 import type { RoleConfig } from "../../../src/runtime/types.js";
 import type { AppEntry } from "../../../src/org/apps.js";
-import {
-  CreatorScopeConflictError,
-  prepareEpisodePlan,
-} from "../../../src/org/episode-planner/coordinator.js";
-import {
-  previewEpisode,
-  type EpisodeOrchestrationFacts,
-} from "../../../src/org/episode-planner/orchestrator.js";
+import { CreatorScopeConflictError, prepareEpisodePlan } from "../../../src/org/episode-planner/coordinator.js";
+import { previewEpisode, type EpisodeOrchestrationFacts } from "../../../src/org/episode-planner/orchestrator.js";
 import { buildEpisodeIntent } from "../../../src/org/episode-planner/policy.js";
-import {
-  PlanningSourceResolutionError,
-  resolvePlanningSources,
-} from "../../../src/org/planning-inputs.js";
-import {
-  installGithubDouble,
-  type GithubDoubleHandle,
-} from "../../fixtures/github-double/install.js";
+import { PlanningSourceResolutionError, resolvePlanningSources } from "../../../src/org/planning-inputs.js";
+import { installGithubDouble, type GithubDoubleHandle } from "../../fixtures/github-double/install.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const githubs: GithubDoubleHandle[] = [];
@@ -52,7 +37,8 @@ const app: AppEntry = {
   name: "planner-app",
   repo: "cormidia-double/planner-app",
   status: "live",
-  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
+  budgetUsdMonth: 100,
+  objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };
@@ -122,19 +108,21 @@ function creatorScope(): CreatorEpisodeScope {
     expectedArtifacts: [{ id: "artifact", kind: "file", required: true }],
     declaredConstraints: {},
     safetyFacts: [],
-    steps: [{
-      id: "implement",
-      kind: "provider_turn",
-      operation: "ticket/implement",
-      role: "builder",
-      objective: "Implement the accepted feature scope.",
-      requiredCapabilities: [],
-      dependsOn: [],
-      inputRefs: [],
-      expectedOutputs: [{ id: "artifact", kind: "file", required: true }],
-      maxTurnBudgetUsd: 5,
-      selectionReason: "The configured builder owns implementation.",
-    }],
+    steps: [
+      {
+        id: "implement",
+        kind: "provider_turn",
+        operation: "ticket/implement",
+        role: "builder",
+        objective: "Implement the accepted feature scope.",
+        requiredCapabilities: [],
+        dependsOn: [],
+        inputRefs: [],
+        expectedOutputs: [{ id: "artifact", kind: "file", required: true }],
+        maxTurnBudgetUsd: 5,
+        selectionReason: "The configured builder owns implementation.",
+      },
+    ],
   };
 }
 
@@ -179,12 +167,7 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
       traceId: "trace-plan-1",
     };
 
-    const result = await publishPlanProjection(
-      gh,
-      finalizePlanForPublication(ticketPlan()),
-      undefined,
-      provenance,
-    );
+    const result = await publishPlanProjection(gh, finalizePlanForPublication(ticketPlan()), undefined, provenance);
     expect(result.published.map((entry) => ({ index: entry.index, ready: entry.ready }))).toEqual([
       { index: 0, ready: true },
       { index: 1, ready: false },
@@ -198,7 +181,13 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
     expect(issues.map((issue) => parsePlannedBy(issue.body))).toEqual([provenance, provenance]);
     expect(issues.map((issue) => parsePlanTicketIndex(issue.body))).toEqual([0, 1]);
 
-    await writePublishedTicketsRecord(home.stateHome, app.name, provenance, result.published, new Date("2026-07-31T12:05:00Z"));
+    await writePublishedTicketsRecord(
+      home.stateHome,
+      app.name,
+      provenance,
+      result.published,
+      new Date("2026-07-31T12:05:00Z"),
+    );
     expect(await readPublishedTicketsRecord(home.stateHome, app.name, provenance.runId)).toMatchObject({
       episode_id: provenance.episodeId,
       run_id: provenance.runId,
@@ -259,11 +248,7 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
     github.assertScenarioDrained();
     const issues = Object.values(github.readState().issues).sort((left, right) => left.number - right.number);
     expect(issues).toHaveLength(2);
-    expect(issues[0]!.labels).toEqual(expect.arrayContaining([
-      "op:tier-standard",
-      "p2",
-      "op:ready",
-    ]));
+    expect(issues[0]!.labels).toEqual(expect.arrayContaining(["op:tier-standard", "p2", "op:ready"]));
     expect(github.callLog().filter((entry) => entry.op === "issue.create")).toHaveLength(2);
   });
 
@@ -282,16 +267,18 @@ describe("CF-J03-R/A — pre-provider refusal and truthful previews", () => {
     const intent = buildEpisodeIntent({ app, roles, ...facts(incompleteScope) });
     let proposerCalls = 0;
 
-    await expect(prepareEpisodePlan({
-      root: home.stateHome,
-      app,
-      roles,
-      intent,
-      propose: async () => {
-        proposerCalls += 1;
-        return {};
-      },
-    })).rejects.toBeInstanceOf(CreatorScopeConflictError);
+    await expect(
+      prepareEpisodePlan({
+        root: home.stateHome,
+        app,
+        roles,
+        intent,
+        propose: async () => {
+          proposerCalls += 1;
+          return {};
+        },
+      }),
+    ).rejects.toBeInstanceOf(CreatorScopeConflictError);
     expect(proposerCalls).toBe(0);
   });
 
@@ -328,16 +315,20 @@ describe("CF-J03-R/A — pre-provider refusal and truthful previews", () => {
       sourceCheckoutHead: "0123456789abcdef",
     };
 
-    expect(() => resolvePlanningSources({
-      ...base,
-      requests: [{ path: "missing.md", requirement: "required" }],
-      budgetBytes: 1024,
-    })).toThrow(PlanningSourceResolutionError);
-    expect(() => resolvePlanningSources({
-      ...base,
-      requests: [{ path: "requirements.md", requirement: "required" }],
-      budgetBytes: 4,
-    })).toThrow(/required source bytes .* exceed/);
+    expect(() =>
+      resolvePlanningSources({
+        ...base,
+        requests: [{ path: "missing.md", requirement: "required" }],
+        budgetBytes: 1024,
+      }),
+    ).toThrow(PlanningSourceResolutionError);
+    expect(() =>
+      resolvePlanningSources({
+        ...base,
+        requests: [{ path: "requirements.md", requirement: "required" }],
+        budgetBytes: 4,
+      }),
+    ).toThrow(/required source bytes .* exceed/);
 
     const optional = resolvePlanningSources({
       ...base,

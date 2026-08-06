@@ -119,9 +119,12 @@ async function readResetIntent(stateHome: string, app: string): Promise<ResetInt
   try {
     value = JSON.parse(await readFile(path, "utf8"));
   } catch (error) {
-    throw new Error(`app reset: corrupt recovery intent ${path}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `app reset: corrupt recovery intent ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`app reset: corrupt recovery intent ${path}`);
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`app reset: corrupt recovery intent ${path}`);
   const intent = value as Partial<ResetIntent>;
   if (
     intent.schema_version !== LIFECYCLE_SCHEMA_VERSION ||
@@ -131,8 +134,10 @@ async function readResetIntent(stateHome: string, app: string): Promise<ResetInt
     typeof intent.state_home !== "string" ||
     typeof intent.archive_root !== "string" ||
     typeof intent.archive_id !== "string" ||
-    !intent.github || typeof intent.github !== "object"
-  ) throw new Error(`app reset: corrupt recovery intent ${path}`);
+    !intent.github ||
+    typeof intent.github !== "object"
+  )
+    throw new Error(`app reset: corrupt recovery intent ${path}`);
   return intent as ResetIntent;
 }
 
@@ -147,7 +152,8 @@ function validateResetIntent(
     resolve(intent.state_home) !== expected.stateHome ||
     resolve(intent.archive_root) !== expected.archiveRoot ||
     !intent.archive_id.startsWith(`${safeSegment(expected.app)}-reset-`)
-  ) throw new Error("app reset: an interrupted reset intent conflicts with the selected app or homes");
+  )
+    throw new Error("app reset: an interrupted reset intent conflicts with the selected app or homes");
   return intent;
 }
 
@@ -165,7 +171,8 @@ async function writeResetIntent(plan: AppResetPlan): Promise<void> {
   };
   if (existsSync(path)) {
     const existing = await readResetIntent(plan.stateHome, plan.app.name);
-    if (stableJson(existing) !== stableJson(intent)) throw new Error("app reset: reviewed plan conflicts with interrupted reset intent");
+    if (stableJson(existing) !== stableJson(intent))
+      throw new Error("app reset: reviewed plan conflicts with interrupted reset intent");
     return;
   }
   await writeLifecycleFileAtomic(path, stableJson(intent));
@@ -174,11 +181,7 @@ async function writeResetIntent(plan: AppResetPlan): Promise<void> {
 /** Completes the terminal evidence/intent cleanup when a process died after
  * the atomic registry removal. At that point remote and local cleanup already
  * precede the registry boundary, so this is an idempotent finalization. */
-export async function finalizeInterruptedAppReset(
-  stateHome: string,
-  app: string,
-  archivePath: string,
-): Promise<void> {
+export async function finalizeInterruptedAppReset(stateHome: string, app: string, archivePath: string): Promise<void> {
   const manifest = await verifyResetArchive(archivePath, app);
   const archiveId = String(manifest["archive_id"]);
   await markAppEpisodesResetAbandoned(stateHome, app, new Date());
@@ -266,18 +269,20 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
     })),
     branches,
   };
-  const archiveIdentity = sha256(stableJson({
-    app: { name: app.name, repo: app.repo },
-    activeRuns,
-    staleRuns,
-    activeJournals,
-    approvals: approvals.map((item) => `${item.kind}:${item.id}`),
-    github: {
-      issues: currentGithub.issues.map((issue) => issue.number),
-      pullRequests: currentGithub.pullRequests.map((pr) => pr.number),
-      branches: currentGithub.branches,
-    },
-  }));
+  const archiveIdentity = sha256(
+    stableJson({
+      app: { name: app.name, repo: app.repo },
+      activeRuns,
+      staleRuns,
+      activeJournals,
+      approvals: approvals.map((item) => `${item.kind}:${item.id}`),
+      github: {
+        issues: currentGithub.issues.map((issue) => issue.number),
+        pullRequests: currentGithub.pullRequests.map((pr) => pr.number),
+        branches: currentGithub.branches,
+      },
+    }),
+  );
   const predictedArchiveId = `${safeSegment(app.name)}-reset-${archiveIdentity.slice(0, 16)}`;
   const intent = validateResetIntent(existingIntent, { app: app.name, orgHome, stateHome, archiveRoot });
   const archiveId = intent?.archive_id ?? predictedArchiveId;
@@ -287,19 +292,54 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
 
   const blockers: LifecycleBlocker[] = [
     ...(activeRuns.length > 0
-      ? [{ code: "active_run" as const, ids: activeRuns, forceEligible: false, remediation: "wait for the run to terminate or cancel it through its owning workflow" }]
+      ? [
+          {
+            code: "active_run" as const,
+            ids: activeRuns,
+            forceEligible: false,
+            remediation: "wait for the run to terminate or cancel it through its owning workflow",
+          },
+        ]
       : []),
     ...(!options.force && staleRuns.length > 0
-      ? [{ code: "stale_run" as const, ids: staleRuns, forceEligible: true, remediation: `rerun with --force after confirming the heartbeat is abandoned; --force crosses only these stale runs` }]
+      ? [
+          {
+            code: "stale_run" as const,
+            ids: staleRuns,
+            forceEligible: true,
+            remediation: `rerun with --force after confirming the heartbeat is abandoned; --force crosses only these stale runs`,
+          },
+        ]
       : []),
     ...(activeJournals.length > 0
-      ? [{ code: "active_journal" as const, ids: activeJournals.map((journal) => journal.turnId), forceEligible: false, remediation: "resume or terminalize each journal before reset" }]
+      ? [
+          {
+            code: "active_journal" as const,
+            ids: activeJournals.map((journal) => journal.turnId),
+            forceEligible: false,
+            remediation: "resume or terminalize each journal before reset",
+          },
+        ]
       : []),
     ...(activeLocks.length > 0
-      ? [{ code: "active_lock" as const, ids: activeLocks.map((lock) => basename(lock.path)), forceEligible: false, remediation: "allow the lock holder to finish; --force never crosses locks" }]
+      ? [
+          {
+            code: "active_lock" as const,
+            ids: activeLocks.map((lock) => basename(lock.path)),
+            forceEligible: false,
+            remediation: "allow the lock holder to finish; --force never crosses locks",
+          },
+        ]
       : []),
     ...(pendingApprovalIds.length > 0
-      ? [{ code: "pending_approval" as const, ids: pendingApprovalIds, forceEligible: false, remediation: "decide or withdraw each pending approval through the operator boundary" }]
+      ? [
+          {
+            code: "pending_approval" as const,
+            ids: pendingApprovalIds,
+            forceEligible: false,
+            remediation: "decide or withdraw each pending approval through the operator boundary",
+          },
+        ]
       : []),
   ];
 
@@ -326,10 +366,7 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
 /** Execute a reviewed plan. The caller must obtain an explicit user
  * confirmation before reaching here. It reserves every configured role lock
  * first, so a new app turn cannot race the archive and deletion. */
-export async function executeAppReset(
-  options: AppResetOptions,
-  reviewedPlan?: AppResetPlan,
-): Promise<AppResetResult> {
+export async function executeAppReset(options: AppResetOptions, reviewedPlan?: AppResetPlan): Promise<AppResetResult> {
   const plan = reviewedPlan ?? (await planAppReset(options));
   if (
     plan.app.name !== options.appName ||
@@ -405,11 +442,7 @@ export async function executeAppReset(
   }
 }
 
-async function closeManagedGitHubWork(
-  gh: GhOps,
-  github: ResetGitHubPlan,
-  fault?: LifecycleFaultHook,
-): Promise<void> {
+async function closeManagedGitHubWork(gh: GhOps, github: ResetGitHubPlan, fault?: LifecycleFaultHook): Promise<void> {
   // A PR must close before its head branch is removed. GitHub preserves the
   // historical PR/issue record; reset promises a clean *open* work surface,
   // not impossible history deletion.
@@ -553,12 +586,14 @@ async function verifyResetArchive(targetIn: string, appName: string): Promise<Re
     manifest["kind"] !== "app-reset" ||
     typeof manifest["archive_id"] !== "string" ||
     app?.["name"] !== appName
-  ) throw new Error(`app reset: invalid archive identity at ${target}`);
+  )
+    throw new Error(`app reset: invalid archive identity at ${target}`);
   const files = manifest["files"];
   if (!Array.isArray(files)) throw new Error(`app reset: archive manifest has no files list at ${target}`);
   const declaredPaths: string[] = [];
   for (const item of files) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`app reset: invalid archive file record`);
+    if (!item || typeof item !== "object" || Array.isArray(item))
+      throw new Error(`app reset: invalid archive file record`);
     const spec = item as Record<string, unknown>;
     if (typeof spec["path"] !== "string" || typeof spec["sha256"] !== "string" || typeof spec["bytes"] !== "number") {
       throw new Error(`app reset: invalid archive file record`);
@@ -634,10 +669,7 @@ function isMissingBranchError(error: unknown): boolean {
   return /(?:404|422|not found|does not exist|remote ref does not exist|reference does not exist)/i.test(detail);
 }
 
-function isStaleRun(
-  row: { startedAt: string; lastSeenAt?: string },
-  now: Date,
-): boolean {
+function isStaleRun(row: { startedAt: string; lastSeenAt?: string }, now: Date): boolean {
   const heartbeat = new Date(row.lastSeenAt ?? row.startedAt).getTime();
   return Number.isFinite(heartbeat) && now.getTime() - heartbeat > RESET_STALE_RUN_MS;
 }
@@ -744,7 +776,10 @@ async function clearAppBudgetOverlay(stateHome: string, app: string): Promise<vo
 }
 
 function safeSegment(value: string): string {
-  const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  const cleaned = value
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return cleaned.length > 0 ? cleaned : "org";
 }
 
@@ -765,10 +800,7 @@ function isInside(candidate: string, ancestor: string): boolean {
  *  planning operation and must not fail because a remote is unreachable. A
  *  missing or unreadable record simply contributes no extra protection — the
  *  pull-request-derived merge targets still apply (#101). */
-async function safeRecordedDefaultBranch(
-  stateHome: string,
-  app: string,
-): Promise<string | undefined> {
+async function safeRecordedDefaultBranch(stateHome: string, app: string): Promise<string | undefined> {
   try {
     const record = await readLifecycleRecord(stateHome, app);
     const branch = record.default_branch;

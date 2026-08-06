@@ -49,7 +49,9 @@ export async function cmdRelease(args: string[]): Promise<number> {
   if (verb === "attest") return attest(rest);
   if (verb === "tag-message") return tagMessage(rest);
   if (verb === "verify") return verify(rest);
-  throw new Error(`release: expected package-manifest, snapshot, prepare, assess, attest, tag-message, or verify; got ${verb ?? "nothing"}`);
+  throw new Error(
+    `release: expected package-manifest, snapshot, prepare, assess, attest, tag-message, or verify; got ${verb ?? "nothing"}`,
+  );
 }
 
 async function packageManifest(args: string[]): Promise<number> {
@@ -67,7 +69,11 @@ async function snapshot(args: string[]): Promise<number> {
   const head = await git(repo, ["rev-parse", "HEAD"]);
   const value = await releaseRepositorySnapshot(repo, head);
   await writeImmutableJson(flags.values.output!, value);
-  print(flags.json, { output: flags.values.output, candidate_commit: head, golden_references: value.golden_references.length });
+  print(flags.json, {
+    output: flags.values.output,
+    candidate_commit: head,
+    golden_references: value.golden_references.length,
+  });
   return 0;
 }
 
@@ -80,31 +86,48 @@ async function prepare(args: string[]): Promise<number> {
   const actualPackage = await packageManifestFromTarball(flags.values.tarball!);
   const body = value as ReleaseManifestBodyV1;
   if (body.candidate_commit !== head) throw new Error("release prepare input candidate_commit is not repository HEAD");
-  if (canonicalJson(body.package) !== canonicalJson(actualPackage)) throw new Error("release prepare input package differs from supplied tarball");
+  if (canonicalJson(body.package) !== canonicalJson(actualPackage))
+    throw new Error("release prepare input package differs from supplied tarball");
   await validateReleaseRepositoryState(repo, body);
   await validateReleaseToolchain(repo, body);
   const manifest = createReleaseManifest(body);
   await writeImmutableJson(flags.values.output!, manifest);
-  print(flags.json, { output: flags.values.output, qualification_id: manifest.qualification_id, candidate_commit: manifest.candidate_commit });
+  print(flags.json, {
+    output: flags.values.output,
+    qualification_id: manifest.qualification_id,
+    candidate_commit: manifest.candidate_commit,
+  });
   return 0;
 }
 
 async function assess(args: string[]): Promise<number> {
-  const flags = parse(args, ["manifest", "deterministic-evidence", "l4-evidence", "campaign-evidence", "generated-at", "output"], ["debt-dispositions", "evidence-change-dispositions"]);
+  const flags = parse(
+    args,
+    ["manifest", "deterministic-evidence", "l4-evidence", "campaign-evidence", "generated-at", "output"],
+    ["debt-dispositions", "evidence-change-dispositions"],
+  );
   const manifest = parseReleaseManifest(await readFile(flags.values.manifest!, "utf8"));
-  const deterministic = evaluateDeterministicAdmission(manifest, await readJson(flags.values["deterministic-evidence"]!) as DeterministicEvidenceV1);
+  const deterministic = evaluateDeterministicAdmission(
+    manifest,
+    (await readJson(flags.values["deterministic-evidence"]!)) as DeterministicEvidenceV1,
+  );
   const l4 = evaluateL4Evidence(manifest, normalizeL4Evidence(manifest, await readJson(flags.values["l4-evidence"]!)));
   const triggered = evaluateTriggeredCampaignEvidence(
     manifest,
-    await readJson(flags.values["campaign-evidence"]!) as ReleaseCampaignEvidenceV1,
+    (await readJson(flags.values["campaign-evidence"]!)) as ReleaseCampaignEvidenceV1,
   );
   const laneResults: ReleaseLaneResultV1[] = [deterministic, ...triggered, l4];
-  const debts = flags.values["debt-dispositions"] === undefined
-    ? []
-    : await readArray<EvaluatorDebtDispositionV1>(flags.values["debt-dispositions"], "debt dispositions");
-  const evidenceChanges = flags.values["evidence-change-dispositions"] === undefined
-    ? []
-    : await readArray<EvidenceChangeDispositionV1>(flags.values["evidence-change-dispositions"], "evidence change dispositions");
+  const debts =
+    flags.values["debt-dispositions"] === undefined
+      ? []
+      : await readArray<EvaluatorDebtDispositionV1>(flags.values["debt-dispositions"], "debt dispositions");
+  const evidenceChanges =
+    flags.values["evidence-change-dispositions"] === undefined
+      ? []
+      : await readArray<EvidenceChangeDispositionV1>(
+          flags.values["evidence-change-dispositions"],
+          "evidence change dispositions",
+        );
   const report = assessReleaseQualification({
     manifest,
     laneResults,
@@ -118,7 +141,16 @@ async function assess(args: string[]): Promise<number> {
 }
 
 async function attest(args: string[]): Promise<number> {
-  const flags = parse(args, ["repo", "packet", "release-commit", "tag", "tarball", "release-action", "created-at", "output"]);
+  const flags = parse(args, [
+    "repo",
+    "packet",
+    "release-commit",
+    "tag",
+    "tarball",
+    "release-action",
+    "created-at",
+    "output",
+  ]);
   const repo = flags.values.repo!;
   await assertCleanTrackedHead(repo);
   const head = await git(repo, ["rev-parse", "HEAD"]);
@@ -131,14 +163,17 @@ async function attest(args: string[]): Promise<number> {
   validateQualificationEvidenceBundle({
     manifest,
     report: reportValue,
-    deterministic: await readJson(join(packet, "deterministic-results.json")) as DeterministicEvidenceV1,
-    l4: await readJson(join(packet, "l4-results.json")) as L4ReleaseEvidenceV1,
-    campaigns: await readJson(join(packet, "campaign-index.json")) as ReleaseCampaignEvidenceV1,
+    deterministic: (await readJson(join(packet, "deterministic-results.json"))) as DeterministicEvidenceV1,
+    l4: (await readJson(join(packet, "l4-results.json"))) as L4ReleaseEvidenceV1,
+    campaigns: (await readJson(join(packet, "campaign-index.json"))) as ReleaseCampaignEvidenceV1,
   });
   const currentPackage = await packageManifestFromTarball(flags.values.tarball!);
-  if (canonicalJson(currentPackage) !== canonicalJson(manifest.package)) throw new Error("release attest package bytes differ from prepared manifest");
+  if (canonicalJson(currentPackage) !== canonicalJson(manifest.package))
+    throw new Error("release attest package bytes differ from prepared manifest");
   await git(repo, ["merge-base", "--is-ancestor", manifest.candidate_commit, head]);
-  const changed = (await git(repo, ["diff", "--name-only", "-z", `${manifest.candidate_commit}..${head}`], false)).split("\0").filter(Boolean);
+  const changed = (await git(repo, ["diff", "--name-only", "-z", `${manifest.candidate_commit}..${head}`], false))
+    .split("\0")
+    .filter(Boolean);
   const packetFiles = await collectPacketFiles(packet);
   const action = await readJson(flags.values["release-action"]!);
   const attestation = createReleaseAttestation({
@@ -152,7 +187,11 @@ async function attest(args: string[]): Promise<number> {
     createdAt: flags.values["created-at"]!,
   });
   await writeImmutableJson(flags.values.output!, attestation);
-  print(flags.json, { output: flags.values.output, attestation_sha256: sha256(canonicalJson(attestation)), release_action_sha256: attestation.release_action_sha256 });
+  print(flags.json, {
+    output: flags.values.output,
+    attestation_sha256: sha256(canonicalJson(attestation)),
+    release_action_sha256: attestation.release_action_sha256,
+  });
   return 0;
 }
 
@@ -163,7 +202,11 @@ async function tagMessage(args: string[]): Promise<number> {
   validateReleaseAttestation(attestation);
   validateReleaseApproval(approval);
   await writeImmutableText(flags.values.output!, createReleaseTagMessage(attestation, approval));
-  print(flags.json, { output: flags.values.output, tag: attestation.tag, attestation_sha256: sha256(canonicalJson(attestation)) });
+  print(flags.json, {
+    output: flags.values.output,
+    tag: attestation.tag,
+    attestation_sha256: sha256(canonicalJson(attestation)),
+  });
   return 0;
 }
 
@@ -171,9 +214,10 @@ async function verify(args: string[]): Promise<number> {
   const flags = parse(args, ["repo", "packet", "tag", "tarball"], ["tag-message"]);
   const currentCommit = await git(flags.values.repo!, ["rev-parse", "HEAD"]);
   const currentPackage = await packageManifestFromTarball(flags.values.tarball!);
-  const external: ReleaseTagEnvelopeV1 | undefined = flags.values["tag-message"] === undefined
-    ? undefined
-    : parseReleaseTagMessage(await readFile(flags.values["tag-message"], "utf8"));
+  const external: ReleaseTagEnvelopeV1 | undefined =
+    flags.values["tag-message"] === undefined
+      ? undefined
+      : parseReleaseTagMessage(await readFile(flags.values["tag-message"], "utf8"));
   const result = await verifyReleasePacket({
     packetDir: flags.values.packet!,
     currentCommit,
@@ -182,7 +226,15 @@ async function verify(args: string[]): Promise<number> {
     ...(external === undefined ? {} : { attestation: external.attestation, approval: external.approval }),
   });
   await git(flags.values.repo!, ["merge-base", "--is-ancestor", result.manifest.candidate_commit, currentCommit]);
-  const changed = (await git(flags.values.repo!, ["diff", "--name-only", "-z", `${result.manifest.candidate_commit}..${currentCommit}`], false)).split("\0").filter(Boolean);
+  const changed = (
+    await git(
+      flags.values.repo!,
+      ["diff", "--name-only", "-z", `${result.manifest.candidate_commit}..${currentCommit}`],
+      false,
+    )
+  )
+    .split("\0")
+    .filter(Boolean);
   validateReleaseCommitLineage(result.manifest, result.attestation, changed);
   await validateReleaseRepositoryState(flags.values.repo!, result.manifest);
   print(flags.json, {
@@ -199,8 +251,10 @@ async function collectPacketFiles(packetDir: string): Promise<Array<{ path: stri
   const entries = await readdir(packetDir, { withFileTypes: true });
   const files: Array<{ path: string; size: number; sha256: string }> = [];
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-    if (!entry.isFile() || entry.isSymbolicLink()) throw new Error(`release packet contains non-file entry ${entry.name}`);
-    if (entry.name === "release-attestation.json" || entry.name === "release-approval.json") throw new Error("release attest requires attestation and approval outside the committed packet");
+    if (!entry.isFile() || entry.isSymbolicLink())
+      throw new Error(`release packet contains non-file entry ${entry.name}`);
+    if (entry.name === "release-attestation.json" || entry.name === "release-approval.json")
+      throw new Error("release attest requires attestation and approval outside the committed packet");
     const path = join(packetDir, entry.name);
     const bytes = await readFile(path);
     const value: unknown = JSON.parse(bytes.toString("utf8"));
@@ -220,19 +274,31 @@ async function git(repo: string, args: string[], trim = true): Promise<string> {
     const result = await execFile("git", ["-C", repo, ...args], { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
     return trim ? result.stdout.trim() : result.stdout;
   } catch (error) {
-    const stderr = typeof error === "object" && error !== null && "stderr" in error ? String((error as { stderr?: unknown }).stderr) : "";
-    throw new Error(`release git ${args[0] ?? "command"} failed${stderr.trim().length > 0 ? `: ${stderr.trim()}` : ""}`);
+    const stderr =
+      typeof error === "object" && error !== null && "stderr" in error
+        ? String((error as { stderr?: unknown }).stderr)
+        : "";
+    throw new Error(
+      `release git ${args[0] ?? "command"} failed${stderr.trim().length > 0 ? `: ${stderr.trim()}` : ""}`,
+    );
   }
 }
 
-function parse(args: string[], required: string[], optional: string[] = []): { values: Record<string, string | undefined>; json: boolean } {
+function parse(
+  args: string[],
+  required: string[],
+  optional: string[] = [],
+): { values: Record<string, string | undefined>; json: boolean } {
   const allowed = new Set([...required, ...optional]);
   const scalarValues = new Set(["tag", "generated-at", "created-at", "release-commit"]);
   const values: Record<string, string | undefined> = {};
   let json = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
-    if (arg === "--json") { json = true; continue; }
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
     if (!arg.startsWith("--")) throw new Error(`release: unexpected positional argument ${arg}`);
     const key = arg.slice(2);
     if (!allowed.has(key)) throw new Error(`release: unknown argument ${arg}`);
@@ -246,7 +312,9 @@ function parse(args: string[], required: string[], optional: string[] = []): { v
   return { values, json };
 }
 
-async function readJson(path: string): Promise<unknown> { return JSON.parse(await readFile(path, "utf8")); }
+async function readJson(path: string): Promise<unknown> {
+  return JSON.parse(await readFile(path, "utf8"));
+}
 
 async function readArray<T>(path: string, name: string): Promise<T[]> {
   const value = await readJson(path);
@@ -255,8 +323,15 @@ async function readArray<T>(path: string, name: string): Promise<T[]> {
 }
 
 function normalizeL4Evidence(manifest: ReleaseManifestV1, value: unknown): L4ReleaseEvidenceV1 {
-  if (value !== null && typeof value === "object" && !Array.isArray(value) && "qualification_id" in value) return value as L4ReleaseEvidenceV1;
-  if (value === null || typeof value !== "object" || Array.isArray(value) || !Array.isArray((value as Record<string, unknown>)["observations"])) throw new Error("L4 evidence must be an RQ-1 evidence object or eval-results.json");
+  if (value !== null && typeof value === "object" && !Array.isArray(value) && "qualification_id" in value)
+    return value as L4ReleaseEvidenceV1;
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !Array.isArray((value as Record<string, unknown>)["observations"])
+  )
+    throw new Error("L4 evidence must be an RQ-1 evidence object or eval-results.json");
   const raw = value as Record<string, unknown>;
   if (typeof raw["producer_digest"] !== "string" || !/^[a-f0-9]{64}$/.test(raw["producer_digest"])) {
     throw new Error("eval-results.json lacks its execution-time producer digest");
@@ -303,10 +378,14 @@ async function writeImmutableText(path: string, contents: string): Promise<void>
 }
 
 function isExists(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "EEXIST";
+  return (
+    typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "EEXIST"
+  );
 }
 
 function print(json: boolean, value: Record<string, unknown>): void {
   if (json) console.log(JSON.stringify(value, null, 2));
-  else for (const [key, item] of Object.entries(value)) console.log(`${key}: ${typeof item === "object" ? JSON.stringify(item) : String(item)}`);
+  else
+    for (const [key, item] of Object.entries(value))
+      console.log(`${key}: ${typeof item === "object" ? JSON.stringify(item) : String(item)}`);
 }

@@ -15,10 +15,7 @@
 // no non-GitHub executor kind to claim, and inventing one would encode
 // unratified product truth.)
 
-import {
-  ApprovalStore,
-  actionHash,
-} from "../../../src/org/approvals.js";
+import { ApprovalStore, actionHash } from "../../../src/org/approvals.js";
 import { grantScopeText } from "../../../src/org/gate-compose.js";
 import {
   ScriptedExternalTarget,
@@ -46,14 +43,10 @@ export interface TypedExecutionInput {
 }
 
 function describeMarkers(markers: readonly TargetMarker[]): string {
-  return markers
-    .map((marker) => (marker.type === "completion" ? `completion:${marker.ref}` : "acceptance"))
-    .join(", ");
+  return markers.map((marker) => (marker.type === "completion" ? `completion:${marker.ref}` : "acceptance")).join(", ");
 }
 
-export async function executeTypedExternalAction(
-  input: TypedExecutionInput,
-): Promise<TypedExecutionOutcome> {
+export async function executeTypedExternalAction(input: TypedExecutionInput): Promise<TypedExecutionOutcome> {
   const clock = input.now ?? (() => new Date());
   const { store, target, approvalId } = input;
   const { item } = await store.show(approvalId);
@@ -85,8 +78,7 @@ export async function executeTypedExternalAction(
     if (markers.length > 1) {
       // §3: idempotency-marker disagreement → ambiguous with BOTH states
       // recorded — the machine never picks the greener story.
-      const reason =
-        `marker disagreement: our record is ${from}; target holds [${describeMarkers(markers)}]`;
+      const reason = `marker disagreement: our record is ${from}; target holds [${describeMarkers(markers)}]`;
       if (from === "executing") {
         await store.finishExecution({
           id: approvalId,
@@ -102,9 +94,10 @@ export async function executeTypedExternalAction(
     // Zero markers, or a single ACCEPTANCE marker: §4 "acceptance marker →
     // acceptance recorded, execution still incomplete; inability to establish
     // completion → ambiguous". Never executed, never a blind re-submit (§3).
-    const reason = markers.length === 0
-      ? "no marker at the external target; the effect cannot be established"
-      : "acceptance marker only: submission accepted, completion unestablished";
+    const reason =
+      markers.length === 0
+        ? "no marker at the external target; the effect cannot be established"
+        : "acceptance marker only: submission accepted, completion unestablished";
     if (from === "executing") {
       await store.finishExecution({
         id: approvalId,

@@ -15,10 +15,7 @@ import {
 } from "../../../src/org/learning/candidate.js";
 import { openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
 import type { EvalVerdict } from "../../../src/org/learning/eval-result.js";
-import {
-  interventionChainGaps,
-  validateInterventionRecord,
-} from "../../../src/org/learning/intervention.js";
+import { interventionChainGaps, validateInterventionRecord } from "../../../src/org/learning/intervention.js";
 import { publishCandidate } from "../../../src/org/learning/publisher.js";
 import { writeReviewerVerdict } from "../../../src/org/learning/review.js";
 import { sha256Ref } from "../../../src/org/learning/candidate-store.js";
@@ -54,9 +51,7 @@ describe("CF-SM-LEARN-L — legal chain: candidate→published→authorized→ac
   });
 
   it("the publish-time gate NEVER mints validated: every proceed path (unrequired, experiment-pending, human-waived) carries claim authorized with a distinct display", () => {
-    const plain = assertCandidateCanProceed(
-      validateCandidateArtifact(candidateSpec({ id: "cand_l_plain" })),
-    );
+    const plain = assertCandidateCanProceed(validateCandidateArtifact(candidateSpec({ id: "cand_l_plain" })));
     expect(plain.claim).toBe("authorized");
     expect(plain.reported_as).toBe("authorized (unproven)");
 
@@ -74,14 +69,8 @@ describe("CF-SM-LEARN-L — legal chain: candidate→published→authorized→ac
   });
 
   it("routine publish records status `published` with activation null — published is NOT active, NOT authorized-into-context (INV-012)", async () => {
-    await openCandidateArtifact(
-      world.orgRoot,
-      candidateSpec({ id: "cand_l_published", destination: "skill_draft" }),
-    );
-    await writeReviewerVerdict(
-      world.org.orgHome,
-      verdictSpec({ id: "cand_l_published", destination: "skill_draft" }),
-    );
+    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: "cand_l_published", destination: "skill_draft" }));
+    await writeReviewerVerdict(world.org.orgHome, verdictSpec({ id: "cand_l_published", destination: "skill_draft" }));
     const outcome = await publishCandidate(world.deps, "cand_l_published");
     expect(outcome.status).toBe("published");
     if (outcome.status === "published") {

@@ -28,10 +28,7 @@ import type {
   EpisodeStepExecutionContext,
   EpisodeStepFailedOutcome,
 } from "../loop/episode-plan-executor.js";
-import {
-  EPISODE_PLAN_EXECUTION_PIPELINE,
-  planRouteLabel,
-} from "../loop/episode-route.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
 import {
   executePipeline,
   type ExecutePipelineOptions,
@@ -39,47 +36,17 @@ import {
   type VerdictRecordContext,
   type VerdictRecordOutcome,
 } from "../loop/pipeline.js";
-import {
-  parallelStages,
-  type PassConfig,
-  type PipelineConfig,
-} from "../loop/pipelines.js";
+import { parallelStages, type PassConfig, type PipelineConfig } from "../loop/pipelines.js";
 import { mintRunId, runPaths } from "../runtime/runlog/paths.js";
-import {
-  probeRuntimeReadiness,
-  type RuntimeReadinessProbe,
-} from "../runtime/readiness.js";
-import {
-  createEventWriter,
-  readEvents,
-} from "../runtime/runlog/events.js";
-import {
-  readEnvelope,
-  type EnvelopeStatus,
-} from "../runtime/runlog/envelope.js";
-import {
-  fixedAssignmentFromRole,
-  turnAssignmentKey,
-  turnAssignmentsEqual,
-} from "../runtime/assignment.js";
-import {
-  isRuntimeCapability,
-  resolvedRuntimeCapabilities,
-  type RuntimeCapability,
-} from "../runtime/capabilities.js";
-import type {
-  ContextBundle,
-  RoleConfig,
-  Runtime,
-  TurnAssignment,
-  TurnHooks,
-  TurnResult,
-} from "../runtime/types.js";
+import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../runtime/readiness.js";
+import { createEventWriter, readEvents } from "../runtime/runlog/events.js";
+import { readEnvelope, type EnvelopeStatus } from "../runtime/runlog/envelope.js";
+import { fixedAssignmentFromRole, turnAssignmentKey, turnAssignmentsEqual } from "../runtime/assignment.js";
+import { isRuntimeCapability, resolvedRuntimeCapabilities, type RuntimeCapability } from "../runtime/capabilities.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks, TurnResult } from "../runtime/types.js";
 import type { AppEntry } from "./apps.js";
 import { resolveAppAssignments } from "./execution-assignments.js";
-import {
-  executeAcceptedEpisodePlan,
-} from "./episode-planner/execution.js";
+import { executeAcceptedEpisodePlan } from "./episode-planner/execution.js";
 import {
   orchestrateEpisode,
   type EpisodeOrchestrationFacts,
@@ -87,8 +54,7 @@ import {
 } from "./episode-planner/orchestrator.js";
 import type { EpisodeSafetyFloorMapping } from "./episode-planner/policy.js";
 
-export const GOVERNED_PIPELINE_EPISODE_POLICY_VERSION =
-  "governed-pipeline-episode/v1" as const;
+export const GOVERNED_PIPELINE_EPISODE_POLICY_VERSION = "governed-pipeline-episode/v1" as const;
 
 const IDENTIFIER = /^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$/;
 const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
@@ -175,10 +141,7 @@ export function buildGovernedPipelineEpisodeDefinition(
   const roles = new Map(options.roles.map((role) => [role.name, role]));
   const assignments = resolveAppAssignments(options.app, options.roles);
   const stages = parallelStages(selectedPasses);
-  const lastStageIds = new Set(stages.at(-1)!.map((pass) => governedPipelineStepId(
-    pipeline.name,
-    pass.id,
-  )));
+  const lastStageIds = new Set(stages.at(-1)!.map((pass) => governedPipelineStepId(pipeline.name, pass.id)));
   const bindings: GovernedPipelineBinding[] = [];
   let priorStageStepIds: string[] = [];
 
@@ -192,14 +155,8 @@ export function buildGovernedPipelineEpisodeDefinition(
         );
       }
       const stepId = governedPipelineStepId(pipeline.name, pass.id);
-      const requiredCapabilities = uniqueSorted(
-        options.requiredCapabilitiesByRole?.[pass.role] ?? [],
-      );
-      const assignment = assignmentForPass(
-        assignments,
-        role,
-        requiredCapabilities,
-      );
+      const requiredCapabilities = uniqueSorted(options.requiredCapabilitiesByRole?.[pass.role] ?? []);
+      const assignment = assignmentForPass(assignments, role, requiredCapabilities);
       const output: PlannedOutput = {
         id: governedPipelineOutputId(stepId),
         kind: options.outputKindByPass?.[pass.id] ?? role.outputs[0] ?? "governed-pass-result",
@@ -214,14 +171,10 @@ export function buildGovernedPipelineEpisodeDefinition(
         id: stepId,
         operation: governedPipelineOperation(pipeline.name, pass.id),
         role: pass.role,
-        objective: options.objectiveByPass?.[pass.id] ??
-          `Execute governed pipeline pass ${pipeline.name}/${pass.id}`,
+        objective: options.objectiveByPass?.[pass.id] ?? `Execute governed pipeline pass ${pipeline.name}/${pass.id}`,
         dependsOn: [...priorStageStepIds],
         requiredCapabilities,
-        inputRefs: dedupeInputRefs([
-          ...(options.inputRefs ?? []),
-          ...dependencyInputs,
-        ]),
+        inputRefs: dedupeInputRefs([...(options.inputRefs ?? []), ...dependencyInputs]),
         expectedOutputs: [output],
         maxTurnBudgetUsd: assignmentBudgetCeiling(assignments, role, assignment),
         selectionReason:
@@ -309,16 +262,11 @@ export function assertGovernedPipelineEpisodePlan(
       `governed pipeline plan has ${plan.steps.length} steps; expected ${definition.bindings.length}`,
     );
   }
-  const roleAssignments = new Map(definition.bindings.map((binding) => [
-    binding.stepId,
-    binding.assignment,
-  ]));
+  const roleAssignments = new Map(definition.bindings.map((binding) => [binding.stepId, binding.assignment]));
   for (const [index, binding] of definition.bindings.entries()) {
     const step = plan.steps[index];
     if (step?.kind !== "provider_turn") {
-      throw new GovernedPipelineEpisodeError(
-        `governed pipeline step ${binding.stepId} must be one provider turn`,
-      );
+      throw new GovernedPipelineEpisodeError(`governed pipeline step ${binding.stepId} must be one provider turn`);
     }
     const proposed = binding.proposedStep;
     if (
@@ -339,9 +287,7 @@ export function assertGovernedPipelineEpisodePlan(
     }
     const expectedAssignment = roleAssignments.get(step.id)!;
     if (!turnAssignmentsEqual(step.assignment, expectedAssignment)) {
-      throw new GovernedPipelineEpisodeError(
-        `accepted step ${step.id} changes its governed atomic assignment`,
-      );
+      throw new GovernedPipelineEpisodeError(`accepted step ${step.id} changes its governed atomic assignment`);
     }
     const expectedSource = binding.proposedStep.assignment === undefined ? "configured" : "creator";
     if (step.assignmentSource !== expectedSource) {
@@ -430,12 +376,10 @@ export interface GovernedPipelineDeliveryHooks {
   /** Parse and durably record the provider verdict. A crash can leave terminal
    * provider evidence before the orchestrator commit marker, so this callback
    * may be replayed from the same content and must be content-idempotent. */
-  recordVerdictForStep?(input: GovernedPipelineStepInput):
-    | ((context: VerdictRecordContext) => Promise<VerdictRecordOutcome>)
-    | undefined;
-  inputManifestForStep?(input: GovernedPipelineStepInput):
-    | ExecutePipelineOptions["inputManifest"]
-    | undefined;
+  recordVerdictForStep?(
+    input: GovernedPipelineStepInput,
+  ): ((context: VerdictRecordContext) => Promise<VerdictRecordOutcome>) | undefined;
+  inputManifestForStep?(input: GovernedPipelineStepInput): ExecutePipelineOptions["inputManifest"] | undefined;
   beforeProviderTurn?(input: GovernedPipelineStepInput & { resumed: boolean }): void | Promise<void>;
   afterPass?(input: GovernedPipelineStepInput & { record: PassRunRecord }): void | Promise<void>;
   /**
@@ -443,9 +387,11 @@ export interface GovernedPipelineDeliveryHooks {
    * crash and therefore must be content-idempotent. Throwing leaves the plan
    * step started so the next invocation recovers output.md without spending.
    */
-  afterProviderEvidence?(input: GovernedPipelineStepInput & {
-    evidence: GovernedPipelineProviderEvidence;
-  }): void | Promise<void>;
+  afterProviderEvidence?(
+    input: GovernedPipelineStepInput & {
+      evidence: GovernedPipelineProviderEvidence;
+    },
+  ): void | Promise<void>;
   authorityBrief?: ExecutePipelineOptions["authorityBrief"];
 }
 
@@ -492,11 +438,13 @@ export async function orchestrateGovernedPipelineEpisode(
 ): Promise<GovernedPipelineOrchestrationResult> {
   const definition = buildGovernedPipelineEpisodeDefinition(options);
   const plannerRole = requireRole(options.roles, "planner");
-  const runtimeForAssignment = options.runtimeForAssignment ?? (() => {
-    throw new GovernedPipelineEpisodeError(
-      "execution-ready governed creator scope unexpectedly invoked EpisodePlanner",
-    );
-  });
+  const runtimeForAssignment =
+    options.runtimeForAssignment ??
+    (() => {
+      throw new GovernedPipelineEpisodeError(
+        "execution-ready governed creator scope unexpectedly invoked EpisodePlanner",
+      );
+    });
   const facts: EpisodeOrchestrationFacts = {
     ...options.facts,
     goal: definition.scope.objective,
@@ -519,11 +467,8 @@ export async function orchestrateGovernedPipelineEpisode(
     policyVersion: GOVERNED_PIPELINE_EPISODE_POLICY_VERSION,
     limits: unusedPlannerLimits(plannerRole.maxTurnBudgetUsd),
     workflowTemplates: definition.workflowTemplates,
-    ...(options.safetyFloorMapping === undefined
-      ? {}
-      : { safetyFloorMapping: options.safetyFloorMapping }),
-    validateAcceptedPlan: (plan: EpisodePlan) =>
-      assertGovernedPipelineEpisodePlan(plan, definition),
+    ...(options.safetyFloorMapping === undefined ? {} : { safetyFloorMapping: options.safetyFloorMapping }),
+    validateAcceptedPlan: (plan: EpisodePlan) => assertGovernedPipelineEpisodePlan(plan, definition),
     ...(options.now === undefined ? {} : { now: options.now }),
   };
 
@@ -593,15 +538,12 @@ export async function readGovernedPipelineProviderEvidence(
   options: ReadGovernedPipelineProviderEvidenceOptions,
 ): Promise<GovernedPipelineProviderEvidence[]> {
   assertGovernedPipelineEpisodePlan(options.plan, options.definition);
-  const records = (await readExecutionSteps(options.root, options.plan.episodeId))
-    .filter((record) =>
-      record.kind === "provider" && record.plan_version === options.plan.version,
-    );
-  const bindingByStep = new Map(
-    options.definition.bindings.map((binding) => [binding.stepId, binding]),
+  const records = (await readExecutionSteps(options.root, options.plan.episodeId)).filter(
+    (record) => record.kind === "provider" && record.plan_version === options.plan.version,
   );
-  const unknown = records.find((record) =>
-    record.plan_step_id === undefined || !bindingByStep.has(record.plan_step_id),
+  const bindingByStep = new Map(options.definition.bindings.map((binding) => [binding.stepId, binding]));
+  const unknown = records.find(
+    (record) => record.plan_step_id === undefined || !bindingByStep.has(record.plan_step_id),
   );
   if (unknown !== undefined) {
     throw new GovernedPipelineEpisodeError(
@@ -624,23 +566,24 @@ export async function readGovernedPipelineProviderEvidence(
     }
     const record = matches[0];
     if (record === undefined) continue;
-    const step = options.plan.steps.find((candidate): candidate is ProviderTurnStep =>
-      candidate.kind === "provider_turn" && candidate.id === binding.stepId,
+    const step = options.plan.steps.find(
+      (candidate): candidate is ProviderTurnStep =>
+        candidate.kind === "provider_turn" && candidate.id === binding.stepId,
     );
     if (step === undefined) {
-      throw new GovernedPipelineEpisodeError(
-        `governed plan no longer contains provider step ${binding.stepId}`,
-      );
+      throw new GovernedPipelineEpisodeError(`governed plan no longer contains provider step ${binding.stepId}`);
     }
-    evidence.push(await loadGovernedProviderEvidence({
-      root: options.root,
-      app: options.app,
-      plan: options.plan,
-      step,
-      binding,
-      record,
-      recovered: true,
-    }));
+    evidence.push(
+      await loadGovernedProviderEvidence({
+        root: options.root,
+        app: options.app,
+        plan: options.plan,
+        step,
+        binding,
+        record,
+        recovered: true,
+      }),
+    );
   }
   return evidence;
 }
@@ -658,9 +601,7 @@ export interface ExecuteGovernedPipelinePlanOptions
   /** A caller with a revision-capable planner protocol may supply the common
    * typed proposer. The default rejects instead of leaving an unowned pending
    * request because this exact governed template cannot mutate itself. */
-  proposeRevision?: NonNullable<
-    Parameters<typeof executeAcceptedEpisodePlan>[0]["proposeRevision"]
-  >;
+  proposeRevision?: NonNullable<Parameters<typeof executeAcceptedEpisodePlan>[0]["proposeRevision"]>;
   maxSteps?: number;
 }
 
@@ -683,11 +624,13 @@ export async function executeGovernedPipelinePlan(
     ...(options.assignmentReadinessTimeoutMs === undefined
       ? {}
       : { assignmentReadinessTimeoutMs: options.assignmentReadinessTimeoutMs }),
-    proposeRevision: options.proposeRevision ?? (async () => {
-      throw new GovernedPipelineEpisodeError(
-        "governed pipeline revision requires a new validated creator scope or an explicit revision-capable proposer",
-      );
-    }),
+    proposeRevision:
+      options.proposeRevision ??
+      (async () => {
+        throw new GovernedPipelineEpisodeError(
+          "governed pipeline revision requires a new validated creator scope or an explicit revision-capable proposer",
+        );
+      }),
     ...deliveryInput(options, options.definition),
     ...(options.maxSteps === undefined ? {} : { maxSteps: options.maxSteps }),
   });
@@ -721,9 +664,7 @@ function deliveryInput(
     ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
-    ...(options.contextBudgetBytes === undefined
-      ? {}
-      : { contextBudgetBytes: options.contextBudgetBytes }),
+    ...(options.contextBudgetBytes === undefined ? {} : { contextBudgetBytes: options.contextBudgetBytes }),
     ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
     ...(options.now === undefined ? {} : { now: options.now }),
   };
@@ -737,9 +678,7 @@ async function executeGovernedProviderStep(
 ): Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome> {
   const binding = definition.bindings.find((candidate) => candidate.stepId === step.id);
   if (binding === undefined || binding.operation !== step.operation) {
-    throw new GovernedPipelineEpisodeError(
-      `unknown governed operation ${step.operation} for plan step ${step.id}`,
-    );
+    throw new GovernedPipelineEpisodeError(`unknown governed operation ${step.operation} for plan step ${step.id}`);
   }
   const role = requireRole(options.roles, step.role);
   const plan = await currentPlanForExecution(options.root, step, execution);
@@ -760,15 +699,9 @@ async function executeGovernedProviderStep(
     dependencyOutputs,
   };
   const priorEvidence = durableEvidence.find((candidate) => candidate.stepId === step.id);
-  const prior = priorEvidence === undefined
-    ? undefined
-    : { ...priorEvidence, recovered: execution.resume };
+  const prior = priorEvidence === undefined ? undefined : { ...priorEvidence, recovered: execution.resume };
   if (prior !== undefined) {
-    const verdictFailure = await recoverGovernedVerdictPersistence(
-      options,
-      input,
-      prior,
-    );
+    const verdictFailure = await recoverGovernedVerdictPersistence(options, input, prior);
     return verdictFailure ?? evidenceOutcome(options.delivery, input, prior);
   }
 
@@ -787,15 +720,12 @@ async function executeGovernedProviderStep(
       },
       selection: { tier: planRouteLabel(input.plan) },
       roles: { [role.name]: role },
-      runtimeFor: (selected) =>
-        options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
+      runtimeFor: (selected) => options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
       runtimeForAssignment: options.runtimeForAssignment,
       briefFor: () => options.delivery.briefForStep(input),
       promptsDir: options.promptsDir,
       context,
-      ...(options.delivery.authorityBrief === undefined
-        ? {}
-        : { authorityBrief: options.delivery.authorityBrief }),
+      ...(options.delivery.authorityBrief === undefined ? {} : { authorityBrief: options.delivery.authorityBrief }),
       workdir: options.workdir,
       hooks: options.hooks,
       ...(options.gateForRole === undefined ? {} : { gateForRole: options.gateForRole }),
@@ -819,14 +749,9 @@ async function executeGovernedProviderStep(
       ...(recordVerdict === undefined
         ? {}
         : {
-            recordVerdict: forbidVerdictRepair(
-              recordVerdict,
-              step,
-            ),
+            recordVerdict: forbidVerdictRepair(recordVerdict, step),
           }),
-      ...(inputManifest === undefined
-        ? {}
-        : { inputManifest }),
+      ...(inputManifest === undefined ? {} : { inputManifest }),
       ...(options.delivery.beforeProviderTurn === undefined
         ? {}
         : {
@@ -836,15 +761,12 @@ async function executeGovernedProviderStep(
       ...(options.delivery.afterPass === undefined
         ? {}
         : {
-            afterPass: (record: PassRunRecord) =>
-              options.delivery.afterPass!({ ...input, record }),
+            afterPass: (record: PassRunRecord) => options.delivery.afterPass!({ ...input, record }),
           }),
       ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(options.networkAccess === true ? { networkAccess: true } : {}),
-      ...(options.contextBudgetBytes === undefined
-        ? {}
-        : { contextBudgetBytes: options.contextBudgetBytes }),
+      ...(options.contextBudgetBytes === undefined ? {} : { contextBudgetBytes: options.contextBudgetBytes }),
       ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
       ...(options.now === undefined ? {} : { clock: options.now }),
     });
@@ -865,11 +787,7 @@ async function executeGovernedProviderStep(
   ) {
     throw transportError;
   }
-  const verdictFailure = await recoverGovernedVerdictPersistence(
-    options,
-    input,
-    evidence,
-  );
+  const verdictFailure = await recoverGovernedVerdictPersistence(options, input, evidence);
   return verdictFailure ?? evidenceOutcome(options.delivery, input, evidence);
 }
 
@@ -883,7 +801,7 @@ async function recoverGovernedVerdictPersistence(
     recorder === undefined ||
     evidence.record.status !== "completed" ||
     evidence.envelopeStatus !== "completed" ||
-    await hasVerdictPersistenceMarker(options.root, options.app.name, evidence.record.run_id)
+    (await hasVerdictPersistenceMarker(options.root, options.app.name, evidence.record.run_id))
   ) {
     return undefined;
   }
@@ -911,7 +829,10 @@ async function recoverGovernedVerdictPersistence(
   const result = recoveredTurnResult(evidence, envelope);
   let outcome: VerdictRecordOutcome;
   try {
-    outcome = await forbidVerdictRepair(recorder, input.step)({
+    outcome = await forbidVerdictRepair(
+      recorder,
+      input.step,
+    )({
       pass: input.pass,
       runId: evidence.record.run_id,
       result,
@@ -952,17 +873,11 @@ async function recoverGovernedVerdictPersistence(
       artifact,
     };
   }
-  if (!(await hasRunlogEvent(
-    options.root,
-    options.app.name,
-    evidence.record.run_id,
-    "verdict.recorded",
-  ))) {
+  if (!(await hasRunlogEvent(options.root, options.app.name, evidence.record.run_id, "verdict.recorded"))) {
     return {
       status: "failed",
       reasonCode: "error_verdict_persist",
-      summary:
-        `verdict recorder for ${input.step.operation} returned without durable verdict.recorded evidence`,
+      summary: `verdict recorder for ${input.step.operation} returned without durable verdict.recorded evidence`,
       artifact,
     };
   }
@@ -973,11 +888,7 @@ async function recoverGovernedVerdictPersistence(
   return undefined;
 }
 
-async function hasVerdictPersistenceMarker(
-  root: string,
-  app: string,
-  runId: string,
-): Promise<boolean> {
+async function hasVerdictPersistenceMarker(root: string, app: string, runId: string): Promise<boolean> {
   return hasRunlogEvent(root, app, runId, "verdict.persistence_completed");
 }
 
@@ -988,8 +899,7 @@ async function hasRunlogEvent(
   eventType: "verdict.recorded" | "verdict.persistence_completed",
 ): Promise<boolean> {
   try {
-    return (await readEvents(root, app, runId))
-      .some((event) => event.event === eventType);
+    return (await readEvents(root, app, runId)).some((event) => event.event === eventType);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw error;
@@ -1004,22 +914,24 @@ function recoveredTurnResult(
     status: "completed",
     summary: evidence.output,
     artifacts: envelope.artifacts?.map((artifact) => ({ ...artifact })) ?? [],
-    session: envelope.session === undefined
-      ? {
-          runtime: evidence.assignment.harness,
-          id: `recovered-${evidence.record.run_id}`,
-        }
-      : { ...envelope.session },
-    usage: evidence.record.usage === null
-      ? {
-          tokensIn: 0,
-          tokensOut: 0,
-          costUsd: 0,
-          subagentTurns: 0,
-          wallClockMs: 0,
-          quality: "unavailable",
-        }
-      : { ...evidence.record.usage },
+    session:
+      envelope.session === undefined
+        ? {
+            runtime: evidence.assignment.harness,
+            id: `recovered-${evidence.record.run_id}`,
+          }
+        : { ...envelope.session },
+    usage:
+      evidence.record.usage === null
+        ? {
+            tokensIn: 0,
+            tokensOut: 0,
+            costUsd: 0,
+            subagentTurns: 0,
+            wallClockMs: 0,
+            quality: "unavailable",
+          }
+        : { ...evidence.record.usage },
     escalations: [],
   };
 }
@@ -1040,7 +952,9 @@ async function evidenceOutcome(
     ? { status: "completed", artifact }
     : {
         status: "failed",
-        reasonCode: evidence.envelopeErrorCode ?? evidence.record.error_code ??
+        reasonCode:
+          evidence.envelopeErrorCode ??
+          evidence.record.error_code ??
           `error_governed_pipeline_provider_${evidence.envelopeStatus}`,
         summary: evidence.envelopeSummary ?? evidence.record.reason,
         artifact,
@@ -1059,9 +973,7 @@ async function governedProviderEvidence(
     definition: input.definition,
   });
   const matching = evidence.find((candidate) => candidate.stepId === input.step.id);
-  return matching === undefined
-    ? undefined
-    : { ...matching, recovered: input.execution.resume };
+  return matching === undefined ? undefined : { ...matching, recovered: input.execution.resume };
 }
 
 function governedDependencyOutputs(
@@ -1077,13 +989,8 @@ function governedDependencyOutputs(
         `governed step ${step.id} lacks durable output for dependency ${dependencyId}`,
       );
     }
-    if (
-      dependency.record.status !== "completed" ||
-      dependency.envelopeStatus !== "completed"
-    ) {
-      throw new GovernedPipelineEpisodeError(
-        `governed dependency ${dependencyId} is not durably completed`,
-      );
+    if (dependency.record.status !== "completed" || dependency.envelopeStatus !== "completed") {
+      throw new GovernedPipelineEpisodeError(`governed dependency ${dependencyId} is not durably completed`);
     }
     return dependency;
   });
@@ -1101,14 +1008,11 @@ async function loadGovernedProviderEvidence(input: {
   assertEvidenceMatches(input.plan.version, input.step, input.record);
   let output: string;
   try {
-    output = await readFile(
-      runPaths(input.root, input.app, input.record.run_id).output,
-      "utf8",
-    );
+    output = await readFile(runPaths(input.root, input.app, input.record.run_id).output, "utf8");
   } catch (error) {
     throw new GovernedPipelineEpisodeError(
       `terminal governed provider evidence for ${input.step.id} has no recoverable output.md: ` +
-      (error instanceof Error ? error.message : String(error)),
+        (error instanceof Error ? error.message : String(error)),
     );
   }
   const envelope = await readEnvelope(input.root, input.app, input.record.run_id);
@@ -1134,46 +1038,35 @@ async function loadGovernedProviderEvidence(input: {
   };
 }
 
-function assertEvidenceMatches(
-  planVersion: number,
-  step: ProviderTurnStep,
-  record: ExecutionStepRecord,
-): void {
+function assertEvidenceMatches(planVersion: number, step: ProviderTurnStep, record: ExecutionStepRecord): void {
   if (
     record.operation !== `${EPISODE_PLAN_EXECUTION_PIPELINE}/${step.id}` ||
     record.role !== step.role ||
     record.runtime === null ||
     record.model === null ||
     record.effort === null ||
-    !turnAssignmentsEqual(
-      { harness: record.runtime, model: record.model, effort: record.effort },
-      step.assignment,
-    ) ||
+    !turnAssignmentsEqual({ harness: record.runtime, model: record.model, effort: record.effort }, step.assignment) ||
     record.assignment_source !== step.assignmentSource ||
     record.plan_version !== planVersion ||
     record.plan_step_id !== step.id
   ) {
-    throw new GovernedPipelineEpisodeError(
-      `terminal provider evidence for ${step.id} differs from its accepted plan`,
-    );
+    throw new GovernedPipelineEpisodeError(`terminal provider evidence for ${step.id} differs from its accepted plan`);
   }
 }
 
-async function exactAuthorization(
-  root: string,
-  input: GovernedPipelineStepInput,
-): Promise<AuthorizedPass> {
+async function exactAuthorization(root: string, input: GovernedPipelineStepInput): Promise<AuthorizedPass> {
   const route = await readRouteRecord(root, input.plan.episodeId);
-  const matches = route.authorized_passes.filter((pass) =>
-    pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
-    pass.pass === input.step.id &&
-    pass.role === input.step.role &&
-    pass.plan_version === input.execution.planVersion &&
-    pass.plan_step_id === input.step.id &&
-    pass.runtime === input.step.assignment.harness &&
-    pass.model === input.step.assignment.model &&
-    pass.effort === input.step.assignment.effort &&
-    pass.assignment_source === input.step.assignmentSource,
+  const matches = route.authorized_passes.filter(
+    (pass) =>
+      pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
+      pass.pass === input.step.id &&
+      pass.role === input.step.role &&
+      pass.plan_version === input.execution.planVersion &&
+      pass.plan_step_id === input.step.id &&
+      pass.runtime === input.step.assignment.harness &&
+      pass.model === input.step.assignment.model &&
+      pass.effort === input.step.assignment.effort &&
+      pass.assignment_source === input.step.assignmentSource,
   );
   if (matches.length !== 1) {
     throw new GovernedPipelineEpisodeError(
@@ -1187,14 +1080,15 @@ function forbidVerdictRepair(
   recorder: (context: VerdictRecordContext) => Promise<VerdictRecordOutcome>,
   step: ProviderTurnStep,
 ): (context: VerdictRecordContext) => Promise<VerdictRecordOutcome> {
-  return (context) => recorder({
-    ...context,
-    runProviderTurn: async () => {
-      throw new GovernedPipelineEpisodeError(
-        `verdict repair for ${step.operation} requires an explicit future EpisodePlan step`,
-      );
-    },
-  });
+  return (context) =>
+    recorder({
+      ...context,
+      runProviderTurn: async () => {
+        throw new GovernedPipelineEpisodeError(
+          `verdict repair for ${step.operation} requires an explicit future EpisodePlan step`,
+        );
+      },
+    });
 }
 
 function providerTransportPass(pass: PassConfig, step: ProviderTurnStep): PassConfig {
@@ -1220,10 +1114,9 @@ function governedProviderRunId(
 }
 
 function providerRuntimeCapabilities(step: ProviderTurnStep): RuntimeCapability[] {
-  return [...new Set([
-    ...BASELINE_PROVIDER_CAPABILITIES,
-    ...step.requiredCapabilities.filter(isRuntimeCapability),
-  ])].sort();
+  return [
+    ...new Set([...BASELINE_PROVIDER_CAPABILITIES, ...step.requiredCapabilities.filter(isRuntimeCapability)]),
+  ].sort();
 }
 
 function assignmentForPass(
@@ -1252,9 +1145,10 @@ function assignmentBudgetCeiling(
   assignment: TurnAssignment,
 ): number {
   if (resolved.mode === "fixed") return role.maxTurnBudgetUsd;
-  const matches = resolved.roles
-    .find((entry) => entry.role === role.name)
-    ?.assignments.filter((candidate) => turnAssignmentsEqual(candidate.assignment, assignment)) ?? [];
+  const matches =
+    resolved.roles
+      .find((entry) => entry.role === role.name)
+      ?.assignments.filter((candidate) => turnAssignmentsEqual(candidate.assignment, assignment)) ?? [];
   if (matches.length !== 1) {
     throw new GovernedPipelineEpisodeError(
       `adaptive assignment ${turnAssignmentKey(assignment)} is not unique for role ${role.name}`,
@@ -1263,10 +1157,7 @@ function assignmentBudgetCeiling(
   return matches[0]!.maxTurnCostUsd;
 }
 
-function exactSelectedPasses(
-  pipeline: PipelineConfig,
-  selected: readonly PassConfig[],
-): PassConfig[] {
+function exactSelectedPasses(pipeline: PipelineConfig, selected: readonly PassConfig[]): PassConfig[] {
   if (selected.length === 0) {
     throw new GovernedPipelineEpisodeError(
       `governed pipeline ${pipeline.name} requires at least one selected provider pass`,
@@ -1296,9 +1187,7 @@ function exactSelectedPasses(
     }
   }
   if (selected.map((pass) => pass.id).join("\0") !== exact.map((pass) => pass.id).join("\0")) {
-    throw new GovernedPipelineEpisodeError(
-      `selected passes for ${pipeline.name} must retain governed pipeline order`,
-    );
+    throw new GovernedPipelineEpisodeError(`selected passes for ${pipeline.name} must retain governed pipeline order`);
   }
   return exact.map((pass) => structuredClone(pass));
 }
@@ -1313,9 +1202,7 @@ function governedPipelineOutputId(stepId: string): string {
   return `result-${stepId}`;
 }
 
-function workflowTemplateKey(
-  ref: NonNullable<CreatorEpisodeScope["workflowTemplate"]>,
-): string {
+function workflowTemplateKey(ref: NonNullable<CreatorEpisodeScope["workflowTemplate"]>): string {
   return `${ref.id}@${ref.version}`;
 }
 
@@ -1347,9 +1234,7 @@ function unusedPlannerLimits(roleBudgetUsd: number) {
 function cloneCapabilities(
   value: GovernedPipelineScopeOptions["requiredCapabilitiesByRole"],
 ): Readonly<Record<string, readonly string[]>> {
-  return Object.fromEntries(
-    Object.entries(value ?? {}).map(([role, capabilities]) => [role, [...capabilities]]),
-  );
+  return Object.fromEntries(Object.entries(value ?? {}).map(([role, capabilities]) => [role, [...capabilities]]));
 }
 
 function assertScopeInput(options: GovernedPipelineScopeOptions): void {
@@ -1386,9 +1271,7 @@ function assertSafeTemplate(template: string, pipeline: string, pass: string): v
     normalized === ".." ||
     normalized.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)
   ) {
-    throw new GovernedPipelineEpisodeError(
-      `governed template for ${pipeline}/${pass} must remain under promptsDir`,
-    );
+    throw new GovernedPipelineEpisodeError(`governed template for ${pipeline}/${pass} must remain under promptsDir`);
   }
 }
 
@@ -1455,9 +1338,7 @@ async function currentPlanForExecution(
 ): Promise<EpisodePlan> {
   const plan = await readEpisodePlanVersion(root, execution.episodeId, execution.planVersion);
   if (plan === undefined || plan.steps.find((candidate) => candidate.id === step.id) === undefined) {
-    throw new GovernedPipelineEpisodeError(
-      `cannot recover accepted plan v${execution.planVersion} for ${step.id}`,
-    );
+    throw new GovernedPipelineEpisodeError(`cannot recover accepted plan v${execution.planVersion} for ${step.id}`);
   }
   return plan;
 }

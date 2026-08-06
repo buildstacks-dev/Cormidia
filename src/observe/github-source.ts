@@ -20,7 +20,11 @@ export interface GhObserveOptions {
   issueLimit?: number;
   pullRequestLimit?: number;
   client?: (repo: string) => GhCliOps;
-  checks?: (repo: string, pullRequest: number, timeoutMs: number) => Promise<Array<{ name: string; state: string; link?: string }>>;
+  checks?: (
+    repo: string,
+    pullRequest: number,
+    timeoutMs: number,
+  ) => Promise<Array<{ name: string; state: string; link?: string }>>;
 }
 
 export class GhObserveSource implements ObserveGitHubSource {
@@ -81,7 +85,12 @@ export class GhObserveSource implements ObserveGitHubSource {
       }
     }
     const failed = snapshots.filter((snapshot) => snapshot.error !== undefined);
-    const status = failed.length === 0 ? "healthy" : failed.length === snapshots.length && snapshots.length > 0 ? "unavailable" : "degraded";
+    const status =
+      failed.length === 0
+        ? "healthy"
+        : failed.length === snapshots.length && snapshots.length > 0
+          ? "unavailable"
+          : "degraded";
     return {
       apps: snapshots,
       health: {
@@ -89,11 +98,12 @@ export class GhObserveSource implements ObserveGitHubSource {
         status,
         observed_at: observedAt,
         last_success_at: status === "unavailable" ? null : observedAt,
-        detail: snapshots.length === 0
-          ? "No registered apps; no GitHub read required"
-          : failed.length === 0
-            ? `Read-only GitHub projection refreshed for ${snapshots.length} app(s)`
-            : failed.map((snapshot) => `${snapshot.repo}: ${snapshot.error}`).join("; "),
+        detail:
+          snapshots.length === 0
+            ? "No registered apps; no GitHub read required"
+            : failed.length === 0
+              ? `Read-only GitHub projection refreshed for ${snapshots.length} app(s)`
+              : failed.map((snapshot) => `${snapshot.repo}: ${snapshot.error}`).join("; "),
       },
     };
   }
@@ -126,11 +136,13 @@ async function readChecks(
     if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
     const record = value as Record<string, unknown>;
     if (typeof record["name"] !== "string" || typeof record["state"] !== "string") return [];
-    return [{
-      name: record["name"],
-      state: record["state"],
-      ...(typeof record["link"] === "string" ? { link: record["link"] } : {}),
-    }];
+    return [
+      {
+        name: record["name"],
+        state: record["state"],
+        ...(typeof record["link"] === "string" ? { link: record["link"] } : {}),
+      },
+    ];
   });
 }
 

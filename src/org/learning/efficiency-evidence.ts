@@ -162,9 +162,8 @@ export interface EfficiencyEvidenceInput {
 
 /** Stable, source-derived evidence. Filesystem order cannot affect ids or bytes. */
 export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): LearningEvent[] {
-  const runs = [...input.runs].sort((a, b) =>
-    a.envelope.app.localeCompare(b.envelope.app) ||
-    a.envelope.run_id.localeCompare(b.envelope.run_id),
+  const runs = [...input.runs].sort(
+    (a, b) => a.envelope.app.localeCompare(b.envelope.app) || a.envelope.run_id.localeCompare(b.envelope.run_id),
   );
   const repeatedArtifacts = repeatedArtifactRuns(runs);
   const out: LearningEvent[] = [];
@@ -315,9 +314,7 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
     ) {
       add("execution.repeated_work", "a still-valid productive artifact fingerprint was produced again", {
         artifact_fingerprints: unique(
-          providerSteps
-            .map((step) => step.artifact_fingerprint)
-            .filter((value): value is string => value !== null),
+          providerSteps.map((step) => step.artifact_fingerprint).filter((value): value is string => value !== null),
         ),
       });
     }
@@ -347,33 +344,37 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
 
   for (const approval of [...(input.approvals ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
     if (approval.classification !== "false_positive") continue;
-    out.push(supplementalEvent({
-      identity: approval.id,
-      app: approval.app,
-      episodeId: approval.episode_id,
-      role: approval.role,
-      ts: approval.ts,
-      errorClass: "approval.false_positive",
-      cause: "a verifier-classified routine action was escalated for approval",
-      detail: { approval_id: approval.id },
-    }));
+    out.push(
+      supplementalEvent({
+        identity: approval.id,
+        app: approval.app,
+        episodeId: approval.episode_id,
+        role: approval.role,
+        ts: approval.ts,
+        errorClass: "approval.false_positive",
+        cause: "a verifier-classified routine action was escalated for approval",
+        detail: { approval_id: approval.id },
+      }),
+    );
   }
   for (const miss of [...(input.schedulerMisses ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
-    out.push(supplementalEvent({
-      identity: miss.id,
-      app: miss.app,
-      episodeId: miss.episode_id,
-      role: miss.role,
-      ts: miss.observed_at,
-      errorClass: "scheduler.missed_tick",
-      cause: "a due schedule tick had no reasoned terminal invocation record",
-      evidenceKind: "mechanical",
-      detail: {
-        due_at: miss.due_at,
-        observed_at: miss.observed_at,
-        schedule_ref: miss.schedule_ref,
-      },
-    }));
+    out.push(
+      supplementalEvent({
+        identity: miss.id,
+        app: miss.app,
+        episodeId: miss.episode_id,
+        role: miss.role,
+        ts: miss.observed_at,
+        errorClass: "scheduler.missed_tick",
+        cause: "a due schedule tick had no reasoned terminal invocation record",
+        evidenceKind: "mechanical",
+        detail: {
+          due_at: miss.due_at,
+          observed_at: miss.observed_at,
+          schedule_ref: miss.schedule_ref,
+        },
+      }),
+    );
   }
   return dedupeEvents(out).sort((a, b) => a.event_id.localeCompare(b.event_id));
 }
@@ -427,10 +428,7 @@ export interface ClusterProjection {
  * cause. Untrusted/agent/replay/cross-boundary events remain visible as
  * non-actionable dispositions; they never manufacture a cluster.
  */
-export function clusterEfficiencyEvidence(
-  source: readonly LearningEvent[],
-  threshold: number,
-): ClusterProjection {
+export function clusterEfficiencyEvidence(source: readonly LearningEvent[], threshold: number): ClusterProjection {
   if (!Number.isInteger(threshold) || threshold < 2) {
     throw new Error("learning: efficiency recurrence threshold must be an integer >= 2");
   }
@@ -567,9 +565,7 @@ function baseEvent(run: EfficiencyRunEvidence, appStages: Record<string, string>
   const envelope = run.envelope;
   return {
     episode_id:
-      run.learning_episode_id ??
-      envelope.episode_id ??
-      `ep_${safe(envelope.app)}_turn_${safe(envelope.trace_id)}`,
+      run.learning_episode_id ?? envelope.episode_id ?? `ep_${safe(envelope.app)}_turn_${safe(envelope.trace_id)}`,
     turn_id: envelope.trace_id,
     run_id: envelope.run_id,
     app: envelope.app,
@@ -597,14 +593,8 @@ function projectPlanProvenance(
   envelope: RunEnvelope,
   providerSteps: readonly ExecutionStepRecord[],
 ): EfficiencyPlanProvenance {
-  const planVersion = singleValue([
-    envelope.plan_version,
-    ...providerSteps.map((step) => step.plan_version),
-  ]);
-  const planStepId = singleValue([
-    envelope.plan_step_id,
-    ...providerSteps.map((step) => step.plan_step_id),
-  ]);
+  const planVersion = singleValue([envelope.plan_version, ...providerSteps.map((step) => step.plan_version)]);
+  const planStepId = singleValue([envelope.plan_step_id, ...providerSteps.map((step) => step.plan_step_id)]);
   const assignmentSource = singleValue([
     envelope.assignment_source,
     ...providerSteps.map((step) => step.assignment_source),
@@ -625,7 +615,9 @@ function singleValue<T extends string | number>(values: readonly (T | undefined)
 
 function summarizeActions(runId: string, events: RunlogEvent[]): EfficiencyActionSummary {
   const tools = events.filter((event) => event.event === "tool.called");
-  const shell = tools.filter((event) => ["bash", "shell", "exec_command"].includes(String(event.detail?.["tool"] ?? "")));
+  const shell = tools.filter((event) =>
+    ["bash", "shell", "exec_command"].includes(String(event.detail?.["tool"] ?? "")),
+  );
   const hashes = shell
     .map((event) => event.detail?.["args_hash"])
     .filter((value): value is string => typeof value === "string");
@@ -649,9 +641,13 @@ function repeatedArtifactRuns(runs: EfficiencyRunEvidence[]): Set<string> {
         .filter((step) => step.kind === "provider" && step.productive === true)
         .map((step) => step.artifact_fingerprint)
         .filter((value): value is string => value !== null),
-      ...((run.envelope.artifacts ?? [])
-        .map((artifact) => (typeof artifact === "object" && artifact !== null && "sha256" in artifact ? String(artifact.sha256) : undefined))
-        .filter((value): value is string => value !== undefined)),
+      ...(run.envelope.artifacts ?? [])
+        .map((artifact) =>
+          typeof artifact === "object" && artifact !== null && "sha256" in artifact
+            ? String(artifact.sha256)
+            : undefined,
+        )
+        .filter((value): value is string => value !== undefined),
       ...(run.artifact_fingerprint !== undefined ? [run.artifact_fingerprint] : []),
     ]);
     for (const fp of fingerprints) groups.set(fp, [...(groups.get(fp) ?? []), run.envelope.run_id]);

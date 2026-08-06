@@ -47,20 +47,8 @@ export async function cmdTelemetry(args: string[]): Promise<number> {
   const rows = await readStatusRows(stateHome, parsed.app !== undefined ? { app: parsed.app } : {});
   const parentTasks = await listParentTasks(stateHome);
   const ledger = await readTurnRecords(stateHome);
-  const invariantEvidence = await buildTelemetryInvariantEvidence(
-    stateHome,
-    rows,
-    parsed.app,
-    parsed.date,
-  );
-  const report = buildReport(
-    rows,
-    parentTasks,
-    parsed.app ?? null,
-    parsed.date ?? null,
-    ledger,
-    invariantEvidence,
-  );
+  const invariantEvidence = await buildTelemetryInvariantEvidence(stateHome, rows, parsed.app, parsed.date);
+  const report = buildReport(rows, parentTasks, parsed.app ?? null, parsed.date ?? null, ledger, invariantEvidence);
 
   if (parsed.html !== undefined) {
     const target = resolve(parsed.html);
@@ -263,9 +251,7 @@ function buildReport(
   // scope this view renders. Same rows, same primitive, same answer as Reports
   // and Observer for identical scope and filters (#89).
   const scopedLedger = ledgerRows.filter(
-    (record) =>
-      (app === null || record.app === app) &&
-      (date === null || record.at.slice(0, 10) === date),
+    (record) => (app === null || record.app === app) && (date === null || record.at.slice(0, 10) === date),
   );
   const ledgerCost = aggregateCost(
     scopedLedger.map((record) => ({
@@ -282,9 +268,8 @@ function buildReport(
   const providerViews = views.filter((view) => view.usageQuality !== "none");
   const ledgerScope: CostScope = {
     settled_provider_turns: ledgerCost.provider_turns,
-    unsettled_provider_turns: providerViews.filter(
-      (view) => !settledRunIds.has(`${view.app}\u0000${view.runId}`),
-    ).length,
+    unsettled_provider_turns: providerViews.filter((view) => !settledRunIds.has(`${view.app}\u0000${view.runId}`))
+      .length,
   };
 
   return {
@@ -314,13 +299,9 @@ async function buildTelemetryInvariantEvidence(
     .map((row) => row.startedAt.slice(0, 10))
     .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day))
     .sort()[0];
-  const earliest = [earliestLedger, earliestRun]
-    .filter((day): day is string => day !== undefined)
-    .sort()[0];
+  const earliest = [earliestLedger, earliestRun].filter((day): day is string => day !== undefined).sort()[0];
   const range = normalizeReportRange(
-    date === undefined
-      ? { period: "all" }
-      : { since: date, until: date },
+    date === undefined ? { period: "all" } : { since: date, until: date },
     now,
     earliest,
   );
@@ -340,8 +321,7 @@ async function buildTelemetryInvariantEvidence(
 function toPassView(row: StatusRow): PassView {
   return {
     ...row,
-    cacheHitRatio:
-      row.cacheReadTokens !== undefined && row.tokensIn > 0 ? row.cacheReadTokens / row.tokensIn : null,
+    cacheHitRatio: row.cacheReadTokens !== undefined && row.tokensIn > 0 ? row.cacheReadTokens / row.tokensIn : null,
     running: row.status === "running",
   };
 }
@@ -423,16 +403,19 @@ function completionIntegrity(
   // Mechanical passes invoked no provider, so they can neither complete nor
   // degrade recorded-cost completeness (#88).
   const qualities = views.map((view) => view.usageQuality).filter((quality) => quality !== "none");
-  const costTotals: CompletionIntegrity["costTotals"] = qualities.length === 0
-    ? "unavailable"
-    : qualities.reduce<UsageQuality>(leastCompleteQuality, "complete") as CompletionIntegrity["costTotals"];
+  const costTotals: CompletionIntegrity["costTotals"] =
+    qualities.length === 0
+      ? "unavailable"
+      : (qualities.reduce<UsageQuality>(leastCompleteQuality, "complete") as CompletionIntegrity["costTotals"]);
   return {
     requiredStages,
     interruptedRuns: views
       .filter((view) => ["running", "cancelled", "timed_out"].includes(view.status))
       .map((view) => view.runId),
     inconsistentWorkdirs,
-    staleEnvelopes: views.filter((view) => view.running && livenessLabel(view, new Date()).startsWith("stalled")).map((view) => view.runId),
+    staleEnvelopes: views
+      .filter((view) => view.running && livenessLabel(view, new Date()).startsWith("stalled"))
+      .map((view) => view.runId),
     costTotals,
     reviewerPass: views.some((view) => view.role === "reviewer" && view.status === "completed")
       ? "completed"
@@ -469,8 +452,18 @@ function buildParentTaskViews(
     tickets.flatMap((ticket) => ticket.traces.map((trace) => [trace.traceId, trace.integrity] as const)),
   );
   return records
-    .filter((record) => app === null || record.app === app || views.some((view) => view.parentTaskId === record.taskId && view.app === app))
-    .filter((record) => date === null || record.startedAt.slice(0, 10) === date || views.some((view) => view.parentTaskId === record.taskId))
+    .filter(
+      (record) =>
+        app === null ||
+        record.app === app ||
+        views.some((view) => view.parentTaskId === record.taskId && view.app === app),
+    )
+    .filter(
+      (record) =>
+        date === null ||
+        record.startedAt.slice(0, 10) === date ||
+        views.some((view) => view.parentTaskId === record.taskId),
+    )
     .map((record) => {
       const taskPasses = views.filter((view) => view.parentTaskId === record.taskId);
       const traces = uniqueStrings([...record.refs.traces, ...taskPasses.map((view) => view.traceId)]);
@@ -480,13 +473,26 @@ function buildParentTaskViews(
         ...[...observedSet].filter((stage) => !record.requiredStages.includes(stage)),
       ];
       const missingRequiredStages = record.requiredStages.filter((stage) => !observedStages.includes(stage));
-      const tickets = uniqueStrings([...record.refs.tickets, ...taskPasses.map((view) => view.ticket).filter(isString)]);
-      const branches = uniqueStrings([...record.refs.branches, ...taskPasses.map((view) => view.gitBranch).filter(isString)]);
+      const tickets = uniqueStrings([
+        ...record.refs.tickets,
+        ...taskPasses.map((view) => view.ticket).filter(isString),
+      ]);
+      const branches = uniqueStrings([
+        ...record.refs.branches,
+        ...taskPasses.map((view) => view.gitBranch).filter(isString),
+      ]);
       const artifactRefs = taskPasses.flatMap((view) => view.artifacts ?? []);
-      const prs = uniqueStrings([...record.refs.prs, ...artifactRefs.filter((artifact) => artifact.kind === "pr").map((artifact) => artifact.ref)]);
-      const reviews = uniqueStrings([...record.refs.reviews, ...artifactRefs.filter((artifact) => artifact.kind === "review").map((artifact) => artifact.ref)]);
+      const prs = uniqueStrings([
+        ...record.refs.prs,
+        ...artifactRefs.filter((artifact) => artifact.kind === "pr").map((artifact) => artifact.ref),
+      ]);
+      const reviews = uniqueStrings([
+        ...record.refs.reviews,
+        ...artifactRefs.filter((artifact) => artifact.kind === "review").map((artifact) => artifact.ref),
+      ]);
       const deployments = uniqueStrings(record.refs.deployments);
-      const allTracesComplete = traces.length > 0 && traces.every((trace) => traceIntegrityById.get(trace)?.complete === true);
+      const allTracesComplete =
+        traces.length > 0 && traces.every((trace) => traceIntegrityById.get(trace)?.complete === true);
       return {
         record,
         traces,
@@ -552,9 +558,7 @@ const RUNNING_CAVEAT = "live = heartbeat within 3m; stalled = heartbeat stopped;
 function livenessLabel(view: PassView, now: Date): string {
   if (view.lastSeenAt === undefined) return "unknown (no heartbeat)";
   const age = now.getTime() - new Date(view.lastSeenAt).getTime();
-  return age <= STALL_AFTER_MS
-    ? "live"
-    : `stalled (last heartbeat ${view.lastSeenAt})`;
+  return age <= STALL_AFTER_MS ? "live" : `stalled (last heartbeat ${view.lastSeenAt})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -610,7 +614,9 @@ function renderTerminal(report: TelemetryReport): string {
         ? `; ${report.ledgerCost.mechanical_passes} mechanical pass(es) at $0.00`
         : ""),
     ...(report.ledgerCost.unknown_turns > 0
-      ? [`  unknown: ${report.ledgerCost.unknown_turns} provider turn(s) — ${report.ledgerCost.unknown_refs.join(", ")}`]
+      ? [
+          `  unknown: ${report.ledgerCost.unknown_turns} provider turn(s) — ${report.ledgerCost.unknown_refs.join(", ")}`,
+        ]
       : []),
   );
 
@@ -872,15 +878,17 @@ function renderParentTasks(report: TelemetryReport, evidenceDir: string): string
   if (report.parentTasks.length === 0) {
     return `<section><h2>Parent delegated task</h2><p class="muted">Not recorded by this run generation. Pass telemetry cannot reconstruct the exact outer operator prompt.</p></section>`;
   }
-  return report.parentTasks.map((task) => {
-    const taskLinks = [
-      parentEvidenceLink(task, evidenceDir, "task.json", "Task record"),
-      parentEvidenceLink(task, evidenceDir, task.record.promptRef, "Exact original operator prompt"),
-    ].filter((link): link is string => link !== undefined);
-    const native = task.record.source?.nativeRef !== undefined
-      ? `<a href="${esc(task.record.source.nativeRef)}">${esc(task.record.source.nativeRef)}</a>`
-      : "not recorded";
-    return `<section><h2>Parent task ${esc(task.record.taskId)}</h2><dl class="integrity">
+  return report.parentTasks
+    .map((task) => {
+      const taskLinks = [
+        parentEvidenceLink(task, evidenceDir, "task.json", "Task record"),
+        parentEvidenceLink(task, evidenceDir, task.record.promptRef, "Exact original operator prompt"),
+      ].filter((link): link is string => link !== undefined);
+      const native =
+        task.record.source?.nativeRef !== undefined
+          ? `<a href="${esc(task.record.source.nativeRef)}">${esc(task.record.source.nativeRef)}</a>`
+          : "not recorded";
+      return `<section><h2>Parent task ${esc(task.record.taskId)}</h2><dl class="integrity">
 <dt>Objective</dt><dd>${esc(task.record.objective)}</dd>
 <dt>Original prompt</dt><dd>${taskLinks.join(" · ") || `${esc(task.record.promptRef)} sha256:${esc(task.record.promptSha256)}`}</dd>
 <dt>Native harness task</dt><dd>${native}</dd>
@@ -893,7 +901,8 @@ function renderParentTasks(report: TelemetryReport, evidenceDir: string): string
 <dt>Lifecycle state</dt><dd>${esc(task.record.completionState === undefined ? "not recorded" : `implementation ${task.record.completionState.implementation}; CI ${task.record.completionState.ci}; Cormidia review ${task.record.completionState.cormidiaReview}; human review ${task.record.completionState.humanReview}; PR ${task.record.completionState.pr}; issues close on merge ${task.record.completionState.issuesCloseOnMerge.join(", ") || "none"}`)}</dd>
 <dt>Results</dt><dd>tickets ${esc(task.tickets.join(", ") || "none")}; traces ${esc(task.traces.join(", ") || "none")}; branches ${esc(task.branches.join(", ") || "none")}; PRs ${esc(task.prs.join(", ") || "none")}; reviews ${esc(task.reviews.join(", ") || "none")}; deployments ${esc(task.deployments.join(", ") || "none")}</dd>
 </dl></section>`;
-  }).join("\n");
+    })
+    .join("\n");
 }
 
 function parentEvidenceLink(
@@ -903,9 +912,7 @@ function parentEvidenceLink(
   label: string,
 ): string | undefined {
   if (!task.evidenceFiles?.includes(file)) return undefined;
-  const href = [evidenceDir, "tasks", task.record.taskId, file]
-    .map((part) => encodeURIComponent(part))
-    .join("/");
+  const href = [evidenceDir, "tasks", task.record.taskId, file].map((part) => encodeURIComponent(part)).join("/");
   return `<a href="${esc(href)}">${esc(label)}</a>`;
 }
 
@@ -932,18 +939,21 @@ function renderTicketSection(ticket: TicketGroup): string {
           return `<div class="gantt-row"><span class="gantt-label">${esc(`${view.pass} (${view.role})`)}</span><span class="gantt-track"><span class="bar ${statusClass(view.status)}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="${title}">${pin}</span></span></div>`;
         })
         .join("\n");
-      const integrity = trace.integrity.complete === null
-        ? "required-pass manifest unavailable (legacy trace)"
-        : trace.integrity.complete
-          ? "all selected passes completed"
-          : `incomplete: ${[...trace.integrity.missingPasses.map((p) => `missing ${p}`), ...trace.integrity.nonCompletedPasses].join(", ")}`;
+      const integrity =
+        trace.integrity.complete === null
+          ? "required-pass manifest unavailable (legacy trace)"
+          : trace.integrity.complete
+            ? "all selected passes completed"
+            : `incomplete: ${[...trace.integrity.missingPasses.map((p) => `missing ${p}`), ...trace.integrity.nonCompletedPasses].join(", ")}`;
       const routedSkips = trace.planningRoute?.skipped_passes ?? trace.integrity.skippedPasses;
-      const skipped = routedSkips.length === 0
-        ? ""
-        : `<div class="muted trace-skip">Skipped by routing: ${esc(routedSkips.map((entry) => `${entry.pass} — ${entry.reason}`).join("; "))}</div>`;
-      const route = trace.planningRoute === undefined
-        ? ""
-        : `<div class="planning-route"><strong>Planning route:</strong> ${esc(trace.planningRoute.depth)} · risk ${esc(trace.planningRoute.risk_tier)} · ambiguity ${esc(String(trace.planningRoute.factors["ambiguity"] ?? "unknown"))} · coupling ${esc(String(trace.planningRoute.factors["coupling"] ?? "unknown"))} · estimated cost ${esc(trace.planningRoute.estimated_cost_usd === null ? "unavailable" : `$${trace.planningRoute.estimated_cost_usd.toFixed(4)}`)} (upper bound $${trace.planningRoute.estimated_cost_upper_bound_usd.toFixed(2)})<br><span class="muted">${esc(trace.planningRoute.decision_factors.join("; "))}</span></div>`;
+      const skipped =
+        routedSkips.length === 0
+          ? ""
+          : `<div class="muted trace-skip">Skipped by routing: ${esc(routedSkips.map((entry) => `${entry.pass} — ${entry.reason}`).join("; "))}</div>`;
+      const route =
+        trace.planningRoute === undefined
+          ? ""
+          : `<div class="planning-route"><strong>Planning route:</strong> ${esc(trace.planningRoute.depth)} · risk ${esc(trace.planningRoute.risk_tier)} · ambiguity ${esc(String(trace.planningRoute.factors["ambiguity"] ?? "unknown"))} · coupling ${esc(String(trace.planningRoute.factors["coupling"] ?? "unknown"))} · estimated cost ${esc(trace.planningRoute.estimated_cost_usd === null ? "unavailable" : `$${trace.planningRoute.estimated_cost_usd.toFixed(4)}`)} (upper bound $${trace.planningRoute.estimated_cost_upper_bound_usd.toFixed(2)})<br><span class="muted">${esc(trace.planningRoute.decision_factors.join("; "))}</span></div>`;
       return `<div class="trace"><div class="trace-id">trace ${esc(trace.traceId)} · ${esc(integrity)}</div>${route}${skipped}\n${bars}</div>`;
     })
     .join("\n");
@@ -1039,16 +1049,9 @@ function renderPassDetails(view: PassView, evidenceDir: string): string {
 </dl>`;
 }
 
-function evidenceLink(
-  view: PassView,
-  evidenceDir: string,
-  file: string,
-  label: string,
-): string | undefined {
+function evidenceLink(view: PassView, evidenceDir: string, file: string, label: string): string | undefined {
   if (!view.evidenceFiles?.includes(file)) return undefined;
-  const href = [evidenceDir, view.app, view.runId, file]
-    .map((part) => encodeURIComponent(part))
-    .join("/");
+  const href = [evidenceDir, view.app, view.runId, file].map((part) => encodeURIComponent(part)).join("/");
   return `<a href="${esc(href)}">${esc(label)}</a>`;
 }
 
@@ -1071,24 +1074,25 @@ function renderCompletionIntegrity(report: TelemetryReport): string {
 </dl></section>`;
 }
 
-function invariantEvidenceStatus(
-  evidence: ReportEfficiencyV1,
-): ReportEvidenceMetricV1["status"] {
-  return Object.values(evidence.metrics).every((metric) => metric.status === "valid")
-    ? "valid"
-    : "invalid_measurement";
+function invariantEvidenceStatus(evidence: ReportEfficiencyV1): ReportEvidenceMetricV1["status"] {
+  return Object.values(evidence.metrics).every((metric) => metric.status === "valid") ? "valid" : "invalid_measurement";
 }
 
 function formatEvidenceMetric(metric: ReportEvidenceMetricV1): string {
   const value = metric.value === null ? "unavailable" : `${(metric.value * 100).toFixed(1)}%`;
-  return `${metric.status}; ${metric.numerator}/${metric.denominator} (${value}); ` +
-    `${metric.missing_inputs.length} missing input(s), ${metric.excluded_ids.length} excluded`;
+  return (
+    `${metric.status}; ${metric.numerator}/${metric.denominator} (${value}); ` +
+    `${metric.missing_inputs.length} missing input(s), ${metric.excluded_ids.length} excluded`
+  );
 }
 
 function renderRunningSection(report: TelemetryReport): string {
   if (report.running.length === 0) return "";
   const items = report.running
-    .map((view) => `<li><code>${esc(view.runId)}</code> ${esc(`${view.app} ${view.pipeline}/${view.pass}`)} — started ${esc(view.startedAt)} — ${esc(livenessLabel(view, new Date()))}</li>`)
+    .map(
+      (view) =>
+        `<li><code>${esc(view.runId)}</code> ${esc(`${view.app} ${view.pipeline}/${view.pass}`)} — started ${esc(view.startedAt)} — ${esc(livenessLabel(view, new Date()))}</li>`,
+    )
     .join("\n");
   return `<section><h2>Still running</h2><p class="muted">${esc(RUNNING_CAVEAT)}.</p><ul>${items}</ul></section>`;
 }

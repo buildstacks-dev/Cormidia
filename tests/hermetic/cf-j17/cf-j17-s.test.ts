@@ -36,11 +36,7 @@ import {
   type ReleaseCommandResult,
   type ReleaseExecutionRecord,
 } from "../../../src/org/release.js";
-import {
-  digestJson,
-  parseReleaseTagMessage,
-  type ReleaseAttestationV1,
-} from "../../../src/org/release-evidence.js";
+import { digestJson, parseReleaseTagMessage, type ReleaseAttestationV1 } from "../../../src/org/release-evidence.js";
 import type { LoopItem } from "../../../src/loop/types.js";
 import { GhCliOps } from "../../../src/loop/github.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
@@ -121,7 +117,17 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     gitIn(managedClone, "init");
     writeFileSync(join(managedClone, "README.md"), "fixture clone\n");
     gitIn(managedClone, "add", "README.md");
-    gitIn(managedClone, "-c", "user.email=fixture@invalid", "-c", "user.name=fixture", "commit", "--no-gpg-sign", "-m", "init");
+    gitIn(
+      managedClone,
+      "-c",
+      "user.email=fixture@invalid",
+      "-c",
+      "user.name=fixture",
+      "commit",
+      "--no-gpg-sign",
+      "-m",
+      "init",
+    );
     gitIn(managedClone, "config", "user.email", "fixture@invalid");
     gitIn(managedClone, "config", "user.name", "fixture");
     const remote = join(org.stateHome, "release-remote.git");
@@ -137,7 +143,7 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
           repo: handle.repo,
           status: "live",
           budgetUsdMonth: 100,
-      objectiveBudgetUsd: 1000,
+          objectiveBudgetUsd: 1000,
           cadence: {},
           release: { kind: "deploy", command: RELEASE_COMMAND, owner: "orchestrator", trigger: "command" },
         },
@@ -159,12 +165,7 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     const clock = makeTestClock("2026-07-31T09:00:00.000Z");
 
     // 1 — the merged milestone's declared trigger raises the critical op.
-    const queued = await queueReleaseApprovals(
-      walk.org.stateHome,
-      APP,
-      [mergedItem(walk.issueNumber)],
-      clock.dateFn,
-    );
+    const queued = await queueReleaseApprovals(walk.org.stateHome, APP, [mergedItem(walk.issueNumber)], clock.dateFn);
     expect(queued).toHaveLength(1);
     const approvalId = queued[0]!.approvalId;
     const pending = await walk.store.listPending();
@@ -261,12 +262,7 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
   it("negative control: post-decision tamper of the approved command — the content-binding detector FIRES and nothing runs", async () => {
     const walk = await makeWalk();
     const clock = makeTestClock("2026-07-31T09:00:00.000Z");
-    const [queued] = await queueReleaseApprovals(
-      walk.org.stateHome,
-      APP,
-      [mergedItem(walk.issueNumber)],
-      clock.dateFn,
-    );
+    const [queued] = await queueReleaseApprovals(walk.org.stateHome, APP, [mergedItem(walk.issueNumber)], clock.dateFn);
     const approvalId = queued!.approvalId;
     await walk.store.decide(approvalId, { decision: "approved", now: clock.nowDate() });
 
@@ -337,15 +333,19 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     expect(outcomes).toMatchObject([{ status: "completed", approvalId: raised.id }]);
     expect(gitIn(walk.managedClone, "rev-parse", "v0.1.2^{}")).toBe(revision);
     expect(gitIn(walk.remote, "rev-parse", "refs/tags/v0.1.2^{}")).toBe(revision);
-    const envelope = parseReleaseTagMessage(gitIn(walk.managedClone, "for-each-ref", "--format=%(contents)", "refs/tags/v0.1.2"));
+    const envelope = parseReleaseTagMessage(
+      gitIn(walk.managedClone, "for-each-ref", "--format=%(contents)", "refs/tags/v0.1.2"),
+    );
     expect(envelope.approval).toMatchObject({ approved_by: "fixture-human", attestation_sha256: attestationSha });
-    expect(await executeApprovedReleases({
-      stateHome: walk.org.stateHome,
-      orgHome: walk.org.orgHome,
-      appsFile: walk.appsFile,
-      now: clock.dateFn,
-      ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
-    })).toEqual([]);
+    expect(
+      await executeApprovedReleases({
+        stateHome: walk.org.stateHome,
+        orgHome: walk.org.orgHome,
+        appsFile: walk.appsFile,
+        now: clock.dateFn,
+        ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
+      }),
+    ).toEqual([]);
   });
 
   it("negative control: a lost RQ-1 push response reconciles the exact remote tag marker", async () => {
@@ -358,12 +358,17 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     mkdirSync(attestationDir, { recursive: true });
     writeFileSync(join(attestationDir, `${attestationSha}.json`), `${JSON.stringify(attestation)}\n`);
     const raised = await walk.store.raise({
-      app: APP, role: "orchestrator", rule: "production-deploy",
+      app: APP,
+      role: "orchestrator",
+      rule: "production-deploy",
       action: { tool: "bash", input: { command: `cormidia-internal rq1-tag ${attestationSha}` } },
-      ticketRef: `#${walk.issueNumber}`, now: clock.nowDate(),
+      ticketRef: `#${walk.issueNumber}`,
+      now: clock.nowDate(),
     });
     await walk.store.decide(raised.id, {
-      decision: "approved", decidedBy: { kind: "human", identity: "fixture-human" }, now: clock.nowDate(),
+      decision: "approved",
+      decidedBy: { kind: "human", identity: "fixture-human" },
+      now: clock.nowDate(),
     });
     const outcomes = await executeApprovedReleases({
       stateHome: walk.org.stateHome,
@@ -393,17 +398,28 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
     mkdirSync(attestationDir, { recursive: true });
     writeFileSync(join(attestationDir, `${attestationSha}.json`), `${JSON.stringify(attestation)}\n`);
     const raised = await walk.store.raise({
-      app: APP, role: "orchestrator", rule: "production-deploy",
+      app: APP,
+      role: "orchestrator",
+      rule: "production-deploy",
       action: { tool: "bash", input: { command: `cormidia-internal rq1-tag ${attestationSha}` } },
-      ticketRef: `#${walk.issueNumber}`, now: clock.nowDate(),
+      ticketRef: `#${walk.issueNumber}`,
+      now: clock.nowDate(),
     });
     await walk.store.decide(raised.id, {
-      decision: "approved", decidedBy: { kind: "human", identity: "fixture-human" }, now: clock.nowDate(),
+      decision: "approved",
+      decidedBy: { kind: "human", identity: "fixture-human" },
+      now: clock.nowDate(),
     });
-    writeFileSync(join(attestationDir, `${attestationSha}.json`), `${JSON.stringify({ ...attestation, tag: "v0.1.3" })}\n`);
+    writeFileSync(
+      join(attestationDir, `${attestationSha}.json`),
+      `${JSON.stringify({ ...attestation, tag: "v0.1.3" })}\n`,
+    );
     const outcomes = await executeApprovedReleases({
-      stateHome: walk.org.stateHome, orgHome: walk.org.orgHome, appsFile: walk.appsFile,
-      now: clock.dateFn, ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
+      stateHome: walk.org.stateHome,
+      orgHome: walk.org.orgHome,
+      appsFile: walk.appsFile,
+      now: clock.dateFn,
+      ghFor: () => new GhCliOps(walk.handle.repo, walk.handle.exec),
     });
     expect(outcomes).toMatchObject([{ status: "failed", approvalId: raised.id }]);
     expect(gitIn(walk.managedClone, "tag", "--list")).toBe("");
@@ -418,12 +434,7 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
   it("a revoked grant terminalizes the approved release before any execution", async () => {
     const walk = await makeWalk();
     const clock = makeTestClock("2026-07-31T09:00:00.000Z");
-    const [queued] = await queueReleaseApprovals(
-      walk.org.stateHome,
-      APP,
-      [mergedItem(walk.issueNumber)],
-      clock.dateFn,
-    );
+    const [queued] = await queueReleaseApprovals(walk.org.stateHome, APP, [mergedItem(walk.issueNumber)], clock.dateFn);
     const approvalId = queued!.approvalId;
     const decided = await walk.store.decide(approvalId, { decision: "approved", now: clock.nowDate() });
     walk.store.revokeGrantSync(decided.grantId!, clock.nowDate());

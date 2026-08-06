@@ -12,9 +12,17 @@ import { J15_APPS, J15_NOW, githubResult, scriptedGithubSource } from "./support
 class CaptureResponse extends EventEmitter {
   writableEnded = false;
   readonly chunks: string[] = [];
-  write(chunk: string): boolean { this.chunks.push(chunk); return true; }
-  end(): void { this.writableEnded = true; this.emit("close"); }
-  text(): string { return this.chunks.join(""); }
+  write(chunk: string): boolean {
+    this.chunks.push(chunk);
+    return true;
+  }
+  end(): void {
+    this.writableEnded = true;
+    this.emit("close");
+  }
+  text(): string {
+    return this.chunks.join("");
+  }
 }
 
 function assertResync(text: string): void {
@@ -43,10 +51,7 @@ describe("CF-J15-I — observer interruption/restart and SSE resynchronization",
       orgName: J15_APPS.org.name,
       stateHome: state.stateHome,
       appsFile: J15_APPS,
-      githubSource: scriptedGithubSource([
-        githubResult(successAt),
-        githubResult(failedAt, { unavailable: true }),
-      ]),
+      githubSource: scriptedGithubSource([githubResult(successAt), githubResult(failedAt, { unavailable: true })]),
       clock: () => J15_NOW,
       watchFiles: false,
     });
@@ -96,12 +101,16 @@ describe("CF-J15-I — observer interruption/restart and SSE resynchronization",
     services.push(service);
     await service.start();
     for (const id of ["one", "two"]) {
-      await writeFile(state.path("state", "events", "inbox", `${id}.json`), `${JSON.stringify({
-        id,
-        app: J15_APPS.apps[0]!.name,
-        kind: "health-alert",
-        occurred_at: `2026-07-31T12:0${id === "one" ? "1" : "2"}:00.000Z`,
-      })}\n`, "utf8");
+      await writeFile(
+        state.path("state", "events", "inbox", `${id}.json`),
+        `${JSON.stringify({
+          id,
+          app: J15_APPS.apps[0]!.name,
+          kind: "health-alert",
+          occurred_at: `2026-07-31T12:0${id === "one" ? "1" : "2"}:00.000Z`,
+        })}\n`,
+        "utf8",
+      );
       await service.reconcileNow();
     }
     expect(service.snapshot().cursor).toBe("2");

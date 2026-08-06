@@ -48,10 +48,7 @@ describe("CF-J01-I — kill mid-init-staging / mid-upgrade-transaction (C-OP-LIF
     cleanups = [];
   });
 
-  async function killUpgradeAt(
-    world: UpgradeWorld,
-    killAt: string,
-  ): Promise<KillPointResult> {
+  async function killUpgradeAt(world: UpgradeWorld, killAt: string): Promise<KillPointResult> {
     const result = await runKillPointScenario({
       source: UPGRADE_KILL_SCENARIO,
       killAt,
@@ -137,14 +134,9 @@ describe("CF-J01-I — kill mid-init-staging / mid-upgrade-transaction (C-OP-LIF
         // registry bytes, restorable after the interruption.
         const archiveDir = join(world.archiveRoot, finalArchive!);
         expect(existsSync(join(archiveDir, "manifest.json"))).toBe(true);
-        expect(await readFile(join(archiveDir, "before", "apps.yaml"), "utf8")).toBe(
-          world.originalAppsYaml,
-        );
+        expect(await readFile(join(archiveDir, "before", "apps.yaml"), "utf8")).toBe(world.originalAppsYaml);
       } else {
-        expect(
-          finalArchive,
-          `a partial archive must never appear as final when killed at ${killAt}`,
-        ).toBeUndefined();
+        expect(finalArchive, `a partial archive must never appear as final when killed at ${killAt}`).toBeUndefined();
       }
 
       // Ratified surfaces are never among the casualties of a kill: the
@@ -213,8 +205,6 @@ await kp("done");
     // from its OWN validated stage, and the stray evidence survives for the
     // operator to inspect.
     expect(existsSync(orphan)).toBe(true);
-    expect(await readFile(join(w.target, "TASTE.md"), "utf8")).not.toBe(
-      "partial staged bytes from a killed init\n",
-    );
+    expect(await readFile(join(w.target, "TASTE.md"), "utf8")).not.toBe("partial staged bytes from a killed init\n");
   });
 });

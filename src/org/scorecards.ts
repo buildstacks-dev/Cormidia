@@ -69,12 +69,7 @@ export async function appendScorecardEvent(
   return { appended: true, event };
 }
 
-export async function readScorecards(
-  root: string,
-  app: string,
-  role: string,
-  since?: Date,
-): Promise<ScorecardEvent[]> {
+export async function readScorecards(root: string, app: string, role: string, since?: Date): Promise<ScorecardEvent[]> {
   const path = scorecardPath(root, app, role);
   let raw: string;
   try {
@@ -153,12 +148,5 @@ function assignNumber(
 }
 
 function dedupeKey(event: ScorecardEvent): string {
-  return [
-    event.type,
-    event.turnId ?? "",
-    event.ticketRef ?? "",
-    event.ref ?? "",
-    event.role,
-    event.app,
-  ].join("|");
+  return [event.type, event.turnId ?? "", event.ticketRef ?? "", event.ref ?? "", event.role, event.app].join("|");
 }

@@ -14,11 +14,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
 import { cmdApprovals } from "../../../src/cli/approvals.js";
-import {
-  ApprovalStore,
-  approvalLifecycleState,
-  type ApprovalItem,
-} from "../../../src/org/approvals.js";
+import { ApprovalStore, approvalLifecycleState, type ApprovalItem } from "../../../src/org/approvals.js";
 import { loadApps } from "../../../src/org/apps.js";
 import { join } from "node:path";
 import { indexLocalSources } from "../../../src/observe/file-index.js";
@@ -107,13 +103,7 @@ async function runApprovalsCli(org: TempOrgHome, args: string[]): Promise<unknow
   const savedHome = process.env["HOME"];
   process.env["HOME"] = org.homeDir;
   try {
-    const code = await cmdApprovals([
-      "--org-home",
-      org.orgHome,
-      "--state-home",
-      org.stateHome,
-      ...args,
-    ]);
+    const code = await cmdApprovals(["--org-home", org.orgHome, "--state-home", org.stateHome, ...args]);
     expect(code).toBe(0);
   } finally {
     spy.mockRestore();

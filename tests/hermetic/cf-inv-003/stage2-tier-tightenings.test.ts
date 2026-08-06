@@ -64,12 +64,7 @@ describe("CF-INV-003 — Stage 2 tightenings at the store (L2)", () => {
 
   /** Plant a decided-approved item plus a live scoped (multi-use) grant for
    *  `rule`, exactly as a pre-tightening decision would have persisted them. */
-  async function plantScopedGrant(
-    home: TempStateHome,
-    rule: string,
-    id: string,
-    now: Date,
-  ): Promise<ApprovalGrant> {
+  async function plantScopedGrant(home: TempStateHome, rule: string, id: string, now: Date): Promise<ApprovalGrant> {
     const action: ToolAction = { tool: "bash", input: { command: `./legacy-${id}.sh` } };
     const item: ApprovalItem = {
       id,
@@ -137,7 +132,9 @@ describe("CF-INV-003 — Stage 2 tightenings at the store (L2)", () => {
   it("a standing scoped grant for a now-tightened rule never matches — even planted on disk with a decided-approved owner", async () => {
     const { home, store, clock } = await makeStore();
     const now = clock.nowDate();
-    for (const [index, rule] of (["dns-or-domain", "learning-surface-tamper", "protocol-self-edit"] as const).entries()) {
+    for (const [index, rule] of (
+      ["dns-or-domain", "learning-surface-tamper", "protocol-self-edit"] as const
+    ).entries()) {
       await plantScopedGrant(home, rule, `20260806T0900${index}0Z-st${index}g`, now);
       const covered: ToolAction = { tool: "bash", input: { command: `./covered-${rule}.sh` } };
       expect(

@@ -9,11 +9,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { SECRET_PATTERNS } from "../../src/runtime/secret-patterns.js";
 import { scrubSecrets } from "../../src/runtime/runlog/redact.js";
-import {
-  makeSyntheticSecret,
-  SYNTHETIC_SECRET_KINDS,
-  type SyntheticSecretKind,
-} from "./synthetic-secret.js";
+import { makeSyntheticSecret, SYNTHETIC_SECRET_KINDS, type SyntheticSecretKind } from "./synthetic-secret.js";
 
 function patternFor(name: string): RegExp {
   const entry = SECRET_PATTERNS.find((candidate) => candidate.name === name);

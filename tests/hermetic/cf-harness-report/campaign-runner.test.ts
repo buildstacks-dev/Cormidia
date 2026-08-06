@@ -39,11 +39,15 @@ describe("durable campaign runner", () => {
     const campaign = await runner();
     await campaign.start();
     await campaign.runCase("CASE-1", { providerTurns: 1, maxEquivUsd: 1 }, async () => ({
-      providerTurns: 1, equivUsd: 0.25, evidenceRefs: ["evidence/case-1.json"],
+      providerTurns: 1,
+      equivUsd: 0.25,
+      evidenceRefs: ["evidence/case-1.json"],
     }));
-    await expect(campaign.runCase("CASE-2", { providerTurns: 1, maxEquivUsd: 1 }, async () => {
-      throw new Error("transport interrupted");
-    })).rejects.toThrow(/transport interrupted/);
+    await expect(
+      campaign.runCase("CASE-2", { providerTurns: 1, maxEquivUsd: 1 }, async () => {
+        throw new Error("transport interrupted");
+      }),
+    ).rejects.toThrow(/transport interrupted/);
     const durable = await readValidationCampaignReports(state!.stateHome);
     expect(durable.reports[0]).toMatchObject({
       status: "running",
@@ -81,7 +85,9 @@ describe("durable campaign runner", () => {
     const campaign = await runner(["CASE-1"], "proposed");
     await campaign.start();
     await campaign.runCase("CASE-1", { providerTurns: 1, maxEquivUsd: 1 }, async () => ({
-      providerTurns: 1, equivUsd: 0.1, evidenceRefs: ["evidence/case-1.json"],
+      providerTurns: 1,
+      equivUsd: 0.1,
+      evidenceRefs: ["evidence/case-1.json"],
     }));
     expect(await campaign.finish()).toMatchObject({
       status: "completed",
@@ -93,7 +99,10 @@ describe("durable campaign runner", () => {
     const campaign = await runner();
     await campaign.start();
     await campaign.runCase("CASE-1", { providerTurns: 1, maxEquivUsd: 1 }, async () => ({
-      providerTurns: 1, equivUsd: 0.1, violationIds: ["CORMIDIA-INV-002"], evidenceRefs: ["evidence/denial.json"],
+      providerTurns: 1,
+      equivUsd: 0.1,
+      violationIds: ["CORMIDIA-INV-002"],
+      evidenceRefs: ["evidence/denial.json"],
     }));
     expect(await campaign.finish()).toMatchObject({
       outcome: { completeness: "incomplete", verdict: "fail", violation_ids: ["CORMIDIA-INV-002"] },
@@ -104,7 +113,9 @@ describe("durable campaign runner", () => {
     const campaign = await runner(["CASE-1"]);
     await campaign.start();
     await campaign.runCase("CASE-1", { providerTurns: 2, maxEquivUsd: 1 }, async () => ({
-      providerTurns: 2, equivUsd: 0.5, evidenceRefs: ["evidence/case-1.json"],
+      providerTurns: 2,
+      equivUsd: 0.5,
+      evidenceRefs: ["evidence/case-1.json"],
     }));
     expect(await campaign.finish()).toMatchObject({
       spend: { ceiling_exhausted: true },
@@ -138,13 +149,8 @@ describe("durable campaign runner", () => {
       completeness: "incomplete",
       verdict: "inconclusive",
       violation_ids: [],
-      reason_codes: [
-        "case_incomplete:OBSERVATION-GAP",
-        "github_clause_inconclusive:B01-CF-02",
-      ],
+      reason_codes: ["case_incomplete:OBSERVATION-GAP", "github_clause_inconclusive:B01-CF-02"],
     });
-    expect(() => assertCompletedCampaignPass(report)).toThrow(
-      /completeness=incomplete.*verdict=inconclusive/,
-    );
+    expect(() => assertCompletedCampaignPass(report)).toThrow(/completeness=incomplete.*verdict=inconclusive/);
   });
 });

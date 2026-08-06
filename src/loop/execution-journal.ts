@@ -64,10 +64,7 @@ export function executionJournalPath(root: string, episodeId: string): string {
   return join(efficiencyEpisodeDir(root, episodeId), "execution-journal.json");
 }
 
-export async function readExecutionJournal(
-  root: string,
-  episodeId: string,
-): Promise<ExecutionJournal | undefined> {
+export async function readExecutionJournal(root: string, episodeId: string): Promise<ExecutionJournal | undefined> {
   const path = executionJournalPath(root, episodeId);
   if (!existsSync(path)) return undefined;
   const value: unknown = JSON.parse(await readFile(path, "utf8"));
@@ -224,7 +221,9 @@ export async function resumeExecutionJournal(input: {
   for (const boundary of EXECUTION_BOUNDARIES) {
     const current = input.artifacts?.[boundary];
     if (current === undefined) continue;
-    const stage = journal.stages.find((candidate) => candidate.boundary === boundary && candidate.status === "completed");
+    const stage = journal.stages.find(
+      (candidate) => candidate.boundary === boundary && candidate.status === "completed",
+    );
     if (stage === undefined) continue;
     const observed = fingerprint(current);
     if (observed === stage.artifact_sha256) continue;
@@ -256,9 +255,11 @@ async function requiredJournal(root: string, episodeId: string): Promise<Executi
 }
 
 function nextBoundary(stages: ExecutionJournalStage[]): ExecutionBoundary | null {
-  return EXECUTION_BOUNDARIES.find(
-    (boundary) => !stages.some((stage) => stage.boundary === boundary && stage.status === "completed"),
-  ) ?? null;
+  return (
+    EXECUTION_BOUNDARIES.find(
+      (boundary) => !stages.some((stage) => stage.boundary === boundary && stage.status === "completed"),
+    ) ?? null
+  );
 }
 
 async function writeJournal(root: string, journal: ExecutionJournal): Promise<void> {
@@ -268,10 +269,12 @@ async function writeJournal(root: string, journal: ExecutionJournal): Promise<vo
 function isJournal(value: unknown): value is ExecutionJournal {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Partial<ExecutionJournal>;
-  return record.schema_version === EXECUTION_JOURNAL_VERSION &&
+  return (
+    record.schema_version === EXECUTION_JOURNAL_VERSION &&
     typeof record.episode_id === "string" &&
     typeof record.app === "string" &&
     typeof record.ticket_ref === "string" &&
     Array.isArray(record.stages) &&
-    ["running", "stopped", "completed"].includes(record.status ?? "");
+    ["running", "stopped", "completed"].includes(record.status ?? "")
+  );
 }

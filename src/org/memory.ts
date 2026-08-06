@@ -254,9 +254,7 @@ function validateFrontmatter(value: unknown, source: string): OkfFrontmatter {
   // fails loudly instead of silently corrupting governance state.
   const wantsDeprecated = loop.status === "deprecated" || loop.status === "archived";
   if (wantsDeprecated !== (status === "deprecated")) {
-    throw new OkfValidationError(
-      `${source}: top-level status "${status}" disagrees with loop.status "${loop.status}"`,
-    );
+    throw new OkfValidationError(`${source}: top-level status "${status}" disagrees with loop.status "${loop.status}"`);
   }
   return { ...base, loop };
 }
@@ -266,9 +264,7 @@ function validateFrontmatter(value: unknown, source: string): OkfFrontmatter {
 // filesystem paths (learning/evals/<scope>/…, M4 bundle dirs), so `apps/..`
 // must be a grammar error, never a directory escape.
 const LOOP_SCOPE_SEG = String.raw`(?!\.+(?:/|$))[A-Za-z0-9._-]+`;
-const LOOP_SCOPE_RE = new RegExp(
-  `^(org|roles/${LOOP_SCOPE_SEG}|apps/${LOOP_SCOPE_SEG}(/roles/${LOOP_SCOPE_SEG})?)$`,
-);
+const LOOP_SCOPE_RE = new RegExp(`^(org|roles/${LOOP_SCOPE_SEG}|apps/${LOOP_SCOPE_SEG}(/roles/${LOOP_SCOPE_SEG})?)$`);
 
 /** The V1 scope grammar (spec §2) — shared with the candidate contract
  *  (src/org/learning/candidate.ts) so a proposed_scope that would be rejected
@@ -293,12 +289,7 @@ function validateLoopBlock(value: unknown, source: string): OkfLoopBlock {
     throw new OkfValidationError(`${source}: frontmatter.loop.id must be a non-empty string`);
   }
   requireLoopEnum(spec, "tier", ["T0", "T1", "T2", "T3"] as const, source);
-  requireLoopEnum(
-    spec,
-    "status",
-    ["candidate", "provisional", "active", "deprecated", "archived"] as const,
-    source,
-  );
+  requireLoopEnum(spec, "status", ["candidate", "provisional", "active", "deprecated", "archived"] as const, source);
   requireLoopEnum(spec, "claim", ["authorized", "validated"] as const, source);
   // `authorized` and `validated` are distinct permanent markings (design
   // §9.1): nothing but a completed experiment produces `validated`, so a
@@ -348,9 +339,7 @@ function requireLoopEnum<const T extends readonly string[]>(
 ): void {
   const value = spec[key];
   if (typeof value !== "string" || !allowed.includes(value)) {
-    throw new OkfValidationError(
-      `${source}: frontmatter.loop.${key} must be one of ${allowed.join(" | ")}`,
-    );
+    throw new OkfValidationError(`${source}: frontmatter.loop.${key} must be one of ${allowed.join(" | ")}`);
   }
 }
 
@@ -447,12 +436,7 @@ function appendCapped(out: string[], text: string, remaining: number): number {
   return 0;
 }
 
-function appendAttributedCapped(
-  out: SelectedMemoryExcerpt[],
-  source: string,
-  text: string,
-  remaining: number,
-): number {
+function appendAttributedCapped(out: SelectedMemoryExcerpt[], source: string, text: string, remaining: number): number {
   const rendered: string[] = [];
   const next = appendCapped(rendered, text, remaining);
   if (rendered[0] !== undefined) out.push({ source, rendered: rendered[0] });

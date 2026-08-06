@@ -1,13 +1,6 @@
-import {
-  CONFIGURED_ASSIGNMENT_CANDIDATE_ID,
-  fixedAssignmentFromRole,
-} from "../runtime/assignment.js";
+import { CONFIGURED_ASSIGNMENT_CANDIDATE_ID, fixedAssignmentFromRole } from "../runtime/assignment.js";
 import type { RoleConfig, TurnAssignment } from "../runtime/types.js";
-import {
-  normalizeAppExecution,
-  type AppAssignmentMode,
-  type AppEntry,
-} from "./apps.js";
+import { normalizeAppExecution, type AppAssignmentMode, type AppEntry } from "./apps.js";
 import {
   resolveApprovedAssignmentCandidates,
   resolveApprovedTurnAssignments,
@@ -54,8 +47,7 @@ export function resolveAppAssignments(
   const unknownRoles = narrowedRoles.filter((role) => !roleByName.has(role));
   if (unknownRoles.length > 0) {
     throw new Error(
-      `app "${app.name}": execution.allowed_assignments references unknown role(s): ` +
-        unknownRoles.join(", "),
+      `app "${app.name}": execution.allowed_assignments references unknown role(s): ` + unknownRoles.join(", "),
     );
   }
 
@@ -63,10 +55,7 @@ export function resolveAppAssignments(
   // an invalid dormant catalog would make a later mode-only config edit widen
   // authority or fail far away from the edited surface.
   for (const roleName of narrowedRoles) {
-    resolveApprovedAssignmentCandidates(
-      roleByName.get(roleName)!,
-      execution.allowedAssignments[roleName],
-    );
+    resolveApprovedAssignmentCandidates(roleByName.get(roleName)!, execution.allowedAssignments[roleName]);
   }
 
   const planner = roleByName.get("planner");
@@ -78,10 +67,7 @@ export function resolveAppAssignments(
     .sort((left, right) => left.name.localeCompare(right.name))
     .map((role): ResolvedRoleAssignments => {
       const allowedIds = execution.allowedAssignments[role.name];
-      const effectiveIds =
-        execution.assignmentMode === "fixed"
-          ? [CONFIGURED_ASSIGNMENT_CANDIDATE_ID]
-          : allowedIds;
+      const effectiveIds = execution.assignmentMode === "fixed" ? [CONFIGURED_ASSIGNMENT_CANDIDATE_ID] : allowedIds;
       return {
         role: role.name,
         candidates: resolveApprovedAssignmentCandidates(role, effectiveIds),
@@ -96,18 +82,12 @@ export function resolveAppAssignments(
   };
 }
 
-export function assignmentsForRole(
-  resolved: ResolvedAppAssignments,
-  role: string,
-): ApprovedTurnAssignment[] {
+export function assignmentsForRole(resolved: ResolvedAppAssignments, role: string): ApprovedTurnAssignment[] {
   const found = resolved.roles.find((entry) => entry.role === role);
   if (found === undefined) throw new Error(`assignment policy has no role "${role}"`);
   return found.assignments.map((entry) => ({
     ...entry,
     assignment: { ...entry.assignment },
-    pricing:
-      entry.pricing.kind === "catalog_ref"
-        ? { ...entry.pricing }
-        : { ...entry.pricing },
+    pricing: entry.pricing.kind === "catalog_ref" ? { ...entry.pricing } : { ...entry.pricing },
   }));
 }

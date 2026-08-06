@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
-import { readScorecards, type ScorecardEvent } from "./scorecards.js";
+import { readScorecards } from "./scorecards.js";
 
 export interface RetroOptions {
   orgHome: string;
@@ -57,7 +57,9 @@ export async function runRetro(options: RetroOptions): Promise<RetroResult> {
       sections.push(`Turns: ${turns.length}`);
       sections.push(`Failures: ${turns.filter((row) => row.status === "failed").length}`);
       sections.push(`Cost: $${sum(turns.map((row) => row.costUsd ?? 0)).toFixed(2)}`);
-      sections.push(`Tokens: ${sum(turns.map((row) => row.tokensIn ?? 0))} in / ${sum(turns.map((row) => row.tokensOut ?? 0))} out`);
+      sections.push(
+        `Tokens: ${sum(turns.map((row) => row.tokensIn ?? 0))} in / ${sum(turns.map((row) => row.tokensOut ?? 0))} out`,
+      );
       sections.push(`Scorecard events: ${scores.length}`);
       for (const [kind, count] of counts(scores.map((score) => score.type))) {
         sections.push(`- ${kind}: ${count}`);

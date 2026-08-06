@@ -28,10 +28,12 @@ describe("HB-108 deterministic revision-catalog closure", () => {
 
   it("negative control: a detector family whose seeded violation never fires is refused", async () => {
     const seeded = REVISION_FAMILY_EVIDENCE[0]!;
-    const audit = await auditRevisionCatalogClosure(process.cwd(), [{
-      ...seeded,
-      seeded_detector_marker: "this seeded detector marker does not exist",
-    }]);
+    const audit = await auditRevisionCatalogClosure(process.cwd(), [
+      {
+        ...seeded,
+        seeded_detector_marker: "this seeded detector marker does not exist",
+      },
+    ]);
     expect(audit.violations).toContain(`revision_detector_never_fired:${seeded.case_ids.join(",")}`);
   });
 

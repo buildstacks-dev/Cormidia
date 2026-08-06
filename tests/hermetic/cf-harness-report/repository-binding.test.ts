@@ -15,21 +15,33 @@ describe("triggered campaign repository binding", () => {
       await mkdir(join(root, "validation-design", "golden-sets", "reviewer"), { recursive: true });
       await writeFile(policy, "schema_version: 1\n", "utf8");
       await writeFile(golden, "[]\n", "utf8");
-      git(root, ["init", "-q"]); git(root, ["config", "user.email", "fixture@example.invalid"]);
-      git(root, ["config", "user.name", "Fixture"]); git(root, ["add", "validation-design"]);
+      git(root, ["init", "-q"]);
+      git(root, ["config", "user.email", "fixture@example.invalid"]);
+      git(root, ["config", "user.name", "Fixture"]);
+      git(root, ["add", "validation-design"]);
       git(root, ["commit", "-qm", "fixture"]);
       const commit = git(root, ["rev-parse", "HEAD"]);
-      await expect(assertCampaignRepositoryBinding({
-        commit, policyPath: policy, trackedInputPaths: [golden], cwd: root,
-      })).resolves.toMatchObject({
+      await expect(
+        assertCampaignRepositoryBinding({
+          commit,
+          policyPath: policy,
+          trackedInputPaths: [golden],
+          cwd: root,
+        }),
+      ).resolves.toMatchObject({
         policyPath: await realpath(policy),
         trackedInputPaths: [await realpath(golden)],
       });
 
-      await writeFile(golden, "[{\"unreviewed\":true}]\n", "utf8");
-      await expect(assertCampaignRepositoryBinding({
-        commit, policyPath: policy, trackedInputPaths: [golden], cwd: root,
-      })).rejects.toThrow(/differs from the authorized commit/);
+      await writeFile(golden, '[{"unreviewed":true}]\n', "utf8");
+      await expect(
+        assertCampaignRepositoryBinding({
+          commit,
+          policyPath: policy,
+          trackedInputPaths: [golden],
+          cwd: root,
+        }),
+      ).rejects.toThrow(/differs from the authorized commit/);
     } finally {
       await fixture.cleanup();
     }

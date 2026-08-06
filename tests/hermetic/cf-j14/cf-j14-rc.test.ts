@@ -77,13 +77,9 @@ describe("CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (
 
   async function expectConverged(w: ResetWorld, archivePath: string): Promise<void> {
     // Terminal state: registry entry gone, managed state gone, intent gone.
-    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).toEqual([
-      SIBLING_APP,
-    ]);
+    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).toEqual([SIBLING_APP]);
     expect(existsSync(join(w.stateHome, "runs", TARGET_APP))).toBe(false);
-    expect(existsSync(join(w.stateHome, "lifecycle", "transactions", `reset-${TARGET_APP}.json`))).toBe(
-      false,
-    );
+    expect(existsSync(join(w.stateHome, "lifecycle", "transactions", `reset-${TARGET_APP}.json`))).toBe(false);
     expect(existsSync(join(archivePath, "manifest.json"))).toBe(true);
     // Remote terminal state, each effect exactly once.
     const state = w.handle.readState();
@@ -98,10 +94,7 @@ describe("CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (
     const intent = JSON.parse(
       await readFile(join(w.stateHome, "lifecycle", "transactions", `reset-${TARGET_APP}.json`), "utf8"),
     ) as { archive_id: string };
-    const manifestBefore = await readFile(
-      join(w.archiveRoot, intent.archive_id, "manifest.json"),
-      "utf8",
-    );
+    const manifestBefore = await readFile(join(w.archiveRoot, intent.archive_id, "manifest.json"), "utf8");
 
     const input = resetInput(w);
     const plan = await planAppReset(input);
@@ -137,16 +130,12 @@ describe("CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (
     // resume path is the finalizer over the latest archive pointer, exactly
     // what the dispatched CLI does.
     const reloaded = await loadApps(join(w.orgHome, "apps.yaml"));
-    await expect(planAppReset({ ...resetInput(w), appsFile: reloaded })).rejects.toThrow(
-      /unknown app/,
-    );
+    await expect(planAppReset({ ...resetInput(w), appsFile: reloaded })).rejects.toThrow(/unknown app/);
     const archive = await latestResetArchiveForApp(w.archiveRoot, TARGET_APP);
     expect(archive).toBeDefined();
 
     await finalizeInterruptedAppReset(w.stateHome, TARGET_APP, archive!);
-    expect(existsSync(join(w.stateHome, "lifecycle", "transactions", `reset-${TARGET_APP}.json`))).toBe(
-      false,
-    );
+    expect(existsSync(join(w.stateHome, "lifecycle", "transactions", `reset-${TARGET_APP}.json`))).toBe(false);
     // Idempotent: a second finalization changes nothing and does not throw.
     await finalizeInterruptedAppReset(w.stateHome, TARGET_APP, archive!);
     await expectConverged(w, archive!);
@@ -170,9 +159,7 @@ describe("CF-J14-RC — resumed reset: no re-destruction, no duplicated closes (
     // Destruction never proceeded behind the broken backup: the managed
     // state, the registry entry, and the remote issue are all still there.
     expect(existsSync(join(w.stateHome, "runs", TARGET_APP, "seed-run", "artifact.txt"))).toBe(true);
-    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).toContain(
-      TARGET_APP,
-    );
+    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).toContain(TARGET_APP);
     expect(closeCounts(w)).toEqual({ pr: 0, issue: 0, branch: 0 });
   });
 });

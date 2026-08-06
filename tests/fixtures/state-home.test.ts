@@ -6,12 +6,7 @@
 import { existsSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  acquireLock,
-  lockPath,
-  readLock,
-  releaseLock,
-} from "../../src/org/locks.js";
+import { acquireLock, lockPath, readLock, releaseLock } from "../../src/org/locks.js";
 import { recordTurn, type TurnRecord } from "../../src/runtime/telemetry.js";
 import {
   assertStateHomeShape,

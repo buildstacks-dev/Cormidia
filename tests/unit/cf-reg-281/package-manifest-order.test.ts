@@ -23,12 +23,15 @@ describe("CF-REG-281 release package manifest ordering", () => {
     const root = await mkdtemp(join(tmpdir(), "cormidia-cf-reg-281-"));
     roots.push(root);
     const tarball = join(root, "cormidia-0.1.1.tgz");
-    await writeFile(tarball, tarGzip([
-      { path: "agent-skills/cormidia/SKILL.md", contents: "skill\n" },
-      { path: "README.md", contents: "readme\n" },
-      { path: "TASTE.md", contents: "taste\n" },
-      { path: "package.json", contents: '{"name":"cormidia","version":"0.1.1"}\n' },
-    ]));
+    await writeFile(
+      tarball,
+      tarGzip([
+        { path: "agent-skills/cormidia/SKILL.md", contents: "skill\n" },
+        { path: "README.md", contents: "readme\n" },
+        { path: "TASTE.md", contents: "taste\n" },
+        { path: "package.json", contents: '{"name":"cormidia","version":"0.1.1"}\n' },
+      ]),
+    );
 
     const manifest = await packageManifestFromTarball(tarball);
     expect(manifest.files.map((file) => file.path)).toEqual([
@@ -61,7 +64,7 @@ function tarGzip(entries: Array<{ path: string; contents: string }>): Buffer {
     header.write(`package/${entry.path}`, 0, 100, "utf8");
     header.write(`${contents.length.toString(8).padStart(11, "0")}\0`, 124, 12, "ascii");
     header[156] = "0".charCodeAt(0);
-    blocks.push(header, contents, Buffer.alloc((512 - contents.length % 512) % 512));
+    blocks.push(header, contents, Buffer.alloc((512 - (contents.length % 512)) % 512));
   }
   blocks.push(Buffer.alloc(1024));
   return gzipSync(Buffer.concat(blocks));

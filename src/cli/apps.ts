@@ -15,9 +15,7 @@ export async function cmdApps(args: string[] = []): Promise<number> {
     else if (pathArgument === undefined) pathArgument = arg;
     else throw new Error("apps: expected at most one apps.yaml path");
   }
-  const path = pathArgument
-    ? resolve(pathArgument)
-    : join((await resolveCormidiaHomes(common)).orgHome, "apps.yaml");
+  const path = pathArgument ? resolve(pathArgument) : join((await resolveCormidiaHomes(common)).orgHome, "apps.yaml");
   const { org, defaults, apps } = await loadApps(path);
   const report = {
     schema_version: 1,
@@ -51,9 +49,7 @@ export async function cmdApps(args: string[] = []): Promise<number> {
       "BUDGET",
   );
   for (const a of report.apps) {
-    const cadence = Object.keys(a.cadence).length
-      ? `  (cadence overrides: ${Object.keys(a.cadence).join(", ")})`
-      : "";
+    const cadence = Object.keys(a.cadence).length ? `  (cadence overrides: ${Object.keys(a.cadence).join(", ")})` : "";
     const runtimePolicy = a.execution!.runtimePolicy!;
     const turnCap = runtimePolicy.limits.perTurn.equivalentCostUsd;
     console.log(
@@ -61,10 +57,7 @@ export async function cmdApps(args: string[] = []): Promise<number> {
         pad(a.repo, repoWidth) +
         pad(a.status, statusWidth) +
         pad(a.execution?.assignmentMode ?? "fixed", 12) +
-        pad(
-          `codex:${runtimePolicy.permissionModes.codex}/claude:${runtimePolicy.permissionModes.claude}`,
-          25,
-        ) +
+        pad(`codex:${runtimePolicy.permissionModes.codex}/claude:${runtimePolicy.permissionModes.claude}`, 25) +
         pad(turnCap === null ? "role-derived" : `$${turnCap}`, 12) +
         `$${a.budgetUsdMonth}/mo` +
         cadence,

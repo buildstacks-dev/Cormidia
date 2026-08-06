@@ -87,13 +87,16 @@ export interface RoleConfig {
   };
   /** Ephemeral app-level static-route limits. Accepted EpisodePlan DAGs do
    * not consume these because their validated steps are the authority. */
-  routeExecutionLimits?: Record<"quick" | "standard" | "deep", {
-    environmentRetries: number;
-    toolCalls: number;
-    claimAttempts: number;
-    repairAttempts: number;
-    reviewCycles: number;
-  }>;
+  routeExecutionLimits?: Record<
+    "quick" | "standard" | "deep",
+    {
+      environmentRetries: number;
+      toolCalls: number;
+      claimAttempts: number;
+      repairAttempts: number;
+      reviewCycles: number;
+    }
+  >;
 }
 
 /** Resume handle. Claude: session id; Codex: thread id; pi: session id/path. */
@@ -273,9 +276,7 @@ export interface ToolAction {
   description?: string;
 }
 
-export type GateDecision =
-  | { allow: true }
-  | { allow: false; reason: string; escalate: boolean };
+export type GateDecision = { allow: true } | { allow: false; reason: string; escalate: boolean };
 
 export type GateFn = (action: ToolAction) => GateDecision;
 

@@ -34,16 +34,10 @@ export function conceptDraftPath(root: LearningRoot, candidateId: string): strin
   return join(candidatesDir(root), `${candidateId}.md`);
 }
 
-export async function writeCandidateArtifact(
-  root: LearningRoot,
-  value: unknown,
-): Promise<CandidateArtifact> {
+export async function writeCandidateArtifact(root: LearningRoot, value: unknown): Promise<CandidateArtifact> {
   const candidate = validateCandidateArtifact(value);
   await mkdir(candidatesDir(root), { recursive: true });
-  await writeFileAtomic(
-    candidateArtifactPath(root, candidate.candidate_id),
-    JSON.stringify(candidate, null, 2) + "\n",
-  );
+  await writeFileAtomic(candidateArtifactPath(root, candidate.candidate_id), JSON.stringify(candidate, null, 2) + "\n");
   return candidate;
 }
 
@@ -65,11 +59,12 @@ export async function openCandidateArtifact(
     if (conceptMarkdown === undefined) {
       throw new Error(`learning: ${candidate.candidate_id}: okf_concept needs a concept draft`);
     }
-    assertConceptPlacement(parseOkfDocument(conceptMarkdown, conceptDraftPath(root, candidate.candidate_id)), "candidates");
-  } else if (conceptMarkdown !== undefined) {
-    throw new Error(
-      `learning: ${candidate.candidate_id}: only okf_concept candidates may carry a concept draft`,
+    assertConceptPlacement(
+      parseOkfDocument(conceptMarkdown, conceptDraftPath(root, candidate.candidate_id)),
+      "candidates",
     );
+  } else if (conceptMarkdown !== undefined) {
+    throw new Error(`learning: ${candidate.candidate_id}: only okf_concept candidates may carry a concept draft`);
   }
 
   if (existsSync(path)) {
@@ -83,9 +78,7 @@ export async function openCandidateArtifact(
     if (conceptMarkdown !== undefined) {
       const draftPath = conceptDraftPath(root, candidate.candidate_id);
       if (!existsSync(draftPath) || (await readFile(draftPath, "utf8")) !== conceptMarkdown) {
-        throw new Error(
-          `learning: ${candidate.candidate_id} concept draft differs from its existing candidate`,
-        );
+        throw new Error(`learning: ${candidate.candidate_id} concept draft differs from its existing candidate`);
       }
     }
     return { candidate, created: false };
@@ -102,10 +95,7 @@ export async function openCandidateArtifact(
   return { candidate, created: true };
 }
 
-export async function readCandidateArtifact(
-  root: LearningRoot,
-  candidateId: string,
-): Promise<CandidateArtifact> {
+export async function readCandidateArtifact(root: LearningRoot, candidateId: string): Promise<CandidateArtifact> {
   return readJsonRecord(
     candidateArtifactPath(root, candidateId),
     validateCandidateArtifact,
@@ -133,10 +123,7 @@ export async function findCandidateArtifact(
 /** Hash of the candidate JSON file bytes as stored — what the approval
  *  binding's candidate_hash pins (spec §14). Mutating the file after
  *  approval changes this hash and voids the approval. */
-export async function candidateArtifactHash(
-  root: LearningRoot,
-  candidateId: string,
-): Promise<string> {
+export async function candidateArtifactHash(root: LearningRoot, candidateId: string): Promise<string> {
   const path = candidateArtifactPath(root, candidateId);
   if (!existsSync(path)) {
     throw new Error(`learning: no candidate ${candidateId} under ${candidatesDir(root)}`);

@@ -29,13 +29,14 @@ describe("CF-REG-274 — terminal campaign verdict controls test-process success
   });
 
   it("negative control: catches a seeded complete report with a violation", () => {
-    expect(() => assertCompletedCampaignPass(
-      report("complete", "fail", ["CORMIDIA-INV-002:seeded-bypass"]),
-    )).toThrow(/verdict=fail.*seeded-bypass/);
+    expect(() => assertCompletedCampaignPass(report("complete", "fail", ["CORMIDIA-INV-002:seeded-bypass"]))).toThrow(
+      /verdict=fail.*seeded-bypass/,
+    );
   });
 
   it("fails closed on incomplete or inconclusive terminal evidence", () => {
-    expect(() => assertCompletedCampaignPass(report("incomplete", "inconclusive")))
-      .toThrow(/completeness=incomplete.*verdict=inconclusive/);
+    expect(() => assertCompletedCampaignPass(report("incomplete", "inconclusive"))).toThrow(
+      /completeness=incomplete.*verdict=inconclusive/,
+    );
   });
 });

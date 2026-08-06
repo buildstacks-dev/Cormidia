@@ -128,9 +128,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     expect(policy.scope).toBe("product");
     expect(policy.design_status).toBe("ratified");
     // The archive stays untouchable (ratified Phase 0 protected path).
-    expect(
-      policy.protected_paths.some((p) => p.path === "archive-do-not-read/**"),
-    ).toBe(true);
+    expect(policy.protected_paths.some((p) => p.path === "archive-do-not-read/**")).toBe(true);
     // Relied-on registries are present and non-trivial.
     expect(policy.open_findings.length).toBeGreaterThan(0);
     expect(policy.case_sourcing.length).toBeGreaterThan(0);
@@ -178,7 +176,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     expect(readdirSync(abs).length).toBeGreaterThan(0);
   });
 
-  it("(d) CI-lane pin: the per-commit lane runs typecheck+build+test and a pinned fail-closed gitleaks job with a canary", () => {
+  it("(d) CI-lane pin: the per-commit lane runs typecheck+check+build+test and a pinned fail-closed gitleaks job with a canary", () => {
     const source = readFileSync(workflowPath, "utf8");
     expect(auditCoreChecksWorkflow(source)).toEqual([]);
     // Policy and CI must agree on the per-commit lane contents (policy ci.rule).
@@ -193,9 +191,9 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
   it("(e) vitest-config pin: default config excludes tests/live/** with passWithNoTests false; live config exists and includes only live/**", async () => {
     const liveConfigPath = join(repoRoot, "tests", "live", "vitest.config.ts");
     expect(existsSync(liveConfigPath)).toBe(true);
-    const defaultConfig = (await import(
-      pathToFileURL(join(repoRoot, "vitest.config.ts")).href
-    )) as { default: unknown };
+    const defaultConfig = (await import(pathToFileURL(join(repoRoot, "vitest.config.ts")).href)) as {
+      default: unknown;
+    };
     const liveConfig = (await import(pathToFileURL(liveConfigPath).href)) as {
       default: unknown;
     };
@@ -217,12 +215,12 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     expect(f006?.status).toBe("open-blocked-contract");
     expect(f008?.status).toBe("open-blocked-contract");
     for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 13]) {
-      expect(policy.proposed_register.items.find((item) => item.id === id)?.decision_status)
-        .toMatch(/^(adjusted-ratified|ratified)$/);
+      expect(policy.proposed_register.items.find((item) => item.id === id)?.decision_status).toMatch(
+        /^(adjusted-ratified|ratified)$/,
+      );
     }
     for (const id of [9, 10, 11, 12]) {
-      expect(policy.proposed_register.items.find((item) => item.id === id)?.decision_status)
-        .toBe("proposed");
+      expect(policy.proposed_register.items.find((item) => item.id === id)?.decision_status).toBe("proposed");
     }
   });
 });
@@ -258,7 +256,7 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
     expect(missingArtifacts(policy).some((v) => v.includes("contracts"))).toBe(true);
   });
 
-  it("negative control: CI drift fires — canary removed, version unpinned, pnpm test dropped, fail-closed softened, job deleted", () => {
+  it("negative control: CI drift fires — check/test dropped, check reordered, scanner softened/unpinned, canary or job deleted", () => {
     // Baseline: mutating nothing stays clean (the rig itself is sound).
     expect(auditCoreChecksWorkflow(mutateWorkflow(() => {}))).toEqual([]);
 
@@ -268,35 +266,40 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
         (step) => !/canary/i.test(`${String(step["name"] ?? "")} ${String(step["run"] ?? "")}`),
       );
     });
-    expect(auditCoreChecksWorkflow(noCanary)).toContainEqual(
-      expect.stringContaining("canary"),
-    );
+    expect(auditCoreChecksWorkflow(noCanary)).toContainEqual(expect.stringContaining("canary"));
 
     const unpinned = mutateWorkflow((doc) => {
       doc.jobs["gitleaks"]!.env!["GITLEAKS_VERSION"] = "latest";
     });
-    expect(auditCoreChecksWorkflow(unpinned)).toContainEqual(
-      expect.stringContaining("pin"),
-    );
+    expect(auditCoreChecksWorkflow(unpinned)).toContainEqual(expect.stringContaining("pin"));
 
     const noTest = mutateWorkflow((doc) => {
       const job = doc.jobs["core"];
       job!.steps = job!.steps!.filter((step) => step["run"] !== "pnpm test");
     });
-    expect(auditCoreChecksWorkflow(noTest)).toContainEqual(
-      expect.stringContaining("pnpm test"),
-    );
+    expect(auditCoreChecksWorkflow(noTest)).toContainEqual(expect.stringContaining("pnpm test"));
+
+    const noCheck = mutateWorkflow((doc) => {
+      const job = doc.jobs["core"];
+      job!.steps = job!.steps!.filter((step) => step["run"] !== "pnpm check");
+    });
+    expect(auditCoreChecksWorkflow(noCheck)).toContainEqual(expect.stringContaining("pnpm check"));
+
+    const checkAfterBuild = mutateWorkflow((doc) => {
+      const steps = doc.jobs["core"]!.steps!;
+      const check = steps.find((step) => step["run"] === "pnpm check")!;
+      doc.jobs["core"]!.steps = steps.filter((step) => step !== check);
+      const buildIndex = doc.jobs["core"]!.steps!.findIndex((step) => step["run"] === "pnpm build");
+      doc.jobs["core"]!.steps!.splice(buildIndex + 1, 0, check);
+    });
+    expect(auditCoreChecksWorkflow(checkAfterBuild)).toContainEqual(expect.stringContaining("before `pnpm build`"));
 
     const softened = mutateWorkflow((doc) => {
       const steps = doc.jobs["gitleaks"]!.steps!;
-      const scan = steps.find((step) =>
-        String(step["run"] ?? "").includes("--config .gitleaks.toml"),
-      );
+      const scan = steps.find((step) => String(step["run"] ?? "").includes("--config .gitleaks.toml"));
       scan!["continue-on-error"] = true;
     });
-    expect(auditCoreChecksWorkflow(softened)).toContainEqual(
-      expect.stringContaining("fail-closed"),
-    );
+    expect(auditCoreChecksWorkflow(softened)).toContainEqual(expect.stringContaining("fail-closed"));
 
     const noJob = mutateWorkflow((doc) => {
       delete doc.jobs["gitleaks"];
@@ -311,38 +314,27 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
       const finding = doc.open_findings.find((f) => f.id === "F-PT-006");
       finding!.status = "resolved-ratified";
     });
-    expect(auditRatifiedPins(flipped)).toContainEqual(
-      expect.stringContaining("F-PT-006"),
-    );
+    expect(auditRatifiedPins(flipped)).toContainEqual(expect.stringContaining("F-PT-006"));
 
     const dropped = mutatedPolicy((doc) => {
       doc.open_findings = doc.open_findings.filter((f) => f.id !== "F-PT-008");
     });
-    expect(auditRatifiedPins(dropped)).toContainEqual(
-      expect.stringContaining("F-PT-008"),
-    );
+    expect(auditRatifiedPins(dropped)).toContainEqual(expect.stringContaining("F-PT-008"));
 
     const overspend = mutatedPolicy((doc) => {
       doc.layers.L3_live_sandbox.spend_policy.release_campaign.max_equiv_usd = 500;
     });
-    expect(auditRatifiedPins(overspend)).toContainEqual(
-      expect.stringContaining("release_campaign"),
-    );
+    expect(auditRatifiedPins(overspend)).toContainEqual(expect.stringContaining("release_campaign"));
 
     const unratified = mutatedPolicy((doc) => {
       doc.design_status = "draft";
     });
-    expect(auditRatifiedPins(unratified)).toContainEqual(
-      expect.stringContaining("design_status"),
-    );
+    expect(auditRatifiedPins(unratified)).toContainEqual(expect.stringContaining("design_status"));
 
     const hb007Drift = mutatedPolicy((doc) => {
-      doc.proposed_register.items.find((item) => item.id === 7)!.value =
-        "per-gate timeout default 15min";
+      doc.proposed_register.items.find((item) => item.id === 7)!.value = "per-gate timeout default 15min";
     });
-    expect(auditRatifiedPins(hb007Drift)).toContainEqual(
-      expect.stringContaining("HB-007 decision item 7"),
-    );
+    expect(auditRatifiedPins(hb007Drift)).toContainEqual(expect.stringContaining("HB-007 decision item 7"));
   });
 
   it("negative control: drifted vitest config shapes fire the config audit", () => {
@@ -361,9 +353,7 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
     const violations = auditVitestConfigs(badDefault, badLive);
     expect(violations).toContainEqual(expect.stringContaining("tests/live/**"));
     expect(violations).toContainEqual(expect.stringContaining("passWithNoTests"));
-    expect(violations).toContainEqual(
-      expect.stringContaining("live lane must include only live specs"),
-    );
+    expect(violations).toContainEqual(expect.stringContaining("live lane must include only live specs"));
     // And junk shapes are violations, never a silent pass.
     expect(auditVitestConfigs(undefined, null).length).toBeGreaterThan(0);
   });

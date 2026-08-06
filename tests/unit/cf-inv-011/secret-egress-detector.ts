@@ -21,11 +21,7 @@
 // scrub before any suite relies on its silence.
 
 import { asGlobal, SECRET_PATTERNS } from "../../../src/runtime/secret-patterns.js";
-import {
-  makeSyntheticSecret,
-  SYNTHETIC_SECRET_KINDS,
-  type SyntheticSecret,
-} from "../../fixtures/synthetic-secret.js";
+import { makeSyntheticSecret, SYNTHETIC_SECRET_KINDS, type SyntheticSecret } from "../../fixtures/synthetic-secret.js";
 
 export class SecretEgressViolation extends Error {
   constructor(
@@ -68,11 +64,7 @@ export function findSecretEgress(text: string, seeds: readonly SyntheticSecret[]
 /** The throwing entry point. Call it on the exact bytes/text that cross the
  *  boundary (file contents, HTTP body, issue body), not on some pre-render
  *  intermediate. */
-export function detectSecretEgress(
-  surface: string,
-  text: string,
-  seeds: readonly SyntheticSecret[],
-): void {
+export function detectSecretEgress(surface: string, text: string, seeds: readonly SyntheticSecret[]): void {
   const findings = findSecretEgress(text, seeds);
   if (findings.length > 0) throw new SecretEgressViolation(surface, findings);
 }
@@ -86,11 +78,7 @@ export function detectSecretEgress(
  *  string value as independent texts keeps the detector precise for JSON
  *  without weakening the whole-text scan used for markdown/HTML surfaces.
  *  Unparseable input is itself a violation finding — never a silent pass. */
-export function detectSecretEgressInJson(
-  surface: string,
-  jsonText: string,
-  seeds: readonly SyntheticSecret[],
-): void {
+export function detectSecretEgressInJson(surface: string, jsonText: string, seeds: readonly SyntheticSecret[]): void {
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonText);

@@ -39,16 +39,9 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import {
-  dispositionTierForRule,
-  RULE_DISPOSITION_TIERS,
-} from "../runtime/gate.js";
+import { dispositionTierForRule, RULE_DISPOSITION_TIERS } from "../runtime/gate.js";
 import { withFileLock } from "../runtime/file-lock.js";
-import {
-  ApprovalStore,
-  approvalDeciderFromIdentity,
-  type ApprovalItem,
-} from "./approvals.js";
+import { ApprovalStore, approvalDeciderFromIdentity, type ApprovalItem } from "./approvals.js";
 import { OBJECTIVE_BUDGET_RULE } from "./budget.js";
 
 /** Tiers an objective grant may name in bulk. `human-only` is deliberately
@@ -206,8 +199,7 @@ export class ObjectiveGrantStore {
     const decider = approvalDeciderFromIdentity(input.createdBy);
     if (decider.kind !== "human") {
       throw new Error(
-        `objective grants are created only by a human-facing CLI path; ` +
-          `"${input.createdBy}" is an agent identity`,
+        `objective grants are created only by a human-facing CLI path; ` + `"${input.createdBy}" is an agent identity`,
       );
     }
     if (input.app.trim().length === 0) throw new Error("objective grant requires an app");
@@ -262,7 +254,9 @@ export class ObjectiveGrantStore {
       // budgeted-tier class (#296 §5.1+) requires the budgeted tier named —
       // the tiers list is what the owner read they were granting.
       if (!tiers.includes(tier === "budgeted" ? "budgeted" : "grantable")) {
-        throw new Error(`objective grant class "${rule}" requires the "${tier === "budgeted" ? "budgeted" : "grantable"}" tier to be named`);
+        throw new Error(
+          `objective grant class "${rule}" requires the "${tier === "budgeted" ? "budgeted" : "grantable"}" tier to be named`,
+        );
       }
     }
 
@@ -288,17 +282,14 @@ export class ObjectiveGrantStore {
       }
       if (critical.scope.trim().length === 0) {
         throw new Error(
-          `§4.1 requires a bounded scope for "${critical.rule}" — ` +
-            `"publish anything" is a blank cheque`,
+          `§4.1 requires a bounded scope for "${critical.rule}" — ` + `"publish anything" is a blank cheque`,
         );
       }
     }
 
     const ceremony = criticalClasses.length > 0;
-    const ttlMs = input.ttlMs ??
-      (ceremony ? OBJECTIVE_CRITICAL_DEFAULT_TTL_MS : OBJECTIVE_GRANT_DEFAULT_TTL_MS);
-    const useCap = input.useCap ??
-      (ceremony ? OBJECTIVE_CRITICAL_DEFAULT_USE_CAP : OBJECTIVE_GRANT_DEFAULT_USE_CAP);
+    const ttlMs = input.ttlMs ?? (ceremony ? OBJECTIVE_CRITICAL_DEFAULT_TTL_MS : OBJECTIVE_GRANT_DEFAULT_TTL_MS);
+    const useCap = input.useCap ?? (ceremony ? OBJECTIVE_CRITICAL_DEFAULT_USE_CAP : OBJECTIVE_GRANT_DEFAULT_USE_CAP);
     if (!Number.isFinite(ttlMs) || ttlMs <= 0) throw new Error("objective grant ttlMs must be positive");
     if (!Number.isInteger(useCap) || useCap <= 0) throw new Error("objective grant useCap must be a positive integer");
     if (ceremony && ttlMs >= OBJECTIVE_GRANT_DEFAULT_TTL_MS) {
@@ -383,11 +374,11 @@ export class ObjectiveGrantStore {
       if (grant.outwardEffects !== false) continue;
       if (new Date(grant.expiresAt).getTime() <= now.getTime()) continue;
       if (this.ledgerTotalSync(grant.grantId) >= grant.spendCeilingUsd) continue;
-      const ordinary = (tier === "grantable" || tier === "budgeted") &&
+      const ordinary =
+        (tier === "grantable" || tier === "budgeted") &&
         grant.tiers.includes(tier) &&
         grant.classes.includes(input.rule);
-      const ceremony = tier === "human-only" &&
-        grant.criticalClasses.some((critical) => critical.rule === input.rule);
+      const ceremony = tier === "human-only" && grant.criticalClasses.some((critical) => critical.rule === input.rule);
       if (ordinary || ceremony) return grant;
     }
     return undefined;
@@ -416,10 +407,7 @@ export class ObjectiveGrantStore {
    *  proceeds, and this row makes it visible. When a covering objective grant
    *  exists the gate uses consumeUseSync instead, so exactly one of the two
    *  rows exists per action. The grantless debit quantum/bound is F-PT-024. */
-  recordBudgetedActionSync(
-    use: { app: string; rule: string; actionHash: string },
-    now: Date = new Date(),
-  ): void {
+  recordBudgetedActionSync(use: { app: string; rule: string; actionHash: string }, now: Date = new Date()): void {
     this.appendLogSync({
       type: "budgeted-action",
       at: now.toISOString(),
@@ -446,62 +434,53 @@ export class ObjectiveGrantStore {
    *  exhaustion is incomplete, never green), and raises the ONE
    *  `objective-budget-exceeded` item for this grant — re-raising converges
    *  on the stable key instead of minting a second. */
-  async debit(input: {
-    grantId: string;
-    usd: number;
-    note?: string;
-    now?: Date;
-  }): Promise<ObjectiveDebitResult> {
+  async debit(input: { grantId: string; usd: number; note?: string; now?: Date }): Promise<ObjectiveDebitResult> {
     if (!Number.isFinite(input.usd) || input.usd < 0) {
       throw new Error("objective debit usd must be a non-negative finite number");
     }
     const now = input.now ?? new Date();
-    return withFileLock(
-      this.ledgerLockPath(input.grantId),
-      { staleMs: 30_000, maxWaitMs: 35_000 },
-      async () => {
-        const grant = this.readSync(input.grantId);
-        if (grant.revokedAt !== undefined) {
-          throw new Error(`objective grant ${input.grantId} is revoked`);
-        }
-        const total = this.ledgerTotalSync(input.grantId);
-        if (total + input.usd > grant.spendCeilingUsd) {
-          const escalation = await this.raiseCeilingEscalation(grant, total, input.usd, now);
-          this.appendLogSync({
-            type: "objective-spend-refused",
-            grantId: input.grantId,
-            at: now.toISOString(),
-            usd: input.usd,
-            totalUsd: total,
-            ceilingUsd: grant.spendCeilingUsd,
-            ...(escalation !== undefined ? { escalationId: escalation.id } : {}),
-          });
-          return {
-            ok: false,
-            totalUsd: total,
-            ceilingUsd: grant.spendCeilingUsd,
-            ...(escalation !== undefined ? { escalation } : {}),
-          };
-        }
-        const row: LedgerRow = {
+    return withFileLock(this.ledgerLockPath(input.grantId), { staleMs: 30_000, maxWaitMs: 35_000 }, async () => {
+      const grant = this.readSync(input.grantId);
+      if (grant.revokedAt !== undefined) {
+        throw new Error(`objective grant ${input.grantId} is revoked`);
+      }
+      const total = this.ledgerTotalSync(input.grantId);
+      if (total + input.usd > grant.spendCeilingUsd) {
+        const escalation = await this.raiseCeilingEscalation(grant, total, input.usd, now);
+        this.appendLogSync({
+          type: "objective-spend-refused",
+          grantId: input.grantId,
           at: now.toISOString(),
           usd: input.usd,
-          ...(input.note !== undefined ? { note: input.note } : {}),
-        };
-        this.ensureDirSync();
-        appendFileSync(this.ledgerPath(input.grantId), `${JSON.stringify(row)}\n`, "utf8");
-        const next = total + input.usd;
-        this.appendLogSync({
-          type: "objective-spend-debited",
-          grantId: input.grantId,
-          at: row.at,
-          usd: input.usd,
-          totalUsd: next,
-          ...(input.note !== undefined ? { note: input.note } : {}),
+          totalUsd: total,
+          ceilingUsd: grant.spendCeilingUsd,
+          ...(escalation !== undefined ? { escalationId: escalation.id } : {}),
         });
-        return { ok: true, totalUsd: next, ceilingUsd: grant.spendCeilingUsd };
-      },
-    );
+        return {
+          ok: false,
+          totalUsd: total,
+          ceilingUsd: grant.spendCeilingUsd,
+          ...(escalation !== undefined ? { escalation } : {}),
+        };
+      }
+      const row: LedgerRow = {
+        at: now.toISOString(),
+        usd: input.usd,
+        ...(input.note !== undefined ? { note: input.note } : {}),
+      };
+      this.ensureDirSync();
+      appendFileSync(this.ledgerPath(input.grantId), `${JSON.stringify(row)}\n`, "utf8");
+      const next = total + input.usd;
+      this.appendLogSync({
+        type: "objective-spend-debited",
+        grantId: input.grantId,
+        at: row.at,
+        usd: input.usd,
+        totalUsd: next,
+        ...(input.note !== undefined ? { note: input.note } : {}),
+      });
+      return { ok: true, totalUsd: next, ceilingUsd: grant.spendCeilingUsd };
+    });
   }
 
   readLogSync(): ObjectiveGrantLogEvent[] {
@@ -582,7 +561,10 @@ export class ObjectiveGrantStore {
 }
 
 function objectiveGrantId(now: Date): string {
-  const compact = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const compact = now
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
   return `og-${compact}-${randomBytes(3).toString("base64url").slice(0, 4).toLowerCase()}`;
 }
 

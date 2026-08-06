@@ -86,9 +86,9 @@ describe("CF-SPLIT-PUBLISHING — target verification at the composed gate (L2)"
     const pending = await approvals.listPending();
     expect(pending.map((item) => item.rule)).toEqual(["repo-collaboration-foreign"]);
     expect(pending[0]?.classification?.rule).toBe("repo-collaboration-foreign");
-    await expect(
-      approvals.decide(pending[0]!.id, { decision: "approved", scope: { kind: "app" } }),
-    ).rejects.toThrow(/never scopeable/);
+    await expect(approvals.decide(pending[0]!.id, { decision: "approved", scope: { kind: "app" } })).rejects.toThrow(
+      /never scopeable/,
+    );
     await expect(
       approvals.decide(pending[0]!.id, {
         decision: "approved",
@@ -198,7 +198,10 @@ describe("CF-SPLIT-PUBLISHING — target verification at the composed gate (L2)"
       scope: { kind: "app", rule: "repo-collaboration" },
     };
     await writeFile(join(home.stateHome, "approvals", "decided", `${item.id}.json`), JSON.stringify(item, null, 2));
-    await writeFile(join(home.stateHome, "approvals", "grants", `${grant.grantId}.json`), JSON.stringify(grant, null, 2));
+    await writeFile(
+      join(home.stateHome, "approvals", "grants", `${grant.grantId}.json`),
+      JSON.stringify(grant, null, 2),
+    );
 
     const decision = gate(covered);
     expect(decision.allow).toBe(false);

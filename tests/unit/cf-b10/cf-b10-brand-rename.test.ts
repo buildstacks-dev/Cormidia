@@ -50,11 +50,10 @@ const LEGACY_MIGRATION_COUNTS = new Map([
 ]);
 
 function repositoryTextFiles(): Map<string, string> {
-  const paths = execFileSync(
-    "git",
-    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-    { cwd: REPO_ROOT, encoding: "utf8" },
-  )
+  const paths = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  })
     .split("\0")
     .filter(Boolean)
     .filter((path) => !path.startsWith(FROZEN_ARCHIVE))
@@ -73,9 +72,7 @@ function occurrences(text: string, value: string): number {
 }
 
 function isImmutableResearchEvidence(path: string): boolean {
-  return IMMUTABLE_RESEARCH_EVIDENCE.some((entry) =>
-    entry.endsWith("/") ? path.startsWith(entry) : path === entry,
-  );
+  return IMMUTABLE_RESEARCH_EVIDENCE.some((entry) => (entry.endsWith("/") ? path.startsWith(entry) : path === entry));
 }
 
 describe("CF-B10-* (L1) Cormidia is the sole product identity", () => {
@@ -161,9 +158,7 @@ describe("CF-B10-* (L1) Cormidia is the sole product identity", () => {
       ["siphono", "phore"],
     ].map((parts) => parts.join(""));
     const vocabulary = new RegExp(`(?:${vocabularyTerms.join("|")})\\w*`, "i");
-    const hits = [...repositoryTextFiles()]
-      .filter(([, text]) => vocabulary.test(text))
-      .map(([path]) => path);
+    const hits = [...repositoryTextFiles()].filter(([, text]) => vocabulary.test(text)).map(([path]) => path);
     expect(hits).toEqual(["README.md"]);
   });
 });

@@ -2,11 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppEntry, AppsFile } from "../../../src/org/apps.js";
 import type { RoleConfig, TurnAssignment } from "../../../src/runtime/types.js";
-import {
-  stableHash,
-  type CreatorEpisodeScope,
-  type ProposedEpisodeStep,
-} from "../../../src/loop/episode-plan.js";
+import { stableHash, type CreatorEpisodeScope, type ProposedEpisodeStep } from "../../../src/loop/episode-plan.js";
 import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
   acceptBacklogSnapshot,
@@ -52,7 +48,8 @@ const APP: AppEntry = {
   name: "hb110-app",
   repo: "fixture/hb110",
   status: "live",
-  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
+  budgetUsdMonth: 100,
+  objectiveBudgetUsd: 1000,
   cadence: {},
   channels: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
@@ -85,10 +82,15 @@ describe("HB-110 shared roadmap/validation/delivery explanation", () => {
       reason: "complete_structured_creator_scope",
       workflow_bypassed: false,
     });
-    expect(unit.cache_evidence).toMatchObject({ measurement: "hit", authority: "cost_affinity_only", unknown_is_zero: false });
+    expect(unit.cache_evidence).toMatchObject({
+      measurement: "hit",
+      authority: "cost_affinity_only",
+      unknown_is_zero: false,
+    });
     expect(batch).toMatchObject({ complete: true, every_unit_success: false });
-    expect(canonical.apps[0]!.delivery_units.find((entry) => entry.unit_id === "human-unit")?.routing_exclusion)
-      .toMatchObject({ excluded: true, authority_basis: "backlog_snapshot" });
+    expect(
+      canonical.apps[0]!.delivery_units.find((entry) => entry.unit_id === "human-unit")?.routing_exclusion,
+    ).toMatchObject({ excluded: true, authority_basis: "backlog_snapshot" });
     expect(unit.label_projection.authoritative).toBe(false);
 
     const jsonLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -178,14 +180,31 @@ async function fixture(): Promise<TempStateHome> {
       completeness: "complete",
       pagination: { pagesObserved: 1, hasNextPage: false, unavailablePages: [] },
       issues: [
-        { issueNumber: 1101, contentHash: stableHash("1101"), lifecycle: "open", routing: "automated", observedLabels: ["planning:preplanned"], dependencyIssues: [] },
-        { issueNumber: 1102, contentHash: stableHash("1102"), lifecycle: "open", routing: "human_only", observedLabels: ["manual-review"], dependencyIssues: [] },
+        {
+          issueNumber: 1101,
+          contentHash: stableHash("1101"),
+          lifecycle: "open",
+          routing: "automated",
+          observedLabels: ["planning:preplanned"],
+          dependencyIssues: [],
+        },
+        {
+          issueNumber: 1102,
+          contentHash: stableHash("1102"),
+          lifecycle: "open",
+          routing: "human_only",
+          observedLabels: ["manual-review"],
+          dependencyIssues: [],
+        },
       ],
     },
   });
   const roadmap = await acceptRoadmapPlan({ root: home.stateHome, plan: roadmapPlan(snapshot.ref) });
   const catalog = await acceptValidationCatalog({ root: home.stateHome, catalog: validationCatalog(APP.name) });
-  const validation = await acceptValidationContract({ root: home.stateHome, contract: validationContract(roadmap, catalog.ref) });
+  const validation = await acceptValidationContract({
+    root: home.stateHome,
+    contract: validationContract(roadmap, catalog.ref),
+  });
   const readiness = await acceptDeliveryUnitReadiness({
     root: home.stateHome,
     app: APP.name,
@@ -265,8 +284,22 @@ function roadmapPlan(snapshotRef: AuthorityRef): RoadmapPlan {
     predecessor: null,
     workstreams: [{ workstreamId: "hb110", outcome: "Explain delivery state", priority: 1 }],
     deliveryUnits: [
-      { unitId: "ready-unit", workstreamId: "hb110", issueNumbers: [1101], dependsOn: [], priority: 1, objective: "Deliver ready work" },
-      { unitId: "human-unit", workstreamId: "hb110", issueNumbers: [1102], dependsOn: [], priority: 2, objective: "Wait for human review" },
+      {
+        unitId: "ready-unit",
+        workstreamId: "hb110",
+        issueNumbers: [1101],
+        dependsOn: [],
+        priority: 1,
+        objective: "Deliver ready work",
+      },
+      {
+        unitId: "human-unit",
+        workstreamId: "hb110",
+        issueNumbers: [1102],
+        dependsOn: [],
+        priority: 2,
+        objective: "Wait for human review",
+      },
     ],
     completedUnitIds: [],
     readyFrontier: ["ready-unit"],
@@ -325,8 +358,32 @@ function validationContract(roadmap: AcceptedRoadmapPlan, catalogRef: AuthorityR
 
 function creatorScope(): CreatorEpisodeScope {
   const steps: ProposedEpisodeStep[] = [
-    { id: "build", kind: "provider_turn", operation: "delivery/build", role: "builder", objective: "Build the unit.", requiredCapabilities: [], dependsOn: [], inputRefs: [], expectedOutputs: [{ id: "artifact", kind: "content", required: true }], maxTurnBudgetUsd: 2, selectionReason: "Builder owns mutation." },
-    { id: "review", kind: "provider_turn", operation: "delivery/review", role: "reviewer", objective: "Review the unit.", requiredCapabilities: [], dependsOn: ["build"], inputRefs: [{ ref: "plan-output:artifact", required: true }], expectedOutputs: [{ id: "review", kind: "review", required: true }], maxTurnBudgetUsd: 2, selectionReason: "Reviewer is independent." },
+    {
+      id: "build",
+      kind: "provider_turn",
+      operation: "delivery/build",
+      role: "builder",
+      objective: "Build the unit.",
+      requiredCapabilities: [],
+      dependsOn: [],
+      inputRefs: [],
+      expectedOutputs: [{ id: "artifact", kind: "content", required: true }],
+      maxTurnBudgetUsd: 2,
+      selectionReason: "Builder owns mutation.",
+    },
+    {
+      id: "review",
+      kind: "provider_turn",
+      operation: "delivery/review",
+      role: "reviewer",
+      objective: "Review the unit.",
+      requiredCapabilities: [],
+      dependsOn: ["build"],
+      inputRefs: [{ ref: "plan-output:artifact", required: true }],
+      expectedOutputs: [{ id: "review", kind: "review", required: true }],
+      maxTurnBudgetUsd: 2,
+      selectionReason: "Reviewer is independent.",
+    },
   ];
   return {
     planningDisposition: "execution_ready",
@@ -369,11 +426,24 @@ async function prepareAndSettleAffinity(root: string): Promise<void> {
   const manifest = createExecutionContextAffinityManifest({
     unitId: "ready-unit",
     compatibility: { app: APP.name, role: "builder", assignment, operation: "delivery/build" },
-    immutablePrefix: [{ id: "roadmap", kind: "authority", sourceRef: "authority:roadmap", sha256: stableHash("roadmap") }],
-    unitDelta: [{ id: "validation", kind: "validation", sourceRef: "validation:ready-unit", sha256: stableHash("validation") }],
+    immutablePrefix: [
+      { id: "roadmap", kind: "authority", sourceRef: "authority:roadmap", sha256: stableHash("roadmap") },
+    ],
+    unitDelta: [
+      { id: "validation", kind: "validation", sourceRef: "validation:ready-unit", sha256: stableHash("validation") },
+    ],
     requiredAuthorityRefs: ["authority:roadmap", "validation:ready-unit"],
   });
-  await prepareExecutionAffinityTurn({ root, recordId: "hb110-ready-build", batchId: "hb110-mixed-batch", episodeId: "hb110", planVersion: 1, stepId: "build", manifest, preparedAt: AT });
+  await prepareExecutionAffinityTurn({
+    root,
+    recordId: "hb110-ready-build",
+    batchId: "hb110-mixed-batch",
+    episodeId: "hb110",
+    planVersion: 1,
+    stepId: "build",
+    manifest,
+    preparedAt: AT,
+  });
   await settleExecutionAffinityTurn({
     root,
     recordId: "hb110-ready-build",
@@ -381,15 +451,40 @@ async function prepareAndSettleAffinity(root: string): Promise<void> {
     settlementId: "hb110-settlement",
     providerOutcome: "completed",
     session: { runtime: "codex", id: "hb110-session" },
-    usage: { tokensIn: 100, tokensOut: 20, cacheReadTokens: 50, cacheCreationTokens: 0, tokensInUncached: 50, costUsd: 0.1, subagentTurns: 0, wallClockMs: 100, quality: "complete" },
+    usage: {
+      tokensIn: 100,
+      tokensOut: 20,
+      cacheReadTokens: 50,
+      cacheCreationTokens: 0,
+      tokensInUncached: 50,
+      costUsd: 0.1,
+      subagentTurns: 0,
+      wallClockMs: 100,
+      quality: "complete",
+    },
     settledAt: new Date(Date.parse(AT) + 500).toISOString(),
   });
 }
 
 function role(name: string, runtime: RoleConfig["runtime"], model: string): RoleConfig {
-  return { name, runtime, model, effort: "high", delegation: { allow: [] }, triggers: [], outputs: [name], maxTurnBudgetUsd: 5 };
+  return {
+    name,
+    runtime,
+    model,
+    effort: "high",
+    delegation: { allow: [] },
+    triggers: [],
+    outputs: [name],
+    maxTurnBudgetUsd: 5,
+  };
 }
 
 function budget() {
-  return { maxProviderTurns: 2, maxEquivalentCostUsd: 4, maxMechanicalOverheadUsd: 0, maxActiveTimeMs: 60_000, maxHumanDecisions: 0 };
+  return {
+    maxProviderTurns: 2,
+    maxEquivalentCostUsd: 4,
+    maxMechanicalOverheadUsd: 0,
+    maxActiveTimeMs: 60_000,
+    maxHumanDecisions: 0,
+  };
 }

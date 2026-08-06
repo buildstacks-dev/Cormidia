@@ -54,30 +54,33 @@ describe("CF-INV-009 — resolved-default-branch structural pin", () => {
       'const ref = "origin/main";',
       "const ref = 'origin/master';",
       "const ref = `origin/trunk`;",
-      'diff(`origin/main...HEAD`);',
+      "diff(`origin/main...HEAD`);",
     ]) {
       expect(defaultBranchViolations("seed.ts", seed).length).toBeGreaterThan(0);
     }
 
     // A branch name assigned to a consequential property.
-    expect(defaultBranchViolations("seed.ts", 'const base = { ref: "origin/main", defaultBranch: "main" };'))
-      .toEqual([
-        "seed.ts:1: defaultBranch=main",
-        "seed.ts:1: origin/main", // the `ref:` value, caught as a remote-tracking ref
-      ]);
-    expect(defaultBranchViolations("seed.ts", 'openPr({ baseRefName: "master" });'))
-      .toEqual(["seed.ts:1: baseRefName=master"]);
+    expect(defaultBranchViolations("seed.ts", 'const base = { ref: "origin/main", defaultBranch: "main" };')).toEqual([
+      "seed.ts:1: defaultBranch=main",
+      "seed.ts:1: origin/main", // the `ref:` value, caught as a remote-tracking ref
+    ]);
+    expect(defaultBranchViolations("seed.ts", 'openPr({ baseRefName: "master" });')).toEqual([
+      "seed.ts:1: baseRefName=master",
+    ]);
 
     // A branch name handed straight to git, in both invocation shapes.
-    expect(defaultBranchViolations("seed.ts", 'git(repoDir, "fetch", "origin", "main");'))
-      .toEqual(["seed.ts:1: git argument main"]);
-    expect(defaultBranchViolations("seed.ts", 'execFileSync("git", ["checkout", "trunk"], opts);'))
-      .toEqual(["seed.ts:1: git argument trunk"]);
+    expect(defaultBranchViolations("seed.ts", 'git(repoDir, "fetch", "origin", "main");')).toEqual([
+      "seed.ts:1: git argument main",
+    ]);
+    expect(defaultBranchViolations("seed.ts", 'execFileSync("git", ["checkout", "trunk"], opts);')).toEqual([
+      "seed.ts:1: git argument trunk",
+    ]);
 
     // Every reserved name is covered, not just `main`.
     for (const branch of RESERVED_DEFAULT_BRANCHES) {
-      expect(defaultBranchViolations("seed.ts", `git(dir, "checkout", "${branch}");`))
-        .toEqual([`seed.ts:1: git argument ${branch}`]);
+      expect(defaultBranchViolations("seed.ts", `git(dir, "checkout", "${branch}");`)).toEqual([
+        `seed.ts:1: git argument ${branch}`,
+      ]);
     }
   });
 
@@ -86,8 +89,8 @@ describe("CF-INV-009 — resolved-default-branch structural pin", () => {
     // #60/#101/#203. A guard that forced them out would trade a real defect
     // for a documentation loss.
     const prose = [
-      '// hardcoded `origin/main` this threw in a `master` repo',
-      '/** Always resolved from git, never assumed to be `main`. */',
+      "// hardcoded `origin/main` this threw in a `master` repo",
+      "/** Always resolved from git, never assumed to be `main`. */",
       "const x = 1;",
     ].join("\n");
     expect(defaultBranchViolations("seed.ts", prose)).toEqual([]);

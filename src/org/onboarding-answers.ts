@@ -81,7 +81,9 @@ export async function readOnboardingSource(
   try {
     value = JSON.parse(await readFile(path, "utf8"));
   } catch (error) {
-    throw new Error(`onboarding source: invalid JSON ${path}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `onboarding source: invalid JSON ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   const record = value as Partial<OnboardingSourceRecord>;
   if (
@@ -160,7 +162,8 @@ export async function readOnboardingRecoverySource(
       const answers = await readAnswersFromResetArchive(source);
       const manifest = JSON.parse(await readFile(archiveManifest, "utf8")) as Record<string, unknown>;
       const app = manifest["app"] as Record<string, unknown> | undefined;
-      if (typeof app?.["name"] !== "string") throw new Error("bootstrap --answers-from: reset archive has no app identity");
+      if (typeof app?.["name"] !== "string")
+        throw new Error("bootstrap --answers-from: reset archive has no app identity");
       return { app: app["name"], answers };
     }
     throw new Error(`bootstrap --answers-from: no onboarding answers found under ${source}`);
@@ -190,7 +193,8 @@ export async function readAnswersFromResetArchive(archiveIn: string): Promise<Bo
   if (!Array.isArray(files)) throw new Error(`bootstrap --answers-from: archive files manifest missing`);
   const declared: string[] = [];
   for (const item of files) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("bootstrap --answers-from: invalid archive file entry");
+    if (!item || typeof item !== "object" || Array.isArray(item))
+      throw new Error("bootstrap --answers-from: invalid archive file entry");
     const spec = item as Record<string, unknown>;
     if (typeof spec["path"] !== "string" || typeof spec["sha256"] !== "string" || typeof spec["bytes"] !== "number") {
       throw new Error("bootstrap --answers-from: invalid archive file entry");
@@ -250,7 +254,8 @@ export async function latestResetArchiveForApp(archiveRoot: string, app: string)
       pointer["app"] !== app ||
       typeof pointer["archive_id"] !== "string" ||
       typeof pointer["manifest_sha256"] !== "string"
-    ) throw new Error(`bootstrap --answers-from: corrupt reset archive pointer ${pointerPath}`);
+    )
+      throw new Error(`bootstrap --answers-from: corrupt reset archive pointer ${pointerPath}`);
     assertSafeSegment(pointer["archive_id"], "reset archive pointer");
     const selected = join(archiveRoot, pointer["archive_id"]);
     await assertDirectoryNoSymlink(selected, "reset archive pointer target");
@@ -272,7 +277,9 @@ function parseStoredAnswers(text: string, path: string): StoredOnboardingAnswers
   try {
     value = JSON.parse(text);
   } catch (error) {
-    throw new Error(`bootstrap --answers-from: invalid JSON ${path}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `bootstrap --answers-from: invalid JSON ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`bootstrap --answers-from: invalid onboarding answers record ${path}`);

@@ -23,7 +23,14 @@ export interface ReportRangeV1 {
 }
 
 export interface ReportSourceDiagnosticV1 {
-  kind: "corrupt_line" | "torn_tail" | "unreadable_day" | "concurrent_write" | "invalid_row" | "invalid_timestamp" | "future_timestamp";
+  kind:
+    | "corrupt_line"
+    | "torn_tail"
+    | "unreadable_day"
+    | "concurrent_write"
+    | "invalid_row"
+    | "invalid_timestamp"
+    | "future_timestamp";
   day: string;
   line: number | null;
   detail: string;

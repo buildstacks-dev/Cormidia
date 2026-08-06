@@ -24,16 +24,35 @@ const execFile = promisify(execFileCallback);
 export const RELEASE_EVIDENCE_SCHEMA_VERSION = 1 as const;
 export const RELEASE_QUALIFICATION_CONTRACT = "RQ-1" as const;
 export const RELEASE_EVIDENCE_INPUT_KINDS = [
-  "policy", "dependency_lock", "prompts", "roles", "pipelines", "taste",
-  "golden_sets", "assignments", "tools",
+  "policy",
+  "dependency_lock",
+  "prompts",
+  "roles",
+  "pipelines",
+  "taste",
+  "golden_sets",
+  "assignments",
+  "tools",
 ] as const;
 export const RELEASE_DETERMINISTIC_CHECKS = [
-  "pnpm-test", "pnpm-typecheck", "pnpm-build", "git-diff-check", "gitleaks",
-  "smoke-onboarding", "package-dry-run", "package-install-smoke", "core-checks",
+  "pnpm-test",
+  "pnpm-typecheck",
+  "pnpm-build",
+  "git-diff-check",
+  "gitleaks",
+  "smoke-onboarding",
+  "package-dry-run",
+  "package-install-smoke",
+  "core-checks",
 ] as const;
 export const RELEASE_L4_SITES = ["reviewer", "planner", "validation-designer"] as const;
 export const RELEASE_L3_REQUIRED_CASES = [
-  "CF-B02-L3", "CF-B03-L3", "CF-B04-L3", "CF-B01-L3", "CF-J18-A", "CF-J16-A",
+  "CF-B02-L3",
+  "CF-B03-L3",
+  "CF-B04-L3",
+  "CF-B01-L3",
+  "CF-J18-A",
+  "CF-J16-A",
 ] as const;
 // RQ-1 currently has no ratified, content-bound prior trigger baseline or host
 // observation from which absence of the launchd trigger can be proved. The
@@ -51,11 +70,11 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
-const RELEASE_VITEST_CONFIG_SHA256 = "d63b0db31d415aa0db00a40fc2597a0ea1b3ed2c20db553b3bff78fdd924cf9f";
+const RELEASE_VITEST_CONFIG_SHA256 = "92f349841deb5b188b9301230f18f5d65b325022d787d06ae42f0eb1b71d9733";
 
-export type ReleaseInputKind = typeof RELEASE_EVIDENCE_INPUT_KINDS[number];
-export type DeterministicCheckId = typeof RELEASE_DETERMINISTIC_CHECKS[number];
-export type ReleaseL4Site = typeof RELEASE_L4_SITES[number];
+export type ReleaseInputKind = (typeof RELEASE_EVIDENCE_INPUT_KINDS)[number];
+export type DeterministicCheckId = (typeof RELEASE_DETERMINISTIC_CHECKS)[number];
+export type ReleaseL4Site = (typeof RELEASE_L4_SITES)[number];
 export type ReleaseLane = "deterministic" | "L3" | "L4";
 export type EvidenceCompleteness = "complete" | "incomplete";
 export type EvidenceVerdict = "pass" | "fail" | "inconclusive";
@@ -377,7 +396,8 @@ export function validateReleaseManifest(value: unknown): asserts value is Releas
   const body = { ...root };
   delete body["qualification_id"];
   validateReleaseManifestBody(body);
-  if (digestJson(body) !== id) throw new Error("release manifest qualification_id does not match canonical manifest bytes");
+  if (digestJson(body) !== id)
+    throw new Error("release manifest qualification_id does not match canonical manifest bytes");
 }
 
 export function parseReleaseManifest(raw: string): ReleaseManifestV1 {
@@ -411,7 +431,8 @@ export async function packageManifestFromTarball(path: string): Promise<ReleaseP
       const relativePath = safeRelativePath(fullName.slice("package/".length), "package file");
       const contents = bytes.subarray(contentStart, contentEnd);
       files.push({ path: relativePath, size, sha256: sha256(contents) });
-      if (relativePath === "package.json") packageJson = JSON.parse(contents.toString("utf8")) as { name?: unknown; version?: unknown };
+      if (relativePath === "package.json")
+        packageJson = JSON.parse(contents.toString("utf8")) as { name?: unknown; version?: unknown };
     }
     offset = contentStart + Math.ceil(size / 512) * 512;
   }
@@ -419,8 +440,9 @@ export async function packageManifestFromTarball(path: string): Promise<ReleaseP
   // localeCompare is locale-sensitive and places lower-case package paths ahead
   // of README.md/TASTE.md on macOS, so a real npm tarball could sort into an
   // order that the same release gate immediately rejected.
-  files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
-  if (files.length === 0 || new Set(files.map((item) => item.path)).size !== files.length) throw new Error("release tarball file manifest is empty or contains duplicate paths");
+  files.sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
+  if (files.length === 0 || new Set(files.map((item) => item.path)).size !== files.length)
+    throw new Error("release tarball file manifest is empty or contains duplicate paths");
   const name = nonEmpty(packageJson?.name, "package.json name");
   const version = nonEmpty(packageJson?.version, "package.json version");
   const manifest: ReleasePackageManifestV1 = {
@@ -466,22 +488,28 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
   if (!candidateVitestConfig.equals(workingVitestConfig)) {
     throw new Error("release candidate Vitest config differs from the checked-out execution config");
   }
-  const [policyBytes, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes, vitestReport] = await Promise.all([
-    gitFile(repo, revision, "validation-design/validation-policy.yaml"),
-    gitFile(repo, revision, "pnpm-lock.yaml"),
-    gitTreeDigest(repo, revision, "prompts"),
-    gitFile(repo, revision, "roles.yaml"),
-    gitFile(repo, revision, "pipelines.yaml"),
-    gitFile(repo, revision, "TASTE.md"),
-    gitTreeDigest(repo, revision, "validation-design/golden-sets"),
-    gitFile(repo, revision, "validation-design/golden-sets/human-validation.json"),
-    runReleaseVitest(repo, revision),
-  ]);
+  const [policyBytes, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes, vitestReport] =
+    await Promise.all([
+      gitFile(repo, revision, "validation-design/validation-policy.yaml"),
+      gitFile(repo, revision, "pnpm-lock.yaml"),
+      gitTreeDigest(repo, revision, "prompts"),
+      gitFile(repo, revision, "roles.yaml"),
+      gitFile(repo, revision, "pipelines.yaml"),
+      gitFile(repo, revision, "TASTE.md"),
+      gitTreeDigest(repo, revision, "validation-design/golden-sets"),
+      gitFile(repo, revision, "validation-design/golden-sets/human-validation.json"),
+      runReleaseVitest(repo, revision),
+    ]);
   const assignments = assignmentProjection(parseYaml(rolesBytes.toString("utf8")));
   const toolchain = await currentReleaseToolchain(repo);
   const goldenReferences = await goldenReferenceProjection(repo, revision, validationRecordBytes);
   const policy = releasePolicyProjection(policyBytes);
-  const allowedTestSkips = releaseAllowedTestSkipsFromVitestReport(vitestReport, policy.openFindingIds, trackedVitestFiles, canonicalRepo);
+  const allowedTestSkips = releaseAllowedTestSkipsFromVitestReport(
+    vitestReport,
+    policy.openFindingIds,
+    trackedVitestFiles,
+    canonicalRepo,
+  );
   const producerDigests = releaseProducerDigests(revision, sha256(policyBytes), toolchain);
   return {
     candidate_commit: revision,
@@ -512,10 +540,13 @@ export async function validateReleaseRepositoryState(
 ): Promise<void> {
   const snapshot = await releaseRepositorySnapshot(repo, manifest.candidate_commit);
   for (const kind of RELEASE_EVIDENCE_INPUT_KINDS) {
-    if (kind !== "tools" && snapshot.inputs[kind] !== manifest.inputs[kind]) throw new Error(`release manifest repository input ${kind} is stale or caller-supplied`);
+    if (kind !== "tools" && snapshot.inputs[kind] !== manifest.inputs[kind])
+      throw new Error(`release manifest repository input ${kind} is stale or caller-supplied`);
   }
-  if (canonicalJson(snapshot.assignments) !== canonicalJson(manifest.assignments)) throw new Error("release manifest assignments differ from roles.yaml");
-  if (canonicalJson(snapshot.golden_references) !== canonicalJson(manifest.l4.references)) throw new Error("release manifest golden references are incomplete, stale, or not human validated");
+  if (canonicalJson(snapshot.assignments) !== canonicalJson(manifest.assignments))
+    throw new Error("release manifest assignments differ from roles.yaml");
+  if (canonicalJson(snapshot.golden_references) !== canonicalJson(manifest.l4.references))
+    throw new Error("release manifest golden references are incomplete, stale, or not human validated");
   if (canonicalJson(snapshot.allowed_test_skips) !== canonicalJson(manifest.deterministic.allowed_test_skips)) {
     throw new Error("release manifest allowed test skips differ from the exact policy-bound skipped-test inventory");
   }
@@ -544,19 +575,24 @@ function releaseProducerDigests(
   toolchain: ReleaseToolchainV1,
 ): Record<ReleaseLane, string> {
   return Object.fromEntries(
-    (["deterministic", "L3", "L4"] as const).map((lane) => [lane, digestJson({
-      contract_id: RELEASE_QUALIFICATION_CONTRACT,
+    (["deterministic", "L3", "L4"] as const).map((lane) => [
       lane,
-      candidate_commit: candidateCommit,
-      policy_sha256: policySha256,
-      toolchain,
-    })]),
+      digestJson({
+        contract_id: RELEASE_QUALIFICATION_CONTRACT,
+        lane,
+        candidate_commit: candidateCommit,
+        policy_sha256: policySha256,
+        toolchain,
+      }),
+    ]),
   ) as Record<ReleaseLane, string>;
 }
 
 export async function currentReleaseToolchain(repo: string): Promise<ReleaseToolchainV1> {
   const packageVersion = async (path: string): Promise<string> => {
-    const value: unknown = JSON.parse(await readFile(join(repo, "node_modules", ...path.split("/"), "package.json"), "utf8"));
+    const value: unknown = JSON.parse(
+      await readFile(join(repo, "node_modules", ...path.split("/"), "package.json"), "utf8"),
+    );
     return nonEmpty(object(value, `${path} package.json`)["version"], `${path} version`);
   };
   const pnpmResult = await execFile("pnpm", ["--version"], { cwd: repo, encoding: "utf8", maxBuffer: 1024 * 1024 });
@@ -573,9 +609,13 @@ export async function currentReleaseToolchain(repo: string): Promise<ReleaseTool
   };
 }
 
-export async function validateReleaseToolchain(repo: string, manifest: ReleaseManifestBodyV1 | ReleaseManifestV1): Promise<void> {
+export async function validateReleaseToolchain(
+  repo: string,
+  manifest: ReleaseManifestBodyV1 | ReleaseManifestV1,
+): Promise<void> {
   const current = await currentReleaseToolchain(repo);
-  if (canonicalJson(current) !== canonicalJson(manifest.toolchain)) throw new Error("release manifest toolchain differs from the preparation environment");
+  if (canonicalJson(current) !== canonicalJson(manifest.toolchain))
+    throw new Error("release manifest toolchain differs from the preparation environment");
 }
 
 export function evaluateDeterministicAdmission(
@@ -600,7 +640,10 @@ export function evaluateDeterministicAdmission(
     }
     observedSubjects.add(check.subject_digest);
     observedProducers.add(check.producer_digest);
-    if (check.candidate_commit !== manifest.candidate_commit || check.subject_digest !== releaseSubjectDigest(manifest)) {
+    if (
+      check.candidate_commit !== manifest.candidate_commit ||
+      check.subject_digest !== releaseSubjectDigest(manifest)
+    ) {
       incomplete = true;
       reasonCodes.push(`stale_subject:${id}`);
     }
@@ -612,7 +655,10 @@ export function evaluateDeterministicAdmission(
     }
     const unlisted = check.skipped_case_ids.filter((skip) => !manifest.deterministic.allowed_test_skips.includes(skip));
     if (unlisted.length > 0) violationIds.push(...unlisted.map((skip) => `unlisted_skip:${skip}`));
-    if (id === "pnpm-test" && canonicalJson(check.skipped_case_ids) !== canonicalJson(manifest.deterministic.allowed_test_skips)) {
+    if (
+      id === "pnpm-test" &&
+      canonicalJson(check.skipped_case_ids) !== canonicalJson(manifest.deterministic.allowed_test_skips)
+    ) {
       violationIds.push("test_skip_inventory_mismatch");
     }
     if (id !== "pnpm-test" && check.skipped_case_ids.length > 0) violationIds.push(`unexpected_skip_surface:${id}`);
@@ -638,7 +684,8 @@ export function evaluateDeterministicAdmission(
     verdict: resultVerdict,
     decision_status: "ratified",
     subject_digest: observedSubjects.size === 1 ? [...observedSubjects][0]! : digestJson([...observedSubjects].sort()),
-    producer_digest: observedProducers.size === 1 ? [...observedProducers][0]! : digestJson([...observedProducers].sort()),
+    producer_digest:
+      observedProducers.size === 1 ? [...observedProducers][0]! : digestJson([...observedProducers].sort()),
     evidence_ref: "deterministic-results.json",
     evidence_sha256: digestJson(evidence),
     violation_ids: uniqueSorted(violationIds),
@@ -666,7 +713,8 @@ export function evaluateL4Evidence(manifest: ReleaseManifestV1, evidence: L4Rele
   const pairings = new Map(manifest.l4.pairings.map((item) => [item.id, item]));
   const expected: string[] = [];
   for (const pairing of manifest.l4.pairings) {
-    for (const caseId of pairing.case_ids) for (const attemptId of pairing.attempt_ids) expected.push(observationId(pairing.id, caseId, attemptId));
+    for (const caseId of pairing.case_ids)
+      for (const attemptId of pairing.attempt_ids) expected.push(observationId(pairing.id, caseId, attemptId));
   }
   const rows = new Map<string, L4ReleaseObservationV1>();
   const violations: string[] = [];
@@ -677,7 +725,12 @@ export function evaluateL4Evidence(manifest: ReleaseManifestV1, evidence: L4Rele
     rows.set(id, row);
     const pairing = pairings.get(row.pairing_id);
     const reference = references.get(row.case_id);
-    if (pairing === undefined || reference === undefined || !pairing.case_ids.includes(row.case_id) || !pairing.attempt_ids.includes(row.attempt_id)) {
+    if (
+      pairing === undefined ||
+      reference === undefined ||
+      !pairing.case_ids.includes(row.case_id) ||
+      !pairing.attempt_ids.includes(row.attempt_id)
+    ) {
       throw new Error(`undeclared L4 observation ${id}`);
     }
     const expectedKey = compositeGradeKey({
@@ -689,9 +742,12 @@ export function evaluateL4Evidence(manifest: ReleaseManifestV1, evidence: L4Rele
       grader_digest: pairing.grader_digest,
     });
     if (row.grading_digest !== expectedKey) violations.push(`invalid_grading_digest:${id}`);
-    if (row.automatic_score_used && pairing.evaluator_status !== "admitted_judge") violations.push(`uncalibrated_judge_score:${id}`);
-    if (pairing.evaluator_status === "admitted_judge" && pairing.decision_rule_digest === null) violations.push(`missing_judge_decision_rule:${pairing.id}`);
-    if (row.outcome === "mismatch" || row.outcome === "unscored" || row.outcome === "invalid") reasons.push(`${row.outcome}:${id}`);
+    if (row.automatic_score_used && pairing.evaluator_status !== "admitted_judge")
+      violations.push(`uncalibrated_judge_score:${id}`);
+    if (pairing.evaluator_status === "admitted_judge" && pairing.decision_rule_digest === null)
+      violations.push(`missing_judge_decision_rule:${pairing.id}`);
+    if (row.outcome === "mismatch" || row.outcome === "unscored" || row.outcome === "invalid")
+      reasons.push(`${row.outcome}:${id}`);
   }
   const missing = expected.filter((id) => !rows.has(id));
   reasons.push(...missing.map((id) => `missing:${id}`));
@@ -703,18 +759,22 @@ export function evaluateL4Evidence(manifest: ReleaseManifestV1, evidence: L4Rele
     for (const [groupId, group] of groups) {
       const candidate = group.find((item) => item.arm === "candidate")!;
       const baseline = group.find((item) => item.arm === "baseline")!;
-      for (const caseId of candidate.case_ids) for (const attemptId of candidate.attempt_ids) {
-        const candidateRow = rows.get(observationId(candidate.id, caseId, attemptId));
-        const baselineRow = rows.get(observationId(baseline.id, caseId, attemptId));
-        if (candidateRow !== undefined && baselineRow !== undefined && (
-          candidateRow.output_sha256 !== baselineRow.output_sha256
-          || candidateRow.outcome !== baselineRow.outcome
-        )) reasons.push(`paired_disagreement:${groupId}:${caseId}:${attemptId}`);
-      }
+      for (const caseId of candidate.case_ids)
+        for (const attemptId of candidate.attempt_ids) {
+          const candidateRow = rows.get(observationId(candidate.id, caseId, attemptId));
+          const baselineRow = rows.get(observationId(baseline.id, caseId, attemptId));
+          if (
+            candidateRow !== undefined &&
+            baselineRow !== undefined &&
+            (candidateRow.output_sha256 !== baselineRow.output_sha256 || candidateRow.outcome !== baselineRow.outcome)
+          )
+            reasons.push(`paired_disagreement:${groupId}:${caseId}:${attemptId}`);
+        }
     }
   }
   const grouped = new Map<string, L4ReleaseObservationV1[]>();
-  for (const row of evidence.observations) grouped.set(row.grading_digest, [...(grouped.get(row.grading_digest) ?? []), row]);
+  for (const row of evidence.observations)
+    grouped.set(row.grading_digest, [...(grouped.get(row.grading_digest) ?? []), row]);
   for (const group of grouped.values()) {
     if (group.length < 2) {
       if (group[0]?.grade_reused_from !== null) violations.push(`orphan_grade_reuse:${observationKey(group[0]!)}`);
@@ -723,7 +783,9 @@ export function evaluateL4Evidence(manifest: ReleaseManifestV1, evidence: L4Rele
     const primary = group.filter((item) => item.grade_reused_from === null);
     if (primary.length !== 1) violations.push(`duplicate_grade_execution:${group[0]!.grading_digest}`);
     const primaryId = primary.length === 1 ? observationKey(primary[0]!) : null;
-    for (const row of group) if (row !== primary[0] && row.grade_reused_from !== primaryId) violations.push(`invalid_grade_reuse:${observationKey(row)}`);
+    for (const row of group)
+      if (row !== primary[0] && row.grade_reused_from !== primaryId)
+        violations.push(`invalid_grade_reuse:${observationKey(row)}`);
   }
   const obligation = manifest.obligations.find((item) => item.lane === "L4");
   if (obligation === undefined) throw new Error("release manifest lacks L4 obligation");
@@ -754,9 +816,13 @@ export function evaluateTriggeredCampaignEvidence(
   const root = object(evidence, "release campaign evidence");
   exact(root, ["schema_version", "qualification_id", "campaigns"], "release campaign evidence");
   if (root["schema_version"] !== 1) throw new Error("unsupported release campaign evidence schema");
-  const qualificationChanged = hash(root["qualification_id"], "campaign qualification_id") !== manifest.qualification_id;
+  const qualificationChanged =
+    hash(root["qualification_id"], "campaign qualification_id") !== manifest.qualification_id;
   if (!Array.isArray(root["campaigns"])) throw new Error("release campaign evidence campaigns must be an array");
-  const supplied = new Map<string, { obligation_id: string; producer_digest: string; report: ValidationCampaignReportV1 }>();
+  const supplied = new Map<
+    string,
+    { obligation_id: string; producer_digest: string; report: ValidationCampaignReportV1 }
+  >();
   for (const raw of root["campaigns"]) {
     const entry = object(raw, "release campaign evidence entry");
     exact(entry, ["obligation_id", "producer_digest", "report"], "release campaign evidence entry");
@@ -764,68 +830,86 @@ export function evaluateTriggeredCampaignEvidence(
     if (supplied.has(obligationId)) throw new Error(`duplicate triggered campaign evidence for ${obligationId}`);
     const producerDigest = hash(entry["producer_digest"], "campaign evidence producer_digest");
     validateValidationCampaignReport(entry["report"]);
-    supplied.set(obligationId, { obligation_id: obligationId, producer_digest: producerDigest, report: entry["report"] });
+    supplied.set(obligationId, {
+      obligation_id: obligationId,
+      producer_digest: producerDigest,
+      report: entry["report"],
+    });
   }
   const expectedIds = new Set(manifest.triggered_campaigns.map((item) => item.obligation_id));
-  for (const id of supplied.keys()) if (!expectedIds.has(id)) throw new Error(`triggered campaign evidence names undeclared obligation ${id}`);
-  return manifest.triggered_campaigns.map((declared) => {
-    const obligation = manifest.obligations.find((item) => item.id === declared.obligation_id)!;
-    const row = supplied.get(declared.obligation_id);
-    if (row === undefined) {
+  for (const id of supplied.keys())
+    if (!expectedIds.has(id)) throw new Error(`triggered campaign evidence names undeclared obligation ${id}`);
+  return manifest.triggered_campaigns
+    .map((declared) => {
+      const obligation = manifest.obligations.find((item) => item.id === declared.obligation_id)!;
+      const row = supplied.get(declared.obligation_id);
+      if (row === undefined) {
+        return {
+          obligation_id: obligation.id,
+          lane: obligation.lane,
+          claim_class: obligation.claim_class,
+          debt_eligible: obligation.debt_eligible,
+          completeness: "incomplete",
+          verdict: "inconclusive",
+          decision_status: declared.decision_status,
+          subject_digest: obligation.subject_digest,
+          producer_digest: obligation.producer_digest,
+          evidence_ref: `campaign:${declared.campaign_id}:missing`,
+          evidence_sha256: digestJson({
+            qualification_id: manifest.qualification_id,
+            campaign_id: declared.campaign_id,
+            status: "missing",
+          }),
+          violation_ids: [],
+          reason_codes: [`missing_campaign:${declared.campaign_id}`],
+        } satisfies ReleaseLaneResultV1;
+      }
+      const report = row.report;
+      const subjectMismatches: string[] = [];
+      if (report.campaign_id !== declared.campaign_id) subjectMismatches.push("campaign_id");
+      if (report.lane !== declared.lane) subjectMismatches.push("lane");
+      if (report.campaign_kind !== declared.campaign_kind) subjectMismatches.push("campaign_kind");
+      if (report.trigger !== declared.trigger) subjectMismatches.push("trigger");
+      if (report.target.commit !== manifest.candidate_commit) subjectMismatches.push("candidate_commit");
+      if (canonicalJson(report.target.apps) !== canonicalJson(declared.apps)) subjectMismatches.push("apps");
+      if (canonicalJson(report.target.scopes) !== canonicalJson(declared.scopes)) subjectMismatches.push("scopes");
+      if (canonicalJson(report.target.tuples) !== canonicalJson(declared.tuples)) subjectMismatches.push("tuples");
+      if (canonicalJson(report.coverage.required_case_ids) !== canonicalJson(declared.required_case_ids))
+        subjectMismatches.push("required_case_ids");
+      if (
+        report.spend.max_provider_turns !== declared.max_provider_turns ||
+        report.spend.max_equiv_usd !== declared.max_equiv_usd
+      )
+        subjectMismatches.push("ceilings");
+      if (report.outcome.decision_status !== declared.decision_status) subjectMismatches.push("decision_status");
+      if (report.policy.sha256 !== manifest.inputs.policy) subjectMismatches.push("policy");
+      const subjectCurrent = subjectMismatches.length === 0;
+      const producerCurrent = row.producer_digest === obligation.producer_digest;
       return {
         obligation_id: obligation.id,
         lane: obligation.lane,
         claim_class: obligation.claim_class,
         debt_eligible: obligation.debt_eligible,
-        completeness: "incomplete",
-        verdict: "inconclusive",
-        decision_status: declared.decision_status,
-        subject_digest: obligation.subject_digest,
-        producer_digest: obligation.producer_digest,
-        evidence_ref: `campaign:${declared.campaign_id}:missing`,
-        evidence_sha256: digestJson({ qualification_id: manifest.qualification_id, campaign_id: declared.campaign_id, status: "missing" }),
-        violation_ids: [],
-        reason_codes: [`missing_campaign:${declared.campaign_id}`],
+        completeness: subjectCurrent ? report.outcome.completeness : "incomplete",
+        verdict: subjectCurrent ? report.outcome.verdict : "inconclusive",
+        decision_status: report.outcome.decision_status,
+        subject_digest: subjectCurrent
+          ? obligation.subject_digest
+          : digestJson({ stale_campaign: report.campaign_id, subjectMismatches }),
+        producer_digest: row.producer_digest,
+        evidence_ref: `campaign:${report.campaign_id}`,
+        evidence_sha256: digestJson(report),
+        violation_ids: subjectCurrent ? [...report.outcome.violation_ids] : [],
+        reason_codes: subjectCurrent
+          ? [
+              ...report.outcome.reason_codes,
+              ...(producerCurrent ? [] : ["prior_producer"]),
+              ...(qualificationChanged ? ["prior_qualification_id"] : []),
+            ]
+          : subjectMismatches.map((field) => `campaign_identity_mismatch:${field}`),
       } satisfies ReleaseLaneResultV1;
-    }
-    const report = row.report;
-    const subjectMismatches: string[] = [];
-    if (report.campaign_id !== declared.campaign_id) subjectMismatches.push("campaign_id");
-    if (report.lane !== declared.lane) subjectMismatches.push("lane");
-    if (report.campaign_kind !== declared.campaign_kind) subjectMismatches.push("campaign_kind");
-    if (report.trigger !== declared.trigger) subjectMismatches.push("trigger");
-    if (report.target.commit !== manifest.candidate_commit) subjectMismatches.push("candidate_commit");
-    if (canonicalJson(report.target.apps) !== canonicalJson(declared.apps)) subjectMismatches.push("apps");
-    if (canonicalJson(report.target.scopes) !== canonicalJson(declared.scopes)) subjectMismatches.push("scopes");
-    if (canonicalJson(report.target.tuples) !== canonicalJson(declared.tuples)) subjectMismatches.push("tuples");
-    if (canonicalJson(report.coverage.required_case_ids) !== canonicalJson(declared.required_case_ids)) subjectMismatches.push("required_case_ids");
-    if (report.spend.max_provider_turns !== declared.max_provider_turns || report.spend.max_equiv_usd !== declared.max_equiv_usd) subjectMismatches.push("ceilings");
-    if (report.outcome.decision_status !== declared.decision_status) subjectMismatches.push("decision_status");
-    if (report.policy.sha256 !== manifest.inputs.policy) subjectMismatches.push("policy");
-    const subjectCurrent = subjectMismatches.length === 0;
-    const producerCurrent = row.producer_digest === obligation.producer_digest;
-    return {
-      obligation_id: obligation.id,
-      lane: obligation.lane,
-      claim_class: obligation.claim_class,
-      debt_eligible: obligation.debt_eligible,
-      completeness: subjectCurrent ? report.outcome.completeness : "incomplete",
-      verdict: subjectCurrent ? report.outcome.verdict : "inconclusive",
-      decision_status: report.outcome.decision_status,
-      subject_digest: subjectCurrent ? obligation.subject_digest : digestJson({ stale_campaign: report.campaign_id, subjectMismatches }),
-      producer_digest: row.producer_digest,
-      evidence_ref: `campaign:${report.campaign_id}`,
-      evidence_sha256: digestJson(report),
-      violation_ids: subjectCurrent ? [...report.outcome.violation_ids] : [],
-      reason_codes: subjectCurrent
-        ? [
-          ...report.outcome.reason_codes,
-          ...(producerCurrent ? [] : ["prior_producer"]),
-          ...(qualificationChanged ? ["prior_qualification_id"] : []),
-        ]
-        : subjectMismatches.map((field) => `campaign_identity_mismatch:${field}`),
-    } satisfies ReleaseLaneResultV1;
-  }).sort((left, right) => left.obligation_id.localeCompare(right.obligation_id));
+    })
+    .sort((left, right) => left.obligation_id.localeCompare(right.obligation_id));
 }
 
 export function assessReleaseQualification(input: {
@@ -842,13 +926,17 @@ export function assessReleaseQualification(input: {
   const evidenceChanges = input.evidenceChangeDispositions ?? [];
   for (const row of evidenceChanges) validateEvidenceChangeDisposition(row);
   const obligationIds = new Set(input.manifest.obligations.map((item) => item.id));
-  if (new Set(input.laneResults.map((item) => item.obligation_id)).size !== input.laneResults.length) throw new Error("release lane results contain duplicate obligation ids");
-  if (input.laneResults.some((item) => !obligationIds.has(item.obligation_id))) throw new Error("release lane result names an undeclared obligation");
+  if (new Set(input.laneResults.map((item) => item.obligation_id)).size !== input.laneResults.length)
+    throw new Error("release lane results contain duplicate obligation ids");
+  if (input.laneResults.some((item) => !obligationIds.has(item.obligation_id)))
+    throw new Error("release lane result names an undeclared obligation");
   const resultById = new Map(input.laneResults.map((item) => [item.obligation_id, item]));
   const debtByObligation = new Map(input.debtDispositions.map((item) => [item.obligation_id, item]));
-  if (debtByObligation.size !== input.debtDispositions.length) throw new Error("multiple evaluator-debt dispositions target one obligation");
+  if (debtByObligation.size !== input.debtDispositions.length)
+    throw new Error("multiple evaluator-debt dispositions target one obligation");
   const changeByObligation = new Map(evidenceChanges.map((item) => [item.obligation_id, item]));
-  if (changeByObligation.size !== evidenceChanges.length) throw new Error("multiple evidence-change dispositions target one obligation");
+  if (changeByObligation.size !== evidenceChanges.length)
+    throw new Error("multiple evidence-change dispositions target one obligation");
   const blockers: string[] = [];
   let provenFailure = false;
   for (const obligation of input.manifest.obligations) {
@@ -857,20 +945,24 @@ export function assessReleaseQualification(input: {
       blockers.push(`missing_obligation:${obligation.id}`);
       continue;
     }
-    if (result.lane !== obligation.lane || result.claim_class !== obligation.claim_class || result.debt_eligible !== obligation.debt_eligible) throw new Error(`release result metadata disagrees with obligation ${obligation.id}`);
+    if (
+      result.lane !== obligation.lane ||
+      result.claim_class !== obligation.claim_class ||
+      result.debt_eligible !== obligation.debt_eligible
+    )
+      throw new Error(`release result metadata disagrees with obligation ${obligation.id}`);
     if (result.subject_digest !== obligation.subject_digest) blockers.push(`stale_subject:${obligation.id}`);
     const producerCurrent = result.producer_digest === obligation.producer_digest;
     const changeDisposition = changeByObligation.get(obligation.id);
-    const producerUnaffected = !producerCurrent && eligibleEvidenceChange(
-      obligation,
-      result,
-      changeDisposition,
-      input.manifest.candidate_commit,
-    );
+    const producerUnaffected =
+      !producerCurrent &&
+      eligibleEvidenceChange(obligation, result, changeDisposition, input.manifest.candidate_commit);
     if (!producerCurrent && !producerUnaffected) {
-      blockers.push(changeDisposition?.decision === "invalidated"
-        ? `invalidated_evidence:${obligation.id}`
-        : `stale_producer:${obligation.id}`);
+      blockers.push(
+        changeDisposition?.decision === "invalidated"
+          ? `invalidated_evidence:${obligation.id}`
+          : `stale_producer:${obligation.id}`,
+      );
     }
     if (result.verdict === "fail" || result.violation_ids.length > 0) {
       provenFailure = true;
@@ -879,28 +971,43 @@ export function assessReleaseQualification(input: {
     }
     if (result.completeness === "complete" && result.verdict === "pass") continue;
     const debt = debtByObligation.get(obligation.id);
-    if (!eligibleDebt(obligation, result, debt, input.manifest.candidate_commit)) blockers.push(`undispositioned:${obligation.id}`);
+    if (!eligibleDebt(obligation, result, debt, input.manifest.candidate_commit))
+      blockers.push(`undispositioned:${obligation.id}`);
   }
-  for (const debt of input.debtDispositions) if (!obligationIds.has(debt.obligation_id)) throw new Error(`debt ${debt.debt_id} targets an undeclared obligation`);
+  for (const debt of input.debtDispositions)
+    if (!obligationIds.has(debt.obligation_id))
+      throw new Error(`debt ${debt.debt_id} targets an undeclared obligation`);
   for (const disposition of evidenceChanges) {
-    if (!obligationIds.has(disposition.obligation_id)) throw new Error(`evidence change ${disposition.disposition_id} targets an undeclared obligation`);
+    if (!obligationIds.has(disposition.obligation_id))
+      throw new Error(`evidence change ${disposition.disposition_id} targets an undeclared obligation`);
     const result = resultById.get(disposition.obligation_id);
-    if (result === undefined || result.producer_digest === input.manifest.obligations.find((item) => item.id === disposition.obligation_id)!.producer_digest) {
+    if (
+      result === undefined ||
+      result.producer_digest ===
+        input.manifest.obligations.find((item) => item.id === disposition.obligation_id)!.producer_digest
+    ) {
       throw new Error(`evidence change ${disposition.disposition_id} does not target producer drift`);
     }
   }
-  const qualification: ReleaseQualification = provenFailure ? "not_qualified" : blockers.length > 0 ? "needs_human_disposition" : "qualified";
+  const qualification: ReleaseQualification = provenFailure
+    ? "not_qualified"
+    : blockers.length > 0
+      ? "needs_human_disposition"
+      : "qualified";
   const complete = input.manifest.obligations.every((obligation) => {
     const result = resultById.get(obligation.id);
-    return result !== undefined
-      && result.completeness === "complete"
-      && result.subject_digest === obligation.subject_digest
-      && (result.producer_digest === obligation.producer_digest || eligibleEvidenceChange(
-        obligation,
-        result,
-        changeByObligation.get(obligation.id),
-        input.manifest.candidate_commit,
-      ));
+    return (
+      result !== undefined &&
+      result.completeness === "complete" &&
+      result.subject_digest === obligation.subject_digest &&
+      (result.producer_digest === obligation.producer_digest ||
+        eligibleEvidenceChange(
+          obligation,
+          result,
+          changeByObligation.get(obligation.id),
+          input.manifest.candidate_commit,
+        ))
+    );
   });
   const report: ReleaseQualificationReportV1 = {
     schema_version: 1,
@@ -910,7 +1017,9 @@ export function assessReleaseQualification(input: {
     generated_at: input.generatedAt,
     lane_results: [...input.laneResults].sort((left, right) => left.obligation_id.localeCompare(right.obligation_id)),
     debt_dispositions: [...input.debtDispositions].sort((left, right) => left.debt_id.localeCompare(right.debt_id)),
-    evidence_change_dispositions: [...evidenceChanges].sort((left, right) => left.disposition_id.localeCompare(right.disposition_id)),
+    evidence_change_dispositions: [...evidenceChanges].sort((left, right) =>
+      left.disposition_id.localeCompare(right.disposition_id),
+    ),
     outcome: {
       completeness: complete ? "complete" : "incomplete",
       verdict: qualification === "qualified" ? "pass" : qualification === "not_qualified" ? "fail" : "inconclusive",
@@ -939,17 +1048,36 @@ export function validateQualificationEvidenceBundle(input: {
     ...evaluateTriggeredCampaignEvidence(input.manifest, input.campaigns),
     evaluateL4Evidence(input.manifest, input.l4),
   ].sort((left, right) => left.obligation_id.localeCompare(right.obligation_id));
-  const reported = [...input.report.lane_results]
-    .sort((left, right) => left.obligation_id.localeCompare(right.obligation_id));
+  const reported = [...input.report.lane_results].sort((left, right) =>
+    left.obligation_id.localeCompare(right.obligation_id),
+  );
   if (canonicalJson(derived) !== canonicalJson(reported)) {
     throw new Error("qualification report lane results do not derive from the packet evidence");
   }
 }
 
-export function validateReleaseQualificationReport(value: unknown, manifest?: ReleaseManifestV1): asserts value is ReleaseQualificationReportV1 {
+export function validateReleaseQualificationReport(
+  value: unknown,
+  manifest?: ReleaseManifestV1,
+): asserts value is ReleaseQualificationReportV1 {
   const root = object(value, "qualification report");
-  exact(root, ["schema_version", "contract_id", "qualification_id", "candidate_commit", "generated_at", "lane_results", "debt_dispositions", "evidence_change_dispositions", "outcome"], "qualification report");
-  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT) throw new Error("unsupported qualification report contract");
+  exact(
+    root,
+    [
+      "schema_version",
+      "contract_id",
+      "qualification_id",
+      "candidate_commit",
+      "generated_at",
+      "lane_results",
+      "debt_dispositions",
+      "evidence_change_dispositions",
+      "outcome",
+    ],
+    "qualification report",
+  );
+  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT)
+    throw new Error("unsupported qualification report contract");
   hash(root["qualification_id"], "qualification_id");
   commit(root["candidate_commit"], "candidate_commit");
   instant(root["generated_at"], "generated_at");
@@ -957,20 +1085,34 @@ export function validateReleaseQualificationReport(value: unknown, manifest?: Re
   for (const row of root["lane_results"]) validateLaneResult(row);
   if (!Array.isArray(root["debt_dispositions"])) throw new Error("debt_dispositions must be an array");
   for (const row of root["debt_dispositions"]) validateDebt(row);
-  if (!Array.isArray(root["evidence_change_dispositions"])) throw new Error("evidence_change_dispositions must be an array");
+  if (!Array.isArray(root["evidence_change_dispositions"]))
+    throw new Error("evidence_change_dispositions must be an array");
   for (const row of root["evidence_change_dispositions"]) validateEvidenceChangeDisposition(row);
   const outcome = object(root["outcome"], "qualification outcome");
   exact(outcome, ["completeness", "verdict", "qualification", "blocker_ids"], "qualification outcome");
   const completeness = oneOf(outcome["completeness"], ["complete", "incomplete"], "outcome.completeness");
   const verdict = oneOf(outcome["verdict"], ["pass", "fail", "inconclusive"], "outcome.verdict");
-  const qualification = oneOf(outcome["qualification"], ["qualified", "not_qualified", "needs_human_disposition"], "outcome.qualification");
+  const qualification = oneOf(
+    outcome["qualification"],
+    ["qualified", "not_qualified", "needs_human_disposition"],
+    "outcome.qualification",
+  );
   uniqueStrings(outcome["blocker_ids"], "outcome.blocker_ids");
-  if (qualification === "qualified" && (verdict !== "pass" || completeness !== "complete" || (outcome["blocker_ids"] as unknown[]).length > 0)) throw new Error("qualified report must be complete/pass with no blockers");
+  if (
+    qualification === "qualified" &&
+    (verdict !== "pass" || completeness !== "complete" || (outcome["blocker_ids"] as unknown[]).length > 0)
+  )
+    throw new Error("qualified report must be complete/pass with no blockers");
   if (qualification === "not_qualified" && verdict !== "fail") throw new Error("not_qualified report must fail");
-  if (qualification === "needs_human_disposition" && verdict !== "inconclusive") throw new Error("needs_human_disposition report must be inconclusive");
+  if (qualification === "needs_human_disposition" && verdict !== "inconclusive")
+    throw new Error("needs_human_disposition report must be inconclusive");
   if (manifest !== undefined) {
     validateReleaseManifest(manifest);
-    if (root["qualification_id"] !== manifest.qualification_id || root["candidate_commit"] !== manifest.candidate_commit) throw new Error("qualification report is not bound to the manifest candidate");
+    if (
+      root["qualification_id"] !== manifest.qualification_id ||
+      root["candidate_commit"] !== manifest.candidate_commit
+    )
+      throw new Error("qualification report is not bound to the manifest candidate");
     const recomputed = assessReleaseQualification({
       manifest,
       laneResults: root["lane_results"] as ReleaseLaneResultV1[],
@@ -978,14 +1120,13 @@ export function validateReleaseQualificationReport(value: unknown, manifest?: Re
       evidenceChangeDispositions: root["evidence_change_dispositions"] as EvidenceChangeDispositionV1[],
       generatedAt: root["generated_at"] as string,
     });
-    if (canonicalJson(recomputed.outcome) !== canonicalJson(outcome)) throw new Error("qualification report outcome does not match its lane evidence");
+    if (canonicalJson(recomputed.outcome) !== canonicalJson(outcome))
+      throw new Error("qualification report outcome does not match its lane evidence");
   }
 }
 
 export function releaseSubjectDigest(manifest: ReleaseManifestBodyV1 | ReleaseManifestV1): string {
-  const subjectInputs = Object.fromEntries(
-    Object.entries(manifest.inputs).filter(([kind]) => kind !== "tools"),
-  );
+  const subjectInputs = Object.fromEntries(Object.entries(manifest.inputs).filter(([kind]) => kind !== "tools"));
   const subjectL4 = {
     mode: manifest.l4.mode,
     sites: manifest.l4.sites,
@@ -1016,13 +1157,18 @@ export function releaseSubjectDigest(manifest: ReleaseManifestBodyV1 | ReleaseMa
   });
 }
 
-export function validateEvidenceOnlyChangedPaths(version: string, qualificationId: string, changedPaths: string[]): void {
+export function validateEvidenceOnlyChangedPaths(
+  version: string,
+  qualificationId: string,
+  changedPaths: string[],
+): void {
   nonEmpty(version, "version");
   hash(qualificationId, "qualificationId");
   const prefix = `release-evidence/${version}/${qualificationId}/`;
   for (const raw of changedPaths) {
     const path = safeRelativePath(raw, "changed path");
-    if (!path.startsWith(prefix) || path === prefix.slice(0, -1)) throw new Error(`release candidate changed path outside evidence namespace: ${path}`);
+    if (!path.startsWith(prefix) || path === prefix.slice(0, -1))
+      throw new Error(`release candidate changed path outside evidence namespace: ${path}`);
   }
 }
 
@@ -1036,7 +1182,8 @@ export function validateReleaseCommitLineage(
   validateEvidenceOnlyChangedPaths(manifest.package.version, manifest.qualification_id, changedPaths);
   const prefix = `release-evidence/${manifest.package.version}/${manifest.qualification_id}/`;
   const expected = attestation.packet_files.map((file) => `${prefix}${file.path}`).sort();
-  if (canonicalJson([...changedPaths].sort()) !== canonicalJson(expected)) throw new Error("release descendant diff does not exactly equal the attested packet files");
+  if (canonicalJson([...changedPaths].sort()) !== canonicalJson(expected))
+    throw new Error("release descendant diff does not exactly equal the attested packet files");
 }
 
 export function createReleaseAttestation(input: {
@@ -1051,17 +1198,24 @@ export function createReleaseAttestation(input: {
 }): ReleaseAttestationV1 {
   validateReleaseManifest(input.manifest);
   validateReleaseQualificationReport(input.report, input.manifest);
-  if (input.report.outcome.qualification !== "qualified") throw new Error("release attestation requires a qualified report");
+  if (input.report.outcome.qualification !== "qualified")
+    throw new Error("release attestation requires a qualified report");
   commit(input.releaseCommit, "releaseCommit");
   nonEmpty(input.tag, "tag");
   instant(input.createdAt, "createdAt");
   validateReleaseAction(input.releaseAction);
-  if (input.releaseAction.package_name !== input.manifest.package.name || input.releaseAction.version !== input.manifest.package.version || input.releaseAction.tag !== input.tag) throw new Error("release action does not match manifest package/tag");
+  if (
+    input.releaseAction.package_name !== input.manifest.package.name ||
+    input.releaseAction.version !== input.manifest.package.version ||
+    input.releaseAction.tag !== input.tag
+  )
+    throw new Error("release action does not match manifest package/tag");
   validateEvidenceOnlyChangedPaths(input.manifest.package.version, input.manifest.qualification_id, input.changedPaths);
   validatePacketFiles(input.packetFiles);
   const prefix = `release-evidence/${input.manifest.package.version}/${input.manifest.qualification_id}/`;
   const expectedChangedPaths = input.packetFiles.map((item) => `${prefix}${item.path}`).sort();
-  if (canonicalJson([...input.changedPaths].sort()) !== canonicalJson(expectedChangedPaths)) throw new Error("release changed paths must exactly equal the attested packet files");
+  if (canonicalJson([...input.changedPaths].sort()) !== canonicalJson(expectedChangedPaths))
+    throw new Error("release changed paths must exactly equal the attested packet files");
   const paths = new Set(input.packetFiles.map((item) => item.path));
   for (const required of [
     "release-manifest.json",
@@ -1125,7 +1279,9 @@ export async function createReleaseAttestationFromCommit(input: {
   const trackedPaths = rawPaths.split("\0").filter(Boolean).sort();
   const manifestPaths = trackedPaths.filter((path) => path.endsWith("/release-manifest.json"));
   if (manifestPaths.length !== 1) {
-    throw new Error(`RQ-1 release commit must contain exactly one ${versionRoot}/<qualification>/release-manifest.json`);
+    throw new Error(
+      `RQ-1 release commit must contain exactly one ${versionRoot}/<qualification>/release-manifest.json`,
+    );
   }
   const packetPath = manifestPaths[0]!.slice(0, -"/release-manifest.json".length);
   const packetPaths = trackedPaths.filter((path) => path.startsWith(`${packetPath}/`));
@@ -1165,18 +1321,20 @@ export async function createReleaseAttestationFromCommit(input: {
   }
   await validateReleaseRepositoryState(input.repo, manifest);
   await git(input.repo, ["merge-base", "--is-ancestor", manifest.candidate_commit, input.releaseCommit]);
-  const changedPaths = (await git(
-    input.repo,
-    ["diff", "--name-only", "-z", `${manifest.candidate_commit}..${input.releaseCommit}`],
-    false,
-  )).split("\0").filter(Boolean);
-  const packetFiles = await Promise.all(packetPaths.map(async (trackedPath) => {
-    const path = trackedPath.slice(packetPath.length + 1);
-    const bytes = await gitFile(input.repo, input.releaseCommit, trackedPath);
-    const value: unknown = JSON.parse(bytes.toString("utf8"));
-    assertSanitizedEvidence(value, path);
-    return { path, size: bytes.length, sha256: sha256(bytes) };
-  }));
+  const changedPaths = (
+    await git(input.repo, ["diff", "--name-only", "-z", `${manifest.candidate_commit}..${input.releaseCommit}`], false)
+  )
+    .split("\0")
+    .filter(Boolean);
+  const packetFiles = await Promise.all(
+    packetPaths.map(async (trackedPath) => {
+      const path = trackedPath.slice(packetPath.length + 1);
+      const bytes = await gitFile(input.repo, input.releaseCommit, trackedPath);
+      const value: unknown = JSON.parse(bytes.toString("utf8"));
+      assertSanitizedEvidence(value, path);
+      return { path, size: bytes.length, sha256: sha256(bytes) };
+    }),
+  );
   packetFiles.sort((left, right) => left.path.localeCompare(right.path));
   const releaseAction: ReleaseActionV1 = {
     kind: "npm_publish",
@@ -1202,31 +1360,82 @@ export async function createReleaseAttestationFromCommit(input: {
 
 export function validateReleaseAttestation(value: unknown): asserts value is ReleaseAttestationV1 {
   const root = object(value, "release attestation");
-  exact(root, ["schema_version", "contract_id", "qualification_id", "prepared_commit", "release_commit", "tag", "package_name", "package_version", "tarball_sha256", "tarball_integrity", "qualification_report_sha256", "qualification_dispositions_sha256", "packet_files", "release_action", "release_action_sha256", "created_at"], "release attestation");
-  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT) throw new Error("unsupported release attestation contract");
+  exact(
+    root,
+    [
+      "schema_version",
+      "contract_id",
+      "qualification_id",
+      "prepared_commit",
+      "release_commit",
+      "tag",
+      "package_name",
+      "package_version",
+      "tarball_sha256",
+      "tarball_integrity",
+      "qualification_report_sha256",
+      "qualification_dispositions_sha256",
+      "packet_files",
+      "release_action",
+      "release_action_sha256",
+      "created_at",
+    ],
+    "release attestation",
+  );
+  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT)
+    throw new Error("unsupported release attestation contract");
   hash(root["qualification_id"], "qualification_id");
-  commit(root["prepared_commit"], "prepared_commit"); commit(root["release_commit"], "release_commit");
-  nonEmpty(root["tag"], "tag"); nonEmpty(root["package_name"], "package_name"); nonEmpty(root["package_version"], "package_version");
+  commit(root["prepared_commit"], "prepared_commit");
+  commit(root["release_commit"], "release_commit");
+  nonEmpty(root["tag"], "tag");
+  nonEmpty(root["package_name"], "package_name");
+  nonEmpty(root["package_version"], "package_version");
   hash(root["tarball_sha256"], "tarball_sha256");
-  if (typeof root["tarball_integrity"] !== "string" || !SHA512_INTEGRITY.test(root["tarball_integrity"])) throw new Error("tarball_integrity must be sha512 integrity");
-  hash(root["qualification_report_sha256"], "qualification_report_sha256"); hash(root["qualification_dispositions_sha256"], "qualification_dispositions_sha256");
+  if (typeof root["tarball_integrity"] !== "string" || !SHA512_INTEGRITY.test(root["tarball_integrity"]))
+    throw new Error("tarball_integrity must be sha512 integrity");
+  hash(root["qualification_report_sha256"], "qualification_report_sha256");
+  hash(root["qualification_dispositions_sha256"], "qualification_dispositions_sha256");
   if (!Array.isArray(root["packet_files"])) throw new Error("packet_files must be an array");
   validatePacketFiles(root["packet_files"] as Array<{ path: string; size: number; sha256: string }>);
   validateReleaseAction(root["release_action"]);
   const action = root["release_action"] as ReleaseActionV1;
-  if (action.package_name !== root["package_name"] || action.version !== root["package_version"] || action.tag !== root["tag"]) {
+  if (
+    action.package_name !== root["package_name"] ||
+    action.version !== root["package_version"] ||
+    action.tag !== root["tag"]
+  ) {
     throw new Error("release attestation action does not match its package/tag identity");
   }
-  if (root["release_action_sha256"] !== digestJson(root["release_action"])) throw new Error("release_action_sha256 mismatch");
+  if (root["release_action_sha256"] !== digestJson(root["release_action"]))
+    throw new Error("release_action_sha256 mismatch");
   instant(root["created_at"], "created_at");
 }
 
 export function validateReleaseApproval(value: unknown): asserts value is ReleaseApprovalV1 {
   const root = object(value, "release approval");
-  exact(root, ["schema_version", "contract_id", "decision", "approved_by", "approved_at", "attestation_sha256", "release_action_sha256"], "release approval");
-  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT || root["decision"] !== "approved") throw new Error("release approval is not an approved RQ-1 decision");
-  nonEmpty(root["approved_by"], "approved_by"); instant(root["approved_at"], "approved_at");
-  hash(root["attestation_sha256"], "attestation_sha256"); hash(root["release_action_sha256"], "release_action_sha256");
+  exact(
+    root,
+    [
+      "schema_version",
+      "contract_id",
+      "decision",
+      "approved_by",
+      "approved_at",
+      "attestation_sha256",
+      "release_action_sha256",
+    ],
+    "release approval",
+  );
+  if (
+    root["schema_version"] !== 1 ||
+    root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT ||
+    root["decision"] !== "approved"
+  )
+    throw new Error("release approval is not an approved RQ-1 decision");
+  nonEmpty(root["approved_by"], "approved_by");
+  instant(root["approved_at"], "approved_at");
+  hash(root["attestation_sha256"], "attestation_sha256");
+  hash(root["release_action_sha256"], "release_action_sha256");
 }
 
 /** Authenticate the remote publication decision against GitHub's tag-push
@@ -1258,7 +1467,11 @@ export function validateReleaseApprovalAuthority(input: {
 export function createReleaseTagMessage(attestation: ReleaseAttestationV1, approval: ReleaseApprovalV1): string {
   validateReleaseAttestation(attestation);
   validateReleaseApproval(approval);
-  if (approval.attestation_sha256 !== digestJson(attestation) || approval.release_action_sha256 !== attestation.release_action_sha256) throw new Error("release approval is not bound to this attestation/action");
+  if (
+    approval.attestation_sha256 !== digestJson(attestation) ||
+    approval.release_action_sha256 !== attestation.release_action_sha256
+  )
+    throw new Error("release approval is not bound to this attestation/action");
   const envelope: ReleaseTagEnvelopeV1 = {
     schema_version: 1,
     contract_id: RELEASE_QUALIFICATION_CONTRACT,
@@ -1271,7 +1484,8 @@ export function createReleaseTagMessage(attestation: ReleaseAttestationV1, appro
 export function parseReleaseTagMessage(message: string): ReleaseTagEnvelopeV1 {
   const match = message.match(/-----BEGIN CORMIDIA RQ1-----\n([A-Za-z0-9+/=]+)\n-----END CORMIDIA RQ1-----/);
   if (match === null) throw new Error("annotated release tag lacks one RQ-1 envelope");
-  if (message.match(/-----BEGIN CORMIDIA RQ1-----/g)?.length !== 1) throw new Error("annotated release tag contains multiple RQ-1 envelopes");
+  if (message.match(/-----BEGIN CORMIDIA RQ1-----/g)?.length !== 1)
+    throw new Error("annotated release tag contains multiple RQ-1 envelopes");
   let value: unknown;
   try {
     value = JSON.parse(Buffer.from(match[1]!, "base64").toString("utf8"));
@@ -1280,10 +1494,16 @@ export function parseReleaseTagMessage(message: string): ReleaseTagEnvelopeV1 {
   }
   const root = object(value, "release tag envelope");
   exact(root, ["schema_version", "contract_id", "attestation", "approval"], "release tag envelope");
-  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT) throw new Error("unsupported release tag envelope");
+  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT)
+    throw new Error("unsupported release tag envelope");
   validateReleaseAttestation(root["attestation"]);
   validateReleaseApproval(root["approval"]);
-  if ((root["approval"] as ReleaseApprovalV1).attestation_sha256 !== digestJson(root["attestation"]) || (root["approval"] as ReleaseApprovalV1).release_action_sha256 !== (root["attestation"] as ReleaseAttestationV1).release_action_sha256) throw new Error("release tag approval is not bound to its attestation/action");
+  if (
+    (root["approval"] as ReleaseApprovalV1).attestation_sha256 !== digestJson(root["attestation"]) ||
+    (root["approval"] as ReleaseApprovalV1).release_action_sha256 !==
+      (root["attestation"] as ReleaseAttestationV1).release_action_sha256
+  )
+    throw new Error("release tag approval is not bound to its attestation/action");
   return root as unknown as ReleaseTagEnvelopeV1;
 }
 
@@ -1294,16 +1514,24 @@ export async function verifyReleasePacket(input: {
   currentPackage: ReleasePackageManifestV1;
   attestation?: ReleaseAttestationV1;
   approval?: ReleaseApprovalV1;
-}): Promise<{ manifest: ReleaseManifestV1; report: ReleaseQualificationReportV1; attestation: ReleaseAttestationV1; approval: ReleaseApprovalV1 }> {
+}): Promise<{
+  manifest: ReleaseManifestV1;
+  report: ReleaseQualificationReportV1;
+  attestation: ReleaseAttestationV1;
+  approval: ReleaseApprovalV1;
+}> {
   commit(input.currentCommit, "currentCommit");
   nonEmpty(input.currentTag, "currentTag");
   validatePackage(input.currentPackage);
   const packetDir = resolve(input.packetDir);
-  if ((input.attestation === undefined) !== (input.approval === undefined)) throw new Error("release packet requires both external attestation and approval or neither");
+  if ((input.attestation === undefined) !== (input.approval === undefined))
+    throw new Error("release packet requires both external attestation and approval or neither");
   const values = await Promise.all([
     readJson(join(packetDir, "release-manifest.json")),
     readJson(join(packetDir, "qualification-report.json")),
-    input.attestation === undefined ? readJson(join(packetDir, "release-attestation.json")) : Promise.resolve(input.attestation),
+    input.attestation === undefined
+      ? readJson(join(packetDir, "release-attestation.json"))
+      : Promise.resolve(input.attestation),
     input.approval === undefined ? readJson(join(packetDir, "release-approval.json")) : Promise.resolve(input.approval),
   ]);
   const [manifestValue, reportValue, attestationValue, approvalValue] = values;
@@ -1331,33 +1559,49 @@ export async function verifyReleasePacket(input: {
     throw new Error("release packet verification requires a qualified evidence report");
   }
   const expectedSuffix = join("release-evidence", manifest.package.version, manifest.qualification_id);
-  if (!packetDir.endsWith(`${sep}${expectedSuffix}`) && packetDir !== resolve(expectedSuffix)) throw new Error("release packet path does not match version/qualification identity");
-  if (attestation.qualification_id !== manifest.qualification_id || attestation.prepared_commit !== manifest.candidate_commit) throw new Error("release attestation is not bound to manifest");
-  if (attestation.release_commit !== input.currentCommit || attestation.tag !== input.currentTag) throw new Error("release attestation is stale for current commit/tag");
+  if (!packetDir.endsWith(`${sep}${expectedSuffix}`) && packetDir !== resolve(expectedSuffix))
+    throw new Error("release packet path does not match version/qualification identity");
   if (
-    attestation.qualification_report_sha256 !== digestJson(report)
-    || attestation.qualification_dispositions_sha256 !== digestJson({
-      evaluator_debt: report.debt_dispositions,
-      evidence_changes: report.evidence_change_dispositions,
-    })
-  ) throw new Error("release attestation qualification report hash mismatch");
-  if (canonicalJson(input.currentPackage) !== canonicalJson(manifest.package)) throw new Error("release package bytes differ from qualified package");
-  if (approval.attestation_sha256 !== digestJson(attestation) || approval.release_action_sha256 !== attestation.release_action_sha256) throw new Error("release approval is not bound to this attestation/action");
+    attestation.qualification_id !== manifest.qualification_id ||
+    attestation.prepared_commit !== manifest.candidate_commit
+  )
+    throw new Error("release attestation is not bound to manifest");
+  if (attestation.release_commit !== input.currentCommit || attestation.tag !== input.currentTag)
+    throw new Error("release attestation is stale for current commit/tag");
+  if (
+    attestation.qualification_report_sha256 !== digestJson(report) ||
+    attestation.qualification_dispositions_sha256 !==
+      digestJson({
+        evaluator_debt: report.debt_dispositions,
+        evidence_changes: report.evidence_change_dispositions,
+      })
+  )
+    throw new Error("release attestation qualification report hash mismatch");
+  if (canonicalJson(input.currentPackage) !== canonicalJson(manifest.package))
+    throw new Error("release package bytes differ from qualified package");
+  if (
+    approval.attestation_sha256 !== digestJson(attestation) ||
+    approval.release_action_sha256 !== attestation.release_action_sha256
+  )
+    throw new Error("release approval is not bound to this attestation/action");
   const allowed = new Set([
     ...attestation.packet_files.map((item) => item.path),
     ...(input.attestation === undefined ? ["release-attestation.json", "release-approval.json"] : []),
   ]);
   const entries = await readdir(packetDir, { withFileTypes: true });
   for (const entry of entries) {
-    if (!entry.isFile() || entry.isSymbolicLink()) throw new Error(`release packet contains non-file entry ${entry.name}`);
+    if (!entry.isFile() || entry.isSymbolicLink())
+      throw new Error(`release packet contains non-file entry ${entry.name}`);
     if (!allowed.has(entry.name)) throw new Error(`release packet contains unlisted file ${entry.name}`);
   }
   for (const file of attestation.packet_files) {
     const path = joinContained(packetDir, file.path);
     const info = await lstat(path);
-    if (!info.isFile() || info.isSymbolicLink()) throw new Error(`release packet file is not a regular file: ${file.path}`);
+    if (!info.isFile() || info.isSymbolicLink())
+      throw new Error(`release packet file is not a regular file: ${file.path}`);
     const bytes = await readFile(path);
-    if (bytes.length !== file.size || sha256(bytes) !== file.sha256) throw new Error(`release packet hash mismatch: ${file.path}`);
+    if (bytes.length !== file.size || sha256(bytes) !== file.sha256)
+      throw new Error(`release packet hash mismatch: ${file.path}`);
     const parsed: unknown = JSON.parse(bytes.toString("utf8"));
     assertSanitizedEvidence(parsed, file.path);
   }
@@ -1368,7 +1612,8 @@ export function assertSanitizedEvidence(value: unknown, path = "evidence"): void
   if (typeof value === "string") {
     if (value.length > 16_384) throw new Error(`${path} contains an oversized raw string`);
     const retiredProductIdentity = ["ope", "ron"].join("");
-    if (value.toLowerCase().includes(retiredProductIdentity)) throw new Error(`${path} contains the retired product identity`);
+    if (value.toLowerCase().includes(retiredProductIdentity))
+      throw new Error(`${path} contains the retired product identity`);
     return;
   }
   if (value === null || typeof value === "number" || typeof value === "boolean") return;
@@ -1378,18 +1623,40 @@ export function assertSanitizedEvidence(value: unknown, path = "evidence"): void
   }
   if (typeof value !== "object") throw new Error(`${path} contains unsupported evidence value`);
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    if (/^(raw_prompt|raw_output|secret|credential|provider_session|session_log|transcript)$/i.test(key)) throw new Error(`${path} contains prohibited raw evidence field ${key}`);
+    if (/^(raw_prompt|raw_output|secret|credential|provider_session|session_log|transcript)$/i.test(key))
+      throw new Error(`${path} contains prohibited raw evidence field ${key}`);
     assertSanitizedEvidence(item, `${path}.${key}`);
   }
 }
 
-const MANIFEST_BODY_KEYS = ["schema_version", "contract_id", "prepared_at", "repository", "candidate_commit", "clean_tracked_tree", "package", "inputs", "assignments", "toolchain", "human_authorization", "deterministic", "l4", "triggered_campaigns", "ceilings", "retry_policy", "obligations"] as const;
+const MANIFEST_BODY_KEYS = [
+  "schema_version",
+  "contract_id",
+  "prepared_at",
+  "repository",
+  "candidate_commit",
+  "clean_tracked_tree",
+  "package",
+  "inputs",
+  "assignments",
+  "toolchain",
+  "human_authorization",
+  "deterministic",
+  "l4",
+  "triggered_campaigns",
+  "ceilings",
+  "retry_policy",
+  "obligations",
+] as const;
 
 function validateReleaseManifestBody(value: unknown): asserts value is ReleaseManifestBodyV1 {
   const root = object(value, "release manifest body");
   exact(root, MANIFEST_BODY_KEYS, "release manifest body");
-  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT) throw new Error("unsupported release manifest contract");
-  instant(root["prepared_at"], "prepared_at"); nonEmpty(root["repository"], "repository"); commit(root["candidate_commit"], "candidate_commit");
+  if (root["schema_version"] !== 1 || root["contract_id"] !== RELEASE_QUALIFICATION_CONTRACT)
+    throw new Error("unsupported release manifest contract");
+  instant(root["prepared_at"], "prepared_at");
+  nonEmpty(root["repository"], "repository");
+  commit(root["candidate_commit"], "candidate_commit");
   if (root["clean_tracked_tree"] !== true) throw new Error("release manifest requires a clean tracked-tree assertion");
   validatePackage(root["package"]);
   const inputs = object(root["inputs"], "inputs");
@@ -1397,16 +1664,23 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
   for (const kind of RELEASE_EVIDENCE_INPUT_KINDS) hash(inputs[kind], `inputs.${kind}`);
   validateAssignments(root["assignments"]);
   validateToolchain(root["toolchain"]);
-  if (inputs["assignments"] !== digestJson(root["assignments"])) throw new Error("inputs.assignments does not bind the assignment inventory");
-  if (inputs["tools"] !== digestJson(root["toolchain"])) throw new Error("inputs.tools does not bind the exact preparation toolchain");
+  if (inputs["assignments"] !== digestJson(root["assignments"]))
+    throw new Error("inputs.assignments does not bind the assignment inventory");
+  if (inputs["tools"] !== digestJson(root["toolchain"]))
+    throw new Error("inputs.tools does not bind the exact preparation toolchain");
   const authorization = object(root["human_authorization"], "human_authorization");
   exact(authorization, ["authorized_by", "authorized_at", "purpose", "approval_ref"], "human_authorization");
-  nonEmpty(authorization["authorized_by"], "human_authorization.authorized_by"); instant(authorization["authorized_at"], "human_authorization.authorized_at"); nonEmpty(authorization["purpose"], "human_authorization.purpose"); nonEmpty(authorization["approval_ref"], "human_authorization.approval_ref");
+  nonEmpty(authorization["authorized_by"], "human_authorization.authorized_by");
+  instant(authorization["authorized_at"], "human_authorization.authorized_at");
+  nonEmpty(authorization["purpose"], "human_authorization.purpose");
+  nonEmpty(authorization["approval_ref"], "human_authorization.approval_ref");
   const deterministic = object(root["deterministic"], "deterministic");
   exact(deterministic, ["required_checks", "allowed_test_skips", "producer_digest"], "deterministic");
   const checks = uniqueStrings(deterministic["required_checks"], "deterministic.required_checks");
-  if (canonicalJson(checks) !== canonicalJson(RELEASE_DETERMINISTIC_CHECKS)) throw new Error("deterministic requirements must use the complete ordered RQ-1 set");
-  uniqueStrings(deterministic["allowed_test_skips"], "deterministic.allowed_test_skips"); hash(deterministic["producer_digest"], "deterministic.producer_digest");
+  if (canonicalJson(checks) !== canonicalJson(RELEASE_DETERMINISTIC_CHECKS))
+    throw new Error("deterministic requirements must use the complete ordered RQ-1 set");
+  uniqueStrings(deterministic["allowed_test_skips"], "deterministic.allowed_test_skips");
+  hash(deterministic["producer_digest"], "deterministic.producer_digest");
   validateL4(root["l4"]);
   validateTriggeredCampaigns(root["triggered_campaigns"]);
   validateCeilings(root["ceilings"]);
@@ -1417,25 +1691,47 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
     0,
   );
   if (l4Ceiling.max_provider_turns <= declaredL4Turns) {
-    throw new Error(`release L4 turn ceiling requires strict headroom beyond ${declaredL4Turns} declared case-attempt turns`);
+    throw new Error(
+      `release L4 turn ceiling requires strict headroom beyond ${declaredL4Turns} declared case-attempt turns`,
+    );
   }
   const retry = object(root["retry_policy"], "retry_policy");
-  exact(retry, ["merit_failures", "github_total_attempts", "ambiguous_writes", "provider_retry", "unknown_partial_usage"], "retry_policy");
-  if (retry["merit_failures"] !== "never" || retry["github_total_attempts"] !== 3 || retry["ambiguous_writes"] !== "single_shot_then_reconcile" || retry["provider_retry"] !== "predeclared_typed_infrastructure_only" || retry["unknown_partial_usage"] !== "debit_full_reservation") throw new Error("release retry policy differs from RQ-1");
-  if (!Array.isArray(root["obligations"]) || root["obligations"].length === 0) throw new Error("release manifest requires obligations");
+  exact(
+    retry,
+    ["merit_failures", "github_total_attempts", "ambiguous_writes", "provider_retry", "unknown_partial_usage"],
+    "retry_policy",
+  );
+  if (
+    retry["merit_failures"] !== "never" ||
+    retry["github_total_attempts"] !== 3 ||
+    retry["ambiguous_writes"] !== "single_shot_then_reconcile" ||
+    retry["provider_retry"] !== "predeclared_typed_infrastructure_only" ||
+    retry["unknown_partial_usage"] !== "debit_full_reservation"
+  )
+    throw new Error("release retry policy differs from RQ-1");
+  if (!Array.isArray(root["obligations"]) || root["obligations"].length === 0)
+    throw new Error("release manifest requires obligations");
   const obligations = root["obligations"] as unknown[];
   for (const item of obligations) validateObligation(item);
   const obligationRows = obligations as ReleaseObligationV1[];
-  if (new Set(obligationRows.map((item) => item.id)).size !== obligations.length) throw new Error("release obligation ids must be unique");
-  const obligationShape = obligationRows.map(({ id, lane, claim_class, debt_eligible }) => ({ id, lane, claim_class, debt_eligible }));
+  if (new Set(obligationRows.map((item) => item.id)).size !== obligations.length)
+    throw new Error("release obligation ids must be unique");
+  const obligationShape = obligationRows.map(({ id, lane, claim_class, debt_eligible }) => ({
+    id,
+    lane,
+    claim_class,
+    debt_eligible,
+  }));
   if (canonicalJson(obligationShape) !== canonicalJson(RELEASE_OBLIGATION_SPECS)) {
     throw new Error("release obligations must use the exact ordered RQ-1 lane contract");
   }
   const subjectDigest = releaseSubjectDigest(root as unknown as ReleaseManifestBodyV1);
-  if (obligationRows.some((item) => item.subject_digest !== subjectDigest)) throw new Error("every release obligation must bind the exact release subject digest");
+  if (obligationRows.some((item) => item.subject_digest !== subjectDigest))
+    throw new Error("every release obligation must bind the exact release subject digest");
   const triggered = root["triggered_campaigns"] as ReleaseTriggeredCampaignV1[];
   const expectedTrigger = `human:${authorization["authorized_by"] as string}:${authorization["purpose"] as string}`;
-  if (triggered[0]!.trigger !== expectedTrigger) throw new Error("release L3 campaign trigger is not bound to the human authorization");
+  if (triggered[0]!.trigger !== expectedTrigger)
+    throw new Error("release L3 campaign trigger is not bound to the human authorization");
   for (const obligation of obligationRows) {
     const matching = triggered.filter((item) => item.obligation_id === obligation.id);
     if (obligation.lane === "L3") {
@@ -1449,18 +1745,37 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
 }
 
 function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTriggeredCampaignV1[] {
-  if (!Array.isArray(value) || value.length !== 1) throw new Error("release manifest requires exactly one RQ-1 release campaign");
+  if (!Array.isArray(value) || value.length !== 1)
+    throw new Error("release manifest requires exactly one RQ-1 release campaign");
   const obligationIds: string[] = [];
   const campaignIds: string[] = [];
   for (const raw of value) {
     const item = object(raw, "release triggered campaign");
-    exact(item, ["obligation_id", "campaign_id", "lane", "campaign_kind", "trigger", "apps", "scopes", "tuples", "required_case_ids", "max_provider_turns", "max_equiv_usd", "decision_status"], "release triggered campaign");
+    exact(
+      item,
+      [
+        "obligation_id",
+        "campaign_id",
+        "lane",
+        "campaign_kind",
+        "trigger",
+        "apps",
+        "scopes",
+        "tuples",
+        "required_case_ids",
+        "max_provider_turns",
+        "max_equiv_usd",
+        "decision_status",
+      ],
+      "release triggered campaign",
+    );
     obligationIds.push(identifier(item["obligation_id"], "triggered obligation_id"));
     campaignIds.push(identifier(item["campaign_id"], "triggered campaign_id"));
     oneOf(item["lane"], ["L3"], "triggered lane");
     const kind = nonEmpty(item["campaign_kind"], "triggered campaign_kind");
     nonEmpty(item["trigger"], "triggered trigger");
-    if (uniqueStrings(item["apps"], "triggered apps").length !== 1) throw new Error("RQ-1 release campaign requires one exact app");
+    if (uniqueStrings(item["apps"], "triggered apps").length !== 1)
+      throw new Error("RQ-1 release campaign requires one exact app");
     const scopes = uniqueStrings(item["scopes"], "triggered scopes");
     const tuples = uniqueStrings(item["tuples"], "triggered tuples");
     const cases = uniqueStrings(item["required_case_ids"], "triggered required_case_ids");
@@ -1473,41 +1788,57 @@ function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTri
     if (canonicalJson(cases) !== canonicalJson(required)) {
       throw new Error("RQ-1 release campaign has an incomplete or invented L3 case inventory");
     }
-    if (canonicalJson(scopes) !== canonicalJson(cases)) throw new Error("RQ-1 release campaign scopes must equal its exact case inventory");
+    if (canonicalJson(scopes) !== canonicalJson(cases))
+      throw new Error("RQ-1 release campaign scopes must equal its exact case inventory");
     const tupleParts = tuples.map((tuple) => {
       const [runtime = "", ...modelAndEffort] = tuple.split("/");
       const effort = modelAndEffort.pop() ?? "";
       return { runtime, modelParts: modelAndEffort, effort };
     });
-    if (tupleParts.some(({ modelParts, effort }) =>
-      modelParts.length === 0 || modelParts.some((part) => part.length === 0)
-      || !["low", "medium", "high", "xhigh", "max"].includes(effort))) {
+    if (
+      tupleParts.some(
+        ({ modelParts, effort }) =>
+          modelParts.length === 0 ||
+          modelParts.some((part) => part.length === 0) ||
+          !["low", "medium", "high", "xhigh", "max"].includes(effort),
+      )
+    ) {
       throw new Error("RQ-1 release campaign tuples must be exact runtime/model/effort identities");
     }
     const runtimes = tupleParts.map(({ runtime }) => runtime);
     if (canonicalJson(runtimes) !== canonicalJson(["claude", "codex", "pi"])) {
       throw new Error("RQ-1 release campaign requires exact claude, codex, and pi tuples");
     }
-    if (maxTurns !== 24 || maxUsd !== 100) throw new Error("RQ-1 release campaign must use the ratified 24-turn/$100 ceiling");
-    if (item["decision_status"] !== "ratified") throw new Error("RQ-1 release campaign decision status must be ratified");
+    if (maxTurns !== 24 || maxUsd !== 100)
+      throw new Error("RQ-1 release campaign must use the ratified 24-turn/$100 ceiling");
+    if (item["decision_status"] !== "ratified")
+      throw new Error("RQ-1 release campaign decision status must be ratified");
   }
-  if (new Set(obligationIds).size !== obligationIds.length) throw new Error("triggered campaigns must target unique obligations");
+  if (new Set(obligationIds).size !== obligationIds.length)
+    throw new Error("triggered campaigns must target unique obligations");
   if (new Set(campaignIds).size !== campaignIds.length) throw new Error("triggered campaign ids must be unique");
 }
 
 function validatePackage(value: unknown): asserts value is ReleasePackageManifestV1 {
   const root = object(value, "package manifest");
   exact(root, ["name", "version", "filename", "tarball_sha256", "tarball_integrity", "files"], "package manifest");
-  nonEmpty(root["name"], "package.name"); nonEmpty(root["version"], "package.version"); safeRelativePath(nonEmpty(root["filename"], "package.filename"), "package.filename");
+  nonEmpty(root["name"], "package.name");
+  nonEmpty(root["version"], "package.version");
+  safeRelativePath(nonEmpty(root["filename"], "package.filename"), "package.filename");
   hash(root["tarball_sha256"], "package.tarball_sha256");
-  if (typeof root["tarball_integrity"] !== "string" || !SHA512_INTEGRITY.test(root["tarball_integrity"])) throw new Error("package.tarball_integrity must be sha512 integrity");
+  if (typeof root["tarball_integrity"] !== "string" || !SHA512_INTEGRITY.test(root["tarball_integrity"]))
+    throw new Error("package.tarball_integrity must be sha512 integrity");
   if (!Array.isArray(root["files"]) || root["files"].length === 0) throw new Error("package.files must be non-empty");
   const paths: string[] = [];
   for (const raw of root["files"]) {
-    const file = object(raw, "package file"); exact(file, ["path", "size", "sha256"], "package file");
-    paths.push(safeRelativePath(file["path"], "package file path")); nonNegativeInteger(file["size"], "package file size"); hash(file["sha256"], "package file sha256");
+    const file = object(raw, "package file");
+    exact(file, ["path", "size", "sha256"], "package file");
+    paths.push(safeRelativePath(file["path"], "package file path"));
+    nonNegativeInteger(file["size"], "package file size");
+    hash(file["sha256"], "package file sha256");
   }
-  if (new Set(paths).size !== paths.length || canonicalJson(paths) !== canonicalJson([...paths].sort())) throw new Error("package files must be unique and sorted");
+  if (new Set(paths).size !== paths.length || canonicalJson(paths) !== canonicalJson([...paths].sort()))
+    throw new Error("package files must be unique and sorted");
   if (!paths.includes("package.json")) throw new Error("package files must include package.json");
 }
 
@@ -1520,66 +1851,161 @@ function validateAssignments(value: unknown): asserts value is ReleaseAssignment
     ids.push(identifier(item["assignment_id"], "assignment_id"));
     identifier(item["role"], "assignment role");
     oneOf(item["source"], ["fixed", "adaptive"], "assignment source");
-    nonEmpty(item["runtime"], "assignment runtime"); nonEmpty(item["model"], "assignment model");
+    nonEmpty(item["runtime"], "assignment runtime");
+    nonEmpty(item["model"], "assignment model");
     const efforts = uniqueStrings(item["efforts"], "assignment efforts");
     if (efforts.length === 0) throw new Error("assignment efforts must be non-empty");
   }
-  if (new Set(ids).size !== ids.length || canonicalJson(ids) !== canonicalJson([...ids].sort())) throw new Error("release assignments must have unique sorted ids");
+  if (new Set(ids).size !== ids.length || canonicalJson(ids) !== canonicalJson([...ids].sort()))
+    throw new Error("release assignments must have unique sorted ids");
 }
 
 function validateToolchain(value: unknown): asserts value is ReleaseToolchainV1 {
   const root = object(value, "release toolchain");
-  exact(root, ["node", "pnpm", "typescript", "vitest", "claude_agent_sdk", "pi_coding_agent", "openai_codex", "platform", "architecture"], "release toolchain");
-  for (const key of ["node", "pnpm", "typescript", "vitest", "claude_agent_sdk", "pi_coding_agent", "openai_codex", "platform", "architecture"] as const) nonEmpty(root[key], `toolchain.${key}`);
+  exact(
+    root,
+    [
+      "node",
+      "pnpm",
+      "typescript",
+      "vitest",
+      "claude_agent_sdk",
+      "pi_coding_agent",
+      "openai_codex",
+      "platform",
+      "architecture",
+    ],
+    "release toolchain",
+  );
+  for (const key of [
+    "node",
+    "pnpm",
+    "typescript",
+    "vitest",
+    "claude_agent_sdk",
+    "pi_coding_agent",
+    "openai_codex",
+    "platform",
+    "architecture",
+  ] as const)
+    nonEmpty(root[key], `toolchain.${key}`);
 }
 
 function validateL4(value: unknown): void {
-  const root = object(value, "l4"); exact(root, ["mode", "sites", "references", "pairings"], "l4");
+  const root = object(value, "l4");
+  exact(root, ["mode", "sites", "references", "pairings"], "l4");
   const mode = oneOf(root["mode"], ["bootstrap", "comparison"], "l4.mode");
   const sites = uniqueStrings(root["sites"], "l4.sites");
-  if (canonicalJson(sites) !== canonicalJson(RELEASE_L4_SITES)) throw new Error("L4 sites must use the complete ordered current release scope");
-  if (!Array.isArray(root["references"]) || root["references"].length === 0) throw new Error("L4 references must be non-empty");
+  if (canonicalJson(sites) !== canonicalJson(RELEASE_L4_SITES))
+    throw new Error("L4 sites must use the complete ordered current release scope");
+  if (!Array.isArray(root["references"]) || root["references"].length === 0)
+    throw new Error("L4 references must be non-empty");
   const referenceIds: string[] = [];
   for (const raw of root["references"]) {
-    const item = object(raw, "L4 reference"); exact(item, ["case_id", "site", "path", "case_digest", "reference_digest", "human_validation", "validated_by", "validated_on", "source_commit"], "L4 reference");
-    referenceIds.push(identifier(item["case_id"], "L4 case_id")); oneOf(item["site"], RELEASE_L4_SITES, "L4 reference site"); safeRelativePath(item["path"], "L4 reference path"); hash(item["case_digest"], "L4 case_digest"); hash(item["reference_digest"], "L4 reference_digest");
-    if (item["human_validation"] !== "validated") throw new Error(`L4 reference ${item["case_id"] as string} is not human validated`);
-    nonEmpty(item["validated_by"], "L4 validated_by"); date(item["validated_on"], "L4 validated_on"); commit(item["source_commit"], "L4 source_commit");
+    const item = object(raw, "L4 reference");
+    exact(
+      item,
+      [
+        "case_id",
+        "site",
+        "path",
+        "case_digest",
+        "reference_digest",
+        "human_validation",
+        "validated_by",
+        "validated_on",
+        "source_commit",
+      ],
+      "L4 reference",
+    );
+    referenceIds.push(identifier(item["case_id"], "L4 case_id"));
+    oneOf(item["site"], RELEASE_L4_SITES, "L4 reference site");
+    safeRelativePath(item["path"], "L4 reference path");
+    hash(item["case_digest"], "L4 case_digest");
+    hash(item["reference_digest"], "L4 reference_digest");
+    if (item["human_validation"] !== "validated")
+      throw new Error(`L4 reference ${item["case_id"] as string} is not human validated`);
+    nonEmpty(item["validated_by"], "L4 validated_by");
+    date(item["validated_on"], "L4 validated_on");
+    commit(item["source_commit"], "L4 source_commit");
   }
   if (new Set(referenceIds).size !== referenceIds.length) throw new Error("L4 reference case ids must be unique");
-  if (!Array.isArray(root["pairings"]) || root["pairings"].length === 0) throw new Error("L4 pairings must be non-empty");
+  if (!Array.isArray(root["pairings"]) || root["pairings"].length === 0)
+    throw new Error("L4 pairings must be non-empty");
   const pairingIds: string[] = [];
   for (const raw of root["pairings"]) {
-    const item = object(raw, "L4 pairing"); exact(item, ["id", "comparison_group", "site", "operation", "arm", "producer_tuple", "evaluator_tuple", "rubric_version", "rubric_digest", "grader_digest", "evaluator_status", "decision_rule_digest", "case_ids", "attempt_ids"], "L4 pairing");
-    pairingIds.push(identifier(item["id"], "L4 pairing id")); identifier(item["comparison_group"], "L4 comparison_group"); const site = oneOf(item["site"], RELEASE_L4_SITES, "L4 pairing site");
+    const item = object(raw, "L4 pairing");
+    exact(
+      item,
+      [
+        "id",
+        "comparison_group",
+        "site",
+        "operation",
+        "arm",
+        "producer_tuple",
+        "evaluator_tuple",
+        "rubric_version",
+        "rubric_digest",
+        "grader_digest",
+        "evaluator_status",
+        "decision_rule_digest",
+        "case_ids",
+        "attempt_ids",
+      ],
+      "L4 pairing",
+    );
+    pairingIds.push(identifier(item["id"], "L4 pairing id"));
+    identifier(item["comparison_group"], "L4 comparison_group");
+    const site = oneOf(item["site"], RELEASE_L4_SITES, "L4 pairing site");
     const operation = nonEmpty(item["operation"], "L4 operation");
     const expectedOperation = site === "reviewer" ? "review" : site === "planner" ? "plan" : "validation-design";
     if (operation !== expectedOperation) throw new Error(`L4 pairing operation does not match ${site}`);
     const arm = oneOf(item["arm"], ["bootstrap", "candidate", "baseline"], "L4 arm");
-    if (mode === "bootstrap" && arm !== "bootstrap") throw new Error("bootstrap L4 manifest may contain only bootstrap arms");
-    if (mode === "comparison" && arm === "bootstrap") throw new Error("comparison L4 manifest cannot contain bootstrap arms");
-    nonEmpty(item["producer_tuple"], "L4 producer_tuple"); nonEmpty(item["evaluator_tuple"], "L4 evaluator_tuple"); nonEmpty(item["rubric_version"], "L4 rubric_version"); hash(item["rubric_digest"], "L4 rubric_digest"); hash(item["grader_digest"], "L4 grader_digest");
-    const evaluator = oneOf(item["evaluator_status"], ["human_review", "advisory_judge", "admitted_judge"], "L4 evaluator_status");
-    if (evaluator === "human_review" && item["evaluator_tuple"] !== "human") throw new Error("human-reviewed L4 pairing must name evaluator_tuple=human");
+    if (mode === "bootstrap" && arm !== "bootstrap")
+      throw new Error("bootstrap L4 manifest may contain only bootstrap arms");
+    if (mode === "comparison" && arm === "bootstrap")
+      throw new Error("comparison L4 manifest cannot contain bootstrap arms");
+    nonEmpty(item["producer_tuple"], "L4 producer_tuple");
+    nonEmpty(item["evaluator_tuple"], "L4 evaluator_tuple");
+    nonEmpty(item["rubric_version"], "L4 rubric_version");
+    hash(item["rubric_digest"], "L4 rubric_digest");
+    hash(item["grader_digest"], "L4 grader_digest");
+    const evaluator = oneOf(
+      item["evaluator_status"],
+      ["human_review", "advisory_judge", "admitted_judge"],
+      "L4 evaluator_status",
+    );
+    if (evaluator === "human_review" && item["evaluator_tuple"] !== "human")
+      throw new Error("human-reviewed L4 pairing must name evaluator_tuple=human");
     if (evaluator === "admitted_judge") hash(item["decision_rule_digest"], "L4 decision_rule_digest");
-    else if (item["decision_rule_digest"] !== null) throw new Error("non-admitted L4 evaluator cannot carry a decision rule");
+    else if (item["decision_rule_digest"] !== null)
+      throw new Error("non-admitted L4 evaluator cannot carry a decision rule");
     const cases = uniqueStrings(item["case_ids"], "L4 pairing case_ids");
-    if (cases.length === 0 || cases.some((id) => !referenceIds.includes(id))) throw new Error("L4 pairing case_ids must reference admitted cases");
-    const attempts = uniqueStrings(item["attempt_ids"], "L4 pairing attempt_ids"); if (attempts.length === 0) throw new Error("L4 pairing attempt_ids must be non-empty");
-    const referenceSites = new Map((root["references"] as ReleaseGoldenReferenceV1[]).map((reference) => [reference.case_id, reference.site]));
+    if (cases.length === 0 || cases.some((id) => !referenceIds.includes(id)))
+      throw new Error("L4 pairing case_ids must reference admitted cases");
+    const attempts = uniqueStrings(item["attempt_ids"], "L4 pairing attempt_ids");
+    if (attempts.length === 0) throw new Error("L4 pairing attempt_ids must be non-empty");
+    const referenceSites = new Map(
+      (root["references"] as ReleaseGoldenReferenceV1[]).map((reference) => [reference.case_id, reference.site]),
+    );
     if (cases.some((id) => referenceSites.get(id) !== site)) throw new Error("L4 pairing cannot cross sites");
   }
   if (new Set(pairingIds).size !== pairingIds.length) throw new Error("L4 pairing ids must be unique");
   const coveredCases = new Set((root["pairings"] as ReleaseL4PairingV1[]).flatMap((item) => item.case_ids));
-  if (coveredCases.size !== referenceIds.length || referenceIds.some((id) => !coveredCases.has(id))) throw new Error("L4 pairings must cover every admitted reference case");
-  for (const site of RELEASE_L4_SITES) if (!(root["pairings"] as ReleaseL4PairingV1[]).some((item) => item.site === site)) throw new Error(`L4 manifest lacks ${site} pairing`);
+  if (coveredCases.size !== referenceIds.length || referenceIds.some((id) => !coveredCases.has(id)))
+    throw new Error("L4 pairings must cover every admitted reference case");
+  for (const site of RELEASE_L4_SITES)
+    if (!(root["pairings"] as ReleaseL4PairingV1[]).some((item) => item.site === site))
+      throw new Error(`L4 manifest lacks ${site} pairing`);
   const groups = new Map<string, ReleaseL4PairingV1[]>();
   for (const pairing of root["pairings"] as ReleaseL4PairingV1[]) {
     groups.set(pairing.comparison_group, [...(groups.get(pairing.comparison_group) ?? []), pairing]);
   }
   for (const [groupId, group] of groups) {
     if (mode === "bootstrap") {
-      if (group.length !== 1 || group[0]!.arm !== "bootstrap") throw new Error(`bootstrap L4 comparison group ${groupId} must contain exactly one bootstrap pairing`);
+      if (group.length !== 1 || group[0]!.arm !== "bootstrap")
+        throw new Error(`bootstrap L4 comparison group ${groupId} must contain exactly one bootstrap pairing`);
       continue;
     }
     const candidate = group.find((item) => item.arm === "candidate");
@@ -1604,81 +2030,216 @@ function validateL4(value: unknown): void {
       throw new Error(`comparison L4 group ${groupId} does not use the same case/attempt/evaluator/rubric manifest`);
     }
     if (candidate.producer_tuple === baseline.producer_tuple) {
-      throw new Error(`comparison L4 group ${groupId} does not identify distinct candidate and baseline producer tuples`);
+      throw new Error(
+        `comparison L4 group ${groupId} does not identify distinct candidate and baseline producer tuples`,
+      );
     }
   }
 }
 
 function validateCeilings(value: unknown): void {
-  const root = object(value, "ceilings"); exact(root, ["l3_premerge", "l3_release", "l4"], "ceilings");
-  fixedCeiling(root["l3_premerge"], "l3_premerge", 2, 5); fixedCeiling(root["l3_release"], "l3_release", 24, 100);
-  const l4 = object(root["l4"], "l4 ceiling"); exact(l4, ["max_provider_turns", "max_equiv_usd", "max_tokens", "authorization_ref"], "l4 ceiling");
-  positiveInteger(l4["max_provider_turns"], "l4.max_provider_turns"); positive(l4["max_equiv_usd"], "l4.max_equiv_usd"); positiveInteger(l4["max_tokens"], "l4.max_tokens"); nonEmpty(l4["authorization_ref"], "l4.authorization_ref");
+  const root = object(value, "ceilings");
+  exact(root, ["l3_premerge", "l3_release", "l4"], "ceilings");
+  fixedCeiling(root["l3_premerge"], "l3_premerge", 2, 5);
+  fixedCeiling(root["l3_release"], "l3_release", 24, 100);
+  const l4 = object(root["l4"], "l4 ceiling");
+  exact(l4, ["max_provider_turns", "max_equiv_usd", "max_tokens", "authorization_ref"], "l4 ceiling");
+  positiveInteger(l4["max_provider_turns"], "l4.max_provider_turns");
+  positive(l4["max_equiv_usd"], "l4.max_equiv_usd");
+  positiveInteger(l4["max_tokens"], "l4.max_tokens");
+  nonEmpty(l4["authorization_ref"], "l4.authorization_ref");
 }
 
 function fixedCeiling(value: unknown, name: string, turns: number, usd: number): void {
-  const root = object(value, name); exact(root, ["max_provider_turns", "max_equiv_usd"], name);
-  if (root["max_provider_turns"] !== turns || root["max_equiv_usd"] !== usd) throw new Error(`${name} ceiling differs from RQ-1`);
+  const root = object(value, name);
+  exact(root, ["max_provider_turns", "max_equiv_usd"], name);
+  if (root["max_provider_turns"] !== turns || root["max_equiv_usd"] !== usd)
+    throw new Error(`${name} ceiling differs from RQ-1`);
 }
 
 function validateObligation(value: unknown): asserts value is ReleaseObligationV1 {
-  const root = object(value, "release obligation"); exact(root, ["id", "lane", "required", "claim_class", "debt_eligible", "subject_digest", "producer_digest"], "release obligation");
-  identifier(root["id"], "obligation.id"); oneOf(root["lane"], ["deterministic", "L3", "L4"], "obligation.lane");
+  const root = object(value, "release obligation");
+  exact(
+    root,
+    ["id", "lane", "required", "claim_class", "debt_eligible", "subject_digest", "producer_digest"],
+    "release obligation",
+  );
+  identifier(root["id"], "obligation.id");
+  oneOf(root["lane"], ["deterministic", "L3", "L4"], "obligation.lane");
   if (root["required"] !== true) throw new Error("release obligations must be required");
-  const claim = oneOf(root["claim_class"], ["product", "safety", "accounting", "learning", "build", "ci", "budget", "evaluator_evidence"], "obligation.claim_class");
+  const claim = oneOf(
+    root["claim_class"],
+    ["product", "safety", "accounting", "learning", "build", "ci", "budget", "evaluator_evidence"],
+    "obligation.claim_class",
+  );
   if (typeof root["debt_eligible"] !== "boolean") throw new Error("obligation.debt_eligible must be boolean");
-  if (root["debt_eligible"] === true && claim !== "evaluator_evidence") throw new Error("only evaluator_evidence obligations may be debt eligible");
-  hash(root["subject_digest"], "obligation.subject_digest"); hash(root["producer_digest"], "obligation.producer_digest");
+  if (root["debt_eligible"] === true && claim !== "evaluator_evidence")
+    throw new Error("only evaluator_evidence obligations may be debt eligible");
+  hash(root["subject_digest"], "obligation.subject_digest");
+  hash(root["producer_digest"], "obligation.producer_digest");
 }
 
 function validateDeterministicEvidence(value: unknown): asserts value is DeterministicEvidenceV1 {
-  const root = object(value, "deterministic evidence"); exact(root, ["schema_version", "qualification_id", "checks"], "deterministic evidence");
-  if (root["schema_version"] !== 1) throw new Error("unsupported deterministic evidence schema"); hash(root["qualification_id"], "deterministic qualification_id");
+  const root = object(value, "deterministic evidence");
+  exact(root, ["schema_version", "qualification_id", "checks"], "deterministic evidence");
+  if (root["schema_version"] !== 1) throw new Error("unsupported deterministic evidence schema");
+  hash(root["qualification_id"], "deterministic qualification_id");
   if (!Array.isArray(root["checks"])) throw new Error("deterministic checks must be an array");
   const ids: string[] = [];
   for (const raw of root["checks"]) {
-    const item = object(raw, "deterministic check"); exact(item, ["id", "status", "candidate_commit", "subject_digest", "producer_digest", "evidence_ref", "skipped_case_ids"], "deterministic check");
-    ids.push(oneOf(item["id"], RELEASE_DETERMINISTIC_CHECKS, "deterministic check id")); oneOf(item["status"], ["pass", "fail", "missing", "cancelled", "neutral"], "deterministic status"); commit(item["candidate_commit"], "deterministic candidate_commit"); hash(item["subject_digest"], "deterministic subject_digest"); hash(item["producer_digest"], "deterministic producer_digest"); nonEmpty(item["evidence_ref"], "deterministic evidence_ref"); uniqueStrings(item["skipped_case_ids"], "deterministic skipped_case_ids");
+    const item = object(raw, "deterministic check");
+    exact(
+      item,
+      ["id", "status", "candidate_commit", "subject_digest", "producer_digest", "evidence_ref", "skipped_case_ids"],
+      "deterministic check",
+    );
+    ids.push(oneOf(item["id"], RELEASE_DETERMINISTIC_CHECKS, "deterministic check id"));
+    oneOf(item["status"], ["pass", "fail", "missing", "cancelled", "neutral"], "deterministic status");
+    commit(item["candidate_commit"], "deterministic candidate_commit");
+    hash(item["subject_digest"], "deterministic subject_digest");
+    hash(item["producer_digest"], "deterministic producer_digest");
+    nonEmpty(item["evidence_ref"], "deterministic evidence_ref");
+    uniqueStrings(item["skipped_case_ids"], "deterministic skipped_case_ids");
   }
   if (new Set(ids).size !== ids.length) throw new Error("deterministic check ids must be unique");
 }
 
 function validateL4EvidenceShape(value: unknown): asserts value is L4ReleaseEvidenceV1 {
-  const root = object(value, "L4 release evidence"); exact(root, ["schema_version", "qualification_id", "subject_digest", "producer_digest", "observations"], "L4 release evidence");
+  const root = object(value, "L4 release evidence");
+  exact(
+    root,
+    ["schema_version", "qualification_id", "subject_digest", "producer_digest", "observations"],
+    "L4 release evidence",
+  );
   if (root["schema_version"] !== 1) throw new Error("unsupported L4 release evidence schema");
   hash(root["qualification_id"], "L4 qualification_id");
   hash(root["subject_digest"], "L4 subject_digest");
   hash(root["producer_digest"], "L4 producer_digest");
   if (!Array.isArray(root["observations"])) throw new Error("L4 observations must be an array");
   for (const raw of root["observations"]) {
-    const item = object(raw, "L4 observation"); exact(item, ["pairing_id", "case_id", "attempt_id", "output_sha256", "grading_digest", "grade_reused_from", "automatic_score_used", "outcome", "evidence_ref"], "L4 observation");
-    identifier(item["pairing_id"], "L4 pairing_id"); identifier(item["case_id"], "L4 case_id"); identifier(item["attempt_id"], "L4 attempt_id"); hash(item["output_sha256"], "L4 output_sha256"); hash(item["grading_digest"], "L4 grading_digest");
+    const item = object(raw, "L4 observation");
+    exact(
+      item,
+      [
+        "pairing_id",
+        "case_id",
+        "attempt_id",
+        "output_sha256",
+        "grading_digest",
+        "grade_reused_from",
+        "automatic_score_used",
+        "outcome",
+        "evidence_ref",
+      ],
+      "L4 observation",
+    );
+    identifier(item["pairing_id"], "L4 pairing_id");
+    identifier(item["case_id"], "L4 case_id");
+    identifier(item["attempt_id"], "L4 attempt_id");
+    hash(item["output_sha256"], "L4 output_sha256");
+    hash(item["grading_digest"], "L4 grading_digest");
     if (item["grade_reused_from"] !== null) nonEmpty(item["grade_reused_from"], "L4 grade_reused_from");
     if (typeof item["automatic_score_used"] !== "boolean") throw new Error("L4 automatic_score_used must be boolean");
-    oneOf(item["outcome"], ["match", "mismatch", "unscored", "invalid"], "L4 outcome"); nonEmpty(item["evidence_ref"], "L4 evidence_ref");
+    oneOf(item["outcome"], ["match", "mismatch", "unscored", "invalid"], "L4 outcome");
+    nonEmpty(item["evidence_ref"], "L4 evidence_ref");
   }
 }
 
 function validateLaneResult(value: unknown): asserts value is ReleaseLaneResultV1 {
-  const root = object(value, "release lane result"); exact(root, ["obligation_id", "lane", "claim_class", "debt_eligible", "completeness", "verdict", "decision_status", "subject_digest", "producer_digest", "evidence_ref", "evidence_sha256", "violation_ids", "reason_codes"], "release lane result");
-  identifier(root["obligation_id"], "lane obligation_id"); oneOf(root["lane"], ["deterministic", "L3", "L4"], "lane");
-  oneOf(root["claim_class"], ["product", "safety", "accounting", "learning", "build", "ci", "budget", "evaluator_evidence"], "lane claim_class"); if (typeof root["debt_eligible"] !== "boolean") throw new Error("lane debt_eligible must be boolean");
-  const completeness = oneOf(root["completeness"], ["complete", "incomplete"], "lane completeness"); const verdict = oneOf(root["verdict"], ["pass", "fail", "inconclusive"], "lane verdict"); const decision = oneOf(root["decision_status"], ["ratified", "proposed", "not_applicable"], "lane decision_status");
-  hash(root["subject_digest"], "lane subject_digest"); hash(root["producer_digest"], "lane producer_digest"); nonEmpty(root["evidence_ref"], "lane evidence_ref"); hash(root["evidence_sha256"], "lane evidence_sha256"); const violations = uniqueStrings(root["violation_ids"], "lane violation_ids"); uniqueStrings(root["reason_codes"], "lane reason_codes");
+  const root = object(value, "release lane result");
+  exact(
+    root,
+    [
+      "obligation_id",
+      "lane",
+      "claim_class",
+      "debt_eligible",
+      "completeness",
+      "verdict",
+      "decision_status",
+      "subject_digest",
+      "producer_digest",
+      "evidence_ref",
+      "evidence_sha256",
+      "violation_ids",
+      "reason_codes",
+    ],
+    "release lane result",
+  );
+  identifier(root["obligation_id"], "lane obligation_id");
+  oneOf(root["lane"], ["deterministic", "L3", "L4"], "lane");
+  oneOf(
+    root["claim_class"],
+    ["product", "safety", "accounting", "learning", "build", "ci", "budget", "evaluator_evidence"],
+    "lane claim_class",
+  );
+  if (typeof root["debt_eligible"] !== "boolean") throw new Error("lane debt_eligible must be boolean");
+  const completeness = oneOf(root["completeness"], ["complete", "incomplete"], "lane completeness");
+  const verdict = oneOf(root["verdict"], ["pass", "fail", "inconclusive"], "lane verdict");
+  const decision = oneOf(root["decision_status"], ["ratified", "proposed", "not_applicable"], "lane decision_status");
+  hash(root["subject_digest"], "lane subject_digest");
+  hash(root["producer_digest"], "lane producer_digest");
+  nonEmpty(root["evidence_ref"], "lane evidence_ref");
+  hash(root["evidence_sha256"], "lane evidence_sha256");
+  const violations = uniqueStrings(root["violation_ids"], "lane violation_ids");
+  uniqueStrings(root["reason_codes"], "lane reason_codes");
   if (violations.length > 0 && verdict !== "fail") throw new Error("lane violations require fail verdict");
-  if (completeness === "incomplete" && violations.length === 0 && verdict !== "inconclusive") throw new Error("incomplete lane without violation must be inconclusive");
-  if (decision === "proposed" && violations.length === 0 && verdict !== "inconclusive") throw new Error("proposed lane rule cannot pass");
+  if (completeness === "incomplete" && violations.length === 0 && verdict !== "inconclusive")
+    throw new Error("incomplete lane without violation must be inconclusive");
+  if (decision === "proposed" && violations.length === 0 && verdict !== "inconclusive")
+    throw new Error("proposed lane rule cannot pass");
   if (verdict === "pass" && completeness !== "complete") throw new Error("lane pass requires complete evidence");
 }
 
 function validateDebt(value: unknown): asserts value is EvaluatorDebtDispositionV1 {
-  const root = object(value, "evaluator debt"); exact(root, ["debt_id", "obligation_id", "evidence_sha256", "candidate_commit", "consequence", "owner", "invalidation_trigger", "accepted_by", "accepted_at", "decision"], "evaluator debt");
-  identifier(root["debt_id"], "debt_id"); identifier(root["obligation_id"], "debt obligation_id"); hash(root["evidence_sha256"], "debt evidence_sha256"); commit(root["candidate_commit"], "debt candidate_commit"); nonEmpty(root["consequence"], "debt consequence"); nonEmpty(root["owner"], "debt owner"); nonEmpty(root["invalidation_trigger"], "debt invalidation_trigger"); nonEmpty(root["accepted_by"], "debt accepted_by"); instant(root["accepted_at"], "debt accepted_at"); if (root["decision"] !== "accepted") throw new Error("evaluator debt decision must be accepted");
+  const root = object(value, "evaluator debt");
+  exact(
+    root,
+    [
+      "debt_id",
+      "obligation_id",
+      "evidence_sha256",
+      "candidate_commit",
+      "consequence",
+      "owner",
+      "invalidation_trigger",
+      "accepted_by",
+      "accepted_at",
+      "decision",
+    ],
+    "evaluator debt",
+  );
+  identifier(root["debt_id"], "debt_id");
+  identifier(root["obligation_id"], "debt obligation_id");
+  hash(root["evidence_sha256"], "debt evidence_sha256");
+  commit(root["candidate_commit"], "debt candidate_commit");
+  nonEmpty(root["consequence"], "debt consequence");
+  nonEmpty(root["owner"], "debt owner");
+  nonEmpty(root["invalidation_trigger"], "debt invalidation_trigger");
+  nonEmpty(root["accepted_by"], "debt accepted_by");
+  instant(root["accepted_at"], "debt accepted_at");
+  if (root["decision"] !== "accepted") throw new Error("evaluator debt decision must be accepted");
 }
 
 function validateEvidenceChangeDisposition(value: unknown): asserts value is EvidenceChangeDispositionV1 {
   const root = object(value, "evidence change disposition");
-  exact(root, ["disposition_id", "obligation_id", "candidate_commit", "prior_producer_digest", "current_producer_digest", "decision", "defect_id", "changed_files", "detector_case_ids", "decided_by", "decided_at"], "evidence change disposition");
+  exact(
+    root,
+    [
+      "disposition_id",
+      "obligation_id",
+      "candidate_commit",
+      "prior_producer_digest",
+      "current_producer_digest",
+      "decision",
+      "defect_id",
+      "changed_files",
+      "detector_case_ids",
+      "decided_by",
+      "decided_at",
+    ],
+    "evidence change disposition",
+  );
   identifier(root["disposition_id"], "evidence change disposition_id");
   identifier(root["obligation_id"], "evidence change obligation_id");
   commit(root["candidate_commit"], "evidence change candidate_commit");
@@ -1687,26 +2248,43 @@ function validateEvidenceChangeDisposition(value: unknown): asserts value is Evi
   if (prior === current) throw new Error("evidence change disposition requires actual producer drift");
   oneOf(root["decision"], ["unaffected", "invalidated"], "evidence change decision");
   nonEmpty(root["defect_id"], "evidence change defect_id");
-  if (!Array.isArray(root["changed_files"]) || root["changed_files"].length === 0) throw new Error("evidence change disposition requires an exact changed-file inventory");
+  if (!Array.isArray(root["changed_files"]) || root["changed_files"].length === 0)
+    throw new Error("evidence change disposition requires an exact changed-file inventory");
   const paths: string[] = [];
   for (const raw of root["changed_files"]) {
     const item = object(raw, "evidence change file");
     exact(item, ["path", "prior_sha256", "current_sha256"], "evidence change file");
     const path = safeRelativePath(item["path"], "evidence change path");
-    if (path === "archive-do-not-read" || path.startsWith("archive-do-not-read/")) throw new Error("evidence change disposition cannot reference the forbidden archive");
+    if (path === "archive-do-not-read" || path.startsWith("archive-do-not-read/"))
+      throw new Error("evidence change disposition cannot reference the forbidden archive");
     paths.push(path);
     const before = hash(item["prior_sha256"], "evidence change prior_sha256");
     const after = hash(item["current_sha256"], "evidence change current_sha256");
     if (before === after) throw new Error("evidence change file must contain different hashes");
   }
-  if (new Set(paths).size !== paths.length || canonicalJson(paths) !== canonicalJson([...paths].sort())) throw new Error("evidence change files must be unique and sorted");
-  if (uniqueStrings(root["detector_case_ids"], "evidence change detector_case_ids").length === 0) throw new Error("evidence change disposition requires detector evidence");
+  if (new Set(paths).size !== paths.length || canonicalJson(paths) !== canonicalJson([...paths].sort()))
+    throw new Error("evidence change files must be unique and sorted");
+  if (uniqueStrings(root["detector_case_ids"], "evidence change detector_case_ids").length === 0)
+    throw new Error("evidence change disposition requires detector evidence");
   nonEmpty(root["decided_by"], "evidence change decided_by");
   instant(root["decided_at"], "evidence change decided_at");
 }
 
-function eligibleDebt(obligation: ReleaseObligationV1, result: ReleaseLaneResultV1, debt: EvaluatorDebtDispositionV1 | undefined, candidateCommit: string): boolean {
-  return obligation.debt_eligible && obligation.claim_class === "evaluator_evidence" && result.completeness === "complete" && result.verdict === "inconclusive" && debt !== undefined && debt.evidence_sha256 === result.evidence_sha256 && debt.candidate_commit === candidateCommit;
+function eligibleDebt(
+  obligation: ReleaseObligationV1,
+  result: ReleaseLaneResultV1,
+  debt: EvaluatorDebtDispositionV1 | undefined,
+  candidateCommit: string,
+): boolean {
+  return (
+    obligation.debt_eligible &&
+    obligation.claim_class === "evaluator_evidence" &&
+    result.completeness === "complete" &&
+    result.verdict === "inconclusive" &&
+    debt !== undefined &&
+    debt.evidence_sha256 === result.evidence_sha256 &&
+    debt.candidate_commit === candidateCommit
+  );
 }
 
 function eligibleEvidenceChange(
@@ -1715,34 +2293,48 @@ function eligibleEvidenceChange(
   disposition: EvidenceChangeDispositionV1 | undefined,
   candidateCommit: string,
 ): boolean {
-  return obligation.claim_class === "evaluator_evidence"
-    && disposition !== undefined
-    && disposition.decision === "unaffected"
-    && disposition.obligation_id === obligation.id
-    && disposition.candidate_commit === candidateCommit
-    && disposition.prior_producer_digest === result.producer_digest
-    && disposition.current_producer_digest === obligation.producer_digest;
+  return (
+    obligation.claim_class === "evaluator_evidence" &&
+    disposition !== undefined &&
+    disposition.decision === "unaffected" &&
+    disposition.obligation_id === obligation.id &&
+    disposition.candidate_commit === candidateCommit &&
+    disposition.prior_producer_digest === result.producer_digest &&
+    disposition.current_producer_digest === obligation.producer_digest
+  );
 }
 
 function validateReleaseAction(value: unknown): asserts value is ReleaseActionV1 {
-  const root = object(value, "release action"); exact(root, ["kind", "package_name", "version", "tag", "dist_tag", "registry"], "release action");
+  const root = object(value, "release action");
+  exact(root, ["kind", "package_name", "version", "tag", "dist_tag", "registry"], "release action");
   if (root["kind"] !== "npm_publish") throw new Error("release action kind must be npm_publish");
   nonEmpty(root["package_name"], "release package_name");
   const version = nonEmpty(root["version"], "release version");
-  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new Error("release version must be an exact semver without v prefix");
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version))
+    throw new Error("release version must be an exact semver without v prefix");
   if (root["tag"] !== `v${version}`) throw new Error("release tag must exactly match the package version");
-  if (root["dist_tag"] !== "latest" || root["registry"] !== "https://registry.npmjs.org") throw new Error("release action must match the supported latest/npmjs publication path");
+  if (root["dist_tag"] !== "latest" || root["registry"] !== "https://registry.npmjs.org")
+    throw new Error("release action must match the supported latest/npmjs publication path");
 }
 
 function validatePacketFiles(files: Array<{ path: string; size: number; sha256: string }>): void {
   const paths: string[] = [];
   for (const raw of files) {
-    const file = object(raw, "packet file"); exact(file, ["path", "size", "sha256"], "packet file");
+    const file = object(raw, "packet file");
+    exact(file, ["path", "size", "sha256"], "packet file");
     const path = safeRelativePath(file["path"], "packet file path");
-    if (!/^(release-manifest|qualification-report|deterministic-results|l4-results|campaign-index|human-review|package-manifest)\.json$/.test(path)) throw new Error(`release packet path is not allowlisted: ${path}`);
-    paths.push(path); nonNegativeInteger(file["size"], "packet file size"); hash(file["sha256"], "packet file sha256");
+    if (
+      !/^(release-manifest|qualification-report|deterministic-results|l4-results|campaign-index|human-review|package-manifest)\.json$/.test(
+        path,
+      )
+    )
+      throw new Error(`release packet path is not allowlisted: ${path}`);
+    paths.push(path);
+    nonNegativeInteger(file["size"], "packet file size");
+    hash(file["sha256"], "packet file sha256");
   }
-  if (new Set(paths).size !== paths.length || canonicalJson(paths) !== canonicalJson([...paths].sort())) throw new Error("packet files must be unique and sorted");
+  if (new Set(paths).size !== paths.length || canonicalJson(paths) !== canonicalJson([...paths].sort()))
+    throw new Error("packet files must be unique and sorted");
 }
 
 function canonicalValue(value: unknown): unknown {
@@ -1802,20 +2394,37 @@ async function goldenReferenceProjection(
   recordBytes: Buffer,
 ): Promise<ReleaseGoldenReferenceV1[]> {
   const record = object(JSON.parse(recordBytes.toString("utf8")) as unknown, "golden human-validation record");
-  exact(record, ["schema_version", "validation_kind", "validated_by", "validated_on", "source_commit", "human_statement", "recorded_by", "records"], "golden human-validation record");
-  if (record["schema_version"] !== 1 || record["validation_kind"] !== "RQ-1-golden-reference-review") throw new Error("unsupported golden human-validation record");
+  exact(
+    record,
+    [
+      "schema_version",
+      "validation_kind",
+      "validated_by",
+      "validated_on",
+      "source_commit",
+      "human_statement",
+      "recorded_by",
+      "records",
+    ],
+    "golden human-validation record",
+  );
+  if (record["schema_version"] !== 1 || record["validation_kind"] !== "RQ-1-golden-reference-review")
+    throw new Error("unsupported golden human-validation record");
   const validatedBy = nonEmpty(record["validated_by"], "golden validated_by");
   const validatedOn = date(record["validated_on"], "golden validated_on");
   const sourceCommit = commit(record["source_commit"], "golden source_commit");
-  nonEmpty(record["human_statement"], "golden human_statement"); nonEmpty(record["recorded_by"], "golden recorded_by");
-  if (!Array.isArray(record["records"]) || record["records"].length === 0) throw new Error("golden human-validation records must be non-empty");
+  nonEmpty(record["human_statement"], "golden human_statement");
+  nonEmpty(record["recorded_by"], "golden recorded_by");
+  if (!Array.isArray(record["records"]) || record["records"].length === 0)
+    throw new Error("golden human-validation records must be non-empty");
   const ledger = new Map<string, { path: string; source_case_digest: string }>();
   for (const raw of record["records"]) {
     const item = object(raw, "golden human-validation row");
     exact(item, ["case_id", "path", "source_case_digest", "result"], "golden human-validation row");
     const caseId = identifier(item["case_id"], "golden validation case_id");
     const path = safeRelativePath(item["path"], "golden validation path");
-    if (!/^validation-design\/golden-sets\/(reviewer|planner|validation-designer)\/cases\.json$/.test(path)) throw new Error(`golden validation path is outside current RQ-1 sites: ${path}`);
+    if (!/^validation-design\/golden-sets\/(reviewer|planner|validation-designer)\/cases\.json$/.test(path))
+      throw new Error(`golden validation path is outside current RQ-1 sites: ${path}`);
     if (item["result"] !== "confirm") throw new Error(`golden validation row ${caseId} is not confirmed`);
     if (ledger.has(caseId)) throw new Error(`duplicate golden validation row ${caseId}`);
     ledger.set(caseId, { path, source_case_digest: hash(item["source_case_digest"], "golden source_case_digest") });
@@ -1831,11 +2440,14 @@ async function goldenReferenceProjection(
       const currentRoot = object(current, `golden case in ${path}`);
       const caseId = identifier(currentRoot["id"], "golden case id");
       const entry = ledger.get(caseId);
-      if (entry === undefined || entry.path !== path) throw new Error(`golden case ${caseId} lacks an exact human-validation row`);
+      if (entry === undefined || entry.path !== path)
+        throw new Error(`golden case ${caseId} lacks an exact human-validation row`);
       const source = sourceRows.find((item) => object(item, "source golden case")["id"] === caseId);
-      if (source === undefined || digestJson(source) !== entry.source_case_digest) throw new Error(`golden case ${caseId} source digest is stale`);
+      if (source === undefined || digestJson(source) !== entry.source_case_digest)
+        throw new Error(`golden case ${caseId} source digest is stale`);
       const provenance = object(currentRoot["provenance"], `golden case ${caseId} provenance`);
-      if (provenance["human_validation"] !== "validated" || provenance["validated_by"] !== validatedBy) throw new Error(`golden case ${caseId} is not attributed to the validating human`);
+      if (provenance["human_validation"] !== "validated" || provenance["validated_by"] !== validatedBy)
+        throw new Error(`golden case ${caseId} is not attributed to the validating human`);
       const sourceRoot = object(source, `source golden case ${caseId}`);
       const sourceProvenance = object(sourceRoot["provenance"], `source golden case ${caseId} provenance`);
       const reviewedCurrent = structuredClone(currentRoot);
@@ -1861,7 +2473,8 @@ async function goldenReferenceProjection(
       ledger.delete(caseId);
     }
   }
-  if (ledger.size > 0) throw new Error(`golden validation record names missing cases: ${[...ledger.keys()].sort().join(", ")}`);
+  if (ledger.size > 0)
+    throw new Error(`golden validation record names missing cases: ${[...ledger.keys()].sort().join(", ")}`);
   return references.sort((left, right) => left.case_id.localeCompare(right.case_id));
 }
 
@@ -1875,8 +2488,11 @@ async function gitTreeDigest(repo: string, revision: string, prefix: string): Pr
   const result = await git(repo, ["ls-tree", "-r", "-z", "--name-only", revision, "--", prefix], false);
   const paths = result.split("\0").filter(Boolean).sort();
   if (paths.length === 0) throw new Error(`release input tree is empty: ${prefix}`);
-  if (paths.some((path) => path === "archive-do-not-read" || path.startsWith("archive-do-not-read/"))) throw new Error("release input tree attempted to enter the forbidden archive");
-  const rows = await Promise.all(paths.map(async (path) => ({ path, sha256: sha256(await gitFile(repo, revision, path)) })));
+  if (paths.some((path) => path === "archive-do-not-read" || path.startsWith("archive-do-not-read/")))
+    throw new Error("release input tree attempted to enter the forbidden archive");
+  const rows = await Promise.all(
+    paths.map(async (path) => ({ path, sha256: sha256(await gitFile(repo, revision, path)) })),
+  );
   return digestJson(rows);
 }
 
@@ -1898,7 +2514,11 @@ function releasePolicyProjection(policyBytes: Buffer): {
   }
   for (const id of [...RELEASE_L3_REQUIRED_CASES, ...RELEASE_L3_CONDITIONAL_CASES]) {
     const item = obligations.get(id);
-    if (item === undefined || typeof item["trigger"] !== "string" || !item["trigger"].toLowerCase().includes("release")) {
+    if (
+      item === undefined ||
+      typeof item["trigger"] !== "string" ||
+      !item["trigger"].toLowerCase().includes("release")
+    ) {
       throw new Error(`validation policy does not declare ${id} as an RQ-1 release obligation`);
     }
     if (item["status"] === "BLOCKED") throw new Error(`validation policy release obligation ${id} is blocked`);
@@ -1942,12 +2562,17 @@ export function releaseAllowedTestSkipsFromVitestReport(
     const fileName = nonEmpty(file["name"], "Vitest test result name");
     const absoluteFile = isAbsolute(fileName) ? resolve(fileName) : resolve(repo, fileName);
     const candidateRelativeFile = relative(resolve(repo), absoluteFile);
-    if (candidateRelativeFile.length === 0 || isAbsolute(candidateRelativeFile) || candidateRelativeFile.split(sep).includes("..")) {
+    if (
+      candidateRelativeFile.length === 0 ||
+      isAbsolute(candidateRelativeFile) ||
+      candidateRelativeFile.split(sep).includes("..")
+    ) {
       throw new Error(`Vitest test result is outside the candidate repository: ${fileName}`);
     }
     const relativeFile = safeRelativePath(candidateRelativeFile, "Vitest test result path");
     observedFiles.push(relativeFile);
-    if (!Array.isArray(file["assertionResults"])) throw new Error(`Vitest test result ${fileName} lacks assertion inventory`);
+    if (!Array.isArray(file["assertionResults"]))
+      throw new Error(`Vitest test result ${fileName} lacks assertion inventory`);
     for (const rawAssertion of file["assertionResults"] as unknown[]) {
       const assertion = object(rawAssertion, `Vitest assertion in ${fileName}`);
       const status = nonEmpty(assertion["status"], `Vitest assertion status in ${fileName}`);
@@ -1959,33 +2584,46 @@ export function releaseAllowedTestSkipsFromVitestReport(
       if (status === "passed" || status === "failed") continue;
       const fullName = nonEmpty(assertion["fullName"], `Vitest non-passing assertion identity in ${fileName}`);
       const bindings = [...fullName.matchAll(/\b(BLOCKED:(F-PT-\d{3}))\b/g)];
-      if (bindings.length !== 1) throw new Error(`release candidate has an unbound skipped or pending test: ${fullName}`);
+      if (bindings.length !== 1)
+        throw new Error(`release candidate has an unbound skipped or pending test: ${fullName}`);
       const skipId = bindings[0]![1]!;
       const findingId = bindings[0]![2]!;
-      if (!openFindingIds.has(findingId)) throw new Error(`skipped or pending test ${skipId} is not bound to a current open policy finding`);
+      if (!openFindingIds.has(findingId))
+        throw new Error(`skipped or pending test ${skipId} is not bound to a current open policy finding`);
       skipIds.push(skipId);
     }
   }
-  if (observed.passed !== expectedPassed || observed.failed !== expectedFailed || observed.pending !== expectedPending || observed.todo !== expectedTodo) {
+  if (
+    observed.passed !== expectedPassed ||
+    observed.failed !== expectedFailed ||
+    observed.pending !== expectedPending ||
+    observed.todo !== expectedTodo
+  ) {
     throw new Error("Vitest JSON report aggregate counts do not match its assertion inventory");
   }
   if (total !== observed.passed + observed.failed + observed.pending + observed.todo) {
     throw new Error("Vitest JSON report total does not match its assertion inventory");
   }
-  if (new Set(observedFiles).size !== observedFiles.length) throw new Error("Vitest JSON report contains duplicate test files");
+  if (new Set(observedFiles).size !== observedFiles.length)
+    throw new Error("Vitest JSON report contains duplicate test files");
   if (canonicalJson(observedFiles.sort()) !== canonicalJson([...expectedTestFiles].sort())) {
     throw new Error("Vitest JSON report file inventory differs from the exact tracked offline test inventory");
   }
   if (expectedFailed !== 0) throw new Error("release candidate Vitest inventory contains failed tests");
-  if (new Set(skipIds).size !== skipIds.length) throw new Error("release candidate has duplicate policy-bound skipped-test identities");
+  if (new Set(skipIds).size !== skipIds.length)
+    throw new Error("release candidate has duplicate policy-bound skipped-test identities");
   return skipIds.sort();
 }
 
 async function releaseTrackedVitestFiles(repo: string, revision: string): Promise<string[]> {
   const result = await git(repo, ["ls-tree", "-r", "-z", "--name-only", revision, "--", "tests"], false);
-  const paths = result.split("\0").filter((path) => /^tests\/.+\.test\.ts$/.test(path) && !path.startsWith("tests/live/")).sort();
+  const paths = result
+    .split("\0")
+    .filter((path) => /^tests\/.+\.test\.ts$/.test(path) && !path.startsWith("tests/live/"))
+    .sort();
   if (paths.length === 0) throw new Error("release candidate has no tracked offline Vitest files");
-  if (new Set(paths).size !== paths.length) throw new Error("release candidate has duplicate tracked offline Vitest files");
+  if (new Set(paths).size !== paths.length)
+    throw new Error("release candidate has duplicate tracked offline Vitest files");
   return paths;
 }
 
@@ -2004,7 +2642,9 @@ async function validateReleaseExecutionTree(repo: string, revision: string): Pro
     .map((path) => safeRelativePath(path, "release execution path"));
   const outsideEvidence = paths.filter((path) => !path.startsWith("release-evidence/"));
   if (outsideEvidence.length > 0) {
-    throw new Error(`release execution tree differs from the candidate outside evidence namespace: ${outsideEvidence.sort().join(", ")}`);
+    throw new Error(
+      `release execution tree differs from the candidate outside evidence namespace: ${outsideEvidence.sort().join(", ")}`,
+    );
   }
 }
 
@@ -2021,14 +2661,16 @@ async function runReleaseVitest(repo: string, revision: string): Promise<unknown
     await git(executionRepo, ["checkout", "--quiet", "--detach", revision]);
     const canonicalExecutionRepo = await realpathFs(executionRepo);
     const environment = releaseExecutionEnvironment();
-    await execFile("pnpm", [
-      "install", "--offline", "--frozen-lockfile", "--ignore-scripts", "--verify-store-integrity",
-    ], {
-      cwd: executionRepo,
-      env: environment,
-      encoding: "utf8",
-      maxBuffer: 50 * 1024 * 1024,
-    });
+    await execFile(
+      "pnpm",
+      ["install", "--offline", "--frozen-lockfile", "--ignore-scripts", "--verify-store-integrity"],
+      {
+        cwd: executionRepo,
+        env: environment,
+        encoding: "utf8",
+        maxBuffer: 50 * 1024 * 1024,
+      },
+    );
     let stdout: string;
     try {
       const result = await execFile("pnpm", ["exec", "vitest", "run", "--reporter=json", "--no-cache"], {
@@ -2039,7 +2681,10 @@ async function runReleaseVitest(repo: string, revision: string): Promise<unknown
       });
       stdout = result.stdout;
     } catch (error) {
-      const failedStdout = typeof error === "object" && error !== null && "stdout" in error ? String((error as { stdout?: unknown }).stdout) : "";
+      const failedStdout =
+        typeof error === "object" && error !== null && "stdout" in error
+          ? String((error as { stdout?: unknown }).stdout)
+          : "";
       if (failedStdout.trim().length > 0) {
         try {
           return normalizeReleaseVitestReportPaths(JSON.parse(failedStdout) as unknown, canonicalExecutionRepo);
@@ -2048,7 +2693,10 @@ async function runReleaseVitest(repo: string, revision: string): Promise<unknown
           // emit one trustworthy machine-readable report.
         }
       }
-      const stderr = typeof error === "object" && error !== null && "stderr" in error ? String((error as { stderr?: unknown }).stderr) : "";
+      const stderr =
+        typeof error === "object" && error !== null && "stderr" in error
+          ? String((error as { stderr?: unknown }).stderr)
+          : "";
       throw new Error(`release candidate Vitest execution failed${stderr.trim() ? `: ${stderr.trim()}` : ""}`);
     }
     try {
@@ -2079,7 +2727,25 @@ function normalizeReleaseVitestReportPaths(report: unknown, executionRepo: strin
 
 function releaseExecutionEnvironment(): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = { CI: "true", NO_COLOR: "1" };
-  for (const name of ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SHELL", "USER", "LOGNAME", "LANG", "LC_ALL", "PNPM_HOME", "COREPACK_HOME"] as const) {
+  for (const name of [
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "TMP",
+    "TEMP",
+    "SHELL",
+    "USER",
+    "LOGNAME",
+    "LANG",
+    "LC_ALL",
+    "TZ",
+    "PNPM_HOME",
+    "PNPM_CONFIG_STORE_DIR",
+    "NPM_CONFIG_USERCONFIG",
+    "NPM_CONFIG_GLOBALCONFIG",
+    "COREPACK_HOME",
+    "COREPACK_ENABLE_NETWORK",
+  ] as const) {
     if (process.env[name] !== undefined) environment[name] = process.env[name];
   }
   return environment;
@@ -2087,9 +2753,13 @@ function releaseExecutionEnvironment(): NodeJS.ProcessEnv {
 
 async function gitFile(repo: string, revision: string, path: string): Promise<Buffer> {
   const safe = safeRelativePath(path, "release git path");
-  if (safe === "archive-do-not-read" || safe.startsWith("archive-do-not-read/")) throw new Error("release input attempted to read the forbidden archive");
+  if (safe === "archive-do-not-read" || safe.startsWith("archive-do-not-read/"))
+    throw new Error("release input attempted to read the forbidden archive");
   try {
-    const result = await execFile("git", ["-C", repo, "show", `${revision}:${safe}`], { encoding: "buffer", maxBuffer: 50 * 1024 * 1024 });
+    const result = await execFile("git", ["-C", repo, "show", `${revision}:${safe}`], {
+      encoding: "buffer",
+      maxBuffer: 50 * 1024 * 1024,
+    });
     return result.stdout;
   } catch (error) {
     throw new Error(`release candidate is missing tracked input ${safe}`, { cause: error });
@@ -2101,31 +2771,44 @@ async function git(repo: string, args: string[], trim = true): Promise<string> {
     const result = await execFile("git", ["-C", repo, ...args], { encoding: "utf8", maxBuffer: 50 * 1024 * 1024 });
     return trim ? result.stdout.trim() : result.stdout;
   } catch (error) {
-    const stderr = typeof error === "object" && error !== null && "stderr" in error ? String((error as { stderr?: unknown }).stderr) : "";
+    const stderr =
+      typeof error === "object" && error !== null && "stderr" in error
+        ? String((error as { stderr?: unknown }).stderr)
+        : "";
     throw new Error(`release git ${args[0] ?? "command"} failed${stderr.trim() ? `: ${stderr.trim()}` : ""}`);
   }
 }
 
 function tarString(header: Uint8Array, start: number, length: number): string {
-  return Buffer.from(header.subarray(start, start + length)).toString("utf8").replace(/\0.*$/, "");
+  return Buffer.from(header.subarray(start, start + length))
+    .toString("utf8")
+    .replace(/\0.*$/, "");
 }
 
-function observationId(pairingId: string, caseId: string, attemptId: string): string { return `${pairingId}::${caseId}::${attemptId}`; }
-function observationKey(row: L4ReleaseObservationV1): string { return observationId(row.pairing_id, row.case_id, row.attempt_id); }
+function observationId(pairingId: string, caseId: string, attemptId: string): string {
+  return `${pairingId}::${caseId}::${attemptId}`;
+}
+function observationKey(row: L4ReleaseObservationV1): string {
+  return observationId(row.pairing_id, row.case_id, row.attempt_id);
+}
 
-async function readJson(path: string): Promise<unknown> { return JSON.parse(await readFile(path, "utf8")); }
+async function readJson(path: string): Promise<unknown> {
+  return JSON.parse(await readFile(path, "utf8"));
+}
 
 function joinContained(root: string, path: string): string {
   const safe = safeRelativePath(path, "contained path");
   const target = resolve(root, safe);
   const rel = relative(resolve(root), target);
-  if (rel.startsWith("..") || rel === "" || rel.includes(`${sep}..${sep}`)) throw new Error(`path escapes release packet: ${path}`);
+  if (rel.startsWith("..") || rel === "" || rel.includes(`${sep}..${sep}`))
+    throw new Error(`path escapes release packet: ${path}`);
   return target;
 }
 
 function safeRelativePath(value: unknown, name: string): string {
   const out = nonEmpty(value, name).replaceAll("\\", "/");
-  if (out.startsWith("/") || out.split("/").some((part) => part === "" || part === "." || part === "..")) throw new Error(`${name} must be a contained relative path`);
+  if (out.startsWith("/") || out.split("/").some((part) => part === "" || part === "." || part === ".."))
+    throw new Error(`${name} must be a contained relative path`);
   return out;
 }
 
@@ -2138,7 +2821,10 @@ function exact(value: Record<string, unknown>, allowed: readonly string[], name:
   const set = new Set(allowed);
   const unknown = Object.keys(value).filter((key) => !set.has(key));
   const missing = allowed.filter((key) => !(key in value));
-  if (unknown.length > 0 || missing.length > 0) throw new Error(`${name} fields differ from closed schema (unknown: ${unknown.join(", ") || "none"}; missing: ${missing.join(", ") || "none"})`);
+  if (unknown.length > 0 || missing.length > 0)
+    throw new Error(
+      `${name} fields differ from closed schema (unknown: ${unknown.join(", ") || "none"}; missing: ${missing.join(", ") || "none"})`,
+    );
 }
 
 function nonEmpty(value: unknown, name: string): string {
@@ -2170,23 +2856,27 @@ function instant(value: unknown, name: string): string {
 
 function date(value: unknown, name: string): string {
   const out = nonEmpty(value, name);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(out) || !Number.isFinite(Date.parse(`${out}T00:00:00.000Z`))) throw new Error(`${name} must be an ISO-8601 calendar date`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(out) || !Number.isFinite(Date.parse(`${out}T00:00:00.000Z`)))
+    throw new Error(`${name} must be an ISO-8601 calendar date`);
   return out;
 }
 
 function oneOf<const T extends string>(value: unknown, allowed: readonly T[], name: string): T {
-  if (typeof value !== "string" || !allowed.includes(value as T)) throw new Error(`${name} must be one of ${allowed.join(", ")}`);
+  if (typeof value !== "string" || !allowed.includes(value as T))
+    throw new Error(`${name} must be one of ${allowed.join(", ")}`);
   return value as T;
 }
 
 function uniqueStrings(value: unknown, name: string): string[] {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item.trim().length === 0)) throw new Error(`${name} must be an array of non-empty strings`);
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item.trim().length === 0))
+    throw new Error(`${name} must be an array of non-empty strings`);
   if (new Set(value).size !== value.length) throw new Error(`${name} must not contain duplicates`);
   return value as string[];
 }
 
 function nonNegativeInteger(value: unknown, name: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) throw new Error(`${name} must be a non-negative integer`);
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0)
+    throw new Error(`${name} must be a non-negative integer`);
   return value;
 }
 
@@ -2201,4 +2891,6 @@ function positiveInteger(value: unknown, name: string): number {
   return out;
 }
 
-function uniqueSorted(values: string[]): string[] { return [...new Set(values)].sort(); }
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values)].sort();
+}

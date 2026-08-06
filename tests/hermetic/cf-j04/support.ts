@@ -107,7 +107,7 @@ export async function buildJ04Item(world: J04World): Promise<LoopItem> {
 }
 
 export async function reviewJ04Item(world: J04World, item?: LoopItem): Promise<LoopItem> {
-  const built = item ?? await buildJ04Item(world);
+  const built = item ?? (await buildJ04Item(world));
   return advanceGates(built, {
     gh: world.gh,
     policy: DEFAULT_LOOP_POLICY,

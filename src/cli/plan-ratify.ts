@@ -57,11 +57,13 @@ export async function cmdPlanRatifyTicketBudget(
 
   if (!parsed.execute) {
     if (parsed.json) {
-      console.log(stableJson({
-        schema_version: 1,
-        kind: "plan-ticket-budget-ratification-preview",
-        ...previewJson(plan),
-      }).trimEnd());
+      console.log(
+        stableJson({
+          schema_version: 1,
+          kind: "plan-ticket-budget-ratification-preview",
+          ...previewJson(plan),
+        }).trimEnd(),
+      );
       return 0;
     }
     printPreview(io, plan);
@@ -74,13 +76,15 @@ export async function cmdPlanRatifyTicketBudget(
 
   if (plan.replay) {
     if (parsed.json) {
-      console.log(stableJson({
-        schema_version: 1,
-        kind: "plan-ticket-budget-ratification-result",
-        status: "already_ratified",
-        ...previewJson(plan),
-        published: plan.priorRatification?.publication.published ?? [],
-      }).trimEnd());
+      console.log(
+        stableJson({
+          schema_version: 1,
+          kind: "plan-ticket-budget-ratification-result",
+          status: "already_ratified",
+          ...previewJson(plan),
+          published: plan.priorRatification?.publication.published ?? [],
+        }).trimEnd(),
+      );
       return 0;
     }
     io.out(`Already ratified ${plan.confirmation}; no changes made.`);
@@ -97,14 +101,16 @@ export async function cmdPlanRatifyTicketBudget(
 
   const result = await executeTicketBudgetRatification(input);
   if (parsed.json) {
-    console.log(stableJson({
-      schema_version: 1,
-      kind: "plan-ticket-budget-ratification-result",
-      status: result.status,
-      ...previewJson(plan),
-      publication: result.record.publication,
-      ...(result.note === undefined ? {} : { note: result.note }),
-    }).trimEnd());
+    console.log(
+      stableJson({
+        schema_version: 1,
+        kind: "plan-ticket-budget-ratification-result",
+        status: result.status,
+        ...previewJson(plan),
+        publication: result.record.publication,
+        ...(result.note === undefined ? {} : { note: result.note }),
+      }).trimEnd(),
+    );
     return 0;
   }
   io.out(
@@ -114,9 +120,7 @@ export async function cmdPlanRatifyTicketBudget(
   io.out(
     result.record.publication.status === "published"
       ? `Published ${result.published.length} ticket(s): ` +
-        result.published
-          .map((ticket) => `#${ticket.issueNumber}${ticket.ready ? " (ready)" : ""}`)
-          .join(", ")
+          result.published.map((ticket) => `#${ticket.issueNumber}${ticket.ready ? " (ready)" : ""}`).join(", ")
       : "Publication skipped (--no-publish); the ratified decomposition is recorded and can be published later.",
   );
   if (result.note !== undefined) io.out(`note: ${result.note}`);
@@ -150,10 +154,7 @@ function printPreview(io: PlanRatifyIo, plan: TicketBudgetRatificationPlan): voi
   );
   io.out(`goal: ${plan.goal}`);
   for (const ticket of plan.tickets) {
-    io.out(
-      `  ${ticket.index}: [${ticket.tier}/${ticket.priority}] ${ticket.title}` +
-        (ticket.ready ? " (ready)" : ""),
-    );
+    io.out(`  ${ticket.index}: [${ticket.tier}/${ticket.priority}] ${ticket.title}` + (ticket.ready ? " (ready)" : ""));
   }
   io.out(
     plan.publish

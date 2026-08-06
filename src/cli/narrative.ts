@@ -36,7 +36,11 @@ export async function cmdNarrative(args: string[]): Promise<number> {
   const homes = await resolveCormidiaHomes(common);
   const stateHome = homes.stateHome;
 
-  const apps = await resolveApps(stateHome, homes.appsFile.apps.map((app) => app.name), parsed.app);
+  const apps = await resolveApps(
+    stateHome,
+    homes.appsFile.apps.map((app) => app.name),
+    parsed.app,
+  );
   if (apps.length === 0) {
     console.error(`narrative: no apps found${parsed.app !== undefined ? ` matching "${parsed.app}"` : ""}`);
     return 1;
@@ -84,10 +88,7 @@ export async function cmdNarrative(args: string[]): Promise<number> {
         renderStoryMarkdown(story),
       );
     }
-    await writeLoopFileAtomic(
-      join(narrativeDir(stateHome, app), "INDEX.md"),
-      renderIndexMarkdown(app, stories),
-    );
+    await writeLoopFileAtomic(join(narrativeDir(stateHome, app), "INDEX.md"), renderIndexMarkdown(app, stories));
     summaries.push({ app, stories: stories.length, index: join(narrativeDir(stateHome, app), "INDEX.md"), problems });
     if (!parsed.json) {
       console.log(`narrative: ${app} — ${stories.length} story(ies) → ${narrativeDir(stateHome, app)}`);

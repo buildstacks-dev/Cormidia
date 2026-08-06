@@ -3,7 +3,10 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppsFile } from "../../../src/org/apps.js";
-import { writeValidationCampaignReport, type ValidationCampaignReportV1 } from "../../../src/org/validation-campaign.js";
+import {
+  writeValidationCampaignReport,
+  type ValidationCampaignReportV1,
+} from "../../../src/org/validation-campaign.js";
 import { buildReport } from "../../../src/report/project.js";
 import { renderReportHtml } from "../../../src/report/render-html.js";
 import { renderReportTerminal } from "../../../src/report/render-terminal.js";
@@ -22,7 +25,16 @@ afterEach(async () => {
 const apps: AppsFile = {
   org: { name: "validation-org", maxConcurrentTurns: 2 },
   defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
-  apps: [{ name: "sandbox-alpha", repo: "owner/sandbox-alpha", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
+  apps: [
+    {
+      name: "sandbox-alpha",
+      repo: "owner/sandbox-alpha",
+      status: "live",
+      budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000,
+      cadence: {},
+    },
+  ],
 };
 
 function inconclusive(): ValidationCampaignReportV1 {
@@ -37,9 +49,21 @@ function inconclusive(): ValidationCampaignReportV1 {
     finished_at: "2026-07-31T18:02:00.000Z",
     policy: { path: "validation-design/validation-policy.yaml", sha256: "a".repeat(64) },
     target: { commit: "b".repeat(40), apps: ["sandbox-alpha"], scopes: ["S-3"], tuples: ["reviewer/claude/model"] },
-    spend: { max_provider_turns: 24, max_equiv_usd: 100, observed_provider_turns: 1, observed_equiv_usd: 0.5, ceiling_exhausted: false },
+    spend: {
+      max_provider_turns: 24,
+      max_equiv_usd: 100,
+      observed_provider_turns: 1,
+      observed_equiv_usd: 0.5,
+      ceiling_exhausted: false,
+    },
     coverage: { required_case_ids: ["GS-REV-001"], collected_case_ids: ["GS-REV-001"], missing_case_ids: [] },
-    outcome: { completeness: "complete", verdict: "inconclusive", decision_status: "proposed", violation_ids: [], reason_codes: ["F-PT-009-open"] },
+    outcome: {
+      completeness: "complete",
+      verdict: "inconclusive",
+      decision_status: "proposed",
+      violation_ids: [],
+      reason_codes: ["F-PT-009-open"],
+    },
     evidence_refs: ["validation/eval/GS-REV-001.json"],
   };
 }

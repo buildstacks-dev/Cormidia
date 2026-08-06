@@ -132,9 +132,7 @@ function signalWords(text: string): Set<string> {
  *  shares a signal word with the ticket, in doc order. */
 function excerptSpec(spec: SpecDoc, ticketWords: Set<string>): string {
   const sections = splitSections(spec.content);
-  const matched = sections.filter((s) =>
-    [...signalWords(s.heading)].some((w) => ticketWords.has(w)),
-  );
+  const matched = sections.filter((s) => [...signalWords(s.heading)].some((w) => ticketWords.has(w)));
   if (matched.length === 0) {
     return `(no section of "${spec.title}" matched the ticket by heading — doc omitted under budget)`;
   }
@@ -161,8 +159,7 @@ function render(input: BriefInput, r: Reductions): string {
   if (specs.length > 0) {
     const ticketWords = signalWords(`${input.ticket.title}\n${input.ticket.body}`);
     const rendered = specs.map((spec, i) => {
-      const body =
-        i < r.excerptedSpecs ? excerptSpec(spec, ticketWords) : spec.content.trimEnd();
+      const body = i < r.excerptedSpecs ? excerptSpec(spec, ticketWords) : spec.content.trimEnd();
       return `--- ${spec.title} ---\n${body}`;
     });
     parts.push(`[spec]\n${rendered.join("\n\n")}`);
@@ -184,11 +181,7 @@ function render(input: BriefInput, r: Reductions): string {
     const lines: string[] = [];
     for (const { f } of active) lines.push(`- [active ${f.severity}] ${f.text}`);
     resolved.forEach(({ f }, i) => {
-      lines.push(
-        i < r.summarizedFindings
-          ? `- [resolved, summarized] ${summarize(f.text)}`
-          : `- [resolved] ${f.text}`,
-      );
+      lines.push(i < r.summarizedFindings ? `- [resolved, summarized] ${summarize(f.text)}` : `- [resolved] ${f.text}`);
     });
     if (input.gateOutput !== undefined) {
       lines.push(`Gate output (verbatim):\n${input.gateOutput.trimEnd()}`);

@@ -28,19 +28,14 @@ export interface PiDouble {
   recorder: { turns: PiRecordedTurn[] };
 }
 
-export function piDouble(
-  scenarios: AdapterScenario[],
-  opts: { omitGateExtension?: boolean } = {},
-): PiDouble {
+export function piDouble(scenarios: AdapterScenario[], opts: { omitGateExtension?: boolean } = {}): PiDouble {
   const recorder: PiDouble["recorder"] = { turns: [] };
   let next = 0;
   let active:
     | { scenario: AdapterScenario; turn: PiRecordedTurn; toolHandler?: (event: unknown) => Promise<unknown> }
     | undefined;
 
-  const resourceLoaderFactory = async (input: {
-    extensionFactories: ExtensionFactory[];
-  }): Promise<ResourceLoader> => {
+  const resourceLoaderFactory = async (input: { extensionFactories: ExtensionFactory[] }): Promise<ResourceLoader> => {
     const scenario = scenarios[next++];
     if (scenario === undefined) {
       throw new Error(`pi-double: over-called — only ${scenarios.length} scenario(s) scripted`);
@@ -70,9 +65,7 @@ export function piDouble(
     return fakeResourceLoader();
   };
 
-  const createAgentSessionFn = async (
-    _options: CreateAgentSessionOptions,
-  ): Promise<CreateAgentSessionResult> => {
+  const createAgentSessionFn = async (_options: CreateAgentSessionOptions): Promise<CreateAgentSessionResult> => {
     if (active === undefined) throw new Error("pi-double: session created before resources");
     active.turn.sessionReported = true;
     active.turn.sequence.push("emit:session");
@@ -103,7 +96,9 @@ function fakeSession(active: {
   let stats = statsFor("absent", 0);
   let lastText: string | undefined;
   let aborted = false;
-  const emit = (event: unknown): void => { for (const subscriber of subscribers) subscriber(event); };
+  const emit = (event: unknown): void => {
+    for (const subscriber of subscribers) subscriber(event);
+  };
   return {
     sessionFile: active.scenario.sessionId,
     sessionId: active.scenario.sessionId,
@@ -132,11 +127,11 @@ function fakeSession(active: {
           throw new Error("pi-double: gate handler absent at prompt execution");
         }
         active.turn.sequence.push(`consult:hook:${step.tool}`);
-        const decision = await active.toolHandler({
+        const decision = (await active.toolHandler({
           toolName: step.tool,
           input: step.input,
           ...(step.fromSubagent === true ? { fromSubagent: true } : {}),
-        }) as { block?: boolean; reason?: string } | undefined;
+        })) as { block?: boolean; reason?: string } | undefined;
         const consultation: RecordedGateConsultation = {
           channel: "hook",
           toolName: step.tool,
@@ -175,9 +170,15 @@ function fakeSession(active: {
     },
     getSessionStats: () => stats,
     getLastAssistantText: () => lastText,
-    async abort() { aborted = true; },
-    dispose() { active.turn.disposed = true; },
-    get aborted() { return aborted; },
+    async abort() {
+      aborted = true;
+    },
+    dispose() {
+      active.turn.disposed = true;
+    },
+    get aborted() {
+      return aborted;
+    },
   };
 }
 
@@ -185,8 +186,8 @@ function statsFor(usage: ScriptedUsage | "absent", cost: number) {
   return {
     tokens: {
       input: usage === "absent" ? 0 : usage.inputTokens,
-      cacheRead: usage === "absent" ? 0 : usage.cacheReadTokens ?? 0,
-      cacheWrite: usage === "absent" ? 0 : usage.cacheCreationTokens ?? 0,
+      cacheRead: usage === "absent" ? 0 : (usage.cacheReadTokens ?? 0),
+      cacheWrite: usage === "absent" ? 0 : (usage.cacheCreationTokens ?? 0),
       output: usage === "absent" ? 0 : usage.outputTokens,
     },
     cost,

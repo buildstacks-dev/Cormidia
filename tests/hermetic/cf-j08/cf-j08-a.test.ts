@@ -21,25 +21,12 @@ import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { appendFile } from "node:fs/promises";
 import type { AppsFile } from "../../../src/org/apps.js";
-import {
-  isBudgetBlocking,
-  reconcileLedger,
-  rollupBudgets,
-} from "../../../src/org/budget.js";
-import {
-  DEFAULT_STATE_RETENTION,
-  sweepStateRetention,
-  type StateRetentionPolicy,
-} from "../../../src/org/retention.js";
+import { isBudgetBlocking, reconcileLedger, rollupBudgets } from "../../../src/org/budget.js";
+import { DEFAULT_STATE_RETENTION, sweepStateRetention, type StateRetentionPolicy } from "../../../src/org/retention.js";
 import { finalizeEpisode } from "../../../src/loop/efficiency.js";
 import { readLedgerRange } from "../../../src/report/ledger-source.js";
 import { aggregateCost, formatCostAggregate } from "../../../src/runtime/cost.js";
-import {
-  readTurnRecords,
-  recordTurnOnce,
-  settlementIdentity,
-  settlementKey,
-} from "../../../src/runtime/telemetry.js";
+import { readTurnRecords, recordTurnOnce, settlementIdentity, settlementKey } from "../../../src/runtime/telemetry.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 import {
@@ -60,8 +47,22 @@ const APPS: AppsFile = {
   org: { name: "cf-j08-a", maxConcurrentTurns: 1 },
   defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
   apps: [
-    { name: APP_A, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} },
-    { name: APP_B, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} },
+    {
+      name: APP_A,
+      repo: "cormidia-double/unused",
+      status: "live",
+      budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000,
+      cadence: {},
+    },
+    {
+      name: APP_B,
+      repo: "cormidia-double/unused",
+      status: "live",
+      budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000,
+      cadence: {},
+    },
   ],
 };
 
@@ -88,10 +89,39 @@ describe("CF-J08-A — telemetry/report/budget readers agree; day-files never sw
     state = await makeTempStateHome({ name: "cf-j08-a-readers" });
     // Corpus: complete + estimated on app A; unavailable + complete on app B.
     const settles = [
-      { app: APP_A, runId: "20260720-000001-build-implement", ptid: "ptid-a1", result: makeTurnResult("completed", makeUsage(0.4)) },
-      { app: APP_A, runId: "20260720-000002-build-implement", ptid: "ptid-a2", result: makeTurnResult("completed", { tokensIn: 500, tokensOut: 50, costUsd: 0.25, costEstimated: true, subagentTurns: 0, wallClockMs: 800 }) },
-      { app: APP_B, runId: "20260720-000003-build-implement", ptid: "ptid-b1", result: makeTurnResult("failed", makeUsage(0, { quality: "unavailable" }), { errorCode: "error_provider_failure" }) },
-      { app: APP_B, runId: "20260720-000004-build-implement", ptid: "ptid-b2", result: makeTurnResult("completed", makeUsage(1.0)) },
+      {
+        app: APP_A,
+        runId: "20260720-000001-build-implement",
+        ptid: "ptid-a1",
+        result: makeTurnResult("completed", makeUsage(0.4)),
+      },
+      {
+        app: APP_A,
+        runId: "20260720-000002-build-implement",
+        ptid: "ptid-a2",
+        result: makeTurnResult("completed", {
+          tokensIn: 500,
+          tokensOut: 50,
+          costUsd: 0.25,
+          costEstimated: true,
+          subagentTurns: 0,
+          wallClockMs: 800,
+        }),
+      },
+      {
+        app: APP_B,
+        runId: "20260720-000003-build-implement",
+        ptid: "ptid-b1",
+        result: makeTurnResult("failed", makeUsage(0, { quality: "unavailable" }), {
+          errorCode: "error_provider_failure",
+        }),
+      },
+      {
+        app: APP_B,
+        runId: "20260720-000004-build-implement",
+        ptid: "ptid-b2",
+        result: makeTurnResult("completed", makeUsage(1.0)),
+      },
     ];
     for (const settle of settles) {
       expect(

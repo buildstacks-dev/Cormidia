@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { ObserveService } from "../observe/live-source.js";
 import { startObserveServer } from "../observe/server.js";
@@ -90,7 +89,8 @@ function positiveInteger(value: string, flag: string): number {
 
 function portNumber(value: string): number {
   const number = Number(value);
-  if (!Number.isSafeInteger(number) || number < 0 || number > 65535) throw new Error("observe: --port must be 0..65535");
+  if (!Number.isSafeInteger(number) || number < 0 || number > 65535)
+    throw new Error("observe: --port must be 0..65535");
   return number;
 }
 

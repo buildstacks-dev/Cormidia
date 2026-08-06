@@ -23,23 +23,13 @@ import {
   type ExtensionFactory,
   type ResourceLoader,
 } from "@earendil-works/pi-coding-agent";
-import type {
-  Artifact,
-  Effort,
-  GateEscalation,
-  Runtime,
-  TurnHooks,
-  TurnRequest,
-  TurnResult,
-} from "../types.js";
+import type { Artifact, Effort, GateEscalation, Runtime, TurnHooks, TurnRequest, TurnResult } from "../types.js";
 import { resolveTurnRequestAssignment } from "../assignment.js";
 import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { renderContextBundle, writeMaskedWorktreeFile } from "../worktree-context.js";
 import { createPiGateExtension, isPiGateExtensionActive } from "./pi-gate.js";
 
-export type CreatePiAgentSessionFn = (
-  options: CreateAgentSessionOptions,
-) => Promise<CreateAgentSessionResult>;
+export type CreatePiAgentSessionFn = (options: CreateAgentSessionOptions) => Promise<CreateAgentSessionResult>;
 
 export interface PiResourceLoaderFactoryInput {
   cwd: string;
@@ -47,9 +37,7 @@ export interface PiResourceLoaderFactoryInput {
   extensionFactories: ExtensionFactory[];
 }
 
-export type PiResourceLoaderFactory = (
-  input: PiResourceLoaderFactoryInput,
-) => ResourceLoader | Promise<ResourceLoader>;
+export type PiResourceLoaderFactory = (input: PiResourceLoaderFactoryInput) => ResourceLoader | Promise<ResourceLoader>;
 
 export interface PiRuntimeOptions {
   createAgentSessionFn?: CreatePiAgentSessionFn;
@@ -192,10 +180,7 @@ export class PiRuntime implements Runtime {
     let streamedText = "";
     let assistantFailure: string | undefined;
     const unsubscribe = session.subscribe((event) => {
-      if (
-        event.type === "message_update" &&
-        event.assistantMessageEvent.type === "text_delta"
-      ) {
+      if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
         streamedText += event.assistantMessageEvent.delta;
       }
       assistantFailure ??= piAssistantFailure(event);
@@ -250,7 +235,7 @@ export class PiRuntime implements Runtime {
         `against maxTurnBudgetUsd $${cap} (role ${req.role.name}).`
       : assistantFailure !== undefined
         ? assistantFailure
-      : session.getLastAssistantText()?.trim() || streamedText.trim() || "completed";
+        : session.getLastAssistantText()?.trim() || streamedText.trim() || "completed";
     // A budget overrun is a hard stop: it fails the turn and emits exactly one
     // incident note, taking precedence over gate escalations that also occurred.
     const artifacts = overBudget

@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  PiGateExtensionInactiveError,
-  PiSessionResumeMismatchError,
-} from "../../../src/runtime/adapters/pi.js";
+import { PiGateExtensionInactiveError, PiSessionResumeMismatchError } from "../../../src/runtime/adapters/pi.js";
 import type { TurnEvent, TurnRequest } from "../../../src/runtime/types.js";
 import { makeTempGitRepo, type TempGitRepo } from "../git-repo.js";
 import { doubleRole, doubleTurnRequest } from "./claude-double.js";
@@ -13,7 +10,10 @@ const role = () => doubleRole({ runtime: "pi", model: "claude-scripted-model", m
 
 describe("pi adapter double — core/T-11 conformance (HB-024)", () => {
   let repo: TempGitRepo | undefined;
-  afterEach(async () => { await repo?.cleanup(); repo = undefined; });
+  afterEach(async () => {
+    await repo?.cleanup();
+    repo = undefined;
+  });
 
   async function request(overrides: Omit<Partial<TurnRequest>, "workdir"> = {}) {
     repo ??= await makeTempGitRepo();
@@ -40,16 +40,19 @@ describe("pi adapter double — core/T-11 conformance (HB-024)", () => {
   });
 
   it("extension absence is a typed terminal refusal before session creation or any tool-capable prompt", async () => {
-    const dbl = piDouble([
-      script.turn({
-        sessionId: "pi-must-not-start",
-        steps: [script.tool("bash", { command: "touch forbidden" })],
-        outcome: script.success("must not run", { usage: "absent" }),
-      }),
-    ], { omitGateExtension: true });
-    await expect(
-      dbl.runtime.runTurn(await request(), { gate: () => ({ allow: true }) }),
-    ).rejects.toBeInstanceOf(PiGateExtensionInactiveError);
+    const dbl = piDouble(
+      [
+        script.turn({
+          sessionId: "pi-must-not-start",
+          steps: [script.tool("bash", { command: "touch forbidden" })],
+          outcome: script.success("must not run", { usage: "absent" }),
+        }),
+      ],
+      { omitGateExtension: true },
+    );
+    await expect(dbl.runtime.runTurn(await request(), { gate: () => ({ allow: true }) })).rejects.toBeInstanceOf(
+      PiGateExtensionInactiveError,
+    );
     expect(dbl.recorder.turns[0]).toMatchObject({ sessionReported: false, promptCalled: false });
   });
 
@@ -61,10 +64,9 @@ describe("pi adapter double — core/T-11 conformance (HB-024)", () => {
       }),
     ]);
     await expect(
-      dbl.runtime.runTurn(
-        await request({ session: { runtime: "pi", id: "pi-requested" } }),
-        { gate: () => ({ allow: true }) },
-      ),
+      dbl.runtime.runTurn(await request({ session: { runtime: "pi", id: "pi-requested" } }), {
+        gate: () => ({ allow: true }),
+      }),
     ).rejects.toBeInstanceOf(PiSessionResumeMismatchError);
     expect(dbl.recorder.turns[0]).toMatchObject({ sessionReported: true, promptCalled: false, disposed: true });
   });
@@ -100,10 +102,9 @@ describe("pi adapter double — core/T-11 conformance (HB-024)", () => {
     const dbl = piDouble([failedScenario, recoveredScenario]);
     const failed = await dbl.runtime.runTurn(await request(), { gate: () => ({ allow: true }) });
     expect(failed).toMatchObject({ status: "failed", errorCode: "error_auth", session: { id: "pi-rotation" } });
-    const resumed = await dbl.runtime.runTurn(
-      await request({ session: failed.session }),
-      { gate: () => ({ allow: true }) },
-    );
+    const resumed = await dbl.runtime.runTurn(await request({ session: failed.session }), {
+      gate: () => ({ allow: true }),
+    });
     expect(resumed).toMatchObject({ status: "completed", session: { id: "pi-rotation" } });
   });
 

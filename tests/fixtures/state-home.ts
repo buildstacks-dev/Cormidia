@@ -55,9 +55,7 @@ export interface MakeTempStateHomeOptions {
   name?: string;
 }
 
-export async function makeTempStateHome(
-  options: MakeTempStateHomeOptions = {},
-): Promise<TempStateHome> {
+export async function makeTempStateHome(options: MakeTempStateHomeOptions = {}): Promise<TempStateHome> {
   const root = await mkdtemp(join(tmpdir(), "cormidia-fixture-state-"));
   const stateHome = join(root, options.name ?? "fixture-org");
   for (const dir of STATE_HOME_DIRS) {

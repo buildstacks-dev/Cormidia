@@ -31,10 +31,9 @@ export function gitWorktreeWritableRoots(workdir: string): string[] {
     ];
     // For a normal checkout every Git path is already beneath the workdir.
     // For a linked worktree retain only the exact external mutation roots.
-    return candidates.filter((candidate, index) =>
-      index === 0 ||
-      (!isWithin(candidate, root) &&
-        candidates.findIndex((other) => other === candidate) === index)
+    return candidates.filter(
+      (candidate, index) =>
+        index === 0 || (!isWithin(candidate, root) && candidates.findIndex((other) => other === candidate) === index),
     );
   } catch {
     return [root];
@@ -132,8 +131,7 @@ function gitPath(workdir: string, args: string[]): string {
 
 function isWithin(candidate: string, parent: string): boolean {
   const pathFromParent = relative(parent, candidate);
-  return pathFromParent === "" ||
-    (!pathFromParent.startsWith("..") && !isAbsolute(pathFromParent));
+  return pathFromParent === "" || (!pathFromParent.startsWith("..") && !isAbsolute(pathFromParent));
 }
 
 function errorMessage(error: unknown): string {

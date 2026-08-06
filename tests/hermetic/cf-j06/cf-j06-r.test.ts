@@ -47,11 +47,7 @@ describe("CF-J06-R — every fingerprint mismatch class fails closed pre-spend (
   }
 
   /** The shared no-spend proof for a refused resume attempt. */
-  async function expectFailedClosedPreSpend(
-    rig: ResumeRig,
-    attempt: ResumeAttempt,
-    message: RegExp,
-  ): Promise<void> {
+  async function expectFailedClosedPreSpend(rig: ResumeRig, attempt: ResumeAttempt, message: RegExp): Promise<void> {
     await expect(attempt.run()).rejects.toThrow(message);
     // No provider was even constructed — the scripted double recorded nothing.
     expect(attempt.recorder.turns).toHaveLength(0);
@@ -68,9 +64,7 @@ describe("CF-J06-R — every fingerprint mismatch class fails closed pre-spend (
     expect(result.aborted).toBe(false);
     expect(result.passes.map((record) => record.pass.id)).toEqual([ACT_PASS]);
     expect(attempt.recorder.turns).toHaveLength(1);
-    expect(attempt.beforeProviderTurnCalls).toEqual([
-      { pipeline: "build", pass: ACT_PASS, resumed: true },
-    ]);
+    expect(attempt.beforeProviderTurnCalls).toEqual([{ pipeline: "build", pass: ACT_PASS, resumed: true }]);
     // All four channels the refusal legs assert on are live wires: a real
     // resumed turn moves the ledger AND the durable provider-step evidence.
     expect(await rig.spendEvidence()).toEqual({
@@ -152,11 +146,7 @@ describe("CF-J06-R — every fingerprint mismatch class fails closed pre-spend (
         completedPasses: [PLAN_PASS, "vanished-pass"],
       },
     });
-    await expectFailedClosedPreSpend(
-      rig,
-      attempt2,
-      /completed-pass vanished-pass is not in pipeline/,
-    );
+    await expectFailedClosedPreSpend(rig, attempt2, /completed-pass vanished-pass is not in pipeline/);
   });
 
   it("pipeline mismatch: a continuation targeting another pipeline fails closed pre-spend", async () => {

@@ -16,11 +16,7 @@ import {
   type FileLockOptions,
   type FileLockToken,
 } from "../runtime/file-lock.js";
-import {
-  baseRevisionForBranch,
-  resolveRemoteDefaultBranch,
-  type BaseRevision,
-} from "../loop/default-branch.js";
+import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
 import type { AppEntry } from "./apps.js";
 
 const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;
@@ -51,17 +47,11 @@ export async function withAppGitLock<T>(
   return withFileLock(gitCloneLockPath(runtimeHome, app), gitCloneLockOptions(clock), fn);
 }
 
-export async function acquireGitCloneLock(
-  lockPath: string,
-  clock?: FileLockClock,
-): Promise<FileLockToken> {
+export async function acquireGitCloneLock(lockPath: string, clock?: FileLockClock): Promise<FileLockToken> {
   return acquireFileLock(lockPath, gitCloneLockOptions(clock));
 }
 
-export async function releaseGitCloneLock(
-  lockPath: string,
-  token: FileLockToken,
-): Promise<void> {
+export async function releaseGitCloneLock(lockPath: string, token: FileLockToken): Promise<void> {
   return releaseFileLock(lockPath, token);
 }
 
@@ -76,10 +66,7 @@ export interface ManagedClone {
   base: BaseRevision;
 }
 
-export async function ensureManagedClone(
-  app: AppEntry,
-  runtimeHome: string,
-): Promise<ManagedClone> {
+export async function ensureManagedClone(app: AppEntry, runtimeHome: string): Promise<ManagedClone> {
   const repoDir = join(runtimeHome, "repos", app.name);
   if (existsSync(join(repoDir, ".git"))) {
     const branch = resolveRemoteDefaultBranch("origin", {
@@ -100,7 +87,13 @@ export async function ensureManagedClone(
 }
 
 function repoUrl(repo: string): string {
-  if (repo.includes("://") || repo.startsWith("file:") || repo.startsWith("git@") || repo.startsWith("/") || repo.startsWith(".")) {
+  if (
+    repo.includes("://") ||
+    repo.startsWith("file:") ||
+    repo.startsWith("git@") ||
+    repo.startsWith("/") ||
+    repo.startsWith(".")
+  ) {
     return repo;
   }
   return `https://github.com/${repo}.git`;

@@ -53,11 +53,7 @@ export function orgBacklinkPath(stateHome: string): string {
 
 /** Record which org home owns this state home. Idempotent and never
  * destructive: an existing backlink to the same org home is left alone. */
-export async function recordOrgBacklink(
-  stateHome: string,
-  orgHome: string,
-  now: Date = new Date(),
-): Promise<void> {
+export async function recordOrgBacklink(stateHome: string, orgHome: string, now: Date = new Date()): Promise<void> {
   const path = orgBacklinkPath(stateHome);
   const backlink: OrgBacklink = {
     schema_version: ORG_ARCHIVE_SCHEMA_VERSION,
@@ -142,12 +138,10 @@ export async function listOrgs(options: ListOrgsOptions): Promise<DiscoveredOrg[
   const discovered: DiscoveredOrg[] = [];
   for (const [stateHome, name] of [...candidates.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     const active = stateHome === activeStateHome;
-    const recorded = active && pointer.orgHome !== undefined
-      ? resolve(pointer.orgHome)
-      : await readOrgBacklink(stateHome);
-    const usage = options.includeUsage === false
-      ? { bytes: 0, files: 0, newestMtime: null }
-      : await treeUsage(stateHome);
+    const recorded =
+      active && pointer.orgHome !== undefined ? resolve(pointer.orgHome) : await readOrgBacklink(stateHome);
+    const usage =
+      options.includeUsage === false ? { bytes: 0, files: 0, newestMtime: null } : await treeUsage(stateHome);
     discovered.push({
       name,
       stateHome,
@@ -206,9 +200,7 @@ export async function planOrgArchive(options: PlanOrgArchiveOptions): Promise<Or
     throw new Error(
       `org archive: unknown org ${JSON.stringify(options.org)}; ` +
         `cormidia org list shows: ${orgs.map((entry) => entry.name).join(", ") || "none"}` +
-        (existsSync(prior)
-          ? `. It has no local state home left and was already archived; see ${prior}`
-          : ""),
+        (existsSync(prior) ? `. It has no local state home left and was already archived; see ${prior}` : ""),
     );
   }
   if (isInside(archiveRoot, org.stateHome)) {
@@ -230,11 +222,12 @@ export async function planOrgArchive(options: PlanOrgArchiveOptions): Promise<Or
     leavesIntact: [
       ...(org.orgHome === null
         ? []
-        : [{
-            path: org.orgHome,
-            reason:
-              "org home: committed configuration, usually a git repository and often a human checkout",
-          }]),
+        : [
+            {
+              path: org.orgHome,
+              reason: "org home: committed configuration, usually a git repository and often a human checkout",
+            },
+          ]),
       {
         path: "GitHub repositories, branches, and open tickets",
         reason: "never touched by a local retirement; retire them deliberately and separately",
@@ -260,29 +253,20 @@ export interface OrgArchiveResult {
  * Archive the org's state home, verify every archived byte, and only then
  * remove it. A verification failure leaves the state home untouched.
  */
-export async function executeOrgArchive(
-  options: ExecuteOrgArchiveOptions,
-): Promise<OrgArchiveResult> {
+export async function executeOrgArchive(options: ExecuteOrgArchiveOptions): Promise<OrgArchiveResult> {
   const plan = await planOrgArchive(options);
   if (options.confirm !== plan.org.name) {
-    throw new Error(
-      `org archive: --confirm must be exactly ${JSON.stringify(plan.org.name)}`,
-    );
+    throw new Error(`org archive: --confirm must be exactly ${JSON.stringify(plan.org.name)}`);
   }
   if (plan.blockers.length > 0) {
-    throw new Error(
-      `org archive: execution blocked — ${plan.blockers.map((blocker) => blocker.code).join("; ")}`,
-    );
+    throw new Error(`org archive: execution blocked — ${plan.blockers.map((blocker) => blocker.code).join("; ")}`);
   }
 
   await mkdir(plan.archiveRoot, { recursive: true });
   // Re-allocate now that the archive root exists: the plan's id was chosen
   // against whatever was on disk when it was previewed, and the same org
   // archived twice from the same paths hashes to the same base id.
-  const { archiveId, archivePath } = allocateArchivePath(
-    plan.archiveRoot,
-    archiveBaseId(plan.org),
-  );
+  const { archiveId, archivePath } = allocateArchivePath(plan.archiveRoot, archiveBaseId(plan.org));
   const staged = `${archivePath}.partial`;
   await rm(staged, { recursive: true, force: true });
   await mkdir(staged, { recursive: true });
@@ -360,10 +344,7 @@ export async function executeOrgArchive(
 
 /** Re-point the pointer at another discoverable org, used by tests and by an
  * operator recovering after archiving the active org. */
-export async function selectDiscoveredOrg(
-  pointerPath: string,
-  org: DiscoveredOrg,
-): Promise<void> {
+export async function selectDiscoveredOrg(pointerPath: string, org: DiscoveredOrg): Promise<void> {
   if (org.orgHome === null) throw new Error(`org: ${org.name} has no recorded org home`);
   await writeActiveOrgPointer(pointerPath, org.orgHome, org.stateHome);
 }
@@ -393,7 +374,7 @@ export function formatOrgArchivePlan(plan: OrgArchivePlan): string {
       plan.blockers.length > 0
         ? "  Nothing was archived or removed."
         : "  Nothing was archived or removed. To execute: " +
-          `cormidia org archive ${plan.org.name} --execute --confirm ${plan.org.name}`,
+            `cormidia org archive ${plan.org.name} --execute --confirm ${plan.org.name}`,
     );
   }
   return lines.join("\n");
@@ -432,32 +413,25 @@ async function activeWorkBlockers(stateHome: string): Promise<LifecycleBlocker[]
       code: "active_lock",
       ids: locks,
       forceEligible: false,
-      remediation:
-        "a role turn holds a lock in this org; let it finish or clear the lock before retiring the org",
+      remediation: "a role turn holds a lock in this org; let it finish or clear the lock before retiring the org",
     });
   }
-  const pending = await listFiles(join(stateHome, "approvals", "pending"), (name) =>
-    name.endsWith(".json"),
-  );
+  const pending = await listFiles(join(stateHome, "approvals", "pending"), (name) => name.endsWith(".json"));
   if (pending.length > 0) {
     blockers.push({
       code: "pending_approval",
       ids: pending,
       forceEligible: false,
-      remediation:
-        "decide every pending critical-operation approval with `cormidia approvals review` first",
+      remediation: "decide every pending critical-operation approval with `cormidia approvals review` first",
     });
   }
-  const transactions = await listFiles(join(stateHome, "lifecycle", "transactions"), (name) =>
-    name.endsWith(".json"),
-  );
+  const transactions = await listFiles(join(stateHome, "lifecycle", "transactions"), (name) => name.endsWith(".json"));
   if (transactions.length > 0) {
     blockers.push({
       code: "active_journal",
       ids: transactions,
       forceEligible: false,
-      remediation:
-        "an interrupted lifecycle transaction is recorded; re-run that command to finish or roll it back",
+      remediation: "an interrupted lifecycle transaction is recorded; re-run that command to finish or roll it back",
     });
   }
   return blockers;
@@ -524,9 +498,7 @@ async function appCount(orgHome: string): Promise<number | null> {
   }
 }
 
-async function fileDigests(
-  root: string,
-): Promise<Array<{ path: string; bytes: number; sha256: string }>> {
+async function fileDigests(root: string): Promise<Array<{ path: string; bytes: number; sha256: string }>> {
   const entries: Array<{ path: string; bytes: number; sha256: string }> = [];
   const stack = [root];
   while (stack.length > 0) {
@@ -553,10 +525,7 @@ async function fileDigests(
  * regular file under the state home must exist in the archive with identical
  * bytes; anything unreadable, missed, or altered aborts before removal.
  */
-async function assertArchiveCoversStateHome(
-  stateHome: string,
-  archivedState: string,
-): Promise<void> {
+async function assertArchiveCoversStateHome(stateHome: string, archivedState: string): Promise<void> {
   const source = new Map((await fileDigests(stateHome)).map((entry) => [entry.path, entry]));
   const archived = new Map((await fileDigests(archivedState)).map((entry) => [entry.path, entry]));
   const missing: string[] = [];
@@ -574,9 +543,7 @@ async function assertArchiveCoversStateHome(
   }
 }
 
-export async function readOrgArchiveManifest(
-  archivePath: string,
-): Promise<Record<string, unknown>> {
+export async function readOrgArchiveManifest(archivePath: string): Promise<Record<string, unknown>> {
   const target = await assertDirectoryNoSymlink(resolve(archivePath), "org archive");
   const manifestPath = join(target, "manifest.json");
   await assertRegularFile(manifestPath, "org archive manifest");
@@ -597,10 +564,7 @@ function archiveBaseId(org: Pick<DiscoveredOrg, "name" | "stateHome" | "orgHome"
  * `ENOTEMPTY` and no remediation. Later retirements get a numbered sibling
  * instead; the earlier archive is never written into or replaced.
  */
-function allocateArchivePath(
-  archiveRoot: string,
-  baseId: string,
-): { archiveId: string; archivePath: string } {
+function allocateArchivePath(archiveRoot: string, baseId: string): { archiveId: string; archivePath: string } {
   for (let attempt = 1; attempt <= 999; attempt++) {
     const archiveId = attempt === 1 ? baseId : `${baseId}-${attempt}`;
     const archivePath = join(archiveRoot, archiveId);
@@ -631,7 +595,10 @@ export function orgRetirementLedgerHome(archiveRoot: string): string {
 }
 
 function safeSegment(value: string): string {
-  const cleaned = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  const cleaned = value
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return cleaned.length > 0 ? cleaned : "org";
 }
 

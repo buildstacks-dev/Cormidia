@@ -63,9 +63,9 @@ export class PlatformSchedulerManager implements SchedulerManager {
     this.platform = options.platform ?? process.platform;
     this.supported = options.supported ?? (this.backend === "launchd" && this.platform === "darwin");
     const home = options.homeDir ?? homedir();
-    this.dir = options.definitionDir ?? (this.backend === "launchd"
-      ? join(home, "Library", "LaunchAgents")
-      : join(home, ".config", "systemd", "user"));
+    this.dir =
+      options.definitionDir ??
+      (this.backend === "launchd" ? join(home, "Library", "LaunchAgents") : join(home, ".config", "systemd", "user"));
     this.runHostCommand = options.runHostCommand ?? runHostCommand;
   }
 
@@ -92,9 +92,10 @@ export class PlatformSchedulerManager implements SchedulerManager {
   async enable(schedulerId: string): Promise<void> {
     this.assertSupported();
     const path = this.definitionPath(schedulerId);
-    const input = this.backend === "launchd"
-      ? { command: "launchctl", args: ["bootstrap", `gui/${process.getuid?.() ?? 0}`, path] }
-      : { command: "systemctl", args: ["--user", "enable", "--now", `${schedulerId}.timer`] };
+    const input =
+      this.backend === "launchd"
+        ? { command: "launchctl", args: ["bootstrap", `gui/${process.getuid?.() ?? 0}`, path] }
+        : { command: "systemctl", args: ["--user", "enable", "--now", `${schedulerId}.timer`] };
     const result = await this.runHostCommand(input);
     if (result.code !== 0 && !alreadyEnabled(result)) {
       throw new Error(`scheduler manager enable failed (${result.code}): ${result.stderr || result.stdout}`);
@@ -103,9 +104,10 @@ export class PlatformSchedulerManager implements SchedulerManager {
 
   async disable(schedulerId: string): Promise<void> {
     this.assertSupported();
-    const input = this.backend === "launchd"
-      ? { command: "launchctl", args: ["bootout", `gui/${process.getuid?.() ?? 0}/${schedulerId}`] }
-      : { command: "systemctl", args: ["--user", "disable", "--now", `${schedulerId}.timer`] };
+    const input =
+      this.backend === "launchd"
+        ? { command: "launchctl", args: ["bootout", `gui/${process.getuid?.() ?? 0}/${schedulerId}`] }
+        : { command: "systemctl", args: ["--user", "disable", "--now", `${schedulerId}.timer`] };
     const result = await this.runHostCommand(input);
     if (result.code !== 0 && !alreadyDisabled(result)) {
       throw new Error(`scheduler manager disable failed (${result.code}): ${result.stderr || result.stdout}`);
@@ -121,16 +123,19 @@ export class PlatformSchedulerManager implements SchedulerManager {
     if (!this.supported) {
       return { installed: true, loaded: null, active: null, detail: "backend runtime unsupported on this platform" };
     }
-    const input = this.backend === "launchd"
-      ? { command: "launchctl", args: ["print", `gui/${process.getuid?.() ?? 0}/${schedulerId}`] }
-      : { command: "systemctl", args: ["--user", "is-active", `${schedulerId}.timer`] };
+    const input =
+      this.backend === "launchd"
+        ? { command: "launchctl", args: ["print", `gui/${process.getuid?.() ?? 0}/${schedulerId}`] }
+        : { command: "systemctl", args: ["--user", "is-active", `${schedulerId}.timer`] };
     const result = await this.runHostCommand(input);
     const active = result.code === 0;
     return {
       installed: true,
       loaded: active,
       active,
-      detail: active ? "host manager reports active" : (result.stderr || result.stdout || "host manager reports inactive"),
+      detail: active
+        ? "host manager reports active"
+        : result.stderr || result.stdout || "host manager reports inactive",
     };
   }
 

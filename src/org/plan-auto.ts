@@ -17,16 +17,8 @@ import {
   type AuthorizedPass,
   type ExecutionStepRecord,
 } from "../loop/efficiency.js";
-import {
-  EPISODE_PLAN_EXECUTION_PIPELINE,
-  planRouteLabel,
-} from "../loop/episode-route.js";
-import type {
-  EpisodePlan,
-  JsonValue,
-  ProviderTurnStep,
-  CreatorEpisodeScope,
-} from "../loop/episode-plan.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
+import type { EpisodePlan, JsonValue, ProviderTurnStep, CreatorEpisodeScope } from "../loop/episode-plan.js";
 import {
   assessCreatorScope,
   episodePlanHash,
@@ -72,10 +64,7 @@ import {
   recordRefusedDecomposition,
   refusedDecompositionPath,
 } from "./ticket-budget-ratification.js";
-import {
-  readPublishedTicketsRecord,
-  writePublishedTicketsRecord,
-} from "../loop/plan-publication-record.js";
+import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import {
   readPlannerAdmission,
   type PlannerAdmissionLimits,
@@ -83,48 +72,24 @@ import {
 } from "../loop/planner-admission.js";
 import { writeLoopFileOnce } from "../loop/durable.js";
 import { defaultGate } from "../runtime/gate.js";
-import {
-  fixedAssignmentFromRole,
-  turnAssignmentsEqual,
-} from "../runtime/assignment.js";
-import {
-  isRuntimeCapability,
-  type RuntimeCapability,
-} from "../runtime/capabilities.js";
+import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../runtime/assignment.js";
+import { isRuntimeCapability, type RuntimeCapability } from "../runtime/capabilities.js";
 import { getRuntime } from "../runtime/registry.js";
-import {
-  probeRuntimeReadiness,
-  type RuntimeReadinessProbe,
-} from "../runtime/readiness.js";
+import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../runtime/readiness.js";
 import { hashedFileStem, mintRunId, runPaths } from "../runtime/runlog/paths.js";
-import type {
-  ContextBundle,
-  RoleConfig,
-  Runtime,
-  TurnAssignment,
-  TurnHooks,
-} from "../runtime/types.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../runtime/types.js";
 import { ApprovalStore } from "./approvals.js";
-import {
-  normalizeAppExecution,
-  runtimePolicyForApp,
-  type AppEntry,
-  type AppsFile,
-} from "./apps.js";
+import { normalizeAppExecution, runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
 import { resolveAppRoles } from "./app-execution-policy.js";
 import { isBudgetBlocking, rollupBudgets, type BudgetRow } from "./budget.js";
 import { assembleContext } from "./context.js";
-import {
-  readPersistedEpisodeIntent,
-} from "./episode-planner/coordinator.js";
+import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
 import {
   buildEpisodeIntent,
   createEpisodePlanningPolicy,
   type EpisodeSafetyFloorMapping,
 } from "./episode-planner/policy.js";
-import {
-  createProviderEpisodePlanRevisionProposer,
-} from "./episode-planner/runtime.js";
+import { createProviderEpisodePlanRevisionProposer } from "./episode-planner/runtime.js";
 import { probeApprovedAssignmentReadiness } from "./episode-planner/assignment-readiness.js";
 import { orchestrateEpisode } from "./episode-planner/orchestrator.js";
 import { safetyFactsFromPlanningRequest } from "./episode-safety-facts.js";
@@ -159,12 +124,10 @@ import {
   type RoadmapWorkstream,
 } from "./roadmap-delivery.js";
 
-export const PRODUCT_PLANNING_EPISODE_POLICY_VERSION =
-  "product-planning/episode-planner-v1" as const;
+export const PRODUCT_PLANNING_EPISODE_POLICY_VERSION = "product-planning/episode-planner-v1" as const;
 
 const AUTO_PLAN_SOURCE_BUDGET_BYTES = 128 * 1024;
-const MAX_PRODUCT_PLANNING_PROVIDER_TURNS =
-  Object.keys(PLANNING_PROVIDER_OPERATION_CATALOG).length;
+const MAX_PRODUCT_PLANNING_PROVIDER_TURNS = Object.keys(PLANNING_PROVIDER_OPERATION_CATALOG).length;
 const DEFAULT_PLANNER_ACTIVE_TIME_MS = 5 * 60_000;
 const BASELINE_PROVIDER_CAPABILITIES = [
   "tool_gate",
@@ -288,8 +251,9 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   });
   assertPlanningOperationCatalogMatches(pipelines);
 
-  const budget = (await rollupBudgets(options.stateHome, options.appsFile, startedAt))
-    .find((row) => row.app === options.app.name);
+  const budget = (await rollupBudgets(options.stateHome, options.appsFile, startedAt)).find(
+    (row) => row.app === options.app.name,
+  );
   if (budget === undefined) {
     return { status: "failed", summary: `no app budget exists for ${options.app.name}` };
   }
@@ -304,14 +268,12 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     return { status: "failed", summary: "product planning has no remaining app budget" };
   }
 
-  const episodeId = options.episodeId ??
-    `trace:${options.app.name}:product-plan:${startedAt.getTime()}`;
+  const episodeId = options.episodeId ?? `trace:${options.app.name}:product-plan:${startedAt.getTime()}`;
   const traceId = `plan-${options.app.name}-${fingerprint(episodeId).slice(0, 12)}`;
   const existingIntent = await readPersistedEpisodeIntent(options.stateHome, episodeId);
   if (existingIntent !== undefined && !isProjectStage(existingIntent.appStage)) {
     throw new Error(
-      `product-planning episode ${episodeId} has unsupported persisted stage ` +
-        `"${existingIntent.appStage}"`,
+      `product-planning episode ${episodeId} has unsupported persisted stage ` + `"${existingIntent.appStage}"`,
     );
   }
   const stageCheckout = discoverPlanningStageCheckout({
@@ -324,45 +286,41 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   // following live command therefore see the same already-local evidence (or
   // the same explicit bootstrap fallback) instead of silently changing stage
   // merely because live execution created the managed clone.
-  const stageResolution = existingIntent === undefined
-    ? resolvePlanningStage({
-        ...(options.stage === undefined ? {} : { requestedStage: options.stage }),
-        checkout: stageCheckout.checkout,
-        checkoutSource: stageCheckout.source,
-      })
-    : persistedPlanningStageResolution({
-        stage: existingIntent.appStage as ProjectStage,
-        stored: existingIntent.repositoryFacts["planningStageResolution"],
-      });
+  const stageResolution =
+    existingIntent === undefined
+      ? resolvePlanningStage({
+          ...(options.stage === undefined ? {} : { requestedStage: options.stage }),
+          checkout: stageCheckout.checkout,
+          checkoutSource: stageCheckout.source,
+        })
+      : persistedPlanningStageResolution({
+          stage: existingIntent.appStage as ProjectStage,
+          stored: existingIntent.repositoryFacts["planningStageResolution"],
+        });
   const stage = stageResolution.stage;
   const snapshot = await withAppGitLock(options.stateHome, options.app.name, async () => {
-    const source = options.workdir !== undefined
-      ? validateSourceCheckout(options.workdir)
-      : (await ensureManagedClone(options.app, options.stateHome)).path;
-    return createOrReusePlanningSnapshot(
-      source,
-      join(options.stateHome, "worktrees", options.app.name, traceId),
-    );
+    const source =
+      options.workdir !== undefined
+        ? validateSourceCheckout(options.workdir)
+        : (await ensureManagedClone(options.app, options.stateHome)).path;
+    return createOrReusePlanningSnapshot(source, join(options.stateHome, "worktrees", options.app.name, traceId));
   });
   const localRepo = snapshot.path;
   const resolvedSources = resolveAutoPlanSources(options, snapshot, traceId);
-  const consumedSources = resolvedSources === undefined
-    ? undefined
-    : consumedPlanningSourceManifest(resolvedSources.manifest);
+  const consumedSources =
+    resolvedSources === undefined ? undefined : consumedPlanningSourceManifest(resolvedSources.manifest);
   const priorAdmission = await readPlannerAdmission(options.stateHome, episodeId);
-  const limits = options.plannerLimits ??
+  const limits =
+    options.plannerLimits ??
     (priorAdmission === undefined
       ? defaultPlannerLimits(planner, remainingBudgetUsd)
       : limitsFromAdmission(priorAdmission));
   const explicitExecutionReadyCreatorPath =
     options.requireExecutionReadyCreatorScope === true &&
     options.creatorScope?.planningDisposition === "execution_ready";
-  const deliveryBudgetUsd = existingIntent?.hardBudget.maxEquivalentCostUsd ??
-    Math.max(
-      0,
-      remainingBudgetUsd -
-        (explicitExecutionReadyCreatorPath ? 0 : limits.aggregate.equivalentCostUsd),
-    );
+  const deliveryBudgetUsd =
+    existingIntent?.hardBudget.maxEquivalentCostUsd ??
+    Math.max(0, remainingBudgetUsd - (explicitExecutionReadyCreatorPath ? 0 : limits.aggregate.equivalentCostUsd));
   if (deliveryBudgetUsd <= 0) {
     return {
       status: "failed",
@@ -401,17 +359,17 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   }
 
   const assignmentReadinessProbe = options.assignmentReadinessProbe ?? probeRuntimeReadiness;
-  const readiness = existingIntent === undefined &&
-      normalizeAppExecution(options.app.execution).assignmentMode === "adaptive"
-    ? await probeApprovedAssignmentReadiness({
-        app: options.app,
-        roles: configuredRoles,
-        probe: assignmentReadinessProbe,
-        ...(options.assignmentReadinessTimeoutMs === undefined
-          ? {}
-          : { timeoutMs: options.assignmentReadinessTimeoutMs }),
-      })
-    : undefined;
+  const readiness =
+    existingIntent === undefined && normalizeAppExecution(options.app.execution).assignmentMode === "adaptive"
+      ? await probeApprovedAssignmentReadiness({
+          app: options.app,
+          roles: configuredRoles,
+          probe: assignmentReadinessProbe,
+          ...(options.assignmentReadinessTimeoutMs === undefined
+            ? {}
+            : { timeoutMs: options.assignmentReadinessTimeoutMs }),
+        })
+      : undefined;
   if (readiness !== undefined && options.creatorScope === undefined) {
     const boot = readiness.resultFor(fixedAssignmentFromRole(planner));
     if (boot?.status !== "ready") {
@@ -435,11 +393,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     goal: options.goal,
     lifecycle: options.planning?.workLifecycle ?? "bounded-goal",
     appStage: stage,
-    repositoryFacts: repositoryFacts(
-      snapshot,
-      stageResolution,
-      stageCheckout.checkout,
-    ),
+    repositoryFacts: repositoryFacts(snapshot, stageResolution, stageCheckout.checkout),
     requestedConstraints: {
       workflowAuthority: "accepted_episode_plan_only",
       publicationAuthority: "deterministic_orchestrator",
@@ -450,10 +404,13 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       ...(resolvedSources === undefined
         ? {}
         : {
-            planningSources: jsonValue({
-              manifest: resolvedSources.manifest,
-              documents: resolvedSources.documents,
-            }, "planning sources"),
+            planningSources: jsonValue(
+              {
+                manifest: resolvedSources.manifest,
+                documents: resolvedSources.documents,
+              },
+              "planning sources",
+            ),
           }),
     },
     hardBudget: {
@@ -464,20 +421,24 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       maxHumanDecisions: 0,
     },
     requiredSafetyFacts: safetyFactsFromPlanningRequest(options.planning),
-    responsibilityByRole: Object.fromEntries(configuredRoles.map((role) => [
-      role.name,
-      role.name === "planner"
-        ? "Select and execute the smallest sufficient governed product-planning workflow"
-        : `Configured ${role.name} responsibility; unavailable to product-planning operations`,
-    ])),
+    responsibilityByRole: Object.fromEntries(
+      configuredRoles.map((role) => [
+        role.name,
+        role.name === "planner"
+          ? "Select and execute the smallest sufficient governed product-planning workflow"
+          : `Configured ${role.name} responsibility; unavailable to product-planning operations`,
+      ]),
+    ),
     ...(options.creatorScope === undefined ? {} : { creatorScope: options.creatorScope }),
   };
-  const intent = existingIntent ?? buildEpisodeIntent({
-    ...episodeFacts,
-    app: options.app,
-    roles: configuredRoles,
-    ...(readiness === undefined ? {} : { assignmentAvailable: readiness.available }),
-  });
+  const intent =
+    existingIntent ??
+    buildEpisodeIntent({
+      ...episodeFacts,
+      app: options.app,
+      roles: configuredRoles,
+      ...(readiness === undefined ? {} : { assignmentAvailable: readiness.available }),
+    });
 
   if (options.requireExecutionReadyCreatorScope) {
     const policy = createEpisodePlanningPolicy(options.app, {
@@ -490,9 +451,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     if (!assessment.executionReady) {
       return {
         status: "failed",
-        summary:
-          "explicit execution-ready creator scope is incomplete or invalid; " +
-          "EpisodePlanner was not invoked",
+        summary: "explicit execution-ready creator scope is incomplete or invalid; " + "EpisodePlanner was not invoked",
         problems: assessment.issues.map((entry) => `${entry.code}: ${entry.message}`),
         episodeId,
         stageResolution,
@@ -516,9 +475,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       app: options.app.name,
       role: planner.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined
-        ? { networkAllowlist: options.app.networkAllowlist }
-        : {}),
+      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
       turnId: traceId,
       workdir: localRepo,
       now: clock,
@@ -532,12 +489,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       role: planner,
       taskText:
         `${stage} EpisodePlanner product plan for ${options.app.name}: ${options.goal}` +
-        (resolvedSources === undefined
-          ? ""
-          : `; planning sources ${resolvedSources.manifest.manifest_sha256}`),
+        (resolvedSources === undefined ? "" : `; planning sources ${resolvedSources.manifest.manifest_sha256}`),
     })
   ).bundle;
-  const promptText = options.episodePlannerPromptText ??
+  const promptText =
+    options.episodePlannerPromptText ??
     (options.creatorScope?.planningDisposition === "execution_ready"
       ? ""
       : await readEpisodePlannerPrompt(options.orgHome));
@@ -550,9 +506,8 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     stageEvidenceCheckout: stageCheckout.checkout,
     budget,
   });
-  const sourceBrief = resolvedSources === undefined
-    ? ""
-    : renderPlanningSourceBrief(resolvedSources.manifest, resolvedSources.documents);
+  const sourceBrief =
+    resolvedSources === undefined ? "" : renderPlanningSourceBrief(resolvedSources.manifest, resolvedSources.documents);
 
   let prepared: Awaited<ReturnType<typeof orchestrateEpisode>>["prepared"];
   let execution: EpisodePlanExecutionResult;
@@ -610,11 +565,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         }),
         contextForProviderStep: () => context,
         provider: async (step, stepExecution) => {
-          const executionPlan = await resolvePlanningExecutionPlan(
-            options.stateHome,
-            episodeId,
-            stepExecution,
-          );
+          const executionPlan = await resolvePlanningExecutionPlan(options.stateHome, episodeId, stepExecution);
           return executePlanningProviderStep({
             options,
             plan: executionPlan,
@@ -670,15 +621,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     });
   }
 
-  const executedPlan = await resolvePlanningExecutionPlan(
-    options.stateHome,
-    episodeId,
-    execution,
-  );
+  const executedPlan = await resolvePlanningExecutionPlan(options.stateHome, episodeId, execution);
   let planningExecution: AutoPlanningExecutionResult = execution;
-  const resultBase: Pick<AutoPlanResult,
-    "episodeId" | "episodePlan" | "planningTurnSkipped" | "planningExecution" |
-      "planningSources" | "stageResolution"
+  const resultBase: Pick<
+    AutoPlanResult,
+    "episodeId" | "episodePlan" | "planningTurnSkipped" | "planningExecution" | "planningSources" | "stageResolution"
   > = {
     episodeId,
     stageResolution,
@@ -688,16 +635,13 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     ...(resolvedSources === undefined
       ? {}
       : {
-          planningSources: execution.status === "completed"
-            ? consumedSources!
-            : resolvedSources.manifest,
+          planningSources: execution.status === "completed" ? consumedSources! : resolvedSources.manifest,
         }),
   };
   if (execution.status !== "completed") {
     const terminal = terminalProviderStep(executedPlan);
-    const output = terminal === undefined
-      ? undefined
-      : await readPlanningStepOutput(options.stateHome, executedPlan, terminal.id);
+    const output =
+      terminal === undefined ? undefined : await readPlanningStepOutput(options.stateHome, executedPlan, terminal.id);
     // A budget-only refusal used to throw away the decomposition the planner
     // was already paid for, so ratifying meant buying a different plan. Keep
     // it, and hand the operator the exact command that admits it (ENH-011).
@@ -710,8 +654,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       consumedSources,
       now: clock,
     });
-    const refusedTicketBudget =
-      output?.ticketPlan !== undefined && isTicketBudgetOnlyRefusal(output.ticketPlan);
+    const refusedTicketBudget = output?.ticketPlan !== undefined && isTicketBudgetOnlyRefusal(output.ticketPlan);
     if (refusedTicketBudget) {
       const reason = output.problems.join("; ");
       planningExecution = {
@@ -731,12 +674,14 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       });
     }
     return {
-      status: output?.providerStatus === "cancelled"
-        ? "cancelled"
-        : output?.providerStatus === "timed_out"
-          ? "timed_out"
-          : "failed",
-      summary: planningExecution.summary ??
+      status:
+        output?.providerStatus === "cancelled"
+          ? "cancelled"
+          : output?.providerStatus === "timed_out"
+            ? "timed_out"
+            : "failed",
+      summary:
+        planningExecution.summary ??
         `accepted product-planning workflow stopped at ${execution.nextStepId ?? "an unknown step"}`,
       ...(output?.problems.length ? { problems: output.problems } : {}),
       ...(refusedDecomposition === undefined ? {} : { refusedDecomposition }),
@@ -780,11 +725,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     runId: output.runId,
     traceId,
   };
-  const priorPublication = await readPublishedTicketsRecord(
-    options.stateHome,
-    options.app.name,
-    output.runId,
-  );
+  const priorPublication = await readPublishedTicketsRecord(options.stateHome, options.app.name, output.runId);
   let published: PublishedTicket[];
   let recordNote = "";
   const publicationGh = options.gh ?? new GhCliOps(options.app.repo);
@@ -814,13 +755,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     // failure must not report remote publication as failed and invite a blind
     // duplicate retry.
     try {
-      await writePublishedTicketsRecord(
-        options.stateHome,
-        options.app.name,
-        provenance,
-        published,
-        clock(),
-      );
+      await writePublishedTicketsRecord(options.stateHome, options.app.name, provenance, published, clock());
     } catch (error) {
       recordNote = `; published-tickets record write failed: ${(error as Error).message}`;
     }
@@ -884,9 +819,8 @@ export async function persistPublishedRoadmap(input: {
     throw new Error("published ticket projection does not exactly account for the Planner TicketPlan");
   }
   const limit = 10_001;
-  const issues = input.issues === undefined
-    ? await input.gh.listIssues({ state: "open", limit })
-    : structuredClone(input.issues);
+  const issues =
+    input.issues === undefined ? await input.gh.listIssues({ state: "open", limit }) : structuredClone(input.issues);
   if (issues.length >= limit) {
     throw new Error(`open backlog reached the ${limit - 1} issue completeness bound`);
   }
@@ -896,7 +830,7 @@ export async function persistPublishedRoadmap(input: {
     issueNumber: issue.number,
     contentHash: issueContentHash(issue),
     lifecycle: "open" as const,
-    routing: issue.labels.includes("routing:human-only") ? "human_only" as const : "automated" as const,
+    routing: issue.labels.includes("routing:human-only") ? ("human_only" as const) : ("automated" as const),
     observedLabels: [...issue.labels],
     // An absent open dependency is already closed/satisfied. BacklogSnapshot
     // is complete over the OPEN backlog and therefore cannot name a member it
@@ -909,13 +843,16 @@ export async function persistPublishedRoadmap(input: {
       input.app.name,
       current.value.backlogSnapshotRef,
     );
-    const currentlyPlannedIssues = new Set(current.value.deliveryUnits
-      .filter((unit) => unit.workstreamId !== "backlog-unplanned")
-      .flatMap((unit) => unit.issueNumbers));
+    const currentlyPlannedIssues = new Set(
+      current.value.deliveryUnits
+        .filter((unit) => unit.workstreamId !== "backlog-unplanned")
+        .flatMap((unit) => unit.issueNumbers),
+    );
     if (
       input.published.every((ticket) => currentlyPlannedIssues.has(ticket.issueNumber)) &&
       stableHash(priorSnapshot.value.issues) === stableHash(snapshotIssues)
-    ) return;
+    )
+      return;
   }
   const snapshotId = `planner-${stableHash({ app: input.app.name, capturedAt, issues }).slice(0, 24)}`;
   const snapshot = await acceptBacklogSnapshot({
@@ -928,16 +865,19 @@ export async function persistPublishedRoadmap(input: {
       source: input.source ?? "github:complete-open-backlog-after-planner-publication",
       capturedAt,
       completeness: "complete",
-      pagination: { pagesObserved: Math.max(1, Math.ceil(issues.length / 100)), hasNextPage: false, unavailablePages: [] },
+      pagination: {
+        pagesObserved: Math.max(1, Math.ceil(issues.length / 100)),
+        hasNextPage: false,
+        unavailablePages: [],
+      },
       issues: snapshotIssues,
     },
   });
   const issueByNumber = new Map(issues.map((issue) => [issue.number, issue]));
   const openIssueNumbers = new Set(issueByNumber.keys());
-  const allPlanTicketsByNumber = new Map(input.published.map((ticket) => [
-    ticket.issueNumber,
-    input.plan.tickets[ticket.index]!,
-  ]));
+  const allPlanTicketsByNumber = new Map(
+    input.published.map((ticket) => [ticket.issueNumber, input.plan.tickets[ticket.index]!]),
+  );
   const preservedUnits: RoadmapDeliveryUnit[] = [];
   const displacedUnplanned: Array<{ issueNumber: number; fromUnitId: string }> = [];
   for (const prior of current?.value.deliveryUnits ?? []) {
@@ -952,10 +892,12 @@ export async function persistPublishedRoadmap(input: {
     if (prior.workstreamId === "backlog-unplanned") {
       const newlyPlanned = openMembers.filter((number) => allPlanTicketsByNumber.has(number));
       if (newlyPlanned.length > 0) {
-        displacedUnplanned.push(...newlyPlanned.map((issueNumber) => ({
-          issueNumber,
-          fromUnitId: prior.unitId,
-        })));
+        displacedUnplanned.push(
+          ...newlyPlanned.map((issueNumber) => ({
+            issueNumber,
+            fromUnitId: prior.unitId,
+          })),
+        );
         const stillUnplanned = openMembers.filter((number) => !allPlanTicketsByNumber.has(number));
         if (stillUnplanned.length > 0) {
           preservedUnits.push({ ...structuredClone(prior), issueNumbers: stillUnplanned });
@@ -965,10 +907,10 @@ export async function persistPublishedRoadmap(input: {
     }
     preservedUnits.push(structuredClone(prior));
   }
-  const priorUnitByIssue = new Map(preservedUnits.flatMap((unit) =>
-    unit.issueNumbers.map((number) => [number, unit.unitId] as const)));
-  const planTicketByNumber = new Map([...allPlanTicketsByNumber]
-    .filter(([number]) => !priorUnitByIssue.has(number)));
+  const priorUnitByIssue = new Map(
+    preservedUnits.flatMap((unit) => unit.issueNumbers.map((number) => [number, unit.unitId] as const)),
+  );
+  const planTicketByNumber = new Map([...allPlanTicketsByNumber].filter(([number]) => !priorUnitByIssue.has(number)));
   const grouped = new Map<string, number[]>();
   for (const [number, ticket] of planTicketByNumber) {
     const members = grouped.get(ticket.executionGroup) ?? [];
@@ -990,42 +932,45 @@ export async function persistPublishedRoadmap(input: {
       });
     }
   }
-  const priorUnitIdByMembership = new Map((current?.value.deliveryUnits ?? []).map((unit) => [
-    stableHash([...unit.issueNumbers].sort((a, b) => a - b)),
-    unit.unitId,
-  ]));
-  const groupUnitIds = new Map([...grouped.keys()].map((group) => {
-    const members = grouped.get(group)!;
-    const stablePriorId = priorUnitIdByMembership.get(stableHash([...members].sort((a, b) => a - b)));
-    return [group, stablePriorId ?? `unit-${stableHash({ group, members }).slice(0, 24)}`];
-  }));
+  const priorUnitIdByMembership = new Map(
+    (current?.value.deliveryUnits ?? []).map((unit) => [
+      stableHash([...unit.issueNumbers].sort((a, b) => a - b)),
+      unit.unitId,
+    ]),
+  );
+  const groupUnitIds = new Map(
+    [...grouped.keys()].map((group) => {
+      const members = grouped.get(group)!;
+      const stablePriorId = priorUnitIdByMembership.get(stableHash([...members].sort((a, b) => a - b)));
+      return [group, stablePriorId ?? `unit-${stableHash({ group, members }).slice(0, 24)}`];
+    }),
+  );
   const unitIdByIssue = new Map(priorUnitByIssue);
   for (const [group, members] of grouped) {
     for (const number of members) unitIdByIssue.set(number, groupUnitIds.get(group)!);
   }
   const deliveryUnits: RoadmapDeliveryUnit[] = preservedUnits.map((unit) => structuredClone(unit));
   for (const [group, members] of [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-      const dependencies = new Set<string>();
-      for (const number of members) {
-        for (const dependency of planTicketByNumber.get(number)!.dependsOn) {
-          const dependencyPublished = input.published.find((ticket) => ticket.index === dependency);
-          const dependencyUnit = dependencyPublished === undefined
-            ? undefined
-            : unitIdByIssue.get(dependencyPublished.issueNumber);
-          if (dependencyUnit !== undefined && dependencyUnit !== groupUnitIds.get(group)) {
-            dependencies.add(dependencyUnit);
-          }
+    const dependencies = new Set<string>();
+    for (const number of members) {
+      for (const dependency of planTicketByNumber.get(number)!.dependsOn) {
+        const dependencyPublished = input.published.find((ticket) => ticket.index === dependency);
+        const dependencyUnit =
+          dependencyPublished === undefined ? undefined : unitIdByIssue.get(dependencyPublished.issueNumber);
+        if (dependencyUnit !== undefined && dependencyUnit !== groupUnitIds.get(group)) {
+          dependencies.add(dependencyUnit);
         }
       }
-      const workstreamId = `planner-${stableHash(group).slice(0, 20)}`;
-      deliveryUnits.push({
-        unitId: groupUnitIds.get(group)!,
-        workstreamId,
-        issueNumbers: [...members].sort((a, b) => a - b),
-        dependsOn: [...dependencies].sort(),
-        priority: workstreams.find((workstream) => workstream.workstreamId === workstreamId)!.priority,
-        objective: workstreams.find((workstream) => workstream.workstreamId === workstreamId)!.outcome,
-      });
+    }
+    const workstreamId = `planner-${stableHash(group).slice(0, 20)}`;
+    deliveryUnits.push({
+      unitId: groupUnitIds.get(group)!,
+      workstreamId,
+      issueNumbers: [...members].sort((a, b) => a - b),
+      dependsOn: [...dependencies].sort(),
+      priority: workstreams.find((workstream) => workstream.workstreamId === workstreamId)!.priority,
+      objective: workstreams.find((workstream) => workstream.workstreamId === workstreamId)!.outcome,
+    });
   }
   const accounted = new Set(deliveryUnits.flatMap((unit) => unit.issueNumbers));
   const legacy = issues.filter((issue) => !accounted.has(issue.number));
@@ -1053,38 +998,42 @@ export async function persistPublishedRoadmap(input: {
   for (const unit of deliveryUnits) {
     unit.dependsOn = unit.dependsOn.filter((dependency) => validUnitIds.has(dependency));
   }
-  const completedUnitIds = (current?.value.completedUnitIds ?? [])
-    .filter((unitId) => validUnitIds.has(unitId));
+  const completedUnitIds = (current?.value.completedUnitIds ?? []).filter((unitId) => validUnitIds.has(unitId));
   const newMoves: RoadmapIssueMove[] = displacedUnplanned.flatMap((move) => {
     const toUnitId = unitIdByIssue.get(move.issueNumber);
     if (toUnitId === undefined) {
       throw new Error(`RoadmapPlan revision lost newly planned issue #${move.issueNumber}`);
     }
     if (toUnitId === move.fromUnitId) return [];
-    return [{
-      issueNumber: move.issueNumber,
-      fromUnitId: move.fromUnitId,
-      toUnitId,
-      reason: "scheduled Planner assigned previously unplanned backlog",
-      movedAt: capturedAt,
-    }];
+    return [
+      {
+        issueNumber: move.issueNumber,
+        fromUnitId: move.fromUnitId,
+        toUnitId,
+        reason: "scheduled Planner assigned previously unplanned backlog",
+        movedAt: capturedAt,
+      },
+    ];
   });
   const completed = new Set(completedUnitIds);
-  const authorizedReady = input.readyIssueNumbers === undefined
-    ? undefined
-    : new Set(input.readyIssueNumbers);
+  const authorizedReady = input.readyIssueNumbers === undefined ? undefined : new Set(input.readyIssueNumbers);
   const wipLimit = current?.value.wipLimit ?? Math.max(1, Math.min(8, workstreams.length));
   const readyFrontier = deliveryUnits
-    .filter((unit) =>
-      !completed.has(unit.unitId) &&
-      unit.workstreamId !== "backlog-unplanned" &&
-      unit.dependsOn.every((dependency) => completed.has(dependency)) &&
-      unit.issueNumbers.every((number) => {
-        const issue = issueByNumber.get(number)!;
-        return issue.labels.includes("op:ready") &&
-          (authorizedReady === undefined || authorizedReady.has(number)) &&
-          !issue.labels.includes("routing:human-only") && !issue.labels.includes("manual-review");
-      }))
+    .filter(
+      (unit) =>
+        !completed.has(unit.unitId) &&
+        unit.workstreamId !== "backlog-unplanned" &&
+        unit.dependsOn.every((dependency) => completed.has(dependency)) &&
+        unit.issueNumbers.every((number) => {
+          const issue = issueByNumber.get(number)!;
+          return (
+            issue.labels.includes("op:ready") &&
+            (authorizedReady === undefined || authorizedReady.has(number)) &&
+            !issue.labels.includes("routing:human-only") &&
+            !issue.labels.includes("manual-review")
+          );
+        }),
+    )
     .sort((left, right) => left.priority - right.priority || left.unitId.localeCompare(right.unitId))
     .slice(0, wipLimit)
     .map((unit) => unit.unitId);
@@ -1102,10 +1051,7 @@ export async function persistPublishedRoadmap(input: {
       completedUnitIds,
       readyFrontier,
       wipLimit,
-      moves: [
-        ...(current?.value.moves.map((move) => structuredClone(move)) ?? []),
-        ...newMoves,
-      ],
+      moves: [...(current?.value.moves.map((move) => structuredClone(move)) ?? []), ...newMoves],
       acceptedAt: capturedAt,
     },
   });
@@ -1153,11 +1099,7 @@ async function preserveRefusedDecomposition(input: {
       stage: record.stage,
       stageTicketBudget: record.stage_ticket_budget,
       ticketCount: record.ticket_count,
-      path: refusedDecompositionPath(
-        input.options.stateHome,
-        input.options.app.name,
-        record.decomposition_id,
-      ),
+      path: refusedDecompositionPath(input.options.stateHome, input.options.app.name, record.decomposition_id),
       ratifyCommand: ratifyTicketBudgetCommand({
         app: input.options.app.name,
         decompositionId: record.decomposition_id,
@@ -1235,9 +1177,7 @@ async function executePlanningProviderStep(
           },
         },
         requiredCapabilities: planningRuntimeCapabilities(input.step),
-        ...(definition.output === "ticket_plan"
-          ? { verdictSchemaFor: () => PLAN_SCHEMA }
-          : {}),
+        ...(definition.output === "ticket_plan" ? { verdictSchemaFor: () => PLAN_SCHEMA } : {}),
         ...(input.resolvedSources === undefined || input.consumedSources === undefined
           ? {}
           : {
@@ -1248,9 +1188,7 @@ async function executePlanningProviderStep(
               },
             }),
         telemetry: { orgDir: input.options.stateHome, trigger: "manual" },
-        ...(input.options.parentTaskId === undefined
-          ? {}
-          : { parentTaskId: input.options.parentTaskId }),
+        ...(input.options.parentTaskId === undefined ? {} : { parentTaskId: input.options.parentTaskId }),
         ...(input.options.signal === undefined ? {} : { signal: input.options.signal }),
         clock: input.clock,
       });
@@ -1297,13 +1235,10 @@ async function executePlanningProviderStep(
     ...(ticketPlan === undefined ? {} : { ticketPlan }),
   });
   if (status === "failed") {
-    const refusedTicketBudget =
-      ticketPlan !== undefined && isTicketBudgetOnlyRefusal(ticketPlan);
+    const refusedTicketBudget = ticketPlan !== undefined && isTicketBudgetOnlyRefusal(ticketPlan);
     return {
       status: "failed",
-      reasonCode: refusedTicketBudget
-        ? "refused_ticket_budget"
-        : "error_ticket_plan_invalid",
+      reasonCode: refusedTicketBudget ? "refused_ticket_budget" : "error_ticket_plan_invalid",
       summary: refusedTicketBudget
         ? `terminal TicketPlan exceeds the stage ticket budget (${problems.join("; ")})`
         : `terminal TicketPlan failed validation (${problems.length} problem(s))`,
@@ -1318,15 +1253,9 @@ async function resolvePlanningExecutionPlan(
   episodeId: string,
   execution: Pick<EpisodeStepExecutionContext, "planVersion" | "planHash">,
 ): Promise<EpisodePlan> {
-  const persisted = await readEpisodePlanVersion(
-    root,
-    episodeId,
-    execution.planVersion,
-  );
+  const persisted = await readEpisodePlanVersion(root, episodeId, execution.planVersion);
   if (persisted === undefined || episodePlanHash(persisted) !== execution.planHash) {
-    throw new Error(
-      `planning execution v${execution.planVersion} does not match immutable plan authority`,
-    );
+    throw new Error(`planning execution v${execution.planVersion} does not match immutable plan authority`);
   }
   return persisted;
 }
@@ -1339,12 +1268,12 @@ interface PlanningProviderEvidence {
 async function planningProviderEvidence(
   input: PlanningProviderExecutionInput,
 ): Promise<PlanningProviderEvidence | undefined> {
-  const terminal = (await readExecutionSteps(input.options.stateHome, input.plan.episodeId))
-    .filter((record) =>
+  const terminal = (await readExecutionSteps(input.options.stateHome, input.plan.episodeId)).filter(
+    (record) =>
       record.kind === "provider" &&
       record.plan_version === input.execution.planVersion &&
       record.plan_step_id === input.step.id,
-    );
+  );
   if (terminal.length > 1) {
     throw new Error(`planning step ${input.step.id} has multiple terminal provider records`);
   }
@@ -1366,10 +1295,7 @@ async function planningProviderEvidence(
   }
   let output: string;
   try {
-    output = await readFile(
-      runPaths(input.options.stateHome, input.options.app.name, record.run_id).output,
-      "utf8",
-    );
+    output = await readFile(runPaths(input.options.stateHome, input.options.app.name, record.run_id).output, "utf8");
   } catch (error) {
     throw new Error(`terminal provider evidence for ${input.step.id} has no output.md`, {
       cause: error,
@@ -1388,20 +1314,19 @@ async function requirePlanningProviderEvidence(
   return evidence;
 }
 
-async function exactProviderAuthorization(
-  input: PlanningProviderExecutionInput,
-): Promise<AuthorizedPass> {
+async function exactProviderAuthorization(input: PlanningProviderExecutionInput): Promise<AuthorizedPass> {
   const route = await readRouteRecord(input.options.stateHome, input.plan.episodeId);
-  const matches = route.authorized_passes.filter((pass) =>
-    pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
-    pass.pass === input.step.id &&
-    pass.role === input.step.role &&
-    pass.plan_version === input.execution.planVersion &&
-    pass.plan_step_id === input.step.id &&
-    pass.runtime === input.step.assignment.harness &&
-    pass.model === input.step.assignment.model &&
-    pass.effort === input.step.assignment.effort &&
-    pass.assignment_source === input.step.assignmentSource,
+  const matches = route.authorized_passes.filter(
+    (pass) =>
+      pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
+      pass.pass === input.step.id &&
+      pass.role === input.step.role &&
+      pass.plan_version === input.execution.planVersion &&
+      pass.plan_step_id === input.step.id &&
+      pass.runtime === input.step.assignment.harness &&
+      pass.model === input.step.assignment.model &&
+      pass.effort === input.step.assignment.effort &&
+      pass.assignment_source === input.step.assignmentSource,
   );
   if (matches.length !== 1) {
     throw new Error(`planning provider step ${input.step.id} lacks one exact route authorization`);
@@ -1409,24 +1334,21 @@ async function exactProviderAuthorization(
   return matches[0]!;
 }
 
-function executionTransportPipeline(
-  step: ProviderTurnStep,
-  governed: PipelineConfig,
-): PipelineConfig {
+function executionTransportPipeline(step: ProviderTurnStep, governed: PipelineConfig): PipelineConfig {
   const pass = governed.passes[0]!;
   return {
     name: EPISODE_PLAN_EXECUTION_PIPELINE,
     mechanical: false,
-    passes: [{
-      id: step.id,
-      role: pass.role,
-      template: pass.template,
-      ...(pass.effort === undefined ? {} : { effort: pass.effort }),
-      ...(pass.maxTurns === undefined ? {} : { maxTurns: pass.maxTurns }),
-      ...(pass.wallClockMinutes === undefined
-        ? {}
-        : { wallClockMinutes: pass.wallClockMinutes }),
-    }],
+    passes: [
+      {
+        id: step.id,
+        role: pass.role,
+        template: pass.template,
+        ...(pass.effort === undefined ? {} : { effort: pass.effort }),
+        ...(pass.maxTurns === undefined ? {} : { maxTurns: pass.maxTurns }),
+        ...(pass.wallClockMinutes === undefined ? {} : { wallClockMinutes: pass.wallClockMinutes }),
+      },
+    ],
   };
 }
 
@@ -1451,12 +1373,13 @@ async function renderPlanningProviderBrief(
     const output = await readPlanningStepOutput(input.options.stateHome, input.plan, dependency);
     if (output !== undefined) referenced.set(dependency, output);
   }
-  const prior = referenced.size === 0
-    ? "None. The accepted workflow deliberately selected this operation without an upstream provider artifact. Complete its bounded responsibility in this turn."
-    : [...referenced.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([stepId, output]) => `### ${stepId} (${output.operation})\n\n${output.output}`)
-        .join("\n\n");
+  const prior =
+    referenced.size === 0
+      ? "None. The accepted workflow deliberately selected this operation without an upstream provider artifact. Complete its bounded responsibility in this turn."
+      : [...referenced.entries()]
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([stepId, output]) => `### ${stepId} (${output.operation})\n\n${output.output}`)
+          .join("\n\n");
   return [
     input.baseBrief,
     ...(input.sourceBrief === "" ? [] : ["", input.sourceBrief]),
@@ -1494,10 +1417,9 @@ function planningProviderRunId(
 }
 
 function planningRuntimeCapabilities(step: ProviderTurnStep): RuntimeCapability[] {
-  return [...new Set([
-    ...BASELINE_PROVIDER_CAPABILITIES,
-    ...step.requiredCapabilities.filter(isRuntimeCapability),
-  ])].sort();
+  return [
+    ...new Set([...BASELINE_PROVIDER_CAPABILITIES, ...step.requiredCapabilities.filter(isRuntimeCapability)]),
+  ].sort();
 }
 
 interface PlanningStepOutputRecord {
@@ -1551,7 +1473,7 @@ async function persistPlanningStepOutput(input: {
   const path = join(efficiencyEpisodeDir(input.input.options.stateHome, input.input.plan.episodeId), relative);
   const contents = `${JSON.stringify(record, null, 2)}\n`;
   const won = await writeLoopFileOnce(path, contents);
-  if (!won && await readFile(path, "utf8") !== contents) {
+  if (!won && (await readFile(path, "utf8")) !== contents) {
     throw new Error(`planning step output conflict for ${input.input.step.id}`);
   }
   return {
@@ -1565,10 +1487,7 @@ async function readPlanningStepOutput(
   plan: EpisodePlan,
   stepId: string,
 ): Promise<PlanningStepOutputRecord | undefined> {
-  const path = join(
-    efficiencyEpisodeDir(root, plan.episodeId),
-    planningStepOutputRelative(plan.version, stepId),
-  );
+  const path = join(efficiencyEpisodeDir(root, plan.episodeId), planningStepOutputRelative(plan.version, stepId));
   let value: unknown;
   try {
     value = JSON.parse(await readFile(path, "utf8")) as unknown;
@@ -1576,9 +1495,13 @@ async function readPlanningStepOutput(
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
   }
-  if (!isPlanningStepOutputRecord(value) ||
-      value.episodeId !== plan.episodeId || value.planVersion !== plan.version ||
-      value.stepId !== stepId || value.outputSha256 !== fingerprint(value.output)) {
+  if (
+    !isPlanningStepOutputRecord(value) ||
+    value.episodeId !== plan.episodeId ||
+    value.planVersion !== plan.version ||
+    value.stepId !== stepId ||
+    value.outputSha256 !== fingerprint(value.output)
+  ) {
     throw new Error(`planning step output ${stepId} is invalid or does not match its plan`);
   }
   return value;
@@ -1591,7 +1514,8 @@ function planningStepOutputRelative(planVersion: number, stepId: string): string
 function isPlanningStepOutputRecord(value: unknown): value is PlanningStepOutputRecord {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
-  return record["schemaVersion"] === 1 &&
+  return (
+    record["schemaVersion"] === 1 &&
     typeof record["episodeId"] === "string" &&
     Number.isSafeInteger(record["planVersion"]) &&
     typeof record["planHash"] === "string" &&
@@ -1601,56 +1525,47 @@ function isPlanningStepOutputRecord(value: unknown): value is PlanningStepOutput
     typeof record["operation"] === "string" &&
     typeof record["runId"] === "string" &&
     typeof record["providerExecutionStepId"] === "string" &&
-    ["completed", "failed", "blocked", "cancelled", "timed_out", "interrupted"]
-      .includes(String(record["providerStatus"])) &&
+    ["completed", "failed", "blocked", "cancelled", "timed_out", "interrupted"].includes(
+      String(record["providerStatus"]),
+    ) &&
     (record["status"] === "completed" || record["status"] === "failed") &&
     typeof record["output"] === "string" &&
     typeof record["outputSha256"] === "string" &&
     Array.isArray(record["problems"]) &&
-    record["problems"].every((problem) => typeof problem === "string");
+    record["problems"].every((problem) => typeof problem === "string")
+  );
 }
 
 function terminalProviderStep(plan: EpisodePlan): ProviderTurnStep | undefined {
   const dependencyIds = new Set(plan.steps.flatMap((step) => step.dependsOn));
   const terminals = plan.steps.filter((step) => !dependencyIds.has(step.id));
-  return terminals.length === 1 && terminals[0]?.kind === "provider_turn"
-    ? terminals[0]
-    : undefined;
+  return terminals.length === 1 && terminals[0]?.kind === "provider_turn" ? terminals[0] : undefined;
 }
 
-function parseAndValidateTicketPlan(
-  output: string,
-  stage: ProjectStage,
-): { plan?: TicketPlan; problems: string[] } {
+function parseAndValidateTicketPlan(output: string, stage: ProjectStage): { plan?: TicketPlan; problems: string[] } {
   const plan = parsePlanJson(output);
   if (plan === undefined) {
     return { problems: ["planner output is not a parseable TicketPlan JSON object"] };
   }
   const validation = validatePlan(plan);
   if (plan.stage !== stage) {
-    validation.problems.push(
-      `planner returned stage "${plan.stage}" but the requested stage is "${stage}"`,
-    );
+    validation.problems.push(`planner returned stage "${plan.stage}" but the requested stage is "${stage}"`);
     validation.ok = false;
   }
   return validation.ok ? { plan, problems: [] } : { plan, problems: validation.problems };
 }
 
-function assignmentRuntimeFactory(
-  options: AutoPlanOptions,
-): (assignment: TurnAssignment, role: RoleConfig) => Runtime {
-  return (assignment, role) => options.runtimeFor?.({
-    ...role,
-    runtime: assignment.harness,
-    model: assignment.model,
-    effort: assignment.effort,
-  }) ?? getRuntime(assignment.harness);
+function assignmentRuntimeFactory(options: AutoPlanOptions): (assignment: TurnAssignment, role: RoleConfig) => Runtime {
+  return (assignment, role) =>
+    options.runtimeFor?.({
+      ...role,
+      runtime: assignment.harness,
+      model: assignment.model,
+      effort: assignment.effort,
+    }) ?? getRuntime(assignment.harness);
 }
 
-function defaultPlannerLimits(
-  planner: RoleConfig,
-  remainingBudgetUsd: number,
-): PlannerAdmissionLimits {
+function defaultPlannerLimits(planner: RoleConfig, remainingBudgetUsd: number): PlannerAdmissionLimits {
   const maxAttempts = 2;
   // Reserve at most two thirds of a very small remaining allowance so a
   // successful EpisodePlanner can still propose at least one delivery turn.
@@ -1694,10 +1609,7 @@ async function readEpisodePlannerPrompt(orgHome: string): Promise<string> {
     if (prompt.trim().length === 0) throw new Error("prompt is empty");
     return prompt;
   } catch (error) {
-    throw new Error(
-      `product planning requires the human-ratified EpisodePlanner prompt at ${path}`,
-      { cause: error },
-    );
+    throw new Error(`product planning requires the human-ratified EpisodePlanner prompt at ${path}`, { cause: error });
   }
 }
 
@@ -1721,7 +1633,10 @@ function repositoryFacts(
     recentCommits = execFileSync("git", ["log", "--oneline", "-5"], {
       cwd: snapshot.path,
       encoding: "utf8",
-    }).trim().split("\n").filter(Boolean);
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
   } catch {
     // Empty repositories have no readable commit log.
   }
@@ -1733,8 +1648,7 @@ function repositoryFacts(
     stageEvidenceCheckout,
     planningStageResolution: jsonValue(stageResolution, "planning stage resolution"),
     topLevelEntries: entries,
-    docsPresent: ["README.md", "docs"]
-      .filter((path) => existsSync(join(snapshot.path, path))),
+    docsPresent: ["README.md", "docs"].filter((path) => existsSync(join(snapshot.path, path))),
     recentCommits,
   };
 }
@@ -1747,11 +1661,7 @@ async function productPlanningBrief(input: {
   stageEvidenceCheckout: string;
   budget: BudgetRow;
 }): Promise<string> {
-  const facts = repositoryFacts(
-    input.snapshot,
-    input.stageResolution,
-    input.stageEvidenceCheckout,
-  );
+  const facts = repositoryFacts(input.snapshot, input.stageResolution, input.stageEvidenceCheckout);
   return [
     `# ${input.stage} product plan request: ${input.options.app.name}`,
     "",
@@ -1799,9 +1709,7 @@ function resolveAutoPlanSources(
   });
 }
 
-function planningSourceTicketEvidence(
-  manifest: PlanningSourceManifest,
-): PlanningSourceTicketEvidence {
+function planningSourceTicketEvidence(manifest: PlanningSourceManifest): PlanningSourceTicketEvidence {
   return {
     manifestSha256: manifest.manifest_sha256,
     sources: manifest.sources
@@ -1811,7 +1719,7 @@ function planningSourceTicketEvidence(
         sourceSha256: source.source_sha256,
         sourceBytes: source.source_bytes,
         includedBytes: source.included_bytes,
-        inclusion: source.inclusion === "truncated" ? "truncated" as const : "full" as const,
+        inclusion: source.inclusion === "truncated" ? ("truncated" as const) : ("full" as const),
         trust: source.trust,
       })),
   };
@@ -1860,16 +1768,17 @@ function gitText(cwd: string, ...args: string[]): string {
   }).trim();
 }
 
-function failedResult(
-  error: unknown,
-  base: Partial<AutoPlanResult>,
-): AutoPlanResult {
+function failedResult(error: unknown, base: Partial<AutoPlanResult>): AutoPlanResult {
   const message = error instanceof Error ? error.message : String(error);
-  const issues = error !== null && typeof error === "object" &&
-      "issues" in error && Array.isArray((error as { issues?: unknown }).issues)
-    ? (error as { issues: Array<{ code?: string; message?: string }> }).issues
-        .map((entry) => `${entry.code ?? "invalid"}: ${entry.message ?? "unknown problem"}`)
-    : undefined;
+  const issues =
+    error !== null &&
+    typeof error === "object" &&
+    "issues" in error &&
+    Array.isArray((error as { issues?: unknown }).issues)
+      ? (error as { issues: Array<{ code?: string; message?: string }> }).issues.map(
+          (entry) => `${entry.code ?? "invalid"}: ${entry.message ?? "unknown problem"}`,
+        )
+      : undefined;
   return {
     status: "failed",
     summary: message,

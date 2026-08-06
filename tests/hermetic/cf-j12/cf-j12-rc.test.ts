@@ -58,10 +58,7 @@ describe("CF-J12-RC — completed transactions no-op; the rejection ledger suppr
     const before = {
       concept: await readFile(conceptPath, "utf8"),
       manifest: JSON.stringify(await readManifest(world.orgRoot)),
-      intervention: await readFile(
-        join(world.org.orgHome, "learning", "interventions", "int_j12rc_done.json"),
-        "utf8",
-      ),
+      intervention: await readFile(join(world.org.orgHome, "learning", "interventions", "int_j12rc_done.json"), "utf8"),
     };
 
     world.clock.advance(60_000);
@@ -75,12 +72,9 @@ describe("CF-J12-RC — completed transactions no-op; the rejection ledger suppr
 
     expect(await readFile(conceptPath, "utf8")).toBe(before.concept);
     expect(JSON.stringify(await readManifest(world.orgRoot))).toBe(before.manifest);
-    expect(
-      await readFile(
-        join(world.org.orgHome, "learning", "interventions", "int_j12rc_done.json"),
-        "utf8",
-      ),
-    ).toBe(before.intervention);
+    expect(await readFile(join(world.org.orgHome, "learning", "interventions", "int_j12rc_done.json"), "utf8")).toBe(
+      before.intervention,
+    );
     await assertExactlyOncePublish({ world, candidateId: CAND, conceptId: "lrn_j12rc_done" });
   });
 
@@ -116,10 +110,7 @@ describe("CF-J12-RC — completed transactions no-op; the rejection ledger suppr
       world.orgRoot,
       candidateSpec({ id: CAND, destination: "skill_draft", errorClass: ERROR_CLASS }),
     );
-    await writeReviewerVerdict(
-      world.org.orgHome,
-      verdictSpec({ id: CAND, destination: "skill_draft" }),
-    );
+    await writeReviewerVerdict(world.org.orgHome, verdictSpec({ id: CAND, destination: "skill_draft" }));
     const outcome = await publishCandidate(world.deps, CAND);
     expect(outcome.status).toBe("refused");
     if (outcome.status === "refused") {
@@ -142,10 +133,7 @@ describe("CF-J12-RC — completed transactions no-op; the rejection ledger suppr
         evidenceRefs: ["runs/a#1", "runs/b#2"],
       }),
     );
-    await writeReviewerVerdict(
-      world.org.orgHome,
-      verdictSpec({ id: CAND, destination: "skill_draft" }),
-    );
+    await writeReviewerVerdict(world.org.orgHome, verdictSpec({ id: CAND, destination: "skill_draft" }));
     const outcome = await publishCandidate(world.deps, CAND);
     expect(outcome.status).toBe("published");
   });

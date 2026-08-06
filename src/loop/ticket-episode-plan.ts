@@ -1,9 +1,4 @@
-import type {
-  EpisodePlan,
-  EpisodeStep,
-  ProposedEpisodePlan,
-  ProposedEpisodeStep,
-} from "./episode-plan.js";
+import type { EpisodePlan, EpisodeStep, ProposedEpisodePlan, ProposedEpisodeStep } from "./episode-plan.js";
 import type { VerdictKind } from "./verdicts.js";
 
 export interface TicketProviderOperationDefinition {
@@ -180,18 +175,15 @@ export const TICKET_MECHANICAL_GATE_KINDS = Object.keys(
 export const TICKET_TOPOLOGY_RULES = [
   {
     id: "provision_precedes_write",
-    statement:
-      "every provider operation with write worktree access must have a ticket/provision ancestor",
+    statement: "every provider operation with write worktree access must have a ticket/provision ancestor",
   },
   {
     id: "write_feeds_gates_and_pr",
-    statement:
-      "every provider operation with write worktree access must feed a later ticket/gates-and-pr step",
+    statement: "every provider operation with write worktree access must feed a later ticket/gates-and-pr step",
   },
   {
     id: "gates_and_pr_requires_write",
-    statement:
-      "ticket/gates-and-pr requires an implementation or fix ancestor that wrote to the worktree",
+    statement: "ticket/gates-and-pr requires an implementation or fix ancestor that wrote to the worktree",
   },
   {
     id: "gate_inputs_produced_by_ancestor",
@@ -201,8 +193,7 @@ export const TICKET_TOPOLOGY_RULES = [
   },
   {
     id: "review_authorization_joins_review_lenses",
-    statement:
-      "ticket/review-authorization must follow every review lens for its gated revision",
+    statement: "ticket/review-authorization must follow every review lens for its gated revision",
   },
   {
     id: "review_lens_requires_gates_and_pr",
@@ -228,8 +219,7 @@ export const TICKET_TOPOLOGY_RULES = [
   },
   {
     id: "rollback_gate_requires_rollback_plan",
-    statement:
-      "ticket/rollback requires a required rollback_plan expected output from an ancestor provider step",
+    statement: "ticket/rollback requires a required rollback_plan expected output from an ancestor provider step",
   },
   {
     id: "ship_requires_review_authorization",
@@ -241,8 +231,7 @@ export const TICKET_TOPOLOGY_RULES = [
   },
   {
     id: "ship_follows_every_ship_check",
-    statement:
-      "when the plan contains any ship/ship-check step, ticket/ship must follow every one of them",
+    statement: "when the plan contains any ship/ship-check step, ticket/ship must follow every one of them",
   },
   {
     id: "release_handoff_requires_ship",
@@ -296,9 +285,7 @@ export class TicketEpisodePlanValidationError extends Error {
   }
 }
 
-export function ticketProviderOperation(
-  operation: string,
-): TicketProviderOperationDefinition | undefined {
+export function ticketProviderOperation(operation: string): TicketProviderOperationDefinition | undefined {
   if (!Object.hasOwn(TICKET_PROVIDER_OPERATION_CATALOG, operation)) return undefined;
   return TICKET_PROVIDER_OPERATION_CATALOG[operation as TicketProviderOperation];
 }
@@ -307,9 +294,7 @@ export function isTicketMechanicalGateKind(value: string): value is TicketMechan
   return Object.hasOwn(TICKET_MECHANICAL_GATE_CATALOG, value);
 }
 
-export function ticketMechanicalGate(
-  gate: string,
-): TicketMechanicalGateDefinition | undefined {
+export function ticketMechanicalGate(gate: string): TicketMechanicalGateDefinition | undefined {
   if (!isTicketMechanicalGateKind(gate)) return undefined;
   return TICKET_MECHANICAL_GATE_CATALOG[gate];
 }
@@ -321,8 +306,7 @@ export function ticketMechanicalGate(
  * as a known-good worked example, not as a template it must copy verbatim.
  */
 const TICKET_CANONICAL_REFERENCE_TOPOLOGY = {
-  provenance:
-    "accepted ticket plan that planned, built, reviewed, opened a PR, and merged autonomously",
+  provenance: "accepted ticket plan that planned, built, reviewed, opened a PR, and merged autonomously",
   workflowClass: "ticket-build-review-ship",
   steps: [
     {
@@ -406,9 +390,7 @@ export interface TicketStandardDeliveryBudgets {
  * accepted role/app budget. Budget values are deliberately inputs rather than
  * template policy: the workflow shape is stable while current spend authority
  * remains owned by the invocation. */
-export function ticketStandardDeliveryWorkflowSteps(
-  budgets: TicketStandardDeliveryBudgets,
-): ProposedEpisodeStep[] {
+export function ticketStandardDeliveryWorkflowSteps(budgets: TicketStandardDeliveryBudgets): ProposedEpisodeStep[] {
   for (const [name, value] of Object.entries(budgets)) {
     if (!Number.isFinite(value) || value <= 0) {
       throw new TypeError(`ticket workflow ${name} must be finite and positive`);
@@ -549,27 +531,33 @@ export function validateTicketEpisodePlan(plan: TicketPlanLike): TicketEpisodePl
     if (step.kind === "provider_turn") {
       const definition = ticketProviderOperation(step.operation);
       if (definition === undefined) {
-        issues.push(ticketIssue(
-          "ticket_provider_operation_unknown",
-          `unknown provider operation ${JSON.stringify(step.operation)}; ` +
-            `valid operations are: ${TICKET_PROVIDER_OPERATIONS.join(", ")}`,
-          step.id,
-        ));
+        issues.push(
+          ticketIssue(
+            "ticket_provider_operation_unknown",
+            `unknown provider operation ${JSON.stringify(step.operation)}; ` +
+              `valid operations are: ${TICKET_PROVIDER_OPERATIONS.join(", ")}`,
+            step.id,
+          ),
+        );
       } else if (step.role !== definition.role) {
-        issues.push(ticketIssue(
-          "ticket_provider_operation_role_mismatch",
-          `${step.operation} is owned by ${definition.role}, not ${step.role}`,
-          step.id,
-        ));
+        issues.push(
+          ticketIssue(
+            "ticket_provider_operation_role_mismatch",
+            `${step.operation} is owned by ${definition.role}, not ${step.role}`,
+            step.id,
+          ),
+        );
       }
       continue;
     }
     if (step.kind === "mechanical_gate" && !isTicketMechanicalGateKind(step.gate)) {
-      issues.push(ticketIssue(
-        "ticket_mechanical_gate_unknown",
-        `mechanical gate ${step.gate} has no ticket execution handler`,
-        step.id,
-      ));
+      issues.push(
+        ticketIssue(
+          "ticket_mechanical_gate_unknown",
+          `mechanical gate ${step.gate} has no ticket execution handler`,
+          step.id,
+        ),
+      );
     }
   }
 
@@ -590,9 +578,7 @@ function validateTicketTopology(
 ): void {
   const providers = steps.filter((step) => step.kind === "provider_turn");
   const gates = steps.filter((step) => step.kind === "mechanical_gate");
-  const writes = providers.filter((step) =>
-    ticketProviderOperation(step.operation)?.worktreeAccess === "write"
-  );
+  const writes = providers.filter((step) => ticketProviderOperation(step.operation)?.worktreeAccess === "write");
   const reviews = providers.filter((step) => step.operation.startsWith("review/"));
   const shipChecks = providers.filter((step) => step.operation === "ship/ship-check");
   const securityReviews = providers.filter((step) => step.operation === "review/security-deep");
@@ -608,16 +594,16 @@ function validateTicketTopology(
       "provision_precedes_write",
       issues,
     );
-    const gated = gates.some((gate) =>
-      gate.gate === "ticket/gates-and-pr" && ancestors(gate.id).has(step.id)
-    );
+    const gated = gates.some((gate) => gate.gate === "ticket/gates-and-pr" && ancestors(gate.id).has(step.id));
     if (!gated) {
-      issues.push(ticketIssue(
-        "ticket_topology_invalid",
-        `${step.operation} must feed a later ticket/gates-and-pr step`,
-        step.id,
-        "write_feeds_gates_and_pr",
-      ));
+      issues.push(
+        ticketIssue(
+          "ticket_topology_invalid",
+          `${step.operation} must feed a later ticket/gates-and-pr step`,
+          step.id,
+          "write_feeds_gates_and_pr",
+        ),
+      );
     }
   }
 
@@ -627,28 +613,30 @@ function validateTicketTopology(
     if (gate.gate === "ticket/gates-and-pr") {
       const hasWrite = writes.some((step) => gateAncestors.has(step.id));
       if (!hasWrite) {
-        issues.push(ticketIssue(
-          "ticket_topology_invalid",
-          "ticket/gates-and-pr requires an implementation or fix ancestor",
-          gate.id,
-          "gates_and_pr_requires_write",
-        ));
+        issues.push(
+          ticketIssue(
+            "ticket_topology_invalid",
+            "ticket/gates-and-pr requires an implementation or fix ancestor",
+            gate.id,
+            "gates_and_pr_requires_write",
+          ),
+        );
       }
     }
     if (gate.gate === "ticket/review-authorization") {
       const precedingReviews = reviews.filter((review) => gateAncestors.has(review.id));
       // When review lenses are present on this authorization path, the gate
       // must join them all rather than race the first completed lens.
-      const relatedReviews = reviews.filter((review) =>
-        sharesGatesAndPrAncestor(review, gate, ancestors, gates)
-      );
+      const relatedReviews = reviews.filter((review) => sharesGatesAndPrAncestor(review, gate, ancestors, gates));
       if (relatedReviews.some((review) => !precedingReviews.includes(review))) {
-        issues.push(ticketIssue(
-          "ticket_topology_invalid",
-          "ticket/review-authorization must follow every review lens for its gated revision",
-          gate.id,
-          "review_authorization_joins_review_lenses",
-        ));
+        issues.push(
+          ticketIssue(
+            "ticket_topology_invalid",
+            "ticket/review-authorization must follow every review lens for its gated revision",
+            gate.id,
+            "review_authorization_joins_review_lenses",
+          ),
+        );
       }
     }
     if (gate.gate === "ticket/security") {
@@ -685,17 +673,20 @@ function validateTicketTopology(
       );
     }
     if (gate.gate === "ticket/rollback") {
-      const hasRollbackPlan = providers.some((provider) =>
-        gateAncestors.has(provider.id) &&
-        provider.expectedOutputs.some((output) => output.required && output.kind === "rollback_plan")
+      const hasRollbackPlan = providers.some(
+        (provider) =>
+          gateAncestors.has(provider.id) &&
+          provider.expectedOutputs.some((output) => output.required && output.kind === "rollback_plan"),
       );
       if (!hasRollbackPlan) {
-        issues.push(ticketIssue(
-          "ticket_topology_invalid",
-          "ticket/rollback requires a required rollback_plan output from an ancestor provider step",
-          gate.id,
-          "rollback_gate_requires_rollback_plan",
-        ));
+        issues.push(
+          ticketIssue(
+            "ticket_topology_invalid",
+            "ticket/rollback requires a required rollback_plan output from an ancestor provider step",
+            gate.id,
+            "rollback_gate_requires_rollback_plan",
+          ),
+        );
       }
     }
     if (gate.gate === "ticket/ship") {
@@ -710,12 +701,14 @@ function validateTicketTopology(
       );
       for (const shipCheck of shipChecks) {
         if (!gateAncestors.has(shipCheck.id)) {
-          issues.push(ticketIssue(
-            "ticket_topology_invalid",
-            `ticket/ship must follow ship-check ${shipCheck.id}`,
-            gate.id,
-            "ship_follows_every_ship_check",
-          ));
+          issues.push(
+            ticketIssue(
+              "ticket_topology_invalid",
+              `ticket/ship must follow ship-check ${shipCheck.id}`,
+              gate.id,
+              "ship_follows_every_ship_check",
+            ),
+          );
         }
       }
     }
@@ -742,16 +735,18 @@ function validateTicketTopology(
       "review_lens_requires_gates_and_pr",
       issues,
     );
-    const authorized = gates.some((gate) =>
-      gate.gate === "ticket/review-authorization" && ancestors(gate.id).has(review.id)
+    const authorized = gates.some(
+      (gate) => gate.gate === "ticket/review-authorization" && ancestors(gate.id).has(review.id),
     );
     if (!authorized) {
-      issues.push(ticketIssue(
-        "ticket_topology_invalid",
-        `review lens ${review.id} must feed a later ticket/review-authorization step`,
-        review.id,
-        "review_lens_feeds_review_authorization",
-      ));
+      issues.push(
+        ticketIssue(
+          "ticket_topology_invalid",
+          `review lens ${review.id} must feed a later ticket/review-authorization step`,
+          review.id,
+          "review_lens_feeds_review_authorization",
+        ),
+      );
     }
   }
 
@@ -785,8 +780,8 @@ function validateGateInputAvailability(
   const definition = ticketMechanicalGate(gate.gate);
   if (definition === undefined) return;
   for (const requirement of definition.requiredPlanInputs) {
-    const produced = providers.some((provider) =>
-      provider.operation === requirement.producedBy && gateAncestors.has(provider.id)
+    const produced = providers.some(
+      (provider) => provider.operation === requirement.producedBy && gateAncestors.has(provider.id),
     );
     if (produced) continue;
     issues.push({
@@ -812,38 +807,42 @@ function validatePlanOutputRefs(
     if (!input.ref.startsWith("plan-output:")) continue;
     const outputId = input.ref.slice("plan-output:".length);
     if (!/^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$/.test(outputId)) {
-      issues.push(ticketInputIssue(
-        "ticket_plan_output_ref_invalid",
-        `${input.ref} is not a valid plan output reference`,
-        step.id,
-        input.ref,
-      ));
+      issues.push(
+        ticketInputIssue(
+          "ticket_plan_output_ref_invalid",
+          `${input.ref} is not a valid plan output reference`,
+          step.id,
+          input.ref,
+        ),
+      );
       continue;
     }
     const owners = outputOwners.get(outputId) ?? [];
     if (owners.length !== 1) {
-      issues.push(ticketInputIssue(
-        "ticket_plan_output_ref_invalid",
-        `${input.ref} must resolve to exactly one plan output`,
-        step.id,
-        input.ref,
-      ));
+      issues.push(
+        ticketInputIssue(
+          "ticket_plan_output_ref_invalid",
+          `${input.ref} must resolve to exactly one plan output`,
+          step.id,
+          input.ref,
+        ),
+      );
       continue;
     }
     if (!stepAncestors.has(owners[0]!)) {
-      issues.push(ticketInputIssue(
-        "ticket_plan_output_ref_invalid",
-        `${input.ref} is not produced by a dependency ancestor of ${step.id}`,
-        step.id,
-        input.ref,
-      ));
+      issues.push(
+        ticketInputIssue(
+          "ticket_plan_output_ref_invalid",
+          `${input.ref} is not produced by a dependency ancestor of ${step.id}`,
+          step.id,
+          input.ref,
+        ),
+      );
     }
   }
 }
 
-function ancestorResolver(
-  byId: ReadonlyMap<string, TicketPlanStep>,
-): (stepId: string) => ReadonlySet<string> {
+function ancestorResolver(byId: ReadonlyMap<string, TicketPlanStep>): (stepId: string) => ReadonlySet<string> {
   const cache = new Map<string, ReadonlySet<string>>();
   const resolve = (stepId: string, visiting = new Set<string>()): ReadonlySet<string> => {
     const cached = cache.get(stepId);
@@ -862,9 +861,7 @@ function ancestorResolver(
   return (stepId) => resolve(stepId);
 }
 
-function outputOwnerIndex(
-  steps: readonly TicketPlanStep[],
-): ReadonlyMap<string, readonly string[]> {
+function outputOwnerIndex(steps: readonly TicketPlanStep[]): ReadonlyMap<string, readonly string[]> {
   const owners = new Map<string, string[]>();
   for (const step of steps) {
     for (const output of step.expectedOutputs) {
@@ -907,14 +904,14 @@ function latestGatesAndPrAncestors(
   gates: readonly Extract<TicketPlanStep, { kind: "mechanical_gate" }>[],
 ): ReadonlySet<string> {
   const stepAncestors = ancestors(step.id);
-  const candidates = gates.filter((gate) =>
-    gate.gate === "ticket/gates-and-pr" && stepAncestors.has(gate.id)
+  const candidates = gates.filter((gate) => gate.gate === "ticket/gates-and-pr" && stepAncestors.has(gate.id));
+  return new Set(
+    candidates
+      .filter(
+        (candidate) => !candidates.some((later) => later.id !== candidate.id && ancestors(later.id).has(candidate.id)),
+      )
+      .map((gate) => gate.id),
   );
-  return new Set(candidates
-    .filter((candidate) => !candidates.some((later) =>
-      later.id !== candidate.id && ancestors(later.id).has(candidate.id)
-    ))
-    .map((gate) => gate.id));
 }
 
 function ticketIssue(

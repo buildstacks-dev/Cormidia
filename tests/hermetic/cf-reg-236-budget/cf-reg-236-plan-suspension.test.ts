@@ -87,11 +87,7 @@ const PLAN: EpisodePlan = {
 
 async function persistPlan(root: string): Promise<void> {
   await mkdir(efficiencyEpisodeDir(root, EPISODE_ID), { recursive: true });
-  await writeFile(
-    episodePlanVersionPath(root, EPISODE_ID, 1),
-    `${JSON.stringify(PLAN, null, 2)}\n`,
-    "utf8",
-  );
+  await writeFile(episodePlanVersionPath(root, EPISODE_ID, 1), `${JSON.stringify(PLAN, null, 2)}\n`, "utf8");
   await writeFile(
     currentEpisodePlanPointerPath(root, EPISODE_ID),
     `${JSON.stringify(
@@ -110,10 +106,7 @@ async function persistPlan(root: string): Promise<void> {
   );
 }
 
-function handlers(
-  provider: () => Promise<ProviderStepOutcome>,
-  onMechanical?: () => void,
-): EpisodePlanStepHandlers {
+function handlers(provider: () => Promise<ProviderStepOutcome>, onMechanical?: () => void): EpisodePlanStepHandlers {
   return {
     provider,
     mechanical: async () => {
@@ -147,7 +140,12 @@ describe("CF-REG-236-BUDGET — a budget-suspended plan step parks and re-enters
     const result = await executeEpisodePlan({
       root: home.stateHome,
       plan: PLAN,
-      handlers: handlers(async () => SUSPENDED, () => { mechanicalRuns += 1; }),
+      handlers: handlers(
+        async () => SUSPENDED,
+        () => {
+          mechanicalRuns += 1;
+        },
+      ),
     });
 
     expect(result.status).toBe("waiting_approval");
@@ -185,9 +183,7 @@ describe("CF-REG-236-BUDGET — a budget-suspended plan step parks and re-enters
       handlers: handlers(async () => {
         const journal = await readEpisodePlanExecutionJournal(home.stateHome, EPISODE_ID);
         attempts.push(
-          journal!.events.filter(
-            (event) => event.kind === "step_started" && event.step_id === "implement",
-          ).length,
+          journal!.events.filter((event) => event.kind === "step_started" && event.step_id === "implement").length,
         );
         return { status: "completed", artifact: { implemented: true } };
       }),
@@ -210,15 +206,12 @@ describe("CF-REG-236-BUDGET — a budget-suspended plan step parks and re-enters
     }
     const journal = await readEpisodePlanExecutionJournal(home.stateHome, EPISODE_ID);
     const starts = journal!.events.filter(
-      (event): event is StepStartedEvent =>
-        event.kind === "step_started" && event.step_id === "implement",
+      (event): event is StepStartedEvent => event.kind === "step_started" && event.step_id === "implement",
     );
     // Contiguous attempts, one terminal suspension each: `assertJournalLifecycle`
     // rejects any other shape, so reaching here IS the accounting assertion.
     expect(starts.map((event) => event.attempt)).toEqual([1, 2, 3]);
-    expect(
-      journal!.events.filter((event) => event.kind === "step_suspended"),
-    ).toHaveLength(3);
+    expect(journal!.events.filter((event) => event.kind === "step_suspended")).toHaveLength(3);
   });
 
   it("negative control: a FAILED provider step is still sticky for its plan version", async () => {

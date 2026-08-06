@@ -28,18 +28,13 @@ import {
   readRunQuote,
   scrubCaptureText,
 } from "../../../src/narrative/sources.js";
-import {
-  narrativeDir,
-  readCapturedStory,
-  storySlug,
-  writeCapturedStory,
-} from "../../../src/narrative/capture.js";
+import { narrativeDir, readCapturedStory, storySlug, writeCapturedStory } from "../../../src/narrative/capture.js";
 import { renderStoryMarkdown } from "../../../src/narrative/render.js";
 import { runPaths } from "../../../src/runtime/runlog/paths.js";
 import type { NarrativeQuote, NarrativeStory } from "../../../src/narrative/types.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
-import { makeSyntheticSecret, type SyntheticSecret } from "../../fixtures/synthetic-secret.js";
+import { makeSyntheticSecret } from "../../fixtures/synthetic-secret.js";
 import {
   detectSecretEgress,
   detectSecretEgressInJson,
@@ -168,11 +163,7 @@ describe("CF-INV-011 — narrative capture scrubs at capture time; story.json an
     const path = await writeCapturedStory(state.stateHome, storyWith(weakenedQuote, "Ticket #12"));
 
     const bytes = await readFile(path, "utf8");
-    expect(() => detectSecretEgressInJson("weakened story.json", bytes, [leak])).toThrow(
-      SecretEgressViolation,
-    );
-    expect(() => detectSecretEgressInJson("weakened story.json", bytes, [leak])).toThrow(
-      /aws-access-key-id/,
-    );
+    expect(() => detectSecretEgressInJson("weakened story.json", bytes, [leak])).toThrow(SecretEgressViolation);
+    expect(() => detectSecretEgressInJson("weakened story.json", bytes, [leak])).toThrow(/aws-access-key-id/);
   });
 });

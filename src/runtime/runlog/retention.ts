@@ -21,11 +21,7 @@ export interface PruneResult {
   kept: number;
 }
 
-export async function pruneRuns(
-  root: string,
-  retentionDays: number,
-  now: Date,
-): Promise<PruneResult> {
+export async function pruneRuns(root: string, retentionDays: number, now: Date): Promise<PruneResult> {
   const cutoff = now.getTime() - retentionDays * DAY_MS;
   const result: PruneResult = { deleted: [], kept: 0 };
 
@@ -43,12 +39,7 @@ export async function pruneRuns(
   return result;
 }
 
-async function shouldPrune(
-  root: string,
-  app: string,
-  runId: string,
-  cutoff: number,
-): Promise<boolean> {
+async function shouldPrune(root: string, app: string, runId: string, cutoff: number): Promise<boolean> {
   try {
     const envelope = await readEnvelope(root, app, runId);
     if (envelope.status === "running") return false; // never unfinished ones

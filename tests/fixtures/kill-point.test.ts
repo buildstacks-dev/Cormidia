@@ -27,9 +27,7 @@ afterEach(async () => {
   for (const result of results.splice(0)) await result.cleanup();
 });
 
-async function run(
-  scenario: Parameters<typeof runKillPointScenario>[0],
-): Promise<KillPointResult> {
+async function run(scenario: Parameters<typeof runKillPointScenario>[0]): Promise<KillPointResult> {
   const result = await runKillPointScenario(scenario);
   results.push(result);
   return result;
@@ -42,9 +40,7 @@ describe("HB-002 fixtures/kill-point (subprocess kill-point harness)", () => {
     expect(result.signal).toBeNull();
     expect(result.exitCode).toBe(0);
     expect(result.markers).toEqual(["start", "mid-write", "end"]);
-    expect(readFileSync(join(result.stateDir, "journal.txt"), "utf8")).toBe(
-      "phase-1\nphase-2\n",
-    );
+    expect(readFileSync(join(result.stateDir, "journal.txt"), "utf8")).toBe("phase-1\nphase-2\n");
     expect(existsSync(join(result.stateDir, "done.txt"))).toBe(true);
   });
 

@@ -4,18 +4,11 @@
 // (state/events/inbox/*.json). This module validates the payload contract
 // that Support, Marketing, SRE, and Planner-facing prompts consume.
 
-export const COMPANY_EVENT_KINDS = [
-  "support-feedback",
-  "adoption-signal",
-  "health-alert",
-  "launch-calendar",
-] as const;
+export const COMPANY_EVENT_KINDS = ["support-feedback", "adoption-signal", "health-alert", "launch-calendar"] as const;
 
 export type CompanyEventKind = (typeof COMPANY_EVENT_KINDS)[number];
 
-export type CompanyEventValidationCode =
-  | "malformed_company_event"
-  | "unknown_company_event_kind";
+export type CompanyEventValidationCode = "malformed_company_event" | "unknown_company_event_kind";
 
 /** A stable machine classification for file-drop contract failures. The
  *  dispatcher prints this code verbatim, while the message retains the field
@@ -70,11 +63,7 @@ export interface LaunchCalendarEvent extends BaseCompanyEvent {
   summary: string;
 }
 
-export type CompanyLifecycleEvent =
-  | SupportFeedbackEvent
-  | AdoptionSignalEvent
-  | HealthAlertEvent
-  | LaunchCalendarEvent;
+export type CompanyLifecycleEvent = SupportFeedbackEvent | AdoptionSignalEvent | HealthAlertEvent | LaunchCalendarEvent;
 
 export function parseCompanyLifecycleEvent(raw: unknown): CompanyLifecycleEvent {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -121,9 +110,7 @@ export function parseCompanyLifecycleEvent(raw: unknown): CompanyLifecycleEvent 
         kind,
         metric: requireString(spec, "metric"),
         direction: requireEnum(spec, "direction", ["up", "down", "flat"] as const),
-        ...(typeof spec["value"] === "number" && Number.isFinite(spec["value"])
-          ? { value: spec["value"] }
-          : {}),
+        ...(typeof spec["value"] === "number" && Number.isFinite(spec["value"]) ? { value: spec["value"] } : {}),
         summary: requireString(spec, "summary"),
       };
     case "health-alert":
@@ -174,11 +161,7 @@ function requireIsoDate(spec: Record<string, unknown>, key: string): string {
   return value;
 }
 
-function requireEnum<T extends readonly string[]>(
-  spec: Record<string, unknown>,
-  key: string,
-  allowed: T,
-): T[number] {
+function requireEnum<T extends readonly string[]>(spec: Record<string, unknown>, key: string, allowed: T): T[number] {
   const value = requireString(spec, key);
   if (!allowed.includes(value)) {
     throw malformed(`company event "${key}" must be one of ${allowed.join(" | ")}`);

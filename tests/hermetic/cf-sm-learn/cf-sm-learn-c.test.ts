@@ -19,10 +19,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cutManifestVersion, readManifest } from "../../../src/org/learning/concepts.js";
-import {
-  readLearningEvents,
-  sanitizeIdSegment,
-} from "../../../src/org/learning/events.js";
+import { readLearningEvents, sanitizeIdSegment } from "../../../src/org/learning/events.js";
 import { readInterventionRecord } from "../../../src/org/learning/intervention.js";
 import { publishCandidate } from "../../../src/org/learning/publisher.js";
 import {
@@ -68,12 +65,7 @@ describe("CF-SM-LEARN-C — crash after grant consumption, before the done mark:
   const readJournal = async (): Promise<JournalOnDisk> =>
     JSON.parse(
       await readFile(
-        join(
-          world.state.stateHome,
-          "learning",
-          "publish-journal",
-          `${sanitizeIdSegment(approvalId)}.json`,
-        ),
+        join(world.state.stateHome, "learning", "publish-journal", `${sanitizeIdSegment(approvalId)}.json`),
         "utf8",
       ),
     ) as JournalOnDisk;
@@ -82,9 +74,9 @@ describe("CF-SM-LEARN-C — crash after grant consumption, before the done mark:
     // Clock reads on this path: (1) suppression check, (2) manifest cut,
     // (3) lineage published_at, (4) event ts, (5) grant consumption — the
     // fuse serves five and blows on the done-mark's read.
-    await expect(
-      publishCandidate({ ...world.deps, clock: clockFuse(world.clock, 5) }, CAND),
-    ).rejects.toThrow(ClockFuseError);
+    await expect(publishCandidate({ ...world.deps, clock: clockFuse(world.clock, 5) }, CAND)).rejects.toThrow(
+      ClockFuseError,
+    );
 
     const journal = await readJournal();
     expect(journal.artifact_ref).toBeDefined();
@@ -125,8 +117,8 @@ describe("CF-SM-LEARN-C — crash after grant consumption, before the done mark:
       note: "seeded duplicate cut (negative control)",
       now: world.clock.nowDate(),
     });
-    await expect(
-      assertExactlyOncePublish({ world, candidateId: CAND, conceptId: CONCEPT }),
-    ).rejects.toThrow(PublishConservationViolation);
+    await expect(assertExactlyOncePublish({ world, candidateId: CAND, conceptId: CONCEPT })).rejects.toThrow(
+      PublishConservationViolation,
+    );
   });
 });

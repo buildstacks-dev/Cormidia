@@ -16,7 +16,7 @@
 // detector FIRES — a detector that has never fired is an assumption.
 
 import { existsSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeAppReset, planAppReset, type AppResetOptions } from "../../../src/org/app-reset.js";
@@ -87,17 +87,13 @@ describe("CF-J14-A — sibling-diff oracle and the authorized destructive set (I
     );
     // Explicit bit-identity for every sibling-owned path (full-state diff of
     // B): no B path appears in the diff at all.
-    const siblingTouched = [
-      ...diff.state.added,
-      ...diff.state.removed,
-      ...diff.state.changed,
-    ].filter((rel) => rel.includes(SIBLING_APP));
+    const siblingTouched = [...diff.state.added, ...diff.state.removed, ...diff.state.changed].filter((rel) =>
+      rel.includes(SIBLING_APP),
+    );
     expect(siblingTouched).toEqual([]);
     expect(diff.human).toEqual({ added: [], removed: [], changed: [] });
     // B survives in the registry; B's journal survives on disk.
-    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).toEqual([
-      SIBLING_APP,
-    ]);
+    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).toEqual([SIBLING_APP]);
     expect(existsSync(join(w.stateHome, "state", "turns", `turn-${SIBLING_APP}-journal.json`))).toBe(true);
   });
 
@@ -112,15 +108,13 @@ describe("CF-J14-A — sibling-diff oracle and the authorized destructive set (I
       "utf8",
     );
     const diff = diffWorld(before, await snapshotWorld(w));
-    expect(() =>
-      assertResetScope(TARGET_APP, diff, completedResetAllowance(TARGET_APP, [])),
-    ).toThrow(ResetScopeViolation);
+    expect(() => assertResetScope(TARGET_APP, diff, completedResetAllowance(TARGET_APP, []))).toThrow(
+      ResetScopeViolation,
+    );
     try {
       assertResetScope(TARGET_APP, diff, completedResetAllowance(TARGET_APP, []));
     } catch (error) {
-      expect((error as ResetScopeViolation).offenders).toEqual([
-        `state:runs/${SIBLING_APP}/seed-run/artifact.txt`,
-      ]);
+      expect((error as ResetScopeViolation).offenders).toEqual([`state:runs/${SIBLING_APP}/seed-run/artifact.txt`]);
     }
   });
 
@@ -142,9 +136,7 @@ describe("CF-J14-A — sibling-diff oracle and the authorized destructive set (I
     const diff = diffWorld(before, await snapshotWorld(w));
     assertResetScope(TARGET_APP, diff, preDestructionAllowance(TARGET_APP));
     expect(existsSync(join(w.stateHome, "runs", TARGET_APP, "seed-run", "artifact.txt"))).toBe(true);
-    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).toContain(
-      TARGET_APP,
-    );
+    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).toContain(TARGET_APP);
     expect(mutatingOpsSince(w)).toEqual([]);
     // No half-archive was left masquerading as final.
     expect(existsSync(join(w.archiveRoot, plan.archiveId))).toBe(false);
@@ -160,9 +152,7 @@ describe("CF-J14-A — sibling-diff oracle and the authorized destructive set (I
         }
       },
     });
-    await expect(executeAppReset(input, await planAppReset(input))).rejects.toThrow(
-      /injected archive-write failure/,
-    );
+    await expect(executeAppReset(input, await planAppReset(input))).rejects.toThrow(/injected archive-write failure/);
     // SEEDED VIOLATION: a buggy implementation that had already started
     // deleting managed state before its archive completed.
     await rm(join(w.stateHome, "runs", TARGET_APP), { recursive: true, force: true });

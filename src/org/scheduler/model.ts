@@ -54,13 +54,7 @@ export type SchedulerReasonCode =
   | "scheduler_state_failure"
   | "executed";
 
-export type SchedulerDecisionOutcome =
-  | "executed"
-  | "skipped"
-  | "blocked"
-  | "missed"
-  | "reconciled"
-  | "failed";
+export type SchedulerDecisionOutcome = "executed" | "skipped" | "blocked" | "missed" | "reconciled" | "failed";
 
 export interface SchedulerCommand {
   executablePath: string;
@@ -99,7 +93,12 @@ export function schedulerOrgId(orgName: string, orgHome: string): string {
 }
 
 export function schedulerIdentity(orgName: string, orgHome: string): string {
-  const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "org";
+  const slug =
+    orgName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 32) || "org";
   return `dev.cormidia.dispatch.${slug}.${digest(resolve(orgHome)).slice(0, 12)}`;
 }
 
@@ -109,10 +108,7 @@ export function cadenceWindow(at: Date, cadenceMinutes = DEFAULT_SCHEDULER_CADEN
   return new Date(Math.floor(at.getTime() / width) * width).toISOString();
 }
 
-export function schedulerInvocationId(input: {
-  orgId: string;
-  cadenceWindow: string;
-}): string {
+export function schedulerInvocationId(input: { orgId: string; cadenceWindow: string }): string {
   return `tick_${digest(`${input.orgId}\0${input.cadenceWindow}`).slice(0, 24)}`;
 }
 
@@ -125,15 +121,17 @@ export function schedulerDecisionId(input: {
   trigger: string;
   eventKey?: string;
 }): string {
-  return `decision_${digest([
-    input.orgId,
-    input.cadenceWindow,
-    input.app,
-    input.role,
-    input.triggerKind,
-    input.trigger,
-    input.eventKey ?? "",
-  ].join("\0")).slice(0, 28)}`;
+  return `decision_${digest(
+    [
+      input.orgId,
+      input.cadenceWindow,
+      input.app,
+      input.role,
+      input.triggerKind,
+      input.trigger,
+      input.eventKey ?? "",
+    ].join("\0"),
+  ).slice(0, 28)}`;
 }
 
 export function scheduledEpisodeId(decisionId: string): string {

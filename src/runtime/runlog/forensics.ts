@@ -14,12 +14,7 @@ import { runPaths } from "./paths.js";
 
 /** brief.md — the exact assembled brief, byte-for-byte (§3: briefs are
  *  logged verbatim so every pass is reproducible). */
-export async function writeBrief(
-  root: string,
-  app: string,
-  runId: string,
-  brief: string,
-): Promise<void> {
+export async function writeBrief(root: string, app: string, runId: string, brief: string): Promise<void> {
   const path = runPaths(root, app, runId).brief;
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, brief, "utf8");
@@ -28,24 +23,14 @@ export async function writeBrief(
 /** prompt.md — the exact Runtime.runTurn task, including the versioned pass
  * template appended after the assembled brief. This is distinct from
  * brief.md so both planning input and executable protocol remain auditable. */
-export async function writePrompt(
-  root: string,
-  app: string,
-  runId: string,
-  prompt: string,
-): Promise<void> {
+export async function writePrompt(root: string, app: string, runId: string, prompt: string): Promise<void> {
   const path = runPaths(root, app, runId).prompt;
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, prompt, "utf8");
 }
 
 /** output.md — the pass's final output text, verbatim. */
-export async function writeOutput(
-  root: string,
-  app: string,
-  runId: string,
-  output: string,
-): Promise<void> {
+export async function writeOutput(root: string, app: string, runId: string, output: string): Promise<void> {
   const path = runPaths(root, app, runId).output;
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, output, "utf8");
@@ -56,11 +41,7 @@ export async function writeOutput(
  * envelope records transcript availability separately. Synchronous appends:
  * onEvent is a sync void callback and an activity log with holes is worse
  * than a briefly-blocked writer. */
-export function createSessionLogSink(
-  root: string,
-  app: string,
-  runId: string,
-): (e: TurnEvent) => void {
+export function createSessionLogSink(root: string, app: string, runId: string): (e: TurnEvent) => void {
   const path = runPaths(root, app, runId).sessionLog;
   mkdirSync(dirname(path), { recursive: true });
   // The activity log is part of every executed pass's L3 record even when a

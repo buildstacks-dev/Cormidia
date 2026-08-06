@@ -155,7 +155,10 @@ describe("CF-J08-S — every terminal outcome class settles exactly once, keyed 
 
     // The product's own coverage detector agrees: complete, no missing, no
     // duplicates, across the terminal execution records of all six episodes.
-    const coverage = settlementCoverage(planted.map((turn) => turn.step), rows);
+    const coverage = settlementCoverage(
+      planted.map((turn) => turn.step),
+      rows,
+    );
     expect(coverage.denominator).toBe(OUTCOME_CLASSES.length);
     expect(coverage.numerator).toBe(OUTCOME_CLASSES.length);
     expect(coverage.missing).toEqual([]);

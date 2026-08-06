@@ -23,17 +23,16 @@ export type ExecutionAffinityFailureCode =
   | "affinity_settlement_mismatch";
 
 export class ExecutionAffinityError extends Error {
-  constructor(readonly code: ExecutionAffinityFailureCode, message: string) {
+  constructor(
+    readonly code: ExecutionAffinityFailureCode,
+    message: string,
+  ) {
     super(`${code}: ${message}`);
     this.name = "ExecutionAffinityError";
   }
 }
 
-export type ExecutionContextComponentKind =
-  | "authority"
-  | "validation"
-  | "shared_context"
-  | "unit_delta";
+export type ExecutionContextComponentKind = "authority" | "validation" | "shared_context" | "unit_delta";
 
 export interface ExecutionContextComponentInput {
   id: string;
@@ -182,9 +181,7 @@ export function createExecutionContextAffinityManifest(input: {
   };
 }
 
-export function cacheTelemetryFromUsage(
-  usage: TurnUsage | undefined,
-): ExecutionCacheTelemetry {
+export function cacheTelemetryFromUsage(usage: TurnUsage | undefined): ExecutionCacheTelemetry {
   const reportedCacheRead = usage?.cacheReadTokens;
   const trustworthySplit =
     usage !== undefined &&
@@ -193,11 +190,7 @@ export function cacheTelemetryFromUsage(
     Number.isFinite(reportedCacheRead) &&
     reportedCacheRead! >= 0;
   return {
-    measurement: !trustworthySplit
-      ? "unknown"
-      : reportedCacheRead! > 0
-        ? "hit"
-        : "miss",
+    measurement: !trustworthySplit ? "unknown" : reportedCacheRead! > 0 ? "hit" : "miss",
     cacheReadTokens: nonNegativeMetric(reportedCacheRead),
     cacheCreationTokens: nonNegativeMetric(usage?.cacheCreationTokens),
     uncachedInputTokens: nonNegativeMetric(usage?.tokensInUncached),
@@ -268,7 +261,8 @@ export async function settleExecutionAffinityTurn(input: {
     ["provider turn id", input.providerTurnId],
     ["settlement id", input.settlementId],
     ["session id", input.session.id],
-  ] as const) assertNonEmpty(value, label, "affinity_settlement_mismatch");
+  ] as const)
+    assertNonEmpty(value, label, "affinity_settlement_mismatch");
   if (!["completed", "failed", "suspended"].includes(input.providerOutcome)) {
     throw new ExecutionAffinityError(
       "affinity_settlement_mismatch",
@@ -276,49 +270,45 @@ export async function settleExecutionAffinityTurn(input: {
     );
   }
   const path = executionAffinityRecordPath(input.root, input.recordId);
-  const settled = await withFileLock(
-    `${path}.lock`,
-    { staleMs: 30_000, maxWaitMs: 60_000 },
-    async () => {
-      const current = await readExecutionAffinityRecord(input.root, input.recordId);
-      if (current === undefined) {
-        throw new ExecutionAffinityError("affinity_settlement_mismatch", "affinity preparation is missing");
-      }
-      if (current.state === "settled") {
-        if (
-          current.providerTurnId !== input.providerTurnId ||
-          current.settlementId !== input.settlementId ||
-          current.providerOutcome !== input.providerOutcome ||
-          stableHash(current.session) !== stableHash(input.session) ||
-          stableHash(current.cache) !== stableHash(cacheTelemetryFromUsage(input.usage))
-        ) {
-          throw new ExecutionAffinityError(
-            "affinity_settlement_mismatch",
-            "terminal affinity settlement is immutable and content-bound",
-          );
-        }
-        return current;
-      }
-      if (input.session.runtime !== current.manifest.compatibility.assignment.harness) {
+  const settled = await withFileLock(`${path}.lock`, { staleMs: 30_000, maxWaitMs: 60_000 }, async () => {
+    const current = await readExecutionAffinityRecord(input.root, input.recordId);
+    if (current === undefined) {
+      throw new ExecutionAffinityError("affinity_settlement_mismatch", "affinity preparation is missing");
+    }
+    if (current.state === "settled") {
+      if (
+        current.providerTurnId !== input.providerTurnId ||
+        current.settlementId !== input.settlementId ||
+        current.providerOutcome !== input.providerOutcome ||
+        stableHash(current.session) !== stableHash(input.session) ||
+        stableHash(current.cache) !== stableHash(cacheTelemetryFromUsage(input.usage))
+      ) {
         throw new ExecutionAffinityError(
-          "affinity_session_mismatch",
-          "provider session runtime differs from the accepted turn assignment",
+          "affinity_settlement_mismatch",
+          "terminal affinity settlement is immutable and content-bound",
         );
       }
-      const next: ExecutionAffinityRecord = {
-        ...current,
-        state: "settled",
-        providerTurnId: input.providerTurnId,
-        settlementId: input.settlementId,
-        providerOutcome: input.providerOutcome,
-        session: structuredClone(input.session),
-        cache: cacheTelemetryFromUsage(input.usage),
-        settledAt: requireDateTime(input.settledAt, "settledAt"),
-      };
-      await writeLoopFileAtomic(path, renderJson(next));
-      return next;
-    },
-  );
+      return current;
+    }
+    if (input.session.runtime !== current.manifest.compatibility.assignment.harness) {
+      throw new ExecutionAffinityError(
+        "affinity_session_mismatch",
+        "provider session runtime differs from the accepted turn assignment",
+      );
+    }
+    const next: ExecutionAffinityRecord = {
+      ...current,
+      state: "settled",
+      providerTurnId: input.providerTurnId,
+      settlementId: input.settlementId,
+      providerOutcome: input.providerOutcome,
+      session: structuredClone(input.session),
+      cache: cacheTelemetryFromUsage(input.usage),
+      settledAt: requireDateTime(input.settledAt, "settledAt"),
+    };
+    await writeLoopFileAtomic(path, renderJson(next));
+    return next;
+  });
   input.fault?.("after_settlement_persist");
   return settled;
 }
@@ -343,7 +333,9 @@ export async function readExecutionAffinityRecord(
 /** Restart policy for a single turn record. A prepared record contains no
  * terminal provider evidence, so its absent session is never guessed or
  * resumed. A settled record may be considered only by exact compatibility. */
-export function recoverExecutionAffinityTurn(record: ExecutionAffinityRecord):
+export function recoverExecutionAffinityTurn(
+  record: ExecutionAffinityRecord,
+):
   | { action: "rerun_without_session"; reason: "candidate_unsettled" }
   | { action: "no_cross_unit_reuse"; reason: "provider_not_completed" }
   | { action: "consider_exact_reuse"; candidate: SessionReuseCandidate } {
@@ -382,10 +374,7 @@ export function decideSessionReuse(input: {
   assertNonEmpty(candidate.session.id, "candidate session id", "affinity_record_corrupt");
   assertCacheTelemetry(candidate.cache);
   if (!isHash(candidate.immutablePrefixSha256) || !isHash(input.immutablePrefixSha256)) {
-    throw new ExecutionAffinityError(
-      "affinity_record_corrupt",
-      "session reuse requires valid immutable-prefix hashes",
-    );
+    throw new ExecutionAffinityError("affinity_record_corrupt", "session reuse requires valid immutable-prefix hashes");
   }
   if (candidate.compatibility.app !== input.requested.app) {
     return { reuse: false, reason: "app_mismatch" };
@@ -422,23 +411,18 @@ export function cacheAffinityAdvice(cache: ExecutionCacheTelemetry): {
 } {
   return {
     kind: "cost_affinity_only",
-    advice: cache.measurement === "hit"
-      ? "observed_prefix_reuse"
-      : cache.measurement === "miss"
-        ? "observed_prefix_miss"
-        : "no_cache_claim",
+    advice:
+      cache.measurement === "hit"
+        ? "observed_prefix_reuse"
+        : cache.measurement === "miss"
+          ? "observed_prefix_miss"
+          : "no_cache_claim",
     correctnessAuthority: false,
   };
 }
 
 export function executionAffinityRecordPath(root: string, recordId: string): string {
-  return join(
-    root,
-    "planning",
-    "execution-affinity",
-    stableHash(recordId).slice(0, 40),
-    "record.json",
-  );
+  return join(root, "planning", "execution-affinity", stableHash(recordId).slice(0, 40), "record.json");
 }
 
 function normalizeComponents(
@@ -519,35 +503,29 @@ function assertRecord(value: ExecutionAffinityRecord): void {
     value.planVersion <= 0 ||
     !validDateTime(value.preparedAt) ||
     !["prepared", "settled"].includes(value.state) ||
-    (value.state === "prepared" && (
-      value.providerTurnId !== null ||
-      value.settlementId !== null ||
-      value.providerOutcome !== null ||
-      value.session !== null ||
-      value.settledAt !== null
-    )) ||
-    (value.state === "settled" && (
-      !nonEmpty(value.providerTurnId) ||
-      !nonEmpty(value.settlementId) ||
-      !["completed", "failed", "suspended"].includes(value.providerOutcome ?? "") ||
-      value.session === null ||
-      !validDateTime(value.settledAt)
-    ))
+    (value.state === "prepared" &&
+      (value.providerTurnId !== null ||
+        value.settlementId !== null ||
+        value.providerOutcome !== null ||
+        value.session !== null ||
+        value.settledAt !== null)) ||
+    (value.state === "settled" &&
+      (!nonEmpty(value.providerTurnId) ||
+        !nonEmpty(value.settlementId) ||
+        !["completed", "failed", "suspended"].includes(value.providerOutcome ?? "") ||
+        value.session === null ||
+        !validDateTime(value.settledAt)))
   ) {
     throw new ExecutionAffinityError("affinity_record_corrupt", "execution affinity record is malformed");
   }
   if (
     value.session !== null &&
-    (!nonEmpty(value.session.id) ||
-      value.session.runtime !== value.manifest.compatibility.assignment.harness)
+    (!nonEmpty(value.session.id) || value.session.runtime !== value.manifest.compatibility.assignment.harness)
   ) {
     throw new ExecutionAffinityError("affinity_record_corrupt", "record session runtime loses assignment identity");
   }
   assertCacheTelemetry(value.cache);
-  if (
-    value.state === "prepared" &&
-    stableHash(value.cache) !== stableHash(cacheTelemetryFromUsage(undefined))
-  ) {
+  if (value.state === "prepared" && stableHash(value.cache) !== stableHash(cacheTelemetryFromUsage(undefined))) {
     throw new ExecutionAffinityError(
       "affinity_record_corrupt",
       "prepared affinity record cannot claim provider cache evidence",
@@ -568,34 +546,35 @@ function assertRecordIdentity(input: {
     ["batch id", input.batchId],
     ["episode id", input.episodeId],
     ["step id", input.stepId],
-  ] as const) assertNonEmpty(value, label, "affinity_manifest_invalid");
+  ] as const)
+    assertNonEmpty(value, label, "affinity_manifest_invalid");
   if (!Number.isInteger(input.planVersion) || input.planVersion <= 0) {
     throw new ExecutionAffinityError("affinity_manifest_invalid", "plan version must be positive");
   }
   requireDateTime(input.preparedAt, "preparedAt");
 }
 
-function samePreparedAuthority(
-  left: ExecutionAffinityRecord,
-  right: ExecutionAffinityRecord,
-): boolean {
-  return stableHash({
-    recordId: left.recordId,
-    batchId: left.batchId,
-    unitId: left.unitId,
-    episodeId: left.episodeId,
-    planVersion: left.planVersion,
-    stepId: left.stepId,
-    manifest: left.manifest,
-  }) === stableHash({
-    recordId: right.recordId,
-    batchId: right.batchId,
-    unitId: right.unitId,
-    episodeId: right.episodeId,
-    planVersion: right.planVersion,
-    stepId: right.stepId,
-    manifest: right.manifest,
-  });
+function samePreparedAuthority(left: ExecutionAffinityRecord, right: ExecutionAffinityRecord): boolean {
+  return (
+    stableHash({
+      recordId: left.recordId,
+      batchId: left.batchId,
+      unitId: left.unitId,
+      episodeId: left.episodeId,
+      planVersion: left.planVersion,
+      stepId: left.stepId,
+      manifest: left.manifest,
+    }) ===
+    stableHash({
+      recordId: right.recordId,
+      batchId: right.batchId,
+      unitId: right.unitId,
+      episodeId: right.episodeId,
+      planVersion: right.planVersion,
+      stepId: right.stepId,
+      manifest: right.manifest,
+    })
+  );
 }
 
 function cloneCompatibility(value: ExecutionCompatibilityIdentity): ExecutionCompatibilityIdentity {
@@ -614,11 +593,7 @@ function requireDateTime(value: string, label: string): string {
   return value;
 }
 
-function assertNonEmpty(
-  value: string,
-  label: string,
-  code: ExecutionAffinityFailureCode,
-): void {
+function assertNonEmpty(value: string, label: string, code: ExecutionAffinityFailureCode): void {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new ExecutionAffinityError(code, `${label} must be non-empty`);
   }
@@ -649,15 +624,16 @@ function assertCacheTelemetry(value: ExecutionCacheTelemetry): void {
     value.equivalentCostUsd,
   ];
   const quality = value.usageQuality;
-  const validQuality = quality === null || (quality !== undefined &&
-    ["complete", "partial", "estimated", "unavailable", "none"].includes(quality));
-  const validMetrics = metrics.every((metric) =>
-    metric === null || (Number.isFinite(metric) && metric >= 0));
-  const splitConsistent = value.evidenceBasis === "cache_split_unavailable"
-    ? value.measurement === "unknown"
-    : value.evidenceBasis === "provider_cache_split" &&
-      value.cacheReadTokens !== null &&
-      value.measurement === (value.cacheReadTokens > 0 ? "hit" : "miss");
+  const validQuality =
+    quality === null ||
+    (quality !== undefined && ["complete", "partial", "estimated", "unavailable", "none"].includes(quality));
+  const validMetrics = metrics.every((metric) => metric === null || (Number.isFinite(metric) && metric >= 0));
+  const splitConsistent =
+    value.evidenceBasis === "cache_split_unavailable"
+      ? value.measurement === "unknown"
+      : value.evidenceBasis === "provider_cache_split" &&
+        value.cacheReadTokens !== null &&
+        value.measurement === (value.cacheReadTokens > 0 ? "hit" : "miss");
   if (!validQuality || !validMetrics || !splitConsistent) {
     throw new ExecutionAffinityError(
       "affinity_record_corrupt",

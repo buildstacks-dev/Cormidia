@@ -40,12 +40,7 @@ export function compareStable(a: string, b: string): number {
  * schema, and it is declared in `ACTIVITY_ORDER.tie_break` rather than left
  * implicit for a reader to discover.
  */
-export function buildOrderKey(input: {
-  ts_utc: string | null;
-  app: string;
-  run_id: string;
-  seq: number;
-}): string {
+export function buildOrderKey(input: { ts_utc: string | null; app: string; run_id: string; seq: number }): string {
   const tail = [input.app, input.run_id, String(input.seq).padStart(9, "0")].join(ORDER_SEPARATOR);
   return input.ts_utc === null
     ? `0${ORDER_SEPARATOR}${tail}`
@@ -55,7 +50,8 @@ export function buildOrderKey(input: {
 export const ACTIVITY_ORDER = Object.freeze({
   direction: "newest_first" as const,
   key_fields: Object.freeze(["ts_utc", "app", "run_id", "seq"]) as unknown as string[],
-  tie_break: "same timestamp: app, then run id, then append order within the pass event log — all read in reverse, because one descending sort covers the whole composite key",
+  tie_break:
+    "same timestamp: app, then run id, then append order within the pass event log — all read in reverse, because one descending sort covers the whole composite key",
 });
 
 /**

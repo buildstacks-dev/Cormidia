@@ -26,13 +26,7 @@
 // shares one detector family (negative-control rule: each detector proves it
 // fires against a seeded violation before it counts as a guard).
 
-import type {
-  Runtime,
-  SessionHandle,
-  TurnHooks,
-  TurnRequest,
-  TurnResult,
-} from "../../../src/runtime/types.js";
+import type { Runtime, SessionHandle, TurnHooks, TurnRequest, TurnResult } from "../../../src/runtime/types.js";
 
 // ---------------------------------------------------------------------------
 // Scenario format
@@ -141,11 +135,7 @@ export interface AdapterScenario {
 // script(...) builder helpers (the thin API other suites use)
 // ---------------------------------------------------------------------------
 
-export function turn(spec: {
-  sessionId: string;
-  steps?: ScenarioStep[];
-  outcome: ScenarioOutcome;
-}): AdapterScenario {
+export function turn(spec: { sessionId: string; steps?: ScenarioStep[]; outcome: ScenarioOutcome }): AdapterScenario {
   if (spec.sessionId.length === 0) {
     throw new Error("scenario scripting error: sessionId must be non-empty");
   }
@@ -296,10 +286,7 @@ export class AdapterContractViolation extends Error {
  * the envelope must render it as UNKNOWN (quality "unavailable") — never as
  * an authoritative figure, zero included. Fires on any other rendering.
  */
-export function checkUsageAbsentRenderedUnknown(
-  observation: ScriptedTurnObservation,
-  result: TurnResult,
-): void {
+export function checkUsageAbsentRenderedUnknown(observation: ScriptedTurnObservation, result: TurnResult): void {
   if (observation.usageReported) return; // clause applies to usage-absent turns only
   const usage = result.usage;
   if (usage.quality !== "unavailable") {
@@ -339,8 +326,7 @@ export function checkSessionIdentityHonest(
   if (!observation.sessionReported) return; // provider never reported identity
   const restored = observation.scenario.sessionId;
   if (result.session.id !== restored) {
-    const requestedNote =
-      requested !== undefined ? ` (requested resume id: ${JSON.stringify(requested.id)})` : "";
+    const requestedNote = requested !== undefined ? ` (requested resume id: ${JSON.stringify(requested.id)})` : "";
     throw new AdapterContractViolation(
       "C-CORE §4 resume-identity",
       `provider restored session ${JSON.stringify(restored)} but the envelope reports ` +
@@ -373,10 +359,7 @@ export type EnvelopeViolation =
 export const RESUME_MISMATCH_ERROR_CODE = "error_resume_session_mismatch";
 
 export function isTypedResumeMismatchError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    (error as Error & { code?: unknown }).code === RESUME_MISMATCH_ERROR_CODE
-  );
+  return error instanceof Error && (error as Error & { code?: unknown }).code === RESUME_MISMATCH_ERROR_CODE;
 }
 
 /** Deliberately lying wrapper used ONLY for negative controls: the same real

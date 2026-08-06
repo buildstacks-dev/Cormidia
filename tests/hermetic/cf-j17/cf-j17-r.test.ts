@@ -18,11 +18,7 @@ import { GhCliOps } from "../../../src/loop/github.js";
 import { advanceShipping } from "../../../src/loop/loop.js";
 import { parseReleaseKind } from "../../../src/loop/plan-tickets.js";
 import type { LoopItem, ReleaseConfig } from "../../../src/loop/types.js";
-import {
-  ApprovalStore,
-  NEVER_SCOPEABLE_RULES,
-  approvalLifecycleState,
-} from "../../../src/org/approvals.js";
+import { ApprovalStore, NEVER_SCOPEABLE_RULES, approvalLifecycleState } from "../../../src/org/approvals.js";
 import { queueReleaseApprovals } from "../../../src/org/release.js";
 import { installGithubDouble, type GithubDoubleHandle } from "../../fixtures/github-double/install.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
@@ -127,7 +123,12 @@ describe("CF-J17-R — undeclared mechanism fails the ship gate; scoped grants r
   });
 
   it("a declared mechanism of the WRONG kind also fails the ship gate before any merge", async () => {
-    const walk = await makeShippingWalk({ kind: "package", command: "./scripts/package.sh", owner: "orchestrator", trigger: "command" });
+    const walk = await makeShippingWalk({
+      kind: "package",
+      command: "./scripts/package.sh",
+      owner: "orchestrator",
+      trigger: "command",
+    });
     const returned = await runShipGate(walk);
     expect(returned.phase).toBe("returned");
     const comments = await walk.gh.listIssueComments(walk.issueNumber);
@@ -188,7 +189,7 @@ describe("CF-J17-R — undeclared mechanism fails the ship gate; scoped grants r
     expect(pending.map((item) => item.id)).toEqual([approvalId]);
     expect(pending[0]!.status).toBe("pending");
     expect(pending[0]!.grantId).toBeUndefined();
-    expect((await store.listDecided())).toHaveLength(0);
+    expect(await store.listDecided()).toHaveLength(0);
 
     // The ratified default shape still works: fresh, exact, single-use.
     const decided = await store.decide(approvalId, { decision: "approved", now: clock.nowDate() });

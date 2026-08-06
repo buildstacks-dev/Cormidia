@@ -65,18 +65,40 @@ a new tool type the classifier has never seen (must fail closed, not default-all
 untrusted-read bypass class (issue #20) generalized to a write.
 
 ## CORMIDIA-INV-003 — Approval is never execution; grants stay inside their ratified shape
-`[elicited+doc: approvals design, PURPOSE 2026-07-18]`
+`[elicited+doc: approvals design, PURPOSE 2026-07-18; revised 2026-08-06
+harness-revision, F-PT-023 ratified on #296]`
+<!-- changelog 2026-08-06 (harness-revision, F-PT-023 ratified #296): the authorization
+boundary is restated from the fixed rule-name list ("critical operations require human
+approval") to the ratified disposition form ("operations require the disposition their
+consequence class specifies" — RULE_DISPOSITION_TIERS, src/runtime/gate.ts), and the
+grant-shape enumeration gains the third ratified shape (c) objective grants (#310).
+Every previously never-scopeable action keeps its strictness through the tier table:
+each is human-only or un-grantable there. F-PT-014 ("outside-worktree actions" has no
+rule mapping) remains OPEN and is deliberately unaffected by this revision. -->
 **Statement.** At every moment, an approved item and an executed operation are distinct
-durable facts. Grants have exactly two ratified shapes, and neither drifts beyond its
-declared scope: **(a) default — fresh, exact-content, single-use**: bound to one exact
-actor, app, operation/payload, and content version; the never-broadly-scopeable actions
-(production deploys, external publication, protocol-surface writes, outside-worktree
-actions) only ever take this shape; **(b) human-widened scoped grants (A1)**: bound to a
-human-chosen app/ticket plus rule+path scope, with TTL, use-count cap, revocation, and a
-per-use audit row — widening is a human act at decision time, never an agent's, and
-scoped grants are *intentionally multi-use within those bounds*. Neither shape becomes
-unbounded or agent-widenable permission. Self-approval and self-merge are unrepresentable
-at any scope. Once execution
+durable facts. Every operation requires the disposition its consequence class specifies
+(the ratified per-rule tier table `routine | budgeted | grantable | human-only |
+un-grantable`, where `human-only ∪ un-grantable` is exactly the never-widenable,
+never-agent-decidable boundary, and `un-grantable` — the machinery of consent:
+protocol surfaces, scorecards, the approval store, the learning governance surfaces,
+and the gate's own implementation — additionally admits no standing grant of any
+kind). Grants have exactly three ratified shapes, and none drifts beyond its declared
+scope: **(a) default — fresh, exact-content, single-use**: bound to one exact actor,
+app, operation/payload, and content version; `human-only` and `un-grantable` classes
+take only this shape at decision time, and for `un-grantable` classes it is the sole
+covering shape that can ever exist; **(b) human-widened scoped grants (A1)**: bound to
+a human-chosen app/ticket plus rule+path scope, with TTL, use-count cap, revocation,
+and a per-use audit row — widening is a human act at decision time, never an agent's,
+is refused for `human-only`/`un-grantable` classes, and scoped grants are
+*intentionally multi-use within those bounds*; **(c) objective grants (#296 Stage 3)**:
+human-created-only standing authority bound to an objective, naming `grantable`-tier
+classes explicitly (never a wildcard) or one `human-only` class solely through the
+§4.1 ceremony (distinct CLI verb, bounded per-class scope, optional precondition,
+TTL/use caps strictly shorter than the ordinary defaults), with a cumulative spend
+ceiling whose crossing refuses-and-escalates exactly once, use caps, immediate
+revocation, and per-use audit rows — `un-grantable` classes are rejected at creation
+and refused at use. No shape becomes unbounded or agent-widenable permission.
+Self-approval and self-merge are unrepresentable at any scope. Once execution
 of an approved irreversible effect starts, durable evidence always exists that it is
 `executing`, `executed`, `failed`, or `ambiguous`; ambiguity is terminal-until-reconciled
 and is never resolved by re-performing the effect.
@@ -84,12 +106,21 @@ and is never resolved by re-performing the effect.
 persisted decision. For **once** grants: consumed twice; changed bytes executing under
 the old approval. For **scoped** grants: a use outside the rule/path or app/ticket scope;
 a use after TTL expiry or revocation; a use beyond the use cap; a use with no per-use
-audit row. Either shape: a crashed acknowledgement followed by automatic re-execution.
+audit row; a match honored for a `human-only`/`un-grantable` rule. For **objective**
+grants: creation naming an `un-grantable` class or by an agent identity; a §4.1 grant
+without a bounded scope or with TTL/cap at-or-above the ordinary defaults; a covering
+use for a class the grant does not name, another app, or past
+revocation/expiry/use-cap/ceiling; a debit landing after execution or crossing the
+ceiling without the single escalation. Any shape: a crashed acknowledgement followed
+by automatic re-execution; a tier looser than the ratified table for any rule.
 **Adversarial seeds.** (a) approve → mutate payload → execute (once grant); (b) replay a
 consumed **once** grant on the next tick; (b′) scoped grant exercised out-of-scope /
 post-revocation / at cap+1 — each must be refused with the grant intact in audit;
 (c) kill between remote effect and acknowledgement, observe next tick's behavior;
-(d) attempt to represent a self-approval via the CLI effect surface.
+(d) attempt to represent a self-approval via the CLI effect surface; (e) forged
+objective-grant file naming an un-grantable class planted in the store — refused at
+use; (f) concurrent ledger debits racing the ceiling — serialized, never a lost
+update, at most one escalation.
 
 ## CORMIDIA-INV-004 — One turn, one app, coherently
 `[elicited+doc: PURPOSE "one turn one app", architecture §7]`

@@ -172,16 +172,33 @@ both fake and real dependency to prevent drift.
 - **Layer:** 2.
 
 ### B-09b — Human/CLI ↔ approval store (decision-entry seam) `[doc]`
+<!-- changelog 2026-08-06 (harness-revision, F-PT-023 ratified #296): the seam now also
+carries the objective-grant store (approvals/objective-grants/, #310) — same state
+home, same writer discipline, same failure domain — and the disposition-tier decision
+boundary. Failure modes extended accordingly; the honest-fake verdict is unchanged
+(real temp state homes + scripted records). -->
 - **Ownership — actor, authority, writer kept distinct:** the human is the **actor**
   supplying decision intent and the **authority** behind it; the CLI/approval store is
   the **state writer** that validates and persists the durable decision, enforcing shape
-  (content binding, scope, TTL, batch semantics, revocation).
+  (content binding, scope, TTL, batch semantics, revocation). Since #296 Stage 3 the
+  same seam owns the **objective-grant store** (`approvals/objective-grants/`): grants,
+  per-grant spend ledgers, and the per-use audit log — human-created only, with the
+  disposition tiers (`RULE_DISPOSITION_TIERS`) deciding what any grant may ever cover.
 - **Boundary test:** the human can be absent for days while the paused turn stays
   perfectly preserved. PASS.
 - **Failure modes:** decision after expiry; batch review with per-item audit; widening
-  at decision time (human-only); revocation mid-wait; malformed decision entry;
-  concurrent decisions on one item.
-- **Honest fake:** YES at L2 — script approvals, denials, widening, expiry, revocation.
+  at decision time (human-only; refused for `human-only`/`un-grantable` tiers);
+  revocation mid-wait; malformed decision entry; concurrent decisions on one item;
+  **objective grants:** creation naming an un-grantable class or by an agent identity
+  (refused); forged grant file on disk (refused at use); concurrent ledger debits
+  racing the ceiling (serialized under the per-grant lock; at most one escalation);
+  ceiling/use-cap/TTL exhaustion and revocation each killing coverage immediately;
+  **split-classification context (ratified, lands with PR D):** target-repo
+  verification for `repo-collaboration` — explicit `--repo` mismatch, missing target
+  with unreadable/mismatched worktree origin, and `cd`/`-C`-obscured cwd each fail
+  closed to `human-only`.
+- **Honest fake:** YES at L2 — script approvals, denials, widening, expiry, revocation,
+  planted objective grants/ledgers, and worktree origins in real temp git repos.
 - **Unattended L3 (cross-reference, prohibition):** in unattended live-sandbox
   campaigns the human seam **must not be a runtime dependency** — but the mechanism is
   the **ratified sandbox-only test-policy profile** (canonical definition:

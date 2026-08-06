@@ -425,15 +425,11 @@ not change matrix allocation or unblock any finding.
   (CF-J06-I, CF-B09a-*; contract-matrix remainder CF-C-B09A), B-17-L3 (CF-J17-A,
   CF-B17-*; contract-matrix remainder CF-C-B17), F-PT-017 (CF-C-CORE terminal-
   status enum clause), F-PT-018 (CF-HARNESS-CI required-check enforcement);
-  F-PT-023 (#296 Stage 4 — the four consequence-split case families:
-  CF-SPLIT-DESTRUCTIVE (history-rewrite-owned/foreign, destructive-remote-data,
-  destructive-local, gh-api-unrecognized), CF-SPLIT-SECRETS (secret-read/mutate
-  with the outbound-network exfil pairing), CF-SPLIT-PUBLISHING
-  (repo-collaboration own/foreign/undeterminable, package-publish,
-  release-artifact, outbound-message), and CF-SPLIT-NETWORK (host allowlist +
-  one seeded case per undeterminable-destination evasion form). Designed in
-  docs/approvals/consequence-split-ratification.md; NOT implemented — no split
-  case lands, and no split behavior is encoded, before the owner ratifies).
+  F-PT-023 left this register on 2026-08-06: the owner ratified all four splits on
+  #296 (one decision, recorded in the issue's ratification record), the harness
+  revision registered the revised INV-003 and the B-09b objective-grant clauses, and
+  the CF-SPLIT-* families un-parked into §10.1 — they land red-then-green with their
+  implementation PRs (destructive, secrets, network, publishing-last).
   <!-- changelog 2026-07-31 (audit AUD-106): §5 per-ID resolver's five blocked
   contract-matrix remainders added to this roll-up so it is the complete register. -->
   <!-- ratification 2026-07-31: F-PT-003 (CF-J07-I), F-PT-004 (CF-J04-I/CF-B15-*
@@ -465,6 +461,22 @@ substitute for the derivation row it hangs off.
 A row is added here only when the defect's cases fit existing structure. A defect that
 would need a new journey, boundary, or invariant is a structural change and re-enters
 `validation-harness-design` in `harness-revision` mode (AGENTS.md → Validation harness).
+
+### 10.1 Ratified-revision families — #296 consequence splits (F-PT-023, ratified 2026-08-06)
+
+Sourced by owner ratification rather than a defect: the four §5.1–5.4 splits were
+designed at Stage 4 (`docs/approvals/consequence-split-ratification.md`), ratified in
+one decision on #296, and registered by the 2026-08-06 harness revision (revised
+CORMIDIA-INV-003; B-09b objective-grant and disposition clauses). Each family lands
+**red-then-green in its own implementation PR** — a row here without its spec landed
+means the split is ratified but not yet merged, never that it is silently covered.
+
+| Family | Source | Owning structure | Control point | Layer | Oracle | Spec |
+|---|---|---|---|---|---|---|
+| CF-SPLIT-DESTRUCTIVE | §5.1 split: destructive-remote-data (HO), history-rewrite-owned (B, `op/<issue>-…` namespace only), history-rewrite-foreign (HO incl. resolved default branch), destructive-local (G), gh-api-unrecognized (HO fail closed) | CF-INV-002/003 · CF-B09b · CF-REG-203 (per-claim freshness) · CF-INV-009 (no branch literals) | T-1/T-2 | 1/2 | refusal+det | lands with PR A |
+| CF-SPLIT-SECRETS | §5.2 split: secret-mutate (HO) before secret-read (G); repo-local `.npmrc` scrub retained verbatim; exfil closed independently by outbound-network with a seeded pairing control | CF-INV-002/003 · CF-B09b | T-1 | 1 | refusal+det | lands with PR B |
+| CF-SPLIT-NETWORK | §5.4 allowlist: configured hosts budgeted, other literal hosts grantable, undeterminable destination HO fail closed with one seeded case per evasion form (variable, substitution, backtick, `${IFS}`, pipe); allowlist per-app config, never hardcoded | CF-INV-002/003 · CF-B09b | T-1 | 1/2 | refusal+det | lands with PR C |
+| CF-SPLIT-PUBLISHING | §5.3 split: repo-collaboration (B, only after target-repo verification against app config incl. worktree-origin check), repo-collaboration-foreign (HO), package-publish/release-artifact/outbound-message (HO); undeterminable target fail closed; A4 release executor unchanged | CF-INV-002/003 · CF-B09b · CF-B15 (worktree origin) | T-1/T-2/T-7 | 1/2 | refusal+det | lands with PR D (last) |
 
 | Family | Defect | Owning structure | Control point | Layer | Oracle | Spec |
 |---|---|---|---|---|---|---|

@@ -2,7 +2,7 @@ import { createReadStream, existsSync } from "node:fs";
 import { lstat, realpath, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { dirname, join, resolve, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { OBSERVE_CSS, OBSERVE_HTML, OBSERVE_JS } from "./assets.js";
 import type { ObserveService } from "./live-source.js";
 import { OBSERVE_SCHEMA_VERSION } from "./types.js";

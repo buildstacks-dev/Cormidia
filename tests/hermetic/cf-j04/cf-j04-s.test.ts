@@ -7,7 +7,7 @@ import { DEFAULT_LOOP_POLICY, runLoopOnce } from "../../../src/loop/driver.js";
 import { type LoopItem } from "../../../src/loop/loop.js";
 import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { script } from "../../fixtures/adapters/scenario.js";
-import { J04_APP, J04_CONTRACT, buildJ04Item, j04Git, makeJ04World, type J04World } from "./support.js";
+import { J04_APP, J04_CONTRACT, j04Git, makeJ04World, type J04World } from "./support.js";
 
 function assertArtifactOrder(ops: readonly string[]): void {
   const requireBefore = (first: string, second: string): void => {

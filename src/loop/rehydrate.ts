@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isTurnAssignment } from "../runtime/assignment.js";
-import type { GhIssueComment, GhOps } from "./github.js";
+import type { GhOps } from "./github.js";
 import type { LoopContinuation, LoopItem, SuppressedOperation } from "./types.js";
 import { parseVerdict, type Finding, type FindingResolution } from "./verdicts.js";
 

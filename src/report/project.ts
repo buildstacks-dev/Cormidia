@@ -22,7 +22,6 @@ import {
   type ReportSessionDetailV1,
   type ReportSnapshotV1,
   type ReportTurnV1,
-  type ReportUsageQuality,
 } from "./types.js";
 
 export interface BuildReportOptions {

@@ -20,7 +20,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { readExecutionSteps, settlementCoverage } from "../../../src/loop/efficiency.js";
 import { reconcileLedger } from "../../../src/org/budget.js";
 import { readEnvelope } from "../../../src/runtime/runlog/envelope.js";

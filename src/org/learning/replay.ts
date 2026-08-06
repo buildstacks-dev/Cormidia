@@ -196,7 +196,6 @@ export function createLoopReplayExecutor(options: LoopReplayExecutorOptions): Re
     async attempt(request: ReplayAttemptRequest): Promise<ReplayAttempt> {
       validateReplayRequest(options, request);
       const fixture = request.fixture;
-      const brief = fixture.input.brief!;
       const seedCommit = fixture.seed.commit!;
       const roles = Object.values(options.roles).sort((left, right) => left.name.localeCompare(right.name));
       const builder = requireRole(options.roles, "builder");

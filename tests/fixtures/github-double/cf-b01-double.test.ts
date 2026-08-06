@@ -333,7 +333,7 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
   });
 
   it("CF-B01-ok: calls naming a different repo slug are rejected (repo identity from the registry, INV-004)", async () => {
-    const handle = await freshDouble();
+    await freshDouble();
     const stranger = new GhCliOps("someone-else/other-repo");
     await expect(stranger.readIssue(1)).rejects.toThrow(/Could not resolve to a Repository/);
   });

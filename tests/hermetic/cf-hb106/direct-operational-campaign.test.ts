@@ -7,7 +7,6 @@ import type { RoleConfig } from "../../../src/runtime/types.js";
 import type { AppEntry } from "../../../src/org/apps.js";
 import { ApprovalStore } from "../../../src/org/approvals.js";
 import {
-  DirectCampaignError,
   acceptDirectOperationalCampaign,
   assertCampaignEffectIsolation,
   campaignAuthorityPath,

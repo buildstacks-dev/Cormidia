@@ -4,7 +4,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { parse, parseDocument } from "yaml";
 import { loadGateCommands } from "../loop/driver.js";
@@ -26,7 +26,6 @@ import {
 } from "./apps.js";
 import {
   appArtifactFiles,
-  buildOnboardingGapReport,
   emitAppArtifacts,
   parseAnswers,
   scanRepo,

@@ -993,13 +993,6 @@ function extractThreadId(response: unknown): string | undefined {
   return undefined;
 }
 
-function extractTurnId(response: unknown): string | undefined {
-  if (!isRecord(response)) return undefined;
-  if (isRecord(response.turn) && typeof response.turn.id === "string") return response.turn.id;
-  if (typeof response.turnId === "string") return response.turnId;
-  return undefined;
-}
-
 function zeroUsage(wallClockMs: number, subagentTurns: number): TurnUsage {
   return { tokensIn: 0, tokensOut: 0, costUsd: 0, subagentTurns, wallClockMs };
 }

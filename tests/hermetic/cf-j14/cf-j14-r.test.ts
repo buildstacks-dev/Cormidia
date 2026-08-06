@@ -11,7 +11,6 @@
 // RESET_STALE_RUN_MS is the product constant under test, asserted against
 // the ratified value rather than read as its own truth.
 
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { cmdApp } from "../../../src/cli/app.js";

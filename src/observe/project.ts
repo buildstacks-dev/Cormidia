@@ -31,7 +31,6 @@ import {
   type AttentionGroupView,
   type AttentionItemView,
   type AttentionOccurrenceView,
-  type CompletionIntegrityView,
   type DeliveryState,
   type DeliveryTicketView,
   type DurationView,
@@ -2057,10 +2056,6 @@ function aggregateQuality(qualities: UsageQuality[]): UsageQuality {
  *  same stored quality differently (#89). */
 function normalizeQuality(value: string | undefined): UsageQuality {
   return normalizeUsageQuality(value);
-}
-
-function sum(values: number[]): number {
-  return values.reduce((total, value) => total + value, 0);
 }
 
 /** Delegates to the shared runtime primitive: an unsettled provider pass is

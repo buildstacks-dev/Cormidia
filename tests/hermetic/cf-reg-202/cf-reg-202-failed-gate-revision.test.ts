@@ -48,7 +48,6 @@ import { GhCliOps } from "../../../src/loop/github.js";
 import type { LoopItem } from "../../../src/loop/types.js";
 import { installGithubDouble } from "../../fixtures/github-double/install.js";
 import {
-  BUILD_BLOCKED_VERDICT,
   BUILD_DONE_VERDICT,
   BUILD_IMPLEMENT_STEP,
   makeReg202Home,
@@ -57,7 +56,6 @@ import {
   REG202_PLAN_V1,
   REG202_PLAN_V2,
   reg202EvidenceInput,
-  REVIEW_CLEAN_VERDICT,
   REVIEW_FINDINGS_VERDICT,
   REVIEW_VERIFY_STEP,
   type Reg202Home,

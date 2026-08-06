@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { lstat, readFile, readdir, stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
 import type { AppsFile } from "../org/apps.js";
 import type { TurnLock } from "../org/locks.js";

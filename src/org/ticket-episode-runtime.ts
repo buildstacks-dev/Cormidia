@@ -54,7 +54,6 @@ import {
   TICKET_MECHANICAL_GATE_KINDS,
   TICKET_PROVIDER_OPERATION_CATALOG,
   TICKET_PROVIDER_OPERATIONS,
-  type TicketMechanicalGateKind,
   type TicketProviderOperationDefinition,
 } from "../loop/ticket-episode-plan.js";
 import { createProviderEpisodePlanRevisionProposer } from "./episode-planner/runtime.js";

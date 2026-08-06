@@ -15,7 +15,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { ApprovalStore, approvalLifecycleState } from "../../../src/org/approvals.js";
 import type { AppsFile } from "../../../src/org/apps.js";
 import {

@@ -1,9 +1,4 @@
-import type {
-  AdmittedLoopDeliveryUnit,
-  BoundLoopDeliveryUnit,
-  DeliveryUnitClaimLease,
-  DeliveryUnitRuntime,
-} from "../loop/driver.js";
+import type { AdmittedLoopDeliveryUnit, DeliveryUnitClaimLease, DeliveryUnitRuntime } from "../loop/driver.js";
 import { deliveryUnitEpisodeId } from "../loop/driver.js";
 import { readExecutionSteps } from "../loop/efficiency.js";
 import type { GhIssue, GhOps } from "../loop/github.js";
@@ -272,7 +267,7 @@ export function createRoadmapLoopRuntime(input: { root: string; app: AppEntry; g
       claims.set(claimed.record.settlement_id, claimed);
       return { claimId: claimed.record.settlement_id, attempt: claimed.record.attempt, runId };
     },
-    commit: async ({ unit, lease, now }) => {
+    commit: async ({ lease, now }) => {
       const claim = requireClaim(claims, lease.claimId);
       if (claim.record.status === "committed") return;
       await commitDeliveryUnitClaim({

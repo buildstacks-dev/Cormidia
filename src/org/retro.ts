@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
-import { readScorecards, type ScorecardEvent } from "./scorecards.js";
+import { readScorecards } from "./scorecards.js";
 
 export interface RetroOptions {
   orgHome: string;

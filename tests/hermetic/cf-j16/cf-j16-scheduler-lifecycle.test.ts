@@ -192,7 +192,7 @@ describe("HB-043 scheduler lifecycle", () => {
   });
 
   it("does not present stale runtime failure reasons as current after intentional uninstall", async () => {
-    const { manager, input } = await world("stopped-org");
+    const { input } = await world("stopped-org");
     const expected = buildSchedulerExpectation(input);
     await installScheduler({ ...input, execute: true, confirm: expected.metadata.scheduler_id });
     const evidence = new SchedulerEvidenceStore({

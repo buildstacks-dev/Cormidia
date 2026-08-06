@@ -15,7 +15,7 @@
 // that would be a POLICY change and needs its own owner decision, not a
 // silent drift in either direction.
 
-import { existsSync, readdirSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultGate } from "../../../src/runtime/gate.js";

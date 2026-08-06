@@ -16,7 +16,6 @@ import {
   readCurrentRoadmapPlan,
   reconcileRoadmapProjections,
   type AcceptedAuthority,
-  type AcceptedRoadmapPlan,
   type AuthorityRef,
   type BacklogSnapshot,
   type BacklogSnapshotIssue,

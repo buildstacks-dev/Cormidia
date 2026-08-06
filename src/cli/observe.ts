@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { ObserveService } from "../observe/live-source.js";
 import { startObserveServer } from "../observe/server.js";

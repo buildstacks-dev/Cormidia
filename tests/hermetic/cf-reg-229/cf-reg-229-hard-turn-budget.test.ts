@@ -39,7 +39,7 @@ function usage(costUsd: number): TurnUsage {
   };
 }
 
-function stopped(req: TurnRequest, finalUsage: TurnUsage, reason: string): TurnResult {
+function stopped(_req: TurnRequest, finalUsage: TurnUsage, reason: string): TurnResult {
   return {
     status: "failed",
     errorCode: "scripted_runtime_stopped",

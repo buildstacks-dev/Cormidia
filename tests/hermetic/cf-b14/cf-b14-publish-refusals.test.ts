@@ -125,7 +125,7 @@ describe("CF-B14-* — publish-only refusals (bootstrap publish planning, contra
     await repo.commitFile("AGENTS.md", "trunk version\n", "trunk edit");
     expect(() => repo.git(["merge", "feature"])).toThrow(); // real conflict
 
-    const plan = (kind?: string) =>
+    const plan = (_kind?: string) =>
       planBootstrapPublish({
         app: APP,
         orgHome: org.orgHome,

@@ -28,7 +28,6 @@ import { matchedDimensions, packageJsonTouchesSecurityKeys, resolveTier } from "
 import {
   executePipeline,
   type ExecutePipelineOptions,
-  type PassRunRecord,
   type PipelineRunResult,
   type VerdictRecordContext,
   type VerdictRecordOutcome,
@@ -55,7 +54,6 @@ import {
   type BuildVerdict,
   type ContractVerdict,
   type Finding,
-  type ParseResult,
   type ReviewVerdict,
   type VerdictTypes,
 } from "./verdicts.js";

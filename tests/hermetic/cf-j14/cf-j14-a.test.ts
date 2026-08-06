@@ -16,7 +16,7 @@
 // detector FIRES — a detector that has never fired is an assumption.
 
 import { existsSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeAppReset, planAppReset, type AppResetOptions } from "../../../src/org/app-reset.js";

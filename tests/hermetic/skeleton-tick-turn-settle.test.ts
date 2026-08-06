@@ -53,7 +53,7 @@ import { script } from "../fixtures/adapters/scenario.js";
 import { makeTestClock } from "../fixtures/clock.js";
 import { runKillPointScenario, type KillPointResult } from "../fixtures/kill-point.js";
 import { makeTempOrgHome, type TempOrgHome } from "../fixtures/org-home.js";
-import { makeTempStateHome, type TempStateHome } from "../fixtures/state-home.js";
+import { makeTempStateHome } from "../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../fixtures/walk.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");

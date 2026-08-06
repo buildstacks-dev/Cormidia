@@ -12,7 +12,6 @@ import {
   RELEASE_L3_REQUIRED_CASES,
   assessReleaseQualification,
   assertSanitizedEvidence,
-  canonicalJson,
   compositeGradeKey,
   createReleaseAttestation,
   createReleaseAttestationFromCommit,

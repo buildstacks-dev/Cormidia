@@ -17,7 +17,7 @@ import {
   type EventKind,
   type GitHubEventSource,
 } from "./events.js";
-import { listJournals, readJournal, writeJournalPatch, type TurnEvent, type TurnJournal } from "./journal.js";
+import { listJournals, readJournal, writeJournalPatch, type TurnEvent } from "./journal.js";
 import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./locks.js";
 import { recoverStaleTurn } from "./recovery.js";
 import { runScheduledRetentionSweep, type StateSweepResult } from "./retention.js";

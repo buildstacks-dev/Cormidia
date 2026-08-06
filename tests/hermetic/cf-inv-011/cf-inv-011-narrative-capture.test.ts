@@ -34,7 +34,7 @@ import { runPaths } from "../../../src/runtime/runlog/paths.js";
 import type { NarrativeQuote, NarrativeStory } from "../../../src/narrative/types.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
-import { makeSyntheticSecret, type SyntheticSecret } from "../../fixtures/synthetic-secret.js";
+import { makeSyntheticSecret } from "../../fixtures/synthetic-secret.js";
 import {
   detectSecretEgress,
   detectSecretEgressInJson,

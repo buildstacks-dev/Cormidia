@@ -176,7 +176,7 @@ export async function learnPublish(homes: CormidiaHomes, args: string[]): Promis
   const flags = parseFlags(args, "learn publish");
   const candidateId = flags.positionals[0];
   if (candidateId === undefined) throw new Error("learn publish: <candidate-id> is required");
-  const { orgRoot, appRoots } = learningRoots(homes);
+  const { appRoots } = learningRoots(homes);
   const policy = await loadLearningPolicy(homes.orgHome);
 
   // Tickets land in the repo of the scope's app (or --repo). The gh client

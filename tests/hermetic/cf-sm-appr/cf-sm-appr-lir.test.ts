@@ -17,7 +17,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { ApprovalStore, approvalLifecycleState, type ApprovalLogEvent } from "../../../src/org/approvals.js";
 import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";

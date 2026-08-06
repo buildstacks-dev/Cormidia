@@ -35,7 +35,6 @@ import {
   makeInitWorld,
   makeUpgradeWorld,
   snapshotTree,
-  HUMAN_RATIFIED_MARKER,
   type InitWorld,
 } from "./support.js";
 

@@ -22,7 +22,7 @@
 // world (no green by absence: reduced here, not silently skipped).
 
 import { existsSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runAuditedCliInvocation } from "../../../src/cli/invocation-audit.js";
@@ -43,7 +43,7 @@ import {
   snapshotTree,
   snapshotTreeAllowEmpty,
 } from "../cf-j01/support.js";
-import { diffWorld, makeResetWorld, snapshotWorld, TARGET_APP, type ResetWorld } from "../cf-j14/support.js";
+import { diffWorld, makeResetWorld, snapshotWorld, TARGET_APP } from "../cf-j14/support.js";
 
 describe("CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md)", () => {
   let cleanups: Array<() => Promise<void>> = [];

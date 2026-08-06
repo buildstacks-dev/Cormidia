@@ -1408,6 +1408,15 @@ function validateReleaseManifestBody(value: unknown): asserts value is ReleaseMa
   validateL4(root["l4"]);
   validateTriggeredCampaigns(root["triggered_campaigns"]);
   validateCeilings(root["ceilings"]);
+  const l4Plan = root["l4"] as ReleaseManifestBodyV1["l4"];
+  const l4Ceiling = (root["ceilings"] as ReleaseManifestBodyV1["ceilings"]).l4;
+  const declaredL4Turns = l4Plan.pairings.reduce(
+    (sum, pairing) => sum + pairing.case_ids.length * pairing.attempt_ids.length,
+    0,
+  );
+  if (l4Ceiling.max_provider_turns <= declaredL4Turns) {
+    throw new Error(`release L4 turn ceiling requires strict headroom beyond ${declaredL4Turns} declared case-attempt turns`);
+  }
   const retry = object(root["retry_policy"], "retry_policy");
   exact(retry, ["merit_failures", "github_total_attempts", "ambiguous_writes", "provider_retry", "unknown_partial_usage"], "retry_policy");
   if (retry["merit_failures"] !== "never" || retry["github_total_attempts"] !== 3 || retry["ambiguous_writes"] !== "single_shot_then_reconcile" || retry["provider_retry"] !== "predeclared_typed_infrastructure_only" || retry["unknown_partial_usage"] !== "debit_full_reservation") throw new Error("release retry policy differs from RQ-1");

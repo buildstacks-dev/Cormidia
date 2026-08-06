@@ -22,7 +22,7 @@ The classifier reads Cormidia's own command line as an effect surface, not just
 third-party tools: `cormidia app reset`/`prune-runs` are
 `destructive-remote-data` (since the #296 §5.1 split), `cormidia org init|use|upgrade` is
 `protocol-self-edit`, `cormidia plan ratify-ticket-budget` and `cormidia bootstrap
-publish` are `external-publishing`, and `cormidia approvals
+publish` are `outbound-message` (since the #296 §5.3 split), and `cormidia approvals
 review|revoke|disposition` is `approval-store-tamper` — self-approval by CLI is
 still self-approval. Read-only invocations (`roles`, `apps`, `status`,
 `doctor`, `budget`, `context`, `episode explain`, `approvals show|status`)
@@ -166,7 +166,16 @@ reads stay routine, and the files remain changeable through the human-driven
 reviewed PR path, which never routes through this gate). The #296 §5.1 split
 (ratified 2026-08-06) further adds `destructive-remote-data`,
 `history-rewrite-foreign`, and `gh-api-unrecognized` as human-only members,
-while `history-rewrite-owned` (force-push confined to the orchestrator-owned
+while the #296 §5.3 headline split (landed 2026-08-06, the last of the four)
+replaces `external-publishing` with `repo-collaboration` (budgeted — reachable
+only after the composed gate verifies the target is the app's own configured
+repository, by explicit slug or the workdir's real git origin; anything
+foreign, dynamic, or unverifiable refines to the human-only
+`repo-collaboration-foreign` and the raised item carries that rule, with the
+refinement running before any grant matching), `package-publish`,
+`release-artifact` (including git tag creation; listing stays routine), and
+`outbound-message` — the retired name keeps a human-only tombstone — and
+`history-rewrite-owned` (force-push confined to the orchestrator-owned
 `op/<issue>-…` namespace) and allowlisted outbound requests (#296 §5.4:
 `outbound-network` destinations all on the app's configured
 `network_allowlist`, default `registry.npmjs.org`/`api.github.com`/

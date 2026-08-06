@@ -79,7 +79,13 @@ const RATIFIED_TIERS: Readonly<Record<string, DispositionTier>> = {
   // §5.2 split (#296): mutation human-only, reads keep the grantable tier.
   "secret-mutate": "human-only",
   "secret-read": "grantable",
-  "external-publishing": "human-only",
+  // §5.3 split (#296): verified own-repo collaboration is budgeted (composed
+  // gate refines foreign/unverifiable to repo-collaboration-foreign, HO);
+  // publish/release/message stay human-only.
+  "repo-collaboration": "budgeted",
+  "package-publish": "human-only",
+  "release-artifact": "human-only",
+  "outbound-message": "human-only",
   "provider-global-memory": "grantable",
   // §5.4 (#296): undeterminable destinations fail closed to human-only; the
   // allowlist→budgeted refinement is config at the composed gate.
@@ -106,7 +112,10 @@ const RULE_FIXTURES: ReadonlyArray<{ rule: string; action: ToolActionLike }> = [
   { rule: "dns-or-domain", action: { tool: "write_file", input: { path: "dns/nameserver.conf", content: "ns1.example.com" } } },
   { rule: "secret-mutate", action: { tool: "bash", input: { command: "gh secret set NPM_TOKEN" } } },
   { rule: "secret-read", action: { tool: "bash", input: { command: "cat .env" } } },
-  { rule: "external-publishing", action: { tool: "bash", input: { command: "npm publish --access public" } } },
+  { rule: "repo-collaboration", action: { tool: "bash", input: { command: "gh issue comment 12 --body done" } } },
+  { rule: "package-publish", action: { tool: "bash", input: { command: "npm publish --access public" } } },
+  { rule: "release-artifact", action: { tool: "bash", input: { command: "gh release create v1.2.3 --notes done" } } },
+  { rule: "outbound-message", action: { tool: "bash", input: { command: "sendmail ops@example.com" } } },
   { rule: "provider-global-memory", action: { tool: "write_file", input: { path: "/Users/dev/.claude/CLAUDE.md", content: "memo" } } },
   { rule: "outbound-network", action: { tool: "bash", input: { command: "curl https://example.com/data.json" } } },
   { rule: "outbound-network-undeterminable", action: { tool: "bash", input: { command: 'curl "$HOST"' } } },
@@ -123,7 +132,7 @@ describe("CF-INV — disposition table (every classifier rule, ratified tiers)",
     expect(CRITICAL_RULES.map((rule) => rule.name).sort()).toEqual(
       RULE_FIXTURES.map((fixture) => fixture.rule).sort(),
     );
-    expect(RULE_FIXTURES).toHaveLength(19);
+    expect(RULE_FIXTURES).toHaveLength(22);
   });
 
   for (const { rule, action } of RULE_FIXTURES) {

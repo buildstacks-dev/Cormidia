@@ -339,6 +339,7 @@ export async function runDispatchedTurn(
       gate: composeGate(defaultGate, store, {
         app: options.app.name,
         role: options.role.name,
+        appRepo: options.app.repo,
         ...(options.app.networkAllowlist !== undefined
           ? { networkAllowlist: options.app.networkAllowlist }
           : {}),
@@ -725,6 +726,10 @@ async function runGenericEpisodeTurn(options: RunDispatchedTurnOptions & {
     composeGate(defaultGate, options.store, {
       app: options.app.name,
       role: role.name,
+      appRepo: options.app.repo,
+      ...(options.app.networkAllowlist !== undefined
+        ? { networkAllowlist: options.app.networkAllowlist }
+        : {}),
       turnId: options.turnId,
       ...(options.journal.event !== undefined
         ? { ticketRef: `event:${options.journal.event.key}` }
@@ -1216,6 +1221,10 @@ async function runProtocolPipelineTurn(options: RunDispatchedTurnOptions & {
     composeGate(defaultGate, store, {
       app: options.app.name,
       role: role.name,
+      appRepo: options.app.repo,
+      ...(options.app.networkAllowlist !== undefined
+        ? { networkAllowlist: options.app.networkAllowlist }
+        : {}),
       turnId: options.turnId,
       ...(options.journal.event === undefined
         ? {}
@@ -2046,6 +2055,10 @@ async function runBuilderTicketTurn(options: RunDispatchedTurnOptions & {
     composeGate(defaultGate, options.store, {
       app: options.app.name,
       role: role.name,
+      appRepo: options.app.repo,
+      ...(options.app.networkAllowlist !== undefined
+        ? { networkAllowlist: options.app.networkAllowlist }
+        : {}),
       turnId: options.turnId,
       ...(options.journal.ticketRef === undefined
         ? {}

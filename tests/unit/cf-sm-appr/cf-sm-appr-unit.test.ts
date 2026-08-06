@@ -199,7 +199,13 @@ describe("CF-SM-GRANT-I — the never-broadly-scopeable set (L1 guardrail surfac
     // single-use form. Category → rule mapping per the product's own list:
     for (const rule of [
       "production-deploy", // production deploys
-      "external-publishing", // external publication
+      // §5.3 split (#296, ratified 2026-08-06): external publication's
+      // successors — verified own-repo collaboration left the set (the
+      // headline budgeted case); everything irreversible stayed.
+      "repo-collaboration-foreign",
+      "package-publish",
+      "release-artifact",
+      "outbound-message",
       "protocol-self-edit", // protocol-surface writes
       "self-merge-or-approve", // review boundary (self-approval unrepresentable at any scope)
       "scorecard-tamper", // gate root of trust
@@ -217,7 +223,10 @@ describe("CF-SM-GRANT-I — the never-broadly-scopeable set (L1 guardrail surfac
     // learning publisher (src/org/learning/publisher.ts) with that literal.
     const liveRuleNames = CRITICAL_RULES.map((rule) => rule.name);
     for (const rule of NEVER_SCOPEABLE_RULES) {
-      if (rule === "learning-publish") continue;
+      // Not classifier rules: learning-publish is raised by the learning
+      // publisher; repo-collaboration-foreign is assigned by the composed
+      // gate's §5.3 target-verification refinement.
+      if (rule === "learning-publish" || rule === "repo-collaboration-foreign") continue;
       expect(liveRuleNames).toContain(rule);
     }
   });

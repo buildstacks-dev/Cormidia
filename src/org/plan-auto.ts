@@ -515,6 +515,10 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     gate: composeGate(defaultGate, store, {
       app: options.app.name,
       role: planner.name,
+      appRepo: options.app.repo,
+      ...(options.app.networkAllowlist !== undefined
+        ? { networkAllowlist: options.app.networkAllowlist }
+        : {}),
       turnId: traceId,
       workdir: localRepo,
       now: clock,

@@ -6,8 +6,10 @@
 // with guidance and a durable lesson instead of burning a human decision —
 // the episode spent 20 decisions on attempts the protocol already forbade.
 
+import { execFileSync } from "node:child_process";
 import {
   actionEffectFields,
+  collaborationTargets,
   decideDisposition,
   DEFAULT_NETWORK_ALLOWLIST,
   outboundDestinations,
@@ -30,6 +32,10 @@ export interface GateContext {
    *  approved command in the context it was approved for rather than a guessed
    *  one (ISSUE-020). Omitted where the caller has no checkout. */
   workdir?: string;
+  /** §5.3 (#296): the app's own configured repository slug (owner/repo).
+   *  Required for the budgeted repo-collaboration tier — without it every
+   *  collaboration action fails closed to repo-collaboration-foreign. */
+  appRepo?: string;
   /** §5.4 (#296): the app's configured egress allowlist (apps.yaml
    *  `network_allowlist`). Omitted ⇒ the ratified DEFAULT_NETWORK_ALLOWLIST.
    *  A determinable outbound destination on this list rides the budgeted
@@ -48,7 +54,21 @@ export function composeGate(
     const now = context.now?.() ?? new Date();
     const hash = actionHash(action);
     const disposition = decideDisposition(action);
-    const rule = disposition.tier !== "routine" ? disposition.rule : undefined;
+    let rule = disposition.tier !== "routine" ? disposition.rule : undefined;
+    let tier = disposition.tier;
+
+    // §5.3 refinement (#296) — BEFORE any grant lookup, so the never-widenable
+    // foreign tier governs which standing grants may even be consulted: the
+    // budgeted collaboration tier is reachable only when every target is
+    // verified as the app's own configured repository (explicit slug match,
+    // or the workdir's REAL git origin for flag-less invocations). Everything
+    // else — foreign slug, dynamic slug, cwd shift, missing/unreadable
+    // origin, missing app config — refines to repo-collaboration-foreign.
+    if (rule === "repo-collaboration" && !collaborationTargetIsOwn(action, context, workdirOriginSlug)) {
+      rule = "repo-collaboration-foreign";
+      tier = "human-only";
+    }
+
     const grant = store.findMatchingGrantSync({
       app: context.app,
       role: context.role,
@@ -187,11 +207,11 @@ export function composeGate(
     // into the classifier.
     const allowlist = context.networkAllowlist ?? DEFAULT_NETWORK_ALLOWLIST;
     const effectiveTier =
-      disposition.tier === "grantable" &&
+      tier === "grantable" &&
       rule === "outbound-network" &&
       destinationsAllAllowlisted(action, allowlist)
         ? "budgeted"
-        : disposition.tier;
+        : tier;
 
     if (rule !== undefined && effectiveTier === "budgeted") {
       objectiveGrants.recordBudgetedActionSync(
@@ -201,7 +221,14 @@ export function composeGate(
       return { allow: true };
     }
 
-    const decision = baseGate(action);
+    // A refined rule (§5.3 foreign) constructs its deny directly so the raised
+    // item, its classification evidence, and the escalation reason all carry
+    // the REFINED rule — the never-scopeable boundary applies to what was
+    // actually decided, not the classifier's optimistic class.
+    const decision: GateDecision =
+      rule !== undefined && disposition.tier !== "routine" && rule !== disposition.rule
+        ? { allow: false, reason: `critical op (${rule}) requires human approval`, escalate: true }
+        : baseGate(action);
     if (!decision.allow && decision.escalate) {
       store.raiseSync({
         app: context.app,
@@ -212,12 +239,65 @@ export function composeGate(
         ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
         ...(context.workdir !== undefined ? { workdir: context.workdir } : {}),
         justification: decision.reason,
-        ...(disposition.tier !== "routine" ? { classification: disposition.evidence } : {}),
+        ...(disposition.tier !== "routine"
+          ? {
+              classification: {
+                ...disposition.evidence,
+                rule: rule ?? disposition.evidence.rule,
+                reason:
+                  rule === disposition.rule || rule === undefined
+                    ? disposition.evidence.reason
+                    : `critical action matched ${disposition.rule}; target verification refined it to ${rule}`,
+              },
+            }
+          : {}),
         now,
       });
     }
     return decision;
   };
+}
+
+/** §5.3: every collaboration target verified as the app's own repository.
+ *  Fail closed on every axis: no app config, undeterminable targets, a
+ *  foreign explicit slug, or a flag-less invocation whose workdir origin is
+ *  missing, unreadable, or foreign. */
+function collaborationTargetIsOwn(
+  action: ToolAction,
+  context: GateContext,
+  originSlug: (workdir: string | undefined) => string | undefined,
+): boolean {
+  const appRepo = context.appRepo?.trim().toLowerCase();
+  if (appRepo === undefined || appRepo.length === 0) return false;
+  const targets = collaborationTargets(action);
+  if (targets === null || targets.undeterminable) return false;
+  if (targets.explicit.length === 0 && !targets.implicitCwd) return false;
+  const explicitOk = targets.explicit.every((slug) => slug.trim().toLowerCase() === appRepo);
+  const cwdOk = !targets.implicitCwd || originSlug(context.workdir) === appRepo;
+  return explicitOk && cwdOk;
+}
+
+const originSlugCache = new Map<string, string | undefined>();
+
+/** The workdir's REAL git origin, as an owner/repo slug — resolved through
+ *  git itself so ordinary clones and linked worktrees behave identically.
+ *  Any failure (no workdir, no repo, no origin) is undefined ⇒ fail closed. */
+function workdirOriginSlug(workdir: string | undefined): string | undefined {
+  if (workdir === undefined) return undefined;
+  if (originSlugCache.has(workdir)) return originSlugCache.get(workdir);
+  let slug: string | undefined;
+  try {
+    const url = execFileSync("git", ["-C", workdir, "config", "--get", "remote.origin.url"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const match = /([^/:]+\/[^/:]+?)(?:\.git)?\/?$/.exec(url);
+    slug = match?.[1]?.toLowerCase();
+  } catch {
+    slug = undefined;
+  }
+  originSlugCache.set(workdir, slug);
+  return slug;
 }
 
 /** §5.4: every destination statically determinable AND on the allowlist. */

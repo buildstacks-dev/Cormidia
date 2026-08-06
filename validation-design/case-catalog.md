@@ -424,7 +424,16 @@ not change matrix allocation or unblock any finding.
   CF-SM-EVENT-*, CF-B13-*; contract-matrix remainder CF-C-B13), F-PT-008
   (CF-J06-I, CF-B09a-*; contract-matrix remainder CF-C-B09A), B-17-L3 (CF-J17-A,
   CF-B17-*; contract-matrix remainder CF-C-B17), F-PT-017 (CF-C-CORE terminal-
-  status enum clause), F-PT-018 (CF-HARNESS-CI required-check enforcement).
+  status enum clause), F-PT-018 (CF-HARNESS-CI required-check enforcement);
+  F-PT-023 (#296 Stage 4 — the four consequence-split case families:
+  CF-SPLIT-DESTRUCTIVE (history-rewrite-owned/foreign, destructive-remote-data,
+  destructive-local, gh-api-unrecognized), CF-SPLIT-SECRETS (secret-read/mutate
+  with the outbound-network exfil pairing), CF-SPLIT-PUBLISHING
+  (repo-collaboration own/foreign/undeterminable, package-publish,
+  release-artifact, outbound-message), and CF-SPLIT-NETWORK (host allowlist +
+  one seeded case per undeterminable-destination evasion form). Designed in
+  docs/approvals/consequence-split-ratification.md; NOT implemented — no split
+  case lands, and no split behavior is encoded, before the owner ratifies).
   <!-- changelog 2026-07-31 (audit AUD-106): §5 per-ID resolver's five blocked
   contract-matrix remainders added to this roll-up so it is the complete register. -->
   <!-- ratification 2026-07-31: F-PT-003 (CF-J07-I), F-PT-004 (CF-J04-I/CF-B15-*

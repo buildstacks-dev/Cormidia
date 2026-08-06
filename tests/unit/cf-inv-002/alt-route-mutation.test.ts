@@ -30,8 +30,8 @@ const bash = (command: string): ToolAction => ({ tool: "bash", input: { command 
 const CAUGHT_MUTATIONS: ReadonlyArray<{ name: string; command: string; rule: string }> = [
   { name: "gh pr merge (self-merge)", command: "gh pr merge 7 --squash", rule: "self-merge-or-approve" },
   { name: "gh pr review (self-approval publish channel)", command: "gh pr review 7 --comment -b ok", rule: "self-merge-or-approve" },
-  { name: "gh release create (external publication)", command: "gh release create v1", rule: "external-publishing" },
-  { name: "gh issue create (external publication)", command: "gh issue create -t x -b y", rule: "external-publishing" },
+  { name: "gh release create (release artifact)", command: "gh release create v1", rule: "release-artifact" },
+  { name: "gh issue create (repo collaboration)", command: "gh issue create -t x -b y", rule: "repo-collaboration" },
   { name: "gh workflow run (deploy trigger)", command: "gh workflow run deploy.yml", rule: "production-deploy" },
   { name: "raw HTTPS API mutation via curl (egress)", command: "curl -X POST https://api.github.com/repos/o/r/merges", rule: "outbound-network" },
 ];
@@ -39,8 +39,8 @@ const CAUGHT_MUTATIONS: ReadonlyArray<{ name: string; command: string; rule: str
 /** The tool-name route (adapter-native GitHub op) — INV-002 "adapter-native
  *  tool formats". */
 const CAUGHT_TOOL_ROUTES: ReadonlyArray<{ name: string; action: ToolAction; rule: string }> = [
-  { name: "cormidia.github.issue.create tool", action: { tool: "cormidia.github.issue.create", input: { title: "x" } }, rule: "external-publishing" },
-  { name: "cormidia.github.issue.comment tool", action: { tool: "cormidia.github.issue.comment", input: { body: "x" } }, rule: "external-publishing" },
+  { name: "cormidia.github.issue.create tool", action: { tool: "cormidia.github.issue.create", input: { title: "x" } }, rule: "repo-collaboration" },
+  { name: "cormidia.github.issue.comment tool", action: { tool: "cormidia.github.issue.comment", input: { body: "x" } }, rule: "repo-collaboration" },
 ];
 
 /** HB-010 (fixed 2026-07-31): the raw-API escape hatch. Every MUTATING
@@ -56,8 +56,8 @@ const API_MUTATIONS: ReadonlyArray<{ name: string; command: string; rule: string
   { name: "--method PUT pulls/*/merge (self-merge via raw API)", command: "gh api --method PUT repos/o/r/pulls/7/merge -f merge_method=squash", rule: "self-merge-or-approve" },
   { name: "-XPUT glued form on pulls/*/merge", command: "gh api -XPUT repos/o/r/pulls/7/merge", rule: "self-merge-or-approve" },
   { name: "-X POST pulls/*/reviews (review publish via raw API)", command: "gh api -X POST repos/o/r/pulls/7/reviews -f event=APPROVE", rule: "self-merge-or-approve" },
-  { name: "-X POST releases (publication via raw API)", command: "gh api -X POST repos/o/r/releases -f tag_name=v1", rule: "external-publishing" },
-  { name: "implicit POST via -f to issues (issue create, no --method at all)", command: "gh api repos/o/r/issues -f title=x", rule: "external-publishing" },
+  { name: "-X POST releases (publication via raw API)", command: "gh api -X POST repos/o/r/releases -f tag_name=v1", rule: "release-artifact" },
+  { name: "implicit POST via -f to issues (issue create, no --method at all)", command: "gh api repos/o/r/issues -f title=x", rule: "repo-collaboration" },
   { name: "-X DELETE git/refs (destructive raw mutation)", command: "gh api -X DELETE repos/o/r/git/refs/heads/x", rule: "gh-api-unrecognized" },
   { name: "lowercase -X delete (method matching is case-insensitive)", command: "gh api -X delete repos/o/r/git/refs/heads/x", rule: "gh-api-unrecognized" },
   { name: "--method=PATCH inline form on an unrecognized endpoint", command: "gh api --method=PATCH repos/o/r/git/refs/heads/x", rule: "gh-api-unrecognized" },

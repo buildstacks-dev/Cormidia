@@ -241,7 +241,7 @@ const CORMIDIA_VERB = {
  *  the flattened effect text: `gh api <method> <endpoint>`. */
 const GH_API_PROJECTION = /\bgh api (get|head|post|put|patch|delete|unknown)(?: (\S+))?/g;
 
-type GhApiRoute = "self-merge-or-approve" | "external-publishing" | "gh-api-unrecognized";
+type GhApiRoute = "self-merge-or-approve" | "repo-collaboration" | "release-artifact" | "gh-api-unrecognized";
 
 /** `gh api` is the GitHub CLI's raw REST/GraphQL escape hatch: `gh api
  *  --method PUT repos/o/r/pulls/7/merge` performs the same merge as
@@ -252,8 +252,10 @@ type GhApiRoute = "self-merge-or-approve" | "external-publishing" | "gh-api-unre
  *  never-scopeable list and role shaping all key off the rule name:
  *   - `pulls/{n}/merge` and `…/reviews` are the raw-API spellings of
  *     `gh pr merge` / `gh pr review` → self-merge-or-approve;
- *   - `releases`, `issues`, `comments` are the raw-API spellings of
- *     `gh release|issue|pr create/comment` → external-publishing;
+ *   - `releases` is the raw-API spelling of `gh release create` →
+ *     release-artifact; `issues`/`comments` are the raw-API spellings of
+ *     `gh issue|pr create/comment` → repo-collaboration (§5.3 split, #296 —
+ *     the composed gate refines own vs foreign by target);
  *   - anything else (git/refs deletes, workflow dispatches, …) is an
  *     arbitrary remote mutation → gh-api-unrecognized (§5.1 split, #296:
  *     human-only, fail closed — formerly the destructive-or-irreversible
@@ -278,9 +280,11 @@ function ghApiRoutesTo(text: string, rule: GhApiRoute): boolean {
           ? null
           : /\bpulls\/[^\s/]+\/merge\b/.test(endpoint) || /(?:^|\/)reviews\b/.test(endpoint)
             ? "self-merge-or-approve"
-            : /(?:^|\/)(?:releases|issues|comments)\b/.test(endpoint)
-              ? "external-publishing"
-              : "gh-api-unrecognized";
+            : /(?:^|\/)releases\b/.test(endpoint)
+              ? "release-artifact"
+              : /(?:^|\/)(?:issues|comments)\b/.test(endpoint)
+                ? "repo-collaboration"
+                : "gh-api-unrecognized";
     if (route === rule) return true;
   }
   return false;
@@ -432,16 +436,52 @@ export const CRITICAL_RULES: CriticalRule[] = [
     },
   },
   {
-    name: "external-publishing",
+    // §5.3 split (#296, F-PT-023 ratified): package publication is permanent
+    // and public — human-only, never absorbed by the collaboration tier.
+    name: "package-publish",
+    matches: (a) => /\b(?:npm|pnpm|yarn)\s+publish\b/.test(effectText(a)),
+  },
+  {
+    // §5.3 split (#296): release artifacts — gh release create, its raw-API
+    // spelling, and git tag CREATION (a tag push is a release trigger, A4).
+    // Tag LISTING stays routine: the point is the boundary, not friction on
+    // inspection.
+    name: "release-artifact",
     matches: (a) => {
       const t = effectText(a);
       return (
-        /\bnpm\s+publish\b|\b(?:sendmail|mail|tweet)\b/.test(t) ||
-        /\bgh\s+(?:issue\s+(?:create|comment)|pr\s+(?:create|comment)|release\s+create)\b/.test(t) ||
-        // The raw-API spellings of the same publications: a mutating `gh api`
-        // against releases/issues/comments (see ghApiRoutesTo, HB-010).
-        ghApiRoutesTo(t, "external-publishing") ||
-        CORMIDIA_VERB.publish.test(t) ||
+        /\bgh\s+release\s+create\b/.test(t) ||
+        ghApiRoutesTo(t, "release-artifact") ||
+        gitTagCreation(a)
+      );
+    },
+  },
+  {
+    // §5.3 split (#296): outbound messages — mail, tweets, and the org CLI's
+    // own publish verbs (`cormidia plan ratify-ticket-budget`, `cormidia
+    // bootstrap publish`). Irreversible, outside-world, human-only.
+    name: "outbound-message",
+    matches: (a) => {
+      const t = effectText(a);
+      return /\b(?:sendmail|mail|tweet)\b/.test(t) || CORMIDIA_VERB.publish.test(t);
+    },
+  },
+  {
+    // §5.3 split (#296) — THE HEADLINE: repo collaboration (issue/PR
+    // create/comment, the typed durable-github tools, and their raw-API
+    // spellings). Budgeted, but the budgeted tier is reachable ONLY after the
+    // composed gate verifies the target repository is the app's own
+    // (collaborationTargets + gate-compose refinement): an explicit foreign
+    // slug, a dynamic slug, a cwd-shifting compound, or an unverifiable
+    // workdir origin refines to `repo-collaboration-foreign` (human-only,
+    // never widenable) — the compensating control that makes this split a net
+    // tightening, because today the gate never checks the target at all.
+    name: "repo-collaboration",
+    matches: (a) => {
+      const t = effectText(a);
+      return (
+        /\bgh\s+(?:issue\s+(?:create|comment)|pr\s+(?:create|comment))\b/.test(t) ||
+        ghApiRoutesTo(t, "repo-collaboration") ||
         a.tool.toLowerCase() === "cormidia.github.issue.create" ||
         a.tool.toLowerCase() === "cormidia.github.issue.comment"
       );
@@ -767,6 +807,122 @@ export function outboundDestinations(action: ToolAction): string[] | null {
   return sawEgress ? [""] : [""];
 }
 
+/** §5.3 (#296): true when the action CREATES a git tag. `git tag` with a
+ *  positional (or annotate/sign/message flags) creates; bare/`-l`/`--list`
+ *  forms only report and stay routine. */
+function gitTagCreation(action: ToolAction): boolean {
+  const { semantic } = semanticActionWithShell(action);
+  if (semantic.command === null) return false;
+  const command = stripShellComments(stripHeredocBodies(unwrapCommand(semantic.command)));
+  const parsed = parseShell(lexShell(command));
+  for (const segment of parsed.commands) {
+    const argv = segment.filter((token) => token.kind === "word").map((token) => token.text);
+    let cursor = 0;
+    while (isAssignment(argv[cursor])) cursor += 1;
+    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? ""))) cursor += 1;
+    if (baseExecutable(argv[cursor] ?? "") !== "git") continue;
+    const args = argv.slice(cursor + 1);
+    if (gitSubcommand(args) !== "tag") continue;
+    const tagArgs = gitSubcommandArgs(args);
+    if (tagArgs.some((arg) => /^(?:-l|--list|-n\d*)$/.test(arg))) continue;
+    const positionals = tagArgs.filter((arg) => !arg.startsWith("-"));
+    // `-m <msg>` values are positionals to this naive filter; presence of any
+    // positional or an annotate/sign flag is a creation shape (fail closed —
+    // an exotic read form costs one tap).
+    if (positionals.length > 0 || tagArgs.some((arg) => /^-(?:a|s|m)$/.test(arg))) return true;
+  }
+  return false;
+}
+
+export interface CollaborationTargets {
+  /** Literal --repo/-R slugs (or the typed tool's input.repo). */
+  explicit: string[];
+  /** A target the projection cannot resolve statically: a dynamic slug, a
+   *  cwd-shifting compound, or collaboration visible only in the flattened
+   *  projection. Fail closed to foreign. */
+  undeterminable: boolean;
+  /** At least one collaboration invocation names no repo — it targets the
+   *  cwd's repository, which the composed gate verifies against the
+   *  workdir's real git origin. */
+  implicitCwd: boolean;
+}
+
+/** §5.3 (#296): the target repositories of every collaboration invocation in
+ *  the action, or null when the action carries none. The composed gate turns
+ *  this into the own/foreign refinement; nothing here consults configuration. */
+export function collaborationTargets(action: ToolAction): CollaborationTargets | null {
+  const tool = action.tool.toLowerCase();
+  if (tool === "cormidia.github.issue.create" || tool === "cormidia.github.issue.comment") {
+    const input = asRecord(action.input);
+    const repo = typeof input?.["repo"] === "string" ? input["repo"].trim() : "";
+    return repo.length > 0 && !/[$\x60{]/.test(repo)
+      ? { explicit: [repo], undeterminable: false, implicitCwd: false }
+      : { explicit: [], undeterminable: true, implicitCwd: false };
+  }
+
+  const text = asText(action);
+  const textual = /\bgh\s+(?:issue\s+(?:create|comment)|pr\s+(?:create|comment))\b/.test(text) ||
+    /\bgh api (?:post|put|patch|delete|unknown) \S*(?:issues|comments)/.test(text);
+  const { semantic } = semanticActionWithShell(action);
+  if (semantic.command === null) {
+    return textual ? { explicit: [], undeterminable: true, implicitCwd: false } : null;
+  }
+  const command = stripShellComments(stripHeredocBodies(unwrapCommand(semantic.command)));
+  const parsed = parseShell(lexShell(command.replace(/\$\{IFS\}/gi, " ")));
+  const result: CollaborationTargets = { explicit: [], undeterminable: false, implicitCwd: false };
+  let sawCollaboration = false;
+  let sawCwdShift = false;
+  for (const segment of parsed.commands) {
+    const argv = segment.filter((token) => token.kind === "word").map((token) => token.text);
+    let cursor = 0;
+    while (isAssignment(argv[cursor])) cursor += 1;
+    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? ""))) cursor += 1;
+    const executable = baseExecutable(argv[cursor] ?? "");
+    if (executable === "cd" || executable === "pushd") {
+      sawCwdShift = true;
+      continue;
+    }
+    if (executable !== "gh") continue;
+    const args = argv.slice(cursor + 1);
+    const positionals = args.filter((arg) => !arg.startsWith("-"));
+    const isVerb = (positionals[0] === "issue" || positionals[0] === "pr") &&
+      (positionals[1] === "create" || positionals[1] === "comment");
+    const isApiCollab = positionals[0] === "api" &&
+      positionals.some((arg) => /(?:^|\/)(?:issues|comments)\b/.test(arg));
+    if (!isVerb && !isApiCollab) continue;
+    sawCollaboration = true;
+    if (isApiCollab) {
+      const endpoint = positionals.find((arg) => /(?:^|\/)(?:issues|comments)\b/.test(arg)) ?? "";
+      const slug = /^repos\/([^/\s]+\/[^/\s]+)\//.exec(endpoint)?.[1];
+      if (slug !== undefined && !/[$\x60{]/.test(slug)) result.explicit.push(slug);
+      else result.undeterminable = true;
+      continue;
+    }
+    let explicitRepo = false;
+    for (let i = 0; i < args.length; i += 1) {
+      const arg = args[i]!;
+      let value: string | undefined;
+      if (arg === "-R" || arg === "--repo") value = args[i + 1];
+      else if (arg.startsWith("--repo=")) value = arg.slice("--repo=".length);
+      else continue;
+      explicitRepo = true;
+      if (value === undefined || /[$\x60{]/.test(value) || !/^[\w.-]+\/[\w.-]+$/.test(value)) {
+        result.undeterminable = true;
+      } else {
+        result.explicit.push(value);
+      }
+    }
+    if (!explicitRepo) result.implicitCwd = true;
+  }
+  if (!sawCollaboration) {
+    return textual ? { explicit: [], undeterminable: true, implicitCwd: false } : null;
+  }
+  // A cwd shift anywhere in the compound makes any cwd-implied target — and
+  // the trust anchor for verification — unresolvable.
+  if (sawCwdShift) result.undeterminable = true;
+  return result;
+}
+
 function isWrite(a: ToolAction): boolean {
   const semantic = normalizeSemanticAction(a);
   if (semantic.operation === "write") return true;
@@ -946,10 +1102,20 @@ export const RULE_DISPOSITION_TIERS: Readonly<Record<string, Exclude<Disposition
   // grantable tier the whole bucket had.
   "secret-mutate": "human-only",
   "secret-read": "grantable",
-  // A durable publication must be represented by its own content-bound
-  // action so the later executor can acknowledge exactly what ran. A broad
-  // external-publishing grant would erase that decision/execution join.
-  "external-publishing": "human-only",
+  // §5.3 split (#296): verified own-repo collaboration is the headline
+  // budgeted case — reachable only after target verification at the composed
+  // gate; everything else in the old external-publishing bucket stays
+  // human-only. `repo-collaboration-foreign` is a DISPOSITION rule the
+  // composed gate assigns after verification fails; the classifier never
+  // emits it directly (like learning-publish, it exists in this table so the
+  // never-scopeable boundary and the store's refusals apply to raised items).
+  // A durable publication must still be represented by its own content-bound
+  // action so the later executor can acknowledge exactly what ran.
+  "repo-collaboration": "budgeted",
+  "repo-collaboration-foreign": "human-only",
+  "package-publish": "human-only",
+  "release-artifact": "human-only",
+  "outbound-message": "human-only",
   "provider-global-memory": "grantable",
   // §5.4 (#296): determinable destinations keep the grantable tier (the
   // allowlist→budgeted refinement is config at the composed gate);
@@ -987,6 +1153,11 @@ const RETIRED_RULE_TIERS: Readonly<Record<string, Exclude<DispositionTier, "rout
   "destructive-or-irreversible": "grantable",
   // Split 2026-08-06 (#296 §5.2) into secret-mutate / secret-read.
   "secrets-or-auth": "grantable",
+  // Split 2026-08-06 (#296 §5.3) into repo-collaboration(-foreign) /
+  // package-publish / release-artifact / outbound-message. Human-only
+  // tombstone: the old bucket was never widenable, and a stale item must not
+  // loosen.
+  "external-publishing": "human-only",
 };
 
 export function dispositionTierForRule(rule: string): Exclude<DispositionTier, "routine"> {

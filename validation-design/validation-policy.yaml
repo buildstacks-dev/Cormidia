@@ -53,6 +53,17 @@
 # changelog 2026-08-03 (owner decision): exact manual-review independently excludes
 # autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
 # No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
+# changelog 2026-08-06 (#296 PR D, §5.3 headline split landed): external-publishing
+# is replaced by repo-collaboration (budgeted — reachable ONLY after the composed
+# gate verifies the target is the app's own configured repository: explicit slug
+# match or the workdir's real git origin; failures refine to the human-only
+# repo-collaboration-foreign disposition rule and the raised item carries THAT
+# rule), package-publish, release-artifact (incl. git tag creation; listing stays
+# routine), and outbound-message (all human-only). The refinement runs BEFORE grant
+# matching, so no standing grant is ever consulted under the budgeted name for a
+# foreign target. Retired name tombstoned human-only. ACTION_IDENTITY_VERSION
+# bumped 6->7. All four ratified splits are now landed; F-PT-024 (grantless
+# budgeted quantum) remains the one open successor finding.
 # changelog 2026-08-06 (#296 PR C, §5.4 refinement landed): outbound-network now
 # classifies by DESTINATION: undeterminable destinations (variables, substitutions,
 # backticks, ${IFS}, config-file/piped/interpolated forms) fail closed to the new

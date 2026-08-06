@@ -112,6 +112,10 @@ export function createLoopGateForRole(
   orgHome?: string,
   store: ApprovalStore = new ApprovalStore(stateHome),
   workdir?: string,
+  /** §5.3/§5.4 (#296): the app's configured repo and egress allowlist. Without
+   *  them collaboration actions fail closed to repo-collaboration-foreign and
+   *  the egress allowlist falls back to the ratified default. */
+  appConfig?: { repo: string; networkAllowlist?: readonly string[] },
 ): (role: RoleConfig, passWorkdir?: string) => GateFn {
   return (role, passWorkdir) => {
     // The executor running the pass knows its sandbox cwd; this call site only
@@ -125,6 +129,10 @@ export function createLoopGateForRole(
       turnId,
       ...(orgHome !== undefined ? { orgHome } : {}),
       ...(cwd !== undefined ? { workdir: cwd } : {}),
+      ...(appConfig !== undefined ? { appRepo: appConfig.repo } : {}),
+      ...(appConfig?.networkAllowlist !== undefined
+        ? { networkAllowlist: appConfig.networkAllowlist }
+        : {}),
     });
   };
 }
@@ -350,6 +358,12 @@ export async function cmdLoop(args: string[]): Promise<number> {
         homes.orgHome,
         approvalStore,
         localRepo,
+        {
+          repo: selectedApp.repo,
+          ...(selectedApp.networkAllowlist !== undefined
+            ? { networkAllowlist: selectedApp.networkAllowlist }
+            : {}),
+        },
       );
       const budgetRows = await enforceBudgetOverlay(homes.stateHome, appsFile);
       const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);

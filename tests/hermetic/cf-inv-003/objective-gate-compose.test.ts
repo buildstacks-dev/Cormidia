@@ -28,7 +28,7 @@ import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 const APP = "objective-app";
 const ROLE = "builder";
 const SECRET_READ: ToolAction = { tool: "bash", input: { command: "cat .env" } };
-const PUBLISH_COMMENT: ToolAction = { tool: "bash", input: { command: "gh issue comment 12 --body done" } };
+const PUBLISH_ACTION: ToolAction = { tool: "bash", input: { command: "npm publish --access public" } };
 
 describe("CF-INV-003 — objective grants under composeGate (L2)", () => {
   let cleanups: Array<() => Promise<void> | void> = [];
@@ -108,21 +108,21 @@ describe("CF-INV-003 — objective grants under composeGate (L2)", () => {
     const { approvals, objectives, clock, gate } = await makeWorld();
     const grant = objectives.createSync({
       app: APP,
-      objective: "comment progress on our own tickets",
+      objective: "publish the qualified candidate",
       createdBy: "human/owner",
       repoNamespace: "cormidia/objective-app",
       spendCeilingUsd: 10,
-      criticalClasses: [{ rule: "external-publishing", scope: "cormidia/objective-app issues" }],
+      criticalClasses: [{ rule: "package-publish", scope: "cormidia@0.1.x" }],
       now: clock.nowDate(),
     });
 
-    expect(gate(PUBLISH_COMMENT)).toEqual({ allow: true });
+    expect(gate(PUBLISH_ACTION)).toEqual({ allow: true });
     expect(await approvals.listPending()).toHaveLength(0);
 
     objectives.revokeSync(grant.grantId, clock.nowDate());
-    const denied = gate(PUBLISH_COMMENT);
+    const denied = gate(PUBLISH_ACTION);
     expect(denied.allow).toBe(false);
-    expect((await approvals.listPending()).map((item) => item.rule)).toEqual(["external-publishing"]);
+    expect((await approvals.listPending()).map((item) => item.rule)).toEqual(["package-publish"]);
   });
 
   it("ceiling exhaustion kills coverage: the covered action escalates instead of silently passing (never green by absence)", async () => {

@@ -232,7 +232,14 @@ export { NEVER_SCOPEABLE_RULES } from "../runtime/gate.js";
  * in its sandbox.
  */
 export const ORCHESTRATOR_EXECUTABLE_RULES: readonly string[] = [
-  "external-publishing",
+  // §5.3 split (#296): the classes that replaced external-publishing keep its
+  // executor capability — the same publications the human read in `cormidia
+  // approvals show`, behind the same fresh human approval.
+  "repo-collaboration",
+  "repo-collaboration-foreign",
+  "package-publish",
+  "release-artifact",
+  "outbound-message",
   "outbound-network",
   // §5.1 split (#296): the five classes that replaced
   // destructive-or-irreversible keep its executor capability — the same
@@ -1662,10 +1669,11 @@ function isActorClaimable(executor: ApprovalExecutor | undefined): boolean {
  *  cancel at landing" — the A-002 precedent): classification semantics for the
  *  destructive family changed, so authority minted under the old semantics
  *  stops matching and agents simply re-raise. v5 repeats that cancellation at
- *  the §5.2 secrets split landing, v6 at the §5.4 outbound refinement. Each migration is intentional and
+ *  the §5.2 secrets split landing, v6 at the §5.4 outbound refinement, and
+ *  v7 at the §5.3 publishing split. Each migration is intentional and
  *  abrupt: the instant it lands, in-flight grants stop matching, agents
  *  re-raise, and the miss path yields a fresh approval item — never a crash. */
-export const ACTION_IDENTITY_VERSION = 6;
+export const ACTION_IDENTITY_VERSION = 7;
 
 /** Input keys `normalizeSemanticAction` (src/runtime/gate.ts) already folds
  *  into the semantic identity. Everything ELSE in the input is agent-authored

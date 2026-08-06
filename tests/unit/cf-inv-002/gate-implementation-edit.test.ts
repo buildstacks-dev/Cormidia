@@ -89,7 +89,14 @@ describe("CF-INV-003 — Stage 2 ratified tier table (five tightenings + the new
     // §5.2 split (#296, ratified) replaced secrets-or-auth.
     "secret-mutate": "human-only",
     "secret-read": "grantable",
-    "external-publishing": "human-only",
+    // §5.3 split (#296, ratified) replaced external-publishing. The foreign
+    // class is a disposition rule the composed gate assigns, not a classifier
+    // rule.
+    "repo-collaboration": "budgeted",
+    "repo-collaboration-foreign": "human-only",
+    "package-publish": "human-only",
+    "release-artifact": "human-only",
+    "outbound-message": "human-only",
     "provider-global-memory": "grantable",
     // §5.4 (#296, ratified): undeterminable destinations fail closed.
     "outbound-network": "grantable",
@@ -105,7 +112,7 @@ describe("CF-INV-003 — Stage 2 ratified tier table (five tightenings + the new
 
   it("every classifier rule plus learning-publish carries its ratified Stage 2 tier", () => {
     expect(Object.keys(STAGE2_TIERS).sort()).toEqual(
-      [...CRITICAL_RULES.map((rule) => rule.name), "learning-publish"].sort(),
+      [...CRITICAL_RULES.map((rule) => rule.name), "learning-publish", "repo-collaboration-foreign"].sort(),
     );
     for (const [rule, tier] of Object.entries(STAGE2_TIERS)) {
       expect(dispositionTierForRule(rule), rule).toBe(tier);
@@ -119,7 +126,14 @@ describe("CF-INV-003 — Stage 2 ratified tier table (five tightenings + the new
       "destructive-or-irreversible": "grantable",
       "dns-or-domain": "grantable",
       "secrets-or-auth": "grantable",
-      "external-publishing": "human-only",
+      // §5.3 split (#296, ratified) replaced external-publishing. The foreign
+    // class is a disposition rule the composed gate assigns, not a classifier
+    // rule.
+    "repo-collaboration": "budgeted",
+    "repo-collaboration-foreign": "human-only",
+    "package-publish": "human-only",
+    "release-artifact": "human-only",
+    "outbound-message": "human-only",
       "provider-global-memory": "grantable",
       "outbound-network": "grantable",
       "self-merge-or-approve": "human-only",

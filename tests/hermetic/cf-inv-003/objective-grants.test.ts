@@ -94,7 +94,7 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
     expect(() => store.createSync({ ...baseInput(clock), classes: ["no-such-rule"] })).toThrow(/not a known rule/);
     expect(() => store.createSync({ ...baseInput(clock), classes: [] })).toThrow(/at least one class/);
     // A human-only class through the ordinary list must point at the ceremony.
-    expect(() => store.createSync({ ...baseInput(clock), classes: ["external-publishing"] }))
+    expect(() => store.createSync({ ...baseInput(clock), classes: ["package-publish"] }))
       .toThrow(/§4.1|ceremony|grant-critical/);
     // A grantable class through the ceremony list is a category error too.
     expect(() =>
@@ -110,20 +110,20 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
     expect(() =>
       store.createSync({
         ...baseInput(clock),
-        criticalClasses: [{ rule: "external-publishing", scope: "  " }],
+        criticalClasses: [{ rule: "package-publish", scope: "  " }],
       }),
     ).toThrow(/bounded scope/);
     expect(() =>
       store.createSync({
         ...baseInput(clock),
-        criticalClasses: [{ rule: "external-publishing", scope: "cormidia/objective-app issues" }],
+        criticalClasses: [{ rule: "package-publish", scope: "cormidia@0.1.x" }],
         ttlMs: OBJECTIVE_GRANT_DEFAULT_TTL_MS,
       }),
     ).toThrow(/strictly shorter/);
     expect(() =>
       store.createSync({
         ...baseInput(clock),
-        criticalClasses: [{ rule: "external-publishing", scope: "cormidia/objective-app issues" }],
+        criticalClasses: [{ rule: "package-publish", scope: "cormidia@0.1.x" }],
         useCap: OBJECTIVE_GRANT_DEFAULT_USE_CAP,
       }),
     ).toThrow(/strictly shorter/);
@@ -131,14 +131,14 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
     const grant = store.createSync({
       ...baseInput(clock),
       criticalClasses: [
-        { rule: "external-publishing", scope: "cormidia/objective-app issues", precondition: "RQ-1 evidence complete" },
+        { rule: "package-publish", scope: "cormidia@0.1.x", precondition: "RQ-1 evidence complete" },
       ],
     });
     expect(grant.usesRemaining).toBeLessThan(OBJECTIVE_GRANT_DEFAULT_USE_CAP);
     expect(new Date(grant.expiresAt).getTime() - clock.nowDate().getTime())
       .toBeLessThan(OBJECTIVE_GRANT_DEFAULT_TTL_MS);
     expect(
-      store.findCoveringGrantSync({ app: APP, rule: "external-publishing", now: clock.nowDate() })?.grantId,
+      store.findCoveringGrantSync({ app: APP, rule: "package-publish", now: clock.nowDate() })?.grantId,
     ).toBe(grant.grantId);
   });
 

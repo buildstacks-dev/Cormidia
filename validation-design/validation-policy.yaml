@@ -53,6 +53,15 @@
 # changelog 2026-08-03 (owner decision): exact manual-review independently excludes
 # autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
 # No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
+# changelog 2026-08-06 (#296 PR C, §5.4 refinement landed): outbound-network now
+# classifies by DESTINATION: undeterminable destinations (variables, substitutions,
+# backticks, ${IFS}, config-file/piped/interpolated forms) fail closed to the new
+# human-only outbound-network-undeterminable class; determinable hosts keep the
+# grantable tier; hosts on the app's configured allowlist (apps.yaml
+# network_allowlist, org default + per-app override, ratified default trio
+# registry.npmjs.org/api.github.com/github.com) ride the budgeted tier at the
+# composed gate with per-action audit rows (grantless quantum: F-PT-024).
+# ACTION_IDENTITY_VERSION bumped 5->6 (in-flight grants cancel at landing).
 # changelog 2026-08-06 (#296 PR B, §5.2 split landed): secrets-or-auth is replaced by
 # secret-mutate (HO, tightened) and secret-read (grantable, the bucket's former tier);
 # the repo-local .npmrc/.netrc scrub is retained verbatim, the retired name keeps a

@@ -10,6 +10,7 @@ import { join, resolve } from "node:path";
 import { parse, parseDocument, stringify } from "yaml";
 import type { RoleConfig, Trigger } from "../runtime/types.js";
 import { isAssignmentCandidateId } from "../runtime/assignment.js";
+import { DEFAULT_NETWORK_ALLOWLIST } from "../runtime/gate.js";
 import { ASSIGNMENT_MODES, type AssignmentMode } from "../loop/episode-plan.js";
 import { assertCanonicalGateCommandPlacement } from "../loop/gate-config.js";
 import { RELEASE_KINDS, RELEASE_OWNERS, RELEASE_TRIGGERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner, type ReleaseTriggerMode } from "../loop/types.js";
@@ -61,6 +62,11 @@ export interface AppEntry {
    *  here; the org-level WIP limit is what code enforces. */
   status: AppStatus;
   budgetUsdMonth: number;
+  /** §5.4 egress allowlist for this app (#296): apps.yaml `network_allowlist`
+   *  (per app, with an org-level default under `defaults:`), falling back to
+   *  the ratified DEFAULT_NETWORK_ALLOWLIST. Optional on the type so
+   *  hand-built fixtures stay small; loadApps always populates it. */
+  networkAllowlist?: readonly string[];
   /** Objective-grant spend-ceiling default for this app (#296 Stage 3,
    *  proposal §7): same default and override path as budget_usd_month —
    *  apps.yaml `defaults.objective_budget_usd`, per-app override, no special
@@ -89,7 +95,7 @@ export interface AppsFile {
    *  (architecture.md §1 — `.cormidia/config.yaml` shares this schema). */
   schemaVersion?: number;
   org: { name: string; maxConcurrentTurns: number };
-  defaults: { budgetUsdMonth: number; objectiveBudgetUsd: number };
+  defaults: { budgetUsdMonth: number; objectiveBudgetUsd: number; networkAllowlist?: readonly string[] };
   apps: AppEntry[];
 }
 
@@ -159,6 +165,8 @@ export async function loadApps(path: string): Promise<AppsFile> {
     // #296 Stage 3: the objective-grant ceiling default follows the exact
     // budget_usd_month pattern (proposal §7 — configured, never hardcoded).
     objectiveBudgetUsd: numberOr(defaultsRaw["objective_budget_usd"], 1000),
+    // #296 §5.4: org-level egress allowlist default (ratified trio fallback).
+    networkAllowlist: stringListOr(defaultsRaw["network_allowlist"], DEFAULT_NETWORK_ALLOWLIST),
   };
 
   const appsRaw = raw["apps"];
@@ -178,7 +186,7 @@ export async function loadApps(path: string): Promise<AppsFile> {
 function parseApp(
   name: string,
   specUnknown: unknown,
-  defaults: { budgetUsdMonth: number; objectiveBudgetUsd: number },
+  defaults: { budgetUsdMonth: number; objectiveBudgetUsd: number; networkAllowlist?: readonly string[] },
   path: string,
 ): AppEntry {
   const err = (msg: string) => new Error(`${path}: app "${name}": ${msg}`);
@@ -196,6 +204,7 @@ function parseApp(
     "status",
     "budget_usd_month",
     "objective_budget_usd",
+    "network_allowlist",
     "cadence",
     "channels",
     "release",
@@ -253,6 +262,7 @@ function parseApp(
     status: status as AppStatus,
     budgetUsdMonth: numberOr(spec["budget_usd_month"], defaults.budgetUsdMonth),
     objectiveBudgetUsd: numberOr(spec["objective_budget_usd"], defaults.objectiveBudgetUsd),
+    networkAllowlist: stringListOr(spec["network_allowlist"], defaults.networkAllowlist ?? DEFAULT_NETWORK_ALLOWLIST),
     cadence,
     channels: parseChannels(spec["channels"], err),
     execution: parseExecution(spec["execution"], err),
@@ -838,6 +848,14 @@ export async function updateAppStatus(
     throw new Error(`app promote: invalid registry edit rolled back: ${error instanceof Error ? error.message : String(error)}`);
   }
   return { orgHome, appsPath, before: app.status, after: status, changed: true };
+}
+
+function stringListOr(value: unknown, fallback: readonly string[]): readonly string[] {
+  if (value === undefined || value === null) return fallback;
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.trim().length === 0)) {
+    throw new Error("network_allowlist must be a list of non-empty host strings");
+  }
+  return (value as string[]).map((entry) => entry.trim().toLowerCase());
 }
 
 function numberOr(v: unknown, fallback: number): number {

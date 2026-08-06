@@ -6,7 +6,12 @@
 // with guidance and a durable lesson instead of burning a human decision —
 // the episode spent 20 decisions on attempts the protocol already forbade.
 
-import { actionEffectFields, decideDisposition } from "../runtime/gate.js";
+import {
+  actionEffectFields,
+  decideDisposition,
+  DEFAULT_NETWORK_ALLOWLIST,
+  outboundDestinations,
+} from "../runtime/gate.js";
 import { FORBIDDEN_BY_ROLE } from "../runtime/role-shaping.js";
 import type { GateDecision, GateFn, ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore } from "./approvals.js";
@@ -25,6 +30,11 @@ export interface GateContext {
    *  approved command in the context it was approved for rather than a guessed
    *  one (ISSUE-020). Omitted where the caller has no checkout. */
   workdir?: string;
+  /** §5.4 (#296): the app's configured egress allowlist (apps.yaml
+   *  `network_allowlist`). Omitted ⇒ the ratified DEFAULT_NETWORK_ALLOWLIST.
+   *  A determinable outbound destination on this list rides the budgeted
+   *  tier; everything else keeps the grantable escalation. */
+  networkAllowlist?: readonly string[];
   now?: () => Date;
 }
 
@@ -170,7 +180,20 @@ export function composeGate(
     // governed denials. The bare defaultGate still denies budgeted actions —
     // proceed semantics exist only here, where the audit surface exists. The
     // grantless accounting quantum is F-PT-024.
-    if (rule !== undefined && disposition.tier === "budgeted") {
+    // §5.4 (#296): an outbound action whose EVERY destination is statically
+    // determinable and on the app's configured allowlist rides the budgeted
+    // tier. The allowlist is configuration — context-supplied per app, with
+    // the ratified default trio as fallback — never a tier decision baked
+    // into the classifier.
+    const allowlist = context.networkAllowlist ?? DEFAULT_NETWORK_ALLOWLIST;
+    const effectiveTier =
+      disposition.tier === "grantable" &&
+      rule === "outbound-network" &&
+      destinationsAllAllowlisted(action, allowlist)
+        ? "budgeted"
+        : disposition.tier;
+
+    if (rule !== undefined && effectiveTier === "budgeted") {
       objectiveGrants.recordBudgetedActionSync(
         { app: context.app, rule, actionHash: hash },
         now,
@@ -195,6 +218,18 @@ export function composeGate(
     }
     return decision;
   };
+}
+
+/** §5.4: every destination statically determinable AND on the allowlist. */
+function destinationsAllAllowlisted(action: ToolAction, allowlist: readonly string[]): boolean {
+  const destinations = outboundDestinations(action);
+  return (
+    destinations !== null &&
+    destinations.length > 0 &&
+    destinations.every(
+      (host) => host !== "" && allowlist.some((entry) => entry.toLowerCase() === host.toLowerCase()),
+    )
+  );
 }
 
 export function actorRetryActor(role: string, turnId: string | undefined): string {

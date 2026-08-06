@@ -2,7 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-import type { EvalTuple } from "./eval-runner.js";
+import type { EvalCaseTokenReservation, EvalTuple } from "./eval-runner.js";
 
 export interface EvalCliConfigV1 {
   schema_version: 1;
@@ -14,6 +14,7 @@ export interface EvalCliConfigV1 {
   app: string;
   golden_set_files: string[];
   tuples: EvalTuple[];
+  case_token_reservations: EvalCaseTokenReservation[];
   max_tokens: number;
   max_provider_turns: number;
   max_equiv_usd: number;
@@ -31,7 +32,7 @@ export async function loadEvalConfig(env: NodeJS.ProcessEnv = process.env): Prom
 
 function validate(value: unknown): asserts value is EvalCliConfigV1 {
   const root = object(value, "eval config");
-  exact(root, ["schema_version", "campaign_id", "human_authorization", "state_home", "policy_path", "commit", "app", "golden_set_files", "tuples", "max_tokens", "max_provider_turns", "max_equiv_usd", "shard"]);
+  exact(root, ["schema_version", "campaign_id", "human_authorization", "state_home", "policy_path", "commit", "app", "golden_set_files", "tuples", "case_token_reservations", "max_tokens", "max_provider_turns", "max_equiv_usd", "shard"]);
   if (root["schema_version"] !== 1) throw new Error("eval config schema_version must be 1");
   required(root["campaign_id"], "campaign_id"); required(root["app"], "app");
   for (const name of ["state_home", "policy_path"] as const) if (!isAbsolute(required(root[name], name))) throw new Error(`${name} must be absolute`);
@@ -57,6 +58,14 @@ function validate(value: unknown): asserts value is EvalCliConfigV1 {
     positive(tuple["maxCaseCostUsd"], `tuples[${index}].maxCaseCostUsd`);
   }
   if (new Set(ids).size !== ids.length) throw new Error("tuple ids must be unique");
+  if (!Array.isArray(root["case_token_reservations"]) || root["case_token_reservations"].length === 0) throw new Error("case_token_reservations must be non-empty");
+  const reservationIds: string[] = [];
+  for (const [index, raw] of root["case_token_reservations"].entries()) {
+    const reservation = object(raw, `case_token_reservations[${index}]`); exact(reservation, ["case_id", "max_output_tokens"]);
+    reservationIds.push(required(reservation["case_id"], `case_token_reservations[${index}].case_id`));
+    positiveInteger(reservation["max_output_tokens"], `case_token_reservations[${index}].max_output_tokens`);
+  }
+  if (new Set(reservationIds).size !== reservationIds.length) throw new Error("case_token_reservations case_id rows must be unique");
   positiveInteger(root["max_tokens"], "max_tokens"); positiveInteger(root["max_provider_turns"], "max_provider_turns"); positive(root["max_equiv_usd"], "max_equiv_usd");
   if (root["shard"] !== null) {
     const shard = object(root["shard"], "shard"); exact(shard, ["date", "count"]);

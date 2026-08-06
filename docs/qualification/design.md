@@ -87,6 +87,13 @@ inconclusive, and independent cases continue only while the remaining authorized
 output-token, turn, and USD envelopes admit them. F-PT-022 ratified this interpretation
 on 2026-08-05; it did not change golden expected behavior or quality thresholds.
 
+Golden `token_reservation` values are immutable behavioral baselines. A content-bound
+human-approved release config may provide one effective output reservation for every
+selected case. Admission refuses missing, extra, duplicate, or sub-baseline rows and
+requires `max_tokens` to equal their exact sum. Such calibration changes campaign
+budgeting only: golden prompts, expected behavior, rubrics, reference digests, and
+human-validation records remain unchanged.
+
 The L5 soak config schema is `tests/ops/soak-protocol.ts`: exact sandbox
 org/apps/repos, commit, local time zone, and the same human authorization envelope.
 The start command binds canonical config and policy digests into durable state; every

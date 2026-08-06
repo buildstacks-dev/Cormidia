@@ -14,6 +14,7 @@ import {
   runEvalCampaign,
   selectRotatingShard,
   validateCases,
+  validateEffectiveTokenReservations,
   type EvalCaseV1,
   type EvalExecutionResult,
   type EvalTuple,
@@ -31,6 +32,7 @@ async function main(): Promise<number> {
   const producerDigest = (await releaseRepositorySnapshot(process.cwd(), config.commit)).producer_digests.L4;
   validateCases(cases);
   const selected = config.shard === null ? cases : selectRotatingShard(cases, config.shard.date, config.shard.count);
+  validateEffectiveTokenReservations(selected, config.tuples, config.case_token_reservations, config.max_tokens);
   const required = config.tuples.flatMap((tuple) => selected.filter((evalCase) => evalCase.site === tuple.site).map((evalCase) => `${tuple.id}::${evalCase.id}`));
   const campaign = new DurableCampaignRunner({
     stateHome: config.state_home,
@@ -59,6 +61,7 @@ async function main(): Promise<number> {
       cases,
       tuples: config.tuples,
       producerDigest,
+      caseTokenReservations: config.case_token_reservations,
       maxTokens: config.max_tokens,
       ...(config.shard === null ? {} : { shard: config.shard }),
       executor: {

@@ -54,6 +54,11 @@ export interface EvalExecutionResult {
   sessionId: string;
 }
 
+export interface EvalCaseTokenReservation {
+  case_id: string;
+  max_output_tokens: number;
+}
+
 export interface EvalExecutor {
   execute(input: { tuple: EvalTuple; evalCase: EvalCaseV1; maxTokens: number }): Promise<EvalExecutionResult>;
 }
@@ -65,6 +70,7 @@ export interface EvalCampaignOptions {
   cases: EvalCaseV1[];
   tuples: EvalTuple[];
   producerDigest: string;
+  caseTokenReservations: EvalCaseTokenReservation[];
   maxTokens: number;
   shard?: { date: string; count: number };
   executor: EvalExecutor;
@@ -116,6 +122,7 @@ export interface EvalResultsV1 {
   producer_digest: string;
   token_unit: "output_tokens";
   token_ceiling: number;
+  case_token_reservations: EvalCaseTokenReservation[];
   observed_tokens: number;
   selected_case_ids: string[];
   stopped_on_token_ceiling: boolean;
@@ -144,12 +151,22 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
   const tupleSites = new Set(options.tuples.map((item) => item.site));
   for (const site of selectedSites) if (!tupleSites.has(site)) throw new Error(`eval runner has selected ${site} cases but no exact tuple`);
   for (const site of tupleSites) if (!selectedSites.has(site)) throw new Error(`eval runner tuple site ${site} has no selected cases`);
+  const effectiveReservations = validateEffectiveTokenReservations(
+    selected,
+    options.tuples,
+    options.caseTokenReservations,
+    options.maxTokens,
+  );
   const results: EvalResultsV1 = {
     schema_version: 1,
     campaign_id: options.campaignId,
     producer_digest: options.producerDigest,
     token_unit: "output_tokens",
     token_ceiling: options.maxTokens,
+    case_token_reservations: selected.map((evalCase) => ({
+      case_id: evalCase.id,
+      max_output_tokens: effectiveReservations.get(evalCase.id)!,
+    })),
     observed_tokens: 0,
     selected_case_ids: selected.map((item) => item.id),
     stopped_on_token_ceiling: false,
@@ -162,7 +179,8 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
 
   outer: for (const tuple of options.tuples) {
     for (const evalCase of selected.filter((item) => item.site === tuple.site)) {
-      if (results.observed_tokens + evalCase.token_reservation > options.maxTokens) {
+      const tokenReservation = effectiveReservations.get(evalCase.id)!;
+      if (results.observed_tokens + tokenReservation > options.maxTokens) {
         results.stopped_on_token_ceiling = true;
         await options.campaign.noteIncomplete("eval_token_ceiling_reservation_refused");
         break outer;
@@ -172,37 +190,37 @@ export async function runEvalCampaign(options: EvalCampaignOptions): Promise<Eva
         const recorded = await options.campaign.runCase(caseKey, { providerTurns: 1, maxEquivUsd: tuple.maxCaseCostUsd }, async () => {
           let execution: EvalExecutionResult;
           try {
-            execution = await options.executor.execute({ tuple, evalCase, maxTokens: evalCase.token_reservation });
+            execution = await options.executor.execute({ tuple, evalCase, maxTokens: tokenReservation });
           } catch (error) {
             // The provider may have consumed tokens before failing to return
             // usage. Debit the full token reservation and persist the attempt
             // before continuing to any independent case that still fits.
-            results.observed_tokens += evalCase.token_reservation;
+            results.observed_tokens += tokenReservation;
             results.stopped_on_token_ceiling = results.observed_tokens >= options.maxTokens;
-            results.attempts.push(attempt(tuple, evalCase, "execution_error", null, error));
+            results.attempts.push(attempt(tuple, evalCase, tokenReservation, "execution_error", null, error));
             await persist(options.stateHome, results);
             throw error;
           }
           try {
             validateExecution(execution, caseKey);
           } catch (error) {
-            results.observed_tokens += evalCase.token_reservation;
+            results.observed_tokens += tokenReservation;
             results.stopped_on_token_ceiling = results.observed_tokens >= options.maxTokens;
-            results.attempts.push(attempt(tuple, evalCase, "invalid_result", execution, error));
+            results.attempts.push(attempt(tuple, evalCase, tokenReservation, "invalid_result", execution, error));
             await persist(options.stateHome, results);
             throw error;
           }
           const outputTokens = execution.tokensOut;
           results.observed_tokens += outputTokens;
-          if (outputTokens > evalCase.token_reservation) {
+          if (outputTokens > tokenReservation) {
             const error = new Error(`eval ${caseKey} exceeded its token reservation`);
             results.stopped_on_token_ceiling = results.observed_tokens >= options.maxTokens;
-            results.attempts.push(attempt(tuple, evalCase, "token_reservation_exceeded", execution, error));
+            results.attempts.push(attempt(tuple, evalCase, tokenReservation, "token_reservation_exceeded", execution, error));
             await persist(options.stateHome, results);
             throw error;
           }
           const score = scoreObservation(evalCase, execution, tuple, options.campaignId, primaryByGrade);
-          results.attempts.push(attempt(tuple, evalCase, "collected", execution));
+          results.attempts.push(attempt(tuple, evalCase, tokenReservation, "collected", execution));
           results.observations.push(score);
           results.per_tuple = aggregate(results.observations, options.tuples);
           await persist(options.stateHome, results);
@@ -277,6 +295,52 @@ export function validateCases(cases: EvalCaseV1[]): void {
   }
 }
 
+export function validateEffectiveTokenReservations(
+  selectedCases: EvalCaseV1[],
+  tuples: EvalTuple[],
+  reservations: EvalCaseTokenReservation[],
+  maxTokens: number,
+): Map<string, number> {
+  if (!Array.isArray(reservations) || reservations.length === 0) {
+    throw new Error("effective token reservations must be a non-empty array");
+  }
+  const ids: string[] = [];
+  const effective = new Map<string, number>();
+  for (const [index, raw] of reservations.entries()) {
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error(`effective token reservation ${index} must be an object`);
+    }
+    exactKeys(raw as unknown as Record<string, unknown>, ["case_id", "max_output_tokens"], `effective token reservation ${index}`);
+    if (!nonEmpty(raw.case_id)) throw new Error(`effective token reservation ${index} requires case_id`);
+    if (!Number.isInteger(raw.max_output_tokens) || raw.max_output_tokens < 1) {
+      throw new Error(`effective token reservation ${raw.case_id} requires positive integer max_output_tokens`);
+    }
+    ids.push(raw.case_id);
+    effective.set(raw.case_id, raw.max_output_tokens);
+  }
+  if (new Set(ids).size !== ids.length) throw new Error("effective token reservations contain duplicate case_id rows");
+
+  const selectedIds = new Set(selectedCases.map((item) => item.id));
+  const missing = [...selectedIds].filter((id) => !effective.has(id));
+  const extra = ids.filter((id) => !selectedIds.has(id));
+  if (missing.length > 0) throw new Error(`effective token reservations missing selected case(s): ${missing.join(", ")}`);
+  if (extra.length > 0) throw new Error(`effective token reservations contain extra case(s): ${extra.join(", ")}`);
+  for (const evalCase of selectedCases) {
+    const value = effective.get(evalCase.id)!;
+    if (value < evalCase.token_reservation) {
+      throw new Error(`effective token reservation for ${evalCase.id} is below golden baseline ${evalCase.token_reservation}`);
+    }
+  }
+
+  const expectedMaxTokens = tuples.reduce((total, tuple) => total + selectedCases
+    .filter((evalCase) => evalCase.site === tuple.site)
+    .reduce((siteTotal, evalCase) => siteTotal + effective.get(evalCase.id)!, 0), 0);
+  if (!Number.isSafeInteger(expectedMaxTokens) || maxTokens !== expectedMaxTokens) {
+    throw new Error(`max_tokens must equal the exact effective-reservation sum ${expectedMaxTokens}`);
+  }
+  return effective;
+}
+
 function validateExecution(value: EvalExecutionResult, caseKey: string): void {
   if (typeof value.output !== "string" || !nonEmpty(value.sessionId)) throw new Error(`eval ${caseKey} returned invalid output/session identity`);
   if (!Number.isInteger(value.tokensIn) || value.tokensIn < 0 || !Number.isInteger(value.tokensOut) || value.tokensOut < 0) throw new Error(`eval ${caseKey} returned invalid token usage`);
@@ -286,6 +350,7 @@ function validateExecution(value: EvalExecutionResult, caseKey: string): void {
 function attempt(
   tuple: EvalTuple,
   evalCase: EvalCaseV1,
+  tokenReservation: number,
   status: EvalAttempt["status"],
   execution: EvalExecutionResult | null,
   error?: unknown,
@@ -295,7 +360,7 @@ function attempt(
     tuple_id: tuple.id,
     attempt_id: tuple.attemptId,
     status,
-    token_reservation: evalCase.token_reservation,
+    token_reservation: tokenReservation,
     session_id: execution !== null && nonEmpty(execution.sessionId) ? execution.sessionId : null,
     tokens_in: execution !== null && Number.isInteger(execution.tokensIn) && execution.tokensIn >= 0 ? execution.tokensIn : null,
     tokens_out: execution !== null && Number.isInteger(execution.tokensOut) && execution.tokensOut >= 0 ? execution.tokensOut : null,

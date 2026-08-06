@@ -18,6 +18,13 @@ describe("L4 reviewed authorization config", () => {
     await expect(loadEvalConfig({ CORMIDIA_EVAL: "1", CORMIDIA_EVAL_CONFIG: path })).rejects.toThrow(/unknown eval config field/);
   });
 
+  it("negative control: refuses duplicate effective-reservation rows", async () => {
+    const { path, value } = await fixture();
+    const reservation = (value["case_token_reservations"] as unknown[])[0]!;
+    await writeFile(path, JSON.stringify({ ...value, case_token_reservations: [reservation, reservation] }), "utf8");
+    await expect(loadEvalConfig({ CORMIDIA_EVAL: "1", CORMIDIA_EVAL_CONFIG: path })).rejects.toThrow(/must be unique/);
+  });
+
   it("accepts an exact reviewed envelope", async () => {
     const { path, value } = await fixture(); await writeFile(path, JSON.stringify(value), "utf8");
     await expect(loadEvalConfig({ CORMIDIA_EVAL: "1", CORMIDIA_EVAL_CONFIG: path })).resolves.toEqual(value);
@@ -32,6 +39,7 @@ async function fixture(): Promise<{ path: string; value: Record<string, unknown>
     state_home: join(root, "state"), policy_path: join(root, "policy.yaml"), commit: "a".repeat(40), app: "sandbox-app",
     golden_set_files: [join(root, "golden.json")],
     tuples: [{ id: "reviewer-a", site: "reviewer", operation: "review", arm: "bootstrap", producerTuple: "fixture", evaluatorTuple: "reviewer/claude/fixture-model/medium", rubricVersion: "reviewer-v1", attemptId: "attempt-1", promptInputDigest: "a".repeat(64), rubricDigest: "b".repeat(64), graderDigest: "c".repeat(64), runtime: "claude", model: "fixture-model", effort: "medium", maxCaseCostUsd: 1 }],
+    case_token_reservations: [{ case_id: "GS-REV-FIXTURE-001", max_output_tokens: 1000 }],
     max_tokens: 1000, max_provider_turns: 2, max_equiv_usd: 5, shard: null,
   } };
 }

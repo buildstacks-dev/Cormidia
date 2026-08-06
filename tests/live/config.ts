@@ -4,6 +4,7 @@
 
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import { RELEASE_L3_REQUIRED_CASES } from "../../src/org/release-evidence.js";
 import type { Effort, RuntimeKind } from "../../src/runtime/types.js";
 
 export interface LiveAdapterTarget {
@@ -44,6 +45,23 @@ export async function loadLiveCampaignConfig(
   const value: unknown = JSON.parse(await readFile(path, "utf8"));
   validate(value);
   return { config: value, path };
+}
+
+/** Keep the durable L3 report's ordered identity on the same canonical source
+ * as the RQ-1 manifest. Case execution may occur in a different safe order;
+ * report identity may not be reconstructed independently (#303). */
+export function liveCampaignRequiredCaseIds(config: LiveCampaignConfigV1): string[] {
+  if (config.campaign_kind === "release") return [...RELEASE_L3_REQUIRED_CASES];
+  return [
+    ...config.adapters.map((target) => ({
+      claude: "CF-B02-L3",
+      codex: "CF-B03-L3",
+      pi: "CF-B04-L3",
+    })[target.runtime]),
+    ...(config.github.enabled ? ["CF-B01-L3"] : []),
+    ...(config.launchd.enabled ? ["CF-J16-A"] : []),
+    ...(config.unattended.enabled ? ["CF-J18-A"] : []),
+  ];
 }
 
 function validate(value: unknown): asserts value is LiveCampaignConfigV1 {
@@ -107,8 +125,8 @@ function validate(value: unknown): asserts value is LiveCampaignConfigV1 {
   }
   if (campaignKind === "release") {
     const allAdapters = runtimes.size === 3 && ["claude", "codex", "pi"].every((runtime) => runtimes.has(runtime));
-    if (!allAdapters || !shape.github || !shape.unattended) {
-      throw new Error("release campaign requires all three adapters, sandbox GitHub, and the unattended profile");
+    if (!allAdapters || !shape.github || !shape.launchd || !shape.unattended) {
+      throw new Error("release campaign requires all three adapters, sandbox GitHub, launchd proof, and the unattended profile");
     }
   }
 }

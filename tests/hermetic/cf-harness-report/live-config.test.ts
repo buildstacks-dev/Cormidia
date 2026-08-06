@@ -3,7 +3,8 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { writeFile } from "node:fs/promises";
-import { loadLiveCampaignConfig } from "../../live/config.js";
+import { RELEASE_L3_REQUIRED_CASES } from "../../../src/org/release-evidence.js";
+import { liveCampaignRequiredCaseIds, loadLiveCampaignConfig } from "../../live/config.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 let state: TempStateHome | undefined;
@@ -30,7 +31,7 @@ function config(stateHome: string, policyPath: string) {
       { runtime: "pi", model: "pi-model", effort: "medium", max_turn_budget_usd: 2 },
     ],
     github: { enabled: true, repo: "owner/sandbox-alpha" },
-    launchd: { enabled: false, label: "com.cormidia.validation.unique" },
+    launchd: { enabled: true, label: "com.cormidia.validation.unique" },
     unattended: { enabled: true, permitted_auto_grant_categories: ["campaign_budget"] },
   };
 }
@@ -47,7 +48,9 @@ describe("live campaign config", () => {
     const policyPath = state.path("policy.yaml");
     await writeFile(policyPath, "schema_version: 1\n", "utf8");
     await writeFile(path, JSON.stringify(config(state.stateHome, policyPath)), "utf8");
-    expect((await loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).config.campaign_id).toBe("live-release-20260731");
+    const loaded = (await loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).config;
+    expect(loaded.campaign_id).toBe("live-release-20260731");
+    expect(liveCampaignRequiredCaseIds(loaded)).toEqual(RELEASE_L3_REQUIRED_CASES);
   });
 
   it("negative control: refuses a non-sandbox GitHub target and unknown widening fields", async () => {
@@ -67,6 +70,16 @@ describe("live campaign config", () => {
     seeded.adapters = seeded.adapters.slice(0, 1);
     await writeFile(path, JSON.stringify(seeded), "utf8");
     await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(/release campaign requires all three adapters/);
+  });
+
+  it("CF-REG-303 negative control: release admission refuses the pre-fix missing-launchd shape", async () => {
+    state = await makeTempStateHome({ name: "live-config-release-launchd" });
+    const path = state.path("live.json");
+    const policyPath = state.path("policy.yaml");
+    const seeded = config(state.stateHome, policyPath);
+    seeded.launchd.enabled = false;
+    await writeFile(path, JSON.stringify(seeded), "utf8");
+    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(/launchd proof/);
   });
 
   it("admits exact single-obligation GitHub and launchd campaigns", async () => {

@@ -344,6 +344,27 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
     expect(() => evaluateTriggeredCampaignEvidence(manifest, malformed)).toThrow(/required minus collected/);
   });
 
+  it("CF-REG-303 negative control: reordered L3 report identity remains non-current", () => {
+    const manifest = fixtureManifest();
+    const reordered = campaignEvidence(manifest);
+    const report = reordered.campaigns[0]!.report;
+    report.target.scopes = [...report.target.scopes.slice(0, -2), ...report.target.scopes.slice(-2).reverse()];
+    report.coverage.required_case_ids = [
+      ...report.coverage.required_case_ids.slice(0, -2),
+      ...report.coverage.required_case_ids.slice(-2).reverse(),
+    ];
+    report.coverage.collected_case_ids = [...report.coverage.required_case_ids];
+    const result = evaluateTriggeredCampaignEvidence(manifest, reordered)[0]!;
+    expect(result).toMatchObject({
+      completeness: "incomplete",
+      verdict: "inconclusive",
+      reason_codes: [
+        "campaign_identity_mismatch:scopes",
+        "campaign_identity_mismatch:required_case_ids",
+      ],
+    });
+  });
+
   it("qualifies only after exact evaluator debt disposition while preserving L4 inconclusive", () => {
     const { manifest, results, debt, report } = qualifiedFixture();
     expect(report.outcome).toEqual({ completeness: "complete", verdict: "pass", qualification: "qualified", blocker_ids: [] });

@@ -6,6 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { toErrorMessage as errorText } from "../runtime/error-message.js";
 import {
   parseCreatorEpisodeScope,
   stableHash,
@@ -45,6 +46,7 @@ import { listRefusedDecompositions, ratifyTicketBudgetCommand } from "../org/tic
 import { extractHomeFlags } from "./home-flags.js";
 import { cmdPlanRatifyTicketBudget } from "./plan-ratify.js";
 import { installProcessCancellation } from "./process-signal.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
@@ -202,11 +204,11 @@ export async function cmdPlan(args: string[]): Promise<number> {
       app,
       appsFile,
       goal,
-      ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
-      ...(parsed.stage !== undefined ? { stage: parsed.stage } : {}),
+      ...definedProps({ workdir: parsed.workdir }),
+      ...definedProps({ stage: parsed.stage }),
       ...(parsed.noPublish ? { publish: false } : {}),
       signal: cancellation.signal,
-      ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+      ...definedProps({ parentTaskId }),
       planning: planningOptions(parsed),
       ...(parsed.sources.length > 0 ? { sources: parsed.sources } : {}),
       ...(creatorScope === undefined ? {} : { creatorScope, requireExecutionReadyCreatorScope: true }),
@@ -275,8 +277,8 @@ export async function cmdPlan(args: string[]): Promise<number> {
     appName: parsed.app,
     orgHome: homes.orgHome,
     runtimeHome: homes.stateHome,
-    ...(parsed.topic !== undefined ? { topic: parsed.topic } : {}),
-    ...(parsed.workdir !== undefined ? { workdir: parsed.workdir } : {}),
+    ...definedProps({ topic: parsed.topic }),
+    ...definedProps({ workdir: parsed.workdir }),
   });
 
   try {
@@ -490,35 +492,35 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
     explainRoute,
     json,
     sources,
-    ...(goal !== undefined ? { goal } : {}),
-    ...(stage !== undefined ? { stage } : {}),
-    ...(topic !== undefined ? { topic } : {}),
+    ...definedProps({ goal }),
+    ...definedProps({ stage }),
+    ...definedProps({ topic }),
     ...(workdir ? { workdir } : {}),
-    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
-    ...(depth !== undefined ? { depth } : {}),
-    ...(risk !== undefined ? { risk } : {}),
-    ...(ambiguity !== undefined ? { ambiguity } : {}),
-    ...(coupling !== undefined ? { coupling } : {}),
-    ...(reversibility !== undefined ? { reversibility } : {}),
-    ...(externalConsequence !== undefined ? { externalConsequence } : {}),
-    ...(expectedTickets !== undefined ? { expectedTickets } : {}),
-    ...(sensitiveDomains !== undefined ? { sensitiveDomains } : {}),
-    ...(workLifecycle !== undefined ? { workLifecycle } : {}),
-    ...(creatorScopePath !== undefined ? { creatorScopePath } : {}),
+    ...definedProps({ parentTaskId }),
+    ...definedProps({ depth }),
+    ...definedProps({ risk }),
+    ...definedProps({ ambiguity }),
+    ...definedProps({ coupling }),
+    ...definedProps({ reversibility }),
+    ...definedProps({ externalConsequence }),
+    ...definedProps({ expectedTickets }),
+    ...definedProps({ sensitiveDomains }),
+    ...definedProps({ workLifecycle }),
+    ...definedProps({ creatorScopePath }),
   };
 }
 
 function planningOptions(parsed: ParsedPlanArgs) {
   return {
-    ...(parsed.depth !== undefined ? { minimumDepth: parsed.depth } : {}),
-    ...(parsed.risk !== undefined ? { riskTier: parsed.risk } : {}),
-    ...(parsed.ambiguity !== undefined ? { ambiguity: parsed.ambiguity } : {}),
-    ...(parsed.coupling !== undefined ? { coupling: parsed.coupling } : {}),
-    ...(parsed.reversibility !== undefined ? { reversibility: parsed.reversibility } : {}),
-    ...(parsed.externalConsequence !== undefined ? { externalConsequence: parsed.externalConsequence } : {}),
-    ...(parsed.expectedTickets !== undefined ? { expectedTickets: parsed.expectedTickets } : {}),
-    ...(parsed.sensitiveDomains !== undefined ? { sensitiveDomains: parsed.sensitiveDomains } : {}),
-    ...(parsed.workLifecycle !== undefined ? { workLifecycle: parsed.workLifecycle } : {}),
+    ...definedProps({ minimumDepth: parsed.depth }),
+    ...definedProps({ riskTier: parsed.risk }),
+    ...definedProps({ ambiguity: parsed.ambiguity }),
+    ...definedProps({ coupling: parsed.coupling }),
+    ...definedProps({ reversibility: parsed.reversibility }),
+    ...definedProps({ externalConsequence: parsed.externalConsequence }),
+    ...definedProps({ expectedTickets: parsed.expectedTickets }),
+    ...definedProps({ sensitiveDomains: parsed.sensitiveDomains }),
+    ...definedProps({ workLifecycle: parsed.workLifecycle }),
   };
 }
 
@@ -859,10 +861,6 @@ function assertExplicitCreatorScopeReady(
       { cause: error },
     );
   }
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function jsonPreviewValue(value: unknown): JsonValue {

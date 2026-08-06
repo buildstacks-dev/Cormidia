@@ -55,6 +55,7 @@ import {
   type ReleaseAttestationV1,
 } from "./release-evidence.js";
 import { loadRoles } from "./roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const execFile = promisify(execFileCallback);
 
@@ -1003,7 +1004,7 @@ function sreReleaseGate(
   const baseGate = composeGate(defaultGate, store, {
     app: item.app,
     role: item.role,
-    ...(item.ticketRef !== undefined ? { ticketRef: item.ticketRef } : {}),
+    ...definedProps({ ticketRef: item.ticketRef }),
     orgHome: options.orgHome,
     ...(options.now === undefined ? {} : { now: options.now }),
   });

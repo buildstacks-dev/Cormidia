@@ -19,7 +19,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
 import { resolvePiModel } from "./adapters/pi.js";
+import { toErrorMessage as errorMessage } from "./error-message.js";
 import type { RuntimeKind } from "./types.js";
+import { definedProps } from "./optional-properties.js";
 
 // A clean, isolated Codex home can spend several seconds initializing its
 // local App Server caches even though no model request is sent. Keep the probe
@@ -129,7 +131,7 @@ export async function probeRuntimeReadiness(
     detail: outcome.detail,
     durationMs: Date.now() - started,
     billable: false,
-    ...(outcome.errorCode !== undefined ? { errorCode: outcome.errorCode } : {}),
+    ...definedProps({ errorCode: outcome.errorCode }),
   };
 }
 
@@ -145,7 +147,7 @@ async function probeClaude(request: RuntimeReadinessImplementationRequest): Prom
       cwd: process.cwd(),
       settingSources: [],
       tools: [],
-      ...(request.processEnv !== undefined ? { env: request.processEnv } : {}),
+      ...definedProps({ env: request.processEnv }),
       abortController,
     },
   });
@@ -224,7 +226,7 @@ function claudeCliAuthStatus(env: NodeJS.ProcessEnv | undefined, signal: AbortSi
       "claude",
       ["auth", "status", "--json"],
       {
-        ...(env !== undefined ? { env } : {}),
+        ...definedProps({ env }),
         signal,
         encoding: "utf8",
       },
@@ -430,8 +432,4 @@ function classifyProbeError(error: unknown): ProbeOutcome {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

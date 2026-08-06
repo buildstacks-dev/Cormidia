@@ -12,6 +12,7 @@ import { stableJson } from "../org/lifecycle.js";
 import { latestResetArchiveForApp } from "../org/onboarding-answers.js";
 import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface AppCommandOptions {
   ghFactory?: (repo: string) => GhOps;
@@ -89,7 +90,7 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
     appName,
     gh: options.ghFactory?.(app.repo) ?? new GhCliOps(app.repo),
     ...(force ? { force: true } : {}),
-    ...(archiveRoot !== undefined ? { archiveRoot } : {}),
+    ...definedProps({ archiveRoot }),
   };
   const plan = await planAppReset(input);
   if (json && !execute) console.log(stableJson(plan).trimEnd());
@@ -141,7 +142,7 @@ async function verify(
     synchronize: true,
     writeReadiness: true,
     githubFactory: options.ghFactory ?? ((repo) => new GhCliOps(repo)),
-    ...(options.readinessProbe !== undefined ? { readinessProbe: options.readinessProbe } : {}),
+    ...definedProps({ readinessProbe: options.readinessProbe }),
   });
   if (json) console.log(stableJson(report).trimEnd());
   else printVerification(report);
@@ -195,7 +196,7 @@ async function promote(
     appName,
     to: "live" as const,
     githubFactory: options.ghFactory ?? ((repo) => new GhCliOps(repo)),
-    ...(options.readinessProbe !== undefined ? { readinessProbe: options.readinessProbe } : {}),
+    ...definedProps({ readinessProbe: options.readinessProbe }),
   };
   const plan = await planAppPromotion(input);
   if (!execute) {

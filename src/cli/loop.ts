@@ -31,6 +31,7 @@ import { cmdClaimRearm } from "./claim-rearm.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { reportCliInvocation } from "./invocation-audit.js";
 import { installProcessCancellation, waitForDelay } from "./process-signal.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 function loopInvocationOutcome(result: LoopDriverResult, dryRun = false): string {
   if (result.budgetRefusal !== undefined) return `budget-refused: ${result.budgetRefusal}`;
@@ -114,8 +115,8 @@ function createLoopGateForRole(
       app,
       role: role.name,
       turnId,
-      ...(orgHome !== undefined ? { orgHome } : {}),
-      ...(cwd !== undefined ? { workdir: cwd } : {}),
+      ...definedProps({ orgHome }),
+      ...definedProps({ workdir: cwd }),
       ...(appConfig !== undefined ? { appRepo: appConfig.repo } : {}),
       ...(appConfig?.networkAllowlist !== undefined ? { networkAllowlist: appConfig.networkAllowlist } : {}),
     });
@@ -181,12 +182,12 @@ function parseLoopRunArgs(args: string[]): ParsedLoopRunArgs {
     follow,
     dryRun,
     allowNetwork,
-    ...(appName !== undefined ? { appName } : {}),
-    ...(repoDir !== undefined ? { repoDir } : {}),
-    ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),
-    ...(parentTaskInput !== undefined ? { parentTaskInput } : {}),
-    ...(explainEpisode !== undefined ? { explainEpisode } : {}),
-    ...(resumeEpisode !== undefined ? { resumeEpisode } : {}),
+    ...definedProps({ appName }),
+    ...definedProps({ repoDir }),
+    ...definedProps({ worktreeRoot }),
+    ...definedProps({ parentTaskInput }),
+    ...definedProps({ explainEpisode }),
+    ...definedProps({ resumeEpisode }),
   };
 }
 
@@ -351,7 +352,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         localRepo,
         {
           repo: selectedApp.repo,
-          ...(selectedApp.networkAllowlist !== undefined ? { networkAllowlist: selectedApp.networkAllowlist } : {}),
+          ...definedProps({ networkAllowlist: selectedApp.networkAllowlist }),
         },
       );
       const budgetRows = await enforceBudgetOverlay(homes.stateHome, appsFile);
@@ -445,12 +446,12 @@ export async function cmdLoop(args: string[]): Promise<number> {
             episodeId: terminal.episodeId,
             status: terminal.status,
             reason: terminal.reason,
-            ...(terminal.nextStep !== undefined ? { nextStep: terminal.nextStep } : {}),
+            ...definedProps({ nextStep: terminal.nextStep }),
             now: terminal.now,
           });
         },
         ...(cancellation !== undefined ? { signal: cancellation.signal } : {}),
-        ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+        ...definedProps({ parentTaskId }),
         budgetGuard: async () => {
           if (isBudgetBlocking(budgetRow.status)) {
             return {
@@ -488,7 +489,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       ...(inputs.refreshBase === undefined ? {} : { refreshBase: inputs.refreshBase }),
       planOnly: dryRun,
       ...(ticketInspection === undefined ? {} : { ticketInspection }),
-      ...(selectedApp.release !== undefined ? { release: selectedApp.release } : {}),
+      ...definedProps({ release: selectedApp.release }),
       // Merge authorization: the self-approval fallback must carry an HMAC tag
       // signed with this operator secret (never repo-visible). Without it, the
       // single-account fallback is not trusted — the loop fails closed rather

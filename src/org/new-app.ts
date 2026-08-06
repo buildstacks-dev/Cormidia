@@ -15,6 +15,7 @@ import {
 } from "./bootstrap.js";
 import { onboardingAnswersPath, onboardingSourcePath, storeOnboardingSource } from "./onboarding-answers.js";
 import { loadRoles } from "./roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export const NEW_APP_TEMPLATES = ["typescript-node", "bare"] as const;
 export type NewAppTemplate = (typeof NEW_APP_TEMPLATES)[number];
@@ -128,7 +129,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     appName,
     repoSlug: options.repoSlug,
     orgHome,
-    ...(options.stateHome !== undefined ? { stateHome: options.stateHome } : {}),
+    ...definedProps({ stateHome: options.stateHome }),
   });
 
   // Record where this greenfield app was scaffolded so `cormidia app verify` can

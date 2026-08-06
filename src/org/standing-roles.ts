@@ -8,6 +8,7 @@ import { approvalLifecycleState, ApprovalStore } from "./approvals.js";
 import { writeFileAtomic } from "./atomic.js";
 import type { TurnEvent } from "./journal.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 type StandingRole = "sre" | "support" | "marketing";
 
@@ -192,7 +193,7 @@ export async function persistStandingRoleOutcome(input: {
     approval_state: input.role === "sre" && deployShaped(payload) ? "parked" : "not_requested",
     draft,
     provider_summary_sha256: sha256(input.providerSummary),
-    ...(delivery !== undefined ? { delivery } : {}),
+    ...definedProps({ delivery }),
   };
   const plannerFeed: PlannerFeedRecord = {
     schema_version: 2,

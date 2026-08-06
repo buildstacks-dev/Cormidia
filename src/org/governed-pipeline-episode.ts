@@ -42,6 +42,7 @@ import { type RuntimeReadinessProbe } from "../runtime/readiness.js";
 import { readEnvelope, type EnvelopeStatus } from "../runtime/runlog/envelope.js";
 import { createEventWriter, readEvents } from "../runtime/runlog/events.js";
 import { mintRunId, runPaths } from "../runtime/runlog/paths.js";
+import { ZERO_USAGE } from "../runtime/turn-usage.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks, TurnResult } from "../runtime/types.js";
 import type { AppEntry } from "./apps.js";
 import {
@@ -871,11 +872,7 @@ function recoveredTurnResult(
     usage:
       evidence.record.usage === null
         ? {
-            tokensIn: 0,
-            tokensOut: 0,
-            costUsd: 0,
-            subagentTurns: 0,
-            wallClockMs: 0,
+            ...ZERO_USAGE,
             quality: "unavailable",
           }
         : { ...evidence.record.usage },

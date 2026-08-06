@@ -47,6 +47,7 @@ import {
 import type { AppEntry, AppsFile } from "./apps.js";
 import { grantScopeText } from "./gate-compose.js";
 import { releaseExpiredTicketApprovalClaim } from "./ticket-episode-approval.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 /** The actor recorded on an orchestrator-claimed execution. A later dispatch
  *  uses it to tell its own interrupted attempt apart from a live provider turn
@@ -266,7 +267,7 @@ export async function executeApprovedCommands(
       actionHash: actionHash(item.action),
       rule: item.rule,
       actionText: grantScopeText({ tool: item.action.tool, input: item.action.input }),
-      ...(item.ticketRef !== undefined ? { ticketRef: item.ticketRef } : {}),
+      ...definedProps({ ticketRef: item.ticketRef }),
       now: clock(),
     });
     if (grant === undefined) {

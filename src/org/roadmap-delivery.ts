@@ -40,6 +40,7 @@ import {
   type EpisodeIntentFacts,
   type EpisodePlanningPolicyOptions,
 } from "./episode-planner/policy.js";
+import { planningAppDir, planningAuthorityPath } from "./planning-artifact-path.js";
 
 export const ROADMAP_DELIVERY_SCHEMA_VERSION = 1 as const;
 const VALIDATION_CATALOG_SCHEMA_VERSION = 1 as const;
@@ -5216,12 +5217,7 @@ function isAcceptedAuthority(value: unknown): value is AcceptedAuthority<unknown
 function authorityPath(root: string, app: string, kind: AuthorityRef["kind"], id: string, version: number): string {
   assertId(id, `${kind} id`);
   assertVersion(version, `${kind} version`);
-  return join(planningAppDir(root, app), `${kind}s`, id, `v${version}.json`);
-}
-
-function planningAppDir(root: string, app: string): string {
-  const appKey = stableHash(app).slice(0, 32);
-  return join(resolve(root), "planning", "apps", appKey);
+  return planningAuthorityPath(root, app, kind, id, version);
 }
 
 function executionUnitIdentityHash(unit: ExecutionUnit): string {

@@ -13,6 +13,7 @@ import { ticketEpisodeAnchor } from "./learning/episodes.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import { resolveLearningContext, type ResolvedLearningContext } from "./learning/resolver.js";
 import { selectAttributedExcerpts } from "./memory.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface AssembleContextOptions {
   orgHome: string;
@@ -134,9 +135,9 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
       policy: await loadLearningPolicy(orgHome),
       // An explicit caller cap bounds the COMBINED memory section: governed
       // concepts spend from it first, legacy memory gets the remainder.
-      ...(options.memoryCapBytes !== undefined ? { budgetCapBytes: options.memoryCapBytes } : {}),
-      ...(options.learning.stateHome !== undefined ? { stateHome: options.learning.stateHome } : {}),
-      ...(options.learning.lineageOverride !== undefined ? { lineageOverride: options.learning.lineageOverride } : {}),
+      ...definedProps({ budgetCapBytes: options.memoryCapBytes }),
+      ...definedProps({ stateHome: options.learning.stateHome }),
+      ...definedProps({ lineageOverride: options.learning.lineageOverride }),
     });
     legacyCap = Math.min(legacyCap, resolved.bytes_remaining);
     sources.push(join(orgHome, "learning"), join(appWorkdir, ".cormidia", "learning"));
@@ -172,7 +173,7 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
     systemPrompt,
     byteSize: Buffer.byteLength(systemPrompt, "utf8"),
     sources,
-    ...(resolved !== undefined ? { resolvedLearning: resolved } : {}),
+    ...definedProps({ resolvedLearning: resolved }),
   };
 }
 
@@ -218,7 +219,7 @@ export function createEpisodeContextResolver(
       app: options.app,
       role,
       taskText: `${item.title}\n\n${item.body}`,
-      ...(options.memoryCapBytes !== undefined ? { memoryCapBytes: options.memoryCapBytes } : {}),
+      ...definedProps({ memoryCapBytes: options.memoryCapBytes }),
       learning: {
         stateHome: options.stateHome,
         turnId: `${options.turnId}-i${item.issueNumber}-${role.name}`,

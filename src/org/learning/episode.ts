@@ -58,6 +58,7 @@ import { deriveEpisodeAnchor, listRuns } from "./capture.js";
 import { ticketNumber, type EpisodeAnchor, type EpisodeKind, type EpisodeSource } from "./episodes.js";
 import { appendLearningEventsDeduped, readLearningEvents, type LearningEvent } from "./events.js";
 import { resolvedContextDir } from "./resolver.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 // ---------------------------------------------------------------------------
 // record shape (spec §5; deltas noted per field)
@@ -287,7 +288,7 @@ export function createEpisodeProjector(options: EpisodeProjectorOptions): Episod
         payload: {
           kind: outcome.kind,
           ref: outcome.ref,
-          ...(outcome.note !== undefined ? { note: outcome.note } : {}),
+          ...definedProps({ note: outcome.note }),
         },
       };
       await appendLearningEventsDeduped(stateHome, [event]);
@@ -651,7 +652,7 @@ async function runGates(stateHome: string, envelope: RunEnvelope): Promise<Episo
       gate: gate.gate,
       status: gateStatus(gate),
       run_id: envelope.run_id,
-      ...(gate.detail !== undefined ? { detail: gate.detail } : {}),
+      ...definedProps({ detail: gate.detail }),
     }));
   }
   let l2: RunlogEvent[];
@@ -716,7 +717,7 @@ function readClaimEvidence(stateHome: string, app: string, views: RunView[]): Cl
   // The merge side effect must name the PR of the MERGED claim — a later
   // returned claim may carry a different PR number.
   const prNumber = mergedPr ?? lastPr;
-  return { merged, ...(prNumber !== undefined ? { prNumber } : {}) };
+  return { merged, ...definedProps({ prNumber }) };
 }
 
 function buildTicketNumber(views: RunView[]): number | undefined {

@@ -28,6 +28,7 @@ import type {
 } from "../types.js";
 import { runPaths } from "./paths.js";
 import { scrubSecrets, truncatePreview } from "./redact.js";
+import { definedProps } from "../optional-properties.js";
 
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
@@ -261,30 +262,30 @@ export async function startRun(root: string, meta: StartRunMeta, now: Date): Pro
     schema_version: 1,
     run_id: meta.runId,
     trace_id: meta.traceId,
-    ...(meta.parentTaskId !== undefined ? { parent_task_id: meta.parentTaskId } : {}),
-    ...(meta.episodeId !== undefined ? { episode_id: meta.episodeId } : {}),
-    ...(meta.planVersion !== undefined ? { plan_version: meta.planVersion } : {}),
-    ...(meta.planStepId !== undefined ? { plan_step_id: meta.planStepId } : {}),
+    ...definedProps({ parent_task_id: meta.parentTaskId }),
+    ...definedProps({ episode_id: meta.episodeId }),
+    ...definedProps({ plan_version: meta.planVersion }),
+    ...definedProps({ plan_step_id: meta.planStepId }),
     app: meta.app,
-    ...(meta.ticket !== undefined ? { ticket: meta.ticket } : {}),
+    ...definedProps({ ticket: meta.ticket }),
     pipeline: meta.pipeline,
     pass: meta.pass,
     role: meta.role,
-    ...(meta.runtime !== undefined ? { runtime: meta.runtime } : {}),
-    ...(meta.model !== undefined ? { model: meta.model } : {}),
-    ...(meta.effort !== undefined ? { effort: meta.effort } : {}),
-    ...(meta.assignmentSource !== undefined ? { assignment_source: meta.assignmentSource } : {}),
-    ...(meta.assignmentCandidateId !== undefined ? { assignment_candidate_id: meta.assignmentCandidateId } : {}),
+    ...definedProps({ runtime: meta.runtime }),
+    ...definedProps({ model: meta.model }),
+    ...definedProps({ effort: meta.effort }),
+    ...definedProps({ assignment_source: meta.assignmentSource }),
+    ...definedProps({ assignment_candidate_id: meta.assignmentCandidateId }),
     ...(meta.selectionReason !== undefined ? { selection_reason: scrubSecrets(meta.selectionReason) } : {}),
     ...(meta.resolvedCapabilities !== undefined ? { resolved_capabilities: [...meta.resolvedCapabilities] } : {}),
-    ...(meta.workdir !== undefined ? { workdir: meta.workdir } : {}),
-    ...(meta.gitBranch !== undefined ? { git_branch: meta.gitBranch } : {}),
-    ...(meta.tracePlan !== undefined ? { trace_plan: meta.tracePlan } : {}),
-    ...(meta.planningRoute !== undefined ? { planning_route: meta.planningRoute } : {}),
-    ...(meta.authority !== undefined ? { authority: meta.authority } : {}),
+    ...definedProps({ workdir: meta.workdir }),
+    ...definedProps({ git_branch: meta.gitBranch }),
+    ...definedProps({ trace_plan: meta.tracePlan }),
+    ...definedProps({ planning_route: meta.planningRoute }),
+    ...definedProps({ authority: meta.authority }),
     ...(meta.providerTurnIds !== undefined ? { provider_turn_ids: [...meta.providerTurnIds] } : {}),
     ...(meta.executionStepIds !== undefined ? { execution_step_ids: [...meta.executionStepIds] } : {}),
-    ...(meta.gitHead !== undefined ? { git_head: meta.gitHead } : {}),
+    ...definedProps({ git_head: meta.gitHead }),
     status: "running",
     started_at: now.toISOString(),
     refs: {
@@ -293,7 +294,7 @@ export async function startRun(root: string, meta: StartRunMeta, now: Date): Pro
       prompt: "prompt.md",
       output: "output.md",
       session_log: "session.log",
-      ...(meta.inputManifestRef !== undefined ? { input_manifest: meta.inputManifestRef } : {}),
+      ...definedProps({ input_manifest: meta.inputManifestRef }),
     },
   };
   await writeEnvelope(paths.envelope, envelope);

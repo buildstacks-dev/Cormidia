@@ -28,6 +28,7 @@ import type {
 } from "../types.js";
 import { renderContextBundle } from "../worktree-context.js";
 import { codexAppServerArgs, startCodexGateBridge } from "./codex-gate-bridge.js";
+import { definedProps } from "../optional-properties.js";
 
 export type JsonRpcId = number | string;
 
@@ -71,7 +72,7 @@ export class StdioCodexAppServerClient implements CodexAppServerClient {
     const codexBin = require.resolve("@openai/codex/bin/codex.js");
     this.child = spawn(process.execPath, [codexBin, ...(options.args ?? ["app-server", "--listen", "stdio://"])], {
       stdio: ["pipe", "pipe", "pipe"],
-      ...(options.env !== undefined ? { env: options.env } : {}),
+      ...definedProps({ env: options.env }),
       // Own a process group so closing the adapter reaches App Server children,
       // not only the immediate Node wrapper.
       detached: process.platform !== "win32",

@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { admitEpisode, finalizeEpisode, recordMechanicalStep, type ExecutionStatus } from "../loop/efficiency.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export const LIFECYCLE_SCHEMA_VERSION = 1 as const;
 const LIFECYCLE_POLICY_VERSION = "lifecycle/v1";
@@ -229,7 +230,7 @@ export async function emitLifecycleStep(input: {
     finishedAt: input.finishedAt ?? new Date(),
     status: input.status,
     reason: input.reason,
-    ...(input.nextStep !== undefined ? { nextStep: input.nextStep } : {}),
+    ...definedProps({ nextStep: input.nextStep }),
     inputFingerprint: input.inputFingerprint,
   });
   await finalizeEpisode({
@@ -237,7 +238,7 @@ export async function emitLifecycleStep(input: {
     episodeId,
     status: input.status === "completed" ? "completed" : input.status === "blocked" ? "blocked" : "failed",
     reason: input.reason,
-    ...(input.nextStep !== undefined ? { nextStep: input.nextStep } : {}),
+    ...definedProps({ nextStep: input.nextStep }),
     now: input.finishedAt ?? new Date(),
   });
 }

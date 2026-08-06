@@ -38,6 +38,7 @@ import {
   type GateVerdictStatus,
   type LearningEvent,
 } from "./events.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 interface CaptureCursor {
   schema_version: 1;
@@ -292,7 +293,7 @@ async function captureEvents(options: ProjectCaptureOptions, write: boolean): Pr
   const schedulerEvents = projectEfficiencyEvidence({
     runs: [],
     schedulerMisses: await readSchedulerMissEvidence(stateHome),
-    ...(options.appStages !== undefined ? { appStages: options.appStages } : {}),
+    ...definedProps({ appStages: options.appStages }),
   });
   const schedulerFresh: LearningEvent[] = [];
   for (const event of schedulerEvents) {
@@ -376,7 +377,7 @@ async function deriveRunEvents(
         payload: {
           gate: gate.gate,
           status: gateStatus(gate),
-          ...(gate.detail !== undefined ? { detail: gate.detail } : {}),
+          ...definedProps({ detail: gate.detail }),
         },
       });
     });
@@ -432,7 +433,7 @@ async function deriveRunEvents(
           steps: efficiency?.steps ?? [],
         },
       ],
-      ...(appStages !== undefined ? { appStages } : {}),
+      ...definedProps({ appStages }),
     }),
   );
 

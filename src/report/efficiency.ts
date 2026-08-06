@@ -22,6 +22,7 @@ import type {
   ReportRepeatedWorkStepV1,
   ReportRepeatedWorkV1,
 } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function buildEfficiencyReport(input: {
   stateHome: string;
@@ -128,7 +129,7 @@ export async function buildEfficiencyReport(input: {
     contextRuns.set(runKey, {
       app: envelope.app,
       runId: envelope.run_id,
-      ...(envelope.refs.context_manifest !== undefined ? { ref: envelope.refs.context_manifest } : {}),
+      ...definedProps({ ref: envelope.refs.context_manifest }),
     });
   }
   for (const step of steps) {

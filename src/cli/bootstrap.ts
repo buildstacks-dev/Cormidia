@@ -20,6 +20,7 @@ import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION, valid
 import { stableJson } from "../org/lifecycle.js";
 import { readOnboardingRecoverySource } from "../org/onboarding-answers.js";
 import { loadRoles } from "../org/roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function cmdBootstrap(args: string[]): Promise<number> {
   let root = ".";
@@ -81,7 +82,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
   const homes = existingOrgHome
     ? await resolveCormidiaHomes({
         orgHome: existingOrgHome,
-        ...(stateHome !== undefined ? { stateHome } : {}),
+        ...definedProps({ stateHome }),
       })
     : undefined;
 
@@ -151,7 +152,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
         ? await bootstrapFromRecoveredAnswers(root, answersRaw, {
             orgHome: homes.orgHome,
             stateHome: homes.stateHome,
-            ...(recoveredAppName !== undefined ? { appName: recoveredAppName } : {}),
+            ...definedProps({ appName: recoveredAppName }),
           })
         : await bootstrapRun(root, answersRaw, {
             orgHome: homes.orgHome,

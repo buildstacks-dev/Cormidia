@@ -1,8 +1,9 @@
 // Stale-lock recovery actions (architecture.md §3).
 
-import { execFileSync } from "node:child_process";
+import { runGit as git } from "../runtime/git.js";
 import { decideRecovery, writeJournalPatch, type RecoveryDecision, type TurnJournal } from "./journal.js";
 import { releaseLock, type TurnLock } from "./locks.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface RecoveryActionResult {
   decision: RecoveryDecision;
@@ -48,7 +49,7 @@ export async function recoverStaleTurn(
         attempt: decision.nextAttempt,
         message: "ambiguous worktree preserved for operator inspection; automatic restart refused",
         errorCode: "error_ambiguous_worktree",
-        ...(inspection !== undefined ? { recovery: inspection } : {}),
+        ...definedProps({ recovery: inspection }),
       },
       now,
     );
@@ -101,13 +102,4 @@ function inspectAmbiguousWorktree(journal: TurnJournal): TurnJournal["recovery"]
     statusEntries: status === "" ? 0 : status.split("\n").length,
     recoveryCommand: `git -C ${JSON.stringify(journal.worktree)} status --short --branch`,
   };
-}
-
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
 }

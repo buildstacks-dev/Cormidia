@@ -19,6 +19,7 @@ import {
   type ParentTaskStatus,
 } from "../org/parent-task.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function cmdTask(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "task");
@@ -49,18 +50,18 @@ export async function cmdTask(args: string[]): Promise<number> {
       stateHome: homes.stateHome,
       taskId: parsed.id,
       originalPrompt,
-      ...(parsed.objective !== undefined ? { objective: parsed.objective } : {}),
-      ...(completionCriteria !== undefined ? { completionCriteria } : {}),
-      ...(parsed.app !== undefined ? { app: parsed.app } : {}),
-      ...(effectiveWorkdir !== undefined ? { workdir: effectiveWorkdir } : {}),
-      ...(parsed.harness !== undefined ? { harness: parsed.harness } : {}),
-      ...(parsed.nativeTaskId !== undefined ? { nativeTaskId: parsed.nativeTaskId } : {}),
-      ...(nativeRef !== undefined ? { nativeRef } : {}),
-      ...(parsed.requiredStages !== undefined ? { requiredStages: parsed.requiredStages } : {}),
+      ...definedProps({ objective: parsed.objective }),
+      ...definedProps({ completionCriteria }),
+      ...definedProps({ app: parsed.app }),
+      ...definedProps({ workdir: effectiveWorkdir }),
+      ...definedProps({ harness: parsed.harness }),
+      ...definedProps({ nativeTaskId: parsed.nativeTaskId }),
+      ...definedProps({ nativeRef }),
+      ...definedProps({ requiredStages: parsed.requiredStages }),
       charter: authorityEvidence(
         await resolveAuthority({
           orgHome: homes.orgHome,
-          ...(effectiveWorkdir !== undefined ? { appWorkdir: effectiveWorkdir } : {}),
+          ...definedProps({ appWorkdir: effectiveWorkdir }),
         }),
       ),
     });
@@ -75,7 +76,7 @@ export async function cmdTask(args: string[]): Promise<number> {
       stateHome: homes.stateHome,
       taskId: parsed.id,
       reason: parsed.reason,
-      ...(parsed.actor !== undefined ? { actor: parsed.actor } : {}),
+      ...definedProps({ actor: parsed.actor }),
       ...(parsed.externalOnly ? { externalOnly: true } : {}),
     });
     printTask(record);
@@ -88,7 +89,7 @@ export async function cmdTask(args: string[]): Promise<number> {
       stateHome: homes.stateHome,
       taskId: parsed.id,
       status: parsed.status,
-      ...(parsed.result !== undefined ? { resultSummary: parsed.result } : {}),
+      ...definedProps({ resultSummary: parsed.result }),
       refs: parsed.refs,
       completionState: parsed.completionState,
     });

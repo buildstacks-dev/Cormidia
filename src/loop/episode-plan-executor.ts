@@ -18,6 +18,7 @@ import {
   type MechanicalGateStep,
   type ProviderTurnStep,
 } from "./episode-plan.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 /**
  * This journal is an execution projection of the accepted EpisodePlan. It is
@@ -943,8 +944,8 @@ function result(
     completedStepIds: completedEpisodePlanStepIds(journal),
     nextStepId,
     lastStepId,
-    ...(reasonCode !== undefined ? { reasonCode } : {}),
-    ...(summary !== undefined ? { summary } : {}),
+    ...definedProps({ reasonCode }),
+    ...definedProps({ summary }),
   };
 }
 

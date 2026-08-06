@@ -9,6 +9,7 @@ import type { ReportQuery } from "../report/types.js";
 import { OBSERVE_CSS, OBSERVE_HTML, OBSERVE_JS } from "./assets.js";
 import type { ObserveService } from "./live-source.js";
 import { OBSERVE_SCHEMA_VERSION } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024;
@@ -150,7 +151,7 @@ async function route(
       200,
       await service.sessions(reportQuery(url), {
         ...(url.searchParams.get("cursor") !== null ? { cursor: url.searchParams.get("cursor")! } : {}),
-        ...(limit !== undefined ? { limit } : {}),
+        ...definedProps({ limit }),
         refresh: url.searchParams.get("refresh") === "1",
         ...(url.searchParams.get("filter") !== null ? { filter: url.searchParams.get("filter")! } : {}),
         ...(url.searchParams.get("sort") !== null

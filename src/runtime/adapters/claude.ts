@@ -52,6 +52,7 @@ import { claudeDenyRulesForRole } from "../role-shaping.js";
 import { toolUseEvent } from "../tool-events.js";
 import type { GateEscalation, Runtime, ToolAction, TurnHooks, TurnRequest, TurnResult, TurnUsage } from "../types.js";
 import { renderContextBundle } from "../worktree-context.js";
+import { definedProps } from "../optional-properties.js";
 
 /** The SDK's query() shape, injectable so unit tests run with a scripted
  *  stand-in and zero network/CLI dependency. */
@@ -269,7 +270,7 @@ export class ClaudeRuntime implements Runtime {
     }
     const options: SdkOptions = {
       ...this.baseOptions,
-      ...(settings !== undefined ? { settings } : {}),
+      ...definedProps({ settings }),
       env: withNonInteractiveEnv(this.baseOptions.env ?? process.env),
       model: assignment.model,
       effort: assignment.effort,
@@ -290,7 +291,7 @@ export class ClaudeRuntime implements Runtime {
       // "overrun = incident note, not silent spend").
       maxBudgetUsd: req.role.maxTurnBudgetUsd,
       ...(req.session !== undefined ? { resume: req.session.id } : {}),
-      ...(req.maxTurns !== undefined ? { maxTurns: req.maxTurns } : {}),
+      ...definedProps({ maxTurns: req.maxTurns }),
       // Native structured output when the pass demands a typed verdict —
       // the CLI constrains the final response to the schema, so the result
       // text (→ summary) is the JSON itself. Absent verdictSchema, the key

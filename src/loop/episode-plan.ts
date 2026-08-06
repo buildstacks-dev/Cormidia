@@ -7,6 +7,7 @@ import {
   validateAssignmentProviderFamily,
   validateTurnAssignment,
 } from "../runtime/assignment.js";
+import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
 import { withFileLock, type FileLockOptions } from "../runtime/file-lock.js";
 import type { TurnAssignment, TurnAssignmentSource } from "../runtime/types.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
@@ -2650,10 +2651,6 @@ function validSafetyFact(value: unknown): value is SafetyFact {
   if (!isRecord(value) || !SAFETY_FACT_KINDS.includes(value["kind"] as SafetyFactKind)) return false;
   const evidenceRefs = value["evidenceRefs"];
   return Array.isArray(evidenceRefs) && evidenceRefs.length > 0 && evidenceRefs.every(nonEmpty);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function assignmentsEqualSafe(left: unknown, right: TurnAssignment): boolean {

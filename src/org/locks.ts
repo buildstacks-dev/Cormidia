@@ -10,6 +10,7 @@ import {
   processStartIdentity,
 } from "../runtime/process-identity.js";
 import { writeFileAtomic } from "./atomic.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export interface TurnLock {
   app: string;
@@ -180,7 +181,7 @@ export async function acquireLock(
     app: input.app,
     role: input.role,
     pid: ownerPid,
-    ...(ownerStart !== undefined ? { processStartIdentity: ownerStart } : {}),
+    ...definedProps({ processStartIdentity: ownerStart }),
     nonce: randomUUID(),
     turnId: input.turnId,
     startedAt: now.toISOString(),

@@ -19,6 +19,7 @@
 // and the import direction is one-way (`src/org` → `src/loop` → `src/runtime`).
 
 import { execFileSync } from "node:child_process";
+import { definedProps } from "../runtime/optional-properties.js";
 
 /** Git invocation environment shared by every resolver call: never prompt for
  *  credentials (a hung tick is indistinguishable from a wedged org) and never
@@ -95,7 +96,7 @@ export function resolveRemoteDefaultBranch(target: string, options: ResolveRemot
   let output: string;
   try {
     output = execFileSync("git", ["ls-remote", "--symref", target, "HEAD"], {
-      ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
+      ...definedProps({ cwd: options.cwd }),
       env: GIT_ENV,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],

@@ -43,6 +43,7 @@ import { withFileLock } from "../runtime/file-lock.js";
 import { RULE_DISPOSITION_TIERS, dispositionTierForRule } from "../runtime/gate.js";
 import { ApprovalStore, approvalDeciderFromIdentity, type ApprovalItem } from "./approvals.js";
 import { OBJECTIVE_BUDGET_RULE } from "./budget.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 /** Tiers an objective grant may name in bulk. `human-only` is deliberately
  *  absent — human-only classes are covered only per-class through the §4.1
@@ -453,13 +454,13 @@ export class ObjectiveGrantStore {
           ok: false,
           totalUsd: total,
           ceilingUsd: grant.spendCeilingUsd,
-          ...(escalation !== undefined ? { escalation } : {}),
+          ...definedProps({ escalation }),
         };
       }
       const row: LedgerRow = {
         at: now.toISOString(),
         usd: input.usd,
-        ...(input.note !== undefined ? { note: input.note } : {}),
+        ...definedProps({ note: input.note }),
       };
       this.ensureDirSync();
       appendFileSync(this.ledgerPath(input.grantId), `${JSON.stringify(row)}\n`, "utf8");
@@ -470,7 +471,7 @@ export class ObjectiveGrantStore {
         at: row.at,
         usd: input.usd,
         totalUsd: next,
-        ...(input.note !== undefined ? { note: input.note } : {}),
+        ...definedProps({ note: input.note }),
       });
       return { ok: true, totalUsd: next, ceilingUsd: grant.spendCeilingUsd };
     });

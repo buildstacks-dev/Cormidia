@@ -14,6 +14,7 @@ import { resolveAppWorkdir } from "./app-workdir.js";
 import { loadApps, type AppEntry } from "./apps.js";
 import { assembleContext } from "./context.js";
 import { loadRoles } from "./roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -203,7 +204,7 @@ export async function preparePlanSession(options: PreparePlanSessionOptions): Pr
   const appWorkdir = resolveAppWorkdir(app, {
     orgRoot: orgHome,
     runtimeHome: options.runtimeHome ?? join(homedir(), ".cormidia", appsFile.org.name),
-    ...(options.workdir !== undefined ? { explicitWorkdir: options.workdir } : {}),
+    ...definedProps({ explicitWorkdir: options.workdir }),
   });
 
   const contextOptions: PlanningContextRequest = {

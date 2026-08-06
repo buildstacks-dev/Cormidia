@@ -39,6 +39,7 @@ import { readExperimentRecord } from "./experiment.js";
 import { readInterventionRecord, writeInterventionRecord, type InterventionRecord } from "./intervention.js";
 import type { LearningPolicy, TierCanaryPolicy } from "./policy.js";
 import { listInFlightOkfJournals } from "./publisher.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 export type BundleLineage = "stable" | "canary";
 export type CanaryRootKind = "org" | "app";
@@ -136,7 +137,7 @@ export async function settleCanaryAssignmentRoot(
   const undecided = (existing.undecided ?? []).filter((entry) => entry !== kind);
   const next: CanaryAssignmentRecord = {
     ...existing,
-    roots: { ...existing.roots, ...(assignment !== undefined ? { [kind]: assignment } : {}) },
+    roots: { ...existing.roots, ...definedProps({ [kind]: assignment }) },
     ...(undecided.length > 0 ? { undecided } : {}),
     lineage: assignment?.lineage === "canary" ? "canary" : existing.lineage,
   };

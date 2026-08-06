@@ -19,6 +19,7 @@ import type { GateDecision, GateFn, ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore } from "./approvals.js";
 import { appendDenialLesson } from "./denial-lessons.js";
 import { ObjectiveGrantStore } from "./objective-grants.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export interface GateContext {
   app: string;
@@ -69,9 +70,9 @@ export function composeGate(baseGate: GateFn, store: ApprovalStore, context: Gat
       app: context.app,
       role: context.role,
       actionHash: hash,
-      ...(rule !== undefined ? { rule } : {}),
+      ...definedProps({ rule }),
       actionText: grantScopeText(action),
-      ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
+      ...definedProps({ ticketRef: context.ticketRef }),
       now,
     });
     if (grant !== undefined) {
@@ -122,8 +123,8 @@ export function composeGate(baseGate: GateFn, store: ApprovalStore, context: Gat
         role: context.role,
         rule,
         action,
-        ...(context.turnId !== undefined ? { turnId: context.turnId } : {}),
-        ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
+        ...definedProps({ turnId: context.turnId }),
+        ...definedProps({ ticketRef: context.ticketRef }),
         now,
       });
       if (stalled !== undefined) {
@@ -163,8 +164,8 @@ export function composeGate(baseGate: GateFn, store: ApprovalStore, context: Gat
         role: context.role,
         rule,
         action,
-        ...(context.turnId !== undefined ? { turnId: context.turnId } : {}),
-        ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
+        ...definedProps({ turnId: context.turnId }),
+        ...definedProps({ ticketRef: context.ticketRef }),
         now,
       });
       if (denied !== undefined) {
@@ -222,9 +223,9 @@ export function composeGate(baseGate: GateFn, store: ApprovalStore, context: Gat
         role: context.role,
         rule: ruleFromReason(decision.reason),
         action,
-        ...(context.turnId !== undefined ? { turnId: context.turnId } : {}),
-        ...(context.ticketRef !== undefined ? { ticketRef: context.ticketRef } : {}),
-        ...(context.workdir !== undefined ? { workdir: context.workdir } : {}),
+        ...definedProps({ turnId: context.turnId }),
+        ...definedProps({ ticketRef: context.ticketRef }),
+        ...definedProps({ workdir: context.workdir }),
         justification: decision.reason,
         ...(disposition.tier !== "routine"
           ? {

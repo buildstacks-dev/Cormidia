@@ -19,6 +19,7 @@ import {
   type SchedulerDefinitionMetadata,
   type SchedulerExpectation,
 } from "./model.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 const MARKER = "cormidia-scheduler-metadata-v1:";
 
@@ -58,7 +59,7 @@ export function buildSchedulerExpectation(input: SchedulerDefinitionInput): Sche
     packageEntryPath,
     orgHome,
     stateHome,
-    ...(input.tsxImportPath !== undefined ? { tsxImportPath: input.tsxImportPath } : {}),
+    ...definedProps({ tsxImportPath: input.tsxImportPath }),
     environmentPath,
     requiredExecutables,
   });

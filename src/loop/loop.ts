@@ -66,6 +66,8 @@ import {
   type Finding,
   type ReviewVerdict,
 } from "./verdicts.js";
+import { definedProps } from "../runtime/optional-properties.js";
+
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
 
 interface ClaimTicketOptions {
@@ -559,7 +561,7 @@ export async function advanceProvisionSetup(item: LoopItem, options: ProvisionSe
         detail: {
           gate: setupResult.gate,
           detail: setupResult.detail,
-          ...(setupResult.command !== undefined ? { command: setupResult.command } : {}),
+          ...definedProps({ command: setupResult.command }),
           ...(setupResult.outputTail !== undefined ? { outputTail: boundTail(setupResult.outputTail) } : {}),
         },
       });
@@ -674,7 +676,7 @@ async function recordGateResult(rec: PhaseRun | undefined, result: GateRunResult
         detail: {
           gate: gate.gate,
           detail: gate.detail,
-          ...(gate.command !== undefined ? { command: gate.command } : {}),
+          ...definedProps({ command: gate.command }),
           ...(gate.outputTail !== undefined ? { outputTail: boundTail(gate.outputTail) } : {}),
         },
       });
@@ -870,7 +872,7 @@ export async function advanceShipping(item: LoopItem, options: ShippingPhaseOpti
       body: deliveryUnitIssueNumbers(item)
         .map((number) => `Closes #${number}`)
         .join("\n"),
-      ...(item.approvedCommitId !== undefined ? { matchHeadCommit: item.approvedCommitId } : {}),
+      ...definedProps({ matchHeadCommit: item.approvedCommitId }),
     });
     await journalBoundary(options.journal, "merge", {
       prNumber,
@@ -952,7 +954,7 @@ export async function advanceShipping(item: LoopItem, options: ShippingPhaseOpti
     phase: "merged",
     gateResults,
     scorecardEvents,
-    ...(releaseTrigger !== undefined ? { releaseTrigger } : {}),
+    ...definedProps({ releaseTrigger }),
   };
 }
 
@@ -1244,8 +1246,8 @@ async function runGateSet(
     commands: options.commands,
     criterionTests: options.criterionTests,
     currentAttempt: item.remediationAttempts,
-    ...(previousFailureIdentity !== undefined ? { previousFailureIdentity } : {}),
-    ...(options.process !== undefined ? { process: options.process } : {}),
+    ...definedProps({ previousFailureIdentity }),
+    ...definedProps({ process: options.process }),
     diff: { baseRef, headRef },
   });
   return { ...result, headCommitId: head };
@@ -1465,7 +1467,7 @@ export async function repairPrGateEvidence(item: LoopItem, gh: GhOps): Promise<P
     return {
       repaired: false,
       satisfied: false,
-      ...(before.headRefOid !== undefined ? { headRefOid: before.headRefOid } : {}),
+      ...definedProps({ headRefOid: before.headRefOid }),
       artifactReferences: rendered.artifactReferences,
     };
   }
@@ -1481,7 +1483,7 @@ export async function repairPrGateEvidence(item: LoopItem, gh: GhOps): Promise<P
   return {
     repaired: body !== before.body,
     satisfied: after.body.includes(PR_GATE_EVIDENCE_START) && after.body.includes(PR_GATE_EVIDENCE_END),
-    ...(after.headRefOid !== undefined ? { headRefOid: after.headRefOid } : {}),
+    ...definedProps({ headRefOid: after.headRefOid }),
     artifactReferences: rendered.artifactReferences,
   };
 }

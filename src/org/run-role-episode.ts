@@ -9,6 +9,7 @@ import type {
   JsonValue,
   ProposedProviderTurnStep,
 } from "../loop/episode-plan.js";
+import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
 import type { RoleConfig } from "../runtime/types.js";
 import type { AppEntry } from "./apps.js";
 import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
@@ -448,10 +449,6 @@ function describeRoute(route: Exclude<TriggerRoute, { kind: "skip" }>): string {
 
 function truncateSummary(value: string): string {
   return value.length <= 160 ? value : `${value.slice(0, 157)}...`;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function firstNonEmpty(values: readonly string[]): string | undefined {

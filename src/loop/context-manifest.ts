@@ -9,6 +9,7 @@ import type { ContextBundle, ContextComponent, RuntimeKind } from "../runtime/ty
 import { renderContextBundle, renderTurnExecutionFacts } from "../runtime/worktree-context.js";
 import { writeLoopFileAtomic } from "./durable.js";
 import { efficiencyEpisodeDir, fingerprint, type EfficiencyRoute } from "./efficiency.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 type ContextCategory =
   | "authority"
@@ -164,8 +165,8 @@ export async function writeContextManifest(input: {
     episode_id: input.episodeId,
     app: input.app,
     run_id: input.runId,
-    ...(input.planVersion !== undefined ? { plan_version: input.planVersion } : {}),
-    ...(input.planStepId !== undefined ? { plan_step_id: input.planStepId } : {}),
+    ...definedProps({ plan_version: input.planVersion }),
+    ...definedProps({ plan_step_id: input.planStepId }),
     route,
     render_sha256: fingerprint({ context: renderedContext, brief: preparedBrief, template: preparedTemplate ?? null }),
     rendered_bytes: Buffer.byteLength(rendered),
@@ -191,7 +192,7 @@ export async function writeContextManifest(input: {
     relativeRef: "context-manifest.json",
     context: preparedContext,
     brief: preparedBrief,
-    ...(preparedTemplate !== undefined ? { template: preparedTemplate } : {}),
+    ...definedProps({ template: preparedTemplate }),
   };
 }
 
@@ -353,7 +354,7 @@ function preparedContextBundle(context: ContextBundle, entries: PreparedEntry[])
       rendered: entry.submitted,
       inclusionReason: entry.input.inclusionReason,
       requirement: entry.input.requirement,
-      ...(entry.input.cacheIdentity !== undefined ? { cacheIdentity: entry.input.cacheIdentity } : {}),
+      ...definedProps({ cacheIdentity: entry.input.cacheIdentity }),
     }));
   return {
     ...(context.authority !== undefined && authority !== undefined
@@ -362,7 +363,7 @@ function preparedContextBundle(context: ContextBundle, entries: PreparedEntry[])
     taste,
     memoryExcerpts,
     components,
-    ...(context.execution !== undefined ? { execution: context.execution } : {}),
+    ...definedProps({ execution: context.execution }),
   };
 }
 

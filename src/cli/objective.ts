@@ -15,6 +15,7 @@ import { loadApps } from "../org/apps.js";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { ObjectiveGrantStore, type CreateObjectiveGrantInput, type ObjectiveGrant } from "../org/objective-grants.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface ParsedObjectiveArgs {
   subcommand: "grant" | "grant-critical" | "list" | "revoke";
@@ -108,7 +109,7 @@ export async function cmdObjective(args: string[]): Promise<number> {
     spendCeilingUsd: ceilingUsd,
     now: parsed.now,
     ...(parsed.ttlHours !== undefined ? { ttlMs: parsed.ttlHours * 60 * 60 * 1000 } : {}),
-    ...(parsed.uses !== undefined ? { useCap: parsed.uses } : {}),
+    ...definedProps({ useCap: parsed.uses }),
   };
 
   let grant: ObjectiveGrant;
@@ -128,7 +129,7 @@ export async function cmdObjective(args: string[]): Promise<number> {
         {
           rule: parsed.criticalClass,
           scope: parsed.scope,
-          ...(parsed.precondition !== undefined ? { precondition: parsed.precondition } : {}),
+          ...definedProps({ precondition: parsed.precondition }),
         },
       ],
     });

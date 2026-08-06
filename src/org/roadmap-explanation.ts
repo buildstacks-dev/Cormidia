@@ -6,11 +6,13 @@ import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { readEpisodePlanVersion, stableHash } from "../loop/episode-plan.js";
+import { toErrorMessage as message } from "../runtime/error-message.js";
 import {
   recoverExecutionAffinityTurn,
   type CacheMeasurement,
   type ExecutionAffinityRecord,
 } from "./execution-affinity.js";
+import { planningAppDir, planningAuthorityPath } from "./planning-artifact-path.js";
 import {
   readBacklogSnapshotAuthority,
   readCurrentRoadmapPlan,
@@ -442,12 +444,8 @@ async function indexAffinity(stateHome: string, app: string, errors: string[]): 
   return out;
 }
 
-function planningAppDir(stateHome: string, app: string): string {
-  return join(resolve(stateHome), "planning", "apps", stableHash(app).slice(0, 32));
-}
-
 function authorityFile(stateHome: string, app: string, ref: AuthorityRef): string {
-  return join(planningAppDir(stateHome, app), `${ref.kind}s`, ref.id, `v${ref.version}.json`);
+  return planningAuthorityPath(stateHome, app, ref.kind, ref.id, ref.version);
 }
 
 function refView(ref: AuthorityRef): PlanningAuthorityRefView {
@@ -475,10 +473,6 @@ function affectedClaims(errors: string[]): string[] {
 
 function versionSort(left: string, right: string): number {
   return Number.parseInt(left.slice(1), 10) - Number.parseInt(right.slice(1), 10);
-}
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function record(value: unknown): value is Record<string, unknown> {

@@ -23,6 +23,7 @@ import {
   type SemanticAction,
 } from "../runtime/gate.js";
 import type { ToolAction, TurnEvent } from "../runtime/types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export type ApprovalDecision = "approved" | "denied";
 export type ApprovalStatus = "pending" | "expired" | ApprovalDecision;
@@ -482,7 +483,7 @@ export class ApprovalStore {
       item.grantId !== undefined && existsSync(this.grantPath(item.grantId))
         ? await readJson<ApprovalGrant>(this.grantPath(item.grantId))
         : undefined;
-    return { item, ...(grant !== undefined ? { grant } : {}) };
+    return { item, ...definedProps({ grant }) };
   }
 
   async decide(id: string, input: DecideApprovalInput): Promise<ApprovalItem> {
@@ -691,10 +692,10 @@ export class ApprovalStore {
           status: event.decision,
           decision: event.decision,
           decidedAt: event.at,
-          ...(event.reason !== undefined ? { reason: event.reason } : {}),
-          ...(event.decidedBy !== undefined ? { decidedBy: event.decidedBy } : {}),
+          ...definedProps({ reason: event.reason }),
+          ...definedProps({ decidedBy: event.decidedBy }),
           ...(event.decision === "approved" ? { execution: initialExecution(pending) } : {}),
-          ...(event.grantId !== undefined ? { grantId: event.grantId } : {}),
+          ...definedProps({ grantId: event.grantId }),
         };
         await this.moveToDecided(recovered);
       }
@@ -1105,8 +1106,8 @@ export class ApprovalStore {
           actor: input.actor,
           finishedAt: now.toISOString(),
           result: input.result,
-          ...(input.remoteRef !== undefined ? { remoteRef: input.remoteRef } : {}),
-          ...(input.failureCause !== undefined ? { failureCause: input.failureCause } : {}),
+          ...definedProps({ remoteRef: input.remoteRef }),
+          ...definedProps({ failureCause: input.failureCause }),
           nextAction:
             input.state === "executed" ? "none" : input.state === "ambiguous" ? "reconcile" : "retry_with_disposition",
         },
@@ -1195,7 +1196,7 @@ export class ApprovalStore {
           state,
           attempts,
           actor: input.actor,
-          ...(attemptedAt !== undefined ? { attemptedAt } : {}),
+          ...definedProps({ attemptedAt }),
           finishedAt: now.toISOString(),
           result: input.reason,
           ...(input.disposition === "failed"
@@ -1375,7 +1376,7 @@ export class ApprovalStore {
             state: attempted ? "ambiguous" : "failed",
             attempts: attempted ? Math.max(1, item.execution.attempts) : item.execution.attempts,
             actor,
-            ...(consumedAt !== undefined ? { attemptedAt: consumedAt } : {}),
+            ...definedProps({ attemptedAt: consumedAt }),
             finishedAt,
             result: attempted
               ? "legacy actor retry consumed its grant without an acknowledged outcome"
@@ -1760,7 +1761,7 @@ function mintGrant(
             kind: scope.kind,
             rule: item.rule,
             ...(scope.kind === "ticket" && item.ticketRef !== undefined ? { ticketRef: item.ticketRef } : {}),
-            ...(scope.pathContains !== undefined ? { pathContains: scope.pathContains } : {}),
+            ...definedProps({ pathContains: scope.pathContains }),
           },
         }
       : {}),

@@ -37,6 +37,7 @@ import {
   type OkfDocument,
 } from "../memory.js";
 import type { LearningPolicy } from "./policy.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 // ---------------------------------------------------------------------------
 // roots and scope mapping
@@ -442,7 +443,7 @@ export async function cutManifestVersion(root: LearningRoot, input: CutVersionIn
     promoted: now.toISOString(),
     approval_ref: input.approvalRef ?? null,
     concepts: [...input.concepts],
-    ...(input.note !== undefined ? { note: input.note } : {}),
+    ...definedProps({ note: input.note }),
   };
   manifest.history.push(entry);
   manifest.bundle_version = entry.version;
@@ -503,7 +504,7 @@ export async function disableConcept(
   const cut = await cutManifestVersion(root, {
     concepts: [conceptId],
     note: `disable ${conceptId}`,
-    ...(options.now !== undefined ? { now: options.now } : {}),
+    ...definedProps({ now: options.now }),
   });
   return { conceptId, path: found.path, version: cut.version };
 }
@@ -560,7 +561,7 @@ export async function rollbackRoot(root: LearningRoot, options: { now?: Date } =
   const cut = await cutManifestVersion(root, {
     concepts: deactivated,
     note: `rollback of ${last.version}`,
-    ...(options.now !== undefined ? { now: options.now } : {}),
+    ...definedProps({ now: options.now }),
   });
   return { revertedVersion: last.version, newVersion: cut.version, deactivated };
 }

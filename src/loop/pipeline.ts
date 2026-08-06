@@ -50,6 +50,7 @@ import { createEventWriter, readEvents, type EventWriter } from "../runtime/runl
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
 import { mintRunId, RUN_ID_RE, runPaths } from "../runtime/runlog/paths.js";
 import { recordTurnOnce, toRecord, type TriggerKind } from "../runtime/telemetry.js";
+import { ZERO_USAGE } from "../runtime/turn-usage.js";
 import {
   costEnforcementFor,
   ERROR_TURN_BUDGET_EXHAUSTED,
@@ -99,6 +100,7 @@ import {
 } from "./pipelines.js";
 import { runPipelinePreflight, type PipelineArtifactExpectation } from "./preflight.js";
 import type { LoopContinuation } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface RunlogTarget {
   /** Org runtime home the runs/ tree lives under. */
@@ -324,7 +326,7 @@ function continuationTask(continuation: LoopContinuation): string {
   const decisions = continuation.decisions.map((decision) => ({
     approval_id: decision.approvalId,
     decision: decision.decision,
-    ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
+    ...definedProps({ reason: decision.reason }),
     decided_at: decision.decidedAt,
   }));
   return [
@@ -362,7 +364,7 @@ export async function executePipeline(options: ExecutePipelineOptions): Promise<
       : {}),
     ...(options.episode?.budgetOverrides !== undefined ? { budgetOverrides: options.episode.budgetOverrides } : {}),
     requiredCapabilities: options.requiredCapabilities ?? ["tool_gate", "cancellation", "session_resume"],
-    ...(options.capabilityProfiles !== undefined ? { capabilityProfiles: options.capabilityProfiles } : {}),
+    ...definedProps({ capabilityProfiles: options.capabilityProfiles }),
     ...(options.episode?.artifactExpectations !== undefined ? { artifacts: options.episode.artifactExpectations } : {}),
   });
   if (
@@ -490,7 +492,7 @@ async function admitPipelineEpisode(options: ExecutePipelineOptions, now: Date, 
     passes,
     now,
     ...(options.episode?.budgetOverrides !== undefined ? { budgetOverrides: options.episode.budgetOverrides } : {}),
-    ...(configuredExecutionBounds !== undefined ? { executionBounds: configuredExecutionBounds } : {}),
+    ...definedProps({ executionBounds: configuredExecutionBounds }),
   });
 }
 
@@ -811,26 +813,24 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
       episodeId,
       providerTurnIds: [],
       executionStepIds: [],
-      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+      ...definedProps({ parentTaskId: options.parentTaskId }),
       app,
-      ...(ticket !== undefined ? { ticket } : {}),
+      ...definedProps({ ticket }),
       pipeline: options.pipeline.name,
       pass: pass.id,
       role: role.name,
       runtime: assignment.harness,
       model: assignment.model,
       effort: assignment.effort,
-      ...(planMetadata.assignment_source !== undefined ? { assignmentSource: planMetadata.assignment_source } : {}),
-      ...(planMetadata.assignment_candidate_id !== undefined
-        ? { assignmentCandidateId: planMetadata.assignment_candidate_id }
-        : {}),
+      ...definedProps({ assignmentSource: planMetadata.assignment_source }),
+      ...definedProps({ assignmentCandidateId: planMetadata.assignment_candidate_id }),
       ...(planMetadata.plan_version !== undefined
         ? {
             planVersion: planMetadata.plan_version,
             planStepId: planMetadata.plan_step_id,
           }
         : {}),
-      ...(planMetadata.selection_reason !== undefined ? { selectionReason: planMetadata.selection_reason } : {}),
+      ...definedProps({ selectionReason: planMetadata.selection_reason }),
       resolvedCapabilities,
       workdir: resolve(options.workdir),
       ...(git !== undefined ? { gitHead: git.head, gitBranch: git.branch } : {}),
@@ -843,8 +843,8 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
             reason: "not selected by the active tier/trigger routing policy",
           })),
       },
-      ...(options.planningRoute !== undefined ? { planningRoute: options.planningRoute } : {}),
-      ...(inputManifestRef !== undefined ? { inputManifestRef } : {}),
+      ...definedProps({ planningRoute: options.planningRoute }),
+      ...definedProps({ inputManifestRef }),
       ...(executionContext.authority !== undefined
         ? {
             authority: {
@@ -873,7 +873,7 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
       runId,
       context: executionContext,
       brief,
-      ...(template !== undefined ? { template } : {}),
+      ...definedProps({ template }),
       route: options.episode?.route ?? options.selection.tier,
       runtime: assignment.harness,
       ...(planMetadata.plan_version !== undefined
@@ -882,7 +882,7 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
             planStepId: planMetadata.plan_step_id,
           }
         : {}),
-      ...(options.contextBudgetBytes !== undefined ? { capBytes: options.contextBudgetBytes } : {}),
+      ...definedProps({ capBytes: options.contextBudgetBytes }),
     });
     const executableContext = contextManifest.context;
     const executableBrief = contextManifest.brief;
@@ -915,7 +915,7 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
         trace_id: traceId,
         span_id: pass.id,
         app,
-        ...(ticket !== undefined ? { ticket } : {}),
+        ...definedProps({ ticket }),
         pipeline: options.pipeline.name,
         pass: pass.id,
         role: role.name,
@@ -1008,7 +1008,7 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
               : undefined;
           checkpointWrites = checkpointWrites.then(() =>
             updateEnvelope(root, app, runId, {
-              ...(usage !== undefined ? { usage } : {}),
+              ...definedProps({ usage }),
               ...(latestProgress?.session !== undefined ? { session: sessionEvidence(latestProgress.session) } : {}),
               lastSeenAt: progress.at ?? clock().toISOString(),
             }).then(() => undefined),
@@ -1216,8 +1216,8 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
             task: request.task,
             context: executableContext,
             signal: passController.signal,
-            ...(request.session !== undefined ? { session: request.session } : {}),
-            ...(request.verdictSchema !== undefined ? { verdictSchema: request.verdictSchema } : {}),
+            ...definedProps({ session: request.session }),
+            ...definedProps({ verdictSchema: request.verdictSchema }),
             ...(modelTurns !== null ? { maxTurns: modelTurns } : {}),
             ...(options.networkAccess === true ? { networkAccess: true } : {}),
           },
@@ -1276,9 +1276,9 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
         result: turnResult,
         finishedAt: clock(),
         contextManifestRef: contextManifest.relativeRef,
-        ...(before !== undefined ? { workFingerprintBefore: before } : {}),
-        ...(after !== undefined ? { workFingerprintAfter: after } : {}),
-        ...(artifactFingerprint !== undefined ? { artifactFingerprint } : {}),
+        ...definedProps({ workFingerprintBefore: before }),
+        ...definedProps({ workFingerprintAfter: after }),
+        ...definedProps({ artifactFingerprint }),
         toolCallCount: providerToolCalls - toolCallStart,
       });
       const settlementRole: RoleConfig = {
@@ -1301,14 +1301,12 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
               planStepId: planMetadata.plan_step_id,
             }
           : {}),
-        ...(planMetadata.assignment_source !== undefined ? { assignmentSource: planMetadata.assignment_source } : {}),
-        ...(planMetadata.assignment_candidate_id !== undefined
-          ? { assignmentCandidateId: planMetadata.assignment_candidate_id }
-          : {}),
-        ...(planMetadata.selection_reason !== undefined ? { selectionReason: planMetadata.selection_reason } : {}),
+        ...definedProps({ assignmentSource: planMetadata.assignment_source }),
+        ...definedProps({ assignmentCandidateId: planMetadata.assignment_candidate_id }),
+        ...definedProps({ selectionReason: planMetadata.selection_reason }),
         resolvedCapabilities,
         traceId,
-        ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+        ...definedProps({ parentTaskId: options.parentTaskId }),
         pipeline: options.pipeline.name,
         pass: pass.id,
         ...(turnResult.usage.quality === "unavailable" ? { unmeasured: true } : {}),
@@ -1361,7 +1359,7 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
         operation: `${options.pipeline.name}/${pass.id}`,
         task,
         ...(continuation !== undefined ? { session: continuation.session } : {}),
-        ...(verdictSchema !== undefined ? { verdictSchema } : {}),
+        ...definedProps({ verdictSchema }),
       });
     } catch (error) {
       if (!(error instanceof ProviderBudgetRefusalError)) throw error;
@@ -1583,8 +1581,8 @@ async function flushBridgedEvents(
         tool,
         durationMs: e.durationMs ?? 0,
         success: e.success ?? true,
-        ...(e.args !== undefined ? { args: e.args } : {}),
-        ...(e.category !== undefined ? { category: e.category } : {}),
+        ...definedProps({ args: e.args }),
+        ...definedProps({ category: e.category }),
         // A subagent-issued tool call nests under its subagent span.
         ...(e.spanId !== undefined ? { spanId: e.spanId, parentSpanId: passSpanId } : {}),
       });
@@ -1841,11 +1839,7 @@ function failedResult(
 
 function unavailableUsage(): TurnUsage {
   return {
-    tokensIn: 0,
-    tokensOut: 0,
-    costUsd: 0,
-    subagentTurns: 0,
-    wallClockMs: 0,
+    ...ZERO_USAGE,
     quality: "unavailable",
   };
 }
@@ -1860,8 +1854,8 @@ function mergeProgress(previous: TurnProgress | undefined, next: TurnProgress): 
   return {
     ...(previous ?? {}),
     ...next,
-    ...(next.usage !== undefined ? { usage: next.usage } : {}),
-    ...(next.session !== undefined ? { session: next.session } : {}),
+    ...definedProps({ usage: next.usage }),
+    ...definedProps({ session: next.session }),
   };
 }
 

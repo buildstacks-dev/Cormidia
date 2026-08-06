@@ -43,6 +43,7 @@ import {
   type SchedulerReasonCode,
 } from "./scheduler/model.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface DispatchTickOptions {
   orgRoot?: string;
@@ -225,7 +226,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     schedulerId,
   });
   const dueClaims = new ScheduleDueClaimStore(runtimeHome, {
-    ...(options.dueClaimOwnerStatus !== undefined ? { ownerStatus: options.dueClaimOwnerStatus } : {}),
+    ...definedProps({ ownerStatus: options.dueClaimOwnerStatus }),
   });
   const invocation = options.dryRun === true ? undefined : await evidence.beginInvocation(tickAt);
   if (invocation !== undefined)
@@ -367,7 +368,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
       triggerKind:
         turn.trigger === "blocked-retry" ? "recovery" : turn.triggerKind === "schedule" ? "schedule" : "event",
       trigger: turn.trigger,
-      ...(turn.eventKey !== undefined ? { eventKey: turn.eventKey } : {}),
+      ...definedProps({ eventKey: turn.eventKey }),
       now: tickAt,
     });
     const decisionId = claimed.record.decision_id;
@@ -489,12 +490,10 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
         attempt: 0,
         triggerKind: turn.triggerKind,
         trigger: turn.trigger,
-        ...(turn.event !== undefined ? { event: turn.event } : {}),
+        ...definedProps({ event: turn.event }),
         pid: lock.lock.pid,
-        ...(lock.lock.processStartIdentity !== undefined
-          ? { processStartIdentity: lock.lock.processStartIdentity }
-          : {}),
-        ...(lock.lock.nonce !== undefined ? { processNonce: lock.lock.nonce } : {}),
+        ...definedProps({ processStartIdentity: lock.lock.processStartIdentity }),
+        ...definedProps({ processNonce: lock.lock.nonce }),
       },
       tickAt,
     );
@@ -972,7 +971,7 @@ function withDecision(
     role: turn.role,
     triggerKind: turn.trigger === "blocked-retry" ? "recovery" : turn.triggerKind,
     trigger: turn.trigger,
-    ...(turn.eventKey !== undefined ? { eventKey: turn.eventKey } : {}),
+    ...definedProps({ eventKey: turn.eventKey }),
   });
   return { ...turn, decisionId, cadenceWindow: input.cadenceWindow, turnId: scheduledEpisodeId(decisionId) };
 }
@@ -990,7 +989,7 @@ async function recordBlockedDecision(
     role: blocker.role,
     triggerKind: blocker.triggerKind,
     trigger: blocker.trigger,
-    ...(blocker.eventKey !== undefined ? { eventKey: blocker.eventKey } : {}),
+    ...definedProps({ eventKey: blocker.eventKey }),
     now,
   });
   if (claimed.record.stage !== "terminal") {
@@ -1132,7 +1131,7 @@ async function killHungTurns(
     try {
       const ownedProcess = {
         pid: journal.pid,
-        ...(journal.processGroupId !== undefined ? { processGroupId: journal.processGroupId } : {}),
+        ...definedProps({ processGroupId: journal.processGroupId }),
       };
       const lockBeforeSignal = await readLock(runtimeHome, journal.app, journal.role).catch(() => undefined);
       const ownershipBound =

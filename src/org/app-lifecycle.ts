@@ -8,6 +8,7 @@ import { lstat, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { parse, parseDocument } from "yaml";
 import { resolveRemoteDefaultBranch } from "../loop/default-branch.js";
+import { toErrorMessage as message } from "../runtime/error-message.js";
 import { loadGateCommands } from "../loop/driver.js";
 import type { GhOps } from "../loop/github.js";
 import { CANONICAL_LABELS } from "../loop/plan-tickets.js";
@@ -56,6 +57,7 @@ import {
   storeOnboardingAnswers,
 } from "./onboarding-answers.js";
 import { loadRoles } from "./roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const GIT_ENV = {
   ...process.env,
@@ -322,7 +324,7 @@ async function bootstrapFromRecoveredAnswersLocked(
       scan,
       allRoles,
       orgAuthority,
-      ...(options.templateRoot !== undefined ? { templateRoot: options.templateRoot } : {}),
+      ...definedProps({ templateRoot: options.templateRoot }),
     });
     await validateGeneratedArtifacts(stage, appName, repoSlug, emit.created, emit.updated);
     git(stage, "add", "--all");
@@ -689,9 +691,9 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
     options.runtimeReadiness ??
     ((runtimes) =>
       probeRuntimeReadinessChecks(runtimes, {
-        ...(options.readinessProbe !== undefined ? { probe: options.readinessProbe } : {}),
+        ...definedProps({ probe: options.readinessProbe }),
         configOnly: options.configOnly === true,
-        ...(options.readinessTimeoutMs !== undefined ? { timeoutMs: options.readinessTimeoutMs } : {}),
+        ...definedProps({ timeoutMs: options.readinessTimeoutMs }),
       }));
   checks.push(...(await runtimeInspector(runtimeCandidatesForApp(await loadRoles(join(orgHome, "roles.yaml")), app))));
 
@@ -1632,7 +1634,7 @@ async function probeRuntimeReadinessChecks(
         const request: RuntimeReadinessRequest = {
           runtime,
           models,
-          ...(config.timeoutMs !== undefined ? { timeoutMs: config.timeoutMs } : {}),
+          ...definedProps({ timeoutMs: config.timeoutMs }),
         };
         const result = await probe(request);
         return result.status === "ready"
@@ -1829,9 +1831,6 @@ function fail(id: string, detail: string, remediation?: string): LifecycleCheck 
 }
 function blocked(id: string, detail: string, remediation: string): LifecycleCheck {
   return { id, status: "blocked", detail, remediation };
-}
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 async function appConfigStatus(path: string, app: string): Promise<AppEntry["status"]> {

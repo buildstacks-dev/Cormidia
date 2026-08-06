@@ -66,6 +66,7 @@ import { createEventWriter, type EventWriter } from "../../runtime/runlog/events
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../../runtime/runlog/forensics.js";
 import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
 import { recordTurnOnce, toRecord, type TriggerKind } from "../../runtime/telemetry.js";
+import { ZERO_USAGE } from "../../runtime/turn-usage.js";
 import type {
   ContextBundle,
   RoleConfig,
@@ -1671,11 +1672,7 @@ function failedResult(
 
 function unavailableUsage(): TurnUsage {
   return {
-    tokensIn: 0,
-    tokensOut: 0,
-    costUsd: 0,
-    subagentTurns: 0,
-    wallClockMs: 0,
+    ...ZERO_USAGE,
     quality: "unavailable",
   };
 }

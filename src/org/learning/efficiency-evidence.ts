@@ -14,6 +14,7 @@ import type { RunlogEvent } from "../../runtime/runlog/events.js";
 import { ERROR_TURN_BUDGET_SUSPENDED } from "../../runtime/turn-budget.js";
 import type { TurnAssignmentSource } from "../../runtime/types.js";
 import { METRIC_EMITTERS, type LearningEvent } from "./events.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 const EFFICIENCY_EVIDENCE_VERSION = "efficiency-evidence/v1" as const;
 const EFFICIENCY_CLUSTER_VERSION = "efficiency-cluster/v1" as const;
@@ -601,10 +602,10 @@ function projectPlanProvenance(
   ]);
   const providerFamily = singleValue(providerSteps.map((step) => step.provider_family));
   return {
-    ...(planVersion !== undefined ? { plan_version: planVersion } : {}),
-    ...(planStepId !== undefined ? { plan_step_id: planStepId } : {}),
-    ...(assignmentSource !== undefined ? { assignment_source: assignmentSource } : {}),
-    ...(providerFamily !== undefined ? { provider_family: providerFamily } : {}),
+    ...definedProps({ plan_version: planVersion }),
+    ...definedProps({ plan_step_id: planStepId }),
+    ...definedProps({ assignment_source: assignmentSource }),
+    ...definedProps({ provider_family: providerFamily }),
   };
 }
 

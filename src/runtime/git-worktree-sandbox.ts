@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { closeSync, openSync, unlinkSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { toErrorMessage as errorMessage } from "./error-message.js";
 
 export interface GitIndexPreflightResult {
   status: "pass" | "fail";
@@ -132,8 +133,4 @@ function gitPath(workdir: string, args: string[]): string {
 function isWithin(candidate: string, parent: string): boolean {
   const pathFromParent = relative(parent, candidate);
   return pathFromParent === "" || (!pathFromParent.startsWith("..") && !isAbsolute(pathFromParent));
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

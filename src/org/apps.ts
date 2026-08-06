@@ -31,6 +31,7 @@ import {
 } from "./app-execution-policy.js";
 import { writeFileAtomic } from "./atomic.js";
 import { loadRoles, resolveApprovedAssignmentCandidates } from "./roles.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export type AppStatus = "live" | "paused" | "onboarding";
 export type AppAssignmentMode = AssignmentMode;
@@ -271,7 +272,7 @@ function parseApp(
     cadence,
     channels: parseChannels(spec["channels"], err),
     execution: parseExecution(spec["execution"], err),
-    ...(release !== undefined ? { release } : {}),
+    ...definedProps({ release }),
   };
 }
 
@@ -464,7 +465,7 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
     owner: owner as ReleaseOwner,
     trigger,
     ...(typeof command === "string" ? { command } : {}),
-    ...(approvers !== undefined ? { approvers } : {}),
+    ...definedProps({ approvers }),
   };
 }
 

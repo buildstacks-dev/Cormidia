@@ -7,6 +7,7 @@ import { PlatformSchedulerManager, type SchedulerManager } from "../org/schedule
 import { DEFAULT_SCHEDULER_CADENCE_MINUTES, type SchedulerBackend } from "../org/scheduler/model.js";
 import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface SchedulerCommandOptions extends CormidiaHomeOptions {
   manager?: SchedulerManager;
@@ -77,14 +78,14 @@ async function runSchedulerCommand(args: string[], options: SchedulerCommandOpti
       ? await installScheduler({
           ...input,
           execute,
-          ...(confirm !== undefined ? { confirm } : {}),
-          ...(options.now !== undefined ? { now: options.now } : {}),
+          ...definedProps({ confirm }),
+          ...definedProps({ now: options.now }),
         })
       : await uninstallScheduler({
           ...input,
           execute,
-          ...(confirm !== undefined ? { confirm } : {}),
-          ...(options.now !== undefined ? { now: options.now } : {}),
+          ...definedProps({ confirm }),
+          ...definedProps({ now: options.now }),
         });
   printLifecycle(result, json);
   return result.action === "refuse" ? 1 : 0;

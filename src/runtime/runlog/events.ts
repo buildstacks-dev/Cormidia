@@ -13,6 +13,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { runPaths } from "./paths.js";
 import { hashArgs, scrubSecrets } from "./redact.js";
+import { definedProps } from "../optional-properties.js";
 
 type RunlogEventType =
   | "run.started"
@@ -123,9 +124,9 @@ export function createEventWriter(root: string, ctx: EventContext & { runId: str
         ts: clock().toISOString(),
         event: options.type,
         severity: options.severity ?? "info",
-        ...(options.spanId !== undefined ? { span_id: options.spanId } : {}),
-        ...(options.parentSpanId !== undefined ? { parent_span_id: options.parentSpanId } : {}),
-        ...(options.errorCode !== undefined ? { error_code: options.errorCode } : {}),
+        ...definedProps({ span_id: options.spanId }),
+        ...definedProps({ parent_span_id: options.parentSpanId }),
+        ...definedProps({ error_code: options.errorCode }),
         ...(options.detail !== undefined ? { detail: scrubDetail(options.detail) } : {}),
       };
       return write(event);
@@ -136,12 +137,12 @@ export function createEventWriter(root: string, ctx: EventContext & { runId: str
         duration_ms: options.durationMs,
         success: options.success,
         ...(options.args !== undefined ? { args_hash: hashArgs(options.args) } : {}),
-        ...(options.category !== undefined ? { category: options.category } : {}),
+        ...definedProps({ category: options.category }),
       };
       return this.append({
         type: "tool.called",
-        ...(options.spanId !== undefined ? { spanId: options.spanId } : {}),
-        ...(options.parentSpanId !== undefined ? { parentSpanId: options.parentSpanId } : {}),
+        ...definedProps({ spanId: options.spanId }),
+        ...definedProps({ parentSpanId: options.parentSpanId }),
         detail,
       });
     },

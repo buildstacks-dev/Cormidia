@@ -17,6 +17,7 @@ import type { LoopTier } from "../memory.js";
 import type { CandidateDestination } from "./candidate.js";
 import { CANDIDATE_DESTINATIONS } from "./candidate.js";
 import { requireEnum, requireRecord, requireSha256Ref, requireString, requireStringArray } from "./validate.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 const LEARNING_PUBLISH_TOOL = "learning_publish";
 const LEARNING_PUBLISH_RULE = "learning-publish";
@@ -92,8 +93,8 @@ export async function raiseLearningPublish(
         `learning publish: ${input.binding.destination} ${input.binding.candidate_id} ` +
         `(tier ${input.binding.tier}, scope ${input.binding.scope})`,
     },
-    ...(input.justification !== undefined ? { justification: input.justification } : {}),
-    ...(input.now !== undefined ? { now: input.now } : {}),
+    ...definedProps({ justification: input.justification }),
+    ...definedProps({ now: input.now }),
   });
   return { item, alreadyPending: false };
 }

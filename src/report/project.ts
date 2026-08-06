@@ -23,6 +23,7 @@ import {
   type ReportSnapshotV1,
   type ReportTurnV1,
 } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface BuildReportOptions {
   orgName: string;
@@ -61,7 +62,7 @@ export async function buildReport(options: BuildReportOptions): Promise<ReportSn
     rows: scopedRows,
     details,
     range,
-    ...(query.app !== undefined ? { app: query.app } : {}),
+    ...definedProps({ app: query.app }),
     duplicateKeys: duplicate.keys,
   });
   const allCampaigns = await readValidationCampaignReports(options.stateHome);

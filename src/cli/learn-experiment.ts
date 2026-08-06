@@ -56,6 +56,7 @@ import { eligibleFixtures, runExperiment } from "../org/learning/runner.js";
 import { loadRoles } from "../org/roles.js";
 import { getRuntime } from "../runtime/registry.js";
 import { flag, learningRoots, parseFlags, requireFlag, type Flags } from "./learn-activation.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 // ---------------------------------------------------------------------------
 // experiment
@@ -253,7 +254,7 @@ async function run(homes: CormidiaHomes, args: string[]): Promise<number> {
   const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
   const overlay = await renderCandidateOverlay({
     orgHome: homes.orgHome,
-    ...(appWorkdir !== undefined ? { appWorkdir } : {}),
+    ...definedProps({ appWorkdir }),
     candidateId: experiment.candidate_ref,
     policy,
   });
@@ -480,7 +481,7 @@ export async function canaryStatusLines(
   for (const root of roots) {
     const manifest = await readRootManifest(root.kind, {
       orgHome: homes.orgHome,
-      ...(root.appWorkdir !== undefined ? { appWorkdir: root.appWorkdir } : {}),
+      ...definedProps({ appWorkdir: root.appWorkdir }),
     });
     const meta = manifest?.canary_meta ?? null;
     if (meta === null) continue;
@@ -622,7 +623,7 @@ async function armFingerprints(
     orgHome: homes.orgHome,
     app: {
       name: appName,
-      ...(workdir !== undefined ? { workdir } : {}),
+      ...definedProps({ workdir }),
       ...(appEntry !== undefined ? { budgetUsdMonth: appEntry.budgetUsdMonth } : {}),
     },
     roles: Object.fromEntries(rolesFile.roles.map((role) => [role.name, role])),

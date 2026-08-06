@@ -9,6 +9,7 @@ import { resolve, join } from "node:path";
 import { ClaudeRuntime } from "../../src/runtime/adapters/claude.js";
 import { CodexRuntime } from "../../src/runtime/adapters/codex.js";
 import { PiRuntime } from "../../src/runtime/adapters/pi.js";
+import { toErrorMessage as errorMessage } from "../../src/runtime/error-message.js";
 import type { Runtime, RuntimeKind } from "../../src/runtime/types.js";
 import { ApprovalStore } from "../../src/org/approvals.js";
 import {
@@ -235,9 +236,6 @@ function runtime(kind: RuntimeKind): Runtime {
   if (kind === "claude") return new ClaudeRuntime();
   if (kind === "codex") return new CodexRuntime();
   return new PiRuntime();
-}
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 async function waitForFile(path: string): Promise<void> {
   for (let attempt = 0; attempt < 20; attempt += 1) {

@@ -8,6 +8,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 import type { AuthorityContext, AuthorityEvidence } from "../runtime/types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export type AuthorityProfile = "delegated-operator" | "conservative" | "custom";
 type AppAuthorityMode = "inherit" | "conservative" | "custom";
@@ -131,7 +132,7 @@ export async function resolveAuthority(options: { orgHome: string; appWorkdir?: 
     org,
     {
       mode: metadata.mode,
-      ...(metadata.restrictions !== undefined ? { restrictions: metadata.restrictions } : {}),
+      ...definedProps({ restrictions: metadata.restrictions }),
     },
     appPath,
   );
@@ -310,7 +311,7 @@ function parseAppAuthority(text: string, source: string): AppAuthorityFrontmatte
     mode: selection.mode,
     org_charter_version: metadata["org_charter_version"],
     org_charter_sha256: metadata["org_charter_sha256"],
-    ...(selection.restrictions !== undefined ? { restrictions: selection.restrictions } : {}),
+    ...definedProps({ restrictions: selection.restrictions }),
   };
 }
 

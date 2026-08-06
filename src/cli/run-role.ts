@@ -23,6 +23,7 @@ import { runDispatchedTurn, turnWorktreeIdentity } from "../org/turn-runner.js";
 import type { ContextBundle, RoleConfig } from "../runtime/types.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { installProcessCancellation } from "./process-signal.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface RunRoleCommandDependencies {
   /** Test seam at the provider-owning boundary. Dry-run must never call it. */
@@ -104,7 +105,7 @@ export async function cmdRunRole(args: string[], dependencies: RunRoleCommandDep
       orgRoot: homes.orgHome,
       runtimeHome: homes.stateHome,
       signal: cancellation.signal,
-      ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+      ...definedProps({ parentTaskId }),
       ...(prepared.creatorScope === undefined ? {} : { creatorScope: prepared.creatorScope }),
       ...(networkAccess ? { networkAccess: true } : {}),
     }).finally(() => cancellation.dispose());
@@ -137,11 +138,11 @@ export async function cmdRunRole(args: string[], dependencies: RunRoleCommandDep
     role,
     app,
     turnId,
-    ...(templatePath !== undefined ? { templatePath } : {}),
+    ...definedProps({ templatePath }),
     context,
     dryRun: true,
     workdir: resolvedWorkdir,
-    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+    ...definedProps({ parentTaskId }),
     ...(networkAccess ? { networkAccess: true } : {}),
   });
   printPreview({

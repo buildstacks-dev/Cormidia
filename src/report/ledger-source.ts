@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { toErrorMessage as safeMessage } from "../runtime/error-message.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
 import type { ReportRangeV1, ReportSourceDiagnosticV1 } from "./types.js";
 
@@ -181,10 +182,6 @@ function signature(value: { size: number; mtimeMs: number; ino: number | bigint 
 
 function isDayFile(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(value);
-}
-
-function safeMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function emptyRead(): LedgerRangeRead {

@@ -62,6 +62,7 @@ import {
 } from "./concepts.js";
 import { appendLearningEventsDeduped, sanitizeIdSegment, type LearningEvent } from "./events.js";
 import type { LearningPolicy, ScopeShareKey } from "./policy.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 interface ResolveInput {
   orgHome: string;
@@ -533,7 +534,7 @@ function toResolved(
     keywordHit: keywordsMatchTask(doc.frontmatter.keywords, input.taskText),
     bytes: Buffer.byteLength(rendered, "utf8"),
     rendered,
-    ...(topicKey !== undefined ? { topicKey } : {}),
+    ...definedProps({ topicKey }),
   };
 }
 

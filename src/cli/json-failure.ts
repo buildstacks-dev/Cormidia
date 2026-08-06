@@ -1,5 +1,6 @@
 import { NoActiveOrgError } from "../org/home.js";
 import { reportCliInvocationFailure } from "./invocation-audit.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface JsonCliFailureEnvelope {
   schema_version: 1;
@@ -115,7 +116,7 @@ function bufferedWrite(
       kind: "write",
       channel,
       chunk: typeof chunk === "string" ? chunk : Buffer.from(chunk),
-      ...(encoding !== undefined ? { encoding } : {}),
+      ...definedProps({ encoding }),
     });
     done?.();
     return true;

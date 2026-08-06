@@ -38,10 +38,12 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
+import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
 import { appCommandEnv } from "../runtime/non-interactive-env.js";
 import { asGlobal, SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import { gatesForTier, type GateName, type Policy, type RiskTier } from "./policy.js";
 import { describeSetupArtifacts, scanSetupArtifacts, type SetupArtifact } from "./setup-artifacts.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 /** Every gate the engine can report on: the policy-schedulable set plus
  *  `review-freshness`, which always runs (policy.ts rejects configuring it;
@@ -250,7 +252,7 @@ export async function runSetupGate(
   // the tool actually printed.
   return {
     ...diagnosed,
-    ...(result.exitCode !== undefined ? { exitCode: result.exitCode } : {}),
+    ...definedProps({ exitCode: result.exitCode }),
     ...(result.timedOut === true ? { timedOut: true } : {}),
     ...(result.outputTail !== undefined
       ? { outputTail: `${diagnosed.outputTail}\n\n--- setup command output ---\n${result.outputTail}` }
@@ -541,7 +543,7 @@ export async function runGates(
       attemptsRemaining: Math.max(0, maxAttempts - currentAttempt),
       canRetry: failed && !exhausted && !noProgress,
       exhausted,
-      ...(failureIdentity !== undefined ? { failureIdentity } : {}),
+      ...definedProps({ failureIdentity }),
       noProgress,
     },
   };
@@ -699,10 +701,6 @@ function shortSha(sha: string): string {
   return sha.slice(0, 12);
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 // ---------------------------------------------------------------------------
 // Shared subprocess core
 // ---------------------------------------------------------------------------
@@ -847,7 +845,7 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<Shel
         exitCode,
         signal,
         timedOut,
-        ...(spawnError !== undefined ? { spawnError } : {}),
+        ...definedProps({ spawnError }),
         output: tail.toString(),
       });
     };

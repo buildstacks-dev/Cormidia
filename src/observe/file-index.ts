@@ -14,6 +14,7 @@ import { runPaths } from "../runtime/runlog/paths.js";
 import { readStatusRows } from "../runtime/runlog/status.js";
 import type { InvocationRecord, TurnRecord } from "../runtime/telemetry.js";
 import type { IndexedPass, ObserveFiltersV1, ObserveProjectionInput, SourceHealthView } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface LocalIndexOptions {
   orgName: string;
@@ -185,9 +186,9 @@ async function indexPasses(
     }
     passes.push({
       row,
-      ...(finishedAt !== undefined ? { envelope_finished_at: finishedAt } : {}),
+      ...definedProps({ envelope_finished_at: finishedAt }),
       events,
-      ...(eventsCorrupt !== undefined ? { events_corrupt: eventsCorrupt } : {}),
+      ...definedProps({ events_corrupt: eventsCorrupt }),
       artifacts: await inspectArtifacts(stateHome, row.app, row.runId),
     });
   }
@@ -270,7 +271,7 @@ async function indexApprovals(stateHome: string): Promise<{
         errors.push(`grants/${item.grantId}.json: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-    records.push({ item, ...(grant !== undefined ? { grant } : {}) });
+    records.push({ item, ...definedProps({ grant }) });
   }
   return { records, errors };
 }
@@ -332,14 +333,14 @@ async function indexInbox(dir: string): Promise<LocalProjectionSources["inbox"]>
         ...(typeof occurredAt === "string" && !Number.isNaN(Date.parse(occurredAt)) ? { occurred_at: occurredAt } : {}),
         ...(typeof eventId === "string" ? { event_id: eventId } : {}),
         ...(typeof eventSource === "string" ? { source: eventSource } : {}),
-        ...(discoveredAt !== undefined ? { discovered_at: discoveredAt } : {}),
+        ...definedProps({ discovered_at: discoveredAt }),
       });
     } catch (error) {
       out.push({
         filename: entry.name,
         app: null,
         kind: null,
-        ...(discoveredAt !== undefined ? { discovered_at: discoveredAt } : {}),
+        ...definedProps({ discovered_at: discoveredAt }),
         error: error instanceof Error ? error.message : String(error),
       });
     }

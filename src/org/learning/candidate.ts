@@ -36,6 +36,7 @@ import {
   requireString,
   requireStringArray,
 } from "./validate.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 export const CANDIDATE_DESTINATIONS = [
   "okf_concept",
@@ -97,7 +98,7 @@ export function validateCandidateArtifact(value: unknown): CandidateArtifact {
     event_ids: requireStringArray(spec, "event_ids", source),
     evidence_refs: requireStringArray(spec, "evidence_refs", source),
     content_hash: contentHash,
-    ...(draft !== undefined ? { draft } : {}),
+    ...definedProps({ draft }),
   };
 }
 

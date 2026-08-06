@@ -79,6 +79,7 @@ import {
 } from "./learn-activation.js";
 import { canaryStatusLines, learnCanary, learnExperiment } from "./learn-experiment.js";
 import { installProcessCancellation } from "./process-signal.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function cmdLearn(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "learn");
@@ -412,7 +413,7 @@ async function assembleCapsule(
       orgHome: homes.orgHome,
       app: {
         name: record.app,
-        ...(workdir !== undefined ? { workdir } : {}),
+        ...definedProps({ workdir }),
         ...(appEntry !== undefined ? { budgetUsdMonth: appEntry.budgetUsdMonth } : {}),
       },
       roles: Object.fromEntries(rolesFile.roles.map((role) => [role.name, role])),
@@ -427,9 +428,9 @@ async function assembleCapsule(
   const capsule = await createCapsuleBuilder({
     stateHome: homes.stateHome,
     repoByApp: Object.fromEntries(homes.appsFile.apps.map((app) => [app.name, app.repo])),
-    ...(fingerprintRef !== undefined ? { fingerprintRef } : {}),
+    ...definedProps({ fingerprintRef }),
   }).assemble(record.episode_id);
-  return { capsule, ...(fingerprintFailure !== undefined ? { fingerprintFailure } : {}) };
+  return { capsule, ...definedProps({ fingerprintFailure }) };
 }
 
 /** Replay-capsule section for a closed build episode. */
@@ -508,7 +509,7 @@ async function emit(
     const event = await projector.recordLateOutcome(parsed.episode, {
       kind: parsed.lateOutcome,
       ref: parsed.ref,
-      ...(parsed.note !== undefined ? { note: parsed.note } : {}),
+      ...definedProps({ note: parsed.note }),
     });
     console.log(`recorded late outcome ${event.event_id} against ${event.episode_id}`);
     console.log(`  it folds into the episode record on the next projection`);
@@ -571,8 +572,8 @@ async function emit(
       // observation is trusted human evidence; the cause is a hypothesis
       // even from a human; the intervention still requires review.
       observation: parsed.observation,
-      ...(parsed.cause !== undefined ? { cause_hypothesis_text: parsed.cause } : {}),
-      ...(parsed.intervention !== undefined ? { suggested_intervention: parsed.intervention } : {}),
+      ...definedProps({ cause_hypothesis_text: parsed.cause }),
+      ...definedProps({ suggested_intervention: parsed.intervention }),
       ...(parsed.artifacts.length > 0 ? { artifacts: parsed.artifacts } : {}),
     },
   };
@@ -1032,7 +1033,7 @@ async function report(
                 },
               }
             : {}),
-          ...(efficiencyHealth !== undefined ? { efficiency_health: efficiencyHealth } : {}),
+          ...definedProps({ efficiency_health: efficiencyHealth }),
           ...(storeErrors.length > 0 ? { store_errors: storeErrors } : {}),
         },
         null,

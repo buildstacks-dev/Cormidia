@@ -11,6 +11,7 @@
 // tool activity.
 
 import type { ToolAction, TurnEvent } from "./types.js";
+import { definedProps } from "./optional-properties.js";
 
 /** Environment-setup and wait commands — the docker/install/wait-loop
  *  signal. Matching is per command; the >= 3 threshold lives in the
@@ -44,8 +45,8 @@ export function toolUseEvent(action: ToolAction, outcome: { success?: boolean; d
     name: action.tool,
     detail: command !== undefined && command.length > 0 ? `${action.tool}: ${command}` : action.tool,
     args: action.input,
-    ...(category !== undefined ? { category } : {}),
-    ...(outcome.success !== undefined ? { success: outcome.success } : {}),
-    ...(outcome.durationMs !== undefined ? { durationMs: outcome.durationMs } : {}),
+    ...definedProps({ category }),
+    ...definedProps({ success: outcome.success }),
+    ...definedProps({ durationMs: outcome.durationMs }),
   };
 }

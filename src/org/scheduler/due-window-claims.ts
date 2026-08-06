@@ -8,6 +8,7 @@ import {
   type DurableClaimToken,
 } from "../../runtime/durable-claim.js";
 import { scheduledEpisodeId } from "./model.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 const SCHEDULE_DUE_MAX_ATTEMPTS = 2;
 
@@ -35,7 +36,7 @@ export class ScheduleDueClaimStore {
     this.store = new DurableClaimStore({
       root: stateHome,
       namespace: "scheduler/due-window-claims",
-      ...(options.ownerStatus !== undefined ? { ownerStatus: options.ownerStatus } : {}),
+      ...definedProps({ ownerStatus: options.ownerStatus }),
     });
   }
 

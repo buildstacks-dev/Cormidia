@@ -33,6 +33,7 @@ import {
 import { routeAdmissionForEpisodePlan } from "../../loop/episode-route.js";
 import { admitPlannedEpisodeRoute, type PlannerAdmissionLimits } from "../../loop/planner-admission.js";
 import { configuredProviderFamily, turnAssignmentsEqual } from "../../runtime/assignment.js";
+import { toErrorMessage as describe } from "../../runtime/error-message.js";
 import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../../runtime/readiness.js";
 import type { RoleConfig, TurnAssignment } from "../../runtime/types.js";
 import { normalizeAppExecution, type AppEntry } from "../apps.js";
@@ -686,10 +687,6 @@ async function readOrAnnotate<T>(
     onError(error);
     return undefined;
   }
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function explainExecutionStep(record: ExecutionStepRecord): ExplainedExecutionStep {

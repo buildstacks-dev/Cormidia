@@ -11,6 +11,7 @@ import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
 import { readValidationCampaignReports } from "../org/validation-campaign.js";
 import { formatStatusRows, readStatusRows } from "../runtime/runlog/status.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");
@@ -19,8 +20,8 @@ export async function cmdStatus(args: string[]): Promise<number> {
     common.orgHome !== undefined || common.stateHome === undefined ? await resolveCormidiaHomes(common) : undefined;
   const stateHome = common.stateHome ? resolve(common.stateHome) : homes!.stateHome;
   const rows = await readStatusRows(stateHome, {
-    ...(parsed.app !== undefined ? { app: parsed.app } : {}),
-    ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
+    ...definedProps({ app: parsed.app }),
+    ...definedProps({ limit: parsed.limit }),
   });
   const approvals = (await new ApprovalStore(stateHome).listDecidedReadOnly())
     .filter((item) => item.execution !== undefined)

@@ -39,6 +39,7 @@ import {
   type ReviewerVerdict,
 } from "../org/learning/review.js";
 import type { OkfDocument } from "../org/memory.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export interface Flags {
   values: Map<string, string[]>;
@@ -202,7 +203,7 @@ export async function learnPublish(homes: CormidiaHomes, args: string[]): Promis
   };
   const waiver = flag(flags, "waiver");
   const outcome = await publishCandidate(deps, candidateId, {
-    ...(waiver !== undefined ? { waiver } : {}),
+    ...definedProps({ waiver }),
   });
 
   switch (outcome.status) {
@@ -265,7 +266,7 @@ export async function learnResolve(homes: CormidiaHomes, args: string[]): Promis
   }
   const resolved = await resolveLearningContext({
     orgHome: homes.orgHome,
-    ...(appWorkdir !== undefined ? { appWorkdir } : {}),
+    ...definedProps({ appWorkdir }),
     app,
     role,
     turnId: "dry-resolve",

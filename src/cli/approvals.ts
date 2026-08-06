@@ -23,6 +23,7 @@ import { appendDenialLesson } from "../org/denial-lessons.js";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { releaseExpiredTicketApprovalClaim } from "../org/ticket-episode-approval.js";
 import { extractHomeFlags } from "./home-flags.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export async function cmdApprovals(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "approvals");
@@ -41,7 +42,7 @@ export async function cmdApprovals(args: string[]): Promise<number> {
   if (parsed.subcommand === "show") {
     if (parsed.id === undefined) throw new Error("approvals show: id required");
     const { item, grant } = await store.show(parsed.id);
-    console.log(JSON.stringify({ item, ...(grant !== undefined ? { grant } : {}) }, null, 2));
+    console.log(JSON.stringify({ item, ...definedProps({ grant }) }, null, 2));
     return 0;
   }
 
@@ -89,7 +90,7 @@ export async function cmdApprovals(args: string[]): Promise<number> {
       reason: parsed.reason,
       decidedBy: approvalDeciderFromIdentity(parsed.by),
       now: parsed.now,
-      ...(parsed.scope !== undefined ? { scope: parsed.scope } : {}),
+      ...definedProps({ scope: parsed.scope }),
     });
     if (decided.decision === "denied") {
       appendDenialLesson(homes.orgHome, decided.role, {
@@ -281,14 +282,14 @@ function parseArgs(args: string[]): ParsedArgs {
     subcommand,
     batch,
     json,
-    ...(id !== undefined ? { id } : {}),
+    ...definedProps({ id }),
     now,
-    ...(decision !== undefined ? { decision } : {}),
-    ...(disposition !== undefined ? { disposition } : {}),
-    ...(reason !== undefined ? { reason } : {}),
-    ...(by !== undefined ? { by } : {}),
-    ...(scope !== undefined ? { scope } : {}),
-    ...(confirm !== undefined ? { confirm } : {}),
+    ...definedProps({ decision }),
+    ...definedProps({ disposition }),
+    ...definedProps({ reason }),
+    ...definedProps({ by }),
+    ...definedProps({ scope }),
+    ...definedProps({ confirm }),
   };
 }
 
@@ -306,7 +307,7 @@ function decisionFromAnswer(answer: string): {
   if (kind === "ticket" || kind === "app") {
     return {
       kind: "approve",
-      scope: { kind, ...(parts[2] !== undefined ? { pathContains: parts[2] } : {}) },
+      scope: { kind, ...definedProps({ pathContains: parts[2] }) },
     };
   }
   return { kind: "approve" };
@@ -377,7 +378,7 @@ async function reviewQueue(
             decision: "approved",
             reason,
             decidedBy,
-            ...(decision.scope !== undefined ? { scope: decision.scope } : {}),
+            ...definedProps({ scope: decision.scope }),
           });
           console.log(
             `approved ${item.id}${decided.grantId ? ` grant=${decided.grantId}` : ""}` +

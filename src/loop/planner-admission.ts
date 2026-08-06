@@ -58,6 +58,7 @@ import {
   type ProviderTurnStep,
 } from "./episode-plan.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE } from "./episode-route.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const PLANNER_ADMISSION_SCHEMA_VERSION = 1 as const;
 const PLANNER_PLAN_ACCEPTANCE_SCHEMA_VERSION = 1 as const;
@@ -481,8 +482,8 @@ export async function finalizeEpisodePlannerAttempt(input: {
       result: input.result,
       finishedAt: input.finishedAt,
       contextManifestRef: input.contextManifestRef,
-      ...(input.artifactFingerprint !== undefined ? { artifactFingerprint: input.artifactFingerprint } : {}),
-      ...(input.toolCallCount !== undefined ? { toolCallCount: input.toolCallCount } : {}),
+      ...definedProps({ artifactFingerprint: input.artifactFingerprint }),
+      ...definedProps({ toolCallCount: input.toolCallCount }),
     });
     const status = await plannerBudgetStatusInternal(input.root, admission);
     if (status.unmeasuredAttempts.length > 0) {

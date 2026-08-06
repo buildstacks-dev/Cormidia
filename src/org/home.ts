@@ -55,6 +55,7 @@ import {
   sha256 as schedulerSha256,
   type SchedulerBackend,
 } from "./scheduler/model.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export const ORG_HOME_DEFINITION =
   "committed organization configuration: roles, apps, pipelines, prompts, authority, taste, and curated memory";
@@ -393,8 +394,8 @@ async function repairMigratedScheduler(
     packageEntryPath: record.package_entry_path,
     executablePath: record.executable_path,
     cadenceMinutes: record.cadence_minutes,
-    ...(record.environment_path !== undefined ? { environmentPath: record.environment_path } : {}),
-    ...(record.required_executables !== undefined ? { requiredExecutables: record.required_executables } : {}),
+    ...definedProps({ environmentPath: record.environment_path }),
+    ...definedProps({ requiredExecutables: record.required_executables }),
   });
 
   const currentDefinition = await manager.readDefinition(expected.metadata.scheduler_id);
@@ -776,8 +777,8 @@ export async function resolveCormidiaHomes(options: CormidiaHomeOptions = {}): P
   }
   const pointerPath = options.pointerPath ?? join(homeDir, CORMIDIA_HOME_DIRNAME, "config");
   const orgHome = await findExistingOrg({
-    ...(options.orgHome !== undefined ? { orgHome: options.orgHome } : {}),
-    ...(options.env !== undefined ? { env: options.env } : {}),
+    ...definedProps({ orgHome: options.orgHome }),
+    ...definedProps({ env: options.env }),
     homeDir,
     pointerPath,
   });

@@ -5,6 +5,7 @@
 
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { toErrorMessage as errorMessage } from "../../src/runtime/error-message.js";
 import {
   writeValidationCampaignReport,
   type ValidationCampaignReportV1,
@@ -257,9 +258,6 @@ function unique(values: string[]): string[] {
 }
 function money(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
-}
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 function assertSpend(providerTurns: number, equivUsd: number, name: string): void {
   if (!Number.isInteger(providerTurns) || providerTurns < 0)

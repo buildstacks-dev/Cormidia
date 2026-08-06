@@ -1,5 +1,6 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
+import { toErrorMessage as safeError } from "../runtime/error-message.js";
 import { SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
 
@@ -518,8 +519,4 @@ function truncateUtf8(text: string, maxBytes: number): string {
     }
   }
   return "";
-}
-
-function safeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

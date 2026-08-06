@@ -9,6 +9,7 @@ import type { ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore, type ApprovalItem } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { grantScopeText } from "./gate-compose.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 const GITHUB_ISSUE_CREATE_TOOL = "cormidia.github.issue.create";
 const GITHUB_ISSUE_COMMENT_TOOL = "cormidia.github.issue.comment";
@@ -195,7 +196,7 @@ export async function executeApprovedDeliveries(
       actionHash: actionHash(item.action),
       rule: item.rule,
       actionText: grantScopeText(item.action),
-      ...(item.ticketRef !== undefined ? { ticketRef: item.ticketRef } : {}),
+      ...definedProps({ ticketRef: item.ticketRef }),
       now: clock(),
     });
     if (grant === undefined) {

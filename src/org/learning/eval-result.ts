@@ -53,6 +53,7 @@ import {
   requireString,
   requireStringArray,
 } from "./validate.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 export type EvalVerdict = "improved" | "regressed" | "inconclusive" | "not_evaluatable";
 /** Model graders are deferred until a qualitative guardrail needs one
@@ -182,7 +183,7 @@ export function computeEvalResult(options: ComputeEvalResultOptions): EvalResult
     },
     guardrails,
     verdict,
-    ...(options.execution !== undefined ? { execution: options.execution } : {}),
+    ...definedProps({ execution: options.execution }),
     grader: { kind: "deterministic", ref: options.graderRef },
     cost_usd: options.costUsd,
     decided_by: options.decidedBy,
@@ -377,7 +378,7 @@ function validateEvalResult(value: unknown): EvalResult {
     primary_metric: primary,
     guardrails,
     verdict,
-    ...(execution !== undefined ? { execution } : {}),
+    ...definedProps({ execution }),
     grader,
     cost_usd: requireNonNegativeNumber(spec, "cost_usd", source),
     decided_by: requireString(spec, "decided_by", source),

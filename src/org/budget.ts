@@ -22,6 +22,7 @@ import { readSettledKeys, recordTurnOnce, settlementKey, type TurnRecord } from 
 import type { TurnResult } from "../runtime/types.js";
 import { ApprovalStore, type ApprovalItem } from "./approvals.js";
 import type { AppsFile } from "./apps.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export interface BudgetRow {
   app: string;
@@ -475,12 +476,8 @@ export async function reconcileLedger(
         wallClockMs: Math.max(0, new Date(observedAt).getTime() - new Date(receipt.started_at).getTime()),
         quality: envelope.usage.quality ?? (envelope.usage.cost_estimated ? "estimated" : "partial"),
         ...(envelope.usage.cost_estimated === true ? { costEstimated: true } : {}),
-        ...(envelope.usage.cache_read_tokens !== undefined
-          ? { cacheReadTokens: envelope.usage.cache_read_tokens }
-          : {}),
-        ...(envelope.usage.cache_write_tokens !== undefined
-          ? { cacheCreationTokens: envelope.usage.cache_write_tokens }
-          : {}),
+        ...definedProps({ cacheReadTokens: envelope.usage.cache_read_tokens }),
+        ...definedProps({ cacheCreationTokens: envelope.usage.cache_write_tokens }),
       };
     } catch {
       return undefined;
@@ -782,7 +779,7 @@ function recordFromEnvelope(envelope: RunEnvelope, runtimeByRole: Record<string,
     app: envelope.app,
     runId: envelope.run_id,
     traceId: envelope.trace_id,
-    ...(envelope.parent_task_id !== undefined ? { parentTaskId: envelope.parent_task_id } : {}),
+    ...definedProps({ parentTaskId: envelope.parent_task_id }),
     pipeline: envelope.pipeline,
     pass: envelope.pass,
   };

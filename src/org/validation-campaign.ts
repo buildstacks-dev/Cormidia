@@ -5,6 +5,7 @@
 
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
 import { writeFileAtomic } from "./atomic.js";
 
 const VALIDATION_CAMPAIGN_SCHEMA_VERSION = 1 as const;
@@ -306,7 +307,4 @@ function isMissing(error: unknown): boolean {
   return (
     typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ENOENT"
   );
-}
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

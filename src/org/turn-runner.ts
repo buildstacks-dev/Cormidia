@@ -36,6 +36,7 @@ import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { readEnvelope } from "../runtime/runlog/envelope.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
+import { ZERO_USAGE } from "../runtime/turn-usage.js";
 import type {
   ContextBundle,
   RoleConfig,
@@ -110,6 +111,7 @@ import {
 import { createExistingTicketApprovalHandler } from "./ticket-episode-approval.js";
 import { createTicketEpisodeRuntime } from "./ticket-episode-runtime.js";
 import { resolveTriggerRoute } from "./trigger-routing.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 export {
   acquireGitCloneLock,
@@ -206,10 +208,8 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
           triggerKind: "manual",
           trigger: "manual",
           pid: process.pid,
-          ...(turnLock.processStartIdentity !== undefined
-            ? { processStartIdentity: turnLock.processStartIdentity }
-            : {}),
-          ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
+          ...definedProps({ processStartIdentity: turnLock.processStartIdentity }),
+          ...definedProps({ processNonce: turnLock.nonce }),
           ...(process.env.CORMIDIA_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
         });
 
@@ -218,8 +218,8 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
       app: options.app.name,
       phase: "assembling",
       pid: process.pid,
-      ...(turnLock.processStartIdentity !== undefined ? { processStartIdentity: turnLock.processStartIdentity } : {}),
-      ...(turnLock.nonce !== undefined ? { processNonce: turnLock.nonce } : {}),
+      ...definedProps({ processStartIdentity: turnLock.processStartIdentity }),
+      ...definedProps({ processNonce: turnLock.nonce }),
       ...(process.env.CORMIDIA_OWNED_PROCESS_GROUP === "1" ? { processGroupId: process.pid } : {}),
     });
 
@@ -282,7 +282,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
         app: options.app.name,
         role: options.role.name,
         appRepo: options.app.repo,
-        ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
+        ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
         turnId: options.turnId,
         ...(journal.event !== undefined ? { ticketRef: `event:${journal.event.key}` } : {}),
         orgHome: orgRoot,
@@ -423,7 +423,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
         runtimeHome,
         toRecord(options.role, result, clock(), {
           app: options.app.name,
-          ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind } : {}),
+          ...definedProps({ trigger: journal.triggerKind }),
         }),
       );
     }
@@ -691,7 +691,7 @@ async function runGenericEpisodeTurn(
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
+      ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
       turnId: options.turnId,
       ...(options.journal.event !== undefined ? { ticketRef: `event:${options.journal.event.key}` } : {}),
       orgHome: options.orgRoot,
@@ -1157,7 +1157,7 @@ async function runProtocolPipelineTurn(
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
+      ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
       turnId: options.turnId,
       ...(options.journal.event === undefined ? {} : { ticketRef: `event:${options.journal.event.key}` }),
       orgHome: options.orgRoot,
@@ -1959,7 +1959,7 @@ async function runBuilderTicketTurn(
       app: options.app.name,
       role: role.name,
       appRepo: options.app.repo,
-      ...(options.app.networkAllowlist !== undefined ? { networkAllowlist: options.app.networkAllowlist } : {}),
+      ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
       turnId: options.turnId,
       ...(options.journal.ticketRef === undefined ? {} : { ticketRef: options.journal.ticketRef }),
       orgHome: options.orgRoot,
@@ -2036,7 +2036,7 @@ async function runBuilderTicketTurn(
     maxConcurrent: 1,
     turnId: options.turnId,
     authorization: { selfApprovalSecret },
-    ...(options.app.release !== undefined ? { release: options.app.release } : {}),
+    ...definedProps({ release: options.app.release }),
     deliveryUnits: ticketEpisode.deliveryUnits,
     engine: {
       pipelines,
@@ -2064,12 +2064,12 @@ async function runBuilderTicketTurn(
           episodeId: terminal.episodeId,
           status: terminal.status,
           reason: terminal.reason,
-          ...(terminal.nextStep !== undefined ? { nextStep: terminal.nextStep } : {}),
+          ...definedProps({ nextStep: terminal.nextStep }),
           now: terminal.now,
         });
       },
-      ...(options.signal !== undefined ? { signal: options.signal } : {}),
-      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+      ...definedProps({ signal: options.signal }),
+      ...definedProps({ parentTaskId: options.parentTaskId }),
       budgetGuard: async () => {
         if (isBudgetBlocking(budgetRow.status)) {
           const reason =
@@ -2080,7 +2080,7 @@ async function runBuilderTicketTurn(
         }
         return { allowed: true };
       },
-      ...(options.now !== undefined ? { clock: options.now } : {}),
+      ...definedProps({ clock: options.now }),
     },
   });
   if (options.signal?.aborted) {
@@ -2271,11 +2271,7 @@ function resultFromPipeline(
     result.passes.length > 0
       ? sumUsage(result.passes.map((record) => record.result.usage))
       : {
-          tokensIn: 0,
-          tokensOut: 0,
-          costUsd: 0,
-          subagentTurns: 0,
-          wallClockMs: 0,
+          ...ZERO_USAGE,
           quality: stopped !== undefined ? ("unavailable" as const) : ("complete" as const),
         };
   const last = result.passes[result.passes.length - 1]?.result;
@@ -2584,11 +2580,7 @@ function zeroResult(status: TurnResult["status"], summary: string, role: RoleCon
     artifacts: [],
     session: { runtime: role.runtime, id: `turn-${Date.now()}` },
     usage: {
-      tokensIn: 0,
-      tokensOut: 0,
-      costUsd: 0,
-      subagentTurns: 0,
-      wallClockMs: 0,
+      ...ZERO_USAGE,
       ...(status === "cancelled" || status === "timed_out" ? { quality: "unavailable" as const } : {}),
     },
     escalations: [],

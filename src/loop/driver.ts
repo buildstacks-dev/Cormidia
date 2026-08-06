@@ -2,10 +2,10 @@
 // calls the same phase functions; this file is the thin "advance ready
 // tickets once" wrapper for CLI and sandbox e2e use.
 
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parse } from "yaml";
+import { runGit as git } from "../runtime/git.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import {
@@ -65,6 +65,7 @@ import {
 } from "./rehydrate.js";
 import { parseDependsOn, parseScope, selectReadyTickets, type SchedulableTicket } from "./scheduling.js";
 import type { LoopDeliveryUnit, LoopItem, ReleaseConfig, ScorecardEvent } from "./types.js";
+import { definedProps } from "../runtime/optional-properties.js";
 
 interface LoopPlanItem {
   issueNumber: number;
@@ -909,7 +910,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             claims: begun.state.claims,
             maxClaims: begun.allowance,
             outcomes: begun.state.outcomes,
-            ...(rehydrated.prNumber !== undefined ? { prNumber: rehydrated.prNumber } : {}),
+            ...definedProps({ prNumber: rehydrated.prNumber }),
             openFindings: rehydrated.findings,
             hasContract: rehydrated.contract !== undefined,
           }),
@@ -963,10 +964,10 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
       if (rehydrated !== undefined) {
         item = {
           ...item,
-          ...(rehydrated.contract !== undefined ? { contract: rehydrated.contract } : {}),
+          ...definedProps({ contract: rehydrated.contract }),
           findings: rehydrated.findings,
           cycles: rehydrated.cycles,
-          ...(rehydrated.prNumber !== undefined ? { prNumber: rehydrated.prNumber } : {}),
+          ...definedProps({ prNumber: rehydrated.prNumber }),
         };
         // An open PR with no open findings means build+gates already succeeded
         // once: re-validate gates and go to review — never a full rebuild. Open
@@ -1088,7 +1089,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
             await options.injectReview?.(item);
             item = await advanceReviewing(item, {
               gh: options.gh,
-              ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
+              ...definedProps({ authorization: options.authorization }),
             });
             continue;
           }
@@ -1102,7 +1103,7 @@ export async function runLoopOnce(options: LoopDriverOptions): Promise<LoopDrive
               base,
               criteria,
               criterionTests,
-              ...(options.release !== undefined ? { release: options.release } : {}),
+              ...definedProps({ release: options.release }),
             });
             continue;
           }
@@ -1494,13 +1495,4 @@ function describeBaseHead(localRepo: string, base: BaseRevision): string {
   } catch {
     return "";
   }
-}
-
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
 }

@@ -18,6 +18,7 @@ import {
   type SchedulerDecisionOutcome,
   type SchedulerReasonCode,
 } from "./model.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 type SchedulerDecisionStage = "prepared" | "lock_acquired" | "journaled" | "spawn_committed" | "spawned" | "terminal";
 
@@ -261,7 +262,7 @@ export class SchedulerEvidenceStore {
       role: input.role,
       triggerKind: input.triggerKind,
       trigger: input.trigger,
-      ...(input.eventKey !== undefined ? { eventKey: input.eventKey } : {}),
+      ...definedProps({ eventKey: input.eventKey }),
     };
     const baseId = schedulerDecisionId(baseInput);
     const existing = await this.readDecision(baseId);

@@ -34,6 +34,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { GhOps } from "../loop/github.js";
+import { toErrorMessage as message } from "../runtime/error-message.js";
 import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import {
   finalizePlanForPublication,
@@ -641,10 +642,6 @@ function isTicketPlan(value: unknown): value is TicketPlan {
         Array.isArray((ticket as Record<string, unknown>)["dependsOn"]),
     )
   );
-}
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** The exact command the refusal names, ready to paste. */

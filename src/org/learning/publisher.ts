@@ -62,6 +62,7 @@ import {
 import type { LearningPolicy } from "./policy.js";
 import { appendRejection, checkSuppression, readRejections, type RejectionEntry } from "./rejections.js";
 import { readReviewerVerdict, reviewDisposition, reviewerVerdictHash, type ReviewerVerdict } from "./review.js";
+import { definedProps } from "../../runtime/optional-properties.js";
 
 const LEARNING_TICKET_LABEL = "op:learning";
 const FINGERPRINT_MARKER = "cormidia:candidate-fingerprint";
@@ -221,7 +222,7 @@ export async function publishCandidate(
   if (!requiresHumanGate(destination, tier)) {
     // Routine lane (design §6.1). The experiment gate still applies.
     const evaluability = assertCandidateCanProceed(gateInput, {
-      ...(experiment !== undefined ? { experiment } : {}),
+      ...definedProps({ experiment }),
     });
     return executePublish(deps, {
       journalId: routineJournalId,
@@ -262,8 +263,8 @@ export async function publishCandidate(
   // must never dead-end just because its bytes moved after a decision.
   const raiseFresh = async (note?: string): Promise<PublishOutcome> => {
     assertCandidateCanProceed(gateInput, {
-      ...(experiment !== undefined ? { experiment } : {}),
-      ...(options.waiver !== undefined ? { humanWaiver: options.waiver } : {}),
+      ...definedProps({ experiment }),
+      ...definedProps({ humanWaiver: options.waiver }),
       ...(options.waiver === undefined && binding.waivers.length > 0
         ? { humanWaiver: binding.waivers.join("; ") }
         : {}),
@@ -300,7 +301,7 @@ export async function publishCandidate(
     }
     // The waiver the human approved is the one that counts.
     const evaluability = assertCandidateCanProceed(gateInput, {
-      ...(experiment !== undefined ? { experiment } : {}),
+      ...definedProps({ experiment }),
       ...(approved.waivers.length > 0 ? { humanWaiver: approved.waivers.join("; ") } : {}),
     });
     return executePublish(deps, {
@@ -328,7 +329,7 @@ export async function publishCandidate(
       return {
         status: "denied",
         approvalId: decided.id,
-        ...(decided.reason !== undefined ? { reason: decided.reason } : {}),
+        ...definedProps({ reason: decided.reason }),
       };
     }
     // The content changed since the denial (re-review, amended draft) — a
@@ -685,7 +686,7 @@ async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise
         approval_ref: journal.approval_ref,
         intervention_id: journal.intervention_id,
         refs,
-        ...(journal.manifest_version !== undefined ? { bundle_version: journal.manifest_version } : {}),
+        ...definedProps({ bundle_version: journal.manifest_version }),
       },
     },
   ]);

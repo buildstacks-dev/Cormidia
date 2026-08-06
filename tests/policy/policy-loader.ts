@@ -594,9 +594,9 @@ function jobAllowsFailure(job: Record<string, unknown>): boolean {
 }
 
 /**
- * Pins the per-commit CI lane shape (policy `ci`): typecheck+build+test in the
- * core job, and a pinned, checksum-verified, fail-closed gitleaks job with a
- * canary negative-control step. Returns violations; empty = no drift.
+ * Pins the per-commit CI lane shape (policy `ci`): typecheck+check+build+test in
+ * the core job, and a pinned, checksum-verified, fail-closed gitleaks job with
+ * a canary negative-control step. Returns violations; empty = no drift.
  */
 export function auditCoreChecksWorkflow(workflowSource: string): string[] {
   const violations: string[] = [];
@@ -625,10 +625,15 @@ export function auditCoreChecksWorkflow(workflowSource: string): string[] {
     violations.push("per-commit `core` job is missing");
   } else {
     const runs = jobSteps(core).map(stepRun);
-    for (const command of ["pnpm typecheck", "pnpm build", "pnpm test"]) {
+    for (const command of ["pnpm typecheck", "pnpm check", "pnpm build", "pnpm test"]) {
       if (!runs.some((run) => runsCommand(run, command))) {
         violations.push(`core job no longer runs \`${command}\` (per-commit L1/L2 lane drift; policy ci.per_commit)`);
       }
+    }
+    const checkIndex = runs.findIndex((run) => runsCommand(run, "pnpm check"));
+    const buildIndex = runs.findIndex((run) => runsCommand(run, "pnpm build"));
+    if (checkIndex >= 0 && buildIndex >= 0 && checkIndex > buildIndex) {
+      violations.push("core job must run `pnpm check` before `pnpm build`");
     }
     if (jobAllowsFailure(core)) {
       violations.push("core job is not fail-closed (continue-on-error set)");

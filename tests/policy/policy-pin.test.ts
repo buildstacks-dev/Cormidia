@@ -176,7 +176,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     expect(readdirSync(abs).length).toBeGreaterThan(0);
   });
 
-  it("(d) CI-lane pin: the per-commit lane runs typecheck+build+test and a pinned fail-closed gitleaks job with a canary", () => {
+  it("(d) CI-lane pin: the per-commit lane runs typecheck+check+build+test and a pinned fail-closed gitleaks job with a canary", () => {
     const source = readFileSync(workflowPath, "utf8");
     expect(auditCoreChecksWorkflow(source)).toEqual([]);
     // Policy and CI must agree on the per-commit lane contents (policy ci.rule).
@@ -256,7 +256,7 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
     expect(missingArtifacts(policy).some((v) => v.includes("contracts"))).toBe(true);
   });
 
-  it("negative control: CI drift fires — canary removed, version unpinned, pnpm test dropped, fail-closed softened, job deleted", () => {
+  it("negative control: CI drift fires — check/test dropped, check reordered, scanner softened/unpinned, canary or job deleted", () => {
     // Baseline: mutating nothing stays clean (the rig itself is sound).
     expect(auditCoreChecksWorkflow(mutateWorkflow(() => {}))).toEqual([]);
 
@@ -278,6 +278,21 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
       job!.steps = job!.steps!.filter((step) => step["run"] !== "pnpm test");
     });
     expect(auditCoreChecksWorkflow(noTest)).toContainEqual(expect.stringContaining("pnpm test"));
+
+    const noCheck = mutateWorkflow((doc) => {
+      const job = doc.jobs["core"];
+      job!.steps = job!.steps!.filter((step) => step["run"] !== "pnpm check");
+    });
+    expect(auditCoreChecksWorkflow(noCheck)).toContainEqual(expect.stringContaining("pnpm check"));
+
+    const checkAfterBuild = mutateWorkflow((doc) => {
+      const steps = doc.jobs["core"]!.steps!;
+      const check = steps.find((step) => step["run"] === "pnpm check")!;
+      doc.jobs["core"]!.steps = steps.filter((step) => step !== check);
+      const buildIndex = doc.jobs["core"]!.steps!.findIndex((step) => step["run"] === "pnpm build");
+      doc.jobs["core"]!.steps!.splice(buildIndex + 1, 0, check);
+    });
+    expect(auditCoreChecksWorkflow(checkAfterBuild)).toContainEqual(expect.stringContaining("before `pnpm build`"));
 
     const softened = mutateWorkflow((doc) => {
       const steps = doc.jobs["gitleaks"]!.steps!;

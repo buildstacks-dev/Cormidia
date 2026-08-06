@@ -130,13 +130,14 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
 
     const appsFile: AppsFile = {
       org: { name: "cf-j17-org", maxConcurrentTurns: 1 },
-      defaults: { budgetUsdMonth: 100 },
+      defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
       apps: [
         {
           name: APP,
           repo: handle.repo,
           status: "live",
           budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000,
           cadence: {},
           release: { kind: "deploy", command: RELEASE_COMMAND, owner: "orchestrator", trigger: "command" },
         },

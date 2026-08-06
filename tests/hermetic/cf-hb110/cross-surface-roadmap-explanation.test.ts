@@ -52,7 +52,7 @@ const APP: AppEntry = {
   name: "hb110-app",
   repo: "fixture/hb110",
   status: "live",
-  budgetUsdMonth: 100,
+  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
   cadence: {},
   channels: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
@@ -60,7 +60,7 @@ const APP: AppEntry = {
 const APPS_FILE: AppsFile = {
   schemaVersion: 1,
   org: { name: "hb110-org", maxConcurrentTurns: 2 },
-  defaults: { budgetUsdMonth: 100 },
+  defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
   apps: [APP],
 };
 const ROLES: RoleConfig[] = [

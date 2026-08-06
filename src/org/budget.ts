@@ -275,11 +275,18 @@ export async function isOverlayPaused(orgHome: string, app: string): Promise<boo
 
 export const TURN_BUDGET_RULE = "turn-budget-exceeded";
 
+/** An objective grant's cumulative spend ledger reached its ceiling (#296
+ * Stage 3, proposal §7): one item per grant, keyed
+ * `objective-budget:<grantId>`, raised by ObjectiveGrantStore.debit. The
+ * ceiling itself is raisable only by a human editing the grant — approving
+ * the item records the decision; it raises nothing mechanically. */
+export const OBJECTIVE_BUDGET_RULE = "objective-budget-exceeded";
+
 /** Rules whose approval is a SPEND decision rather than authorization of a
  * critical operation. They are excluded from #244's suppression record: a turn
  * that ran out of money suppressed nothing. */
 export function isBudgetEscalationRule(rule: string): boolean {
-  return rule === TURN_BUDGET_RULE || rule === "budget-exceeded";
+  return rule === TURN_BUDGET_RULE || rule === "budget-exceeded" || rule === OBJECTIVE_BUDGET_RULE;
 }
 
 /** What resuming a suspended turn costs BEFORE it does any new work.

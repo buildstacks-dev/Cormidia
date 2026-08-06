@@ -62,8 +62,8 @@ describe("CF-J05-S — gate block → item → approve → typed execution → e
     const clock = makeTestClock("2026-07-31T09:00:00.000Z");
     const appsFile: AppsFile = {
       org: { name: "cf-j05-s", maxConcurrentTurns: 1 },
-      defaults: { budgetUsdMonth: 100 },
-      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+      defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
+      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
     };
     return { home, repo, store: new ApprovalStore(home.stateHome), clock, appsFile };
   }

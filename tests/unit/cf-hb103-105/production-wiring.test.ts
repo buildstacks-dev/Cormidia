@@ -181,6 +181,7 @@ const APP: AppEntry = {
   repo: "fixture/hb105",
   status: "live",
   budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };

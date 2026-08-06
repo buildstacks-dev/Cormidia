@@ -31,6 +31,7 @@ import { cmdRelease } from "./cli/release.js";
 import { cmdTelemetry } from "./cli/telemetry.js";
 import { cmdTask } from "./cli/task.js";
 import { cmdOrg } from "./cli/org.js";
+import { cmdObjective } from "./cli/objective.js";
 import { cmdObserve } from "./cli/observe.js";
 import { cmdReport } from "./cli/report.js";
 import { cmdNarrative } from "./cli/narrative.js";
@@ -115,6 +116,9 @@ Usage:
                            mutation requires --execute --confirm <exact-id>
   cormidia approvals [review|show <id>] [--state-home <path>] [--json]
                            inspect or decide the critical-op approval queue
+  cormidia objective <grant|grant-critical|list|revoke> [--json]
+                           create, inspect, or revoke human-created objective
+                           grants (standing authority with a spend ceiling)
   cormidia budget [--state-home <path>] [--apps <path>] [--json]
                            summarize monthly app spend and budget pauses
   cormidia status [--state-home <path>] [--app <app>] [--limit N] [--json]
@@ -186,6 +190,7 @@ Templates are selected explicitly; free-form goal text never selects one. typesc
   doctor: `Usage: cormidia doctor [--json] [--config-only]${HOME_HELP}\n\nEvery check is read-only. The managed-clone check reads each registered app's org-managed working tree under <state-home>/repos/ with local git only: no fetch, no index refresh, no cleanup. Uncommitted work is reported as a WARN naming the branch and the changed paths — never removed, and never a FAIL. A turn stopped at its per-turn budget cap can leave real work there, and the next managed turn would otherwise inherit it silently.`,
   scheduler: `Usage:\n  cormidia scheduler install [--backend launchd|systemd] [--cadence-minutes N] [--json]\n  cormidia scheduler install [--backend launchd|systemd] --execute --confirm <exact-org-or-scheduler-id> [--json]\n  cormidia scheduler status [--backend launchd|systemd] [--json]\n  cormidia scheduler uninstall [--backend launchd|systemd] [--json]\n  cormidia scheduler uninstall [--backend launchd|systemd] --execute --confirm <exact-org-or-scheduler-id> [--json]${HOME_HELP}\n\nInstall and uninstall preview without scheduler/manager writes; the command audit row is still recorded. Definitions use absolute executable, org, and state paths and are scoped to the exact org. systemd rendering is future-compatible but host execution remains unsupported until exercised.`,
   approvals: `Usage: cormidia approvals [list|review [--batch]|show <id>|status|revoke <grant-id>|disposition <id> (--executed|--failed|--retry) --reason <text> --confirm <id>] [--state-home <path>] [--now <ISO-time>] [--json]${HOME_HELP}\n\n--json is available for list, show, status, revoke, and disposition; interactive review remains text-only. The default list shows both pending decisions and approved executions that still need acknowledgement. review decisions: "a" approves single-use (default); "a ticket [path]" / "a app [path]" mint a rule+path-scoped multi-use grant (TTL 24h, 20 uses; never for self-merge/deploy/external-publication/protocol/scorecard/approval-store rules). Approved and denied ticketed decisions durably prepare the exact content-bound continuation and repair op:blocked -> op:ready for the next loop tick. --batch groups same-rule/app items into one decision with per-item audit. A failed or ambiguous durable action requires an exact, reasoned disposition before retry.`,
+  objective: `Usage:\n  cormidia objective grant --app <app> --objective <text> --classes <rule[,rule...]> --repo <owner/repo> --by <identity> [--ceiling <usd>] [--ttl-hours <n>] [--uses <n>] [--json]\n  cormidia objective grant-critical --app <app> --objective <text> --class <rule> --scope <bound> --repo <owner/repo> --by <identity> [--precondition <expr>] [--ceiling <usd>] [--ttl-hours <n>] [--uses <n>] [--json]\n  cormidia objective list [--app <app>] [--json]\n  cormidia objective revoke <grant-id> [--json]${HOME_HELP}\n\nObjective grants are durable HUMAN-created authority bound to an objective rather than a commit (#296 Stage 3): a covered critical action passes the gate without a fresh tap while the grant is live, un-revoked, under its use cap, and under its cumulative spend ceiling. The ceiling default resolves from apps.yaml objective_budget_usd (same path as budget_usd_month) and is a hard bound raisable only by editing the grant; crossing it refuses the debit and raises one objective-budget-exceeded queue item. grant covers grantable-tier classes only. grant-critical is the deliberately distinct §4.1 ceremony verb for human-only classes: exactly one class per invocation, a required bounded --scope, an optional --precondition, and TTL/use caps strictly shorter than the ordinary defaults. Un-grantable classes (protocol/scorecard/approval-store/learning-surface/gate-implementation) are rejected at creation, always. Every use appends a per-use audit row; revocation is immediate.`,
   budget: `Usage: cormidia budget [--apps <apps.yaml-path>] [--reconcile] [--json]${HOME_HELP}\n\n--reconcile terminalizes stale provider receipts, settles missing terminal provider steps, and back-fills legacy runs/**/envelope.json evidence. Current rows are idempotent by app+provider_turn_id; legacy rows fall back to app+run_id.`,
   status: `Usage: cormidia status [--app <app-name>] [--limit N] [--json]${HOME_HELP}`,
   publication: `Usage:\n  cormidia publication list [--app <app-name>] [--json]\n  cormidia publication resume --app <app-name> --id <publication-id> [--json]${HOME_HELP}\n\nResume replays only the durable Planner publication transaction. It never invokes a provider, never creates a competing branch, and refuses a conflicting remote ref.`,
@@ -229,6 +234,7 @@ const COMMANDS: Record<string, CliCommand> = {
   apps: { run: (args) => cmdApps(args), help: HELP.apps },
   app: { run: (args) => cmdApp(args), help: HELP.app },
   approvals: { run: (args) => cmdApprovals(args), help: HELP.approvals },
+  objective: { run: (args) => cmdObjective(args), help: HELP.objective },
   analyze: { run: (args) => cmdAnalyze(args), help: HELP.analyze },
   // `publish` is a subcommand rather than a flag: it is a different operation
   // with outward-facing effects, and `cormidia bootstrap --publish` would read

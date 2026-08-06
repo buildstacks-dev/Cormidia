@@ -80,8 +80,8 @@ describe("CF-J17-I — lost response and record/claim disagreement land ambiguou
     expect(claimed?.execution?.state).toBe("executing");
     const appsFile: AppsFile = {
       org: { name: "cf-j17-i", maxConcurrentTurns: 1 },
-      defaults: { budgetUsdMonth: 100 },
-      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+      defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
+      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
     };
     let calls = 0;
     const run = () =>

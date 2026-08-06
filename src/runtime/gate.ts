@@ -227,8 +227,14 @@ const CORMIDIA_VERB = {
   destructive: /\bcormidia\s+(?:app\s+reset|prune-runs)\b/,
   /** Publishes to GitHub: bootstrap draft PRs, ratified ticket issues. */
   publish: /\bcormidia\s+(?:plan\s+ratify-ticket-budget|bootstrap\s+publish)\b/,
-  /** Decides, revokes or dispositions approvals — the gate's root of trust. */
-  approvalWrite: /\bcormidia\s+approvals\s+(?:review|revoke|disposition)\b/,
+  /** Decides, revokes or dispositions approvals — the gate's root of trust.
+   *  `cormidia objective grant|grant-critical|revoke` joins it (#296 Stage 3):
+   *  creating or revoking a standing objective grant from inside a turn is
+   *  self-granting by CLI, the same forged authority reached through the
+   *  supported command instead of a file write. `objective list` stays
+   *  routine — the point is the boundary, not friction on inspection. */
+  approvalWrite:
+    /\bcormidia\s+(?:approvals\s+(?:review|revoke|disposition)|objective\s+(?:grant|grant-critical|revoke))\b/,
 } as const;
 
 /** The canonical `gh api` projection built by ghApiVerbParts, as it appears in

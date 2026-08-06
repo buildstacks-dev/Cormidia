@@ -239,6 +239,10 @@ cormidia budget
 cormidia analyze
 cormidia approvals
 cormidia approvals status
+cormidia objective grant --app <app> --objective <text> --classes <rule[,rule...]> --repo <owner/repo> --by <identity> # human-created standing authority (grantable classes)
+cormidia objective grant-critical --app <app> --objective <text> --class <rule> --scope <bound> --repo <owner/repo> --by <identity> # §4.1 ceremony verb for one human-only class
+cormidia objective list --json
+cormidia objective revoke <grant-id>
 cormidia report --period 90d
 cormidia report --app <app> --period 30d --html app-report.html
 cormidia observe --app <app> --open

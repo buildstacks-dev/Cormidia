@@ -61,6 +61,12 @@ export interface AppEntry {
    *  here; the org-level WIP limit is what code enforces. */
   status: AppStatus;
   budgetUsdMonth: number;
+  /** Objective-grant spend-ceiling default for this app (#296 Stage 3,
+   *  proposal §7): same default and override path as budget_usd_month —
+   *  apps.yaml `defaults.objective_budget_usd`, per-app override, no special
+   *  case for any app. Consumed by the objective CLI when --ceiling is not
+   *  given; never hardcoded at the point of use. */
+  objectiveBudgetUsd: number;
   /** Per-role trigger overrides. When a role has an entry here it REPLACES
    *  (never merges with) that role's roles.yaml triggers; an empty list
    *  disables the role for this app. See resolveTriggers(). */
@@ -83,7 +89,7 @@ export interface AppsFile {
    *  (architecture.md §1 — `.cormidia/config.yaml` shares this schema). */
   schemaVersion?: number;
   org: { name: string; maxConcurrentTurns: number };
-  defaults: { budgetUsdMonth: number };
+  defaults: { budgetUsdMonth: number; objectiveBudgetUsd: number };
   apps: AppEntry[];
 }
 
@@ -150,6 +156,9 @@ export async function loadApps(path: string): Promise<AppsFile> {
   const defaultsRaw = (raw["defaults"] ?? {}) as Record<string, unknown>;
   const defaults = {
     budgetUsdMonth: numberOr(defaultsRaw["budget_usd_month"], 1000),
+    // #296 Stage 3: the objective-grant ceiling default follows the exact
+    // budget_usd_month pattern (proposal §7 — configured, never hardcoded).
+    objectiveBudgetUsd: numberOr(defaultsRaw["objective_budget_usd"], 1000),
   };
 
   const appsRaw = raw["apps"];
@@ -159,7 +168,7 @@ export async function loadApps(path: string): Promise<AppsFile> {
 
   const apps: AppEntry[] = [];
   for (const [name, specUnknown] of Object.entries(appsRaw as Record<string, unknown>)) {
-    apps.push(parseApp(name, specUnknown, defaults.budgetUsdMonth, path));
+    apps.push(parseApp(name, specUnknown, defaults, path));
   }
   const file: AppsFile = { org, defaults, apps };
   if (typeof raw["schema_version"] === "number") file.schemaVersion = raw["schema_version"];
@@ -169,7 +178,7 @@ export async function loadApps(path: string): Promise<AppsFile> {
 function parseApp(
   name: string,
   specUnknown: unknown,
-  defaultBudget: number,
+  defaults: { budgetUsdMonth: number; objectiveBudgetUsd: number },
   path: string,
 ): AppEntry {
   const err = (msg: string) => new Error(`${path}: app "${name}": ${msg}`);
@@ -186,6 +195,7 @@ function parseApp(
     "repo",
     "status",
     "budget_usd_month",
+    "objective_budget_usd",
     "cadence",
     "channels",
     "release",
@@ -241,7 +251,8 @@ function parseApp(
     name,
     repo,
     status: status as AppStatus,
-    budgetUsdMonth: numberOr(spec["budget_usd_month"], defaultBudget),
+    budgetUsdMonth: numberOr(spec["budget_usd_month"], defaults.budgetUsdMonth),
+    objectiveBudgetUsd: numberOr(spec["objective_budget_usd"], defaults.objectiveBudgetUsd),
     cadence,
     channels: parseChannels(spec["channels"], err),
     execution: parseExecution(spec["execution"], err),
@@ -654,6 +665,7 @@ export async function joinExistingOrg(
     repo: registration.repo,
     status,
     budgetUsdMonth: registration.budgetUsdMonth ?? file.defaults.budgetUsdMonth,
+    objectiveBudgetUsd: file.defaults.objectiveBudgetUsd,
     cadence,
     channels: registration.channels ?? {},
     execution,

@@ -32,8 +32,8 @@ const CRITICAL_COMMAND = "rm -rf /var/data/legacy-exports";
 
 const APPS_FILE: AppsFile = {
   org: { name: "cf-j05-i", maxConcurrentTurns: 1 },
-  defaults: { budgetUsdMonth: 100 },
-  apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+  defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
+  apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
 };
 
 /** The child walks gate-block → raise → approve, then (unless killed first)
@@ -69,8 +69,8 @@ await executeApprovedCommands({
   stateHome,
   appsFile: {
     org: { name: "cf-j05-i", maxConcurrentTurns: 1 },
-    defaults: { budgetUsdMonth: 100 },
-    apps: [{ name: ${JSON.stringify(APP)}, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+    defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
+    apps: [{ name: ${JSON.stringify(APP)}, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
   },
   runner: async () => {
     appendFileSync(join(scratch, "effect.log"), "EFFECT\\n");

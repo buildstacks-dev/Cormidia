@@ -34,7 +34,7 @@ const APP: AppEntry = {
   name: "campaign-app",
   repo: "fixture/campaign",
   status: "live",
-  budgetUsdMonth: 100,
+  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };

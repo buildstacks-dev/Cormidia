@@ -79,7 +79,7 @@ const APP: AppEntry = {
   name: "hb100-app",
   repo: "cormidia-double/hb100-app",
   status: "live",
-  budgetUsdMonth: 100,
+  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };

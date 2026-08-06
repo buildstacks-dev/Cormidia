@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "qualification_id": "02cfdc041351a9f52eea935c1e8297346ac73f80a71710b181e5fc217dd220cb",
+  "checks": [
+    {
+      "id": "pnpm-test",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "https://github.com/cormidia/Cormidia/actions/runs/31072175557/job/92522182109#pnpm-test;local:pnpm-test:173-files:1117-pass:1-policy-skip",
+      "skipped_case_ids": [
+        "BLOCKED:F-PT-012"
+      ]
+    },
+    {
+      "id": "pnpm-typecheck",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "https://github.com/cormidia/Cormidia/actions/runs/31072175557/job/92522182109#pnpm-typecheck;local:pnpm-typecheck:exit-0",
+      "skipped_case_ids": []
+    },
+    {
+      "id": "pnpm-build",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "https://github.com/cormidia/Cormidia/actions/runs/31072175557/job/92522182109#pnpm-build;local:pnpm-build:exit-0",
+      "skipped_case_ids": []
+    },
+    {
+      "id": "git-diff-check",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "local:297fd568e2c1344365b12fcd588e65e5797d75bb:git-diff-check:exit-0",
+      "skipped_case_ids": []
+    },
+    {
+      "id": "gitleaks",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "https://github.com/cormidia/Cormidia/actions/runs/31072175557/job/92522182075#gitleaks-pinned-8.18.4-with-negative-control",
+      "skipped_case_ids": []
+    },
+    {
+      "id": "smoke-onboarding",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "local:297fd568e2c1344365b12fcd588e65e5797d75bb:pnpm-smoke-onboarding:exit-0",
+      "skipped_case_ids": []
+    },
+    {
+      "id": "package-dry-run",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "local:297fd568e2c1344365b12fcd588e65e5797d75bb:npm-pack-dry-run:296-files:1195531-bytes:sha256-3a2694b3df2cd3926ff0fc29a1e01da175c6749ccbd45ac936d2974fdcf979c3",
+      "skipped_case_ids": []
+    },
+    {
+      "id": "package-install-smoke",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "local:297fd568e2c1344365b12fcd588e65e5797d75bb:pnpm-smoke-package:cormidia-0.1.1:sha256-3a2694b3df2cd3926ff0fc29a1e01da175c6749ccbd45ac936d2974fdcf979c3:exit-0",
+      "skipped_case_ids": []
+    },
+    {
+      "id": "core-checks",
+      "status": "pass",
+      "candidate_commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+      "producer_digest": "c0fad656c08c5479aa5102901e7bf2917d4724d4fa7669b61b246e2cb42d4896",
+      "evidence_ref": "https://github.com/cormidia/Cormidia/actions/runs/31072175557/job/92522182109#completed-success-head-297fd568e2c1344365b12fcd588e65e5797d75bb",
+      "skipped_case_ids": []
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "qualification_id": "02cfdc041351a9f52eea935c1e8297346ac73f80a71710b181e5fc217dd220cb",
+  "campaigns": [
+    {
+      "obligation_id": "RQ-L3",
+      "producer_digest": "2ce109ea29a3c78925f9538bf6da1ad9e14deb40d9b0f72a48c912933d9d6aba",
+      "report": {
+        "schema_version": 1,
+        "campaign_id": "cormidia-release-rq1-l3-297fd568e2c1",
+        "lane": "L3",
+        "campaign_kind": "release",
+        "trigger": "human:bikramgupta:RQ-1 release qualification for cormidia@0.1.1 candidate 297fd568e2c1344365b12fcd588e65e5797d75bb; approved campaign manifest sha256:0d55d2f0cb7fad8c4340804bce68fb193591f4c8ea97073cdf677d97225898ee; validation only, no release action",
+        "status": "completed",
+        "started_at": "2026-08-06T05:03:04.592Z",
+        "finished_at": "2026-08-06T05:07:09.013Z",
+        "policy": {
+          "path": "/Users/bikram/Build/Cormidia-release-candidate-297fd56/validation-design/validation-policy.yaml",
+          "sha256": "f9c7508229a0d86a813c9a4ecbdaf14ce8de7e312f101567be96a00389b614f6"
+        },
+        "target": {
+          "commit": "297fd568e2c1344365b12fcd588e65e5797d75bb",
+          "apps": [
+            "Cormidia"
+          ],
+          "scopes": [
+            "CF-B02-L3",
+            "CF-B03-L3",
+            "CF-B04-L3",
+            "CF-B01-L3",
+            "CF-J18-A",
+            "CF-J16-A"
+          ],
+          "tuples": [
+            "claude/claude-opus-4-8/high",
+            "codex/gpt-5.6-sol/high",
+            "pi/openai-codex/gpt-5.6-sol/medium"
+          ]
+        },
+        "spend": {
+          "max_provider_turns": 24,
+          "max_equiv_usd": 100,
+          "observed_provider_turns": 6,
+          "observed_equiv_usd": 0.66004,
+          "ceiling_exhausted": false
+        },
+        "coverage": {
+          "required_case_ids": [
+            "CF-B02-L3",
+            "CF-B03-L3",
+            "CF-B04-L3",
+            "CF-B01-L3",
+            "CF-J18-A",
+            "CF-J16-A"
+          ],
+          "collected_case_ids": [
+            "CF-B02-L3",
+            "CF-B03-L3",
+            "CF-B04-L3",
+            "CF-B01-L3",
+            "CF-J16-A",
+            "CF-J18-A"
+          ],
+          "missing_case_ids": []
+        },
+        "outcome": {
+          "completeness": "complete",
+          "verdict": "pass",
+          "decision_status": "ratified",
+          "violation_ids": [],
+          "reason_codes": []
+        },
+        "evidence_refs": [
+          "native-session:claude:f0f12d9b-5a93-45cf-9c18-9640d744957f",
+          "native-session:codex:019fd574-4ba4-7711-9a2a-81faa40c2563",
+          "native-session:pi:/Users/bikram/.pi/agent/sessions/--var-folders-dj-h7_rbnvs6cjd8hqbrx51gnvc0000gn-T-cormidia-live-adapter-WbA0bT--/2026-08-06T05-03-39-334Z_019fd574-a546-7e69-b4f5-67e5975f3875.jsonl",
+          "github:bikramgupta/operon-sandbox-alpha:clauses:15/15",
+          "launchd:dev.cormidia.dispatch.cormidia-release-rq1-0-1-1-297fd.f0f469fd278d:loaded=true:tick=true:removed=true",
+          "profile:cormidia/unattended-sandbox/v1:human-decisions:0"
+        ],
+        "profile": {
+          "identity": "cormidia/unattended-sandbox/v1",
+          "sandbox_target": "cormidia-release-rq1-0-1-1-297fd568/Cormidia@bikramgupta/operon-sandbox-alpha",
+          "permitted_auto_grant_categories": [
+            "campaign_budget"
+          ],
+          "human_decision_rows": 0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "qualification_id": "02cfdc041351a9f52eea935c1e8297346ac73f80a71710b181e5fc217dd220cb",
+  "subject_digest": "1414da461c5eac4d77b6238a35eadd458e5b647084ed7103efa627072a6b3fcf",
+  "producer_digest": "0a1320191e20040c32dcd1a44cd892b86eab4e60af7b6e1f390b12fe95a47ec9",
+  "observations": [
+    {
+      "pairing_id": "rq1-bootstrap-reviewer-claude-opus-4-8-xhigh",
+      "case_id": "GS-REV-CORRECTNESS-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "6f309b0dd5932fd990eafcb24fe6683073332b654ea1f1f6ea6c13cdb98d60d1",
+      "grading_key": "baf64a6a56150f8519ebb991ec9382e8f44459a582e70f00e49d73d4d9732603",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "match",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-reviewer-claude-opus-4-8-xhigh::GS-REV-CORRECTNESS-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-reviewer-claude-opus-4-8-xhigh",
+      "case_id": "GS-REV-SECURITY-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "a0f35bd5d8137b6ec6e8303806b48b41926cc2d01fa1bb9402bb06d0117b1bf3",
+      "grading_key": "2a248d1b26d836f0eff827a41cf3929b9fb2cdedea5bc5d6c5f6d423092624f2",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "match",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-reviewer-claude-opus-4-8-xhigh::GS-REV-SECURITY-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-reviewer-claude-opus-4-8-xhigh",
+      "case_id": "GS-REV-EVIDENCE-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "4de4ccee9e90feebc821bffd96d15bbd5a3b9bb183e818814e016c1292d927ef",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "invalid",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-reviewer-claude-opus-4-8-xhigh::GS-REV-EVIDENCE-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-reviewer-claude-opus-4-8-xhigh",
+      "case_id": "GS-REV-CONTRACT-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "5a9b1347da96398ebaf13c7c91ce35a92b79c983fc01a64cccd18be1baa16d51",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "invalid",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-reviewer-claude-opus-4-8-xhigh::GS-REV-CONTRACT-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-reviewer-claude-opus-4-8-xhigh",
+      "case_id": "GS-REV-SECRET-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "cba59523e2c916a90a197902ee6c36c5a1d8e8bb7ee1c2449cd225dcb1b2df44",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "invalid",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-reviewer-claude-opus-4-8-xhigh::GS-REV-SECRET-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-reviewer-claude-opus-4-8-xhigh",
+      "case_id": "GS-REV-CLEAN-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "ebd8af1e853977badef034421c24d9943030bd445e4387f8213c5a8437544da2",
+      "grading_key": "6d17309ddf36f27fc4003423ebb3ab3d00113e1da275cd4c7f534f6804f46aa1",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "match",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-reviewer-claude-opus-4-8-xhigh::GS-REV-CLEAN-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1A-SMALL-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "8921e9ea62453ac5302b0d34771c88b21bc57a0bcba4ca22de8c3cd4517c8eee",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1A-SMALL-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1A-DAG-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "0dbe1396984249b094fe6f9a4cf799817d9f47d69b4f125669322d5fa95dfaea",
+      "grading_key": "563489a052a13e583b792aa0cf8437c67d0362d6ae8da180d1313bb38643f26b",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1A-DAG-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1B-REPAIR-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "ac744548614188438f872156363dc8982b37c1a5d0205961e9b006e69f2ace04",
+      "grading_key": "207457243e66ace676cfaafe4a72c56340f48f1ec8c58561c82d4387352c4fc2",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1B-REPAIR-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1B-BLOCKED-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "5dba032899091a34549ddea36f81a5627c064260f1f63194c6ed93ea2a22e692",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1B-BLOCKED-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1A-INTAKE-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "16bbc11617b879a77f5b5f15ac9235c02012537c5949011fe6dfc2fd1beeaa0f",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1A-INTAKE-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1A-INTAKE-002",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "4f6f1b538c0a3b0b1233c7ea1df35c6db44d24133407ca298e315625ecc081c2",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1A-INTAKE-002::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1A-ROADMAP-100-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "b4bb42f44c997a45b542275df178f2f796068c15288f65647cc114a6c3c540b5",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1A-ROADMAP-100-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1A-DELTA-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "f301019f372c9240e8428ffc8f200819177252135848aad70d748b0c1af372ce",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1A-DELTA-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1A-BATCH-LURE-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "06139e2a0482905f08187a27c6020b0015ac8108a9b01d0e331410aa71702f36",
+      "grading_key": "190c2d8c22a50e54faa6dfb048dccb782827788cdfabd5d7ffaa544c7408ed6c",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1A-BATCH-LURE-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-planner-claude-opus-4-8-xhigh",
+      "case_id": "GS-PLAN-S1B-DIRECT-PROMOTION-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "07e646af9095aa1265e413af946be34e852ecd0475fd7166328ae27ffcdb4208",
+      "grading_key": "d434fa28b21a2c6d3fcdfd5c19abd21369b159f8c30fc9bf8b643ad756c338cc",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-planner-claude-opus-4-8-xhigh::GS-PLAN-S1B-DIRECT-PROMOTION-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-validation-designer-claude-opus-4-8-high",
+      "case_id": "GS-VAL-S10-ROUTINE-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "b151f12c079d20218350abd3cf272d4c18766ff1c86e8f03225a03b22e30c2e0",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-validation-designer-claude-opus-4-8-high::GS-VAL-S10-ROUTINE-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-validation-designer-claude-opus-4-8-high",
+      "case_id": "GS-VAL-S10-CROSS-TICKET-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "ffc8968ae4b5113e7cbacefb7cf86b677a9947b864e4bb1172d67660eeaad68d",
+      "grading_key": "4bf8a6612f95ec61ad90cc6aaf7b5443f7b21120d1a5dab562b1ad22fbfc0402",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-validation-designer-claude-opus-4-8-high::GS-VAL-S10-CROSS-TICKET-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-validation-designer-claude-opus-4-8-high",
+      "case_id": "GS-VAL-S10-STRUCTURAL-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "385bc93b435a040ab77b6425dbb09a900240d3071542e5525acacb6ebd492328",
+      "grading_key": "548629f0cb8bdb27dca450b53eae6dbfbfefc58790ad6fb5ef218004ae421ead",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-validation-designer-claude-opus-4-8-high::GS-VAL-S10-STRUCTURAL-001::attempt-1"
+    },
+    {
+      "pairing_id": "rq1-bootstrap-validation-designer-claude-opus-4-8-high",
+      "case_id": "GS-VAL-S10-LIVE-LURE-001",
+      "attempt_id": "attempt-1",
+      "output_sha256": "c5a6b3167b4794f4c3c8158ee79728a07000c067365cff7ec33b452416257019",
+      "grading_key": "59de78ce1f335492f7d0ba20ea3501cea1d71d778d625be06ee511607c088094",
+      "grade_reused_from": null,
+      "automatic_score_used": false,
+      "outcome": "unscored",
+      "evidence_ref": "validation/campaigns/cormidia-release-rq1-l4-297fd568e2c1/eval-results.json#rq1-bootstrap-validation-designer-claude-opus-4-8-high::GS-VAL-S10-LIVE-LURE-001::attempt-1"
+    }
+  ]
+}

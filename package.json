@@ -40,7 +40,7 @@
     "build:watch": "tsc --watch --preserveWatchOutput",
     "check": "biome check --error-on-warnings . && pnpm typecheck && node scripts/check-pinned-deps.mjs && node scripts/check-import-direction.mjs",
     "dev": "tsx src/cli.ts",
-    "test": "vitest run --maxWorkers=2",
+    "test": "bash scripts/test.sh",
     "test:live": "vitest run --config tests/live/vitest.config.ts",
     "test:eval": "tsx tests/eval-runner/cli.ts",
     "test:soak": "tsx tests/ops/soak-cli.ts",

@@ -70,7 +70,7 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
-const RELEASE_VITEST_CONFIG_SHA256 = "d63b0db31d415aa0db00a40fc2597a0ea1b3ed2c20db553b3bff78fdd924cf9f";
+const RELEASE_VITEST_CONFIG_SHA256 = "92f349841deb5b188b9301230f18f5d65b325022d787d06ae42f0eb1b71d9733";
 
 export type ReleaseInputKind = (typeof RELEASE_EVIDENCE_INPUT_KINDS)[number];
 export type DeterministicCheckId = (typeof RELEASE_DETERMINISTIC_CHECKS)[number];
@@ -2738,8 +2738,13 @@ function releaseExecutionEnvironment(): NodeJS.ProcessEnv {
     "LOGNAME",
     "LANG",
     "LC_ALL",
+    "TZ",
     "PNPM_HOME",
+    "PNPM_CONFIG_STORE_DIR",
+    "NPM_CONFIG_USERCONFIG",
+    "NPM_CONFIG_GLOBALCONFIG",
     "COREPACK_HOME",
+    "COREPACK_ENABLE_NETWORK",
   ] as const) {
     if (process.env[name] !== undefined) environment[name] = process.env[name];
   }

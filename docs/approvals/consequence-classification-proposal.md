@@ -185,6 +185,37 @@ can understand and bound each of them. This shrinks the permanently locked set
 from six rules to four, and moves the shipping decision you actually care about
 into the delegable category.
 
+#### 4.2.1 The gate's implementation is not currently a protocol surface
+
+`protocol-self-edit` matches `PROTOCOL_FILENAMES`, `PROTOCOL_DIRS`, and
+`PROTOCOL_CONFIG_FILE` (`src/runtime/gate.ts:507-524`): TASTE.md, roles.yaml,
+AGENTS.md, PURPOSE.md, pipelines.yaml, apps.yaml, `taste/**`, `prompts/**`, and
+`.cormidia/config.yaml`.
+
+It does **not** match `src/runtime/gate.ts` or `src/org/approvals.ts`.
+
+So an agent may today edit the source code that decides what requires approval,
+and the code that stores and evaluates grants, without tripping any rule —
+while editing `roles.yaml` escalates. The declarative protocol is protected;
+its implementation is not. Editing the classifier is the deeper
+self-modification of the two.
+
+This is a hole in §4.2 as written: the un-grantable set is justified as "the
+machinery of consent," and the machinery's own source is outside it. The fix
+is a distinct class rather than an extension of `protocol-self-edit`, because
+the two have different lifecycles — protocol surfaces are human-ratified data,
+whereas the gate's source is ordinary code that must remain reviewable and
+testable through the normal PR path:
+
+| New class | Matches | Tier |
+| --- | --- | --- |
+| `gate-implementation-edit` | writes to `src/runtime/gate.ts`, `src/org/approvals.ts`, `src/org/gate-compose.ts`, `src/org/authority.ts` | **UG** |
+
+Un-grantable here means the *agent* may not write these files unattended. It
+does not mean the files are frozen: a human, or an agent operating under direct
+human instruction with human merge, changes them through the normal reviewed
+PR path. That is exactly how this proposal is being written.
+
 ---
 
 ## 5. The classification table

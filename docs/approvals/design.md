@@ -183,8 +183,9 @@ refinement running before any grant matching), `package-publish`,
 `outbound-network-undeterminable`, fail closed) are the ratified `budgeted`
 cases: it proceeds at
 the composed gate with a per-action audit row — bounded by a covering
-objective grant's uses/ledger when one exists (grantless accounting quantum:
-F-PT-024) — and the retired `destructive-or-irreversible` name keeps a
+objective grant's uses/ledger when one exists; a grantless budgeted action is
+deliberately not dollar-counted (owner decision, F-PT-024 resolved 2026-08-06)
+— the audit row is the record — and the retired `destructive-or-irreversible` name keeps a
 grantable tombstone so stale items never loosen. `un-grantable` is the
 stricter tier: no standing grant of any kind may ever cover it — the store
 refuses to mint a widened grant for it AND refuses to honor a standing grant

@@ -80,6 +80,22 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     }
   });
 
+  it("CF-REG-299 requires strict L4 turn headroom beyond every declared case-attempt pair", () => {
+    const seededEquality = fixtureBody();
+    const requiredTurns = seededEquality.l4.pairings.reduce(
+      (sum, pairing) => sum + pairing.case_ids.length * pairing.attempt_ids.length,
+      0,
+    );
+    seededEquality.ceilings.l4.max_provider_turns = requiredTurns;
+    rebindSubject(seededEquality);
+    expect(() => createReleaseManifest(seededEquality)).toThrow(/strict headroom beyond 3 declared case-attempt turns/);
+
+    const oneTurnHeadroom = fixtureBody();
+    oneTurnHeadroom.ceilings.l4.max_provider_turns = requiredTurns + 1;
+    rebindSubject(oneTurnHeadroom);
+    expect(() => createReleaseManifest(oneTurnHeadroom)).not.toThrow();
+  });
+
   it("negative control: rejects unknown input, pending human reference, stale assignment bytes, and an L5 release obligation", () => {
     const body = fixtureBody();
     expect(() => createReleaseManifest({ ...body, invented_threshold: 0.95 } as ReleaseManifestBodyV1)).toThrow(/unknown/);

@@ -245,6 +245,9 @@ items 9..12 remain PROPOSED, so threshold-dependent campaigns remain inconclusiv
 
 - **HB-060** Eval runner v1 (data-collection mode; inconclusive-only reporting;
   per-tuple aggregation; output-token ceilings; shard rotation). Executor: build-agent.
+  *Hardening 2026-08-05 (#299): RQ-1 manifest admission now refuses an L4
+  provider-turn ceiling at or below the full declared case-attempt cardinality;
+  strict headroom is required because equality is terminal ceiling exhaustion.*
 - **HB-061** Author reviewer/ seeded-defect + clean sets (first-funded; provenance
   rules per scaffold). Executor: human + build-agent. *Note: threshold verdicts stay
   inconclusive until F-PT-009 ratifies — authoring is NOT gated on ratification.*

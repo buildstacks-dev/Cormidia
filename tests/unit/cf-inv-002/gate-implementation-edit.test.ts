@@ -79,7 +79,12 @@ describe("CF-INV-002 — gate-implementation-edit (§4.2.1): the classifier's ow
 describe("CF-INV-003 — Stage 2 ratified tier table (five tightenings + the new class)", () => {
   const STAGE2_TIERS: Record<string, ReturnType<typeof dispositionTierForRule>> = {
     "production-deploy": "human-only",
-    "destructive-or-irreversible": "grantable",
+    // §5.1 split (#296, ratified 2026-08-06) replaced the destructive bucket.
+    "destructive-remote-data": "human-only",
+    "history-rewrite-owned": "budgeted",
+    "history-rewrite-foreign": "human-only",
+    "destructive-local": "grantable",
+    "gh-api-unrecognized": "human-only",
     "dns-or-domain": "human-only", // tighten: was grantable
     "secrets-or-auth": "grantable",
     "external-publishing": "human-only",

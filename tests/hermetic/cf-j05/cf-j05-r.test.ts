@@ -43,7 +43,7 @@ describe("CF-J05-R — deny path, never-scopeable refusals, unknown-item refusal
     const raised = await store.raise({
       app: APP,
       role: ROLE,
-      rule: "destructive-or-irreversible",
+      rule: "destructive-local",
       action: CRITICAL_ACTION,
       now: clock.nowDate(),
     });
@@ -153,7 +153,7 @@ describe("CF-J05-R — deny path, never-scopeable refusals, unknown-item refusal
     const raised = await store.raise({
       app: APP,
       role: ROLE,
-      rule: "destructive-or-irreversible",
+      rule: "destructive-local",
       action: CRITICAL_ACTION,
       now: clock.nowDate(),
     });

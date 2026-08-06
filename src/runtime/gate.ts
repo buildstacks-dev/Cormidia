@@ -140,7 +140,7 @@ function readsOnly(shell: ShellEffects | null): boolean {
  *  key at commit/PR time. Stripping those blinded the classifier and turned a
  *  CRITICAL exfil into a ROUTINE op. Such a value is left in place so the
  *  embedded command text still reaches the rules — the `.env`/`id_rsa` read
- *  trips secrets-or-auth, an `rm -rf ~` trips destructive-or-irreversible, a
+ *  trips secrets-or-auth, an `rm -rf ~` trips destructive-local, a
  *  `curl` trips outbound-network. */
 function withoutMessageArgs(command: string): string {
   return stripMessageArgs(command, { keepExecutable: true });
@@ -241,7 +241,7 @@ const CORMIDIA_VERB = {
  *  the flattened effect text: `gh api <method> <endpoint>`. */
 const GH_API_PROJECTION = /\bgh api (get|head|post|put|patch|delete|unknown)(?: (\S+))?/g;
 
-type GhApiRoute = "self-merge-or-approve" | "external-publishing" | "destructive-or-irreversible";
+type GhApiRoute = "self-merge-or-approve" | "external-publishing" | "gh-api-unrecognized";
 
 /** `gh api` is the GitHub CLI's raw REST/GraphQL escape hatch: `gh api
  *  --method PUT repos/o/r/pulls/7/merge` performs the same merge as
@@ -255,8 +255,9 @@ type GhApiRoute = "self-merge-or-approve" | "external-publishing" | "destructive
  *   - `releases`, `issues`, `comments` are the raw-API spellings of
  *     `gh release|issue|pr create/comment` → external-publishing;
  *   - anything else (git/refs deletes, workflow dispatches, …) is an
- *     arbitrary remote mutation → destructive-or-irreversible ("irreversible
- *     remote/data operations stay critical unconditionally").
+ *     arbitrary remote mutation → gh-api-unrecognized (§5.1 split, #296:
+ *     human-only, fail closed — formerly the destructive-or-irreversible
+ *     grantable bucket).
  *  GET/HEAD calls route nowhere: the read/poll shape stays routine (the
  *  orchestrator's own GhOps never pass through this gate, but agent turns
  *  poll the same endpoints, and false positives there are availability
@@ -272,14 +273,14 @@ function ghApiRoutesTo(text: string, rule: GhApiRoute): boolean {
     const endpoint = match[2] ?? "";
     const route: GhApiRoute | null =
       endpoint === "graphql" || endpoint.startsWith("graphql/")
-        ? "destructive-or-irreversible"
+        ? "gh-api-unrecognized"
         : method === "get" || method === "head"
           ? null
           : /\bpulls\/[^\s/]+\/merge\b/.test(endpoint) || /(?:^|\/)reviews\b/.test(endpoint)
             ? "self-merge-or-approve"
             : /(?:^|\/)(?:releases|issues|comments)\b/.test(endpoint)
               ? "external-publishing"
-              : "destructive-or-irreversible";
+              : "gh-api-unrecognized";
     if (route === rule) return true;
   }
   return false;
@@ -303,25 +304,73 @@ export const CRITICAL_RULES: CriticalRule[] = [
     },
   },
   {
-    // Calibrated (Stage 6, docs/approvals/design.md): irreversible
-    // remote/data operations stay critical unconditionally, but `rm -rf` on a
-    // RELATIVE path is bounded by the sandbox cwd (the ticket worktree) and
-    // is routine — the 2026-07-10 episode escalated deleting a temp folder
-    // inside the worktree while twelve hours of human attention flowed
-    // freely. Absolute paths, `~`, `$HOME`, and parent escapes (`..`) remain
-    // critical.
-    name: "destructive-or-irreversible",
+    // §5.1 split (#296, F-PT-023 ratified): remote data destruction —
+    // irreversible, outside-world. Human-only; formerly part of the grantable
+    // destructive-or-irreversible bucket (a tightening). SQL destruction
+    // usually travels inside a client's -c/-e VALUE, which the effect
+    // projection deliberately drops as data — for THIS class the value IS the
+    // effect, so the message-stripped raw command is also consulted for the
+    // exact destruction verbs (inert message prose like a PR body stays
+    // stripped, so the L1-05 false-positive channel stays closed; an extra
+    // match elsewhere costs one human tap, the fail-closed direction). The
+    // org CLI's own destructive verbs (app reset, prune-runs) ride this class:
+    // archiving and removing managed state is irreversible data removal.
+    name: "destructive-remote-data",
     matches: (a) => {
       const t = asText(a);
-      if (/\b(drop table|truncate|force[- ]?push|delete (database|bucket|droplet|dns))\b/.test(t)) {
-        return true;
-      }
-      if (/\bgit\s+push\s+(?:--force(?:-with-lease)?|-f)\b/.test(t)) return true;
+      if (/\b(drop table|truncate|delete (database|bucket|droplet|dns))\b/.test(t)) return true;
+      if (/\b(?:database|bucket|droplet)s?\s+(?:delete|destroy|rm)\b/.test(t)) return true;
       if (CORMIDIA_VERB.destructive.test(t)) return true;
-      // The raw-API default: a mutating `gh api` whose endpoint no tighter
-      // rule recognizes (and every `gh api graphql`, fail closed) is an
-      // arbitrary remote mutation — see ghApiRoutesTo.
-      if (ghApiRoutesTo(t, "destructive-or-irreversible")) return true;
+      const command = normalizeSemanticAction(a).command;
+      return (
+        command !== null &&
+        /\b(?:drop\s+(?:table|database)|truncate(?:\s+table)?\s+\w)/i.test(
+          stripMessageArgs(command, { keepExecutable: true }),
+        )
+      );
+    },
+  },
+  {
+    // §5.1 split (#296): force-push whose EVERY destination ref is inside the
+    // orchestrator-owned ticket namespace (`op/<issue>-…`) — the scope
+    // src/loop/loop.ts already enforces in code ("force-update this one ref,
+    // never any other; the branch name is always the ticket's"). Budgeted, not
+    // routine: a loop force-pushing repeatedly shows up in the audit trail as
+    // spend, never as silence. Matched BEFORE the foreign rule so the narrower
+    // owned case wins; everything else — including any default-branch name,
+    // which is definitionally outside op/, and every undeterminable
+    // destination — falls through to history-rewrite-foreign. The classifier
+    // deliberately carries no default-branch state, so there is nothing to go
+    // stale between claims (#101/#203): a ref either matches the owned
+    // namespace or it is foreign.
+    name: "history-rewrite-owned",
+    matches: (a) => {
+      const destinations = forcePushDestinations(a);
+      return (
+        destinations !== null &&
+        destinations.length > 0 &&
+        destinations.every((ref) => OWNED_TICKET_REF.test(ref))
+      );
+    },
+  },
+  {
+    // §5.1 split (#296): every other force-push — foreign refs, the resolved
+    // default branch, mixed owned+foreign refspecs, and every destination the
+    // projection cannot resolve statically (bare `git push -f`, variables,
+    // substitutions, nested shells). Human-only, fail closed; formerly
+    // grantable (a tightening).
+    name: "history-rewrite-foreign",
+    matches: (a) => forcePushDestinations(a) !== null,
+  },
+  {
+    // Calibrated (Stage 6, docs/approvals/design.md): `rm -rf` on a RELATIVE
+    // path is bounded by the sandbox cwd (the ticket worktree) and is routine
+    // — the 2026-07-10 episode escalated deleting a temp folder inside the
+    // worktree while twelve hours of human attention flowed freely. Absolute
+    // paths, `~`, `$HOME`, and parent escapes (`..`) remain critical:
+    // §5.1's destructive-local, grantable (unchanged tier).
+    name: "destructive-local",
+    matches: (a) => {
       const fields = actionEffectFields(a);
       if (!fields.executables.includes("rm")) return false;
       return fields.targets.some((target) =>
@@ -496,7 +545,84 @@ export const CRITICAL_RULES: CriticalRule[] = [
         (isWrite(a) && /\bapprovals\/(grants|pending|decided|log\.jsonl)\b/.test(t));
     },
   },
+  {
+    // §5.1 split (#296): the raw-API default — a mutating `gh api` whose
+    // endpoint no tighter rule recognizes, and every `gh api graphql` (a
+    // read-only query is indistinguishable from a mutation without parsing
+    // GraphQL the projection does not carry). Human-only, fail closed;
+    // formerly the grantable destructive-or-irreversible bucket (a
+    // tightening). Last in the rule table because it is the fallback: the
+    // recognized endpoints route to their own rules above (ghApiRoutesTo).
+    name: "gh-api-unrecognized",
+    matches: (a) => ghApiRoutesTo(asText(a), "gh-api-unrecognized"),
+  },
 ];
+
+/** The orchestrator-owned ticket branch namespace (`op/<issue>-…`), exactly as
+ *  src/loop names its rebuilt branches. A leading `+` (the refspec force
+ *  marker) is tolerated; anything else is foreign. */
+const OWNED_TICKET_REF = /^\+?op\/\d+-/;
+
+/** Git `push` flags whose VALUE is a separate argv token — skipped so a value
+ *  is never mistaken for the remote or a refspec. */
+const GIT_PUSH_VALUE_FLAGS = new Set(["-o", "--push-option", "--receive-pack", "--exec"]);
+
+/** §5.1 (#296): the destination refs of every force-push in the action, or
+ *  null when the action carries no force-push at all. An empty-string entry
+ *  is an UNDETERMINABLE destination (bare `git push -f`, a variable, a
+ *  substitution, a nested-shell projection) — the caller fails closed to the
+ *  foreign class. Walks the same parsed shell segments the classifier's
+ *  projection uses, so `git -C dir push …`, `$( … )` bodies, and backtick
+ *  bodies are all visible; command shapes only the flattened projection can
+ *  see (a `bash -c` string, prose force-push text) surface as undeterminable
+ *  rather than invisible. */
+function forcePushDestinations(action: ToolAction): string[] | null {
+  const text = asText(action);
+  const textual =
+    /\bforce[- ]?push\b/.test(text) || /\bgit\s+push\s+(?:--force(?:-with-lease)?|-f)\b/.test(text);
+  const { semantic } = semanticActionWithShell(action);
+  if (semantic.command === null) return textual ? [""] : null;
+
+  const command = stripShellComments(stripHeredocBodies(unwrapCommand(semantic.command))).replace(/\$\{IFS\}/gi, " ");
+  const parsed = parseShell(lexShell(command));
+  const destinations: string[] = [];
+  let sawForcePush = false;
+  for (const segment of parsed.commands) {
+    const argv = segment.filter((token) => token.kind === "word").map((token) => token.text);
+    let cursor = 0;
+    while (isAssignment(argv[cursor])) cursor += 1;
+    while (["sudo", "command", "builtin", "nohup", "exec", "env"].includes(baseExecutable(argv[cursor] ?? ""))) cursor += 1;
+    if (baseExecutable(argv[cursor] ?? "") !== "git") continue;
+    const args = argv.slice(cursor + 1);
+    if (gitSubcommand(args) !== "push") continue;
+    const pushArgs = gitSubcommandArgs(args);
+    const force = pushArgs.some(
+      (arg) => /^--force(?:-with-lease(?:=\S*)?)?$/.test(arg) || /^-(?!-)[A-Za-z]*f[A-Za-z]*$/.test(arg),
+    );
+    if (!force) continue;
+    sawForcePush = true;
+    const positionals: string[] = [];
+    for (let i = 0; i < pushArgs.length; i += 1) {
+      const arg = pushArgs[i]!;
+      if (GIT_PUSH_VALUE_FLAGS.has(arg)) { i += 1; continue; }
+      if (arg.startsWith("-")) continue;
+      positionals.push(arg);
+    }
+    const refspecs = positionals.slice(1); // first positional is the remote
+    if (refspecs.length === 0) {
+      destinations.push(""); // pushes the current branch — destination unknown
+      continue;
+    }
+    for (const refspec of refspecs) {
+      const dst = refspec.includes(":") ? refspec.slice(refspec.lastIndexOf(":") + 1) : refspec;
+      destinations.push(/^[+A-Za-z0-9._\/-]+$/.test(dst) ? dst : "");
+    }
+  }
+  if (destinations.length > 0) return destinations;
+  // No directly parsed force-push, but the flattened projection carries one
+  // (nested `bash -c`, prose text): undeterminable, fail closed.
+  return sawForcePush || textual ? [""] : null;
+}
 
 function isWrite(a: ToolAction): boolean {
   const semantic = normalizeSemanticAction(a);
@@ -661,7 +787,15 @@ export type Disposition =
  *  (gate-implementation-edit, §4.2.1). */
 export const RULE_DISPOSITION_TIERS: Readonly<Record<string, Exclude<DispositionTier, "routine">>> = {
   "production-deploy": "human-only",
-  "destructive-or-irreversible": "grantable",
+  // §5.1 split (#296, F-PT-023 ratified 2026-08-06): remote data destruction
+  // and unrecognized raw-API mutations are human-only (tightened from the
+  // grantable bucket); the orchestrator-owned op/<issue> force-push is the one
+  // ratified budgeted case; local destruction keeps its grantable tier.
+  "destructive-remote-data": "human-only",
+  "history-rewrite-owned": "budgeted",
+  "history-rewrite-foreign": "human-only",
+  "destructive-local": "grantable",
+  "gh-api-unrecognized": "human-only",
   // Cheap and permanent: a DNS/domain change costs under a dollar and cannot
   // be undone. Tightened grantable → human-only (Stage 2).
   "dns-or-domain": "human-only",
@@ -691,8 +825,20 @@ export const RULE_DISPOSITION_TIERS: Readonly<Record<string, Exclude<Disposition
  *  reason) — and never `routine`: whatever was worth raising as an item is at
  *  least grantable, which is exactly the semantics the approval store applied
  *  before tiers existed (non-member of the never-scopeable set ⇒ widenable). */
+/** Retired rule names keep their LAST ratified tier as tombstones: an item or
+ *  grant raised before a split still carries the old name, and falling to the
+ *  default would silently change what a stale record means. Retired names are
+ *  never emitted by the classifier again and are not valid objective-grant
+ *  classes (only RULE_DISPOSITION_TIERS keys are). */
+const RETIRED_RULE_TIERS: Readonly<Record<string, Exclude<DispositionTier, "routine">>> = {
+  // Split 2026-08-06 (#296 §5.1) into destructive-remote-data /
+  // history-rewrite-owned / history-rewrite-foreign / destructive-local /
+  // gh-api-unrecognized.
+  "destructive-or-irreversible": "grantable",
+};
+
 export function dispositionTierForRule(rule: string): Exclude<DispositionTier, "routine"> {
-  return RULE_DISPOSITION_TIERS[rule] ?? "grantable";
+  return RULE_DISPOSITION_TIERS[rule] ?? RETIRED_RULE_TIERS[rule] ?? "grantable";
 }
 
 /** True when the rule's tier admits no widened/standing grant and no agent

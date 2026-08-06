@@ -53,6 +53,15 @@
 # changelog 2026-08-03 (owner decision): exact manual-review independently excludes
 # autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
 # No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
+# changelog 2026-08-06 (#296 PR A, §5.1 split landed): destructive-or-irreversible is
+# replaced by destructive-remote-data (HO), history-rewrite-owned (budgeted, op/<issue>
+# namespace only), history-rewrite-foreign (HO), destructive-local (grantable), and
+# gh-api-unrecognized (HO); the retired name keeps a grantable tombstone for stale
+# items. ACTION_IDENTITY_VERSION bumped 3->4 (in-flight grants cancel at landing, owner
+# decision 5). The ratified budgeted tier proceeds at the composed gate with a
+# per-action audit row; F-PT-024 opened for the grantless budgeted accounting quantum
+# (debit amount and hard bound before turn-spend wiring exists) — interim is
+# audit-only visibility, with the bare defaultGate still denying budgeted actions.
 # changelog 2026-08-06 (owner-ratified F-PT-023 resolution + harness revision): the
 # product owner answered the Stage 4 decision request with an unqualified YES on #296
 # (ratification record, 2026-08-06) — all four §5.1–5.4 consequence splits ratified in
@@ -436,6 +445,8 @@ open_findings:
      resolution: "publication requires exact equality among the GitHub-authenticated tag-push actor, approval.approved_by, and one app-configured release approver; mismatch refuses before npm authentication. Remote proof of the local ApprovalStore path is not additionally required"}
   - {id: F-PT-022, status: resolved-ratified, resolved: 2026-08-05, subject: "L4 token accounting: whether per-case reservations and campaign max_tokens count output tokens only, uncached input plus output, or every vendor-reported input/cache-create/cache-read/output token; and how a known actual overrun settles against the authorized envelope",
      resolution: "contract truth: per-case reservations, campaign max_tokens, and observed_tokens count output tokens only, consistent with PURPOSE's retirement of input-token ceilings. Input/cache usage remains preserved telemetry and contributes to equivalent-USD accounting, but never debits the token envelope. Unknown-use failures conservatively debit the effective output reservation. Known results debit exact output; an output overrun is preserved, remains incomplete/inconclusive, and continues independent cases only while the authorized campaign envelopes admit them. Golden token_reservation values remain human-reviewed baselines. A content-bound human-approved release config may raise effective reservations only by naming every selected case exactly once, never lowering a baseline, and binding max_tokens to their exact sum. For #300, two times each observed overrun rounded up to 100 gives DAG=5,700, REPAIR=6,600, BATCH-LURE=8,700, DIRECT-PROMOTION=12,100, ROUTINE=8,000, CROSS-TICKET=9,500, and STRUCTURAL=4,700; unaffected cases retain baseline values and the effective full-corpus sum is 88,100."}
+  # Opened 2026-08-06 at #296 PR A (procedure: agents-md-contribution.md).
+  - {id: F-PT-024, status: open, subject: "grantless budgeted-tier accounting: the ratified budgeted semantics ('proceed, visible as spend — free until it isn't') land with per-action audit rows and objective-grant use/ledger coverage when a grant exists, but for a GRANTLESS budgeted action the debit quantum (per-action USD before provider-turn spend wires into the objective ledger) and whether a hard count/spend bound applies are undecided — owner must decide; interim: composed-gate-only proceed with audit rows, bare defaultGate still denies"}
   # Opened 2026-08-06 at #296 Stage 4; resolved the same day by the owner's YES.
   - {id: F-PT-023, status: resolved-ratified, resolved: 2026-08-06, subject: "consequence-split ratification: the §5.1–5.4 splits replace 'critical operations require human approval' with 'operations require the disposition their consequence class specifies'",
      resolution: "owner ratified all four splits in one decision (#296 ratification record, 2026-08-06; package docs/approvals/consequence-split-ratification.md §2). Harness revision registered the revised CORMIDIA-INV-003, the B-09b objective-grant/disposition clauses, and un-parked the CF-SPLIT-* families (case-catalog §10.1). Authorized: one rule per PR with red-then-green seeded controls, tightening-first, external-publishing last; ACTION_IDENTITY_VERSION bump cancelling in-flight grants at each split landing; compensating controls are part of each split and land with it or the split does not land"}

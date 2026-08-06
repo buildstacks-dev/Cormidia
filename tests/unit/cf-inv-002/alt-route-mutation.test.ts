@@ -50,18 +50,19 @@ const CAUGHT_TOOL_ROUTES: ReadonlyArray<{ name: string; action: ToolAction; rule
  *  tightest existing rule for its endpoint: pulls/{n}/merge and …/reviews →
  *  self-merge-or-approve; releases/issues/comments → external-publishing;
  *  everything else (and all of graphql, fail closed) →
- *  destructive-or-irreversible. */
+ *  gh-api-unrecognized (§5.1 split #296: human-only, formerly the grantable
+ *  destructive-or-irreversible bucket — a tightening). */
 const API_MUTATIONS: ReadonlyArray<{ name: string; command: string; rule: string }> = [
   { name: "--method PUT pulls/*/merge (self-merge via raw API)", command: "gh api --method PUT repos/o/r/pulls/7/merge -f merge_method=squash", rule: "self-merge-or-approve" },
   { name: "-XPUT glued form on pulls/*/merge", command: "gh api -XPUT repos/o/r/pulls/7/merge", rule: "self-merge-or-approve" },
   { name: "-X POST pulls/*/reviews (review publish via raw API)", command: "gh api -X POST repos/o/r/pulls/7/reviews -f event=APPROVE", rule: "self-merge-or-approve" },
   { name: "-X POST releases (publication via raw API)", command: "gh api -X POST repos/o/r/releases -f tag_name=v1", rule: "external-publishing" },
   { name: "implicit POST via -f to issues (issue create, no --method at all)", command: "gh api repos/o/r/issues -f title=x", rule: "external-publishing" },
-  { name: "-X DELETE git/refs (destructive raw mutation)", command: "gh api -X DELETE repos/o/r/git/refs/heads/x", rule: "destructive-or-irreversible" },
-  { name: "lowercase -X delete (method matching is case-insensitive)", command: "gh api -X delete repos/o/r/git/refs/heads/x", rule: "destructive-or-irreversible" },
-  { name: "--method=PATCH inline form on an unrecognized endpoint", command: "gh api --method=PATCH repos/o/r/git/refs/heads/x", rule: "destructive-or-irreversible" },
-  { name: "implicit POST via --input (arbitrary payload to an unrecognized endpoint)", command: "gh api repos/o/r/statuses/deadbeef --input payload.json", rule: "destructive-or-irreversible" },
-  { name: "graphql (fail closed: a read-only query is indistinguishable from a mutation)", command: "gh api graphql -f query='mutation { m }'", rule: "destructive-or-irreversible" },
+  { name: "-X DELETE git/refs (destructive raw mutation)", command: "gh api -X DELETE repos/o/r/git/refs/heads/x", rule: "gh-api-unrecognized" },
+  { name: "lowercase -X delete (method matching is case-insensitive)", command: "gh api -X delete repos/o/r/git/refs/heads/x", rule: "gh-api-unrecognized" },
+  { name: "--method=PATCH inline form on an unrecognized endpoint", command: "gh api --method=PATCH repos/o/r/git/refs/heads/x", rule: "gh-api-unrecognized" },
+  { name: "implicit POST via --input (arbitrary payload to an unrecognized endpoint)", command: "gh api repos/o/r/statuses/deadbeef --input payload.json", rule: "gh-api-unrecognized" },
+  { name: "graphql (fail closed: a read-only query is indistinguishable from a mutation)", command: "gh api graphql -f query='mutation { m }'", rule: "gh-api-unrecognized" },
 ];
 
 /** The fix's blast-radius guard: `gh api` READS must stay routine (false

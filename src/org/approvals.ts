@@ -234,7 +234,15 @@ export { NEVER_SCOPEABLE_RULES } from "../runtime/gate.js";
 export const ORCHESTRATOR_EXECUTABLE_RULES: readonly string[] = [
   "external-publishing",
   "outbound-network",
-  "destructive-or-irreversible",
+  // §5.1 split (#296): the five classes that replaced
+  // destructive-or-irreversible keep its executor capability — the same
+  // outward-effect deletes/rewrites the human read in `cormidia approvals
+  // show`, behind the same fresh human approval.
+  "destructive-remote-data",
+  "history-rewrite-owned",
+  "history-rewrite-foreign",
+  "destructive-local",
+  "gh-api-unrecognized",
 ];
 
 export function isOrchestratorExecutableRule(rule: string): boolean {
@@ -1649,10 +1657,14 @@ function isActorClaimable(executor: ApprovalExecutor | undefined): boolean {
  *  payload-blind projection reused verbatim from CLASSIFICATION, so a human who
  *  approved Write X authorized Write Y on the same (tool, path) pair (A-002).
  *  v2 binds the payload. v3 replaces raw shell/prose scope text with parsed,
- *  effect-bearing targets and redirections. Each migration is intentional and
+ *  effect-bearing targets and redirections. v4 cancels in-flight grants at the
+ *  §5.1 consequence-split landing (#296, owner decision 5: "in-flight grants
+ *  cancel at landing" — the A-002 precedent): classification semantics for the
+ *  destructive family changed, so authority minted under the old semantics
+ *  stops matching and agents simply re-raise. Each migration is intentional and
  *  abrupt: the instant it lands, in-flight grants stop matching, agents
  *  re-raise, and the miss path yields a fresh approval item — never a crash. */
-export const ACTION_IDENTITY_VERSION = 3;
+export const ACTION_IDENTITY_VERSION = 4;
 
 /** Input keys `normalizeSemanticAction` (src/runtime/gate.ts) already folds
  *  into the semantic identity. Everything ELSE in the input is agent-authored

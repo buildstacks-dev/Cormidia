@@ -151,6 +151,17 @@ export type ObjectiveGrantLogEvent =
       usesRemaining: number;
     }
   | { type: "objective-grant-revoked"; grantId: string; at: string }
+  | {
+      /** A grantless budgeted-tier action proceeded at the composed gate
+       *  (#296 §5.1+; ratified "free until it isn't"). The row IS the signal:
+       *  runaway budgeted loops show up here, never as silence. The debit
+       *  quantum and hard bound for the grantless case are F-PT-024. */
+      type: "budgeted-action";
+      at: string;
+      app: string;
+      rule: string;
+      actionHash: string;
+    }
   | { type: "objective-spend-debited"; grantId: string; at: string; usd: number; totalUsd: number; note?: string }
   | {
       type: "objective-spend-refused";
@@ -247,8 +258,11 @@ export class ObjectiveGrantStore {
             `ceremony path (grant-critical), never the ordinary class list`,
         );
       }
-      if (!tiers.includes("grantable")) {
-        throw new Error(`objective grant classes require the "grantable" tier to be named`);
+      // A grantable-tier class requires the grantable tier named; a
+      // budgeted-tier class (#296 §5.1+) requires the budgeted tier named —
+      // the tiers list is what the owner read they were granting.
+      if (!tiers.includes(tier === "budgeted" ? "budgeted" : "grantable")) {
+        throw new Error(`objective grant class "${rule}" requires the "${tier === "budgeted" ? "budgeted" : "grantable"}" tier to be named`);
       }
     }
 
@@ -369,8 +383,8 @@ export class ObjectiveGrantStore {
       if (grant.outwardEffects !== false) continue;
       if (new Date(grant.expiresAt).getTime() <= now.getTime()) continue;
       if (this.ledgerTotalSync(grant.grantId) >= grant.spendCeilingUsd) continue;
-      const ordinary = tier === "grantable" &&
-        grant.tiers.includes("grantable") &&
+      const ordinary = (tier === "grantable" || tier === "budgeted") &&
+        grant.tiers.includes(tier) &&
         grant.classes.includes(input.rule);
       const ceremony = tier === "human-only" &&
         grant.criticalClasses.some((critical) => critical.rule === input.rule);
@@ -395,6 +409,24 @@ export class ObjectiveGrantStore {
       usesRemaining: next.usesRemaining,
     });
     return next;
+  }
+
+  /** Per-action audit row for a GRANTLESS budgeted-tier proceed (#296 §5.1+):
+   *  the ratified budgeted semantics are "free until it isn't" — the action
+   *  proceeds, and this row makes it visible. When a covering objective grant
+   *  exists the gate uses consumeUseSync instead, so exactly one of the two
+   *  rows exists per action. The grantless debit quantum/bound is F-PT-024. */
+  recordBudgetedActionSync(
+    use: { app: string; rule: string; actionHash: string },
+    now: Date = new Date(),
+  ): void {
+    this.appendLogSync({
+      type: "budgeted-action",
+      at: now.toISOString(),
+      app: use.app,
+      rule: use.rule,
+      actionHash: use.actionHash,
+    });
   }
 
   /** Cumulative spend recorded against the grant's ledger. */

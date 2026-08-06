@@ -162,6 +162,22 @@ export function composeGate(
       }
     }
 
+    // Budgeted tier (#296 §5.1+, ratified): the action PROCEEDS — "free until
+    // it isn't" — bounded by a covering objective grant's uses/ledger when one
+    // exists (handled above) and always visible as a per-action audit row.
+    // Every refusal path keeps precedence: this branch sits after grant
+    // lookup, the stalled-execution circuit breaker, role shaping, and
+    // governed denials. The bare defaultGate still denies budgeted actions —
+    // proceed semantics exist only here, where the audit surface exists. The
+    // grantless accounting quantum is F-PT-024.
+    if (rule !== undefined && disposition.tier === "budgeted") {
+      objectiveGrants.recordBudgetedActionSync(
+        { app: context.app, rule, actionHash: hash },
+        now,
+      );
+      return { allow: true };
+    }
+
     const decision = baseGate(action);
     if (!decision.allow && decision.escalate) {
       store.raiseSync({

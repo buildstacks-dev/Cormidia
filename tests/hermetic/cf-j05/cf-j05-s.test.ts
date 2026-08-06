@@ -33,7 +33,7 @@ import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 
 const APP = "gated-app";
 const ROLE = "builder";
-// Classifies critical under `destructive-or-irreversible` (absolute-path rm),
+// Classifies critical under `destructive-local` (absolute-path rm),
 // which is ORCHESTRATOR_EXECUTABLE — the typed orchestrator-command slice.
 const CRITICAL_COMMAND = "rm -rf /var/data/legacy-exports";
 const ACTION: ToolAction = { tool: "bash", input: { command: CRITICAL_COMMAND } };
@@ -84,15 +84,15 @@ describe("CF-J05-S — gate block → item → approve → typed execution → e
     const decision = gate(ACTION);
     if (decision.allow) throw new Error("gate unexpectedly allowed the critical op");
     expect(decision.escalate).toBe(true);
-    expect(decision.reason).toContain("destructive-or-irreversible");
+    expect(decision.reason).toContain("destructive-local");
 
     const pending = await walk.store.listPending();
     expect(pending).toHaveLength(1);
     const raised = pending[0]!;
-    expect(raised.rule).toBe("destructive-or-irreversible");
+    expect(raised.rule).toBe("destructive-local");
     expect((raised.action.input as { command: string }).command).toBe(CRITICAL_COMMAND);
     expect(raised.workdir).toBe(walk.repo.dir); // the context it was approved FOR
-    expect(raised.classification?.rule).toBe("destructive-or-irreversible");
+    expect(raised.classification?.rule).toBe("destructive-local");
 
     // 2 — approval is never execution (INV-003): the decision mints the
     // typed execution record + fresh single-use grant, nothing runs.

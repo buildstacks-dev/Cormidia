@@ -20,7 +20,7 @@ authorization behavior, not a separate efficiency budget. The system map is
 
 The classifier reads Cormidia's own command line as an effect surface, not just
 third-party tools: `cormidia app reset`/`prune-runs` are
-`destructive-or-irreversible`, `cormidia org init|use|upgrade` is
+`destructive-remote-data` (since the #296 §5.1 split), `cormidia org init|use|upgrade` is
 `protocol-self-edit`, `cormidia plan ratify-ticket-budget` and `cormidia bootstrap
 publish` are `external-publishing`, and `cormidia approvals
 review|revoke|disposition` is `approval-store-tamper` — self-approval by CLI is
@@ -156,7 +156,15 @@ learning governance surfaces (`learning-surface-tamper`), and the gate's own
 source (`gate-implementation-edit` — writes to `src/runtime/gate.ts`,
 `src/org/approvals.ts`, `src/org/gate-compose.ts`, `src/org/authority.ts`;
 reads stay routine, and the files remain changeable through the human-driven
-reviewed PR path, which never routes through this gate). `un-grantable` is the
+reviewed PR path, which never routes through this gate). The #296 §5.1 split
+(ratified 2026-08-06) further adds `destructive-remote-data`,
+`history-rewrite-foreign`, and `gh-api-unrecognized` as human-only members,
+while `history-rewrite-owned` (force-push confined to the orchestrator-owned
+`op/<issue>-…` namespace) is the one ratified `budgeted` class: it proceeds at
+the composed gate with a per-action audit row — bounded by a covering
+objective grant's uses/ledger when one exists (grantless accounting quantum:
+F-PT-024) — and the retired `destructive-or-irreversible` name keeps a
+grantable tombstone so stale items never loosen. `un-grantable` is the
 stricter tier: no standing grant of any kind may ever cover it — the store
 refuses to mint a widened grant for it AND refuses to honor a standing grant
 found on disk for it (defense in depth in `findMatchingGrantSync`), while the

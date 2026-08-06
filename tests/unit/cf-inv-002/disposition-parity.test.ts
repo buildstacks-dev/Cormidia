@@ -46,12 +46,17 @@ function strictness(tier: DispositionTier): number {
   return index;
 }
 
-/** Today's decision, computed the way the product computed it BEFORE Stage 1:
- *  classify() plus NEVER_SCOPEABLE_RULES membership. This is the oracle the
- *  refactor is measured against. */
+/** The ratified oracle: classify() plus the RATIFIED_TIERS table (F-PT-023,
+ *  #296). Before the ratified §5 splits this was derived from
+ *  NEVER_SCOPEABLE_RULES membership alone; the table now IS the ratified
+ *  baseline, so any implementation tier below it is a loosening this property
+ *  exists to catch — and the single ratified budgeted case is named in the
+ *  table rather than special-cased here. */
 function todayTier(action: ToolActionLike): DispositionTier {
   const classification = classify(action);
   if (classification.cls === "routine") return "routine";
+  const ratified = RATIFIED_TIERS[classification.rule ?? ""];
+  if (ratified !== undefined) return ratified;
   return NEVER_SCOPEABLE_RULES.includes(classification.rule ?? "")
     ? "human-only"
     : "grantable";
@@ -62,7 +67,14 @@ function todayTier(action: ToolActionLike): DispositionTier {
  *  ratified mapping — if the implementation's table drifts, this fails. */
 const RATIFIED_TIERS: Readonly<Record<string, DispositionTier>> = {
   "production-deploy": "human-only",
-  "destructive-or-irreversible": "grantable",
+  // §5.1 split (#296, F-PT-023 ratified 2026-08-06): the grantable
+  // destructive bucket became four tightened classes plus the one ratified
+  // budgeted case (the orchestrator-owned op/<issue> force-push namespace).
+  "destructive-remote-data": "human-only",
+  "history-rewrite-owned": "budgeted",
+  "history-rewrite-foreign": "human-only",
+  "destructive-local": "grantable",
+  "gh-api-unrecognized": "human-only",
   "dns-or-domain": "human-only",
   "secrets-or-auth": "grantable",
   "external-publishing": "human-only",
@@ -81,7 +93,11 @@ const RATIFIED_TIERS: Readonly<Record<string, DispositionTier>> = {
  *  table, so the table cannot silently test the wrong thing. */
 const RULE_FIXTURES: ReadonlyArray<{ rule: string; action: ToolActionLike }> = [
   { rule: "production-deploy", action: { tool: "bash", input: { command: "kubectl apply -f k8s/deploy.yaml" } } },
-  { rule: "destructive-or-irreversible", action: { tool: "bash", input: { command: "git push --force origin op/7-fix" } } },
+  { rule: "destructive-remote-data", action: { tool: "bash", input: { command: "truncate -s 0 /var/db/audit.log" } } },
+  { rule: "history-rewrite-owned", action: { tool: "bash", input: { command: "git push --force origin op/7-fix" } } },
+  { rule: "history-rewrite-foreign", action: { tool: "bash", input: { command: "git push --force origin main" } } },
+  { rule: "destructive-local", action: { tool: "bash", input: { command: "rm -rf /var/data/exports" } } },
+  { rule: "gh-api-unrecognized", action: { tool: "bash", input: { command: "gh api -X DELETE repos/o/r/git/refs/heads/x" } } },
   { rule: "dns-or-domain", action: { tool: "write_file", input: { path: "dns/nameserver.conf", content: "ns1.example.com" } } },
   { rule: "secrets-or-auth", action: { tool: "bash", input: { command: "cat .env" } } },
   { rule: "external-publishing", action: { tool: "bash", input: { command: "npm publish --access public" } } },
@@ -100,7 +116,7 @@ describe("CF-INV — disposition table (every classifier rule, ratified tiers)",
     expect(CRITICAL_RULES.map((rule) => rule.name).sort()).toEqual(
       RULE_FIXTURES.map((fixture) => fixture.rule).sort(),
     );
-    expect(RULE_FIXTURES).toHaveLength(13);
+    expect(RULE_FIXTURES).toHaveLength(17);
   });
 
   for (const { rule, action } of RULE_FIXTURES) {
@@ -110,9 +126,12 @@ describe("CF-INV — disposition table (every classifier rule, ratified tiers)",
 
       // The ratified expectation, coupled to the A1 boundary: NEVER_SCOPEABLE
       // membership must be exactly the human-only ∪ un-grantable tiers, so
-      // the set and the tier table cannot drift apart.
+      // the set and the tier table cannot drift apart (budgeted and grantable
+      // classes are the widenable, agent-decidable side of the boundary).
       const expected: DispositionTier = RATIFIED_TIERS[rule]!;
-      expect(NEVER_SCOPEABLE_RULES.includes(rule)).toBe(expected !== "grantable");
+      expect(NEVER_SCOPEABLE_RULES.includes(rule)).toBe(
+        expected === "human-only" || expected === "un-grantable",
+      );
       const disposition = decideDisposition(action);
       expect(disposition.tier).toBe(expected);
       if (disposition.tier === "routine") throw new Error("unreachable: fixture classified critical");

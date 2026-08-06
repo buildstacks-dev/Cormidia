@@ -235,8 +235,10 @@ partial evidence after the 2026-08-05 RQ-1 campaign: a known over-reservation re
 preserves its session/output hash/exact usage and independent cases continue while the
 authorized hard envelopes admit them. F-PT-022 was owner-resolved 2026-08-05:
 reservations and campaign `max_tokens` count output only; a seeded high-input/small-
-output control proves input/cache telemetry cannot consume that envelope. Existing
-golden reservations and the 49,500-output-token full-corpus sum are unchanged.
+output control proves input/cache telemetry cannot consume that envelope. Golden
+reservations remain the human-reviewed baseline; #300 adds an exact human-approved
+effective-reservation map totaling 88,100 output tokens without changing golden
+expected behavior or reference validation.
 HB-061/HB-062 build-agent
 authoring is complete; every current reviewer/planner reference was human-validated by
 `bikramgupta` on 2026-08-04 without changing agent authorship.

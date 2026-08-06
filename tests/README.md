@@ -87,6 +87,10 @@ tuples, and ceilings; an environment flag alone cannot widen scope.
 Triggered entry additionally requires the canonical policy and every L4 golden input
 to be tracked and byte-identical at the authorized HEAD; absolute paths are locators,
 not authority to substitute uncommitted evidence.
+Every L4 config declares `case_token_reservations` with exactly one
+`{case_id,max_output_tokens}` row per selected golden case. The runner refuses missing,
+extra, duplicate, or sub-baseline rows and requires `max_tokens` to equal the exact
+effective reservation sum across the selected case-attempt assignments.
 
 ```bash
 CORMIDIA_LIVE=1 CORMIDIA_LIVE_CONFIG=/absolute/live.json pnpm test:live

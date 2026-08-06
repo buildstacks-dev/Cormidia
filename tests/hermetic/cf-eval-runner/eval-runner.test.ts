@@ -7,7 +7,15 @@ import { join } from "node:path";
 import { readValidationCampaignReports } from "../../../src/org/validation-campaign.js";
 import { compositeGradeKey, digestJson } from "../../../src/org/release-evidence.js";
 import { DurableCampaignRunner } from "../../campaign/campaign-runner.js";
-import { runEvalCampaign, selectRotatingShard, validateCases, type EvalCaseV1, type EvalTuple } from "../../eval-runner/eval-runner.js";
+import {
+  runEvalCampaign,
+  selectRotatingShard,
+  validateCases,
+  validateEffectiveTokenReservations,
+  type EvalCaseTokenReservation,
+  type EvalCaseV1,
+  type EvalTuple,
+} from "../../eval-runner/eval-runner.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 let state: TempStateHome | undefined;
@@ -32,6 +40,13 @@ function golden(id: string, verdict: "APPROVE" | "REJECT"): EvalCaseV1 {
   };
 }
 
+function reservationsFor(selected: EvalCaseV1[], overrides: Record<string, number> = {}): EvalCaseTokenReservation[] {
+  return selected.map((evalCase) => ({
+    case_id: evalCase.id,
+    max_output_tokens: overrides[evalCase.id] ?? evalCase.token_reservation,
+  }));
+}
+
 async function campaign(required: string[], maxTurns = required.length + 1) {
   state = await makeTempStateHome({ name: "eval-runner" });
   const policy = state.path("policy.yaml");
@@ -48,11 +63,77 @@ async function campaign(required: string[], maxTurns = required.length + 1) {
 }
 
 describe("eval runner", () => {
+  it("CF-REG-300 binds every effective reservation above its golden baseline to the exact campaign sum", async () => {
+    const corpusPaths = [
+      join(process.cwd(), "validation-design", "golden-sets", "reviewer", "cases.json"),
+      join(process.cwd(), "validation-design", "golden-sets", "planner", "cases.json"),
+      join(process.cwd(), "validation-design", "golden-sets", "validation-designer", "cases.json"),
+    ];
+    const corpus = (await Promise.all(corpusPaths.map(async (path) =>
+      JSON.parse(await readFile(path, "utf8")) as EvalCaseV1[]))).flat();
+    const effective = reservationsFor(corpus, {
+      "GS-PLAN-S1A-DAG-001": 5_700,
+      "GS-PLAN-S1B-REPAIR-001": 6_600,
+      "GS-PLAN-S1A-BATCH-LURE-001": 8_700,
+      "GS-PLAN-S1B-DIRECT-PROMOTION-001": 12_100,
+      "GS-VAL-S10-ROUTINE-001": 8_000,
+      "GS-VAL-S10-CROSS-TICKET-001": 9_500,
+      "GS-VAL-S10-STRUCTURAL-001": 4_700,
+    });
+    const releaseTuples: EvalTuple[] = [
+      { ...tuples[0]!, id: "release-reviewer", site: "reviewer", operation: "review" },
+      { ...tuples[0]!, id: "release-planner", site: "planner", operation: "plan" },
+      { ...tuples[0]!, id: "release-validation", site: "validation-designer", operation: "validation-design" },
+    ];
+
+    expect(() => validateEffectiveTokenReservations(corpus, releaseTuples, effective.slice(1), 88_100)).toThrow(/missing/);
+    expect(() => validateEffectiveTokenReservations(corpus, releaseTuples, [...effective, { case_id: "EXTRA", max_output_tokens: 1 }], 88_100)).toThrow(/extra/);
+    expect(() => validateEffectiveTokenReservations(corpus, releaseTuples, [...effective, effective[0]!], 88_100)).toThrow(/duplicate/);
+    expect(() => validateEffectiveTokenReservations(corpus, releaseTuples, [
+      { ...effective[0]!, max_output_tokens: corpus[0]!.token_reservation - 1 },
+      ...effective.slice(1),
+    ], 88_100)).toThrow(/below golden baseline/);
+    expect(() => validateEffectiveTokenReservations(corpus, releaseTuples, effective, 88_101)).toThrow(/exact effective-reservation sum/);
+    expect(validateEffectiveTokenReservations(corpus, releaseTuples, effective, 88_100)).toEqual(
+      new Map(effective.map((item) => [item.case_id, item.max_output_tokens])),
+    );
+
+    const selected = [cases[0]!];
+    const runner = await campaign([`${tuples[0]!.id}::${selected[0]!.id}`], 2);
+    const execute = vi.fn(async () => ({
+      output: "VERDICT: REJECT\n",
+      tokensIn: 100,
+      tokensOut: 150,
+      equivUsd: 0.2,
+      sessionId: "effective-reservation-success",
+    }));
+    const result = await runEvalCampaign({
+      campaign: runner,
+      campaignId: "eval-test",
+      stateHome: state!.stateHome,
+      cases: selected,
+      tuples: [tuples[0]!],
+      producerDigest: PRODUCER_DIGEST,
+      caseTokenReservations: reservationsFor(selected, { [selected[0]!.id]: 200 }),
+      maxTokens: 200,
+      executor: { execute },
+    });
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ maxTokens: 200 }));
+    expect(result.case_token_reservations).toEqual([{ case_id: selected[0]!.id, max_output_tokens: 200 }]);
+    expect(result.attempts).toEqual([expect.objectContaining({
+      case_id: selected[0]!.id,
+      status: "collected",
+      token_reservation: 200,
+      tokens_out: 150,
+    })]);
+  });
+
   it("aggregates exact tuples separately and stays inconclusive under proposed thresholds", async () => {
     const required = tuples.flatMap((tuple) => cases.map((item) => `${tuple.id}::${item.id}`));
     const runner = await campaign(required);
     const results = await runEvalCampaign({
-      campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome, cases, tuples, producerDigest: PRODUCER_DIGEST, maxTokens: 1_000,
+      campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome, cases, tuples, producerDigest: PRODUCER_DIGEST,
+      caseTokenReservations: reservationsFor(cases), maxTokens: 600,
       executor: { execute: async ({ tuple, evalCase }) => ({
         output: tuple.id.endsWith("a") ? `VERDICT: ${evalCase.expected.verdict}\n` : "VERDICT: APPROVE\n",
         tokensIn: 10, tokensOut: 5, equivUsd: 0.1, sessionId: `${tuple.id}-${evalCase.id}`,
@@ -85,11 +166,16 @@ describe("eval runner", () => {
     const required = selected.map((item) => `${tuples[0]!.id}::${item.id}`);
     const runner = await campaign(required);
     const execute = vi.fn(async ({ evalCase }: { evalCase: EvalCaseV1 }) => ({
-      output: `VERDICT: ${evalCase.expected.verdict}\n`, tokensIn: 60, tokensOut: 20, equivUsd: 0.1, sessionId: evalCase.id,
+      output: `VERDICT: ${evalCase.expected.verdict}\n`,
+      tokensIn: 60,
+      tokensOut: evalCase.id === selected[0]!.id ? 110 : 20,
+      equivUsd: 0.1,
+      sessionId: evalCase.id,
     }));
     const result = await runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 119, executor: { execute },
+      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST,
+      caseTokenReservations: reservationsFor(selected), maxTokens: 200, executor: { execute },
     });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(result.stopped_on_token_ceiling).toBe(true);
@@ -128,6 +214,7 @@ describe("eval runner", () => {
       cases: selected,
       tuples: [tuples[0]!],
       producerDigest: PRODUCER_DIGEST,
+      caseTokenReservations: reservationsFor(selected),
       maxTokens: 1_300,
       executor: { execute },
     });
@@ -164,12 +251,14 @@ describe("eval runner", () => {
     const runner = await campaign(required, 1);
     await expect(runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: selected, tuples: [tuples[0]!], producerDigest: "caller-invented", maxTokens: 100,
+      cases: selected, tuples: [tuples[0]!], producerDigest: "caller-invented",
+      caseTokenReservations: reservationsFor(selected), maxTokens: 100,
       executor: { execute: async () => { throw new Error("must not execute"); } },
     })).rejects.toThrow(/producerDigest must be lowercase sha256/);
     const result = await runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 100,
+      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST,
+      caseTokenReservations: reservationsFor(selected), maxTokens: 100,
       executor: { execute: async () => { throw new Error("provider response lost"); } },
     });
     expect(result.attempts).toEqual([expect.objectContaining({
@@ -197,9 +286,9 @@ describe("eval runner", () => {
   });
 
   it("negative control: preserves a known over-reservation result and continues to an independent case", async () => {
-    const selected = [cases[0]!, cases[1]!];
+    const selected = [cases[0]!, cases[1]!, cases[2]!];
     const required = selected.map((item) => `${tuples[0]!.id}::${item.id}`);
-    const runner = await campaign(required, 3);
+    const runner = await campaign(required);
     const execute = vi.fn(async ({ evalCase }: { evalCase: EvalCaseV1 }) => evalCase.id === selected[0]!.id
       ? {
           output: "VERDICT: REJECT\n",
@@ -222,11 +311,12 @@ describe("eval runner", () => {
       cases: selected,
       tuples: [tuples[0]!],
       producerDigest: PRODUCER_DIGEST,
-      maxTokens: 500,
+      caseTokenReservations: reservationsFor(selected),
+      maxTokens: 300,
       executor: { execute },
     });
-    expect(execute).toHaveBeenCalledTimes(2);
-    expect(result.observed_tokens).toBe(130);
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(result.observed_tokens).toBe(150);
     expect(result.attempts).toEqual([
       expect.objectContaining({
         case_id: selected[0]!.id,
@@ -247,11 +337,23 @@ describe("eval runner", () => {
         equiv_usd: 0.1,
         error_sha256: null,
       }),
+      expect.objectContaining({
+        case_id: selected[2]!.id,
+        status: "collected",
+        session_id: "independent-success",
+        tokens_in: 60,
+        tokens_out: 20,
+        equiv_usd: 0.1,
+        error_sha256: null,
+      }),
     ]);
-    expect(result.observations.map((item) => item.case_id)).toEqual([selected[1]!.id]);
+    expect(result.observations.map((item) => item.case_id)).toEqual([selected[1]!.id, selected[2]!.id]);
     expect(await runner.finish()).toMatchObject({
       coverage: {
-        collected_case_ids: [`${tuples[0]!.id}::${selected[1]!.id}`],
+        collected_case_ids: [
+          `${tuples[0]!.id}::${selected[1]!.id}`,
+          `${tuples[0]!.id}::${selected[2]!.id}`,
+        ],
         missing_case_ids: [`${tuples[0]!.id}::${selected[0]!.id}`],
       },
       outcome: {
@@ -278,7 +380,8 @@ describe("eval runner", () => {
     const runner = await campaign(required, 1);
     const result = await runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST, maxTokens: 100,
+      cases: selected, tuples: [tuples[0]!], producerDigest: PRODUCER_DIGEST,
+      caseTokenReservations: reservationsFor(selected), maxTokens: 100,
       executor: { execute: async () => ({
         output: "VERDICT: REJECT\n", tokensIn: -1, tokensOut: 2,
         equivUsd: 0.1, sessionId: "invalid-usage",
@@ -303,7 +406,8 @@ describe("eval runner", () => {
     const runner = await campaign([`${plannerTuple.id}::${cases[0]!.id}`], 1);
     await expect(runEvalCampaign({
       campaign: runner, campaignId: "eval-test", stateHome: state!.stateHome,
-      cases: [cases[0]!], tuples: [plannerTuple], producerDigest: PRODUCER_DIGEST, maxTokens: 100,
+      cases: [cases[0]!], tuples: [plannerTuple], producerDigest: PRODUCER_DIGEST,
+      caseTokenReservations: reservationsFor([cases[0]!]), maxTokens: 100,
       executor: { execute: async () => { throw new Error("must not execute"); } },
     })).rejects.toThrow(/tuple site planner has no selected cases|selected reviewer cases but no exact tuple/);
   });
@@ -336,7 +440,8 @@ describe("eval runner", () => {
       cases: selected,
       tuples: siteTuples,
       producerDigest: PRODUCER_DIGEST,
-      maxTokens: 20_000,
+      caseTokenReservations: reservationsFor(selected),
+      maxTokens: 14_600,
       executor: { execute: async ({ evalCase }) => ({
         output: `Fixture response for ${evalCase.id}`,
         tokensIn: 20,

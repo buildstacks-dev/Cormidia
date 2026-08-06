@@ -50,6 +50,7 @@
     "smoke:onboarding": "pnpm build && node scripts/smoke-onboarding.mjs",
     "link:local": "node scripts/link-local.mjs",
     "worktree": "tsx scripts/worktree.ts",
+    "prepare": "node scripts/install-git-hooks.mjs",
     "prepack": "pnpm build",
     "prepublishOnly": "pnpm release:verify"
   },

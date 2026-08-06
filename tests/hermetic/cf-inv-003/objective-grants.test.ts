@@ -57,7 +57,7 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
 
   it("creates an ordinary grant over grantable classes, with the A1-mirror defaults", async () => {
     const { store, clock } = await makeStore();
-    const grant = store.createSync({ ...baseInput(clock), classes: ["secrets-or-auth", "outbound-network"] });
+    const grant = store.createSync({ ...baseInput(clock), classes: ["secret-read", "outbound-network"] });
     expect(grant.grantId).toMatch(/^og-/);
     expect(grant.outwardEffects).toBe(false);
     expect(grant.usesRemaining).toBe(OBJECTIVE_GRANT_DEFAULT_USE_CAP);
@@ -82,7 +82,7 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
     const { store, clock } = await makeStore();
     for (const identity of ["agent/builder", "agent:ops"]) {
       expect(() =>
-        store.createSync({ ...baseInput(clock), createdBy: identity, classes: ["secrets-or-auth"] }),
+        store.createSync({ ...baseInput(clock), createdBy: identity, classes: ["secret-read"] }),
       ).toThrow(/human-facing CLI path/);
     }
     expect(store.listSync()).toHaveLength(0);
@@ -98,10 +98,10 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
       .toThrow(/§4.1|ceremony|grant-critical/);
     // A grantable class through the ceremony list is a category error too.
     expect(() =>
-      store.createSync({ ...baseInput(clock), criticalClasses: [{ rule: "secrets-or-auth", scope: "x" }] }),
+      store.createSync({ ...baseInput(clock), criticalClasses: [{ rule: "secret-read", scope: "x" }] }),
     ).toThrow(/not human-only/);
     expect(() =>
-      store.createSync({ ...baseInput(clock), classes: ["secrets-or-auth"], outwardEffects: true }),
+      store.createSync({ ...baseInput(clock), classes: ["secret-read"], outwardEffects: true }),
     ).toThrow(/invariant/);
   });
 
@@ -169,18 +169,18 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
 
   it("revocation is immediate; use-cap exhaustion stops coverage; a different app is never covered", async () => {
     const { store, clock } = await makeStore();
-    const grant = store.createSync({ ...baseInput(clock), classes: ["secrets-or-auth"], useCap: 2 });
-    const covering = () => store.findCoveringGrantSync({ app: APP, rule: "secrets-or-auth", now: clock.nowDate() });
+    const grant = store.createSync({ ...baseInput(clock), classes: ["secret-read"], useCap: 2 });
+    const covering = () => store.findCoveringGrantSync({ app: APP, rule: "secret-read", now: clock.nowDate() });
     expect(covering()?.grantId).toBe(grant.grantId);
     expect(
-      store.findCoveringGrantSync({ app: "other-app", rule: "secrets-or-auth", now: clock.nowDate() }),
+      store.findCoveringGrantSync({ app: "other-app", rule: "secret-read", now: clock.nowDate() }),
     ).toBeUndefined();
 
-    store.consumeUseSync(grant.grantId, { rule: "secrets-or-auth", actionHash: "h1" }, clock.nowDate());
-    store.consumeUseSync(grant.grantId, { rule: "secrets-or-auth", actionHash: "h2" }, clock.nowDate());
+    store.consumeUseSync(grant.grantId, { rule: "secret-read", actionHash: "h1" }, clock.nowDate());
+    store.consumeUseSync(grant.grantId, { rule: "secret-read", actionHash: "h2" }, clock.nowDate());
     expect(covering()).toBeUndefined();
 
-    const second = store.createSync({ ...baseInput(clock), classes: ["secrets-or-auth"] });
+    const second = store.createSync({ ...baseInput(clock), classes: ["secret-read"] });
     expect(covering()?.grantId).toBe(second.grantId);
     store.revokeSync(second.grantId, clock.nowDate());
     expect(covering()).toBeUndefined();
@@ -191,7 +191,7 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
 
   it("ledger: debits accumulate before execution; the ceiling refuses (never green) and escalates exactly once; an exhausted grant covers nothing", async () => {
     const { home, store, clock } = await makeStore();
-    const grant = store.createSync({ ...baseInput(clock), classes: ["secrets-or-auth"], spendCeilingUsd: 10 });
+    const grant = store.createSync({ ...baseInput(clock), classes: ["secret-read"], spendCeilingUsd: 10 });
 
     expect((await store.debit({ grantId: grant.grantId, usd: 4, note: "turn 1", now: clock.nowDate() })).ok).toBe(true);
     expect((await store.debit({ grantId: grant.grantId, usd: 5, note: "turn 2", now: clock.nowDate() })).ok).toBe(true);
@@ -214,18 +214,18 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
 
     // Under the ceiling the grant still covers; AT the ceiling it does not.
     expect(
-      store.findCoveringGrantSync({ app: APP, rule: "secrets-or-auth", now: clock.nowDate() })?.grantId,
+      store.findCoveringGrantSync({ app: APP, rule: "secret-read", now: clock.nowDate() })?.grantId,
     ).toBe(grant.grantId);
     expect((await store.debit({ grantId: grant.grantId, usd: 1, now: clock.nowDate() })).ok).toBe(true);
     expect(store.ledgerTotalSync(grant.grantId)).toBe(10);
     expect(
-      store.findCoveringGrantSync({ app: APP, rule: "secrets-or-auth", now: clock.nowDate() }),
+      store.findCoveringGrantSync({ app: APP, rule: "secret-read", now: clock.nowDate() }),
     ).toBeUndefined();
   });
 
   it("concurrent debits on one ledger serialize: no lost update, exact cumulative total", async () => {
     const { store, clock } = await makeStore();
-    const grant = store.createSync({ ...baseInput(clock), classes: ["secrets-or-auth"], spendCeilingUsd: 1000 });
+    const grant = store.createSync({ ...baseInput(clock), classes: ["secret-read"], spendCeilingUsd: 1000 });
     const amounts = [1, 2, 3, 4, 5, 6, 7, 8];
     const results = await Promise.all(
       amounts.map((usd, index) =>

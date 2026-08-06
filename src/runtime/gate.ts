@@ -386,18 +386,40 @@ export const CRITICAL_RULES: CriticalRule[] = [
     matches: (a) => /\b(dns record|nameserver|domain transfer)\b/.test(effectText(a)),
   },
   {
-    name: "secrets-or-auth",
-    // `secrets?`/`credentials?` (not word-bounded `secret`/`credential`) so
-    // plural secret-bearing filenames — `secrets.json`, `credentials.json` —
-    // trip too; plus the common credential FILES (SSH keys, PEM material,
-    // .npmrc/.netrc) an exfil would target by name.
+    // §5.2 split (#296, F-PT-023 ratified): CHANGING a credential is an
+    // irreversible outside-world act — human-only, tightened from the old
+    // grantable secrets-or-auth bucket. Matched before secret-read so the
+    // stricter class wins on commands that carry both signals.
+    name: "secret-mutate",
+    matches: (a) => {
+      const t = asText(a);
+      return (
+        /\bgh\s+(?:auth\s+(?:login|logout|refresh)|secret\s+(?:set|delete))\b|\bnpm\s+(?:login|logout|token)\b/.test(t) ||
+        /\b(?:docker\s+(?:login|logout)|gcloud\s+auth\s+(?:login|revoke)|aws\s+configure|kubectl\s+config\s+set-credentials)\b/.test(t) ||
+        /\brotate[- ]?key\b/.test(t)
+      );
+    },
+  },
+  {
+    // §5.2 split (#296): READING secret material keeps today's grantable tier
+    // — reversible inside the sandbox, and exfiltration is closed
+    // independently by outbound-network (the split's load-bearing premise;
+    // the CF-SPLIT-SECRETS pairing control proves it). Remains a pure TEXT
+    // rule pending F-PT-019's operation-aware implementation — the resolved
+    // contract truth stands and the CF-REG-204 parked leg is unchanged.
+    //
+    // `secrets?`/`credentials?` (not word-bounded) so plural secret-bearing
+    // filenames — `secrets.json`, `credentials.json` — trip too; plus the
+    // common credential FILES (SSH keys, PEM material, .npmrc/.netrc) an
+    // exfil would target by name.
     //
     // Calibrated (Stage 6): a REPO-LOCAL `.npmrc`/`.netrc` (relative path, no
-    // `~`/absolute/home prefix) no longer trips the rule by name alone — the
+    // `~`/absolute/home prefix) does not trip the rule by name alone — the
     // episode burned 24 escalations and its final $30 pass on a repo `.npmrc`
     // containing only `engine-strict=true`. User/global variants (`~/.npmrc`,
-    // absolute paths) and every other secret pattern still escalate, and
-    // exfiltration channels are closed independently by outbound-network.
+    // absolute paths) and every other secret pattern still escalate. The
+    // scrub is retained verbatim from the pre-split rule.
+    name: "secret-read",
     matches: (a) => {
       const scrubbed = asText(a).replace(
         /(^|[\s"'=([])(?:\.\/)?\.(npmrc|netrc)\b/g,
@@ -405,9 +427,7 @@ export const CRITICAL_RULES: CriticalRule[] = [
       );
       return (
         /\bprintenv\b/.test(scrubbed) ||
-        /\bgh\s+(?:auth\s+(?:login|logout|refresh)|secret\s+(?:set|delete))\b|\bnpm\s+(?:login|logout|token)\b/.test(scrubbed) ||
-        /\b(?:docker\s+(?:login|logout)|gcloud\s+auth\s+(?:login|revoke)|aws\s+configure|kubectl\s+config\s+set-credentials)\b/.test(scrubbed) ||
-        /\b(secrets?|api[_ ]?key|credentials?|rotate key|oauth client)\b|\.env\b|\b(id_rsa|id_ed25519)\b|\.(pem|npmrc|netrc)\b/.test(scrubbed)
+        /\b(secrets?|api[_ ]?key|credentials?|oauth client)\b|\.env\b|\b(id_rsa|id_ed25519)\b|\.(pem|npmrc|netrc)\b/.test(scrubbed)
       );
     },
   },
@@ -799,7 +819,10 @@ export const RULE_DISPOSITION_TIERS: Readonly<Record<string, Exclude<Disposition
   // Cheap and permanent: a DNS/domain change costs under a dollar and cannot
   // be undone. Tightened grantable → human-only (Stage 2).
   "dns-or-domain": "human-only",
-  "secrets-or-auth": "grantable",
+  // §5.2 split (#296): mutation is human-only (tightened); reads keep the
+  // grantable tier the whole bucket had.
+  "secret-mutate": "human-only",
+  "secret-read": "grantable",
   // A durable publication must be represented by its own content-bound
   // action so the later executor can acknowledge exactly what ran. A broad
   // external-publishing grant would erase that decision/execution join.
@@ -835,6 +858,8 @@ const RETIRED_RULE_TIERS: Readonly<Record<string, Exclude<DispositionTier, "rout
   // history-rewrite-owned / history-rewrite-foreign / destructive-local /
   // gh-api-unrecognized.
   "destructive-or-irreversible": "grantable",
+  // Split 2026-08-06 (#296 §5.2) into secret-mutate / secret-read.
+  "secrets-or-auth": "grantable",
 };
 
 export function dispositionTierForRule(rule: string): Exclude<DispositionTier, "routine"> {

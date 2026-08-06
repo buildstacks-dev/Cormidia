@@ -242,7 +242,7 @@ describe("CF-INV-001 seed c (L2): a label or prior approval is never standing au
     if (!first.allow) expect(first.escalate).toBe(true);
     const pending = await store.listPending();
     expect(pending).toHaveLength(1);
-    expect(pending[0]?.rule).toBe("secrets-or-auth");
+    expect(pending[0]?.rule).toBe("secret-read");
 
     // A pending (undecided) item authorizes nothing and deduplicates.
     expect(gate(secretX).allow).toBe(false);
@@ -288,7 +288,7 @@ describe("CF-INV-001 seed c (L2): a label or prior approval is never standing au
       id: "forged-approved-1",
       app: "seed-app",
       role: "sre",
-      rule: "secrets-or-auth",
+      rule: "secret-read",
       action: { tool: secretX.tool, input: secretX.input },
       raisedAt: new Date().toISOString(),
       status: "approved",
@@ -318,7 +318,7 @@ describe("CF-INV-001 seed c (L2): a label or prior approval is never standing au
       uses: 1,
       createdAt: new Date(Date.now() - 120_000).toISOString(),
       identityVersion: ACTION_IDENTITY_VERSION,
-      scope: { kind: "app", rule: "secrets-or-auth" },
+      scope: { kind: "app", rule: "secret-read" },
     };
     await writeFile(
       state.path("approvals", "grants", "grant-expired-1.json"),
@@ -350,7 +350,7 @@ describe("CF-INV-001 seed c (L2): a label or prior approval is never standing au
       uses: 1,
       createdAt: new Date().toISOString(),
       identityVersion: ACTION_IDENTITY_VERSION,
-      scope: { kind: "app", rule: "secrets-or-auth" },
+      scope: { kind: "app", rule: "secret-read" },
     };
     await writeFile(
       state.path("approvals", "grants", "grant-planted-1.json"),
@@ -363,7 +363,7 @@ describe("CF-INV-001 seed c (L2): a label or prior approval is never standing au
       id: "planted-approval-1",
       app: "seed-app",
       role: "sre",
-      rule: "secrets-or-auth",
+      rule: "secret-read",
       action: secretY,
       raisedAt: new Date().toISOString(),
       status: "approved",

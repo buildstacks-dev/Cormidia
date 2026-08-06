@@ -66,12 +66,12 @@ describe("CF-INV-003 — objective grants under composeGate (L2)", () => {
     const denied = gate(SECRET_READ);
     expect(denied).toEqual({
       allow: false,
-      reason: "critical op (secrets-or-auth) requires human approval",
+      reason: "critical op (secret-read) requires human approval",
       escalate: true,
     });
     const pending = await approvals.listPending();
     expect(pending).toHaveLength(1);
-    expect(pending[0]?.rule).toBe("secrets-or-auth");
+    expect(pending[0]?.rule).toBe("secret-read");
 
     // The proof of inertness: consulting the objective store materialized
     // NOTHING — the state home carries no objective-grants directory.
@@ -86,7 +86,7 @@ describe("CF-INV-003 — objective grants under composeGate (L2)", () => {
       createdBy: "human/owner",
       repoNamespace: "cormidia/objective-app",
       spendCeilingUsd: 25,
-      classes: ["secrets-or-auth"],
+      classes: ["secret-read"],
       now: clock.nowDate(),
     });
 
@@ -95,7 +95,7 @@ describe("CF-INV-003 — objective grants under composeGate (L2)", () => {
     expect(objectives.readSync(grant.grantId).usesRemaining).toBe(grant.usesRemaining - 1);
     const uses = objectives.readLogSync().filter((event) => event.type === "objective-grant-used");
     expect(uses).toHaveLength(1);
-    expect(uses[0]?.rule).toBe("secrets-or-auth");
+    expect(uses[0]?.rule).toBe("secret-read");
 
     // Coverage is exactly the named class: an unnamed critical rule still
     // escalates, un-grantable classes cannot even be named.
@@ -133,13 +133,13 @@ describe("CF-INV-003 — objective grants under composeGate (L2)", () => {
       createdBy: "human/owner",
       repoNamespace: "cormidia/objective-app",
       spendCeilingUsd: 5,
-      classes: ["secrets-or-auth"],
+      classes: ["secret-read"],
       now: clock.nowDate(),
     });
     expect((await objectives.debit({ grantId: grant.grantId, usd: 5, now: clock.nowDate() })).ok).toBe(true);
 
     const denied = gate(SECRET_READ);
     expect(denied.allow).toBe(false);
-    expect((await approvals.listPending()).map((item) => item.rule)).toEqual(["secrets-or-auth"]);
+    expect((await approvals.listPending()).map((item) => item.rule)).toEqual(["secret-read"]);
   });
 });

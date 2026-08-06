@@ -1661,10 +1661,11 @@ function isActorClaimable(executor: ApprovalExecutor | undefined): boolean {
  *  §5.1 consequence-split landing (#296, owner decision 5: "in-flight grants
  *  cancel at landing" — the A-002 precedent): classification semantics for the
  *  destructive family changed, so authority minted under the old semantics
- *  stops matching and agents simply re-raise. Each migration is intentional and
+ *  stops matching and agents simply re-raise. v5 repeats that cancellation at
+ *  the §5.2 secrets split landing. Each migration is intentional and
  *  abrupt: the instant it lands, in-flight grants stop matching, agents
  *  re-raise, and the miss path yields a fresh approval item — never a crash. */
-export const ACTION_IDENTITY_VERSION = 4;
+export const ACTION_IDENTITY_VERSION = 5;
 
 /** Input keys `normalizeSemanticAction` (src/runtime/gate.ts) already folds
  *  into the semantic identity. Everything ELSE in the input is agent-authored

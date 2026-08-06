@@ -148,6 +148,22 @@ decision** and remain ineligible for a widened grant. PURPOSE v2.13's rule that
 the org can never approve its own release is unchanged, and is now enforced
 through this boundary rather than through the absence of a decision path.
 
+Since the #296 Stage 2 tightenings (2026-08-06) the set is **derived from the
+per-rule disposition tiers** (`RULE_DISPOSITION_TIERS`, `src/runtime/gate.ts`):
+every rule whose tier is `human-only` or `un-grantable` is never scopeable and
+never agent-decidable, which adds DNS/domain changes (`dns-or-domain`), the
+learning governance surfaces (`learning-surface-tamper`), and the gate's own
+source (`gate-implementation-edit` — writes to `src/runtime/gate.ts`,
+`src/org/approvals.ts`, `src/org/gate-compose.ts`, `src/org/authority.ts`;
+reads stay routine, and the files remain changeable through the human-driven
+reviewed PR path, which never routes through this gate). `un-grantable` is the
+stricter tier: no standing grant of any kind may ever cover it — the store
+refuses to mint a widened grant for it AND refuses to honor a standing grant
+found on disk for it (defense in depth in `findMatchingGrantSync`), while the
+fresh, exact, single-use, per-instance human approval path is unchanged. Every
+Stage 2 move is a tightening; the proposal's loosening splits are not landed
+and require ratification first.
+
 Every decision — human or agent — records the deciding identity, a non-empty
 reason, and an audit row. A reason equal to a bare decision token is rejected
 rather than stored.
@@ -267,11 +283,13 @@ hash, timestamp) to `approvals/log.jsonl` — the audit trail stays
 per-action even when the decision was per-scope.
 
 **Never scopeable** (always one-by-one, always fresh): self-merge/approve,
-production deploy, writes to human-ratified protocol surfaces, and any
-action outside the app's own worktree/repo boundary. These are also the rules
-an agent may not decide (see "Who may decide") — never-scopeable and
-human-decided are the same set, so widening authority and delegating authority
-are bounded by one list rather than two that can drift apart.
+production deploy, writes to human-ratified protocol surfaces, any action
+outside the app's own worktree/repo boundary — and, since the #296 Stage 2
+tightenings, DNS/domain changes, the learning governance surfaces, and the
+gate's own implementation files (see "Who may decide"). These are also the
+rules an agent may not decide — never-scopeable and human-decided are the same
+set, derived from the disposition tiers, so widening authority and delegating
+authority are bounded by one fact rather than two lists that can drift apart.
 
 Threat model: the widened grant is an *availability* concession bounded by
 rule, path prefix, app, TTL, use count, and revocation; it cannot be minted

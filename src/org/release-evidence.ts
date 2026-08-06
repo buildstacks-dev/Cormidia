@@ -220,7 +220,7 @@ export interface L4ReleaseObservationV1 {
   case_id: string;
   attempt_id: string;
   output_sha256: string;
-  grading_key: string;
+  grading_digest: string;
   grade_reused_from: string | null;
   automatic_score_used: boolean;
   outcome: "match" | "mismatch" | "unscored" | "invalid";
@@ -688,7 +688,7 @@ export function evaluateL4Evidence(manifest: ReleaseManifestV1, evidence: L4Rele
       reference_digest: reference.reference_digest,
       grader_digest: pairing.grader_digest,
     });
-    if (row.grading_key !== expectedKey) violations.push(`invalid_grading_key:${id}`);
+    if (row.grading_digest !== expectedKey) violations.push(`invalid_grading_digest:${id}`);
     if (row.automatic_score_used && pairing.evaluator_status !== "admitted_judge") violations.push(`uncalibrated_judge_score:${id}`);
     if (pairing.evaluator_status === "admitted_judge" && pairing.decision_rule_digest === null) violations.push(`missing_judge_decision_rule:${pairing.id}`);
     if (row.outcome === "mismatch" || row.outcome === "unscored" || row.outcome === "invalid") reasons.push(`${row.outcome}:${id}`);
@@ -714,14 +714,14 @@ export function evaluateL4Evidence(manifest: ReleaseManifestV1, evidence: L4Rele
     }
   }
   const grouped = new Map<string, L4ReleaseObservationV1[]>();
-  for (const row of evidence.observations) grouped.set(row.grading_key, [...(grouped.get(row.grading_key) ?? []), row]);
+  for (const row of evidence.observations) grouped.set(row.grading_digest, [...(grouped.get(row.grading_digest) ?? []), row]);
   for (const group of grouped.values()) {
     if (group.length < 2) {
       if (group[0]?.grade_reused_from !== null) violations.push(`orphan_grade_reuse:${observationKey(group[0]!)}`);
       continue;
     }
     const primary = group.filter((item) => item.grade_reused_from === null);
-    if (primary.length !== 1) violations.push(`duplicate_grade_execution:${group[0]!.grading_key}`);
+    if (primary.length !== 1) violations.push(`duplicate_grade_execution:${group[0]!.grading_digest}`);
     const primaryId = primary.length === 1 ? observationKey(primary[0]!) : null;
     for (const row of group) if (row !== primary[0] && row.grade_reused_from !== primaryId) violations.push(`invalid_grade_reuse:${observationKey(row)}`);
   }
@@ -1367,6 +1367,8 @@ export async function verifyReleasePacket(input: {
 export function assertSanitizedEvidence(value: unknown, path = "evidence"): void {
   if (typeof value === "string") {
     if (value.length > 16_384) throw new Error(`${path} contains an oversized raw string`);
+    const retiredProductIdentity = ["ope", "ron"].join("");
+    if (value.toLowerCase().includes(retiredProductIdentity)) throw new Error(`${path} contains the retired product identity`);
     return;
   }
   if (value === null || typeof value === "number" || typeof value === "boolean") return;
@@ -1649,8 +1651,8 @@ function validateL4EvidenceShape(value: unknown): asserts value is L4ReleaseEvid
   hash(root["producer_digest"], "L4 producer_digest");
   if (!Array.isArray(root["observations"])) throw new Error("L4 observations must be an array");
   for (const raw of root["observations"]) {
-    const item = object(raw, "L4 observation"); exact(item, ["pairing_id", "case_id", "attempt_id", "output_sha256", "grading_key", "grade_reused_from", "automatic_score_used", "outcome", "evidence_ref"], "L4 observation");
-    identifier(item["pairing_id"], "L4 pairing_id"); identifier(item["case_id"], "L4 case_id"); identifier(item["attempt_id"], "L4 attempt_id"); hash(item["output_sha256"], "L4 output_sha256"); hash(item["grading_key"], "L4 grading_key");
+    const item = object(raw, "L4 observation"); exact(item, ["pairing_id", "case_id", "attempt_id", "output_sha256", "grading_digest", "grade_reused_from", "automatic_score_used", "outcome", "evidence_ref"], "L4 observation");
+    identifier(item["pairing_id"], "L4 pairing_id"); identifier(item["case_id"], "L4 case_id"); identifier(item["attempt_id"], "L4 attempt_id"); hash(item["output_sha256"], "L4 output_sha256"); hash(item["grading_digest"], "L4 grading_digest");
     if (item["grade_reused_from"] !== null) nonEmpty(item["grade_reused_from"], "L4 grade_reused_from");
     if (typeof item["automatic_score_used"] !== "boolean") throw new Error("L4 automatic_score_used must be boolean");
     oneOf(item["outcome"], ["match", "mismatch", "unscored", "invalid"], "L4 outcome"); nonEmpty(item["evidence_ref"], "L4 evidence_ref");

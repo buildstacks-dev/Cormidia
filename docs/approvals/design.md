@@ -28,8 +28,15 @@ still self-approval. Read-only invocations (`roles`, `apps`, `status`,
 `doctor`, `budget`, `context`, `episode explain`, `approvals show|status`)
 stay routine.
 
-`secrets-or-auth` is **operation-aware and fails closed** (PURPOSE v2.15,
-F-PT-019). The rule classifies on whether an action actually emits file
+`secrets-or-auth` split at the #296 §5.2 landing (2026-08-06) into
+`secret-mutate` (human-only — changing a credential is irreversible and
+outside-world) and `secret-read` (grantable, the whole bucket's former tier;
+exfiltration stays closed independently by `outbound-network`, with the
+repo-local `.npmrc`/`.netrc` calibration retained verbatim and the retired
+name keeping a grantable tombstone for stale items). The rule family is
+**operation-aware and fails closed** as contract truth (PURPOSE v2.15,
+F-PT-019, applying to the read side; the operation-aware implementation leg
+remains parked per CF-REG-204). The rule classifies on whether an action actually emits file
 contents, not on text alone, and any command whose effect cannot be parsed is
 treated as critical. Text-only matching was wrong in both directions at once:
 `git check-ignore .env` opens nothing and classified critical (#204), while

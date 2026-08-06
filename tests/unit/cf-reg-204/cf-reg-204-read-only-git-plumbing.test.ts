@@ -9,7 +9,7 @@
 //   git status --ignored --porcelain -- .env.example 2>&1 | head
 //
 // — and the classifier recorded `operation: "write"`, matched
-// `secrets-or-auth`, and queued an approval that blocked `cormidia app verify`
+// `secret-read`, and queued an approval that blocked `cormidia app verify`
 // at 16/17 checks green. Its own adjacent evidence fields contradicted it in
 // the same record: `redirections: []`, `destination: null`, `effect: null`.
 //
@@ -88,12 +88,12 @@ const STILL_WRITES: ReadonlyArray<{
   { name: "git --git-dir=/tmp/g checkout -- roles.yaml", command: "git --git-dir=/tmp/g checkout -- roles.yaml", cls: "critical", rule: "protocol-self-edit" },
 
   // a read PROGRAM in a command that nonetheless writes
-  { name: "read program with a real redirection into a secret path", command: "git check-ignore .env > .env.local", cls: "critical", rule: "secrets-or-auth" },
+  { name: "read program with a real redirection into a secret path", command: "git check-ignore .env > .env.local", cls: "critical", rule: "secret-read" },
   { name: "read program piped into a mutating one", command: "git status --porcelain | tee .cormidia/config.yaml", cls: "critical", rule: "protocol-self-edit" },
   { name: "read program alongside rm", command: "git check-ignore .env; rm -rf .cormidia", cls: "routine", rule: null },
   { name: "sed -i against a protocol file (mutating flag beats the allowlist)", command: "sed -i 's/x/y/' roles.yaml", cls: "critical", rule: "protocol-self-edit" },
   { name: "find -delete against the scaffold", command: "find .cormidia -name '*.yaml' -delete", cls: "routine", rule: null },
-  { name: "command substitution smuggling a secret read", command: "git commit -m \"$(cat .env)\"", cls: "critical", rule: "secrets-or-auth" },
+  { name: "command substitution smuggling a secret read", command: "git commit -m \"$(cat .env)\"", cls: "critical", rule: "secret-read" },
 ];
 
 /** The narrowing itself: read-only plumbing is classified a READ, and — where
@@ -101,7 +101,7 @@ const STILL_WRITES: ReadonlyArray<{
  *  minimally reduced from the two approval records the live run produced.
  *
  *  NOT included here: commands that name a bare `.env`. Those still match
- *  `secrets-or-auth`, which is a pure TEXT rule and deliberately operation-
+ *  `secret-read`, which is a pure TEXT rule and deliberately operation-
  *  blind. Whether a metadata-only query that never opens the file (`git
  *  check-ignore .env`) should count as a secrets op is a product-truth
  *  question, opened as **F-PT-019** and parked — not guessed at here. See the
@@ -183,7 +183,7 @@ describe("CF-REG-204 — read-only git plumbing is a read; writes on the same pa
 
   // BLOCKED:F-PT-019 — the second half of #204's promotion block.
   //
-  // `secrets-or-auth` is a pure TEXT rule: any command mentioning a bare
+  // `secret-read` is a pure TEXT rule: any command mentioning a bare
   // `.env` matches, whatever the operation. So the reviewer's command still
   // classifies critical AFTER this fix, even though it is now correctly a
   // READ and never opens the file — `git check-ignore` consults the ignore
@@ -197,7 +197,7 @@ describe("CF-REG-204 — read-only git plumbing is a read; writes on the same pa
   it("BLOCKED:F-PT-019 — a metadata-only query naming a secret path still classifies critical (pinned, not endorsed)", () => {
     // The SECOND of the two approvals that blocked promotion. Unlike the
     // protocol-self-edit record above, this one is NOT resolved by the
-    // operation fix: `secrets-or-auth` is a pure TEXT rule over the projected
+    // operation fix: `secret-read` is a pure TEXT rule over the projected
     // effect fields, so `.env.example` appearing in `targets` matches whatever
     // the operation is.
     //
@@ -211,7 +211,7 @@ describe("CF-REG-204 — read-only git plumbing is a read; writes on the same pa
       'git check-ignore .env.example; echo "plain check-ignore exit: $?"; ' +
       "git check-ignore .env .env.local; " +
       "git status --ignored --porcelain -- .env.example 2>&1 | head";
-    expect(classify(bash(command))).toEqual({ cls: "critical", rule: "secrets-or-auth" });
+    expect(classify(bash(command))).toEqual({ cls: "critical", rule: "secret-read" });
     // What the fix DID achieve on this command: it is no longer reported as a
     // write, so it no longer also trips protocol-self-edit.
     expect(normalizeSemanticAction(bash(command)).operation).not.toBe("write");

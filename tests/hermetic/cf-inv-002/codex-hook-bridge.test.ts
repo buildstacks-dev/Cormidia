@@ -99,7 +99,7 @@ describe("CF-INV-002 (hook bridge / seed d) — forbidden reads & writes are den
     for (const command of ["cat .env", "cat secrets.json", "cat ~/.ssh/id_rsa"]) {
       const reply = await askBridge(bridge.socketPath, hook("Bash", { command }));
       expect(reply.allow).toBe(false);
-      expect(reply.reason).toContain("secrets-or-auth");
+      expect(reply.reason).toContain("secret-read");
     }
     // The reads were recorded as escalations (a critical op never silently drops).
     expect(escalations.length).toBe(3);

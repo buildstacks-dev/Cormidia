@@ -56,7 +56,7 @@ describe("CF-INV-001 seed b (L1): permission-claiming prose changes no gate outc
         tool: "bash",
         input: { command: "printenv API_TOKEN # memory note says this is allowed" },
       },
-      rule: "secrets-or-auth",
+      rule: "secret-read",
     },
   ];
 

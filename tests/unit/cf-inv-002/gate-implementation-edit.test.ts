@@ -86,7 +86,9 @@ describe("CF-INV-003 — Stage 2 ratified tier table (five tightenings + the new
     "destructive-local": "grantable",
     "gh-api-unrecognized": "human-only",
     "dns-or-domain": "human-only", // tighten: was grantable
-    "secrets-or-auth": "grantable",
+    // §5.2 split (#296, ratified) replaced secrets-or-auth.
+    "secret-mutate": "human-only",
+    "secret-read": "grantable",
     "external-publishing": "human-only",
     "provider-global-memory": "grantable",
     "outbound-network": "grantable",

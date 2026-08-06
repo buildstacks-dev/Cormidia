@@ -53,6 +53,13 @@
 # changelog 2026-08-03 (owner decision): exact manual-review independently excludes
 # autonomous Planner readiness and Builder whole-unit claim; Cormidia never removes it.
 # No manual-* wildcard exists; manual-feelview is tracked only as HB-112 taxonomy audit.
+# changelog 2026-08-06 (#296 PR B, §5.2 split landed): secrets-or-auth is replaced by
+# secret-mutate (HO, tightened) and secret-read (grantable, the bucket's former tier);
+# the repo-local .npmrc/.netrc scrub is retained verbatim, the retired name keeps a
+# grantable tombstone, exfiltration remains independently closed by outbound-network
+# (CF-SPLIT-SECRETS pairing control), and F-PT-019's operation-aware contract truth
+# carries to the read side with its CF-REG-204 implementation leg still parked.
+# ACTION_IDENTITY_VERSION bumped 4->5 (in-flight grants cancel at landing).
 # changelog 2026-08-06 (#296 PR A, §5.1 split landed): destructive-or-irreversible is
 # replaced by destructive-remote-data (HO), history-rewrite-owned (budgeted, op/<issue>
 # namespace only), history-rewrite-foreign (HO), destructive-local (grantable), and

@@ -76,7 +76,9 @@ const RATIFIED_TIERS: Readonly<Record<string, DispositionTier>> = {
   "destructive-local": "grantable",
   "gh-api-unrecognized": "human-only",
   "dns-or-domain": "human-only",
-  "secrets-or-auth": "grantable",
+  // §5.2 split (#296): mutation human-only, reads keep the grantable tier.
+  "secret-mutate": "human-only",
+  "secret-read": "grantable",
   "external-publishing": "human-only",
   "provider-global-memory": "grantable",
   "outbound-network": "grantable",
@@ -99,7 +101,8 @@ const RULE_FIXTURES: ReadonlyArray<{ rule: string; action: ToolActionLike }> = [
   { rule: "destructive-local", action: { tool: "bash", input: { command: "rm -rf /var/data/exports" } } },
   { rule: "gh-api-unrecognized", action: { tool: "bash", input: { command: "gh api -X DELETE repos/o/r/git/refs/heads/x" } } },
   { rule: "dns-or-domain", action: { tool: "write_file", input: { path: "dns/nameserver.conf", content: "ns1.example.com" } } },
-  { rule: "secrets-or-auth", action: { tool: "bash", input: { command: "cat .env" } } },
+  { rule: "secret-mutate", action: { tool: "bash", input: { command: "gh secret set NPM_TOKEN" } } },
+  { rule: "secret-read", action: { tool: "bash", input: { command: "cat .env" } } },
   { rule: "external-publishing", action: { tool: "bash", input: { command: "npm publish --access public" } } },
   { rule: "provider-global-memory", action: { tool: "write_file", input: { path: "/Users/dev/.claude/CLAUDE.md", content: "memo" } } },
   { rule: "outbound-network", action: { tool: "bash", input: { command: "curl https://example.com/data.json" } } },
@@ -116,7 +119,7 @@ describe("CF-INV — disposition table (every classifier rule, ratified tiers)",
     expect(CRITICAL_RULES.map((rule) => rule.name).sort()).toEqual(
       RULE_FIXTURES.map((fixture) => fixture.rule).sort(),
     );
-    expect(RULE_FIXTURES).toHaveLength(17);
+    expect(RULE_FIXTURES).toHaveLength(18);
   });
 
   for (const { rule, action } of RULE_FIXTURES) {

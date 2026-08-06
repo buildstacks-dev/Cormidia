@@ -26,7 +26,7 @@ const APP: AppEntry = {
   name: "hb104-app",
   repo: "fixture/hb104",
   status: "live",
-  budgetUsdMonth: 100,
+  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };

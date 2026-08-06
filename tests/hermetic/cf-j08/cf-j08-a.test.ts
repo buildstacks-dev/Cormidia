@@ -58,10 +58,10 @@ const APP_B = "reader-app-b";
 
 const APPS: AppsFile = {
   org: { name: "cf-j08-a", maxConcurrentTurns: 1 },
-  defaults: { budgetUsdMonth: 100 },
+  defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
   apps: [
-    { name: APP_A, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} },
-    { name: APP_B, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} },
+    { name: APP_A, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} },
+    { name: APP_B, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} },
   ],
 };
 

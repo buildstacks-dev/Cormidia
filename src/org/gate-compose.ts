@@ -11,6 +11,7 @@ import { FORBIDDEN_BY_ROLE } from "../runtime/role-shaping.js";
 import type { GateDecision, GateFn, ToolAction } from "../runtime/types.js";
 import { actionHash, ApprovalStore } from "./approvals.js";
 import { appendDenialLesson } from "./denial-lessons.js";
+import { ObjectiveGrantStore } from "./objective-grants.js";
 
 export interface GateContext {
   app: string;
@@ -32,6 +33,7 @@ export function composeGate(
   store: ApprovalStore,
   context: GateContext,
 ): GateFn {
+  const objectiveGrants = new ObjectiveGrantStore(store.root);
   return (action: ToolAction): GateDecision => {
     const now = context.now?.() ?? new Date();
     const hash = actionHash(action);
@@ -75,6 +77,21 @@ export function composeGate(
         store.consumeGrantSync(grant.grantId, now);
       }
       return { allow: true };
+    }
+
+    // Objective grants (#296 Stage 3, proposal §6): standing HUMAN-CREATED
+    // authority bound to an objective rather than a candidate hash, consulted
+    // exactly where an A1 grant would have covered the action. Inert until a
+    // human creates one — with no grant on disk this is a single existsSync
+    // miss and behavior is byte-identical to the pre-objective gate. Each
+    // covering use decrements the grant and appends its per-use audit row
+    // (§4.1), so the owner can always reconstruct what the grant authorized.
+    if (rule !== undefined) {
+      const objective = objectiveGrants.findCoveringGrantSync({ app: context.app, rule, now });
+      if (objective !== undefined) {
+        objectiveGrants.consumeUseSync(objective.grantId, { rule, actionHash: hash }, now);
+        return { allow: true };
+      }
     }
 
     if (rule !== undefined) {

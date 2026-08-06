@@ -79,8 +79,9 @@ describe("CF-J17-RC — completion-typed markers convert a crashed attempt; acce
     await store.beginExecution(approvalId, "orchestrator/release", clock.nowDate());
     const appsFile: AppsFile = {
       org: { name: "cf-j17-rc", maxConcurrentTurns: 1 },
-      defaults: { budgetUsdMonth: 100 },
-      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+      defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
+      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000, cadence: {} }],
     };
     let calls = 0;
     const run = () =>

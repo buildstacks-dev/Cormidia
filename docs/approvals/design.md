@@ -452,6 +452,47 @@ Both paths consume the grant, write an idempotent `releases/<approval>.json`
 record, append a `kind: release` invocation row, and comment the ticket with
 the terminal outcome. An ambiguous `running` record is never auto-retried.
 
+## Objective grants (#296 Stage 3)
+
+An **ObjectiveGrant** (`src/org/objective-grants.ts`) is durable, human-created
+standing authority bound to an *objective* rather than a candidate commit:
+when the candidate moves, evidence expires but the objective's authority does
+not (docs/DEVELOPMENT.md). Storage is
+`~/.cormidia/<org>/approvals/objective-grants/` — one JSON per grant, one
+append-only spend ledger per grant, one audit log. Inert until a human creates
+one: with no grant on disk the composed gate is byte-identical to the
+pre-objective gate.
+
+- **Created only by the human-facing CLI** (`cormidia objective grant`),
+  exactly like A1 grants; an agent-namespaced identity is rejected at
+  creation, and the gate classifies `cormidia objective
+  grant|grant-critical|revoke` from inside a turn as `approval-store-tamper`.
+- **Coverage follows the disposition tiers.** Ordinary grants name
+  `grantable`-tier classes explicitly (never a wildcard, never an unknown
+  rule). A `human-only` class is coverable only through the **§4.1 ceremony**:
+  the distinct `grant-critical` verb, exactly one class per invocation, a
+  required bounded scope, an optional precondition, and TTL/use caps strictly
+  shorter than the ordinary defaults (24h/20, mirroring A1). An
+  `un-grantable` class is **rejected at creation, always**, and a forged
+  grant file naming one is additionally refused at use.
+- **The spend ceiling is the backstop** (proposal §7): every debit lands
+  before execution under a per-grant file lock; a debit that would cross the
+  ceiling is refused (never silently absorbed) and raises **one**
+  `objective-budget-exceeded` queue item keyed `objective-budget:<grantId>`,
+  converging on re-raise like `turn-budget-exceeded`. The ceiling default is
+  configured, never hardcoded — `objective_budget_usd` resolves through
+  apps.yaml with the same default/override path as `budget_usd_month` — and
+  is raisable only by a human editing the grant. An exhausted or revoked or
+  use-capped grant covers nothing, so covered actions fall back to the
+  ordinary escalation path.
+- **Every use appends a per-use audit row** (grant id, rule, action hash), so
+  the owner can always reconstruct what their grant actually authorized.
+  Revocation (`cormidia objective revoke`) is immediate.
+- `composeGate` consults objective grants exactly where an A1 grant would
+  have covered the action (after single-use/scoped grant lookup); the
+  campaign manifest remains the content-bound, single-use object for *what
+  will be executed* — both, not either.
+
 ## Denial lessons are durable (A5)
 
 Every human denial reason is persisted as Cormidia-owned role memory for the

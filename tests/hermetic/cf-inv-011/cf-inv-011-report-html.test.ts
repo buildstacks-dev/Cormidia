@@ -66,13 +66,13 @@ const BUILDER_ROLE: RoleConfig = {
 function appsFile(): AppsFile {
   return {
     org: { name: "cf-inv-011-org", maxConcurrentTurns: 2 },
-    defaults: { budgetUsdMonth: 100 },
+    defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
     apps: [
       {
         name: APP,
         repo: "cormidia-double/sandbox-report",
         status: "live",
-        budgetUsdMonth: 100,
+        budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
         cadence: {},
       },
     ],

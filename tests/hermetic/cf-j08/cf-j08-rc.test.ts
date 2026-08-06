@@ -273,8 +273,8 @@ describe("CF-J08-RC — budget --reconcile back-fills idempotently from survivin
     // Budget rollup counts the legacy spend.
     const apps: AppsFile = {
       org: { name: "cf-j08-rc", maxConcurrentTurns: 1 },
-      defaults: { budgetUsdMonth: 100 },
-      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, cadence: {} }],
+      defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
+      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
     };
     const budget = await rollupBudgets(state.stateHome, apps, T_LATER);
     expect(budget.find((entry) => entry.app === APP)?.spentUsd).toBeCloseTo(0.2, 6);

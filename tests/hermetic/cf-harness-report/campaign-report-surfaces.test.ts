@@ -21,8 +21,8 @@ afterEach(async () => {
 
 const apps: AppsFile = {
   org: { name: "validation-org", maxConcurrentTurns: 2 },
-  defaults: { budgetUsdMonth: 100 },
-  apps: [{ name: "sandbox-alpha", repo: "owner/sandbox-alpha", status: "live", budgetUsdMonth: 100, cadence: {} }],
+  defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
+  apps: [{ name: "sandbox-alpha", repo: "owner/sandbox-alpha", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
 };
 
 function inconclusive(): ValidationCampaignReportV1 {

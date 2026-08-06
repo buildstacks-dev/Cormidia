@@ -152,6 +152,7 @@ function seededInput(seeds: readonly SyntheticSecret[]): ObserveProjectionInput 
         repo: "cormidia-double/sandbox-observe",
         status: "live",
         budgetUsdMonth: 100,
+      objectiveBudgetUsd: 1000,
         cadence: {},
       },
     ],

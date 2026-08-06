@@ -13,12 +13,12 @@ export const J15_RUN = "20260731-120000-build-implement";
 
 export const J15_APPS: AppsFile = {
   org: { name: "cf-j15-org", maxConcurrentTurns: 2 },
-  defaults: { budgetUsdMonth: 100 },
+  defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
   apps: [{
     name: J15_APP,
     repo: "cormidia-double/evidence-app",
     status: "live",
-    budgetUsdMonth: 100,
+    budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
     cadence: {},
   }],
 };

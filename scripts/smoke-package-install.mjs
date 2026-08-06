@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -23,7 +23,15 @@ async function main() {
       encoding: "utf8",
       maxBuffer: 10 * 1024 * 1024,
     });
-    const packageJson = JSON.parse(await readFile(join(root, "node_modules", "cormidia", "package.json"), "utf8"));
+    const installedRoot = join(root, "node_modules", "cormidia");
+    const packageJson = JSON.parse(await readFile(join(installedRoot, "package.json"), "utf8"));
+    await access(join(installedRoot, "dist", "runtime", "testing", "fakeRuntime.js"));
+    try {
+      await access(join(installedRoot, "dist", "org", "scheduler", "virtual-soak.js"));
+      throw new Error("packed cormidia still contains the removed virtual scheduler soak module");
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
     const result = await execFile(join(root, "node_modules", ".bin", "cormidia"), ["--version"], {
       cwd: root,
       encoding: "utf8",

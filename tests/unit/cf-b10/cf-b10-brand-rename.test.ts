@@ -16,6 +16,7 @@ const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const RETIRED = ["ope", "ron"].join("");
 const LEGACY_DIR = `.${RETIRED}`;
 const FROZEN_ARCHIVE = "archive-do-not-read/";
+const STANDALONE_AGENT_TOOLING = ".agents/";
 
 const IMMUTABLE_RESEARCH_EVIDENCE = [
   "research/evals/campaigns/",
@@ -56,7 +57,8 @@ function repositoryTextFiles(): Map<string, string> {
   )
     .split("\0")
     .filter(Boolean)
-    .filter((path) => !path.startsWith(FROZEN_ARCHIVE));
+    .filter((path) => !path.startsWith(FROZEN_ARCHIVE))
+    .filter((path) => !path.startsWith(STANDALONE_AGENT_TOOLING));
 
   const files = new Map<string, string>();
   for (const path of paths) {

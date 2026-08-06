@@ -1,3 +1,0 @@
-BEGIN;
-CREATE TABLE audit_events (id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, event TEXT NOT NULL, created_at TEXT NOT NULL);
-COMMIT;

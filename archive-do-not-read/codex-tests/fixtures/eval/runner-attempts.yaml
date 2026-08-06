@@ -1,8 +1,0 @@
-threshold:
-  min_score: 0.8
-  min_attempts_per_case: 3
-
-attempts:
-  - { case_id: quality-homepage, attempt: 1, contract_passed: true, quality_score: 0.9 }
-  - { case_id: quality-homepage, attempt: 2, contract_passed: true, quality_score: 0.8 }
-  - { case_id: quality-homepage, attempt: 3, contract_passed: true, quality_score: 0.85 }

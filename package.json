@@ -48,6 +48,7 @@
     "smoke:package": "node scripts/smoke-package-install.mjs",
     "smoke:onboarding": "pnpm build && node scripts/smoke-onboarding.mjs",
     "link:local": "node scripts/link-local.mjs",
+    "worktree": "tsx scripts/worktree.ts",
     "prepack": "pnpm build",
     "prepublishOnly": "pnpm release:verify"
   },

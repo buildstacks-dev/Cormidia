@@ -1,6 +1,0 @@
-{
-  "name": "operon-eval-sparse",
-  "private": true,
-  "type": "module",
-  "scripts": { "test": "node --test", "lint": "node --check src/index.js" }
-}

@@ -1,8 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "operon.eval.fingerprint.v1",
-  "type": "object",
-  "required": ["schema_version", "kind", "sha256", "components"],
-  "properties": { "schema_version": { "const": 1 }, "kind": { "type": "string" }, "sha256": { "pattern": "^sha256:[a-f0-9]{64}$" }, "components": { "type": "object" } },
-  "additionalProperties": false
-}

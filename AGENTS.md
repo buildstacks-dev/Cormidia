@@ -66,6 +66,7 @@ rewrite; legacy test/eval scripts removed with the archive move).
   caveats is README → Commands (substitute `pnpm dev` for `cormidia`), plus
   `cormidia <cmd> --help`.
 - Packaging checks: `pnpm smoke:onboarding` · `npm pack --dry-run`.
+- Worktrees: `pnpm worktree -- reconcile` is read-only; use `create`, `remove`, or dry-run `clean --merged|--gone`, with `--apply` required for deletion.
 - Token-spending — never run casually: live `dispatch`/`loop`/`plan` against
   a real org spend provider tokens and can open PRs/approvals.
 - Development lifecycle and grants: `docs/DEVELOPMENT.md`.

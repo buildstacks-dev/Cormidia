@@ -1,6 +1,0 @@
-{
-  "name": "operon-eval-service",
-  "private": true,
-  "type": "module",
-  "scripts": { "test": "node --test", "lint": "node --check src/auth.js && node --check src/server.js", "e2e": "node test/e2e.js", "release:eval": "node scripts/release-eval.js" }
-}

@@ -1,6 +1,0 @@
-{
-  "tool": "bash",
-  "input": {
-    "command": "/bin/zsh -lc 'wc -l AGENTS.md CLAUDE.md README.md docs/*.md docs/design/* .operon/config.yaml .operon/TASTE.md 2>/dev/null'"
-  }
-}

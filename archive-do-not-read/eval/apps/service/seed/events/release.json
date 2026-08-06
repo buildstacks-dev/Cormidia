@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "kind": "release",
-  "id": "release-eval-001",
-  "released_at": "2026-07-12T11:00:00.000Z",
-  "version": "0.1.1-eval",
-  "verified_changes": ["health responses include an explicit JSON content type", "API key normalization is deterministic"],
-  "publication_policy": "draft_only"
-}

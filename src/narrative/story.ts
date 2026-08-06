@@ -18,7 +18,7 @@ import {
   MOMENT_QUOTE_MAX,
   ORIGIN_QUOTE_MAX,
 } from "./sources.js";
-import { formatDurableVerdictDigest, summarizeDurableVerdict } from "../loop/verdicts.js";
+import { formatDurableVerdictDigest, summarizeDurableVerdict } from "../runtime/runlog/verdict-digest.js";
 import {
   NARRATIVE_SCHEMA_VERSION,
   type NarrativeMoment,

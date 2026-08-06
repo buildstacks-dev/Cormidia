@@ -466,13 +466,30 @@ export const CRITICAL_RULES: CriticalRule[] = [
     },
   },
   {
+    // §5.4 (#296, F-PT-023 ratified): an egress invocation whose destination
+    // cannot be statically determined — a variable, a substitution, a
+    // backtick, ${IFS} splitting, a config-file-borne URL, a piped
+    // destination, a nested shell string — is human-only, FAIL CLOSED
+    // (tightened from the grantable bucket). Matched before the general rule
+    // so the stricter class wins.
+    name: "outbound-network-undeterminable",
+    matches: (a) => {
+      const destinations = outboundDestinations(a);
+      return destinations !== null && (destinations.length === 0 || destinations.includes(""));
+    },
+  },
+  {
     // Outbound network from a build turn is the exfiltration channel: a
     // prompt-injected agent piping secrets to an attacker host. The build
     // protocol pushes code via git (its own routine verbs), so treating the
     // raw egress tools as critical costs at most a human tap on a legitimate
     // fetch while closing the leak path (docs/loop/design.md gate philosophy).
+    // §5.4 (#296): destination-DETERMINABLE egress keeps this grantable tier;
+    // the allowlist→budgeted refinement is per-app CONFIG and lives at the
+    // composed gate (gate-compose.ts), with DEFAULT_NETWORK_ALLOWLIST as the
+    // ratified default — never a hardcoded tier decision here.
     name: "outbound-network",
-    matches: (a) => /\b(curl|wget|ncat|nc|scp|sftp|telnet)\b/.test(effectText(a)),
+    matches: (a) => outboundDestinations(a) !== null,
   },
   {
     // Self-merge / self-approve bypasses the review boundary the whole org
@@ -642,6 +659,112 @@ function forcePushDestinations(action: ToolAction): string[] | null {
   // No directly parsed force-push, but the flattened projection carries one
   // (nested `bash -c`, prose text): undeterminable, fail closed.
   return sawForcePush || textual ? [""] : null;
+}
+
+/** The ratified §5.4 allowlist DEFAULT (owner decision: "the app's configured
+ *  allowlist (default: registry.npmjs.org, api.github.com, github.com)").
+ *  This is a configuration default exactly like the $1000 budget default —
+ *  apps.yaml `network_allowlist` (per app, with an org-level default) replaces
+ *  it; nothing decides a tier off this constant except through configuration
+ *  resolution at the composed gate. */
+export const DEFAULT_NETWORK_ALLOWLIST: readonly string[] = [
+  "registry.npmjs.org",
+  "api.github.com",
+  "github.com",
+];
+
+const EGRESS_EXECUTABLES = new Set(["curl", "wget", "nc", "ncat", "scp", "sftp", "telnet"]);
+
+/** Egress flags whose separate VALUE must not be mistaken for a destination.
+ *  Deliberately the common set: an unrecognized flag's host-looking value
+ *  merely OVER-detects (a non-allowlisted host stays grantable), which is the
+ *  fail-closed direction for the budgeted refinement. */
+const EGRESS_VALUE_FLAGS = new Set([
+  "-H", "--header", "-d", "--data", "--data-raw", "--data-binary", "--data-urlencode",
+  "-F", "--form", "-o", "--output", "-T", "--upload-file", "-u", "--user",
+  "-A", "--user-agent", "-e", "--referer", "-X", "--request", "-K", "--config",
+  "--connect-timeout", "--max-time", "--retry", "-w", "--write-out",
+  "-P", "-i", "-p",
+]);
+
+const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+const BARE_DOMAIN = /^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}$/;
+
+/** True when a token carries a shell construct the shell would expand — the
+ *  §5.4 evasion forms. Checked before any host reading. */
+function tokenIsDynamic(token: string): boolean {
+  return token.includes("$") || token.includes("`") || token.includes("{");
+}
+
+/** Host named by a URL-shaped token, "" when the token is URL-shaped but
+ *  unparseable, null when it is not a URL at all. new URL() does the parsing,
+ *  so userinfo obfuscation (`https://api.github.com@attacker.test/`) resolves
+ *  to the REAL host. */
+function urlHost(token: string): string | null {
+  if (!/^https?:\/\//i.test(token)) return null;
+  try {
+    return new URL(token).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+/** §5.4 (#296): the destination hosts of every egress invocation in the
+ *  action, or null when the action carries no egress tool at all. An
+ *  empty-string entry is an UNDETERMINABLE destination — the classifier fails
+ *  closed to `outbound-network-undeterminable`. Walks the same parsed shell
+ *  segments the projection uses; egress visible only in the flattened
+ *  projection (a nested `bash -c` string) surfaces as undeterminable rather
+ *  than invisible. */
+export function outboundDestinations(action: ToolAction): string[] | null {
+  const text = asText(action);
+  if (!/\b(curl|wget|ncat|nc|scp|sftp|telnet)\b/.test(text)) return null;
+  const { semantic } = semanticActionWithShell(action);
+  if (semantic.command === null) return [""];
+  const command = stripShellComments(stripHeredocBodies(unwrapCommand(semantic.command)));
+  // ${IFS} splitting means the argv the shell runs is not the argv we lexed.
+  if (/\$\{IFS\}/i.test(command)) return [""];
+  const parsed = parseShell(lexShell(command));
+  const destinations: string[] = [];
+  let sawEgress = false;
+  for (const segment of parsed.commands) {
+    const argv = segment.filter((token) => token.kind === "word").map((token) => token.text);
+    let cursor = 0;
+    while (isAssignment(argv[cursor])) cursor += 1;
+    while (["sudo", "command", "builtin", "nohup", "exec", "env", "xargs"].includes(baseExecutable(argv[cursor] ?? ""))) cursor += 1;
+    const executable = baseExecutable(argv[cursor] ?? "");
+    if (!EGRESS_EXECUTABLES.has(executable)) continue;
+    sawEgress = true;
+    const args = argv.slice(cursor + 1);
+    let found = false;
+    for (let i = 0; i < args.length; i += 1) {
+      const arg = args[i]!;
+      if (EGRESS_VALUE_FLAGS.has(arg)) { i += 1; continue; }
+      if (arg.startsWith("-")) continue;
+      if (tokenIsDynamic(arg)) { destinations.push(""); found = true; continue; }
+      if (executable === "scp" || executable === "sftp") {
+        // Only remote-spec tokens ([user@]host:path) name a destination; the
+        // rest are local paths.
+        const match = /^(?:[^@\s]+@)?([A-Za-z0-9.-]+):/.exec(arg);
+        if (match !== null) { destinations.push(match[1]!.toLowerCase()); found = true; }
+        continue;
+      }
+      const fromUrl = urlHost(arg);
+      if (fromUrl !== null) { destinations.push(fromUrl); found = true; continue; }
+      if (executable === "nc" || executable === "ncat" || executable === "telnet") {
+        if (IPV4.test(arg) || BARE_DOMAIN.test(arg)) { destinations.push(arg.toLowerCase()); found = true; break; }
+        continue;
+      }
+      // curl/wget bare-host form (`curl example.com`).
+      if (IPV4.test(arg) || BARE_DOMAIN.test(arg)) { destinations.push(arg.toLowerCase()); found = true; }
+    }
+    // An egress invocation that named no destination at all (config-file
+    // driven, stdin-driven) is undeterminable.
+    if (!found) destinations.push("");
+  }
+  if (destinations.length > 0) return destinations;
+  // Egress visible only in the flattened projection (nested shell string).
+  return sawEgress ? [""] : [""];
 }
 
 function isWrite(a: ToolAction): boolean {
@@ -828,7 +951,11 @@ export const RULE_DISPOSITION_TIERS: Readonly<Record<string, Exclude<Disposition
   // external-publishing grant would erase that decision/execution join.
   "external-publishing": "human-only",
   "provider-global-memory": "grantable",
+  // §5.4 (#296): determinable destinations keep the grantable tier (the
+  // allowlist→budgeted refinement is config at the composed gate);
+  // undeterminable destinations fail closed to human-only.
   "outbound-network": "grantable",
+  "outbound-network-undeterminable": "human-only",
   "self-merge-or-approve": "human-only",
   "protocol-self-edit": "un-grantable",
   "scorecard-tamper": "un-grantable",

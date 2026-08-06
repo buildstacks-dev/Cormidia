@@ -91,7 +91,9 @@ describe("CF-INV-003 — Stage 2 ratified tier table (five tightenings + the new
     "secret-read": "grantable",
     "external-publishing": "human-only",
     "provider-global-memory": "grantable",
+    // §5.4 (#296, ratified): undeterminable destinations fail closed.
     "outbound-network": "grantable",
+    "outbound-network-undeterminable": "human-only",
     "self-merge-or-approve": "human-only",
     "protocol-self-edit": "un-grantable", // tighten: was human-only
     "scorecard-tamper": "un-grantable", // tighten: was human-only

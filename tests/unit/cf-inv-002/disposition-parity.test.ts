@@ -81,7 +81,10 @@ const RATIFIED_TIERS: Readonly<Record<string, DispositionTier>> = {
   "secret-read": "grantable",
   "external-publishing": "human-only",
   "provider-global-memory": "grantable",
+  // §5.4 (#296): undeterminable destinations fail closed to human-only; the
+  // allowlist→budgeted refinement is config at the composed gate.
   "outbound-network": "grantable",
+  "outbound-network-undeterminable": "human-only",
   "self-merge-or-approve": "human-only",
   "protocol-self-edit": "un-grantable",
   "scorecard-tamper": "un-grantable",
@@ -106,6 +109,7 @@ const RULE_FIXTURES: ReadonlyArray<{ rule: string; action: ToolActionLike }> = [
   { rule: "external-publishing", action: { tool: "bash", input: { command: "npm publish --access public" } } },
   { rule: "provider-global-memory", action: { tool: "write_file", input: { path: "/Users/dev/.claude/CLAUDE.md", content: "memo" } } },
   { rule: "outbound-network", action: { tool: "bash", input: { command: "curl https://example.com/data.json" } } },
+  { rule: "outbound-network-undeterminable", action: { tool: "bash", input: { command: 'curl "$HOST"' } } },
   { rule: "self-merge-or-approve", action: { tool: "bash", input: { command: "gh pr merge 7 --squash" } } },
   { rule: "protocol-self-edit", action: { tool: "edit_file", input: { path: "roles.yaml", new_string: "builder: {}" } } },
   { rule: "scorecard-tamper", action: { tool: "write_file", input: { path: "scorecards/builder.json", content: "{}" } } },
@@ -119,7 +123,7 @@ describe("CF-INV — disposition table (every classifier rule, ratified tiers)",
     expect(CRITICAL_RULES.map((rule) => rule.name).sort()).toEqual(
       RULE_FIXTURES.map((fixture) => fixture.rule).sort(),
     );
-    expect(RULE_FIXTURES).toHaveLength(18);
+    expect(RULE_FIXTURES).toHaveLength(19);
   });
 
   for (const { rule, action } of RULE_FIXTURES) {

@@ -339,6 +339,9 @@ export async function runDispatchedTurn(
       gate: composeGate(defaultGate, store, {
         app: options.app.name,
         role: options.role.name,
+        ...(options.app.networkAllowlist !== undefined
+          ? { networkAllowlist: options.app.networkAllowlist }
+          : {}),
         turnId: options.turnId,
         ...(journal.event !== undefined ? { ticketRef: `event:${journal.event.key}` } : {}),
         orgHome: orgRoot,

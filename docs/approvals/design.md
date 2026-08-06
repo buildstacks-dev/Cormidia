@@ -167,7 +167,12 @@ reviewed PR path, which never routes through this gate). The #296 §5.1 split
 (ratified 2026-08-06) further adds `destructive-remote-data`,
 `history-rewrite-foreign`, and `gh-api-unrecognized` as human-only members,
 while `history-rewrite-owned` (force-push confined to the orchestrator-owned
-`op/<issue>-…` namespace) is the one ratified `budgeted` class: it proceeds at
+`op/<issue>-…` namespace) and allowlisted outbound requests (#296 §5.4:
+`outbound-network` destinations all on the app's configured
+`network_allowlist`, default `registry.npmjs.org`/`api.github.com`/
+`github.com`; an undeterminable destination is the human-only
+`outbound-network-undeterminable`, fail closed) are the ratified `budgeted`
+cases: it proceeds at
 the composed gate with a per-action audit row — bounded by a covering
 objective grant's uses/ledger when one exists (grantless accounting quantum:
 F-PT-024) — and the retired `destructive-or-irreversible` name keeps a

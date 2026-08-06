@@ -7,15 +7,17 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { parse, parseDocument } from "yaml";
+import { resolveRemoteDefaultBranch } from "../loop/default-branch.js";
 import { loadGateCommands } from "../loop/driver.js";
 import type { GhOps } from "../loop/github.js";
 import { CANONICAL_LABELS } from "../loop/plan-tickets.js";
-import type { RuntimeKind } from "../runtime/types.js";
+import { appCommandEnv } from "../runtime/non-interactive-env.js";
 import {
   probeRuntimeReadiness,
   type RuntimeReadinessProbe,
   type RuntimeReadinessRequest,
 } from "../runtime/readiness.js";
+import type { RuntimeKind } from "../runtime/types.js";
 import {
   joinExistingOrg,
   loadApps,
@@ -24,6 +26,7 @@ import {
   updateAppStatus,
   type AppEntry,
 } from "./apps.js";
+import { resolveAuthority } from "./authority.js";
 import {
   appArtifactFiles,
   emitAppArtifacts,
@@ -32,23 +35,19 @@ import {
   type BootstrapAnswers,
   type BootstrapRunResult,
 } from "./bootstrap.js";
-import { resolveAuthority } from "./authority.js";
 import { resolveAppAssignments } from "./execution-assignments.js";
-import { loadRoles } from "./roles.js";
-import { resolveRemoteDefaultBranch } from "../loop/default-branch.js";
-import { appCommandEnv } from "../runtime/non-interactive-env.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
-  type LifecycleCheck,
-  type LifecycleFaultHook,
+  acquireLifecycleOperationLock,
   assertDirectoryNoSymlink,
   assertRegularFile,
   assertSafeSegment,
-  acquireLifecycleOperationLock,
   emitLifecycleStep,
   sha256,
   stableJson,
   writeLifecycleFileAtomic,
+  type LifecycleCheck,
+  type LifecycleFaultHook,
 } from "./lifecycle.js";
 import {
   assertNonSecretOnboardingAnswers,
@@ -56,6 +55,7 @@ import {
   readStoredOnboardingAnswers,
   storeOnboardingAnswers,
 } from "./onboarding-answers.js";
+import { loadRoles } from "./roles.js";
 
 const GIT_ENV = {
   ...process.env,
@@ -63,7 +63,7 @@ const GIT_ENV = {
   GIT_CONFIG_NOSYSTEM: "1",
 };
 
-export interface AppLifecycleRecord {
+interface AppLifecycleRecord {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "app-lifecycle";
   app: string;
@@ -109,7 +109,7 @@ export type RuntimeReadinessInspector = (
   runtimes: Array<{ runtime: RuntimeKind; models: string[] }>,
 ) => Promise<Array<LifecycleCheck>>;
 
-export interface VerifyAppOptions {
+interface VerifyAppOptions {
   orgHome: string;
   stateHome: string;
   appName: string;
@@ -147,7 +147,7 @@ export interface VerifyAppOptions {
   operationLockHeld?: boolean;
 }
 
-export interface AppVerification {
+interface AppVerification {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "app-verification";
   app: string;
@@ -166,7 +166,7 @@ export interface AppVerification {
   readiness_path: string;
 }
 
-export interface PromoteAppOptions extends VerifyAppOptions {
+interface PromoteAppOptions extends VerifyAppOptions {
   to: "live";
   execute?: boolean;
 }
@@ -175,14 +175,14 @@ export interface PromoteAppOptions extends VerifyAppOptions {
  *  The commit is marked workflow-inert so the default-branch push cannot start
  *  an app's deploy or CI workflows — `app promote` must never be a hidden deploy
  *  trigger (#168). The skip marker is honored by GitHub Actions for push events. */
-export const PROMOTION_COMMIT_SUBJECT = "chore: promote app to live [skip ci]";
+const PROMOTION_COMMIT_SUBJECT = "chore: promote app to live [skip ci]";
 
 /** Preview line that exposes the (suppressed) external side effect of the
  *  promotion push, so an operator sees before `--execute` that no workflow runs. */
-export const PROMOTION_WORKFLOW_INERT_NOTE =
+const PROMOTION_WORKFLOW_INERT_NOTE =
   "promotion commit marked [skip ci] — no app workflows run on the default-branch push";
 
-export interface AppPromotionPlan {
+interface AppPromotionPlan {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "app-promotion-plan";
   app: string;
@@ -195,7 +195,7 @@ export interface AppPromotionPlan {
   transaction_id: string;
 }
 
-export interface AppPromotionResult {
+interface AppPromotionResult {
   schema_version: typeof LIFECYCLE_SCHEMA_VERSION;
   kind: "app-promotion-result";
   status: "promoted" | "already_live";
@@ -213,7 +213,7 @@ interface PromotionJournal {
   promotion_commit: string | null;
 }
 
-export function lifecycleRecordPath(stateHome: string, app: string): string {
+function lifecycleRecordPath(stateHome: string, app: string): string {
   assertSafeSegment(app, "app lifecycle");
   return join(resolve(stateHome), "lifecycle", "apps", app, "record.json");
 }

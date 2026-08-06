@@ -20,24 +20,6 @@
 
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type {
-  ContextBundle,
-  RoleConfig,
-  Runtime,
-  TurnAssignment,
-  TurnEvent,
-  TurnHooks,
-  TurnResult,
-  TurnProgress,
-  TurnUsage,
-} from "../runtime/types.js";
-import {
-  hasRuntimeCapability,
-  resolvedRuntimeCapabilities,
-  runtimeCapabilityProfile,
-  type RuntimeCapability,
-  type RuntimeCapabilityProfile,
-} from "../runtime/capabilities.js";
 import {
   buildTurnExecutionFacts,
   configuredProviderFamily,
@@ -45,18 +27,29 @@ import {
   validateTurnAssignment,
   validateTurnExecutionFacts,
 } from "../runtime/assignment.js";
-import { recordTurnOnce, toRecord, type TriggerKind } from "../runtime/telemetry.js";
+import {
+  hasRuntimeCapability,
+  resolvedRuntimeCapabilities,
+  runtimeCapabilityProfile,
+  type RuntimeCapability,
+  type RuntimeCapabilityProfile,
+} from "../runtime/capabilities.js";
+import { worstUsageQuality } from "../runtime/cost.js";
+import { gitSnapshotOf } from "../runtime/git.js";
+import { permissionModeFor } from "../runtime/permission-mode.js";
 import {
   finalizeRun,
   startRun,
   updateEnvelope,
   type EnvelopeStatus,
   type EnvelopeUsage,
-  type SessionEvidence,
   type PlanningRouteEvidence,
+  type SessionEvidence,
 } from "../runtime/runlog/envelope.js";
-import { gitSnapshotOf } from "../runtime/git.js";
-import { worstUsageQuality } from "../runtime/cost.js";
+import { createEventWriter, readEvents, type EventWriter } from "../runtime/runlog/events.js";
+import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
+import { mintRunId, RUN_ID_RE, runPaths } from "../runtime/runlog/paths.js";
+import { recordTurnOnce, toRecord, type TriggerKind } from "../runtime/telemetry.js";
 import {
   costEnforcementFor,
   ERROR_TURN_BUDGET_EXHAUSTED,
@@ -65,17 +58,25 @@ import {
   type EpisodeAllowance,
   type TurnBudgetStop,
 } from "../runtime/turn-budget.js";
-import { permissionModeFor } from "../runtime/permission-mode.js";
-import { createEventWriter, readEvents, type EventWriter } from "../runtime/runlog/events.js";
-import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
-import { mintRunId, runPaths, RUN_ID_RE } from "../runtime/runlog/paths.js";
+import type {
+  ContextBundle,
+  RoleConfig,
+  Runtime,
+  TurnAssignment,
+  TurnEvent,
+  TurnHooks,
+  TurnProgress,
+  TurnResult,
+  TurnUsage,
+} from "../runtime/types.js";
 import { withAuthorityBrief } from "./brief.js";
 import { writeContextManifest } from "./context-manifest.js";
+import { writeLoopFileAtomic } from "./durable.js";
 import {
   admitEpisode,
   beginProviderStep,
-  EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD,
   episodeIdFor,
+  EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD,
   finalizeEpisode,
   finalizeProviderStep,
   fingerprint,
@@ -84,11 +85,10 @@ import {
   worktreeFingerprint,
   type AdmissionFactor,
   type AuthorizedPass,
-  type RouteBudget,
   type ProviderStepPlanMetadata,
+  type RouteBudget,
   type StartedProviderStep,
 } from "./efficiency.js";
-import { runPipelinePreflight, type PipelineArtifactExpectation } from "./preflight.js";
 import {
   parallelStages,
   selectPasses,
@@ -97,10 +97,10 @@ import {
   type PipelineConfig,
   type TicketTier,
 } from "./pipelines.js";
+import { runPipelinePreflight, type PipelineArtifactExpectation } from "./preflight.js";
 import type { LoopContinuation } from "./types.js";
-import { writeLoopFileAtomic } from "./durable.js";
 
-export interface RunlogTarget {
+interface RunlogTarget {
   /** Org runtime home the runs/ tree lives under. */
   root: string;
   app: string;
@@ -544,8 +544,8 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 /** Default per-pass wall-clock cap when pipelines.yaml sets none — matches
  *  the dispatcher's hung-turn default. */
 const DEFAULT_PASS_WALL_CLOCK_MINUTES = 60;
-export const ERROR_WALL_CLOCK_EXCEEDED = "error_wall_clock_exceeded";
-export const ERROR_ADAPTER_START_TIMEOUT = "error_adapter_start_timeout";
+const ERROR_WALL_CLOCK_EXCEEDED = "error_wall_clock_exceeded";
+const ERROR_ADAPTER_START_TIMEOUT = "error_adapter_start_timeout";
 const DEFAULT_ADAPTER_START_TIMEOUT_MS = 30_000;
 
 // Long enough for adapters to terminate their owned process/session tree and

@@ -31,12 +31,12 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { AUTHORITY_BLOCK_END, AUTHORITY_BLOCK_START } from "./authority.js";
-import { loadApps, type AppEntry } from "./apps.js";
-import { loadRoles } from "./roles.js";
-import { appArtifactFiles, type BootstrapAnswers } from "./bootstrap.js";
 import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
+import { loadApps, type AppEntry } from "./apps.js";
+import { AUTHORITY_BLOCK_END, AUTHORITY_BLOCK_START } from "./authority.js";
+import { appArtifactFiles, type BootstrapAnswers } from "./bootstrap.js";
+import { loadRoles } from "./roles.js";
 
 /** Project instruction files bootstrap composes an authority block into. They
  *  are bootstrap-owned only in the sense that bootstrap edited them — they
@@ -49,7 +49,7 @@ const GIT_ENV: NodeJS.ProcessEnv = {
   GIT_CONFIG_NOSYSTEM: "1",
 };
 
-export interface RepoPublishPlan {
+interface RepoPublishPlan {
   /** Which side of the coordinated publish this is. */
   kind: "app" | "org";
   root: string;
@@ -86,7 +86,7 @@ export interface BootstrapPublishPlan {
   noop: boolean;
 }
 
-export interface BootstrapPublishOptions {
+interface BootstrapPublishOptions {
   app: string;
   orgHome: string;
   /** App checkout to publish from. Defaults to the app's configured local
@@ -425,7 +425,7 @@ function githubSlugForOrigin(root: string): string | undefined {
  *  Undefined is a normal answer — a self-hosted or local remote simply gets a
  *  pushed branch rather than a pull request, and the output must not claim
  *  otherwise. */
-export function githubSlugFromRemote(url: string | undefined): string | undefined {
+function githubSlugFromRemote(url: string | undefined): string | undefined {
   if (url === undefined) return undefined;
   const match =
     /^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/]+)\/(.+?)(?:\.git)?\/?$/.exec(
@@ -439,7 +439,7 @@ export function githubSlugFromRemote(url: string | undefined): string | undefine
 // execution — every mutation lives below this line
 // ---------------------------------------------------------------------------
 
-export interface PublishedRepo {
+interface PublishedRepo {
   kind: "app" | "org";
   root: string;
   branch: string;
@@ -451,7 +451,7 @@ export interface PublishedRepo {
   skipped?: string;
 }
 
-export interface BootstrapPublishResult {
+interface BootstrapPublishResult {
   app: string;
   repos: PublishedRepo[];
 }

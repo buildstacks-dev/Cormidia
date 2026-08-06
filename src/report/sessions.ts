@@ -1,9 +1,9 @@
-import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
-import { settlementKey } from "../runtime/telemetry.js";
 import { aggregateCost, normalizeUsageQuality, worstUsageQuality } from "../runtime/cost.js";
 import { classifyEnvelopeUsage } from "../runtime/runlog/envelope.js";
-import type { LedgerRowSource } from "./ledger-source.js";
+import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
+import { settlementKey } from "../runtime/telemetry.js";
 import type { ReportDetailFacts } from "./detail-source.js";
+import type { LedgerRowSource } from "./ledger-source.js";
 import type {
   CompletionIntegrity,
   ReportSessionDetailV1,
@@ -13,7 +13,7 @@ import type {
   SourceRefView,
 } from "./types.js";
 
-export interface GroupedSessions {
+interface GroupedSessions {
   sessions: ReportSessionDetailV1[];
   unattributed: ReportTurnV1[];
 }

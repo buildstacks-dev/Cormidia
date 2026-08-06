@@ -9,9 +9,9 @@
 
 import { resolve } from "node:path";
 import { findExistingOrg } from "../org/apps.js";
+import { executeBootstrapPublish, planBootstrapPublish, type BootstrapPublishPlan } from "../org/bootstrap-publish.js";
 import { resolveCormidiaHomes, validateOrgHome } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
-import { executeBootstrapPublish, planBootstrapPublish, type BootstrapPublishPlan } from "../org/bootstrap-publish.js";
 
 export async function cmdBootstrapPublish(args: string[]): Promise<number> {
   let app: string | undefined;

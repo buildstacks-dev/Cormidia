@@ -4,9 +4,11 @@
 // per-item audit intact, approvals may re-arm the parked ticket, and grants
 // can be revoked immediately.
 
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
 import { join, resolve } from "node:path";
+import { stdin as input, stdout as output } from "node:process";
+import { createInterface } from "node:readline/promises";
+import { continueAfterApproval } from "../loop/claim-recovery.js";
+import { GhCliOps } from "../loop/github.js";
 import {
   actionHash,
   approvalDeciderFromIdentity,
@@ -15,13 +17,11 @@ import {
   type ApprovalItem,
   type DecideApprovalInput,
 } from "../org/approvals.js";
-import { isBudgetEscalationRule } from "../org/budget.js";
-import { releaseExpiredTicketApprovalClaim } from "../org/ticket-episode-approval.js";
-import { appendDenialLesson } from "../org/denial-lessons.js";
 import { loadApps } from "../org/apps.js";
-import { GhCliOps } from "../loop/github.js";
-import { continueAfterApproval } from "../loop/claim-recovery.js";
+import { isBudgetEscalationRule } from "../org/budget.js";
+import { appendDenialLesson } from "../org/denial-lessons.js";
 import { resolveCormidiaHomes } from "../org/home.js";
+import { releaseExpiredTicketApprovalClaim } from "../org/ticket-episode-approval.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdApprovals(args: string[]): Promise<number> {

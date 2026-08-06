@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ContextManifest } from "../loop/context-manifest.js";
 import {
   readEfficiencyEvidence,
   settlementCoverage,
@@ -8,19 +9,18 @@ import {
   type ExecutionStepRecord,
   type RouteRecord,
 } from "../loop/efficiency.js";
+import { normalizeUsageQuality } from "../runtime/cost.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { settlementIdentity, type TurnRecord } from "../runtime/telemetry.js";
-import { normalizeUsageQuality } from "../runtime/cost.js";
-import type { ContextManifest } from "../loop/context-manifest.js";
-import type { LedgerRowSource } from "./ledger-source.js";
 import type { ReportDetailFacts } from "./detail-source.js";
+import type { LedgerRowSource } from "./ledger-source.js";
 import type {
   ReportEfficiencyEpisodeV1,
   ReportEfficiencyV1,
-  ReportRepeatedWorkStepV1,
-  ReportRepeatedWorkV1,
   ReportEvidenceMetricV1,
   ReportRangeV1,
+  ReportRepeatedWorkStepV1,
+  ReportRepeatedWorkV1,
 } from "./types.js";
 
 export async function buildEfficiencyReport(input: {

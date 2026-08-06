@@ -13,19 +13,19 @@
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { readExecutionJournal, type ExecutionJournal } from "../loop/execution-journal.js";
+import { readPublishedTicketsRecord, type PublishedTicketsRecord } from "../loop/plan-publication-record.js";
+import { readParentTaskPrompt } from "../org/parent-task.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { runPaths } from "../runtime/runlog/paths.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
-import { readExecutionJournal, type ExecutionJournal } from "../loop/execution-journal.js";
-import { readPublishedTicketsRecord, type PublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import { readTurnRecords, type TurnRecord } from "../runtime/telemetry.js";
-import { readParentTaskPrompt } from "../org/parent-task.js";
 import type { NarrativeQuote } from "./types.js";
 
 export const MOMENT_QUOTE_MAX = 700;
 export const ORIGIN_QUOTE_MAX = 900;
 
-export interface AppRunSources {
+interface AppRunSources {
   envelopes: RunEnvelope[];
   /** Keyed by the planning run id that wrote the record. */
   publishedTickets: Map<string, PublishedTicketsRecord>;

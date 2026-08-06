@@ -6,7 +6,7 @@
 // pass its AbortSignal through every orchestration layer, and dispose it once
 // their durable terminal state has been written.
 
-export interface ProcessCancellation {
+interface ProcessCancellation {
   signal: AbortSignal;
   /** Conventional shell exit code (130 SIGINT, 143 SIGTERM), once signalled. */
   readonly exitCode: number | undefined;

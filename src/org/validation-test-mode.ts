@@ -1,23 +1,23 @@
 // The ratified unattended validation profile is a narrow machine authorization,
 // not an approval decision and never a way to impersonate a human approver.
 
-export const UNATTENDED_VALIDATION_PROFILE_ID = "cormidia/unattended-sandbox/v1" as const;
-export const VALIDATION_AUTO_GRANT_CATEGORIES = ["campaign_budget"] as const;
-export type ValidationAutoGrantCategory = (typeof VALIDATION_AUTO_GRANT_CATEGORIES)[number];
+const UNATTENDED_VALIDATION_PROFILE_ID = "cormidia/unattended-sandbox/v1" as const;
+const VALIDATION_AUTO_GRANT_CATEGORIES = ["campaign_budget"] as const;
+type ValidationAutoGrantCategory = (typeof VALIDATION_AUTO_GRANT_CATEGORIES)[number];
 
-export interface UnattendedValidationProfile {
+interface UnattendedValidationProfile {
   identity: typeof UNATTENDED_VALIDATION_PROFILE_ID;
   sandbox: { org: string; app: string; repo: string };
   permitted_auto_grant_categories: ValidationAutoGrantCategory[];
 }
 
-export type ValidationProfileAction =
+type ValidationProfileAction =
   | { kind: "campaign_budget"; provider_turns: number; equiv_usd: number; release_campaign: boolean }
   | { kind: "external_publication"; target: string }
   | { kind: "non_sandbox_effect"; target: string }
   | { kind: "critical_operation"; operation: string };
 
-export interface ValidationProfileAuthorization {
+interface ValidationProfileAuthorization {
   authorized: boolean;
   profile_identity: typeof UNATTENDED_VALIDATION_PROFILE_ID;
   sandbox_target: string;

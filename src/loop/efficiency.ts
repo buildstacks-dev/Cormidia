@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { lstat, mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,6 +10,9 @@ import {
   validateProviderFamily,
   validateTurnAssignment,
 } from "../runtime/assignment.js";
+import { withFileLock } from "../runtime/file-lock.js";
+import type { TurnRecord } from "../runtime/telemetry.js";
+import { ERROR_TURN_BUDGET_SUSPENDED } from "../runtime/turn-budget.js";
 import type {
   Effort,
   RoleConfig,
@@ -19,9 +22,6 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
-import type { TurnRecord } from "../runtime/telemetry.js";
-import { ERROR_TURN_BUDGET_SUSPENDED } from "../runtime/turn-budget.js";
-import { withFileLock } from "../runtime/file-lock.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import type { TicketTier } from "./pipelines.js";
 import { assertMonotonicRoute, executionBoundsFor, type RouteExecutionBounds } from "./route-policy.js";

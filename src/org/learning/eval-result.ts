@@ -65,7 +65,7 @@ export interface EvalTrial {
   treatment: Record<string, number>;
 }
 
-export interface EvalGuardrailOutcome {
+interface EvalGuardrailOutcome {
   metric: string;
   pass: boolean;
   /** Why a guardrail failed — including "not measured" (fail closed). */
@@ -110,7 +110,7 @@ export interface EvalResult {
 // deterministic verdict computation
 // ---------------------------------------------------------------------------
 
-export interface ComputeEvalResultOptions {
+interface ComputeEvalResultOptions {
   experiment: ExperimentRecord;
   trials: EvalTrial[];
   capsuleRefs?: string[];
@@ -273,7 +273,7 @@ function deterministicEvalId(experimentId: string, trials: EvalTrial[]): string 
 // record validation
 // ---------------------------------------------------------------------------
 
-export function validateEvalResult(value: unknown): EvalResult {
+function validateEvalResult(value: unknown): EvalResult {
   const spec = requireRecord(value, "eval");
   const evalId = requirePrefixedId(spec, "eval_id", "eval_", "eval");
   const source = evalId;
@@ -415,7 +415,7 @@ function nullableNumber(spec: Record<string, unknown>, key: string, source: stri
 // storage + the decide transition
 // ---------------------------------------------------------------------------
 
-export function evalResultPath(orgHome: string, evalId: string): string {
+function evalResultPath(orgHome: string, evalId: string): string {
   return join(experimentsDir(orgHome), `${evalId}.json`);
 }
 

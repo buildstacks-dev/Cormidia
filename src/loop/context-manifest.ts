@@ -2,15 +2,15 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { runtimeCapabilityProfile, type RuntimeCapabilityProfile } from "../runtime/capabilities.js";
 import { validateTurnExecutionFacts } from "../runtime/assignment.js";
-import type { ContextBundle, ContextComponent, RuntimeKind } from "../runtime/types.js";
+import { runtimeCapabilityProfile, type RuntimeCapabilityProfile } from "../runtime/capabilities.js";
 import { runPaths } from "../runtime/runlog/paths.js";
+import type { ContextBundle, ContextComponent, RuntimeKind } from "../runtime/types.js";
 import { renderContextBundle, renderTurnExecutionFacts } from "../runtime/worktree-context.js";
 import { writeLoopFileAtomic } from "./durable.js";
 import { efficiencyEpisodeDir, fingerprint, type EfficiencyRoute } from "./efficiency.js";
 
-export type ContextCategory =
+type ContextCategory =
   | "authority"
   | "execution"
   | "taste"
@@ -26,7 +26,7 @@ export type ContextCategory =
   | "brief"
   | "template";
 
-export interface ContextManifestComponent {
+interface ContextManifestComponent {
   component_id: string;
   category: ContextCategory;
   source: string;
@@ -78,14 +78,14 @@ interface PreparedEntry {
   manifest: ContextManifestComponent;
 }
 
-export class ContextBudgetExceededError extends Error {
+class ContextBudgetExceededError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ContextBudgetExceededError";
   }
 }
 
-export const CONTEXT_ROUTE_CAPS: Readonly<Record<EfficiencyRoute, number>> = {
+const CONTEXT_ROUTE_CAPS: Readonly<Record<EfficiencyRoute, number>> = {
   deterministic: 64 * 1024,
   quick: 64 * 1024,
   standard: 128 * 1024,
@@ -195,13 +195,7 @@ export async function writeContextManifest(input: {
   };
 }
 
-export async function readContextManifest(root: string, app: string, runId: string): Promise<ContextManifest> {
-  return JSON.parse(
-    await readFile(join(runPaths(root, app, runId).dir, "context-manifest.json"), "utf8"),
-  ) as ContextManifest;
-}
-
-export interface ContextExplanation {
+interface ContextExplanation {
   episode_id: string;
   run_id: string;
   route: EfficiencyRoute;

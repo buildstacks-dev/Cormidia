@@ -104,7 +104,7 @@ export const TICKET_PROVIDER_OPERATION_CATALOG = {
   },
 } as const satisfies Record<string, TicketProviderOperationDefinition>;
 
-export type TicketProviderOperation = keyof typeof TICKET_PROVIDER_OPERATION_CATALOG;
+type TicketProviderOperation = keyof typeof TICKET_PROVIDER_OPERATION_CATALOG;
 export const TICKET_PROVIDER_OPERATIONS = Object.keys(
   TICKET_PROVIDER_OPERATION_CATALOG,
 ).sort() as TicketProviderOperation[];
@@ -117,7 +117,7 @@ export const TICKET_PROVIDER_OPERATIONS = Object.keys(
  * teachable (it is rendered into the planner's bounded brief) and checkable
  * (`validateTicketEpisodePlan` proves it as a pure graph property).
  */
-export interface TicketMechanicalGateInputRequirement {
+interface TicketMechanicalGateInputRequirement {
   /** Stable machine identity of the evidence the handler reads. */
   input: string;
   /** The exact provider operation whose durable output produces it. */
@@ -126,7 +126,7 @@ export interface TicketMechanicalGateInputRequirement {
   consumedBy: string;
 }
 
-export interface TicketMechanicalGateDefinition {
+interface TicketMechanicalGateDefinition {
   handler: string;
   requiredPlanInputs: readonly TicketMechanicalGateInputRequirement[];
 }
@@ -161,7 +161,7 @@ export const TICKET_MECHANICAL_GATE_CATALOG = {
   "release/handoff": { handler: "release_handoff", requiredPlanInputs: [] },
 } as const satisfies Record<string, TicketMechanicalGateDefinition>;
 
-export type TicketMechanicalGateKind = keyof typeof TICKET_MECHANICAL_GATE_CATALOG;
+type TicketMechanicalGateKind = keyof typeof TICKET_MECHANICAL_GATE_CATALOG;
 export const TICKET_MECHANICAL_GATE_KINDS = Object.keys(
   TICKET_MECHANICAL_GATE_CATALOG,
 ).sort() as TicketMechanicalGateKind[];
@@ -172,7 +172,7 @@ export const TICKET_MECHANICAL_GATE_KINDS = Object.keys(
  * every violation. The planner is given this list verbatim; validation is the
  * backstop, not the teacher (ISSUE-023).
  */
-export const TICKET_TOPOLOGY_RULES = [
+const TICKET_TOPOLOGY_RULES = [
   {
     id: "provision_precedes_write",
     statement: "every provider operation with write worktree access must have a ticket/provision ancestor",
@@ -245,9 +245,9 @@ export const TICKET_TOPOLOGY_RULES = [
   },
 ] as const;
 
-export type TicketTopologyRuleId = (typeof TICKET_TOPOLOGY_RULES)[number]["id"];
+type TicketTopologyRuleId = (typeof TICKET_TOPOLOGY_RULES)[number]["id"];
 
-export const TICKET_EPISODE_PLAN_REASON_CODES = [
+const TICKET_EPISODE_PLAN_REASON_CODES = [
   "ticket_provider_operation_unknown",
   "ticket_provider_operation_role_mismatch",
   "ticket_mechanical_gate_unknown",
@@ -256,9 +256,9 @@ export const TICKET_EPISODE_PLAN_REASON_CODES = [
   "ticket_plan_output_ref_invalid",
 ] as const;
 
-export type TicketEpisodePlanReasonCode = (typeof TICKET_EPISODE_PLAN_REASON_CODES)[number];
+type TicketEpisodePlanReasonCode = (typeof TICKET_EPISODE_PLAN_REASON_CODES)[number];
 
-export interface TicketEpisodePlanIssue {
+interface TicketEpisodePlanIssue {
   code: TicketEpisodePlanReasonCode;
   message: string;
   stepId?: string;
@@ -268,7 +268,7 @@ export interface TicketEpisodePlanIssue {
   rule?: TicketTopologyRuleId;
 }
 
-export interface TicketEpisodePlanValidationResult {
+interface TicketEpisodePlanValidationResult {
   ok: boolean;
   issues: TicketEpisodePlanIssue[];
 }
@@ -276,7 +276,7 @@ export interface TicketEpisodePlanValidationResult {
 type TicketPlanStep = EpisodeStep | ProposedEpisodeStep;
 type TicketPlanLike = Pick<EpisodePlan | ProposedEpisodePlan, "steps">;
 
-export class TicketEpisodePlanValidationError extends Error {
+class TicketEpisodePlanValidationError extends Error {
   readonly code = "error_ticket_episode_plan_invalid" as const;
 
   constructor(readonly issues: readonly TicketEpisodePlanIssue[]) {
@@ -294,7 +294,7 @@ export function isTicketMechanicalGateKind(value: string): value is TicketMechan
   return Object.hasOwn(TICKET_MECHANICAL_GATE_CATALOG, value);
 }
 
-export function ticketMechanicalGate(gate: string): TicketMechanicalGateDefinition | undefined {
+function ticketMechanicalGate(gate: string): TicketMechanicalGateDefinition | undefined {
   if (!isTicketMechanicalGateKind(gate)) return undefined;
   return TICKET_MECHANICAL_GATE_CATALOG[gate];
 }
@@ -380,7 +380,7 @@ export const TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE = {
   version: "v1",
 } as const;
 
-export interface TicketStandardDeliveryBudgets {
+interface TicketStandardDeliveryBudgets {
   contractUsd: number;
   implementationUsd: number;
   reviewUsd: number;
@@ -390,7 +390,7 @@ export interface TicketStandardDeliveryBudgets {
  * accepted role/app budget. Budget values are deliberately inputs rather than
  * template policy: the workflow shape is stable while current spend authority
  * remains owned by the invocation. */
-export function ticketStandardDeliveryWorkflowSteps(budgets: TicketStandardDeliveryBudgets): ProposedEpisodeStep[] {
+function ticketStandardDeliveryWorkflowSteps(budgets: TicketStandardDeliveryBudgets): ProposedEpisodeStep[] {
   for (const [name, value] of Object.entries(budgets)) {
     if (!Number.isFinite(value) || value <= 0) {
       throw new TypeError(`ticket workflow ${name} must be finite and positive`);
@@ -519,7 +519,7 @@ export const TICKET_EPISODE_TOPOLOGY_CONTRACT = {
 
 /** Pure ticket-protocol validation, applied after the core EpisodePlan DAG
  * validator. It authorizes no execution or mutation. */
-export function validateTicketEpisodePlan(plan: TicketPlanLike): TicketEpisodePlanValidationResult {
+function validateTicketEpisodePlan(plan: TicketPlanLike): TicketEpisodePlanValidationResult {
   const issues: TicketEpisodePlanIssue[] = [];
   const steps = plan.steps as readonly TicketPlanStep[];
   const byId = new Map(steps.map((step) => [step.id, step]));

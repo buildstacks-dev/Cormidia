@@ -4,8 +4,8 @@
 // data: exact operator prompts and native task identifiers are forensic
 // evidence, not committed org policy.
 
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -14,7 +14,7 @@ import type { AuthorityEvidence } from "../runtime/types.js";
 import { writeFileAtomic } from "./atomic.js";
 
 export type ParentTaskStatus = "running" | "completed" | "failed" | "cancelled" | "timed_out";
-export type ParentTaskExecutionMode = "cormidia" | "mixed" | "external_manual";
+type ParentTaskExecutionMode = "cormidia" | "mixed" | "external_manual";
 
 export interface ParentTaskRecord {
   schemaVersion: 1;
@@ -64,7 +64,7 @@ export interface ParentTaskCompletionState {
   issuesCloseOnMerge: string[];
 }
 
-export interface BeginParentTaskOptions {
+interface BeginParentTaskOptions {
   stateHome: string;
   taskId: string;
   originalPrompt: string;
@@ -190,7 +190,7 @@ export async function listParentTasks(stateHome: string): Promise<ParentTaskReco
   return records.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 }
 
-export function parentTaskIdFrom(explicit?: string): string | undefined {
+function parentTaskIdFrom(explicit?: string): string | undefined {
   const value = explicit ?? process.env["CORMIDIA_PARENT_TASK_ID"];
   return value !== undefined ? validateTaskId(value) : undefined;
 }

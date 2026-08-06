@@ -23,7 +23,7 @@ import { gitHeadOf } from "../../runtime/git.js";
 import type { RoleConfig } from "../../runtime/types.js";
 import { writeFileAtomic } from "../atomic.js";
 
-export interface FingerprintModelEntry {
+interface FingerprintModelEntry {
   runtime: string;
   model: string;
   effort: string;
@@ -52,7 +52,7 @@ export interface SystemFingerprint {
   env: { node: string; platform: string };
 }
 
-export interface ComputeFingerprintOptions {
+interface ComputeFingerprintOptions {
   packageRoot: string;
   orgHome: string;
   app: { name: string; workdir?: string; budgetUsdMonth?: number };
@@ -138,11 +138,11 @@ export function deriveFingerprintWithBundle(
   return { fingerprint_id: `sys_${contentHash(next).slice(0, 12)}`, ...next };
 }
 
-export function fingerprintsDir(stateHome: string): string {
+function fingerprintsDir(stateHome: string): string {
   return join(stateHome, "learning", "fingerprints");
 }
 
-export function fingerprintPath(stateHome: string, fingerprintId: string): string {
+function fingerprintPath(stateHome: string, fingerprintId: string): string {
   return join(fingerprintsDir(stateHome), `${fingerprintId}.json`);
 }
 

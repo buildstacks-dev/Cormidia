@@ -3,9 +3,9 @@
 // terminal result without conflating a command with the provider turns it may
 // launch.
 
+import { randomBytes } from "node:crypto";
 import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { randomBytes } from "node:crypto";
 import { withFileLock } from "./file-lock.js";
 
 export interface InvocationRecord {
@@ -143,7 +143,7 @@ export async function finishCliInvocation(
  * success/failure row: it is durable crash evidence that an operator can
  * inspect, while a later process may terminalize it with the original stable
  * identity once the outcome is known. */
-export async function reconcileCliInvocations(stateHome: string, now: Date = new Date()): Promise<number> {
+async function reconcileCliInvocations(stateHome: string, now: Date = new Date()): Promise<number> {
   let names: string[];
   try {
     names = await readdir(invocationJournalDir(stateHome));
@@ -165,7 +165,7 @@ export async function reconcileCliInvocations(stateHome: string, now: Date = new
   return reconciled;
 }
 
-export async function appendInvocationOnce(
+async function appendInvocationOnce(
   stateHome: string,
   record: InvocationRecord & { invocationId: string },
 ): Promise<boolean> {
@@ -194,7 +194,7 @@ export async function appendInvocationOnce(
   });
 }
 
-export function invocationJournalPath(stateHome: string, invocationId: string): string {
+function invocationJournalPath(stateHome: string, invocationId: string): string {
   assertInvocationId(invocationId);
   return join(invocationJournalDir(stateHome), `${invocationId}.json`);
 }

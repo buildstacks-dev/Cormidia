@@ -20,7 +20,7 @@ import { runPaths } from "../runtime/runlog/paths.js";
 import { writeLoopFileAtomic } from "./durable.js";
 import type { PlanProvenance, PublishedTicket } from "./plan-tickets.js";
 
-export const PUBLISHED_TICKETS_FILENAME = "published-tickets.json";
+const PUBLISHED_TICKETS_FILENAME = "published-tickets.json";
 
 export interface PublishedTicketsRecord {
   schema_version: 1;
@@ -40,7 +40,7 @@ export interface PublishedTicketsRecord {
   }>;
 }
 
-export function publishedTicketsPath(root: string, app: string, runId: string): string {
+function publishedTicketsPath(root: string, app: string, runId: string): string {
   return join(runPaths(root, app, runId).dir, PUBLISHED_TICKETS_FILENAME);
 }
 

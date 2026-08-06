@@ -7,16 +7,16 @@ import {
   validateAssignmentProviderFamily,
   validateTurnAssignment,
 } from "../runtime/assignment.js";
-import type { TurnAssignment, TurnAssignmentSource } from "../runtime/types.js";
 import { withFileLock, type FileLockOptions } from "../runtime/file-lock.js";
+import type { TurnAssignment, TurnAssignmentSource } from "../runtime/types.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import { efficiencyEpisodeDir, readRouteRecord, routeRecordPath } from "./efficiency.js";
 
-export const EPISODE_PLAN_SCHEMA_VERSION = 1 as const;
-export const EPISODE_PLAN_POINTER_SCHEMA_VERSION = 1 as const;
+const EPISODE_PLAN_SCHEMA_VERSION = 1 as const;
+const EPISODE_PLAN_POINTER_SCHEMA_VERSION = 1 as const;
 export const ASSIGNMENT_MODES = ["fixed", "adaptive"] as const;
 export type AssignmentMode = (typeof ASSIGNMENT_MODES)[number];
-export const SAFETY_FACT_KINDS = [
+const SAFETY_FACT_KINDS = [
   "authentication",
   "security",
   "secrets",
@@ -276,13 +276,13 @@ export function episodePlanProposalSchemaForOperations(
 /** Stable identity of one rejection, used to compare a repair against the
  * proposal it was asked to repair. Step ids are deliberately excluded: a
  * repair that renames a step has not fixed the rule it broke. */
-export function episodePlanViolationKey(issue: EpisodePlanIssue): string {
+function episodePlanViolationKey(issue: EpisodePlanIssue): string {
   return `${issue.code}::${issue.rule ?? issue.constraint ?? issue.message}`;
 }
 
-export type RepairProgress = "reduced" | "unchanged" | "regressive";
+type RepairProgress = "reduced" | "unchanged" | "regressive";
 
-export interface RepairRegressionAssessment {
+interface RepairRegressionAssessment {
   progress: RepairProgress;
   /** Violations present in the repair that its input did not have. */
   introduced: EpisodePlanIssue[];
@@ -297,7 +297,7 @@ export interface RepairRegressionAssessment {
  * with two defects instead of one (ISSUE-023). Naming that explicitly stops
  * the second failure from reading as an unrelated fresh defect.
  */
-export function assessRepairRegression(
+function assessRepairRegression(
   priorIssues: readonly EpisodePlanIssue[],
   repairedIssues: readonly EpisodePlanIssue[],
 ): RepairRegressionAssessment {
@@ -357,13 +357,13 @@ export interface CreatorScopeProvenance {
   evidenceRefs: string[];
 }
 
-export type PlanRepairScalar = null | boolean | number | string;
+type PlanRepairScalar = null | boolean | number | string;
 
 /** Code-owned audit evidence for deterministic repairs applied to settled
  * provider bytes before strict validation. Providers cannot author this field:
  * it is absent from the closed proposal schema and attached only after the
  * normalized proposal has passed that schema. */
-export interface PlanNormalizationProvenance {
+interface PlanNormalizationProvenance {
   schemaVersion: 1;
   repairs: Array<{
     kind: "undeclared_scalar_property_removed";
@@ -416,7 +416,7 @@ export interface BudgetCeiling {
   maxHumanDecisions?: number;
 }
 
-export interface RolePlanningView {
+interface RolePlanningView {
   role: string;
   responsibility: string;
   requiredCapabilities: string[];
@@ -516,14 +516,14 @@ export interface ProposedProviderTurnStep extends EpisodeStepBase {
 
 export type ProposedEpisodeStep = ProposedProviderTurnStep | MechanicalGateStep | ApprovalStep;
 
-export interface EpisodeBudgetEstimate {
+interface EpisodeBudgetEstimate {
   providerTurns: number;
   providerTurnBudgetUsd: number;
   mechanicalOverheadUsd: number;
   totalBudgetUsd: number;
 }
 
-export interface DerivedSafetyRoute {
+interface DerivedSafetyRoute {
   label: string;
   reasons: string[];
   gateStepIds: string[];
@@ -655,13 +655,13 @@ export interface EpisodePlanIssue {
   rule?: string;
 }
 
-export interface EpisodePlanValidationResult {
+interface EpisodePlanValidationResult {
   ok: boolean;
   issues: EpisodePlanIssue[];
   planHash?: string;
 }
 
-export interface IndependentReviewPolicy {
+interface IndependentReviewPolicy {
   subjectRoles: readonly string[];
   reviewerRoles: readonly string[];
   isIndependent(subject: ProviderTurnStep, reviewer: ProviderTurnStep): boolean;
@@ -760,12 +760,12 @@ export function stableHash(value: unknown): string {
 }
 
 /** Canonical JSON sorts object keys recursively while preserving array order. */
-export function canonicalJson(value: unknown): string {
+function canonicalJson(value: unknown): string {
   return JSON.stringify(canonicalize(value));
 }
 
 /** Strict provider-output boundary. Unknown fields and malformed nested data fail closed. */
-export function parseProposedEpisodePlan(value: unknown): ProposedEpisodePlan {
+function parseProposedEpisodePlan(value: unknown): ProposedEpisodePlan {
   const structuralIssues = validateProposalSchema(value);
   if (structuralIssues.length > 0) {
     throw new EpisodePlanValidationError(structuralIssues);
@@ -980,7 +980,7 @@ export function parseCreatorEpisodeScope(value: unknown): CreatorEpisodeScope {
 }
 
 /** Strict durable/provider boundary for the bounded deterministic intent. */
-export function parseEpisodeIntent(value: unknown): EpisodeIntent {
+function parseEpisodeIntent(value: unknown): EpisodeIntent {
   if (!isEpisodeIntentStrict(value)) {
     throw new EpisodePlanValidationError([
       issue("episode_intent_structure_invalid", "EpisodeIntent is not a strict bounded schema-v1 value"),
@@ -1251,7 +1251,7 @@ export function assessCreatorScope(
   };
 }
 
-export function validateEpisodePlan(
+function validateEpisodePlan(
   plan: EpisodePlan,
   intent: EpisodeIntent,
   policy: EpisodePlanValidationPolicy,
@@ -2621,7 +2621,7 @@ function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-export function machineReadableOperation(value: unknown): value is string {
+function machineReadableOperation(value: unknown): value is string {
   return typeof value === "string" && OPERATION.test(value);
 }
 
@@ -3374,7 +3374,7 @@ function exactKeys(record: Record<string, unknown>, allowed: readonly string[], 
 /** Strict shape guard for an already-accepted, persisted plan. Exported so a
  * captured `plan-v<n>.json` can be fed verbatim to the acceptance validators
  * without a test-local re-implementation of the durable shape. */
-export function isEpisodePlan(value: unknown): value is EpisodePlan {
+function isEpisodePlan(value: unknown): value is EpisodePlan {
   if (!isRecord(value) || value["schemaVersion"] !== EPISODE_PLAN_SCHEMA_VERSION) return false;
   if (
     !nonEmpty(value["episodeId"]) ||

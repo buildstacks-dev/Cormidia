@@ -11,7 +11,7 @@
 import { join } from "node:path";
 import type { RuntimeKind } from "./types.js";
 
-export type RuntimeModelCatalog =
+type RuntimeModelCatalog =
   | {
       runtime: RuntimeKind;
       available: true;

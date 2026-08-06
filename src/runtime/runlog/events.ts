@@ -14,7 +14,7 @@ import { dirname } from "node:path";
 import { runPaths } from "./paths.js";
 import { hashArgs, scrubSecrets } from "./redact.js";
 
-export type RunlogEventType =
+type RunlogEventType =
   | "run.started"
   | "run.completed"
   | "pass.started"
@@ -47,11 +47,11 @@ export type RunlogEventType =
    *  discarded and the pipeline is never crashed by it (F-002 / L-005). */
   | "telemetry.settle_failed";
 
-export type EventSeverity = "info" | "warn" | "error";
+type EventSeverity = "info" | "warn" | "error";
 
 /** Constant identity attached to every event this writer emits (§9: "plus
  *  app, ticket, pipeline, pass, role, model on everything"). */
-export interface EventContext {
+interface EventContext {
   trace_id: string;
   span_id: string;
   app: string;
@@ -62,7 +62,7 @@ export interface EventContext {
   model?: string;
 }
 
-export type EventDetail = Record<string, string | number | boolean>;
+type EventDetail = Record<string, string | number | boolean>;
 
 export interface RunlogEvent extends EventContext {
   ts: string;
@@ -75,7 +75,7 @@ export interface RunlogEvent extends EventContext {
   detail?: EventDetail;
 }
 
-export interface AppendOptions {
+interface AppendOptions {
   type: RunlogEventType;
   severity?: EventSeverity;
   /** Override for subagent spans; defaults to the writer's span (the pass). */
@@ -85,7 +85,7 @@ export interface AppendOptions {
   detail?: EventDetail;
 }
 
-export interface ToolCalledOptions {
+interface ToolCalledOptions {
   tool: string;
   durationMs: number;
   success: boolean;
@@ -174,37 +174,4 @@ export async function readEvents(root: string, app: string, runId: string): Prom
     }
   });
   return events;
-}
-
-export interface SpanNode {
-  spanId: string;
-  parentSpanId?: string;
-  events: RunlogEvent[];
-  children: SpanNode[];
-}
-
-/** Nest subagent spans under their parent pass via parent_span_id. Spans
- *  appear in first-event order; a span whose parent is unknown is a root. */
-export function reconstructSpanTree(events: RunlogEvent[]): SpanNode[] {
-  const nodes = new Map<string, SpanNode>();
-  for (const event of events) {
-    let node = nodes.get(event.span_id);
-    if (node === undefined) {
-      node = { spanId: event.span_id, events: [], children: [] };
-      if (event.parent_span_id !== undefined) node.parentSpanId = event.parent_span_id;
-      nodes.set(event.span_id, node);
-    }
-    node.events.push(event);
-  }
-
-  const roots: SpanNode[] = [];
-  for (const node of nodes.values()) {
-    const parent = node.parentSpanId !== undefined ? nodes.get(node.parentSpanId) : undefined;
-    if (parent !== undefined && parent !== node) {
-      parent.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-  return roots;
 }

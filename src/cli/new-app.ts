@@ -1,8 +1,8 @@
 // `cormidia new-app` — greenfield product bootstrap. This creates the target app
 // repo skeleton first, then hands off to the normal bootstrap/register path.
 
-import { createNewApp, DEFAULT_NEW_APP_TEMPLATE, NEW_APP_TEMPLATES, type NewAppTemplate } from "../org/new-app.js";
 import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION } from "../org/home.js";
+import { createNewApp, DEFAULT_NEW_APP_TEMPLATE, NEW_APP_TEMPLATES, type NewAppTemplate } from "../org/new-app.js";
 import { reportCliInvocation } from "./invocation-audit.js";
 
 export async function cmdNewApp(args: string[]): Promise<number> {

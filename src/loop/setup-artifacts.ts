@@ -28,7 +28,7 @@ import { join } from "node:path";
 /** Package-manager configuration files a tool may rewrite, relative to the
  *  worktree root. Deliberately a fixed root-level list: the scan runs on every
  *  setup gate and must stay O(a few files), never a tree walk. */
-export const SCANNED_SETUP_FILES = [
+const SCANNED_SETUP_FILES = [
   "pnpm-workspace.yaml",
   "pnpm-workspace.yml",
   "package.json",
@@ -42,7 +42,7 @@ const YAML_FILES = new Set<string>(["pnpm-workspace.yaml", "pnpm-workspace.yml",
 /** Literal text a tool writes when it needed an answer and could not ask.
  *  Matching is exact-substring and case-insensitive — a marker is a fixed
  *  string emitted by a program, never a phrase a human would type by accident. */
-export const UNRESOLVED_SETUP_MARKERS: readonly UnresolvedMarker[] = [
+const UNRESOLVED_SETUP_MARKERS: readonly UnresolvedMarker[] = [
   {
     text: "set this to true or false",
     tool: "pnpm",
@@ -56,14 +56,14 @@ export const UNRESOLVED_SETUP_MARKERS: readonly UnresolvedMarker[] = [
   },
 ];
 
-export interface UnresolvedMarker {
+interface UnresolvedMarker {
   text: string;
   tool: string;
   what: string;
   remedy: string;
 }
 
-export type SetupArtifactKind = "unresolved-marker" | "duplicate-mapping-key";
+type SetupArtifactKind = "unresolved-marker" | "duplicate-mapping-key";
 
 /** One unusable-tree finding. `cause` and `remedy` are the whole point: the
  *  gate reports these instead of a raw parser error three attempts later. */
@@ -167,7 +167,7 @@ interface Frame {
  *  failure being diagnosed. Keys inside sequences and block scalars are not
  *  tracked at all — a missed duplicate is acceptable, a false accusation that
  *  blocks a healthy ticket is not. */
-export function duplicateMappingKeys(text: string): Array<{ key: string; line: number; firstLine: number }> {
+function duplicateMappingKeys(text: string): Array<{ key: string; line: number; firstLine: number }> {
   const duplicates: Array<{ key: string; line: number; firstLine: number }> = [];
   const frames: Frame[] = [];
   let blockScalarIndent: number | undefined;

@@ -1,9 +1,11 @@
 // `cormidia org init|show|use|list|archive|upgrade` — explicit organization-home
 // lifecycle.
 
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { findExistingOrg, loadApps } from "../org/apps.js";
+import { authorityPreview, resolveAuthority, type AuthorityProfile } from "../org/authority.js";
 import {
   CORMIDIA_HOME_DIRNAME,
   executeOrgInit,
@@ -18,10 +20,6 @@ import {
   type InitOrgHomePlanPreview,
   type InitOrgHomeResult,
 } from "../org/home.js";
-import { loadApps } from "../org/apps.js";
-import { findExistingOrg } from "../org/apps.js";
-import { authorityPreview, resolveAuthority, type AuthorityProfile } from "../org/authority.js";
-import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
 import { stableJson } from "../org/lifecycle.js";
 import {
   executeOrgArchive,
@@ -32,6 +30,7 @@ import {
   planOrgArchive,
   recordOrgBacklink,
 } from "../org/org-archive.js";
+import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
 import {
   bindCliInvocationStateHome,
   currentCliInvocationStateHome,
@@ -39,7 +38,7 @@ import {
   reportCliInvocation,
 } from "./invocation-audit.js";
 
-export interface OrgCommandOptions {
+interface OrgCommandOptions {
   homeDir?: string;
   pointerPath?: string;
   templateRoot?: string;

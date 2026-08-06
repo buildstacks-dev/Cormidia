@@ -6,10 +6,6 @@
 // model and its credential/request configuration. A successful import or
 // constructor alone is deliberately not readiness.
 
-import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { execFile } from "node:child_process";
-import { join } from "node:path";
 import {
   query as claudeQuery,
   type AccountInfo,
@@ -17,16 +13,20 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import type { RuntimeKind } from "./types.js";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
 import { resolvePiModel } from "./adapters/pi.js";
+import type { RuntimeKind } from "./types.js";
 
 // A clean, isolated Codex home can spend several seconds initializing its
 // local App Server caches even though no model request is sent. Keep the probe
 // bounded but leave enough startup headroom for that token-free first launch.
-export const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
+const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
 
-export type RuntimeReadinessStatus =
+type RuntimeReadinessStatus =
   | "ready"
   | "missing_binary"
   | "transport_unavailable"
@@ -54,7 +54,7 @@ export interface RuntimeReadinessResult {
   errorCode?: string;
 }
 
-export interface RuntimeReadinessImplementationRequest extends RuntimeReadinessRequest {
+interface RuntimeReadinessImplementationRequest extends RuntimeReadinessRequest {
   signal: AbortSignal;
 }
 
@@ -62,13 +62,13 @@ type ProbeOutcome = Pick<RuntimeReadinessResult, "status" | "detail"> & {
   errorCode?: string;
 };
 
-export type RuntimeReadinessImplementation = (request: RuntimeReadinessImplementationRequest) => Promise<ProbeOutcome>;
+type RuntimeReadinessImplementation = (request: RuntimeReadinessImplementationRequest) => Promise<ProbeOutcome>;
 
-export type RuntimeReadinessImplementations = Partial<Record<RuntimeKind, RuntimeReadinessImplementation>>;
+type RuntimeReadinessImplementations = Partial<Record<RuntimeKind, RuntimeReadinessImplementation>>;
 
 export type RuntimeReadinessProbe = (request: RuntimeReadinessRequest) => Promise<RuntimeReadinessResult>;
 
-export interface PiReadinessDependencies {
+interface PiReadinessDependencies {
   agentDir?: string;
   createAuthStorage?: (authPath: string) => AuthStorage;
   createModelRegistry?: (authStorage: AuthStorage, modelsPath: string) => ModelRegistry;
@@ -186,14 +186,14 @@ async function* idleClaudeInput(signal: AbortSignal): AsyncIterable<SDKUserMessa
   }
 }
 
-export interface ClaudeCliAuthStatus {
+interface ClaudeCliAuthStatus {
   loggedIn: boolean;
   authMethod?: string;
   apiProvider?: string;
   subscriptionType?: string;
 }
 
-export function claudeAuthIsConfigured(account: AccountInfo, status?: ClaudeCliAuthStatus): boolean {
+function claudeAuthIsConfigured(account: AccountInfo, status?: ClaudeCliAuthStatus): boolean {
   if (account.apiProvider !== undefined && account.apiProvider !== "firstParty") return true;
   // email/subscriptionType are durable account metadata and can outlive the
   // credential itself. API-key/token-backed first-party auth has an explicit
@@ -297,7 +297,7 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
   }
 }
 
-export async function probePi(
+async function probePi(
   request: RuntimeReadinessImplementationRequest,
   dependencies: PiReadinessDependencies = {},
 ): Promise<ProbeOutcome> {

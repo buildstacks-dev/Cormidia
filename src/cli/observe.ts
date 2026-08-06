@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { resolveCormidiaHomes } from "../org/home.js";
 import { ObserveService } from "../observe/live-source.js";
 import { startObserveServer } from "../observe/server.js";
 import type { ObserveFiltersV1 } from "../observe/types.js";
-import { extractHomeFlags } from "./home-flags.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { ReportService } from "../report/service.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 interface ObserveArgs {
   app?: string;

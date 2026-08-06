@@ -32,21 +32,19 @@ export interface RejectionEntry {
   by: string;
 }
 
-export function rejectionsPath(orgHome: string): string {
+function rejectionsPath(orgHome: string): string {
   return join(orgHome, "learning", "rejections.jsonl");
 }
 
-export function suppressKeyFor(candidate: Pick<CandidateArtifact, "error_class" | "content_hash">): string {
+function suppressKeyFor(candidate: Pick<CandidateArtifact, "error_class" | "content_hash">): string {
   return candidate.error_class ?? candidate.content_hash;
 }
 
-export function evidenceCountFor(
-  candidate: Pick<CandidateArtifact, "episode_ids" | "event_ids" | "evidence_refs">,
-): number {
+function evidenceCountFor(candidate: Pick<CandidateArtifact, "episode_ids" | "event_ids" | "evidence_refs">): number {
   return new Set([...candidate.episode_ids, ...candidate.event_ids, ...candidate.evidence_refs]).size;
 }
 
-export interface AppendRejectionInput {
+interface AppendRejectionInput {
   candidate: CandidateArtifact;
   reason: string;
   by: string;
@@ -76,7 +74,7 @@ export async function readRejections(orgHome: string): Promise<RejectionEntry[]>
   return readJsonLinesTolerant<RejectionEntry>(rejectionsPath(orgHome));
 }
 
-export interface SuppressionCheck {
+interface SuppressionCheck {
   suppressed: boolean;
   /** The ledger entry doing the suppressing, when suppressed. */
   entry?: RejectionEntry;

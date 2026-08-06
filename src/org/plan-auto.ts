@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { writeLoopFileOnce } from "../loop/durable.js";
 import {
   efficiencyEpisodeDir,
   finalizeEpisode,
@@ -17,8 +18,13 @@ import {
   type AuthorizedPass,
   type ExecutionStepRecord,
 } from "../loop/efficiency.js";
-import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
-import type { EpisodePlan, JsonValue, ProviderTurnStep, CreatorEpisodeScope } from "../loop/episode-plan.js";
+import type {
+  EpisodePlanExecutionResult,
+  EpisodeStepCompletedOutcome,
+  EpisodeStepExecutionContext,
+  EpisodeStepFailedOutcome,
+} from "../loop/episode-plan-executor.js";
+import type { CreatorEpisodeScope, EpisodePlan, JsonValue, ProviderTurnStep } from "../loop/episode-plan.js";
 import {
   assessCreatorScope,
   episodePlanHash,
@@ -26,26 +32,12 @@ import {
   readEpisodePlanVersion,
   stableHash,
 } from "../loop/episode-plan.js";
-import type {
-  EpisodePlanExecutionResult,
-  EpisodeStepCompletedOutcome,
-  EpisodeStepExecutionContext,
-  EpisodeStepFailedOutcome,
-} from "../loop/episode-plan-executor.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
 import { GhCliOps, type GhIssue, type GhOps } from "../loop/github.js";
 import { issueContentHash } from "../loop/issue-snapshot.js";
-import { parseDependsOn } from "../loop/scheduling.js";
 import { executePipeline } from "../loop/pipeline.js";
-import {
-  assertPlanningEpisodePlanValid,
-  assertPlanningOperationCatalogMatches,
-  planningPipelineForOperation,
-  planningProviderOperation,
-  PLANNING_PROVIDER_OPERATION_CATALOG,
-  PLANNING_PROVIDER_OPERATIONS,
-  type PlanningProviderOperationDefinition,
-} from "../loop/planning-episode-plan.js";
-import { loadPipelines, type PipelinesFile, type PipelineConfig } from "../loop/pipelines.js";
+import { loadPipelines, type PipelineConfig, type PipelinesFile } from "../loop/pipelines.js";
+import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import {
   finalizePlanForPublication,
   isTicketBudgetOnlyRefusal,
@@ -53,47 +45,52 @@ import {
   publishPlanProjection,
   validatePlan,
   type FinalPlanProjection,
-  type PlanProvenance,
   type PlanningSourceTicketEvidence,
+  type PlanProvenance,
   type ProjectStage,
   type PublishedTicket,
   type TicketPlan,
 } from "../loop/plan-tickets.js";
 import {
-  ratifyTicketBudgetCommand,
-  recordRefusedDecomposition,
-  refusedDecompositionPath,
-} from "./ticket-budget-ratification.js";
-import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
-import {
   readPlannerAdmission,
   type PlannerAdmissionLimits,
   type PlannerAdmissionRecord,
 } from "../loop/planner-admission.js";
-import { writeLoopFileOnce } from "../loop/durable.js";
-import { defaultGate } from "../runtime/gate.js";
+import {
+  assertPlanningEpisodePlanValid,
+  assertPlanningOperationCatalogMatches,
+  PLANNING_PROVIDER_OPERATION_CATALOG,
+  PLANNING_PROVIDER_OPERATIONS,
+  planningPipelineForOperation,
+  planningProviderOperation,
+  type PlanningProviderOperationDefinition,
+} from "../loop/planning-episode-plan.js";
+import { parseDependsOn } from "../loop/scheduling.js";
 import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../runtime/assignment.js";
 import { isRuntimeCapability, type RuntimeCapability } from "../runtime/capabilities.js";
-import { getRuntime } from "../runtime/registry.js";
+import { defaultGate } from "../runtime/gate.js";
 import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../runtime/readiness.js";
+import { getRuntime } from "../runtime/registry.js";
 import { hashedFileStem, mintRunId, runPaths } from "../runtime/runlog/paths.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../runtime/types.js";
+import { resolveAppRoles } from "./app-execution-policy.js";
 import { ApprovalStore } from "./approvals.js";
 import { normalizeAppExecution, runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
-import { resolveAppRoles } from "./app-execution-policy.js";
 import { isBudgetBlocking, rollupBudgets, type BudgetRow } from "./budget.js";
 import { assembleContext } from "./context.js";
+import { probeApprovedAssignmentReadiness } from "./episode-planner/assignment-readiness.js";
 import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
+import { orchestrateEpisode } from "./episode-planner/orchestrator.js";
 import {
   buildEpisodeIntent,
   createEpisodePlanningPolicy,
   type EpisodeSafetyFloorMapping,
 } from "./episode-planner/policy.js";
 import { createProviderEpisodePlanRevisionProposer } from "./episode-planner/runtime.js";
-import { probeApprovedAssignmentReadiness } from "./episode-planner/assignment-readiness.js";
-import { orchestrateEpisode } from "./episode-planner/orchestrator.js";
 import { safetyFactsFromPlanningRequest } from "./episode-safety-facts.js";
 import { composeGate } from "./gate-compose.js";
+import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
+import type { PlanningDepthInput } from "./planning-depth.js";
 import {
   consumedPlanningSourceManifest,
   planningSourceManifestJson,
@@ -103,28 +100,31 @@ import {
   type PlanningSourceRequest,
   type ResolvedPlanningSources,
 } from "./planning-inputs.js";
-import type { PlanningDepthInput } from "./planning-depth.js";
 import {
   discoverPlanningStageCheckout,
   persistedPlanningStageResolution,
   resolvePlanningStage,
   type PlanningStageResolution,
 } from "./planning-stage.js";
-import { loadRoles } from "./roles.js";
-import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
 import {
-  ROADMAP_DELIVERY_SCHEMA_VERSION,
   acceptBacklogSnapshot,
   acceptRoadmapPlan,
+  listActiveExecutionUnits,
   readBacklogSnapshotAuthority,
   readCurrentRoadmapPlan,
-  listActiveExecutionUnits,
+  ROADMAP_DELIVERY_SCHEMA_VERSION,
   type RoadmapDeliveryUnit,
   type RoadmapIssueMove,
   type RoadmapWorkstream,
 } from "./roadmap-delivery.js";
+import { loadRoles } from "./roles.js";
+import {
+  ratifyTicketBudgetCommand,
+  recordRefusedDecomposition,
+  refusedDecompositionPath,
+} from "./ticket-budget-ratification.js";
 
-export const PRODUCT_PLANNING_EPISODE_POLICY_VERSION = "product-planning/episode-planner-v1" as const;
+const PRODUCT_PLANNING_EPISODE_POLICY_VERSION = "product-planning/episode-planner-v1" as const;
 
 const AUTO_PLAN_SOURCE_BUDGET_BYTES = 128 * 1024;
 const MAX_PRODUCT_PLANNING_PROVIDER_TURNS = Object.keys(PLANNING_PROVIDER_OPERATION_CATALOG).length;
@@ -157,7 +157,7 @@ const PRODUCT_PLANNING_SUBJECT_SAFETY_MAPPING = {
   },
 } as const satisfies EpisodeSafetyFloorMapping;
 
-export interface AutoPlanOptions {
+interface AutoPlanOptions {
   orgHome: string;
   stateHome: string;
   app: AppEntry;
@@ -199,7 +199,7 @@ export interface AutoPlanOptions {
   }) => void | Promise<void>;
 }
 
-export interface AutoPlanResult {
+interface AutoPlanResult {
   status: "completed" | "failed" | "cancelled" | "timed_out";
   summary: string;
   plan?: TicketPlan;
@@ -220,14 +220,14 @@ export interface AutoPlanResult {
   refusedDecomposition?: RefusedDecompositionSummary;
 }
 
-export type AutoPlanningExecutionResult =
+type AutoPlanningExecutionResult =
   | EpisodePlanExecutionResult
   | (Omit<EpisodePlanExecutionResult, "status" | "reasonCode"> & {
       status: "refused_ticket_budget";
       reasonCode: "refused_ticket_budget";
     });
 
-export interface RefusedDecompositionSummary {
+interface RefusedDecompositionSummary {
   decompositionId: string;
   stage: ProjectStage;
   stageTicketBudget: number;
@@ -1801,7 +1801,7 @@ function isProjectStage(value: unknown): value is ProjectStage {
 
 /** Native structured output returns bare JSON; a degraded adapter may wrap it
  * in prose or a code fence. Extract the first complete top-level object. */
-export function parsePlanJson(text: string): TicketPlan | undefined {
+function parsePlanJson(text: string): TicketPlan | undefined {
   const start = text.indexOf("{");
   if (start < 0) return undefined;
   for (let end = text.length; end > start; end -= 1) {

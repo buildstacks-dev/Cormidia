@@ -30,7 +30,7 @@ import type {
  *  `onEvent({type:"subagent", ...})` immediately before the gate call, so a
  *  test can prove the gate sees a subagent-issued action exactly like a
  *  top-level one (TurnHooks.gate's doc comment; docs/loop/design.md §2). */
-export interface ScriptedToolAction {
+interface ScriptedToolAction {
   action: ToolAction;
   fromSubagent?: boolean;
 }
@@ -42,7 +42,7 @@ export interface ScriptedToolAction {
  *  actually decided, not hand-duplicated. When `toolActions` is omitted,
  *  `result` (including whatever `escalations` it carries) is returned
  *  verbatim. */
-export interface ScriptedTurn {
+interface ScriptedTurn {
   toolActions?: ScriptedToolAction[];
   result: TurnResult;
 }
@@ -50,7 +50,7 @@ export interface ScriptedTurn {
 /** Everything FakeRuntime observed for one `runTurn()` call: the full
  *  TurnRequest/TurnHooks recording later tests (and the M0.4 conformance
  *  harness) assert against. */
-export interface RecordedCall {
+interface RecordedCall {
   req: TurnRequest;
   hooks: TurnHooks;
   /** Events FakeRuntime emitted via `hooks.onEvent`, in emission order. */

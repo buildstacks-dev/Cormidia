@@ -11,6 +11,11 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { readExecutionSteps } from "../loop/efficiency.js";
 import type {
+  ApprovalStepOutcome,
+  EpisodePlanExecutionResult,
+  EpisodeStepFailedOutcome,
+} from "../loop/episode-plan-executor.js";
+import type {
   ApprovalStep,
   CreatorEpisodeScope,
   EpisodePlan,
@@ -22,30 +27,24 @@ import type {
   SafetyFact,
 } from "../loop/episode-plan.js";
 import { stableHash } from "../loop/episode-plan.js";
-import type {
-  ApprovalStepOutcome,
-  EpisodePlanExecutionResult,
-  EpisodeStepFailedOutcome,
-} from "../loop/episode-plan-executor.js";
-import type { LoopItem } from "../loop/types.js";
 import { GhCliOps, type GhOps } from "../loop/github.js";
+import type { LoopItem } from "../loop/types.js";
 import { actionEffectFields, decideDisposition, defaultGate } from "../runtime/gate.js";
+import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
 import { getRuntime } from "../runtime/registry.js";
 import { readEnvelope } from "../runtime/runlog/envelope.js";
-import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
 import { runPaths } from "../runtime/runlog/paths.js";
 import { recordInvocation } from "../runtime/telemetry.js";
 import type { ContextBundle, GateFn, RoleConfig, Runtime, ToolAction, TurnAssignment } from "../runtime/types.js";
+import { resolveAppRoles } from "./app-execution-policy.js";
 import { ApprovalStore, actionHash, type ApprovalItem } from "./approvals.js";
 import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
-import { resolveAppRoles } from "./app-execution-policy.js";
 import { writeFileAtomic } from "./atomic.js";
 import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext } from "./context.js";
+import { orchestrateEpisode, type EpisodeOrchestrationFacts } from "./episode-planner/orchestrator.js";
 import { assignmentsForRole, resolveAppAssignments } from "./execution-assignments.js";
 import { composeGate, grantScopeText } from "./gate-compose.js";
-import { orchestrateEpisode, type EpisodeOrchestrationFacts } from "./episode-planner/orchestrator.js";
-import { loadRoles } from "./roles.js";
 import {
   canonicalJson,
   createReleaseAttestationFromCommit,
@@ -55,6 +54,7 @@ import {
   type ReleaseApprovalV1,
   type ReleaseAttestationV1,
 } from "./release-evidence.js";
+import { loadRoles } from "./roles.js";
 
 const execFile = promisify(execFileCallback);
 
@@ -67,14 +67,14 @@ const RELEASE_CONFIRM_STEP = "confirm-release-command";
 const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
 const RQ1_TAG_COMMAND = "cormidia-internal rq1-tag";
 
-export interface QueuedRelease {
+interface QueuedRelease {
   approvalId: string;
   ticketRef: string;
   kind: string;
   owner: string;
 }
 
-export interface QueueReleaseApprovalOptions {
+interface QueueReleaseApprovalOptions {
   /** Managed clone that can fetch and inspect the immutable merge commit.
    * Required for the RQ-1 package/tag handoff; ordinary command releases do
    * not inspect repository contents. */
@@ -225,7 +225,7 @@ export interface ReleaseExecutionRecord {
   commentError?: string;
 }
 
-export interface ExecuteApprovedReleasesOptions {
+interface ExecuteApprovedReleasesOptions {
   stateHome: string;
   orgHome: string;
   appsFile: AppsFile;
@@ -244,7 +244,7 @@ export interface ExecuteApprovedReleasesOptions {
   assignmentReadinessTimeoutMs?: number;
 }
 
-export interface ReleaseExecutionOutcome {
+interface ReleaseExecutionOutcome {
   approvalId: string;
   app: string;
   status: "completed" | "failed" | "ambiguous" | "skipped";
@@ -252,7 +252,7 @@ export interface ReleaseExecutionOutcome {
 }
 
 /** Stable durable EpisodePlan identity for one single-use approved release. */
-export function approvedReleaseEpisodeId(app: string, approvalId: string): string {
+function approvedReleaseEpisodeId(app: string, approvalId: string): string {
   return `approved-release:${app}:${approvalId}`;
 }
 

@@ -7,7 +7,7 @@ import { GhObserveSource, type ObserveGitHubSource } from "./github-source.js";
 import { projectObserveSnapshot } from "./project.js";
 import type { GitHubAppSnapshot, ObserveFiltersV1, ObserveSnapshotV1, SourceHealthView } from "./types.js";
 
-export interface ObserveServiceOptions {
+interface ObserveServiceOptions {
   orgName: string;
   stateHome: string;
   appsFile: AppsFile;

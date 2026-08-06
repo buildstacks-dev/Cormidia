@@ -25,8 +25,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { LoopClaim } from "../memory.js";
 import { writeFileAtomic } from "../atomic.js";
+import type { LoopClaim } from "../memory.js";
 import { CANDIDATE_DESTINATIONS, type CandidateDestination } from "./candidate.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";
 import {
@@ -38,12 +38,12 @@ import {
   requireString,
 } from "./validate.js";
 
-export type InterventionStatus = "proposed" | "published" | "active" | "rolled_back" | "retired";
+type InterventionStatus = "proposed" | "published" | "active" | "rolled_back" | "retired";
 export type PublishKind = "bundle_version" | "pr" | "commit" | "issue" | "config_change";
 
 /** Rejected candidates land in the rejection ledger (spec §13), never in an
  *  intervention — an intervention is a change that exists in the world. */
-export type InterventionDestination = Exclude<CandidateDestination, "reject">;
+type InterventionDestination = Exclude<CandidateDestination, "reject">;
 
 export interface InterventionRecord {
   schema_version: 1;
@@ -231,7 +231,7 @@ export function interventionIdForCandidate(candidateId: string): string {
   return `int_${candidateId.replace(/^cand_/, "")}`;
 }
 
-export function interventionsDir(orgHome: string): string {
+function interventionsDir(orgHome: string): string {
   return join(orgHome, "learning", "interventions");
 }
 

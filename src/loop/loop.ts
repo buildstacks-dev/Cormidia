@@ -5,34 +5,37 @@
 // the pipeline executor in M6; M5 proves the GitHub/gate/state-machine shell
 // that those turns plug into.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
-import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
-import type { TriggerKind } from "../runtime/telemetry.js";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { preflightGitWorktreeIndex, type GitIndexPreflightResult } from "../runtime/git-worktree-sandbox.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
-import { preflightGitWorktreeIndex, type GitIndexPreflightResult } from "../runtime/git-worktree-sandbox.js";
-import { assembleBrief, type SpecDoc } from "./brief.js";
-import { stableHash } from "./episode-plan.js";
 import type { BaseRevision } from "./default-branch.js";
-import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
-import { issueContentHash } from "./issue-snapshot.js";
-import { contractMarker, hashTicketBody, renderFixResolutionsComment } from "./rehydrate.js";
-import { isMergeConflict } from "./github.js";
-import { verifiedSelfApprovalMarker } from "./github.js";
-import { openPhaseRun, type LoopRunlog, type PhaseRun } from "./loop-runlog.js";
-import type { Policy, RiskTier } from "./policy.js";
-import { matchedDimensions, packageJsonTouchesSecurityKeys, resolveTier } from "./policy.js";
+import { stableHash } from "./episode-plan.js";
 import {
-  executePipeline,
-  type ExecutePipelineOptions,
-  type PipelineRunResult,
-  type VerdictRecordContext,
-  type VerdictRecordOutcome,
-} from "./pipeline.js";
-import { getPipeline, type PassConfig, type PassSelection, type PipelinesFile } from "./pipelines.js";
+  recordExecutionBoundary,
+  stopExecutionJournal,
+  type ExecutionBoundary,
+  type JournalStopKind,
+} from "./execution-journal.js";
+import type { GhIssue, GhOps, GhPullRequest, GhReview } from "./github.js";
+import { isMergeConflict, verifiedSelfApprovalMarker } from "./github.js";
+import { issueContentHash } from "./issue-snapshot.js";
+import { openPhaseRun, type LoopRunlog, type PhaseRun } from "./loop-runlog.js";
+import {
+  AUTONOMOUS_EXECUTION_EXCLUSION_LABEL,
+  autonomousExecutionExclusionLabel,
+  MANUAL_REVIEW_EXCLUSION_LABEL,
+  parseReleaseKind,
+  parseReleaseVersion,
+  releaseTagFor,
+  resolveReleaseCommand,
+  STATE_LABELS,
+} from "./plan-tickets.js";
+import type { Policy, RiskTier } from "./policy.js";
+import { resolveTier } from "./policy.js";
 import {
   runGates,
   runSetupGate,
@@ -45,18 +48,7 @@ import {
   type ProcessGateOpts,
   type ReviewFreshnessState,
 } from "./qgates.js";
-import {
-  parseVerdict,
-  parseVerdictEither,
-  parseWithRetry,
-  VerdictParseError,
-  VERDICT_SCHEMAS,
-  type BuildVerdict,
-  type ContractVerdict,
-  type Finding,
-  type ReviewVerdict,
-  type VerdictTypes,
-} from "./verdicts.js";
+import { parseDependsOn } from "./scheduling.js";
 import type {
   LoopDeliveryUnit,
   LoopItem,
@@ -66,26 +58,17 @@ import type {
   SuppressedOperation,
   TicketTier,
 } from "./types.js";
+import {
+  parseVerdict,
+  parseVerdictEither,
+  type BuildVerdict,
+  type ContractVerdict,
+  type Finding,
+  type ReviewVerdict,
+} from "./verdicts.js";
 export type { LoopItem, LoopPhase, ScorecardEvent, TicketTier } from "./types.js";
-import {
-  AUTONOMOUS_EXECUTION_EXCLUSION_LABEL,
-  MANUAL_REVIEW_EXCLUSION_LABEL,
-  autonomousExecutionExclusionLabel,
-  parseReleaseKind,
-  parseReleaseVersion,
-  releaseTagFor,
-  resolveReleaseCommand,
-  STATE_LABELS,
-} from "./plan-tickets.js";
-import { parseDependsOn } from "./scheduling.js";
-import {
-  recordExecutionBoundary,
-  stopExecutionJournal,
-  type ExecutionBoundary,
-  type JournalStopKind,
-} from "./execution-journal.js";
 
-export interface ClaimTicketOptions {
+interface ClaimTicketOptions {
   gh: GhOps;
   targetRepo: string;
   localRepo: string;
@@ -109,7 +92,7 @@ export class LoopPhaseTransitionError extends Error {
   }
 }
 
-export type AutonomousRoutingErrorCode =
+type AutonomousRoutingErrorCode =
   | "autonomous_routing_human_only"
   | "autonomous_manual_review"
   | "autonomous_routing_state_unreadable";
@@ -163,7 +146,7 @@ function requireLoopPhase(operation: string, item: Pick<LoopItem, "phase">, expe
   }
 }
 
-export interface GatePhaseOptions {
+interface GatePhaseOptions {
   gh: GhOps;
   policy: Policy;
   commands: GateCommands;
@@ -191,13 +174,13 @@ export interface GatePhaseOptions {
   maxRemediationAttempts?: number;
 }
 
-export interface ExecutionJournalTarget {
+interface ExecutionJournalTarget {
   root: string;
   episodeId: string;
   clock?: () => Date;
 }
 
-export interface ReviewPhaseOptions {
+interface ReviewPhaseOptions {
   gh: GhOps;
   maxCycles?: number;
   /** Merge-authorization policy. Without it, a real GitHub APPROVE is accepted
@@ -223,7 +206,7 @@ export interface ReviewAuthorization {
   reviewerIdentities?: readonly string[];
 }
 
-export interface ShippingPhaseOptions extends GatePhaseOptions {
+interface ShippingPhaseOptions extends GatePhaseOptions {
   localRepo: string;
   gateRunner?: (item: LoopItem, stage: "entry" | "pre-merge") => Promise<GateRunResult>;
   /** The app's declared release mechanism (`release:` in `.cormidia/config.yaml`
@@ -233,118 +216,7 @@ export interface ShippingPhaseOptions extends GatePhaseOptions {
   release?: ReleaseConfig;
 }
 
-export interface LoopPipelineOptions {
-  gh: GhOps;
-  pipelines: PipelinesFile;
-  roles: Record<string, RoleConfig>;
-  runtimeFor: (role: RoleConfig) => Runtime;
-  promptsDir: string;
-  runlogRoot: string;
-  app: string;
-  policy: Policy;
-  commands: GateCommands;
-  hooks: TurnHooks;
-  /** Role-aware critical-op gate used by manual loop execution. */
-  /** The turn's gate, built per role AND per sandbox cwd. The cwd is passed
-   *  by the executor that actually runs the pass, because a builder ticket
-   *  pass runs in the per-ticket worktree while the caller that wires this
-   *  callback only knows the managed clone — and an approval raised in one
-   *  tree must never be executed in the other. */
-  gateForRole?: (role: RoleConfig, workdir?: string) => TurnHooks["gate"];
-  context?: ContextBundle;
-  /** Per-episode governed context (learning-loop M5, design §8.4): invoked
-   *  once per pipeline invocation with the ticket item, pipeline name, and
-   *  the pipeline's lead role (from the loaded pipelines.yaml config — never
-   *  a parallel role table) so the resolve pins on the TICKET episode with
-   *  the role that actually runs. An undefined return falls back to
-   *  `context`. The org layer supplies the resolver-backed implementation;
-   *  loop code never reads learning state (one-way imports). */
-  contextFor?: (item: LoopItem, pipeline: string, role: string) => Promise<ContextBundle | undefined>;
-  /** Resolved base for pass selection, repo briefs, and route reassessment
-   *  diffs. Required for the same reason as on GatePhaseOptions (#101). */
-  base: BaseRevision;
-  headRef?: string;
-  clock?: () => Date;
-  briefBudgetTokens?: number;
-  authorization?: ReviewAuthorization;
-  /** Explicitly allow runtime network access for this loop tick. */
-  networkAccess?: boolean;
-  /** Per-pass ledger settlement target — see ExecutePipelineOptions.telemetry. */
-  telemetry?: { orgDir: string; trigger?: TriggerKind };
-  /** Cooperative cancellation for every provider pass in this tick. */
-  signal?: AbortSignal;
-  parentTaskId?: string;
-  /** Ticket-wide route admission prepared by the loop driver. */
-  episode?: ExecutePipelineOptions["episode"];
-  maxReviewCycles?: number;
-  continuation?: LoopItem["continuation"];
-  beforeProviderTurn?: ExecutePipelineOptions["beforeProviderTurn"];
-}
-
-export interface BuilderPipelineOptions extends LoopPipelineOptions {
-  pipelineName?: "build" | "fix";
-  gateResult?: GateRunResult;
-}
-
 const DEFAULT_MAX_REVIEW_CYCLES = 3;
-const DEFAULT_BRIEF_BUDGET_TOKENS = 24_000;
-
-async function blockedOnApproval(
-  item: LoopItem,
-  options: LoopPipelineOptions,
-  pipelineName: string,
-  result: PipelineRunResult,
-  stopped: string,
-): Promise<LoopItem | undefined> {
-  const last = result.passes.at(-1);
-  if (last?.result.status !== "blocked_on_gate" || last.result.errorCode?.startsWith("error_route_budget_") === true) {
-    return undefined;
-  }
-  const completedPasses = [
-    ...(options.continuation?.completedPasses ?? []),
-    ...result.passes.filter((record) => record.result.status === "completed").map((record) => record.pass.id),
-  ].filter((pass, index, all) => all.indexOf(pass) === index);
-  const continuation: NonNullable<LoopItem["continuation"]> = {
-    pipeline: pipelineName,
-    pass: last.pass.id,
-    role: last.pass.role,
-    assignment: last.assignment,
-    ...(last.planMetadata.plan_version !== undefined
-      ? {
-          planVersion: last.planMetadata.plan_version,
-          planStepId: last.planMetadata.plan_step_id,
-        }
-      : {}),
-    session: last.result.session,
-    completedPasses,
-    contextFingerprint: last.contextFingerprint,
-    workFingerprint: last.workFingerprint,
-    runId: last.runId,
-    pausedAt: (options.clock?.() ?? new Date()).toISOString(),
-    decisions: options.continuation?.decisions ?? [],
-    pauseCostUsd: last.result.usage.costUsd,
-    pauseKind: "approval",
-  };
-  await options.gh.commentIssue(
-    item.issueNumber,
-    `${stopped}Waiting on the pending approval (\`cormidia approvals review\`). ` +
-      `The exact ${last.result.session.runtime} session and content fingerprints are checkpointed; ` +
-      "the approval decision resumes this pass without repeating completed passes.",
-  );
-  const from = stateLabelForPhase(item.phase);
-  await swapDeliveryUnitLabel(item, options.gh, from, "op:blocked");
-  return {
-    ...item,
-    continuation,
-    labels: replaceLabel(item.labels, from, "op:blocked"),
-    phase: "blocked",
-  };
-}
-
-function withoutContinuation(item: LoopItem): LoopItem {
-  const { continuation: _continuation, ...rest } = item;
-  return rest;
-}
 
 export function itemFromIssue(issue: GhIssue, targetRepo: string): LoopItem {
   return {
@@ -617,7 +489,7 @@ export async function advanceGates(item: LoopItem, options: GatePhaseOptions): P
   }
 }
 
-export interface ProvisionSetupOptions {
+interface ProvisionSetupOptions {
   gh: GhOps;
   commands: GateCommands;
   process?: ProcessGateOpts;
@@ -920,384 +792,6 @@ async function stalledReviewing(item: LoopItem, options: ReviewPhaseOptions, rea
     };
   }
   return { ...item, cycles };
-}
-
-export async function runBuilderPipeline(item: LoopItem, options: BuilderPipelineOptions): Promise<LoopItem> {
-  const worktree = requireField(item, "worktree");
-  const pipelineName = options.pipelineName ?? "build";
-  const pipeline = getPipeline(options.pipelines, pipelineName);
-  let contract = item.contract;
-  let buildVerdict: BuildVerdict | undefined;
-  const journal = journalFromPipelineOptions(options);
-  if (contract !== undefined) {
-    await journalBoundary(journal, "contract", {
-      ticketBodyHash: hashTicketBody(item.body),
-      contract,
-    });
-  }
-
-  const result = await executePipeline({
-    pipeline,
-    selection: passSelectionForItem(item, options),
-    roles: options.roles,
-    runtimeFor: options.runtimeFor,
-    briefFor: (pass) =>
-      buildBrief(item, options, {
-        pass,
-        ...(contract !== undefined ? { contract } : {}),
-        ...(options.gateResult !== undefined ? { gateResult: options.gateResult } : {}),
-      }),
-    promptsDir: options.promptsDir,
-    context:
-      (await options.contextFor?.(item, pipelineName, pipeline.passes[0]?.role ?? "builder")) ??
-      options.context ??
-      EMPTY_CONTEXT,
-    workdir: worktree,
-    hooks: options.hooks,
-    ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
-    runlog: {
-      root: options.runlogRoot,
-      app: options.app,
-      ticket: item.ticketRef,
-      traceId: traceIdFor(item, pipeline.name, options.clock),
-    },
-    ...(options.clock !== undefined ? { clock: options.clock } : {}),
-    ...(options.networkAccess === true ? { networkAccess: true } : {}),
-    ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
-    ...(options.signal !== undefined ? { signal: options.signal } : {}),
-    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
-    ...(options.episode !== undefined ? { episode: options.episode } : {}),
-    ...(options.continuation !== undefined ? { continuation: options.continuation } : {}),
-    ...(options.beforeProviderTurn !== undefined ? { beforeProviderTurn: options.beforeProviderTurn } : {}),
-    verdictSchemaFor: (pass) => VERDICT_SCHEMAS[verdictKindForPass(pass)],
-    recordVerdict: async (ctx) => {
-      const kind = verdictKindForPass(ctx.pass);
-      const outcome = await recordPassVerdict(kind, ctx);
-      if (!outcome.ok) return outcome.failure;
-      if (kind === "contract") {
-        const verdict = outcome.verdict as ContractVerdict;
-        // The marker binds the contract to the exact ticket body it was
-        // derived from, so a re-claim can reuse it (skip the contract pass)
-        // while the body is unchanged and re-derive when it is not (Stage 2).
-        contract = `${renderContractComment(verdict)}\n\n${contractMarker(hashTicketBody(item.body))}`;
-        item = { ...item, criterionTests: criterionTestMapFromContract(verdict) };
-        await options.gh.commentIssue(item.issueNumber, contract);
-        await journalBoundary(journal, "contract", {
-          ticketBodyHash: hashTicketBody(item.body),
-          contract,
-        });
-      } else if (kind === "build") {
-        buildVerdict = outcome.verdict as BuildVerdict;
-      }
-      return {
-        ok: true,
-        ...(kind === "build" && (outcome.verdict as BuildVerdict).status === "blocked"
-          ? { terminalStatus: "blocked" as const }
-          : {}),
-      };
-    },
-  });
-
-  if (result.aborted) {
-    // Honest terminal handling (Stage 3): report BOTH the turn outcome and
-    // the durable-work outcome, and leave the ticket in a recoverable state.
-    // The episode's final $30 fix pass had already pushed its commit when the
-    // budget cap killed it; the bare "failed" invited a needless full re-run,
-    // and the stranded op:building label needed a human relabel to recover.
-    // Remediation-context aborts (gateResult present) keep throwing —
-    // advanceGates owns that loop's bookkeeping.
-    if (options.gateResult === undefined) {
-      const last = result.passes[result.passes.length - 1]?.result;
-      const stopKind = journalStopKind(last?.errorCode, last?.status);
-      await journalStop(journal, stopKind, last?.summary ?? `${pipelineName} pipeline aborted`);
-      const work = durableWorkSummary(worktree, item.branch, options.base);
-      const stopped =
-        `## Turn stopped before completion\n\n` +
-        `The ${pipelineName} pipeline stopped: ${last?.summary ?? "no pass result"}` +
-        `${last?.errorCode !== undefined ? ` (\`${last.errorCode}\`)` : ""}.\n\n` +
-        `**Durable work preserved:** ${work}\n\n`;
-      if (last?.status === "blocked_on_gate") {
-        const paused = await blockedOnApproval(item, options, pipelineName, result, stopped);
-        if (paused !== undefined) {
-          return { ...paused, ...(contract !== undefined ? { contract } : {}) };
-        }
-      }
-      if (stopKind === "cap_stop") {
-        const returned = await returnedOnCapStop(item, options, pipelineName, last);
-        return { ...returned, ...(contract !== undefined ? { contract } : {}) };
-      }
-      // A stopped turn is not lost work: re-arm op:ready so the next tick
-      // continues from the durable artifacts. The cross-claim cap (default 3)
-      // bounds this — the human is summoned with a digest, never used as the
-      // retry loop.
-      await options.gh.commentIssue(
-        item.issueNumber,
-        `${stopped}Re-armed \`op:ready\`: the next claim continues from these artifacts ` +
-          `(contract reused while the ticket body is unchanged; open PR consulted before pipeline selection).`,
-      );
-      await swapDeliveryUnitLabel(item, options.gh, stateLabelForPhase(item.phase), "op:ready");
-      return {
-        ...item,
-        ...(contract !== undefined ? { contract } : {}),
-        labels: replaceLabel(item.labels, stateLabelForPhase(item.phase), "op:ready"),
-        phase: "ready",
-      };
-    }
-    throw new Error(`${pipelineName} pipeline aborted before completion`);
-  }
-
-  item = withoutContinuation(item);
-
-  await journalBoundary(journal, "implementation", {
-    head: headSha(worktree),
-  });
-
-  // Fix verdicts carry per-finding dispositions; post them durably so the
-  // findings ledger survives the pass (verdicts otherwise live only in the
-  // run log) and every later review round sees fixed/rebutted vs still open.
-  if (pipelineName === "fix" && buildVerdict?.resolutions !== undefined) {
-    await options.gh.commentIssue(item.issueNumber, renderFixResolutionsComment(buildVerdict.resolutions));
-  }
-
-  if (buildVerdict?.status === "blocked") {
-    const comment = renderBuildBlockedComment(buildVerdict);
-    await options.gh.commentIssue(item.issueNumber, comment);
-    await swapDeliveryUnitLabel(item, options.gh, stateLabelForPhase(item.phase), "op:returned");
-    return {
-      ...item,
-      ...(contract !== undefined ? { contract } : {}),
-      labels: replaceLabel(item.labels, stateLabelForPhase(item.phase), "op:returned"),
-      phase: "returned",
-    };
-  }
-
-  return {
-    ...item,
-    ...(contract !== undefined ? { contract } : {}),
-    phase: "gates",
-  };
-}
-
-export async function runReviewPipeline(item: LoopItem, options: LoopPipelineOptions): Promise<LoopItem> {
-  const prNumber = requireField(item, "prNumber");
-  const pipeline = getPipeline(options.pipelines, "review");
-  const verdicts: { pass: string; verdict: ReviewVerdict }[] = [];
-  const journal = journalFromPipelineOptions(options);
-
-  const result = await executePipeline({
-    pipeline,
-    selection: passSelectionForItem(item, options),
-    roles: options.roles,
-    runtimeFor: options.runtimeFor,
-    briefFor: (pass) => reviewBrief(item, options, pass),
-    promptsDir: options.promptsDir,
-    context:
-      (await options.contextFor?.(item, "review", pipeline.passes[0]?.role ?? "reviewer")) ??
-      options.context ??
-      EMPTY_CONTEXT,
-    workdir: requireField(item, "worktree"),
-    hooks: options.hooks,
-    ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
-    runlog: {
-      root: options.runlogRoot,
-      app: options.app,
-      ticket: item.ticketRef,
-      traceId: traceIdFor(item, "review", options.clock),
-    },
-    ...(options.clock !== undefined ? { clock: options.clock } : {}),
-    ...(options.networkAccess === true ? { networkAccess: true } : {}),
-    ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
-    ...(options.signal !== undefined ? { signal: options.signal } : {}),
-    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
-    ...(options.episode !== undefined ? { episode: options.episode } : {}),
-    ...(options.continuation !== undefined ? { continuation: options.continuation } : {}),
-    ...(options.beforeProviderTurn !== undefined ? { beforeProviderTurn: options.beforeProviderTurn } : {}),
-    verdictSchemaFor: () => VERDICT_SCHEMAS.review,
-    recordVerdict: async (ctx) => {
-      const outcome = await recordPassVerdict("review", ctx);
-      if (!outcome.ok) return outcome.failure;
-      verdicts.push({ pass: ctx.pass.id, verdict: outcome.verdict });
-      // Forward reformat-retry spend so the envelope and ledger settle it —
-      // the builder pipeline already does; undercounting here is Defect B.
-      return { ok: true };
-    },
-  });
-
-  if (result.aborted) {
-    const last = result.passes[result.passes.length - 1]?.result;
-    const kind = journalStopKind(last?.errorCode, last?.status);
-    await journalStop(journal, kind, last?.summary ?? "review pipeline aborted");
-    const paused = await blockedOnApproval(
-      item,
-      options,
-      "review",
-      result,
-      `## Review paused for approval\n\n${last?.summary ?? "A gated action requires a decision"}.\n\n`,
-    );
-    if (paused !== undefined) return paused;
-    // L-005: a legitimately-fired cap terminalizes cleanly (op:returned +
-    // evidence comment) instead of crashing the loop and stranding the PR.
-    // A genuine internal error still throws.
-    if (isCapDrivenStop(kind)) {
-      return returnedOnCapStop(item, options, "review", last);
-    }
-    throw new Error("review pipeline aborted before completion");
-  }
-
-  item = withoutContinuation(item);
-
-  const body = renderReviewBody(verdicts);
-  await options.gh.commentIssue(item.issueNumber, `## Structured review verdict\n\n${body}`);
-  const findings = verdicts.flatMap((entry) => entry.verdict.findings);
-  const reviewedHead = headSha(requireField(item, "worktree"));
-  await options.gh.createReview(prNumber, {
-    state: findings.length > 0 ? "request_changes" : "approve",
-    body,
-    expectedCommit: reviewedHead,
-  });
-  await journalBoundary(journal, "findings", {
-    reviewedHead,
-    findings,
-    passes: verdicts.map((entry) => entry.pass),
-  });
-  // GitHub rejects REQUEST_CHANGES on a PR authored by the same account. The
-  // adapter records a comment-review fallback in that case, but the structured
-  // Reviewer verdict is already trusted pipeline output. Bounce directly from
-  // it rather than asking advanceReviewing to discover a GitHub state that
-  // cannot exist for a self-authored PR.
-  if (findings.length > 0) {
-    const cycles = item.cycles + 1;
-    if (cycles > (options.maxReviewCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
-      await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
-      await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:returned");
-      return {
-        ...item,
-        cycles,
-        findings,
-        labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
-        phase: "returned",
-      };
-    }
-    await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:building");
-    return {
-      ...item,
-      cycles,
-      findings,
-      labels: replaceLabel(item.labels, "op:in-review", "op:building"),
-      phase: "building",
-    };
-  }
-  return advanceReviewing(item, {
-    gh: options.gh,
-    ...(options.maxReviewCycles !== undefined ? { maxCycles: options.maxReviewCycles } : {}),
-    ...(options.authorization !== undefined ? { authorization: options.authorization } : {}),
-    ...(journal !== undefined ? { journal } : {}),
-  });
-}
-
-export async function runShipCheckPipeline(item: LoopItem, options: LoopPipelineOptions): Promise<LoopItem> {
-  const pipeline = getPipeline(options.pipelines, "ship");
-  const verdicts: { pass: string; verdict: ReviewVerdict }[] = [];
-  const journal = journalFromPipelineOptions(options);
-
-  const result = await executePipeline({
-    pipeline,
-    selection: passSelectionForItem(item, options),
-    roles: options.roles,
-    runtimeFor: options.runtimeFor,
-    briefFor: (pass) => reviewBrief(item, options, pass),
-    promptsDir: options.promptsDir,
-    context:
-      (await options.contextFor?.(item, "ship", pipeline.passes[0]?.role ?? "reviewer")) ??
-      options.context ??
-      EMPTY_CONTEXT,
-    workdir: requireField(item, "worktree"),
-    hooks: options.hooks,
-    ...(options.gateForRole !== undefined ? { gateForRole: options.gateForRole } : {}),
-    runlog: {
-      root: options.runlogRoot,
-      app: options.app,
-      ticket: item.ticketRef,
-      traceId: traceIdFor(item, "ship", options.clock),
-    },
-    ...(options.clock !== undefined ? { clock: options.clock } : {}),
-    ...(options.networkAccess === true ? { networkAccess: true } : {}),
-    ...(options.telemetry !== undefined ? { telemetry: options.telemetry } : {}),
-    ...(options.signal !== undefined ? { signal: options.signal } : {}),
-    ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
-    ...(options.episode !== undefined ? { episode: options.episode } : {}),
-    ...(options.continuation !== undefined ? { continuation: options.continuation } : {}),
-    ...(options.beforeProviderTurn !== undefined ? { beforeProviderTurn: options.beforeProviderTurn } : {}),
-    verdictSchemaFor: () => VERDICT_SCHEMAS.review,
-    recordVerdict: async (ctx) => {
-      const outcome = await recordPassVerdict("review", ctx);
-      if (!outcome.ok) return outcome.failure;
-      verdicts.push({ pass: ctx.pass.id, verdict: outcome.verdict });
-      // Forward reformat-retry spend so the envelope and ledger settle it —
-      // the builder pipeline already does; undercounting here is Defect B.
-      return { ok: true };
-    },
-  });
-
-  if (result.aborted) {
-    const last = result.passes[result.passes.length - 1]?.result;
-    const kind = journalStopKind(last?.errorCode, last?.status);
-    await journalStop(journal, kind, last?.summary ?? "ship-check pipeline aborted");
-    const paused = await blockedOnApproval(
-      item,
-      options,
-      "ship",
-      result,
-      `## Ship check paused for approval\n\n${last?.summary ?? "A gated action requires a decision"}.\n\n`,
-    );
-    if (paused !== undefined) return paused;
-    // L-005: as in runReviewPipeline, a cap terminalizes cleanly to op:returned
-    // rather than crashing the loop; a genuine internal error still throws.
-    if (isCapDrivenStop(kind)) {
-      return returnedOnCapStop(item, options, "ship", last);
-    }
-    throw new Error("ship pipeline aborted before completion");
-  }
-  item = withoutContinuation(item);
-  if (result.passes.length === 0) return item;
-
-  const body = renderReviewBody(verdicts);
-  await options.gh.commentIssue(item.issueNumber, `## Ship-check verdict\n\n${body}`);
-  const reviewedHead = headSha(requireField(item, "worktree"));
-  await options.gh.createReview(requireField(item, "prNumber"), {
-    state: hasFindings(verdicts) ? "request_changes" : "approve",
-    body,
-    expectedCommit: reviewedHead,
-  });
-
-  if (!hasFindings(verdicts)) return item;
-
-  // A ship-check bounce is a rework cycle just like a reviewer CHANGES_REQUESTED:
-  // count it against the same review-cycle cap so building<->shipping cannot
-  // loop until the driver's phase guard throws and orphans the ticket in
-  // op:building. When the cap is exhausted, route to op:returned with findings
-  // for the Planner (mirrors advanceReviewing / advanceGates bounding).
-  const findings = verdicts.flatMap((entry) => entry.verdict.findings);
-  const cycles = item.cycles + 1;
-  if (cycles > (options.maxReviewCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
-    await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
-    await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:returned");
-    return {
-      ...item,
-      cycles,
-      findings,
-      labels: replaceLabel(item.labels, "op:in-review", "op:returned"),
-      phase: "returned",
-    };
-  }
-  await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:building");
-  return {
-    ...item,
-    cycles,
-    findings,
-    labels: replaceLabel(item.labels, "op:in-review", "op:building"),
-    phase: "building",
-  };
 }
 
 export async function advanceShipping(item: LoopItem, options: ShippingPhaseOptions): Promise<LoopItem> {
@@ -1611,229 +1105,6 @@ export function criterionTestMapFromContractText(contract: string | undefined): 
   return parsed.ok ? criterionTestMapFromContract(parsed.verdict) : {};
 }
 
-const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
-
-function passSelectionForItem(item: LoopItem, options: LoopPipelineOptions): PassSelection {
-  const worktree = requireField(item, "worktree");
-  const baseRef = options.base.ref;
-  const headRef = options.headRef ?? "HEAD";
-  const changedFiles = gitLines(worktree, "diff", "--name-only", baseRef, headRef);
-  return {
-    tier: item.tier,
-    riskTier: resolveTier(options.policy, changedFiles),
-    labels: item.labels,
-    // Content-gate package.json so a bare metadata/test-glob edit does not
-    // select the security-deep review pass — same predicate the route
-    // reassessment uses (L1-05).
-    dimensions: matchedDimensions(options.policy, changedFiles, {
-      dependencyRelevantPackageJson: dependencyRelevantPackageJson(worktree, baseRef, headRef, changedFiles),
-    }),
-    // A rehydrated, still-applicable contract makes the contract pass
-    // redundant: 21 claims must never again produce 20 contract passes.
-    // The implement brief carries the reused contract verbatim.
-    ...(item.contract !== undefined ? { excludePasses: ["contract"] } : {}),
-  };
-}
-
-interface BuildBriefState {
-  pass: PassConfig;
-  contract?: string;
-  gateResult?: GateRunResult;
-}
-
-function buildBrief(item: LoopItem, options: BuilderPipelineOptions, state: BuildBriefState): string {
-  const specs = resolveContextSpecs(item);
-  const attempts = historyEntries(item);
-  return assembleBrief(
-    {
-      ticket: { title: ticketTitle(item), body: item.body },
-      ...(specs.length > 0 ? { specs } : {}),
-      ...(state.contract !== undefined ? { contract: state.contract } : {}),
-      findings: item.findings.map((finding) => ({
-        text: findingLine(finding),
-        severity: finding.severity,
-        resolved: false,
-      })),
-      ...(state.gateResult !== undefined ? { gateOutput: formatGateResult(state.gateResult) } : {}),
-      ...(attempts.length > 0 ? { attempts, maxAttempts: options.policy.remediation.maxAttempts } : {}),
-      memory: options.context?.memoryExcerpts ?? [],
-      repo: repoBrief(item, options),
-    },
-    { budgetTokens: options.briefBudgetTokens ?? DEFAULT_BRIEF_BUDGET_TOKENS },
-  );
-}
-
-function reviewBrief(item: LoopItem, options: LoopPipelineOptions, _pass: PassConfig): string {
-  const specs = resolveContextSpecs(item);
-  return assembleBrief(
-    {
-      ticket: { title: ticketTitle(item), body: item.body },
-      ...(specs.length > 0 ? { specs } : {}),
-      ...(item.contract !== undefined ? { contract: item.contract } : {}),
-      findings: item.findings.map((finding) => ({
-        text: findingLine(finding),
-        severity: finding.severity,
-        resolved: false,
-      })),
-      memory: options.context?.memoryExcerpts ?? [],
-      repo: repoBrief(item, options),
-    },
-    { budgetTokens: options.briefBudgetTokens ?? DEFAULT_BRIEF_BUDGET_TOKENS },
-  );
-}
-
-/** §3 [spec]: resolve the ticket body's `## Context` links to repo-relative
- *  files, read verbatim from the worktree. A missing or unreadable file
- *  degrades to a note (never a throw) — a broken link must not fail a build. */
-function resolveContextSpecs(item: LoopItem): SpecDoc[] {
-  if (item.worktree === undefined) return [];
-  const section = headingSection(item.body, "Context");
-  if (section === undefined) return [];
-  const specs: SpecDoc[] = [];
-  for (const rel of contextRepoPaths(section)) {
-    const abs = join(item.worktree, rel);
-    try {
-      specs.push({ title: rel, content: readFileSync(abs, "utf8") });
-    } catch {
-      specs.push({
-        title: rel,
-        content: `(spec "${rel}" linked in the ticket Context was not found in the worktree — omitted, not fatal)`,
-      });
-    }
-  }
-  return specs;
-}
-
-/** Extract repo-relative file paths from a Context section: markdown link
- *  targets and bare paths that look like files. URLs, mailto, `#123` issue
- *  refs, absolute paths, and `..` escapes are dropped. Order-preserving,
- *  de-duplicated. */
-function contextRepoPaths(section: string): string[] {
-  const seen = new Set<string>();
-  const order: string[] = [];
-  const add = (raw: string): void => {
-    const p = normalizeRepoPath(raw);
-    if (p !== undefined && !seen.has(p)) {
-      seen.add(p);
-      order.push(p);
-    }
-  };
-  for (const m of section.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) add(m[1]!);
-  for (const m of section.matchAll(/(?:^|\s)([A-Za-z0-9._/-]+\.[A-Za-z0-9]{1,8})(?=$|\s|\))/gm)) add(m[1]!);
-  return order;
-}
-
-function normalizeRepoPath(raw: string): string | undefined {
-  let p = raw.trim();
-  if (p === "") return undefined;
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(p) || p.startsWith("mailto:") || p.startsWith("#")) return undefined;
-  p = p.replace(/^\.\//, "");
-  if (isAbsolute(p) || p.split("/").includes("..")) return undefined; // stay inside the repo
-  if (!/\.[A-Za-z0-9]{1,8}$/.test(p)) return undefined; // must look like a file
-  return p;
-}
-
-/** §3 [history]: prior attempts on this ticket, oldest first — the assembler
- *  labels them "attempt N of M". Derived from the durable counters on the
- *  item (remediation fix passes, review cycles); empty on a first attempt. */
-function historyEntries(item: LoopItem): string[] {
-  const entries: string[] = [];
-  for (let i = 0; i < item.remediationAttempts; i++) {
-    entries.push(`Remediation ${i + 1}: quality gates failed and a bounded fix pass was dispatched.`);
-  }
-  if (item.cycles > 0) {
-    entries.push(
-      `Review cycle ${item.cycles}: the reviewer requested changes; this pass addresses the findings above.`,
-    );
-  }
-  return entries;
-}
-
-function repoBrief(item: LoopItem, options: LoopPipelineOptions): string {
-  const worktree = requireField(item, "worktree");
-  const changedFiles = gitLines(worktree, "diff", "--name-only", options.base.ref, options.headRef ?? "HEAD");
-  const selection = passSelectionForItem(item, options);
-  return [
-    `Target repo: ${item.targetRepo}`,
-    `Worktree: ${worktree}`,
-    `Branch: ${item.branch ?? "(none)"}`,
-    `PR: ${item.prNumber !== undefined ? `#${item.prNumber}` : "(not opened yet)"}`,
-    `Ticket tier: ${item.tier}`,
-    `Risk tier: ${selection.riskTier ?? "(unknown)"}`,
-    `Review dimensions: ${(selection.dimensions ?? []).join(", ") || "(none)"}`,
-    `Test command: ${options.commands.testCommand ?? "(not configured)"}`,
-    `Lint command: ${options.commands.lintCommand ?? "(not configured)"}`,
-    "Changed files:",
-    ...(changedFiles.length === 0 ? ["(none)"] : changedFiles.map((file) => `- ${file}`)),
-  ].join("\n");
-}
-
-type PassVerdictKind = "contract" | "build" | "review";
-
-function verdictKindForPass(pass: PassConfig): PassVerdictKind {
-  if (pass.id === "contract") return "contract";
-  if (pass.role === "builder") return "build";
-  return "review";
-}
-
-type PassVerdictOutcome<K extends PassVerdictKind> =
-  | { ok: true; verdict: VerdictTypes[K] }
-  | { ok: false; failure: VerdictRecordOutcome };
-
-/** Parse the pass's verdict with exactly one session-resuming reformat retry
- *  (docs/loop/design.md §6, §13 row 11), emit `verdict.recorded` into the pass's run
- *  record on success, and on unparseable-after-retry surface a typed infra
- *  failure (distinct `error_code`, never a merit outcome). */
-async function recordPassVerdict<K extends PassVerdictKind>(
-  kind: K,
-  ctx: VerdictRecordContext,
-): Promise<PassVerdictOutcome<K>> {
-  const reformat = async (reason: string): Promise<string> => {
-    const res = await ctx.runProviderTurn({
-      operation: `${kind}-verdict-reformat`,
-      task: reformatTask(kind, reason),
-      session: ctx.result.session,
-    });
-    return res.summary;
-  };
-  try {
-    const verdict = await parseWithRetry(kind, ctx.result.summary, reformat, (t) => parseVerdictEither(kind, t));
-    await ctx.events.append({ type: "verdict.recorded", detail: verdictDetail(kind, verdict) });
-    return { ok: true, verdict };
-  } catch (error) {
-    if (error instanceof VerdictParseError) {
-      return { ok: false, failure: { ok: false, errorCode: "error_verdict_unparseable", error } };
-    }
-    throw error;
-  }
-}
-
-function reformatTask(kind: PassVerdictKind, reason: string): string {
-  return [
-    `Your ${kind} verdict could not be parsed:`,
-    reason,
-    "",
-    "Reformat your verdict as specified in the pass template — output only the",
-    "corrected verdict, nothing else.",
-  ].join("\n");
-}
-
-function verdictDetail(
-  kind: PassVerdictKind,
-  verdict: ContractVerdict | BuildVerdict | ReviewVerdict,
-): Record<string, string | number | boolean> {
-  if (kind === "contract") {
-    const v = verdict as ContractVerdict;
-    return { kind, complexity: v.complexity, files: v.files.length };
-  }
-  if (kind === "build") {
-    const v = verdict as BuildVerdict;
-    return { kind, status: v.status, blocked: v.status === "blocked" };
-  }
-  const v = verdict as ReviewVerdict;
-  return { kind, verdict: v.verdict, findings: v.findings.length };
-}
-
 /** Stable orchestrator rendering reused by the EpisodePlan ticket adapter.
  * Keeping this in the loop layer ensures legacy pipeline and plan-DAG
  * execution publish the same durable contract grammar. */
@@ -1951,31 +1222,8 @@ export function renderSuppressedOperations(suppressed: readonly SuppressedOperat
   ];
 }
 
-function hasFindings(entries: readonly { verdict: ReviewVerdict }[]): boolean {
-  return entries.some((entry) => entry.verdict.findings.length > 0);
-}
-
 function findingLine(finding: Finding): string {
   return `- ${finding.category}/${finding.severity} ${finding.location} -- ${finding.description} -> ${finding.action}`;
-}
-
-function formatGateResult(result: GateRunResult): string {
-  return result.results
-    .filter((gate) => gate.status === "fail")
-    .map((gate) => {
-      const detail = gate.outputTail ?? gate.failures?.join("\n") ?? gate.detail;
-      return `### ${gate.gate}\n${gate.detail}\n\n${detail}`;
-    })
-    .join("\n\n");
-}
-
-function ticketTitle(item: LoopItem): string {
-  return `${item.ticketRef} ${item.title}`;
-}
-
-function traceIdFor(item: LoopItem, pipeline: string, clock: (() => Date) | undefined): string {
-  const stamp = (clock?.() ?? new Date()).toISOString().replace(/[-:]/g, "").slice(0, 15);
-  return `${stamp}-${pipeline}-${item.issueNumber}`;
 }
 
 async function runGateSet(
@@ -2194,7 +1442,7 @@ function upsertPrGateEvidence(body: string, item: LoopItem): string {
   return `${body.replace(/\s*$/, "")}\n\n## Evidence\n${evidence.body}\n`;
 }
 
-export interface PrGateEvidenceRepair {
+interface PrGateEvidenceRepair {
   repaired: boolean;
   satisfied: boolean;
   headRefOid?: string;
@@ -2455,75 +1703,6 @@ function gitLines(cwd: string, ...args: string[]): string[] {
   return output === "" ? [] : output.split("\n");
 }
 
-/** The repo-relative `package.json` paths in this diff whose dependency or
- *  run-script keys actually changed — the security dimension's content gate
- *  (L1-05). Shared by the review pass selector (`passSelectionForItem`) and
- *  the loop driver's route reassessment (`reassessForObservedWorktreeRisk`),
- *  so both treat a bare metadata/test-glob `package.json` edit identically:
- *  not a security signal.
- *
- *  Each side is read with a THREE-way result: content, a legitimate ABSENCE
- *  (the path does not exist at that ref — a newly-added or newly-deleted file),
- *  or a genuine git FAILURE ("cannot check"). A failure is fail-SAFE: it means
- *  we cannot compare, so package.json is treated as security-relevant and the
- *  route escalates (the commit's "cannot compare → escalate" claim; Theme 1 —
- *  cannot-determine must fail safe). A legitimate absence maps to an empty
- *  side, so the present side's own deps still drive the comparison (an added
- *  package.json with dependencies escalates; a deleted one does not). Exported
- *  for the behavioral regression test. */
-export function dependencyRelevantPackageJson(
-  worktree: string,
-  baseRef: string,
-  headRef: string,
-  changedFiles: string[],
-): Set<string> {
-  const relevant = new Set<string>();
-  for (const file of changedFiles) {
-    if (file !== "package.json" && !file.endsWith("/package.json")) continue;
-    const before = packageJsonAtRef(worktree, `${baseRef}:${file}`);
-    const after = packageJsonAtRef(worktree, `${headRef}:${file}`);
-    // A genuine git failure on either side is fail-safe: cannot compare →
-    // escalate. Do NOT collapse it into "empty" the way a legitimate absence
-    // is (that would fail open on a transient error).
-    if (before.kind === "error" || after.kind === "error") {
-      relevant.add(file);
-      continue;
-    }
-    const beforeText = before.kind === "content" ? before.text : undefined;
-    const afterText = after.kind === "content" ? after.text : undefined;
-    if (packageJsonTouchesSecurityKeys(beforeText, afterText)) relevant.add(file);
-  }
-  return relevant;
-}
-
-type PackageJsonAtRef =
-  | { kind: "content"; text: string }
-  | { kind: "absent" } // the path legitimately does not exist at this ref
-  | { kind: "error" }; // git could not answer — treat as risky (fail-safe)
-
-/** Read a file's content at a git ref, distinguishing a legitimate absence
- *  (added/deleted file) from a genuine git failure. `git show <ref>:<path>`
- *  for a path that simply is not present at that ref exits non-zero with a
- *  recognizable "does not exist" / "exists on disk, but not in" message; any
- *  other non-zero exit (bad ref, not a repo, object-store error) is a failure
- *  we must not mistake for "no change". */
-function packageJsonAtRef(cwd: string, spec: string): PackageJsonAtRef {
-  const result = spawnSync("git", ["show", spec], {
-    cwd: resolve(cwd),
-    encoding: "utf8",
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.error === undefined && result.status === 0) {
-    return { kind: "content", text: result.stdout };
-  }
-  const stderr = typeof result.stderr === "string" ? result.stderr : "";
-  if (/does not exist in|exists on disk, but not in/.test(stderr)) {
-    return { kind: "absent" };
-  }
-  return { kind: "error" };
-}
-
 function git(cwd: string, ...args: string[]): string {
   try {
     return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
@@ -2561,38 +1740,6 @@ function phaseFromLabels(labels: readonly string[]): LoopPhase {
   return "ready";
 }
 
-/** What survives a stopped turn: commits on the ticket branch and whether
- *  they reached the remote. Counted against the resolved base — against a
- *  hardcoded `origin/main` this threw in a `master` repo and reported every
- *  interrupted turn as "(worktree state unreadable)", hiding real pushed work
- *  behind a swallowed error (#101). Read-only; a broken worktree still
- *  degrades to a note. */
-function durableWorkSummary(worktree: string, branch: string | undefined, base: BaseRevision): string {
-  try {
-    const ahead = git(worktree, "rev-list", "--count", `${base.ref}..HEAD`);
-    if (ahead.trim() === "0") return `no commits beyond ${base.ref}`;
-    let pushed = "unpushed";
-    try {
-      const unpushed = git(worktree, "rev-list", "--count", "@{u}..HEAD");
-      pushed = unpushed.trim() === "0" ? "pushed" : `${unpushed.trim()} commit(s) unpushed`;
-    } catch {
-      // No upstream — nothing pushed yet.
-    }
-    return `${ahead.trim()} commit(s) on ${branch ?? "the ticket branch"} (${pushed})`;
-  } catch {
-    return "(worktree state unreadable)";
-  }
-}
-
-function journalFromPipelineOptions(options: LoopPipelineOptions): ExecutionJournalTarget | undefined {
-  if (options.episode?.id === undefined) return undefined;
-  return {
-    root: options.runlogRoot,
-    episodeId: options.episode.id,
-    ...(options.clock !== undefined ? { clock: options.clock } : {}),
-  };
-}
-
 async function journalBoundary(
   journal: ExecutionJournalTarget | undefined,
   boundary: ExecutionBoundary,
@@ -2621,83 +1768,6 @@ async function journalStop(
     reason,
     now: journal.clock?.() ?? new Date(),
   });
-}
-
-function journalStopKind(errorCode: string | undefined, status: string | undefined): JournalStopKind {
-  if (status === "cancelled" || errorCode === "error_cancelled") return "cancelled";
-  if (status === "timed_out" || errorCode?.includes("timeout") || errorCode?.includes("wall_clock")) {
-    return "provider_timeout";
-  }
-  if (errorCode?.includes("budget") || errorCode?.includes("cap")) return "cap_stop";
-  return "crash";
-}
-
-/** A pipeline abort caused by a legitimately-fired resource limit — a
- *  budget/route cap (`cap_stop`) or a wall-clock/adapter timeout
- *  (`provider_timeout`) — rather than a genuine internal defect (`crash`).
- *  L-005: the former must terminalize the ticket cleanly (a paid cap firing is
- *  correct behaviour, not a crash); the latter must still throw loudly so a
- *  real defect is never swallowed as a clean terminal. `cancelled` keeps
- *  throwing too — an operator-cancelled run has no clean-terminal story here. */
-function isCapDrivenStop(kind: JournalStopKind): boolean {
-  return kind === "cap_stop" || kind === "provider_timeout";
-}
-
-interface AbortPassResult {
-  errorCode?: string;
-  status?: string;
-  summary?: string;
-}
-
-/** Terminalize any provider pipeline that a legitimate cap stopped mid-flight.
- * The current claim label is replaced with `op:returned`; durable work and an
- * open PR, when present, are left untouched for a human budget decision. */
-async function returnedOnCapStop(
-  item: LoopItem,
-  options: LoopPipelineOptions,
-  pipelineName: string,
-  last: AbortPassResult | undefined,
-): Promise<LoopItem> {
-  await options.gh.commentIssue(item.issueNumber, capExhaustionComment(pipelineName, last, item.prNumber));
-  const fromLabel = stateLabelForPhase(item.phase);
-  await swapDeliveryUnitLabel(item, options.gh, fromLabel, "op:returned");
-  return {
-    ...item,
-    labels: replaceLabel(item.labels, fromLabel, "op:returned"),
-    phase: "returned",
-  };
-}
-
-function capExhaustionComment(
-  pipelineName: string,
-  last: AbortPassResult | undefined,
-  prNumber: number | undefined,
-): string {
-  const label =
-    pipelineName === "ship"
-      ? "Ship-check"
-      : pipelineName === "review"
-        ? "Review"
-        : pipelineName === "fix"
-          ? "Fix"
-          : "Build";
-  const detail = last?.summary ?? "a provider budget or wall-clock cap was reached";
-  const lines = [
-    `## ${label} stopped: budget/limit exhausted`,
-    "",
-    `The ${pipelineName} pipeline stopped before completion because a cap fired: ${detail}` +
-      `${last?.errorCode !== undefined ? ` (\`${last.errorCode}\`)` : ""}.`,
-    "",
-    prNumber !== undefined
-      ? `**PR #${prNumber} is left open and was not orphaned.** The code work is durable.`
-      : "**Any durable work is preserved.** No additional provider turn was authorized.",
-    "",
-    "The ticket is returned for a human decision: accept the durable work if sufficient, or " +
-      "reassess/raise the route budget and re-run `cormidia loop`.",
-    "",
-    "Routed to `op:returned` rather than automatically re-arming another provider turn.",
-  ];
-  return lines.join("\n");
 }
 
 function stateLabelForPhase(phase: LoopPhase): string {

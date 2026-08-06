@@ -1,7 +1,7 @@
-import type { Runtime, RuntimeKind } from "./types.js";
 import { ClaudeRuntime } from "./adapters/claude.js";
 import { CodexRuntime } from "./adapters/codex.js";
 import { PiRuntime } from "./adapters/pi.js";
+import type { Runtime, RuntimeKind } from "./types.js";
 
 const registry: Record<RuntimeKind, () => Runtime> = {
   claude: () => new ClaudeRuntime(),

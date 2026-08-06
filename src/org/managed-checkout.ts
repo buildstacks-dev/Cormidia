@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
 import {
   acquireFileLock,
   releaseFileLock,
@@ -16,7 +17,6 @@ import {
   type FileLockOptions,
   type FileLockToken,
 } from "../runtime/file-lock.js";
-import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
 import type { AppEntry } from "./apps.js";
 
 const GIT_CLONE_LOCK_STALE_MS = 2 * 60 * 1000;

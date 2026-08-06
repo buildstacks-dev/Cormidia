@@ -1,9 +1,9 @@
+import { turnAssignmentKey } from "../../runtime/assignment.js";
 import {
   probeRuntimeReadiness,
   type RuntimeReadinessProbe,
   type RuntimeReadinessResult,
 } from "../../runtime/readiness.js";
-import { turnAssignmentKey } from "../../runtime/assignment.js";
 import type { RoleConfig, TurnAssignment } from "../../runtime/types.js";
 import type { AppEntry } from "../apps.js";
 import { resolveAppAssignments } from "../execution-assignments.js";
@@ -15,7 +15,7 @@ export interface AssignmentReadinessSnapshot {
   resultFor(assignment: TurnAssignment): RuntimeReadinessResult | undefined;
 }
 
-export interface ProbeAssignmentReadinessOptions {
+interface ProbeAssignmentReadinessOptions {
   app: Pick<AppEntry, "name" | "execution">;
   roles: readonly RoleConfig[];
   /** Existing non-billable adapter readiness boundary. */

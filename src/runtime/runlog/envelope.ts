@@ -16,8 +16,7 @@
 
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { runPaths } from "./paths.js";
-import { scrubSecrets, truncatePreview } from "./redact.js";
+import type { EffectiveTurnBounds, TurnBudgetStop } from "../turn-budget.js";
 import type {
   Artifact,
   AuthorityEvidence,
@@ -27,7 +26,8 @@ import type {
   TurnAssignmentSource,
   UsageQuality,
 } from "../types.js";
-import type { EffectiveTurnBounds, TurnBudgetStop } from "../turn-budget.js";
+import { runPaths } from "./paths.js";
+import { scrubSecrets, truncatePreview } from "./redact.js";
 
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
@@ -194,7 +194,7 @@ export interface SessionEvidence extends SessionHandle {
   transcript_note: string;
 }
 
-export interface StartRunMeta {
+interface StartRunMeta {
   runId: string;
   traceId: string;
   parentTaskId?: string;
@@ -229,7 +229,7 @@ export interface StartRunMeta {
 
 /** Everything updateEnvelope may patch mid-run. Provided keys replace;
  *  `previews` and `tool_counts` merge (they accumulate across a pass). */
-export interface EnvelopePatch {
+interface EnvelopePatch {
   usage?: EnvelopeUsage;
   tool_counts?: Record<string, number>;
   gate_results?: GateResultEntry[];
@@ -245,7 +245,7 @@ export interface EnvelopePatch {
   contextManifestRef?: string;
 }
 
-export interface FinalizeOutcome {
+interface FinalizeOutcome {
   status: Exclude<EnvelopeStatus, "running">;
   verdictSummary?: string;
   errorCode?: string;

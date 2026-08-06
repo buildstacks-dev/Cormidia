@@ -1,18 +1,18 @@
 // `cormidia roles [path]` — validate roles.yaml and print the org chart.
 // `cormidia roles set <role> ...` — the journaled write path (ENH-004).
 
-import { loadRoles } from "../org/roles.js";
-import { resolveCormidiaHomes } from "../org/home.js";
 import { join, resolve } from "node:path";
-import { extractHomeFlags } from "./home-flags.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import {
   applyRoleAssignmentChange,
   formatRoleAssignmentPlan,
   isUnverifiedModelIdChange,
   type RoleAssignmentEdit,
 } from "../org/role-assignment.js";
+import { loadRoles } from "../org/roles.js";
 import { TURN_ASSIGNMENT_EFFORTS, TURN_ASSIGNMENT_HARNESSES } from "../runtime/assignment.js";
 import type { Effort, RuntimeKind } from "../runtime/types.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdRoles(args: string[] = []): Promise<number> {
   if (args[0] === "set") return cmdRolesSet(args.slice(1));
@@ -101,7 +101,7 @@ export async function cmdRoles(args: string[] = []): Promise<number> {
  * in `.cormidia/config.yaml`. Without `--by` the command still validates and
  * prints the exact diff, which is the proposal an agent hands to its operator.
  */
-export async function cmdRolesSet(args: string[] = []): Promise<number> {
+async function cmdRolesSet(args: string[] = []): Promise<number> {
   const common = extractHomeFlags(args, "roles set");
   const rest = common.rest;
   let role: string | undefined;

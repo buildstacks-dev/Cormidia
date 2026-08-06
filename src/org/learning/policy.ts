@@ -46,7 +46,7 @@ export interface TierPromoteRule {
   on_insufficient: "human_judgment";
 }
 
-export interface TierPolicy {
+interface TierPolicy {
   /** Design §9.1: an ExperimentRecord is required before activation. */
   experiment_required: boolean;
   /** Null = this tier cannot start a live canary (fail closed: a tier
@@ -59,7 +59,7 @@ export interface TierPolicy {
   promote_rule: TierPromoteRule | null;
 }
 
-export interface LearningBudgetPolicy {
+interface LearningBudgetPolicy {
   /** Monthly cap on all learning-attributed provider spend (USD). */
   monthly_usd: number;
   /** Cap on replay spend attributed to one candidate (USD). */
@@ -220,7 +220,7 @@ export function defaultLearningPolicy(): LearningPolicy {
   };
 }
 
-export function learningPolicyPath(orgHome: string): string {
+function learningPolicyPath(orgHome: string): string {
   return join(orgHome, "learning", "policy.yaml");
 }
 

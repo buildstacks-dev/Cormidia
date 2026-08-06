@@ -9,7 +9,6 @@
 // - pi also speaks Anthropic/OpenAI natively — an ALL-PI org (e.g. pi + Opus)
 //   is a supported first-class profile (docs/PURPOSE.md)
 // - degradation to document: no native intra-turn subagent fan-out
-import * as path from "node:path";
 import {
   AuthStorage,
   createAgentSession,
@@ -23,23 +22,24 @@ import {
   type ExtensionFactory,
   type ResourceLoader,
 } from "@earendil-works/pi-coding-agent";
-import type { Artifact, Effort, GateEscalation, Runtime, TurnHooks, TurnRequest, TurnResult } from "../types.js";
+import * as path from "node:path";
 import { resolveTurnRequestAssignment } from "../assignment.js";
 import { withNonInteractiveEnv } from "../non-interactive-env.js";
+import type { Artifact, Effort, GateEscalation, Runtime, TurnHooks, TurnRequest, TurnResult } from "../types.js";
 import { renderContextBundle, writeMaskedWorktreeFile } from "../worktree-context.js";
 import { createPiGateExtension, isPiGateExtensionActive } from "./pi-gate.js";
 
-export type CreatePiAgentSessionFn = (options: CreateAgentSessionOptions) => Promise<CreateAgentSessionResult>;
+type CreatePiAgentSessionFn = (options: CreateAgentSessionOptions) => Promise<CreateAgentSessionResult>;
 
-export interface PiResourceLoaderFactoryInput {
+interface PiResourceLoaderFactoryInput {
   cwd: string;
   agentDir: string;
   extensionFactories: ExtensionFactory[];
 }
 
-export type PiResourceLoaderFactory = (input: PiResourceLoaderFactoryInput) => ResourceLoader | Promise<ResourceLoader>;
+type PiResourceLoaderFactory = (input: PiResourceLoaderFactoryInput) => ResourceLoader | Promise<ResourceLoader>;
 
-export interface PiRuntimeOptions {
+interface PiRuntimeOptions {
   createAgentSessionFn?: CreatePiAgentSessionFn;
   resourceLoaderFactory?: PiResourceLoaderFactory;
   sessionManagerFactory?: (req: TurnRequest) => CreateAgentSessionOptions["sessionManager"];
@@ -336,7 +336,7 @@ export function resolvePiModel(registry: ModelRegistry, requested: string): PiMo
   }) as PiModel | undefined;
 }
 
-export function mapPiThinkingLevel(effort: Effort): PiThinkingLevel {
+function mapPiThinkingLevel(effort: Effort): PiThinkingLevel {
   if (effort === "max") {
     throw new Error("PiRuntime: effort max is unsupported; no effort alias is allowed");
   }

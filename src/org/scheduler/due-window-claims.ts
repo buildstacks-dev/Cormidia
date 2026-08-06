@@ -1,15 +1,15 @@
 import {
   DurableClaimStore,
   durableClaimSettlementId,
+  type DurableClaimOwner,
+  type DurableClaimOwnerStatus,
   type DurableClaimRecord,
   type DurableClaimResult,
   type DurableClaimToken,
-  type DurableClaimOwner,
-  type DurableClaimOwnerStatus,
 } from "../../runtime/durable-claim.js";
 import { scheduledEpisodeId } from "./model.js";
 
-export const SCHEDULE_DUE_MAX_ATTEMPTS = 2;
+const SCHEDULE_DUE_MAX_ATTEMPTS = 2;
 
 export interface ScheduleDueClaimPayload {
   org_id: string;
@@ -19,8 +19,8 @@ export interface ScheduleDueClaimPayload {
   due_window: string;
 }
 
-export type ScheduleDueClaimRecord = DurableClaimRecord<ScheduleDueClaimPayload>;
-export type ScheduleDueClaimResult = DurableClaimResult<ScheduleDueClaimPayload>;
+type ScheduleDueClaimRecord = DurableClaimRecord<ScheduleDueClaimPayload>;
+type ScheduleDueClaimResult = DurableClaimResult<ScheduleDueClaimPayload>;
 
 /** Scheduler-owned adapter over the reusable runtime claim primitive. The
  * settlement identity excludes attempt: an explicit retry remains visibly
@@ -86,6 +86,6 @@ export class ScheduleDueClaimStore {
   }
 }
 
-export function scheduleDueIdentity(payload: ScheduleDueClaimPayload): string {
+function scheduleDueIdentity(payload: ScheduleDueClaimPayload): string {
   return [payload.org_id, payload.app, payload.role, payload.trigger, payload.due_window].join("\0");
 }

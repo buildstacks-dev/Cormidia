@@ -14,8 +14,8 @@
 // `.cormidia/policy.yaml` when the M4.2 policy template is present in this
 // package.
 
-import { readFile, readdir, mkdir, rm, rmdir, writeFile } from "node:fs/promises";
 import { existsSync, lstatSync } from "node:fs";
+import { mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
@@ -28,7 +28,6 @@ import {
   removeExistingApp,
   type AppRegistration,
 } from "./apps.js";
-import { loadRoles } from "./roles.js";
 import {
   applyAppAuthority,
   authorityPreview,
@@ -43,6 +42,7 @@ import {
   onboardingAnswersPath,
   storeOnboardingAnswers,
 } from "./onboarding-answers.js";
+import { loadRoles } from "./roles.js";
 
 // ---------------------------------------------------------------------------
 // Step 1 — scanRepo()
@@ -56,7 +56,7 @@ export interface CommandDetection {
   source: string;
 }
 
-export type DocCategoryId =
+type DocCategoryId =
   | "product/readme"
   | "architecture"
   | "specs/requirements"
@@ -64,7 +64,7 @@ export type DocCategoryId =
   | "agent/contributor"
   | "testing/quality";
 
-export interface DocInventoryCategory {
+interface DocInventoryCategory {
   id: DocCategoryId;
   label: string;
   /** Conservative repo-relative paths or manifest files that evidence this category. */
@@ -388,7 +388,7 @@ async function gitOriginSlug(root: string): Promise<string | undefined> {
   return `${segments[segments.length - 2]}/${segments[segments.length - 1]}`;
 }
 
-export interface EmitResult {
+interface EmitResult {
   /** Relative paths written, in emission order. */
   created: string[];
   /** Existing project instruction files changed only inside the marked
@@ -660,18 +660,11 @@ function stringList(v: unknown, field: string, err: (msg: string) => Error): str
   return (v as string[]).map((s) => s.trim());
 }
 
-/** Role names from a template root's roles.yaml — the questionnaire's
- * "which roles to enable" universe (defaults to this package's root file,
- * the dogfood template). */
-export async function templateRoleNames(templateRoot: string = PACKAGE_ROOT): Promise<string[]> {
-  return (await loadRoles(join(templateRoot, "roles.yaml"))).roles.map((r) => r.name);
-}
-
 // ---------------------------------------------------------------------------
 // Step 3 (app half) — emitAppArtifacts() + bootstrapRun()
 // ---------------------------------------------------------------------------
 
-export interface EmitAppArtifactsOptions {
+interface EmitAppArtifactsOptions {
   /** App (and config org) name; defaults to the target directory basename. */
   appName: string;
   /** GitHub `owner/repo` slug; a marked placeholder when absent. */
@@ -710,15 +703,15 @@ export function appArtifactFiles(answers: BootstrapAnswers, allRoles: string[]):
   ];
 }
 
-export type OnboardingNoteSeverity = "gap" | "warning" | "info";
+type OnboardingNoteSeverity = "gap" | "warning" | "info";
 
-export interface OnboardingReadinessNote {
+interface OnboardingReadinessNote {
   severity: OnboardingNoteSeverity;
   role: string;
   message: string;
 }
 
-export interface OnboardingGapReport {
+interface OnboardingGapReport {
   docInventory: DocInventoryCategory[];
   missingRecommendedCategories: {
     id: DocCategoryId;
@@ -736,7 +729,7 @@ export interface OnboardingGapReport {
   roleReadinessNotes: OnboardingReadinessNote[];
 }
 
-export function buildOnboardingGapReport(scan: RepoScan, answers: BootstrapAnswers): OnboardingGapReport {
+function buildOnboardingGapReport(scan: RepoScan, answers: BootstrapAnswers): OnboardingGapReport {
   const missingRecommendedCategories = DOC_CATEGORY_DEFS.filter(
     (def) => (scan.docInventory.find((c) => c.id === def.id)?.paths.length ?? 0) === 0,
   ).map((def) => ({ id: def.id, label: def.label, guidance: def.guidance }));
@@ -926,7 +919,7 @@ export async function validateEmittedArtifacts(
   }
 }
 
-export interface ProjectInstructionPlan {
+interface ProjectInstructionPlan {
   rel: string;
   existed: boolean;
   /** Exact bytes at validation time (undefined when the file did not exist).
@@ -1189,7 +1182,7 @@ function cadenceForAnswers(answers: BootstrapAnswers, allRoles: string[]): Recor
   return cadence;
 }
 
-export interface BootstrapRunOptions {
+interface BootstrapRunOptions {
   /** App name; defaults to the target root's basename. */
   appName?: string;
   /** GitHub slug; defaults to the scanned origin remote, else placeholder. */
@@ -1308,13 +1301,13 @@ function registrationFromAnswers(
   };
 }
 
-export interface RegisterExistingOrgOptions {
+interface RegisterExistingOrgOptions {
   appName?: string;
   repoSlug?: string;
   orgHome: string;
 }
 
-export interface RegisterExistingOrgResult {
+interface RegisterExistingOrgResult {
   scan: RepoScan;
   appName: string;
   joinedOrgHome: string;

@@ -11,6 +11,7 @@ import { GhCliOps } from "../loop/github.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { ApprovalStore } from "../org/approvals.js";
 import type { CormidiaHomes } from "../org/home.js";
+import { bindingOf } from "../org/learning/binding.js";
 import {
   candidateArtifactPath,
   findCandidateArtifact,
@@ -27,7 +28,6 @@ import {
   type LearningRoot,
 } from "../org/learning/concepts.js";
 import { loadLearningPolicy, type LearningPolicy } from "../org/learning/policy.js";
-import { bindingOf } from "../org/learning/binding.js";
 import { publishCandidate, type PublisherDeps } from "../org/learning/publisher.js";
 import { appendRejection, readRejections } from "../org/learning/rejections.js";
 import { resolveLearningContext } from "../org/learning/resolver.js";
@@ -404,7 +404,7 @@ export async function learnProvisional(homes: CormidiaHomes, args: string[]): Pr
 // report sections (activation, review SLA, agreement)
 // ---------------------------------------------------------------------------
 
-export interface ActivationReport {
+interface ActivationReport {
   pendingReview: Array<{ candidate_id: string; ageHours: number; overSla: boolean }>;
   slaHours: number;
   agreement: { compared: number; agreed: number };

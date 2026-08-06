@@ -1,7 +1,7 @@
 import { NoActiveOrgError } from "../org/home.js";
 import { reportCliInvocationFailure } from "./invocation-audit.js";
 
-export interface JsonCliFailureEnvelope {
+interface JsonCliFailureEnvelope {
   schema_version: 1;
   ok: false;
   error: {

@@ -22,16 +22,19 @@
 // only writes here are human_correction / late_outcome events, fixture
 // drafts/validations, and the projections' own idempotent state.
 
-import { stdin as input, stdout as output } from "node:process";
-import { createInterface } from "node:readline/promises";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { stdin as input, stdout as output } from "node:process";
+import { createInterface } from "node:readline/promises";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { rollupLearningSpend } from "../org/budget.js";
 import { resolveCormidiaHomes, type CormidiaHomes } from "../org/home.js";
+import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
 import { previewCaptureEvents, projectCaptureEvents, type CaptureProjectionResult } from "../org/learning/capture.js";
+import { compactionReport, listM6RunRecords, prepareDistillation } from "../org/learning/distillation.js";
+import { projectLearningEfficiencyHealth, type LearningEfficiencyHealth } from "../org/learning/efficiency-health.js";
 import {
   createEpisodeProjector,
   readEpisodeRecord,
@@ -39,6 +42,8 @@ import {
   type EpisodeProjector,
   type EpisodeRecord,
 } from "../org/learning/episode.js";
+import { convertCapsuleToEvalFixture, trustEvalFixture } from "../org/learning/eval-fixture.js";
+import { listEvalResults, readEvalResult, type EvalResult } from "../org/learning/eval-result.js";
 import {
   createLearningEventSink,
   learningEventPath,
@@ -46,10 +51,8 @@ import {
   readLearningEventsWithDiagnostics,
   type LearningEvent,
 } from "../org/learning/events.js";
-import { computeSystemFingerprint, storeFingerprint } from "../org/learning/fingerprint.js";
-import { convertCapsuleToEvalFixture, trustEvalFixture } from "../org/learning/eval-fixture.js";
-import { listEvalResults, readEvalResult, type EvalResult } from "../org/learning/eval-result.js";
 import { listExperimentRecords, readExperimentRecord, type ExperimentRecord } from "../org/learning/experiment.js";
+import { computeSystemFingerprint, storeFingerprint } from "../org/learning/fingerprint.js";
 import {
   interventionChainGaps,
   interventionIdForCandidate,
@@ -57,14 +60,11 @@ import {
   listInterventionRecords,
   readInterventionRecord,
 } from "../org/learning/intervention.js";
-import { loadRoles } from "../org/roles.js";
-import { runDispatchedTurn } from "../org/turn-runner.js";
-import { compactionReport, listM6RunRecords, prepareDistillation } from "../org/learning/distillation.js";
-import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import { loadLearningPolicy } from "../org/learning/policy.js";
-import { projectLearningEfficiencyHealth, type LearningEfficiencyHealth } from "../org/learning/efficiency-health.js";
 import { readRejections } from "../org/learning/rejections.js";
 import { listReviewerVerdicts, readReviewerVerdict } from "../org/learning/review.js";
+import { loadRoles } from "../org/roles.js";
+import { runDispatchedTurn } from "../org/turn-runner.js";
 import { extractHomeFlags } from "./home-flags.js";
 import {
   activationReport,

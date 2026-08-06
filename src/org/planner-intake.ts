@@ -9,11 +9,11 @@ import {
 } from "../loop/plan-tickets.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
 
-export const PLANNER_ISSUE_BATCH_MAX = 100;
-export const PLANNER_ISSUE_BUDGET_BYTES = 64 * 1024;
-export const PLANNER_BACKLOG_COMPLETENESS_LIMIT = 10_001;
+const PLANNER_ISSUE_BATCH_MAX = 100;
+const PLANNER_ISSUE_BUDGET_BYTES = 64 * 1024;
+const PLANNER_BACKLOG_COMPLETENESS_LIMIT = 10_001;
 
-export type PlannerInputDiagnosticCode =
+type PlannerInputDiagnosticCode =
   | "planner_input_ready"
   | "empty_repository"
   | "github_unavailable"
@@ -21,7 +21,7 @@ export type PlannerInputDiagnosticCode =
   | "ready_only_filtering"
   | "backlog_completeness_bound";
 
-export interface PlannerIssueInput {
+interface PlannerIssueInput {
   number: number;
   title: string;
   body: string;
@@ -45,7 +45,7 @@ export interface PlannerIssueIntake {
   manifest_sha256: string;
 }
 
-export type PlannerReadinessReasonCode =
+type PlannerReadinessReasonCode =
   | "routine_ready"
   | "high_risk"
   | "validation_incomplete"
@@ -105,7 +105,7 @@ export function parsePlannerReadinessDecisions(output: string): PlannerReadiness
   });
 }
 
-export interface PlannerReadinessOutcome extends PlannerReadinessDecision {
+interface PlannerReadinessOutcome extends PlannerReadinessDecision {
   requested_disposition: "ready" | "unready";
 }
 
@@ -204,10 +204,6 @@ export async function preparePlannerIssueIntake(input: {
     diagnostic,
     budgetBytes,
   );
-}
-
-export function plannerIssueIntakeJson(intake: PlannerIssueIntake): string {
-  return canonicalJson(intake);
 }
 
 export function plannerIssueIntakeBrief(intake: PlannerIssueIntake): string {

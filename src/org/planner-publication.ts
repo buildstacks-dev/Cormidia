@@ -7,16 +7,17 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { BaseRevision } from "../loop/default-branch.js";
-import type { GhIssue, GhOps } from "../loop/github.js";
 import { writeLoopFileAtomic } from "../loop/durable.js";
 import { stableHash } from "../loop/episode-plan.js";
+import type { GhIssue, GhOps } from "../loop/github.js";
 import type { PublishedTicket, TicketPlan } from "../loop/plan-tickets.js";
 import { parseDependsOn } from "../loop/scheduling.js";
+import { withFileLock } from "../runtime/file-lock.js";
 import { hashedFileStem } from "../runtime/runlog/paths.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
-import { withFileLock } from "../runtime/file-lock.js";
 import { SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import type { AppEntry } from "./apps.js";
+import { persistPublishedRoadmap } from "./plan-auto.js";
 import {
   applyPlannerReadinessDecisions,
   plannerRoutineReadinessGuard,
@@ -24,13 +25,12 @@ import {
   type PlannerReadinessApplication,
   type PlannerReadinessDecision,
 } from "./planner-intake.js";
-import { persistPublishedRoadmap } from "./plan-auto.js";
 import { ratifiedRoadmapValidationCatalog } from "./ratified-validation-catalog.js";
-import { canonicalJson as schedulerCanonicalJson, sha256 as schedulerSha256 } from "./scheduler/model.js";
 import {
   acceptDeliveryUnitReadiness,
   acceptValidationCatalog,
   acceptValidationContract,
+  readBacklogSnapshotAuthority,
   readCurrentRoadmapPlan,
   readCurrentValidationCatalog,
   readCurrentValidationContract,
@@ -43,14 +43,14 @@ import {
   type ValidationCatalog,
   type ValidationContract,
 } from "./roadmap-delivery.js";
-import { readBacklogSnapshotAuthority } from "./roadmap-delivery.js";
+import { canonicalJson as schedulerCanonicalJson, sha256 as schedulerSha256 } from "./scheduler/model.js";
 
-export const PLANNER_PUBLICATION_SCHEMA_VERSION = 1 as const;
-export const PLANNER_PUBLICATION_BACKLOG_LIMIT = 10_001;
+const PLANNER_PUBLICATION_SCHEMA_VERSION = 1 as const;
+const PLANNER_PUBLICATION_BACKLOG_LIMIT = 10_001;
 
-export type PlannerPublicationState = "publication_pending" | "published" | "refused";
+type PlannerPublicationState = "publication_pending" | "published" | "refused";
 
-export interface PlannerPublicationError {
+interface PlannerPublicationError {
   code: string;
   message: string;
   permanence: "retryable" | "permanent";
@@ -100,7 +100,7 @@ export interface PlannerPublicationTransaction {
   updated_at: string;
 }
 
-export interface PreparedPlannerGitPublication {
+interface PreparedPlannerGitPublication {
   branchCreated: boolean;
   commit: string;
   baseCommit: string;
@@ -131,7 +131,7 @@ export class PermanentPlannerPublicationError extends Error {
   }
 }
 
-export interface PreparePlannerPublicationInput {
+interface PreparePlannerPublicationInput {
   stateHome: string;
   app: AppEntry;
   turnId: string;
@@ -284,7 +284,7 @@ async function preparePlannerPublicationUnlocked(
   return transaction;
 }
 
-export interface ResumePlannerPublicationInput {
+interface ResumePlannerPublicationInput {
   stateHome: string;
   app: AppEntry;
   publicationId: string;
@@ -510,7 +510,7 @@ export async function readPlannerPublication(
   return parsePlannerPublication(await readFile(path, "utf8"), path);
 }
 
-export function plannerPublicationId(app: string, turnId: string): string {
+function plannerPublicationId(app: string, turnId: string): string {
   return `pub-${stableHash({ kind: "planner-publication", app, turnId }).slice(0, 32)}`;
 }
 

@@ -4,7 +4,7 @@
 // (state/events/inbox/*.json). This module validates the payload contract
 // that Support, Marketing, SRE, and Planner-facing prompts consume.
 
-export const COMPANY_EVENT_KINDS = ["support-feedback", "adoption-signal", "health-alert", "launch-calendar"] as const;
+const COMPANY_EVENT_KINDS = ["support-feedback", "adoption-signal", "health-alert", "launch-calendar"] as const;
 
 export type CompanyEventKind = (typeof COMPANY_EVENT_KINDS)[number];
 
@@ -23,7 +23,7 @@ export class CompanyEventValidationError extends Error {
   }
 }
 
-export interface BaseCompanyEvent {
+interface BaseCompanyEvent {
   kind: CompanyEventKind;
   id: string;
   app: string;
@@ -31,7 +31,7 @@ export interface BaseCompanyEvent {
   source: string;
 }
 
-export interface SupportFeedbackEvent extends BaseCompanyEvent {
+interface SupportFeedbackEvent extends BaseCompanyEvent {
   kind: "support-feedback";
   severity: "low" | "medium" | "high";
   channel: string;
@@ -40,7 +40,7 @@ export interface SupportFeedbackEvent extends BaseCompanyEvent {
   userRef?: string;
 }
 
-export interface AdoptionSignalEvent extends BaseCompanyEvent {
+interface AdoptionSignalEvent extends BaseCompanyEvent {
   kind: "adoption-signal";
   metric: string;
   direction: "up" | "down" | "flat";
@@ -48,7 +48,7 @@ export interface AdoptionSignalEvent extends BaseCompanyEvent {
   summary: string;
 }
 
-export interface HealthAlertEvent extends BaseCompanyEvent {
+interface HealthAlertEvent extends BaseCompanyEvent {
   kind: "health-alert";
   severity: "low" | "medium" | "high" | "critical";
   service: string;
@@ -56,14 +56,14 @@ export interface HealthAlertEvent extends BaseCompanyEvent {
   summary: string;
 }
 
-export interface LaunchCalendarEvent extends BaseCompanyEvent {
+interface LaunchCalendarEvent extends BaseCompanyEvent {
   kind: "launch-calendar";
   date: string;
   milestone: string;
   summary: string;
 }
 
-export type CompanyLifecycleEvent = SupportFeedbackEvent | AdoptionSignalEvent | HealthAlertEvent | LaunchCalendarEvent;
+type CompanyLifecycleEvent = SupportFeedbackEvent | AdoptionSignalEvent | HealthAlertEvent | LaunchCalendarEvent;
 
 export function parseCompanyLifecycleEvent(raw: unknown): CompanyLifecycleEvent {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -133,7 +133,7 @@ export function parseCompanyLifecycleEvent(raw: unknown): CompanyLifecycleEvent 
   }
 }
 
-export function isCompanyEventKind(value: string): value is CompanyEventKind {
+function isCompanyEventKind(value: string): value is CompanyEventKind {
   return (COMPANY_EVENT_KINDS as readonly string[]).includes(value);
 }
 

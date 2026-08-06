@@ -17,8 +17,7 @@
 // Parsing mirrors src/org/roles.ts: yaml.parse + explicit field checks,
 // descriptive errors carrying path + pipeline + pass id.
 
-import { readFile } from "node:fs/promises";
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import type { Effort } from "../runtime/types.js";
@@ -29,12 +28,12 @@ const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];
  * and may parameterize an explicitly governed workflow template, but it never
  * selects live EpisodePlan steps or creates a planner-turn bypass. */
 export type TicketTier = "quick" | "standard" | "deep";
-export const TICKET_TIERS: TicketTier[] = ["quick", "standard", "deep"];
+const TICKET_TIERS: TicketTier[] = ["quick", "standard", "deep"];
 
 /** Conditional-pass trigger (docs/loop/design.md §4 "Review dimensions"). A pass
  *  with `onlyOn` runs when ANY listed condition matches (OR semantics —
  *  §4: security-deep fires on security globs OR high risk tier). */
-export interface OnlyOn {
+interface OnlyOn {
   /** Risk tiers that trigger the pass (vocabulary owned by policy.yaml). */
   risk?: string[];
   /** Compatibility condition for a governed template or historical route.
@@ -82,7 +81,7 @@ export interface PipelinesFile {
   pipelines: PipelineConfig[];
 }
 
-export interface LoadPipelinesOpts {
+interface LoadPipelinesOpts {
   /** Valid role names (from roles.yaml) — every pass.role must be one. */
   roleNames: string[];
   /** Directory pass templates live under; every pass.template must exist. */

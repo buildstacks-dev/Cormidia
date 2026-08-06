@@ -1,24 +1,11 @@
 import { existsSync } from "node:fs";
-import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../../runtime/assignment.js";
-import { isRuntimeCapability, type RuntimeCapability } from "../../runtime/capabilities.js";
-import { writeOutput } from "../../runtime/runlog/forensics.js";
-import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
-import {
-  finalizeRun,
-  readEnvelope,
-  updateEnvelope,
-  type EnvelopeStatus,
-  type EnvelopeUsage,
-  type RunEnvelope,
-} from "../../runtime/runlog/envelope.js";
-import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks, TurnUsage } from "../../runtime/types.js";
 import {
   finalizeEpisode,
   fingerprint,
-  reconcileEpisodeProviderSteps,
   readExecutionSteps,
   readPendingProviderSteps,
   readRouteRecord,
+  reconcileEpisodeProviderSteps,
   type AuthorizedPass,
   type ExecutionStepRecord,
   type StartedProviderReceipt,
@@ -34,6 +21,17 @@ import {
   type ProviderStepOutcome,
 } from "../../loop/episode-plan-executor.js";
 import {
+  episodeIntentHash,
+  readPersistedEpisodeIntent,
+  type ApprovalStep,
+  type EpisodeIntent,
+  type EpisodePlan,
+  type EpisodePlanValidationPolicy,
+  type EpisodeStep,
+  type MechanicalGateStep,
+  type ProviderTurnStep,
+} from "../../loop/episode-plan.js";
+import {
   publishEpisodePlanRevision,
   rejectEpisodeReplan,
   requestEpisodeReplan,
@@ -41,27 +39,29 @@ import {
   type EpisodeReplanRecord,
 } from "../../loop/episode-replan.js";
 import {
-  episodeIntentHash,
-  readPersistedEpisodeIntent,
-  type EpisodePlanValidationPolicy,
-  type ApprovalStep,
-  type EpisodeIntent,
-  type EpisodePlan,
-  type EpisodeStep,
-  type MechanicalGateStep,
-  type ProviderTurnStep,
-} from "../../loop/episode-plan.js";
-import {
   EPISODE_PLAN_EXECUTION_PIPELINE,
   planRouteLabel,
   routeAdmissionForEpisodePlan,
 } from "../../loop/episode-route.js";
-import { admitPlannedEpisodeRoute, assertPlannedEpisodeRevisionBudgetHeadroom } from "../../loop/planner-admission.js";
 import { executePipeline } from "../../loop/pipeline.js";
 import type { PipelineConfig } from "../../loop/pipelines.js";
-import type { TriggerKind } from "../../runtime/telemetry.js";
+import { admitPlannedEpisodeRoute, assertPlannedEpisodeRevisionBudgetHeadroom } from "../../loop/planner-admission.js";
+import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../../runtime/assignment.js";
+import { isRuntimeCapability, type RuntimeCapability } from "../../runtime/capabilities.js";
 import type { RuntimeReadinessProbe } from "../../runtime/readiness.js";
+import {
+  finalizeRun,
+  readEnvelope,
+  updateEnvelope,
+  type EnvelopeStatus,
+  type EnvelopeUsage,
+  type RunEnvelope,
+} from "../../runtime/runlog/envelope.js";
+import { writeOutput } from "../../runtime/runlog/forensics.js";
+import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
+import type { TriggerKind } from "../../runtime/telemetry.js";
 import { recordTurnOnce } from "../../runtime/telemetry.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks, TurnUsage } from "../../runtime/types.js";
 import { turnRecordFromExecutionStep } from "../budget.js";
 import { probeSelectedAssignmentReadiness } from "./assignment-readiness.js";
 
@@ -141,7 +141,7 @@ export interface EpisodePlanRevisionProposal {
   policy: EpisodePlanValidationPolicy;
 }
 
-export interface EpisodeReplanHandoff {
+interface EpisodeReplanHandoff {
   requestId: string;
   kind: EpisodeReplanEventKind;
   status: EpisodeReplanRecord["status"];
@@ -153,7 +153,7 @@ export type AcceptedEpisodePlanExecutionResult = EpisodePlanExecutionResult & {
   replan?: EpisodeReplanHandoff;
 };
 
-export class EpisodeProviderReconciliationRequiredError extends Error {
+class EpisodeProviderReconciliationRequiredError extends Error {
   readonly code = "error_episode_provider_reconciliation_required" as const;
   constructor(
     readonly episodeId: string,

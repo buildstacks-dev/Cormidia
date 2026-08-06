@@ -4,12 +4,12 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, readdir, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { writeFileAtomic } from "./atomic.js";
 import {
   currentProcessStartIdentity,
   processIdentityStatus,
   processStartIdentity,
 } from "../runtime/process-identity.js";
+import { writeFileAtomic } from "./atomic.js";
 
 export interface TurnLock {
   app: string;
@@ -23,7 +23,7 @@ export interface TurnLock {
   heartbeatAt: string;
 }
 
-export interface AcquireLockResult {
+interface AcquireLockResult {
   acquired: boolean;
   lock: TurnLock;
 }
@@ -42,7 +42,7 @@ interface MutationGuard {
   ownerFile: string;
 }
 
-export interface TurnLockMutationOptions {
+interface TurnLockMutationOptions {
   /** Sealed OS-boundary seam for hermetic lock-race tests. Production omits it. */
   currentStartIdentity?: () => string;
 }

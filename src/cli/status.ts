@@ -1,16 +1,16 @@
-import { formatStatusRows, readStatusRows } from "../runtime/runlog/status.js";
-import { resolveCormidiaHomes } from "../org/home.js";
-import { extractHomeFlags } from "./home-flags.js";
 import { resolve } from "node:path";
-import { approvalLifecycleState, ApprovalStore } from "../org/approvals.js";
-import { listTicketClaimStates } from "../loop/rehydrate.js";
 import { rearmCommand } from "../loop/claim-recovery.js";
 import { readEfficiencyEvidence } from "../loop/efficiency.js";
 import { readEpisodeReplanJournal } from "../loop/episode-replan.js";
+import { listTicketClaimStates } from "../loop/rehydrate.js";
+import { approvalLifecycleState, ApprovalStore } from "../org/approvals.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
-import { readValidationCampaignReports } from "../org/validation-campaign.js";
-import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { listPlannerPublications } from "../org/planner-publication.js";
+import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
+import { readValidationCampaignReports } from "../org/validation-campaign.js";
+import { formatStatusRows, readStatusRows } from "../runtime/runlog/status.js";
+import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdStatus(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "status");

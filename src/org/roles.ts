@@ -8,19 +8,19 @@ import {
   configuredProviderFamily,
   fixedAssignmentFromRole,
   turnAssignmentKey,
-  validateAssignmentProviderFamily,
   validateAssignmentCandidateId,
+  validateAssignmentProviderFamily,
   validateTurnAssignment,
 } from "../runtime/assignment.js";
+import { runtimeCapabilityProfile } from "../runtime/capabilities.js";
 import type {
   AdaptiveAssignmentCandidate,
   AssignmentPricing,
   Effort,
   RoleConfig,
-  TurnAssignment,
   Trigger,
+  TurnAssignment,
 } from "../runtime/types.js";
-import { runtimeCapabilityProfile } from "../runtime/capabilities.js";
 
 export interface RolesFile {
   defaults: { maxTurnBudgetUsd: number };
@@ -31,7 +31,7 @@ export interface RolesFile {
 /** The effective hard cap plus the configuration provenance needed by
  * operator-facing summaries. Keep this separate from RoleConfig: runtimes
  * consume the resolved cap, while inheritance is a roles.yaml concern. */
-export interface RoleTurnBudget {
+interface RoleTurnBudget {
   name: string;
   effectiveTurnBudgetUsd: number;
   turnBudgetInherited: boolean;

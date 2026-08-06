@@ -1,17 +1,17 @@
-import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { link, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { link, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { GateFn, ToolAction } from "../runtime/types.js";
-import { approvalLifecycleState, ApprovalStore } from "./approvals.js";
+import type { GateFn } from "../runtime/types.js";
 import { githubIssueCreateAction, type DeliveryFailureCause } from "./approval-delivery.js";
+import { approvalLifecycleState, ApprovalStore } from "./approvals.js";
+import { writeFileAtomic } from "./atomic.js";
 import type { TurnEvent } from "./journal.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
-import { writeFileAtomic } from "./atomic.js";
 
-export type StandingRole = "sre" | "support" | "marketing";
+type StandingRole = "sre" | "support" | "marketing";
 
-export interface StandingRoleArtifact {
+interface StandingRoleArtifact {
   schema_version: 1;
   artifact_id: string;
   app: string;
@@ -32,7 +32,7 @@ export interface StandingRoleArtifact {
   delivery?: StandingRoleDelivery;
 }
 
-export interface StandingRoleDelivery {
+interface StandingRoleDelivery {
   kind: "github_issue";
   analysis_state: "complete";
   filing_state: "pending_approval" | "ready" | "executing" | "filed" | "failed" | "ambiguous" | "gate_denied";
@@ -45,7 +45,7 @@ export interface StandingRoleDelivery {
   reason?: string;
 }
 
-export interface PlannerFeedRecord {
+interface PlannerFeedRecord {
   schema_version: 2;
   feed_id: string;
   app: string;
@@ -83,7 +83,7 @@ interface LegacyPlannerFeedRecord {
   summary: string;
 }
 
-export interface PlannerFeedBatchEntry {
+interface PlannerFeedBatchEntry {
   feed_id: string;
   producer_role: StandingRole | "legacy-unknown";
   source_identity_sha256: string;
@@ -98,7 +98,7 @@ export interface PlannerFeedBatchEntry {
   reason: string | null;
 }
 
-export interface PlannerFeedBatchManifest {
+interface PlannerFeedBatchManifest {
   schema_version: 1;
   kind: "planner-feed-input-manifest";
   app: string;
@@ -110,7 +110,7 @@ export interface PlannerFeedBatchManifest {
   entries: PlannerFeedBatchEntry[];
 }
 
-export interface PlannerFeedBatch {
+interface PlannerFeedBatch {
   manifest: PlannerFeedBatchManifest;
   selected: PlannerFeedRecord[];
   deferred: PlannerFeedRecord[];
@@ -126,13 +126,13 @@ interface PlannerFeedConsumptionReceipt {
   consumed_at: string;
 }
 
-export const PLANNER_FEED_PROMPT_BUDGET_BYTES = 16 * 1024;
-export const PLANNER_FEED_BATCH_MAX = 32;
-export const PLANNER_FEED_ITEM_MAX_BYTES = 4 * 1024;
+const PLANNER_FEED_PROMPT_BUDGET_BYTES = 16 * 1024;
+const PLANNER_FEED_BATCH_MAX = 32;
+const PLANNER_FEED_ITEM_MAX_BYTES = 4 * 1024;
 const DEFAULT_TERMINAL_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_EXPIRED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
-export interface StandingRolePersistResult {
+interface StandingRolePersistResult {
   artifact: StandingRoleArtifact;
   plannerFeed: PlannerFeedRecord;
   artifactCreated: boolean;
@@ -227,7 +227,7 @@ export async function readPlannerFeeds(stateHome: string, app: string): Promise<
   return readPlannerFeedFiles(stateHome, app);
 }
 
-export function plannerFeedSourceIdentity(input: {
+function plannerFeedSourceIdentity(input: {
   app: string;
   role: StandingRole;
   eventKind: string;
@@ -237,7 +237,7 @@ export function plannerFeedSourceIdentity(input: {
   return sha256(`${input.app}\0${input.role}\0${input.eventSource}\0${input.eventKind}\0${input.eventKey}`);
 }
 
-export function plannerFeedId(sourceIdentitySha256: string, payloadSha256: string): string {
+function plannerFeedId(sourceIdentitySha256: string, payloadSha256: string): string {
   return `planner_feed_${sha256(`${sourceIdentitySha256}\0${payloadSha256}`).slice(7, 35)}`;
 }
 
@@ -328,10 +328,6 @@ export function consumedPlannerFeedBatchManifest(manifest: PlannerFeedBatchManif
   };
 }
 
-export function plannerFeedBatchManifestJson(manifest: PlannerFeedBatchManifest): string {
-  return `${canonicalJson(manifest)}\n`;
-}
-
 export async function commitPlannerFeedConsumption(input: {
   stateHome: string;
   app: string;
@@ -353,7 +349,7 @@ export async function commitPlannerFeedConsumption(input: {
   await reconcilePlannerFeedConsumptionReceipts(input.stateHome, input.app);
 }
 
-export async function maintainPlannerFeedRetention(
+async function maintainPlannerFeedRetention(
   stateHome: string,
   app: string,
   now: Date,
@@ -588,24 +584,6 @@ function truncateUtf8(text: string, maxBytes: number): string {
   return "";
 }
 
-export function parkStandingRoleAction(gate: GateFn, action: ToolAction): { parked: boolean; reason: string } {
-  const decision = gate(action);
-  return {
-    parked: !decision.allow && decision.escalate === true,
-    reason: decision.allow ? "action allowed" : decision.reason,
-  };
-}
-
-export function verifyStandingRoleArtifact(artifact: StandingRoleArtifact, payload: Record<string, unknown>): string[] {
-  const errors: string[] = [];
-  if (artifact.app !== payload.app) errors.push("wrong_app");
-  if (artifact.source_payload_sha256 !== sha256(canonicalJson(payload))) errors.push("source_payload_mismatch");
-  if (!artifact.draft_only || artifact.outward_effects.length !== 0) errors.push("outward_effect");
-  for (const fact of requiredFacts(artifact.role, payload))
-    if (!artifact.draft.includes(fact)) errors.push(`missing_fact:${fact}`);
-  return errors;
-}
-
 function validateEvent(app: string, role: StandingRole, event: TurnEvent, now: Date): Record<string, unknown> {
   const payload = event.payload;
   if (payload.app !== app) throw new Error(`standing-role wrong app: expected ${app}`);
@@ -659,20 +637,6 @@ function groundedDraft(role: StandingRole, payload: Record<string, unknown>): st
     `Evidence: ${stringField(payload, "summary")}`,
     "Draft only; nothing was published.",
   ].join("\n");
-}
-
-function requiredFacts(role: StandingRole, payload: Record<string, unknown>): string[] {
-  if (role === "sre")
-    return [stringField(payload, "service"), stringField(payload, "status"), stringField(payload, "summary")];
-  if (role === "support") return [stringField(payload, "channel"), stringField(payload, "summary")];
-  return payload.kind === "adoption-signal"
-    ? [
-        stringField(payload, "metric"),
-        stringField(payload, "direction"),
-        String(payload.value),
-        stringField(payload, "summary"),
-      ]
-    : [String(payload.milestone ?? payload.tag ?? ""), stringField(payload, "summary")];
 }
 
 function deployShaped(payload: Record<string, unknown>): boolean {

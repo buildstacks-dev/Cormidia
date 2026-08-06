@@ -297,7 +297,7 @@ function destinationsAllAllowlisted(action: ToolAction, allowlist: readonly stri
   );
 }
 
-export function actorRetryActor(role: string, turnId: string | undefined): string {
+function actorRetryActor(role: string, turnId: string | undefined): string {
   return `actor-retry/${role}/${turnId ?? "untracked"}`;
 }
 

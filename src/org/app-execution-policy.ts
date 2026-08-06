@@ -1,7 +1,6 @@
 import type { BudgetCeiling } from "../loop/episode-plan.js";
-import { ROUTE_EXECUTION_BOUNDS, type RouteExecutionBounds } from "../loop/route-policy.js";
 import type { TicketTier } from "../loop/pipelines.js";
-import type { RoleConfig } from "../runtime/types.js";
+import { ROUTE_EXECUTION_BOUNDS, type RouteExecutionBounds } from "../loop/route-policy.js";
 import {
   CLAUDE_PERMISSION_MODES,
   CODEX_PERMISSION_MODES,
@@ -10,10 +9,11 @@ import {
   type CodexPermissionMode,
   type ProviderPermissionModes,
 } from "../runtime/permission-mode.js";
+import type { RoleConfig } from "../runtime/types.js";
 
-export type AppEpisodeKind = "generic" | "ticket";
+type AppEpisodeKind = "generic" | "ticket";
 
-export interface AppPerTurnLimits {
+interface AppPerTurnLimits {
   /** Null inherits the role/assignment ceiling. A number is an app-level
    * narrowing and therefore becomes the soft ring when episode headroom is
    * greater. */
@@ -23,7 +23,7 @@ export interface AppPerTurnLimits {
   modelTurns: number | null;
 }
 
-export interface AppEpisodeHardCeiling {
+interface AppEpisodeHardCeiling {
   maxProviderTurns: number;
   /** Null means the current app-ledger remainder remains the cost ceiling. */
   maxEquivalentCostUsd: number | null;
@@ -31,7 +31,7 @@ export interface AppEpisodeHardCeiling {
   maxHumanDecisions: number;
 }
 
-export interface AppExecutionLimits {
+interface AppExecutionLimits {
   perTurn: AppPerTurnLimits;
   genericEpisode: AppEpisodeHardCeiling;
   ticketEpisode: AppEpisodeHardCeiling;

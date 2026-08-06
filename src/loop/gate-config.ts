@@ -6,12 +6,7 @@
 // the loop layer lets both the gate loader and the org-layer schema validator
 // enforce the same path without reversing the org -> loop import direction.
 
-export const EXPLICIT_GATE_COMMAND_KEYS = [
-  "setup_command",
-  "test_command",
-  "lint_command",
-  "e2e_test_command",
-] as const;
+const EXPLICIT_GATE_COMMAND_KEYS = ["setup_command", "test_command", "lint_command", "e2e_test_command"] as const;
 
 const MAPPED_GATE_COMMAND_KEYS = ["install", "test", "lint", "e2e"] as const;
 

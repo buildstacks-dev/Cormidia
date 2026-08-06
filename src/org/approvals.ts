@@ -3,7 +3,6 @@
 // synchronous path; operator-facing queue operations remain async.
 
 import { createHash, randomBytes } from "node:crypto";
-import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import {
   appendFileSync,
   existsSync,
@@ -14,15 +13,16 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ToolAction, TurnEvent } from "../runtime/types.js";
+import { withFileLock, withFileLockSync } from "../runtime/file-lock.js";
 import {
   normalizeSemanticAction,
   ruleRequiresPerInstanceHumanDecision,
   type CriticalActionEvidence,
   type SemanticAction,
 } from "../runtime/gate.js";
-import { withFileLock, withFileLockSync } from "../runtime/file-lock.js";
+import type { ToolAction, TurnEvent } from "../runtime/types.js";
 
 export type ApprovalDecision = "approved" | "denied";
 export type ApprovalStatus = "pending" | "expired" | ApprovalDecision;

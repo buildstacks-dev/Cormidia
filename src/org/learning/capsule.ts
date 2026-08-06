@@ -28,7 +28,7 @@ import { runPaths } from "../../runtime/runlog/paths.js";
 import { writeFileAtomic } from "../atomic.js";
 import { readEpisodeRecord, type EpisodeRecord } from "./episode.js";
 
-export type Replayability = "replayable" | "partially_replayable" | "non_replayable";
+type Replayability = "replayable" | "partially_replayable" | "non_replayable";
 
 export interface ReplayCapsule {
   capsule_id: string;
@@ -62,14 +62,14 @@ export interface ReplayCapsule {
   validated_by: null;
 }
 
-export interface CapsuleBuilder {
+interface CapsuleBuilder {
   /** Deterministic assembly from durable sources; writes the capsule under
    *  `learning/capsules/`. Throws for non-build episodes (V1 scope). */
   assemble(episodeId: string): Promise<ReplayCapsule>;
   classify(capsule: Pick<ReplayCapsule, "seed" | "observed_outcome" | "missing">): Replayability;
 }
 
-export interface CapsuleBuilderOptions {
+interface CapsuleBuilderOptions {
   stateHome: string;
   /** App name → GitHub slug (`owner/repo`), from the apps registry. */
   repoByApp?: Record<string, string>;
@@ -77,7 +77,7 @@ export interface CapsuleBuilderOptions {
   fingerprintRef?: string;
 }
 
-export function capsulesDir(stateHome: string): string {
+function capsulesDir(stateHome: string): string {
   return join(stateHome, "learning", "capsules");
 }
 
@@ -88,7 +88,7 @@ export function capsuleIdFor(episodeId: string): string {
   return `replay_${episodeId.replace(/^ep_/, "")}`;
 }
 
-export function capsulePath(stateHome: string, capsuleId: string): string {
+function capsulePath(stateHome: string, capsuleId: string): string {
   return join(capsulesDir(stateHome), `${capsuleId}.json`);
 }
 

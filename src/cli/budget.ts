@@ -1,4 +1,5 @@
 import { join, resolve } from "node:path";
+import { loadApps } from "../org/apps.js";
 import {
   countUnmeasured,
   enforceBudgetOverlay,
@@ -6,10 +7,9 @@ import {
   reconcileLedger,
   rollupLearningSpend,
 } from "../org/budget.js";
-import { loadApps } from "../org/apps.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { defaultLearningPolicy, loadLearningPolicy } from "../org/learning/policy.js";
 import { loadRoles } from "../org/roles.js";
-import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdBudget(args: string[]): Promise<number> {

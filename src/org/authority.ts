@@ -10,7 +10,7 @@ import { parse, stringify } from "yaml";
 import type { AuthorityContext, AuthorityEvidence } from "../runtime/types.js";
 
 export type AuthorityProfile = "delegated-operator" | "conservative" | "custom";
-export type AppAuthorityMode = "inherit" | "conservative" | "custom";
+type AppAuthorityMode = "inherit" | "conservative" | "custom";
 
 export interface AppAuthoritySelection {
   mode: AppAuthorityMode;
@@ -19,7 +19,7 @@ export interface AppAuthoritySelection {
   restrictions?: string;
 }
 
-export const AUTHORITY_SCHEMA_VERSION = 1;
+const AUTHORITY_SCHEMA_VERSION = 1;
 export const DELEGATED_OPERATOR_VERSION = "delegated-operator/v1";
 export const CONSERVATIVE_VERSION = "conservative/v1";
 export const LEGACY_CONSERVATIVE_VERSION = "legacy-conservative/v1";

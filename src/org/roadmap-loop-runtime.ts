@@ -1,20 +1,21 @@
 import type { AdmittedLoopDeliveryUnit, DeliveryUnitClaimLease, DeliveryUnitRuntime } from "../loop/driver.js";
 import { deliveryUnitEpisodeId } from "../loop/driver.js";
 import { readExecutionSteps } from "../loop/efficiency.js";
+import type { CreatorEpisodeScope, EpisodePlan, ProviderTurnStep } from "../loop/episode-plan.js";
+import { stableHash } from "../loop/episode-plan.js";
 import type { GhIssue, GhOps } from "../loop/github.js";
+import { issueContentHash } from "../loop/issue-snapshot.js";
+import { checkAcceptanceBoxes } from "../loop/loop.js";
 import {
   autonomousExecutionExclusionLabel,
   MANUAL_REVIEW_EXCLUSION_LABEL,
   STATE_LABELS,
 } from "../loop/plan-tickets.js";
-import type { LoopDeliveryUnit, LoopItem } from "../loop/types.js";
-import { checkAcceptanceBoxes } from "../loop/loop.js";
-import { issueContentHash } from "../loop/issue-snapshot.js";
-import type { EpisodePlan, ProviderTurnStep } from "../loop/episode-plan.js";
-import type { CreatorEpisodeScope } from "../loop/episode-plan.js";
 import { TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE } from "../loop/ticket-episode-plan.js";
+import type { LoopDeliveryUnit, LoopItem } from "../loop/types.js";
+import { processIdentityStatus } from "../runtime/process-identity.js";
+import type { AppEntry } from "./apps.js";
 import {
-  ROADMAP_DELIVERY_SCHEMA_VERSION,
   admitExecutionBatch,
   bindDeliveryUnitEpisodePlan,
   claimDeliveryUnit,
@@ -22,15 +23,16 @@ import {
   completeDeliveryUnitMerge,
   findActiveExecutionUnit,
   listActiveExecutionUnits,
+  readBacklogSnapshotAuthority,
   readCurrentDeliveryUnitReadiness,
   readCurrentRoadmapPlan,
   readCurrentValidationCatalog,
   readCurrentValidationContract,
-  readBacklogSnapshotAuthority,
   readDeliveryUnitClaim,
   readExecutionUnitJournal,
   recordBuilderEvidence,
   recordReviewerVerdict,
+  ROADMAP_DELIVERY_SCHEMA_VERSION,
   settleDeliveryUnitClaim,
   settleDeliveryUnitRefusal,
   transitionExecutionUnitJournal,
@@ -46,12 +48,9 @@ import {
   type ReviewerVerdict,
   type RoadmapDeliveryUnit,
   type RoutingSnapshotEntry,
-  type ValidationContract,
   type ValidationCatalog,
+  type ValidationContract,
 } from "./roadmap-delivery.js";
-import type { AppEntry } from "./apps.js";
-import { stableHash } from "../loop/episode-plan.js";
-import { processIdentityStatus } from "../runtime/process-identity.js";
 
 interface AdmissionState {
   batch: AcceptedAuthority<ExecutionBatch>;

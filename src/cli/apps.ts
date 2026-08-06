@@ -1,8 +1,8 @@
 // `cormidia apps [path]` — validate apps.yaml and print the app registry.
 
+import { join, resolve } from "node:path";
 import { loadApps } from "../org/apps.js";
 import { resolveCormidiaHomes } from "../org/home.js";
-import { join, resolve } from "node:path";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdApps(args: string[] = []): Promise<number> {

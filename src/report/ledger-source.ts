@@ -11,7 +11,7 @@ export interface LedgerRowSource {
   record: TurnRecord;
 }
 
-export interface LedgerRangeRead {
+interface LedgerRangeRead {
   rows: LedgerRowSource[];
   diagnostics: ReportSourceDiagnosticV1[];
   readableDays: string[];

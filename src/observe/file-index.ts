@@ -3,11 +3,11 @@ import { lstat, readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
 import type { AppsFile } from "../org/apps.js";
-import type { TurnLock } from "../org/locks.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
+import type { TurnLock } from "../org/locks.js";
 import { readParentTask, type ParentTaskRecord } from "../org/parent-task.js";
-import { readValidationCampaignReports } from "../org/validation-campaign.js";
 import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
+import { readValidationCampaignReports } from "../org/validation-campaign.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { readEvents } from "../runtime/runlog/events.js";
 import { runPaths } from "../runtime/runlog/paths.js";
@@ -15,7 +15,7 @@ import { readStatusRows } from "../runtime/runlog/status.js";
 import type { InvocationRecord, TurnRecord } from "../runtime/telemetry.js";
 import type { IndexedPass, ObserveFiltersV1, ObserveProjectionInput, SourceHealthView } from "./types.js";
 
-export interface LocalIndexOptions {
+interface LocalIndexOptions {
   orgName: string;
   stateHome: string;
   appsFile: AppsFile;
@@ -23,7 +23,7 @@ export interface LocalIndexOptions {
   now?: Date;
 }
 
-export type LocalProjectionSources = Omit<ObserveProjectionInput, "cursor" | "github">;
+type LocalProjectionSources = Omit<ObserveProjectionInput, "cursor" | "github">;
 
 export async function indexLocalSources(options: LocalIndexOptions): Promise<LocalProjectionSources> {
   const now = options.now ?? new Date();

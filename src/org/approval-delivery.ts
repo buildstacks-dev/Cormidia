@@ -10,10 +10,10 @@ import { actionHash, ApprovalStore, type ApprovalItem } from "./approvals.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { grantScopeText } from "./gate-compose.js";
 
-export const GITHUB_ISSUE_CREATE_TOOL = "cormidia.github.issue.create";
-export const GITHUB_ISSUE_COMMENT_TOOL = "cormidia.github.issue.comment";
+const GITHUB_ISSUE_CREATE_TOOL = "cormidia.github.issue.create";
+const GITHUB_ISSUE_COMMENT_TOOL = "cormidia.github.issue.comment";
 
-export interface DurableGitHubIssueCreateInput {
+interface DurableGitHubIssueCreateInput {
   schema_version: 1;
   repo: string;
   title: string;
@@ -24,7 +24,7 @@ export interface DurableGitHubIssueCreateInput {
   effect: "create_issue";
 }
 
-export interface DurableGitHubIssueCommentInput {
+interface DurableGitHubIssueCommentInput {
   schema_version: 1;
   repo: string;
   issue_number: number;
@@ -34,7 +34,7 @@ export interface DurableGitHubIssueCommentInput {
   effect: "comment_issue";
 }
 
-export type DurableGitHubAction =
+type DurableGitHubAction =
   | { tool: typeof GITHUB_ISSUE_CREATE_TOOL; input: DurableGitHubIssueCreateInput }
   | { tool: typeof GITHUB_ISSUE_COMMENT_TOOL; input: DurableGitHubIssueCommentInput };
 
@@ -50,7 +50,7 @@ export type DeliveryFailureCause =
   | "invalid_action"
   | "grant_unavailable";
 
-export interface ApprovalDeliveryOutcome {
+interface ApprovalDeliveryOutcome {
   approvalId: string;
   app: string;
   status: "executed" | "failed" | "ambiguous" | "skipped";
@@ -59,7 +59,7 @@ export interface ApprovalDeliveryOutcome {
   remoteRef?: string;
 }
 
-export interface ExecuteApprovedDeliveriesOptions {
+interface ExecuteApprovedDeliveriesOptions {
   stateHome: string;
   appsFile: AppsFile;
   now?: () => Date;
@@ -83,21 +83,6 @@ export function githubIssueCreateAction(
       destination: "github",
       effect: "create_issue",
     } satisfies DurableGitHubIssueCreateInput,
-  };
-}
-
-export function githubIssueCommentAction(
-  input: Omit<DurableGitHubIssueCommentInput, "schema_version" | "destination" | "effect">,
-): ToolAction {
-  validateIdempotencyKey(input.idempotency_key);
-  return {
-    tool: GITHUB_ISSUE_COMMENT_TOOL,
-    input: {
-      schema_version: 1,
-      ...input,
-      destination: "github",
-      effect: "comment_issue",
-    } satisfies DurableGitHubIssueCommentInput,
   };
 }
 

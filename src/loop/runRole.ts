@@ -16,8 +16,8 @@
 import { basename, dirname } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import { mintRunId } from "../runtime/runlog/paths.js";
-import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import type { TriggerKind } from "../runtime/telemetry.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/types.js";
 import { assembleBrief, withAuthorityBrief } from "./brief.js";
 import type { RouteBudget } from "./efficiency.js";
 import { executePipeline, type PassRunRecord } from "./pipeline.js";
@@ -25,7 +25,7 @@ import type { PipelineConfig } from "./pipelines.js";
 
 const DEFAULT_BRIEF_BUDGET_TOKENS = 12_000;
 
-export interface RunRoleRequest {
+interface RunRoleRequest {
   role: RoleConfig;
   /** Target app slug — passed through to the run record when executing. */
   app?: string;
@@ -65,7 +65,7 @@ export interface RunRoleRequest {
   routeBudgetOverrides?: Partial<RouteBudget>;
 }
 
-export interface RunRoleResult {
+interface RunRoleResult {
   brief: string;
   executed: boolean;
   record?: PassRunRecord;

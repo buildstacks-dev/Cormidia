@@ -7,11 +7,11 @@ import { mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { writeFileAtomic } from "./atomic.js";
 
-export const VALIDATION_CAMPAIGN_SCHEMA_VERSION = 1 as const;
+const VALIDATION_CAMPAIGN_SCHEMA_VERSION = 1 as const;
 export type ValidationLane = "L3" | "L4" | "L5";
-export type ValidationCampaignStatus = "planned" | "running" | "completed";
-export type ValidationCompleteness = "complete" | "incomplete";
-export type ValidationVerdict = "pass" | "fail" | "inconclusive";
+type ValidationCampaignStatus = "planned" | "running" | "completed";
+type ValidationCompleteness = "complete" | "incomplete";
+type ValidationVerdict = "pass" | "fail" | "inconclusive";
 export type ValidationDecisionStatus = "ratified" | "proposed" | "not_applicable";
 
 export interface ValidationCampaignReportV1 {
@@ -66,7 +66,7 @@ export interface ValidationCampaignReadResult {
 const CAMPAIGN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 
-export function validationCampaignReportPath(stateHome: string, campaignId: string): string {
+function validationCampaignReportPath(stateHome: string, campaignId: string): string {
   assertCampaignId(campaignId);
   return join(resolve(stateHome), "validation", "campaigns", campaignId, "report.json");
 }

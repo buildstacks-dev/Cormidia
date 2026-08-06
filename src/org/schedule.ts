@@ -5,11 +5,11 @@ import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "./atomic.js";
 
-export interface ScheduleState {
+interface ScheduleState {
   [key: string]: string;
 }
 
-export function scheduleKey(app: string, role: string, trigger: string): string {
+function scheduleKey(app: string, role: string, trigger: string): string {
   return `${app}|${role}|${trigger}`;
 }
 
@@ -70,7 +70,7 @@ export function scheduleDueWindow(spec: string, now: Date): Date {
   return slot;
 }
 
-export function nextFireAfter(spec: string, lastFired: Date): Date {
+function nextFireAfter(spec: string, lastFired: Date): Date {
   const parsed = parseSchedule(spec);
   if (parsed.kind === "interval") {
     return new Date(lastFired.getTime() + parsed.ms);
@@ -88,7 +88,7 @@ export function nextFireAfter(spec: string, lastFired: Date): Date {
   return next;
 }
 
-export type ParsedSchedule =
+type ParsedSchedule =
   | { kind: "interval"; ms: number }
   | { kind: "daily"; hour: number; minute: number }
   | { kind: "weekly"; day: number; hour: number; minute: number };

@@ -22,8 +22,8 @@ import { parseVerdict, type Finding, type FindingResolution } from "./verdicts.j
 // ---------------------------------------------------------------------------
 
 const CONTRACT_MARKER_PREFIX = "<!-- cormidia:contract body-sha256:";
-export const REVIEW_VERDICT_HEADING = "## Structured review verdict";
-export const FIX_RESOLUTIONS_HEADING = "## Fix resolutions";
+const REVIEW_VERDICT_HEADING = "## Structured review verdict";
+const FIX_RESOLUTIONS_HEADING = "## Fix resolutions";
 
 /** The ticket body is the contract's input; its hash decides whether an
  *  existing contract still applies after a body edit. Normalized so label
@@ -84,7 +84,7 @@ function findingKey(finding: Pick<Finding, "category" | "location">): string {
  *  dropped stays open — that silence is exactly the failure mode this ledger
  *  exists to prevent (the episode's pin-the-actions finding vanished after
  *  round one and never got fixed). */
-export function openFindings(
+function openFindings(
   events: readonly ({ kind: "raise"; findings: Finding[] } | { kind: "resolve"; resolutions: FindingResolution[] })[],
 ): Finding[] {
   const open = new Map<string, Finding>();
@@ -117,7 +117,7 @@ export interface RehydratedState {
   prNumber?: number;
 }
 
-export interface RehydrateOptions {
+interface RehydrateOptions {
   gh: GhOps;
   /** Branch the loop derives for this ticket (branchNameForIssue). */
   branch: string;
@@ -235,7 +235,7 @@ export interface TicketClaimEvent {
   repeatedCostUsd?: number;
 }
 
-export interface TicketClaimStateEntry {
+interface TicketClaimStateEntry {
   app: string;
   issueNumber: number;
   state: TicketClaimState;

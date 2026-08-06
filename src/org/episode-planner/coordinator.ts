@@ -1,16 +1,16 @@
 import {
   EpisodePlanValidationError,
   annotateRepairRegression,
-  assessCreatorScope,
   assertEpisodePlanValid,
+  assessCreatorScope,
   deriveEpisodeSafetyRoute,
   episodeIntentHash,
+  episodeIntentPath,
   materializeEpisodePlanAssignments,
   parseNormalizedProposedEpisodePlan,
-  persistEpisodeIntent as persistImmutableEpisodeIntent,
   persistEpisodePlan,
+  persistEpisodeIntent as persistImmutableEpisodeIntent,
   readPersistedEpisodeIntent as readImmutableEpisodeIntent,
-  episodeIntentPath,
   type CreatorScopeAssessment,
   type EpisodeIntent,
   type EpisodePlan,
@@ -48,7 +48,7 @@ export interface EpisodePlannerProposalRequest {
 
 export type EpisodePlannerProposer = (request: EpisodePlannerProposalRequest) => Promise<unknown>;
 
-export interface PrepareEpisodePlanOptions {
+interface PrepareEpisodePlanOptions {
   root: string;
   app: AppEntry;
   roles: readonly RoleConfig[];

@@ -3,12 +3,12 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { readEvents } from "./events.js";
+import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
+import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
 import { classifyEnvelopeUsage } from "./envelope.js";
+import { readEvents } from "./events.js";
 import { truncatePreview } from "./redact.js";
 import { formatDurableVerdictDigest, summarizeDurableVerdict, type DurableVerdictDigest } from "./verdict-digest.js";
-import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
-import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
 
 export interface StatusRow {
   runId: string;

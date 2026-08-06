@@ -18,8 +18,14 @@
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
-import { formatDuration, readStatusRows, type StatusRow } from "../runtime/runlog/status.js";
-import type { UsageQuality } from "../runtime/types.js";
+import { resolveCormidiaHomes } from "../org/home.js";
+import { listParentTasks, type ParentTaskRecord } from "../org/parent-task.js";
+import { readReportDetails } from "../report/detail-source.js";
+import { buildEfficiencyReport } from "../report/efficiency.js";
+import { earliestLedgerDay, readLedgerRange } from "../report/ledger-source.js";
+import { duplicateFacts } from "../report/project.js";
+import { normalizeReportRange } from "../report/range.js";
+import type { ReportEfficiencyV1, ReportEvidenceMetricV1 } from "../report/types.js";
 import {
   aggregateCost,
   formatCostAggregate,
@@ -28,15 +34,9 @@ import {
   type CostAggregate,
   type CostScope,
 } from "../runtime/cost.js";
+import { formatDuration, readStatusRows, type StatusRow } from "../runtime/runlog/status.js";
 import { readTurnRecords, settlementIdentity, type TurnRecord } from "../runtime/telemetry.js";
-import { listParentTasks, type ParentTaskRecord } from "../org/parent-task.js";
-import { resolveCormidiaHomes } from "../org/home.js";
-import { readReportDetails } from "../report/detail-source.js";
-import { buildEfficiencyReport } from "../report/efficiency.js";
-import { earliestLedgerDay, readLedgerRange } from "../report/ledger-source.js";
-import { duplicateFacts } from "../report/project.js";
-import { normalizeReportRange } from "../report/range.js";
-import type { ReportEfficiencyV1, ReportEvidenceMetricV1 } from "../report/types.js";
+import type { UsageQuality } from "../runtime/types.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdTelemetry(args: string[]): Promise<number> {

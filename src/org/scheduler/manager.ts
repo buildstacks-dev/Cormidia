@@ -16,12 +16,12 @@ export interface SchedulerManagerInspection {
   detail: string;
 }
 
-export interface SchedulerHostCommand {
+interface SchedulerHostCommand {
   command: string;
   args: string[];
 }
 
-export type SchedulerHostCommandRunner = (input: SchedulerHostCommand) => Promise<{
+type SchedulerHostCommandRunner = (input: SchedulerHostCommand) => Promise<{
   code: number;
   stdout: string;
   stderr: string;
@@ -40,7 +40,7 @@ export interface SchedulerManager {
   inspect(schedulerId: string, options?: { runtime?: boolean }): Promise<SchedulerManagerInspection>;
 }
 
-export interface PlatformSchedulerManagerOptions {
+interface PlatformSchedulerManagerOptions {
   backend: SchedulerBackend;
   platform?: NodeJS.Platform;
   homeDir?: string;

@@ -7,7 +7,7 @@ const SECRET_DIRECTORY = "state";
 const SECRET_FILENAME = "self-approval-secret";
 const GENERATED_SECRET = /^[A-Za-z0-9_-]{43}$/;
 
-export interface ReviewAuthorizationSecretOptions {
+interface ReviewAuthorizationSecretOptions {
   /** Explicit compatibility override. The caller owns keeping this value out
    * of provider environments and prompt context. */
   environmentSecret?: string;
@@ -15,7 +15,7 @@ export interface ReviewAuthorizationSecretOptions {
   dryRun?: boolean;
 }
 
-export function reviewAuthorizationSecretPath(stateHome: string): string {
+function reviewAuthorizationSecretPath(stateHome: string): string {
   return join(stateHome, SECRET_DIRECTORY, SECRET_FILENAME);
 }
 

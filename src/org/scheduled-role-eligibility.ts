@@ -1,14 +1,14 @@
-import type { AppEntry } from "./apps.js";
-import { resolveAppWorkdir } from "./app-workdir.js";
 import { STATE_LABELS } from "../loop/plan-tickets.js";
+import { resolveAppWorkdir } from "./app-workdir.js";
+import type { AppEntry } from "./apps.js";
 import type { DueEvent, GitHubIssueSummary } from "./events.js";
 import { prepareDistillation, prepareLearningReview } from "./learning/distillation.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import { readPlannerFeeds } from "./standing-roles.js";
 
-export type EligibilityConfiguration = "declared" | "missing" | "unavailable";
+type EligibilityConfiguration = "declared" | "missing" | "unavailable";
 
-export type ScheduledRoleEligibility =
+type ScheduledRoleEligibility =
   | {
       eligible: true;
       reason: "actionable_input";

@@ -4,21 +4,22 @@
 // wall clock (captured_at is the newest source timestamp folded in), no
 // network, no writes.
 
+import { listPlannerPublications, type PlannerPublicationTransaction } from "../org/planner-publication.js";
 import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { hashedFileStem } from "../runtime/runlog/paths.js";
+import { formatDurableVerdictDigest, summarizeDurableVerdict } from "../runtime/runlog/verdict-digest.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
 import {
   boundQuote,
+  MOMENT_QUOTE_MAX,
+  ORIGIN_QUOTE_MAX,
   readAppRunSources,
   readDeliveryJournal,
   readLedgerRows,
   readRunQuote,
   readTaskOriginQuote,
   scrubCaptureText,
-  MOMENT_QUOTE_MAX,
-  ORIGIN_QUOTE_MAX,
 } from "./sources.js";
-import { formatDurableVerdictDigest, summarizeDurableVerdict } from "../runtime/runlog/verdict-digest.js";
 import {
   NARRATIVE_SCHEMA_VERSION,
   type NarrativeMoment,
@@ -26,9 +27,8 @@ import {
   type StoryKind,
   type StoryStatus,
 } from "./types.js";
-import { listPlannerPublications, type PlannerPublicationTransaction } from "../org/planner-publication.js";
 
-export interface NarrativeFoldResult {
+interface NarrativeFoldResult {
   stories: NarrativeStory[];
   problems: string[];
 }

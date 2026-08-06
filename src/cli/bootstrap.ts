@@ -12,14 +12,14 @@ import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { bootstrapRun, scanRepo, type CommandDetection, type RepoScan } from "../org/bootstrap.js";
-import { findExistingOrg } from "../org/apps.js";
-import { loadRoles } from "../org/roles.js";
-import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION, validateOrgHome } from "../org/home.js";
-import { authorityPreview, resolveAuthority } from "../org/authority.js";
-import { readOnboardingRecoverySource } from "../org/onboarding-answers.js";
 import { bootstrapFromRecoveredAnswers, type RecoveredBootstrapResult } from "../org/app-lifecycle.js";
+import { findExistingOrg } from "../org/apps.js";
+import { authorityPreview, resolveAuthority } from "../org/authority.js";
+import { bootstrapRun, scanRepo, type CommandDetection, type RepoScan } from "../org/bootstrap.js";
+import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION, validateOrgHome } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
+import { readOnboardingRecoverySource } from "../org/onboarding-answers.js";
+import { loadRoles } from "../org/roles.js";
 
 export async function cmdBootstrap(args: string[]): Promise<number> {
   let root = ".";
@@ -273,7 +273,7 @@ async function readAnswersFile(path: string): Promise<unknown> {
  * Cadence overrides are deliberately not prompted — the default (empty =
  * roles.yaml triggers) is right for onboarding; edit .cormidia/config.yaml
  * to tune later. */
-export async function collectAnswers(
+async function collectAnswers(
   input: NodeJS.ReadableStream,
   output: NodeJS.WritableStream,
   knownRoles: string[],

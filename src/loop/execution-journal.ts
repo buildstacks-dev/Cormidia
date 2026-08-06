@@ -1,13 +1,12 @@
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeLoopFileAtomic } from "./durable.js";
 import { efficiencyEpisodeDir, fingerprint } from "./efficiency.js";
 
-export const EXECUTION_JOURNAL_VERSION = 1 as const;
+const EXECUTION_JOURNAL_VERSION = 1 as const;
 
-export const EXECUTION_BOUNDARIES = [
+const EXECUTION_BOUNDARIES = [
   "route",
   "contract",
   "implementation",
@@ -23,7 +22,7 @@ export const EXECUTION_BOUNDARIES = [
 export type ExecutionBoundary = (typeof EXECUTION_BOUNDARIES)[number];
 export type JournalStopKind = "cap_stop" | "cancelled" | "crash" | "provider_timeout";
 
-export interface ExecutionJournalStage {
+interface ExecutionJournalStage {
   boundary: ExecutionBoundary;
   status: "completed" | "invalidated";
   artifact_sha256: string;
@@ -33,7 +32,7 @@ export interface ExecutionJournalStage {
   invalidation_reason?: string;
 }
 
-export interface ExecutionJournalStop {
+interface ExecutionJournalStop {
   kind: JournalStopKind;
   at: string;
   reason: string;
@@ -53,14 +52,14 @@ export interface ExecutionJournal {
   updated_at: string;
 }
 
-export interface ResumeDecision {
+interface ResumeDecision {
   nextBoundary: ExecutionBoundary | null;
   reused: ExecutionBoundary[];
   rerun: ExecutionBoundary[];
   invalidations: Array<{ boundary: ExecutionBoundary; reason: string }>;
 }
 
-export function executionJournalPath(root: string, episodeId: string): string {
+function executionJournalPath(root: string, episodeId: string): string {
   return join(efficiencyEpisodeDir(root, episodeId), "execution-journal.json");
 }
 
@@ -72,35 +71,6 @@ export async function readExecutionJournal(root: string, episodeId: string): Pro
     throw new Error(`invalid execution journal for ${episodeId}`);
   }
   return value;
-}
-
-export async function initializeExecutionJournal(input: {
-  root: string;
-  episodeId: string;
-  app: string;
-  ticketRef: string;
-  now: Date;
-}): Promise<ExecutionJournal> {
-  const existing = await readExecutionJournal(input.root, input.episodeId);
-  if (existing !== undefined) {
-    if (existing.app !== input.app || existing.ticket_ref !== input.ticketRef) {
-      throw new Error(`execution journal identity conflict for ${input.episodeId}`);
-    }
-    return existing;
-  }
-  const journal: ExecutionJournal = {
-    schema_version: EXECUTION_JOURNAL_VERSION,
-    episode_id: input.episodeId,
-    app: input.app,
-    ticket_ref: input.ticketRef,
-    stages: [],
-    status: "running",
-    next_boundary: "route",
-    stop: null,
-    updated_at: input.now.toISOString(),
-  };
-  await writeJournal(input.root, journal);
-  return journal;
 }
 
 export async function recordExecutionBoundary(input: {
@@ -150,7 +120,7 @@ export async function recordExecutionBoundary(input: {
   return updated;
 }
 
-export async function invalidateExecutionFrom(input: {
+async function invalidateExecutionFrom(input: {
   root: string;
   episodeId: string;
   boundary: ExecutionBoundary;
@@ -242,10 +212,6 @@ export async function resumeExecutionJournal(input: {
     rerun: next === null ? [] : [...EXECUTION_BOUNDARIES.slice(nextIndex)],
     invalidations,
   };
-}
-
-export function journalArtifactHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 async function requiredJournal(root: string, episodeId: string): Promise<ExecutionJournal> {

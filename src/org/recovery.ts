@@ -1,15 +1,15 @@
 // Stale-lock recovery actions (architecture.md §3).
 
 import { execFileSync } from "node:child_process";
-import { releaseLock, type TurnLock } from "./locks.js";
 import { decideRecovery, writeJournalPatch, type RecoveryDecision, type TurnJournal } from "./journal.js";
+import { releaseLock, type TurnLock } from "./locks.js";
 
-export interface RecoveryActionResult {
+interface RecoveryActionResult {
   decision: RecoveryDecision;
   spawned?: boolean;
 }
 
-export type RecoverySpawn = (input: { journal: TurnJournal; decision: RecoveryDecision }) => Promise<void>;
+type RecoverySpawn = (input: { journal: TurnJournal; decision: RecoveryDecision }) => Promise<void>;
 
 export async function recoverStaleTurn(
   root: string,

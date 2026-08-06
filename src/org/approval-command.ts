@@ -32,13 +32,13 @@
 import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
-import { withNonInteractiveEnv } from "../runtime/non-interactive-env.js";
 import { normalizeSemanticAction } from "../runtime/gate.js";
+import { withNonInteractiveEnv } from "../runtime/non-interactive-env.js";
+import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
 import {
   actionHash,
-  approvedCommand,
   ApprovalStore,
+  approvedCommand,
   commandIdentityHash,
   isOrchestratorExecutableRule,
   type ApprovalGrant,
@@ -53,7 +53,7 @@ import { releaseExpiredTicketApprovalClaim } from "./ticket-episode-approval.js"
  *  that claimed the same approval through the gate. */
 export const ORCHESTRATOR_COMMAND_ACTOR = "orchestrator/approval-command";
 
-export type ApprovalCommandFailureCause =
+type ApprovalCommandFailureCause =
   | "invalid_action"
   | "execution_context_unavailable"
   | "grant_unavailable"
@@ -62,7 +62,7 @@ export type ApprovalCommandFailureCause =
   | "command_start_failed"
   | "ambiguous_command_result";
 
-export interface ApprovalCommandOutcome {
+interface ApprovalCommandOutcome {
   approvalId: string;
   app: string;
   status: "executed" | "failed" | "ambiguous" | "skipped";
@@ -92,7 +92,7 @@ const EXECUTION_STALE_MS = 15 * 60_000;
  *  becomes ambiguous and waits for a human, never an automatic retry. */
 const DEFAULT_COMMAND_TIMEOUT_MS = 10 * 60_000;
 
-export interface ExecuteApprovedCommandsOptions {
+interface ExecuteApprovedCommandsOptions {
   stateHome: string;
   appsFile: AppsFile;
   /** Restrict delivery to approvals raised by one still-owned outer turn.

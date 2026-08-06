@@ -9,6 +9,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { withFileLock } from "../runtime/file-lock.js";
+import { currentProcessStartIdentity, processIdentityStatus } from "../runtime/process-identity.js";
 import { episodeIdFor, readRouteRecord, routeRecordPath, type EpisodeTerminal } from "./efficiency.js";
 import type { GhIssue, GhOps } from "./github.js";
 import {
@@ -20,7 +21,6 @@ import {
   type TicketRearmRecord,
 } from "./rehydrate.js";
 import type { LoopContinuation, LoopContinuationDecision, LoopItem, SuppressedOperation } from "./types.js";
-import { currentProcessStartIdentity, processIdentityStatus } from "../runtime/process-identity.js";
 
 const LOCK_STALE_MS = 10 * 60_000;
 const LOCK_WAIT_MS = 12 * 60_000;

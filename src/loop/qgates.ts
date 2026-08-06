@@ -46,12 +46,12 @@ import { describeSetupArtifacts, scanSetupArtifacts, type SetupArtifact } from "
 /** Every gate the engine can report on: the policy-schedulable set plus
  *  `review-freshness`, which always runs (policy.ts rejects configuring it;
  *  the M4.5 orchestrator appends it unconditionally). */
-export type GateId = GateName | "review-freshness" | "setup";
+type GateId = GateName | "review-freshness" | "setup";
 
 /** `skip` is reserved for gates that are optional by design (e2e without an
  *  `e2e_test_command`) — a gate that *should* have run but couldn't is a
  *  `fail`, never a `skip`. */
-export type GateStatus = "pass" | "fail" | "skip";
+type GateStatus = "pass" | "fail" | "skip";
 
 /** One gate's outcome — plain data the orchestrator acts on and the brief
  *  assembler quotes verbatim (loop.md §3: gate output is never summarized). */
@@ -82,7 +82,7 @@ export interface GateResult {
   durationMs: number;
 }
 
-export interface SecretMatch {
+interface SecretMatch {
   file: string;
   line: number;
   pattern: string;
@@ -103,14 +103,14 @@ export interface GateCommands {
   e2eTestCommand?: string;
 }
 
-export interface DiffRange {
+interface DiffRange {
   /** Older ref in `git diff --numstat <baseRef> <headRef> --`. */
   baseRef?: string;
   /** Newer ref; defaults to HEAD. */
   headRef?: string;
 }
 
-export interface SecurityGateOpts extends DiffRange {
+interface SecurityGateOpts extends DiffRange {
   /** Lines of file:line match output to keep on failure. */
   tailLines?: number;
 }
@@ -138,7 +138,7 @@ export interface ReviewFreshnessState {
   headCommitId?: string;
 }
 
-export type GateRunStatus = "pass" | "fail" | "blocked";
+type GateRunStatus = "pass" | "fail" | "blocked";
 
 export interface GateRunResult {
   tier: RiskTier;
@@ -165,7 +165,7 @@ export interface GateRunResult {
   };
 }
 
-export interface RunGatesOptions {
+interface RunGatesOptions {
   policy: Policy;
   commands: GateCommands;
   criterionTests: CriterionTestMap;
@@ -188,14 +188,14 @@ export interface ProcessGateOpts {
 
 /** Predecessor parity: tests 300s, lint 120s, e2e 600s. Setup (dependency
  *  install) gets the tests budget — `npm ci` on a cold cache is comparable. */
-export const DEFAULT_TIMEOUTS_MS = {
+const DEFAULT_TIMEOUTS_MS = {
   setup: 300_000,
   tests: 300_000,
   lint: 120_000,
   e2e: 600_000,
 } as const;
 
-export const DEFAULT_TAIL_LINES = 50;
+const DEFAULT_TAIL_LINES = 50;
 
 /** Byte bound on retained subprocess output while streaming — the tail is
  *  cut from at most this much; everything older is discarded as it streams. */
@@ -279,11 +279,7 @@ function setupArtifactFailure(
 
 /** Run the app's test command in the worktree; exit 0 passes. Unconfigured
  *  is a loud failure (see the header's drop note). */
-export function runTestsGate(
-  worktree: string,
-  commands: GateCommands,
-  opts: ProcessGateOpts = {},
-): Promise<GateResult> {
+function runTestsGate(worktree: string, commands: GateCommands, opts: ProcessGateOpts = {}): Promise<GateResult> {
   return runProcessGate(worktree, opts, {
     gate: "tests",
     command: commands.testCommand,
@@ -294,7 +290,7 @@ export function runTestsGate(
 }
 
 /** Lint gate — same mechanics as tests (loop.md §5 "lint_command" row). */
-export function runLintGate(worktree: string, commands: GateCommands, opts: ProcessGateOpts = {}): Promise<GateResult> {
+function runLintGate(worktree: string, commands: GateCommands, opts: ProcessGateOpts = {}): Promise<GateResult> {
   return runProcessGate(worktree, opts, {
     gate: "lint",
     command: commands.lintCommand,
@@ -306,7 +302,7 @@ export function runLintGate(worktree: string, commands: GateCommands, opts: Proc
 
 /** E2e gate — "when configured" (§5 row): unconfigured is a SKIP, the one
  *  process gate that is optional by design. */
-export function runE2eGate(worktree: string, commands: GateCommands, opts: ProcessGateOpts = {}): Promise<GateResult> {
+function runE2eGate(worktree: string, commands: GateCommands, opts: ProcessGateOpts = {}): Promise<GateResult> {
   return runProcessGate(worktree, opts, {
     gate: "e2e",
     command: commands.e2eTestCommand,
@@ -322,7 +318,7 @@ export function runE2eGate(worktree: string, commands: GateCommands, opts: Proce
 
 /** Scan changed, non-binary files in a local git diff range using the
  * canonical secret pattern list from src/runtime/secret-patterns.ts. */
-export function runSecurityGate(worktree: string, opts: SecurityGateOpts = {}): GateResult {
+function runSecurityGate(worktree: string, opts: SecurityGateOpts = {}): GateResult {
   const started = Date.now();
   let changed: ChangedFile[];
   try {
@@ -387,7 +383,7 @@ export function runSecurityGate(worktree: string, opts: SecurityGateOpts = {}): 
 // Data gates + tier orchestrator (M4.5)
 // ---------------------------------------------------------------------------
 
-export function runCompletenessGate(
+function runCompletenessGate(
   criteria: readonly AcceptanceCriterion[],
   findings: readonly CompletenessFinding[],
   criterionTests: CriterionTestMap,
@@ -455,7 +451,7 @@ export function runCompletenessGate(
   };
 }
 
-export function runReviewFreshnessGate(worktree: string, reviewState: ReviewFreshnessState): GateResult {
+function runReviewFreshnessGate(worktree: string, reviewState: ReviewFreshnessState): GateResult {
   let head: string;
   try {
     head = reviewState.headCommitId ?? git(worktree, ["rev-parse", "HEAD"]);
@@ -577,7 +573,7 @@ export async function runGates(
  * Duration is excluded: wall-clock varies run to run and says nothing about
  * whether the failure is the same failure.
  */
-export function gateFailureIdentity(results: readonly GateResult[]): string | undefined {
+function gateFailureIdentity(results: readonly GateResult[]): string | undefined {
   const failing = results.filter((result) => result.status === "fail");
   if (failing.length === 0) return undefined;
   if (!failing.every(hasFailureEvidence)) return undefined;

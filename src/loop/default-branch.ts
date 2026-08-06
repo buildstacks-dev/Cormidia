@@ -72,7 +72,7 @@ export function baseRevisionForBranch(defaultBranch: string): BaseRevision {
   return { ref: remoteTrackingRef(defaultBranch), defaultBranch };
 }
 
-export interface ResolveRemoteDefaultBranchOptions {
+interface ResolveRemoteDefaultBranchOptions {
   /** Directory to run git in. Required when `target` is a remote *name*
    *  (`origin`); optional when it is a URL or path. */
   cwd?: string;
@@ -129,7 +129,7 @@ export function resolveRemoteDefaultBranch(target: string, options: ResolveRemot
  *  the parser's own tests: the shape (`ref: refs/heads/<name>\tHEAD`) is a git
  *  output contract, and a silent parse miss here degrades into the exact
  *  guessed-`main` behavior this module exists to prevent. */
-export function parseSymrefHead(output: string): string | undefined {
+function parseSymrefHead(output: string): string | undefined {
   const match = /^ref:\s+refs\/heads\/(\S+)\s+HEAD$/m.exec(output);
   return match?.[1];
 }

@@ -1,7 +1,7 @@
-import * as path from "node:path";
 import type { ExtensionFactory, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
-import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
+import * as path from "node:path";
 import { toolUseEvent } from "../tool-events.js";
+import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
 
 // Factory identity is a stronger precondition than "some extension loaded".
 // A custom ResourceLoader used by an embedding can accidentally discard inline
@@ -14,7 +14,7 @@ export function isPiGateExtensionActive(factory: ExtensionFactory): boolean {
   return activatedPiGateExtensions.has(factory);
 }
 
-export function normalizePiToolAction(toolName: string, input: Record<string, unknown>, workdir: string): ToolAction {
+function normalizePiToolAction(toolName: string, input: Record<string, unknown>, workdir: string): ToolAction {
   const tool = toolName.toLowerCase();
   const rel = (p: unknown): string => {
     const raw = typeof p === "string" ? p : "";

@@ -2,37 +2,37 @@
 // for the build-loop state machine (M5.9).
 
 import { join } from "node:path";
-import { defaultGate } from "../runtime/gate.js";
-import type { GateFn, RoleConfig, TurnAssignment } from "../runtime/types.js";
-import { getRuntime } from "../runtime/registry.js";
+import { explainContext } from "../loop/context-manifest.js";
 import { defaultLoopInputs, runLoopOnce, type LoopDriverResult } from "../loop/driver.js";
-import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
-import { loadPipelines } from "../loop/pipelines.js";
 import { finalizeEpisode } from "../loop/efficiency.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
+import { resumeExecutionJournal } from "../loop/execution-journal.js";
+import { loadPipelines } from "../loop/pipelines.js";
 import type { ScorecardEvent as LoopScorecardEvent } from "../loop/types.js";
-import { loadApps, runtimePolicyForApp } from "../org/apps.js";
 import { resolveAppRoles } from "../org/app-execution-policy.js";
-import { assembleContext, createEpisodeContextResolver } from "../org/context.js";
-import { loadRoles } from "../org/roles.js";
-import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
+import { loadApps, runtimePolicyForApp } from "../org/apps.js";
 import { enforceBudgetOverlay, isBudgetBlocking, raiseTurnBudgetEscalation, rollupBudgets } from "../org/budget.js";
-import { createTicketEpisodeRuntime, inspectTicketEpisodeInvocation } from "../org/ticket-episode-runtime.js";
-import { createExistingTicketApprovalHandler } from "../org/ticket-episode-approval.js";
-import { createRoadmapLoopRuntime } from "../org/roadmap-loop-runtime.js";
-import { queueReleaseApprovals } from "../org/release.js";
+import { assembleContext, createEpisodeContextResolver } from "../org/context.js";
 import { composeGate } from "../org/gate-compose.js";
 import { resolveCormidiaHomes } from "../org/home.js";
-import { extractHomeFlags } from "./home-flags.js";
-import { installProcessCancellation, waitForDelay } from "./process-signal.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
-import { explainContext } from "../loop/context-manifest.js";
-import { resumeExecutionJournal } from "../loop/execution-journal.js";
-import { cmdClaimRearm } from "./claim-rearm.js";
+import { queueReleaseApprovals } from "../org/release.js";
 import { resolveReviewAuthorizationSecret } from "../org/review-authorization-secret.js";
+import { createRoadmapLoopRuntime } from "../org/roadmap-loop-runtime.js";
+import { loadRoles } from "../org/roles.js";
+import { appendScorecardEvent } from "../org/scorecards.js";
+import { createExistingTicketApprovalHandler } from "../org/ticket-episode-approval.js";
+import { createTicketEpisodeRuntime, inspectTicketEpisodeInvocation } from "../org/ticket-episode-runtime.js";
+import { defaultGate } from "../runtime/gate.js";
+import { getRuntime } from "../runtime/registry.js";
+import type { GateFn, RoleConfig, TurnAssignment } from "../runtime/types.js";
+import { cmdClaimRearm } from "./claim-rearm.js";
+import { extractHomeFlags } from "./home-flags.js";
 import { reportCliInvocation } from "./invocation-audit.js";
+import { installProcessCancellation, waitForDelay } from "./process-signal.js";
 
-export function loopInvocationOutcome(result: LoopDriverResult, dryRun = false): string {
+function loopInvocationOutcome(result: LoopDriverResult, dryRun = false): string {
   if (result.budgetRefusal !== undefined) return `budget-refused: ${result.budgetRefusal}`;
   if (dryRun) {
     const previewed = result.itemsPreviewed ?? 0;
@@ -63,7 +63,7 @@ export function loopDriverExitCode(result: LoopDriverResult): 0 | 1 {
  * the rework cycles the builder needed before the ticket merged). Returns the
  * number of newly-appended rows (dedupe drops replays).
  */
-export async function persistLoopScorecards(
+async function persistLoopScorecards(
   orgHome: string,
   app: string,
   events: readonly LoopScorecardEvent[],
@@ -92,7 +92,7 @@ export async function persistLoopScorecards(
  * autonomous dispatcher. The previous raw defaultGate wiring denied critical
  * actions but never created an approval item, leaving tickets stranded with
  * no possible `cormidia approvals review` recovery path. */
-export function createLoopGateForRole(
+function createLoopGateForRole(
   stateHome: string,
   app: string,
   turnId: string,
@@ -122,7 +122,7 @@ export function createLoopGateForRole(
   };
 }
 
-export interface ParsedLoopRunArgs {
+interface ParsedLoopRunArgs {
   appName?: string;
   once: boolean;
   follow: boolean;
@@ -137,7 +137,7 @@ export interface ParsedLoopRunArgs {
 
 /** Pure parser shared by the executable loop and generated-guidance
  * conformance tests. It performs no GitHub read and constructs no runtime. */
-export function parseLoopRunArgs(args: string[]): ParsedLoopRunArgs {
+function parseLoopRunArgs(args: string[]): ParsedLoopRunArgs {
   let appName: string | undefined;
   let once = false;
   let follow = false;

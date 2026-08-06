@@ -31,9 +31,10 @@
 // the repository to actually be more mature.
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { GhOps } from "../loop/github.js";
+import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import {
   finalizePlanForPublication,
   isTicketBudgetOnlyRefusal,
@@ -48,7 +49,6 @@ import {
   type TicketBudgetRatification,
   type TicketPlan,
 } from "../loop/plan-tickets.js";
-import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import { writeFileAtomic } from "./atomic.js";
 import {
   acquireLifecycleOperationLock,
@@ -60,20 +60,20 @@ import {
   writeLifecycleFileAtomic,
 } from "./lifecycle.js";
 
-export const TICKET_BUDGET_RATIFICATION_SCHEMA_VERSION = 1 as const;
+const TICKET_BUDGET_RATIFICATION_SCHEMA_VERSION = 1 as const;
 
 // ---------------------------------------------------------------------------
 // Durable records
 // ---------------------------------------------------------------------------
 
-export interface RefusedDecompositionProvenance {
+interface RefusedDecompositionProvenance {
   episode_id: string;
   run_id: string;
   trace_id: string;
 }
 
 /** The decomposition a budget refusal would otherwise have thrown away. */
-export interface RefusedDecompositionRecord {
+interface RefusedDecompositionRecord {
   schema_version: typeof TICKET_BUDGET_RATIFICATION_SCHEMA_VERSION;
   kind: "refused-ticket-decomposition";
   /** `ticketPlanDigest(plan)` — the identity a ratification binds to. */
@@ -91,7 +91,7 @@ export interface RefusedDecompositionRecord {
 }
 
 /** One attributable human decision to admit one oversized decomposition. */
-export interface TicketBudgetRatificationRecord {
+interface TicketBudgetRatificationRecord {
   schema_version: typeof TICKET_BUDGET_RATIFICATION_SCHEMA_VERSION;
   kind: "ticket-budget-ratification";
   ratification_id: string;
@@ -128,7 +128,7 @@ export interface TicketBudgetRatificationRecord {
 
 /** High-churn, provider-derived evidence: swept on its own retention window
  *  (docs/scheduler/design.md → State retention). */
-export function refusedDecompositionDir(stateHome: string, app: string): string {
+function refusedDecompositionDir(stateHome: string, app: string): string {
   assertSafeSegment(app, "refused decomposition");
   return join(resolve(stateHome), "planning", app, "refused-decompositions");
 }
@@ -139,12 +139,12 @@ export function refusedDecompositionPath(stateHome: string, app: string, id: str
 }
 
 /** A human decision, beside the app config-ratification journal: never swept. */
-export function ticketBudgetRatificationDir(stateHome: string, app: string): string {
+function ticketBudgetRatificationDir(stateHome: string, app: string): string {
   assertSafeSegment(app, "ticket-budget ratification");
   return join(resolve(stateHome), "lifecycle", "apps", app, "ticket-budget-ratifications");
 }
 
-export function ticketBudgetRatificationPath(stateHome: string, app: string, id: string): string {
+function ticketBudgetRatificationPath(stateHome: string, app: string, id: string): string {
   assertSafeSegment(id, "ticket-budget ratification id");
   return join(ticketBudgetRatificationDir(stateHome, app), `${id}.json`);
 }
@@ -152,7 +152,7 @@ export function ticketBudgetRatificationPath(stateHome: string, app: string, id:
 /** The exact confirmation token `--confirm` must repeat. Naming the exact
  *  decomposition (not just the app) is the point: a human confirming a budget
  *  raise must be looking at the decomposition it applies to. */
-export function ticketBudgetConfirmation(app: string, decompositionId: string): string {
+function ticketBudgetConfirmation(app: string, decompositionId: string): string {
   return `${app}@${decompositionId}`;
 }
 
@@ -204,7 +204,7 @@ export async function recordRefusedDecomposition(input: {
   return record;
 }
 
-export async function readRefusedDecomposition(
+async function readRefusedDecomposition(
   stateHome: string,
   app: string,
   decompositionId: string,
@@ -316,7 +316,7 @@ export interface TicketBudgetRatificationPlan {
   }>;
 }
 
-export interface TicketBudgetRatificationResult {
+interface TicketBudgetRatificationResult {
   status: "ratified" | "already_ratified";
   record: TicketBudgetRatificationRecord;
   published: PublishedTicket[];
@@ -541,7 +541,7 @@ export async function executeTicketBudgetRatification(
   }
 }
 
-export async function readTicketBudgetRatification(
+async function readTicketBudgetRatification(
   stateHome: string,
   app: string,
   decompositionId: string,

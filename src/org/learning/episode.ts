@@ -48,33 +48,33 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { readTicketClaimState } from "../../loop/rehydrate.js";
 import { readEnvelope, type GateResultEntry, type RunEnvelope } from "../../runtime/runlog/envelope.js";
 import { readEvents, type RunlogEvent } from "../../runtime/runlog/events.js";
 import { readTurnRecords, type TurnRecord } from "../../runtime/telemetry.js";
-import { readTicketClaimState } from "../../loop/rehydrate.js";
 import { ApprovalStore, type ApprovalItem } from "../approvals.js";
 import { writeFileAtomic } from "../atomic.js";
 import { deriveEpisodeAnchor, listRuns } from "./capture.js";
 import { ticketNumber, type EpisodeAnchor, type EpisodeKind, type EpisodeSource } from "./episodes.js";
-import { resolvedContextDir } from "./resolver.js";
 import { appendLearningEventsDeduped, readLearningEvents, type LearningEvent } from "./events.js";
+import { resolvedContextDir } from "./resolver.js";
 
 // ---------------------------------------------------------------------------
 // record shape (spec §5; deltas noted per field)
 // ---------------------------------------------------------------------------
 
-export type EpisodeStatus = "open" | "closed";
+type EpisodeStatus = "open" | "closed";
 
 /** Terminal envelope statuses verbatim, plus the heartbeat reading of a
  *  `running` envelope: `running` means a live heartbeat, `stalled` means the
  *  pass died without finalizing (killed, crashed) — reconcile recovers its
  *  spend but the envelope stays `running` on disk forever. */
-export type EpisodeTurnStatus = "completed" | "failed" | "blocked" | "cancelled" | "timed_out" | "running" | "stalled";
+type EpisodeTurnStatus = "completed" | "failed" | "blocked" | "cancelled" | "timed_out" | "running" | "stalled";
 
 /** One (turn, pipeline, pass) with its run ids — retries append run ids;
  *  `status` reads the latest attempt. `status` is a spec §5 delta: without
  *  it an interrupted turn is indistinguishable from a completed one. */
-export interface EpisodeTurnEntry {
+interface EpisodeTurnEntry {
   turn_id: string;
   role: string;
   pipeline: string;
@@ -83,7 +83,7 @@ export interface EpisodeTurnEntry {
   status: EpisodeTurnStatus;
 }
 
-export interface EpisodeGateEntry {
+interface EpisodeGateEntry {
   gate: string;
   status: "pass" | "fail" | "skip";
   /** Spec §5 delta: which run produced the outcome, so a gate line is
@@ -92,13 +92,13 @@ export interface EpisodeGateEntry {
   detail?: string;
 }
 
-export interface EpisodeSideEffect {
+interface EpisodeSideEffect {
   kind: string;
   ref: string;
   reversible: boolean;
 }
 
-export interface EpisodeOutcome {
+interface EpisodeOutcome {
   completed: boolean;
   /** build_ticket only. */
   merged?: boolean;
@@ -134,14 +134,14 @@ export interface EpisodeOutcome {
     | "reset_abandoned";
 }
 
-export interface LateOutcome {
+interface LateOutcome {
   kind: string;
   ref: string;
   recorded: string;
   note?: string;
 }
 
-export interface EpisodeHumanObservation {
+interface EpisodeHumanObservation {
   event_id: string;
   /** Candidate/intervention linkage lands with M6 distillation. */
   disposition_ref: string | null;
@@ -186,9 +186,9 @@ export interface EpisodeRecord {
  *  Deliberately far above the heartbeat period (20 missed beats) and far
  *  below reconcile's 24h spend-recovery window — misreading liveness here
  *  affects episode open/closed, not settlement. */
-export const EPISODE_STALL_MS = 10 * 60 * 1000;
+const EPISODE_STALL_MS = 10 * 60 * 1000;
 
-export interface LateOutcomeInput {
+interface LateOutcomeInput {
   kind: string;
   ref: string;
   note?: string;
@@ -206,7 +206,7 @@ export interface EpisodeProjector {
   recordLateOutcome(episodeId: string, outcome: LateOutcomeInput): Promise<LearningEvent>;
 }
 
-export interface EpisodeProjectorOptions {
+interface EpisodeProjectorOptions {
   stateHome: string;
   /** App → lifecycle stage (apps.yaml `status`), stamped on records when known. */
   appStages?: Record<string, string>;
@@ -214,11 +214,11 @@ export interface EpisodeProjectorOptions {
   clock?: () => Date;
 }
 
-export function episodesDir(stateHome: string): string {
+function episodesDir(stateHome: string): string {
   return join(stateHome, "learning", "episodes");
 }
 
-export function episodePath(stateHome: string, episodeId: string): string {
+function episodePath(stateHome: string, episodeId: string): string {
   return join(episodesDir(stateHome), `${episodeId}.json`);
 }
 

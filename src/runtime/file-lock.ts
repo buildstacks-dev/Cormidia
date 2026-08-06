@@ -26,7 +26,7 @@ export interface FileLockClock {
   sleep(ms: number): Promise<void>;
 }
 
-export const realFileLockClock: FileLockClock = {
+const realFileLockClock: FileLockClock = {
   now: () => Date.now(),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
@@ -72,7 +72,7 @@ export interface FileLockOptions {
  * the provider adapter. They therefore make one safe acquisition attempt,
  * reclaiming a dead/stale holder under the same policy as the async primitive,
  * and otherwise fail fast with FileLockBusyError. */
-export interface FileLockSyncOptions {
+interface FileLockSyncOptions {
   staleMs: number;
   /** Injectable wall time for deterministic stale-age tests. */
   now?: () => number;
@@ -147,7 +147,7 @@ export async function withFileLock<T>(lockPath: string, options: FileLockOptions
 /** Synchronous O_EXCL acquisition for code paths whose contract is itself
  * synchronous. A live holder is never broken or waited out; contention is
  * surfaced immediately so the caller can deny/retry safely. */
-export function acquireFileLockSync(lockPath: string, options: FileLockSyncOptions): FileLockToken {
+function acquireFileLockSync(lockPath: string, options: FileLockSyncOptions): FileLockToken {
   const now = options.now ?? Date.now;
   const token: FileLockToken = {
     pid: process.pid,
@@ -175,7 +175,7 @@ export function acquireFileLockSync(lockPath: string, options: FileLockSyncOptio
 }
 
 /** Synchronous nonce-verified release. */
-export function releaseFileLockSync(lockPath: string, token: FileLockToken): void {
+function releaseFileLockSync(lockPath: string, token: FileLockToken): void {
   try {
     const payload = JSON.parse(readFileSync(lockPath, "utf8")) as Partial<FileLockPayload>;
     if (payload.nonce !== token.nonce) return;

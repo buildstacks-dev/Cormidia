@@ -48,10 +48,10 @@ import {
 
 export const EXPERIMENT_LAYERS = ["deterministic", "replay", "canary"] as const;
 export type ExperimentLayer = (typeof EXPERIMENT_LAYERS)[number];
-export type ExperimentStatus = "declared" | "running" | "decided";
-export type MetricDirection = "increase" | "decrease";
+type ExperimentStatus = "declared" | "running" | "decided";
+type MetricDirection = "increase" | "decrease";
 
-export type GuardrailRule = "must_not_decrease" | "must_not_increase" | "max_increase_pct" | "max_decrease_pct";
+type GuardrailRule = "must_not_decrease" | "must_not_increase" | "max_increase_pct" | "max_decrease_pct";
 
 export interface ExperimentGuardrail {
   metric: string;
@@ -63,7 +63,7 @@ export interface ExperimentGuardrail {
 /** Phase 4's immutable, declared-before-results efficacy protocol. Legacy M3
  * declarations load with null but cannot execute or promote until re-declared
  * under this protocol. */
-export interface ExperimentEfficacyProtocol {
+interface ExperimentEfficacyProtocol {
   declared_at: string;
   baseline: { metric: string; value: number; source_ref: string };
   hidden_guardrail_commitment: { sha256: string; fixture_refs: string[] };
@@ -124,7 +124,7 @@ export interface ExperimentRecord {
 
 const EPISODE_KINDS = ["build_ticket", "incident", "feedback_thread", "campaign", "turn"] as const;
 
-export function validateExperimentRecord(value: unknown): ExperimentRecord {
+function validateExperimentRecord(value: unknown): ExperimentRecord {
   const spec = requireRecord(value, "experiment");
   const experimentId = requirePrefixedId(spec, "experiment_id", "exp_", "experiment");
   const source = experimentId;
@@ -385,14 +385,14 @@ export function experimentPath(orgHome: string, experimentId: string): string {
   return join(experimentsDir(orgHome), `${experimentId}.json`);
 }
 
-export interface DeclareExperimentOptions {
+interface DeclareExperimentOptions {
   orgHome: string;
   /** When given, both arm fingerprints must exist in the state-home store —
    *  an experiment declared against unstored arms could never replay. */
   stateHome?: string;
 }
 
-export interface DeclaredExperiment {
+interface DeclaredExperiment {
   record: ExperimentRecord;
   path: string;
   /** Field-level control→treatment delta when both fingerprints were

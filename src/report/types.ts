@@ -1,8 +1,8 @@
 import type { AppStatus } from "../org/apps.js";
+import type { RoadmapExplanationV1 } from "../org/roadmap-explanation.js";
 import type { ValidationCampaignReadResult } from "../org/validation-campaign.js";
 import type { CostAggregate } from "../runtime/cost.js";
 import type { TurnAssignmentSource } from "../runtime/types.js";
-import type { RoadmapExplanationV1 } from "../org/roadmap-explanation.js";
 
 export const REPORT_SCHEMA_VERSION = 1 as const;
 
@@ -36,7 +36,7 @@ export interface ReportSourceDiagnosticV1 {
   detail: string;
 }
 
-export interface ReportQualityV1 {
+interface ReportQualityV1 {
   overall: ReportUsageQuality;
   observable_turns: number;
   unknown_usage_turns: number;
@@ -63,7 +63,7 @@ export interface ReportQualityV1 {
   notices: string[];
 }
 
-export interface ReportHeadlineV1 {
+interface ReportHeadlineV1 {
   /** The canonical settled-ledger cost aggregate for this scope, range, and
    *  filters. Live Observer and CLI telemetry project the same object from the
    *  same rows so no two surfaces can disagree about known cost or coverage
@@ -305,7 +305,7 @@ export interface ReportSessionDetailV1 {
   activities: ReportTurnV1[];
 }
 
-export interface ReportHealthV1 {
+interface ReportHealthV1 {
   session_outcomes: Array<{ status: string; sessions: number }>;
   pass_outcomes: Array<{ status: string; passes: number }>;
   completion_integrity: Array<{ status: CompletionIntegrity; sessions: number }>;

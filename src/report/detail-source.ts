@@ -18,7 +18,7 @@ export interface ReportDetailFacts {
   scanLimited: boolean;
 }
 
-export interface EventCounts {
+interface EventCounts {
   toolCalls: number;
   subagents: number;
   escalations: number;

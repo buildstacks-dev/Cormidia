@@ -34,13 +34,6 @@ export function conceptDraftPath(root: LearningRoot, candidateId: string): strin
   return join(candidatesDir(root), `${candidateId}.md`);
 }
 
-export async function writeCandidateArtifact(root: LearningRoot, value: unknown): Promise<CandidateArtifact> {
-  const candidate = validateCandidateArtifact(value);
-  await mkdir(candidatesDir(root), { recursive: true });
-  await writeFileAtomic(candidateArtifactPath(root, candidate.candidate_id), JSON.stringify(candidate, null, 2) + "\n");
-  return candidate;
-}
-
 /** Governed candidate-store entry point used by M6. It is create-only: a
  * deterministic id may be replayed with byte-identical content, but a later
  * model response cannot silently rewrite evidence that is already awaiting
@@ -95,7 +88,7 @@ export async function openCandidateArtifact(
   return { candidate, created: true };
 }
 
-export async function readCandidateArtifact(root: LearningRoot, candidateId: string): Promise<CandidateArtifact> {
+async function readCandidateArtifact(root: LearningRoot, candidateId: string): Promise<CandidateArtifact> {
   return readJsonRecord(
     candidateArtifactPath(root, candidateId),
     validateCandidateArtifact,

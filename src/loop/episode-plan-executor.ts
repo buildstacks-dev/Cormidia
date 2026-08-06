@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { withFileLock, type FileLockOptions } from "../runtime/file-lock.js";
 import { turnAssignmentsEqual } from "../runtime/assignment.js";
+import { withFileLock, type FileLockOptions } from "../runtime/file-lock.js";
 import { writeLoopFileAtomic } from "./durable.js";
 import { efficiencyEpisodeDir, readExecutionSteps, settledProviderSteps } from "./efficiency.js";
 import {

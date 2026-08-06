@@ -1,5 +1,5 @@
 import type { EpisodePlan, EpisodeStep, ProposedEpisodePlan, ProposedEpisodeStep } from "./episode-plan.js";
-import type { PipelinesFile, PipelineConfig } from "./pipelines.js";
+import type { PipelineConfig, PipelinesFile } from "./pipelines.js";
 import type { ProjectStage } from "./plan-tickets.js";
 
 export interface PlanningProviderOperationDefinition {
@@ -69,12 +69,12 @@ export const PLANNING_PROVIDER_OPERATION_CATALOG = {
   },
 } as const satisfies Record<string, PlanningProviderOperationDefinition>;
 
-export type PlanningProviderOperation = keyof typeof PLANNING_PROVIDER_OPERATION_CATALOG;
+type PlanningProviderOperation = keyof typeof PLANNING_PROVIDER_OPERATION_CATALOG;
 export const PLANNING_PROVIDER_OPERATIONS = Object.keys(
   PLANNING_PROVIDER_OPERATION_CATALOG,
 ).sort() as PlanningProviderOperation[];
 
-export const PLANNING_EPISODE_PLAN_REASON_CODES = [
+const PLANNING_EPISODE_PLAN_REASON_CODES = [
   "planning_provider_operation_unknown",
   "planning_provider_operation_role_mismatch",
   "planning_step_kind_unsupported",
@@ -84,21 +84,21 @@ export const PLANNING_EPISODE_PLAN_REASON_CODES = [
   "planning_plan_output_ref_invalid",
 ] as const;
 
-export type PlanningEpisodePlanReasonCode = (typeof PLANNING_EPISODE_PLAN_REASON_CODES)[number];
+type PlanningEpisodePlanReasonCode = (typeof PLANNING_EPISODE_PLAN_REASON_CODES)[number];
 
-export interface PlanningEpisodePlanIssue {
+interface PlanningEpisodePlanIssue {
   code: PlanningEpisodePlanReasonCode;
   message: string;
   stepId?: string;
   inputRef?: string;
 }
 
-export interface PlanningEpisodePlanValidationResult {
+interface PlanningEpisodePlanValidationResult {
   ok: boolean;
   issues: PlanningEpisodePlanIssue[];
 }
 
-export class PlanningEpisodePlanValidationError extends Error {
+class PlanningEpisodePlanValidationError extends Error {
   readonly code = "error_planning_episode_plan_invalid" as const;
 
   constructor(readonly issues: readonly PlanningEpisodePlanIssue[]) {
@@ -163,10 +163,7 @@ export function planningPipelineForOperation(operation: string, file: PipelinesF
   };
 }
 
-export function validatePlanningEpisodePlan(
-  plan: PlanningPlanLike,
-  stage: ProjectStage,
-): PlanningEpisodePlanValidationResult {
+function validatePlanningEpisodePlan(plan: PlanningPlanLike, stage: ProjectStage): PlanningEpisodePlanValidationResult {
   const issues: PlanningEpisodePlanIssue[] = [];
   const steps = plan.steps as readonly PlanningStep[];
   const byId = new Map(steps.map((step) => [step.id, step]));

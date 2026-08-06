@@ -5,8 +5,10 @@ import { existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Trigger } from "../runtime/types.js";
 import { GhCliOps } from "../loop/github.js";
+import type { DurableClaimOwner, DurableClaimOwnerStatus } from "../runtime/durable-claim.js";
+import { processIdentityStatus } from "../runtime/process-identity.js";
+import type { Trigger } from "../runtime/types.js";
 import { loadApps, resolveTriggers, type AppEntry, type AppsFile } from "./apps.js";
 import { enforceBudgetOverlay, isOverlayPaused } from "./budget.js";
 import {
@@ -19,17 +21,19 @@ import {
 } from "./events.js";
 import { listJournals, readJournal, writeJournalPatch, type TurnEvent } from "./journal.js";
 import { acquireLock, isStale, readLock, releaseLock, type TurnLock } from "./locks.js";
+import {
+  listPlannerPublications,
+  resumePlannerPublication,
+  type PlannerPublicationGit,
+} from "./planner-publication.js";
 import { recoverStaleTurn } from "./recovery.js";
 import { runScheduledRetentionSweep, type StateSweepResult } from "./retention.js";
 import { loadRoles, type RolesFile } from "./roles.js";
 import { isDue, scheduleDueWindow, ScheduleStore } from "./schedule.js";
-import { resolveTriggerRoute } from "./trigger-routing.js";
 import { scheduledRoleEligibility } from "./scheduled-role-eligibility.js";
-import { processIdentityStatus } from "../runtime/process-identity.js";
-import type { DurableClaimOwner, DurableClaimOwnerStatus } from "../runtime/durable-claim.js";
-import { SchedulerEvidenceStore, type SchedulerInvocationRecord } from "./scheduler/evidence.js";
 import { ScheduleDueClaimStore, type ScheduleDueClaimPayload } from "./scheduler/due-window-claims.js";
 import { assertScheduledRequiredExecutables } from "./scheduler/environment.js";
+import { SchedulerEvidenceStore, type SchedulerInvocationRecord } from "./scheduler/evidence.js";
 import {
   cadenceWindow,
   scheduledEpisodeId,
@@ -38,13 +42,9 @@ import {
   schedulerOrgId,
   type SchedulerReasonCode,
 } from "./scheduler/model.js";
-import {
-  listPlannerPublications,
-  resumePlannerPublication,
-  type PlannerPublicationGit,
-} from "./planner-publication.js";
+import { resolveTriggerRoute } from "./trigger-routing.js";
 
-export interface DispatchTickOptions {
+interface DispatchTickOptions {
   orgRoot?: string;
   runtimeHome?: string;
   appsPath?: string;
@@ -125,7 +125,7 @@ export interface DueTurn {
 /** Reconcile prepared Planner effects before admitting any new provider work.
  * A pending transaction therefore cannot compete with a fresh grooming turn,
  * and a successful retry consumes zero provider turns. */
-export async function reconcilePendingPlannerPublications(input: {
+async function reconcilePendingPlannerPublications(input: {
   stateHome: string;
   apps: readonly AppEntry[];
   result: Pick<DispatchTickResult, "skipped" | "errors">;

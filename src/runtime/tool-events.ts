@@ -18,7 +18,7 @@ import type { ToolAction, TurnEvent } from "./types.js";
 const ENVIRONMENT_COMMAND =
   /(?:^|[;&|]\s*)(?:sudo\s+)?(?:docker(?:-compose)?(?:\s+compose)?|podman|apt(?:-get)?|yum|dnf|brew|pip3?|npm|pnpm|yarn|corepack)\s+(?:install|ci|add|enable|restart|start|stop|up|pull|build)\b|(?:^|[;&|]\s*)(?:sleep\s+\d|wait-for)/;
 
-export function environmentCategory(action: ToolAction): "environment_retry" | undefined {
+function environmentCategory(action: ToolAction): "environment_retry" | undefined {
   const command = commandOf(action);
   if (command === undefined) return undefined;
   return ENVIRONMENT_COMMAND.test(command) ? "environment_retry" : undefined;

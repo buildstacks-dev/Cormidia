@@ -4,30 +4,30 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { RuntimeKind } from "../runtime/types.js";
-import { RUNTIME_KINDS } from "../runtime/registry.js";
-import {
-  probeRuntimeReadiness,
-  type RuntimeReadinessProbe,
-  type RuntimeReadinessRequest,
-} from "../runtime/readiness.js";
-import { loadRoles } from "../org/roles.js";
-import { loadApps } from "../org/apps.js";
 import { loadPipelines } from "../loop/pipelines.js";
+import { loadApps } from "../org/apps.js";
+import { resolveAuthority } from "../org/authority.js";
 import {
   ORG_HOME_DEFINITION,
   resolveCormidiaHomes,
   STATE_HOME_DEFINITION,
   type CormidiaHomeOptions,
 } from "../org/home.js";
-import { extractHomeFlags } from "./home-flags.js";
-import { resolveAuthority } from "../org/authority.js";
-import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
-import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
 import { describeManagedClone, inspectManagedClones, type ManagedCloneHealth } from "../org/managed-clone-health.js";
 import { listOrgs } from "../org/org-archive.js";
+import { loadRoles } from "../org/roles.js";
+import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
+import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
+import {
+  probeRuntimeReadiness,
+  type RuntimeReadinessProbe,
+  type RuntimeReadinessRequest,
+} from "../runtime/readiness.js";
+import { RUNTIME_KINDS } from "../runtime/registry.js";
+import type { RuntimeKind } from "../runtime/types.js";
+import { extractHomeFlags } from "./home-flags.js";
 
-export interface DoctorOptions extends CormidiaHomeOptions {
+interface DoctorOptions extends CormidiaHomeOptions {
   launchAgentsDir?: string;
   json?: boolean;
   /** Validate files without starting non-billable adapter probes. Intended
@@ -59,7 +59,7 @@ export async function cmdDoctorArgs(args: string[]): Promise<number> {
   return cmdDoctor({ ...common, json, configOnly });
 }
 
-export async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
+async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   const config: CheckRow[] = [];
   let homes: Awaited<ReturnType<typeof resolveCormidiaHomes>> | undefined;
   let roles: Awaited<ReturnType<typeof loadRoles>> | undefined;

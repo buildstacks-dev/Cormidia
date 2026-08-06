@@ -3,29 +3,26 @@
 // process is intentionally unavailable because it bypassed durable plan,
 // assignment, gate, envelope, and settlement authority.
 
-import { cleanupPlanningWorktree, preparePlanSession } from "../org/plan.js";
-import { runAutoPlan } from "../org/plan-auto.js";
-import { loadApps } from "../org/apps.js";
-import { resolveCormidiaHomes } from "../org/home.js";
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { extractHomeFlags } from "./home-flags.js";
-import { installProcessCancellation } from "./process-signal.js";
-import { resolveParentTaskId } from "../org/parent-task.js";
-import { loadRoles } from "../org/roles.js";
-import { isBudgetBlocking, rollupBudgets } from "../org/budget.js";
-import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
-import type { PlanningSourceRequest } from "../org/planning-inputs.js";
-import { previewEpisode, type EpisodePlanningPreview } from "../org/episode-planner/orchestrator.js";
 import {
   parseCreatorEpisodeScope,
   stableHash,
   type CreatorEpisodeScope,
   type JsonValue,
 } from "../loop/episode-plan.js";
+import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
+import { TICKET_BUDGETS, type ProjectStage } from "../loop/plan-tickets.js";
 import { assertPlanningEpisodePlanValid, PLANNING_PROVIDER_OPERATION_CATALOG } from "../loop/planning-episode-plan.js";
+import { loadApps } from "../org/apps.js";
+import { isBudgetBlocking, rollupBudgets } from "../org/budget.js";
+import { previewEpisode, type EpisodePlanningPreview } from "../org/episode-planner/orchestrator.js";
 import { safetyFactsFromPlanningRequest } from "../org/episode-safety-facts.js";
+import { resolveCormidiaHomes } from "../org/home.js";
+import { resolveParentTaskId } from "../org/parent-task.js";
+import { runAutoPlan } from "../org/plan-auto.js";
+import { cleanupPlanningWorktree, preparePlanSession } from "../org/plan.js";
 import {
   expectedTicketBandRange,
   type ExpectedTicketBand,
@@ -35,9 +32,7 @@ import {
   type PlanningReversibility,
   type PlanningWorkLifecycle,
 } from "../org/planning-depth.js";
-import { TICKET_BUDGETS, type ProjectStage } from "../loop/plan-tickets.js";
-import { listRefusedDecompositions, ratifyTicketBudgetCommand } from "../org/ticket-budget-ratification.js";
-import { cmdPlanRatifyTicketBudget } from "./plan-ratify.js";
+import type { PlanningSourceRequest } from "../org/planning-inputs.js";
 import {
   discoverPlanningStageCheckout,
   formatPlanningStage,
@@ -45,6 +40,11 @@ import {
   resolvePlanningStage,
   type PlanningStageResolution,
 } from "../org/planning-stage.js";
+import { loadRoles } from "../org/roles.js";
+import { listRefusedDecompositions, ratifyTicketBudgetCommand } from "../org/ticket-budget-ratification.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { cmdPlanRatifyTicketBudget } from "./plan-ratify.js";
+import { installProcessCancellation } from "./process-signal.js";
 
 export async function cmdPlan(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "plan");
@@ -288,7 +288,7 @@ export async function cmdPlan(args: string[]): Promise<number> {
 }
 
 /** Text rendering of the token-free ticket-budget preview. */
-export function formatTicketBudgetPreview(preview: TicketBudgetPreview): string[] {
+function formatTicketBudgetPreview(preview: TicketBudgetPreview): string[] {
   const lines = [`ticket budget: ${preview.budget} (${preview.stage})`];
   lines.push(`ticket budget fit: ${preview.fit} — ${preview.detail}`);
   for (const pending of preview.pendingRatifications) {
@@ -301,7 +301,7 @@ export function formatTicketBudgetPreview(preview: TicketBudgetPreview): string[
   return lines;
 }
 
-export function formatPlanTicketSummary(index: number, ticket: PlanTicket, projection?: FinalTicketProjection): string {
+function formatPlanTicketSummary(index: number, ticket: PlanTicket, projection?: FinalTicketProjection): string {
   return (
     `  ${index}: [${ticket.tier}/${ticket.priority}] ${ticket.title}` +
     (projection?.escalationReason !== undefined
@@ -310,7 +310,7 @@ export function formatPlanTicketSummary(index: number, ticket: PlanTicket, proje
   );
 }
 
-export interface ParsedPlanArgs {
+interface ParsedPlanArgs {
   app: string;
   topic?: string;
   dryRun: boolean;
@@ -337,7 +337,7 @@ export interface ParsedPlanArgs {
 
 /** Pure parser shared by the executable command and generated-guidance
  * conformance tests. It resolves no homes and constructs no runtime. */
-export function parsePlanArgs(args: string[]): ParsedPlanArgs {
+function parsePlanArgs(args: string[]): ParsedPlanArgs {
   const app = args[0];
   if (!app || app.startsWith("--")) {
     throw new Error(
@@ -528,7 +528,7 @@ function planningOptions(parsed: ParsedPlanArgs) {
  * been bought and refused: `--dry-run` happily reported the money budget and
  * said nothing about a ticket-count ceiling (ENH-011). Everything here is read
  * from local files and pure constants — no provider is constructed. */
-export interface TicketBudgetPreview {
+interface TicketBudgetPreview {
   stage: ProjectStage;
   /** Maximum tickets one plan may publish at this stage. */
   budget: number;
@@ -568,7 +568,7 @@ interface AutoPlanningPreviewResult {
 }
 
 /** Pure projection of the stage ticket budget against a requested band. */
-export function projectTicketBudget(input: {
+function projectTicketBudget(input: {
   stage: ProjectStage;
   requestedBand: ExpectedTicketBand | undefined;
   pending: Array<{ decompositionId: string; ticketCount: number; refusedAt: string; ratifyCommand: string }>;
@@ -801,7 +801,7 @@ async function previewAutoPlanningRequest(input: {
 /** Read a creator scope at the CLI boundary, then hand the decoded value to
  * the one canonical strict parser. JSON and YAML are transport formats only;
  * they do not define competing scope schemas. */
-export async function loadCreatorEpisodeScopeFile(path: string): Promise<CreatorEpisodeScope> {
+async function loadCreatorEpisodeScopeFile(path: string): Promise<CreatorEpisodeScope> {
   const absolute = resolve(path);
   const extension = extname(absolute).toLowerCase();
   if (extension !== ".json" && extension !== ".yaml" && extension !== ".yml") {

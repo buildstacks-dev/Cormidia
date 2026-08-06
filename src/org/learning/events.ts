@@ -35,7 +35,7 @@ import { readJsonLinesTolerant } from "./records.js";
  *  Removal is forward-compatible by construction: `readLearningEvents` parses
  *  historical rows without validating `type`, so events written under the old
  *  enum still read back over the 1825-day retention window. */
-export type LearningEventType =
+type LearningEventType =
   | "error"
   | "human_correction"
   | "gate_verdict"
@@ -50,7 +50,7 @@ export type LearningEventType =
   | "late_outcome"
   | "publish_committed";
 
-export type LearningEmitter = "agent" | "orchestrator" | "verifier" | "resolver" | "publisher" | "human";
+type LearningEmitter = "agent" | "orchestrator" | "verifier" | "resolver" | "publisher" | "human";
 
 /** Metric-bearing events must come from these emitters (spec §4); agent
  *  self-reports are advisory distillation input only (design §10). */
@@ -62,7 +62,7 @@ export const METRIC_EMITTERS: readonly LearningEmitter[] = [
   "human",
 ];
 
-export type LearningTrust = "trusted" | "untrusted" | "legacy";
+type LearningTrust = "trusted" | "untrusted" | "legacy";
 
 /** qgates status vocabulary (spec §4); the projector maps L1's
  *  `passed | failed | skipped` onto it. */
@@ -97,11 +97,11 @@ export interface LearningEvent {
   payload?: Record<string, unknown>;
 }
 
-export interface LearningEventSink {
+interface LearningEventSink {
   emit(event: LearningEvent): Promise<void>;
 }
 
-export function learningEventsDir(stateHome: string): string {
+function learningEventsDir(stateHome: string): string {
   return join(stateHome, "learning", "events");
 }
 
@@ -165,7 +165,7 @@ export async function readLearningEvents(stateHome: string): Promise<LearningEve
   return (await readLearningEventsWithDiagnostics(stateHome)).events;
 }
 
-export interface LearningEventReadResult {
+interface LearningEventReadResult {
   events: LearningEvent[];
   /** Files observed during directory enumeration that disappeared before
    * read (including dangling links). A report can stay available and name
@@ -190,7 +190,7 @@ export async function readLearningEventsWithDiagnostics(stateHome: string): Prom
   return { events, missingFiles };
 }
 
-export async function listLearningEventFiles(stateHome: string): Promise<string[]> {
+async function listLearningEventFiles(stateHome: string): Promise<string[]> {
   const root = learningEventsDir(stateHome);
   if (!existsSync(root)) return [];
   const paths: string[] = [];

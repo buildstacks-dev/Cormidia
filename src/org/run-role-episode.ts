@@ -11,8 +11,8 @@ import type {
 } from "../loop/episode-plan.js";
 import type { RoleConfig } from "../runtime/types.js";
 import type { AppEntry } from "./apps.js";
-import { assignmentsForRole, resolveAppAssignments } from "./execution-assignments.js";
 import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
+import { assignmentsForRole, resolveAppAssignments } from "./execution-assignments.js";
 import { journalPath, readJournal, writeJournalPatch, type TurnJournal } from "./journal.js";
 import { resolveTriggerRoute, type TriggerRoute } from "./trigger-routing.js";
 
@@ -20,7 +20,7 @@ const MAX_RUN_ROLE_TEMPLATE_BYTES = 64 * 1024;
 const RUN_ROLE_STEP_ID = "run-role";
 const RUN_ROLE_OUTPUT_ID = "role-result";
 
-export interface PrepareStandaloneRunRoleScopeOptions {
+interface PrepareStandaloneRunRoleScopeOptions {
   stateHome: string;
   app: AppEntry;
   roles: readonly RoleConfig[];
@@ -46,7 +46,7 @@ export interface PreparedStandaloneRunRoleScope {
   journalPersisted: boolean;
 }
 
-export interface StandaloneRunRoleTemplate {
+interface StandaloneRunRoleTemplate {
   path: string;
   text: string;
   bytes: number;
@@ -172,7 +172,7 @@ async function inspectStandaloneRunRoleScopeAt(
   };
 }
 
-export interface BuildStandaloneRunRoleScopeOptions {
+interface BuildStandaloneRunRoleScopeOptions {
   app: AppEntry;
   roles: readonly RoleConfig[];
   role: RoleConfig;
@@ -184,7 +184,7 @@ export interface BuildStandaloneRunRoleScopeOptions {
 }
 
 /** Pure creator-scope construction, exported for boundary tests. */
-export function buildStandaloneRunRoleScope(options: BuildStandaloneRunRoleScopeOptions): CreatorEpisodeScope {
+function buildStandaloneRunRoleScope(options: BuildStandaloneRunRoleScopeOptions): CreatorEpisodeScope {
   const configuredRole = options.roles.find((role) => role.name === options.role.name);
   if (configuredRole === undefined) {
     throw new Error(`run-role: role ${options.role.name} is not present in current org configuration`);

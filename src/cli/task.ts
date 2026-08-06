@@ -5,20 +5,20 @@
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { resolveAppWorkdir } from "../org/app-workdir.js";
+import { authorityEvidence, resolveAuthority } from "../org/authority.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import {
   beginParentTask,
   finishParentTask,
   markParentTaskFallback,
   readParentTask,
   readParentTaskPrompt,
-  type ParentTaskRecord,
   type ParentTaskCompletionState,
+  type ParentTaskRecord,
   type ParentTaskStatus,
 } from "../org/parent-task.js";
-import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
-import { authorityEvidence, resolveAuthority } from "../org/authority.js";
-import { resolveAppWorkdir } from "../org/app-workdir.js";
 
 export async function cmdTask(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "task");

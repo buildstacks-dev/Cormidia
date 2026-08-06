@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 import { analyzeRunlogs } from "../runtime/runlog/anomalies.js";
 import { readScorecards } from "./scorecards.js";
 
-export interface RetroOptions {
+interface RetroOptions {
   orgHome: string;
   /** High-churn telemetry/runlog root. Defaults to orgHome for callers from
    * before the packaging boundary was made explicit. */
@@ -23,12 +23,12 @@ export interface RetroOptions {
   roles: string[];
 }
 
-export interface RetroResult {
+interface RetroResult {
   path: string;
   content: string;
 }
 
-export interface TelemetryRecord {
+interface TelemetryRecord {
   at: string;
   app?: string;
   role: string;

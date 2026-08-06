@@ -7,18 +7,18 @@
 // introducing a second evidence model.
 
 import { createHash } from "node:crypto";
-import type { RunlogEvent } from "../../runtime/runlog/events.js";
-import type { RunEnvelope } from "../../runtime/runlog/envelope.js";
-import type { TurnAssignmentSource } from "../../runtime/types.js";
-import type { ExecutionJournal } from "../../loop/execution-journal.js";
 import type { ExecutionStepRecord, RouteRecord } from "../../loop/efficiency.js";
+import type { ExecutionJournal } from "../../loop/execution-journal.js";
+import type { RunEnvelope } from "../../runtime/runlog/envelope.js";
+import type { RunlogEvent } from "../../runtime/runlog/events.js";
 import { ERROR_TURN_BUDGET_SUSPENDED } from "../../runtime/turn-budget.js";
+import type { TurnAssignmentSource } from "../../runtime/types.js";
 import { METRIC_EMITTERS, type LearningEvent } from "./events.js";
 
-export const EFFICIENCY_EVIDENCE_VERSION = "efficiency-evidence/v1" as const;
-export const EFFICIENCY_CLUSTER_VERSION = "efficiency-cluster/v1" as const;
+const EFFICIENCY_EVIDENCE_VERSION = "efficiency-evidence/v1" as const;
+const EFFICIENCY_CLUSTER_VERSION = "efficiency-cluster/v1" as const;
 
-export const EFFICIENCY_ERROR_CLASSES = [
+const EFFICIENCY_ERROR_CLASSES = [
   "execution.cancelled",
   "execution.cap_stop",
   "execution.pass_failed",
@@ -35,7 +35,7 @@ export const EFFICIENCY_ERROR_CLASSES = [
   "scheduler.missed_tick",
 ] as const;
 
-export type EfficiencyErrorClass = (typeof EFFICIENCY_ERROR_CLASSES)[number];
+type EfficiencyErrorClass = (typeof EFFICIENCY_ERROR_CLASSES)[number];
 const EFFICIENCY_CLASS_SET = new Set<string>(EFFICIENCY_ERROR_CLASSES);
 
 /**
@@ -94,7 +94,7 @@ function causeFor(errorClass: EfficiencyErrorClass, errorCode: string): string {
     : `provider pass terminated with ${errorCode}`;
 }
 
-export interface EfficiencyActionSummary {
+interface EfficiencyActionSummary {
   run_id: string;
   shell_commands: number;
   unique_shell_commands: number;
@@ -103,7 +103,7 @@ export interface EfficiencyActionSummary {
   tool_calls: number;
 }
 
-export interface EfficiencyApprovalEvidence {
+interface EfficiencyApprovalEvidence {
   id: string;
   app: string;
   episode_id: string;
@@ -123,7 +123,7 @@ export interface SchedulerMissEvidence {
   schedule_ref: string;
 }
 
-export interface EfficiencyRunEvidence {
+interface EfficiencyRunEvidence {
   envelope: RunEnvelope;
   /**
    * Learning-namespace episode id to stamp on the events this run produces
@@ -153,7 +153,7 @@ export interface EfficiencyRunEvidence {
   steps?: ExecutionStepRecord[];
 }
 
-export interface EfficiencyEvidenceInput {
+interface EfficiencyEvidenceInput {
   runs: EfficiencyRunEvidence[];
   approvals?: EfficiencyApprovalEvidence[];
   schedulerMisses?: SchedulerMissEvidence[];
@@ -379,7 +379,7 @@ export function projectEfficiencyEvidence(input: EfficiencyEvidenceInput): Learn
   return dedupeEvents(out).sort((a, b) => a.event_id.localeCompare(b.event_id));
 }
 
-export interface EvidenceCluster {
+interface EvidenceCluster {
   schema_version: 1;
   classification_version: typeof EFFICIENCY_CLUSTER_VERSION;
   fingerprint: string;
@@ -418,7 +418,7 @@ export interface CandidateDisposition {
   candidate_ref: string | null;
 }
 
-export interface ClusterProjection {
+interface ClusterProjection {
   clusters: EvidenceCluster[];
   dispositions: CandidateDisposition[];
 }

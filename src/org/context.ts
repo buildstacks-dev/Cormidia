@@ -14,7 +14,7 @@ import { loadLearningPolicy } from "./learning/policy.js";
 import { resolveLearningContext, type ResolvedLearningContext } from "./learning/resolver.js";
 import { selectAttributedExcerpts } from "./memory.js";
 
-export interface AssembleContextOptions {
+interface AssembleContextOptions {
   orgHome: string;
   appWorkdir: string;
   app: string;
@@ -42,7 +42,7 @@ export interface AssembleContextOptions {
   };
 }
 
-export interface AssembledContext {
+interface AssembledContext {
   bundle: ContextBundle;
   /** Rendered native-channel text for CLI integrations that need a string. */
   systemPrompt: string;
@@ -176,7 +176,7 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   };
 }
 
-export interface EpisodeContextResolverOptions {
+interface EpisodeContextResolverOptions {
   orgHome: string;
   appWorkdir: string;
   app: string;
@@ -240,7 +240,7 @@ export function createEpisodeContextResolver(
   };
 }
 
-export function renderContextBundle(bundle: ContextBundle): string {
+function renderContextBundle(bundle: ContextBundle): string {
   const sections = [
     ...(bundle.authority !== undefined ? [`## Effective delegated authority\n\n${bundle.authority.text.trim()}`] : []),
     ...bundle.taste,

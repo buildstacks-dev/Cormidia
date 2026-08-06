@@ -21,12 +21,12 @@
 // grading it twice would double-count one signal.
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { asGlobal, SECRET_PATTERNS } from "../../runtime/secret-patterns.js";
 import { scrubSecrets } from "../../runtime/runlog/redact.js";
-import { isValidLoopScope } from "../memory.js";
+import { asGlobal, SECRET_PATTERNS } from "../../runtime/secret-patterns.js";
 import { writeFileAtomic } from "../atomic.js";
+import { isValidLoopScope } from "../memory.js";
 import { readCapsule, type ReplayCapsule } from "./capsule.js";
 import type { GraderKind } from "./eval-result.js";
 import { optionalString, requireEnum, requireRecord, requireString, requireStringArray } from "./validate.js";
@@ -34,9 +34,9 @@ import { optionalString, requireEnum, requireRecord, requireString, requireStrin
 /** The deterministic build-outcome grader this module drafts fixtures
  *  against; gradeBuildOutcome() is its implementation. Versioned so a
  *  semantics change is a new ref, never a silent regrade. */
-export const BUILD_OUTCOME_GRADER_REF = "builtin:build-outcome@1";
+const BUILD_OUTCOME_GRADER_REF = "builtin:build-outcome@1";
 
-export interface ExpectedBuildOutcome {
+interface ExpectedBuildOutcome {
   merged: boolean | null;
   review_cycles: number | null;
   cost_usd: number | null;
@@ -79,7 +79,7 @@ export interface EvalFixture {
  *  dots: the set becomes a directory under the gate-protected
  *  `learning/evals/**`, and `roles/../experiments` escaping into a sibling
  *  store is a grammar error, not a path. */
-export function isValidEvalSet(set: string): boolean {
+function isValidEvalSet(set: string): boolean {
   const slash = set.lastIndexOf("/");
   if (slash <= 0) return false;
   const scope = set.slice(0, slash);
@@ -87,15 +87,15 @@ export function isValidEvalSet(set: string): boolean {
   return isValidLoopScope(scope) && /^[A-Za-z0-9._-]+$/.test(name) && !/^\.+$/.test(name);
 }
 
-export function evalsDir(orgHome: string): string {
+function evalsDir(orgHome: string): string {
   return join(orgHome, "learning", "evals");
 }
 
-export function evalSetDir(orgHome: string, set: string): string {
+function evalSetDir(orgHome: string, set: string): string {
   return join(evalsDir(orgHome), ...set.split("/"));
 }
 
-export function fixturePath(orgHome: string, set: string, capsuleId: string): string {
+function fixturePath(orgHome: string, set: string, capsuleId: string): string {
   return join(evalSetDir(orgHome, set), `${capsuleId}.json`);
 }
 
@@ -103,7 +103,7 @@ export function fixturePath(orgHome: string, set: string, capsuleId: string): st
 // conversion (draft) — deterministic, sanitizing
 // ---------------------------------------------------------------------------
 
-export interface ConvertCapsuleOptions {
+interface ConvertCapsuleOptions {
   orgHome: string;
   stateHome: string;
   capsuleId: string;
@@ -116,7 +116,7 @@ export interface ConvertCapsuleOptions {
   clock?: () => Date;
 }
 
-export interface ConvertedFixture {
+interface ConvertedFixture {
   fixture: EvalFixture;
   path: string;
   /** Secret-pattern replacements applied during sanitization. */
@@ -234,7 +234,7 @@ function sanitizeDeep<T>(input: T): { value: T; redactions: number } {
 // independent validation (trust)
 // ---------------------------------------------------------------------------
 
-export interface TrustFixtureOptions {
+interface TrustFixtureOptions {
   orgHome: string;
   set: string;
   capsuleId: string;
@@ -283,7 +283,7 @@ export async function trustEvalFixture(options: TrustFixtureOptions): Promise<Ev
  *  STATELESS form — a shared /g regex carries lastIndex between .test()
  *  calls and would skip matches early in the next string, which is exactly
  *  the under-report this scan exists to prevent. */
-export function scanForSecrets(fixture: unknown): string[] {
+function scanForSecrets(fixture: unknown): string[] {
   const hits = new Set<string>();
   walkStrings(fixture, (s) => {
     for (const pattern of SECRET_PATTERNS) {
@@ -294,7 +294,7 @@ export function scanForSecrets(fixture: unknown): string[] {
   return [...hits].sort();
 }
 
-export function fixtureTrustGaps(fixture: EvalFixture): string[] {
+function fixtureTrustGaps(fixture: EvalFixture): string[] {
   const gaps: string[] = [];
   if (fixture.validated_by === null) gaps.push("independent_validation");
   if (fixture.seed.repo === null || fixture.seed.commit === null) gaps.push("seed");
@@ -309,7 +309,7 @@ export function fixtureTrustGaps(fixture: EvalFixture): string[] {
 // the builtin deterministic grader
 // ---------------------------------------------------------------------------
 
-export interface BuildAttemptOutcome {
+interface BuildAttemptOutcome {
   merged: boolean | null;
   review_cycles: number | null;
 }
@@ -342,7 +342,7 @@ export function gradeBuildOutcome(
 // record validation + listing
 // ---------------------------------------------------------------------------
 
-export function validateEvalFixture(value: unknown): EvalFixture {
+function validateEvalFixture(value: unknown): EvalFixture {
   const spec = requireRecord(value, "fixture");
   const fixtureId = requireString(spec, "fixture_id", "fixture");
   const source = fixtureId;

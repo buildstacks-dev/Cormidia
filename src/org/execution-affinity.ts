@@ -13,9 +13,9 @@ import { turnAssignmentsEqual, validateTurnAssignment } from "../runtime/assignm
 import { withFileLock } from "../runtime/file-lock.js";
 import type { SessionHandle, TurnAssignment, TurnUsage } from "../runtime/types.js";
 
-export const EXECUTION_AFFINITY_SCHEMA_VERSION = 1 as const;
+const EXECUTION_AFFINITY_SCHEMA_VERSION = 1 as const;
 
-export type ExecutionAffinityFailureCode =
+type ExecutionAffinityFailureCode =
   | "affinity_manifest_invalid"
   | "affinity_record_conflict"
   | "affinity_record_corrupt"
@@ -32,16 +32,16 @@ export class ExecutionAffinityError extends Error {
   }
 }
 
-export type ExecutionContextComponentKind = "authority" | "validation" | "shared_context" | "unit_delta";
+type ExecutionContextComponentKind = "authority" | "validation" | "shared_context" | "unit_delta";
 
-export interface ExecutionContextComponentInput {
+interface ExecutionContextComponentInput {
   id: string;
   kind: ExecutionContextComponentKind;
   sourceRef: string;
   sha256: string;
 }
 
-export interface ExecutionContextComponent extends ExecutionContextComponentInput {
+interface ExecutionContextComponent extends ExecutionContextComponentInput {
   position: number;
 }
 
@@ -52,7 +52,7 @@ export interface ExecutionCompatibilityIdentity {
   operation: string;
 }
 
-export interface ExecutionContextAffinityManifest {
+interface ExecutionContextAffinityManifest {
   schemaVersion: typeof EXECUTION_AFFINITY_SCHEMA_VERSION;
   unitId: string;
   compatibility: ExecutionCompatibilityIdentity;
@@ -66,7 +66,7 @@ export interface ExecutionContextAffinityManifest {
 
 export type CacheMeasurement = "hit" | "miss" | "unknown";
 
-export interface ExecutionCacheTelemetry {
+interface ExecutionCacheTelemetry {
   measurement: CacheMeasurement;
   cacheReadTokens: number | null;
   cacheCreationTokens: number | null;
@@ -104,7 +104,7 @@ export interface SessionReuseCandidate {
   cache: ExecutionCacheTelemetry;
 }
 
-export type SessionReuseRefusalReason =
+type SessionReuseRefusalReason =
   | "candidate_unsettled"
   | "app_mismatch"
   | "role_mismatch"
@@ -113,7 +113,7 @@ export type SessionReuseRefusalReason =
   | "immutable_prefix_mismatch"
   | "session_runtime_mismatch";
 
-export type SessionReuseDecision =
+type SessionReuseDecision =
   | { reuse: true; session: SessionHandle; candidateRecordId: string }
   | { reuse: false; reason: SessionReuseRefusalReason };
 
@@ -421,7 +421,7 @@ export function cacheAffinityAdvice(cache: ExecutionCacheTelemetry): {
   };
 }
 
-export function executionAffinityRecordPath(root: string, recordId: string): string {
+function executionAffinityRecordPath(root: string, recordId: string): string {
   return join(root, "planning", "execution-affinity", stableHash(recordId).slice(0, 40), "record.json");
 }
 

@@ -15,7 +15,7 @@
 
 import type { ContextBundle } from "../runtime/types.js";
 
-export interface TicketSection {
+interface TicketSection {
   title: string;
   /** Issue body: goal, context, acceptance criteria, scope — never summarized. */
   body: string;
@@ -23,12 +23,12 @@ export interface TicketSection {
 
 /** A linked document resolved from the ticket's Context links (§3): whole
  *  doc if the budget allows, relevant sections by heading match otherwise. */
-export interface SpecDoc {
+interface SpecDoc {
   title: string;
   content: string;
 }
 
-export interface BriefFinding {
+interface BriefFinding {
   /** The finding entry, verbatim (§6 line grammar or free text). */
   text: string;
   severity: "critical" | "major" | "minor";
@@ -36,7 +36,7 @@ export interface BriefFinding {
   resolved: boolean;
 }
 
-export interface BriefInput {
+interface BriefInput {
   ticket: TicketSection;
   /** In doc order. */
   specs?: SpecDoc[];
@@ -56,12 +56,12 @@ export interface BriefInput {
   repo?: string;
 }
 
-export interface BriefOpts {
+interface BriefOpts {
   budgetTokens: number;
 }
 
 /** §3's starting heuristic. Exported so callers budget with the same ruler. */
-export function estimateTokens(text: string): number {
+function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 

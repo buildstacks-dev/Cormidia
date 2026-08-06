@@ -3,14 +3,14 @@ import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
 
-export type PlanningSourceRequirement = "required" | "optional";
+type PlanningSourceRequirement = "required" | "optional";
 
 export interface PlanningSourceRequest {
   path: string;
   requirement?: PlanningSourceRequirement;
 }
 
-export interface PlanningSourceRootRecord {
+interface PlanningSourceRootRecord {
   request_index: number;
   requested_path: string;
   requirement: PlanningSourceRequirement;
@@ -20,7 +20,7 @@ export interface PlanningSourceRootRecord {
   reason: string | null;
 }
 
-export interface PlanningSourceRecord {
+interface PlanningSourceRecord {
   source_id: string;
   root_index: number;
   requested_path: string;
@@ -53,7 +53,7 @@ export interface PlanningSourceManifest {
   sources: PlanningSourceRecord[];
 }
 
-export interface PlanningSourceDocument {
+interface PlanningSourceDocument {
   source_id: string;
   content: string;
 }
@@ -70,10 +70,10 @@ export class PlanningSourceResolutionError extends Error {
   }
 }
 
-export const MAX_PLANNING_SOURCE_ROOTS = 16;
-export const MAX_PLANNING_SOURCE_FILES_PER_ROOT = 64;
-export const MAX_PLANNING_SOURCE_DEPTH = 8;
-export const MAX_PLANNING_SOURCE_FILE_BYTES = 256 * 1024;
+const MAX_PLANNING_SOURCE_ROOTS = 16;
+const MAX_PLANNING_SOURCE_FILES_PER_ROOT = 64;
+const MAX_PLANNING_SOURCE_DEPTH = 8;
+const MAX_PLANNING_SOURCE_FILE_BYTES = 256 * 1024;
 const MIN_OPTIONAL_TRUNCATION_BYTES = 1024;
 const SKIPPED_DIRECTORY_NAMES = new Set([".git", "node_modules"]);
 
@@ -355,10 +355,6 @@ export function renderPlanningSourceBrief(
       ];
     }),
   ].join("\n");
-}
-
-export function planningSourceBudget(depth: "quick" | "standard" | "deep"): number {
-  return depth === "quick" ? 32 * 1024 : depth === "standard" ? 64 * 1024 : 128 * 1024;
 }
 
 function loadCandidate(input: {

@@ -7,9 +7,14 @@ import {
   type AuthorizedPass,
   type ExecutionStepRecord,
 } from "../loop/efficiency.js";
+import type {
+  EpisodeStepCompletedOutcome,
+  EpisodeStepExecutionContext,
+  EpisodeStepFailedOutcome,
+} from "../loop/episode-plan-executor.js";
 import {
-  stableHash,
   readEpisodePlanVersion,
+  stableHash,
   type BudgetCeiling,
   type CreatorEpisodeScope,
   type CreatorScopeProvenance,
@@ -22,12 +27,6 @@ import {
   type ProviderTurnStep,
   type SafetyFact,
 } from "../loop/episode-plan.js";
-import type {
-  EpisodePlanExecutionResult,
-  EpisodeStepCompletedOutcome,
-  EpisodeStepExecutionContext,
-  EpisodeStepFailedOutcome,
-} from "../loop/episode-plan-executor.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
 import {
   executePipeline,
@@ -37,24 +36,23 @@ import {
   type VerdictRecordOutcome,
 } from "../loop/pipeline.js";
 import { parallelStages, type PassConfig, type PipelineConfig } from "../loop/pipelines.js";
-import { mintRunId, runPaths } from "../runtime/runlog/paths.js";
-import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../runtime/readiness.js";
-import { createEventWriter, readEvents } from "../runtime/runlog/events.js";
-import { readEnvelope, type EnvelopeStatus } from "../runtime/runlog/envelope.js";
 import { fixedAssignmentFromRole, turnAssignmentKey, turnAssignmentsEqual } from "../runtime/assignment.js";
 import { isRuntimeCapability, resolvedRuntimeCapabilities, type RuntimeCapability } from "../runtime/capabilities.js";
+import { type RuntimeReadinessProbe } from "../runtime/readiness.js";
+import { readEnvelope, type EnvelopeStatus } from "../runtime/runlog/envelope.js";
+import { createEventWriter, readEvents } from "../runtime/runlog/events.js";
+import { mintRunId, runPaths } from "../runtime/runlog/paths.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks, TurnResult } from "../runtime/types.js";
 import type { AppEntry } from "./apps.js";
-import { resolveAppAssignments } from "./execution-assignments.js";
-import { executeAcceptedEpisodePlan } from "./episode-planner/execution.js";
 import {
   orchestrateEpisode,
   type EpisodeOrchestrationFacts,
   type OrchestratedEpisode,
 } from "./episode-planner/orchestrator.js";
 import type { EpisodeSafetyFloorMapping } from "./episode-planner/policy.js";
+import { resolveAppAssignments } from "./execution-assignments.js";
 
-export const GOVERNED_PIPELINE_EPISODE_POLICY_VERSION = "governed-pipeline-episode/v1" as const;
+const GOVERNED_PIPELINE_EPISODE_POLICY_VERSION = "governed-pipeline-episode/v1" as const;
 
 const IDENTIFIER = /^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$/;
 const EMPTY_CONTEXT: ContextBundle = { taste: [], memoryExcerpts: [] };
@@ -64,7 +62,7 @@ const BASELINE_PROVIDER_CAPABILITIES = [
   "session_resume",
 ] as const satisfies readonly RuntimeCapability[];
 
-export interface GovernedPipelineScopeOptions {
+interface GovernedPipelineScopeOptions {
   app: AppEntry;
   roles: readonly RoleConfig[];
   /** The already-loaded, human-ratified pipeline. */
@@ -86,7 +84,7 @@ export interface GovernedPipelineScopeOptions {
   outputKindByPass?: Readonly<Record<string, string>>;
 }
 
-export interface GovernedPipelineBinding {
+interface GovernedPipelineBinding {
   stepId: string;
   operation: string;
   pass: PassConfig;
@@ -100,7 +98,7 @@ export interface GovernedPipelineBinding {
  * explicit governed template instead of smuggling a static workflow around
  * the planning boundary.
  */
-export interface GovernedPipelineEpisodeDefinition {
+interface GovernedPipelineEpisodeDefinition {
   pipeline: PipelineConfig;
   selectedPasses: PassConfig[];
   templateRef: NonNullable<CreatorEpisodeScope["workflowTemplate"]>;
@@ -111,7 +109,7 @@ export interface GovernedPipelineEpisodeDefinition {
   workflowTemplates: ReadonlyMap<string, readonly ProposedEpisodeStep[]>;
 }
 
-export class GovernedPipelineEpisodeError extends Error {
+class GovernedPipelineEpisodeError extends Error {
   readonly code = "error_governed_pipeline_episode_invalid" as const;
   constructor(message: string) {
     super(message);
@@ -120,7 +118,7 @@ export class GovernedPipelineEpisodeError extends Error {
 }
 
 /** The only operation spelling accepted for a governed pipeline pass. */
-export function governedPipelineOperation(pipelineName: string, passId: string): string {
+function governedPipelineOperation(pipelineName: string, passId: string): string {
   assertIdentifier("pipeline name", pipelineName);
   assertIdentifier("pipeline pass id", passId);
   return `pipeline/${pipelineName}/${passId}`;
@@ -132,7 +130,7 @@ export function governedPipelineOperation(pipelineName: string, passId: string):
  * materialization; adaptive mode chooses the first exact tuple remaining in
  * the app-narrowed, org-approved catalog that supports the requested caps.
  */
-export function buildGovernedPipelineEpisodeDefinition(
+function buildGovernedPipelineEpisodeDefinition(
   options: GovernedPipelineScopeOptions,
 ): GovernedPipelineEpisodeDefinition {
   assertScopeInput(options);
@@ -247,10 +245,7 @@ export function buildGovernedPipelineEpisodeDefinition(
 }
 
 /** Domain validation run before publication and again before execution. */
-export function assertGovernedPipelineEpisodePlan(
-  plan: EpisodePlan,
-  definition: GovernedPipelineEpisodeDefinition,
-): void {
+function assertGovernedPipelineEpisodePlan(plan: EpisodePlan, definition: GovernedPipelineEpisodeDefinition): void {
   if (plan.planningSource !== "creator_scope") {
     throw new GovernedPipelineEpisodeError("governed pipeline plan must originate from creator scope");
   }
@@ -298,7 +293,7 @@ export function assertGovernedPipelineEpisodePlan(
   }
 }
 
-export interface GovernedPipelineEpisodeFacts
+interface GovernedPipelineEpisodeFacts
   extends Omit<
     EpisodeOrchestrationFacts,
     | "goal"
@@ -340,7 +335,7 @@ interface GovernedPipelineOrchestrationBase extends GovernedPipelineScopeOptions
   now?: () => Date;
 }
 
-export interface GovernedPipelineStepInput {
+interface GovernedPipelineStepInput {
   definition: GovernedPipelineEpisodeDefinition;
   plan: EpisodePlan;
   step: ProviderTurnStep;
@@ -369,7 +364,7 @@ export interface GovernedPipelineProviderEvidence {
   envelopeSummary?: string;
 }
 
-export interface GovernedPipelineDeliveryHooks {
+interface GovernedPipelineDeliveryHooks {
   contextForStep(input: GovernedPipelineStepInput): ContextBundle | Promise<ContextBundle>;
   briefForStep(input: GovernedPipelineStepInput): string;
   verdictSchemaForStep?(input: GovernedPipelineStepInput): Record<string, unknown> | undefined;
@@ -418,7 +413,7 @@ interface GovernedPipelineExecutionTransportOptions {
   now?: () => Date;
 }
 
-export type OrchestrateGovernedPipelineEpisodeOptions =
+type OrchestrateGovernedPipelineEpisodeOptions =
   | (GovernedPipelineOrchestrationBase & { mode: "plan_only"; delivery?: never })
   | (GovernedPipelineOrchestrationBase & {
       mode: "execute";
@@ -426,7 +421,7 @@ export type OrchestrateGovernedPipelineEpisodeOptions =
       delivery: GovernedPipelineDeliveryHooks;
     });
 
-export interface GovernedPipelineOrchestrationResult extends OrchestratedEpisode {
+interface GovernedPipelineOrchestrationResult extends OrchestratedEpisode {
   definition: GovernedPipelineEpisodeDefinition;
   /** Current durable provider evidence in governed plan order. */
   providerEvidence: GovernedPipelineProviderEvidence[];
@@ -520,7 +515,7 @@ export async function orchestrateGovernedPipelineEpisode(
   return { ...result, definition, providerEvidence };
 }
 
-export interface ReadGovernedPipelineProviderEvidenceOptions {
+interface ReadGovernedPipelineProviderEvidenceOptions {
   root: string;
   /** Runlog app namespace (normally the EpisodeIntent app). */
   app: string;
@@ -534,7 +529,7 @@ export interface ReadGovernedPipelineProviderEvidenceOptions {
  * standing-role persistence, scorecards, and run-id/cost projection; callers
  * do not need fresh `afterPass` callbacks to reconstruct completed work.
  */
-export async function readGovernedPipelineProviderEvidence(
+async function readGovernedPipelineProviderEvidence(
   options: ReadGovernedPipelineProviderEvidenceOptions,
 ): Promise<GovernedPipelineProviderEvidence[]> {
   assertGovernedPipelineEpisodePlan(options.plan, options.definition);
@@ -586,54 +581,6 @@ export async function readGovernedPipelineProviderEvidence(
     );
   }
   return evidence;
-}
-
-export interface ExecuteGovernedPipelinePlanOptions
-  extends Omit<GovernedPipelineOrchestrationBase, keyof GovernedPipelineScopeOptions | "facts" | "promptsDir"> {
-  app: AppEntry;
-  roles: readonly RoleConfig[];
-  definition: GovernedPipelineEpisodeDefinition;
-  intent: Parameters<typeof executeAcceptedEpisodePlan>[0]["intent"];
-  plan: EpisodePlan;
-  promptsDir: string;
-  runtimeForAssignment: (assignment: TurnAssignment, role: RoleConfig) => Runtime;
-  delivery: GovernedPipelineDeliveryHooks;
-  /** A caller with a revision-capable planner protocol may supply the common
-   * typed proposer. The default rejects instead of leaving an unowned pending
-   * request because this exact governed template cannot mutate itself. */
-  proposeRevision?: NonNullable<Parameters<typeof executeAcceptedEpisodePlan>[0]["proposeRevision"]>;
-  maxSteps?: number;
-}
-
-/** Execute a previously accepted governed plan (used by durable entry points). */
-export async function executeGovernedPipelinePlan(
-  options: ExecuteGovernedPipelinePlanOptions,
-): Promise<EpisodePlanExecutionResult> {
-  if (options.intent.app !== options.app.name) {
-    throw new GovernedPipelineEpisodeError(
-      `governed execution app ${options.app.name} does not match intent ${options.intent.app}`,
-    );
-  }
-  assertGovernedPipelineEpisodePlan(options.plan, options.definition);
-  return executeAcceptedEpisodePlan({
-    root: options.root,
-    intent: options.intent,
-    plan: options.plan,
-    roles: options.roles,
-    assignmentReadinessProbe: options.assignmentReadinessProbe ?? probeRuntimeReadiness,
-    ...(options.assignmentReadinessTimeoutMs === undefined
-      ? {}
-      : { assignmentReadinessTimeoutMs: options.assignmentReadinessTimeoutMs }),
-    proposeRevision:
-      options.proposeRevision ??
-      (async () => {
-        throw new GovernedPipelineEpisodeError(
-          "governed pipeline revision requires a new validated creator scope or an explicit revision-capable proposer",
-        );
-      }),
-    ...deliveryInput(options, options.definition),
-    ...(options.maxSteps === undefined ? {} : { maxSteps: options.maxSteps }),
-  });
 }
 
 function deliveryInput(

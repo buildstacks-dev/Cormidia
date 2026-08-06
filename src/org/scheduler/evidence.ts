@@ -19,13 +19,7 @@ import {
   type SchedulerReasonCode,
 } from "./model.js";
 
-export type SchedulerDecisionStage =
-  | "prepared"
-  | "lock_acquired"
-  | "journaled"
-  | "spawn_committed"
-  | "spawned"
-  | "terminal";
+type SchedulerDecisionStage = "prepared" | "lock_acquired" | "journaled" | "spawn_committed" | "spawned" | "terminal";
 
 export interface SchedulerInvocationRecord {
   schema_version: typeof SCHEDULER_EVIDENCE_SCHEMA_VERSION;
@@ -72,7 +66,7 @@ export interface SchedulerDecisionRecord {
   schedule_claim_attempt?: number;
 }
 
-export interface SchedulerAlertRecord {
+interface SchedulerAlertRecord {
   schema_version: 1;
   alert_id: string;
   scheduler_id: string;
@@ -86,12 +80,7 @@ export interface SchedulerAlertRecord {
   resolution?: string | null;
 }
 
-export type SchedulerDecisionClassification =
-  | "pending"
-  | "executed"
-  | "blocked_backpressure"
-  | "blocked_error"
-  | "skipped";
+type SchedulerDecisionClassification = "pending" | "executed" | "blocked_backpressure" | "blocked_error" | "skipped";
 
 export interface SchedulerEvidenceSummary {
   schema_version: 1;
@@ -137,7 +126,7 @@ export interface SchedulerEvidenceSummary {
   }>;
 }
 
-export interface SchedulerDecisionInput {
+interface SchedulerDecisionInput {
   invocationId: string;
   cadenceWindow: string;
   app: string;

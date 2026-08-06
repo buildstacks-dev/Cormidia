@@ -13,7 +13,7 @@ export type TriggerRoute =
   | { kind: "review-loop"; pipeline: "review" }
   | { kind: "skip"; reason: string };
 
-export interface ResolveTriggerRouteInput {
+interface ResolveTriggerRouteInput {
   role: string;
   trigger: Trigger;
   /** The app's declared channels, for the Support/Marketing channel-presence
@@ -94,7 +94,7 @@ export function resolveTriggerRoute(input: ResolveTriggerRouteInput): TriggerRou
 
 /** The channel a role must have declared to run at all, or undefined for
  *  roles that are never channel-gated (planner/builder/reviewer/sre). */
-export function requiredChannel(role: string): keyof AppChannels | undefined {
+function requiredChannel(role: string): keyof AppChannels | undefined {
   if (role === "support") return "support";
   if (role === "marketing") return "marketing";
   return undefined;
@@ -105,7 +105,7 @@ function hasChannel(channels: AppChannels, key: keyof AppChannels): boolean {
   return Array.isArray(list) && list.length > 0;
 }
 
-export function describeTrigger(trigger: Trigger): string {
+function describeTrigger(trigger: Trigger): string {
   if (trigger.event !== undefined) return `event:${trigger.event}`;
   if (trigger.schedule !== undefined) return `schedule:${trigger.schedule}`;
   if (trigger.manual === true) return "manual";

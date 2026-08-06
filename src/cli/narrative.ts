@@ -9,7 +9,6 @@
 import { existsSync } from "node:fs";
 import { readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { resolveCormidiaHomes } from "../org/home.js";
 import { writeLoopFileAtomic } from "../loop/durable.js";
 import {
   listCapturedStories,
@@ -22,6 +21,7 @@ import {
 import { renderIndexMarkdown, renderStoryMarkdown } from "../narrative/render.js";
 import { foldAppStories } from "../narrative/story.js";
 import type { NarrativeStory } from "../narrative/types.js";
+import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 interface NarrativeArgs {
@@ -119,7 +119,7 @@ async function quarantineCorruptCapture(stateHome: string, app: string, storyId:
   }
 }
 
-export function parseNarrativeArgs(args: string[]): NarrativeArgs {
+function parseNarrativeArgs(args: string[]): NarrativeArgs {
   const out: NarrativeArgs = { json: false };
   for (let index = 0; index < args.length; index++) {
     const arg = args[index]!;

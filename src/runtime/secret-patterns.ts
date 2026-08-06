@@ -8,7 +8,7 @@
 // critical-ops gate: fail closed — a false positive costs a redacted log
 // line or a human tap; a false negative costs a leaked credential.
 
-export interface SecretPattern {
+interface SecretPattern {
   name: string;
   /** Stateless (no /g): safe for .test()/.exec(). Consumers that scan or
    *  replace globally use asGlobal() for a fresh, lastIndex-free copy. */

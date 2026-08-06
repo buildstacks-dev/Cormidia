@@ -2,17 +2,17 @@ import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import type { AppsFile } from "../org/apps.js";
 import { isOverlayPaused, rollupBudgets } from "../org/budget.js";
-import { readValidationCampaignReports } from "../org/validation-campaign.js";
 import { readRoadmapExplanation } from "../org/roadmap-explanation.js";
-import { settlementIdentity, settlementKey } from "../runtime/telemetry.js";
+import { readValidationCampaignReports } from "../org/validation-campaign.js";
 import { aggregateCost, providerPassRef } from "../runtime/cost.js";
 import { classifyEnvelopeUsage } from "../runtime/runlog/envelope.js";
+import { settlementIdentity, settlementKey } from "../runtime/telemetry.js";
 import { readReportDetails } from "./detail-source.js";
+import { buildEfficiencyReport } from "./efficiency.js";
 import { earliestLedgerDay, readLedgerRange, type LedgerRowSource } from "./ledger-source.js";
 import { bucketStart, nextBucket, normalizeReportRange } from "./range.js";
 import { groupReportSessions, normalizedQuality, worstQuality } from "./sessions.js";
 import { deterministicCounts, nearestRank, share } from "./statistics.js";
-import { buildEfficiencyReport } from "./efficiency.js";
 import {
   REPORT_SCHEMA_VERSION,
   type ReportAppRowV1,
@@ -24,7 +24,7 @@ import {
   type ReportTurnV1,
 } from "./types.js";
 
-export interface BuildReportOptions {
+interface BuildReportOptions {
   orgName: string;
   stateHome: string;
   appsFile: AppsFile;

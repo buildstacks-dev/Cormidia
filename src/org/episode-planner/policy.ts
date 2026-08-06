@@ -1,10 +1,7 @@
-import { runtimeCapabilityProfile, type RuntimeCapability } from "../../runtime/capabilities.js";
-import { fixedAssignmentFromRole, turnAssignmentKey, turnAssignmentsEqual } from "../../runtime/assignment.js";
-import type { RoleConfig, TurnAssignment } from "../../runtime/types.js";
-import { stableHash } from "../../loop/episode-plan.js";
 import type {
   AllowedTurnAssignment,
   AssignmentMaterializationPolicy,
+  BudgetCeiling,
   CreatorEpisodeScope,
   CreatorScopePolicy,
   EpisodeIntent,
@@ -15,8 +12,11 @@ import type {
   SafetyFact,
   SafetyFactKind,
   TriggerDescriptor,
-  BudgetCeiling,
 } from "../../loop/episode-plan.js";
+import { stableHash } from "../../loop/episode-plan.js";
+import { fixedAssignmentFromRole, turnAssignmentKey } from "../../runtime/assignment.js";
+import { runtimeCapabilityProfile, type RuntimeCapability } from "../../runtime/capabilities.js";
+import type { RoleConfig, TurnAssignment } from "../../runtime/types.js";
 import type { AppEntry } from "../apps.js";
 import { resolveAppAssignments, type ResolvedAppAssignments } from "../execution-assignments.js";
 
@@ -395,14 +395,6 @@ function stableAssignmentMetadata(
   });
 }
 
-export function providerFamilyFor(
-  policy: EpisodePlanningPolicy,
-  role: string,
-  assignment: TurnAssignment,
-): string | undefined {
-  return policy.metadataFor(role, assignment)?.providerFamily;
-}
-
 function adapterCapabilities(harness: TurnAssignment["harness"]): string[] {
   const profile = runtimeCapabilityProfile(harness);
   return (
@@ -479,9 +471,4 @@ function normalizeSafetyFacts(facts: readonly SafetyFact[]): SafetyFact[] {
     (left, right) =>
       left.kind.localeCompare(right.kind) || left.evidenceRefs.join("\0").localeCompare(right.evidenceRefs.join("\0")),
   );
-}
-
-/** Exported for tests and policy joins without exposing mutable catalog rows. */
-export function assignmentIsConfiguredForRole(role: RoleConfig, assignment: TurnAssignment): boolean {
-  return turnAssignmentsEqual(fixedAssignmentFromRole(role), assignment);
 }

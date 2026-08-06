@@ -15,7 +15,7 @@
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 
-export interface GitSnapshot {
+interface GitSnapshot {
   head: string;
   branch: string;
 }

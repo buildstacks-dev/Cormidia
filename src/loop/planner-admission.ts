@@ -16,22 +16,22 @@ import {
   type RuntimeCapability,
 } from "../runtime/capabilities.js";
 import { withFileLock } from "../runtime/file-lock.js";
-import type { RoleConfig, TurnAssignment, TurnResult } from "../runtime/types.js";
 import { runPaths } from "../runtime/runlog/paths.js";
+import type { RoleConfig, TurnAssignment, TurnResult } from "../runtime/types.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import {
+  EFFICIENCY_SCHEMA_VERSION,
+  EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD,
+  ROUTE_BUDGETS,
   admitEpisode,
   checkProviderBudget,
   deriveRouteBudgetCounters,
-  EFFICIENCY_SCHEMA_VERSION,
-  EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD,
   efficiencyEpisodeDir,
   executionStepPath,
   finalizeProviderStep,
   readExecutionSteps,
   readRouteRecord,
   routeRecordPath,
-  ROUTE_BUDGETS,
   type AuthorizedPass,
   type ExecutionStepRecord,
   type ProviderStepPlanMetadata,
@@ -40,6 +40,7 @@ import {
   type StartedProviderReceipt,
   type StartedProviderStep,
 } from "./efficiency.js";
+import { completedEpisodePlanStepIds, readEpisodePlanExecutionJournal } from "./episode-plan-executor.js";
 import {
   EPISODE_PLAN_REASON_CODES,
   assertEpisodePlanValid,
@@ -56,14 +57,13 @@ import {
   type EpisodePlanValidationPolicy,
   type ProviderTurnStep,
 } from "./episode-plan.js";
-import { completedEpisodePlanStepIds, readEpisodePlanExecutionJournal } from "./episode-plan-executor.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE } from "./episode-route.js";
 
-export const PLANNER_ADMISSION_SCHEMA_VERSION = 1 as const;
-export const PLANNER_PLAN_ACCEPTANCE_SCHEMA_VERSION = 1 as const;
-export const MAX_EPISODE_PLANNER_ATTEMPTS = 2 as const;
-export const EPISODE_PLANNER_OPERATION = "episode-planner/plan" as const;
-export const EPISODE_PLANNER_REPAIR_OPERATION = "episode-planner/repair" as const;
+const PLANNER_ADMISSION_SCHEMA_VERSION = 1 as const;
+const PLANNER_PLAN_ACCEPTANCE_SCHEMA_VERSION = 1 as const;
+const MAX_EPISODE_PLANNER_ATTEMPTS = 2 as const;
+const EPISODE_PLANNER_OPERATION = "episode-planner/plan" as const;
+const EPISODE_PLANNER_REPAIR_OPERATION = "episode-planner/repair" as const;
 
 const HASH = /^[a-f0-9]{64}$/;
 const EPISODE_PLAN_REASON_CODE_SET = new Set<string>(EPISODE_PLAN_REASON_CODES);
@@ -74,12 +74,12 @@ const LOCK_OPTIONS = {
   retryMaxMs: 15,
 } as const;
 
-export interface PlannerAttemptCeiling {
+interface PlannerAttemptCeiling {
   equivalentCostUsd: number;
   activeTimeMs: number;
 }
 
-export interface PlannerAggregateCeiling extends PlannerAttemptCeiling {
+interface PlannerAggregateCeiling extends PlannerAttemptCeiling {
   providerTurns: number;
 }
 
@@ -122,7 +122,7 @@ export interface PlannerAdmissionRecord {
   };
 }
 
-export interface PlannerPlanAcceptanceRecord {
+interface PlannerPlanAcceptanceRecord {
   schema_version: typeof PLANNER_PLAN_ACCEPTANCE_SCHEMA_VERSION;
   episode_id: string;
   plan_version: number;
@@ -138,13 +138,13 @@ interface PlannerPlanPublicationRecord {
   started_at: string;
 }
 
-export interface PlannerBudgetQuantity {
+interface PlannerBudgetQuantity {
   providerTurns: number;
   equivalentCostUsd: number;
   activeTimeMs: number;
 }
 
-export interface PlannerBudgetStatus {
+interface PlannerBudgetStatus {
   settled: PlannerBudgetQuantity;
   reserved: PlannerBudgetQuantity;
   remaining: PlannerBudgetQuantity;
@@ -154,7 +154,7 @@ export interface PlannerBudgetStatus {
   limitViolations: string[];
 }
 
-export type PlannerAttemptDecision =
+type PlannerAttemptDecision =
   | {
       kind: "start";
       attempt: number;
@@ -173,7 +173,7 @@ export type PlannerAttemptDecision =
       plan: EpisodePlan;
     };
 
-export type PlannerAdmissionErrorCode =
+type PlannerAdmissionErrorCode =
   | "error_episode_planner_admission_conflict"
   | "error_episode_planner_admission_corrupt"
   | "error_episode_planner_route_already_admitted"
@@ -188,7 +188,7 @@ export type PlannerAdmissionErrorCode =
   | "error_episode_planner_plan_source"
   | "error_episode_planner_derived_route_budget";
 
-export class PlannerAdmissionError extends Error {
+class PlannerAdmissionError extends Error {
   constructor(
     readonly code: PlannerAdmissionErrorCode,
     message: string,
@@ -203,18 +203,18 @@ export function plannerAdmissionPath(root: string, episodeId: string): string {
   return join(efficiencyEpisodeDir(root, episodeId), "planner-admission.json");
 }
 
-export function plannerPlanAcceptancePath(root: string, episodeId: string, version?: number): string {
+function plannerPlanAcceptancePath(root: string, episodeId: string, version?: number): string {
   return join(
     efficiencyEpisodeDir(root, episodeId),
     version === undefined ? "planner-plan-accepted.json" : `planner-plan-accepted-v${version}.json`,
   );
 }
 
-export function plannerPlanPublicationPath(root: string, episodeId: string): string {
+function plannerPlanPublicationPath(root: string, episodeId: string): string {
   return join(efficiencyEpisodeDir(root, episodeId), "planner-plan-publication.json");
 }
 
-export function plannerAttemptExecutionStepId(attempt: number): string {
+function plannerAttemptExecutionStepId(attempt: number): string {
   return `episode-planner:attempt:${attempt}`;
 }
 

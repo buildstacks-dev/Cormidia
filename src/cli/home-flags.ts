@@ -1,4 +1,4 @@
-export interface HomeFlags {
+interface HomeFlags {
   orgHome?: string;
   stateHome?: string;
   rest: string[];

@@ -1,9 +1,6 @@
 import { basename } from "node:path";
 import { parseDependsOn, selectReadyTickets, type SchedulableTicket } from "../loop/scheduling.js";
 import type { ApprovalGrant, ApprovalItem } from "../org/approvals.js";
-import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
-import type { StatusRow } from "../runtime/runlog/status.js";
-import { settlementKey, settlementIdentity } from "../runtime/telemetry.js";
 import {
   aggregateCost,
   normalizeUsageQuality,
@@ -11,7 +8,10 @@ import {
   worstUsageQuality,
   type CostAggregate,
 } from "../runtime/cost.js";
+import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
+import type { StatusRow } from "../runtime/runlog/status.js";
 import type { TurnRecord } from "../runtime/telemetry.js";
+import { settlementIdentity, settlementKey } from "../runtime/telemetry.js";
 import {
   ACTIVITY_ORDER,
   ORDER_SEPARATOR,
@@ -34,12 +34,10 @@ import {
   type DeliveryState,
   type DeliveryTicketView,
   type DurationView,
-  type GraphNodeState,
-  type ScopeStatementView,
-  type TraceNodeView,
   type EventKind,
   type EventOutcome,
   type EventView,
+  type GraphNodeState,
   type IndexedPass,
   type ObserveProjectionInput,
   type ObserveSnapshotV1,
@@ -49,16 +47,18 @@ import {
   type PendingIntakeItemView,
   type PendingIntakeState,
   type PullRequestView,
+  type ScopeStatementView,
   type SourceRefView,
   type TimePolicyView,
+  type TraceNodeView,
   type TraceView,
   type UsageQuality,
 } from "./types.js";
 
-export const PASS_STALE_AFTER_MS = 3 * 60 * 1000;
+const PASS_STALE_AFTER_MS = 3 * 60 * 1000;
 /** Reuses the tolerance already encoded in `passLiveness` rather than
  *  inventing a second constant. Ordinary NTP jitter must not flood the header. */
-export const CLOCK_SKEW_TOLERANCE_MS = 30_000;
+const CLOCK_SKEW_TOLERANCE_MS = 30_000;
 const ACTIVITY_HISTORY_CAP = 200;
 const PENDING_INTAKE_CAP = 200;
 const ATTENTION_OCCURRENCE_CAP = 500;
@@ -815,7 +815,7 @@ function passQualityReason(indexed: IndexedPass, status: string): string | null 
   return reasons.length === 0 ? null : reasons.join("; ");
 }
 
-export function passLiveness(row: StatusRow, now: Date): { state: PassView["liveness"]; reason: string } {
+function passLiveness(row: StatusRow, now: Date): { state: PassView["liveness"]; reason: string } {
   if (row.status !== "running") return { state: "terminal", reason: `Pass status is ${row.status}` };
   if (row.lastSeenAt === undefined)
     return { state: "unknown", reason: "Running legacy envelope has no recorded heartbeat" };

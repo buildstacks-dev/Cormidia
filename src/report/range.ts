@@ -25,7 +25,8 @@ export function normalizeReportRange(
   } else {
     preset = query.period ?? "90d";
     to = addUtcDays(today, 1);
-    if (preset === "all") from = earliestRetained === undefined ? today : parseUtcDate(earliestRetained.slice(0, 10), "retained date");
+    if (preset === "all")
+      from = earliestRetained === undefined ? today : parseUtcDate(earliestRetained.slice(0, 10), "retained date");
     else from = addUtcDays(today, -(presetDays(preset) - 1));
   }
   if (from.getTime() >= to.getTime()) throw new Error("report: range must end after it starts");

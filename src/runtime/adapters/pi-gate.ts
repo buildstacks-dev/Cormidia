@@ -14,11 +14,7 @@ export function isPiGateExtensionActive(factory: ExtensionFactory): boolean {
   return activatedPiGateExtensions.has(factory);
 }
 
-export function normalizePiToolAction(
-  toolName: string,
-  input: Record<string, unknown>,
-  workdir: string,
-): ToolAction {
+export function normalizePiToolAction(toolName: string, input: Record<string, unknown>, workdir: string): ToolAction {
   const tool = toolName.toLowerCase();
   const rel = (p: unknown): string => {
     const raw = typeof p === "string" ? p : "";
@@ -64,11 +60,7 @@ export function createPiGateExtension(
           detail: `pi subagent attempting: ${event.toolName}`,
         });
       }
-      const action = normalizePiToolAction(
-        event.toolName,
-        event.input as Record<string, unknown>,
-        workdir,
-      );
+      const action = normalizePiToolAction(event.toolName, event.input as Record<string, unknown>, workdir);
       const decision = hooks.gate(action);
       if (decision.allow) {
         // The tool WILL run: emit the L2-bridgeable tool_use (issue #27).

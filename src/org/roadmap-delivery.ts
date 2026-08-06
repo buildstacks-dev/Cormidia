@@ -44,8 +44,7 @@ import {
 export const ROADMAP_DELIVERY_SCHEMA_VERSION = 1 as const;
 export const VALIDATION_CATALOG_SCHEMA_VERSION = 1 as const;
 export const VALIDATION_CONTRACT_SCHEMA_VERSION = 1 as const;
-export const RATIFIED_HARNESS_REVISION_ID =
-  "roadmap-validation-delivery-batching-2026-08-03" as const;
+export const RATIFIED_HARNESS_REVISION_ID = "roadmap-validation-delivery-batching-2026-08-03" as const;
 /** Content root for the complete deterministic HB-100..108 catalog. */
 export const RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 =
   "58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880" as const;
@@ -124,20 +123,14 @@ export interface AcceptedAuthority<T> {
 }
 
 export interface RoadmapDeliveryProjection {
-  kind:
-    | AuthorityRef["kind"]
-    | "delivery_unit_claimed"
-    | "delivery_unit_claim_committed"
-    | "delivery_unit_settled";
+  kind: AuthorityRef["kind"] | "delivery_unit_claimed" | "delivery_unit_claim_committed" | "delivery_unit_settled";
   app: string;
   path: string;
   authorityRef?: AuthorityRef;
   settlementId?: string;
 }
 
-export type RoadmapDeliveryProjector = (
-  projection: Readonly<RoadmapDeliveryProjection>,
-) => void | Promise<void>;
+export type RoadmapDeliveryProjector = (projection: Readonly<RoadmapDeliveryProjection>) => void | Promise<void>;
 
 export interface RoadmapWorkstream {
   workstreamId: string;
@@ -424,10 +417,25 @@ export const VALIDATION_CONTRACT_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [
-    "schemaVersion", "contractId", "version", "predecessor", "app", "catalogRef",
-    "roadmapRef", "unitId", "unitMembershipHash", "templateRef", "affected",
-    "acceptanceCriteria", "requiresHarnessRevision", "harnessRevisionReason",
-    "sharedBoundaryDetectorRefs", "obligations", "requiredGates", "proposedAt", "acceptedAt",
+    "schemaVersion",
+    "contractId",
+    "version",
+    "predecessor",
+    "app",
+    "catalogRef",
+    "roadmapRef",
+    "unitId",
+    "unitMembershipHash",
+    "templateRef",
+    "affected",
+    "acceptanceCriteria",
+    "requiresHarnessRevision",
+    "harnessRevisionReason",
+    "sharedBoundaryDetectorRefs",
+    "obligations",
+    "requiredGates",
+    "proposedAt",
+    "acceptedAt",
   ],
   properties: {
     schemaVersion: { const: VALIDATION_CONTRACT_SCHEMA_VERSION },
@@ -483,22 +491,13 @@ export const VALIDATION_CONTRACT_SCHEMA = {
       },
     },
     validationContractRef: {
-      allOf: [
-        { $ref: "#/$defs/authorityRef" },
-        { properties: { kind: { const: "validation_contract" } } },
-      ],
+      allOf: [{ $ref: "#/$defs/authorityRef" }, { properties: { kind: { const: "validation_contract" } } }],
     },
     validationCatalogRef: {
-      allOf: [
-        { $ref: "#/$defs/authorityRef" },
-        { properties: { kind: { const: "validation_catalog" } } },
-      ],
+      allOf: [{ $ref: "#/$defs/authorityRef" }, { properties: { kind: { const: "validation_catalog" } } }],
     },
     roadmapRef: {
-      allOf: [
-        { $ref: "#/$defs/authorityRef" },
-        { properties: { kind: { const: "roadmap_plan" } } },
-      ],
+      allOf: [{ $ref: "#/$defs/authorityRef" }, { properties: { kind: { const: "roadmap_plan" } } }],
     },
     templateRef: {
       type: "object",
@@ -513,8 +512,13 @@ export const VALIDATION_CONTRACT_SCHEMA = {
       type: "object",
       additionalProperties: false,
       required: [
-        "journeyIds", "boundaryIds", "contractIds", "invariantIds",
-        "interfaceIds", "stateOwnerIds", "controlPointIds",
+        "journeyIds",
+        "boundaryIds",
+        "contractIds",
+        "invariantIds",
+        "interfaceIds",
+        "stateOwnerIds",
+        "controlPointIds",
       ],
       properties: {
         journeyIds: { $ref: "#/$defs/stringSet" },
@@ -530,8 +534,15 @@ export const VALIDATION_CONTRACT_SCHEMA = {
       type: "object",
       additionalProperties: false,
       required: [
-        "waiverId", "policyClassId", "obligationId", "unitId", "contractId",
-        "contractVersion", "reason", "provenance", "expiresAt",
+        "waiverId",
+        "policyClassId",
+        "obligationId",
+        "unitId",
+        "contractId",
+        "contractVersion",
+        "reason",
+        "provenance",
+        "expiresAt",
       ],
       properties: {
         waiverId: { $ref: "#/$defs/machineId" },
@@ -558,8 +569,15 @@ export const VALIDATION_CONTRACT_SCHEMA = {
       type: "object",
       additionalProperties: false,
       required: [
-        "obligationId", "caseId", "covers", "cheapestFalsifyingLayer",
-        "failureCases", "detectorId", "negativeControlId", "expectedEvidence", "waiver",
+        "obligationId",
+        "caseId",
+        "covers",
+        "cheapestFalsifyingLayer",
+        "failureCases",
+        "detectorId",
+        "negativeControlId",
+        "expectedEvidence",
+        "waiver",
       ],
       properties: {
         obligationId: { $ref: "#/$defs/machineId" },
@@ -586,11 +604,7 @@ export const VALIDATION_CONTRACT_SCHEMA = {
   },
 } as const;
 
-export type ValidationContractLifecycleState =
-  | "proposed"
-  | "validated"
-  | "accepted"
-  | "superseded";
+export type ValidationContractLifecycleState = "proposed" | "validated" | "accepted" | "superseded";
 
 export interface ValidationContractLifecycleRecord {
   schemaVersion: typeof VALIDATION_CONTRACT_SCHEMA_VERSION;
@@ -861,10 +875,7 @@ export interface ReviewerVerdict {
   recordedAt: string;
 }
 
-type DeliveryEpisodeFacts = Omit<
-  EpisodeIntentFacts,
-  "episodeId" | "app" | "roles" | "creatorScope"
->;
+type DeliveryEpisodeFacts = Omit<EpisodeIntentFacts, "episodeId" | "app" | "roles" | "creatorScope">;
 
 const CLAIM_NAMESPACE = "planning/delivery-unit-claims";
 export const DEFAULT_EXECUTION_BATCH_MAX_UNITS = 8;
@@ -1041,13 +1052,7 @@ export async function readCurrentRoadmapPlan(
   if (!isCurrentRoadmapPointer(pointer) || pointer.app !== app) {
     throw new RoadmapDeliveryError("authority_corrupt", "current RoadmapPlan pointer is invalid");
   }
-  return requireAuthority<RoadmapPlan>(
-    root,
-    app,
-    pointer.ref,
-    "roadmap_plan",
-    "roadmap_missing",
-  );
+  return requireAuthority<RoadmapPlan>(root, app, pointer.ref, "roadmap_plan", "roadmap_missing");
 }
 
 export async function reconcileRoadmapProjections(input: {
@@ -1101,7 +1106,10 @@ export async function reconcileRoadmapProjections(input: {
       "validation_incomplete",
     );
     if (stableHash(entry.value) !== stableHash(supplied.value)) {
-      throw new RoadmapDeliveryError("projection_contradiction", "readiness projection input differs from durable authority");
+      throw new RoadmapDeliveryError(
+        "projection_contradiction",
+        "readiness projection input differs from durable authority",
+      );
     }
     assertAuthorityRef(entry.ref, "delivery_unit_readiness");
     assertDeliveryUnitReadinessShape(entry.value);
@@ -1126,11 +1134,7 @@ export async function reconcileRoadmapProjections(input: {
         input.roadmap.value.app,
         entry.value.unitId,
       );
-      await assertCurrentValidationCatalogRef(
-        input.root,
-        input.roadmap.value.app,
-        validation.value.catalogRef,
-      );
+      await assertCurrentValidationCatalogRef(input.root, input.roadmap.value.app, validation.value.catalogRef);
       await assertValidationWaiverAuthorities(input.root, validation.value);
       assertValidationWaiversCurrent(validation.value, input.now);
       if (
@@ -1153,9 +1157,11 @@ export async function reconcileRoadmapProjections(input: {
   for (const unit of input.roadmap.value.deliveryUnits) {
     const snapshotExcluded = unit.issueNumbers.some((issueNumber) => {
       const issue = input.snapshot.value.issues.find((candidate) => candidate.issueNumber === issueNumber);
-      return issue === undefined ||
+      return (
+        issue === undefined ||
         issue.routing !== "automated" ||
-        autonomousExecutionExclusionLabel(issue.observedLabels) !== undefined;
+        autonomousExecutionExclusionLabel(issue.observedLabels) !== undefined
+      );
     });
     const currentExcluded = unit.issueNumbers.some((issueNumber) => {
       const current = currentByIssue.get(issueNumber);
@@ -1179,19 +1185,21 @@ export async function reconcileRoadmapProjections(input: {
         desired.add("op:ready");
       }
       const labels = [...desired].sort();
-      const authorityMatches = prior !== undefined &&
+      const authorityMatches =
+        prior !== undefined &&
         prior.authorityRef !== null &&
         sameAuthorityRef(prior.authorityRef, input.roadmap.ref) &&
         prior.unitId === unit.unitId &&
         prior.membershipHash === membershipHash;
       const labelsMatch = prior !== undefined && stableHash([...prior.labels].sort()) === stableHash(labels);
-      const reason: RoadmapProjectionRepair["reason"] = prior === undefined
-        ? "missing"
-        : authorityMatches && labelsMatch
-          ? "current"
-          : prior.authorityRef === null
-            ? "contradictory"
-            : "stale";
+      const reason: RoadmapProjectionRepair["reason"] =
+        prior === undefined
+          ? "missing"
+          : authorityMatches && labelsMatch
+            ? "current"
+            : prior.authorityRef === null
+              ? "contradictory"
+              : "stale";
       return {
         issueNumber: issue.issueNumber,
         labels,
@@ -1262,11 +1270,7 @@ export async function readCurrentValidationCatalog(
   return catalog;
 }
 
-async function assertCurrentValidationCatalogRef(
-  root: string,
-  app: string,
-  expected: AuthorityRef,
-): Promise<void> {
+async function assertCurrentValidationCatalogRef(root: string, app: string, expected: AuthorityRef): Promise<void> {
   const current = await readCurrentValidationCatalog(root, app);
   if (current === undefined || !sameAuthorityRef(current.ref, expected)) {
     throw new RoadmapDeliveryError(
@@ -1286,8 +1290,7 @@ async function assertCurrentRoadmapRef(
   if (
     current === undefined ||
     !sameAuthorityRef(current.ref, expected) ||
-    (expectedFrontierHash !== undefined &&
-      stableHash(current.value.readyFrontier) !== expectedFrontierHash)
+    (expectedFrontierHash !== undefined && stableHash(current.value.readyFrontier) !== expectedFrontierHash)
   ) {
     throw new RoadmapDeliveryError(
       "frontier_stale",
@@ -1296,10 +1299,7 @@ async function assertCurrentRoadmapRef(
   }
 }
 
-function assertValidationWaiversCurrent(
-  contract: ValidationContract,
-  at: Date | string | undefined,
-): void {
+function assertValidationWaiversCurrent(contract: ValidationContract, at: Date | string | undefined): void {
   const waivers = contract.obligations
     .map((obligation) => obligation.waiver)
     .filter((waiver): waiver is ValidationWaiver => waiver !== null);
@@ -1323,17 +1323,11 @@ function assertValidationWaiversCurrent(
   }
 }
 
-export function resolveCanonicalValidationContractId(
-  catalog: ValidationCatalog,
-  id: string,
-): string {
+export function resolveCanonicalValidationContractId(catalog: ValidationCatalog, id: string): string {
   return resolveValidationId(catalog.contracts, id, "contract");
 }
 
-export function resolveCanonicalValidationCaseId(
-  catalog: ValidationCatalog,
-  id: string,
-): string {
+export function resolveCanonicalValidationCaseId(catalog: ValidationCatalog, id: string): string {
   return resolveValidationId(catalog.cases, id, "case");
 }
 
@@ -1393,11 +1387,7 @@ export async function acceptValidationContract(input: {
         version: canonical.version,
         sha256: stableHash(canonical),
       };
-      const current = await readCurrentValidationContract(
-        input.root,
-        input.contract.app,
-        input.contract.unitId,
-      );
+      const current = await readCurrentValidationContract(input.root, input.contract.app, input.contract.unitId);
       assertValidationContractRevision(canonical, current);
       // Only semantically admissible canonical proposals enter the durable
       // lifecycle. A malformed attempt must not poison this id/version and
@@ -1414,13 +1404,7 @@ export async function acceptValidationContract(input: {
         throw new RoadmapDeliveryError("authority_corrupt", "validation lifecycle proposal is missing");
       }
       if (lifecycle.state === "proposed") {
-        await transitionValidationLifecycle(
-          input.root,
-          canonical,
-          "validated",
-          canonical.acceptedAt,
-          null,
-        );
+        await transitionValidationLifecycle(input.root, canonical, "validated", canonical.acceptedAt, null);
       } else if (lifecycle.state === "accepted") {
         if (lifecycle.acceptedRef === null || !sameAuthorityRef(lifecycle.acceptedRef, expectedRef)) {
           throw new RoadmapDeliveryError("authority_conflict", "accepted validation lifecycle differs from proposal");
@@ -1440,13 +1424,7 @@ export async function acceptValidationContract(input: {
         canonical,
       );
       if (lifecycle.state !== "accepted") {
-        await transitionValidationLifecycle(
-          input.root,
-          canonical,
-          "accepted",
-          canonical.acceptedAt,
-          persisted.ref,
-        );
+        await transitionValidationLifecycle(input.root, canonical, "accepted", canonical.acceptedAt, persisted.ref);
       }
       const pointer: CurrentValidationContractPointer = {
         schemaVersion: VALIDATION_CONTRACT_SCHEMA_VERSION,
@@ -1654,21 +1632,13 @@ export async function admitExecutionBatch(input: {
   if (new Set(orderedUnitIds).size !== orderedUnitIds.length) {
     throw new RoadmapDeliveryError("batch_unit_duplicate", "a batch contains a duplicate unit");
   }
-  const roadmap = input.roadmapRef === undefined
-    ? undefined
-    : await requireAuthority<RoadmapPlan>(
-        input.root,
-        input.app,
-        input.roadmapRef,
-        "roadmap_plan",
-        "roadmap_missing",
-      );
+  const roadmap =
+    input.roadmapRef === undefined
+      ? undefined
+      : await requireAuthority<RoadmapPlan>(input.root, input.app, input.roadmapRef, "roadmap_plan", "roadmap_missing");
   if (roadmap !== undefined) assertRoadmapPlan(roadmap.value);
-  const currentRoadmap = roadmap === undefined
-    ? undefined
-    : await readCurrentRoadmapPlan(input.root, input.app);
-  if (roadmap !== undefined &&
-      (currentRoadmap === undefined || !sameAuthorityRef(currentRoadmap.ref, roadmap.ref))) {
+  const currentRoadmap = roadmap === undefined ? undefined : await readCurrentRoadmapPlan(input.root, input.app);
+  if (roadmap !== undefined && (currentRoadmap === undefined || !sameAuthorityRef(currentRoadmap.ref, roadmap.ref))) {
     throw new RoadmapDeliveryError(
       "frontier_stale",
       `${renderAuthorityRef(roadmap.ref)} is not the current accepted RoadmapPlan`,
@@ -1686,9 +1656,11 @@ export async function admitExecutionBatch(input: {
   }
   if (roadmap !== undefined) {
     const positions = new Map(roadmap.value.readyFrontier.map((id, index) => [id, index]));
-    const deterministic = [...orderedUnitIds].sort((left, right) =>
-      (positions.get(left) ?? Number.MAX_SAFE_INTEGER) -
-        (positions.get(right) ?? Number.MAX_SAFE_INTEGER) || left.localeCompare(right));
+    const deterministic = [...orderedUnitIds].sort(
+      (left, right) =>
+        (positions.get(left) ?? Number.MAX_SAFE_INTEGER) - (positions.get(right) ?? Number.MAX_SAFE_INTEGER) ||
+        left.localeCompare(right),
+    );
     if (stableHash(deterministic) !== stableHash(orderedUnitIds)) {
       throw new RoadmapDeliveryError(
         "batch_hard_constraint_failed",
@@ -1734,72 +1706,67 @@ export async function admitExecutionBatch(input: {
     }
     validationByUnit.set(validation.value.unitId, validation);
   }
-  const codeUnits = await Promise.all(orderedUnitIds.map(async (unitId): Promise<ExecutionBatchUnit> => {
-    if (roadmap === undefined || frontierHash === null) {
-      throw new RoadmapDeliveryError("roadmap_missing", `${unitId} has no RoadmapPlan`);
-    }
-    if (!roadmap.value.readyFrontier.includes(unitId)) {
-      throw new RoadmapDeliveryError(
-        "batch_hard_constraint_failed",
-        `${unitId} is not in the exact accepted ready frontier`,
-      );
-    }
-    const unit = requireUnit(roadmap.value, unitId);
-    assertRoutingEligible(unit, input.routing);
-    const readiness = readinessByUnit.get(unitId);
-    if (readiness === undefined) {
-      throw new RoadmapDeliveryError(
-        "validation_incomplete",
-        `${unitId} has no accepted readiness authority`,
-      );
-    }
-    const validation = validationByUnit.get(unitId);
-    if (validation === undefined) {
-      throw new RoadmapDeliveryError(
-        "validation_incomplete",
-        `${unitId} has no accepted validation contract`,
-      );
-    }
-    assertValidationWaiversCurrent(validation.value, input.admittedAt);
-    await assertValidationWaiverAuthorities(input.root, validation.value);
-    if (!sameAuthorityRef(validation.value.roadmapRef, roadmap.ref)) {
-      throw new RoadmapDeliveryError(
-        "validation_contract_invalid",
-        `${unitId} validation contract belongs to another RoadmapPlan`,
-      );
-    }
-    const membershipHash = unitMembershipHash(unit.issueNumbers);
-    const currentValidation = validation === undefined
-      ? undefined
-      : await readCurrentValidationContract(input.root, input.app, unitId);
-    if (
-      validation.value.unitMembershipHash !== membershipHash ||
-      readiness.value.membershipHash !== membershipHash ||
-      !sameAuthorityRef(readiness.value.roadmapRef, roadmap.ref) ||
-      readiness.value.frontierHash !== frontierHash ||
-      !sameAuthorityRef(readiness.value.validationRef, validation.ref) ||
-      readiness.value.validationContractHash !== validation.ref.sha256 ||
-      readiness.value.routingSnapshotHash !== routingSnapshotHash(unit, input.routing) ||
-      currentValidation === undefined ||
-      !sameAuthorityRef(currentValidation.ref, validation.ref)
-    ) {
-      throw new RoadmapDeliveryError(
-        "validation_contract_stale",
-        `${unitId} readiness or validation lineage is stale`,
-      );
-    }
-    return {
-      kind: "roadmap_code",
-      unitId,
-      issueNumbers: [...unit.issueNumbers],
-      membershipHash,
-      readinessRef: readiness.ref,
-      validationRef: validation.ref,
-      validationContractHash: validation.ref.sha256,
-      priority: unit.priority,
-      budget: normalizeExecutionUnitBudget(input.budgetsByUnit?.[unitId]),
-    };
-  }));
+  const codeUnits = await Promise.all(
+    orderedUnitIds.map(async (unitId): Promise<ExecutionBatchUnit> => {
+      if (roadmap === undefined || frontierHash === null) {
+        throw new RoadmapDeliveryError("roadmap_missing", `${unitId} has no RoadmapPlan`);
+      }
+      if (!roadmap.value.readyFrontier.includes(unitId)) {
+        throw new RoadmapDeliveryError(
+          "batch_hard_constraint_failed",
+          `${unitId} is not in the exact accepted ready frontier`,
+        );
+      }
+      const unit = requireUnit(roadmap.value, unitId);
+      assertRoutingEligible(unit, input.routing);
+      const readiness = readinessByUnit.get(unitId);
+      if (readiness === undefined) {
+        throw new RoadmapDeliveryError("validation_incomplete", `${unitId} has no accepted readiness authority`);
+      }
+      const validation = validationByUnit.get(unitId);
+      if (validation === undefined) {
+        throw new RoadmapDeliveryError("validation_incomplete", `${unitId} has no accepted validation contract`);
+      }
+      assertValidationWaiversCurrent(validation.value, input.admittedAt);
+      await assertValidationWaiverAuthorities(input.root, validation.value);
+      if (!sameAuthorityRef(validation.value.roadmapRef, roadmap.ref)) {
+        throw new RoadmapDeliveryError(
+          "validation_contract_invalid",
+          `${unitId} validation contract belongs to another RoadmapPlan`,
+        );
+      }
+      const membershipHash = unitMembershipHash(unit.issueNumbers);
+      const currentValidation =
+        validation === undefined ? undefined : await readCurrentValidationContract(input.root, input.app, unitId);
+      if (
+        validation.value.unitMembershipHash !== membershipHash ||
+        readiness.value.membershipHash !== membershipHash ||
+        !sameAuthorityRef(readiness.value.roadmapRef, roadmap.ref) ||
+        readiness.value.frontierHash !== frontierHash ||
+        !sameAuthorityRef(readiness.value.validationRef, validation.ref) ||
+        readiness.value.validationContractHash !== validation.ref.sha256 ||
+        readiness.value.routingSnapshotHash !== routingSnapshotHash(unit, input.routing) ||
+        currentValidation === undefined ||
+        !sameAuthorityRef(currentValidation.ref, validation.ref)
+      ) {
+        throw new RoadmapDeliveryError(
+          "validation_contract_stale",
+          `${unitId} readiness or validation lineage is stale`,
+        );
+      }
+      return {
+        kind: "roadmap_code",
+        unitId,
+        issueNumbers: [...unit.issueNumbers],
+        membershipHash,
+        readinessRef: readiness.ref,
+        validationRef: validation.ref,
+        validationContractHash: validation.ref.sha256,
+        priority: unit.priority,
+        budget: normalizeExecutionUnitBudget(input.budgetsByUnit?.[unitId]),
+      };
+    }),
+  );
   const directUnits: DirectExecutionBatchUnit[] = [];
   for (const ref of input.directUnitRefs ?? []) {
     const direct = await requireAuthority<DirectExecutionUnitAuthority>(
@@ -1851,38 +1818,31 @@ export async function admitExecutionBatch(input: {
     admittedAt: requireDateTime(input.admittedAt, "batch admittedAt"),
   };
   if (Buffer.byteLength(JSON.stringify(batch), "utf8") > maxManifestBytes) {
-    throw new RoadmapDeliveryError(
-      "batch_manifest_too_large",
-      `batch manifest exceeds ${maxManifestBytes} bytes`,
-    );
+    throw new RoadmapDeliveryError("batch_manifest_too_large", `batch manifest exceeds ${maxManifestBytes} bytes`);
   }
-  const accepted = await withFileLock(
-    batchMutationLockPath(input.root, input.app),
-    ROADMAP_MUTATION_LOCK,
-    async () => {
-      const existingPath = batchAuthorityPath(input.root, input.app, batch.batchId, batch.version);
-      if (existsSync(existingPath)) {
-        const existing = await readAuthorityFile<ExecutionBatch>(existingPath);
-        const replay = { ...batch, admittedAt: existing.value.admittedAt };
-        if (stableHash(existing.value) !== stableHash(replay)) {
-          throw new RoadmapDeliveryError("authority_conflict", `batch ${batch.batchId} already differs`);
-        }
-        for (const unit of units) await ensureExecutionUnitJournal(input.root, existing, unit);
-        return existing;
+  const accepted = await withFileLock(batchMutationLockPath(input.root, input.app), ROADMAP_MUTATION_LOCK, async () => {
+    const existingPath = batchAuthorityPath(input.root, input.app, batch.batchId, batch.version);
+    if (existsSync(existingPath)) {
+      const existing = await readAuthorityFile<ExecutionBatch>(existingPath);
+      const replay = { ...batch, admittedAt: existing.value.admittedAt };
+      if (stableHash(existing.value) !== stableHash(replay)) {
+        throw new RoadmapDeliveryError("authority_conflict", `batch ${batch.batchId} already differs`);
       }
-      await assertNoActiveExecutionUnitOverlap(input.root, input.app, units);
-      const persisted = await persistAuthority(
-        input.root,
-        input.app,
-        "execution_batch",
-        batch.batchId,
-        batch.version,
-        batch,
-      );
-      for (const unit of units) await ensureExecutionUnitJournal(input.root, persisted, unit);
-      return persisted;
-    },
-  );
+      for (const unit of units) await ensureExecutionUnitJournal(input.root, existing, unit);
+      return existing;
+    }
+    await assertNoActiveExecutionUnitOverlap(input.root, input.app, units);
+    const persisted = await persistAuthority(
+      input.root,
+      input.app,
+      "execution_batch",
+      batch.batchId,
+      batch.version,
+      batch,
+    );
+    for (const unit of units) await ensureExecutionUnitJournal(input.root, persisted, unit);
+    return persisted;
+  });
   await projectAccepted(input.root, input.app, accepted, input.project);
   return accepted;
 }
@@ -1958,11 +1918,7 @@ export async function normalizeDeliveryUnitEpisode(input: {
   assertValidationContractBaseShape(validation.value);
   await assertValidationWaiverAuthorities(input.root, validation.value);
   await assertCurrentValidationCatalogRef(input.root, input.app.name, validation.value.catalogRef);
-  const currentValidation = await readCurrentValidationContract(
-    input.root,
-    input.app.name,
-    input.unitId,
-  );
+  const currentValidation = await readCurrentValidationContract(input.root, input.app.name, input.unitId);
   if (
     currentValidation === undefined ||
     !sameAuthorityRef(currentValidation.ref, validation.ref) ||
@@ -1989,9 +1945,8 @@ export async function normalizeDeliveryUnitEpisode(input: {
     renderAuthorityRef(validation.ref),
     renderAuthorityRef(batch.ref),
   ];
-  const creatorScope = input.creatorScope === undefined
-    ? undefined
-    : bindCreatorScope(input.creatorScope, authorityInputs);
+  const creatorScope =
+    input.creatorScope === undefined ? undefined : bindCreatorScope(input.creatorScope, authorityInputs);
   const intent = buildEpisodeIntent({
     ...input.facts,
     episodeId,
@@ -2004,23 +1959,14 @@ export async function normalizeDeliveryUnitEpisode(input: {
     app: input.app,
     roles: input.roles,
     intent,
-    ...(input.providerOperations === undefined
-      ? {}
-      : { providerOperations: input.providerOperations }),
-    ...(input.workflowTemplates === undefined
-      ? {}
-      : { workflowTemplates: input.workflowTemplates }),
-    ...(input.independentReview === undefined
-      ? {}
-      : { independentReview: input.independentReview }),
+    ...(input.providerOperations === undefined ? {} : { providerOperations: input.providerOperations }),
+    ...(input.workflowTemplates === undefined ? {} : { workflowTemplates: input.workflowTemplates }),
+    ...(input.independentReview === undefined ? {} : { independentReview: input.independentReview }),
     ...(input.propose === undefined ? {} : { propose: input.propose }),
     now: () => operationNow,
   });
   const validationLineage = renderAuthorityRef(validation.ref);
-  if (
-    prepared.planningTurnSkipped &&
-    !prepared.plan.creatorProvenance?.evidenceRefs.includes(validationLineage)
-  ) {
+  if (prepared.planningTurnSkipped && !prepared.plan.creatorProvenance?.evidenceRefs.includes(validationLineage)) {
     throw new RoadmapDeliveryError(
       "validation_contract_invalid",
       "EpisodePlan dropped the exact validation-contract ref and hash",
@@ -2188,7 +2134,11 @@ export async function normalizeDirectExecutionUnitEpisode(input: {
     planningDisposition: "execution_ready",
     provenance: {
       ...authority.value.provenance,
-      evidenceRefs: [...authority.value.provenance.evidenceRefs, renderAuthorityRef(authority.ref), renderAuthorityRef(batch.ref)],
+      evidenceRefs: [
+        ...authority.value.provenance.evidenceRefs,
+        renderAuthorityRef(authority.ref),
+        renderAuthorityRef(batch.ref),
+      ],
     },
     objective: authority.value.objective,
     inScope: [...authority.value.inScope],
@@ -2207,10 +2157,14 @@ export async function normalizeDirectExecutionUnitEpisode(input: {
     episodeId,
     app: input.app,
     roles: input.roles,
-    requiredSafetyFacts: [...new Map([
-      ...input.facts.requiredSafetyFacts,
-      ...authority.value.safetyFacts,
-    ].map((fact) => [stableHash(fact), structuredClone(fact)])).values()],
+    requiredSafetyFacts: [
+      ...new Map(
+        [...input.facts.requiredSafetyFacts, ...authority.value.safetyFacts].map((fact) => [
+          stableHash(fact),
+          structuredClone(fact),
+        ]),
+      ).values(),
+    ],
     creatorScope,
   });
   const prepared = await prepareEpisodePlan({
@@ -2259,9 +2213,7 @@ export async function claimDeliveryUnit(input: {
   /** Builder-owned current-fact read. The claim boundary invokes this after
    * loading durable authority; a caller cannot pass a stale routing snapshot
    * through as if it were a fresh re-read. */
-  readCurrentRouting: (
-    issueNumbers: readonly number[],
-  ) => Promise<RoutingSnapshotEntry[]>;
+  readCurrentRouting: (issueNumbers: readonly number[]) => Promise<RoutingSnapshotEntry[]>;
   now: Date;
   project?: RoadmapDeliveryProjector;
 }): Promise<DeliveryUnitClaim> {
@@ -2320,11 +2272,7 @@ export async function commitDeliveryUnitClaim(input: {
   if (input.claim.token === undefined) {
     throw new RoadmapDeliveryError("already_claimed", "claim attempt does not own the unit");
   }
-  const joined = await loadDeliveryJoin(
-    input.root,
-    input.app,
-    input.claim.record.payload.episodeBindingRef,
-  );
+  const joined = await loadDeliveryJoin(input.root, input.app, input.claim.record.payload.episodeBindingRef);
   assertValidationWaiversCurrent(joined.validation.value, input.now);
   const record = await deliveryClaimStore(input.root).commit({
     settlementId: input.claim.record.settlement_id,
@@ -2385,11 +2333,7 @@ export async function recordBuilderEvidence(input: {
   project?: RoadmapDeliveryProjector;
 }): Promise<AcceptedAuthority<BuilderEvidenceManifest>> {
   assertBuilderEvidenceShape(input.manifest);
-  const joined = await loadDeliveryJoin(
-    input.root,
-    input.manifest.app,
-    input.manifest.episodeBindingRef,
-  );
+  const joined = await loadDeliveryJoin(input.root, input.manifest.app, input.manifest.episodeBindingRef);
   assertEvidenceJoin(input.manifest, joined);
   await assertEvidencePlanCurrent(input.root, input.manifest);
   assertValidationWaiversCurrent(joined.validation.value, input.manifest.recordedAt);
@@ -2510,18 +2454,10 @@ export async function recordReviewerVerdict(input: {
     "validation_contract_missing",
   );
   assertValidationContractBaseShape(validation.value);
-  const joined = await loadDeliveryJoin(
-    input.root,
-    input.verdict.app,
-    input.verdict.episodeBindingRef,
-  );
+  const joined = await loadDeliveryJoin(input.root, input.verdict.app, input.verdict.episodeBindingRef);
   assertEvidenceJoin(evidence.value, joined);
   await assertEvidencePlanCurrent(input.root, evidence.value);
-  const currentValidation = await readCurrentValidationContract(
-    input.root,
-    input.verdict.app,
-    input.verdict.unitId,
-  );
+  const currentValidation = await readCurrentValidationContract(input.root, input.verdict.app, input.verdict.unitId);
   if (currentValidation === undefined || !sameAuthorityRef(currentValidation.ref, validation.ref)) {
     throw new RoadmapDeliveryError(
       "validation_contract_stale",
@@ -2571,9 +2507,8 @@ export async function settleDeliveryUnitClaim(input: {
     ),
   ]);
   assertReviewerVerdictShape(verdict.value);
-  const joined = claim === undefined
-    ? undefined
-    : await loadDeliveryJoin(input.root, input.app, claim.payload.episodeBindingRef);
+  const joined =
+    claim === undefined ? undefined : await loadDeliveryJoin(input.root, input.app, claim.payload.episodeBindingRef);
   const builderEvidence = await requireAuthority<BuilderEvidenceManifest>(
     input.root,
     input.app,
@@ -2603,11 +2538,7 @@ export async function settleDeliveryUnitClaim(input: {
     throw new RoadmapDeliveryError("reviewer_evidence_incomplete", "claim settlement has no delivery join");
   }
   assertValidationWaiversCurrent(joined.validation.value, input.now);
-  const currentValidation = await readCurrentValidationContract(
-    input.root,
-    input.app,
-    claim.payload.unitId,
-  );
+  const currentValidation = await readCurrentValidationContract(input.root, input.app, claim.payload.unitId);
   if (
     currentValidation === undefined ||
     !sameAuthorityRef(currentValidation.ref, claim.payload.validationRef) ||
@@ -2618,11 +2549,7 @@ export async function settleDeliveryUnitClaim(input: {
       "settlement does not bind the current validation contract",
     );
   }
-  await assertCurrentValidationCatalogRef(
-    input.root,
-    input.app,
-    currentValidation.value.catalogRef,
-  );
+  await assertCurrentValidationCatalogRef(input.root, input.app, currentValidation.value.catalogRef);
   const record = await store.settle({
     settlementId: input.claimSettlementId,
     attempt: input.claimAttempt,
@@ -2714,21 +2641,11 @@ export async function settleDeliveryUnitRefusal(input: {
   });
 }
 
-export function roadmapAuthorityPath(
-  root: string,
-  app: string,
-  id: string,
-  version: number,
-): string {
+export function roadmapAuthorityPath(root: string, app: string, id: string, version: number): string {
   return authorityPath(root, app, "roadmap_plan", id, version);
 }
 
-export function backlogSnapshotAuthorityPath(
-  root: string,
-  app: string,
-  id: string,
-  version: number,
-): string {
+export function backlogSnapshotAuthorityPath(root: string, app: string, id: string, version: number): string {
   return authorityPath(root, app, "backlog_snapshot", id, version);
 }
 
@@ -2736,21 +2653,11 @@ export function currentRoadmapPointerPath(root: string, app: string): string {
   return join(planningAppDir(root, app), "roadmap-current.json");
 }
 
-export function validationAuthorityPath(
-  root: string,
-  app: string,
-  id: string,
-  version: number,
-): string {
+export function validationAuthorityPath(root: string, app: string, id: string, version: number): string {
   return authorityPath(root, app, "validation_contract", id, version);
 }
 
-export function validationCatalogAuthorityPath(
-  root: string,
-  app: string,
-  id: string,
-  version: number,
-): string {
+export function validationCatalogAuthorityPath(root: string, app: string, id: string, version: number): string {
   return authorityPath(root, app, "validation_catalog", id, version);
 }
 
@@ -2773,39 +2680,18 @@ export function validationContractLifecyclePath(
   assertId(unitId, "validation unit id");
   assertId(contractId, "validation contract id");
   assertVersion(version, "validation contract version");
-  return join(
-    planningAppDir(root, app),
-    "validation-lifecycle",
-    unitId,
-    contractId,
-    `v${version}.json`,
-  );
+  return join(planningAppDir(root, app), "validation-lifecycle", unitId, contractId, `v${version}.json`);
 }
 
-export function readinessAuthorityPath(
-  root: string,
-  app: string,
-  unitId: string,
-  version: number,
-): string {
+export function readinessAuthorityPath(root: string, app: string, unitId: string, version: number): string {
   return authorityPath(root, app, "delivery_unit_readiness", unitId, version);
 }
 
-export function batchAuthorityPath(
-  root: string,
-  app: string,
-  id: string,
-  version: number,
-): string {
+export function batchAuthorityPath(root: string, app: string, id: string, version: number): string {
   return authorityPath(root, app, "execution_batch", id, version);
 }
 
-export function executionUnitJournalPath(
-  root: string,
-  app: string,
-  batchId: string,
-  unitId: string,
-): string {
+export function executionUnitJournalPath(root: string, app: string, batchId: string, unitId: string): string {
   assertId(batchId, "execution batch id");
   assertId(unitId, "execution unit id");
   return join(planningAppDir(root, app), "execution-unit-journals", batchId, `${unitId}.json`);
@@ -2856,7 +2742,8 @@ export async function transitionExecutionUnitJournal(input: {
       if (unit === undefined) {
         throw new RoadmapDeliveryError("unit_journal_conflict", `${input.unitId} is not in the batch`);
       }
-      const current = await readExecutionUnitJournal(input.root, input.app, batch.ref.id, input.unitId) ??
+      const current =
+        (await readExecutionUnitJournal(input.root, input.app, batch.ref.id, input.unitId)) ??
         initialExecutionUnitJournal(batch, unit);
       if (!input.expectedStates.includes(current.state)) {
         if (current.state === input.nextState && input.outcome === current.outcome) {
@@ -2918,13 +2805,7 @@ export async function readBacklogSnapshotAuthority(
   app: string,
   ref: AuthorityRef,
 ): Promise<AcceptedAuthority<BacklogSnapshot>> {
-  const snapshot = await requireAuthority<BacklogSnapshot>(
-    root,
-    app,
-    ref,
-    "backlog_snapshot",
-    "backlog_incomplete",
-  );
+  const snapshot = await requireAuthority<BacklogSnapshot>(root, app, ref, "backlog_snapshot", "backlog_incomplete");
   assertBacklogSnapshot(snapshot.value);
   return snapshot;
 }
@@ -2943,10 +2824,7 @@ export interface ActiveExecutionUnit {
   journal: ExecutionUnitJournal;
 }
 
-export async function listActiveExecutionUnits(
-  root: string,
-  app: string,
-): Promise<ActiveExecutionUnit[]> {
+export async function listActiveExecutionUnits(root: string, app: string): Promise<ActiveExecutionUnit[]> {
   const directory = join(planningAppDir(root, app), "execution_batchs");
   if (!existsSync(directory)) return [];
   const found = new Map<string, ActiveExecutionUnit>();
@@ -2962,11 +2840,15 @@ export async function listActiveExecutionUnits(
       const batch = await readAuthorityFile<ExecutionBatch>(join(batchDir, version));
       assertExecutionBatchShape(batch.value);
       for (const unit of batch.value.units) {
-        const journal = await readExecutionUnitJournal(root, app, batch.ref.id, unit.unitId) ??
-          await ensureExecutionUnitJournal(root, batch, unit);
+        const journal =
+          (await readExecutionUnitJournal(root, app, batch.ref.id, unit.unitId)) ??
+          (await ensureExecutionUnitJournal(root, batch, unit));
         if (isTerminalJournalState(journal.state)) continue;
         if (found.has(unit.unitId)) {
-          throw new RoadmapDeliveryError("batch_membership_active", `${unit.unitId} appears in multiple active batches`);
+          throw new RoadmapDeliveryError(
+            "batch_membership_active",
+            `${unit.unitId} appears in multiple active batches`,
+          );
         }
         found.set(unit.unitId, { batch, unit, journal });
       }
@@ -3082,13 +2964,15 @@ async function loadDeliveryJoin(root: string, app: string, bindingRef: Authority
     !sameAuthorityRef(validation.value.roadmapRef, roadmap.ref) ||
     currentValidation === undefined ||
     !sameAuthorityRef(currentValidation.ref, validation.ref) ||
-    !batch.value.units.some((entry) =>
-      entry.kind !== "direct_operation" &&
-      entry.unitId === unit.unitId &&
-      entry.membershipHash === binding.value.membershipHash &&
-      sameAuthorityRef(entry.readinessRef, readiness.ref) &&
-      sameAuthorityRef(entry.validationRef, validation.ref) &&
-      entry.validationContractHash === validation.ref.sha256)
+    !batch.value.units.some(
+      (entry) =>
+        entry.kind !== "direct_operation" &&
+        entry.unitId === unit.unitId &&
+        entry.membershipHash === binding.value.membershipHash &&
+        sameAuthorityRef(entry.readinessRef, readiness.ref) &&
+        sameAuthorityRef(entry.validationRef, validation.ref) &&
+        entry.validationContractHash === validation.ref.sha256,
+    )
   ) {
     throw new RoadmapDeliveryError(
       "evidence_unit_mismatch",
@@ -3139,10 +3023,7 @@ async function assertEvidencePlanCurrent(
   }
 }
 
-function assertPlanWithinExecutionUnitBudget(
-  plan: EpisodePlan,
-  budget: ExecutionUnitBudget,
-): void {
+function assertPlanWithinExecutionUnitBudget(plan: EpisodePlan, budget: ExecutionUnitBudget): void {
   const humanDecisions = plan.steps.filter((step) => step.kind === "approval").length;
   if (
     plan.estimatedBudget.providerTurns > budget.maxProviderTurns ||
@@ -3185,25 +3066,18 @@ export function assertValidationEvidenceComplete(
   }
   const gates = new Set(
     manifest.gates
-      .filter((entry) =>
-        entry.status === "passed" &&
-        typeof entry.evidence === "string" &&
-        entry.evidence.trim().length > 0)
+      .filter(
+        (entry) => entry.status === "passed" && typeof entry.evidence === "string" && entry.evidence.trim().length > 0,
+      )
       .map((entry) => entry.gate),
   );
   const missingGates = contract.requiredGates.filter((gate) => !gates.has(gate));
   if (missingGates.length > 0) {
-    throw new RoadmapDeliveryError(
-      "builder_evidence_missing",
-      `missing gate evidence for ${missingGates.join(", ")}`,
-    );
+    throw new RoadmapDeliveryError("builder_evidence_missing", `missing gate evidence for ${missingGates.join(", ")}`);
   }
 }
 
-function bindCreatorScope(
-  scope: CreatorEpisodeScope,
-  authorityInputs: readonly string[],
-): CreatorEpisodeScope {
+function bindCreatorScope(scope: CreatorEpisodeScope, authorityInputs: readonly string[]): CreatorEpisodeScope {
   const inputs = authorityInputs.map((ref) => ({ ref, required: true }));
   return {
     ...structuredClone(scope),
@@ -3216,17 +3090,16 @@ function bindCreatorScope(
       : {
           steps: scope.steps.map((step) => ({
             ...structuredClone(step),
-            inputRefs: step.dependsOn.length === 0
-              ? uniqueInputRefs([...step.inputRefs, ...inputs])
-              : structuredClone(step.inputRefs),
+            inputRefs:
+              step.dependsOn.length === 0
+                ? uniqueInputRefs([...step.inputRefs, ...inputs])
+                : structuredClone(step.inputRefs),
           })),
         }),
   };
 }
 
-function uniqueInputRefs(
-  refs: Array<{ ref: string; required: boolean }>,
-): Array<{ ref: string; required: boolean }> {
+function uniqueInputRefs(refs: Array<{ ref: string; required: boolean }>): Array<{ ref: string; required: boolean }> {
   const byRef = new Map<string, { ref: string; required: boolean }>();
   for (const ref of refs) {
     const existing = byRef.get(ref.ref);
@@ -3414,10 +3287,7 @@ function assertRoadmapRoutingFrontier(plan: RoadmapPlan, snapshot: BacklogSnapsh
     const unit = requireUnit(plan, unitId);
     for (const issueNumber of unit.issueNumbers) {
       const issue = routing.get(issueNumber);
-      if (
-        issue?.routing !== "automated" ||
-        autonomousExecutionExclusionLabel(issue.observedLabels) !== undefined
-      ) {
+      if (issue?.routing !== "automated" || autonomousExecutionExclusionLabel(issue.observedLabels) !== undefined) {
         throw new RoadmapDeliveryError(
           "routing_ineligible",
           `ready-frontier unit ${unitId} contains excluded or unreadable issue #${issueNumber}`,
@@ -3427,10 +3297,7 @@ function assertRoadmapRoutingFrontier(plan: RoadmapPlan, snapshot: BacklogSnapsh
   }
 }
 
-function assertRoadmapRevision(
-  plan: RoadmapPlan,
-  current: AcceptedAuthority<RoadmapPlan> | undefined,
-): void {
+function assertRoadmapRevision(plan: RoadmapPlan, current: AcceptedAuthority<RoadmapPlan> | undefined): void {
   const proposedRef: AuthorityRef = {
     kind: "roadmap_plan",
     id: plan.planId,
@@ -3472,10 +3339,12 @@ function assertRoadmapRevision(
   for (const [issueNumber, priorUnit] of priorByIssue) {
     const nextUnit = nextByIssue.get(issueNumber);
     if (nextUnit === undefined || nextUnit.unitId === priorUnit.unitId) continue;
-    const move = newMoves.find((candidate) =>
-      candidate.issueNumber === issueNumber &&
-      candidate.fromUnitId === priorUnit.unitId &&
-      candidate.toUnitId === nextUnit.unitId);
+    const move = newMoves.find(
+      (candidate) =>
+        candidate.issueNumber === issueNumber &&
+        candidate.fromUnitId === priorUnit.unitId &&
+        candidate.toUnitId === nextUnit.unitId,
+    );
     if (move === undefined) {
       throw new RoadmapDeliveryError(
         "roadmap_invalid",
@@ -3498,11 +3367,29 @@ function assertRoadmapRevision(
 }
 
 function assertValidationCatalogShape(catalog: ValidationCatalog): void {
-  assertExactObjectKeys(catalog, [
-    "schemaVersion", "catalogId", "version", "predecessor", "app", "harnessRevisionId",
-    "journeys", "boundaries", "contracts", "invariants", "interfaces", "stateOwners",
-    "controlPoints", "cases", "templates", "waiverClasses", "acceptedAt",
-  ], "validation catalog");
+  assertExactObjectKeys(
+    catalog,
+    [
+      "schemaVersion",
+      "catalogId",
+      "version",
+      "predecessor",
+      "app",
+      "harnessRevisionId",
+      "journeys",
+      "boundaries",
+      "contracts",
+      "invariants",
+      "interfaces",
+      "stateOwners",
+      "controlPoints",
+      "cases",
+      "templates",
+      "waiverClasses",
+      "acceptedAt",
+    ],
+    "validation catalog",
+  );
   if (catalog.schemaVersion !== VALIDATION_CATALOG_SCHEMA_VERSION) {
     throw new RoadmapDeliveryError("validation_catalog_stale", "unsupported validation catalog schema");
   }
@@ -3513,18 +3400,29 @@ function assertValidationCatalogShape(catalog: ValidationCatalog): void {
   assertNonEmpty(catalog.app, "validation catalog app");
   assertNonEmpty(catalog.harnessRevisionId, "validation catalog harness revision");
   for (const entries of [
-    catalog.journeys, catalog.boundaries, catalog.contracts, catalog.invariants,
-    catalog.interfaces, catalog.stateOwners, catalog.controlPoints, catalog.cases,
-    catalog.templates, catalog.waiverClasses,
+    catalog.journeys,
+    catalog.boundaries,
+    catalog.contracts,
+    catalog.invariants,
+    catalog.interfaces,
+    catalog.stateOwners,
+    catalog.controlPoints,
+    catalog.cases,
+    catalog.templates,
+    catalog.waiverClasses,
   ]) {
     if (!Array.isArray(entries)) {
       throw new RoadmapDeliveryError("validation_contract_invalid", "validation catalog collection is missing");
     }
   }
   for (const entry of [
-    ...catalog.journeys, ...catalog.contracts, ...catalog.interfaces,
-    ...catalog.stateOwners, ...catalog.controlPoints,
-  ]) assertExactObjectKeys(entry, ["canonicalId", "aliases"], "validation catalog ID");
+    ...catalog.journeys,
+    ...catalog.contracts,
+    ...catalog.interfaces,
+    ...catalog.stateOwners,
+    ...catalog.controlPoints,
+  ])
+    assertExactObjectKeys(entry, ["canonicalId", "aliases"], "validation catalog ID");
   for (const invariant of catalog.invariants) {
     assertExactObjectKeys(invariant, ["canonicalId", "aliases", "floor"], "validation invariant");
     if (typeof invariant.floor !== "boolean") {
@@ -3550,9 +3448,11 @@ function assertValidationCatalogShape(catalog: ValidationCatalog): void {
     assertCatalogIds(entries, label);
   }
   for (const boundary of catalog.boundaries) {
-    assertExactObjectKeys(boundary, [
-      "canonicalId", "aliases", "requiresSharedDetector", "sharedDetectorId", "routineEligible",
-    ], `validation boundary ${String(boundary?.canonicalId)}`);
+    assertExactObjectKeys(
+      boundary,
+      ["canonicalId", "aliases", "requiresSharedDetector", "sharedDetectorId", "routineEligible"],
+      `validation boundary ${String(boundary?.canonicalId)}`,
+    );
     if (
       typeof boundary.requiresSharedDetector !== "boolean" ||
       typeof boundary.routineEligible !== "boolean" ||
@@ -3566,10 +3466,19 @@ function assertValidationCatalogShape(catalog: ValidationCatalog): void {
     if (boundary.sharedDetectorId !== null) assertNonEmpty(boundary.sharedDetectorId, "shared detector id");
   }
   for (const entry of catalog.cases) {
-    assertExactObjectKeys(entry, [
-      "canonicalId", "aliases", "cheapestFalsifyingLayer", "affected", "detectorId",
-      "negativeControlRequired", "routineEligible",
-    ], `validation case ${String(entry?.canonicalId)}`);
+    assertExactObjectKeys(
+      entry,
+      [
+        "canonicalId",
+        "aliases",
+        "cheapestFalsifyingLayer",
+        "affected",
+        "detectorId",
+        "negativeControlRequired",
+        "routineEligible",
+      ],
+      `validation case ${String(entry?.canonicalId)}`,
+    );
     if (
       typeof entry.negativeControlRequired !== "boolean" ||
       typeof entry.routineEligible !== "boolean" ||
@@ -3616,9 +3525,11 @@ function assertValidationCatalogShape(catalog: ValidationCatalog): void {
   }
   assertWaiverClassIds(catalog.waiverClasses);
   for (const waiverClass of catalog.waiverClasses) {
-    assertExactObjectKeys(waiverClass, [
-      "classId", "aliases", "maxDurationMs", "maxWaiversPerContract", "allowedTemplateKinds",
-    ], "validation waiver class");
+    assertExactObjectKeys(
+      waiverClass,
+      ["classId", "aliases", "maxDurationMs", "maxWaiversPerContract", "allowedTemplateKinds"],
+      "validation waiver class",
+    );
     if (
       !Number.isSafeInteger(waiverClass.maxDurationMs) ||
       waiverClass.maxDurationMs < 1 ||
@@ -3686,10 +3597,9 @@ function assertValidationCatalogRevision(
   assertValidationCatalogTightens(catalog, current.value);
 }
 
-function validationCatalogContent(catalog: ValidationCatalog): Omit<
-  ValidationCatalog,
-  "schemaVersion" | "version" | "predecessor" | "app" | "acceptedAt"
-> {
+function validationCatalogContent(
+  catalog: ValidationCatalog,
+): Omit<ValidationCatalog, "schemaVersion" | "version" | "predecessor" | "app" | "acceptedAt"> {
   const {
     schemaVersion: _schemaVersion,
     version: _version,
@@ -3785,21 +3695,36 @@ function assertValidationCatalogTightens(next: ValidationCatalog, prior: Validat
   }
 }
 
-function affectedContains(
-  superset: ValidationAffectedStructure,
-  subset: ValidationAffectedStructure,
-): boolean {
-  return affectedStructureKeys().every((key) =>
-    subset[key].every((id) => superset[key].includes(id)));
+function affectedContains(superset: ValidationAffectedStructure, subset: ValidationAffectedStructure): boolean {
+  return affectedStructureKeys().every((key) => subset[key].every((id) => superset[key].includes(id)));
 }
 
 function assertValidationContractBaseShape(contract: ValidationContract): void {
-  assertExactObjectKeys(contract, [
-    "schemaVersion", "contractId", "version", "predecessor", "app", "catalogRef",
-    "roadmapRef", "unitId", "unitMembershipHash", "templateRef", "affected",
-    "acceptanceCriteria", "requiresHarnessRevision", "harnessRevisionReason",
-    "sharedBoundaryDetectorRefs", "obligations", "requiredGates", "proposedAt", "acceptedAt",
-  ], "validation contract");
+  assertExactObjectKeys(
+    contract,
+    [
+      "schemaVersion",
+      "contractId",
+      "version",
+      "predecessor",
+      "app",
+      "catalogRef",
+      "roadmapRef",
+      "unitId",
+      "unitMembershipHash",
+      "templateRef",
+      "affected",
+      "acceptanceCriteria",
+      "requiresHarnessRevision",
+      "harnessRevisionReason",
+      "sharedBoundaryDetectorRefs",
+      "obligations",
+      "requiredGates",
+      "proposedAt",
+      "acceptedAt",
+    ],
+    "validation contract",
+  );
   if (contract.schemaVersion !== VALIDATION_CONTRACT_SCHEMA_VERSION) {
     throw new RoadmapDeliveryError("validation_contract_invalid", "unsupported validation-contract schema");
   }
@@ -3854,10 +3779,21 @@ function assertValidationContractBaseShape(contract: ValidationContract): void {
   const obligationIds = new Set<string>();
   const caseIds = new Set<string>();
   for (const obligation of contract.obligations) {
-    assertExactObjectKeys(obligation, [
-      "obligationId", "caseId", "covers", "cheapestFalsifyingLayer", "failureCases",
-      "detectorId", "negativeControlId", "expectedEvidence", "waiver",
-    ], "validation obligation");
+    assertExactObjectKeys(
+      obligation,
+      [
+        "obligationId",
+        "caseId",
+        "covers",
+        "cheapestFalsifyingLayer",
+        "failureCases",
+        "detectorId",
+        "negativeControlId",
+        "expectedEvidence",
+        "waiver",
+      ],
+      "validation obligation",
+    );
     assertMachineId(obligation.obligationId, "validation obligation id");
     assertNonEmpty(obligation.caseId, "validation case id");
     assertAffectedStructureShape(obligation.covers, `obligation ${obligation.obligationId} coverage`, true);
@@ -3901,10 +3837,7 @@ function assertValidationContractBaseShape(contract: ValidationContract): void {
   }
 }
 
-function canonicalizeValidationContract(
-  contract: ValidationContract,
-  catalog: ValidationCatalog,
-): ValidationContract {
+function canonicalizeValidationContract(contract: ValidationContract, catalog: ValidationCatalog): ValidationContract {
   const canonical = structuredClone(contract);
   canonical.affected = canonicalizeAffectedStructure(canonical.affected, catalog);
   canonical.obligations = canonical.obligations.map((obligation) => ({
@@ -3943,11 +3876,14 @@ function assertValidationContractPolicy(contract: ValidationContract, catalog: V
     );
   }
   assertCanonicalAffectedStructure(contract.affected, catalog, "validation contract");
-  const template = contract.templateRef === null
-    ? undefined
-    : catalog.templates.find((candidate) =>
-        candidate.templateId === contract.templateRef!.templateId &&
-        candidate.version === contract.templateRef!.version);
+  const template =
+    contract.templateRef === null
+      ? undefined
+      : catalog.templates.find(
+          (candidate) =>
+            candidate.templateId === contract.templateRef!.templateId &&
+            candidate.version === contract.templateRef!.version,
+        );
   if (contract.templateRef !== null && template === undefined) {
     throw new RoadmapDeliveryError(
       "validation_id_unknown",
@@ -3964,8 +3900,9 @@ function assertValidationContractPolicy(contract: ValidationContract, catalog: V
     );
   }
   if (template?.kind === "routine") {
-    const forbiddenBoundary = contract.affected.boundaryIds.find((id) =>
-      catalog.boundaries.find((entry) => entry.canonicalId === id)?.routineEligible !== true);
+    const forbiddenBoundary = contract.affected.boundaryIds.find(
+      (id) => catalog.boundaries.find((entry) => entry.canonicalId === id)?.routineEligible !== true,
+    );
     if (forbiddenBoundary !== undefined) {
       throw new RoadmapDeliveryError(
         "validation_contract_invalid",
@@ -4005,18 +3942,8 @@ function assertValidationContractPolicy(contract: ValidationContract, catalog: V
       );
     }
     if (obligation.waiver !== null) {
-      assertValidationWaiver(
-        obligation,
-        contract,
-        catalog,
-        template?.kind ?? "custom",
-        hasFloor,
-        hasC3,
-      );
-      waiverCounts.set(
-        obligation.waiver.policyClassId,
-        (waiverCounts.get(obligation.waiver.policyClassId) ?? 0) + 1,
-      );
+      assertValidationWaiver(obligation, contract, catalog, template?.kind ?? "custom", hasFloor, hasC3);
+      waiverCounts.set(obligation.waiver.policyClassId, (waiverCounts.get(obligation.waiver.policyClassId) ?? 0) + 1);
     }
   }
   assertAffectedStructureEqual(coverage, contract.affected);
@@ -4066,10 +3993,23 @@ function assertValidationContractRevision(
 }
 
 function assertDeliveryUnitReadinessShape(readiness: DeliveryUnitReadiness): void {
-  assertExactObjectKeys(readiness, [
-    "schemaVersion", "app", "unitId", "membershipHash", "roadmapRef", "frontierHash",
-    "validationRef", "validationContractHash", "routingSnapshotHash", "readyAt",
-  ], "delivery-unit readiness", "validation_incomplete");
+  assertExactObjectKeys(
+    readiness,
+    [
+      "schemaVersion",
+      "app",
+      "unitId",
+      "membershipHash",
+      "roadmapRef",
+      "frontierHash",
+      "validationRef",
+      "validationContractHash",
+      "routingSnapshotHash",
+      "readyAt",
+    ],
+    "delivery-unit readiness",
+    "validation_incomplete",
+  );
   if (readiness.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
     throw new RoadmapDeliveryError("validation_incomplete", "unsupported readiness schema");
   }
@@ -4092,11 +4032,29 @@ function assertDeliveryUnitReadinessShape(readiness: DeliveryUnitReadiness): voi
 
 function assertDirectExecutionUnit(authority: DirectExecutionUnitAuthority): void {
   const workflowKeys = authority.workflowTemplate === undefined ? ["steps"] : ["workflowTemplate"];
-  assertExactObjectKeys(authority, [
-    "schemaVersion", "kind", "unitId", "app", "objective", "inScope", "outOfScope",
-    "acceptanceCriteria", "expectedArtifacts", "declaredConstraints", "safetyFacts",
-    ...workflowKeys, "provenance", "dedupeKey", "admittedBudget", "createdAt",
-  ], "direct execution unit", "direct_unit_incomplete");
+  assertExactObjectKeys(
+    authority,
+    [
+      "schemaVersion",
+      "kind",
+      "unitId",
+      "app",
+      "objective",
+      "inScope",
+      "outOfScope",
+      "acceptanceCriteria",
+      "expectedArtifacts",
+      "declaredConstraints",
+      "safetyFacts",
+      ...workflowKeys,
+      "provenance",
+      "dedupeKey",
+      "admittedBudget",
+      "createdAt",
+    ],
+    "direct execution unit",
+    "direct_unit_incomplete",
+  );
   if (authority.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION || authority.kind !== "direct_operation") {
     throw new RoadmapDeliveryError("direct_unit_incomplete", "unsupported direct-unit schema");
   }
@@ -4140,10 +4098,10 @@ function assertDirectExecutionUnit(authority: DirectExecutionUnitAuthority): voi
       "direct unit requires exactly one governed template or exact step graph",
     );
   }
-  if (hasTemplate && (
-    authority.workflowTemplate!.id.trim().length === 0 ||
-    authority.workflowTemplate!.version.trim().length === 0
-  )) {
+  if (
+    hasTemplate &&
+    (authority.workflowTemplate!.id.trim().length === 0 || authority.workflowTemplate!.version.trim().length === 0)
+  ) {
     throw new RoadmapDeliveryError("direct_unit_incomplete", "direct-unit workflow template is invalid");
   }
   if (hasSteps && (!Array.isArray(authority.steps) || authority.steps.length === 0)) {
@@ -4160,26 +4118,40 @@ function normalizeExecutionUnitBudget(value: ExecutionUnitBudget | undefined): E
 
 function assertExecutionUnitBudget(budget: ExecutionUnitBudget): void {
   if (
-    !Number.isInteger(budget.maxProviderTurns) || budget.maxProviderTurns < 0 ||
-    !Number.isFinite(budget.maxEquivalentCostUsd) || budget.maxEquivalentCostUsd < 0 ||
-    !Number.isFinite(budget.maxMechanicalOverheadUsd) || budget.maxMechanicalOverheadUsd < 0 ||
-    !Number.isInteger(budget.maxActiveTimeMs) || budget.maxActiveTimeMs < 0 ||
-    !Number.isInteger(budget.maxHumanDecisions) || budget.maxHumanDecisions < 0
+    !Number.isInteger(budget.maxProviderTurns) ||
+    budget.maxProviderTurns < 0 ||
+    !Number.isFinite(budget.maxEquivalentCostUsd) ||
+    budget.maxEquivalentCostUsd < 0 ||
+    !Number.isFinite(budget.maxMechanicalOverheadUsd) ||
+    budget.maxMechanicalOverheadUsd < 0 ||
+    !Number.isInteger(budget.maxActiveTimeMs) ||
+    budget.maxActiveTimeMs < 0 ||
+    !Number.isInteger(budget.maxHumanDecisions) ||
+    budget.maxHumanDecisions < 0
   ) {
     throw new RoadmapDeliveryError("batch_hard_constraint_failed", "execution-unit budget is invalid");
   }
 }
 
 function assertExecutionBatchShape(batch: ExecutionBatch): void {
-  assertExactObjectKeys(batch, batch.manifestLimits === undefined
-    ? [
-        "schemaVersion", "batchId", "version", "app", "roadmapRef", "frontierHash",
-        "units", "admittedAt",
-      ]
-    : [
-        "schemaVersion", "batchId", "version", "app", "roadmapRef", "frontierHash",
-        "units", "manifestLimits", "admittedAt",
-      ], "execution batch", "batch_hard_constraint_failed");
+  assertExactObjectKeys(
+    batch,
+    batch.manifestLimits === undefined
+      ? ["schemaVersion", "batchId", "version", "app", "roadmapRef", "frontierHash", "units", "admittedAt"]
+      : [
+          "schemaVersion",
+          "batchId",
+          "version",
+          "app",
+          "roadmapRef",
+          "frontierHash",
+          "units",
+          "manifestLimits",
+          "admittedAt",
+        ],
+    "execution batch",
+    "batch_hard_constraint_failed",
+  );
   if (batch.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
     throw new RoadmapDeliveryError("batch_hard_constraint_failed", "unsupported execution-batch schema");
   }
@@ -4192,12 +4164,13 @@ function assertExecutionBatchShape(batch: ExecutionBatch): void {
   if (batch.roadmapRef !== null) assertAuthorityRef(batch.roadmapRef, "roadmap_plan");
   if (batch.frontierHash !== null) assertHash(batch.frontierHash, "execution batch frontier hash");
   requireDateTime(batch.admittedAt, "execution batch admittedAt");
-  if (batch.manifestLimits !== undefined && (
-    !Number.isInteger(batch.manifestLimits.maxUnits) ||
-    batch.manifestLimits.maxUnits <= 0 ||
-    !Number.isInteger(batch.manifestLimits.maxManifestBytes) ||
-    batch.manifestLimits.maxManifestBytes <= 0
-  )) {
+  if (
+    batch.manifestLimits !== undefined &&
+    (!Number.isInteger(batch.manifestLimits.maxUnits) ||
+      batch.manifestLimits.maxUnits <= 0 ||
+      !Number.isInteger(batch.manifestLimits.maxManifestBytes) ||
+      batch.manifestLimits.maxManifestBytes <= 0)
+  ) {
     throw new RoadmapDeliveryError("batch_hard_constraint_failed", "execution batch limits are invalid");
   }
   if (!Array.isArray(batch.units) || batch.units.length === 0) {
@@ -4206,9 +4179,12 @@ function assertExecutionBatchShape(batch: ExecutionBatch): void {
   const unitIds = new Set<string>();
   for (const unit of batch.units) {
     if (unit.kind === "direct_operation") {
-      assertExactObjectKeys(unit, [
-        "kind", "unitId", "authorityRef", "authorityHash", "dedupeKey", "priority", "budget",
-      ], "direct execution batch unit", "batch_hard_constraint_failed");
+      assertExactObjectKeys(
+        unit,
+        ["kind", "unitId", "authorityRef", "authorityHash", "dedupeKey", "priority", "budget"],
+        "direct execution batch unit",
+        "batch_hard_constraint_failed",
+      );
       assertId(unit.unitId, "direct execution batch unit id");
       assertAuthorityRef(unit.authorityRef, "direct_execution_unit");
       assertHash(unit.authorityHash, "direct execution authority hash");
@@ -4223,15 +4199,29 @@ function assertExecutionBatchShape(batch: ExecutionBatch): void {
       unitIds.add(unit.unitId);
       continue;
     }
-    assertExactObjectKeys(unit, unit.kind === undefined
-      ? ["unitId", "membershipHash", "readinessRef", "validationRef", "validationContractHash"]
-      : [
-          "kind", "unitId", "membershipHash", "readinessRef", "validationRef",
-          "validationContractHash", "priority", "budget", "issueNumbers",
-        ], "execution batch unit", "batch_hard_constraint_failed");
+    assertExactObjectKeys(
+      unit,
+      unit.kind === undefined
+        ? ["unitId", "membershipHash", "readinessRef", "validationRef", "validationContractHash"]
+        : [
+            "kind",
+            "unitId",
+            "membershipHash",
+            "readinessRef",
+            "validationRef",
+            "validationContractHash",
+            "priority",
+            "budget",
+            "issueNumbers",
+          ],
+      "execution batch unit",
+      "batch_hard_constraint_failed",
+    );
     assertId(unit.unitId, "execution batch unit id");
-    if (unit.issueNumbers !== undefined &&
-        (unit.issueNumbers.length === 0 || unitMembershipHash(unit.issueNumbers) !== unit.membershipHash)) {
+    if (
+      unit.issueNumbers !== undefined &&
+      (unit.issueNumbers.length === 0 || unitMembershipHash(unit.issueNumbers) !== unit.membershipHash)
+    ) {
       throw new RoadmapDeliveryError("batch_hard_constraint_failed", "batch unit membership is incomplete");
     }
     assertHash(unit.membershipHash, "execution batch membership hash");
@@ -4250,11 +4240,26 @@ function assertExecutionBatchShape(batch: ExecutionBatch): void {
 }
 
 function assertDeliveryEpisodeBindingShape(binding: DeliveryEpisodeBinding): void {
-  assertExactObjectKeys(binding, [
-    "schemaVersion", "app", "unitId", "membershipHash", "roadmapRef", "readinessRef",
-    "validationRef", "validationContractHash", "batchRef", "episodeId",
-    "episodePlanVersion", "episodePlanHash", "createdAt",
-  ], "delivery episode binding", "evidence_unit_mismatch");
+  assertExactObjectKeys(
+    binding,
+    [
+      "schemaVersion",
+      "app",
+      "unitId",
+      "membershipHash",
+      "roadmapRef",
+      "readinessRef",
+      "validationRef",
+      "validationContractHash",
+      "batchRef",
+      "episodeId",
+      "episodePlanVersion",
+      "episodePlanHash",
+      "createdAt",
+    ],
+    "delivery episode binding",
+    "evidence_unit_mismatch",
+  );
   if (binding.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
     throw new RoadmapDeliveryError("evidence_unit_mismatch", "unsupported delivery binding schema");
   }
@@ -4300,11 +4305,7 @@ function assertWaiverClassIds(entries: readonly ValidationWaiverClass[]): void {
   );
 }
 
-function resolveValidationId(
-  entries: readonly ValidationCatalogId[],
-  id: string,
-  label: string,
-): string {
+function resolveValidationId(entries: readonly ValidationCatalogId[], id: string, label: string): string {
   const matches = entries.filter((entry) => entry.canonicalId === id || entry.aliases.includes(id));
   if (matches.length !== 1) {
     throw new RoadmapDeliveryError("validation_id_unknown", `unknown or ambiguous ${label} ID ${id}`);
@@ -4320,13 +4321,10 @@ function resolveWaiverClassId(entries: readonly ValidationWaiverClass[], id: str
   );
 }
 
-function resolveTemplateId(
-  entries: readonly ValidationCatalogTemplate[],
-  id: string,
-  version: number,
-): string {
-  const matches = entries.filter((entry) =>
-    entry.version === version && (entry.templateId === id || entry.aliases.includes(id)));
+function resolveTemplateId(entries: readonly ValidationCatalogTemplate[], id: string, version: number): string {
+  const matches = entries.filter(
+    (entry) => entry.version === version && (entry.templateId === id || entry.aliases.includes(id)),
+  );
   if (matches.length !== 1) {
     throw new RoadmapDeliveryError(
       "validation_id_unknown",
@@ -4347,7 +4345,9 @@ function canonicalizeAffectedStructure(
     invariantIds: affected.invariantIds.map((id) => resolveValidationId(catalog.invariants, id, "invariant")),
     interfaceIds: affected.interfaceIds.map((id) => resolveValidationId(catalog.interfaces, id, "interface")),
     stateOwnerIds: affected.stateOwnerIds.map((id) => resolveValidationId(catalog.stateOwners, id, "state owner")),
-    controlPointIds: affected.controlPointIds.map((id) => resolveValidationId(catalog.controlPoints, id, "control point")),
+    controlPointIds: affected.controlPointIds.map((id) =>
+      resolveValidationId(catalog.controlPoints, id, "control point"),
+    ),
   };
 }
 
@@ -4358,22 +4358,16 @@ function assertCanonicalAffectedStructure(
 ): void {
   const canonical = canonicalizeAffectedStructure(affected, catalog);
   if (stableHash(canonical) !== stableHash(affected)) {
-    throw new RoadmapDeliveryError(
-      "validation_contract_invalid",
-      `${label} did not persist canonical validation IDs`,
-    );
+    throw new RoadmapDeliveryError("validation_contract_invalid", `${label} did not persist canonical validation IDs`);
   }
 }
 
-function assertAffectedStructureShape(
-  affected: ValidationAffectedStructure,
-  label: string,
-  allowEmpty: boolean,
-): void {
-  assertExactObjectKeys(affected, [
-    "journeyIds", "boundaryIds", "contractIds", "invariantIds",
-    "interfaceIds", "stateOwnerIds", "controlPointIds",
-  ], label);
+function assertAffectedStructureShape(affected: ValidationAffectedStructure, label: string, allowEmpty: boolean): void {
+  assertExactObjectKeys(
+    affected,
+    ["journeyIds", "boundaryIds", "contractIds", "invariantIds", "interfaceIds", "stateOwnerIds", "controlPointIds"],
+    label,
+  );
   const rows: Array<[string, string[]]> = [
     ["journeys", affected.journeyIds],
     ["boundaries", affected.boundaryIds],
@@ -4400,10 +4394,7 @@ function emptyAffectedStructure(): ValidationAffectedStructure {
   };
 }
 
-function mergeAffectedStructure(
-  target: ValidationAffectedStructure,
-  source: ValidationAffectedStructure,
-): void {
+function mergeAffectedStructure(target: ValidationAffectedStructure, source: ValidationAffectedStructure): void {
   for (const key of affectedStructureKeys()) {
     target[key] = [...new Set([...target[key], ...source[key]])].sort();
   }
@@ -4437,10 +4428,7 @@ function affectedStructureKeys(): Array<keyof ValidationAffectedStructure> {
   ];
 }
 
-function assertCoverageSupported(
-  obligation: ValidationObligation,
-  entry: ValidationCatalogCase,
-): void {
+function assertCoverageSupported(obligation: ValidationObligation, entry: ValidationCatalogCase): void {
   for (const key of affectedStructureKeys()) {
     const supported = new Set(entry.affected[key]);
     const unsupported = obligation.covers[key].filter((id) => !supported.has(id));
@@ -4462,15 +4450,22 @@ function assertValidationWaiver(
   contractHasC3: boolean,
 ): void {
   const waiver = obligation.waiver!;
-  assertExactObjectKeys(waiver, [
-    "waiverId", "policyClassId", "obligationId", "unitId", "contractId",
-    "contractVersion", "reason", "provenance", "expiresAt",
-  ], "validation waiver");
   assertExactObjectKeys(
-    waiver.provenance,
-    ["actorId", "authorityRef", "decidedAt"],
-    "validation waiver provenance",
+    waiver,
+    [
+      "waiverId",
+      "policyClassId",
+      "obligationId",
+      "unitId",
+      "contractId",
+      "contractVersion",
+      "reason",
+      "provenance",
+      "expiresAt",
+    ],
+    "validation waiver",
   );
+  assertExactObjectKeys(waiver.provenance, ["actorId", "authorityRef", "decidedAt"], "validation waiver provenance");
   assertMachineId(waiver.waiverId, "validation waiver id");
   assertNonEmpty(waiver.reason, "validation waiver reason");
   assertNonEmpty(waiver.provenance.actorId, "validation waiver actor");
@@ -4492,8 +4487,9 @@ function assertValidationWaiver(
     contractHasFloor ||
     contractHasC3 ||
     obligation.covers.controlPointIds.length > 0 ||
-    obligation.covers.invariantIds.some((id) =>
-      catalog.invariants.find((entry) => entry.canonicalId === id)?.floor === true)
+    obligation.covers.invariantIds.some(
+      (id) => catalog.invariants.find((entry) => entry.canonicalId === id)?.floor === true,
+    )
   ) {
     throw new RoadmapDeliveryError(
       "validation_waiver_invalid",
@@ -4502,10 +4498,7 @@ function assertValidationWaiver(
   }
 }
 
-async function assertValidationWaiverAuthorities(
-  root: string,
-  contract: ValidationContract,
-): Promise<void> {
+async function assertValidationWaiverAuthorities(root: string, contract: ValidationContract): Promise<void> {
   const store = new ApprovalStore(root);
   let decided: Awaited<ReturnType<ApprovalStore["listDecidedReadOnly"]>>;
   try {
@@ -4566,14 +4559,14 @@ async function assertValidationWaiverAuthorities(
 }
 
 function assertSharedBoundaryDetectors(contract: ValidationContract, catalog: ValidationCatalog): void {
-  const required = catalog.boundaries.filter((entry) =>
-    contract.affected.boundaryIds.includes(entry.canonicalId) && entry.requiresSharedDetector);
+  const required = catalog.boundaries.filter(
+    (entry) => contract.affected.boundaryIds.includes(entry.canonicalId) && entry.requiresSharedDetector,
+  );
   const byBoundary = new Map(contract.sharedBoundaryDetectorRefs.map((entry) => [entry.boundaryId, entry]));
   for (const boundary of required) {
     const shared = byBoundary.get(boundary.canonicalId);
-    const obligation = shared === undefined
-      ? undefined
-      : contract.obligations.find((entry) => entry.caseId === shared.caseId);
+    const obligation =
+      shared === undefined ? undefined : contract.obligations.find((entry) => entry.caseId === shared.caseId);
     if (
       shared === undefined ||
       shared.detectorId !== boundary.sharedDetectorId ||
@@ -4587,8 +4580,9 @@ function assertSharedBoundaryDetectors(contract: ValidationContract, catalog: Va
       );
     }
   }
-  const unexpected = contract.sharedBoundaryDetectorRefs.find((entry) =>
-    !contract.affected.boundaryIds.includes(entry.boundaryId));
+  const unexpected = contract.sharedBoundaryDetectorRefs.find(
+    (entry) => !contract.affected.boundaryIds.includes(entry.boundaryId),
+  );
   if (unexpected !== undefined) {
     throw new RoadmapDeliveryError(
       "validation_contract_invalid",
@@ -4620,10 +4614,7 @@ function assertMachineId(value: unknown, label: string): void {
   }
 }
 
-async function ensureValidationProposalLifecycle(
-  root: string,
-  contract: ValidationContract,
-): Promise<void> {
+async function ensureValidationProposalLifecycle(root: string, contract: ValidationContract): Promise<void> {
   const path = validationContractLifecyclePath(
     root,
     contract.app,
@@ -4698,7 +4689,8 @@ async function transitionPersistedValidationLifecycle(
     const latestRef = current.transitions.at(-1)?.authorityRef ?? null;
     if (
       (next === "accepted" &&
-        (authorityRef === null || current.acceptedRef === null ||
+        (authorityRef === null ||
+          current.acceptedRef === null ||
           !sameAuthorityRef(current.acceptedRef, authorityRef))) ||
       (next === "superseded" &&
         (authorityRef === null || latestRef === null || !sameAuthorityRef(latestRef, authorityRef))) ||
@@ -4735,13 +4727,7 @@ async function transitionPersistedValidationLifecycle(
     transitions: [...current.transitions, { state: next, at, authorityRef }],
   };
   await writeLoopFileAtomic(
-    validationContractLifecyclePath(
-      root,
-      contract.app,
-      contract.unitId,
-      contract.contractId,
-      contract.version,
-    ),
+    validationContractLifecyclePath(root, contract.app, contract.unitId, contract.contractId, contract.version),
     `${JSON.stringify(updated, null, 2)}\n`,
   );
 }
@@ -4766,14 +4752,16 @@ async function readCurrentAuthorityPointer(
     throw new RoadmapDeliveryError("authority_corrupt", `current ${kind} pointer is invalid`);
   }
   const row = parsed as Record<string, unknown>;
-  const expectedKeys = unitId === undefined
-    ? ["schemaVersion", "app", "ref", "updatedAt"]
-    : ["schemaVersion", "app", "unitId", "ref", "updatedAt"];
+  const expectedKeys =
+    unitId === undefined
+      ? ["schemaVersion", "app", "ref", "updatedAt"]
+      : ["schemaVersion", "app", "unitId", "ref", "updatedAt"];
   if (
     stableHash(Object.keys(row).sort()) !== stableHash(expectedKeys.sort()) ||
     row["schemaVersion"] !== 1 ||
     row["app"] !== app ||
-    typeof row["updatedAt"] !== "string" || Number.isNaN(Date.parse(row["updatedAt"])) ||
+    typeof row["updatedAt"] !== "string" ||
+    Number.isNaN(Date.parse(row["updatedAt"])) ||
     (unitId !== undefined && row["unitId"] !== unitId) ||
     row["ref"] === null ||
     typeof row["ref"] !== "object" ||
@@ -4790,31 +4778,46 @@ async function readCurrentAuthorityPointer(
   return ref;
 }
 
-function isValidationContractLifecycleRecord(
-  value: unknown,
-): value is ValidationContractLifecycleRecord {
+function isValidationContractLifecycleRecord(value: unknown): value is ValidationContractLifecycleRecord {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
   try {
-    assertExactObjectKeys(row, [
-      "schemaVersion", "app", "unitId", "contractId", "version", "proposalHash",
-      "acceptedRef", "predecessor", "state", "transitions",
-    ], "validation lifecycle");
+    assertExactObjectKeys(
+      row,
+      [
+        "schemaVersion",
+        "app",
+        "unitId",
+        "contractId",
+        "version",
+        "proposalHash",
+        "acceptedRef",
+        "predecessor",
+        "state",
+        "transitions",
+      ],
+      "validation lifecycle",
+    );
   } catch {
     return false;
   }
   if (
     row["schemaVersion"] !== VALIDATION_CONTRACT_SCHEMA_VERSION ||
-    typeof row["app"] !== "string" || row["app"].trim().length === 0 ||
-    typeof row["unitId"] !== "string" || !ID.test(row["unitId"]) ||
-    typeof row["contractId"] !== "string" || !ID.test(row["contractId"]) ||
-    !Number.isSafeInteger(row["version"]) || Number(row["version"]) < 1 ||
+    typeof row["app"] !== "string" ||
+    row["app"].trim().length === 0 ||
+    typeof row["unitId"] !== "string" ||
+    !ID.test(row["unitId"]) ||
+    typeof row["contractId"] !== "string" ||
+    !ID.test(row["contractId"]) ||
+    !Number.isSafeInteger(row["version"]) ||
+    Number(row["version"]) < 1 ||
     typeof row["proposalHash"] !== "string" ||
     !HASH.test(row["proposalHash"] as string) ||
     !["proposed", "validated", "accepted", "superseded"].includes(String(row["state"])) ||
     !Array.isArray(row["transitions"]) ||
     row["transitions"].length === 0
-  ) return false;
+  )
+    return false;
   const version = Number(row["version"]);
   const predecessor = row["predecessor"];
   const acceptedRef = row["acceptedRef"];
@@ -4826,19 +4829,18 @@ function isValidationContractLifecycleRecord(
   }
   if (
     (version === 1) !== (predecessor === null) ||
-    (predecessor !== null && (
-      (predecessor as AuthorityRef).id !== row["contractId"] ||
-      (predecessor as AuthorityRef).version !== version - 1)) ||
-    (acceptedRef !== null && (
-      (acceptedRef as AuthorityRef).id !== row["contractId"] ||
-      (acceptedRef as AuthorityRef).version !== version ||
-      (acceptedRef as AuthorityRef).sha256 !== row["proposalHash"]))
-  ) return false;
+    (predecessor !== null &&
+      ((predecessor as AuthorityRef).id !== row["contractId"] ||
+        (predecessor as AuthorityRef).version !== version - 1)) ||
+    (acceptedRef !== null &&
+      ((acceptedRef as AuthorityRef).id !== row["contractId"] ||
+        (acceptedRef as AuthorityRef).version !== version ||
+        (acceptedRef as AuthorityRef).sha256 !== row["proposalHash"]))
+  )
+    return false;
 
   const transitions = row["transitions"] as unknown[];
-  const legalStates: ValidationContractLifecycleState[] = [
-    "proposed", "validated", "accepted", "superseded",
-  ];
+  const legalStates: ValidationContractLifecycleState[] = ["proposed", "validated", "accepted", "superseded"];
   if (transitions.length > legalStates.length) return false;
   let lastAt = Number.NEGATIVE_INFINITY;
   for (let index = 0; index < transitions.length; index += 1) {
@@ -4852,11 +4854,7 @@ function isValidationContractLifecycleRecord(
     }
     const expectedState = legalStates[index];
     const at = typeof entry["at"] === "string" ? Date.parse(entry["at"]) : Number.NaN;
-    if (
-      entry["state"] !== expectedState ||
-      !Number.isFinite(at) ||
-      at < lastAt
-    ) return false;
+    if (entry["state"] !== expectedState || !Number.isFinite(at) || at < lastAt) return false;
     lastAt = at;
     const transitionRef = entry["authorityRef"];
     if (expectedState === "proposed" || expectedState === "validated") {
@@ -4867,39 +4865,65 @@ function isValidationContractLifecycleRecord(
       } catch {
         return false;
       }
-      if (expectedState === "accepted" && (
-        acceptedRef === null ||
-        !sameAuthorityRef(transitionRef as AuthorityRef, acceptedRef as AuthorityRef)
-      )) return false;
-      if (expectedState === "superseded" && (
-        (transitionRef as AuthorityRef).id !== row["contractId"] ||
-        (transitionRef as AuthorityRef).version !== version + 1
-      )) return false;
+      if (
+        expectedState === "accepted" &&
+        (acceptedRef === null || !sameAuthorityRef(transitionRef as AuthorityRef, acceptedRef as AuthorityRef))
+      )
+        return false;
+      if (
+        expectedState === "superseded" &&
+        ((transitionRef as AuthorityRef).id !== row["contractId"] ||
+          (transitionRef as AuthorityRef).version !== version + 1)
+      )
+        return false;
     }
   }
   const finalState = legalStates[transitions.length - 1];
-  return row["state"] === finalState &&
-    ((finalState === "proposed" || finalState === "validated")
-      ? acceptedRef === null
-      : acceptedRef !== null);
+  return (
+    row["state"] === finalState &&
+    (finalState === "proposed" || finalState === "validated" ? acceptedRef === null : acceptedRef !== null)
+  );
 }
 
-function sameNullableAuthorityRef(
-  left: AuthorityRef | null,
-  right: AuthorityRef | null,
-): boolean {
+function sameNullableAuthorityRef(left: AuthorityRef | null, right: AuthorityRef | null): boolean {
   return left === null ? right === null : right !== null && sameAuthorityRef(left, right);
 }
 
 function assertBuilderEvidenceShape(manifest: BuilderEvidenceManifest): void {
-  assertExactObjectKeys(manifest, [
-    "schemaVersion", "app", "unitId", "issueNumbers", "membershipHash", "roadmapRef",
-    "readinessRef", "validationRef", "validationContractHash", "batchRef",
-    "episodeBindingRef", "episodeId", "episodePlanVersion", "episodePlanHash",
-    "claimSettlementId", "claimAttempt", "repository", "baseRevision", "candidateHead",
-    "pullRequestNumber", "pullRequestUrl", "builderRole", "builderAssignment",
-    "builderSessionId", "cases", "gates", "recordedAt",
-  ], "Builder evidence", "builder_evidence_missing");
+  assertExactObjectKeys(
+    manifest,
+    [
+      "schemaVersion",
+      "app",
+      "unitId",
+      "issueNumbers",
+      "membershipHash",
+      "roadmapRef",
+      "readinessRef",
+      "validationRef",
+      "validationContractHash",
+      "batchRef",
+      "episodeBindingRef",
+      "episodeId",
+      "episodePlanVersion",
+      "episodePlanHash",
+      "claimSettlementId",
+      "claimAttempt",
+      "repository",
+      "baseRevision",
+      "candidateHead",
+      "pullRequestNumber",
+      "pullRequestUrl",
+      "builderRole",
+      "builderAssignment",
+      "builderSessionId",
+      "cases",
+      "gates",
+      "recordedAt",
+    ],
+    "Builder evidence",
+    "builder_evidence_missing",
+  );
   if (manifest.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
     throw new RoadmapDeliveryError("builder_evidence_missing", "unsupported evidence schema");
   }
@@ -4922,18 +4946,28 @@ function assertBuilderEvidenceShape(manifest: BuilderEvidenceManifest): void {
     new Set(manifest.issueNumbers).size !== manifest.issueNumbers.length ||
     !Array.isArray(manifest.cases) ||
     !Array.isArray(manifest.gates) ||
-    typeof manifest.app !== "string" || manifest.app.trim().length === 0 ||
-    typeof manifest.episodeId !== "string" || manifest.episodeId.trim().length === 0 ||
-    !Number.isSafeInteger(manifest.episodePlanVersion) || manifest.episodePlanVersion < 1 ||
-    typeof manifest.claimSettlementId !== "string" || manifest.claimSettlementId.trim().length === 0 ||
-    !Number.isSafeInteger(manifest.claimAttempt) || manifest.claimAttempt < 1 ||
+    typeof manifest.app !== "string" ||
+    manifest.app.trim().length === 0 ||
+    typeof manifest.episodeId !== "string" ||
+    manifest.episodeId.trim().length === 0 ||
+    !Number.isSafeInteger(manifest.episodePlanVersion) ||
+    manifest.episodePlanVersion < 1 ||
+    typeof manifest.claimSettlementId !== "string" ||
+    manifest.claimSettlementId.trim().length === 0 ||
+    !Number.isSafeInteger(manifest.claimAttempt) ||
+    manifest.claimAttempt < 1 ||
     !Number.isInteger(manifest.pullRequestNumber) ||
     manifest.pullRequestNumber < 1 ||
-    typeof manifest.pullRequestUrl !== "string" || manifest.pullRequestUrl.trim().length === 0 ||
-    typeof manifest.builderRole !== "string" || manifest.builderRole.trim().length === 0 ||
-    typeof manifest.builderSessionId !== "string" || manifest.builderSessionId.trim().length === 0 ||
-    typeof manifest.repository !== "string" || manifest.repository.trim().length === 0 ||
-    typeof manifest.baseRevision !== "string" || manifest.baseRevision.trim().length === 0 ||
+    typeof manifest.pullRequestUrl !== "string" ||
+    manifest.pullRequestUrl.trim().length === 0 ||
+    typeof manifest.builderRole !== "string" ||
+    manifest.builderRole.trim().length === 0 ||
+    typeof manifest.builderSessionId !== "string" ||
+    manifest.builderSessionId.trim().length === 0 ||
+    typeof manifest.repository !== "string" ||
+    manifest.repository.trim().length === 0 ||
+    typeof manifest.baseRevision !== "string" ||
+    manifest.baseRevision.trim().length === 0 ||
     manifest.cases.length === 0 ||
     manifest.gates.length === 0 ||
     manifest.validationContractHash !== manifest.validationRef.sha256 ||
@@ -4950,13 +4984,17 @@ function assertBuilderEvidenceShape(manifest: BuilderEvidenceManifest): void {
       "builder_evidence_missing",
     );
     if (
-      typeof evidence.caseId !== "string" || evidence.caseId.trim().length === 0 ||
-      typeof evidence.detectorId !== "string" || evidence.detectorId.trim().length === 0 ||
-      typeof evidence.negativeControlId !== "string" || evidence.negativeControlId.trim().length === 0 ||
+      typeof evidence.caseId !== "string" ||
+      evidence.caseId.trim().length === 0 ||
+      typeof evidence.detectorId !== "string" ||
+      evidence.detectorId.trim().length === 0 ||
+      typeof evidence.negativeControlId !== "string" ||
+      evidence.negativeControlId.trim().length === 0 ||
       (evidence.status !== "passed" && evidence.status !== "waived") ||
       (evidence.waiverId !== null &&
         (typeof evidence.waiverId !== "string" || evidence.waiverId.trim().length === 0)) ||
-      typeof evidence.evidence !== "string" || evidence.evidence.trim().length === 0
+      typeof evidence.evidence !== "string" ||
+      evidence.evidence.trim().length === 0
     ) {
       throw new RoadmapDeliveryError("builder_evidence_missing", "Builder case evidence is incomplete");
     }
@@ -4969,9 +5007,11 @@ function assertBuilderEvidenceShape(manifest: BuilderEvidenceManifest): void {
       "builder_evidence_missing",
     );
     if (
-      typeof evidence.gate !== "string" || evidence.gate.trim().length === 0 ||
+      typeof evidence.gate !== "string" ||
+      evidence.gate.trim().length === 0 ||
       evidence.status !== "passed" ||
-      typeof evidence.evidence !== "string" || evidence.evidence.trim().length === 0
+      typeof evidence.evidence !== "string" ||
+      evidence.evidence.trim().length === 0
     ) {
       throw new RoadmapDeliveryError("builder_evidence_missing", "Builder gate evidence is incomplete");
     }
@@ -4980,12 +5020,32 @@ function assertBuilderEvidenceShape(manifest: BuilderEvidenceManifest): void {
 }
 
 function assertReviewerVerdictShape(verdict: ReviewerVerdict): void {
-  assertExactObjectKeys(verdict, [
-    "schemaVersion", "app", "unitId", "membershipHash", "roadmapRef", "readinessRef",
-    "validationRef", "validationContractHash", "episodeBindingRef", "builderEvidenceRef",
-    "candidateHead", "reviewerRole", "reviewerAssignment", "reviewerSessionId", "disposition",
-    "evidenceAccepted", "reproducedCaseIds", "rationale", "recordedAt",
-  ], "Reviewer verdict", "reviewer_evidence_incomplete");
+  assertExactObjectKeys(
+    verdict,
+    [
+      "schemaVersion",
+      "app",
+      "unitId",
+      "membershipHash",
+      "roadmapRef",
+      "readinessRef",
+      "validationRef",
+      "validationContractHash",
+      "episodeBindingRef",
+      "builderEvidenceRef",
+      "candidateHead",
+      "reviewerRole",
+      "reviewerAssignment",
+      "reviewerSessionId",
+      "disposition",
+      "evidenceAccepted",
+      "reproducedCaseIds",
+      "rationale",
+      "recordedAt",
+    ],
+    "Reviewer verdict",
+    "reviewer_evidence_incomplete",
+  );
   if (verdict.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
     throw new RoadmapDeliveryError("reviewer_evidence_incomplete", "unsupported Reviewer verdict schema");
   }
@@ -4999,9 +5059,12 @@ function assertReviewerVerdictShape(verdict: ReviewerVerdict): void {
   assertHash(verdict.validationContractHash, "review validation-contract hash");
   if (
     !CANDIDATE_HEAD.test(verdict.candidateHead) ||
-    typeof verdict.reviewerRole !== "string" || verdict.reviewerRole.trim().length === 0 ||
-    typeof verdict.reviewerSessionId !== "string" || verdict.reviewerSessionId.trim().length === 0 ||
-    typeof verdict.rationale !== "string" || verdict.rationale.trim().length === 0 ||
+    typeof verdict.reviewerRole !== "string" ||
+    verdict.reviewerRole.trim().length === 0 ||
+    typeof verdict.reviewerSessionId !== "string" ||
+    verdict.reviewerSessionId.trim().length === 0 ||
+    typeof verdict.rationale !== "string" ||
+    verdict.rationale.trim().length === 0 ||
     !Array.isArray(verdict.reproducedCaseIds) ||
     verdict.reproducedCaseIds.some((caseId) => typeof caseId !== "string" || caseId.trim().length === 0) ||
     new Set(verdict.reproducedCaseIds).size !== verdict.reproducedCaseIds.length ||
@@ -5015,10 +5078,7 @@ function assertReviewerVerdictShape(verdict: ReviewerVerdict): void {
   requireDateTime(verdict.recordedAt, "Reviewer verdict recordedAt");
 }
 
-function assertRoutingEligible(
-  unit: RoadmapDeliveryUnit,
-  routing: readonly RoutingSnapshotEntry[],
-): void {
+function assertRoutingEligible(unit: RoadmapDeliveryUnit, routing: readonly RoutingSnapshotEntry[]): void {
   if (new Set(routing.map((entry) => entry.issueNumber)).size !== routing.length) {
     throw new RoadmapDeliveryError("routing_ineligible", "routing snapshot contains duplicate issue facts");
   }
@@ -5033,9 +5093,10 @@ function assertRoutingEligible(
       new Set(current.observedLabels).size !== current.observedLabels.length ||
       autonomousExecutionExclusionLabel(current.observedLabels) !== undefined
     ) {
-      const exclusion = current === undefined
-        ? "unreadable"
-        : autonomousExecutionExclusionLabel(current.observedLabels) ?? current.disposition;
+      const exclusion =
+        current === undefined
+          ? "unreadable"
+          : (autonomousExecutionExclusionLabel(current.observedLabels) ?? current.disposition);
       throw new RoadmapDeliveryError(
         "routing_ineligible",
         `delivery unit ${unit.unitId} is excluded because #${issueNumber} is ${exclusion}`,
@@ -5044,20 +5105,15 @@ function assertRoutingEligible(
   }
 }
 
-function routingSnapshotHash(
-  unit: RoadmapDeliveryUnit,
-  routing: readonly RoutingSnapshotEntry[],
-): string {
+function routingSnapshotHash(unit: RoadmapDeliveryUnit, routing: readonly RoutingSnapshotEntry[]): string {
   assertRoutingEligible(unit, routing);
   const byIssue = new Map(routing.map((entry) => [entry.issueNumber, entry]));
   return stableHash(
-    [...unit.issueNumbers]
-      .sort(numeric)
-      .map((issueNumber) => ({
-        issueNumber,
-        disposition: byIssue.get(issueNumber)?.disposition,
-        observedLabels: [...(byIssue.get(issueNumber)?.observedLabels ?? [])].sort(),
-      })),
+    [...unit.issueNumbers].sort(numeric).map((issueNumber) => ({
+      issueNumber,
+      disposition: byIssue.get(issueNumber)?.disposition,
+      observedLabels: [...(byIssue.get(issueNumber)?.observedLabels ?? [])].sort(),
+    })),
   );
 }
 
@@ -5157,19 +5213,15 @@ function isAcceptedAuthority(value: unknown): value is AcceptedAuthority<unknown
   const ref = row["ref"];
   if (ref === null || typeof ref !== "object" || Array.isArray(ref)) return false;
   const candidate = ref as Record<string, unknown>;
-  return typeof candidate["kind"] === "string" &&
+  return (
+    typeof candidate["kind"] === "string" &&
     typeof candidate["id"] === "string" &&
     Number.isInteger(candidate["version"]) &&
-    typeof candidate["sha256"] === "string";
+    typeof candidate["sha256"] === "string"
+  );
 }
 
-function authorityPath(
-  root: string,
-  app: string,
-  kind: AuthorityRef["kind"],
-  id: string,
-  version: number,
-): string {
+function authorityPath(root: string, app: string, kind: AuthorityRef["kind"], id: string, version: number): string {
   assertId(id, `${kind} id`);
   assertVersion(version, `${kind} version`);
   return join(planningAppDir(root, app), `${kind}s`, id, `v${version}.json`);
@@ -5224,8 +5276,11 @@ async function ensureExecutionUnitJournal(
   const initial = initialExecutionUnitJournal(batch, unit);
   const won = await writeLoopFileOnce(path, `${JSON.stringify(initial, null, 2)}\n`);
   const current = won ? initial : await readExecutionUnitJournal(root, batch.value.app, batch.ref.id, unit.unitId);
-  if (current === undefined || current.unitIdentityHash !== initial.unitIdentityHash ||
-      !sameAuthorityRef(current.batchRef, batch.ref)) {
+  if (
+    current === undefined ||
+    current.unitIdentityHash !== initial.unitIdentityHash ||
+    !sameAuthorityRef(current.batchRef, batch.ref)
+  ) {
     throw new RoadmapDeliveryError("unit_journal_conflict", `${unit.unitId} journal differs from batch authority`);
   }
   return current;
@@ -5248,10 +5303,7 @@ function addExecutionUnitUsage(
   return next;
 }
 
-function assertUsageWithinBudget(
-  usage: ExecutionUnitJournal["usage"],
-  budget: ExecutionUnitBudget,
-): void {
+function assertUsageWithinBudget(usage: ExecutionUnitJournal["usage"], budget: ExecutionUnitBudget): void {
   if (
     usage.providerTurns > budget.maxProviderTurns ||
     usage.equivalentCostUsd > budget.maxEquivalentCostUsd ||
@@ -5269,8 +5321,15 @@ function assertExecutionUnitJournal(journal: ExecutionUnitJournal): void {
     journal.app.trim().length === 0 ||
     !HASH.test(journal.unitIdentityHash) ||
     ![
-      "admitted", "planning", "claimed", "running", "reviewing",
-      "approved", "returned", "failed", "completed",
+      "admitted",
+      "planning",
+      "claimed",
+      "running",
+      "reviewing",
+      "approved",
+      "returned",
+      "failed",
+      "completed",
     ].includes(journal.state)
   ) {
     throw new RoadmapDeliveryError("unit_journal_conflict", "execution-unit journal is invalid");
@@ -5293,8 +5352,9 @@ async function writeBatchDispositionIfComplete(
   batch: AcceptedAuthority<ExecutionBatch>,
   now: Date,
 ): Promise<void> {
-  const journals = await Promise.all(batch.value.units.map((unit) =>
-    readExecutionUnitJournal(root, batch.value.app, batch.ref.id, unit.unitId)));
+  const journals = await Promise.all(
+    batch.value.units.map((unit) => readExecutionUnitJournal(root, batch.value.app, batch.ref.id, unit.unitId)),
+  );
   if (journals.some((journal) => journal === undefined || !isTerminalJournalState(journal.state))) return;
   const value: ExecutionBatchDisposition = {
     schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
@@ -5305,14 +5365,21 @@ async function writeBatchDispositionIfComplete(
       outcome: journal!.outcome!,
       journalHash: stableHash(journal),
     })),
-    completedAt: journals.map((journal) => journal!.updatedAt).sort().at(-1) ?? now.toISOString(),
+    completedAt:
+      journals
+        .map((journal) => journal!.updatedAt)
+        .sort()
+        .at(-1) ?? now.toISOString(),
   };
   const path = executionBatchDispositionPath(root, batch.value.app, batch.ref.id);
   const won = await writeLoopFileOnce(path, `${JSON.stringify(value, null, 2)}\n`);
   if (!won) {
     const existing = JSON.parse(await readFile(path, "utf8")) as ExecutionBatchDisposition;
     if (stableHash(existing) !== stableHash(value)) {
-      throw new RoadmapDeliveryError("unit_journal_conflict", "execution-batch disposition differs from terminal journals");
+      throw new RoadmapDeliveryError(
+        "unit_journal_conflict",
+        "execution-batch disposition differs from terminal journals",
+      );
     }
   }
 }
@@ -5358,10 +5425,7 @@ async function assertNoActiveExecutionUnitOverlap(
 function executionUnitExclusiveKeys(unit: ExecutionUnit): string[] {
   return unit.kind === "direct_operation"
     ? [`direct:${unit.dedupeKey}`]
-    : [
-        `code-membership:${unit.membershipHash}`,
-        ...(unit.issueNumbers ?? []).map((number) => `issue:${number}`),
-      ];
+    : [`code-membership:${unit.membershipHash}`, ...(unit.issueNumbers ?? []).map((number) => `issue:${number}`)];
 }
 
 function roadmapMutationLockPath(root: string, app: string): string {
@@ -5372,12 +5436,7 @@ function batchMutationLockPath(root: string, app: string): string {
   return join(planningAppDir(root, app), "execution-batch.lock");
 }
 
-function executionUnitJournalLockPath(
-  root: string,
-  app: string,
-  batchId: string,
-  unitId: string,
-): string {
+function executionUnitJournalLockPath(root: string, app: string, batchId: string, unitId: string): string {
   return join(planningAppDir(root, app), "execution-unit-journals", batchId, `${unitId}.lock`);
 }
 
@@ -5407,8 +5466,10 @@ async function projectClaim(
   root: string,
   app: string,
   settlementId: string,
-  kind: Extract<RoadmapDeliveryProjection["kind"],
-    "delivery_unit_claimed" | "delivery_unit_claim_committed" | "delivery_unit_settled">,
+  kind: Extract<
+    RoadmapDeliveryProjection["kind"],
+    "delivery_unit_claimed" | "delivery_unit_claim_committed" | "delivery_unit_settled"
+  >,
   project?: RoadmapDeliveryProjector,
 ): Promise<void> {
   if (project === undefined) return;
@@ -5424,10 +5485,9 @@ function renderAuthorityRef(ref: AuthorityRef): string {
 }
 
 function sameAuthorityRef(left: AuthorityRef, right: AuthorityRef): boolean {
-  return left.kind === right.kind &&
-    left.id === right.id &&
-    left.version === right.version &&
-    left.sha256 === right.sha256;
+  return (
+    left.kind === right.kind && left.id === right.id && left.version === right.version && left.sha256 === right.sha256
+  );
 }
 
 function authorityRefForSnapshot(snapshot: BacklogSnapshot): AuthorityRef {
@@ -5446,14 +5506,17 @@ function isCurrentRoadmapPointer(value: unknown): value is CurrentRoadmapPointer
     row["schemaVersion"] !== ROADMAP_DELIVERY_SCHEMA_VERSION ||
     typeof row["app"] !== "string" ||
     typeof row["updatedAt"] !== "string"
-  ) return false;
+  )
+    return false;
   const ref = row["ref"];
   if (ref === null || typeof ref !== "object" || Array.isArray(ref)) return false;
   const candidate = ref as Record<string, unknown>;
-  return candidate["kind"] === "roadmap_plan" &&
+  return (
+    candidate["kind"] === "roadmap_plan" &&
     typeof candidate["id"] === "string" &&
     Number.isInteger(candidate["version"]) &&
-    typeof candidate["sha256"] === "string";
+    typeof candidate["sha256"] === "string"
+  );
 }
 
 function unitByIssue(plan: RoadmapPlan): Map<number, RoadmapDeliveryUnit> {
@@ -5495,7 +5558,8 @@ function assertTurnAssignmentShape(
   const row = assignment as Record<string, unknown>;
   if (
     !["claude", "codex", "pi"].includes(String(row["harness"])) ||
-    typeof row["model"] !== "string" || row["model"].trim().length === 0 ||
+    typeof row["model"] !== "string" ||
+    row["model"].trim().length === 0 ||
     !["low", "medium", "high", "xhigh", "max"].includes(String(row["effort"]))
   ) {
     throw new RoadmapDeliveryError(code, `${label} is invalid`);

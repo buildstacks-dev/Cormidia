@@ -94,14 +94,16 @@ function roadmap(snapshotRef: AuthorityRef): RoadmapPlan {
     backlogSnapshotRef: snapshotRef,
     predecessor: null,
     workstreams: [{ workstreamId: "autonomy", outcome: "Govern readiness", priority: 1 }],
-    deliveryUnits: [{
-      unitId: UNIT,
-      workstreamId: "autonomy",
-      issueNumbers: [...ISSUES],
-      dependsOn: [],
-      priority: 1,
-      objective: "Bind validation authority before execution",
-    }],
+    deliveryUnits: [
+      {
+        unitId: UNIT,
+        workstreamId: "autonomy",
+        issueNumbers: [...ISSUES],
+        dependsOn: [],
+        priority: 1,
+        objective: "Bind validation authority before execution",
+      },
+    ],
     completedUnitIds: [],
     readyFrontier: [UNIT],
     wipLimit: 1,
@@ -187,11 +189,13 @@ function contractFixture(
     acceptanceCriteria: ["Readiness and all later evidence retain the exact validation hash."],
     requiresHarnessRevision: false,
     harnessRevisionReason: null,
-    sharedBoundaryDetectorRefs: [{
-      boundaryId: "B21",
-      caseId: "CF-B21-*",
-      detectorId: "shared-boundary-lineage",
-    }],
+    sharedBoundaryDetectorRefs: [
+      {
+        boundaryId: "B21",
+        caseId: "CF-B21-*",
+        detectorId: "shared-boundary-lineage",
+      },
+    ],
     obligations: input.obligations ?? [sharedObligation()],
     requiredGates: ["pnpm-test", "pnpm-typecheck"],
     proposedAt: input.proposedAt ?? PROPOSED_AT,
@@ -319,21 +323,18 @@ describe("HB-102 — validation-contract authority and readiness", () => {
       boundaryId: "B-21",
       caseId: "CF-B21-SHARED",
     });
-    expect(existsSync(validationAuthorityPath(
-      state.home.stateHome,
-      APP,
-      first.ref.id,
-      first.ref.version,
-    ))).toBe(true);
+    expect(existsSync(validationAuthorityPath(state.home.stateHome, APP, first.ref.id, first.ref.version))).toBe(true);
     expect(existsSync(currentValidationCatalogPointerPath(state.home.stateHome, APP))).toBe(true);
     expect(existsSync(currentValidationContractPointerPath(state.home.stateHome, APP, UNIT))).toBe(true);
-    expect(await readValidationContractLifecycle(
-      state.home.stateHome,
-      APP,
-      UNIT,
-      first.value.contractId,
-      first.value.version,
-    )).toMatchObject({ state: "accepted", acceptedRef: first.ref });
+    expect(
+      await readValidationContractLifecycle(
+        state.home.stateHome,
+        APP,
+        UNIT,
+        first.value.contractId,
+        first.value.version,
+      ),
+    ).toMatchObject({ state: "accepted", acceptedRef: first.ref });
 
     // Seed an interruption after accepted authority/lifecycle but before the
     // current pointer. Exact replay must recover the pointer idempotently.
@@ -362,13 +363,15 @@ describe("HB-102 — validation-contract authority and readiness", () => {
       roadmap: state.roadmap,
       snapshot: state.snapshot,
       readiness: [firstReadiness],
-      current: [{
-        issueNumber: ISSUES[0],
-        labels: ["planning:preplanned", "routing:human-only"],
-        authorityRef: state.roadmap.ref,
-        unitId: UNIT,
-        membershipHash: unitMembershipHash(ISSUES),
-      }],
+      current: [
+        {
+          issueNumber: ISSUES[0],
+          labels: ["planning:preplanned", "routing:human-only"],
+          authorityRef: state.roadmap.ref,
+          unitId: UNIT,
+          membershipHash: unitMembershipHash(ISSUES),
+        },
+      ],
       now: new Date("2026-08-03T23:31:00.000Z"),
     });
     const lateRoutingProjection = lateRoutingProjections.find((entry) => entry.issueNumber === ISSUES[0]);
@@ -379,18 +382,19 @@ describe("HB-102 — validation-contract authority and readiness", () => {
       roadmap: state.roadmap,
       snapshot: state.snapshot,
       readiness: [firstReadiness],
-      current: [{
-        issueNumber: ISSUES[1],
-        labels: ["planning:preplanned", "manual-review"],
-        authorityRef: state.roadmap.ref,
-        unitId: UNIT,
-        membershipHash: unitMembershipHash(ISSUES),
-      }],
+      current: [
+        {
+          issueNumber: ISSUES[1],
+          labels: ["planning:preplanned", "manual-review"],
+          authorityRef: state.roadmap.ref,
+          unitId: UNIT,
+          membershipHash: unitMembershipHash(ISSUES),
+        },
+      ],
       now: new Date("2026-08-03T23:31:00.000Z"),
     });
     expect(lateManualProjections.every((entry) => !entry.labels.includes("op:ready"))).toBe(true);
-    expect(lateManualProjections.find((entry) => entry.issueNumber === ISSUES[1])?.labels)
-      .toContain("manual-review");
+    expect(lateManualProjections.find((entry) => entry.issueNumber === ISSUES[1])?.labels).toContain("manual-review");
 
     const second = await acceptValidationContract({
       root: state.home.stateHome,
@@ -407,37 +411,35 @@ describe("HB-102 — validation-contract authority and readiness", () => {
       },
     });
     expect((await readCurrentValidationContract(state.home.stateHome, APP, UNIT))?.ref).toEqual(second.ref);
-    expect(await readValidationContractLifecycle(
-      state.home.stateHome,
-      APP,
-      UNIT,
-      first.value.contractId,
-      1,
-    )).toMatchObject({ state: "superseded", acceptedRef: first.ref });
+    expect(
+      await readValidationContractLifecycle(state.home.stateHome, APP, UNIT, first.value.contractId, 1),
+    ).toMatchObject({ state: "superseded", acceptedRef: first.ref });
     await expectCode(
-      () => reconcileRoadmapProjections({
-        root: state.home.stateHome,
-        roadmap: state.roadmap,
-        snapshot: state.snapshot,
-        readiness: [firstReadiness],
-        current: [],
-        now: new Date("2026-08-03T23:34:00.000Z"),
-      }),
+      () =>
+        reconcileRoadmapProjections({
+          root: state.home.stateHome,
+          roadmap: state.roadmap,
+          snapshot: state.snapshot,
+          readiness: [firstReadiness],
+          current: [],
+          now: new Date("2026-08-03T23:34:00.000Z"),
+        }),
       "projection_contradiction",
     );
     await expectCode(() => acceptReadiness(state, first), "validation_contract_stale");
     await expectCode(
-      () => admitExecutionBatch({
-        root: state.home.stateHome,
-        app: APP,
-        batchId: "batch-stale-readiness",
-        roadmapRef: state.roadmap.ref,
-        expectedFrontierHash: state.roadmap.frontierHash,
-        orderedUnitIds: [UNIT],
-        readinessRefs: [firstReadiness.ref],
-        routing: ROUTING,
-        admittedAt: "2026-08-03T23:34:00.000Z",
-      }),
+      () =>
+        admitExecutionBatch({
+          root: state.home.stateHome,
+          app: APP,
+          batchId: "batch-stale-readiness",
+          roadmapRef: state.roadmap.ref,
+          expectedFrontierHash: state.roadmap.frontierHash,
+          orderedUnitIds: [UNIT],
+          readinessRefs: [firstReadiness.ref],
+          routing: ROUTING,
+          admittedAt: "2026-08-03T23:34:00.000Z",
+        }),
       "validation_contract_stale",
     );
     expect((await acceptReadiness(state, second)).value.validationContractHash).toBe(second.ref.sha256);
@@ -464,13 +466,14 @@ describe("HB-102 — validation-contract authority and readiness", () => {
     corruptLifecycle.transitions = corruptLifecycle.transitions.slice(0, 1);
     await writeFile(corruptPath, `${JSON.stringify(corruptLifecycle, null, 2)}\n`, "utf8");
     await expectCode(
-      () => readValidationContractLifecycle(
-        corruptState.home.stateHome,
-        APP,
-        UNIT,
-        corruptContract.ref.id,
-        corruptContract.ref.version,
-      ),
+      () =>
+        readValidationContractLifecycle(
+          corruptState.home.stateHome,
+          APP,
+          UNIT,
+          corruptContract.ref.id,
+          corruptContract.ref.version,
+        ),
       "authority_corrupt",
     );
   });
@@ -483,42 +486,58 @@ describe("HB-102 — validation-contract authority and readiness", () => {
     }> = [
       {
         name: "omitted-affected",
-        mutate: (contract) => { delete (contract as unknown as Record<string, unknown>)["affected"]; },
+        mutate: (contract) => {
+          delete (contract as unknown as Record<string, unknown>)["affected"];
+        },
         code: "validation_contract_invalid",
       },
       {
         name: "unknown-case",
-        mutate: (contract) => { contract.obligations[0]!.caseId = "CF-UNKNOWN"; },
+        mutate: (contract) => {
+          contract.obligations[0]!.caseId = "CF-UNKNOWN";
+        },
         code: "validation_id_unknown",
       },
       {
         name: "unknown-structure",
-        mutate: (contract) => { contract.affected.interfaceIds = ["API-UNKNOWN"]; },
+        mutate: (contract) => {
+          contract.affected.interfaceIds = ["API-UNKNOWN"];
+        },
         code: "validation_id_unknown",
       },
       {
         name: "wrong-cheapest-layer",
-        mutate: (contract) => { contract.obligations[0]!.cheapestFalsifyingLayer = "L1"; },
+        mutate: (contract) => {
+          contract.obligations[0]!.cheapestFalsifyingLayer = "L1";
+        },
         code: "validation_contract_invalid",
       },
       {
         name: "coverage-omission",
-        mutate: (contract) => { contract.obligations[0]!.covers.interfaceIds = []; },
+        mutate: (contract) => {
+          contract.obligations[0]!.covers.interfaceIds = [];
+        },
         code: "validation_contract_invalid",
       },
       {
         name: "negative-control-omission",
-        mutate: (contract) => { contract.obligations[0]!.negativeControlId = ""; },
+        mutate: (contract) => {
+          contract.obligations[0]!.negativeControlId = "";
+        },
         code: "negative_control_missing",
       },
       {
         name: "shared-detector-omission",
-        mutate: (contract) => { contract.sharedBoundaryDetectorRefs = []; },
+        mutate: (contract) => {
+          contract.sharedBoundaryDetectorRefs = [];
+        },
         code: "validation_contract_invalid",
       },
       {
         name: "stale-template-version",
-        mutate: (contract) => { contract.templateRef = { templateId: "routine", version: 2 }; },
+        mutate: (contract) => {
+          contract.templateRef = { templateId: "routine", version: 2 };
+        },
         code: "validation_id_unknown",
       },
       {
@@ -542,23 +561,15 @@ describe("HB-102 — validation-contract authority and readiness", () => {
       const state = await setup(`hb102-${seeded.name}`);
       const contract = contractFixture(state, { contractId: `validation-${seeded.name}` });
       seeded.mutate(contract);
-      await expectCode(
-        () => acceptValidationContract({ root: state.home.stateHome, contract }),
-        seeded.code,
-      );
-      expect(existsSync(validationAuthorityPath(
-        state.home.stateHome,
-        APP,
-        contract.contractId,
-        contract.version,
-      ))).toBe(false);
-      expect(existsSync(validationContractLifecyclePath(
-        state.home.stateHome,
-        APP,
-        UNIT,
-        contract.contractId,
-        contract.version,
-      ))).toBe(false);
+      await expectCode(() => acceptValidationContract({ root: state.home.stateHome, contract }), seeded.code);
+      expect(
+        existsSync(validationAuthorityPath(state.home.stateHome, APP, contract.contractId, contract.version)),
+      ).toBe(false);
+      expect(
+        existsSync(
+          validationContractLifecyclePath(state.home.stateHome, APP, UNIT, contract.contractId, contract.version),
+        ),
+      ).toBe(false);
     }
 
     const retryState = await setup("hb102-corrected-proposal-retry");
@@ -569,10 +580,14 @@ describe("HB-102 — validation-contract authority and readiness", () => {
       () => acceptValidationContract({ root: retryState.home.stateHome, contract: invalid }),
       "validation_id_unknown",
     );
-    expect((await acceptValidationContract({
-      root: retryState.home.stateHome,
-      contract: corrected,
-    })).value.contractId).toBe("validation-corrected-retry");
+    expect(
+      (
+        await acceptValidationContract({
+          root: retryState.home.stateHome,
+          contract: corrected,
+        })
+      ).value.contractId,
+    ).toBe("validation-corrected-retry");
   });
 
   it("rejects routine templates for C3 and invariant-floor contracts", async () => {
@@ -686,44 +701,44 @@ describe("HB-102 — validation-contract authority and readiness", () => {
       ],
     };
     expect(() => assertValidationEvidenceComplete(exactEvidence, accepted.value, ACCEPTED_AT)).not.toThrow();
-    expect(() => assertValidationEvidenceComplete(
-      exactEvidence,
-      accepted.value,
-      "2026-08-04T00:00:00.000Z",
-    )).toThrowError(RoadmapDeliveryError);
+    expect(() =>
+      assertValidationEvidenceComplete(exactEvidence, accepted.value, "2026-08-04T00:00:00.000Z"),
+    ).toThrowError(RoadmapDeliveryError);
     await expectCode(
-      () => acceptDeliveryUnitReadiness({
-        root: state.home.stateHome,
-        app: APP,
-        roadmapRef: state.roadmap.ref,
-        expectedFrontierHash: state.roadmap.frontierHash,
-        validationRef: accepted.ref,
-        unitId: UNIT,
-        routing: ROUTING,
-        readyAt: "2026-08-04T00:00:00.000Z",
-      }),
+      () =>
+        acceptDeliveryUnitReadiness({
+          root: state.home.stateHome,
+          app: APP,
+          roadmapRef: state.roadmap.ref,
+          expectedFrontierHash: state.roadmap.frontierHash,
+          validationRef: accepted.ref,
+          unitId: UNIT,
+          routing: ROUTING,
+          readyAt: "2026-08-04T00:00:00.000Z",
+        }),
       "validation_waiver_invalid",
     );
 
     const unapprovedState = await setup("hb102-waiver-unapproved");
     const unapprovedId = "validation-waiver-unapproved";
     await expectCode(
-      () => acceptValidationContract({
-        root: unapprovedState.home.stateHome,
-        contract: contractFixture(unapprovedState, {
-          contractId: unapprovedId,
-          obligations: [
-            sharedObligation(),
-            obligation({
-              obligationId: "waived-case",
-              caseId: "CF-HB102-WAIVER",
-              layer: "L1",
-              detectorId: "validation-waiver-detector",
-              waiver: waiver(unapprovedId),
-            }),
-          ],
+      () =>
+        acceptValidationContract({
+          root: unapprovedState.home.stateHome,
+          contract: contractFixture(unapprovedState, {
+            contractId: unapprovedId,
+            obligations: [
+              sharedObligation(),
+              obligation({
+                obligationId: "waived-case",
+                caseId: "CF-HB102-WAIVER",
+                layer: "L1",
+                detectorId: "validation-waiver-detector",
+                waiver: waiver(unapprovedId),
+              }),
+            ],
+          }),
         }),
-      }),
       "validation_waiver_invalid",
     );
 
@@ -761,49 +776,79 @@ describe("HB-102 — validation-contract authority and readiness", () => {
         changed.expectedEvidence = ["swapped detector receipt"];
       }
       await expectCode(
-        () => acceptValidationContract({
-          root: authorityState.home.stateHome,
-          contract: authorityContract,
-        }),
+        () =>
+          acceptValidationContract({
+            root: authorityState.home.stateHome,
+            contract: authorityContract,
+          }),
         "validation_waiver_invalid",
       );
     }
-    expect(() => assertValidationEvidenceComplete({
-      ...exactEvidence,
-      cases: exactEvidence.cases.slice(0, 1),
-    }, accepted.value, ACCEPTED_AT)).toThrowError(RoadmapDeliveryError);
-    expect(() => assertValidationEvidenceComplete({
-      ...exactEvidence,
-      cases: exactEvidence.cases.map((entry) =>
-        entry.caseId === "CF-HB102-WAIVER" ? { ...entry, status: "passed" as const, waiverId: null } : entry),
-    }, accepted.value, ACCEPTED_AT)).toThrowError(RoadmapDeliveryError);
+    expect(() =>
+      assertValidationEvidenceComplete(
+        {
+          ...exactEvidence,
+          cases: exactEvidence.cases.slice(0, 1),
+        },
+        accepted.value,
+        ACCEPTED_AT,
+      ),
+    ).toThrowError(RoadmapDeliveryError);
+    expect(() =>
+      assertValidationEvidenceComplete(
+        {
+          ...exactEvidence,
+          cases: exactEvidence.cases.map((entry) =>
+            entry.caseId === "CF-HB102-WAIVER" ? { ...entry, status: "passed" as const, waiverId: null } : entry,
+          ),
+        },
+        accepted.value,
+        ACCEPTED_AT,
+      ),
+    ).toThrowError(RoadmapDeliveryError);
 
     for (const [name, mutate] of [
-      ["expired", (value: ValidationWaiver) => { value.expiresAt = ACCEPTED_AT; }],
-      ["wrong-unit", (value: ValidationWaiver) => { value.unitId = "another-unit"; }],
-      ["unbounded", (value: ValidationWaiver) => { value.expiresAt = "2026-08-04T02:00:00.000Z"; }],
+      [
+        "expired",
+        (value: ValidationWaiver) => {
+          value.expiresAt = ACCEPTED_AT;
+        },
+      ],
+      [
+        "wrong-unit",
+        (value: ValidationWaiver) => {
+          value.unitId = "another-unit";
+        },
+      ],
+      [
+        "unbounded",
+        (value: ValidationWaiver) => {
+          value.expiresAt = "2026-08-04T02:00:00.000Z";
+        },
+      ],
     ] as const) {
       const invalidState = await setup(`hb102-waiver-${name}`);
       const invalidId = `validation-waiver-${name}`;
       const invalidWaiver = waiver(invalidId);
       mutate(invalidWaiver);
       await expectCode(
-        () => acceptValidationContract({
-          root: invalidState.home.stateHome,
-          contract: contractFixture(invalidState, {
-            contractId: invalidId,
-            obligations: [
-              sharedObligation(),
-              obligation({
-                obligationId: "waived-case",
-                caseId: "CF-HB102-WAIVER",
-                layer: "L1",
-                detectorId: "validation-waiver-detector",
-                waiver: invalidWaiver,
-              }),
-            ],
+        () =>
+          acceptValidationContract({
+            root: invalidState.home.stateHome,
+            contract: contractFixture(invalidState, {
+              contractId: invalidId,
+              obligations: [
+                sharedObligation(),
+                obligation({
+                  obligationId: "waived-case",
+                  caseId: "CF-HB102-WAIVER",
+                  layer: "L1",
+                  detectorId: "validation-waiver-detector",
+                  waiver: invalidWaiver,
+                }),
+              ],
+            }),
           }),
-        }),
         "validation_waiver_invalid",
       );
     }
@@ -811,29 +856,30 @@ describe("HB-102 — validation-contract authority and readiness", () => {
     const countState = await setup("hb102-waiver-count");
     const countId = "validation-waiver-count";
     await expectCode(
-      () => acceptValidationContract({
-        root: countState.home.stateHome,
-        contract: contractFixture(countState, {
-          contractId: countId,
-          obligations: [
-            sharedObligation(),
-            obligation({
-              obligationId: "waived-case",
-              caseId: "CF-HB102-WAIVER",
-              layer: "L1",
-              detectorId: "validation-waiver-detector",
-              waiver: waiver(countId),
-            }),
-            obligation({
-              obligationId: "waived-case-2",
-              caseId: "CF-HB102-WAIVER-2",
-              layer: "L1",
-              detectorId: "validation-waiver-detector-2",
-              waiver: waiver(countId, "waived-case-2"),
-            }),
-          ],
+      () =>
+        acceptValidationContract({
+          root: countState.home.stateHome,
+          contract: contractFixture(countState, {
+            contractId: countId,
+            obligations: [
+              sharedObligation(),
+              obligation({
+                obligationId: "waived-case",
+                caseId: "CF-HB102-WAIVER",
+                layer: "L1",
+                detectorId: "validation-waiver-detector",
+                waiver: waiver(countId),
+              }),
+              obligation({
+                obligationId: "waived-case-2",
+                caseId: "CF-HB102-WAIVER-2",
+                layer: "L1",
+                detectorId: "validation-waiver-detector-2",
+                waiver: waiver(countId, "waived-case-2"),
+              }),
+            ],
+          }),
         }),
-      }),
       "validation_waiver_invalid",
     );
   });
@@ -911,16 +957,17 @@ describe("HB-102 — validation-contract authority and readiness", () => {
       contract: contractFixture(state),
     });
     await expectCode(
-      () => acceptDeliveryUnitReadiness({
-        root: state.home.stateHome,
-        app: APP,
-        roadmapRef: state.roadmap.ref,
-        expectedFrontierHash: state.roadmap.frontierHash,
-        validationRef: accepted.ref,
-        unitId: UNIT,
-        routing: ROUTING.map((entry) => ({ ...entry, disposition: "human_only" as const })),
-        readyAt: "2026-08-03T23:31:00.000Z",
-      }),
+      () =>
+        acceptDeliveryUnitReadiness({
+          root: state.home.stateHome,
+          app: APP,
+          roadmapRef: state.roadmap.ref,
+          expectedFrontierHash: state.roadmap.frontierHash,
+          validationRef: accepted.ref,
+          unitId: UNIT,
+          routing: ROUTING.map((entry) => ({ ...entry, disposition: "human_only" as const })),
+          readyAt: "2026-08-03T23:31:00.000Z",
+        }),
       "routing_ineligible",
     );
 
@@ -935,18 +982,19 @@ describe("HB-102 — validation-contract authority and readiness", () => {
     );
 
     await expectCode(
-      () => acceptDeliveryUnitReadiness({
-        root: state.home.stateHome,
-        app: APP,
-        roadmapRef: state.roadmap.ref,
-        expectedFrontierHash: state.roadmap.frontierHash,
-        validationRef: accepted.ref,
-        unitId: UNIT,
-        routing: ROUTING.map((entry, index) => index === 0
-          ? { ...entry, observedLabels: [...entry.observedLabels, "manual-review"] }
-          : entry),
-        readyAt: "2026-08-03T23:31:00.000Z",
-      }),
+      () =>
+        acceptDeliveryUnitReadiness({
+          root: state.home.stateHome,
+          app: APP,
+          roadmapRef: state.roadmap.ref,
+          expectedFrontierHash: state.roadmap.frontierHash,
+          validationRef: accepted.ref,
+          unitId: UNIT,
+          routing: ROUTING.map((entry, index) =>
+            index === 0 ? { ...entry, observedLabels: [...entry.observedLabels, "manual-review"] } : entry,
+          ),
+          readyAt: "2026-08-03T23:31:00.000Z",
+        }),
       "routing_ineligible",
     );
   });

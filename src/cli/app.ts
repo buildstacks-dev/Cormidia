@@ -63,11 +63,19 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
   const homes = await resolveCormidiaHomes(common);
   const app = homes.appsFile.apps.find((entry) => entry.name === appName);
   if (app === undefined) {
-    const root = resolve(archiveRoot ?? join(dirname(homes.stateHome), "archives", safeSegment(homes.appsFile.org.name)));
+    const root = resolve(
+      archiveRoot ?? join(dirname(homes.stateHome), "archives", safeSegment(homes.appsFile.org.name)),
+    );
     const archive = await latestResetArchiveForApp(root, appName);
     if (archive !== undefined) {
       await finalizeInterruptedAppReset(homes.stateHome, appName, archive);
-      const result = { schema_version: 1, kind: "app-reset-result", status: "already_reset", app: appName, archive_path: archive };
+      const result = {
+        schema_version: 1,
+        kind: "app-reset-result",
+        status: "already_reset",
+        app: appName,
+        archive_path: archive,
+      };
       if (json) console.log(stableJson(result).trimEnd());
       else console.log(`App already reset: ${appName}\nArchive: ${archive}`);
       return 0;
@@ -88,12 +96,25 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
   else if (!json) printPlan(plan, execute, force);
   if (!execute) return 0;
   if (plan.blockers.length > 0) {
-    if (json) console.log(stableJson({ schema_version: 1, kind: "app-reset-refusal", app: appName, blockers: plan.blockers }).trimEnd());
+    if (json)
+      console.log(
+        stableJson({ schema_version: 1, kind: "app-reset-refusal", app: appName, blockers: plan.blockers }).trimEnd(),
+      );
     throw new Error(`app reset: execution blocked — ${plan.blockers.map((blocker) => blocker.code).join("; ")}`);
   }
 
   const result = await executeAppReset(input, plan);
-  if (json) console.log(stableJson({ schema_version: 1, kind: "app-reset-result", status: "reset", app: appName, archive_path: result.archivePath, plan: result.plan }).trimEnd());
+  if (json)
+    console.log(
+      stableJson({
+        schema_version: 1,
+        kind: "app-reset-result",
+        status: "reset",
+        app: appName,
+        archive_path: result.archivePath,
+        plan: result.plan,
+      }).trimEnd(),
+    );
   else {
     console.log(`app reset complete: ${appName}`);
     console.log(`archive: ${result.archivePath}`);
@@ -183,7 +204,9 @@ async function promote(
       console.log(`App promotion plan: ${appName} ${plan.from} -> live`);
       console.log(`Verification: ${plan.verification.status}`);
       for (const change of plan.changes) console.log(`  - ${change}`);
-      console.log("No changes made to app lifecycle (dispatched CLI: invocation audit only). Add --execute after reviewing this plan.");
+      console.log(
+        "No changes made to app lifecycle (dispatched CLI: invocation audit only). Add --execute after reviewing this plan.",
+      );
     }
     return plan.executable ? 0 : 2;
   }
@@ -232,7 +255,12 @@ function printPlan(plan: AppResetPlan, execute: boolean, force: boolean): void {
 }
 
 function safeSegment(value: string): string {
-  return value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "org";
+  return (
+    value
+      .trim()
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "org"
+  );
 }
 
 function needValue(args: string[], index: number, flag: string): string {

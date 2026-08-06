@@ -21,16 +21,10 @@ export async function readJsonRecord<T>(
 
 /** Every `<prefix>*.json` record in `dir`, filename-sorted. Records sharing
  *  a directory route by id prefix (spec §1: experiments + eval results). */
-export async function listJsonRecords<T>(
-  dir: string,
-  prefix: string,
-  validate: (value: unknown) => T,
-): Promise<T[]> {
+export async function listJsonRecords<T>(dir: string, prefix: string, validate: (value: unknown) => T): Promise<T[]> {
   if (!existsSync(dir)) return [];
   const records: T[] = [];
-  const names = (await readdir(dir))
-    .filter((name) => name.startsWith(prefix) && name.endsWith(".json"))
-    .sort();
+  const names = (await readdir(dir)).filter((name) => name.startsWith(prefix) && name.endsWith(".json")).sort();
   for (const name of names) {
     const path = join(dir, name);
     records.push(parseValidated(path, await readFile(path, "utf8"), validate));
@@ -67,9 +61,7 @@ export async function readJsonLinesTolerant<T>(
       out.push(JSON.parse(line) as T);
     } catch {
       if (i !== lines.length - 1) {
-        throw new Error(
-          `learning: ${path}:${i + 1} is malformed mid-file — corruption, not a torn append`,
-        );
+        throw new Error(`learning: ${path}:${i + 1} is malformed mid-file — corruption, not a torn append`);
       }
     }
   });

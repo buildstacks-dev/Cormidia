@@ -32,16 +32,10 @@ import {
 import { routeAdmissionForEpisodePlan } from "../../loop/episode-route.js";
 import { admitPlannedEpisodeRoute, type PlannerAdmissionLimits } from "../../loop/planner-admission.js";
 import { configuredProviderFamily, turnAssignmentsEqual } from "../../runtime/assignment.js";
-import {
-  probeRuntimeReadiness,
-  type RuntimeReadinessProbe,
-} from "../../runtime/readiness.js";
+import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../../runtime/readiness.js";
 import type { RoleConfig, TurnAssignment } from "../../runtime/types.js";
 import { normalizeAppExecution, type AppEntry } from "../apps.js";
-import {
-  readPersistedEpisodeIntent,
-  type PreparedEpisodePlan,
-} from "./coordinator.js";
+import { readPersistedEpisodeIntent, type PreparedEpisodePlan } from "./coordinator.js";
 import {
   executeAcceptedEpisodePlan,
   type AcceptedEpisodePlanExecutionResult,
@@ -60,10 +54,7 @@ import {
   type ProviderEpisodePlannerOptions,
 } from "./runtime.js";
 import { assessCreatorScope } from "../../loop/episode-plan.js";
-import {
-  probeApprovedAssignmentReadiness,
-  type AssignmentReadinessSnapshot,
-} from "./assignment-readiness.js";
+import { probeApprovedAssignmentReadiness, type AssignmentReadinessSnapshot } from "./assignment-readiness.js";
 
 export const EPISODE_ORCHESTRATOR_PREVIEW_VERSION = 1 as const;
 /** v2 makes the explanation total: every field is nullable, every unresolved
@@ -74,15 +65,9 @@ export type EpisodeOrchestrationMode = "plan_only" | "execute";
 
 export type EpisodeOrchestrationFacts = Omit<EpisodeIntentFacts, "app" | "roles">;
 
-export type EpisodePlannerRuntimeInput = Omit<
-  ProviderEpisodePlannerOptions,
-  "root" | "app" | "roles" | "intent"
->;
+export type EpisodePlannerRuntimeInput = Omit<ProviderEpisodePlannerOptions, "root" | "app" | "roles" | "intent">;
 
-export type EpisodeDeliveryInput = Omit<
-  ExecuteAcceptedEpisodePlanOptions,
-  "root" | "intent" | "plan" | "roles"
->;
+export type EpisodeDeliveryInput = Omit<ExecuteAcceptedEpisodePlanOptions, "root" | "intent" | "plan" | "roles">;
 
 interface EpisodeOrchestrationBase {
   root: string;
@@ -96,10 +81,8 @@ interface EpisodeOrchestrationBase {
   assignmentReadinessTimeoutMs?: number;
 }
 
-export type OrchestrateEpisodeOptions = EpisodeOrchestrationBase & (
-  | { mode: "plan_only"; execution?: never }
-  | { mode: "execute"; execution: EpisodeDeliveryInput }
-);
+export type OrchestrateEpisodeOptions = EpisodeOrchestrationBase &
+  ({ mode: "plan_only"; execution?: never } | { mode: "execute"; execution: EpisodeDeliveryInput });
 
 export interface OrchestratedEpisode {
   mode: EpisodeOrchestrationMode;
@@ -131,13 +114,9 @@ export interface EpisodeInvocationInspection {
 export async function inspectEpisodeInvocation(
   options: InspectEpisodeInvocationOptions,
 ): Promise<EpisodeInvocationInspection> {
-  const persistedIntent = await readPersistedEpisodeIntent(
-    options.root,
-    options.facts.episodeId,
-  );
-  const persistedPlan = persistedIntent === undefined
-    ? undefined
-    : await readCurrentEpisodePlan(options.root, options.facts.episodeId);
+  const persistedIntent = await readPersistedEpisodeIntent(options.root, options.facts.episodeId);
+  const persistedPlan =
+    persistedIntent === undefined ? undefined : await readCurrentEpisodePlan(options.root, options.facts.episodeId);
   if (persistedIntent !== undefined && persistedPlan !== undefined) {
     assertEpisodeIntentMatchesInvocationFacts(persistedIntent, {
       ...options.facts,
@@ -148,12 +127,8 @@ export async function inspectEpisodeInvocation(
     persistedInvocationIntent(options, persistedIntent);
   }
   return {
-    persistedIntent: persistedIntent === undefined
-      ? undefined
-      : structuredClone(persistedIntent),
-    persistedPlan: persistedPlan === undefined
-      ? undefined
-      : structuredClone(persistedPlan),
+    persistedIntent: persistedIntent === undefined ? undefined : structuredClone(persistedIntent),
+    persistedPlan: persistedPlan === undefined ? undefined : structuredClone(persistedPlan),
   };
 }
 
@@ -162,34 +137,30 @@ export async function inspectEpisodeInvocation(
  * bounded intent and enters the same planner/creator-scope decision. The
  * accepted plan is route-admitted before plan-only return or delivery.
  */
-export async function orchestrateEpisode(
-  options: OrchestrateEpisodeOptions,
-): Promise<OrchestratedEpisode> {
+export async function orchestrateEpisode(options: OrchestrateEpisodeOptions): Promise<OrchestratedEpisode> {
   const { persistedIntent, persistedPlan } = await inspectEpisodeInvocation(options);
-  const assignmentMode = persistedPlan === undefined
-    ? normalizeAppExecution(options.app.execution).assignmentMode
-    : persistedIntent!.assignmentMode;
-  const assignmentReadinessProbe = assignmentMode === "adaptive"
-    ? options.assignmentReadinessProbe ?? probeRuntimeReadiness
-    : undefined;
-  const readiness = assignmentMode === "adaptive" && persistedPlan === undefined
-    ? await requireAdaptiveReadiness(options, assignmentReadinessProbe!)
-    : undefined;
-  const intent = persistedPlan === undefined
-    ? (() => {
-        const candidateIntent = buildEpisodeIntent({
-          ...options.facts,
-          app: options.app,
-          roles: options.roles,
-          ...(readiness === undefined
-            ? {}
-            : { assignmentAvailable: readiness.available }),
-        });
-        return persistedIntent === undefined
-          ? candidateIntent
-          : persistedInvocationIntent(options, persistedIntent);
-      })()
-    : structuredClone(persistedIntent!);
+  const assignmentMode =
+    persistedPlan === undefined
+      ? normalizeAppExecution(options.app.execution).assignmentMode
+      : persistedIntent!.assignmentMode;
+  const assignmentReadinessProbe =
+    assignmentMode === "adaptive" ? (options.assignmentReadinessProbe ?? probeRuntimeReadiness) : undefined;
+  const readiness =
+    assignmentMode === "adaptive" && persistedPlan === undefined
+      ? await requireAdaptiveReadiness(options, assignmentReadinessProbe!)
+      : undefined;
+  const intent =
+    persistedPlan === undefined
+      ? (() => {
+          const candidateIntent = buildEpisodeIntent({
+            ...options.facts,
+            app: options.app,
+            roles: options.roles,
+            ...(readiness === undefined ? {} : { assignmentAvailable: readiness.available }),
+          });
+          return persistedIntent === undefined ? candidateIntent : persistedInvocationIntent(options, persistedIntent);
+        })()
+      : structuredClone(persistedIntent!);
   if (readiness !== undefined) {
     assertPlannerBootReadyWhenRequired(options, intent, readiness);
   }
@@ -202,7 +173,8 @@ export async function orchestrateEpisode(
   });
   let execution: AcceptedEpisodePlanExecutionResult | null = null;
   if (options.mode === "execute") {
-    const proposeRevision = options.execution.proposeRevision ??
+    const proposeRevision =
+      options.execution.proposeRevision ??
       (options.planner.promptText.trim().length === 0
         ? async () => {
             throw new Error(
@@ -225,21 +197,21 @@ export async function orchestrateEpisode(
       plan: prepared.plan,
       roles: options.roles,
       proposeRevision,
-      ...(assignmentReadinessProbe === undefined
-        ? {}
-        : { assignmentReadinessProbe }),
+      ...(assignmentReadinessProbe === undefined ? {} : { assignmentReadinessProbe }),
       ...(options.assignmentReadinessTimeoutMs === undefined
         ? {}
         : { assignmentReadinessTimeoutMs: options.assignmentReadinessTimeoutMs }),
     });
   } else {
     const clock = options.planner.now ?? (() => new Date());
-    await admitPlannedEpisodeRoute(routeAdmissionForEpisodePlan({
-      root: options.root,
-      intent,
-      plan: prepared.plan,
-      now: clock(),
-    }));
+    await admitPlannedEpisodeRoute(
+      routeAdmissionForEpisodePlan({
+        root: options.root,
+        intent,
+        plan: prepared.plan,
+        now: clock(),
+      }),
+    );
   }
   const route = await readRouteRecord(options.root, intent.episodeId);
   return { mode: options.mode, intent, prepared, route, execution };
@@ -261,18 +233,13 @@ async function requireAdaptiveReadiness(
     app: options.app,
     roles: options.roles,
     probe,
-    ...(options.assignmentReadinessTimeoutMs === undefined
-      ? {}
-      : { timeoutMs: options.assignmentReadinessTimeoutMs }),
+    ...(options.assignmentReadinessTimeoutMs === undefined ? {} : { timeoutMs: options.assignmentReadinessTimeoutMs }),
   });
 }
 
 /** Keep temporal readiness from changing the immutable intent on resume.
  * Other invocation facts still have to reproduce the persisted hash exactly. */
-function persistedInvocationIntent(
-  options: InspectEpisodeInvocationOptions,
-  persisted: EpisodeIntent,
-): EpisodeIntent {
+function persistedInvocationIntent(options: InspectEpisodeInvocationOptions, persisted: EpisodeIntent): EpisodeIntent {
   const persistedAvailability = new Map(
     persisted.allowedAssignments.map((candidate) => [
       `${candidate.role}\0${candidate.candidateId}\0${JSON.stringify(candidate.assignment)}`,
@@ -284,14 +251,10 @@ function persistedInvocationIntent(
     app: options.app,
     roles: options.roles,
     assignmentAvailable: ({ role, candidateId, assignment }) =>
-      persistedAvailability.get(
-        `${role.name}\0${candidateId}\0${JSON.stringify(assignment)}`,
-      ) ?? false,
+      persistedAvailability.get(`${role.name}\0${candidateId}\0${JSON.stringify(assignment)}`) ?? false,
   });
   if (episodeIntentHash(reproduced) !== episodeIntentHash(persisted)) {
-    throw new Error(
-      `episode ${persisted.episodeId} resume facts differ from persisted immutable intent`,
-    );
+    throw new Error(`episode ${persisted.episodeId} resume facts differ from persisted immutable intent`);
   }
   return structuredClone(persisted);
 }
@@ -406,9 +369,7 @@ export function previewEpisode(options: PreviewEpisodeOptions): EpisodePlanningP
     allowedAssignments: structuredClone(intent.allowedAssignments),
     requiredSafetyFacts: structuredClone(intent.requiredSafetyFacts),
     creatorScope,
-    planningPath: creatorScope.executionReady
-      ? "creator_scope_normalization"
-      : "episode_planner_provider_turn",
+    planningPath: creatorScope.executionReady ? "creator_scope_normalization" : "episode_planner_provider_turn",
     plannerBoot: {
       role: "planner",
       assignment: bootAssignment,
@@ -420,13 +381,7 @@ export function previewEpisode(options: PreviewEpisodeOptions): EpisodePlanningP
   };
 }
 
-export type ExplainedStepStatus =
-  | "pending"
-  | "running"
-  | "waiting_approval"
-  | "denied"
-  | "failed"
-  | "completed";
+export type ExplainedStepStatus = "pending" | "running" | "waiting_approval" | "denied" | "failed" | "completed";
 
 interface ExplainedStepBase {
   id: string;
@@ -479,10 +434,7 @@ export interface ExplainedApprovalStep extends ExplainedStepBase {
   actionRef: string;
 }
 
-export type ExplainedEpisodeStep =
-  | ExplainedProviderStep
-  | ExplainedMechanicalStep
-  | ExplainedApprovalStep;
+export type ExplainedEpisodeStep = ExplainedProviderStep | ExplainedMechanicalStep | ExplainedApprovalStep;
 
 /** Every way durable episode evidence can be missing, unreadable, or
  * internally inconsistent. Each one degrades the explanation; none aborts it. */
@@ -561,16 +513,9 @@ export interface EpisodeExplanation {
  * diagnostic that refuses to print anything when one lookup fails is the exact
  * opposite of a diagnostic (ISSUE-025).
  */
-export async function explainEpisode(
-  root: string,
-  episodeId: string,
-): Promise<EpisodeExplanation> {
+export async function explainEpisode(root: string, episodeId: string): Promise<EpisodeExplanation> {
   const problems: EpisodeExplanationProblem[] = [];
-  const fail = (
-    code: EpisodeExplanationProblemCode,
-    message: string,
-    stepId: string | null = null,
-  ): void => {
+  const fail = (code: EpisodeExplanationProblemCode, message: string, stepId: string | null = null): void => {
     problems.push({ code, message, stepId });
   };
 
@@ -598,27 +543,23 @@ export async function explainEpisode(
   const replanJournal = existsSync(episodeReplanJournalPath(root, episodeId))
     ? await readOrAnnotate(
         () => readEpisodeReplanJournal(root, episodeId),
-        (error) =>
-          fail(
-            "replan_journal_unreadable",
-            `replan journal is unreadable: ${describe(error)}`,
-          ),
+        (error) => fail("replan_journal_unreadable", `replan journal is unreadable: ${describe(error)}`),
       )
     : undefined;
-  const executionSteps = await readOrAnnotate(
-    () => readExecutionSteps(root, episodeId),
-    (error) =>
-      fail("execution_steps_unreadable", `durable execution steps are unreadable: ${describe(error)}`),
-  ) ?? [];
+  const executionSteps =
+    (await readOrAnnotate(
+      () => readExecutionSteps(root, episodeId),
+      (error) => fail("execution_steps_unreadable", `durable execution steps are unreadable: ${describe(error)}`),
+    )) ?? [];
 
   if (
-    intent === undefined && plan === undefined && route === undefined &&
-    journal === undefined && executionSteps.length === 0
+    intent === undefined &&
+    plan === undefined &&
+    route === undefined &&
+    journal === undefined &&
+    executionSteps.length === 0
   ) {
-    fail(
-      "episode_evidence_missing",
-      `no durable evidence for episode ${episodeId} under ${evidenceDir}`,
-    );
+    fail("episode_evidence_missing", `no durable evidence for episode ${episodeId} under ${evidenceDir}`);
   } else {
     if (intent === undefined && !problems.some((problem) => problem.code === "intent_unreadable")) {
       fail("intent_missing", "episode has no persisted immutable intent");
@@ -636,49 +577,45 @@ export async function explainEpisode(
     );
   }
 
-  const steps = plan === undefined
-    ? []
-    : plan.steps.map((step) => {
-        const explained = explainStep(step, plan, route ?? null, journal ?? null);
-        if (explained.kind !== "provider_turn") return explained;
-        if (explained.authorizationStatus === "unresolved") {
-          fail(
-            "step_authorization_unresolved",
-            explained.authorizationDetail ?? "route authorization could not be resolved",
-            step.id,
-          );
-        } else if (
-          explained.authorizationStatus === "authorized_at_prior_plan_version" &&
-          explained.status !== "completed"
-        ) {
-          // Carrying a prior version forward only explains a turn that was
-          // already paid for. A step still waiting to run needs a current
-          // authorization, and executing it would refuse without one.
-          fail(
-            "step_authorization_stale",
-            explained.authorizationDetail ?? "authorization predates the current plan version",
-            step.id,
-          );
-        }
-        return explained;
-      });
+  const steps =
+    plan === undefined
+      ? []
+      : plan.steps.map((step) => {
+          const explained = explainStep(step, plan, route ?? null, journal ?? null);
+          if (explained.kind !== "provider_turn") return explained;
+          if (explained.authorizationStatus === "unresolved") {
+            fail(
+              "step_authorization_unresolved",
+              explained.authorizationDetail ?? "route authorization could not be resolved",
+              step.id,
+            );
+          } else if (
+            explained.authorizationStatus === "authorized_at_prior_plan_version" &&
+            explained.status !== "completed"
+          ) {
+            // Carrying a prior version forward only explains a turn that was
+            // already paid for. A step still waiting to run needs a current
+            // authorization, and executing it would refuse without one.
+            fail(
+              "step_authorization_stale",
+              explained.authorizationDetail ?? "authorization predates the current plan version",
+              step.id,
+            );
+          }
+          return explained;
+        });
   if (plan !== undefined) {
     if (journal === undefined) {
-      fail(
-        "episode_execution_missing",
-        `accepted plan v${plan.version} has no durable execution journal`,
-      );
-    } else if (
-      journal.status !== "completed" ||
-      steps.some((step) => step.status !== "completed")
-    ) {
+      fail("episode_execution_missing", `accepted plan v${plan.version} has no durable execution journal`);
+    } else if (journal.status !== "completed" || steps.some((step) => step.status !== "completed")) {
       const latestReplan = replanJournal?.records.at(-1);
-      const recovery = latestReplan === undefined
-        ? journal.current_plan_version > 1
-          ? `; plan revision v${journal.current_plan_version} is active`
-          : ""
-        : `; replan ${latestReplan.trigger.id} is ${latestReplan.status}` +
-          (latestReplan.reason === null ? "" : ` (${latestReplan.reason})`);
+      const recovery =
+        latestReplan === undefined
+          ? journal.current_plan_version > 1
+            ? `; plan revision v${journal.current_plan_version} is active`
+            : ""
+          : `; replan ${latestReplan.trigger.id} is ${latestReplan.status}` +
+            (latestReplan.reason === null ? "" : ` (${latestReplan.reason})`);
       fail(
         "episode_execution_incomplete",
         `execution is ${journal.status}; ` +
@@ -686,18 +623,14 @@ export async function explainEpisode(
           `accepted-plan steps are complete${recovery}`,
       );
       for (const step of steps) {
-        if (
-          step.status !== "failed" &&
-          step.status !== "waiting_approval" &&
-          step.status !== "denied"
-        ) continue;
+        if (step.status !== "failed" && step.status !== "waiting_approval" && step.status !== "denied") continue;
         const event = latestTerminalEvent(journal, step.id);
-        const detail = event === undefined
-          ? `step ${step.id} is ${step.status}`
-          : event.kind === "step_failed" || event.kind === "approval_denied" ||
-              event.kind === "approval_pending"
-            ? `${event.reason_code}: ${event.summary}`
-            : `step ${step.id} is ${step.status}`;
+        const detail =
+          event === undefined
+            ? `step ${step.id} is ${step.status}`
+            : event.kind === "step_failed" || event.kind === "approval_denied" || event.kind === "approval_pending"
+              ? `${event.reason_code}: ${event.summary}`
+              : `step ${step.id} is ${step.status}`;
         fail(
           step.status === "failed"
             ? "step_failed"
@@ -715,10 +648,9 @@ export async function explainEpisode(
     schemaVersion: EPISODE_ORCHESTRATOR_EXPLAIN_VERSION,
     episodeId,
     evidenceDir,
-    complete: problems.length === 0 &&
-      (plan === undefined ||
-        (journal?.status === "completed" &&
-          steps.every((step) => step.status === "completed"))),
+    complete:
+      problems.length === 0 &&
+      (plan === undefined || (journal?.status === "completed" && steps.every((step) => step.status === "completed"))),
     problems,
     intent: intent ?? null,
     intentHash,
@@ -738,12 +670,11 @@ function latestTerminalEvent(
   journal: EpisodePlanExecutionJournal,
   stepId: string,
 ): EpisodePlanExecutionEvent | undefined {
-  return journal.events.findLast((event) =>
-    "step_id" in event &&
-    event.step_id === stepId &&
-    (event.kind === "step_failed" ||
-      event.kind === "approval_pending" ||
-      event.kind === "approval_denied"),
+  return journal.events.findLast(
+    (event) =>
+      "step_id" in event &&
+      event.step_id === stepId &&
+      (event.kind === "step_failed" || event.kind === "approval_pending" || event.kind === "approval_denied"),
   );
 }
 
@@ -766,9 +697,10 @@ function describe(error: unknown): string {
 }
 
 function explainExecutionStep(record: ExecutionStepRecord): ExplainedExecutionStep {
-  const assignment = record.runtime !== null && record.model !== null && record.effort !== null
-    ? { harness: record.runtime, model: record.model, effort: record.effort }
-    : null;
+  const assignment =
+    record.runtime !== null && record.model !== null && record.effort !== null
+      ? { harness: record.runtime, model: record.model, effort: record.effort }
+      : null;
   return {
     executionStepId: record.execution_step_id,
     kind: record.kind,
@@ -867,15 +799,12 @@ function resolveStepAuthorization(
     return {
       status: "unresolved",
       pass: undefined,
-      detail: `${current.length} matching route authorizations for plan v${plan.version}` +
-        " (expected exactly one)",
+      detail: `${current.length} matching route authorizations for plan v${plan.version}` + " (expected exactly one)",
     };
   }
   const prior = identical
     .flatMap((pass) =>
-      pass.plan_version !== undefined && pass.plan_version < plan.version
-        ? [{ pass, version: pass.plan_version }]
-        : []
+      pass.plan_version !== undefined && pass.plan_version < plan.version ? [{ pass, version: pass.plan_version }] : [],
     )
     .sort((left, right) => right.version - left.version);
   const carried = prior[0];
@@ -883,41 +812,37 @@ function resolveStepAuthorization(
     return {
       status: "authorized_at_prior_plan_version",
       pass: carried.pass,
-      detail: status === "completed"
-        ? `authorized under plan v${carried.version}; plan v${plan.version} did not ` +
-          "re-authorize an already-completed step"
-        : `authorized under plan v${carried.version} only, but the step is ${status}; ` +
-          `plan v${plan.version} must re-authorize it before it can run`,
+      detail:
+        status === "completed"
+          ? `authorized under plan v${carried.version}; plan v${plan.version} did not ` +
+            "re-authorize an already-completed step"
+          : `authorized under plan v${carried.version} only, but the step is ${status}; ` +
+            `plan v${plan.version} must re-authorize it before it can run`,
     };
   }
   return {
     status: "unresolved",
     pass: undefined,
-    detail: `0 matching route authorizations for plan v${plan.version}` +
-      (identical.length === 0
-        ? ""
-        : ` (${identical.length} at another version were also rejected)`),
+    detail:
+      `0 matching route authorizations for plan v${plan.version}` +
+      (identical.length === 0 ? "" : ` (${identical.length} at another version were also rejected)`),
   };
 }
 
 function authorizesStep(pass: AuthorizedPass, step: ProviderTurnStep): boolean {
-  return pass.plan_step_id === step.id &&
+  return (
+    pass.plan_step_id === step.id &&
     pass.pass === step.id &&
     pass.role === step.role &&
     pass.runtime === step.assignment.harness &&
     pass.model === step.assignment.model &&
     pass.effort === step.assignment.effort &&
     pass.assignment_source === step.assignmentSource &&
-    turnAssignmentsEqual(
-      { harness: pass.runtime, model: pass.model, effort: pass.effort },
-      step.assignment,
-    );
+    turnAssignmentsEqual({ harness: pass.runtime, model: pass.model, effort: pass.effort }, step.assignment)
+  );
 }
 
-function explainedStepStatus(
-  stepId: string,
-  journal: EpisodePlanExecutionJournal | null,
-): ExplainedStepStatus {
+function explainedStepStatus(stepId: string, journal: EpisodePlanExecutionJournal | null): ExplainedStepStatus {
   if (journal === null) return "pending";
   const events = journal.events.filter((event) => "step_id" in event && event.step_id === stepId);
   const event = events.at(-1);

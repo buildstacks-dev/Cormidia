@@ -52,9 +52,7 @@ export async function makeLearningWorld(
   const state = await makeTempStateHome({ name });
   const clock = makeTestClock("2026-07-31T12:00:00.000Z");
   const approvals = new ApprovalStore(state.stateHome, {
-    ...(options.approvalId !== undefined
-      ? { idSource: () => options.approvalId! }
-      : {}),
+    ...(options.approvalId !== undefined ? { idSource: () => options.approvalId! } : {}),
   });
   const policy = defaultLearningPolicy();
   const deps: PublisherDeps = {
@@ -291,9 +289,7 @@ export async function assertExactlyOncePublish(input: ExactlyOnceInput): Promise
 
   const manifest = await readManifest(input.world.orgRoot);
   if (input.conceptId !== undefined) {
-    const cuts = (manifest?.history ?? []).filter((entry) =>
-      entry.concepts.includes(input.conceptId!),
-    );
+    const cuts = (manifest?.history ?? []).filter((entry) => entry.concepts.includes(input.conceptId!));
     if (cuts.length !== 1) {
       problems.push(`${cuts.length} manifest cuts touch concept ${input.conceptId}`);
     }

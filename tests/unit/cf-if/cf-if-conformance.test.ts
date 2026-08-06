@@ -12,8 +12,12 @@ import { canonicalValue, stableJson } from "../../../src/org/lifecycle.js";
 async function captured<T>(run: () => Promise<T>): Promise<{ value: T; out: string[]; err: string[] }> {
   const out: string[] = [];
   const err: string[] = [];
-  const log = vi.spyOn(console, "log").mockImplementation((...parts: unknown[]) => out.push(parts.map(String).join(" ")));
-  const error = vi.spyOn(console, "error").mockImplementation((...parts: unknown[]) => err.push(parts.map(String).join(" ")));
+  const log = vi
+    .spyOn(console, "log")
+    .mockImplementation((...parts: unknown[]) => out.push(parts.map(String).join(" ")));
+  const error = vi
+    .spyOn(console, "error")
+    .mockImplementation((...parts: unknown[]) => err.push(parts.map(String).join(" ")));
   try {
     return { value: await run(), out, err };
   } finally {
@@ -24,11 +28,13 @@ async function captured<T>(run: () => Promise<T>): Promise<{ value: T; out: stri
 
 describe("CF-IF-CLI / CF-IF-JSON — parsing, failures, confirmation, and canonical JSON", () => {
   it("JSON mode replaces partial stdout/stderr with one stable no_active_org failure document", async () => {
-    const result = await captured(() => runJsonCliCommand("status", async () => {
-      console.log("partial prose that must be discarded");
-      console.error("partial stderr that must be discarded");
-      throw new NoActiveOrgError();
-    }));
+    const result = await captured(() =>
+      runJsonCliCommand("status", async () => {
+        console.log("partial prose that must be discarded");
+        console.error("partial stderr that must be discarded");
+        throw new NoActiveOrgError();
+      }),
+    );
     expect(result.value).toBe(1);
     expect(result.err).toEqual([]);
     expect(result.out).toHaveLength(1);
@@ -49,8 +55,7 @@ describe("CF-IF-CLI / CF-IF-JSON — parsing, failures, confirmation, and canoni
     expect(() => parseAppVerifyArgs(["alpha", "--bogus"])).toThrow(/unknown flag/);
     expect(() => parseReportArgs(["--period", "forever"])).toThrow(/7d\|30d\|90d\|1y\|all/);
     expect(() => parseReportArgs(["--open"])).toThrow(/requires --html/);
-    await expect(cmdApp(["reset", "alpha", "--execute", "--confirm", "beta"]))
-      .rejects.toThrow(/--confirm alpha/);
+    await expect(cmdApp(["reset", "alpha", "--execute", "--confirm", "beta"])).rejects.toThrow(/--confirm alpha/);
   });
 
   it("canonical JSON sorts object keys recursively while preserving array order", () => {
@@ -61,7 +66,9 @@ describe("CF-IF-CLI / CF-IF-JSON — parsing, failures, confirmation, and canoni
 
   it("capabilities marks token-spending commands and states their token-free preview exception", async () => {
     const capture = await captured(() => cmdCapabilities(["--json"]));
-    const data = JSON.parse(capture.out.join("\n")) as { commands: Array<{ command: string; spendsTokens: boolean; summary: string }> };
+    const data = JSON.parse(capture.out.join("\n")) as {
+      commands: Array<{ command: string; spendsTokens: boolean; summary: string }>;
+    };
     for (const command of ["plan", "loop", "dispatch", "run-role"]) {
       const row = data.commands.find((candidate) => candidate.command === command)!;
       expect(row.spendsTokens).toBe(true);
@@ -151,9 +158,7 @@ function assertSelfHostingPolicy(docs: ReadonlyMap<string, string>): void {
 describe("CF-IF-SKILL — policy corpus agrees on the self-hosting release boundary", () => {
   const load = async (): Promise<Map<string, string>> =>
     new Map(
-      await Promise.all(
-        SELF_HOSTING_POLICY_PATHS.map(async (path) => [path, await readFile(path, "utf8")] as const),
-      ),
+      await Promise.all(SELF_HOSTING_POLICY_PATHS.map(async (path) => [path, await readFile(path, "utf8")] as const)),
     );
 
   it("no surface contradicts PURPOSE, and every operating surface states the same approval boundary", async () => {

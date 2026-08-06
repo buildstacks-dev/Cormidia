@@ -17,12 +17,7 @@
 // operation-aware implementation (its parked CF-REG-204 leg is unchanged).
 
 import { describe, expect, it } from "vitest";
-import {
-  CRITICAL_RULES,
-  classify,
-  dispositionTierForRule,
-  NEVER_SCOPEABLE_RULES,
-} from "../../../src/runtime/gate.js";
+import { CRITICAL_RULES, classify, dispositionTierForRule, NEVER_SCOPEABLE_RULES } from "../../../src/runtime/gate.js";
 import type { ToolAction } from "../../../src/runtime/types.js";
 
 function bash(command: string): ToolAction {

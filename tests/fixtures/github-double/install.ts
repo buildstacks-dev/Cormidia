@@ -174,9 +174,7 @@ function spawnShim(ghPath: string): GhExec {
 
 let installSeq = 0;
 
-export async function installGithubDouble(
-  options: GithubDoubleOptions = {},
-): Promise<GithubDoubleHandle> {
+export async function installGithubDouble(options: GithubDoubleOptions = {}): Promise<GithubDoubleHandle> {
   installSeq += 1;
   const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "cormidia-github-double-"));
   const binDir = path.join(home, "bin");
@@ -222,10 +220,7 @@ export async function installGithubDouble(
       state.branches[branch] = { oid: nextOid(state, branch) };
     }
   }
-  await fs.promises.writeFile(
-    path.join(home, "state.json"),
-    `${JSON.stringify(state, null, 2)}\n`,
-  );
+  await fs.promises.writeFile(path.join(home, "state.json"), `${JSON.stringify(state, null, 2)}\n`);
   await fs.promises.writeFile(path.join(home, "scenario.json"), `${JSON.stringify({ steps: [] }, null, 2)}\n`);
   if (options.scenario !== undefined && options.scenario.length > 0) {
     appendScenarioSteps(home, options.scenario);

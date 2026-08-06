@@ -31,11 +31,7 @@
 // ./scenario.ts proves it fires. Violations are for negative controls ONLY.
 
 import { setTimeout as sleep } from "node:timers/promises";
-import type {
-  Options as SdkOptions,
-  PreToolUseHookInput,
-  SDKMessage,
-} from "@anthropic-ai/claude-agent-sdk";
+import type { Options as SdkOptions, PreToolUseHookInput, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeRuntime, type QueryFn } from "../../../src/runtime/adapters/claude.js";
 import type { RoleConfig, Runtime, TurnRequest } from "../../../src/runtime/types.js";
 import {
@@ -116,10 +112,7 @@ export interface ClaudeDouble {
  * scenario in order; over-calling throws rather than silently reusing or
  * returning undefined (mirrors the repo's canonical scriptable-double rule).
  */
-export function claudeDouble(
-  scenarios: AdapterScenario[],
-  opts: ClaudeDoubleOptions = {},
-): ClaudeDouble {
+export function claudeDouble(scenarios: AdapterScenario[], opts: ClaudeDoubleOptions = {}): ClaudeDouble {
   const violations: ReadonlySet<SeededViolation> = new Set(opts.violations ?? []);
   const recorder: ClaudeDoubleRecorder = { turns: [] };
   const queryFn = scriptedClaudeQuery(scenarios, recorder, violations);
@@ -133,10 +126,7 @@ export function claudeDouble(
         violation === "fabricate_zero_usage" || violation === "mask_resume_identity",
     ),
   );
-  const runtime =
-    envelopeViolations.size > 0
-      ? new SeededEnvelopeViolationRuntime(inner, envelopeViolations)
-      : inner;
+  const runtime = envelopeViolations.size > 0 ? new SeededEnvelopeViolationRuntime(inner, envelopeViolations) : inner;
   return { runtime, recorder };
 }
 
@@ -158,9 +148,7 @@ export function doubleRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
   };
 }
 
-export function doubleTurnRequest(
-  spec: Partial<TurnRequest> & Pick<TurnRequest, "workdir">,
-): TurnRequest {
+export function doubleTurnRequest(spec: Partial<TurnRequest> & Pick<TurnRequest, "workdir">): TurnRequest {
   const { workdir, ...rest } = spec;
   return {
     role: doubleRole(),
@@ -429,11 +417,7 @@ function assistantUsageMessage(sessionId: string, usage: ScriptedUsage): SDKMess
 }
 
 /** Projection consumed: type, subtype, subagent_type, description. */
-function taskStartedMessage(
-  sessionId: string,
-  subagentType: string,
-  description: string,
-): SDKMessage {
+function taskStartedMessage(sessionId: string, subagentType: string, description: string): SDKMessage {
   return {
     type: "system",
     subtype: "task_started",
@@ -455,9 +439,7 @@ function resultMessage(
   outcome: Extract<AdapterScenario["outcome"], { kind: "success" | "failure" }>,
 ): SDKMessage {
   const usageFields =
-    outcome.usage !== "absent"
-      ? { usage: wireUsage(outcome.usage), total_cost_usd: outcome.costUsd }
-      : {};
+    outcome.usage !== "absent" ? { usage: wireUsage(outcome.usage), total_cost_usd: outcome.costUsd } : {};
   if (outcome.kind === "success") {
     return {
       type: "result",
@@ -467,9 +449,7 @@ function resultMessage(
       num_turns: 1,
       duration_ms: outcome.durationMs,
       result: outcome.text,
-      ...(outcome.structuredOutput !== undefined
-        ? { structured_output: outcome.structuredOutput }
-        : {}),
+      ...(outcome.structuredOutput !== undefined ? { structured_output: outcome.structuredOutput } : {}),
       ...usageFields,
     } as unknown as SDKMessage;
   }
@@ -489,12 +469,8 @@ function wireUsage(usage: ScriptedUsage): Record<string, number> {
   return {
     input_tokens: usage.inputTokens,
     output_tokens: usage.outputTokens,
-    ...(usage.cacheCreationTokens !== undefined
-      ? { cache_creation_input_tokens: usage.cacheCreationTokens }
-      : {}),
-    ...(usage.cacheReadTokens !== undefined
-      ? { cache_read_input_tokens: usage.cacheReadTokens }
-      : {}),
+    ...(usage.cacheCreationTokens !== undefined ? { cache_creation_input_tokens: usage.cacheCreationTokens } : {}),
+    ...(usage.cacheReadTokens !== undefined ? { cache_read_input_tokens: usage.cacheReadTokens } : {}),
   };
 }
 

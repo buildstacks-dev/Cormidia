@@ -136,10 +136,7 @@ describe("CF-J01-RC — interrupted upgrade rerun converges (C-OP-LIFE §3, INV-
 
     // Exact restoration: the org home is byte-identical to before the attempt.
     const diff = diffSnapshots(before, await snapshotTree(world.orgHome));
-    expect(
-      diffIsEmpty(diff),
-      `thrown failure did not restore exactly: ${diffPaths(diff).join(", ")}`,
-    ).toBe(true);
+    expect(diffIsEmpty(diff), `thrown failure did not restore exactly: ${diffPaths(diff).join(", ")}`).toBe(true);
 
     // And the same input converges when the fault is gone.
     const rerun = await executeOrgUpgrade(upgradeInput(world));
@@ -176,9 +173,7 @@ describe("CF-J01-RC — interrupted upgrade rerun converges (C-OP-LIFE §3, INV-
     // execute. Upgrade must refuse rather than replace it.
     const humanBytes = "# human TASTE written after the preview\n";
     await writeFile(join(world.orgHome, "TASTE.md"), humanBytes, "utf8");
-    await expect(executeOrgUpgrade(input, plan)).rejects.toThrow(
-      /reviewed plan is stale|refusing to overwrite/,
-    );
+    await expect(executeOrgUpgrade(input, plan)).rejects.toThrow(/reviewed plan is stale|refusing to overwrite/);
     expect(await readFile(join(world.orgHome, "TASTE.md"), "utf8")).toBe(humanBytes);
   });
 });

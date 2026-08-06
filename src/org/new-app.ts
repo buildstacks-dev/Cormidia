@@ -5,10 +5,7 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
-import {
-  CANONICAL_LABELS,
-  type CanonicalLabelKind,
-} from "../loop/plan-tickets.js";
+import { CANONICAL_LABELS, type CanonicalLabelKind } from "../loop/plan-tickets.js";
 import {
   appArtifactFiles,
   bootstrapRun,
@@ -16,11 +13,7 @@ import {
   validateEmittedArtifacts,
   type BootstrapAnswers,
 } from "./bootstrap.js";
-import {
-  onboardingAnswersPath,
-  onboardingSourcePath,
-  storeOnboardingSource,
-} from "./onboarding-answers.js";
+import { onboardingAnswersPath, onboardingSourcePath, storeOnboardingSource } from "./onboarding-answers.js";
 import { loadRoles } from "./roles.js";
 
 export const NEW_APP_TEMPLATES = ["typescript-node", "bare"] as const;
@@ -104,19 +97,12 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     ".cormidia/bootstrap/next-commands.md",
     ".cormidia/planning/0001-greenfield-seed.md",
   ];
-  const plannedCreated = [
-    ...scaffold.map((file) => file.rel),
-    ...bootstrapFiles,
-    "CLAUDE.md",
-    ...cormidiaSeedFiles,
-  ];
+  const plannedCreated = [...scaffold.map((file) => file.rel), ...bootstrapFiles, "CLAUDE.md", ...cormidiaSeedFiles];
   const plannedUpdated = ["AGENTS.md", ".cormidia/config.yaml", `${orgHome}/apps.yaml`];
-  const stateCreated = options.stateHome === undefined
-    ? []
-    : [
-        onboardingAnswersPath(options.stateHome, appName),
-        onboardingSourcePath(options.stateHome, appName),
-      ];
+  const stateCreated =
+    options.stateHome === undefined
+      ? []
+      : [onboardingAnswersPath(options.stateHome, appName), onboardingSourcePath(options.stateHome, appName)];
   const qualityGates = qualityGatePlan(template);
 
   if (options.dryRun) {
@@ -156,13 +142,7 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   }
 
   await appendGateCommands(targetDir, template);
-  const cormidiaSeeds = generatedCormidiaSeedFiles(
-    template,
-    appName,
-    options.repoSlug,
-    goal,
-    targetDir,
-  );
+  const cormidiaSeeds = generatedCormidiaSeedFiles(template, appName, options.repoSlug, goal, targetDir);
   for (const file of cormidiaSeeds) await writeGeneratedFile(targetDir, file);
   await validateEmittedArtifacts(
     targetDir,
@@ -208,18 +188,20 @@ function buildAnswers(options: {
     channels["marketing"] = options.marketingChannels;
   }
 
-  const product = options.template === "bare"
-    ? `${options.appName} is a greenfield product scaffolded from this goal: ${options.goal}. ` +
-      "The repository is intentionally stack-neutral: it begins with product truth and Cormidia bootstrap artifacts only. " +
-      "The first implementation work must select the stack and establish meaningful stack-specific build, test, and lint gates."
-    : `${options.appName} is a greenfield product scaffolded from this goal: ` +
-      `${options.goal}. The initial app is intentionally small: a documented web product skeleton, ` +
-      "a starter domain model, and a Cormidia-ready first ticket packet.";
-  const good = options.template === "bare"
-    ? "Good means the first implementation explicitly records its stack, delivers one observable product slice, " +
-      "and configures non-vacuous test and lint commands before Cormidia accepts the work. Missing gate commands remain a failure, not a green check."
-    : "Good means the first vertical slice is buildable from GitHub issues, has explicit acceptance criteria, " +
-      "keeps product truth in docs, and keeps every code change covered by the configured build, test, and lint gates.";
+  const product =
+    options.template === "bare"
+      ? `${options.appName} is a greenfield product scaffolded from this goal: ${options.goal}. ` +
+        "The repository is intentionally stack-neutral: it begins with product truth and Cormidia bootstrap artifacts only. " +
+        "The first implementation work must select the stack and establish meaningful stack-specific build, test, and lint gates."
+      : `${options.appName} is a greenfield product scaffolded from this goal: ` +
+        `${options.goal}. The initial app is intentionally small: a documented web product skeleton, ` +
+        "a starter domain model, and a Cormidia-ready first ticket packet.";
+  const good =
+    options.template === "bare"
+      ? "Good means the first implementation explicitly records its stack, delivers one observable product slice, " +
+        "and configures non-vacuous test and lint commands before Cormidia accepts the work. Missing gate commands remain a failure, not a green check."
+      : "Good means the first vertical slice is buildable from GitHub issues, has explicit acceptance criteria, " +
+        "keeps product truth in docs, and keeps every code change covered by the configured build, test, and lint gates.";
 
   return parseAnswers(
     {
@@ -276,8 +258,9 @@ function qualityGatePlan(template: NewAppTemplate): NewAppResult["qualityGates"]
 
 async function appendGateCommands(targetDir: string, template: NewAppTemplate): Promise<void> {
   const configPath = join(targetDir, ".cormidia", "config.yaml");
-  const content = template === "bare"
-    ? `
+  const content =
+    template === "bare"
+      ? `
 # Quality gates for the bare template are intentionally pending.
 # Required test and lint gates fail closed while these keys are absent. The
 # first implementation must replace these examples with meaningful commands
@@ -287,26 +270,17 @@ async function appendGateCommands(targetDir: string, template: NewAppTemplate): 
 # test_command: <meaningful stack-specific test command>
 # lint_command: <meaningful stack-specific lint or static-analysis command>
 `
-    : `
+      : `
 # Gate commands used by Cormidia's loop in fresh worktrees. These are TOP-LEVEL
 # keys (siblings of \`apps\`), never \`apps.<name>\` fields.
 setup_command: npm install
 test_command: npm test
 lint_command: npm run lint
 `;
-  await appendFile(
-    configPath,
-    content,
-    "utf8",
-  );
+  await appendFile(configPath, content, "utf8");
 }
 
-function generatedFiles(
-  template: NewAppTemplate,
-  appName: string,
-  repoSlug: string,
-  goal: string,
-): GeneratedFile[] {
+function generatedFiles(template: NewAppTemplate, appName: string, repoSlug: string, goal: string): GeneratedFile[] {
   if (template === "bare") {
     return [
       { rel: ".gitignore", content: bareGitignore() },
@@ -360,9 +334,10 @@ function generatedCormidiaSeedFiles(
     },
     {
       rel: ".cormidia/bootstrap/next-commands.md",
-      content: template === "bare"
-        ? bareNextCommandsMd(appName, repoSlug, goal, targetDir)
-        : nextCommandsMd(appName, repoSlug, goal, targetDir),
+      content:
+        template === "bare"
+          ? bareNextCommandsMd(appName, repoSlug, goal, targetDir)
+          : nextCommandsMd(appName, repoSlug, goal, targetDir),
     },
     {
       rel: ".cormidia/planning/0001-greenfield-seed.md",
@@ -393,11 +368,7 @@ function json(value: string): string {
 }
 
 function html(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 function bareGitignore(): string {
@@ -1126,12 +1097,7 @@ Seed goal:
 `;
 }
 
-function bareNextCommandsMd(
-  appName: string,
-  repoSlug: string,
-  goal: string,
-  targetDir: string,
-): string {
+function bareNextCommandsMd(appName: string, repoSlug: string, goal: string, targetDir: string): string {
   return `# Next Commands
 
 The bare template's generated initial issue is the stack-and-gates
@@ -1186,12 +1152,7 @@ ${planningCommands(appName, goal, targetDir)}
 `;
 }
 
-function nextCommandsMd(
-  appName: string,
-  repoSlug: string,
-  goal: string,
-  targetDir: string,
-): string {
+function nextCommandsMd(appName: string, repoSlug: string, goal: string, targetDir: string): string {
   return `# Next Commands
 
 ## Create The Repository And First Issue
@@ -1230,7 +1191,7 @@ function repositoryBootstrapCommands(appName: string, repoSlug: string): string 
       "--force",
       "--repo",
       shellQuote(repoSlug),
-    ].join(" ")
+    ].join(" "),
   );
   return [
     "git init",
@@ -1289,11 +1250,11 @@ function labelsMd(): string {
     routing: "Autonomous Routing",
   };
   const sections = (["state", "tier", "priority", "domain", "routing"] as const).map((kind) => {
-    const rows = CANONICAL_LABELS
-      .filter((label) => label.kind === kind)
-      .map((label) =>
-        `| \`${label.name}\` | \`#${label.color}\` | ${markdownCell(label.description)} | ` +
-          `${markdownCell(label.appliedBy)} | ${markdownCell(label.operatorResponse)} |`
+    const rows = CANONICAL_LABELS.filter((label) => label.kind === kind)
+      .map(
+        (label) =>
+          `| \`${label.name}\` | \`#${label.color}\` | ${markdownCell(label.description)} | ` +
+          `${markdownCell(label.appliedBy)} | ${markdownCell(label.operatorResponse)} |`,
       )
       .join("\n");
     return `## ${headings[kind]}

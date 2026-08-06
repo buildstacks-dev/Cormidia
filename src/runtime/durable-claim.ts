@@ -348,9 +348,7 @@ function assertSameClaim<T>(
     throw new Error(`durable claim ${record.settlement_id}: content binding mismatch`);
   }
   if (record.max_attempts !== maxAttempts) {
-    throw new Error(
-      `durable claim ${record.settlement_id}: max attempts are already bound to ${record.max_attempts}`,
-    );
+    throw new Error(`durable claim ${record.settlement_id}: max attempts are already bound to ${record.max_attempts}`);
   }
 }
 
@@ -385,14 +383,19 @@ function sortValue(value: unknown): unknown {
 }
 
 function safeNamespace(value: string): string {
-  if (value.length === 0 || value.startsWith("/") || value.split(/[\\/]/).some((part) => part === "" || part === "." || part === "..")) {
+  if (
+    value.length === 0 ||
+    value.startsWith("/") ||
+    value.split(/[\\/]/).some((part) => part === "" || part === "." || part === "..")
+  ) {
     throw new TypeError(`durable claim namespace is unsafe: ${JSON.stringify(value)}`);
   }
   return value;
 }
 
 function assertIdentity(value: string): void {
-  if (value.length === 0 || value.length > 4096) throw new TypeError("durable claim identity must be 1..4096 characters");
+  if (value.length === 0 || value.length > 4096)
+    throw new TypeError("durable claim identity must be 1..4096 characters");
 }
 
 function assertAttempts(value: number): void {
@@ -408,15 +411,17 @@ function assertSettlementId(value: string): void {
 function isDurableClaimRecord(value: unknown): value is DurableClaimRecord {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
-  return row["schema_version"] === 1
-    && typeof row["settlement_id"] === "string"
-    && typeof row["identity"] === "string"
-    && typeof row["payload_sha256"] === "string"
-    && (row["status"] === "claimed" || row["status"] === "committed" || row["status"] === "settled")
-    && Number.isInteger(row["attempt"])
-    && Number.isInteger(row["max_attempts"])
-    && typeof row["claimed_at"] === "string"
-    && typeof row["updated_at"] === "string"
-    && Array.isArray(row["prior_attempts"])
-    && Number.isInteger(row["recovery_count"]);
+  return (
+    row["schema_version"] === 1 &&
+    typeof row["settlement_id"] === "string" &&
+    typeof row["identity"] === "string" &&
+    typeof row["payload_sha256"] === "string" &&
+    (row["status"] === "claimed" || row["status"] === "committed" || row["status"] === "settled") &&
+    Number.isInteger(row["attempt"]) &&
+    Number.isInteger(row["max_attempts"]) &&
+    typeof row["claimed_at"] === "string" &&
+    typeof row["updated_at"] === "string" &&
+    Array.isArray(row["prior_attempts"]) &&
+    Number.isInteger(row["recovery_count"])
+  );
 }

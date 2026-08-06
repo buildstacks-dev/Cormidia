@@ -75,19 +75,8 @@ export type RecoveryDecision =
   | { action: "recollect"; reason: string; nextAttempt: number }
   | { action: "fail_incident"; reason: string; nextAttempt: number };
 
-const TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>([
-  "done",
-  "blocked_on_gate",
-  "failed",
-  "cancelled",
-  "timed_out",
-]);
-const ERROR_TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>([
-  "blocked_on_gate",
-  "failed",
-  "cancelled",
-  "timed_out",
-]);
+const TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>(["done", "blocked_on_gate", "failed", "cancelled", "timed_out"]);
+const ERROR_TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>(["blocked_on_gate", "failed", "cancelled", "timed_out"]);
 
 /**
  * A turn journal is a forward-only recovery record, not a freely mutable
@@ -95,10 +84,7 @@ const ERROR_TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>([
  * fail, but the productive path cannot skip running or collecting and a
  * terminal record cannot be reopened under the same turn identity.
  */
-export function assertJournalPhaseTransition(
-  previous: JournalPhase | undefined,
-  next: JournalPhase,
-): void {
+export function assertJournalPhaseTransition(previous: JournalPhase | undefined, next: JournalPhase): void {
   if (previous === undefined) {
     if (next === "assembling") return;
     throw new Error(`error_illegal_journal_phase_transition: new -> ${next}`);
@@ -198,7 +184,11 @@ export function decideRecovery(
     return { action: "fail_incident", reason: "attempt cap reached", nextAttempt: journal.attempt };
   }
   if (journal.phase === "collecting") {
-    return { action: "recollect", reason: "model already finished; rerun collection only", nextAttempt: journal.attempt };
+    return {
+      action: "recollect",
+      reason: "model already finished; rerun collection only",
+      nextAttempt: journal.attempt,
+    };
   }
   if (journal.phase === "running") {
     if (

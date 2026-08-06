@@ -49,11 +49,7 @@ export async function resolveReviewAuthorizationSecret(
     `.${SECRET_FILENAME}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`,
   );
   try {
-    const handle = await open(
-      temporary,
-      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
-      0o600,
-    );
+    const handle = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
     try {
       await handle.writeFile(`${generated}\n`, "utf8");
       await handle.sync();

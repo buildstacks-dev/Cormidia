@@ -51,16 +51,29 @@ describe("CF-SPLIT-PUBLISHING — collaboration verbs classify repo-collaboratio
       input: { schema_version: 1, repo: "cormidia/app", issue: 12, body: "done" },
     };
     expect(classify(typed)).toEqual({ cls: "critical", rule: "repo-collaboration" });
-    expect(collaborationTargets(typed)).toEqual({ explicit: ["cormidia/app"], undeterminable: false, implicitCwd: false });
+    expect(collaborationTargets(typed)).toEqual({
+      explicit: ["cormidia/app"],
+      undeterminable: false,
+      implicitCwd: false,
+    });
   });
 
   it("targets: an explicit --repo/-R slug is extracted; no flag means the cwd repo; dynamic or cwd-shifting forms are undeterminable", () => {
-    expect(collaborationTargets(bash("gh issue comment 12 -R other/repo --body x")))
-      .toEqual({ explicit: ["other/repo"], undeterminable: false, implicitCwd: false });
-    expect(collaborationTargets(bash("gh pr comment 7 --repo own/app --body x")))
-      .toEqual({ explicit: ["own/app"], undeterminable: false, implicitCwd: false });
-    expect(collaborationTargets(bash("gh issue comment 12 --body x")))
-      .toEqual({ explicit: [], undeterminable: false, implicitCwd: true });
+    expect(collaborationTargets(bash("gh issue comment 12 -R other/repo --body x"))).toEqual({
+      explicit: ["other/repo"],
+      undeterminable: false,
+      implicitCwd: false,
+    });
+    expect(collaborationTargets(bash("gh pr comment 7 --repo own/app --body x"))).toEqual({
+      explicit: ["own/app"],
+      undeterminable: false,
+      implicitCwd: false,
+    });
+    expect(collaborationTargets(bash("gh issue comment 12 --body x"))).toEqual({
+      explicit: [],
+      undeterminable: false,
+      implicitCwd: true,
+    });
     expect(collaborationTargets(bash('gh issue comment 12 -R "$TARGET" --body x'))?.undeterminable).toBe(true);
     expect(collaborationTargets(bash("cd /tmp/evil-clone && gh issue comment 12 --body x"))?.undeterminable).toBe(true);
     expect(collaborationTargets(bash("git status"))).toBeNull();

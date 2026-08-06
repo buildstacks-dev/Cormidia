@@ -96,10 +96,7 @@ export async function loadPolicy(path: string): Promise<Policy> {
   };
 }
 
-function parseRiskTiers(
-  raw: unknown,
-  err: (msg: string) => Error,
-): Record<RiskTier, string[]> {
+function parseRiskTiers(raw: unknown, err: (msg: string) => Error): Record<RiskTier, string[]> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw err(`"risk_tiers" must be a mapping of tier → glob list`);
   }
@@ -144,9 +141,7 @@ function parseGates(raw: unknown, err: (msg: string) => Error): Record<RiskTier,
         );
       }
       if (!GATE_NAMES.includes(gate as GateName)) {
-        throw err(
-          `gates.${tier}: unknown gate "${String(gate)}" (allowed: ${GATE_NAMES.join(", ")})`,
-        );
+        throw err(`gates.${tier}: unknown gate "${String(gate)}" (allowed: ${GATE_NAMES.join(", ")})`);
       }
     }
     gates[tier] = list as GateName[];
@@ -154,10 +149,7 @@ function parseGates(raw: unknown, err: (msg: string) => Error): Record<RiskTier,
   return gates;
 }
 
-function parseDimensionGlobs(
-  raw: unknown,
-  err: (msg: string) => Error,
-): Record<string, string[]> {
+function parseDimensionGlobs(raw: unknown, err: (msg: string) => Error): Record<string, string[]> {
   if (raw === undefined) return {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw err(`"dimension_globs" must be a mapping of dimension → glob list`);
@@ -260,8 +252,7 @@ export function matchedDimensions(
   context: DimensionMatchContext = {},
 ): string[] {
   const relevant = context.dependencyRelevantPackageJson;
-  const counts = (file: string): boolean =>
-    relevant === undefined || !isPackageJson(file) || relevant.has(file);
+  const counts = (file: string): boolean => relevant === undefined || !isPackageJson(file) || relevant.has(file);
   return Object.entries(policy.dimensionGlobs)
     .filter(([, globs]) => changedFiles.some((f) => counts(f) && globs.some((g) => globMatch(g, f))))
     .map(([name]) => name);
@@ -295,10 +286,7 @@ export const SECURITY_RELEVANT_PACKAGE_JSON_KEYS = [
  *  empty; an unparseable side errs toward escalation ("tiering makes the loop
  *  cheaper, never less safe" — when we cannot tell, we treat it as risky).
  *  Key order is ignored, so a purely cosmetic re-sort is not a change. */
-export function packageJsonTouchesSecurityKeys(
-  before: string | undefined,
-  after: string | undefined,
-): boolean {
+export function packageJsonTouchesSecurityKeys(before: string | undefined, after: string | undefined): boolean {
   const beforeObj = parsePackageJsonObject(before);
   const afterObj = parsePackageJsonObject(after);
   if (beforeObj === undefined || afterObj === undefined) return true; // cannot compare → escalate

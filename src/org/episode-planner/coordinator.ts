@@ -46,9 +46,7 @@ export interface EpisodePlannerProposalRequest {
   validationDiagnostics: EpisodePlanIssue[];
 }
 
-export type EpisodePlannerProposer = (
-  request: EpisodePlannerProposalRequest,
-) => Promise<unknown>;
+export type EpisodePlannerProposer = (request: EpisodePlannerProposalRequest) => Promise<unknown>;
 
 export interface PrepareEpisodePlanOptions {
   root: string;
@@ -104,48 +102,26 @@ export class EpisodePlannerFailedError extends Error {
  * an explicit creator scope that passes the same deterministic policy. A
  * planner proposal gets at most one structural repair attempt.
  */
-export async function prepareEpisodePlan(
-  options: PrepareEpisodePlanOptions,
-): Promise<PreparedEpisodePlan> {
+export async function prepareEpisodePlan(options: PrepareEpisodePlanOptions): Promise<PreparedEpisodePlan> {
   assertIntentMatchesInvocation(options);
   const now = options.now ?? (() => new Date());
   const policy = createEpisodePlanningPolicy(options.app, {
     intent: options.intent,
     roles: options.roles,
-    ...(options.providerOperations === undefined
-      ? {}
-      : { providerOperations: options.providerOperations }),
-    ...(options.workflowTemplates === undefined
-      ? {}
-      : { workflowTemplates: options.workflowTemplates }),
+    ...(options.providerOperations === undefined ? {} : { providerOperations: options.providerOperations }),
+    ...(options.workflowTemplates === undefined ? {} : { workflowTemplates: options.workflowTemplates }),
     ...(options.additionalCapabilitiesByRole === undefined
       ? {}
       : { additionalCapabilitiesByRole: options.additionalCapabilitiesByRole }),
-    ...(options.independentReview === undefined
-      ? {}
-      : { independentReview: options.independentReview }),
-    ...(options.safetyFloorMapping === undefined
-      ? {}
-      : { safetyFloorMapping: options.safetyFloorMapping }),
+    ...(options.independentReview === undefined ? {} : { independentReview: options.independentReview }),
+    ...(options.safetyFloorMapping === undefined ? {} : { safetyFloorMapping: options.safetyFloorMapping }),
   });
   await persistEpisodeIntent(options.root, options.intent);
 
-  const creatorScopeAssessment = assessCreatorScope(
-    options.intent.creatorScope,
-    policy.creatorScope,
-  );
+  const creatorScopeAssessment = assessCreatorScope(options.intent.creatorScope, policy.creatorScope);
   if (creatorScopeAssessment.executionReady) {
-    const proposal = creatorProposal(
-      options.intent,
-      creatorScopeAssessment.resolvedSteps!,
-      now(),
-    );
-    const plan = acceptProposal(
-      proposal,
-      options.intent,
-      policy,
-      options.validateAcceptedPlan,
-    );
+    const proposal = creatorProposal(options.intent, creatorScopeAssessment.resolvedSteps!, now());
+    const plan = acceptProposal(proposal, options.intent, policy, options.validateAcceptedPlan);
     await persistEpisodePlan({
       root: options.root,
       plan,
@@ -181,25 +157,14 @@ export async function prepareEpisodePlan(
       const raw = await options.propose({
         intent: structuredClone(options.intent),
         attempt,
-        ...(options.providerOperations === undefined
-          ? {}
-          : { providerOperations: [...options.providerOperations] }),
-        ...(options.mechanicalGates === undefined
-          ? {}
-          : { mechanicalGates: [...options.mechanicalGates] }),
-        ...(options.topologyContract === undefined
-          ? {}
-          : { topologyContract: options.topologyContract }),
+        ...(options.providerOperations === undefined ? {} : { providerOperations: [...options.providerOperations] }),
+        ...(options.mechanicalGates === undefined ? {} : { mechanicalGates: [...options.mechanicalGates] }),
+        ...(options.topologyContract === undefined ? {} : { topologyContract: options.topologyContract }),
         proposalCreatedAt,
         validationDiagnostics: structuredClone(diagnostics),
       });
       const proposal = parseNormalizedProposedEpisodePlan(parseProviderValue(raw));
-      const plan = acceptProposal(
-        proposal,
-        options.intent,
-        policy,
-        options.validateAcceptedPlan,
-      );
+      const plan = acceptProposal(proposal, options.intent, policy, options.validateAcceptedPlan);
       await persistEpisodePlan({
         root: options.root,
         plan,
@@ -221,27 +186,18 @@ export async function prepareEpisodePlan(
         // A repair that fixes one violation while introducing another is
         // worse than no repair; name that rather than reporting the second
         // failure as if it were unrelated (ISSUE-023).
-        throw new EpisodePlannerFailedError(
-          attempt,
-          annotateRepairRegression(priorDiagnostics, diagnostics),
-        );
+        throw new EpisodePlannerFailedError(attempt, annotateRepairRegression(priorDiagnostics, diagnostics));
       }
     }
   }
   throw new EpisodePlannerFailedError(2, diagnostics);
 }
 
-export async function persistEpisodeIntent(
-  root: string,
-  intent: EpisodeIntent,
-): Promise<string> {
+export async function persistEpisodeIntent(root: string, intent: EpisodeIntent): Promise<string> {
   return persistImmutableEpisodeIntent(root, intent);
 }
 
-export async function readPersistedEpisodeIntent(
-  root: string,
-  episodeId: string,
-): Promise<EpisodeIntent | undefined> {
+export async function readPersistedEpisodeIntent(root: string, episodeId: string): Promise<EpisodeIntent | undefined> {
   return readImmutableEpisodeIntent(root, episodeId);
 }
 
@@ -348,12 +304,19 @@ function hasIssueArray(error: unknown): error is {
 } {
   if (error === null || typeof error !== "object" || !("issues" in error)) return false;
   const issues = (error as { issues?: unknown }).issues;
-  return Array.isArray(issues) && issues.length > 0 && issues.every((entry) =>
-    entry !== null && typeof entry === "object" &&
-    typeof (entry as { code?: unknown }).code === "string" &&
-    typeof (entry as { message?: unknown }).message === "string" &&
-    ((entry as { stepId?: unknown }).stepId === undefined ||
-      typeof (entry as { stepId?: unknown }).stepId === "string"));
+  return (
+    Array.isArray(issues) &&
+    issues.length > 0 &&
+    issues.every(
+      (entry) =>
+        entry !== null &&
+        typeof entry === "object" &&
+        typeof (entry as { code?: unknown }).code === "string" &&
+        typeof (entry as { message?: unknown }).message === "string" &&
+        ((entry as { stepId?: unknown }).stepId === undefined ||
+          typeof (entry as { stepId?: unknown }).stepId === "string"),
+    )
+  );
 }
 
 function parseProviderValue(value: unknown): unknown {
@@ -361,18 +324,18 @@ function parseProviderValue(value: unknown): unknown {
   try {
     return JSON.parse(value) as unknown;
   } catch {
-    throw new EpisodePlanValidationError([{
-      code: "plan_structure_invalid",
-      message: "EpisodePlanner output must be one strict JSON object",
-    }]);
+    throw new EpisodePlanValidationError([
+      {
+        code: "plan_structure_invalid",
+        message: "EpisodePlanner output must be one strict JSON object",
+      },
+    ]);
   }
 }
 
 function assertIntentMatchesInvocation(options: PrepareEpisodePlanOptions): void {
   if (options.intent.app !== options.app.name) {
-    throw new Error(
-      `episode intent app ${options.intent.app} does not match invocation ${options.app.name}`,
-    );
+    throw new Error(`episode intent app ${options.intent.app} does not match invocation ${options.app.name}`);
   }
   if (options.roles.length === 0) throw new Error("EpisodePlanner requires at least one configured role");
 }

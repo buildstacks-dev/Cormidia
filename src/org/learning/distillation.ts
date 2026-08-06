@@ -19,10 +19,7 @@ import {
 import { writeFileAtomic } from "../atomic.js";
 import { rollupLearningSpend } from "../budget.js";
 import { isValidLoopScope } from "../memory.js";
-import {
-  listCandidateArtifacts,
-  openCandidateArtifact,
-} from "./candidate-store.js";
+import { listCandidateArtifacts, openCandidateArtifact } from "./candidate-store.js";
 import type { CandidateArtifact } from "./candidate.js";
 import {
   appLearningRoot,
@@ -35,16 +32,8 @@ import {
 import { projectCaptureEvents } from "./capture.js";
 import { readLearningEvents, type LearningEvent } from "./events.js";
 import type { LearningPolicy } from "./policy.js";
-import {
-  appendRejection,
-  checkSuppression,
-  readRejections,
-} from "./rejections.js";
-import {
-  listReviewerVerdicts,
-  openReviewerVerdict,
-  reviewDisposition,
-} from "./review.js";
+import { appendRejection, checkSuppression, readRejections } from "./rejections.js";
+import { listReviewerVerdicts, openReviewerVerdict, reviewDisposition } from "./review.js";
 import { sha256Ref } from "./validate.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -137,9 +126,7 @@ export async function listM6RunRecords(stateHome: string): Promise<M6RunRecord[]
   return out;
 }
 
-export async function prepareDistillation(
-  input: PrepareDistillationInput,
-): Promise<DistillationPreparation> {
+export async function prepareDistillation(input: PrepareDistillationInput): Promise<DistillationPreparation> {
   const now = input.now ?? new Date();
   await projectCaptureEvents({
     stateHome: input.stateHome,
@@ -158,16 +145,12 @@ export async function prepareDistillation(
   );
   const clustered = clusterEvidence(evidence);
   const actionable = clustered.filter(
-    (cluster) =>
-      cluster.event_ids.length >= input.policy.distiller.min_cluster_events ||
-      cluster.human_intervention,
+    (cluster) => cluster.event_ids.length >= input.policy.distiller.min_cluster_events || cluster.human_intervention,
   );
 
   const roots = [orgLearningRoot(input.orgHome), appLearningRoot(input.appWorkdir)];
   const rejectedIds = new Set((await readRejections(input.orgHome)).map((entry) => entry.candidate_id));
-  const existingCandidates = (
-    await Promise.all(roots.map((root) => listCandidateArtifacts(root)))
-  ).flat();
+  const existingCandidates = (await Promise.all(roots.map((root) => listCandidateArtifacts(root)))).flat();
   const liveTopics = await activeTopicKeys(roots);
   const candidatesByCluster = new Set(
     existingCandidates
@@ -184,12 +167,7 @@ export async function prepareDistillation(
       dedupedClusters += 1;
       continue;
     }
-    const suppression = await checkSuppression(
-      input.orgHome,
-      suppressionCandidate(cluster),
-      input.policy,
-      now,
-    );
+    const suppression = await checkSuppression(input.orgHome, suppressionCandidate(cluster), input.policy, now);
     if (suppression.suppressed) {
       suppressedClusters += 1;
       continue;
@@ -201,28 +179,15 @@ export async function prepareDistillation(
   if (learningSpend.monthUsd >= input.policy.learning_budget.monthly_usd) {
     return preparation("capped", "learning_monthly_budget", [], eligible.length);
   }
-  if (
-    learningSpend.distillationsThisWeek >=
-    input.policy.learning_budget.max_distillations_per_week
-  ) {
+  if (learningSpend.distillationsThisWeek >= input.policy.learning_budget.max_distillations_per_week) {
     return preparation("capped", "max_distillations_per_week", [], 0);
   }
 
   const weekStart = now.getTime() - 7 * DAY_MS;
   const createdThisWeek = (await listM6RunRecords(input.stateHome))
-    .filter(
-      (record) =>
-        record.kind === "distillation" &&
-        new Date(record.finished_at).getTime() >= weekStart,
-    )
-    .reduce(
-    (total, record) => total + (record.candidate_ids?.length ?? 0),
-    0,
-    );
-  const weeklyRemaining = Math.max(
-    0,
-    input.policy.distiller.max_candidates_per_week - createdThisWeek,
-  );
+    .filter((record) => record.kind === "distillation" && new Date(record.finished_at).getTime() >= weekStart)
+    .reduce((total, record) => total + (record.candidate_ids?.length ?? 0), 0);
+  const weeklyRemaining = Math.max(0, input.policy.distiller.max_candidates_per_week - createdThisWeek);
   const allowed = Math.min(input.policy.distiller.max_candidates_per_run, weeklyRemaining);
   if (eligible.length > 0 && allowed === 0) {
     return preparation("capped", "max_candidates_per_week", [], eligible.length);
@@ -301,10 +266,7 @@ function legalScopes(clusters: EvidenceCluster[]): string[] {
   return [
     "org",
     ...roles.map((role) => `roles/${role}`),
-    ...apps.flatMap((app) => [
-      `apps/${app}`,
-      ...roles.map((role) => `apps/${app}/roles/${role}`),
-    ]),
+    ...apps.flatMap((app) => [`apps/${app}`, ...roles.map((role) => `apps/${app}/roles/${role}`)]),
   ];
 }
 
@@ -364,10 +326,7 @@ export function parseDistillationOutput(
           `proposed_scope must be exactly one of: ${legalScopes(preparation.clusters).join(", ")}`,
       );
     }
-    if (
-      proposal.proposed_scope.startsWith("apps/") &&
-      !proposal.proposed_scope.startsWith(`apps/${app}`)
-    ) {
+    if (proposal.proposed_scope.startsWith("apps/") && !proposal.proposed_scope.startsWith(`apps/${app}`)) {
       return distillFailure(`one-app turn for ${app} cannot propose scope ${proposal.proposed_scope}`);
     }
     if (proposal.topic_key !== cluster.error_class) {
@@ -376,9 +335,7 @@ export function parseDistillationOutput(
       );
     }
     if (proposal.destination === "okf_concept" && OKF_FORBIDDEN.test(cluster.error_class)) {
-      return distillFailure(
-        `${cluster.error_class} is outside OKF content bounds; route it to a proposal or ticket`,
-      );
+      return distillFailure(`${cluster.error_class} is outside OKF content bounds; route it to a proposal or ticket`);
     }
     for (const value of [proposal.title, proposal.draft_summary, proposal.draft_body]) {
       if (value.trim() === "") return distillFailure("candidate text fields must not be empty");
@@ -435,9 +392,7 @@ export async function persistDistillationOutput(input: {
         ? orgLearningRoot(input.orgHome)
         : appLearningRoot(input.appWorkdir);
     const concept =
-      candidate.destination === "okf_concept"
-        ? conceptDraft(candidate, proposal, cluster, input.now)
-        : undefined;
+      candidate.destination === "okf_concept" ? conceptDraft(candidate, proposal, cluster, input.now) : undefined;
     const opened = await openCandidateArtifact(root, candidate, concept);
     if (opened.created) created.push(candidateId);
   }
@@ -706,9 +661,7 @@ function clusterEvidence(events: LearningEvent[]): EvidenceCluster[] {
     const errorClass = event.error_class ?? humanErrorClass(event);
     if (errorClass === undefined) continue;
     const cause = normalizeCause(
-      event.cause_hypothesis ??
-        stringPayload(event, "cause_hypothesis_text") ??
-        "unresolved",
+      event.cause_hypothesis ?? stringPayload(event, "cause_hypothesis_text") ?? "unresolved",
     );
     // Comparable recurrence is app AND role scoped. Cross-role coincidence
     // is useful report context, never evidence that one intervention recurs.
@@ -734,9 +687,7 @@ function clusterEvidence(events: LearningEvent[]): EvidenceCluster[] {
         roles: [role],
         trusted_events: bucket.filter((event) => event.trust === "trusted").length,
         human_intervention: bucket.some(
-          (event) =>
-            event.emitter === "human" &&
-            typeof event.payload?.["suggested_intervention"] === "string",
+          (event) => event.emitter === "human" && typeof event.payload?.["suggested_intervention"] === "string",
         ),
         skill_keywords: keywords,
         events: [...bucket].sort((a, b) => a.event_id.localeCompare(b.event_id)),
@@ -833,7 +784,10 @@ function conceptDraft(
   const name = `distilled-${candidate.content_hash.slice(7, 23)}`;
   const keywords = unique([
     ...cluster.skill_keywords,
-    ...cluster.error_class.split(/[._-]/).map(slug).filter((value) => value.length >= 3),
+    ...cluster.error_class
+      .split(/[._-]/)
+      .map(slug)
+      .filter((value) => value.length >= 3),
   ]).slice(0, 12);
   const frontmatter = {
     name,
@@ -875,7 +829,11 @@ function safeSegment(value: string): string {
 }
 
 function slug(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
 }
 
 function distillFailure(reason: string): ParseResult<"learning-distill"> {

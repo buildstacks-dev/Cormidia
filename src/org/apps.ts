@@ -13,12 +13,17 @@ import { isAssignmentCandidateId } from "../runtime/assignment.js";
 import { DEFAULT_NETWORK_ALLOWLIST } from "../runtime/gate.js";
 import { ASSIGNMENT_MODES, type AssignmentMode } from "../loop/episode-plan.js";
 import { assertCanonicalGateCommandPlacement } from "../loop/gate-config.js";
-import { RELEASE_KINDS, RELEASE_OWNERS, RELEASE_TRIGGERS, type ReleaseConfig, type ReleaseKind, type ReleaseOwner, type ReleaseTriggerMode } from "../loop/types.js";
-import { writeFileAtomic } from "./atomic.js";
 import {
-  loadRoles,
-  resolveApprovedAssignmentCandidates,
-} from "./roles.js";
+  RELEASE_KINDS,
+  RELEASE_OWNERS,
+  RELEASE_TRIGGERS,
+  type ReleaseConfig,
+  type ReleaseKind,
+  type ReleaseOwner,
+  type ReleaseTriggerMode,
+} from "../loop/types.js";
+import { writeFileAtomic } from "./atomic.js";
+import { loadRoles, resolveApprovedAssignmentCandidates } from "./roles.js";
 import {
   appRuntimePolicyYaml,
   normalizeAppRuntimePolicy,
@@ -299,28 +304,21 @@ export function normalizeAppExecution(
   }
   return {
     assignmentMode: execution.assignmentMode,
-    allowedAssignments: parseAllowedAssignments(
-      execution.allowedAssignments,
-      err,
-      "allowedAssignments",
-    ),
-    runtimePolicy: execution.runtimePolicy === undefined
-      ? shippedAppRuntimePolicy()
-      : normalizeAppRuntimePolicy(execution.runtimePolicy, err),
+    allowedAssignments: parseAllowedAssignments(execution.allowedAssignments, err, "allowedAssignments"),
+    runtimePolicy:
+      execution.runtimePolicy === undefined
+        ? shippedAppRuntimePolicy()
+        : normalizeAppRuntimePolicy(execution.runtimePolicy, err),
   };
 }
 
-export function runtimePolicyForApp(
-  app: Pick<AppEntry, "execution">,
-): AppRuntimePolicy {
+export function runtimePolicyForApp(app: Pick<AppEntry, "execution">): AppRuntimePolicy {
   return normalizeAppExecution(app.execution).runtimePolicy!;
 }
 
 /** Convert normalized in-memory spelling to the shared apps.yaml /
  * `.cormidia/config.yaml` public schema. */
-export function appExecutionYaml(
-  execution: AppExecutionConfig | undefined,
-): Record<string, unknown> {
+export function appExecutionYaml(execution: AppExecutionConfig | undefined): Record<string, unknown> {
   const normalized = normalizeAppExecution(execution);
   const out: Record<string, unknown> = { assignment_mode: normalized.assignmentMode };
   if (Object.keys(normalized.allowedAssignments).length > 0) {
@@ -343,12 +341,7 @@ function parseExecution(raw: unknown, err: (msg: string) => Error): AppExecution
   }
   const spec = raw as Record<string, unknown>;
   for (const key of Object.keys(spec)) {
-    if (
-      key !== "assignment_mode" &&
-      key !== "allowed_assignments" &&
-      key !== "permission_modes" &&
-      key !== "limits"
-    ) {
+    if (key !== "assignment_mode" && key !== "allowed_assignments" && key !== "permission_modes" && key !== "limits") {
       throw err(
         `execution: unknown key "${key}" ` +
           "(allowed: assignment_mode, allowed_assignments, permission_modes, limits)",
@@ -368,18 +361,11 @@ function parseExecution(raw: unknown, err: (msg: string) => Error): AppExecution
       err,
       "execution.allowed_assignments",
     ),
-    runtimePolicy: parseAppRuntimePolicy(
-      { permissionModes: spec["permission_modes"], limits: spec["limits"] },
-      err,
-    ),
+    runtimePolicy: parseAppRuntimePolicy({ permissionModes: spec["permission_modes"], limits: spec["limits"] }, err),
   };
 }
 
-function parseAllowedAssignments(
-  raw: unknown,
-  err: (msg: string) => Error,
-  field: string,
-): Record<string, string[]> {
+function parseAllowedAssignments(raw: unknown, err: (msg: string) => Error, field: string): Record<string, string[]> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw err(`${field} must be a mapping of role -> assignment ID list`);
   }
@@ -462,11 +448,7 @@ function parseRelease(raw: unknown, err: (msg: string) => Error): ReleaseConfig 
   // infers `command` (back-compat for pre-trigger apps) and its absence
   // defaults to `tag` — the mechanism Cormidia fires by pushing the version tag.
   const trigger: ReleaseTriggerMode =
-    rawTrigger === "tag" || rawTrigger === "command"
-      ? rawTrigger
-      : command !== undefined
-        ? "command"
-        : "tag";
+    rawTrigger === "tag" || rawTrigger === "command" ? rawTrigger : command !== undefined ? "command" : "tag";
   if (trigger === "command") {
     if (typeof command !== "string" || command.trim().length === 0) {
       throw err('release.command is required for trigger "command" (deploy command or CI workflow ref)');
@@ -531,10 +513,7 @@ export function resolveTriggers(role: RoleConfig, app: AppEntry): Trigger[] {
   return app.cadence[role.name] ?? role.triggers;
 }
 
-export type OrgIdentityStopCode =
-  | "symlinked_org_home"
-  | "state_home_org_mismatch"
-  | "state_home_identity_unreadable";
+export type OrgIdentityStopCode = "symlinked_org_home" | "state_home_org_mismatch" | "state_home_identity_unreadable";
 
 /**
  * Stable machine-readable identity stop (contracts/B-10-config-resolver.md
@@ -573,9 +552,7 @@ export class OrgIdentityError extends Error {
  * CORMIDIA_STATE_HOME and never consults CORMIDIA_HOME. Whatever source wins,
  * the selected path itself must not be a symbolic link — a symlinked org
  * home is a typed OrgIdentityError stop (B-10 §2), never a resolution. */
-export async function findExistingOrg(
-  options: FindExistingOrgOptions = {},
-): Promise<string | undefined> {
+export async function findExistingOrg(options: FindExistingOrgOptions = {}): Promise<string | undefined> {
   if (options.orgHome !== undefined) return assertOrgHomePathNotSymlink(resolve(options.orgHome));
 
   const env = options.env ?? process.env;
@@ -741,10 +718,7 @@ async function validateRegistrationAssignments(
   orgHome: string,
   app: Pick<AppEntry, "name" | "execution">,
 ): Promise<void> {
-  const execution = normalizeAppExecution(
-    app.execution,
-    `bootstrap: app "${app.name}" execution`,
-  );
+  const execution = normalizeAppExecution(app.execution, `bootstrap: app "${app.name}" execution`);
   const narrowedRoles = Object.keys(execution.allowedAssignments).sort();
   if (execution.assignmentMode === "fixed" && narrowedRoles.length === 0) return;
 
@@ -758,15 +732,10 @@ async function validateRegistrationAssignments(
     );
   }
   for (const roleName of narrowedRoles) {
-    resolveApprovedAssignmentCandidates(
-      roleByName.get(roleName)!,
-      execution.allowedAssignments[roleName],
-    );
+    resolveApprovedAssignmentCandidates(roleByName.get(roleName)!, execution.allowedAssignments[roleName]);
   }
   if (!roleByName.has("planner")) {
-    throw new Error(
-      `bootstrap: app "${app.name}" adaptive assignment requires a configured planner boot role`,
-    );
+    throw new Error(`bootstrap: app "${app.name}" adaptive assignment requires a configured planner boot role`);
   }
 }
 
@@ -776,10 +745,7 @@ async function validateRegistrationAssignments(
  * structure far better than a parse/stringify rewrite; the post-write reload
  * is the same fail-safe contract as registration — on any problem, restore
  * the exact original bytes. */
-export async function removeExistingApp(
-  orgHomeIn: string,
-  appName: string,
-): Promise<RemoveExistingAppResult> {
+export async function removeExistingApp(orgHomeIn: string, appName: string): Promise<RemoveExistingAppResult> {
   const orgHome = resolve(orgHomeIn);
   const appsPath = join(orgHome, "apps.yaml");
   const before = await readFile(appsPath, "utf8");
@@ -845,7 +811,9 @@ export async function updateAppStatus(
     }
   } catch (error) {
     await writeFileAtomic(appsPath, beforeBytes);
-    throw new Error(`app promote: invalid registry edit rolled back: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `app promote: invalid registry edit rolled back: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   return { orgHome, appsPath, before: app.status, after: status, changed: true };
 }

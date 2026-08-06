@@ -90,10 +90,7 @@ export interface ResolveRemoteDefaultBranchOptions {
  *  advertises nothing" means an empty repository — there is no default branch
  *  to discover yet, and inventing `main` is exactly how a `master` repo
  *  crashed its first tick with a raw git stack trace. */
-export function resolveRemoteDefaultBranch(
-  target: string,
-  options: ResolveRemoteDefaultBranchOptions = {},
-): string {
+export function resolveRemoteDefaultBranch(target: string, options: ResolveRemoteDefaultBranchOptions = {}): string {
   const prefix = options.errorPrefix ?? "git";
   let output: string;
   try {
@@ -115,8 +112,7 @@ export function resolveRemoteDefaultBranch(
     }
     const detail = detailOf(error);
     throw new Error(
-      `${prefix}: cannot resolve the default branch advertised by ${target}` +
-        `${detail === "" ? "" : ` — ${detail}`}`,
+      `${prefix}: cannot resolve the default branch advertised by ${target}` + `${detail === "" ? "" : ` — ${detail}`}`,
     );
   }
   const branch = parseSymrefHead(output);

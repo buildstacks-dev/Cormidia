@@ -19,18 +19,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type {
-  RoleConfig,
-  Runtime,
-  TurnHooks,
-  TurnRequest,
-  TurnResult,
-  TurnUsage,
-} from "../../../src/runtime/types.js";
-import {
-  ERROR_TURN_BUDGET_EXHAUSTED,
-  ERROR_TURN_BUDGET_SUSPENDED,
-} from "../../../src/runtime/turn-budget.js";
+import type { RoleConfig, Runtime, TurnHooks, TurnRequest, TurnResult, TurnUsage } from "../../../src/runtime/types.js";
+import { ERROR_TURN_BUDGET_EXHAUSTED, ERROR_TURN_BUDGET_SUSPENDED } from "../../../src/runtime/turn-budget.js";
 import { executePipeline } from "../../../src/loop/pipeline.js";
 import { readEnvelope } from "../../../src/runtime/runlog/envelope.js";
 import { readTurnRecords } from "../../../src/runtime/telemetry.js";
@@ -45,11 +35,7 @@ import { readTicketClaimState } from "../../../src/loop/rehydrate.js";
 import type { GhIssue, GhOps } from "../../../src/loop/github.js";
 import type { LoopItem } from "../../../src/loop/types.js";
 import { ApprovalStore } from "../../../src/org/approvals.js";
-import {
-  raiseTurnBudgetEscalation,
-  resumeCostEstimate,
-  TURN_BUDGET_RULE,
-} from "../../../src/org/budget.js";
+import { raiseTurnBudgetEscalation, resumeCostEstimate, TURN_BUDGET_RULE } from "../../../src/org/budget.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const ROLE: RoleConfig = {
@@ -472,47 +458,50 @@ describe("CF-REG-236-BUDGET — a pause is not a terminal episode", () => {
       "../../../src/loop/efficiency.js"
     ).then(async (efficiency) => ({
       ...efficiency,
-      readTerminalTicketEpisode: (
-        await import("../../../src/loop/claim-recovery.js")
-      ).readTerminalTicketEpisode,
+      readTerminalTicketEpisode: (await import("../../../src/loop/claim-recovery.js")).readTerminalTicketEpisode,
     }));
     const episodeId = episodeIdFor({ app: "app", ticket: "#7", traceId: "#7" });
     const dir = efficiencyEpisodeDir(home.stateHome, episodeId);
     await mkdir(dir, { recursive: true });
     await writeFile(
       join(dir, "route.json"),
-      `${JSON.stringify({
-        schema_version: 1,
-        episode_id: episodeId,
-        app: "app",
-        policy_version: "test",
-        admitted_at: "2026-08-03T00:00:00.000Z",
-        planned_route: "quick",
-        current_route: "quick",
-        final_route: "quick",
-        factors: [],
-        authorized_passes: [],
-        budget: {
-          provider_turns: 3,
-          equivalent_cost_usd: 10,
-          active_time_ms: 60_000,
-          human_decisions: null,
-        },
-        execution_bounds: null,
-        reassessments: [],
-        terminal: {
-          at: "2026-08-03T00:01:00.000Z",
-          status: "blocked",
-          reason: "#7 blocked",
+      `${JSON.stringify(
+        {
+          schema_version: 1,
+          episode_id: episodeId,
+          app: "app",
+          policy_version: "test",
+          admitted_at: "2026-08-03T00:00:00.000Z",
+          planned_route: "quick",
+          current_route: "quick",
           final_route: "quick",
-          next_step: null,
+          factors: [],
+          authorized_passes: [],
+          budget: {
+            provider_turns: 3,
+            equivalent_cost_usd: 10,
+            active_time_ms: 60_000,
+            human_decisions: null,
+          },
+          execution_bounds: null,
+          reassessments: [],
+          terminal: {
+            at: "2026-08-03T00:01:00.000Z",
+            status: "blocked",
+            reason: "#7 blocked",
+            final_route: "quick",
+            next_step: null,
+          },
         },
-      }, null, 2)}\n`,
+        null,
+        2,
+      )}\n`,
       "utf8",
     );
 
-    expect(
-      await readTerminalTicketEpisode({ root: home.stateHome, app: "app", issueNumber: 7 }),
-    ).toMatchObject({ episodeId, terminal: { status: "blocked" } });
+    expect(await readTerminalTicketEpisode({ root: home.stateHome, app: "app", issueNumber: 7 })).toMatchObject({
+      episodeId,
+      terminal: { status: "blocked" },
+    });
   });
 });

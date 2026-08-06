@@ -14,11 +14,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { enforceBudgetOverlay, rollupBudgets } from "../../../src/org/budget.js";
 import { ApprovalStore } from "../../../src/org/approvals.js";
-import {
-  claudeDouble,
-  doubleRole,
-  doubleTurnRequest,
-} from "../../fixtures/adapters/claude-double.js";
+import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { script } from "../../fixtures/adapters/scenario.js";
 import { makeTestClock } from "../../fixtures/clock.js";
 import {

@@ -162,19 +162,20 @@ export async function persistStandingRoleOutcome(input: {
   });
   const feedId = plannerFeedId(sourceIdentityHash, payloadHash);
   const draft = groundedDraft(input.role, payload);
-  const delivery = input.role === "sre" && incidentFilingRequired(payload) && input.repo !== undefined && input.gate !== undefined
-    ? await queueIncidentFiling({
-        stateHome: input.stateHome,
-        app: input.app,
-        repo: input.repo,
-        event: input.event,
-        payload,
-        payloadHash,
-        artifactId,
-        draft,
-        gate: input.gate,
-      })
-    : undefined;
+  const delivery =
+    input.role === "sre" && incidentFilingRequired(payload) && input.repo !== undefined && input.gate !== undefined
+      ? await queueIncidentFiling({
+          stateHome: input.stateHome,
+          app: input.app,
+          repo: input.repo,
+          event: input.event,
+          payload,
+          payloadHash,
+          artifactId,
+          draft,
+          gate: input.gate,
+        })
+      : undefined;
   const artifact: StandingRoleArtifact = {
     schema_version: 1,
     artifact_id: artifactId,
@@ -280,19 +281,25 @@ export async function preparePlannerFeedBatch(input: {
     }
     remaining -= includedBytes + lineOverhead;
     selected.push(feed);
-    entries.push(batchEntry(
-      feed,
-      sourceBytes,
-      rendered,
-      "selected",
-      includedBytes < sourceBytes ? "truncated" : "full",
-      includedBytes < sourceBytes ? `summary truncated to ${includedBytes} bytes` : null,
-    ));
+    entries.push(
+      batchEntry(
+        feed,
+        sourceBytes,
+        rendered,
+        "selected",
+        includedBytes < sourceBytes ? "truncated" : "full",
+        includedBytes < sourceBytes ? `summary truncated to ${includedBytes} bytes` : null,
+      ),
+    );
   }
   const includedBytes = budgetBytes - remaining;
   const selectedIdentity = entries
     .filter((entry) => entry.selection === "selected")
-    .map((entry) => ({ feed_id: entry.feed_id, source_payload_sha256: entry.source_payload_sha256, included_bytes: entry.included_bytes }));
+    .map((entry) => ({
+      feed_id: entry.feed_id,
+      source_payload_sha256: entry.source_payload_sha256,
+      included_bytes: entry.included_bytes,
+    }));
   const batchId = `planner_feed_batch_${sha256(canonicalJson({ app: input.app, turn_id: input.turnId, selected: selectedIdentity })).slice(7, 35)}`;
   return {
     manifest: {
@@ -354,7 +361,8 @@ export async function maintainPlannerFeedRetention(
 ): Promise<{ expired: number; pruned: number; pendingKept: number }> {
   const terminalRetentionMs = options.terminalRetentionMs ?? DEFAULT_TERMINAL_RETENTION_MS;
   const expiredRetentionMs = options.expiredRetentionMs ?? DEFAULT_EXPIRED_RETENTION_MS;
-  if (terminalRetentionMs < 0 || expiredRetentionMs < 0) throw new Error("planner feeds: retention windows cannot be negative");
+  if (terminalRetentionMs < 0 || expiredRetentionMs < 0)
+    throw new Error("planner feeds: retention windows cannot be negative");
   let expired = 0;
   let pruned = 0;
   let pendingKept = 0;
@@ -372,9 +380,7 @@ export async function maintainPlannerFeedRetention(
       }
       continue;
     }
-    const terminalAt = feed.status === "consumed"
-      ? feed.lifecycle.consumed_at
-      : feed.lifecycle.superseded_at;
+    const terminalAt = feed.status === "consumed" ? feed.lifecycle.consumed_at : feed.lifecycle.superseded_at;
     if (terminalAt !== undefined && now.getTime() - Date.parse(terminalAt) >= terminalRetentionMs) {
       const next: PlannerFeedRecord = {
         ...feed,
@@ -402,7 +408,9 @@ async function readPlannerFeedFiles(stateHome: string, app: string): Promise<Pla
       const value = JSON.parse(await readFile(join(dir, file), "utf8")) as PlannerFeedRecord | LegacyPlannerFeedRecord;
       const normalized = normalizePlannerFeed(value);
       if (normalized.app === app && typeof normalized.feed_id === "string") out.push(normalized);
-    } catch { /* corrupt feeds remain visible in their durable location */ }
+    } catch {
+      /* corrupt feeds remain visible in their durable location */
+    }
   }
   return out.sort((a, b) => a.feed_id.localeCompare(b.feed_id));
 }
@@ -422,9 +430,9 @@ async function reconcilePlannerFeedSupersession(
   }
   for (const group of bySource.values()) {
     if (group.length < 2) continue;
-    const winner = group.find((feed) => feed.feed_id === preferredFeedId) ?? [...group]
-      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.feed_id.localeCompare(b.feed_id))
-      .at(-1)!;
+    const winner =
+      group.find((feed) => feed.feed_id === preferredFeedId) ??
+      [...group].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.feed_id.localeCompare(b.feed_id)).at(-1)!;
     for (const feed of group) {
       if (feed.feed_id === winner.feed_id) continue;
       const superseded: PlannerFeedRecord = {
@@ -457,7 +465,9 @@ async function reconcilePlannerFeedConsumptionReceipts(stateHome: string, app: s
       if (!existsSync(path)) continue;
       let feed: PlannerFeedRecord;
       try {
-        feed = normalizePlannerFeed(JSON.parse(await readFile(path, "utf8")) as PlannerFeedRecord | LegacyPlannerFeedRecord);
+        feed = normalizePlannerFeed(
+          JSON.parse(await readFile(path, "utf8")) as PlannerFeedRecord | LegacyPlannerFeedRecord,
+        );
       } catch {
         continue;
       }
@@ -492,9 +502,8 @@ function normalizePlannerFeed(value: PlannerFeedRecord | LegacyPlannerFeedRecord
     throw new Error("invalid legacy planner feed");
   }
   const inferred = /^(sre|support|marketing) feed\b/.exec(value.summary)?.[1];
-  const producerRole = inferred === "sre" || inferred === "support" || inferred === "marketing"
-    ? inferred
-    : "legacy-unknown";
+  const producerRole =
+    inferred === "sre" || inferred === "support" || inferred === "marketing" ? inferred : "legacy-unknown";
   return {
     schema_version: 2,
     feed_id: value.feed_id,
@@ -581,7 +590,10 @@ function truncateUtf8(text: string, maxBytes: number): string {
 
 export function parkStandingRoleAction(gate: GateFn, action: ToolAction): { parked: boolean; reason: string } {
   const decision = gate(action);
-  return { parked: !decision.allow && decision.escalate === true, reason: decision.allow ? "action allowed" : decision.reason };
+  return {
+    parked: !decision.allow && decision.escalate === true,
+    reason: decision.allow ? "action allowed" : decision.reason,
+  };
 }
 
 export function verifyStandingRoleArtifact(artifact: StandingRoleArtifact, payload: Record<string, unknown>): string[] {
@@ -589,7 +601,8 @@ export function verifyStandingRoleArtifact(artifact: StandingRoleArtifact, paylo
   if (artifact.app !== payload.app) errors.push("wrong_app");
   if (artifact.source_payload_sha256 !== sha256(canonicalJson(payload))) errors.push("source_payload_mismatch");
   if (!artifact.draft_only || artifact.outward_effects.length !== 0) errors.push("outward_effect");
-  for (const fact of requiredFacts(artifact.role, payload)) if (!artifact.draft.includes(fact)) errors.push(`missing_fact:${fact}`);
+  for (const fact of requiredFacts(artifact.role, payload))
+    if (!artifact.draft.includes(fact)) errors.push(`missing_fact:${fact}`);
   return errors;
 }
 
@@ -597,39 +610,49 @@ function validateEvent(app: string, role: StandingRole, event: TurnEvent, now: D
   const payload = event.payload;
   if (payload.app !== app) throw new Error(`standing-role wrong app: expected ${app}`);
   if (payload.kind !== event.kind) throw new Error("standing-role event kind/payload mismatch");
-  if (typeof payload.source !== "string" || payload.source.trim() === "") throw new Error("standing-role event provenance missing");
+  if (typeof payload.source !== "string" || payload.source.trim() === "")
+    throw new Error("standing-role event provenance missing");
   const occurredAt = stringField(payload, "occurred_at");
   if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("standing-role occurred_at invalid");
-  const allowed = role === "sre" ? ["health-alert"] : role === "support" ? ["support-feedback"] : ["adoption-signal", "launch-calendar", "release-shipped"];
+  const allowed =
+    role === "sre"
+      ? ["health-alert"]
+      : role === "support"
+        ? ["support-feedback"]
+        : ["adoption-signal", "launch-calendar", "release-shipped"];
   if (!allowed.includes(event.kind)) throw new Error(`standing-role ${role} cannot consume ${event.kind}`);
-  if (role === "marketing" && now.getTime() - Date.parse(occurredAt) > 30 * 24 * 60 * 60 * 1000) throw new Error("standing-role stale release/adoption source");
+  if (role === "marketing" && now.getTime() - Date.parse(occurredAt) > 30 * 24 * 60 * 60 * 1000)
+    throw new Error("standing-role stale release/adoption source");
   return payload;
 }
 
 function groundedDraft(role: StandingRole, payload: Record<string, unknown>): string {
-  if (role === "sre") return [
-    "# Incident draft",
-    `Service: ${stringField(payload, "service")}`,
-    `Status: ${stringField(payload, "status")}`,
-    `Severity: ${stringField(payload, "severity")}`,
-    `Evidence: ${stringField(payload, "summary")}`,
-    "Proposed production remediation is parked at the approval boundary; no deploy was executed.",
-  ].join("\n");
-  if (role === "support") return [
-    "# Support digest and reply draft",
-    `Channel: ${stringField(payload, "channel")}`,
-    `Severity: ${stringField(payload, "severity")}`,
-    `Feedback: ${stringField(payload, "summary")}`,
-    "Reply draft only; no email, message, or ticket reply was sent.",
-  ].join("\n");
-  if (payload.kind === "adoption-signal") return [
-    "# Marketing adoption draft",
-    `Metric: ${stringField(payload, "metric")}`,
-    `Direction: ${stringField(payload, "direction")}`,
-    `Value: ${String(payload.value)}`,
-    `Evidence: ${stringField(payload, "summary")}`,
-    "Draft only; nothing was published.",
-  ].join("\n");
+  if (role === "sre")
+    return [
+      "# Incident draft",
+      `Service: ${stringField(payload, "service")}`,
+      `Status: ${stringField(payload, "status")}`,
+      `Severity: ${stringField(payload, "severity")}`,
+      `Evidence: ${stringField(payload, "summary")}`,
+      "Proposed production remediation is parked at the approval boundary; no deploy was executed.",
+    ].join("\n");
+  if (role === "support")
+    return [
+      "# Support digest and reply draft",
+      `Channel: ${stringField(payload, "channel")}`,
+      `Severity: ${stringField(payload, "severity")}`,
+      `Feedback: ${stringField(payload, "summary")}`,
+      "Reply draft only; no email, message, or ticket reply was sent.",
+    ].join("\n");
+  if (payload.kind === "adoption-signal")
+    return [
+      "# Marketing adoption draft",
+      `Metric: ${stringField(payload, "metric")}`,
+      `Direction: ${stringField(payload, "direction")}`,
+      `Value: ${String(payload.value)}`,
+      `Evidence: ${stringField(payload, "summary")}`,
+      "Draft only; nothing was published.",
+    ].join("\n");
   return [
     "# Marketing launch draft",
     `Milestone: ${String(payload.milestone ?? payload.tag ?? "")}`,
@@ -639,10 +662,16 @@ function groundedDraft(role: StandingRole, payload: Record<string, unknown>): st
 }
 
 function requiredFacts(role: StandingRole, payload: Record<string, unknown>): string[] {
-  if (role === "sre") return [stringField(payload, "service"), stringField(payload, "status"), stringField(payload, "summary")];
+  if (role === "sre")
+    return [stringField(payload, "service"), stringField(payload, "status"), stringField(payload, "summary")];
   if (role === "support") return [stringField(payload, "channel"), stringField(payload, "summary")];
   return payload.kind === "adoption-signal"
-    ? [stringField(payload, "metric"), stringField(payload, "direction"), String(payload.value), stringField(payload, "summary")]
+    ? [
+        stringField(payload, "metric"),
+        stringField(payload, "direction"),
+        String(payload.value),
+        stringField(payload, "summary"),
+      ]
     : [String(payload.milestone ?? payload.tag ?? ""), stringField(payload, "summary")];
 }
 
@@ -720,15 +749,16 @@ async function queueIncidentFiling(input: {
     }
   }
   const lifecycle = approvalLifecycleState(item);
-  const filingState: StandingRoleDelivery["filing_state"] = lifecycle === "pending"
-    ? "pending_approval"
-    : lifecycle === "approved"
-      ? "ready"
-      : lifecycle === "executed"
-        ? "filed"
-        : lifecycle === "denied"
-          ? "gate_denied"
-          : lifecycle;
+  const filingState: StandingRoleDelivery["filing_state"] =
+    lifecycle === "pending"
+      ? "pending_approval"
+      : lifecycle === "approved"
+        ? "ready"
+        : lifecycle === "executed"
+          ? "filed"
+          : lifecycle === "denied"
+            ? "gate_denied"
+            : lifecycle;
   return {
     kind: "github_issue",
     analysis_state: "complete",
@@ -755,12 +785,16 @@ async function writeOnce(path: string, value: unknown): Promise<boolean> {
   const temp = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
   try {
     await writeFile(temp, canonicalJson(value), { encoding: "utf8", flag: "wx", mode: 0o600 });
-    try { await link(temp, path); return true; }
-    catch (error) {
+    try {
+      await link(temp, path);
+      return true;
+    } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
       throw error;
     }
-  } finally { await rm(temp, { force: true }).catch(() => {}); }
+  } finally {
+    await rm(temp, { force: true }).catch(() => {});
+  }
 }
 
 function isStandingRole(value: string): value is StandingRole {

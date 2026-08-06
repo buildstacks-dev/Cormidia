@@ -17,10 +17,7 @@ export interface ResolveAppWorkdirOptions {
   runtimeHome?: string;
 }
 
-export function resolveAppWorkdir(
-  app: AppEntry,
-  options: ResolveAppWorkdirOptions = {},
-): string {
+export function resolveAppWorkdir(app: AppEntry, options: ResolveAppWorkdirOptions = {}): string {
   if (options.explicitWorkdir !== undefined) return resolve(options.explicitWorkdir);
 
   const candidates = appWorkdirCandidates(app, options);
@@ -33,13 +30,9 @@ export function resolveAppWorkdir(
   );
 }
 
-export function appWorkdirCandidates(
-  app: AppEntry,
-  options: ResolveAppWorkdirOptions = {},
-): string[] {
+export function appWorkdirCandidates(app: AppEntry, options: ResolveAppWorkdirOptions = {}): string[] {
   const orgRoot = resolve(options.orgRoot ?? process.cwd());
-  const runtimeHome =
-    options.runtimeHome ?? join(homedir(), ".cormidia", "cormidia");
+  const runtimeHome = options.runtimeHome ?? join(homedir(), ".cormidia", "cormidia");
   const siblingRoot = dirname(orgRoot);
   const repoBase = repoBasename(app.repo);
   const candidates = [

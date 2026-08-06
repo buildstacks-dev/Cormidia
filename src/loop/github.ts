@@ -142,8 +142,7 @@ export interface GhOps {
 
 const SELF_APPROVAL_FALLBACK_PREFIX = "<!-- cormidia:self-approval-fallback";
 export const SELF_APPROVAL_FALLBACK_MARKER = `${SELF_APPROVAL_FALLBACK_PREFIX} -->`;
-export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER =
-  "<!-- cormidia:self-changes-requested-fallback -->";
+export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER = "<!-- cormidia:self-changes-requested-fallback -->";
 
 // The self-approval fallback (single-account pilot: GitHub rejects approving
 // your own PR) must not be authorizable by a static, repo-visible string —
@@ -162,19 +161,13 @@ export const SELF_CHANGES_REQUESTED_FALLBACK_MARKER =
 // trusted.
 
 export function signSelfApproval(secret: string, prNumber: number, commit: string): string {
-  return createHmac("sha256", secret)
-    .update(`cormidia-self-approval:${prNumber}:${commit}`)
-    .digest("hex");
+  return createHmac("sha256", secret).update(`cormidia-self-approval:${prNumber}:${commit}`).digest("hex");
 }
 
 /** Build the self-approval marker line. With a secret AND the resolved reviewed
  *  commit it carries the commit-bound HMAC tag; without either it is the bare
  *  (untrusted) marker — the loop fails closed. */
-export function selfApprovalMarker(
-  secret: string | undefined,
-  prNumber: number,
-  commit: string | undefined,
-): string {
+export function selfApprovalMarker(secret: string | undefined, prNumber: number, commit: string | undefined): string {
   if (secret === undefined || commit === undefined) return SELF_APPROVAL_FALLBACK_MARKER;
   return `${SELF_APPROVAL_FALLBACK_PREFIX} sig=${signSelfApproval(secret, prNumber, commit)} -->`;
 }
@@ -189,9 +182,7 @@ export function verifiedSelfApprovalMarker(
   commit: string | undefined,
 ): boolean {
   if (secret === undefined || commit === undefined) return false;
-  const match = new RegExp(`${escapeRegExp(SELF_APPROVAL_FALLBACK_PREFIX)}\\s+sig=([0-9a-f]+)\\s+-->`).exec(
-    body,
-  );
+  const match = new RegExp(`${escapeRegExp(SELF_APPROVAL_FALLBACK_PREFIX)}\\s+sig=([0-9a-f]+)\\s+-->`).exec(body);
   const candidate = match?.[1];
   if (candidate === undefined) return false;
   const expected = signSelfApproval(secret, prNumber, commit);
@@ -265,7 +256,12 @@ export class GhCliOps implements GhOps {
   private readonly selfApprovalSecret?: string;
   private readonly retryClock: GhRetryClock;
 
-  constructor(repo: string, exec: GhExec = defaultGhExec, selfApprovalSecret?: string, retryClock: GhRetryClock = defaultGhRetryClock) {
+  constructor(
+    repo: string,
+    exec: GhExec = defaultGhExec,
+    selfApprovalSecret?: string,
+    retryClock: GhRetryClock = defaultGhRetryClock,
+  ) {
     this.repo = repo;
     this.exec = exec;
     this.retryClock = retryClock;
@@ -277,36 +273,33 @@ export class GhCliOps implements GhOps {
   }
 
   async removeLabel(issueNumber: number, label: string): Promise<void> {
-    await this.run([
-      "issue",
-      "edit",
-      String(issueNumber),
-      "--repo",
-      this.repo,
-      "--remove-label",
-      label,
-    ], undefined, true);
+    await this.run(
+      ["issue", "edit", String(issueNumber), "--repo", this.repo, "--remove-label", label],
+      undefined,
+      true,
+    );
   }
 
   async swapLabel(issueNumber: number, removeLabel: string, addLabel: string): Promise<void> {
-    await this.run([
-      "issue",
-      "edit",
-      String(issueNumber),
-      "--repo",
-      this.repo,
-      "--add-label",
-      addLabel,
-      "--remove-label",
-      removeLabel,
-    ], undefined, true);
+    await this.run(
+      [
+        "issue",
+        "edit",
+        String(issueNumber),
+        "--repo",
+        this.repo,
+        "--add-label",
+        addLabel,
+        "--remove-label",
+        removeLabel,
+      ],
+      undefined,
+      true,
+    );
   }
 
   async commentIssue(issueNumber: number, body: string): Promise<void> {
-    await this.run(
-      ["issue", "comment", String(issueNumber), "--repo", this.repo, "--body-file", "-"],
-      body,
-    );
+    await this.run(["issue", "comment", String(issueNumber), "--repo", this.repo, "--body-file", "-"], body);
   }
 
   async listIssues(options: ListIssueOptions = {}): Promise<GhIssue[]> {
@@ -328,15 +321,7 @@ export class GhCliOps implements GhOps {
 
   async readIssue(issueNumber: number): Promise<GhIssue> {
     return parseIssue(
-      await this.runJson([
-        "issue",
-        "view",
-        String(issueNumber),
-        "--repo",
-        this.repo,
-        "--json",
-        ISSUE_FIELDS,
-      ]),
+      await this.runJson(["issue", "view", String(issueNumber), "--repo", this.repo, "--json", ISSUE_FIELDS]),
     );
   }
 
@@ -361,27 +346,27 @@ export class GhCliOps implements GhOps {
   }
 
   async updateIssueBody(issueNumber: number, body: string): Promise<void> {
-    await this.run(
-      ["issue", "edit", String(issueNumber), "--repo", this.repo, "--body-file", "-"],
-      body,
-      true,
-    );
+    await this.run(["issue", "edit", String(issueNumber), "--repo", this.repo, "--body-file", "-"], body, true);
   }
 
   async ensureLabel(input: EnsureLabelInput): Promise<void> {
     // --force updates an existing label in place — idempotent by contract.
-    await this.run([
-      "label",
-      "create",
-      input.name,
-      "--repo",
-      this.repo,
-      "--color",
-      input.color,
-      "--description",
-      input.description,
-      "--force",
-    ], undefined, true);
+    await this.run(
+      [
+        "label",
+        "create",
+        input.name,
+        "--repo",
+        this.repo,
+        "--color",
+        input.color,
+        "--description",
+        input.description,
+        "--force",
+      ],
+      undefined,
+      true,
+    );
   }
 
   async listLabels(): Promise<EnsureLabelInput[]> {
@@ -439,24 +424,12 @@ export class GhCliOps implements GhOps {
   }
 
   async updatePullRequestBody(prNumber: number, body: string): Promise<void> {
-    await this.run(
-      ["pr", "edit", String(prNumber), "--repo", this.repo, "--body-file", "-"],
-      body,
-      true,
-    );
+    await this.run(["pr", "edit", String(prNumber), "--repo", this.repo, "--body-file", "-"], body, true);
   }
 
   async readPR(selector: number | string): Promise<GhPullRequest> {
     return parsePullRequest(
-      await this.runJson([
-        "pr",
-        "view",
-        String(selector),
-        "--repo",
-        this.repo,
-        "--json",
-        PR_FIELDS,
-      ]),
+      await this.runJson(["pr", "view", String(selector), "--repo", this.repo, "--json", PR_FIELDS]),
     );
   }
 
@@ -477,10 +450,7 @@ export class GhCliOps implements GhOps {
     );
   }
 
-  async listPRsForBranch(
-    branch: string,
-    options: ListPullRequestOptions = {},
-  ): Promise<GhPullRequest[]> {
+  async listPRsForBranch(branch: string, options: ListPullRequestOptions = {}): Promise<GhPullRequest[]> {
     return parsePullRequestList(
       await this.runJson([
         "pr",
@@ -520,23 +490,13 @@ export class GhCliOps implements GhOps {
       }
     }
     const flag =
-      input.state === "approve"
-        ? "--approve"
-        : input.state === "request_changes"
-          ? "--request-changes"
-          : "--comment";
+      input.state === "approve" ? "--approve" : input.state === "request_changes" ? "--request-changes" : "--comment";
     try {
-      await this.run(
-        ["pr", "review", String(prNumber), "--repo", this.repo, flag, "--body-file", "-"],
-        input.body,
-      );
+      await this.run(["pr", "review", String(prNumber), "--repo", this.repo, flag, "--body-file", "-"], input.body);
     } catch (error) {
       if (input.state === "request_changes" && isSelfChangesRequestedError(error)) {
         const body = `${input.body.trimEnd()}\n\n${SELF_CHANGES_REQUESTED_FALLBACK_MARKER}\n`;
-        await this.run(
-          ["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"],
-          body,
-        );
+        await this.run(["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"], body);
         return {
           state: "COMMENTED",
           body,
@@ -568,10 +528,7 @@ export class GhCliOps implements GhOps {
       }
       const marker = selfApprovalMarker(this.selfApprovalSecret, prNumber, reviewedCommit);
       const body = `${input.body.trimEnd()}\n\n${marker}\n`;
-      await this.run(
-        ["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"],
-        body,
-      );
+      await this.run(["pr", "review", String(prNumber), "--repo", this.repo, "--comment", "--body-file", "-"], body);
       return {
         state: "COMMENTED",
         body,
@@ -580,36 +537,21 @@ export class GhCliOps implements GhOps {
     }
     return {
       state:
-        input.state === "approve"
-          ? "APPROVED"
-          : input.state === "request_changes"
-            ? "CHANGES_REQUESTED"
-            : "COMMENTED",
+        input.state === "approve" ? "APPROVED" : input.state === "request_changes" ? "CHANGES_REQUESTED" : "COMMENTED",
       body: input.body,
       ...(reviewedCommit === undefined ? {} : { commitId: reviewedCommit }),
     };
   }
 
   private async readBranchHead(branch: string): Promise<string> {
-    const raw = await this.runJson([
-      "api",
-      `repos/${this.repo}/git/ref/heads/${branch}`,
-    ]);
+    const raw = await this.runJson(["api", `repos/${this.repo}/git/ref/heads/${branch}`]);
     const ref = asRecord(raw, "gh branch ref output");
     const object = asRecord(ref["object"], "gh branch ref output.object");
     return stringField(object, "sha", "gh branch ref output.object");
   }
 
   async listReviews(prNumber: number): Promise<GhReview[]> {
-    const raw = await this.runJson([
-      "pr",
-      "view",
-      String(prNumber),
-      "--repo",
-      this.repo,
-      "--json",
-      "reviews",
-    ]);
+    const raw = await this.runJson(["pr", "view", String(prNumber), "--repo", this.repo, "--json", "reviews"]);
     const record = asRecord(raw, "gh pr view reviews output");
     const reviews = record["reviews"];
     if (!Array.isArray(reviews)) throw new Error("gh pr view reviews output: reviews is not a list");
@@ -617,16 +559,7 @@ export class GhCliOps implements GhOps {
   }
 
   async squashMerge(prNumber: number, input: SquashMergeInput): Promise<GhPullRequest> {
-    const args = [
-      "pr",
-      "merge",
-      String(prNumber),
-      "--repo",
-      this.repo,
-      "--squash",
-      "--subject",
-      input.subject,
-    ];
+    const args = ["pr", "merge", String(prNumber), "--repo", this.repo, "--squash", "--subject", input.subject];
     if (input.body !== undefined) args.push("--body", input.body);
     if (input.matchHeadCommit !== undefined) {
       args.push("--match-head-commit", input.matchHeadCommit);
@@ -668,8 +601,9 @@ export class GhCliOps implements GhOps {
       // are idempotent for the exact input enter the bounded retry schedule.
       if (!retrySafe || !isRetryableGithubFailure(result) || attempt === 2) throw failure;
       const random = this.retryClock.random();
-      if (!Number.isFinite(random) || random < 0 || random > 1) throw new Error("GitHub retry clock random() must return a value in [0, 1]");
-      const delayMs = Math.round(250 * (2 ** attempt) * (0.5 + random));
+      if (!Number.isFinite(random) || random < 0 || random > 1)
+        throw new Error("GitHub retry clock random() must return a value in [0, 1]");
+      const delayMs = Math.round(250 * 2 ** attempt * (0.5 + random));
       await this.retryClock.sleep(delayMs);
     }
     throw new Error("unreachable GitHub retry state");
@@ -690,16 +624,18 @@ export class GhCliOps implements GhOps {
 
 function isRetryableGithubFailure(result: GhExecResult): boolean {
   const detail = `${result.stderr}\n${result.stdout}`;
-  return /rate[ -]?limit|secondary rate limit|\bHTTP\s*:?[ ]*429\b/i.test(detail)
-    || /\b(?:HTTP|status(?: code)?|server returned)\s*:?[ ]*5\d\d\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(detail);
+  return (
+    /rate[ -]?limit|secondary rate limit|\bHTTP\s*:?[ ]*429\b/i.test(detail) ||
+    /\b(?:HTTP|status(?: code)?|server returned)\s*:?[ ]*5\d\d\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(
+      detail,
+    )
+  );
 }
 
 function isSelfApprovalError(error: unknown): boolean {
   return (
     error instanceof GhOpsError &&
-    /can not approve your own pull request|cannot approve your own pull request/i.test(
-      error.stderr,
-    )
+    /can not approve your own pull request|cannot approve your own pull request/i.test(error.stderr)
   );
 }
 
@@ -859,12 +795,7 @@ function asRecord(raw: unknown, where: string): Record<string, unknown> {
   return raw as Record<string, unknown>;
 }
 
-function stringField(
-  record: Record<string, unknown>,
-  key: string,
-  where: string,
-  fallback?: string,
-): string {
+function stringField(record: Record<string, unknown>, key: string, where: string, fallback?: string): string {
   const value = record[key];
   if (typeof value === "string") return value;
   if (fallback !== undefined) return fallback;

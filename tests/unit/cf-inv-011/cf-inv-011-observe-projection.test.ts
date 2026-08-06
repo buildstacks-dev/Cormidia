@@ -29,11 +29,7 @@ import type { RunlogEvent } from "../../../src/runtime/runlog/events.js";
 import type { ParentTaskRecord } from "../../../src/org/parent-task.js";
 import type { ApprovalItem } from "../../../src/org/approvals.js";
 import type { SyntheticSecret } from "../../fixtures/synthetic-secret.js";
-import {
-  detectSecretEgressInJson,
-  makeAllSeeds,
-  SecretEgressViolation,
-} from "./secret-egress-detector.js";
+import { detectSecretEgressInJson, makeAllSeeds, SecretEgressViolation } from "./secret-egress-detector.js";
 
 const NOW = new Date("2026-07-31T12:00:00.000Z");
 const APP = "cf-inv-011-app";
@@ -78,9 +74,7 @@ function seededInput(seeds: readonly SyntheticSecret[]): ObserveProjectionInput 
       brief: `brief mentions ${sk.value} inline`,
       prompt: `prompt carries ${pem.value}`,
     },
-    gateResults: [
-      { gate: "security-scan", status: "failed", detail: `matched ${slack.value} in worktree` },
-    ],
+    gateResults: [{ gate: "security-scan", status: "failed", detail: `matched ${slack.value} in worktree` }],
     session: {
       runtime: "claude",
       id: "session-1",
@@ -152,7 +146,7 @@ function seededInput(seeds: readonly SyntheticSecret[]): ObserveProjectionInput 
         repo: "cormidia-double/sandbox-observe",
         status: "live",
         budgetUsdMonth: 100,
-      objectiveBudgetUsd: 1000,
+        objectiveBudgetUsd: 1000,
         cadence: {},
       },
     ],
@@ -238,8 +232,6 @@ describe("CF-INV-011 — observe snapshot/SSE projection carries no secret and n
   it("negative control: the same seeded input serialized WITHOUT the projection (bypassing the guardrail) makes the detector FIRE", () => {
     const seeds = makeAllSeeds();
     const bypassed = JSON.stringify(seededInput(seeds));
-    expect(() => detectSecretEgressInJson("unprojected input", bypassed, seeds)).toThrow(
-      SecretEgressViolation,
-    );
+    expect(() => detectSecretEgressInJson("unprojected input", bypassed, seeds)).toThrow(SecretEgressViolation);
   });
 });

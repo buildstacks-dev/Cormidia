@@ -42,9 +42,7 @@ describe("CORMIDIA-CASE-DET-004 — decision contention", () => {
     const fulfilled = results.filter(
       (result): result is PromiseFulfilledResult<ApprovalItem> => result.status === "fulfilled",
     );
-    const rejected = results.filter(
-      (result): result is PromiseRejectedResult => result.status === "rejected",
-    );
+    const rejected = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
     if (fulfilled.length !== 1) throw new Error(`detector: expected one winner, got ${fulfilled.length}`);
     if (rejected.length !== 1) throw new Error(`detector: expected one conflict, got ${rejected.length}`);
     if (!(rejected[0]!.reason instanceof ApprovalDecisionConflictError)) {
@@ -86,9 +84,7 @@ describe("CORMIDIA-CASE-DET-004 — decision contention", () => {
     it(`${name}: one winner, one typed conflict, and every durable surface agrees`, async () => {
       const { home, store, raised } = await makeRig();
 
-      const results = await Promise.allSettled(
-        decisions.map((decision) => store.decide(raised.id, decision)),
-      );
+      const results = await Promise.allSettled(decisions.map((decision) => store.decide(raised.id, decision)));
 
       await assertAuthorityAgreement(home, store, raised, results);
     });
@@ -144,8 +140,8 @@ describe("CORMIDIA-CASE-DET-004 — decision contention", () => {
       { status: "fulfilled", value: { ...winner, status: "denied", decision: "denied" } },
       { status: "fulfilled", value: winner },
     ];
-    await expect(
-      assertAuthorityAgreement(home, store, raised, seededContradiction),
-    ).rejects.toThrow(/expected one winner/);
+    await expect(assertAuthorityAgreement(home, store, raised, seededContradiction)).rejects.toThrow(
+      /expected one winner/,
+    );
   });
 });

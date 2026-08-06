@@ -6,11 +6,7 @@ import { join } from "node:path";
 import { readEvents } from "./events.js";
 import { classifyEnvelopeUsage } from "./envelope.js";
 import { truncatePreview } from "./redact.js";
-import {
-  formatDurableVerdictDigest,
-  summarizeDurableVerdict,
-  type DurableVerdictDigest,
-} from "../../loop/verdicts.js";
+import { formatDurableVerdictDigest, summarizeDurableVerdict, type DurableVerdictDigest } from "../../loop/verdicts.js";
 import type { PlanningRouteEvidence, RunEnvelope, SessionEvidence, TracePlanEvidence } from "./envelope.js";
 import type { Artifact, AuthorityEvidence, Effort, RuntimeKind, UsageQuality } from "../types.js";
 
@@ -120,7 +116,7 @@ export async function readStatusRows(
         startedAt: envelope.started_at,
         ...(envelope.last_seen_at !== undefined ? { lastSeenAt: envelope.last_seen_at } : {}),
         ...(envelope.verdict_summary !== undefined ? { verdictSummary: envelope.verdict_summary } : {}),
-        ...(verdictDigestFor(envelope.verdict_summary)),
+        ...verdictDigestFor(envelope.verdict_summary),
         ...(envelope.previews !== undefined ? { previews: envelope.previews } : {}),
         ...(envelope.terminal_reason !== undefined ? { terminalReason: envelope.terminal_reason } : {}),
         ...(envelope.session !== undefined ? { session: envelope.session } : {}),
@@ -145,7 +141,8 @@ function usageQuality(envelope: RunEnvelope): UsageQuality {
 }
 
 export function formatStatusRows(rows: readonly StatusRow[]): string {
-  const header = "RUN ID                         APP        PIPE/PASS                 STATUS                 DUR     TOKENS               COST   ESC";
+  const header =
+    "RUN ID                         APP        PIPE/PASS                 STATUS                 DUR     TOKENS               COST   ESC";
   const lines = rows.map((row) => {
     const pipePass = `${row.pipeline}/${row.pass}`;
     const tokens = `${row.tokensIn}/${row.tokensOut}`;
@@ -162,16 +159,17 @@ export function formatStatusRows(rows: readonly StatusRow[]): string {
   });
   const attention = rows
     .filter((row) => terminalAttentionStatus(row.status))
-    .map((row) =>
-      `  ${row.runId} ${row.pipeline}/${row.pass} ${row.status} — ` +
-      truncatePreview(
-        row.terminalReason ??
-          (row.verdictDigest === undefined
-            ? row.verdictSummary
-            : formatDurableVerdictDigest(row.verdictDigest).replace(/\n/g, " · ")) ??
-          "No terminal reason recorded",
-        240,
-      )
+    .map(
+      (row) =>
+        `  ${row.runId} ${row.pipeline}/${row.pass} ${row.status} — ` +
+        truncatePreview(
+          row.terminalReason ??
+            (row.verdictDigest === undefined
+              ? row.verdictSummary
+              : formatDurableVerdictDigest(row.verdictDigest).replace(/\n/g, " · ")) ??
+            "No terminal reason recorded",
+          240,
+        ),
     );
   // ENH-010: a judgment surfaces here whether or not it needs attention. An
   // approving reviewer verdict is the one an operator most needs to audit, and
@@ -193,17 +191,14 @@ export function formatStatusRows(rows: readonly StatusRow[]): string {
   ].join("\n");
 }
 
-function verdictDigestFor(
-  verdictSummary: string | undefined,
-): { verdictDigest?: DurableVerdictDigest } {
+function verdictDigestFor(verdictSummary: string | undefined): { verdictDigest?: DurableVerdictDigest } {
   if (verdictSummary === undefined) return {};
   const digest = summarizeDurableVerdict(verdictSummary);
   return digest === undefined ? {} : { verdictDigest: digest };
 }
 
 function terminalAttentionStatus(status: string): boolean {
-  return status === "blocked" || status === "cancelled" || status === "timed_out" ||
-    status.startsWith("failed(");
+  return status === "blocked" || status === "cancelled" || status === "timed_out" || status.startsWith("failed(");
 }
 
 function formatStatusCost(row: StatusRow): string {

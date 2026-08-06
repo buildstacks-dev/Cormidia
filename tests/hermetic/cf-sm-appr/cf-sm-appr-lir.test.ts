@@ -18,11 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import {
-  ApprovalStore,
-  approvalLifecycleState,
-  type ApprovalLogEvent,
-} from "../../../src/org/approvals.js";
+import { ApprovalStore, approvalLifecycleState, type ApprovalLogEvent } from "../../../src/org/approvals.js";
 import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
@@ -342,9 +338,7 @@ describe("CF-SM-APPR-R — replayed stimuli never double-advance (L2, HB-011)", 
     const logBefore = await readFile(rig.state.path("approvals", "log.jsonl"), "utf8");
 
     rig.clock.advance(60_000);
-    await expect(
-      rig.store.decide(raised.id, { decision: "approved", now: rig.clock.nowDate() }),
-    ).rejects.toThrow(); // refusal happens before any write — asserted next
+    await expect(rig.store.decide(raised.id, { decision: "approved", now: rig.clock.nowDate() })).rejects.toThrow(); // refusal happens before any write — asserted next
     expect(await readFile(decidedPath, "utf8")).toBe(bytesBefore); // immutable (B-09b §4)
     expect(await readFile(rig.state.path("approvals", "log.jsonl"), "utf8")).toBe(logBefore);
     const grants = await assertNonEmptyWalk(rig.state.path("approvals", "grants"), /\.json$/);
@@ -359,9 +353,9 @@ describe("CF-SM-APPR-R — replayed stimuli never double-advance (L2, HB-011)", 
     const rig = await makeRig();
     const raised = await rig.store.raise({ ...raiseInput("npm publish"), now: rig.clock.nowDate() });
     await rig.store.decide(raised.id, { decision: "approved", now: rig.clock.nowDate() });
-    await expect(
-      rig.store.decide(raised.id, { decision: "approved", now: rig.clock.nowDate() }),
-    ).rejects.toThrow(/already decided|not pending/i);
+    await expect(rig.store.decide(raised.id, { decision: "approved", now: rig.clock.nowDate() })).rejects.toThrow(
+      /already decided|not pending/i,
+    );
   });
 
   // PROMOTED TRIPWIRE (HB-011 D2, fixed 2026-07-31): an id with no pending or

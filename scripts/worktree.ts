@@ -4,10 +4,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  remoteTrackingRef,
-  resolveRemoteDefaultBranch,
-} from "../src/loop/default-branch.js";
+import { remoteTrackingRef, resolveRemoteDefaultBranch } from "../src/loop/default-branch.js";
 
 const SCHEMA_VERSION = "worktree-reconcile/v1";
 
@@ -311,7 +308,8 @@ function parseOptions(args: readonly string[]): ParsedCli {
         break;
       case "--remote":
         remoteDelete = true;
-        if (normalizedArgs[index + 1] !== undefined && !normalizedArgs[index + 1]!.startsWith("-")) remote = normalizedArgs[++index]!;
+        if (normalizedArgs[index + 1] !== undefined && !normalizedArgs[index + 1]!.startsWith("-"))
+          remote = normalizedArgs[++index]!;
         break;
       case "--refresh":
         refresh = true;
@@ -389,15 +387,21 @@ function printReport(report: ReconcileReport): void {
   console.log(`current: ${report.current_branch ?? "detached"}`);
   console.log("worktrees:");
   for (const item of report.worktrees) {
-    console.log(`  ${item.path}\t${item.branch ?? "(detached)"}\t${item.dirty === null ? "missing" : item.dirty ? "dirty" : "clean"}`);
+    console.log(
+      `  ${item.path}\t${item.branch ?? "(detached)"}\t${item.dirty === null ? "missing" : item.dirty ? "dirty" : "clean"}`,
+    );
   }
   console.log("local branches:");
   for (const item of report.local_branches) {
-    console.log(`  ${item.name}\t${item.merged === null ? "unknown" : item.merged ? "merged" : "unmerged"}\t${item.remote ? "remote" : "local-only"}\t${item.dirty === null ? "no-worktree" : item.dirty ? "dirty" : "clean"}`);
+    console.log(
+      `  ${item.name}\t${item.merged === null ? "unknown" : item.merged ? "merged" : "unmerged"}\t${item.remote ? "remote" : "local-only"}\t${item.dirty === null ? "no-worktree" : item.dirty ? "dirty" : "clean"}`,
+    );
   }
   console.log("remote branches:");
   for (const item of report.remote_branches) {
-    console.log(`  ${item.name}\t${item.merged === null ? "unknown" : item.merged ? "merged" : "unmerged"}\t${item.worktree === null ? "no-local-branch" : item.dirty ? "dirty" : "local"}`);
+    console.log(
+      `  ${item.name}\t${item.merged === null ? "unknown" : item.merged ? "merged" : "unmerged"}\t${item.worktree === null ? "no-local-branch" : item.dirty ? "dirty" : "local"}`,
+    );
   }
 }
 
@@ -419,7 +423,8 @@ export function cleanCandidates(
 ): CleanCandidate[] {
   const candidates: CleanCandidate[] = [];
   for (const branch of report.local_branches) {
-    if (branch.name === report.default_branch || branch.name === report.current_branch || keep.includes(branch.name)) continue;
+    if (branch.name === report.default_branch || branch.name === report.current_branch || keep.includes(branch.name))
+      continue;
     const matches = mode === "merged" ? branch.merged === true : branch.tracking === "[gone]";
     if (!matches) continue;
     if (mode === "gone" && !force) {
@@ -460,10 +465,13 @@ export function cleanCandidates(
 
 function executeClean(repoRoot: string, candidates: readonly CleanCandidate[], options: CliOptions): void {
   for (const candidate of candidates) {
-    console.log(`${options.apply ? "DELETE" : "PLAN"} ${candidate.reason}: ${candidate.branch}${candidate.path === null ? "" : ` (${candidate.path})`}`);
+    console.log(
+      `${options.apply ? "DELETE" : "PLAN"} ${candidate.reason}: ${candidate.branch}${candidate.path === null ? "" : ` (${candidate.path})`}`,
+    );
     if (!options.apply) continue;
     if (candidate.local) {
-      if (candidate.path !== null) git(repoRoot, ["worktree", "remove", ...(candidate.dirty === true ? ["--force"] : []), candidate.path]);
+      if (candidate.path !== null)
+        git(repoRoot, ["worktree", "remove", ...(candidate.dirty === true ? ["--force"] : []), candidate.path]);
       git(repoRoot, ["branch", options.force ? "-D" : "-d", candidate.branch]);
     }
     if (options.remoteDelete && candidate.remote) git(repoRoot, ["push", options.remote, "--delete", candidate.branch]);
@@ -484,7 +492,13 @@ function createWorktree(repoRoot: string, branch: string, options: CliOptions): 
   }
   mkdirSync(dirname(path), { recursive: true });
   const existingBranch = refExists(repoRoot, `refs/heads/${branch}`);
-  git(repoRoot, ["worktree", "add", ...(existingBranch ? [] : ["-b", branch]), path, ...(existingBranch ? [branch] : [base])]);
+  git(repoRoot, [
+    "worktree",
+    "add",
+    ...(existingBranch ? [] : ["-b", branch]),
+    path,
+    ...(existingBranch ? [branch] : [base]),
+  ]);
   console.log(`created ${branch}: ${path}`);
   if (options.setupCommand !== undefined) {
     const result = spawnSync("sh", ["-lc", options.setupCommand], { cwd: path, stdio: "inherit" });
@@ -498,7 +512,8 @@ function removeWorktree(repoRoot: string, branch: string, options: CliOptions): 
   const local = report.local_branches.find((item) => item.name === branch);
   if (local === undefined) throw new Error(`local branch does not exist: ${branch}`);
   if (local.dirty === true && !options.force) throw new Error(`worktree is dirty; rerun with --force: ${branch}`);
-  if (local.worktree !== null) git(repoRoot, ["worktree", "remove", ...(options.force ? ["--force"] : []), local.worktree]);
+  if (local.worktree !== null)
+    git(repoRoot, ["worktree", "remove", ...(options.force ? ["--force"] : []), local.worktree]);
   git(repoRoot, ["branch", options.force ? "-D" : "-d", branch]);
   if (options.remoteDelete && local.remote) git(repoRoot, ["push", options.remote, "--delete", branch]);
 }
@@ -531,7 +546,8 @@ async function main(argv: readonly string[] = process.argv.slice(2)): Promise<vo
       const candidates = cleanCandidates(report, mode, options.keep, options.force);
       if (candidates.length === 0) console.log("no cleanup candidates");
       executeClean(repoRoot, candidates, options);
-      if (options.remoteDelete && !options.apply) console.log("remote deletion is planned only; add --apply to execute it");
+      if (options.remoteDelete && !options.apply)
+        console.log("remote deletion is planned only; add --apply to execute it");
       return;
     }
     default:

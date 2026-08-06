@@ -49,7 +49,10 @@ export async function readReportDetails(
     try {
       const envelope = JSON.parse(await readFile(path, "utf8")) as RunEnvelope;
       if (envelope.parent_task_id !== undefined) taskIds.add(envelope.parent_task_id);
-      envelopes.set(key, { envelope, events: await readEventCounts(join(stateHome, "runs", record.app, record.runId, "events.jsonl")) });
+      envelopes.set(key, {
+        envelope,
+        events: await readEventCounts(join(stateHome, "runs", record.app, record.runId, "events.jsonl")),
+      });
     } catch {
       corruptEnvelopes.push(key);
     }
@@ -66,7 +69,11 @@ export async function readReportDetails(
       corruptTasks.push(id);
     }
   }
-  const settled = new Set(rows.filter(({ record }) => record.app !== undefined && record.runId !== undefined).map(({ record }) => settlementKey(record.app, record.runId!)));
+  const settled = new Set(
+    rows
+      .filter(({ record }) => record.app !== undefined && record.runId !== undefined)
+      .map(({ record }) => settlementKey(record.app, record.runId!)),
+  );
   const unsettled: ReportDetailFacts["unsettled"] = [];
   let scanned = 0;
   let scanLimited = false;
@@ -78,7 +85,10 @@ export async function readReportDetails(
       if (!existsSync(appRoot)) continue;
       for (const runId of await childDirectories(appRoot)) {
         scanned += 1;
-        if (scanned > MAX_UNSETTLED_SCAN) { scanLimited = true; break outer; }
+        if (scanned > MAX_UNSETTLED_SCAN) {
+          scanLimited = true;
+          break outer;
+        }
         const key = settlementKey(app, runId);
         if (settled.has(key)) continue;
         try {
@@ -88,13 +98,19 @@ export async function readReportDetails(
             unsettled.push({ envelope, events: await readEventCounts(join(appRoot, runId, "events.jsonl")) });
             if (envelope.parent_task_id !== undefined && !tasks.has(envelope.parent_task_id)) {
               try {
-                const task = JSON.parse(await readFile(join(stateHome, "tasks", envelope.parent_task_id, "task.json"), "utf8")) as ParentTaskRecord;
+                const task = JSON.parse(
+                  await readFile(join(stateHome, "tasks", envelope.parent_task_id, "task.json"), "utf8"),
+                ) as ParentTaskRecord;
                 task.objective = truncatePreview(scrubSecrets(task.objective), 320);
                 tasks.set(envelope.parent_task_id, task);
-              } catch { corruptTasks.push(envelope.parent_task_id); }
+              } catch {
+                corruptTasks.push(envelope.parent_task_id);
+              }
             }
           }
-        } catch { /* corrupt envelopes already surface through Live; bounded scan cannot correlate them */ }
+        } catch {
+          /* corrupt envelopes already surface through Live; bounded scan cannot correlate them */
+        }
       }
     }
   }
@@ -113,12 +129,19 @@ async function readEventCounts(path: string): Promise<EventCounts | null> {
         if (event === "tool.called") counts.toolCalls += 1;
         if (event === "subagent.started") counts.subagents += 1;
         if (event === "escalation.raised") counts.escalations += 1;
-      } catch { /* torn/corrupt L2 never affects accounting */ }
+      } catch {
+        /* torn/corrupt L2 never affects accounting */
+      }
     }
     return counts;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function childDirectories(path: string): Promise<string[]> {
-  return (await readdir(path, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  return (await readdir(path, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
 }

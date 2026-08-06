@@ -5,10 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { GhOps } from "../../../src/loop/github.js";
-import {
-  trackGithubConformanceOps,
-  type GithubConformanceArtifactTracker,
-} from "../../live/real-github-surface.js";
+import { trackGithubConformanceOps, type GithubConformanceArtifactTracker } from "../../live/real-github-surface.js";
 
 function tracker(branch: string): GithubConformanceArtifactTracker {
   return {

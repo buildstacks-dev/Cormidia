@@ -26,15 +26,26 @@ function report(): ValidationCampaignReportV1 {
     started_at: "2026-07-31T18:00:00.000Z",
     finished_at: "2026-07-31T18:05:00.000Z",
     policy: { path: "validation-design/validation-policy.yaml", sha256: "a".repeat(64) },
-    target: { commit: "b".repeat(40), apps: ["sandbox-alpha"], scopes: ["all-adapters"], tuples: ["claude/model/medium"] },
+    target: {
+      commit: "b".repeat(40),
+      apps: ["sandbox-alpha"],
+      scopes: ["all-adapters"],
+      tuples: ["claude/model/medium"],
+    },
     spend: {
-      max_provider_turns: 24, max_equiv_usd: 100,
-      observed_provider_turns: 1, observed_equiv_usd: 0.5, ceiling_exhausted: false,
+      max_provider_turns: 24,
+      max_equiv_usd: 100,
+      observed_provider_turns: 1,
+      observed_equiv_usd: 0.5,
+      ceiling_exhausted: false,
     },
     coverage: { required_case_ids: ["CF-B02-L3"], collected_case_ids: ["CF-B02-L3"], missing_case_ids: [] },
     outcome: {
-      completeness: "complete", verdict: "pass", decision_status: "ratified",
-      violation_ids: [], reason_codes: [],
+      completeness: "complete",
+      verdict: "pass",
+      decision_status: "ratified",
+      violation_ids: [],
+      reason_codes: [],
     },
     evidence_refs: ["runs/live/claude.json"],
   };
@@ -57,7 +68,12 @@ describe("validation campaign report contract", () => {
 
   it("negative control: rejects a lookalike unattended profile and reversed time", () => {
     const profile = report();
-    profile.profile = { identity: "cormidia/unattended-sandbox/lookalike", sandbox_target: "org/app@owner/repo", permitted_auto_grant_categories: ["campaign_budget"], human_decision_rows: 0 };
+    profile.profile = {
+      identity: "cormidia/unattended-sandbox/lookalike",
+      sandbox_target: "org/app@owner/repo",
+      permitted_auto_grant_categories: ["campaign_budget"],
+      human_decision_rows: 0,
+    };
     expect(() => validateValidationCampaignReport(profile)).toThrow(/ratified unattended profile/);
     const reversed = report();
     reversed.finished_at = "2026-07-31T17:59:00.000Z";
@@ -69,8 +85,11 @@ describe("validation campaign report contract", () => {
     seeded.coverage.collected_case_ids = [];
     seeded.coverage.missing_case_ids = ["CF-B02-L3"];
     seeded.outcome = {
-      completeness: "incomplete", verdict: "fail", decision_status: "ratified",
-      violation_ids: ["CORMIDIA-INV-002"], reason_codes: ["guardrail_bypass"],
+      completeness: "incomplete",
+      verdict: "fail",
+      decision_status: "ratified",
+      violation_ids: ["CORMIDIA-INV-002"],
+      reason_codes: ["guardrail_bypass"],
     };
     expect(() => validateValidationCampaignReport(seeded)).not.toThrow();
   });

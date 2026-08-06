@@ -4,10 +4,7 @@
 // defensively so any ignored disable fails closed in the hook normalizer.
 
 import { describe, expect, it } from "vitest";
-import {
-  codexAppServerArgs,
-  normalizeCodexHookActions,
-} from "../../../src/runtime/adapters/codex-gate-bridge.js";
+import { codexAppServerArgs, normalizeCodexHookActions } from "../../../src/runtime/adapters/codex-gate-bridge.js";
 
 const MODEL_CATALOG = "/tmp/cormidia-direct-tool-model-catalog.json";
 
@@ -31,17 +28,22 @@ describe("CF-REG-271 — Codex code-mode exec cannot bypass the gate", () => {
   });
 
   it("fails closed on the exact exec input family observed in the L3 session", () => {
-    expect(() => normalizeCodexHookActions({
-      tool_name: "exec",
-      tool_input: {
-        input: "const r = await tools.shell_command({command: 'cat /etc/hosts'}); text(r)",
-      },
-    }, "/tmp/worktree")).toThrow(/not a gateable tool route/);
+    expect(() =>
+      normalizeCodexHookActions(
+        {
+          tool_name: "exec",
+          tool_input: {
+            input: "const r = await tools.shell_command({command: 'cat /etc/hosts'}); text(r)",
+          },
+        },
+        "/tmp/worktree",
+      ),
+    ).toThrow(/not a gateable tool route/);
   });
 
   it("negative control: catches a seeded legacy matcher plus re-enabled code mode", () => {
     const seededBypass = codexAppServerArgs(MODEL_CATALOG)
-      .filter((arg) => !CODE_MODE_DISABLES.includes(arg as typeof CODE_MODE_DISABLES[number]))
+      .filter((arg) => !CODE_MODE_DISABLES.includes(arg as (typeof CODE_MODE_DISABLES)[number]))
       .map((arg) => arg.replace("Bash|exec|apply_patch", "Bash|apply_patch"));
 
     expect(execRouteDefects(seededBypass)).toEqual([

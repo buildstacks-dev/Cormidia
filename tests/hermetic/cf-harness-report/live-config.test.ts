@@ -57,9 +57,15 @@ describe("live campaign config", () => {
     state = await makeTempStateHome({ name: "live-config-negative" });
     const path = state.path("live.json");
     const policyPath = state.path("policy.yaml");
-    const seeded = { ...config(state.stateHome, policyPath), github: { enabled: true, repo: "owner/production" }, allow_production: true };
+    const seeded = {
+      ...config(state.stateHome, policyPath),
+      github: { enabled: true, repo: "owner/production" },
+      allow_production: true,
+    };
     await writeFile(path, JSON.stringify(seeded), "utf8");
-    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(/unknown live config field/);
+    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(
+      /unknown live config field/,
+    );
   });
 
   it("negative control: a partial release cannot manufacture complete evidence", async () => {
@@ -69,7 +75,9 @@ describe("live campaign config", () => {
     const seeded = config(state.stateHome, policyPath);
     seeded.adapters = seeded.adapters.slice(0, 1);
     await writeFile(path, JSON.stringify(seeded), "utf8");
-    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(/release campaign requires all three adapters/);
+    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(
+      /release campaign requires all three adapters/,
+    );
   });
 
   it("CF-REG-303 negative control: release admission refuses the pre-fix missing-launchd shape", async () => {
@@ -79,7 +87,9 @@ describe("live campaign config", () => {
     const seeded = config(state.stateHome, policyPath);
     seeded.launchd.enabled = false;
     await writeFile(path, JSON.stringify(seeded), "utf8");
-    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(/launchd proof/);
+    await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).rejects.toThrow(
+      /launchd proof/,
+    );
   });
 
   it("admits exact single-obligation GitHub and launchd campaigns", async () => {
@@ -94,7 +104,9 @@ describe("live campaign config", () => {
       seeded.launchd.enabled = campaignKind === "launchd_proof";
       seeded.unattended.enabled = false;
       await writeFile(path, JSON.stringify(seeded), "utf8");
-      await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).resolves.toMatchObject({ config: { campaign_kind: campaignKind } });
+      await expect(loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).resolves.toMatchObject({
+        config: { campaign_kind: campaignKind },
+      });
     }
   });
 });

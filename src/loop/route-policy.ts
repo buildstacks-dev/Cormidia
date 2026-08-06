@@ -137,9 +137,7 @@ export function authorizeRoutePasses(input: {
       const rule = passFactorRule(pipeline.name, pass, input.decision);
       if (rule === undefined) continue;
       if (!factorRules.has(rule)) {
-        throw new Error(
-          `route policy selected ${pipeline.name}/${pass.id} without recorded factor rule ${rule}`,
-        );
+        throw new Error(`route policy selected ${pipeline.name}/${pass.id} without recorded factor rule ${rule}`);
       }
       const role = input.roles[pass.role];
       if (role === undefined) throw new Error(`route policy: missing role ${pass.role}`);
@@ -193,7 +191,9 @@ function normalizeProfile(input: RouteRiskProfile): RouteRiskProfile {
   }
   return {
     ...input,
-    sensitiveDomains: [...new Set(input.sensitiveDomains.map((value) => value.trim().toLowerCase()).filter(Boolean))].sort(),
+    sensitiveDomains: [
+      ...new Set(input.sensitiveDomains.map((value) => value.trim().toLowerCase()).filter(Boolean)),
+    ].sort(),
   };
 }
 
@@ -205,16 +205,55 @@ function factorsFor(profile: RouteRiskProfile, route: TicketTier): AdmissionFact
       policy_rule: "baseline_delivery_evidence",
     },
   ];
-  if (route !== "quick" || profile.blastRadius !== "low") factors.push({ kind: "blast_radius", evidence: `${profile.blastRadius} blast radius`, policy_rule: "blast_radius_depth" });
-  if (profile.reversibility !== "reversible") factors.push({ kind: "reversibility", evidence: `${profile.reversibility} change`, policy_rule: "reversibility_depth" });
-  if (profile.sensitiveDomains.length > 0) factors.push({ kind: "sensitive_domain", evidence: profile.sensitiveDomains.join(", "), policy_rule: "sensitive_review" });
-  if (profile.uncertainty !== "low") factors.push({ kind: "uncertainty", evidence: `${profile.uncertainty} uncertainty`, policy_rule: "uncertainty_depth" });
-  if (profile.componentCount > 1) factors.push({ kind: "component_count", evidence: `${profile.componentCount} components`, policy_rule: "component_depth" });
-  if (profile.externalSystemCount > 0) factors.push({ kind: "external_system_count", evidence: `${profile.externalSystemCount} external systems`, policy_rule: "external_system_depth" });
-  if (profile.releaseConsequence !== "none") factors.push({ kind: "release_consequence", evidence: profile.releaseConsequence, policy_rule: "release_depth" });
-  if (profile.novelty === "new") factors.push({ kind: "novelty", evidence: "new relative to validated evidence", policy_rule: "novelty_depth" });
-  if (profile.evidenceQuality !== "high") factors.push({ kind: "evidence_quality", evidence: `${profile.evidenceQuality} test evidence`, policy_rule: "weak_evidence_depth" });
-  return factors.sort((a, b) => `${a.kind}/${a.policy_rule}/${a.evidence}`.localeCompare(`${b.kind}/${b.policy_rule}/${b.evidence}`));
+  if (route !== "quick" || profile.blastRadius !== "low")
+    factors.push({
+      kind: "blast_radius",
+      evidence: `${profile.blastRadius} blast radius`,
+      policy_rule: "blast_radius_depth",
+    });
+  if (profile.reversibility !== "reversible")
+    factors.push({
+      kind: "reversibility",
+      evidence: `${profile.reversibility} change`,
+      policy_rule: "reversibility_depth",
+    });
+  if (profile.sensitiveDomains.length > 0)
+    factors.push({
+      kind: "sensitive_domain",
+      evidence: profile.sensitiveDomains.join(", "),
+      policy_rule: "sensitive_review",
+    });
+  if (profile.uncertainty !== "low")
+    factors.push({
+      kind: "uncertainty",
+      evidence: `${profile.uncertainty} uncertainty`,
+      policy_rule: "uncertainty_depth",
+    });
+  if (profile.componentCount > 1)
+    factors.push({
+      kind: "component_count",
+      evidence: `${profile.componentCount} components`,
+      policy_rule: "component_depth",
+    });
+  if (profile.externalSystemCount > 0)
+    factors.push({
+      kind: "external_system_count",
+      evidence: `${profile.externalSystemCount} external systems`,
+      policy_rule: "external_system_depth",
+    });
+  if (profile.releaseConsequence !== "none")
+    factors.push({ kind: "release_consequence", evidence: profile.releaseConsequence, policy_rule: "release_depth" });
+  if (profile.novelty === "new")
+    factors.push({ kind: "novelty", evidence: "new relative to validated evidence", policy_rule: "novelty_depth" });
+  if (profile.evidenceQuality !== "high")
+    factors.push({
+      kind: "evidence_quality",
+      evidence: `${profile.evidenceQuality} test evidence`,
+      policy_rule: "weak_evidence_depth",
+    });
+  return factors.sort((a, b) =>
+    `${a.kind}/${a.policy_rule}/${a.evidence}`.localeCompare(`${b.kind}/${b.policy_rule}/${b.evidence}`),
+  );
 }
 
 function passFactorRule(pipeline: string, pass: PassConfig, decision: RouteDecision): string | undefined {
@@ -233,7 +272,9 @@ function passFactorRule(pipeline: string, pass: PassConfig, decision: RouteDecis
     return undefined;
   }
   if (pipeline === "ship" && pass.id === "ship-check" && decision.route === "deep") {
-    return decision.factors.find((factor) => ["release_depth", "reversibility_depth", "blast_radius_depth"].includes(factor.policy_rule))?.policy_rule;
+    return decision.factors.find((factor) =>
+      ["release_depth", "reversibility_depth", "blast_radius_depth"].includes(factor.policy_rule),
+    )?.policy_rule;
   }
   return undefined;
 }

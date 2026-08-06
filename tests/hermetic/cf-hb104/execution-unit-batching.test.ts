@@ -26,7 +26,8 @@ const APP: AppEntry = {
   name: "hb104-app",
   repo: "fixture/hb104",
   status: "live",
-  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
+  budgetUsdMonth: 100,
+  objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };
@@ -85,7 +86,9 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
 
     expect(batch.value.units.map((unit) => unit.unitId)).toEqual(["direct-a", "direct-b"]);
     expect(existsSync(home.path("efficiency"))).toBe(false);
-    expect((await readExecutionUnitJournal(home.stateHome, APP.name, batch.ref.id, "direct-a"))?.usage.providerTurns).toBe(0);
+    expect(
+      (await readExecutionUnitJournal(home.stateHome, APP.name, batch.ref.id, "direct-a"))?.usage.providerTurns,
+    ).toBe(0);
     const replay = await admitExecutionBatch({
       root: home.stateHome,
       app: APP.name,
@@ -113,7 +116,9 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
     expect(normalized.prepared).toMatchObject({ planningTurnSkipped: true, plannerAttempts: 0 });
     expect(normalized.plan.planningSource).toBe("creator_scope");
     expect(existsSync(home.path("efficiency"))).toBe(true);
-    expect((await readExecutionUnitJournal(home.stateHome, APP.name, batch.ref.id, "direct-b"))?.state).toBe("admitted");
+    expect((await readExecutionUnitJournal(home.stateHome, APP.name, batch.ref.id, "direct-b"))?.state).toBe(
+      "admitted",
+    );
 
     const tightAuthority = direct("direct-tight");
     tightAuthority.admittedBudget.maxEquivalentCostUsd = 3;
@@ -128,18 +133,22 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
     });
     // Seeded negative control: the complete governed shortcut still cannot
     // borrow the unused cost allowance of either sibling in direct-batch.
-    await expectCode(() => normalizeDirectExecutionUnitEpisode({
-      root: home.stateHome,
-      app: APP,
-      roles: ROLES,
-      batchRef: tightBatch.ref,
-      unitId: "direct-tight",
-      facts: facts(),
-      providerOperations: ["direct/build", "direct/review"],
-      workflowTemplates: new Map([[`${TEMPLATE.id}@${TEMPLATE.version}`, STEPS]]),
-      independentReview: { subjectRoles: ["builder"], reviewerRoles: ["reviewer"] },
-      now: () => new Date(AT),
-    }), "unit_budget_exhausted");
+    await expectCode(
+      () =>
+        normalizeDirectExecutionUnitEpisode({
+          root: home.stateHome,
+          app: APP,
+          roles: ROLES,
+          batchRef: tightBatch.ref,
+          unitId: "direct-tight",
+          facts: facts(),
+          providerOperations: ["direct/build", "direct/review"],
+          workflowTemplates: new Map([[`${TEMPLATE.id}@${TEMPLATE.version}`, STEPS]]),
+          independentReview: { subjectRoles: ["builder"], reviewerRoles: ["reviewer"] },
+          now: () => new Date(AT),
+        }),
+      "unit_budget_exhausted",
+    );
   });
 
   it("keeps active membership and budgets isolated, with a seeded lending detector", async () => {
@@ -158,20 +167,19 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
     // Seeded crash boundary: the batch authority landed but one initial
     // journal write vanished. Durable batch membership must still block an
     // overlapping admission; a missing journal is never interpreted as free.
-    await rm(executionUnitJournalPath(
-      home.stateHome,
-      APP.name,
-      batch.ref.id,
-      "direct-a",
-    ));
-    await expectCode(() => admitExecutionBatch({
-      root: home.stateHome,
-      app: APP.name,
-      batchId: "duplicate-active",
-      directUnitRefs: [first.ref],
-      routing: [],
-      admittedAt: AT,
-    }), "batch_membership_active");
+    await rm(executionUnitJournalPath(home.stateHome, APP.name, batch.ref.id, "direct-a"));
+    await expectCode(
+      () =>
+        admitExecutionBatch({
+          root: home.stateHome,
+          app: APP.name,
+          batchId: "duplicate-active",
+          directUnitRefs: [first.ref],
+          routing: [],
+          admittedAt: AT,
+        }),
+      "batch_membership_active",
+    );
 
     await transitionExecutionUnitJournal({
       root: home.stateHome,
@@ -184,17 +192,23 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
       now: new Date(AT),
     });
     // Seeded negative control: A cannot borrow B's untouched allowance.
-    await expectCode(() => transitionExecutionUnitJournal({
-      root: home.stateHome,
-      app: APP.name,
-      batchRef: batch.ref,
-      unitId: "direct-a",
-      expectedStates: ["running"],
-      nextState: "running",
-      usageDelta: { providerTurns: 99 },
-      now: new Date(AT),
-    }), "unit_budget_exhausted");
-    expect((await readExecutionUnitJournal(home.stateHome, APP.name, batch.ref.id, "direct-b"))?.usage.providerTurns).toBe(0);
+    await expectCode(
+      () =>
+        transitionExecutionUnitJournal({
+          root: home.stateHome,
+          app: APP.name,
+          batchRef: batch.ref,
+          unitId: "direct-a",
+          expectedStates: ["running"],
+          nextState: "running",
+          usageDelta: { providerTurns: 99 },
+          now: new Date(AT),
+        }),
+      "unit_budget_exhausted",
+    );
+    expect(
+      (await readExecutionUnitJournal(home.stateHome, APP.name, batch.ref.id, "direct-b"))?.usage.providerTurns,
+    ).toBe(0);
   });
 
   it("refuses manifest overflow and verbose prose without complete structured provenance", async () => {
@@ -208,15 +222,19 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
     );
     const first = await acceptDirectExecutionUnit({ root: home.stateHome, authority: direct("direct-a") });
     const second = await acceptDirectExecutionUnit({ root: home.stateHome, authority: direct("direct-b") });
-    await expectCode(() => admitExecutionBatch({
-      root: home.stateHome,
-      app: APP.name,
-      batchId: "too-many",
-      directUnitRefs: [first.ref, second.ref],
-      routing: [],
-      admittedAt: AT,
-      maxUnits: 1,
-    }), "batch_manifest_too_large");
+    await expectCode(
+      () =>
+        admitExecutionBatch({
+          root: home.stateHome,
+          app: APP.name,
+          batchId: "too-many",
+          directUnitRefs: [first.ref, second.ref],
+          routing: [],
+          admittedAt: AT,
+          maxUnits: 1,
+        }),
+      "batch_manifest_too_large",
+    );
   });
 
   it("repairs a crash between the last unit outcome and the batch disposition", async () => {
@@ -275,23 +293,25 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
       app: APP.name,
       roadmapRef: { kind: "roadmap_plan" as const, id: "legacy-roadmap", version: 1, sha256: "a".repeat(64) },
       frontierHash: "b".repeat(64),
-      units: [{
-        unitId: "legacy-unit",
-        membershipHash: "c".repeat(64),
-        readinessRef: {
-          kind: "delivery_unit_readiness" as const,
-          id: "legacy-unit",
-          version: 1,
-          sha256: "d".repeat(64),
+      units: [
+        {
+          unitId: "legacy-unit",
+          membershipHash: "c".repeat(64),
+          readinessRef: {
+            kind: "delivery_unit_readiness" as const,
+            id: "legacy-unit",
+            version: 1,
+            sha256: "d".repeat(64),
+          },
+          validationRef: {
+            kind: "validation_contract" as const,
+            id: "legacy-validation",
+            version: 1,
+            sha256: "e".repeat(64),
+          },
+          validationContractHash: "e".repeat(64),
         },
-        validationRef: {
-          kind: "validation_contract" as const,
-          id: "legacy-validation",
-          version: 1,
-          sha256: "e".repeat(64),
-        },
-        validationContractHash: "e".repeat(64),
-      }],
+      ],
       admittedAt: AT,
     };
     const ref = {
@@ -303,8 +323,7 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
     const path = batchAuthorityPath(home.stateHome, APP.name, legacy.batchId, 1);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, `${JSON.stringify({ schemaVersion: 1, ref, value: legacy }, null, 2)}\n`);
-    expect((await readExecutionBatch(home.stateHome, APP.name, ref)).value.units[0]?.unitId)
-      .toBe("legacy-unit");
+    expect((await readExecutionBatch(home.stateHome, APP.name, ref)).value.units[0]?.unitId).toBe("legacy-unit");
 
     const broken = {
       ...legacy,
@@ -320,10 +339,7 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
     const brokenPath = batchAuthorityPath(home.stateHome, APP.name, broken.batchId, 1);
     await mkdir(dirname(brokenPath), { recursive: true });
     await writeFile(brokenPath, `${JSON.stringify({ schemaVersion: 1, ref: brokenRef, value: broken }, null, 2)}\n`);
-    await expectCode(
-      () => readExecutionBatch(home.stateHome, APP.name, brokenRef),
-      "batch_hard_constraint_failed",
-    );
+    await expectCode(() => readExecutionBatch(home.stateHome, APP.name, brokenRef), "batch_hard_constraint_failed");
   });
 });
 

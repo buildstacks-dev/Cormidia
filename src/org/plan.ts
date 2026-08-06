@@ -9,11 +9,7 @@ import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { loadApps, type AppEntry } from "./apps.js";
-import {
-  baseRevisionForBranch,
-  resolveRemoteDefaultBranch,
-  type BaseRevision,
-} from "../loop/default-branch.js";
+import { baseRevisionForBranch, resolveRemoteDefaultBranch, type BaseRevision } from "../loop/default-branch.js";
 import { resolveAppWorkdir } from "./app-workdir.js";
 import { loadRoles } from "./roles.js";
 import type { RoleConfig } from "../runtime/types.js";
@@ -38,12 +34,8 @@ export interface PlanningContext {
   sources: string[];
 }
 
-export async function assemblePlanningContext(
-  request: PlanningContextRequest,
-): Promise<PlanningContext> {
-  const openingTask = request.topic
-    ? `Co-planning topic: ${request.topic}`
-    : `Co-planning session for ${request.app}`;
+export async function assemblePlanningContext(request: PlanningContextRequest): Promise<PlanningContext> {
+  const openingTask = request.topic ? `Co-planning topic: ${request.topic}` : `Co-planning session for ${request.app}`;
   const assembled = await assembleContext({
     orgHome: request.orgHome,
     appWorkdir: request.appWorkdir,
@@ -154,9 +146,7 @@ async function git(cwd: string, args: string[]): Promise<string> {
     return stdout;
   } catch (e) {
     const err = e as { stderr?: string; stdout?: string; message?: string };
-    throw new Error(
-      `git ${args.join(" ")} failed in ${cwd}: ${err.stderr ?? err.stdout ?? err.message ?? String(e)}`,
-    );
+    throw new Error(`git ${args.join(" ")} failed in ${cwd}: ${err.stderr ?? err.stdout ?? err.message ?? String(e)}`);
   }
 }
 
@@ -193,9 +183,7 @@ export interface PlanSession {
   worktree: PlanningWorktree;
 }
 
-export async function preparePlanSession(
-  options: PreparePlanSessionOptions,
-): Promise<PlanSession> {
+export async function preparePlanSession(options: PreparePlanSessionOptions): Promise<PlanSession> {
   const orgHome = resolve(options.orgHome ?? process.cwd());
   const appsPath = resolve(options.appsPath ?? join(orgHome, "apps.yaml"));
   const rolesPath = resolve(options.rolesPath ?? join(orgHome, "roles.yaml"));

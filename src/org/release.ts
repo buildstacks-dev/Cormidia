@@ -9,9 +9,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import {
-  readExecutionSteps,
-} from "../loop/efficiency.js";
+import { readExecutionSteps } from "../loop/efficiency.js";
 import type {
   ApprovalStep,
   CreatorEpisodeScope,
@@ -37,29 +35,16 @@ import { readEnvelope } from "../runtime/runlog/envelope.js";
 import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
 import { runPaths } from "../runtime/runlog/paths.js";
 import { recordInvocation } from "../runtime/telemetry.js";
-import type {
-  ContextBundle,
-  GateFn,
-  RoleConfig,
-  Runtime,
-  ToolAction,
-  TurnAssignment,
-} from "../runtime/types.js";
+import type { ContextBundle, GateFn, RoleConfig, Runtime, ToolAction, TurnAssignment } from "../runtime/types.js";
 import { ApprovalStore, actionHash, type ApprovalItem } from "./approvals.js";
 import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
 import { resolveAppRoles } from "./app-execution-policy.js";
 import { writeFileAtomic } from "./atomic.js";
 import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext } from "./context.js";
-import {
-  assignmentsForRole,
-  resolveAppAssignments,
-} from "./execution-assignments.js";
+import { assignmentsForRole, resolveAppAssignments } from "./execution-assignments.js";
 import { composeGate, grantScopeText } from "./gate-compose.js";
-import {
-  orchestrateEpisode,
-  type EpisodeOrchestrationFacts,
-} from "./episode-planner/orchestrator.js";
+import { orchestrateEpisode, type EpisodeOrchestrationFacts } from "./episode-planner/orchestrator.js";
 import { loadRoles } from "./roles.js";
 import {
   canonicalJson,
@@ -143,14 +128,15 @@ export async function queueReleaseApprovals(
       role: trigger.owner,
       rule: "production-deploy",
       action,
-      classification: disposition.tier !== "routine"
-        ? disposition.evidence
-        : {
-            schemaVersion: 1,
-            rule: "production-deploy",
-            reason: "merged release trigger declares a production delivery effect",
-            matchedAction: actionEffectFields(action),
-          },
+      classification:
+        disposition.tier !== "routine"
+          ? disposition.evidence
+          : {
+              schemaVersion: 1,
+              rule: "production-deploy",
+              reason: "merged release trigger declares a production delivery effect",
+              matchedAction: actionEffectFields(action),
+            },
       ticketRef: item.ticketRef,
       justification:
         `milestone ${item.ticketRef} merged with a declared ${trigger.kind} disposition; ` +
@@ -307,12 +293,15 @@ export async function executeApprovedReleases(
       } else if (item.execution?.state === "executing" || item.execution?.state === "ambiguous") {
         await store.finishExecution({
           id: item.id,
-          state: existing.status === "completed" ? "executed" : existing.status === "ambiguous" ? "ambiguous" : "failed",
+          state:
+            existing.status === "completed" ? "executed" : existing.status === "ambiguous" ? "ambiguous" : "failed",
           actor: "orchestrator/release-reconcile",
           result: existing.summary ?? existing.status,
           ...(existing.status === "failed"
             ? { failureCause: "release_failed" }
-            : existing.status === "ambiguous" ? { failureCause: "ambiguous_release_result" } : {}),
+            : existing.status === "ambiguous"
+              ? { failureCause: "ambiguous_release_result" }
+              : {}),
           now: clock(),
         });
       }
@@ -426,7 +415,9 @@ export async function executeApprovedReleases(
         result: record.summary ?? record.status,
         ...(record.status === "failed"
           ? { failureCause: "release_failed" }
-          : record.status === "ambiguous" ? { failureCause: "ambiguous_release_result" } : {}),
+          : record.status === "ambiguous"
+            ? { failureCause: "ambiguous_release_result" }
+            : {}),
         now: clock(),
       });
     }
@@ -445,7 +436,7 @@ export async function executeApprovedReleases(
       status: record.status === "completed" ? "completed" : record.status === "ambiguous" ? "ambiguous" : "failed",
       summary:
         persisted.commentError === undefined
-          ? record.summary ?? record.status
+          ? (record.summary ?? record.status)
           : `${record.summary ?? record.status}; ticket comment failed: ${persisted.commentError}`,
     });
   }
@@ -478,39 +469,36 @@ async function executeReleaseEpisode(
   const cwd = managedClone(options.stateHome, app);
   const plannerRole = requireReleaseRole(configuredRoles, "planner");
   const sreRole = item.role === "sre" ? requireReleaseRole(configuredRoles, "sre") : undefined;
-  const definition = await buildReleaseEpisodeDefinition(
-    options,
-    item,
-    app,
-    configuredRoles,
-    command,
-    sreRole,
-  );
+  const definition = await buildReleaseEpisodeDefinition(options, item, app, configuredRoles, command, sreRole);
   const runtimeForAssignment = releaseRuntimeFactory(options);
-  const context = sreRole === undefined
-    ? EMPTY_CONTEXT
-    : (
-        await assembleContext({
-          orgHome: options.orgHome,
-          appWorkdir: cwd,
-          app: app.name,
-          role: sreRole,
-          taskText: `execute approved release ${item.id} for ${item.ticketRef ?? "unknown ticket"}`,
-        })
-      ).bundle;
+  const context =
+    sreRole === undefined
+      ? EMPTY_CONTEXT
+      : (
+          await assembleContext({
+            orgHome: options.orgHome,
+            appWorkdir: cwd,
+            app: app.name,
+            role: sreRole,
+            taskText: `execute approved release ${item.id} for ${item.ticketRef ?? "unknown ticket"}`,
+          })
+        ).bundle;
   let attempted = false;
   let commandResult: ReleaseCommandResult | undefined;
-  const gate = sreRole === undefined
-    ? defaultGate
-    : sreReleaseGate(options, store, item, command, () => attempted, () => {
-        attempted = true;
-      });
-  const facts: EpisodeOrchestrationFacts = releaseEpisodeFacts(
-    definition,
-    item,
-    app,
-    command,
-  );
+  const gate =
+    sreRole === undefined
+      ? defaultGate
+      : sreReleaseGate(
+          options,
+          store,
+          item,
+          command,
+          () => attempted,
+          () => {
+            attempted = true;
+          },
+        );
+  const facts: EpisodeOrchestrationFacts = releaseEpisodeFacts(definition, item, app, command);
   const orchestrated = await orchestrateEpisode({
     root: options.stateHome,
     app,
@@ -551,18 +539,8 @@ async function executeReleaseEpisode(
               }
             : releaseStepFailure("error_release_preflight", problem);
         }
-        if (
-          item.role === "orchestrator" &&
-          step.id === RELEASE_EXECUTION_STEP &&
-          step.gate === "release-command"
-        ) {
-          commandResult = await runApprovedOrchestratorCommand(
-            options,
-            store,
-            item,
-            app,
-            command,
-          );
+        if (item.role === "orchestrator" && step.id === RELEASE_EXECUTION_STEP && step.gate === "release-command") {
+          commandResult = await runApprovedOrchestratorCommand(options, store, item, app, command);
           return commandResult.exitCode === 0
             ? { status: "completed", artifact: releaseCommandArtifact(commandResult) }
             : releaseStepFailure(
@@ -571,11 +549,7 @@ async function executeReleaseEpisode(
                 releaseCommandArtifact(commandResult),
               );
         }
-        if (
-          item.role === "sre" &&
-          step.id === RELEASE_CONFIRM_STEP &&
-          step.gate === "release-command-attempted"
-        ) {
+        if (item.role === "sre" && step.id === RELEASE_CONFIRM_STEP && step.gate === "release-command-attempted") {
           return attempted
             ? {
                 status: "completed",
@@ -607,12 +581,7 @@ async function executeReleaseEpisode(
   if (!attempted) {
     throw new Error("SRE release turn completed without attempting the approved command");
   }
-  return releaseProviderResult(
-    options.stateHome,
-    app.name,
-    orchestrated.prepared.plan,
-    orchestrated.execution,
-  );
+  return releaseProviderResult(options.stateHome, app.name, orchestrated.prepared.plan, orchestrated.execution);
 }
 
 async function buildReleaseEpisodeDefinition(
@@ -627,11 +596,9 @@ async function buildReleaseEpisodeDefinition(
   let providerAssignment: TurnAssignment | undefined;
   let providerBudgetUsd = 0;
   if (sreRole !== undefined) {
-    const budget = (await rollupBudgets(
-      options.stateHome,
-      options.appsFile,
-      options.now?.() ?? new Date(),
-    )).find((entry) => entry.app === app.name);
+    const budget = (await rollupBudgets(options.stateHome, options.appsFile, options.now?.() ?? new Date())).find(
+      (entry) => entry.app === app.name,
+    );
     if (budget === undefined) throw new Error(`release: no budget policy for ${app.name}`);
     if (isBudgetBlocking(budget.status)) {
       throw new Error(
@@ -644,11 +611,7 @@ async function buildReleaseEpisodeDefinition(
     const selected = assignmentsForRole(resolved, "sre")[0];
     if (selected === undefined) throw new Error("release: no approved assignment for sre");
     providerAssignment = { ...selected.assignment };
-    providerBudgetUsd = Math.min(
-      remaining,
-      sreRole.maxTurnBudgetUsd,
-      selected.maxTurnCostUsd,
-    );
+    providerBudgetUsd = Math.min(remaining, sreRole.maxTurnBudgetUsd, selected.maxTurnCostUsd);
     if (!Number.isFinite(providerBudgetUsd) || providerBudgetUsd <= 0) {
       throw new Error("release: no positive app/role budget remains for the SRE provider turn");
     }
@@ -824,9 +787,7 @@ function releaseEpisodeFacts(
       maxHumanDecisions: 1,
     },
     requiredSafetyFacts: structuredClone(definition.safetyFacts),
-    responsibilityByRole: item.role === "sre"
-      ? { sre: "Own only the exact already-approved release command" }
-      : {},
+    responsibilityByRole: item.role === "sre" ? { sre: "Own only the exact already-approved release command" } : {},
     creatorScope: structuredClone(definition.scope),
   };
 }
@@ -894,11 +855,7 @@ async function releaseApprovalProblem(
   }
 }
 
-function findReleaseGrant(
-  options: ExecuteApprovedReleasesOptions,
-  store: ApprovalStore,
-  item: ApprovalItem,
-) {
+function findReleaseGrant(options: ExecuteApprovedReleasesOptions, store: ApprovalStore, item: ApprovalItem) {
   const common = {
     app: item.app,
     role: item.role,
@@ -985,21 +942,28 @@ async function runRq1TagPush(
     prepared.message,
   ]);
   if (tagResult.exitCode !== 0) return tagResult;
-  const pushResult = await run(cwd, [
-    "push",
-    "origin",
-    `refs/tags/${prepared.attestation.tag}`,
-  ]);
+  const pushResult = await run(cwd, ["push", "origin", `refs/tags/${prepared.attestation.tag}`]);
   if (pushResult.exitCode === 0) return pushResult;
   const local = await run(cwd, ["rev-parse", `refs/tags/${prepared.attestation.tag}`]);
   const remote = await run(cwd, ["ls-remote", "--tags", "origin", `refs/tags/${prepared.attestation.tag}`]);
   if (local.exitCode !== 0 || remote.exitCode !== 0) {
-    return { ...pushResult, outcome: "ambiguous", stderr: `${pushResult.stderr}\nRQ-1 tag push readback was unavailable`.trim() };
+    return {
+      ...pushResult,
+      outcome: "ambiguous",
+      stderr: `${pushResult.stderr}\nRQ-1 tag push readback was unavailable`.trim(),
+    };
   }
-  const matching = remote.stdout.split("\n").map((line) => line.trim().split(/\s+/, 2)).find((parts) => parts[1] === `refs/tags/${prepared.attestation.tag}`);
+  const matching = remote.stdout
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/, 2))
+    .find((parts) => parts[1] === `refs/tags/${prepared.attestation.tag}`);
   if (matching === undefined) return { ...pushResult, outcome: "failed" };
   if (matching[0] !== local.stdout.trim()) {
-    return { ...pushResult, outcome: "ambiguous", stderr: `${pushResult.stderr}\nRQ-1 remote tag marker disagrees with the local annotated tag`.trim() };
+    return {
+      ...pushResult,
+      outcome: "ambiguous",
+      stderr: `${pushResult.stderr}\nRQ-1 remote tag marker disagrees with the local annotated tag`.trim(),
+    };
   }
   return {
     exitCode: 0,
@@ -1022,9 +986,8 @@ async function runGitReleaseEffect(cwd: string, args: string[]): Promise<Release
     return {
       exitCode: typeof detail.code === "number" ? detail.code : 1,
       stdout: typeof detail.stdout === "string" ? detail.stdout : "",
-      stderr: typeof detail.stderr === "string"
-        ? detail.stderr
-        : error instanceof Error ? error.message : String(error),
+      stderr:
+        typeof detail.stderr === "string" ? detail.stderr : error instanceof Error ? error.message : String(error),
     };
   }
 }
@@ -1071,7 +1034,8 @@ function releaseRuntimeFactory(options: ExecuteApprovedReleasesOptions) {
       model: assignment.model,
       effort: assignment.effort,
     };
-    const runtime = options.runtimeForAssignment?.(assignment, role) ??
+    const runtime =
+      options.runtimeForAssignment?.(assignment, role) ??
       options.runtimeFor?.(effectiveRole) ??
       getRuntime(assignment.harness);
     if (runtime.kind !== assignment.harness) {
@@ -1089,10 +1053,9 @@ async function releaseProviderResult(
   plan: EpisodePlan,
   execution: EpisodePlanExecutionResult | null,
 ): Promise<ReleaseCommandResult> {
-  const evidence = (await readExecutionSteps(root, plan.episodeId)).filter((step) =>
-    step.kind === "provider" &&
-    step.plan_version === plan.version &&
-    step.plan_step_id === RELEASE_EXECUTION_STEP,
+  const evidence = (await readExecutionSteps(root, plan.episodeId)).filter(
+    (step) =>
+      step.kind === "provider" && step.plan_version === plan.version && step.plan_step_id === RELEASE_EXECUTION_STEP,
   );
   if (evidence.length !== 1) {
     throw new Error(`SRE release turn has ${evidence.length} terminal provider records`);
@@ -1106,13 +1069,11 @@ async function releaseProviderResult(
     // The terminal execution step remains the authoritative fallback.
   }
   const completed =
-    execution?.status === "completed" &&
-    record.status === "completed" &&
-    envelope.status === "completed";
+    execution?.status === "completed" && record.status === "completed" && envelope.status === "completed";
   return {
     exitCode: completed ? 0 : 1,
     stdout: completed ? output : "",
-    stderr: completed ? "" : execution?.summary ?? output,
+    stderr: completed ? "" : (execution?.summary ?? output),
   };
 }
 
@@ -1121,11 +1082,7 @@ function releaseFailureResult(execution: EpisodePlanExecutionResult | null): Rel
   return { exitCode: 1, stdout: "", stderr: summary };
 }
 
-function releaseStepFailure(
-  reasonCode: string,
-  summary: string,
-  artifact?: unknown,
-): EpisodeStepFailedOutcome {
+function releaseStepFailure(reasonCode: string, summary: string, artifact?: unknown): EpisodeStepFailedOutcome {
   return {
     status: "failed",
     reasonCode,
@@ -1283,26 +1240,24 @@ function tail(value: string, max: number): string {
 
 function releaseErrorSummary(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
-  return error.cause instanceof Error
-    ? `${error.message}: ${error.cause.message}`
-    : error.message;
+  return error.cause instanceof Error ? `${error.message}: ${error.cause.message}` : error.message;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-async function runReleaseCommand(
-  command: string,
-  cwd: string,
-  env: NodeJS.ProcessEnv,
-): Promise<ReleaseCommandResult> {
+async function runReleaseCommand(command: string, cwd: string, env: NodeJS.ProcessEnv): Promise<ReleaseCommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, { cwd, env, shell: true, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
-    child.stdout?.on("data", (chunk: Buffer) => { stdout = tail(stdout + chunk.toString("utf8"), 16_000); });
-    child.stderr?.on("data", (chunk: Buffer) => { stderr = tail(stderr + chunk.toString("utf8"), 16_000); });
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout = tail(stdout + chunk.toString("utf8"), 16_000);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = tail(stderr + chunk.toString("utf8"), 16_000);
+    });
     child.once("error", reject);
     child.once("close", (code) => resolve({ exitCode: code ?? 1, stdout, stderr }));
   });

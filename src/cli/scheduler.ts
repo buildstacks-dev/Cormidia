@@ -5,10 +5,7 @@ import { buildSchedulerExpectation } from "../org/scheduler/definition.js";
 import { installScheduler, uninstallScheduler, type SchedulerLifecycleResult } from "../org/scheduler/lifecycle.js";
 import { PlatformSchedulerManager, type SchedulerManager } from "../org/scheduler/manager.js";
 import { DEFAULT_SCHEDULER_CADENCE_MINUTES, type SchedulerBackend } from "../org/scheduler/model.js";
-import {
-  resolveSchedulerRequiredExecutables,
-  schedulerEnvironmentPath,
-} from "../org/scheduler/environment.js";
+import { resolveSchedulerRequiredExecutables, schedulerEnvironmentPath } from "../org/scheduler/environment.js";
 import { schedulerOperationalStatus, type SchedulerOperationalStatus } from "../org/scheduler/status.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -41,7 +38,8 @@ export async function runSchedulerCommand(args: string[], options: SchedulerComm
     const arg = rest[i];
     if (arg === "--backend") {
       const value = rest[++i];
-      if (value !== "launchd" && value !== "systemd") throw new Error("scheduler: --backend must be launchd or systemd");
+      if (value !== "launchd" && value !== "systemd")
+        throw new Error("scheduler: --backend must be launchd or systemd");
       backend = value;
     } else if (arg === "--execute") execute = true;
     else if (arg === "--confirm") confirm = needValue(rest, ++i, "--confirm");
@@ -49,15 +47,15 @@ export async function runSchedulerCommand(args: string[], options: SchedulerComm
     else if (arg === "--cadence-minutes") cadenceMinutes = Number(needValue(rest, ++i, "--cadence-minutes"));
     else throw new Error(`scheduler: unknown argument "${arg}"`);
   }
-  if (verb === "status" && (execute || confirm !== undefined)) throw new Error("scheduler status is read-only and does not accept --execute or --confirm");
+  if (verb === "status" && (execute || confirm !== undefined))
+    throw new Error("scheduler status is read-only and does not accept --execute or --confirm");
   const platform = options.platform ?? process.platform;
   const selected = backend ?? (platform === "darwin" ? "launchd" : "systemd");
   const homes = await resolveCormidiaHomes({ ...common, ...options });
   const manager = options.manager ?? new PlatformSchedulerManager({ backend: selected, platform });
-  if (manager.backend !== selected) throw new Error(`scheduler manager backend mismatch: expected ${selected}, got ${manager.backend}`);
-  const schedulerEnvironment = verb === "install"
-    ? schedulerEnvironmentForInstall(options)
-    : {};
+  if (manager.backend !== selected)
+    throw new Error(`scheduler manager backend mismatch: expected ${selected}, got ${manager.backend}`);
+  const schedulerEnvironment = verb === "install" ? schedulerEnvironmentForInstall(options) : {};
   const input = {
     backend: selected,
     orgName: homes.appsFile.org.name,
@@ -75,9 +73,20 @@ export async function runSchedulerCommand(args: string[], options: SchedulerComm
     printStatus(result, json);
     return result.healthy ? 0 : 1;
   }
-  const result = verb === "install"
-    ? await installScheduler({ ...input, execute, ...(confirm !== undefined ? { confirm } : {}), ...(options.now !== undefined ? { now: options.now } : {}) })
-    : await uninstallScheduler({ ...input, execute, ...(confirm !== undefined ? { confirm } : {}), ...(options.now !== undefined ? { now: options.now } : {}) });
+  const result =
+    verb === "install"
+      ? await installScheduler({
+          ...input,
+          execute,
+          ...(confirm !== undefined ? { confirm } : {}),
+          ...(options.now !== undefined ? { now: options.now } : {}),
+        })
+      : await uninstallScheduler({
+          ...input,
+          execute,
+          ...(confirm !== undefined ? { confirm } : {}),
+          ...(options.now !== undefined ? { now: options.now } : {}),
+        });
   printLifecycle(result, json);
   return result.action === "refuse" ? 1 : 0;
 }
@@ -86,8 +95,7 @@ function schedulerEnvironmentForInstall(options: SchedulerCommandOptions): {
   environmentPath: string;
   requiredExecutables: Record<string, string>;
 } {
-  const requiredExecutables = options.requiredExecutables
-    ?? resolveSchedulerRequiredExecutables();
+  const requiredExecutables = options.requiredExecutables ?? resolveSchedulerRequiredExecutables();
   return {
     requiredExecutables,
     environmentPath: schedulerEnvironmentPath(requiredExecutables, options.environmentPath),
@@ -124,12 +132,24 @@ function printStatus(result: SchedulerOperationalStatus, json: boolean): void {
   const d = result.definition;
   const e = result.evidence;
   console.log(`Scheduler ${d.scheduler_id}: ${result.healthy ? "healthy" : "attention required"}`);
-  console.log(`  backend/install: ${d.backend}; installed=${d.installed}; loaded=${String(d.loaded)}; active=${String(d.active)}`);
-  console.log(`  definition:      valid=${d.definition_valid}; expected=${d.expected_definition_hash}; observed=${d.observed_definition_hash ?? "missing"}`);
-  console.log(`  cadence:         ${d.configured_cadence_minutes}m; last=${e.last_completed_tick ?? "unmeasured"}; next=${e.next_expected_tick ?? "unmeasured"}; overdue=${String(e.overdue)}`);
-  console.log(`  decisions:       due=${e.counts.due}; executed=${e.counts.executed}; skipped=${e.counts.skipped}; blocked=${e.counts.blocked}; missed=${e.counts.missed}; reconciled=${e.counts.reconciled}`);
-  console.log(`  integrity:       duplicate decisions=${e.duplicate_decisions}; duplicate episodes=${e.duplicate_episodes}; orphan locks/journals/runs/settlements=${e.orphaned_locks}/${e.orphaned_journals}/${e.orphaned_runs}/${e.orphaned_settlements}`);
-  console.log(`  settlement:      turns=${e.provider_turns ?? "invalid"}; settlements=${e.provider_settlements ?? "invalid"}; agreement=${String(e.provider_settlement_agreement)}`);
+  console.log(
+    `  backend/install: ${d.backend}; installed=${d.installed}; loaded=${String(d.loaded)}; active=${String(d.active)}`,
+  );
+  console.log(
+    `  definition:      valid=${d.definition_valid}; expected=${d.expected_definition_hash}; observed=${d.observed_definition_hash ?? "missing"}`,
+  );
+  console.log(
+    `  cadence:         ${d.configured_cadence_minutes}m; last=${e.last_completed_tick ?? "unmeasured"}; next=${e.next_expected_tick ?? "unmeasured"}; overdue=${String(e.overdue)}`,
+  );
+  console.log(
+    `  decisions:       due=${e.counts.due}; executed=${e.counts.executed}; skipped=${e.counts.skipped}; blocked=${e.counts.blocked}; missed=${e.counts.missed}; reconciled=${e.counts.reconciled}`,
+  );
+  console.log(
+    `  integrity:       duplicate decisions=${e.duplicate_decisions}; duplicate episodes=${e.duplicate_episodes}; orphan locks/journals/runs/settlements=${e.orphaned_locks}/${e.orphaned_journals}/${e.orphaned_runs}/${e.orphaned_settlements}`,
+  );
+  console.log(
+    `  settlement:      turns=${e.provider_turns ?? "invalid"}; settlements=${e.provider_settlements ?? "invalid"}; agreement=${String(e.provider_settlement_agreement)}`,
+  );
   console.log(`  reasons:         ${result.reason_codes.join(", ") || "none"}`);
   console.log(`  alerts:          ${result.local_alerts_requiring_attention}`);
 }

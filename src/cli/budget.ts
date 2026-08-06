@@ -36,17 +36,17 @@ export async function cmdBudget(args: string[]): Promise<number> {
     // back-fill legacy envelopes. ProviderTurnId/app identity keeps this
     // idempotent; legacy rows fall back to runId/app.
     const rolesFile = await loadRoles(join(homes.orgHome, "roles.yaml"));
-    const runtimeByRole = Object.fromEntries(
-      rolesFile.roles.map((role) => [role.name, role.runtime]),
-    );
+    const runtimeByRole = Object.fromEntries(rolesFile.roles.map((role) => [role.name, role.runtime]));
     reconciliation = await reconcileLedger(homes.stateHome, runtimeByRole, now);
   }
 
   const rows = await enforceBudgetOverlay(homes.stateHome, apps, now);
-  const appRows = await Promise.all(rows.map(async (row) => ({
-    ...row,
-    paused: await isOverlayPaused(homes.stateHome, row.app),
-  })));
+  const appRows = await Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      paused: await isOverlayPaused(homes.stateHome, row.app),
+    })),
+  );
   // Learning overlay (learning-loop M5, spec §13): replay/eval spend settles
   // into the same ledger; this is the rollup against the learning caps.
   const learning = await rollupLearningSpend(homes.stateHome, now);
@@ -63,13 +63,11 @@ export async function cmdBudget(args: string[]): Promise<number> {
     // A corrupt learning policy must not take down the org's core budget
     // view — degrade to the spec §13 defaults with a loud note.
     const policy = await loadLearningPolicy(homes.orgHome).catch((error: Error) => {
-      learningPolicyWarning =
-        `learning policy unreadable (${error.message}) — learning caps shown are the spec defaults`;
+      learningPolicyWarning = `learning policy unreadable (${error.message}) — learning caps shown are the spec defaults`;
       return defaultLearningPolicy();
     });
     const cap = policy.learning_budget.monthly_usd;
-    const monthStatus =
-      learning.monthUsd >= cap ? "EXCEEDED" : learning.monthUsd >= cap * 0.8 ? "WARNING" : "OK";
+    const monthStatus = learning.monthUsd >= cap ? "EXCEEDED" : learning.monthUsd >= cap * 0.8 ? "WARNING" : "OK";
     const byCandidate = [...learning.byCandidate.entries()].sort().map(([candidate, spent]) => {
       const candidateCap = policy.learning_budget.per_candidate_replay_usd;
       const status = spent >= candidateCap ? "EXCEEDED" : spent >= candidateCap * 0.8 ? "WARNING" : "OK";
@@ -97,7 +95,8 @@ export async function cmdBudget(args: string[]): Promise<number> {
     apps: appRows,
     learning: learningReport,
     learningPolicyWarning,
-    unmeasured: [...unmeasured.entries()].sort(([a], [b]) => a.localeCompare(b))
+    unmeasured: [...unmeasured.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
       .map(([app, sessions]) => ({ app, sessions })),
     notes: [
       "subscription-backed provider spend is a Cormidia-computed equivalent-cost estimate, not a provider invoice",
@@ -145,9 +144,7 @@ export async function cmdBudget(args: string[]): Promise<number> {
         "their cost is unknown, not zero",
     );
   }
-  console.log(
-    `note: ${report.notes[0]}`,
-  );
+  console.log(`note: ${report.notes[0]}`);
   return 0;
 }
 

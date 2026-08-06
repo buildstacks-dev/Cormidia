@@ -19,10 +19,12 @@ describe("HB-107 — shared orchestrateEpisode façade wiring", () => {
 
     // Seeded negative control: reintroducing either split coordinator call is
     // detected even when the shared façade import remains nearby.
-    expect(facadeViolations(`${roadmapPlanning}\nexecuteAcceptedEpisodePlan({});`))
-      .toContain("direct accepted-plan execution bypass");
-    expect(facadeViolations(`${ticketDelivery}\nprepareEpisodePlanWithRuntime({});`))
-      .toContain("direct episode-planner preparation bypass");
+    expect(facadeViolations(`${roadmapPlanning}\nexecuteAcceptedEpisodePlan({});`)).toContain(
+      "direct accepted-plan execution bypass",
+    );
+    expect(facadeViolations(`${ticketDelivery}\nprepareEpisodePlanWithRuntime({});`)).toContain(
+      "direct episode-planner preparation bypass",
+    );
   });
 
   it("retains separate RoadmapPlan and EpisodePlan schemas and authority persistence", async () => {

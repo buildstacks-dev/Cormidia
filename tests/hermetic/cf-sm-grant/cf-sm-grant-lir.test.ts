@@ -122,10 +122,7 @@ function matchOnce(rig: Rig, overrides: { app?: string; role?: string; hash?: st
   });
 }
 
-function matchScoped(
-  rig: Rig,
-  overrides: { rule?: string; ticketRef?: string; actionText?: string } = {},
-) {
+function matchScoped(rig: Rig, overrides: { rule?: string; ticketRef?: string; actionText?: string } = {}) {
   return rig.store.findMatchingGrantSync({
     app: APP,
     role: ROLE,
@@ -266,9 +263,7 @@ describe("CF-SM-GRANT-I — refusals: cap+1, expiry, revocation, scope-widening,
     rig.store.consumeGrantSync(grant.grantId, rig.clock.nowDate());
     rig.store.consumeGrantSync(grant.grantId, rig.clock.nowDate());
     expect(matchScoped(rig)).toBeUndefined();
-    expect(() => rig.store.consumeGrantSync(grant.grantId, rig.clock.nowDate())).toThrow(
-      /no remaining uses/,
-    );
+    expect(() => rig.store.consumeGrantSync(grant.grantId, rig.clock.nowDate())).toThrow(/no remaining uses/);
     expect((await grantEvents(rig)).filter((event) => event.type === "grant-consumed")).toHaveLength(2);
   });
 
@@ -367,9 +362,7 @@ describe("CF-SM-GRANT-R — replayed consumption never re-authorizes (L2, HB-011
     rig.store.consumeGrantSync(grant.grantId, rig.clock.nowDate());
     rig.clock.advance(1_000); // the next tick
     expect(matchOnce(rig)).toBeUndefined();
-    expect(() => rig.store.consumeGrantSync(grant.grantId, rig.clock.nowDate())).toThrow(
-      /no remaining uses/,
-    );
+    expect(() => rig.store.consumeGrantSync(grant.grantId, rig.clock.nowDate())).toThrow(/no remaining uses/);
     expect((await grantEvents(rig)).filter((event) => event.type === "grant-consumed")).toHaveLength(1);
   });
 

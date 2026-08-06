@@ -3,10 +3,7 @@
 // (#199) can adopt the same seam without refactoring approval execution locks.
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  DurableClaimStore,
-  type DurableClaimRecord,
-} from "../../../src/runtime/durable-claim.js";
+import { DurableClaimStore, type DurableClaimRecord } from "../../../src/runtime/durable-claim.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const AT = new Date("2026-08-03T07:41:00.000Z");
@@ -137,8 +134,9 @@ describe("CF-SCHED-CLAIM — reusable durable single claim with explicit bounded
     });
     const first = await store.claim({ identity: "recoverable", payload: {}, maxAttempts: 2, now: AT });
     expect(first.disposition).toBe("claimed");
-    expect((await store.claim({ identity: "recoverable", payload: {}, maxAttempts: 2, now: AT })).disposition)
-      .toBe("already_claimed");
+    expect((await store.claim({ identity: "recoverable", payload: {}, maxAttempts: 2, now: AT })).disposition).toBe(
+      "already_claimed",
+    );
 
     owner = "dead";
     const recovered = await store.claim({
@@ -162,13 +160,15 @@ describe("CF-SCHED-CLAIM — reusable durable single claim with explicit bounded
       now: AT,
     });
 
-    await expect(store.settle({
-      settlementId: claimed.record.settlement_id,
-      attempt: claimed.record.attempt,
-      runId: "run-without-commit",
-      outcome: "forged",
-      now: AT,
-    })).rejects.toThrow("cannot settle before commit");
+    await expect(
+      store.settle({
+        settlementId: claimed.record.settlement_id,
+        attempt: claimed.record.attempt,
+        runId: "run-without-commit",
+        outcome: "forged",
+        now: AT,
+      }),
+    ).rejects.toThrow("cannot settle before commit");
     expect((await store.read(claimed.record.settlement_id))?.status).toBe("claimed");
 
     // Seeded negative control: a forged claimed record must make the independent

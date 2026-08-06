@@ -22,16 +22,18 @@ function story(overrides: Partial<NarrativeStory> = {}): NarrativeStory {
       ref: "tasks/task-1/prompt.md",
       quote: { source: "tasks/task-1/prompt.md", text: "Implement the accepted scope.", truncated: false },
     },
-    moments: [{
-      at: "2026-07-31T12:05:00.000Z",
-      run_id: "run-1",
-      pipeline: "build",
-      pass: "implement",
-      role: "builder",
-      status: "completed",
-      headline: "Implementation completed",
-      evidence: "runs/app/run-1/",
-    }],
+    moments: [
+      {
+        at: "2026-07-31T12:05:00.000Z",
+        run_id: "run-1",
+        pipeline: "build",
+        pass: "implement",
+        role: "builder",
+        status: "completed",
+        headline: "Implementation completed",
+        evidence: "runs/app/run-1/",
+      },
+    ],
     delivery: {
       stages: [{ boundary: "merged", status: "completed", at: "2026-07-31T12:10:00.000Z", attempt: 1 }],
       status: "completed",
@@ -46,7 +48,12 @@ function story(overrides: Partial<NarrativeStory> = {}): NarrativeStory {
 describe("HB-045 presentation smokes", () => {
   it("renders a deterministic, readable Markdown story and newest-first index", () => {
     const current = story();
-    const prior = story({ story_id: "episode-0", title: "Earlier work", opened: "2026-06-01T12:00:00.000Z", captured_at: "2026-06-01T12:10:00.000Z" });
+    const prior = story({
+      story_id: "episode-0",
+      title: "Earlier work",
+      opened: "2026-06-01T12:00:00.000Z",
+      captured_at: "2026-06-01T12:10:00.000Z",
+    });
     const markdown = renderStoryMarkdown(current);
     expect(markdown).toContain("# Deliver the bounded change");
     expect(markdown).toContain("## Origin");

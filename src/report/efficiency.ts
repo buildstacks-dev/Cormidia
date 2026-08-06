@@ -38,7 +38,8 @@ export async function buildEfficiencyReport(input: {
   const allEvidence = await readEfficiencyEvidence(input.stateHome);
   const evidence = allEvidence.filter((item) => {
     const route = item.route;
-    const belongsToApp = input.app === undefined ||
+    const belongsToApp =
+      input.app === undefined ||
       route?.app === input.app ||
       item.steps.some((step) => step.app === input.app) ||
       item.pending_started.some((receipt) => receipt.app === input.app);
@@ -48,28 +49,30 @@ export async function buildEfficiencyReport(input: {
       ...item.steps.map((step) => step.finished_at),
       ...item.pending_started.map((receipt) => receipt.started_at),
     ];
-    return timestamps.some((stamp) => inRange(stamp, from, to)) ||
-      (input.app === undefined && route === null && item.corrupt_files.length > 0);
+    return (
+      timestamps.some((stamp) => inRange(stamp, from, to)) ||
+      (input.app === undefined && route === null && item.corrupt_files.length > 0)
+    );
   });
   const routeById = new Map(
     evidence.flatMap((item) => (item.route === null ? [] : [[item.route.episode_id, item.route] as const])),
   );
-  const steps = evidence.flatMap((item) => item.steps).filter((step) => input.app === undefined || step.app === input.app);
-  const pendingStarted = evidence.flatMap((item) => item.pending_started)
+  const steps = evidence
+    .flatMap((item) => item.steps)
+    .filter((step) => input.app === undefined || step.app === input.app);
+  const pendingStarted = evidence
+    .flatMap((item) => item.pending_started)
     .filter((receipt) => input.app === undefined || receipt.app === input.app);
   const stepsByRun = groupBy(steps, (step) => `${step.app}\0${step.run_id}`);
   const settlementsByRun = groupBy(rows, (row) => `${row.app ?? ""}\0${row.runId ?? ""}`);
   const envelopeByRun = new Map(envelopes.map((envelope) => [`${envelope.app}\0${envelope.run_id}`, envelope]));
   const providerStepIds = new Set(
-    steps.flatMap((step) => step.provider_turn_id === null ? [] : [step.provider_turn_id]),
+    steps.flatMap((step) => (step.provider_turn_id === null ? [] : [step.provider_turn_id])),
   );
 
   const inferredEpisodeByRun = new Map<string, string>();
   for (const envelope of envelopes) {
-    inferredEpisodeByRun.set(
-      `${envelope.app}\0${envelope.run_id}`,
-      envelope.episode_id ?? legacyEpisodeId(envelope),
-    );
+    inferredEpisodeByRun.set(`${envelope.app}\0${envelope.run_id}`, envelope.episode_id ?? legacyEpisodeId(envelope));
   }
 
   const allEpisodeIds = new Set<string>([
@@ -77,10 +80,10 @@ export async function buildEfficiencyReport(input: {
     ...inferredEpisodeByRun.values(),
     ...steps.map((step) => step.episode_id),
     ...pendingStarted.map((receipt) => receipt.episode_id),
-    ...rows.flatMap((row) => row.episodeId === undefined ? [] : [row.episodeId]),
+    ...rows.flatMap((row) => (row.episodeId === undefined ? [] : [row.episodeId])),
   ]);
   const duplicateProviderTurnIds = duplicateValues(
-    steps.flatMap((step) => step.provider_turn_id === null ? [] : [step.provider_turn_id]),
+    steps.flatMap((step) => (step.provider_turn_id === null ? [] : [step.provider_turn_id])),
   );
   const duplicateExecutionStepIds = duplicateValues(steps.map((step) => step.execution_step_id));
   const issues: ReportEfficiencyV1["issues"] = {
@@ -94,11 +97,12 @@ export async function buildEfficiencyReport(input: {
     pending_execution_step_ids: pendingStarted.map((receipt) => receipt.execution_step_id),
     incomplete_run_ids: envelopes.filter((envelope) => envelope.status === "running").map(runLabel),
     unattributed_pass_ids: input.rows
-      .filter(({ record }) =>
-        record.app === undefined ||
-        record.runId === undefined ||
-        (!envelopeByRun.has(`${record.app}\0${record.runId}`) &&
-          (record.providerTurnId === undefined || !providerStepIds.has(record.providerTurnId))),
+      .filter(
+        ({ record }) =>
+          record.app === undefined ||
+          record.runId === undefined ||
+          (!envelopeByRun.has(`${record.app}\0${record.runId}`) &&
+            (record.providerTurnId === undefined || !providerStepIds.has(record.providerTurnId))),
       )
       .map(({ day, line }) => `ledger:${day}:${line}`),
     duplicate_settlement_keys: [...input.duplicateKeys],
@@ -192,8 +196,10 @@ export async function buildEfficiencyReport(input: {
     );
     const episodeSteps = steps.filter((step) => step.episode_id === episodeId);
     const episodeRows = rows.filter(
-      (row) => row.episodeId === episodeId ||
-        (row.app !== undefined && row.runId !== undefined &&
+      (row) =>
+        row.episodeId === episodeId ||
+        (row.app !== undefined &&
+          row.runId !== undefined &&
           inferredEpisodeByRun.get(`${row.app}\0${row.runId}`) === episodeId),
     );
     const providerSteps = episodeSteps.filter((step) => step.kind === "provider");
@@ -201,10 +207,7 @@ export async function buildEfficiencyReport(input: {
     const providerRows = episodeRows.filter((row) => row.runId !== undefined);
     const episodeIssues = episodeIssueLabels(episodeId, episodeEnvelopes, route, episodeSteps, issues);
     const usageKnown = providerRows.every(
-      (row) =>
-        row.unmeasured !== true &&
-        row.usageQuality === "complete" &&
-        row.costEstimated !== true,
+      (row) => row.unmeasured !== true && row.usageQuality === "complete" && row.costEstimated !== true,
     );
     if (!usageKnown && providerRows.length > 0) episodeIssues.push("nonqualifying_usage_quality");
     if (episodePending.length > 0) episodeIssues.push("pending_execution_step");
@@ -222,12 +225,17 @@ export async function buildEfficiencyReport(input: {
     // settlements fully support (#92).
     const repeatedWork = deriveRepeatedWork(providerSteps, costByProviderTurn);
     if (repeatedWork.missing_inputs.length > 0) episodeIssues.push("repeated_work_settlement_missing");
-    const elapsedBounds = route === undefined
-      ? {
-          start: episodeEnvelopes.map((envelope) => envelope.started_at).sort()[0],
-          end: episodeEnvelopes.map((envelope) => envelope.finished_at).filter((value): value is string => value !== undefined).sort().at(-1),
-        }
-      : { start: route.admitted_at, end: route.terminal?.at };
+    const elapsedBounds =
+      route === undefined
+        ? {
+            start: episodeEnvelopes.map((envelope) => envelope.started_at).sort()[0],
+            end: episodeEnvelopes
+              .map((envelope) => envelope.finished_at)
+              .filter((value): value is string => value !== undefined)
+              .sort()
+              .at(-1),
+          }
+        : { start: route.admitted_at, end: route.terminal?.at };
     const activeTime = activeIntervals.length === 0 ? null : unionDurationMs(activeIntervals);
     const elapsedTime =
       elapsedBounds.start === undefined || elapsedBounds.end === undefined
@@ -235,13 +243,21 @@ export async function buildEfficiencyReport(input: {
         : Math.max(0, new Date(elapsedBounds.end).getTime() - new Date(elapsedBounds.start).getTime());
     episodes.push({
       episode_id: episodeId,
-      app: route?.app ?? episodeEnvelopes[0]?.app ?? episodeRows[0]?.app ?? episodeSteps[0]?.app ?? episodePending[0]?.app ?? "(unattributed)",
+      app:
+        route?.app ??
+        episodeEnvelopes[0]?.app ??
+        episodeRows[0]?.app ??
+        episodeSteps[0]?.app ??
+        episodePending[0]?.app ??
+        "(unattributed)",
       evidence: route === undefined ? "legacy_inferred" : "durable",
       planned_route: route?.planned_route ?? null,
       current_route: route?.current_route ?? null,
       final_route: route?.final_route ?? null,
       terminal_status: route?.terminal?.status ?? inferredTerminal(episodeEnvelopes),
-      provider_turns: new Set(providerRows.map((row) => settlementIdentity(row)).filter((id): id is string => id !== undefined)).size,
+      provider_turns: new Set(
+        providerRows.map((row) => settlementIdentity(row)).filter((id): id is string => id !== undefined),
+      ).size,
       mechanical_steps:
         episodeSteps.filter((step) => step.kind === "mechanical").length ||
         episodeEnvelopes.filter((envelope) => isLegacyMechanical(envelope, settlementsByRun)).length,
@@ -263,8 +279,12 @@ export async function buildEfficiencyReport(input: {
   const terminalEpisodes = durableRoutes.filter((route) => route.terminal !== null);
   const terminalStepDenominator = steps.length + pendingStarted.length;
   const productiveSteps = steps.filter((step) => step.kind === "provider" && step.productive !== null);
-  const unknownProductivity = steps.filter((step) => step.kind === "provider" && step.productive === null).map((step) => step.execution_step_id);
-  const legacyProviderRows = rows.filter((row) => row.providerTurnId === undefined).map((row) => row.runId ?? "unattributed");
+  const unknownProductivity = steps
+    .filter((step) => step.kind === "provider" && step.productive === null)
+    .map((step) => step.execution_step_id);
+  const legacyProviderRows = rows
+    .filter((row) => row.providerTurnId === undefined)
+    .map((row) => row.runId ?? "unattributed");
   const legacyTerminalEnvelopes = envelopes.filter(
     (envelope) => envelope.episode_id === undefined && envelope.status !== "running",
   );
@@ -316,7 +336,9 @@ export async function buildEfficiencyReport(input: {
         legacyProviderRows,
         [
           ...unknownProductivity.map((id) => `productive fingerprint classification missing for ${id}`),
-          ...legacyProviderRows.map((id) => `productive fingerprint classification missing for legacy settlement ${id}`),
+          ...legacyProviderRows.map(
+            (id) => `productive fingerprint classification missing for legacy settlement ${id}`,
+          ),
         ],
       ),
     },
@@ -391,9 +413,7 @@ function deriveRepeatedWork(
     const settled = step.provider_turn_id === null ? undefined : costByProviderTurn.get(step.provider_turn_id);
     const cost = settled ?? null;
     if (cost === null) {
-      missingInputs.push(
-        `settled cost missing for repeated execution step ${step.execution_step_id}`,
-      );
+      missingInputs.push(`settled cost missing for repeated execution step ${step.execution_step_id}`);
     }
     return {
       execution_step_id: step.execution_step_id,
@@ -453,11 +473,7 @@ function uniqueEnvelopes(details: ReportDetailFacts): RunEnvelope[] {
 async function readManifest(
   stateHome: string,
   input: { app: string; runId: string; ref?: string },
-): Promise<
-  { status: "ok"; manifest: ContextManifest } |
-  { status: "missing" } |
-  { status: "invalid" }
-> {
+): Promise<{ status: "ok"; manifest: ContextManifest } | { status: "missing" } | { status: "invalid" }> {
   const ref = input.ref;
   if (ref === undefined) return { status: "missing" };
   if (ref !== "context-manifest.json") return { status: "invalid" };
@@ -490,9 +506,11 @@ function inferredTerminal(envelopes: RunEnvelope[]): string | null {
 }
 
 function isLegacyMechanical(envelope: RunEnvelope, rowsByRun: Map<string, TurnRecord[]>): boolean {
-  return (rowsByRun.get(`${envelope.app}\0${envelope.run_id}`) ?? []).length === 0 &&
+  return (
+    (rowsByRun.get(`${envelope.app}\0${envelope.run_id}`) ?? []).length === 0 &&
     envelope.usage === undefined &&
-    (envelope.role.includes("gate") || envelope.pipeline.includes("gate") || envelope.pass.includes("gate"));
+    (envelope.role.includes("gate") || envelope.pipeline.includes("gate") || envelope.pass.includes("gate"))
+  );
 }
 
 function episodeIssueLabels(
@@ -502,10 +520,7 @@ function episodeIssueLabels(
   steps: ExecutionStepRecord[],
   issues: ReportEfficiencyV1["issues"],
 ): string[] {
-  const runIds = new Set([
-    ...envelopes.map(runLabel),
-    ...steps.map((step) => `${step.app}/${step.run_id}`),
-  ]);
+  const runIds = new Set([...envelopes.map(runLabel), ...steps.map((step) => `${step.app}/${step.run_id}`)]);
   const labels: string[] = [];
   if (route === undefined) labels.push("missing_route_record");
   if (route !== undefined && route.terminal === null) labels.push("missing_episode_terminal");
@@ -513,8 +528,10 @@ function episodeIssueLabels(
   if (issues.missing_context_manifest_run_ids.some((id) => runIds.has(id))) labels.push("missing_context_manifest");
   if (issues.invalid_context_manifest_run_ids.some((id) => runIds.has(id))) labels.push("invalid_context_manifest");
   if (issues.missing_execution_step_run_ids.some((id) => runIds.has(id))) labels.push("missing_execution_step");
-  if (steps.some((step) => issues.unsettled_provider_step_ids.includes(step.execution_step_id))) labels.push("unsettled_provider_step");
-  if (steps.some((step) => issues.orphan_execution_step_ids.includes(step.execution_step_id))) labels.push("orphan_execution_step");
+  if (steps.some((step) => issues.unsettled_provider_step_ids.includes(step.execution_step_id)))
+    labels.push("unsettled_provider_step");
+  if (steps.some((step) => issues.orphan_execution_step_ids.includes(step.execution_step_id)))
+    labels.push("orphan_execution_step");
   if (issues.missing_route_episode_ids.includes(episodeId)) labels.push("missing_route_record");
   return [...new Set(labels)].sort();
 }
@@ -537,28 +554,34 @@ function groupBy<T>(values: readonly T[], keyOf: (value: T) => string): Map<stri
 function duplicateValues(values: readonly string[]): string[] {
   const counts = new Map<string, number>();
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return [...counts.entries()].filter(([, count]) => count > 1).map(([value]) => value).sort();
+  return [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([value]) => value)
+    .sort();
 }
 
 function isContextManifest(value: unknown, app: string, runId: string): value is ContextManifest {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const manifest = value as Partial<ContextManifest>;
-  return manifest.schema_version === 1 &&
+  return (
+    manifest.schema_version === 1 &&
     manifest.app === app &&
     manifest.run_id === runId &&
     typeof manifest.episode_id === "string" &&
     typeof manifest.render_sha256 === "string" &&
     typeof manifest.rendered_bytes === "number" &&
     Array.isArray(manifest.components) &&
-    manifest.components.every((component) =>
-      component !== null &&
-      typeof component === "object" &&
-      typeof component.component_id === "string" &&
-      typeof component.source === "string" &&
-      typeof component.source_sha256 === "string" &&
-      typeof component.rendered_bytes === "number" &&
-      typeof component.inclusion_reason === "string",
-    );
+    manifest.components.every(
+      (component) =>
+        component !== null &&
+        typeof component === "object" &&
+        typeof component.component_id === "string" &&
+        typeof component.source === "string" &&
+        typeof component.source_sha256 === "string" &&
+        typeof component.rendered_bytes === "number" &&
+        typeof component.inclusion_reason === "string",
+    )
+  );
 }
 
 function mapSortedUnique(issues: ReportEfficiencyV1["issues"]): ReportEfficiencyV1["issues"] {

@@ -29,10 +29,7 @@ export interface RunRoleCommandDependencies {
   runDispatchedTurn?: typeof runDispatchedTurn;
 }
 
-export async function cmdRunRole(
-  args: string[],
-  dependencies: RunRoleCommandDependencies = {},
-): Promise<number> {
+export async function cmdRunRole(args: string[], dependencies: RunRoleCommandDependencies = {}): Promise<number> {
   const common = extractHomeFlags(args, "run-role");
   args = common.rest;
   let name: string | undefined;
@@ -79,9 +76,7 @@ export async function cmdRunRole(
   const { roles } = await loadRoles(rolesPath);
   const role = roles.find((r) => r.name === name);
   if (role === undefined) {
-    throw new Error(
-      `unknown role "${name}" — roles.yaml defines: ${roles.map((r) => r.name).join(", ")}`,
-    );
+    throw new Error(`unknown role "${name}" — roles.yaml defines: ${roles.map((r) => r.name).join(", ")}`);
   }
   const appsFile = homes.appsFile;
   const appEntry = appsFile.apps.find((entry) => entry.name === app);
@@ -123,10 +118,11 @@ export async function cmdRunRole(
     runtimeHome: homes.stateHome,
   });
   const managedWorkdir = join(homes.stateHome, "repos", appEntry.name);
-  const standaloneWorktree = prepared.creatorScope?.planningDisposition === "execution_ready" &&
+  const standaloneWorktree =
+    prepared.creatorScope?.planningDisposition === "execution_ready" &&
     prepared.creatorScope.workKind === "standalone-role-turn"
-    ? turnWorktreeIdentity(homes.stateHome, appEntry.name, turnId)
-    : undefined;
+      ? turnWorktreeIdentity(homes.stateHome, appEntry.name, turnId)
+      : undefined;
   const context: ContextBundle = (
     await assembleContext({
       orgHome: homes.orgHome,
@@ -178,12 +174,15 @@ function needValue(args: string[], index: number, flag: string): string {
 
 function validateInvocationId(value: string): void {
   if (
-    value.length === 0 || value.length > 256 || value !== value.trim() ||
-    value === "." || value === ".." || /[\\/\0]/u.test(value)
+    value.length === 0 ||
+    value.length > 256 ||
+    value !== value.trim() ||
+    value === "." ||
+    value === ".." ||
+    /[\\/\0]/u.test(value)
   ) {
     throw new Error(
-      "run-role: --turn must be a non-empty path-safe invocation identity; " +
-        "it is not a GitHub ticket number",
+      "run-role: --turn must be a non-empty path-safe invocation identity; " + "it is not a GitHub ticket number",
     );
   }
 }
@@ -232,8 +231,7 @@ function printPreview(options: {
     );
     if (prepared.template !== undefined) {
       console.log(
-        `Template: ${prepared.template.path} (${prepared.template.bytes} bytes, ` +
-          `${prepared.template.lines} lines)`,
+        `Template: ${prepared.template.path} (${prepared.template.bytes} bytes, ` + `${prepared.template.lines} lines)`,
       );
       console.log(`Template summary: ${prepared.template.summary}`);
       console.log(`Template SHA-256: ${prepared.template.sha256}`);
@@ -242,16 +240,16 @@ function printPreview(options: {
       console.log(`Template SHA-256: ${templateSha256(scope) ?? "unavailable"}`);
     }
     console.log(
-      `Provenance: ${scope.provenance.source} ${scope.provenance.creatorId} at ` +
-        `${scope.provenance.createdAt}`,
+      `Provenance: ${scope.provenance.source} ${scope.provenance.creatorId} at ` + `${scope.provenance.createdAt}`,
     );
     console.log(`Provenance evidence: ${scope.provenance.evidenceRefs.join(", ")}`);
     const providerStep = scope.steps?.find((step) => step.kind === "provider_turn");
     if (providerStep?.kind === "provider_turn") {
-      const assignment = providerStep.assignment === undefined
-        ? `${options.role.runtime}/${options.role.model}@${options.role.effort} (configured fixed tuple)`
-        : `${providerStep.assignment.harness}/${providerStep.assignment.model}@${providerStep.assignment.effort} ` +
-          "(creator-selected approved tuple)";
+      const assignment =
+        providerStep.assignment === undefined
+          ? `${options.role.runtime}/${options.role.model}@${options.role.effort} (configured fixed tuple)`
+          : `${providerStep.assignment.harness}/${providerStep.assignment.model}@${providerStep.assignment.effort} ` +
+            "(creator-selected approved tuple)";
       console.log(`Assignment: ${assignment}`);
       console.log(`Assignment rationale: ${providerStep.selectionReason}`);
       console.log(`Execution input refs: ${providerStep.inputRefs.map((input) => input.ref).join(", ")}`);

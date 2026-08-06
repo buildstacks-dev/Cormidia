@@ -6,12 +6,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import {
-  admitEpisode,
-  finalizeEpisode,
-  recordMechanicalStep,
-  type ExecutionStatus,
-} from "../loop/efficiency.js";
+import { admitEpisode, finalizeEpisode, recordMechanicalStep, type ExecutionStatus } from "../loop/efficiency.js";
 
 export const LIFECYCLE_SCHEMA_VERSION = 1 as const;
 export const LIFECYCLE_POLICY_VERSION = "lifecycle/v1";
@@ -52,13 +47,7 @@ export type LifecycleFaultPoint =
 export type LifecycleFaultHook = (point: LifecycleFaultPoint) => void | Promise<void>;
 
 export interface LifecycleBlocker {
-  code:
-    | "active_run"
-    | "stale_run"
-    | "active_journal"
-    | "active_lock"
-    | "pending_approval"
-    | "invalid_state";
+  code: "active_run" | "stale_run" | "active_journal" | "active_lock" | "pending_approval" | "invalid_state";
   ids: string[];
   forceEligible: boolean;
   remediation: string;
@@ -118,7 +107,9 @@ export async function acquireLifecycleOperationLock(
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const handle = await open(path, "wx", 0o600);
-      await handle.writeFile(stableJson({ schema_version: LIFECYCLE_SCHEMA_VERSION, key, operation, pid: process.pid }));
+      await handle.writeFile(
+        stableJson({ schema_version: LIFECYCLE_SCHEMA_VERSION, key, operation, pid: process.pid }),
+      );
       return async () => {
         await handle.close();
         await rm(path, { force: true });
@@ -130,7 +121,9 @@ export async function acquireLifecycleOperationLock(
         await assertRegularFile(path, `${operation} lock`);
         owner = JSON.parse(await readFile(path, "utf8"));
       } catch (readError) {
-        throw new Error(`${operation}: corrupt lifecycle lock ${path}: ${readError instanceof Error ? readError.message : String(readError)}`);
+        throw new Error(
+          `${operation}: corrupt lifecycle lock ${path}: ${readError instanceof Error ? readError.message : String(readError)}`,
+        );
       }
       const pid = owner && typeof owner === "object" ? (owner as Record<string, unknown>)["pid"] : undefined;
       if (typeof pid !== "number" || !Number.isSafeInteger(pid) || pid <= 0) {
@@ -186,12 +179,14 @@ export function isInside(candidate: string, ancestor: string): boolean {
 
 export async function assertRegularFile(path: string, label: string): Promise<void> {
   const info = await lstat(path);
-  if (!info.isFile() || info.isSymbolicLink()) throw new Error(`${label}: expected a regular non-symlink file: ${path}`);
+  if (!info.isFile() || info.isSymbolicLink())
+    throw new Error(`${label}: expected a regular non-symlink file: ${path}`);
 }
 
 export async function assertDirectoryNoSymlink(path: string, label: string): Promise<string> {
   const info = await lstat(path);
-  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error(`${label}: expected a non-symlink directory: ${path}`);
+  if (!info.isDirectory() || info.isSymbolicLink())
+    throw new Error(`${label}: expected a non-symlink directory: ${path}`);
   return realpath(path);
 }
 

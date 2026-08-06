@@ -25,9 +25,7 @@ export async function cmdRoles(args: string[] = []): Promise<number> {
     else if (pathArgument === undefined) pathArgument = arg;
     else throw new Error("roles: expected at most one roles.yaml path");
   }
-  const path = pathArgument
-    ? resolve(pathArgument)
-    : join((await resolveCormidiaHomes(common)).orgHome, "roles.yaml");
+  const path = pathArgument ? resolve(pathArgument) : join((await resolveCormidiaHomes(common)).orgHome, "roles.yaml");
   const { roles, defaults, roleTurnBudgets } = await loadRoles(path);
   const budgetsByRole = new Map(roleTurnBudgets.map((budget) => [budget.name, budget]));
   const rows = roles.map((role) => {
@@ -67,8 +65,7 @@ export async function cmdRoles(args: string[] = []): Promise<number> {
   const pad = (s: string, n: number) => s.padEnd(n);
   const roleWidth = Math.max(12, ...rows.map((role) => role.name.length + 2));
   const budgetLabels = rows.map(
-    (role) =>
-      `$${role.effectiveTurnBudgetUsd}${role.turnBudgetInherited ? " (default)" : ""}`,
+    (role) => `$${role.effectiveTurnBudgetUsd}${role.turnBudgetInherited ? " (default)" : ""}`,
   );
   const budgetWidth = Math.max("BUDGET".length, ...budgetLabels.map((value) => value.length)) + 2;
   console.log(

@@ -5,11 +5,7 @@ import { join } from "node:path";
 import { defaultGate } from "../runtime/gate.js";
 import type { GateFn, RoleConfig, TurnAssignment } from "../runtime/types.js";
 import { getRuntime } from "../runtime/registry.js";
-import {
-  defaultLoopInputs,
-  runLoopOnce,
-  type LoopDriverResult,
-} from "../loop/driver.js";
+import { defaultLoopInputs, runLoopOnce, type LoopDriverResult } from "../loop/driver.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE } from "../loop/episode-route.js";
 import { loadPipelines } from "../loop/pipelines.js";
 import { finalizeEpisode } from "../loop/efficiency.js";
@@ -20,16 +16,8 @@ import { assembleContext, createEpisodeContextResolver } from "../org/context.js
 import { loadRoles } from "../org/roles.js";
 import { appendScorecardEvent } from "../org/scorecards.js";
 import { ApprovalStore } from "../org/approvals.js";
-import {
-  enforceBudgetOverlay,
-  isBudgetBlocking,
-  raiseTurnBudgetEscalation,
-  rollupBudgets,
-} from "../org/budget.js";
-import {
-  createTicketEpisodeRuntime,
-  inspectTicketEpisodeInvocation,
-} from "../org/ticket-episode-runtime.js";
+import { enforceBudgetOverlay, isBudgetBlocking, raiseTurnBudgetEscalation, rollupBudgets } from "../org/budget.js";
+import { createTicketEpisodeRuntime, inspectTicketEpisodeInvocation } from "../org/ticket-episode-runtime.js";
 import { createExistingTicketApprovalHandler } from "../org/ticket-episode-approval.js";
 import { createRoadmapLoopRuntime } from "../org/roadmap-loop-runtime.js";
 import { queueReleaseApprovals } from "../org/release.js";
@@ -50,21 +38,20 @@ export function loopInvocationOutcome(result: LoopDriverResult, dryRun = false):
     const previewed = result.itemsPreviewed ?? 0;
     return previewed > 0 ? `would-claim: ${previewed}` : "no-ready-tickets";
   }
-  return [
-    ...(result.terminalEpisodeRefusals ?? []).map(
-      (refusal) =>
-        `terminal-episode-refused: #${refusal.issueNumber}=${refusal.episodeId} ` +
-        `(${refusal.status}: ${refusal.reason}); repaired to op:returned`,
-    ),
-    ...result.items.map((item) =>
-      `${item.ticketRef}=${item.phase}${episodeReplanOutcome(item)}`),
-  ].join(", ") || "no-ready-tickets";
+  return (
+    [
+      ...(result.terminalEpisodeRefusals ?? []).map(
+        (refusal) =>
+          `terminal-episode-refused: #${refusal.issueNumber}=${refusal.episodeId} ` +
+          `(${refusal.status}: ${refusal.reason}); repaired to op:returned`,
+      ),
+      ...result.items.map((item) => `${item.ticketRef}=${item.phase}${episodeReplanOutcome(item)}`),
+    ].join(", ") || "no-ready-tickets"
+  );
 }
 
 export function loopDriverExitCode(result: LoopDriverResult): 0 | 1 {
-  return result.budgetRefusal !== undefined || (result.terminalEpisodeRefusals?.length ?? 0) > 0
-    ? 1
-    : 0;
+  return result.budgetRefusal !== undefined || (result.terminalEpisodeRefusals?.length ?? 0) > 0 ? 1 : 0;
 }
 
 /**
@@ -130,9 +117,7 @@ export function createLoopGateForRole(
       ...(orgHome !== undefined ? { orgHome } : {}),
       ...(cwd !== undefined ? { workdir: cwd } : {}),
       ...(appConfig !== undefined ? { appRepo: appConfig.repo } : {}),
-      ...(appConfig?.networkAllowlist !== undefined
-        ? { networkAllowlist: appConfig.networkAllowlist }
-        : {}),
+      ...(appConfig?.networkAllowlist !== undefined ? { networkAllowlist: appConfig.networkAllowlist } : {}),
     });
   };
 }
@@ -212,28 +197,37 @@ export async function cmdLoop(args: string[]): Promise<number> {
     return cmdClaimRearm(args.slice(1), await resolveCormidiaHomes(common));
   }
   const parsed = parseLoopRunArgs(args);
-  const {
-    appName,
-    dryRun,
-    repoDir,
-    worktreeRoot,
-    allowNetwork,
-    parentTaskInput,
-    explainEpisode,
-    resumeEpisode,
-  } = parsed;
+  const { appName, dryRun, repoDir, worktreeRoot, allowNetwork, parentTaskInput, explainEpisode, resumeEpisode } =
+    parsed;
   let { once, follow } = parsed;
 
   const homes = await resolveCormidiaHomes(common);
   if (explainEpisode !== undefined) {
-    if (resumeEpisode !== undefined || appName !== undefined || once || follow || dryRun || repoDir !== undefined || worktreeRoot !== undefined || allowNetwork) {
+    if (
+      resumeEpisode !== undefined ||
+      appName !== undefined ||
+      once ||
+      follow ||
+      dryRun ||
+      repoDir !== undefined ||
+      worktreeRoot !== undefined ||
+      allowNetwork
+    ) {
       throw new Error("loop: --explain-context is a token-free standalone read");
     }
     console.log(JSON.stringify(await explainContext(homes.stateHome, explainEpisode), null, 2));
     return 0;
   }
   if (resumeEpisode !== undefined) {
-    if (appName !== undefined || once || follow || dryRun || repoDir !== undefined || worktreeRoot !== undefined || allowNetwork) {
+    if (
+      appName !== undefined ||
+      once ||
+      follow ||
+      dryRun ||
+      repoDir !== undefined ||
+      worktreeRoot !== undefined ||
+      allowNetwork
+    ) {
       throw new Error("loop: --resume-episode is a standalone durable-boundary read");
     }
     // L-005: this flag is a read-only PREVIEW of the durable resume plan — it
@@ -279,13 +273,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
     ...(repoDir !== undefined
       ? {
           supplied: true,
-          snapshotDir: join(
-            homes.stateHome,
-            "repos",
-            "snapshots",
-            selectedApp.name,
-            `${Date.now()}-${process.pid}`,
-          ),
+          snapshotDir: join(homes.stateHome, "repos", "snapshots", selectedApp.name, `${Date.now()}-${process.pid}`),
         }
       : {}),
     ...(selfApprovalSecret === undefined ? {} : { selfApprovalSecret }),
@@ -331,12 +319,15 @@ export async function cmdLoop(args: string[]): Promise<number> {
       ticketInspection = {
         root: homes.stateHome,
         inspect: async (request) => {
-          await inspectTicketEpisodeInvocation({
-            root: homes.stateHome,
-            app: selectedApp,
-            roles: configuredRoles,
-            remainingBudgetUsd,
-          }, request);
+          await inspectTicketEpisodeInvocation(
+            {
+              root: homes.stateHome,
+              app: selectedApp,
+              roles: configuredRoles,
+              remainingBudgetUsd,
+            },
+            request,
+          );
         },
       };
       deliveryUnits = createRoadmapLoopRuntime({
@@ -360,9 +351,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         localRepo,
         {
           repo: selectedApp.repo,
-          ...(selectedApp.networkAllowlist !== undefined
-            ? { networkAllowlist: selectedApp.networkAllowlist }
-            : {}),
+          ...(selectedApp.networkAllowlist !== undefined ? { networkAllowlist: selectedApp.networkAllowlist } : {}),
         },
       );
       const budgetRows = await enforceBudgetOverlay(homes.stateHome, appsFile);
@@ -371,20 +360,24 @@ export async function cmdLoop(args: string[]): Promise<number> {
         throw new Error(`loop: could not resolve the app budget for ${selectedApp.name}`);
       }
       const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
-      const fallbackContext = (await assembleContext({
-        orgHome: homes.orgHome,
-        appWorkdir: localRepo,
-        app: selectedApp.name,
-        role: builderRole,
-        taskText: `build loop for ${selectedApp.name}`,
-      })).bundle;
-      const plannerContext = (await assembleContext({
-        orgHome: homes.orgHome,
-        appWorkdir: localRepo,
-        app: selectedApp.name,
-        role: plannerRole,
-        taskText: `plan bounded ticket delivery for ${selectedApp.name}`,
-      })).bundle;
+      const fallbackContext = (
+        await assembleContext({
+          orgHome: homes.orgHome,
+          appWorkdir: localRepo,
+          app: selectedApp.name,
+          role: builderRole,
+          taskText: `build loop for ${selectedApp.name}`,
+        })
+      ).bundle;
+      const plannerContext = (
+        await assembleContext({
+          orgHome: homes.orgHome,
+          appWorkdir: localRepo,
+          app: selectedApp.name,
+          role: plannerRole,
+          taskText: `plan bounded ticket delivery for ${selectedApp.name}`,
+        })
+      ).bundle;
       const resolveEpisodeContext = createEpisodeContextResolver({
         orgHome: homes.orgHome,
         appWorkdir: localRepo,
@@ -393,8 +386,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         stateHome: homes.stateHome,
         turnId,
       });
-      const runtimeForAssignment = (assignment: TurnAssignment) =>
-        getRuntime(assignment.harness);
+      const runtimeForAssignment = (assignment: TurnAssignment) => getRuntime(assignment.harness);
       const ticketEpisode = createTicketEpisodeRuntime({
         root: homes.stateHome,
         orgRoot: homes.orgHome,
@@ -407,11 +399,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
         runtimeForAssignment,
         plannerContext,
         contextForProviderStep: async ({ item, role }) =>
-          (await resolveEpisodeContext(
-            item,
-            EPISODE_PLAN_EXECUTION_PIPELINE,
-            role.name,
-          )) ?? fallbackContext,
+          (await resolveEpisodeContext(item, EPISODE_PLAN_EXECUTION_PIPELINE, role.name)) ?? fallbackContext,
         remainingBudgetUsd,
         gateForRole,
         approval: createExistingTicketApprovalHandler({
@@ -419,8 +407,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
           app: selectedApp.name,
           roleNames: configuredRoles.map((role) => role.name),
         }),
-        raiseTurnBudgetEscalation: (escalation) =>
-          raiseTurnBudgetEscalation(approvalStore.root, escalation),
+        raiseTurnBudgetEscalation: (escalation) => raiseTurnBudgetEscalation(approvalStore.root, escalation),
         ...(selfApprovalSecret === undefined
           ? {}
           : {
@@ -506,9 +493,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
       // signed with this operator secret (never repo-visible). Without it, the
       // single-account fallback is not trusted — the loop fails closed rather
       // than accepting a forgeable static marker.
-      ...(selfApprovalSecret !== undefined
-        ? { authorization: { selfApprovalSecret } }
-        : {}),
+      ...(selfApprovalSecret !== undefined ? { authorization: { selfApprovalSecret } } : {}),
       ...(liveEngine === undefined ? {} : { engine: liveEngine }),
       ...(deliveryUnits === undefined ? {} : { deliveryUnits }),
     });
@@ -516,13 +501,9 @@ export async function cmdLoop(args: string[]): Promise<number> {
     // A4: a merged deploy/package milestone queues its release as a critical
     // op on the approval queue — the trigger, never the execution.
     if (!dryRun) {
-      const queuedReleases = await queueReleaseApprovals(
-        homes.stateHome,
-        selectedApp.name,
-        result.items,
-        undefined,
-        { localRepo: inputs.localRepo },
-      );
+      const queuedReleases = await queueReleaseApprovals(homes.stateHome, selectedApp.name, result.items, undefined, {
+        localRepo: inputs.localRepo,
+      });
       for (const queued of queuedReleases) {
         console.log(
           `release: ${queued.kind} for ${queued.ticketRef} queued as critical op ` +
@@ -551,12 +532,7 @@ export async function cmdLoop(args: string[]): Promise<number> {
     // clear on a 30-second cadence; a terminal ticket was repaired to a parked
     // state and requires a new ticket. Continuing would hide either stop
     // behind a later idle tick.
-    while (
-      follow &&
-      !sawBudgetRefusal &&
-      !sawTerminalEpisodeRefusal &&
-      cancellation?.signal.aborted !== true
-    ) {
+    while (follow && !sawBudgetRefusal && !sawTerminalEpisodeRefusal && cancellation?.signal.aborted !== true) {
       await waitForDelay(30_000, cancellation?.signal);
       if (cancellation?.exitCode !== undefined) break;
       await tick();

@@ -38,18 +38,10 @@ import {
 } from "../../../src/loop/pipeline.js";
 import type { PipelineConfig } from "../../../src/loop/pipelines.js";
 import { readTicketClaimState, type TicketClaimState } from "../../../src/loop/rehydrate.js";
-import type {
-  LoopContinuation,
-  LoopContinuationDecision,
-  LoopItem,
-} from "../../../src/loop/types.js";
+import type { LoopContinuation, LoopContinuationDecision, LoopItem } from "../../../src/loop/types.js";
 import { readTurnRecords } from "../../../src/runtime/telemetry.js";
 import type { ContextBundle, RoleConfig, Runtime } from "../../../src/runtime/types.js";
-import {
-  claudeDouble,
-  doubleRole,
-  type ClaudeDoubleRecorder,
-} from "../../fixtures/adapters/claude-double.js";
+import { claudeDouble, doubleRole, type ClaudeDoubleRecorder } from "../../fixtures/adapters/claude-double.js";
 import { script, type AdapterScenario } from "../../fixtures/adapters/scenario.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
@@ -181,9 +173,7 @@ export interface ResumeRig {
 async function measureSpend(stateHome: string): Promise<SpendEvidence> {
   const ledgerRows = (await readTurnRecords(stateHome)).length;
   const evidence = await readEfficiencyEvidence(stateHome);
-  const providerSteps = evidence
-    .flatMap((episode) => episode.steps)
-    .filter((step) => step.kind === "provider").length;
+  const providerSteps = evidence.flatMap((episode) => episode.steps).filter((step) => step.kind === "provider").length;
   return { ledgerRows, providerSteps };
 }
 
@@ -245,9 +235,7 @@ export async function makeResumeRig(): Promise<ResumeRig> {
   const captureSpend = await measureSpend(state.stateHome);
   if (captureSpend.ledgerRows !== 2 || captureSpend.providerSteps !== 2) {
     await cleanup();
-    throw new Error(
-      `cf-j06 rig: capture spend evidence unexpected (${JSON.stringify(captureSpend)})`,
-    );
+    throw new Error(`cf-j06 rig: capture spend evidence unexpected (${JSON.stringify(captureSpend)})`);
   }
 
   let attemptSeq = 0;
@@ -307,9 +295,7 @@ export async function makeResumeRig(): Promise<ResumeRig> {
 
 /** Continuation for claim-walk suites. The claim saga persists and replays
  *  these fields verbatim; nothing at this seam recomputes fingerprints. */
-export function syntheticContinuation(
-  decisions: LoopContinuationDecision[],
-): LoopContinuation {
+export function syntheticContinuation(decisions: LoopContinuationDecision[]): LoopContinuation {
   return {
     pipeline: PIPELINE_NAME,
     pass: ACT_PASS,

@@ -15,7 +15,10 @@ export function processStartIdentity(pid: number): string | undefined {
     try {
       const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
       const close = stat.lastIndexOf(")");
-      const fieldsFromState = stat.slice(close + 2).trim().split(/\s+/);
+      const fieldsFromState = stat
+        .slice(close + 2)
+        .trim()
+        .split(/\s+/);
       const startTicks = fieldsFromState[19]; // proc(5) field 22; array begins at field 3
       if (startTicks !== undefined) identity = `linux-start-ticks:${startTicks}`;
     } catch {
@@ -47,10 +50,7 @@ export function currentProcessStartIdentity(): string {
 
 /** False proves death or PID reuse. Undefined means the platform probe could
  * not decide and callers must fall back to their age/freshness policy. */
-export function processIdentityStatus(
-  pid: number,
-  expectedStartIdentity: string,
-): "match" | "mismatch" | "unknown" {
+export function processIdentityStatus(pid: number, expectedStartIdentity: string): "match" | "mismatch" | "unknown" {
   const actual = processStartIdentity(pid);
   return actual === undefined ? "unknown" : actual === expectedStartIdentity ? "match" : "mismatch";
 }

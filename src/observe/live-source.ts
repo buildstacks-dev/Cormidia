@@ -34,7 +34,10 @@ interface Client {
 
 export class ObserveService {
   readonly stateHome: string;
-  private readonly options: Required<Pick<ObserveServiceOptions, "reconcileMs" | "githubPollMs" | "heartbeatMs" | "replayLimit" | "watchFiles">> & ObserveServiceOptions;
+  private readonly options: Required<
+    Pick<ObserveServiceOptions, "reconcileMs" | "githubPollMs" | "heartbeatMs" | "replayLimit" | "watchFiles">
+  > &
+    ObserveServiceOptions;
   private readonly clock: () => Date;
   private github: GitHubAppSnapshot[] = [];
   private githubHealth: SourceHealthView | undefined;
@@ -67,7 +70,10 @@ export class ObserveService {
     await this.rebuild(true);
     this.reconciliation = setInterval(() => this.queueRebuild(), this.options.reconcileMs);
     this.reconciliation.unref();
-    this.githubPoll = setInterval(() => void this.refreshGithub().then(() => this.queueRebuild()), this.options.githubPollMs);
+    this.githubPoll = setInterval(
+      () => void this.refreshGithub().then(() => this.queueRebuild()),
+      this.options.githubPollMs,
+    );
     this.githubPoll.unref();
     if (this.options.watchFiles) this.startWatcher();
   }
@@ -167,7 +173,8 @@ export class ObserveService {
       if (!initial) this.cursor += 1;
       candidate.cursor = String(this.cursor);
       this.snapshotValue = candidate;
-      if (!initial) this.publish("entity.upsert", { entity_type: "snapshot", entity_id: "snapshot", snapshot: candidate });
+      if (!initial)
+        this.publish("entity.upsert", { entity_type: "snapshot", entity_id: "snapshot", snapshot: candidate });
     } else {
       candidate.cursor = String(this.cursor);
       this.snapshotValue = candidate;
@@ -177,7 +184,8 @@ export class ObserveService {
   private publish(type: ReplayEvent["type"], data: unknown): void {
     const event = { cursor: this.cursor, type, data };
     this.replay.push(event);
-    if (this.replay.length > this.options.replayLimit) this.replay.splice(0, this.replay.length - this.options.replayLimit);
+    if (this.replay.length > this.options.replayLimit)
+      this.replay.splice(0, this.replay.length - this.options.replayLimit);
     for (const client of this.clients) {
       if (!client.response.writableEnded) writeSse(client.response, event.cursor, event.type, event.data);
     }
@@ -189,13 +197,12 @@ export class ObserveService {
     const previous = new Map(this.github.map((app) => [app.app, app]));
     this.github = result.apps.map((app) => {
       const prior = previous.get(app.app);
-      return app.error !== undefined && prior !== undefined
-        ? { ...prior, error: app.error }
-        : app;
+      return app.error !== undefined && prior !== undefined ? { ...prior, error: app.error } : app;
     });
-    const health = result.health.status === "unavailable" && this.githubHealth?.last_success_at !== null
-      ? { ...result.health, last_success_at: this.githubHealth?.last_success_at ?? null }
-      : result.health;
+    const health =
+      result.health.status === "unavailable" && this.githubHealth?.last_success_at !== null
+        ? { ...result.health, last_success_at: this.githubHealth?.last_success_at ?? null }
+        : result.health;
     const changed = this.githubHealth?.status !== health.status || this.githubHealth?.detail !== health.detail;
     this.githubHealth = health;
     if (changed && this.snapshotValue !== undefined) {
@@ -222,7 +229,9 @@ export class ObserveService {
 }
 
 function contentHash(snapshot: ObserveSnapshotV1): string {
-  return createHash("sha256").update(JSON.stringify(stripVolatile(snapshot))).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(stripVolatile(snapshot)))
+    .digest("hex");
 }
 
 function stripVolatile(value: unknown): unknown {

@@ -10,16 +10,8 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import {
-  efficiencyEpisodeDir,
-  executionStepPath,
-  type ExecutionStepRecord,
-} from "../../../src/loop/efficiency.js";
-import {
-  episodePlanVersionPath,
-  type EpisodePlan,
-  type ProviderTurnStep,
-} from "../../../src/loop/episode-plan.js";
+import { efficiencyEpisodeDir, executionStepPath, type ExecutionStepRecord } from "../../../src/loop/efficiency.js";
+import { episodePlanVersionPath, type EpisodePlan, type ProviderTurnStep } from "../../../src/loop/episode-plan.js";
 import {
   episodeReplanJournalPath,
   type EpisodeReplanJournal,
@@ -46,8 +38,7 @@ export const REVIEW_FINDINGS_VERDICT = JSON.stringify({
         "`!.env.example`) with build-artifact ignores only, so `.env` and " +
         "`.env.local` are no longer git-ignored — `git check-ignore -v .env " +
         ".env.local` returns exit 1 (no matching rule).",
-      action:
-        "Restore the secret ignores alongside the new build-artifact entries.",
+      action: "Restore the secret ignores alongside the new build-artifact entries.",
     },
   ],
   review: {
@@ -84,7 +75,9 @@ export const BUILD_BLOCKED_VERDICT = JSON.stringify({
   resolutions: null,
 });
 
-function providerStep(overrides: Partial<ProviderTurnStep> & Pick<ProviderTurnStep, "id" | "operation" | "role">): ProviderTurnStep {
+function providerStep(
+  overrides: Partial<ProviderTurnStep> & Pick<ProviderTurnStep, "id" | "operation" | "role">,
+): ProviderTurnStep {
   return {
     kind: "provider_turn",
     objective: `perform ${overrides.operation}`,
@@ -197,12 +190,7 @@ export const REG202_PLAN_V2 = reg202Plan(2, [
 
 /** The durable completed set at the moment v2 was adopted (the execution
  *  journal's `step_completed` events, from the live run). */
-export const REG202_COMPLETED_AT_ADOPTION = [
-  "provision",
-  "build-contract",
-  "build-implement",
-  "gates-and-pr",
-];
+export const REG202_COMPLETED_AT_ADOPTION = ["provision", "build-contract", "build-implement", "gates-and-pr"];
 
 export interface Reg202Home {
   root: string;

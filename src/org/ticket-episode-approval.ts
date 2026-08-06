@@ -1,18 +1,9 @@
 import { existsSync } from "node:fs";
 import type { LoopItem } from "../loop/types.js";
-import type {
-  AcceptedTicketEpisodePlan,
-} from "../loop/driver.js";
+import type { AcceptedTicketEpisodePlan } from "../loop/driver.js";
 import type { ApprovalStep } from "../loop/episode-plan.js";
-import type {
-  ApprovalStepOutcome,
-  EpisodeStepExecutionContext,
-} from "../loop/episode-plan-executor.js";
-import {
-  actionHash,
-  ApprovalStore,
-  type ApprovalItem,
-} from "./approvals.js";
+import type { ApprovalStepOutcome, EpisodeStepExecutionContext } from "../loop/episode-plan-executor.js";
+import { actionHash, ApprovalStore, type ApprovalItem } from "./approvals.js";
 import { withFileLock } from "../runtime/file-lock.js";
 import {
   readTicketClaimState,
@@ -23,8 +14,7 @@ import {
 } from "../loop/rehydrate.js";
 import { isBudgetEscalationRule } from "./budget.js";
 
-const APPROVAL_ACTION_REF =
-  /^approval:([A-Za-z0-9][A-Za-z0-9._-]{0,199}):action-sha256:([a-f0-9]{64})$/;
+const APPROVAL_ACTION_REF = /^approval:([A-Za-z0-9][A-Za-z0-9._-]{0,199}):action-sha256:([a-f0-9]{64})$/;
 const CLAIM_LOCK_STALE_MS = 10 * 60_000;
 const CLAIM_LOCK_WAIT_MS = 12 * 60_000;
 const CLAIM_EVENT_LIMIT = 100;
@@ -84,10 +74,7 @@ export function createExistingTicketApprovalHandler(
     let approval: ApprovalItem;
     try {
       const observedAt = options.now?.() ?? new Date();
-      const expired = await options.store.expirePendingItem(
-        reference.approvalId,
-        observedAt,
-      );
+      const expired = await options.store.expirePendingItem(reference.approvalId, observedAt);
       if (expired !== undefined) {
         await releaseExpiredTicketApprovalClaim(options.store.root, expired, observedAt);
       }
@@ -131,9 +118,7 @@ export function createExistingTicketApprovalHandler(
       return {
         status: "denied",
         reasonCode: "ticket_episode_approval_denied",
-        summary: `approval ${approval.id} was denied${
-          approval.reason === undefined ? "" : `: ${approval.reason}`
-        }`,
+        summary: `approval ${approval.id} was denied${approval.reason === undefined ? "" : `: ${approval.reason}`}`,
       };
     }
     if (approval.status !== "approved" || approval.decision !== "approved") {
@@ -184,42 +169,38 @@ export async function releaseExpiredTicketApprovalClaim(
   const path = ticketStatePath(root, item.app, issueNumber);
   if (!existsSync(path)) return false;
 
-  return withFileLock(
-    `${path}.lock`,
-    { staleMs: CLAIM_LOCK_STALE_MS, maxWaitMs: CLAIM_LOCK_WAIT_MS },
-    async () => {
-      const state = readTicketClaimState(root, item.app, issueNumber);
-      const suppressed = expirySuppression(state, item, now);
-      const continuation = state.continuation;
-      if (continuation === undefined) {
-        // The claim is already released. The suppression still has to land:
-        // an approval that expired after its turn was reconciled is exactly
-        // the orphan case #244 was filed for.
-        if (suppressed.suppressed === undefined) return false;
-        writeTicketClaimState(root, item.app, issueNumber, { ...state, ...suppressed });
-        return true;
-      }
-      const claimNumber = continuation.claimNumber;
-      const detail =
-        `claim ${claimNumber}: approval ${item.id} expired; resolved blocked with artifacts ` +
-        `preserved and no failure-claim consumption`;
-      const event: TicketClaimEvent = {
-        at: now.toISOString(),
-        kind: "claim_terminal",
-        claimNumber,
-        detail,
-        repeatedCostUsd: 0,
-      };
-      const { continuation: _continuation, ...withoutContinuation } = state;
-      writeTicketClaimState(root, item.app, issueNumber, {
-        ...withoutContinuation,
-        ...suppressed,
-        outcomes: [...state.outcomes.slice(-9), detail],
-        events: [...(state.events ?? []).slice(-(CLAIM_EVENT_LIMIT - 1)), event],
-      });
+  return withFileLock(`${path}.lock`, { staleMs: CLAIM_LOCK_STALE_MS, maxWaitMs: CLAIM_LOCK_WAIT_MS }, async () => {
+    const state = readTicketClaimState(root, item.app, issueNumber);
+    const suppressed = expirySuppression(state, item, now);
+    const continuation = state.continuation;
+    if (continuation === undefined) {
+      // The claim is already released. The suppression still has to land:
+      // an approval that expired after its turn was reconciled is exactly
+      // the orphan case #244 was filed for.
+      if (suppressed.suppressed === undefined) return false;
+      writeTicketClaimState(root, item.app, issueNumber, { ...state, ...suppressed });
       return true;
-    },
-  );
+    }
+    const claimNumber = continuation.claimNumber;
+    const detail =
+      `claim ${claimNumber}: approval ${item.id} expired; resolved blocked with artifacts ` +
+      `preserved and no failure-claim consumption`;
+    const event: TicketClaimEvent = {
+      at: now.toISOString(),
+      kind: "claim_terminal",
+      claimNumber,
+      detail,
+      repeatedCostUsd: 0,
+    };
+    const { continuation: _continuation, ...withoutContinuation } = state;
+    writeTicketClaimState(root, item.app, issueNumber, {
+      ...withoutContinuation,
+      ...suppressed,
+      outcomes: [...state.outcomes.slice(-9), detail],
+      events: [...(state.events ?? []).slice(-(CLAIM_EVENT_LIMIT - 1)), event],
+    });
+    return true;
+  });
 }
 
 /** Idempotent by (approvalId, disposition): expiry reconciliation runs from
@@ -231,9 +212,7 @@ function expirySuppression(
 ): Pick<TicketClaimState, "suppressed"> | Record<string, never> {
   if (isBudgetEscalationRule(item.rule)) return {};
   const existing = state.suppressed ?? [];
-  if (
-    existing.some((record) => record.approvalId === item.id && record.disposition === "expired")
-  ) {
+  if (existing.some((record) => record.approvalId === item.id && record.disposition === "expired")) {
     return {};
   }
   return {
@@ -257,9 +236,7 @@ export function ticketApprovalActionRef(item: ApprovalItem): string {
   return `approval:${item.id}:action-sha256:${actionHash(item.action)}`;
 }
 
-function parseApprovalActionRef(
-  value: string,
-): { approvalId: string; actionSha256: string } | undefined {
+function parseApprovalActionRef(value: string): { approvalId: string; actionSha256: string } | undefined {
   const match = APPROVAL_ACTION_REF.exec(value);
   if (match === null) return undefined;
   return { approvalId: match[1]!, actionSha256: match[2]! };

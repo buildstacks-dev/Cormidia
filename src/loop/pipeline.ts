@@ -45,11 +45,7 @@ import {
   validateTurnAssignment,
   validateTurnExecutionFacts,
 } from "../runtime/assignment.js";
-import {
-  recordTurnOnce,
-  toRecord,
-  type TriggerKind,
-} from "../runtime/telemetry.js";
+import { recordTurnOnce, toRecord, type TriggerKind } from "../runtime/telemetry.js";
 import {
   finalizeRun,
   startRun,
@@ -70,11 +66,7 @@ import {
   type TurnBudgetStop,
 } from "../runtime/turn-budget.js";
 import { permissionModeFor } from "../runtime/permission-mode.js";
-import {
-  createEventWriter,
-  readEvents,
-  type EventWriter,
-} from "../runtime/runlog/events.js";
+import { createEventWriter, readEvents, type EventWriter } from "../runtime/runlog/events.js";
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
 import { mintRunId, runPaths, RUN_ID_RE } from "../runtime/runlog/paths.js";
 import { withAuthorityBrief } from "./brief.js";
@@ -230,11 +222,7 @@ export interface ExecutePipelineOptions {
   /** Claim-accounting commit point. Called after route admission and runtime
    * construction, immediately before the provider invocation (including a
    * resumed turn), never during selection/preflight. */
-  beforeProviderTurn?: (input: {
-    pipeline: string;
-    pass: string;
-    resumed: boolean;
-  }) => void | Promise<void>;
+  beforeProviderTurn?: (input: { pipeline: string; pass: string; resumed: boolean }) => void | Promise<void>;
   /** Parse + record the pass's typed verdict, AFTER the turn and BEFORE the
    *  envelope is finalized. The loop layer owns verdict semantics (kinds,
    *  reformat retry, side effects); the executor only needs the ok/failed
@@ -304,10 +292,7 @@ export interface PipelineRunResult {
   aborted: boolean;
 }
 
-function remainingPasses(
-  options: ExecutePipelineOptions,
-  selected: PassConfig[],
-): PassConfig[] {
+function remainingPasses(options: ExecutePipelineOptions, selected: PassConfig[]): PassConfig[] {
   const continuation = options.continuation;
   if (continuation === undefined) return selected;
   if (continuation.pipeline !== options.pipeline.name) {
@@ -352,9 +337,7 @@ function continuationTask(continuation: LoopContinuation): string {
   ].join("\n");
 }
 
-export async function executePipeline(
-  options: ExecutePipelineOptions,
-): Promise<PipelineRunResult> {
+export async function executePipeline(options: ExecutePipelineOptions): Promise<PipelineRunResult> {
   if (
     options.adapterStartTimeoutMs !== undefined &&
     (!Number.isFinite(options.adapterStartTimeoutMs) || options.adapterStartTimeoutMs <= 0)
@@ -374,15 +357,11 @@ export async function executePipeline(
     ...(options.pipeline.mechanical ? { allowNoProviderTurns: true } : {}),
     ...(options.episode?.authorizedPasses !== undefined
       ? {
-          authorizedPasses: options.episode.authorizedPasses.filter(
-            (pass) => pass.pipeline === options.pipeline.name,
-          ),
+          authorizedPasses: options.episode.authorizedPasses.filter((pass) => pass.pipeline === options.pipeline.name),
         }
       : {}),
     ...(options.episode?.budgetOverrides !== undefined ? { budgetOverrides: options.episode.budgetOverrides } : {}),
-    requiredCapabilities:
-      options.requiredCapabilities ??
-      ["tool_gate", "cancellation", "session_resume"],
+    requiredCapabilities: options.requiredCapabilities ?? ["tool_gate", "cancellation", "session_resume"],
     ...(options.capabilityProfiles !== undefined ? { capabilityProfiles: options.capabilityProfiles } : {}),
     ...(options.episode?.artifactExpectations !== undefined ? { artifacts: options.episode.artifactExpectations } : {}),
   });
@@ -409,8 +388,7 @@ export async function executePipeline(
       // A reassessed route retains historical authorizations additively. Use
       // the caller's current-plan slice when supplied (admission just proved
       // every entry is durable); implicit callers use the newly admitted set.
-      authorizedPasses:
-        options.episode?.authorizedPasses ?? admission.authorized_passes,
+      authorizedPasses: options.episode?.authorizedPasses ?? admission.authorized_passes,
     },
   };
 
@@ -460,11 +438,7 @@ export async function executePipeline(
   }
 }
 
-async function admitPipelineEpisode(
-  options: ExecutePipelineOptions,
-  now: Date,
-  selected: PassConfig[],
-) {
+async function admitPipelineEpisode(options: ExecutePipelineOptions, now: Date, selected: PassConfig[]) {
   const episodeId =
     options.episode?.id ??
     episodeIdFor({
@@ -474,30 +448,37 @@ async function admitPipelineEpisode(
         fingerprint(selected.map((pass) => pass.id)).slice(0, 12),
     });
   const route = options.episode?.route ?? options.selection.tier;
-  const factors = options.episode?.factors ?? [{
-    kind: "uncertainty" as const,
-    evidence: `explicit ${route} route supplied by the invoking workflow`,
-    policy_rule: "explicit_invocation_route",
-  }];
+  const factors = options.episode?.factors ?? [
+    {
+      kind: "uncertainty" as const,
+      evidence: `explicit ${route} route supplied by the invoking workflow`,
+      policy_rule: "explicit_invocation_route",
+    },
+  ];
   const factorRules = factors.map((factor) => factor.policy_rule);
-  const passes = options.episode?.authorizedPasses ?? selected.map((pass): AuthorizedPass => {
-    const role = options.roles[pass.role];
-    if (role === undefined) throw new Error(`executePipeline: missing role ${pass.role}`);
-    const assignment = validateTurnAssignment({
-      harness: role.runtime,
-      model: role.model,
-      effort: role.effort,
-    }, `${options.pipeline.name}/${pass.id} configured assignment`);
-    return {
-      pipeline: options.pipeline.name,
-      pass: pass.id,
-      role: role.name,
-      runtime: assignment.harness,
-      model: assignment.model,
-      effort: assignment.effort,
-      factor_rules: factorRules,
-    };
-  });
+  const passes =
+    options.episode?.authorizedPasses ??
+    selected.map((pass): AuthorizedPass => {
+      const role = options.roles[pass.role];
+      if (role === undefined) throw new Error(`executePipeline: missing role ${pass.role}`);
+      const assignment = validateTurnAssignment(
+        {
+          harness: role.runtime,
+          model: role.model,
+          effort: role.effort,
+        },
+        `${options.pipeline.name}/${pass.id} configured assignment`,
+      );
+      return {
+        pipeline: options.pipeline.name,
+        pass: pass.id,
+        role: role.name,
+        runtime: assignment.harness,
+        model: assignment.model,
+        effort: assignment.effort,
+        factor_rules: factorRules,
+      };
+    });
   const configuredExecutionBounds = resolvedStaticExecutionBounds(options, route);
   return admitEpisode({
     root: options.runlog.root,
@@ -508,12 +489,8 @@ async function admitPipelineEpisode(
     factors,
     passes,
     now,
-    ...(options.episode?.budgetOverrides !== undefined
-      ? { budgetOverrides: options.episode.budgetOverrides }
-      : {}),
-    ...(configuredExecutionBounds !== undefined
-      ? { executionBounds: configuredExecutionBounds }
-      : {}),
+    ...(options.episode?.budgetOverrides !== undefined ? { budgetOverrides: options.episode.budgetOverrides } : {}),
+    ...(configuredExecutionBounds !== undefined ? { executionBounds: configuredExecutionBounds } : {}),
   });
 }
 
@@ -634,24 +611,16 @@ async function runOwnedTurn(options: {
   );
 }
 
-function capabilityProfileFor(
-  options: ExecutePipelineOptions,
-  assignment: TurnAssignment,
-): RuntimeCapabilityProfile {
-  const profile =
-    options.capabilityProfiles?.[assignment.harness] ??
-    runtimeCapabilityProfile(assignment.harness);
+function capabilityProfileFor(options: ExecutePipelineOptions, assignment: TurnAssignment): RuntimeCapabilityProfile {
+  const profile = options.capabilityProfiles?.[assignment.harness] ?? runtimeCapabilityProfile(assignment.harness);
   if (profile.runtime !== assignment.harness) {
     throw new Error(
-      `executePipeline: capability profile ${profile.runtime} does not match ` +
-        `${assignment.harness} assignment`,
+      `executePipeline: capability profile ${profile.runtime} does not match ` + `${assignment.harness} assignment`,
     );
   }
   for (const capability of options.requiredCapabilities ?? []) {
     if (!hasRuntimeCapability(profile, capability)) {
-      throw new Error(
-        `executePipeline: ${assignment.harness} assignment lacks required capability ${capability}`,
-      );
+      throw new Error(`executePipeline: ${assignment.harness} assignment lacks required capability ${capability}`);
     }
   }
   return profile;
@@ -667,9 +636,7 @@ function contextWithExecution(
   if (context.execution !== undefined) {
     const supplied = validateTurnExecutionFacts(context.execution, "pipeline context execution facts");
     if (JSON.stringify(supplied) !== JSON.stringify(execution)) {
-      throw new Error(
-        "executePipeline: caller-supplied execution facts disagree with the authorized assignment",
-      );
+      throw new Error("executePipeline: caller-supplied execution facts disagree with the authorized assignment");
     }
   }
   return {
@@ -684,10 +651,7 @@ function validateContinuationAssignment(
   assignment: TurnAssignment,
   planMetadata: ProviderStepPlanMetadata,
 ): void {
-  if (
-    continuation.role !== role.name ||
-    continuation.session.runtime !== assignment.harness
-  ) {
+  if (continuation.role !== role.name || continuation.session.runtime !== assignment.harness) {
     throw new Error(
       `pipeline continuation role/runtime changed: ${continuation.role}/${continuation.session.runtime} ` +
         `-> ${role.name}/${assignment.harness}`,
@@ -695,38 +659,26 @@ function validateContinuationAssignment(
   }
 
   if (continuation.assignment !== undefined) {
-    const persisted = validateTurnAssignment(
-      continuation.assignment,
-      "pipeline continuation assignment",
-    );
+    const persisted = validateTurnAssignment(continuation.assignment, "pipeline continuation assignment");
     if (!turnAssignmentsEqual(persisted, assignment)) {
-      throw new Error(
-        "pipeline continuation assignment changed; resume the persisted tuple or create a plan revision",
-      );
+      throw new Error("pipeline continuation assignment changed; resume the persisted tuple or create a plan revision");
     }
   }
 
-  const persistedHasPlan =
-    continuation.planVersion !== undefined || continuation.planStepId !== undefined;
-  const currentHasPlan =
-    planMetadata.plan_version !== undefined || planMetadata.plan_step_id !== undefined;
+  const persistedHasPlan = continuation.planVersion !== undefined || continuation.planStepId !== undefined;
+  const currentHasPlan = planMetadata.plan_version !== undefined || planMetadata.plan_step_id !== undefined;
   if (
-    (persistedHasPlan &&
-      (continuation.planVersion === undefined || continuation.planStepId === undefined)) ||
-    (currentHasPlan &&
-      (planMetadata.plan_version === undefined || planMetadata.plan_step_id === undefined))
+    (persistedHasPlan && (continuation.planVersion === undefined || continuation.planStepId === undefined)) ||
+    (currentHasPlan && (planMetadata.plan_version === undefined || planMetadata.plan_step_id === undefined))
   ) {
     throw new Error("pipeline continuation has incomplete plan identity");
   }
   if (
     persistedHasPlan !== currentHasPlan ||
     (persistedHasPlan &&
-      (continuation.planVersion !== planMetadata.plan_version ||
-        continuation.planStepId !== planMetadata.plan_step_id))
+      (continuation.planVersion !== planMetadata.plan_version || continuation.planStepId !== planMetadata.plan_step_id))
   ) {
-    throw new Error(
-      "pipeline continuation plan version/step changed; resume from the persisted accepted plan",
-    );
+    throw new Error("pipeline continuation plan version/step changed; resume from the persisted accepted plan");
   }
 }
 
@@ -749,11 +701,7 @@ function constructRuntimeForAssignment(
   });
 }
 
-async function runPass(
-  pass: PassConfig,
-  options: ExecutePipelineOptions,
-  clock: () => Date,
-): Promise<PassRunRecord> {
+async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock: () => Date): Promise<PassRunRecord> {
   const base = options.roles[pass.role];
   if (base === undefined) {
     throw new Error(
@@ -813,8 +761,7 @@ async function runPass(
     ...(authorized?.plan_version !== undefined
       ? { plan_version: authorized.plan_version, plan_step_id: authorized.plan_step_id }
       : {}),
-    selection_reason:
-      authorized?.selection_reason ?? "resolved from the configured pipeline pass and role",
+    selection_reason: authorized?.selection_reason ?? "resolved from the configured pipeline pass and role",
     provider_family: authorized?.provider_family ?? configuredProviderFamily(assignment),
     resolved_capabilities: resolvedCapabilities,
   };
@@ -822,48 +769,36 @@ async function runPass(
   if (continuation !== undefined) {
     validateContinuationAssignment(continuation, role, assignment, planMetadata);
   }
-  const requiredCapabilities = options.requiredCapabilities ?? [
-    "tool_gate",
-    "cancellation",
-    "session_resume",
-  ];
-  const executionContext = contextWithExecution(
-    options.context,
-    assignment,
-    role,
-    requiredCapabilities,
-  );
+  const requiredCapabilities = options.requiredCapabilities ?? ["tool_gate", "cancellation", "session_resume"];
+  const executionContext = contextWithExecution(options.context, assignment, role, requiredCapabilities);
   const selectedPasses = selectPasses(options.pipeline, options.selection);
   const selectedIds = new Set(selectedPasses.map((candidate) => candidate.id));
 
   const { root, app, ticket, traceId } = options.runlog;
   const episodeId = options.episode?.id;
   if (episodeId === undefined) throw new Error("executePipeline: episode admission missing");
-  const runId = options.runIdForPass?.(pass) ?? mintRunId(
-    clock(),
-    options.pipeline.name,
-    continuation === undefined
-      ? pass.id
-      : `${pass.id}-resume-${fingerprint({
-          session: continuation.session,
-          decisions: continuation.decisions,
-        }).slice(0, 10)}`,
-  );
+  const runId =
+    options.runIdForPass?.(pass) ??
+    mintRunId(
+      clock(),
+      options.pipeline.name,
+      continuation === undefined
+        ? pass.id
+        : `${pass.id}-resume-${fingerprint({
+            session: continuation.session,
+            decisions: continuation.decisions,
+          }).slice(0, 10)}`,
+    );
   if (!RUN_ID_RE.test(runId)) {
     throw new Error(`executePipeline: caller-owned run id ${JSON.stringify(runId)} is not a valid runlog id`);
   }
   const rawBrief = options.briefFor(pass);
-  const brief =
-    options.authorityBrief === "context-only"
-      ? rawBrief
-      : withAuthorityBrief(rawBrief, executionContext);
+  const brief = options.authorityBrief === "context-only" ? rawBrief : withAuthorityBrief(rawBrief, executionContext);
   // template "" = brief-only task. Only a synthesized pipeline can carry it
   // (runRole's plain turn) — the loader rejects empty templates in config.
-  const template =
-    pass.template === "" ? undefined : await readFile(join(options.promptsDir, pass.template), "utf8");
-  const inputManifestRef = options.inputManifest === undefined
-    ? undefined
-    : validateInputManifestFileName(options.inputManifest.fileName);
+  const template = pass.template === "" ? undefined : await readFile(join(options.promptsDir, pass.template), "utf8");
+  const inputManifestRef =
+    options.inputManifest === undefined ? undefined : validateInputManifestFileName(options.inputManifest.fileName);
 
   // Replay seed (learning design §9.4): captured while the episode runs,
   // never reconstructed from logs afterward. Absent for non-git workdirs.
@@ -885,9 +820,7 @@ async function runPass(
       runtime: assignment.harness,
       model: assignment.model,
       effort: assignment.effort,
-      ...(planMetadata.assignment_source !== undefined
-        ? { assignmentSource: planMetadata.assignment_source }
-        : {}),
+      ...(planMetadata.assignment_source !== undefined ? { assignmentSource: planMetadata.assignment_source } : {}),
       ...(planMetadata.assignment_candidate_id !== undefined
         ? { assignmentCandidateId: planMetadata.assignment_candidate_id }
         : {}),
@@ -897,9 +830,7 @@ async function runPass(
             planStepId: planMetadata.plan_step_id,
           }
         : {}),
-      ...(planMetadata.selection_reason !== undefined
-        ? { selectionReason: planMetadata.selection_reason }
-        : {}),
+      ...(planMetadata.selection_reason !== undefined ? { selectionReason: planMetadata.selection_reason } : {}),
       resolvedCapabilities,
       workdir: resolve(options.workdir),
       ...(git !== undefined ? { gitHead: git.head, gitBranch: git.branch } : {}),
@@ -929,252 +860,308 @@ async function runPass(
   );
   let runFinalized = false;
   try {
-  if (options.inputManifest !== undefined && inputManifestRef !== undefined) {
-    await writeLoopFileAtomic(
-      join(runPaths(root, app, runId).dir, inputManifestRef),
-      options.inputManifest.pendingContents,
-    );
-  }
-  const contextManifest = await writeContextManifest({
-    root,
-    episodeId,
-    app,
-    runId,
-    context: executionContext,
-    brief,
-    ...(template !== undefined ? { template } : {}),
-    route: options.episode?.route ?? options.selection.tier,
-    runtime: assignment.harness,
-    ...(planMetadata.plan_version !== undefined
-      ? {
-          planVersion: planMetadata.plan_version,
-          planStepId: planMetadata.plan_step_id,
-        }
-      : {}),
-    ...(options.contextBudgetBytes !== undefined ? { capBytes: options.contextBudgetBytes } : {}),
-  });
-  const executableContext = contextManifest.context;
-  const executableBrief = contextManifest.brief;
-  const executableTemplate = contextManifest.template;
-  const originalTask = executableTemplate === undefined
-    ? executableBrief
-    : `${executableBrief}\n\n---\n\n${executableTemplate}`;
-  const currentWorkFingerprint = worktreeFingerprint(options.workdir) ?? null;
-  if (
-    continuation !== undefined &&
-    continuation.contextFingerprint !== contextManifest.manifest.render_sha256
-  ) {
-    throw new Error(
-      `pipeline continuation context changed for ${options.pipeline.name}/${pass.id}; ` +
-        "start a new explicitly authorized claim instead of resuming the old session",
-    );
-  }
-  if (continuation !== undefined && continuation.workFingerprint !== currentWorkFingerprint) {
-    throw new Error(
-      `pipeline continuation worktree changed for ${options.pipeline.name}/${pass.id}; ` +
-        "inspect the durable work and explicitly re-arm",
-    );
-  }
-  const task =
-    continuation === undefined
-      ? originalTask
-      : continuationTask(continuation);
-  await Promise.all([
-    writeBrief(root, app, runId, executableBrief),
-    writePrompt(root, app, runId, task),
-  ]);
-  await updateEnvelope(root, app, runId, {
-    contextManifestRef: contextManifest.relativeRef,
-  });
-
-  const events = createEventWriter(
-    root,
-    {
-      runId,
-      trace_id: traceId,
-      span_id: pass.id,
+    if (options.inputManifest !== undefined && inputManifestRef !== undefined) {
+      await writeLoopFileAtomic(
+        join(runPaths(root, app, runId).dir, inputManifestRef),
+        options.inputManifest.pendingContents,
+      );
+    }
+    const contextManifest = await writeContextManifest({
+      root,
+      episodeId,
       app,
-      ...(ticket !== undefined ? { ticket } : {}),
-      pipeline: options.pipeline.name,
-      pass: pass.id,
-      role: role.name,
-      model: assignment.model,
-    },
-    clock,
-  );
-  await events.append({ type: "run.started" });
-  await events.append({ type: "pass.started" });
-
-  const sessionLog = createSessionLogSink(root, app, runId);
-  // The harness fires TurnEvents synchronously via onEvent; L2 appends are
-  // async. We buffer the tool/subagent events during the turn and flush them
-  // to L2 in order afterward (§9: fan-out trees reconstruct without opening
-  // transcripts). session.log still receives every event live.
-  const bridged: TurnEvent[] = [];
-  let latestProgress: TurnProgress | undefined;
-  let checkpointWrites = Promise.resolve();
-  let adapterStarted = false;
-  let adapterStartTimer: NodeJS.Timeout | undefined;
-  const markAdapterStarted = (): void => {
-    if (adapterStarted) return;
-    adapterStarted = true;
-    if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
-    adapterStartTimer = undefined;
-  };
-  const passController = new AbortController();
-  let providerToolCalls = 0;
-  let toolCallAllowance: number | null = null;
-  let activeBudget: HardTurnBudget | undefined;
-  let queuedBudgetStop: TurnBudgetStop | undefined;
-  const baseGate = options.gateForRole?.(role, options.workdir) ?? options.hooks.gate;
-  const queueBudgetStop = (stop: TurnBudgetStop | undefined): void => {
-    if (stop === undefined || queuedBudgetStop !== undefined) return;
-    queuedBudgetStop = stop;
-    checkpointWrites = checkpointWrites.then(async () => {
-      await Promise.all([
-        updateEnvelope(root, app, runId, { budgetStop: stop }),
-        events.append({
-          type: "turn.budget_stopped",
-          severity: "warn",
-          errorCode:
-            stop.ring === "per_turn"
-              ? ERROR_TURN_BUDGET_SUSPENDED
-              : ERROR_TURN_BUDGET_EXHAUSTED,
-          detail: {
-            dimension: stop.dimension,
-            cap: stop.cap,
-            observed: stop.observed,
-            prevented_next_action: stop.prevented_next_action,
-            cost_measurement: stop.cost_measurement,
-            ring: stop.ring,
-            ...(stop.episode_remaining === null
-              ? {}
-              : { episode_remaining: stop.episode_remaining }),
-          },
-        }),
-      ]);
+      runId,
+      context: executionContext,
+      brief,
+      ...(template !== undefined ? { template } : {}),
+      route: options.episode?.route ?? options.selection.tier,
+      runtime: assignment.harness,
+      ...(planMetadata.plan_version !== undefined
+        ? {
+            planVersion: planMetadata.plan_version,
+            planStepId: planMetadata.plan_step_id,
+          }
+        : {}),
+      ...(options.contextBudgetBytes !== undefined ? { capBytes: options.contextBudgetBytes } : {}),
     });
-  };
-  const passHooks: TurnHooks = {
-    // The pass runs in options.workdir — for a builder ticket pass that is
-    // the per-ticket worktree, not the managed clone. The gate records this
-    // cwd on any approval it raises, so a later orchestrator execution runs
-    // in the tree the human approved the action for.
-    gate: (action) => {
-      if (activeBudget === undefined) {
-        return {
-          allow: false,
-          escalate: false,
-          reason: "hard turn budget is not initialized before tool admission",
-        };
+    const executableContext = contextManifest.context;
+    const executableBrief = contextManifest.brief;
+    const executableTemplate = contextManifest.template;
+    const originalTask =
+      executableTemplate === undefined ? executableBrief : `${executableBrief}\n\n---\n\n${executableTemplate}`;
+    const currentWorkFingerprint = worktreeFingerprint(options.workdir) ?? null;
+    if (continuation !== undefined && continuation.contextFingerprint !== contextManifest.manifest.render_sha256) {
+      throw new Error(
+        `pipeline continuation context changed for ${options.pipeline.name}/${pass.id}; ` +
+          "start a new explicitly authorized claim instead of resuming the old session",
+      );
+    }
+    if (continuation !== undefined && continuation.workFingerprint !== currentWorkFingerprint) {
+      throw new Error(
+        `pipeline continuation worktree changed for ${options.pipeline.name}/${pass.id}; ` +
+          "inspect the durable work and explicitly re-arm",
+      );
+    }
+    const task = continuation === undefined ? originalTask : continuationTask(continuation);
+    await Promise.all([writeBrief(root, app, runId, executableBrief), writePrompt(root, app, runId, task)]);
+    await updateEnvelope(root, app, runId, {
+      contextManifestRef: contextManifest.relativeRef,
+    });
+
+    const events = createEventWriter(
+      root,
+      {
+        runId,
+        trace_id: traceId,
+        span_id: pass.id,
+        app,
+        ...(ticket !== undefined ? { ticket } : {}),
+        pipeline: options.pipeline.name,
+        pass: pass.id,
+        role: role.name,
+        model: assignment.model,
+      },
+      clock,
+    );
+    await events.append({ type: "run.started" });
+    await events.append({ type: "pass.started" });
+
+    const sessionLog = createSessionLogSink(root, app, runId);
+    // The harness fires TurnEvents synchronously via onEvent; L2 appends are
+    // async. We buffer the tool/subagent events during the turn and flush them
+    // to L2 in order afterward (§9: fan-out trees reconstruct without opening
+    // transcripts). session.log still receives every event live.
+    const bridged: TurnEvent[] = [];
+    let latestProgress: TurnProgress | undefined;
+    let checkpointWrites = Promise.resolve();
+    let adapterStarted = false;
+    let adapterStartTimer: NodeJS.Timeout | undefined;
+    const markAdapterStarted = (): void => {
+      if (adapterStarted) return;
+      adapterStarted = true;
+      if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
+      adapterStartTimer = undefined;
+    };
+    const passController = new AbortController();
+    let providerToolCalls = 0;
+    let toolCallAllowance: number | null = null;
+    let activeBudget: HardTurnBudget | undefined;
+    let queuedBudgetStop: TurnBudgetStop | undefined;
+    const baseGate = options.gateForRole?.(role, options.workdir) ?? options.hooks.gate;
+    const queueBudgetStop = (stop: TurnBudgetStop | undefined): void => {
+      if (stop === undefined || queuedBudgetStop !== undefined) return;
+      queuedBudgetStop = stop;
+      checkpointWrites = checkpointWrites.then(async () => {
+        await Promise.all([
+          updateEnvelope(root, app, runId, { budgetStop: stop }),
+          events.append({
+            type: "turn.budget_stopped",
+            severity: "warn",
+            errorCode: stop.ring === "per_turn" ? ERROR_TURN_BUDGET_SUSPENDED : ERROR_TURN_BUDGET_EXHAUSTED,
+            detail: {
+              dimension: stop.dimension,
+              cap: stop.cap,
+              observed: stop.observed,
+              prevented_next_action: stop.prevented_next_action,
+              cost_measurement: stop.cost_measurement,
+              ring: stop.ring,
+              ...(stop.episode_remaining === null ? {} : { episode_remaining: stop.episode_remaining }),
+            },
+          }),
+        ]);
+      });
+    };
+    const passHooks: TurnHooks = {
+      // The pass runs in options.workdir — for a builder ticket pass that is
+      // the per-ticket worktree, not the managed clone. The gate records this
+      // cwd on any approval it raises, so a later orchestrator execution runs
+      // in the tree the human approved the action for.
+      gate: (action) => {
+        if (activeBudget === undefined) {
+          return {
+            allow: false,
+            escalate: false,
+            reason: "hard turn budget is not initialized before tool admission",
+          };
+        }
+        const decision = activeBudget.admitTool(action, baseGate);
+        providerToolCalls = activeBudget.toolActions;
+        queueBudgetStop(activeBudget.stop);
+        return decision;
+      },
+      onEvent: (e) => {
+        markAdapterStarted();
+        sessionLog(e);
+        if (e.type === "tool_use" || e.type === "subagent") bridged.push(e);
+        options.hooks.onEvent?.(e);
+      },
+      onProgress: (progress) => {
+        markAdapterStarted();
+        latestProgress = mergeProgress(latestProgress, progress);
+        if (progress.usage !== undefined) {
+          queueBudgetStop(activeBudget?.observeUsage(progress.usage));
+        }
+        if (latestProgress.usage !== undefined || latestProgress.session !== undefined) {
+          const usage =
+            latestProgress.usage !== undefined
+              ? toEnvelopeUsage(latestProgress.usage, latestProgress.usage.quality ?? "partial")
+              : undefined;
+          checkpointWrites = checkpointWrites.then(() =>
+            updateEnvelope(root, app, runId, {
+              ...(usage !== undefined ? { usage } : {}),
+              ...(latestProgress?.session !== undefined ? { session: sessionEvidence(latestProgress.session) } : {}),
+              lastSeenAt: progress.at ?? clock().toISOString(),
+            }).then(() => undefined),
+          );
+        }
+        options.hooks.onProgress?.(progress);
+      },
+    };
+
+    // Runtime construction is lazy inside runProviderTurn, after durable route
+    // admission, a context manifest, and the per-turn remaining-budget check.
+    let runtime: Runtime | undefined;
+    let providerOrdinal = 0;
+    const providerResults: TurnResult[] = [];
+    const verdictSchema = options.verdictSchemaFor?.(pass);
+
+    // Heartbeat: stamp both the envelope and the append-only event stream while
+    // the provider turn runs. Status readers use last_seen_at; a live tail uses
+    // pass.heartbeat. Failures are swallowed: observability must never kill the
+    // turn it observes.
+    const heartbeat = setInterval(() => {
+      checkpointWrites = checkpointWrites.then(async () => {
+        const observedAt = clock().toISOString();
+        await Promise.allSettled([
+          updateEnvelope(root, app, runId, { lastSeenAt: observedAt }),
+          events.append({ type: "pass.heartbeat", detail: { observed_at: observedAt } }),
+        ]);
+      });
+    }, HEARTBEAT_INTERVAL_MS);
+    heartbeat.unref?.();
+
+    // Wall-clock watchdog now aborts the owned provider session instead of
+    // abandoning it. The adapter receives the same signal and has a bounded
+    // grace period to return partial usage before finalization.
+    const allowance = await remainingExecutionAllowance(root, episodeId);
+    toolCallAllowance = minNullable(allowance.toolCalls, role.turnExecutionLimits?.toolCalls ?? null);
+    const configuredCapMs = Math.min(
+      (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000,
+      role.turnExecutionLimits?.activeTimeMs ?? Number.POSITIVE_INFINITY,
+    );
+    const capMs = Math.min(configuredCapMs, allowance.activeTimeMs);
+    const modelTurns = minNullable(pass.maxTurns ?? null, role.turnExecutionLimits?.modelTurns ?? null);
+    const unlinkParent = forwardAbort(options.signal, passController);
+    const timeout =
+      capMs <= 0
+        ? undefined
+        : setTimeout(() => {
+            if (activeBudget !== undefined) {
+              queueBudgetStop(activeBudget.stopActiveTime(capMs));
+            } else {
+              passController.abort({
+                status: "timed_out",
+                errorCode: ERROR_WALL_CLOCK_EXCEEDED,
+                reason: `pass "${pass.id}" exceeded its ${Math.round(capMs / 60_000)}-minute wall-clock cap`,
+              } satisfies AbortDescriptor);
+            }
+          }, capMs);
+    timeout?.unref?.();
+    const adapterStartTimeoutMs = options.adapterStartTimeoutMs ?? DEFAULT_ADAPTER_START_TIMEOUT_MS;
+    const runProviderTurn = async (request: {
+      operation: string;
+      task: string;
+      session?: TurnResult["session"];
+      verdictSchema?: Record<string, unknown>;
+    }): Promise<TurnResult> => {
+      if (capMs <= 0) {
+        const effectiveBounds = {
+          provider_turns: allowance.providerTurns,
+          equivalent_cost_usd: allowance.equivalentCostUsd,
+          tool_calls: toolCallAllowance,
+          active_time_ms: 0,
+          model_turns: modelTurns,
+          cost_enforcement: costEnforcementFor(assignment.harness),
+          equivalent_cost_reserve_usd: 0,
+          permission_mode: permissionModeFor(assignment.harness, role.permissionModes),
+          configuration_ref: `apps.yaml#apps.${app}.execution`,
+        } as const;
+        activeBudget = new HardTurnBudget({
+          bounds: effectiveBounds,
+          abort: (reason) => {
+            if (!passController.signal.aborted) passController.abort(reason);
+          },
+          now: clock,
+          initialToolActions: providerToolCalls,
+          episodeAllowance: episodeAllowanceFor(allowance),
+        });
+        await updateEnvelope(root, app, runId, { effectiveBounds });
+        queueBudgetStop(activeBudget.stopActiveTime(0));
+        await checkpointWrites;
+        return activeBudget.normalizeResult({
+          status: "failed",
+          summary: "Hard turn budget refused provider construction: no active-time allowance remains.",
+          artifacts: [],
+          session: { runtime: assignment.harness, id: `turn-budget-${pass.id}` },
+          usage: unavailableUsage(),
+          escalations: [],
+        });
       }
-      const decision = activeBudget.admitTool(action, baseGate);
-      providerToolCalls = activeBudget.toolActions;
-      queueBudgetStop(activeBudget.stop);
-      return decision;
-    },
-    onEvent: (e) => {
-      markAdapterStarted();
-      sessionLog(e);
-      if (e.type === "tool_use" || e.type === "subagent") bridged.push(e);
-      options.hooks.onEvent?.(e);
-    },
-    onProgress: (progress) => {
-      markAdapterStarted();
-      latestProgress = mergeProgress(latestProgress, progress);
-      if (progress.usage !== undefined) {
-        queueBudgetStop(activeBudget?.observeUsage(progress.usage));
-      }
-      if (latestProgress.usage !== undefined || latestProgress.session !== undefined) {
-        const usage =
-          latestProgress.usage !== undefined
-            ? toEnvelopeUsage(latestProgress.usage, latestProgress.usage.quality ?? "partial")
-            : undefined;
-        checkpointWrites = checkpointWrites.then(() =>
-          updateEnvelope(root, app, runId, {
-            ...(usage !== undefined ? { usage } : {}),
-            ...(latestProgress?.session !== undefined
-              ? { session: sessionEvidence(latestProgress.session) }
-              : {}),
-            lastSeenAt: progress.at ?? clock().toISOString(),
-          }).then(() => undefined),
+      if (providerOrdinal > 0 && planMetadata.plan_version !== undefined) {
+        throw new Error(
+          `accepted EpisodePlan step ${planMetadata.plan_step_id ?? pass.id} authorizes one provider turn; ` +
+            `operation ${request.operation} requires an explicit future step or plan revision`,
         );
       }
-      options.hooks.onProgress?.(progress);
-    },
-  };
-
-  // Runtime construction is lazy inside runProviderTurn, after durable route
-  // admission, a context manifest, and the per-turn remaining-budget check.
-  let runtime: Runtime | undefined;
-  let providerOrdinal = 0;
-  const providerResults: TurnResult[] = [];
-  const verdictSchema = options.verdictSchemaFor?.(pass);
-
-  // Heartbeat: stamp both the envelope and the append-only event stream while
-  // the provider turn runs. Status readers use last_seen_at; a live tail uses
-  // pass.heartbeat. Failures are swallowed: observability must never kill the
-  // turn it observes.
-  const heartbeat = setInterval(() => {
-    checkpointWrites = checkpointWrites.then(async () => {
-      const observedAt = clock().toISOString();
-      await Promise.allSettled([
-        updateEnvelope(root, app, runId, { lastSeenAt: observedAt }),
-        events.append({ type: "pass.heartbeat", detail: { observed_at: observedAt } }),
-      ]);
-    });
-  }, HEARTBEAT_INTERVAL_MS);
-  heartbeat.unref?.();
-
-  // Wall-clock watchdog now aborts the owned provider session instead of
-  // abandoning it. The adapter receives the same signal and has a bounded
-  // grace period to return partial usage before finalization.
-  const allowance = await remainingExecutionAllowance(root, episodeId);
-  toolCallAllowance = minNullable(
-    allowance.toolCalls,
-    role.turnExecutionLimits?.toolCalls ?? null,
-  );
-  const configuredCapMs = Math.min(
-    (pass.wallClockMinutes ?? DEFAULT_PASS_WALL_CLOCK_MINUTES) * 60_000,
-    role.turnExecutionLimits?.activeTimeMs ?? Number.POSITIVE_INFINITY,
-  );
-  const capMs = Math.min(configuredCapMs, allowance.activeTimeMs);
-  const modelTurns = minNullable(
-    pass.maxTurns ?? null,
-    role.turnExecutionLimits?.modelTurns ?? null,
-  );
-  const unlinkParent = forwardAbort(options.signal, passController);
-  const timeout = capMs <= 0
-    ? undefined
-    : setTimeout(() => {
-        if (activeBudget !== undefined) {
-          queueBudgetStop(activeBudget.stopActiveTime(capMs));
-        } else {
-          passController.abort({
-            status: "timed_out",
-            errorCode: ERROR_WALL_CLOCK_EXCEEDED,
-            reason: `pass "${pass.id}" exceeded its ${Math.round(capMs / 60_000)}-minute wall-clock cap`,
-          } satisfies AbortDescriptor);
-        }
-      }, capMs);
-  timeout?.unref?.();
-  const adapterStartTimeoutMs =
-    options.adapterStartTimeoutMs ?? DEFAULT_ADAPTER_START_TIMEOUT_MS;
-  const runProviderTurn = async (request: {
-    operation: string;
-    task: string;
-    session?: TurnResult["session"];
-    verdictSchema?: Record<string, unknown>;
-  }): Promise<TurnResult> => {
-    if (capMs <= 0) {
+      const ordinal = (providerOrdinal += 1);
+      const toolCallStart = providerToolCalls;
+      const inputFingerprint = fingerprint({
+        operation: request.operation,
+        role: { name: role.name },
+        assignment,
+        plan: {
+          version: planMetadata.plan_version ?? null,
+          step: planMetadata.plan_step_id ?? null,
+        },
+        task: request.task,
+        context: contextManifest.manifest.render_sha256,
+        session: request.session?.id ?? null,
+      });
+      const started = await beginProviderStep({
+        root,
+        episodeId,
+        app,
+        runId,
+        ordinal,
+        operation: request.operation,
+        role,
+        assignment,
+        planMetadata,
+        settlementAttribution: {
+          ...(options.telemetry?.experimentRef === undefined
+            ? {}
+            : { experiment_ref: options.telemetry.experimentRef }),
+          ...(options.telemetry?.candidateRef === undefined ? {} : { candidate_ref: options.telemetry.candidateRef }),
+          ...(options.telemetry?.learningActivity === undefined
+            ? {}
+            : { learning_activity: options.telemetry.learningActivity }),
+        },
+        inputFingerprint,
+        now: clock(),
+        ...(options.episode?.nextTurnEstimate !== undefined ? { next: options.episode.nextTurnEstimate } : {}),
+      });
+      const admittedRole: RoleConfig =
+        started.reservation.equivalentCostUsd === role.maxTurnBudgetUsd
+          ? role
+          : { ...role, maxTurnBudgetUsd: started.reservation.equivalentCostUsd };
       const effectiveBounds = {
         provider_turns: allowance.providerTurns,
-        equivalent_cost_usd: allowance.equivalentCostUsd,
+        equivalent_cost_usd: started.reservation.equivalentCostUsd,
         tool_calls: toolCallAllowance,
-        active_time_ms: 0,
+        active_time_ms: capMs,
         model_turns: modelTurns,
         cost_enforcement: costEnforcementFor(assignment.harness),
-        equivalent_cost_reserve_usd: 0,
+        equivalent_cost_reserve_usd: started.reservation.equivalentCostUsd,
         permission_mode: permissionModeFor(assignment.harness, role.permissionModes),
         configuration_ref: `apps.yaml#apps.${app}.execution`,
       } as const;
@@ -1187,472 +1174,367 @@ async function runPass(
         initialToolActions: providerToolCalls,
         episodeAllowance: episodeAllowanceFor(allowance),
       });
-      await updateEnvelope(root, app, runId, { effectiveBounds });
-      queueBudgetStop(activeBudget.stopActiveTime(0));
+      await updateEnvelope(root, app, runId, {
+        providerTurnIds: [started.providerTurnId],
+        executionStepIds: [started.executionStepId],
+        effectiveBounds,
+      });
+      const before = worktreeFingerprint(options.workdir);
+      let turnResult: TurnResult;
+      adapterStarted = false;
+      adapterStartTimer = setTimeout(() => {
+        passController.abort({
+          status: "failed",
+          errorCode: ERROR_ADAPTER_START_TIMEOUT,
+          reason:
+            `pass "${pass.id}" received no provider progress or event within ` +
+            `${adapterStartTimeoutMs}ms of adapter start`,
+        } satisfies AbortDescriptor);
+      }, adapterStartTimeoutMs);
+      adapterStartTimer.unref?.();
+      try {
+        runtime ??= constructRuntimeForAssignment(options, assignment, admittedRole);
+        if (runtime.kind !== assignment.harness) {
+          throw new Error(
+            `executePipeline: runtime factory returned ${runtime.kind} for ${assignment.harness} assignment; ` +
+              "no provider turn was started",
+          );
+        }
+        if (!passController.signal.aborted) {
+          await options.beforeProviderTurn?.({
+            pipeline: options.pipeline.name,
+            pass: pass.id,
+            resumed: request.session !== undefined,
+          });
+        }
+        turnResult = await runOwnedTurn({
+          runtime,
+          request: {
+            role: admittedRole,
+            assignment,
+            workdir: options.workdir,
+            task: request.task,
+            context: executableContext,
+            signal: passController.signal,
+            ...(request.session !== undefined ? { session: request.session } : {}),
+            ...(request.verdictSchema !== undefined ? { verdictSchema: request.verdictSchema } : {}),
+            ...(modelTurns !== null ? { maxTurns: modelTurns } : {}),
+            ...(options.networkAccess === true ? { networkAccess: true } : {}),
+          },
+          hooks: passHooks,
+          signal: passController.signal,
+          assignment,
+          passId: pass.id,
+          graceMs: options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
+          latestProgress: () => latestProgress,
+        });
+      } catch (error) {
+        turnResult = failedResult(error, assignment.harness, pass.id, latestProgress);
+      } finally {
+        if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
+        adapterStartTimer = undefined;
+      }
+      if (turnResult.errorCode === "error_max_budget_usd") {
+        queueBudgetStop(activeBudget.observeUsage(turnResult.usage));
+      }
+      turnResult = activeBudget.normalizeResult(turnResult);
+      queueBudgetStop(activeBudget.stop);
+      turnResult = enforceEquivalentCostReservation({
+        episodeId,
+        operation: request.operation,
+        started,
+        result: turnResult,
+      });
+      // Persist the provider result on the parent run before publishing the
+      // terminal execution record. That record is the resume authority for an
+      // accepted EpisodePlan step, so once it exists a restart must also have
+      // enough durable run evidence to recover output, session, usage, and
+      // settlement without invoking the provider again.
       await checkpointWrites;
-      return activeBudget.normalizeResult({
-        status: "failed",
-        summary: "Hard turn budget refused provider construction: no active-time allowance remains.",
+      const durableUsage = providerResults.reduce((sum, prior) => sumTurnUsage(sum, prior.usage), turnResult.usage);
+      if (ordinal === 1) {
+        await writeOutput(root, app, runId, turnResult.summary);
+      }
+      await updateEnvelope(root, app, runId, {
+        usage: toEnvelopeUsage(durableUsage),
+        session: sessionEvidence(turnResult.session),
+        ...(turnResult.artifacts.length > 0 ? { artifacts: turnResult.artifacts } : {}),
+        ...(ordinal === 1 ? { previews: { task: request.task, output: turnResult.summary } } : {}),
+      });
+      const artifactFingerprint = turnResult.artifacts.length === 0 ? undefined : fingerprint(turnResult.artifacts);
+      const after = worktreeFingerprint(options.workdir);
+      await finalizeProviderStep({
+        root,
+        episodeId,
+        app,
+        runId,
+        started,
+        operation: request.operation,
+        role: admittedRole,
+        assignment,
+        planMetadata,
+        result: turnResult,
+        finishedAt: clock(),
+        contextManifestRef: contextManifest.relativeRef,
+        ...(before !== undefined ? { workFingerprintBefore: before } : {}),
+        ...(after !== undefined ? { workFingerprintAfter: after } : {}),
+        ...(artifactFingerprint !== undefined ? { artifactFingerprint } : {}),
+        toolCallCount: providerToolCalls - toolCallStart,
+      });
+      const settlementRole: RoleConfig = {
+        ...admittedRole,
+        runtime: assignment.harness,
+        model: assignment.model,
+        effort: assignment.effort,
+      };
+      const settlement = toRecord(settlementRole, turnResult, clock(), {
+        app,
+        ...(options.telemetry?.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
+        runId,
+        providerTurnId: started.providerTurnId,
+        executionStepId: started.executionStepId,
+        episodeId,
+        effort: assignment.effort,
+        ...(planMetadata.plan_version !== undefined
+          ? {
+              planVersion: planMetadata.plan_version,
+              planStepId: planMetadata.plan_step_id,
+            }
+          : {}),
+        ...(planMetadata.assignment_source !== undefined ? { assignmentSource: planMetadata.assignment_source } : {}),
+        ...(planMetadata.assignment_candidate_id !== undefined
+          ? { assignmentCandidateId: planMetadata.assignment_candidate_id }
+          : {}),
+        ...(planMetadata.selection_reason !== undefined ? { selectionReason: planMetadata.selection_reason } : {}),
+        resolvedCapabilities,
+        traceId,
+        ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
+        pipeline: options.pipeline.name,
+        pass: pass.id,
+        ...(turnResult.usage.quality === "unavailable" ? { unmeasured: true } : {}),
+        ...(options.telemetry?.experimentRef !== undefined ? { experimentRef: options.telemetry.experimentRef } : {}),
+        ...(options.telemetry?.candidateRef !== undefined ? { candidateRef: options.telemetry.candidateRef } : {}),
+        ...(options.telemetry?.learningActivity !== undefined
+          ? { learningActivity: options.telemetry.learningActivity }
+          : {}),
+      });
+      // P1-13 / F-002 / L-005: a settlement failure (e.g. a lock timeout at
+      // scale, or an abort unwinding through here) must NOT discard a paid-for
+      // provider turn. The execution step above (finalizeProviderStep) is already
+      // durable — it is written BEFORE settlement precisely so this ordering
+      // holds — so `cormidia budget --reconcile` back-fills the ledger row. Record a
+      // durable settle-failure marker and let the completed turn survive rather
+      // than unwinding the whole pipeline past money already spent. Do NOT reorder
+      // the durable step write after this point.
+      let settled = false;
+      let settleFailed = false;
+      try {
+        settled = await recordTurnOnce(options.telemetry?.orgDir ?? root, settlement);
+      } catch (error) {
+        settleFailed = true;
+        await events.append({
+          type: "telemetry.settle_failed",
+          severity: "error",
+          detail: {
+            providerTurnId: started.providerTurnId,
+            executionStepId: started.executionStepId,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        });
+      }
+      if (!settled && !settleFailed) {
+        await events.append({
+          type: "telemetry.settle_skipped",
+          severity: "warn",
+          detail: {
+            providerTurnId: started.providerTurnId,
+            reason: "a ledger row with this app+providerTurnId already exists",
+          },
+        });
+      }
+      providerResults.push(turnResult);
+      return turnResult;
+    };
+    let result: TurnResult;
+    try {
+      result = await runProviderTurn({
+        operation: `${options.pipeline.name}/${pass.id}`,
+        task,
+        ...(continuation !== undefined ? { session: continuation.session } : {}),
+        ...(verdictSchema !== undefined ? { verdictSchema } : {}),
+      });
+    } catch (error) {
+      if (!(error instanceof ProviderBudgetRefusalError)) throw error;
+      result = {
+        status: "blocked_on_gate",
+        errorCode: error.errorCode,
+        summary: error.message,
         artifacts: [],
-        session: { runtime: assignment.harness, id: `turn-budget-${pass.id}` },
+        session: { runtime: assignment.harness, id: `route-budget-${pass.id}` },
         usage: unavailableUsage(),
         escalations: [],
-      });
-    }
-    if (providerOrdinal > 0 && planMetadata.plan_version !== undefined) {
-      throw new Error(
-        `accepted EpisodePlan step ${planMetadata.plan_step_id ?? pass.id} authorizes one provider turn; ` +
-          `operation ${request.operation} requires an explicit future step or plan revision`,
-      );
-    }
-    const ordinal = (providerOrdinal += 1);
-    const toolCallStart = providerToolCalls;
-    const inputFingerprint = fingerprint({
-      operation: request.operation,
-      role: { name: role.name },
-      assignment,
-      plan: {
-        version: planMetadata.plan_version ?? null,
-        step: planMetadata.plan_step_id ?? null,
-      },
-      task: request.task,
-      context: contextManifest.manifest.render_sha256,
-      session: request.session?.id ?? null,
-    });
-    const started = await beginProviderStep({
-      root,
-      episodeId,
-      app,
-      runId,
-      ordinal,
-      operation: request.operation,
-      role,
-      assignment,
-      planMetadata,
-      settlementAttribution: {
-        ...(options.telemetry?.experimentRef === undefined
-          ? {}
-          : { experiment_ref: options.telemetry.experimentRef }),
-        ...(options.telemetry?.candidateRef === undefined
-          ? {}
-          : { candidate_ref: options.telemetry.candidateRef }),
-        ...(options.telemetry?.learningActivity === undefined
-          ? {}
-          : { learning_activity: options.telemetry.learningActivity }),
-      },
-      inputFingerprint,
-      now: clock(),
-      ...(options.episode?.nextTurnEstimate !== undefined
-        ? { next: options.episode.nextTurnEstimate }
-        : {}),
-    });
-    const admittedRole: RoleConfig =
-      started.reservation.equivalentCostUsd === role.maxTurnBudgetUsd
-        ? role
-        : { ...role, maxTurnBudgetUsd: started.reservation.equivalentCostUsd };
-    const effectiveBounds = {
-      provider_turns: allowance.providerTurns,
-      equivalent_cost_usd: started.reservation.equivalentCostUsd,
-      tool_calls: toolCallAllowance,
-      active_time_ms: capMs,
-      model_turns: modelTurns,
-      cost_enforcement: costEnforcementFor(assignment.harness),
-      equivalent_cost_reserve_usd: started.reservation.equivalentCostUsd,
-      permission_mode: permissionModeFor(assignment.harness, role.permissionModes),
-      configuration_ref: `apps.yaml#apps.${app}.execution`,
-    } as const;
-    activeBudget = new HardTurnBudget({
-      bounds: effectiveBounds,
-      abort: (reason) => {
-        if (!passController.signal.aborted) passController.abort(reason);
-      },
-      now: clock,
-      initialToolActions: providerToolCalls,
-      episodeAllowance: episodeAllowanceFor(allowance),
-    });
-    await updateEnvelope(root, app, runId, {
-      providerTurnIds: [started.providerTurnId],
-      executionStepIds: [started.executionStepId],
-      effectiveBounds,
-    });
-    const before = worktreeFingerprint(options.workdir);
-    let turnResult: TurnResult;
-    adapterStarted = false;
-    adapterStartTimer = setTimeout(() => {
-      passController.abort({
-        status: "failed",
-        errorCode: ERROR_ADAPTER_START_TIMEOUT,
-        reason:
-          `pass "${pass.id}" received no provider progress or event within ` +
-          `${adapterStartTimeoutMs}ms of adapter start`,
-      } satisfies AbortDescriptor);
-    }, adapterStartTimeoutMs);
-    adapterStartTimer.unref?.();
-    try {
-      runtime ??= constructRuntimeForAssignment(options, assignment, admittedRole);
-      if (runtime.kind !== assignment.harness) {
-        throw new Error(
-          `executePipeline: runtime factory returned ${runtime.kind} for ${assignment.harness} assignment; ` +
-            "no provider turn was started",
-        );
-      }
-      if (!passController.signal.aborted) {
-        await options.beforeProviderTurn?.({
-          pipeline: options.pipeline.name,
-          pass: pass.id,
-          resumed: request.session !== undefined,
-        });
-      }
-      turnResult = await runOwnedTurn({
-        runtime,
-        request: {
-          role: admittedRole,
-          assignment,
-          workdir: options.workdir,
-          task: request.task,
-          context: executableContext,
-          signal: passController.signal,
-          ...(request.session !== undefined ? { session: request.session } : {}),
-          ...(request.verdictSchema !== undefined ? { verdictSchema: request.verdictSchema } : {}),
-          ...(modelTurns !== null ? { maxTurns: modelTurns } : {}),
-          ...(options.networkAccess === true ? { networkAccess: true } : {}),
-        },
-        hooks: passHooks,
-        signal: passController.signal,
-        assignment,
-        passId: pass.id,
-        graceMs: options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS,
-        latestProgress: () => latestProgress,
-      });
-    } catch (error) {
-      turnResult = failedResult(error, assignment.harness, pass.id, latestProgress);
+      };
     } finally {
+      if (timeout !== undefined) clearTimeout(timeout);
       if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
-      adapterStartTimer = undefined;
+      unlinkParent();
+      clearInterval(heartbeat);
     }
-    if (turnResult.errorCode === "error_max_budget_usd") {
-      queueBudgetStop(activeBudget.observeUsage(turnResult.usage));
-    }
-    turnResult = activeBudget.normalizeResult(turnResult);
-    queueBudgetStop(activeBudget.stop);
-    turnResult = enforceEquivalentCostReservation({
-      episodeId,
-      operation: request.operation,
-      started,
-      result: turnResult,
-    });
-    // Persist the provider result on the parent run before publishing the
-    // terminal execution record. That record is the resume authority for an
-    // accepted EpisodePlan step, so once it exists a restart must also have
-    // enough durable run evidence to recover output, session, usage, and
-    // settlement without invoking the provider again.
+
     await checkpointWrites;
-    const durableUsage = providerResults.reduce(
-      (sum, prior) => sumTurnUsage(sum, prior.usage),
-      turnResult.usage,
-    );
-    if (ordinal === 1) {
-      await writeOutput(root, app, runId, turnResult.summary);
-    }
+
+    await writeOutput(root, app, runId, result.summary);
+    const toolCounts = await flushBridgedEvents(bridged, events, pass.id);
     await updateEnvelope(root, app, runId, {
-      usage: toEnvelopeUsage(durableUsage),
-      session: sessionEvidence(turnResult.session),
-      ...(turnResult.artifacts.length > 0 ? { artifacts: turnResult.artifacts } : {}),
-      ...(ordinal === 1
-        ? { previews: { task: request.task, output: turnResult.summary } }
-        : {}),
+      usage: toEnvelopeUsage(result.usage),
+      session: sessionEvidence(result.session),
+      ...(result.artifacts.length > 0 ? { artifacts: result.artifacts } : {}),
+      previews: { task, output: result.summary },
+      ...(Object.keys(toolCounts).length > 0 ? { tool_counts: toolCounts } : {}),
     });
-    const artifactFingerprint =
-      turnResult.artifacts.length === 0 ? undefined : fingerprint(turnResult.artifacts);
-    const after = worktreeFingerprint(options.workdir);
-    await finalizeProviderStep({
-      root,
-      episodeId,
-      app,
-      runId,
-      started,
-      operation: request.operation,
-      role: admittedRole,
-      assignment,
-      planMetadata,
-      result: turnResult,
-      finishedAt: clock(),
-      contextManifestRef: contextManifest.relativeRef,
-      ...(before !== undefined ? { workFingerprintBefore: before } : {}),
-      ...(after !== undefined ? { workFingerprintAfter: after } : {}),
-      ...(artifactFingerprint !== undefined ? { artifactFingerprint } : {}),
-      toolCallCount: providerToolCalls - toolCallStart,
-    });
-    const settlementRole: RoleConfig = {
-      ...admittedRole,
-      runtime: assignment.harness,
-      model: assignment.model,
-      effort: assignment.effort,
-    };
-    const settlement = toRecord(settlementRole, turnResult, clock(), {
-      app,
-      ...(options.telemetry?.trigger !== undefined ? { trigger: options.telemetry.trigger } : {}),
-      runId,
-      providerTurnId: started.providerTurnId,
-      executionStepId: started.executionStepId,
-      episodeId,
-      effort: assignment.effort,
-      ...(planMetadata.plan_version !== undefined
-        ? {
-            planVersion: planMetadata.plan_version,
-            planStepId: planMetadata.plan_step_id,
-          }
-        : {}),
-      ...(planMetadata.assignment_source !== undefined
-        ? { assignmentSource: planMetadata.assignment_source }
-        : {}),
-      ...(planMetadata.assignment_candidate_id !== undefined
-        ? { assignmentCandidateId: planMetadata.assignment_candidate_id }
-        : {}),
-      ...(planMetadata.selection_reason !== undefined
-        ? { selectionReason: planMetadata.selection_reason }
-        : {}),
-      resolvedCapabilities,
-      traceId,
-      ...(options.parentTaskId !== undefined ? { parentTaskId: options.parentTaskId } : {}),
-      pipeline: options.pipeline.name,
-      pass: pass.id,
-      ...(turnResult.usage.quality === "unavailable" ? { unmeasured: true } : {}),
-      ...(options.telemetry?.experimentRef !== undefined
-        ? { experimentRef: options.telemetry.experimentRef }
-        : {}),
-      ...(options.telemetry?.candidateRef !== undefined
-        ? { candidateRef: options.telemetry.candidateRef }
-        : {}),
-      ...(options.telemetry?.learningActivity !== undefined
-        ? { learningActivity: options.telemetry.learningActivity }
-        : {}),
-    });
-    // P1-13 / F-002 / L-005: a settlement failure (e.g. a lock timeout at
-    // scale, or an abort unwinding through here) must NOT discard a paid-for
-    // provider turn. The execution step above (finalizeProviderStep) is already
-    // durable — it is written BEFORE settlement precisely so this ordering
-    // holds — so `cormidia budget --reconcile` back-fills the ledger row. Record a
-    // durable settle-failure marker and let the completed turn survive rather
-    // than unwinding the whole pipeline past money already spent. Do NOT reorder
-    // the durable step write after this point.
-    let settled = false;
-    let settleFailed = false;
-    try {
-      settled = await recordTurnOnce(options.telemetry?.orgDir ?? root, settlement);
-    } catch (error) {
-      settleFailed = true;
+
+    for (const escalation of result.escalations) {
       await events.append({
-        type: "telemetry.settle_failed",
-        severity: "error",
-        detail: {
-          providerTurnId: started.providerTurnId,
-          executionStepId: started.executionStepId,
-          reason: error instanceof Error ? error.message : String(error),
-        },
-      });
-    }
-    if (!settled && !settleFailed) {
-      await events.append({
-        type: "telemetry.settle_skipped",
+        type: "escalation.raised",
         severity: "warn",
-        detail: {
-          providerTurnId: started.providerTurnId,
-          reason: "a ledger row with this app+providerTurnId already exists",
-        },
+        detail: { tool: escalation.action.tool, reason: escalation.reason },
       });
     }
-    providerResults.push(turnResult);
-    return turnResult;
-  };
-  let result: TurnResult;
-  try {
-    result = await runProviderTurn({
-      operation: `${options.pipeline.name}/${pass.id}`,
-      task,
-      ...(continuation !== undefined ? { session: continuation.session } : {}),
-      ...(verdictSchema !== undefined ? { verdictSchema } : {}),
-    });
-  } catch (error) {
-    if (!(error instanceof ProviderBudgetRefusalError)) throw error;
-    result = {
-      status: "blocked_on_gate",
-      errorCode: error.errorCode,
-      summary: error.message,
-      artifacts: [],
-      session: { runtime: assignment.harness, id: `route-budget-${pass.id}` },
-      usage: unavailableUsage(),
-      escalations: [],
-    };
-  } finally {
-    if (timeout !== undefined) clearTimeout(timeout);
-    if (adapterStartTimer !== undefined) clearTimeout(adapterStartTimer);
-    unlinkParent();
-    clearInterval(heartbeat);
-  }
 
-  await checkpointWrites;
-
-  await writeOutput(root, app, runId, result.summary);
-  const toolCounts = await flushBridgedEvents(bridged, events, pass.id);
-  await updateEnvelope(root, app, runId, {
-    usage: toEnvelopeUsage(result.usage),
-    session: sessionEvidence(result.session),
-    ...(result.artifacts.length > 0 ? { artifacts: result.artifacts } : {}),
-    previews: { task, output: result.summary },
-    ...(Object.keys(toolCounts).length > 0 ? { tool_counts: toolCounts } : {}),
-  });
-
-  for (const escalation of result.escalations) {
-    await events.append({
-      type: "escalation.raised",
-      severity: "warn",
-      detail: { tool: escalation.action.tool, reason: escalation.reason },
-    });
-  }
-
-  // Verdict recording runs before finalize so an unparseable verdict finalizes
-  // the pass as an infra failure, not a completed pass (§6, §13 row 11).
-  let settledUsage = result.usage;
-  let verdictOutcome: VerdictRecordOutcome = { ok: true };
-  if (options.recordVerdict !== undefined && result.status === "completed") {
-    try {
-      verdictOutcome = await options.recordVerdict({
-        pass,
-        runId,
-        result,
-        role,
-        assignment,
-        hooks: passHooks,
-        workdir: options.workdir,
-        context: executableContext,
-        events,
-        clock,
-        runProviderTurn,
-      });
-      if (
-        verdictOutcome.ok &&
-        !(await readEvents(root, app, runId)).some((event) => event.event === "verdict.recorded")
-      ) {
+    // Verdict recording runs before finalize so an unparseable verdict finalizes
+    // the pass as an infra failure, not a completed pass (§6, §13 row 11).
+    let settledUsage = result.usage;
+    let verdictOutcome: VerdictRecordOutcome = { ok: true };
+    if (options.recordVerdict !== undefined && result.status === "completed") {
+      try {
+        verdictOutcome = await options.recordVerdict({
+          pass,
+          runId,
+          result,
+          role,
+          assignment,
+          hooks: passHooks,
+          workdir: options.workdir,
+          context: executableContext,
+          events,
+          clock,
+          runProviderTurn,
+        });
+        if (
+          verdictOutcome.ok &&
+          !(await readEvents(root, app, runId)).some((event) => event.event === "verdict.recorded")
+        ) {
+          verdictOutcome = {
+            ok: false,
+            errorCode: "error_verdict_persist",
+            error: new Error(
+              `verdict recorder for ${options.pipeline.name}/${pass.id} returned without durable verdict.recorded evidence`,
+            ),
+          };
+        }
+        if (verdictOutcome.ok) {
+          // The provider execution record is intentionally durable before this
+          // callback. This separate orchestrator-owned marker closes the crash
+          // window: a governed resume may trust terminal provider output only
+          // after verdict parsing/persistence has also committed.
+          await events.append({
+            type: "verdict.persistence_completed",
+            detail: { provider_turns: providerResults.length },
+          });
+        }
+      } catch (error) {
         verdictOutcome = {
           ok: false,
-          errorCode: "error_verdict_persist",
-          error: new Error(
-            `verdict recorder for ${options.pipeline.name}/${pass.id} returned without durable verdict.recorded evidence`,
-          ),
+          errorCode: error instanceof ProviderBudgetRefusalError ? error.errorCode : "error_verdict_persist",
+          error: error instanceof Error ? error : new Error(String(error)),
         };
       }
-      if (verdictOutcome.ok) {
-        // The provider execution record is intentionally durable before this
-        // callback. This separate orchestrator-owned marker closes the crash
-        // window: a governed resume may trust terminal provider output only
-        // after verdict parsing/persistence has also committed.
-        await events.append({
-          type: "verdict.persistence_completed",
-          detail: { provider_turns: providerResults.length },
+      // Each reformat/recovery call is already settled independently; the pass
+      // envelope retains an aggregate parent summary for legacy readers.
+      if (providerResults.length > 1) {
+        settledUsage = providerResults
+          .slice(1)
+          .reduce((sum, providerResult) => sumTurnUsage(sum, providerResult.usage), result.usage);
+        await updateEnvelope(root, app, runId, {
+          usage: toEnvelopeUsage(settledUsage),
         });
       }
-    } catch (error) {
-      verdictOutcome = {
-        ok: false,
-        errorCode:
-          error instanceof ProviderBudgetRefusalError
-            ? error.errorCode
-            : "error_verdict_persist",
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
     }
-    // Each reformat/recovery call is already settled independently; the pass
-    // envelope retains an aggregate parent summary for legacy readers.
-    if (providerResults.length > 1) {
-      settledUsage = providerResults.slice(1).reduce(
-        (sum, providerResult) => sumTurnUsage(sum, providerResult.usage),
-        result.usage,
+
+    const status = verdictOutcome.ok ? (verdictOutcome.terminalStatus ?? envelopeStatus(result)) : "failed";
+    if (status === "completed" && options.inputManifest !== undefined && inputManifestRef !== undefined) {
+      await writeLoopFileAtomic(
+        join(runPaths(root, app, runId).dir, inputManifestRef),
+        options.inputManifest.completedContents,
       );
-      await updateEnvelope(root, app, runId, {
-        usage: toEnvelopeUsage(settledUsage),
+    }
+    if (status === "failed") {
+      // Infra failure — machine code, distinct population from merit (§9). The
+      // adapter's own code (budget overrun, watchdog) beats the generic one:
+      // budget exhaustion must read as budget exhaustion.
+      await events.append({
+        type: "pass.failed",
+        severity: "error",
+        errorCode: verdictOutcome.ok ? (result.errorCode ?? "error_turn_failed") : verdictOutcome.errorCode,
+        detail: { reason: result.summary },
+      });
+    } else if (status === "cancelled" || status === "timed_out") {
+      await events.append({
+        type: status === "cancelled" ? "pass.cancelled" : "pass.timed_out",
+        severity: "warn",
+        errorCode: result.errorCode ?? (status === "cancelled" ? "error_cancelled" : ERROR_WALL_CLOCK_EXCEEDED),
+        detail: { reason: result.summary },
+      });
+    } else {
+      await events.append({
+        type: "pass.completed",
+        ...(status === "blocked" || result.status === "blocked_on_gate"
+          ? {
+              detail: {
+                outcome: status === "blocked" ? "blocked_verdict" : "blocked_on_gate",
+                reason: result.summary,
+              },
+            }
+          : {}),
       });
     }
-  }
-
-  const status = verdictOutcome.ok
-    ? verdictOutcome.terminalStatus ?? envelopeStatus(result)
-    : "failed";
-  if (status === "completed" && options.inputManifest !== undefined && inputManifestRef !== undefined) {
-    await writeLoopFileAtomic(
-      join(runPaths(root, app, runId).dir, inputManifestRef),
-      options.inputManifest.completedContents,
+    await events.append({ type: "run.completed" });
+    await finalizeRun(
+      root,
+      app,
+      runId,
+      {
+        status,
+        verdictSummary: result.summary,
+        ...(verdictOutcome.ok
+          ? status === "failed"
+            ? { errorCode: result.errorCode ?? "error_turn_failed" }
+            : status === "cancelled"
+              ? { errorCode: result.errorCode ?? "error_cancelled" }
+              : status === "timed_out"
+                ? { errorCode: result.errorCode ?? ERROR_WALL_CLOCK_EXCEEDED }
+                : result.status !== "completed" && result.errorCode !== undefined
+                  ? { errorCode: result.errorCode }
+                  : {}
+          : { errorCode: verdictOutcome.errorCode }),
+        ...(status === "completed" ? {} : { reason: result.summary }),
+      },
+      clock(),
     );
-  }
-  if (status === "failed") {
-    // Infra failure — machine code, distinct population from merit (§9). The
-    // adapter's own code (budget overrun, watchdog) beats the generic one:
-    // budget exhaustion must read as budget exhaustion.
-    await events.append({
-      type: "pass.failed",
-      severity: "error",
-      errorCode: verdictOutcome.ok
-        ? result.errorCode ?? "error_turn_failed"
-        : verdictOutcome.errorCode,
-      detail: { reason: result.summary },
-    });
-  } else if (status === "cancelled" || status === "timed_out") {
-    await events.append({
-      type: status === "cancelled" ? "pass.cancelled" : "pass.timed_out",
-      severity: "warn",
-      errorCode: result.errorCode ?? (status === "cancelled" ? "error_cancelled" : ERROR_WALL_CLOCK_EXCEEDED),
-      detail: { reason: result.summary },
-    });
-  } else {
-    await events.append({
-      type: "pass.completed",
-      ...(status === "blocked" || result.status === "blocked_on_gate"
-        ? {
-            detail: {
-              outcome: status === "blocked" ? "blocked_verdict" : "blocked_on_gate",
-              reason: result.summary,
-            },
-          }
-        : {}),
-    });
-  }
-  await events.append({ type: "run.completed" });
-  await finalizeRun(
-    root,
-    app,
-    runId,
-    {
-      status,
-      verdictSummary: result.summary,
-      ...(verdictOutcome.ok
-        ? status === "failed"
-          ? { errorCode: result.errorCode ?? "error_turn_failed" }
-          : status === "cancelled"
-            ? { errorCode: result.errorCode ?? "error_cancelled" }
-            : status === "timed_out"
-              ? { errorCode: result.errorCode ?? ERROR_WALL_CLOCK_EXCEEDED }
-              : result.status !== "completed" && result.errorCode !== undefined
-                ? { errorCode: result.errorCode }
-                : {}
-        : { errorCode: verdictOutcome.errorCode }),
-      ...(status === "completed" ? {} : { reason: result.summary }),
-    },
-    clock(),
-  );
-  runFinalized = true;
+    runFinalized = true;
 
-  // The record is durable; NOW surface the loud typed failure to the caller.
-  if (!verdictOutcome.ok) throw verdictOutcome.error;
+    // The record is durable; NOW surface the loud typed failure to the caller.
+    if (!verdictOutcome.ok) throw verdictOutcome.error;
 
-  return {
-    pass,
-    runId,
-    result,
-    assignment,
-    planMetadata,
-    contextFingerprint: contextManifest.manifest.render_sha256,
-    workFingerprint: worktreeFingerprint(options.workdir) ?? null,
-  };
+    return {
+      pass,
+      runId,
+      result,
+      assignment,
+      planMetadata,
+      contextFingerprint: contextManifest.manifest.render_sha256,
+      workFingerprint: worktreeFingerprint(options.workdir) ?? null,
+    };
   } catch (error) {
     if (!runFinalized) {
       await finalizeRun(
@@ -1708,7 +1590,8 @@ async function flushBridgedEvents(
       });
     } else {
       const phase: "started" | "completed" =
-        e.phase ?? (/\b(complete|completed|finish|finished|end|ended|done)\b/i.test(e.detail) ? "completed" : "started");
+        e.phase ??
+        (/\b(complete|completed|finish|finished|end|ended|done)\b/i.test(e.detail) ? "completed" : "started");
       let spanId: string;
       if (e.spanId !== undefined) {
         spanId = e.spanId;
@@ -1789,14 +1672,8 @@ function enforceEquivalentCostReservation(input: {
         `${details}`,
     };
   }
-  if (
-    observed >
-    started.reservation.equivalentCostUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
-  ) {
-    if (
-      result.status === "failed" &&
-      result.errorCode?.includes("budget") === true
-    ) {
+  if (observed > started.reservation.equivalentCostUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD) {
+    if (result.status === "failed" && result.errorCode?.includes("budget") === true) {
       return {
         ...result,
         summary: `${result.summary}; ${details}; observed=$${formatCost(observed)}`,
@@ -1811,10 +1688,7 @@ function enforceEquivalentCostReservation(input: {
         `$${formatCost(observed)} exceeded the reserved exposure; ${details}`,
     };
   }
-  if (
-    result.status === "completed" &&
-    (result.usage.quality === "partial" || result.usage.quality === "unavailable")
-  ) {
+  if (result.status === "completed" && (result.usage.quality === "partial" || result.usage.quality === "unavailable")) {
     return {
       ...result,
       status: "blocked_on_gate",
@@ -1915,9 +1789,7 @@ function isAbortDescriptor(value: unknown): value is AbortDescriptor {
   if (value === null || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   return (
-    (record["status"] === "cancelled" ||
-      record["status"] === "timed_out" ||
-      record["status"] === "failed") &&
+    (record["status"] === "cancelled" || record["status"] === "timed_out" || record["status"] === "failed") &&
     typeof record["errorCode"] === "string" &&
     typeof record["reason"] === "string"
   );

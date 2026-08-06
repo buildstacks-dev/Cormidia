@@ -27,14 +27,7 @@ import {
   type InitOrgHomeOptions,
   type InitOrgHomePlan,
 } from "../../../src/org/home.js";
-import {
-  diffIsEmpty,
-  diffPaths,
-  diffSnapshots,
-  makeInitWorld,
-  snapshotTree,
-  type InitWorld,
-} from "./support.js";
+import { diffIsEmpty, diffPaths, diffSnapshots, makeInitWorld, snapshotTree, type InitWorld } from "./support.js";
 
 describe("CF-J01-R — collision/refusal classes refuse pre-mutation (C-OP-LIFE §1/§2)", () => {
   let cleanups: Array<() => Promise<void>> = [];
@@ -95,25 +88,22 @@ describe("CF-J01-R — collision/refusal classes refuse pre-mutation (C-OP-LIFE 
     expect(diffIsEmpty(diffSnapshots(before, await snapshotTree(w.root)))).toBe(true);
   });
 
-  it(
-    "a target nested inside an existing org home plans blocked (C-OP-LIFE §1)",
-    async () => {
-      const w = await world();
-      await initOrgHome(initOptions(w, { name: "outer" }));
-      const plan = await planOrgInit(
-        initOptions(w, {
-          target: join(w.target, "nested-org"),
-          name: "nested",
-          stateHome: join(w.root, "state-nested"),
-        }),
-      );
-      // Ratified: the nested-org collision blocks before mutation. PROMOTED
-      // from an it.fails tripwire 2026-07-31: preflightInitEffects
-      // (src/org/home.ts) now walks ancestors for a complete org shape and
-      // reports the "nested_org" blocker, so the plan is never executable.
-      expect(plan.preview.status).toBe("blocked");
-    },
-  );
+  it("a target nested inside an existing org home plans blocked (C-OP-LIFE §1)", async () => {
+    const w = await world();
+    await initOrgHome(initOptions(w, { name: "outer" }));
+    const plan = await planOrgInit(
+      initOptions(w, {
+        target: join(w.target, "nested-org"),
+        name: "nested",
+        stateHome: join(w.root, "state-nested"),
+      }),
+    );
+    // Ratified: the nested-org collision blocks before mutation. PROMOTED
+    // from an it.fails tripwire 2026-07-31: preflightInitEffects
+    // (src/org/home.ts) now walks ancestors for a complete org shape and
+    // reports the "nested_org" blocker, so the plan is never executable.
+    expect(plan.preview.status).toBe("blocked");
+  });
 
   it("symlink target: blocked as target_not_directory", async () => {
     const w = await world();

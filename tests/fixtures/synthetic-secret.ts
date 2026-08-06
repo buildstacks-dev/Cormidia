@@ -91,10 +91,8 @@ export function makeSyntheticSecret(kind: SyntheticSecretKind): SyntheticSecret 
       };
     case "jwt": {
       // \beyJ…\.eyJ…\.… — "eyJ" is base64 of `{"`, so encode real JSON headers.
-      const header = Buffer.from(`{"alg":"none","synthetic":"${base64url(6)}"}`, "utf8")
-        .toString("base64url");
-      const payload = Buffer.from(`{"sub":"synthetic-${base64url(6)}"}`, "utf8")
-        .toString("base64url");
+      const header = Buffer.from(`{"alg":"none","synthetic":"${base64url(6)}"}`, "utf8").toString("base64url");
+      const payload = Buffer.from(`{"sub":"synthetic-${base64url(6)}"}`, "utf8").toString("base64url");
       return { kind, value: `${header}.${payload}.${base64url(12)}`, expectedPatternName: "jwt" };
     }
     case "pem-private-key": {

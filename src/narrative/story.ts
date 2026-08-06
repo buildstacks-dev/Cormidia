@@ -26,10 +26,7 @@ import {
   type StoryKind,
   type StoryStatus,
 } from "./types.js";
-import {
-  listPlannerPublications,
-  type PlannerPublicationTransaction,
-} from "../org/planner-publication.js";
+import { listPlannerPublications, type PlannerPublicationTransaction } from "../org/planner-publication.js";
 
 export interface NarrativeFoldResult {
   stories: NarrativeStory[];
@@ -52,15 +49,17 @@ export async function foldAppStories(stateHome: string, app: string): Promise<Na
 
   const stories: NarrativeStory[] = [];
   for (const [episodeId, envelopes] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    stories.push(await foldStory(
-      stateHome,
-      app,
-      episodeId,
-      envelopes,
-      sources.publishedTickets,
-      ledger,
-      publications.find((publication) => publication.evidence.episode_id === episodeId),
-    ));
+    stories.push(
+      await foldStory(
+        stateHome,
+        app,
+        episodeId,
+        envelopes,
+        sources.publishedTickets,
+        ledger,
+        publications.find((publication) => publication.evidence.episode_id === episodeId),
+      ),
+    );
   }
 
   // Ticket stories join back to the planning execution that published them —
@@ -112,13 +111,14 @@ async function foldStory(
     // record stays authoritative in the run directory, but a narrative moment
     // whose quote is a JSON blob truncated mid-key tells an operator nothing
     // about what the reviewer actually concluded.
-    const verdictQuote = envelope.verdict_summary !== undefined &&
-        envelope.verdict_summary.trim() !== ""
-      ? formatVerdictQuote(envelope.verdict_summary)
-      : undefined;
-    const quote = verdictQuote !== undefined
-      ? boundQuote(`runs/${app}/${envelope.run_id}/envelope.json`, verdictQuote, MOMENT_QUOTE_MAX)
-      : await readRunQuote(stateHome, app, envelope.run_id, "output.md");
+    const verdictQuote =
+      envelope.verdict_summary !== undefined && envelope.verdict_summary.trim() !== ""
+        ? formatVerdictQuote(envelope.verdict_summary)
+        : undefined;
+    const quote =
+      verdictQuote !== undefined
+        ? boundQuote(`runs/${app}/${envelope.run_id}/envelope.json`, verdictQuote, MOMENT_QUOTE_MAX)
+        : await readRunQuote(stateHome, app, envelope.run_id, "output.md");
     moments.push({
       at: envelope.started_at,
       run_id: envelope.run_id,
@@ -128,9 +128,7 @@ async function foldStory(
       ...(envelope.model !== undefined ? { model: envelope.model } : {}),
       ...(envelope.plan_version !== undefined ? { plan_version: envelope.plan_version } : {}),
       ...(envelope.plan_step_id !== undefined ? { plan_step_id: envelope.plan_step_id } : {}),
-      ...(envelope.assignment_source !== undefined
-        ? { assignment_source: envelope.assignment_source }
-        : {}),
+      ...(envelope.assignment_source !== undefined ? { assignment_source: envelope.assignment_source } : {}),
       status: envelope.status,
       headline: `${envelope.pass} (${envelope.role}) — ${envelope.status}`,
       ...(quote !== undefined ? { quote } : {}),
@@ -149,8 +147,7 @@ async function foldStory(
         publication.state === "published"
           ? `publication durable (${publication.branch_created ? publication.branch : "read-only"})`
           : `${publication.state}: ${publication.error?.code ?? "incomplete"}`,
-      evidence:
-        `planning/publications/${hashedFileStem(publication.app)}/${publication.publication_id}.json`,
+      evidence: `planning/publications/${hashedFileStem(publication.app)}/${publication.publication_id}.json`,
     });
     moments.sort((left, right) => left.at.localeCompare(right.at) || left.run_id.localeCompare(right.run_id));
   }
@@ -188,7 +185,8 @@ async function foldStory(
             attempt: stage.attempt,
           })),
           status: journal.status,
-          ...(journal.status === "completed" && journal.stages.some((s) => s.boundary === "merge" && s.status === "completed")
+          ...(journal.status === "completed" &&
+          journal.stages.some((s) => s.boundary === "merge" && s.status === "completed")
             ? { outcome: "merged" }
             : journal.stop !== null
               ? { outcome: scrubCaptureText(`${journal.stop.kind}: ${journal.stop.reason}`) }
@@ -223,13 +221,20 @@ async function foldStory(
     ...(isTerminal(ordered) && last.finished_at !== undefined && publication?.state !== "publication_pending"
       ? { closed: last.finished_at }
       : {}),
-    status: publication?.state === "publication_pending"
-      ? "in_progress"
-      : publication?.state === "refused"
-        ? "failed"
-        : storyStatus(ordered, journal?.status),
+    status:
+      publication?.state === "publication_pending"
+        ? "in_progress"
+        : publication?.state === "refused"
+          ? "failed"
+          : storyStatus(ordered, journal?.status),
     ...(origin !== undefined
-      ? { origin: { kind: origin.kind, ...(origin.ref !== undefined ? { ref: origin.ref } : {}), ...(origin.quote !== undefined ? { quote: origin.quote } : {}) } }
+      ? {
+          origin: {
+            kind: origin.kind,
+            ...(origin.ref !== undefined ? { ref: origin.ref } : {}),
+            ...(origin.quote !== undefined ? { quote: origin.quote } : {}),
+          },
+        }
       : {}),
     ...(plannedTickets.length > 0 ? { planned_tickets: plannedTickets } : {}),
     ...(publication === undefined
@@ -285,12 +290,12 @@ function isTerminal(envelopes: RunEnvelope[]): boolean {
 function storyStatus(envelopes: RunEnvelope[], journalStatus?: string): StoryStatus {
   if (!isTerminal(envelopes)) return "in_progress";
   if (journalStatus === "running") return "in_progress";
-  if (envelopes.some((e) =>
-    e.status === "failed" ||
-    e.status === "blocked" ||
-    e.status === "cancelled" ||
-    e.status === "timed_out"
-  )) return "failed";
+  if (
+    envelopes.some(
+      (e) => e.status === "failed" || e.status === "blocked" || e.status === "cancelled" || e.status === "timed_out",
+    )
+  )
+    return "failed";
   if (envelopes.every((e) => e.status === "completed")) return "completed";
   return "unknown";
 }

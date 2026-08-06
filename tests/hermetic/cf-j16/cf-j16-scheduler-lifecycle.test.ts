@@ -30,16 +30,39 @@ class FakeSchedulerManager implements SchedulerManager {
   removes = 0;
 
   constructor(readonly dir: string) {}
-  definitionPath(id: string): string { return join(this.dir, `${id}.plist`); }
-  async readDefinition(): Promise<string | undefined> { return this.definition; }
-  async writeDefinition(_id: string, definition: string): Promise<void> { this.definition = definition; this.writes += 1; }
-  async removeDefinition(): Promise<void> { this.definition = undefined; this.removes += 1; }
-  async enable(): Promise<void> { this.loaded = true; this.active = true; this.enables += 1; }
-  async disable(): Promise<void> { this.loaded = false; this.active = false; this.disables += 1; }
+  definitionPath(id: string): string {
+    return join(this.dir, `${id}.plist`);
+  }
+  async readDefinition(): Promise<string | undefined> {
+    return this.definition;
+  }
+  async writeDefinition(_id: string, definition: string): Promise<void> {
+    this.definition = definition;
+    this.writes += 1;
+  }
+  async removeDefinition(): Promise<void> {
+    this.definition = undefined;
+    this.removes += 1;
+  }
+  async enable(): Promise<void> {
+    this.loaded = true;
+    this.active = true;
+    this.enables += 1;
+  }
+  async disable(): Promise<void> {
+    this.loaded = false;
+    this.active = false;
+    this.disables += 1;
+  }
   async inspect(): Promise<SchedulerManagerInspection> {
     return this.definition === undefined
       ? { installed: false, loaded: false, active: false, detail: "definition absent" }
-      : { installed: true, loaded: this.loaded, active: this.active, detail: this.active ? "active" : "present but inactive" };
+      : {
+          installed: true,
+          loaded: this.loaded,
+          active: this.active,
+          detail: this.active ? "active" : "present but inactive",
+        };
   }
 }
 
@@ -75,7 +98,9 @@ describe("HB-043 scheduler lifecycle", () => {
     expect(manager.definition).toBeUndefined();
     expect(await fileExists(schedulerTransactionPath(home.stateHome))).toBe(false);
 
-    await expect(installScheduler({ ...input, execute: true, confirm: "wrong" })).rejects.toThrow("--confirm must exactly equal");
+    await expect(installScheduler({ ...input, execute: true, confirm: "wrong" })).rejects.toThrow(
+      "--confirm must exactly equal",
+    );
     expect(manager.definition).toBeUndefined();
 
     const installed = await installScheduler({ ...input, execute: true, confirm: preview.scheduler_id });
@@ -158,15 +183,12 @@ describe("HB-043 scheduler lifecycle", () => {
 
     const integrity = await schedulerOperationalStatus({ ...input, now: input.now() });
     expect(integrity.healthy).toBe(false);
-    expect(integrity.reason_codes).toEqual(expect.arrayContaining([
-      "duplicate_scheduler_decision",
-      "duplicate_scheduler_episode",
-      "orphan_scheduler_lock",
-    ]));
-    expect(integrity.blocking_reasons).toEqual(expect.arrayContaining([
-      "duplicate_scheduler_decision",
-      "orphan_scheduler_lock",
-    ]));
+    expect(integrity.reason_codes).toEqual(
+      expect.arrayContaining(["duplicate_scheduler_decision", "duplicate_scheduler_episode", "orphan_scheduler_lock"]),
+    );
+    expect(integrity.blocking_reasons).toEqual(
+      expect.arrayContaining(["duplicate_scheduler_decision", "orphan_scheduler_lock"]),
+    );
   });
 
   it("does not present stale runtime failure reasons as current after intentional uninstall", async () => {

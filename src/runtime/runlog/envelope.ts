@@ -32,13 +32,7 @@ import type { EffectiveTurnBounds, TurnBudgetStop } from "../turn-budget.js";
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
  *  infra and merit never conflate (§9). */
-export type EnvelopeStatus =
-  | "running"
-  | "completed"
-  | "failed"
-  | "blocked"
-  | "cancelled"
-  | "timed_out";
+export type EnvelopeStatus = "running" | "completed" | "failed" | "blocked" | "cancelled" | "timed_out";
 const TERMINAL: EnvelopeStatus[] = ["completed", "failed", "blocked", "cancelled", "timed_out"];
 
 export interface EnvelopeUsage {
@@ -259,11 +253,7 @@ export interface FinalizeOutcome {
   reason?: string;
 }
 
-export async function startRun(
-  root: string,
-  meta: StartRunMeta,
-  now: Date,
-): Promise<RunEnvelope> {
+export async function startRun(root: string, meta: StartRunMeta, now: Date): Promise<RunEnvelope> {
   const paths = runPaths(root, meta.app, meta.runId);
   await mkdir(paths.dir, { recursive: true });
 
@@ -284,15 +274,9 @@ export async function startRun(
     ...(meta.model !== undefined ? { model: meta.model } : {}),
     ...(meta.effort !== undefined ? { effort: meta.effort } : {}),
     ...(meta.assignmentSource !== undefined ? { assignment_source: meta.assignmentSource } : {}),
-    ...(meta.assignmentCandidateId !== undefined
-      ? { assignment_candidate_id: meta.assignmentCandidateId }
-      : {}),
-    ...(meta.selectionReason !== undefined
-      ? { selection_reason: scrubSecrets(meta.selectionReason) }
-      : {}),
-    ...(meta.resolvedCapabilities !== undefined
-      ? { resolved_capabilities: [...meta.resolvedCapabilities] }
-      : {}),
+    ...(meta.assignmentCandidateId !== undefined ? { assignment_candidate_id: meta.assignmentCandidateId } : {}),
+    ...(meta.selectionReason !== undefined ? { selection_reason: scrubSecrets(meta.selectionReason) } : {}),
+    ...(meta.resolvedCapabilities !== undefined ? { resolved_capabilities: [...meta.resolvedCapabilities] } : {}),
     ...(meta.workdir !== undefined ? { workdir: meta.workdir } : {}),
     ...(meta.gitBranch !== undefined ? { git_branch: meta.gitBranch } : {}),
     ...(meta.tracePlan !== undefined ? { trace_plan: meta.tracePlan } : {}),
@@ -324,9 +308,7 @@ export async function updateEnvelope(
 ): Promise<RunEnvelope> {
   const envelope = await readEnvelope(root, app, runId);
   if (TERMINAL.includes(envelope.status)) {
-    throw new Error(
-      `runlog: envelope ${runId} is already ${envelope.status} — updates after finalize are a bug`,
-    );
+    throw new Error(`runlog: envelope ${runId} is already ${envelope.status} — updates after finalize are a bug`);
   }
 
   if (patch.usage !== undefined) envelope.usage = patch.usage;
@@ -434,18 +416,16 @@ function scrubJsonStrings(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(scrubJsonStrings);
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .map(([key, entry]) => [scrubSecrets(key), scrubJsonStrings(entry)]),
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        scrubSecrets(key),
+        scrubJsonStrings(entry),
+      ]),
     );
   }
   return value;
 }
 
-export async function readEnvelope(
-  root: string,
-  app: string,
-  runId: string,
-): Promise<RunEnvelope> {
+export async function readEnvelope(root: string, app: string, runId: string): Promise<RunEnvelope> {
   const path = runPaths(root, app, runId).envelope;
   const parsed = JSON.parse(await readFile(path, "utf8")) as RunEnvelope;
   if (parsed.schema_version !== 1 || typeof parsed.run_id !== "string" || !parsed.status) {
@@ -474,12 +454,7 @@ export function classifyEnvelopeUsage(
 ): UsageQuality {
   if (envelope.usage?.quality !== undefined) return envelope.usage.quality;
   const settled = options.settledProviderTurns ?? 0;
-  if (
-    envelope.usage === undefined &&
-    envelope.runtime === undefined &&
-    envelope.model === undefined &&
-    settled === 0
-  ) {
+  if (envelope.usage === undefined && envelope.runtime === undefined && envelope.model === undefined && settled === 0) {
     return "none";
   }
   if (envelope.usage === undefined) return "unavailable";

@@ -127,13 +127,15 @@ export async function writeContextManifest(input: {
     ...briefComponents(input.brief),
     ...(input.template === undefined
       ? []
-      : [{
-          category: "template" as const,
-          source: "pipeline:versioned-pass-template",
-          rendered: input.template,
-          inclusionReason: "human-ratified protocol for the selected pass",
-          requirement: "required" as const,
-        }]),
+      : [
+          {
+            category: "template" as const,
+            source: "pipeline:versioned-pass-template",
+            rendered: input.template,
+            inclusionReason: "human-ratified protocol for the selected pass",
+            requirement: "required" as const,
+          },
+        ]),
   ];
   assertNoHiddenAnswer(raw);
   const capBytes = input.capBytes ?? CONTEXT_ROUTE_CAPS[route];
@@ -142,7 +144,10 @@ export async function writeContextManifest(input: {
   const briefEntries = entries.filter((entry) => isBriefCategory(entry.input.category));
   const preparedBrief = briefEntries.every((entry) => entry.submitted === entry.input.rendered)
     ? input.brief
-    : briefEntries.map((entry) => entry.submitted).filter(Boolean).join("\n\n");
+    : briefEntries
+        .map((entry) => entry.submitted)
+        .filter(Boolean)
+        .join("\n\n");
   const preparedTemplate = entries.find((entry) => entry.input.category === "template")?.submitted;
   const renderedContext = renderContextBundle(preparedContext);
   const rendered = `${renderedContext}${preparedBrief}${preparedTemplate ?? ""}`;
@@ -191,7 +196,9 @@ export async function writeContextManifest(input: {
 }
 
 export async function readContextManifest(root: string, app: string, runId: string): Promise<ContextManifest> {
-  return JSON.parse(await readFile(join(runPaths(root, app, runId).dir, "context-manifest.json"), "utf8")) as ContextManifest;
+  return JSON.parse(
+    await readFile(join(runPaths(root, app, runId).dir, "context-manifest.json"), "utf8"),
+  ) as ContextManifest;
 }
 
 export interface ContextExplanation {
@@ -200,7 +207,12 @@ export interface ContextExplanation {
   route: EfficiencyRoute;
   rendered_bytes: number;
   cap_bytes: number;
-  dominant: Array<Pick<ContextManifestComponent, "category" | "source" | "rendered_bytes" | "inclusion_reason" | "transport" | "eviction" | "eviction_reason">>;
+  dominant: Array<
+    Pick<
+      ContextManifestComponent,
+      "category" | "source" | "rendered_bytes" | "inclusion_reason" | "transport" | "eviction" | "eviction_reason"
+    >
+  >;
 }
 
 export async function explainContext(root: string, episodeId: string): Promise<ContextExplanation> {
@@ -246,13 +258,14 @@ function prepareEntries(
     const prior = priorById.get(id);
     const duplicateOf = firstByHash.get(sourceHash) ?? null;
     if (duplicateOf === null) firstByHash.set(sourceHash, id);
-    const change = previous === undefined
-      ? "initial" as const
-      : prior === undefined
-        ? "new" as const
-        : prior.source_sha256 === sourceHash
-          ? "unchanged" as const
-          : "changed" as const;
+    const change =
+      previous === undefined
+        ? ("initial" as const)
+        : prior === undefined
+          ? ("new" as const)
+          : prior.source_sha256 === sourceHash
+            ? ("unchanged" as const)
+            : ("changed" as const);
     const categoryCap = CATEGORY_CAPS[component.category] ?? null;
     let submitted = component.rendered;
     let transport: ContextManifestComponent["transport"] = change === "changed" ? "delta" : "full";
@@ -279,9 +292,10 @@ function prepareEntries(
       submitted = "";
       transport = "evicted";
       eviction = "evicted";
-      evictionReason = categoryCap !== null && usedCategory + bytes > categoryCap
-        ? `${component.category} category cap ${categoryCap} bytes`
-        : `route optional allowance ${optionalAllowance} bytes after protected context`;
+      evictionReason =
+        categoryCap !== null && usedCategory + bytes > categoryCap
+          ? `${component.category} category cap ${categoryCap} bytes`
+          : `route optional allowance ${optionalAllowance} bytes after protected context`;
     }
     const submittedBytes = Buffer.byteLength(submitted);
     categoryBytes.set(component.category, usedCategory + submittedBytes);
@@ -311,19 +325,24 @@ function prepareEntries(
 }
 
 function preparedContextBundle(context: ContextBundle, entries: PreparedEntry[]): ContextBundle {
-  const contextEntries = entries.filter((entry) => ["authority", "execution", "taste", "role_protocol", "memory"].includes(entry.input.category));
+  const contextEntries = entries.filter((entry) =>
+    ["authority", "execution", "taste", "role_protocol", "memory"].includes(entry.input.category),
+  );
   // Preserve the caller's exact bundle (including object identity) when the
   // budgeter made no transport change. Besides avoiding needless adapter
   // churn, this keeps episode-sticky governed context sticky by construction.
-  if (contextEntries.every((entry) =>
-    entry.submitted === entry.input.rendered &&
-    entry.manifest.duplicate_of === null &&
-    entry.manifest.eviction === "kept" &&
-    entry.manifest.transport === "full"
-  )) return context;
-  const authority = context.authority === undefined
-    ? undefined
-    : contextEntries.find((entry) => entry.input.category === "authority");
+  if (
+    contextEntries.every(
+      (entry) =>
+        entry.submitted === entry.input.rendered &&
+        entry.manifest.duplicate_of === null &&
+        entry.manifest.eviction === "kept" &&
+        entry.manifest.transport === "full",
+    )
+  )
+    return context;
+  const authority =
+    context.authority === undefined ? undefined : contextEntries.find((entry) => entry.input.category === "authority");
   const taste = contextEntries
     .filter((entry) => entry.input.category === "taste" || entry.input.category === "role_protocol")
     .map((entry) => entry.submitted)
@@ -354,9 +373,8 @@ function preparedContextBundle(context: ContextBundle, entries: PreparedEntry[])
 }
 
 function contextComponents(context: ContextBundle): ManifestInputComponent[] {
-  const components: ManifestInputComponent[] = context.components === undefined
-    ? []
-    : context.components.map((component) => ({ ...component }));
+  const components: ManifestInputComponent[] =
+    context.components === undefined ? [] : context.components.map((component) => ({ ...component }));
   if (context.components === undefined && context.authority !== undefined) {
     components.push({
       category: "authority",
@@ -368,26 +386,27 @@ function contextComponents(context: ContextBundle): ManifestInputComponent[] {
     });
   }
   if (context.components === undefined) {
-    context.taste.forEach((rendered, index) => components.push({
-      category: "taste",
-      source: `unattributed:taste:${index}`,
-      rendered,
-      inclusionReason: "safety and taste layer; never evict",
-      requirement: "required",
-    }));
-    context.memoryExcerpts.forEach((rendered, index) => components.push({
-      category: "memory",
-      source: `unattributed:memory:${index}`,
-      rendered,
-      inclusionReason: "optional governed or legacy memory excerpt",
-      requirement: "optional",
-    }));
+    context.taste.forEach((rendered, index) =>
+      components.push({
+        category: "taste",
+        source: `unattributed:taste:${index}`,
+        rendered,
+        inclusionReason: "safety and taste layer; never evict",
+        requirement: "required",
+      }),
+    );
+    context.memoryExcerpts.forEach((rendered, index) =>
+      components.push({
+        category: "memory",
+        source: `unattributed:memory:${index}`,
+        rendered,
+        inclusionReason: "optional governed or legacy memory excerpt",
+        requirement: "optional",
+      }),
+    );
   }
   if (context.execution !== undefined) {
-    const facts = validateTurnExecutionFacts(
-      context.execution,
-      "context manifest execution facts",
-    );
+    const facts = validateTurnExecutionFacts(context.execution, "context manifest execution facts");
     const rendered = renderTurnExecutionFacts(facts);
     components.push({
       category: "execution",
@@ -403,13 +422,16 @@ function contextComponents(context: ContextBundle): ManifestInputComponent[] {
 
 function briefComponents(brief: string): ManifestInputComponent[] {
   const matches = [...brief.matchAll(/^\[([a-z_]+)]\n/gm)];
-  if (matches.length === 0) return [{
-    category: "brief",
-    source: "loop:assembled-brief",
-    rendered: brief,
-    inclusionReason: "unstructured executable brief",
-    requirement: "required",
-  }];
+  if (matches.length === 0)
+    return [
+      {
+        category: "brief",
+        source: "loop:assembled-brief",
+        rendered: brief,
+        inclusionReason: "unstructured executable brief",
+        requirement: "required",
+      },
+    ];
   const components: ManifestInputComponent[] = [];
   const firstIndex = matches[0]?.index ?? 0;
   if (firstIndex > 0) {
@@ -421,30 +443,35 @@ function briefComponents(brief: string): ManifestInputComponent[] {
       requirement: "required",
     });
   }
-  components.push(...matches.map((match, index) => {
-    const tag = match[1] ?? "brief";
-    const start = match.index ?? 0;
-    const end = matches[index + 1]?.index ?? brief.length;
-    const rendered = brief.slice(start, end).trimEnd();
-    const category = briefCategory(tag, rendered);
-    const requirement = ["brief", "ticket", "acceptance_criteria", "contract", "unresolved_findings"].includes(category)
-      ? "required" as const
-      : "optional" as const;
-    return {
-      category,
-      source: `loop:brief:${tag}:${index}`,
-      rendered,
-      inclusionReason: briefInclusionReason(category),
-      requirement,
-    };
-  }));
+  components.push(
+    ...matches.map((match, index) => {
+      const tag = match[1] ?? "brief";
+      const start = match.index ?? 0;
+      const end = matches[index + 1]?.index ?? brief.length;
+      const rendered = brief.slice(start, end).trimEnd();
+      const category = briefCategory(tag, rendered);
+      const requirement = ["brief", "ticket", "acceptance_criteria", "contract", "unresolved_findings"].includes(
+        category,
+      )
+        ? ("required" as const)
+        : ("optional" as const);
+      return {
+        category,
+        source: `loop:brief:${tag}:${index}`,
+        rendered,
+        inclusionReason: briefInclusionReason(category),
+        requirement,
+      };
+    }),
+  );
   return components;
 }
 
 function briefCategory(tag: string, rendered: string): ContextCategory {
   if (tag === "ticket") return "ticket";
   if (tag === "contract") return "contract";
-  if (tag === "findings") return /\[active\b|Gate output \(verbatim\)/.test(rendered) ? "unresolved_findings" : "history";
+  if (tag === "findings")
+    return /\[active\b|Gate output \(verbatim\)/.test(rendered) ? "unresolved_findings" : "history";
   if (tag === "spec") return "spec";
   if (tag === "history") return "history";
   if (tag === "repo") return "repo";

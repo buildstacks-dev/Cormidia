@@ -1,8 +1,4 @@
-import type {
-  ValidationAffectedStructure,
-  ValidationCatalog,
-  ValidationCatalogCase,
-} from "./roadmap-delivery.js";
+import type { ValidationAffectedStructure, ValidationCatalog, ValidationCatalogCase } from "./roadmap-delivery.js";
 
 export const RATIFIED_VALIDATION_BASE_AFFECTED: ValidationAffectedStructure = {
   journeyIds: ["J-03"],
@@ -35,7 +31,13 @@ export function ratifiedRoadmapValidationCatalog(app: string): ValidationCatalog
   const deliveryAffected = affected({
     journeyIds: ["J-04"],
     boundaryIds: ["B-20", "B-21", "B-22"],
-    contractIds: ["CORMIDIA-C-B20-001", "CORMIDIA-C-B21-001", "CORMIDIA-C-B22-001", "CORMIDIA-C-OPVALIDATION-001", "CORMIDIA-C-OPBATCH-001"],
+    contractIds: [
+      "CORMIDIA-C-B20-001",
+      "CORMIDIA-C-B21-001",
+      "CORMIDIA-C-B22-001",
+      "CORMIDIA-C-OPVALIDATION-001",
+      "CORMIDIA-C-OPBATCH-001",
+    ],
   });
   const batchAffected = affected({
     journeyIds: ["J-20"],
@@ -46,19 +48,60 @@ export function ratifiedRoadmapValidationCatalog(app: string): ValidationCatalog
     interfaceIds: ["API-roadmap-delivery", "CLI-status", "JSON-status", "ObserveSnapshot", "ReportSnapshot"],
   });
   const cases: ValidationCatalogCase[] = [
-    catalogCase("CF-B21-SHARED", ["CF-B21-*"], "L2", RATIFIED_VALIDATION_BASE_AFFECTED, "shared-boundary-lineage", true),
+    catalogCase(
+      "CF-B21-SHARED",
+      ["CF-B21-*"],
+      "L2",
+      RATIFIED_VALIDATION_BASE_AFFECTED,
+      "shared-boundary-lineage",
+      true,
+    ),
     catalogCase("CF-HB100-LINEAGE", [], "L1", RATIFIED_VALIDATION_EMPTY_AFFECTED, "review-lineage", true),
     catalogCase("CF-HB101-FRONTIER", [], "L2", RATIFIED_VALIDATION_EMPTY_AFFECTED, "current-roadmap-pointer", true),
-    catalogCase("CF-HB102-C3", ["CF-SM-VALIDATION-C", "CF-SM-VALIDATION-L/I/R/C"], "L2", affected({ controlPointIds: ["T-9"] }), "validation-authority-detector", false),
-    catalogCase("CF-HB102-FLOOR", ["CF-INV-001"], "L1", affected({ invariantIds: ["CORMIDIA-INV-001"] }), "validation-floor-detector", false),
+    catalogCase(
+      "CF-HB102-C3",
+      ["CF-SM-VALIDATION-C", "CF-SM-VALIDATION-L/I/R/C"],
+      "L2",
+      affected({ controlPointIds: ["T-9"] }),
+      "validation-authority-detector",
+      false,
+    ),
+    catalogCase(
+      "CF-HB102-FLOOR",
+      ["CF-INV-001"],
+      "L1",
+      affected({ invariantIds: ["CORMIDIA-INV-001"] }),
+      "validation-floor-detector",
+      false,
+    ),
     catalogCase("CF-HB102-WAIVER", [], "L1", RATIFIED_VALIDATION_EMPTY_AFFECTED, "validation-waiver-detector", true),
-    catalogCase("CF-HB102-WAIVER-2", [], "L1", RATIFIED_VALIDATION_EMPTY_AFFECTED, "validation-waiver-detector-2", true),
-    ...["S", "R", "I", "RC", "A"].map((row) => catalogCase(`CF-J03-${row}`, [], row === "R" ? "L1" : "L2", roadmapAffected, "roadmap-family-detector", false)),
-    ...["S", "R", "I", "RC", "A"].map((row) => catalogCase(`CF-J04-${row}`, [], "L2", deliveryAffected, "delivery-family-detector", false)),
-    ...["S", "R", "I", "RC", "A"].map((row) => catalogCase(`CF-J20-${row}`, [], row === "R" ? "L1" : "L2", batchAffected, "batch-family-detector", false)),
+    catalogCase(
+      "CF-HB102-WAIVER-2",
+      [],
+      "L1",
+      RATIFIED_VALIDATION_EMPTY_AFFECTED,
+      "validation-waiver-detector-2",
+      true,
+    ),
+    ...["S", "R", "I", "RC", "A"].map((row) =>
+      catalogCase(`CF-J03-${row}`, [], row === "R" ? "L1" : "L2", roadmapAffected, "roadmap-family-detector", false),
+    ),
+    ...["S", "R", "I", "RC", "A"].map((row) =>
+      catalogCase(`CF-J04-${row}`, [], "L2", deliveryAffected, "delivery-family-detector", false),
+    ),
+    ...["S", "R", "I", "RC", "A"].map((row) =>
+      catalogCase(`CF-J20-${row}`, [], row === "R" ? "L1" : "L2", batchAffected, "batch-family-detector", false),
+    ),
     catalogCase("CF-SM-ROADMAP", ["CF-SM-ROADMAP-L/I/R/C"], "L2", roadmapAffected, "roadmap-lifecycle-detector", false),
     catalogCase("CF-SM-BATCH", ["CF-SM-BATCH-L/I/R/C"], "L2", batchAffected, "batch-lifecycle-detector", false),
-    catalogCase("CF-INV-016", [], "L1", affected({ invariantIds: ["CORMIDIA-INV-016"] }), "lineage-swap-detector", false),
+    catalogCase(
+      "CF-INV-016",
+      [],
+      "L1",
+      affected({ invariantIds: ["CORMIDIA-INV-016"] }),
+      "lineage-swap-detector",
+      false,
+    ),
     catalogCase("CF-B20-SUITE", ["CF-B20-*"], "L2", roadmapAffected, "roadmap-boundary-detector", false),
     catalogCase("CF-B22-SUITE", ["CF-B22-*"], "L2", batchAffected, "batch-boundary-detector", false),
     catalogCase("CF-C-B20", [], "L2", roadmapAffected, "roadmap-contract-detector", false),
@@ -83,9 +126,27 @@ export function ratifiedRoadmapValidationCatalog(app: string): ValidationCatalog
       { canonicalId: "J-20", aliases: ["J20"] },
     ],
     boundaries: [
-      { canonicalId: "B-20", aliases: ["B20"], requiresSharedDetector: false, sharedDetectorId: null, routineEligible: true },
-      { canonicalId: "B-21", aliases: ["B21"], requiresSharedDetector: true, sharedDetectorId: "shared-boundary-lineage", routineEligible: true },
-      { canonicalId: "B-22", aliases: ["B22"], requiresSharedDetector: false, sharedDetectorId: null, routineEligible: false },
+      {
+        canonicalId: "B-20",
+        aliases: ["B20"],
+        requiresSharedDetector: false,
+        sharedDetectorId: null,
+        routineEligible: true,
+      },
+      {
+        canonicalId: "B-21",
+        aliases: ["B21"],
+        requiresSharedDetector: true,
+        sharedDetectorId: "shared-boundary-lineage",
+        routineEligible: true,
+      },
+      {
+        canonicalId: "B-22",
+        aliases: ["B22"],
+        requiresSharedDetector: false,
+        sharedDetectorId: null,
+        routineEligible: false,
+      },
     ],
     contracts: [
       { canonicalId: "CORMIDIA-C-B20-001", aliases: ["B-20"] },
@@ -112,13 +173,15 @@ export function ratifiedRoadmapValidationCatalog(app: string): ValidationCatalog
       { templateId: "routine-v1", aliases: ["routine"], version: 1, kind: "routine" },
       { templateId: "custom-v1", aliases: ["custom"], version: 1, kind: "custom" },
     ],
-    waiverClasses: [{
-      classId: "bounded-defer",
-      aliases: ["defer"],
-      maxDurationMs: 60 * 60_000,
-      maxWaiversPerContract: 1,
-      allowedTemplateKinds: ["routine", "custom"],
-    }],
+    waiverClasses: [
+      {
+        classId: "bounded-defer",
+        aliases: ["defer"],
+        maxDurationMs: 60 * 60_000,
+        maxWaiversPerContract: 1,
+        allowedTemplateKinds: ["routine", "custom"],
+      },
+    ],
     acceptedAt: "2026-08-03T21:55:00.000Z",
   };
 }

@@ -81,7 +81,16 @@ describe("CF-J17-I — lost response and record/claim disagreement land ambiguou
     const appsFile: AppsFile = {
       org: { name: "cf-j17-i", maxConcurrentTurns: 1 },
       defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
-      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
+      apps: [
+        {
+          name: APP,
+          repo: "cormidia-double/unused",
+          status: "live",
+          budgetUsdMonth: 100,
+          objectiveBudgetUsd: 1000,
+          cadence: {},
+        },
+      ],
     };
     let calls = 0;
     const run = () =>
@@ -113,7 +122,13 @@ describe("CF-J17-I — lost response and record/claim disagreement land ambiguou
       // commentedAt set so reconciliation stays off the GitHub seam — the
       // outcome-comment leg is CF-J17-S's.
       commentedAt: seeded.clock.nowIso(),
-      ...(status === "running" ? {} : { finishedAt: seeded.clock.nowIso(), exitCode: status === "completed" ? 0 : 1, summary: `seeded ${status} record` }),
+      ...(status === "running"
+        ? {}
+        : {
+            finishedAt: seeded.clock.nowIso(),
+            exitCode: status === "completed" ? 0 : 1,
+            summary: `seeded ${status} record`,
+          }),
     };
     mkdirSync(seeded.home.path("releases"), { recursive: true });
     writeFileSync(seeded.home.path("releases", `${seeded.approvalId}.json`), `${JSON.stringify(record, null, 2)}\n`);

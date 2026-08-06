@@ -84,7 +84,10 @@ interface Clause {
 }
 
 class ObservationInconclusiveError extends Error {
-  constructor(readonly code: string, message: string) {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
     super(message);
     this.name = "ObservationInconclusiveError";
   }
@@ -422,16 +425,16 @@ export async function runGithubConformance(
   const filter = options.clauseFilter ?? (() => true);
   const selected = CLAUSES.filter((clause) => filter(clause.id));
   if (selected.length === 0) {
-    throw new Error(
-      "github conformance: empty clause walk — refusing to report a result over zero clauses",
-    );
+    throw new Error("github conformance: empty clause walk — refusing to report a result over zero clauses");
   }
   const attempts = Math.max(1, options.readBackAttempts ?? 1);
   const delayMs = options.readBackDelayMs ?? 250;
   const labelSearchReadBackDelayMs = options.labelSearchReadBackDelayMs ?? delayMs;
-  const wait = options.wait ?? (async (durationMs: number) => {
-    await new Promise((resolve) => setTimeout(resolve, durationMs));
-  });
+  const wait =
+    options.wait ??
+    (async (durationMs: number) => {
+      await new Promise((resolve) => setTimeout(resolve, durationMs));
+    });
   const passed: string[] = [];
   const failures: ConformanceClauseFailure[] = [];
   for (const clause of selected) {
@@ -465,9 +468,7 @@ export async function runGithubConformance(
       failures.push({
         id: clause.id,
         name: clause.name,
-        classification: error instanceof ObservationInconclusiveError
-          ? "observation_inconclusive"
-          : "violation",
+        classification: error instanceof ObservationInconclusiveError ? "observation_inconclusive" : "violation",
         code: error instanceof ObservationInconclusiveError ? error.code : "assertion_failed",
         error: errorMessage(error),
       });

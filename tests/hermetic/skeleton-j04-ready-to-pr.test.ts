@@ -409,9 +409,7 @@ describe("CF-J04-S skeleton — ready → claim → scripted build → PR on the
     // op:building, and no op:in-review flip ever crossed the seam.
     expect((await gh.readIssue(issue.number)).labels).toEqual(["op:building"]);
     expect(
-      handle
-        .callLog()
-        .some((entry) => entry.op === "issue.edit" && entry.argv.join(" ").includes("op:in-review")),
+      handle.callLog().some((entry) => entry.op === "issue.edit" && entry.argv.join(" ").includes("op:in-review")),
     ).toBe(false);
   });
 });

@@ -3,15 +3,7 @@ import type { CriterionTestMap, GateRunResult } from "./qgates.js";
 import type { SessionHandle, TurnAssignment } from "../runtime/types.js";
 import type { EpisodeReplanEventKind } from "./episode-replan.js";
 
-export type LoopPhase =
-  | "ready"
-  | "building"
-  | "gates"
-  | "reviewing"
-  | "shipping"
-  | "merged"
-  | "returned"
-  | "blocked";
+export type LoopPhase = "ready" | "building" | "gates" | "reviewing" | "shipping" | "merged" | "returned" | "blocked";
 
 export type TicketTier = "quick" | "standard" | "deep";
 

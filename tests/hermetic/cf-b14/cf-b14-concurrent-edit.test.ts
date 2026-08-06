@@ -47,9 +47,7 @@ import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
 import { answersFor, assertHumanBytesPreserved } from "./helpers.js";
 
-const REAL_TEMPLATE_PATH = fileURLToPath(
-  new URL("../../../docs/policy.yaml.template", import.meta.url),
-);
+const REAL_TEMPLATE_PATH = fileURLToPath(new URL("../../../docs/policy.yaml.template", import.meta.url));
 const AGENTS_SEED = "# Fixture app AGENTS.md\n\nHuman-authored content.\n";
 const APP = "cf-b14-ce-app";
 
@@ -205,9 +203,7 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
     // …and the file stays exactly as the human left it: no marked block was
     // silently merged into a version the command never validated.
     assertHumanBytesPreserved(join(held.repo.dir, "AGENTS.md"), humanEdited);
-    expect(readFileSync(join(held.repo.dir, "AGENTS.md"), "utf8")).not.toContain(
-      AUTHORITY_BLOCK_START,
-    );
+    expect(readFileSync(join(held.repo.dir, "AGENTS.md"), "utf8")).not.toContain(AUTHORITY_BLOCK_START);
   });
 
   it("negative control: a seeded mid-window clobber violation — the clobber detector FIRES", async () => {
@@ -224,9 +220,9 @@ describe("CF-B14-CE / CF-C-B14 — concurrent human edit between validation and 
     // SEEDED VIOLATION: a clobbering writer replaces the human's bytes with
     // generated content while the command is still held.
     writeFileSync(join(held.repo.dir, ".cormidia", "TASTE.md"), "# generated charter content\n");
-    expect(() =>
-      assertHumanBytesPreserved(join(held.repo.dir, ".cormidia", "TASTE.md"), humanBytes),
-    ).toThrow(/clobber detector: human bytes .* were altered/);
+    expect(() => assertHumanBytesPreserved(join(held.repo.dir, ".cormidia", "TASTE.md"), humanBytes)).toThrow(
+      /clobber detector: human bytes .* were altered/,
+    );
 
     await held.release();
     await held.run.catch(() => {});

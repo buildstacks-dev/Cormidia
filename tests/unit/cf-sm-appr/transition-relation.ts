@@ -21,17 +21,11 @@
 // admits that edge; the seam-level refusal is what keeps automation from
 // taking it.
 
-import type {
-  ApprovalExecutionState,
-  ApprovalLogEvent,
-} from "../../../src/org/approvals.js";
+import type { ApprovalExecutionState, ApprovalLogEvent } from "../../../src/org/approvals.js";
 
 /** Every execution state, pinned exhaustively: the `Record` below fails to
  *  compile if the product union gains or loses a member. */
-export const LEGAL_EXECUTION_TRANSITIONS: Record<
-  ApprovalExecutionState,
-  readonly ApprovalExecutionState[]
-> = {
+export const LEGAL_EXECUTION_TRANSITIONS: Record<ApprovalExecutionState, readonly ApprovalExecutionState[]> = {
   // decide(approved) initializes `approved` (initialExecution); from there:
   approved: [
     "executing", // beginExecution / claimActorRetryGrantSync
@@ -82,9 +76,7 @@ type TransitionEvent = Extract<ApprovalLogEvent, { type: "execution-transition" 
  *    double-begin a replayed claim would leave);
  *  - a chain that does not start at `approved` (execution records are born
  *    `approved` by initialExecution; nothing precedes that). */
-export function detectIllegalExecutionTransitions(
-  events: readonly ApprovalLogEvent[],
-): void {
+export function detectIllegalExecutionTransitions(events: readonly ApprovalLogEvent[]): void {
   const byItem = new Map<string, TransitionEvent[]>();
   for (const event of events) {
     if (event.type !== "execution-transition") continue;
@@ -95,8 +87,7 @@ export function detectIllegalExecutionTransitions(
   for (const [id, chain] of byItem) {
     let previous: TransitionEvent | undefined;
     for (const event of chain) {
-      const legalTargets: readonly ApprovalExecutionState[] | undefined =
-        LEGAL_EXECUTION_TRANSITIONS[event.from];
+      const legalTargets: readonly ApprovalExecutionState[] | undefined = LEGAL_EXECUTION_TRANSITIONS[event.from];
       if (legalTargets === undefined) {
         throw new ApprovalTransitionViolation(id, `unknown source state ${JSON.stringify(event.from)}`);
       }

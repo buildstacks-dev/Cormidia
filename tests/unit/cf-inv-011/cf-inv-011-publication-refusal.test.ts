@@ -23,10 +23,7 @@ import {
   type PlanTicket,
   type TicketPlan,
 } from "../../../src/loop/plan-tickets.js";
-import {
-  makeSyntheticSecret,
-  SYNTHETIC_SECRET_KINDS,
-} from "../../fixtures/synthetic-secret.js";
+import { makeSyntheticSecret, SYNTHETIC_SECRET_KINDS } from "../../fixtures/synthetic-secret.js";
 
 /** A GhOps that must never be reached: any property access throws a
  *  non-refusal error, so a guard that fires late (or not at all) fails the
@@ -36,9 +33,7 @@ import {
 function untouchableGh(): GhOps {
   return new Proxy({} as GhOps, {
     get(_target, property) {
-      throw new Error(
-        `INV-011 probe: GhOps.${String(property)} reached — publication passed the secret guard`,
-      );
+      throw new Error(`INV-011 probe: GhOps.${String(property)} reached — publication passed the secret guard`);
     },
   });
 }
@@ -90,19 +85,16 @@ describe("CF-INV-011 — publication refuses secret-bearing plans before the Git
       expect(refusal, `kind ${kind} was not refused`).toBeInstanceOf(TicketPublicationSecretError);
       const typed = refusal as TicketPublicationSecretError;
       expect(typed.code).toBe("error_ticket_publication_secret");
-      expect(
-        typed.findings.join("\n"),
-        `refusal for ${kind} does not name its pattern kind`,
-      ).toContain(seed.expectedPatternName);
+      expect(typed.findings.join("\n"), `refusal for ${kind} does not name its pattern kind`).toContain(
+        seed.expectedPatternName,
+      );
       expect(typed.message, `refusal for ${kind} echoes the secret`).not.toContain(seed.value);
     }
   });
 
   it("a secret in a ticket TITLE alone is refused — titles publish too, so a rendered-body-only scan would leak them", async () => {
     const seed = makeSyntheticSecret("sk-api-key");
-    const refusal = await publishRefusal(
-      planOf(ticket({ title: `Wire the connector against ${seed.value}` })),
-    );
+    const refusal = await publishRefusal(planOf(ticket({ title: `Wire the connector against ${seed.value}` })));
     expect(refusal).toBeInstanceOf(TicketPublicationSecretError);
     const typed = refusal as TicketPublicationSecretError;
     expect(typed.findings.join("\n")).toContain("ticket 0 title");

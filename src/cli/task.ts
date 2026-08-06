@@ -30,9 +30,7 @@ export async function cmdTask(args: string[]): Promise<number> {
     const parsed = parseBegin(rest);
     const originalPrompt = await readFile(resolve(parsed.promptFile), "utf8");
     const completionCriteria =
-      parsed.completionFile !== undefined
-        ? await readFile(resolve(parsed.completionFile), "utf8")
-        : undefined;
+      parsed.completionFile !== undefined ? await readFile(resolve(parsed.completionFile), "utf8") : undefined;
     const nativeRef =
       parsed.nativeRef ??
       (parsed.harness === "codex" && parsed.nativeTaskId !== undefined
@@ -139,10 +137,21 @@ interface BeginArgs {
 }
 
 function parseBegin(args: string[]): BeginArgs {
-  const values = parseFlags(args, new Set([
-    "--id", "--prompt-file", "--completion-file", "--objective", "--app", "--workdir",
-    "--harness", "--native-task-id", "--native-ref", "--required-stages",
-  ]));
+  const values = parseFlags(
+    args,
+    new Set([
+      "--id",
+      "--prompt-file",
+      "--completion-file",
+      "--objective",
+      "--app",
+      "--workdir",
+      "--harness",
+      "--native-task-id",
+      "--native-ref",
+      "--required-stages",
+    ]),
+  );
   return {
     id: required(values, "--id", "task begin"),
     promptFile: required(values, "--prompt-file", "task begin"),
@@ -161,7 +170,10 @@ function parseBegin(args: string[]): BeginArgs {
 
 function parseFallback(args: string[]): { id: string; reason: string; actor?: string; externalOnly: boolean } {
   const externalOnly = args.includes("--external-only");
-  const values = parseFlags(args.filter((arg) => arg !== "--external-only"), new Set(["--id", "--reason", "--actor"]));
+  const values = parseFlags(
+    args.filter((arg) => arg !== "--external-only"),
+    new Set(["--id", "--reason", "--actor"]),
+  );
   return {
     id: required(values, "--id", "task fallback"),
     reason: required(values, "--reason", "task fallback"),
@@ -177,10 +189,26 @@ function parseFinish(args: string[]): {
   refs: ParentTaskRecord["refs"];
   completionState: ParentTaskCompletionState;
 } {
-  const multi = parseMultiFlags(args, new Set([
-    "--id", "--status", "--result", "--ticket", "--trace", "--branch", "--pr", "--review", "--deployment",
-    "--implementation", "--ci", "--cormidia-review", "--human-review", "--pr-state", "--issue-closes-on-merge",
-  ]));
+  const multi = parseMultiFlags(
+    args,
+    new Set([
+      "--id",
+      "--status",
+      "--result",
+      "--ticket",
+      "--trace",
+      "--branch",
+      "--pr",
+      "--review",
+      "--deployment",
+      "--implementation",
+      "--ci",
+      "--cormidia-review",
+      "--human-review",
+      "--pr-state",
+      "--issue-closes-on-merge",
+    ]),
+  );
   const status = requiredMulti(multi, "--status", "task finish");
   if (!(["completed", "failed", "cancelled", "timed_out"] as string[]).includes(status)) {
     throw new Error("task finish: --status must be completed | failed | cancelled | timed_out");
@@ -216,7 +244,10 @@ function parseFinish(args: string[]): {
 function parseShow(args: string[]): { id: string; json: boolean; prompt: boolean } {
   const json = args.includes("--json");
   const prompt = args.includes("--prompt");
-  const values = parseFlags(args.filter((arg) => arg !== "--json" && arg !== "--prompt"), new Set(["--id"]));
+  const values = parseFlags(
+    args.filter((arg) => arg !== "--json" && arg !== "--prompt"),
+    new Set(["--id"]),
+  );
   return { id: required(values, "--id", "task show"), json, prompt };
 }
 
@@ -261,7 +292,14 @@ function optional<K extends string>(values: Map<string, string>, flag: string, k
 }
 
 function splitList(value: string): string[] {
-  return [...new Set(value.split(",").map((part) => part.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 function enumValue<const T extends string>(

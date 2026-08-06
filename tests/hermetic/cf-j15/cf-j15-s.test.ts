@@ -64,24 +64,33 @@ describe("CF-J15-S / CF-INV-008 — evidence never outruns reality", () => {
     const snapshot = projectObserveSnapshot({
       ...local,
       cursor: "4",
-      github: [{
-        app: J15_APP,
-        repo: J15_APPS.apps[0]!.repo,
-        issues: [{
-          number: 15,
-          title: "Label without PR",
-          body: "",
-          labels: ["op:in-review"],
-          state: "OPEN",
-        }],
-        pull_requests: [],
-        observed_at: "2026-07-31T12:00:00.000Z",
-        error: "seeded GitHub outage",
-      }],
+      github: [
+        {
+          app: J15_APP,
+          repo: J15_APPS.apps[0]!.repo,
+          issues: [
+            {
+              number: 15,
+              title: "Label without PR",
+              body: "",
+              labels: ["op:in-review"],
+              state: "OPEN",
+            },
+          ],
+          pull_requests: [],
+          observed_at: "2026-07-31T12:00:00.000Z",
+          error: "seeded GitHub outage",
+        },
+      ],
     });
 
     expect(snapshot.sources.map((source) => source.id).sort()).toEqual([
-      "approvals", "github", "ledger", "local_files", "roadmap_delivery", "scheduler",
+      "approvals",
+      "github",
+      "ledger",
+      "local_files",
+      "roadmap_delivery",
+      "scheduler",
     ]);
     expect(snapshot.sources.find((source) => source.id === "roadmap_delivery")).toMatchObject({
       status: "unavailable",
@@ -109,9 +118,9 @@ describe("CF-J15-S / CF-INV-008 — evidence never outruns reality", () => {
     expect(snapshot.totals.cost.unknown_turns).toBe(1);
     expect(snapshot.totals.cost.coverage).toBe("partial");
     expect(snapshot.totals.usage_quality).toBe("unavailable");
-    expect(snapshot.attention).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "source_health", title: "github is unavailable" }),
-    ]));
+    expect(snapshot.attention).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "source_health", title: "github is unavailable" })]),
+    );
   });
 
   it("negative control: the label/artifact detector fires on a seeded in-review overclaim", () => {

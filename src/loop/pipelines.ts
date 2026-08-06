@@ -89,10 +89,7 @@ export interface LoadPipelinesOpts {
   promptsDir: string;
 }
 
-export async function loadPipelines(
-  path: string,
-  opts: LoadPipelinesOpts,
-): Promise<PipelinesFile> {
+export async function loadPipelines(path: string, opts: LoadPipelinesOpts): Promise<PipelinesFile> {
   const raw = parse(await readFile(path, "utf8")) as Record<string, unknown>;
   if (!raw || typeof raw !== "object") throw new Error(`${path}: not a YAML mapping`);
 
@@ -154,10 +151,7 @@ function onlyOnMatches(cond: OnlyOn, sel: PassSelection): boolean {
   if (cond.labels !== undefined && (sel.labels ?? []).some((l) => cond.labels!.includes(l))) {
     return true;
   }
-  if (
-    cond.dimensionGlobs !== undefined &&
-    (sel.dimensions ?? []).some((d) => cond.dimensionGlobs!.includes(d))
-  ) {
+  if (cond.dimensionGlobs !== undefined && (sel.dimensions ?? []).some((d) => cond.dimensionGlobs!.includes(d))) {
     return true;
   }
   return false;
@@ -169,11 +163,7 @@ export function parallelStages(passes: PassConfig[]): PassConfig[][] {
   const stages: PassConfig[][] = [];
   for (const pass of passes) {
     const prev = stages[stages.length - 1];
-    if (
-      prev !== undefined &&
-      pass.parallelGroup !== undefined &&
-      prev[0]?.parallelGroup === pass.parallelGroup
-    ) {
+    if (prev !== undefined && pass.parallelGroup !== undefined && prev[0]?.parallelGroup === pass.parallelGroup) {
       prev.push(pass);
     } else {
       stages.push([pass]);
@@ -236,8 +226,7 @@ async function parsePass(
   opts: LoadPipelinesOpts,
   path: string,
 ): Promise<PassConfig> {
-  const where = (id: string | undefined) =>
-    `${path}: pipeline "${pipeline}"${id !== undefined ? ` pass "${id}"` : ""}`;
+  const where = (id: string | undefined) => `${path}: pipeline "${pipeline}"${id !== undefined ? ` pass "${id}"` : ""}`;
   if (!specUnknown || typeof specUnknown !== "object") {
     throw new Error(`${where(undefined)}: pass is not a mapping`);
   }
@@ -388,12 +377,7 @@ function parseOnlyOn(raw: unknown, err: (msg: string) => Error): OnlyOn {
       throw err(`only_on: unknown key "${key}" (allowed: risk, tier, labels, dimension_globs)`);
     }
   }
-  if (
-    risk === undefined &&
-    tier === undefined &&
-    labels === undefined &&
-    dimensionGlobs === undefined
-  ) {
+  if (risk === undefined && tier === undefined && labels === undefined && dimensionGlobs === undefined) {
     throw err(`only_on must set at least one of risk, tier, labels, dimension_globs`);
   }
   return onlyOn;

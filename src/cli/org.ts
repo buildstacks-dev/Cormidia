@@ -20,11 +20,7 @@ import {
 } from "../org/home.js";
 import { loadApps } from "../org/apps.js";
 import { findExistingOrg } from "../org/apps.js";
-import {
-  authorityPreview,
-  resolveAuthority,
-  type AuthorityProfile,
-} from "../org/authority.js";
+import { authorityPreview, resolveAuthority, type AuthorityProfile } from "../org/authority.js";
 import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
 import { stableJson } from "../org/lifecycle.js";
 import {
@@ -64,9 +60,7 @@ export async function cmdOrg(args: string[], options: OrgCommandOptions = {}): P
   if (subcommand === "upgrade") return upgrade(args.slice(1), options);
   if (subcommand === "list") return list(args.slice(1), options);
   if (subcommand === "archive") return archive(args.slice(1), options);
-  throw new Error(
-    'org: expected "init", "show", "use", "list", "archive", or "upgrade" — run `cormidia org --help`',
-  );
+  throw new Error('org: expected "init", "show", "use", "list", "archive", or "upgrade" — run `cormidia org --help`');
 }
 
 function activePointerPath(options: OrgCommandOptions): string {
@@ -170,14 +164,16 @@ async function archive(args: string[], options: OrgCommandOptions): Promise<numb
     },
   });
   if (json) {
-    console.log(stableJson({
-      schema_version: 1,
-      kind: "org-archive-result",
-      org,
-      archive_path: result.archivePath,
-      manifest_sha256: result.manifestSha256,
-      plan: result.plan,
-    }).trimEnd());
+    console.log(
+      stableJson({
+        schema_version: 1,
+        kind: "org-archive-result",
+        org,
+        archive_path: result.archivePath,
+        manifest_sha256: result.manifestSha256,
+        plan: result.plan,
+      }).trimEnd(),
+    );
   } else {
     console.log(formatOrgArchivePlan(result.plan));
     console.log(`  manifest sha256: ${result.manifestSha256}`);
@@ -213,14 +209,14 @@ async function upgrade(args: string[], options: OrgCommandOptions): Promise<numb
   }
   const homeDir = options.homeDir ?? homedir();
   const pointerPath = options.pointerPath ?? join(homeDir, CORMIDIA_HOME_DIRNAME, "config");
-  const orgHome = orgHomeFlag
-    ? resolve(orgHomeFlag)
-    : await findExistingOrg({ homeDir, pointerPath });
+  const orgHome = orgHomeFlag ? resolve(orgHomeFlag) : await findExistingOrg({ homeDir, pointerPath });
   if (orgHome === undefined) throw new Error("org upgrade: no active org home; pass --org-home <path>");
   const rawApps = await loadApps(join(orgHome, "apps.yaml"));
   const pointer = await readActiveOrgPointer(pointerPath);
   const pointerStateHome = pointer.orgHome === resolve(orgHome) ? pointer.stateHome : undefined;
-  const stateHome = resolve(stateHomeFlag ?? pointerStateHome ?? join(homeDir, CORMIDIA_HOME_DIRNAME, rawApps.org.name));
+  const stateHome = resolve(
+    stateHomeFlag ?? pointerStateHome ?? join(homeDir, CORMIDIA_HOME_DIRNAME, rawApps.org.name),
+  );
   const authorityCustomText = authorityFile ? await readFile(resolve(authorityFile), "utf8") : undefined;
   const input = {
     orgHome,
@@ -292,8 +288,7 @@ async function init(args: string[], options: OrgCommandOptions): Promise<number>
   if (authorityProfile !== "custom" && (authorityFile !== undefined || authorityBy !== undefined)) {
     throw new Error("org init: --authority-file/--authority-by are valid only with --authority custom");
   }
-  const authorityCustomText =
-    authorityFile !== undefined ? await readFile(resolve(authorityFile), "utf8") : undefined;
+  const authorityCustomText = authorityFile !== undefined ? await readFile(resolve(authorityFile), "utf8") : undefined;
 
   const plan = await planOrgInit({
     target,
@@ -348,9 +343,7 @@ function printInitPlan(plan: InitOrgHomePlanPreview): void {
   console.log("Generated destinations:");
   for (const destination of plan.effects.generated_destinations) {
     const suffix = destination.kind === "directory" ? "/" : "";
-    console.log(
-      `  - ${destination.disposition.padEnd(7)} ${destination.kind.padEnd(9)} ${destination.path}${suffix}`,
-    );
+    console.log(`  - ${destination.disposition.padEnd(7)} ${destination.kind.padEnd(9)} ${destination.path}${suffix}`);
   }
   console.log(`Authority: ${plan.authority.version}`);
   console.log("Automatic:");
@@ -360,9 +353,7 @@ function printInitPlan(plan: InitOrgHomePlanPreview): void {
   console.log("Default role chart:");
   const roleWidth = Math.max(12, ...plan.roles.map((role) => role.name.length + 2));
   const pad = (value: string, width: number) => value.padEnd(width);
-  console.log(
-    pad("ROLE", roleWidth) + pad("RUNTIME", 9) + pad("MODEL", 22) + pad("EFFORT", 8) + "TRIGGERS",
-  );
+  console.log(pad("ROLE", roleWidth) + pad("RUNTIME", 9) + pad("MODEL", 22) + pad("EFFORT", 8) + "TRIGGERS");
   for (const role of plan.roles) {
     console.log(
       pad(role.name, roleWidth) +
@@ -380,13 +371,15 @@ function printInitPlan(plan: InitOrgHomePlanPreview): void {
 }
 
 function renderTriggers(triggers: InitOrgHomePlanPreview["roles"][number]["triggers"]): string {
-  return triggers
-    .map((trigger) => {
-      if (trigger.schedule !== undefined) return `schedule:${trigger.schedule}`;
-      if (trigger.event !== undefined) return `event:${trigger.event}`;
-      return "manual";
-    })
-    .join(", ") || "-";
+  return (
+    triggers
+      .map((trigger) => {
+        if (trigger.schedule !== undefined) return `schedule:${trigger.schedule}`;
+        if (trigger.event !== undefined) return `event:${trigger.event}`;
+        return "manual";
+      })
+      .join(", ") || "-"
+  );
 }
 
 async function show(args: string[], options: OrgCommandOptions): Promise<number> {
@@ -400,11 +393,7 @@ async function show(args: string[], options: OrgCommandOptions): Promise<number>
     ...(options.pointerPath !== undefined ? { pointerPath: options.pointerPath } : {}),
   });
   const authority = await resolveAuthority({ orgHome: homes.orgHome });
-  printHomes(
-    { ...homes, authority, authorityPreview: previewFor(authority.profile) },
-    json,
-    "active",
-  );
+  printHomes({ ...homes, authority, authorityPreview: previewFor(authority.profile) }, json, "active");
   return 0;
 }
 
@@ -440,11 +429,7 @@ async function use(args: string[], options: OrgCommandOptions): Promise<number> 
   });
   await recordOrgBacklink(homes.stateHome, homes.orgHome);
   const authority = await resolveAuthority({ orgHome: homes.orgHome });
-  printHomes(
-    { ...homes, appsFile, authority, authorityPreview: previewFor(authority.profile) },
-    json,
-    "selected",
-  );
+  printHomes({ ...homes, appsFile, authority, authorityPreview: previewFor(authority.profile) }, json, "selected");
   reportCliInvocation({ org: appsFile.org.name, outcome: "org-selected" });
   return 0;
 }
@@ -515,10 +500,6 @@ function needValue(args: string[], index: number, flag: string): string {
 
 function previewFor(profile: string): ReturnType<typeof authorityPreview> {
   return authorityPreview(
-    profile === "conservative"
-      ? "conservative"
-      : profile === "custom"
-        ? "custom"
-        : "delegated-operator",
+    profile === "conservative" ? "conservative" : profile === "custom" ? "custom" : "delegated-operator",
   );
 }

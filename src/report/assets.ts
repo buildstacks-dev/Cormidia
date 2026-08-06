@@ -84,10 +84,13 @@ th,td { text-align:left; padding:.4rem; border-bottom:1px solid var(--line); }
 @media print { header nav,form,.button { display:none!important; } header { position:static; } .session>* { display:block!important; } thead { display:table-header-group; } }
 `;
 
-export const REPORT_JS = String.raw`
+export const REPORT_JS =
+  String.raw`
 (() => {
   'use strict';
-  const q = (id) => document.getElementById(id);` + TIME_POLICY_JS + String.raw`
+  const q = (id) => document.getElementById(id);` +
+  TIME_POLICY_JS +
+  String.raw`
   const node = (tag, attrs, ...children) => {
     const element = document.createElement(tag);
     for (const [key, value] of Object.entries(attrs || {})) {

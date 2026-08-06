@@ -3,7 +3,7 @@
 
 export const UNATTENDED_VALIDATION_PROFILE_ID = "cormidia/unattended-sandbox/v1" as const;
 export const VALIDATION_AUTO_GRANT_CATEGORIES = ["campaign_budget"] as const;
-export type ValidationAutoGrantCategory = typeof VALIDATION_AUTO_GRANT_CATEGORIES[number];
+export type ValidationAutoGrantCategory = (typeof VALIDATION_AUTO_GRANT_CATEGORIES)[number];
 
 export interface UnattendedValidationProfile {
   identity: typeof UNATTENDED_VALIDATION_PROFILE_ID;
@@ -41,7 +41,8 @@ export function createUnattendedValidationProfile(input: {
   for (const [name, value] of Object.entries({ org: input.org, app: input.app, repo: input.repo })) {
     if (value.trim().length === 0) throw new Error(`validation profile ${name} must not be empty`);
   }
-  if (!/^[^/\s]+\/[^/\s]+$/.test(input.repo)) throw new Error("validation profile repo must be an exact owner/repo slug");
+  if (!/^[^/\s]+\/[^/\s]+$/.test(input.repo))
+    throw new Error("validation profile repo must be an exact owner/repo slug");
   const categories = input.permittedAutoGrantCategories ?? ["campaign_budget"];
   if (new Set(categories).size !== categories.length) throw new Error("validation profile categories must be unique");
   if (categories.some((category) => category !== "campaign_budget")) {
@@ -65,24 +66,31 @@ export function authorizeUnattendedValidationAction(
     category: action.kind,
     human_decision_rows: 0 as const,
   };
-  if (target.org !== profile.sandbox.org || target.app !== profile.sandbox.app || target.repo !== profile.sandbox.repo) {
+  if (
+    target.org !== profile.sandbox.org ||
+    target.app !== profile.sandbox.app ||
+    target.repo !== profile.sandbox.repo
+  ) {
     return { ...base, authorized: false, reason_code: "non_sandbox_effect_hard_gate" };
   }
-  if (action.kind === "external_publication") return { ...base, authorized: false, reason_code: "external_publication_hard_gate" };
-  if (action.kind === "non_sandbox_effect") return { ...base, authorized: false, reason_code: "non_sandbox_effect_hard_gate" };
-  if (action.kind === "critical_operation") return { ...base, authorized: false, reason_code: "critical_operation_hard_gate" };
+  if (action.kind === "external_publication")
+    return { ...base, authorized: false, reason_code: "external_publication_hard_gate" };
+  if (action.kind === "non_sandbox_effect")
+    return { ...base, authorized: false, reason_code: "non_sandbox_effect_hard_gate" };
+  if (action.kind === "critical_operation")
+    return { ...base, authorized: false, reason_code: "critical_operation_hard_gate" };
   if (!profile.permitted_auto_grant_categories.includes(action.kind)) {
     return { ...base, authorized: false, reason_code: "category_not_permitted" };
   }
   if (
-    !Number.isInteger(action.provider_turns) || action.provider_turns < 0 ||
-    !Number.isFinite(action.equiv_usd) || action.equiv_usd < 0
+    !Number.isInteger(action.provider_turns) ||
+    action.provider_turns < 0 ||
+    !Number.isFinite(action.equiv_usd) ||
+    action.equiv_usd < 0
   ) {
     throw new Error("validation profile campaign budget must use non-negative finite spend counters");
   }
-  const ceiling = action.release_campaign
-    ? { turns: 24, usd: 100 }
-    : { turns: 2, usd: 5 };
+  const ceiling = action.release_campaign ? { turns: 24, usd: 100 } : { turns: 2, usd: 5 };
   if (action.provider_turns > ceiling.turns || action.equiv_usd > ceiling.usd) {
     return { ...base, authorized: false, reason_code: "spend_ceiling_exceeded" };
   }

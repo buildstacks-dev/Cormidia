@@ -302,9 +302,7 @@ describe("CF-REG-239 — durable exclusion from autonomous execution", () => {
     });
 
     expect(result.itemsPreviewed).toBe(0);
-    expect(result.routingRefusals).toEqual([
-      expect.objectContaining({ issueNumber: 239, code: "manual_review" }),
-    ]);
+    expect(result.routingRefusals).toEqual([expect.objectContaining({ issueNumber: 239, code: "manual_review" })]);
     expect(gh.swaps).toEqual([]);
   });
 
@@ -318,13 +316,15 @@ describe("CF-REG-239 — durable exclusion from autonomous execution", () => {
       });
       await world.gh.addLabel(world.issue.number, MANUAL_REVIEW);
 
-      await expect(claimTicket(world.issue, {
-        gh: world.gh,
-        targetRepo: world.github.repo,
-        localRepo: world.repo.dir,
-        worktreeRoot: world.worktreeRoot,
-        base: world.base,
-      })).rejects.toMatchObject({
+      await expect(
+        claimTicket(world.issue, {
+          gh: world.gh,
+          targetRepo: world.github.repo,
+          localRepo: world.repo.dir,
+          worktreeRoot: world.worktreeRoot,
+          base: world.base,
+        }),
+      ).rejects.toMatchObject({
         code: "autonomous_manual_review",
         issueNumber: world.issue.number,
       });
@@ -344,13 +344,15 @@ describe("CF-REG-239 — durable exclusion from autonomous execution", () => {
       });
       await world.gh.addLabel(world.issue.number, HUMAN_ONLY);
 
-      await expect(claimTicket(world.issue, {
-        gh: world.gh,
-        targetRepo: world.github.repo,
-        localRepo: world.repo.dir,
-        worktreeRoot: world.worktreeRoot,
-        base: world.base,
-      })).rejects.toMatchObject({
+      await expect(
+        claimTicket(world.issue, {
+          gh: world.gh,
+          targetRepo: world.github.repo,
+          localRepo: world.repo.dir,
+          worktreeRoot: world.worktreeRoot,
+          base: world.base,
+        }),
+      ).rejects.toMatchObject({
         code: "autonomous_routing_human_only",
         issueNumber: world.issue.number,
       });
@@ -370,14 +372,16 @@ describe("CF-REG-239 — durable exclusion from autonomous execution", () => {
         description: "Excluded from autonomous execution",
       });
 
-      await expect(claimTicket(world.issue, {
-        gh: world.gh,
-        targetRepo: world.github.repo,
-        localRepo: world.repo.dir,
-        worktreeRoot: world.worktreeRoot,
-        base: world.base,
-        afterLabelTransition: () => world.gh.addLabel(world.issue.number, HUMAN_ONLY),
-      })).rejects.toMatchObject({
+      await expect(
+        claimTicket(world.issue, {
+          gh: world.gh,
+          targetRepo: world.github.repo,
+          localRepo: world.repo.dir,
+          worktreeRoot: world.worktreeRoot,
+          base: world.base,
+          afterLabelTransition: () => world.gh.addLabel(world.issue.number, HUMAN_ONLY),
+        }),
+      ).rejects.toMatchObject({
         code: "autonomous_routing_human_only",
         issueNumber: world.issue.number,
       });
@@ -413,13 +417,15 @@ describe("CF-REG-239 — durable exclusion from autonomous execution", () => {
         throw new Error("simulated label read failure");
       };
 
-      await expect(claimTicket(world.issue, {
-        gh: unreadableGh,
-        targetRepo: world.github.repo,
-        localRepo: world.repo.dir,
-        worktreeRoot: world.worktreeRoot,
-        base: world.base,
-      })).rejects.toMatchObject({
+      await expect(
+        claimTicket(world.issue, {
+          gh: unreadableGh,
+          targetRepo: world.github.repo,
+          localRepo: world.repo.dir,
+          worktreeRoot: world.worktreeRoot,
+          base: world.base,
+        }),
+      ).rejects.toMatchObject({
         code: "autonomous_routing_state_unreadable",
         issueNumber: world.issue.number,
       });

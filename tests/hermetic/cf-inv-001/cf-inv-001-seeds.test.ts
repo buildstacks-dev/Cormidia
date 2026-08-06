@@ -29,11 +29,7 @@ import {
   type ApprovalGrant,
   type ApprovalItem,
 } from "../../../src/org/approvals.js";
-import {
-  createAppAuthorityDocument,
-  resolveAuthority,
-  writeOrgAuthority,
-} from "../../../src/org/authority.js";
+import { createAppAuthorityDocument, resolveAuthority, writeOrgAuthority } from "../../../src/org/authority.js";
 import { assembleContext } from "../../../src/org/context.js";
 import { composeGate } from "../../../src/org/gate-compose.js";
 import { defaultGate } from "../../../src/runtime/gate.js";
@@ -104,9 +100,7 @@ describe("CF-INV-001 seed a (L2): an app-config widening attempt is refused, nev
       "widened snapshot",
     ].join("\n");
     await writeFile(join(appWorkdir, ".cormidia", "AUTHORITY.md"), forged, "utf8");
-    await expect(resolveAuthority({ orgHome: t.orgHome, appWorkdir })).rejects.toThrow(
-      /only narrow/,
-    );
+    await expect(resolveAuthority({ orgHome: t.orgHome, appWorkdir })).rejects.toThrow(/only narrow/);
   });
 
   it("a stale snapshot minted under a broader old charter narrows to conservative, never preserves the old grant", async () => {
@@ -178,9 +172,7 @@ describe("CF-INV-001 seed b (L2): injected memory permission text changes NO gat
 
     const poisoned = await assemble(t, appWorkdir);
     // The note genuinely loaded…
-    const memoryComponents = (poisoned.bundle.components ?? []).filter(
-      (component) => component.category === "memory",
-    );
+    const memoryComponents = (poisoned.bundle.components ?? []).filter((component) => component.category === "memory");
     expect(memoryComponents.some((component) => component.rendered.includes(injected))).toBe(true);
     // …as optional memory only:
     expect(memoryComponents.every((component) => component.requirement === "optional")).toBe(true);

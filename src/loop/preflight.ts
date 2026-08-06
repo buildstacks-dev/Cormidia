@@ -20,12 +20,7 @@ import {
 } from "../runtime/capabilities.js";
 import { validateTurnAssignment } from "../runtime/assignment.js";
 import type { RoleConfig, RuntimeKind } from "../runtime/types.js";
-import {
-  ROUTE_BUDGETS,
-  type AuthorizedPass,
-  type EfficiencyRoute,
-  type RouteBudget,
-} from "./efficiency.js";
+import { ROUTE_BUDGETS, type AuthorizedPass, type EfficiencyRoute, type RouteBudget } from "./efficiency.js";
 import type { PassConfig } from "./pipelines.js";
 import type { GateCommands } from "./qgates.js";
 
@@ -164,19 +159,20 @@ export function runPipelinePreflight(input: PipelinePreflightInput): PipelinePre
     }
     let assignment;
     try {
-      assignment = validateTurnAssignment({
-        harness: role.runtime,
-        model: role.model,
-        effort: role.effort,
-      }, `pass ${pass.id} assignment`);
+      assignment = validateTurnAssignment(
+        {
+          harness: role.runtime,
+          model: role.model,
+          effort: role.effort,
+        },
+        `pass ${pass.id} assignment`,
+      );
     } catch (error) {
       problems.push(error instanceof Error ? error.message : String(error));
       continue;
     }
     if (input.authorizedPasses !== undefined) {
-      const matches = input.authorizedPasses.filter(
-        (candidate) => candidate.pass === pass.id,
-      );
+      const matches = input.authorizedPasses.filter((candidate) => candidate.pass === pass.id);
       if (matches.length !== 1) {
         problems.push(
           `pass ${pass.id} requires exactly one pre-execution route authorization; found ${matches.length}`,
@@ -185,23 +181,22 @@ export function runPipelinePreflight(input: PipelinePreflightInput): PipelinePre
         problems.push(`pass ${pass.id} has invalid route-selected role/model/effort evidence`);
       } else {
         try {
-          assignment = validateTurnAssignment({
-            harness: matches[0]!.runtime,
-            model: matches[0]!.model,
-            effort: matches[0]!.effort,
-          }, `pass ${pass.id} route-authorized assignment`);
+          assignment = validateTurnAssignment(
+            {
+              harness: matches[0]!.runtime,
+              model: matches[0]!.model,
+              effort: matches[0]!.effort,
+            },
+            `pass ${pass.id} route-authorized assignment`,
+          );
         } catch (error) {
           problems.push(error instanceof Error ? error.message : String(error));
         }
       }
     }
-    const profile =
-      input.capabilityProfiles?.[assignment.harness] ??
-      runtimeCapabilityProfile(assignment.harness);
+    const profile = input.capabilityProfiles?.[assignment.harness] ?? runtimeCapabilityProfile(assignment.harness);
     if (profile.runtime !== assignment.harness) {
-      problems.push(
-        `capability profile ${profile.runtime} does not match assigned harness ${assignment.harness}`,
-      );
+      problems.push(`capability profile ${profile.runtime} does not match assigned harness ${assignment.harness}`);
       continue;
     }
     for (const capability of input.requiredCapabilities ?? []) {

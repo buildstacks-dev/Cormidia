@@ -87,8 +87,6 @@ await enforceBudgetOverlay(
     await store.raise({ ...common, action: { tool: "budget", input: { sequence: 1 } } });
     await store.raise({ ...common, action: { tool: "budget", input: { sequence: 2 } } });
 
-    await expect(assertExactlyOneBudgetItem(rig.org.stateHome)).rejects.toBeInstanceOf(
-      BudgetItemConvergenceViolation,
-    );
+    await expect(assertExactlyOneBudgetItem(rig.org.stateHome)).rejects.toBeInstanceOf(BudgetItemConvergenceViolation);
   });
 });

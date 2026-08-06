@@ -14,11 +14,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { cmdOrg } from "../../../src/cli/org.js";
 import { loadRoles } from "../../../src/org/roles.js";
-import {
-  CONSERVATIVE_VERSION,
-  DELEGATED_OPERATOR_VERSION,
-  resolveAuthority,
-} from "../../../src/org/authority.js";
+import { CONSERVATIVE_VERSION, DELEGATED_OPERATOR_VERSION, resolveAuthority } from "../../../src/org/authority.js";
 import {
   executeOrgInit,
   initOrgHome,
@@ -31,15 +27,8 @@ import {
 } from "../../../src/org/home.js";
 import { executeOrgUpgrade, planOrgUpgrade } from "../../../src/org/org-upgrade.js";
 import { buildSchedulerExpectation } from "../../../src/org/scheduler/definition.js";
-import type {
-  SchedulerManager,
-  SchedulerManagerInspection,
-} from "../../../src/org/scheduler/manager.js";
-import {
-  schedulerIdentity,
-  schedulerOrgId,
-  sha256 as schedulerSha256,
-} from "../../../src/org/scheduler/model.js";
+import type { SchedulerManager, SchedulerManagerInspection } from "../../../src/org/scheduler/manager.js";
+import { schedulerIdentity, schedulerOrgId, sha256 as schedulerSha256 } from "../../../src/org/scheduler/model.js";
 import {
   diffIsEmpty,
   diffSnapshots,
@@ -193,11 +182,7 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
     };
     const plan = await planOrgUpgrade(input);
     expect(plan.executable).toBe(true);
-    expect(plan.changes.map((change) => change.path).sort()).toEqual([
-      "AUTHORITY.md",
-      "TASTE.md",
-      "apps.yaml",
-    ]);
+    expect(plan.changes.map((change) => change.path).sort()).toEqual(["AUTHORITY.md", "TASTE.md", "apps.yaml"]);
     expect(plan.changes.find((change) => change.path === "apps.yaml")?.action).toBe("schema_add");
 
     const result = await executeOrgUpgrade(input, plan);
@@ -308,24 +293,28 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
     await mkdir(join(legacyState, "state", "turns"), { recursive: true });
     await writeFile(
       turnJournal,
-      `${JSON.stringify({
-        turnId: "turn-1",
-        role: "builder",
-        app: "demo",
-        phase: "failed",
-        attempt: 1,
-        startedAt: "2026-08-02T00:00:00.000Z",
-        updatedAt: "2026-08-02T00:01:00.000Z",
-        worktree: legacyWorktree,
-        recovery: {
-          reasonCode: "error_ambiguous_worktree",
-          path: legacyWorktree,
-          branch: "op/test",
-          dirty: false,
-          statusEntries: 0,
-          recoveryCommand: `git -C ${JSON.stringify(legacyWorktree)} status --short --branch`,
+      `${JSON.stringify(
+        {
+          turnId: "turn-1",
+          role: "builder",
+          app: "demo",
+          phase: "failed",
+          attempt: 1,
+          startedAt: "2026-08-02T00:00:00.000Z",
+          updatedAt: "2026-08-02T00:01:00.000Z",
+          worktree: legacyWorktree,
+          recovery: {
+            reasonCode: "error_ambiguous_worktree",
+            path: legacyWorktree,
+            branch: "op/test",
+            dirty: false,
+            statusEntries: 0,
+            recoveryCommand: `git -C ${JSON.stringify(legacyWorktree)} status --short --branch`,
+          },
         },
-      }, null, 2)}\n`,
+        null,
+        2,
+      )}\n`,
       "utf8",
     );
 
@@ -355,21 +344,25 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
     await mkdir(join(legacyState, "scheduler"), { recursive: true });
     await writeFile(
       join(legacyState, "scheduler", "installation.json"),
-      `${JSON.stringify({
-        schema_version: 1,
-        scheduler_id: retiredIdentity,
-        org_id: retiredMetadata.org_id,
-        org_name: retiredMetadata.org_name,
-        backend: retiredMetadata.backend,
-        cadence_minutes: retiredMetadata.cadence_minutes,
-        executable_path: retiredMetadata.executable_path,
-        package_entry_path: retiredMetadata.package_entry_path,
-        org_home: retiredMetadata.org_home,
-        state_home: retiredMetadata.state_home,
-        definition_path: schedulerManager.definitionPath(retiredIdentity),
-        rendered_definition_hash: schedulerSha256(retiredDefinition),
-        installed_at: "2026-08-02T00:00:00.000Z",
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          schema_version: 1,
+          scheduler_id: retiredIdentity,
+          org_id: retiredMetadata.org_id,
+          org_name: retiredMetadata.org_name,
+          backend: retiredMetadata.backend,
+          cadence_minutes: retiredMetadata.cadence_minutes,
+          executable_path: retiredMetadata.executable_path,
+          package_entry_path: retiredMetadata.package_entry_path,
+          org_home: retiredMetadata.org_home,
+          state_home: retiredMetadata.state_home,
+          definition_path: schedulerManager.definitionPath(retiredIdentity),
+          rendered_definition_hash: schedulerSha256(retiredDefinition),
+          installed_at: "2026-08-02T00:00:00.000Z",
+        },
+        null,
+        2,
+      )}\n`,
       "utf8",
     );
 
@@ -389,18 +382,21 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
       orgHome: w.target,
       stateHome: currentState,
     });
-    expect(JSON.parse(await readFile(join(currentState, "lifecycle", "apps", "demo", "record.json"), "utf8")))
-      .toMatchObject({ managed_clone: currentRepo });
-    const repairedJournal = JSON.parse(
-      await readFile(join(currentState, "state", "turns", "turn-1.json"), "utf8"),
-    ) as { worktree: string; recovery: { path: string; recoveryCommand: string } };
+    expect(
+      JSON.parse(await readFile(join(currentState, "lifecycle", "apps", "demo", "record.json"), "utf8")),
+    ).toMatchObject({ managed_clone: currentRepo });
+    const repairedJournal = JSON.parse(await readFile(join(currentState, "state", "turns", "turn-1.json"), "utf8")) as {
+      worktree: string;
+      recovery: { path: string; recoveryCommand: string };
+    };
     expect(repairedJournal).toMatchObject({
       worktree: currentWorktree,
       recovery: { path: currentWorktree },
     });
     expect(repairedJournal.recovery.recoveryCommand).toContain(JSON.stringify(currentWorktree));
-    expect(execFileSync("git", ["-C", currentWorktree, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim())
-      .toBe(await realpath(currentWorktree));
+    expect(
+      execFileSync("git", ["-C", currentWorktree, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim(),
+    ).toBe(await realpath(currentWorktree));
 
     const expectedScheduler = buildSchedulerExpectation({
       backend: "launchd",
@@ -412,11 +408,11 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
       cadenceMinutes: retiredMetadata.cadence_minutes,
     });
     expect(schedulerManager.definitions.has(retiredIdentity)).toBe(false);
-    expect(schedulerManager.definitions.get(expectedScheduler.metadata.scheduler_id)).toBe(expectedScheduler.definition);
+    expect(schedulerManager.definitions.get(expectedScheduler.metadata.scheduler_id)).toBe(
+      expectedScheduler.definition,
+    );
     expect(schedulerManager.enabled.has(expectedScheduler.metadata.scheduler_id)).toBe(true);
-    expect(
-      JSON.parse(await readFile(join(currentState, "scheduler", "installation.json"), "utf8")),
-    ).toMatchObject({
+    expect(JSON.parse(await readFile(join(currentState, "scheduler", "installation.json"), "utf8"))).toMatchObject({
       scheduler_id: expectedScheduler.metadata.scheduler_id,
       org_id: expectedScheduler.metadata.org_id,
       state_home: currentState,
@@ -471,17 +467,17 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
     const currentState = join(w.homeDir, ".cormidia", "migrating-org");
     const currentLinkedWorktree = join(currentState, "worktrees", "demo", "ticket-1");
     expect(migration.status).toBe("migrated");
-    expect(execFileSync("git", ["-C", currentLinkedWorktree, "rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-    }).trim()).toBe(await realpath(currentLinkedWorktree));
-    expect(await readFile(
-      join(currentState, "worktrees", "demo", "preserved-stale-worktree", "preserved.txt"),
-      "utf8",
-    )).toBe("ambiguous worktree bytes\n");
-    expect(await readFile(
-      join(currentState, "worktrees", "demo", "standalone-plan-clone", "preserved.txt"),
-      "utf8",
-    )).toBe("standalone clone bytes\n");
+    expect(
+      execFileSync("git", ["-C", currentLinkedWorktree, "rev-parse", "--show-toplevel"], {
+        encoding: "utf8",
+      }).trim(),
+    ).toBe(await realpath(currentLinkedWorktree));
+    expect(
+      await readFile(join(currentState, "worktrees", "demo", "preserved-stale-worktree", "preserved.txt"), "utf8"),
+    ).toBe("ambiguous worktree bytes\n");
+    expect(
+      await readFile(join(currentState, "worktrees", "demo", "standalone-plan-clone", "preserved.txt"), "utf8"),
+    ).toBe("standalone clone bytes\n");
   });
 
   it("negative control: a required surface removed from a 'complete' home — the completeness detector FIRES", async () => {
@@ -497,8 +493,8 @@ describe("CF-J01-S — init/upgrade/use happy paths (C-OP-LIFE §§1–3)", () =
     });
     await rm(join(w.target, "pipelines.yaml"));
     await expect(validateOrgHome(w.target)).rejects.toThrow(/missing pipelines\.yaml/);
-    await expect(
-      resolveCormidiaHomes({ env: {}, homeDir: w.homeDir, pointerPath: w.pointerPath }),
-    ).rejects.toThrow(/not a complete org home/);
+    await expect(resolveCormidiaHomes({ env: {}, homeDir: w.homeDir, pointerPath: w.pointerPath })).rejects.toThrow(
+      /not a complete org home/,
+    );
   });
 });

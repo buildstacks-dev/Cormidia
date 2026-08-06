@@ -29,10 +29,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  executeBootstrapPublish,
-  planBootstrapPublish,
-} from "../../../src/org/bootstrap-publish.js";
+import { executeBootstrapPublish, planBootstrapPublish } from "../../../src/org/bootstrap-publish.js";
 import { bootstrapRun, registerAppWithExistingOrg } from "../../../src/org/bootstrap.js";
 import { loadRoles } from "../../../src/org/roles.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";

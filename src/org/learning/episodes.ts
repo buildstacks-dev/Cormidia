@@ -67,10 +67,7 @@ export function eventEpisodeId(app: string, event: Pick<TurnEvent, "kind" | "key
   return episodeId(app, short, event.key);
 }
 
-export function eventEpisodeAnchor(
-  app: string,
-  event: Pick<TurnEvent, "kind" | "key">,
-): EpisodeAnchor {
+export function eventEpisodeAnchor(app: string, event: Pick<TurnEvent, "kind" | "key">): EpisodeAnchor {
   return {
     episodeId: eventEpisodeId(app, event),
     kind: EVENT_EPISODE_KIND[event.kind] ?? "turn",

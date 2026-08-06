@@ -100,11 +100,7 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
     // reconstruct the starting state or grade the result — non-replayable,
     // not merely degraded. Anything else missing (a trusted grader target,
     // a fingerprint) degrades to partial.
-    if (
-      capsule.seed.repo === null ||
-      capsule.seed.commit === null ||
-      capsule.observed_outcome === null
-    ) {
+    if (capsule.seed.repo === null || capsule.seed.commit === null || capsule.observed_outcome === null) {
       return "non_replayable";
     }
     return capsule.missing.length > 0 ? "partially_replayable" : "replayable";
@@ -138,8 +134,7 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
       // drifted config) must not overwrite it — drift surfaces through a
       // fingerprint diff, never by rewriting what the capsule recorded.
       const existing = await readCapsule(stateHome, capsuleIdFor(episodeId));
-      const fingerprintRef =
-        existing?.fingerprint_ref ?? options.fingerprintRef ?? null;
+      const fingerprintRef = existing?.fingerprint_ref ?? options.fingerprintRef ?? null;
       if (fingerprintRef === null) missing.push("fingerprint");
 
       const observed =
@@ -193,10 +188,7 @@ export function createCapsuleBuilder(options: CapsuleBuilderOptions): CapsuleBui
   };
 }
 
-export async function readCapsule(
-  stateHome: string,
-  capsuleId: string,
-): Promise<ReplayCapsule | undefined> {
+export async function readCapsule(stateHome: string, capsuleId: string): Promise<ReplayCapsule | undefined> {
   const path = capsulePath(stateHome, capsuleId);
   if (!existsSync(path)) return undefined;
   const capsule = JSON.parse(await readFile(path, "utf8")) as ReplayCapsule;
@@ -216,10 +208,7 @@ export async function readCapsule(
  *  field exists to prevent. A pruned/torn first envelope therefore reads as
  *  no seed at all (the capsule lists what pruning cost it), never as a
  *  silent substitute. Run ids sort chronologically. */
-async function earliestBuildRun(
-  stateHome: string,
-  record: EpisodeRecord,
-): Promise<RunEnvelope | undefined> {
+async function earliestBuildRun(stateHome: string, record: EpisodeRecord): Promise<RunEnvelope | undefined> {
   const firstBuildRunId = record.turns
     .filter((turn) => turn.pipeline === "build")
     .flatMap((turn) => turn.run_ids)
@@ -232,10 +221,7 @@ async function earliestBuildRun(
   }
 }
 
-async function briefOf(
-  stateHome: string,
-  envelope: RunEnvelope,
-): Promise<{ text: string; hash: string } | null> {
+async function briefOf(stateHome: string, envelope: RunEnvelope): Promise<{ text: string; hash: string } | null> {
   try {
     const brief = await readFile(runPaths(stateHome, envelope.app, envelope.run_id).brief);
     return {

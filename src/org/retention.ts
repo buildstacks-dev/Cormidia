@@ -51,11 +51,7 @@ import { dirname, join, resolve } from "node:path";
 import { readEfficiencyEvidence } from "../loop/efficiency.js";
 import { hashedFileStem } from "../runtime/runlog/paths.js";
 import { pruneRuns } from "../runtime/runlog/retention.js";
-import {
-  acquireSettlementLock,
-  readSettledKeys,
-  settlementKey,
-} from "../runtime/telemetry.js";
+import { acquireSettlementLock, readSettledKeys, settlementKey } from "../runtime/telemetry.js";
 import { writeFileAtomic } from "./atomic.js";
 
 const DAY_MS = 86_400_000;
@@ -115,9 +111,7 @@ export const DEFAULT_STATE_RETENTION: StateRetentionPolicy = {
  *  outlive the evidence that can regenerate rows into them, and scheduler
  *  evidence must outlive every artifact that references its episodes, so the
  *  orphan cross-check in scheduler health stays truthful. */
-export function effectiveRetentionWindows(
-  policy: StateRetentionPolicy,
-): StateRetentionPolicy {
+export function effectiveRetentionWindows(policy: StateRetentionPolicy): StateRetentionPolicy {
   for (const [name, value] of Object.entries(policy)) {
     if (!Number.isInteger(value) || value < 1) {
       throw new Error(`retention: ${name} must be a positive integer of days, got ${value}`);
@@ -206,9 +200,8 @@ export async function sweepStateRetention(
   await subtree("telemetry", () => sweepTelemetry(root, cutoff(windows.telemetryDays), now));
   await subtree("sweep_records", () => sweepDateFiles(sweepRecordDir(root), cutoff(windows.sweepRecordDays), ".json"));
   await subtree("narrative", () => sweepNarrative(root, cutoff(windows.narrativeDays)));
-  await subtree(
-    "refused_decompositions",
-    () => sweepRefusedDecompositions(root, cutoff(windows.refusedDecompositionDays)),
+  await subtree("refused_decompositions", () =>
+    sweepRefusedDecompositions(root, cutoff(windows.refusedDecompositionDays)),
   );
   return result;
 }
@@ -220,10 +213,7 @@ export async function sweepStateRetention(
  *  A refusal that a human has already ratified is deletable on the same
  *  window: the ratification record under `lifecycle/` (never swept) embeds
  *  the accepted plan verbatim, so no decided evidence is lost. */
-async function sweepRefusedDecompositions(
-  stateHome: string,
-  cutoffMs: number,
-): Promise<SubtreeSweep> {
+async function sweepRefusedDecompositions(stateHome: string, cutoffMs: number): Promise<SubtreeSweep> {
   const out: SubtreeSweep = { pruned: 0, kept: 0 };
   const root = join(stateHome, "planning");
   for (const app of await listDirNames(root)) {
@@ -307,8 +297,7 @@ async function sweepNarrative(stateHome: string, cutoffMs: number): Promise<Subt
     // Files with no readable capture to age by: orphaned .md (its .json is
     // gone) and quarantined .corrupt bytes — mtime is the only honest clock.
     for (const name of names) {
-      const orphanMd =
-        name.endsWith(".md") && name !== "INDEX.md" && !jsonNames.has(name.replace(/\.md$/, ".json"));
+      const orphanMd = name.endsWith(".md") && name !== "INDEX.md" && !jsonNames.has(name.replace(/\.md$/, ".json"));
       const corrupt = name.endsWith(".json.corrupt");
       if (!orphanMd && !corrupt) continue;
       try {
@@ -343,10 +332,7 @@ export function sweepMarkerPath(stateHome: string, now: Date): string {
  *  concurrent caller per (state home, UTC day) wins; everyone else sees an
  *  ordinary `false`. A crash after a claim skips that day's sweep — the next
  *  day retries. */
-export async function claimDailySweep(
-  stateHome: string,
-  now: Date,
-): Promise<{ claimed: boolean; path: string }> {
+export async function claimDailySweep(stateHome: string, now: Date): Promise<{ claimed: boolean; path: string }> {
   const path = sweepMarkerPath(stateHome, now);
   await mkdir(dirname(path), { recursive: true });
   try {
@@ -399,11 +385,7 @@ export async function runScheduledRetentionSweep(
 // telemetry/ — the org ledger.
 // ---------------------------------------------------------------------------
 
-async function sweepTelemetry(
-  stateHome: string,
-  cutoffMs: number,
-  now: Date,
-): Promise<SubtreeSweep> {
+async function sweepTelemetry(stateHome: string, cutoffMs: number, now: Date): Promise<SubtreeSweep> {
   const dir = join(stateHome, "telemetry");
   const out: SubtreeSweep = { pruned: 0, kept: 0 };
   if (!existsSync(dir)) return out;
@@ -565,12 +547,13 @@ async function sweepTasks(stateHome: string, cutoffMs: number): Promise<SubtreeS
       out.kept += 1; // torn/absent record — keep, fail safe
       continue;
     }
-    const terminal = record.schemaVersion === 1
-      && record.taskId === taskId
-      && typeof record.status === "string"
-      && record.status !== "running"
-      && typeof record.endedAt === "string"
-      && !Number.isNaN(Date.parse(record.endedAt));
+    const terminal =
+      record.schemaVersion === 1 &&
+      record.taskId === taskId &&
+      typeof record.status === "string" &&
+      record.status !== "running" &&
+      typeof record.endedAt === "string" &&
+      !Number.isNaN(Date.parse(record.endedAt));
     if (terminal && Date.parse(record.endedAt as string) < cutoffMs) {
       await rm(join(root, taskId), { recursive: true, force: true });
       out.pruned += 1;
@@ -625,9 +608,7 @@ async function sweepSchedulerEvidence(stateHome: string, cutoffMs: number): Prom
       out.kept += 1;
     }
   }
-  const survivingDecisions = new Set(
-    (await listJsonFiles(decisionsDir)).map((file) => file.slice(0, -".json".length)),
-  );
+  const survivingDecisions = new Set((await listJsonFiles(decisionsDir)).map((file) => file.slice(0, -".json".length)));
 
   const invocationsDir = join(root, "invocations");
   const invocations: Array<{ file: string; record: Record<string, unknown> | undefined }> = [];
@@ -645,14 +626,16 @@ async function sweepSchedulerEvidence(stateHome: string, cutoffMs: number): Prom
   const newestCompleted = [...byWindow].reverse().find((item) => item.record!["terminal"] === "completed");
   if (newestCompleted !== undefined) protectedFiles.add(newestCompleted.file);
   for (const { file, record } of invocations) {
-    const prunable = record !== undefined
-      && !protectedFiles.has(file)
-      && record["terminal"] !== null && record["terminal"] !== undefined
-      && typeof record["invoked_at"] === "string"
-      && !Number.isNaN(Date.parse(record["invoked_at"]))
-      && Date.parse(record["invoked_at"]) < cutoffMs
-      && Array.isArray(record["decision_ids"])
-      && record["decision_ids"].every((id) => typeof id === "string" && !survivingDecisions.has(id));
+    const prunable =
+      record !== undefined &&
+      !protectedFiles.has(file) &&
+      record["terminal"] !== null &&
+      record["terminal"] !== undefined &&
+      typeof record["invoked_at"] === "string" &&
+      !Number.isNaN(Date.parse(record["invoked_at"])) &&
+      Date.parse(record["invoked_at"]) < cutoffMs &&
+      Array.isArray(record["decision_ids"]) &&
+      record["decision_ids"].every((id) => typeof id === "string" && !survivingDecisions.has(id));
     if (prunable) {
       await rm(join(invocationsDir, file), { force: true });
       out.pruned += 1;
@@ -664,10 +647,11 @@ async function sweepSchedulerEvidence(stateHome: string, cutoffMs: number): Prom
   const alertsDir = join(root, "alerts");
   for (const file of await listJsonFiles(alertsDir)) {
     const record = await readRecord(join(alertsDir, file));
-    const prunable = record !== undefined
-      && typeof record["occurred_at"] === "string"
-      && !Number.isNaN(Date.parse(record["occurred_at"]))
-      && Date.parse(record["occurred_at"]) < cutoffMs;
+    const prunable =
+      record !== undefined &&
+      typeof record["occurred_at"] === "string" &&
+      !Number.isNaN(Date.parse(record["occurred_at"])) &&
+      Date.parse(record["occurred_at"]) < cutoffMs;
     if (prunable) {
       await rm(join(alertsDir, file), { force: true });
       out.pruned += 1;
@@ -678,11 +662,7 @@ async function sweepSchedulerEvidence(stateHome: string, cutoffMs: number): Prom
   return out;
 }
 
-function decisionPrunable(
-  record: Record<string, unknown>,
-  cutoffMs: number,
-  referenced: Set<string>,
-): boolean {
+function decisionPrunable(record: Record<string, unknown>, cutoffMs: number, referenced: Set<string>): boolean {
   if (record["stage"] !== "terminal") return false;
   const terminalAt = record["terminal_at"];
   if (typeof terminalAt !== "string" || Number.isNaN(Date.parse(terminalAt))) return false;
@@ -711,7 +691,9 @@ async function referencedTurnIds(stateHome: string): Promise<Set<string>> {
       try {
         const value = JSON.parse(await readFile(join(lockDir, file), "utf8")) as { turnId?: unknown };
         if (typeof value.turnId === "string") ids.add(value.turnId);
-      } catch { /* corrupt lock carries no reclaimable id */ }
+      } catch {
+        /* corrupt lock carries no reclaimable id */
+      }
     }
   }
   const journalDir = join(stateHome, "state", "turns");
@@ -724,9 +706,13 @@ async function referencedTurnIds(stateHome: string): Promise<Set<string>> {
   for (const app of await listDirNames(runsDir)) {
     for (const runId of await listDirNames(join(runsDir, app))) {
       try {
-        const envelope = JSON.parse(await readFile(join(runsDir, app, runId, "envelope.json"), "utf8")) as { trace_id?: unknown };
+        const envelope = JSON.parse(await readFile(join(runsDir, app, runId, "envelope.json"), "utf8")) as {
+          trace_id?: unknown;
+        };
         if (typeof envelope.trace_id === "string") ids.add(envelope.trace_id);
-      } catch { /* unreadable envelope carries no reclaimable id */ }
+      } catch {
+        /* unreadable envelope carries no reclaimable id */
+      }
     }
   }
   const telemetryDir = join(stateHome, "telemetry");
@@ -737,7 +723,9 @@ async function referencedTurnIds(stateHome: string): Promise<Set<string>> {
         try {
           const row = JSON.parse(line) as { traceId?: unknown };
           if (typeof row.traceId === "string") ids.add(row.traceId);
-        } catch { /* torn append — no id to protect */ }
+        } catch {
+          /* torn append — no id to protect */
+        }
       }
     }
   }

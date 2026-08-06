@@ -361,10 +361,7 @@ async function listFilesUnder(root: string, relDir: string): Promise<string[]> {
   return out.sort();
 }
 
-async function testCommandFromCi(
-  root: string,
-  workflows: string[],
-): Promise<CommandDetection | undefined> {
+async function testCommandFromCi(root: string, workflows: string[]): Promise<CommandDetection | undefined> {
   for (const rel of workflows) {
     const text = await readFile(join(root, rel), "utf8");
     for (const line of text.split("\n")) {
@@ -521,9 +518,7 @@ export function parseAnswers(rawUnknown: unknown, knownRoles: string[]): Bootstr
   const roles: string[] = [];
   for (const r of rolesRaw) {
     if (typeof r !== "string" || !knownRoles.includes(r)) {
-      throw err(
-        `roles: "${String(r)}" is not a role in the org roles.yaml (available: ${knownRoles.join(", ")})`,
-      );
+      throw err(`roles: "${String(r)}" is not a role in the org roles.yaml (available: ${knownRoles.join(", ")})`);
     }
     if (roles.includes(r)) throw err(`roles: "${r}" listed twice`);
     roles.push(r);
@@ -546,7 +541,9 @@ export function parseAnswers(rawUnknown: unknown, knownRoles: string[]): Bootstr
     }
     for (const [role, listUnknown] of Object.entries(cadenceRaw as Record<string, unknown>)) {
       if (!roles.includes(role)) {
-        throw err(`cadence.${role}: "${role}" is not an enabled role (a disabled role is expressed by omission from "roles", never by a cadence entry)`);
+        throw err(
+          `cadence.${role}: "${role}" is not an enabled role (a disabled role is expressed by omission from "roles", never by a cadence entry)`,
+        );
       }
       if (!Array.isArray(listUnknown)) throw err(`cadence.${role} must be a list of triggers`);
       const triggers: Trigger[] = [];
@@ -620,10 +617,7 @@ export function parseAnswers(rawUnknown: unknown, knownRoles: string[]): Bootstr
   return { product, good, roles, budgetUsdMonth, cadence, criticalOps, channels, authority };
 }
 
-function parseAppAuthoritySelection(
-  value: unknown,
-  err: (msg: string) => Error,
-): AppAuthoritySelection {
+function parseAppAuthoritySelection(value: unknown, err: (msg: string) => Error): AppAuthoritySelection {
   if (value === undefined) return { mode: "inherit" };
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw err("authority must be an object with mode inherit | conservative | custom");
@@ -742,10 +736,7 @@ export interface OnboardingGapReport {
   roleReadinessNotes: OnboardingReadinessNote[];
 }
 
-export function buildOnboardingGapReport(
-  scan: RepoScan,
-  answers: BootstrapAnswers,
-): OnboardingGapReport {
+export function buildOnboardingGapReport(scan: RepoScan, answers: BootstrapAnswers): OnboardingGapReport {
   const missingRecommendedCategories = DOC_CATEGORY_DEFS.filter(
     (def) => (scan.docInventory.find((c) => c.id === def.id)?.paths.length ?? 0) === 0,
   ).map((def) => ({ id: def.id, label: def.label, guidance: def.guidance }));
@@ -767,15 +758,13 @@ export function buildOnboardingGapReport(
         "Marketing is enabled but no marketing channels are declared; add channels or keep Marketing disabled until adoption/publishing channels exist.",
     });
   }
-  const hasOperationsDocs =
-    (scan.docInventory.find((c) => c.id === "operations/runbook")?.paths.length ?? 0) > 0;
+  const hasOperationsDocs = (scan.docInventory.find((c) => c.id === "operations/runbook")?.paths.length ?? 0) > 0;
   const hasDeploySignal = scan.deployHints.length > 0 || answers.criticalOps.deployCommands.length > 0;
   if (answers.roles.includes("sre") && !hasOperationsDocs && !hasDeploySignal) {
     roleReadinessNotes.push({
       severity: "warning",
       role: "sre",
-      message:
-        "SRE is enabled but no operations/runbook docs, deploy commands, or deploy hints were detected.",
+      message: "SRE is enabled but no operations/runbook docs, deploy commands, or deploy hints were detected.",
     });
   }
   if (roleReadinessNotes.length === 0) {
@@ -809,10 +798,7 @@ export function buildOnboardingGapReport(
  * report. All content is deterministic — no timestamps — because the charter
  * is context layer [3] and layers [1]–[4] must stay a pure function of
  * ratified files (§5 cache-stable rule 1). */
-export async function emitAppArtifacts(
-  targetRootIn: string,
-  options: EmitAppArtifactsOptions,
-): Promise<EmitResult> {
+export async function emitAppArtifacts(targetRootIn: string, options: EmitAppArtifactsOptions): Promise<EmitResult> {
   const targetRoot = resolve(targetRootIn);
   const { answers, allRoles } = options;
   const appName = sanitizeAppName(options.appName);
@@ -826,13 +812,11 @@ export async function emitAppArtifacts(
   const policyTemplate = await readPolicyTemplate(templateRoot);
   const scan = options.scan ?? (await scanRepo(targetRoot));
   const onboardingReport = buildOnboardingGapReport(scan, answers);
-  const orgAuthority =
-    options.orgAuthority ?? (await resolveAuthority({ orgHome: templateRoot }));
+  const orgAuthority = options.orgAuthority ?? (await resolveAuthority({ orgHome: templateRoot }));
   const effectiveAuthority = applyAppAuthority(orgAuthority, answers.authority);
   const appAuthority = createAppAuthorityDocument(orgAuthority, answers.authority);
   const instructionPlans =
-    options.instructionPlans ??
-    (await planProjectInstructionFiles(targetRoot, effectiveAuthority));
+    options.instructionPlans ?? (await planProjectInstructionFiles(targetRoot, effectiveAuthority));
 
   const created: string[] = [];
   const updated: string[] = [];
@@ -928,7 +912,8 @@ export async function validateEmittedArtifacts(
   if (!policy || typeof policy !== "object") throw new Error("bootstrap: generated policy is not a YAML mapping");
   const authorityText = await readFile(join(root, ".cormidia", "AUTHORITY.md"), "utf8");
   const authorityFrontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(authorityText)?.[1];
-  const authorityMeta = authorityFrontmatter === undefined ? undefined : parse(authorityFrontmatter) as Record<string, unknown>;
+  const authorityMeta =
+    authorityFrontmatter === undefined ? undefined : (parse(authorityFrontmatter) as Record<string, unknown>);
   if (authorityMeta?.["schema_version"] !== 1 || authorityMeta["kind"] !== "cormidia-app-authority") {
     throw new Error("bootstrap: generated authority failed schema validation");
   }
@@ -958,10 +943,7 @@ async function planProjectInstructionFiles(
   targetRoot: string,
   effectiveAuthority: AuthorityContext,
 ): Promise<ProjectInstructionPlan[]> {
-  const instructionBlock = projectAuthorityBlock(
-    ".cormidia/AUTHORITY.md",
-    effectiveAuthority,
-  );
+  const instructionBlock = projectAuthorityBlock(".cormidia/AUTHORITY.md", effectiveAuthority);
   return Promise.all(
     AGENT_DOCS.map(async (rel) => {
       const path = join(targetRoot, rel);
@@ -1278,10 +1260,7 @@ export async function bootstrapRun(
 
   let joined: Awaited<ReturnType<typeof joinExistingOrg>> | undefined;
   try {
-    joined = await joinExistingOrg(
-      orgHome,
-      registrationFromAnswers(appName, registrationRepoSlug, answers, allRoles),
-    );
+    joined = await joinExistingOrg(orgHome, registrationFromAnswers(appName, registrationRepoSlug, answers, allRoles));
 
     const appOptions: EmitAppArtifactsOptions = { appName, answers, scan, allRoles, templateRoot };
     appOptions.orgAuthority = orgAuthority;

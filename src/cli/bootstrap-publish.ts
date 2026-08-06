@@ -11,11 +11,7 @@ import { resolve } from "node:path";
 import { findExistingOrg } from "../org/apps.js";
 import { resolveCormidiaHomes, validateOrgHome } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
-import {
-  executeBootstrapPublish,
-  planBootstrapPublish,
-  type BootstrapPublishPlan,
-} from "../org/bootstrap-publish.js";
+import { executeBootstrapPublish, planBootstrapPublish, type BootstrapPublishPlan } from "../org/bootstrap-publish.js";
 
 export async function cmdBootstrapPublish(args: string[]): Promise<number> {
   let app: string | undefined;
@@ -66,9 +62,7 @@ export async function cmdBootstrapPublish(args: string[]): Promise<number> {
 
   const existingOrgHome = await findExistingOrg(orgHomeFlag ? { orgHome: orgHomeFlag } : {});
   if (existingOrgHome === undefined) {
-    throw new Error(
-      "bootstrap publish: no active org — initialize one with `cormidia org init <path> --name <name>`",
-    );
+    throw new Error("bootstrap publish: no active org — initialize one with `cormidia org init <path> --name <name>`");
   }
   await validateOrgHome(existingOrgHome);
   const homes = await resolveCormidiaHomes({
@@ -191,9 +185,7 @@ function planJson(plan: BootstrapPublishPlan, options: { executed: boolean }): R
       base_branch: repo.base.defaultBranch,
       files: repo.files,
       already_published: repo.alreadyPublished,
-      pr: repo.pr === undefined
-        ? null
-        : { repo: repo.pr.repo, title: repo.pr.title, draft: true },
+      pr: repo.pr === undefined ? null : { repo: repo.pr.repo, title: repo.pr.title, draft: true },
     })),
     provider: { factories: 0, processes: 0, turns: 0, settlements: 0 },
   };

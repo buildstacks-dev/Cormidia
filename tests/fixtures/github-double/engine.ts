@@ -321,14 +321,7 @@ function snapshotPr(state: DoubleState, num: number): void {
 // argv parsing (generic gh-style flags)
 // ---------------------------------------------------------------------------
 
-const BOOLEAN_FLAGS = new Set([
-  "--force",
-  "--draft",
-  "--squash",
-  "--approve",
-  "--request-changes",
-  "--comment",
-]);
+const BOOLEAN_FLAGS = new Set(["--force", "--draft", "--squash", "--approve", "--request-changes", "--comment"]);
 
 interface ParsedArgs {
   positionals: string[];
@@ -377,9 +370,7 @@ export function canonicalOp(argv: string[]): string {
   const parsed = parseArgs(argv);
   const [first, second] = parsed.positionals;
   if (first === "api") {
-    return (flagValue(parsed, "-X") ?? "GET").toUpperCase() === "DELETE"
-      ? "ref.delete"
-      : "ref.view";
+    return (flagValue(parsed, "-X") ?? "GET").toUpperCase() === "DELETE" ? "ref.delete" : "ref.view";
   }
   if (first === undefined || second === undefined) return `unknown.${first ?? "empty"}`;
   return `${first}.${second}`;
@@ -559,7 +550,9 @@ function executeOp(
       if (name === undefined) return err("label create: name required");
       const exists = state.labels[name] !== undefined;
       if (exists && !parsed.bools.has("--force")) {
-        return err(`HTTP 422: Validation Failed (https://api.github.com/repos/${repo}/labels)\nlabel '${name}' already exists`);
+        return err(
+          `HTTP 422: Validation Failed (https://api.github.com/repos/${repo}/labels)\nlabel '${name}' already exists`,
+        );
       }
       state.labels[name] = {
         name,
@@ -608,10 +601,7 @@ function executeOp(
           `GraphQL: Could not resolve to an issue or pull request with the number of ${parsed.positionals[2] ?? "?"}. (repository.issue)`,
         );
       }
-      const served =
-        step?.stale === true
-          ? (state.staleShadow.issues[String(issue.number)] ?? issue)
-          : issue;
+      const served = step?.stale === true ? (state.staleShadow.issues[String(issue.number)] ?? issue) : issue;
       return ok(`${JSON.stringify(project(issueJson(state, served), jsonFields(parsed)))}\n`, false);
     }
 
@@ -632,7 +622,9 @@ function executeOp(
     case "issue.edit": {
       const issue = resolveIssue(state, parsed.positionals[2]);
       if (issue === undefined) {
-        return err(`GraphQL: Could not resolve to an issue or pull request with the number of ${parsed.positionals[2] ?? "?"}. (repository.issue)`);
+        return err(
+          `GraphQL: Could not resolve to an issue or pull request with the number of ${parsed.positionals[2] ?? "?"}. (repository.issue)`,
+        );
       }
       const adds = flagValues(parsed, "--add-label");
       const removes = flagValues(parsed, "--remove-label");
@@ -654,20 +646,21 @@ function executeOp(
     case "issue.comment": {
       const issue = resolveIssue(state, parsed.positionals[2]);
       if (issue === undefined) {
-        return err(`GraphQL: Could not resolve to an issue or pull request with the number of ${parsed.positionals[2] ?? "?"}. (repository.issue)`);
+        return err(
+          `GraphQL: Could not resolve to an issue or pull request with the number of ${parsed.positionals[2] ?? "?"}. (repository.issue)`,
+        );
       }
       snapshotIssue(state, issue.number);
       issue.comments.push({ body: stdinBody, createdAt: stamp(state) });
-      return ok(
-        `https://github.com/${repo}/issues/${issue.number}#issuecomment-${issue.comments.length}\n`,
-        true,
-      );
+      return ok(`https://github.com/${repo}/issues/${issue.number}#issuecomment-${issue.comments.length}\n`, true);
     }
 
     case "issue.close": {
       const issue = resolveIssue(state, parsed.positionals[2]);
       if (issue === undefined) {
-        return err(`GraphQL: Could not resolve to an issue or pull request with the number of ${parsed.positionals[2] ?? "?"}. (repository.issue)`);
+        return err(
+          `GraphQL: Could not resolve to an issue or pull request with the number of ${parsed.positionals[2] ?? "?"}. (repository.issue)`,
+        );
       }
       snapshotIssue(state, issue.number);
       issue.state = "CLOSED";
@@ -689,9 +682,7 @@ function executeOp(
         return err(`HTTP 422: Validation Failed — base ref "${base}" does not exist`);
       }
       if (head === base) return err("head and base branches are identical");
-      const existing = Object.values(state.prs).find(
-        (pr) => pr.headRefName === head && pr.state === "OPEN",
-      );
+      const existing = Object.values(state.prs).find((pr) => pr.headRefName === head && pr.state === "OPEN");
       if (existing !== undefined) {
         // Duplicate-create detection (contract §4: creates carry detectable
         // markers — the op/ branch itself makes a retry discover prior effect).
@@ -723,8 +714,7 @@ function executeOp(
       if (pr === undefined) {
         return err(`no pull requests found for "${parsed.positionals[2] ?? "?"}"`);
       }
-      const served =
-        step?.stale === true ? (state.staleShadow.prs[String(pr.number)] ?? pr) : pr;
+      const served = step?.stale === true ? (state.staleShadow.prs[String(pr.number)] ?? pr) : pr;
       return ok(`${JSON.stringify(project(prJson(state, served), jsonFields(parsed)))}\n`, false);
     }
 
@@ -772,9 +762,7 @@ function executeOp(
           ? "CHANGES_REQUESTED"
           : "COMMENTED";
       if (state.config.singleAccount && kind === "APPROVED") {
-        return err(
-          "failed to create review: GraphQL: Can not approve your own pull request (addPullRequestReview)",
-        );
+        return err("failed to create review: GraphQL: Can not approve your own pull request (addPullRequestReview)");
       }
       if (state.config.singleAccount && kind === "CHANGES_REQUESTED") {
         return err(
@@ -857,7 +845,9 @@ function executeOp(
       }
       const oid = branch === undefined ? undefined : state.branches[branch]?.oid;
       if (branch === undefined || oid === undefined) {
-        return err(`HTTP 404: Reference does not exist (https://api.github.com/repos/${repo}/git/ref/heads/${branch ?? "?"})`);
+        return err(
+          `HTTP 404: Reference does not exist (https://api.github.com/repos/${repo}/git/ref/heads/${branch ?? "?"})`,
+        );
       }
       return ok(`${JSON.stringify({ ref: `refs/heads/${branch}`, object: { type: "commit", sha: oid } })}\n`, false);
     }
@@ -872,7 +862,9 @@ function executeOp(
         return err(`HTTP 404: Not Found (https://api.github.com/repos/${apiRepo ?? "?"})`);
       }
       if (branch === undefined || state.branches[branch] === undefined) {
-        return err(`HTTP 422: Reference does not exist (https://api.github.com/repos/${repo}/git/refs/heads/${branch ?? "?"})`);
+        return err(
+          `HTTP 422: Reference does not exist (https://api.github.com/repos/${repo}/git/refs/heads/${branch ?? "?"})`,
+        );
       }
       delete state.branches[branch];
       return ok("", true);

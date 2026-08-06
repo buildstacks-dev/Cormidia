@@ -154,9 +154,7 @@ export function computeEvalResult(options: ComputeEvalResultOptions): EvalResult
       ? (improvement! / Math.abs(control!)) * 100 >= metric.min_useful_improvement_pct
       : metric.min_useful_improvement_pct === 0);
 
-  const guardrails = experiment.guardrails.map((guardrail) =>
-    evaluateGuardrail(guardrail, trials),
-  );
+  const guardrails = experiment.guardrails.map((guardrail) => evaluateGuardrail(guardrail, trials));
 
   // Each branch tests exactly one new fact: measured at all; harmed
   // (wrong-direction movement or any guardrail failure); cleared the useful
@@ -194,10 +192,7 @@ export function computeEvalResult(options: ComputeEvalResultOptions): EvalResult
 
 /** Exported for the M5 runner's between-pair early-stop check (design §9.5)
  *  — one guardrail evaluator, never a throwaway EvalResult. */
-export function evaluateGuardrail(
-  guardrail: ExperimentGuardrail,
-  trials: EvalTrial[],
-): EvalGuardrailOutcome {
+export function evaluateGuardrail(guardrail: ExperimentGuardrail, trials: EvalTrial[]): EvalGuardrailOutcome {
   const scored = pairsMeasuring(trials, guardrail.metric);
   if (scored.length === 0) {
     // Fail closed: an unmeasured guardrail is a failed guardrail, never a
@@ -243,12 +238,7 @@ export function evaluateGuardrail(
   }
 }
 
-function failed(
-  metric: string,
-  control: number,
-  treatment: number,
-  extra?: string,
-): EvalGuardrailOutcome {
+function failed(metric: string, control: number, treatment: number, extra?: string): EvalGuardrailOutcome {
   return {
     metric,
     pass: false,
@@ -357,9 +347,14 @@ export function validateEvalResult(value: unknown): EvalResult {
       pair_order: pairOrder.map((entry, index) => {
         const row = requireRecord(entry, `${source}.execution.pair_order[${index}]`);
         const order = row["order"];
-        if (!Array.isArray(order) || order.length !== 2 ||
-          !((order[0] === "control" && order[1] === "treatment") ||
-            (order[0] === "treatment" && order[1] === "control"))) {
+        if (
+          !Array.isArray(order) ||
+          order.length !== 2 ||
+          !(
+            (order[0] === "control" && order[1] === "treatment") ||
+            (order[0] === "treatment" && order[1] === "control")
+          )
+        ) {
           throw new Error(`learning: ${source}.execution.pair_order[${index}].order is invalid`);
         }
         return {
@@ -407,11 +402,7 @@ function metricMap(value: unknown, source: string): Record<string, number> {
   return spec as Record<string, number>;
 }
 
-function nullableNumber(
-  spec: Record<string, unknown>,
-  key: string,
-  source: string,
-): number | null {
+function nullableNumber(spec: Record<string, unknown>, key: string, source: string): number | null {
   const value = spec[key];
   if (value === null) return null;
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -449,8 +440,7 @@ export async function decideExperiment(
   // two writes below: an orphaned result file (result written, experiment
   // flip lost) must resume with the SAME result, never quietly gain a rival.
   const siblings = (await listEvalResults(orgHome)).filter(
-    (existing) =>
-      existing.experiment_ref === result.experiment_ref && existing.eval_id !== result.eval_id,
+    (existing) => existing.experiment_ref === result.experiment_ref && existing.eval_id !== result.eval_id,
   );
   if (siblings.length > 0) {
     throw new Error(
@@ -472,10 +462,7 @@ export async function decideExperiment(
   await writeFileAtomic(resultPath, resultBytes);
 
   const decided: ExperimentRecord = { ...experiment, status: "decided", result: result.eval_id };
-  await writeFileAtomic(
-    experimentPath(orgHome, experiment.experiment_id),
-    JSON.stringify(decided, null, 2) + "\n",
-  );
+  await writeFileAtomic(experimentPath(orgHome, experiment.experiment_id), JSON.stringify(decided, null, 2) + "\n");
   return { result, experiment: decided };
 }
 

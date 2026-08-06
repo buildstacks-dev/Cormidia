@@ -5,18 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { buildSchedulerExpectation } from "../../../src/org/scheduler/definition.js";
-import {
-  assertScheduledRequiredExecutables,
-  resolveExecutableOnPath,
-} from "../../../src/org/scheduler/environment.js";
-import {
-  installScheduler,
-  schedulerDefinitionStatus,
-} from "../../../src/org/scheduler/lifecycle.js";
-import type {
-  SchedulerManager,
-  SchedulerManagerInspection,
-} from "../../../src/org/scheduler/manager.js";
+import { assertScheduledRequiredExecutables, resolveExecutableOnPath } from "../../../src/org/scheduler/environment.js";
+import { installScheduler, schedulerDefinitionStatus } from "../../../src/org/scheduler/lifecycle.js";
+import type { SchedulerManager, SchedulerManagerInspection } from "../../../src/org/scheduler/manager.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 class FakeManager implements SchedulerManager {
@@ -25,10 +16,18 @@ class FakeManager implements SchedulerManager {
   readonly supported = true;
   definition: string | undefined;
   constructor(readonly root: string) {}
-  definitionPath(id: string): string { return join(this.root, `${id}.plist`); }
-  async readDefinition(): Promise<string | undefined> { return this.definition; }
-  async writeDefinition(_id: string, value: string): Promise<void> { this.definition = value; }
-  async removeDefinition(): Promise<void> { this.definition = undefined; }
+  definitionPath(id: string): string {
+    return join(this.root, `${id}.plist`);
+  }
+  async readDefinition(): Promise<string | undefined> {
+    return this.definition;
+  }
+  async writeDefinition(_id: string, value: string): Promise<void> {
+    this.definition = value;
+  }
+  async removeDefinition(): Promise<void> {
+    this.definition = undefined;
+  }
   async enable(): Promise<void> {}
   async disable(): Promise<void> {}
   async inspect(): Promise<SchedulerManagerInspection> {
@@ -97,10 +96,12 @@ describe("CF-REG-211 — scheduler-owned executable environment", () => {
 
   it("fails fast when a scheduled process cannot resolve its recorded gh path", async () => {
     const { gh } = await world();
-    expect(() => assertScheduledRequiredExecutables({
-      PATH: "/usr/bin:/bin",
-      CORMIDIA_SCHEDULER_REQUIRED_EXECUTABLES: JSON.stringify({ gh }),
-    })).toThrow("required tool 'gh' not found on scheduled-turn PATH");
+    expect(() =>
+      assertScheduledRequiredExecutables({
+        PATH: "/usr/bin:/bin",
+        CORMIDIA_SCHEDULER_REQUIRED_EXECUTABLES: JSON.stringify({ gh }),
+      }),
+    ).toThrow("required tool 'gh' not found on scheduled-turn PATH");
   });
 
   it("makes the doctor-owned definition status fail after a required tool disappears", async () => {
@@ -117,7 +118,6 @@ describe("CF-REG-211 — scheduler-owned executable environment", () => {
   });
 
   it("negative control: the detector fires for launchd's minimal PATH", () => {
-    expect(() => assertDefinitionResolves("gh", "/path/that/does/not/exist"))
-      .toThrow(MissingSchedulerToolViolation);
+    expect(() => assertDefinitionResolves("gh", "/path/that/does/not/exist")).toThrow(MissingSchedulerToolViolation);
   });
 });

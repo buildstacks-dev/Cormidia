@@ -271,7 +271,8 @@ dialog { width:min(900px,94vw); max-height:90vh; background:var(--panel); color:
 @media (max-width:420px) { .section-heading { flex-wrap:wrap; }.activity-controls { flex-direction:column; align-items:stretch; }.activity-controls select { width:100%; } main { padding:0 .65rem 2rem; }.filters { padding:.55rem .65rem; }.session-control { width:100%; display:grid; grid-template-columns:minmax(0,1fr); }.session-control select { max-width:100%; min-width:0; width:100%; }.delivery-board { grid-template-columns:repeat(6,86vw); }.app-grid,.attention-grid { grid-template-columns:1fr; }.graph { min-height:180px; }.drawer { width:100vw; }.drawer dl { grid-template-columns:1fr; gap:.15rem; }.global-header { position:static; } }
 `;
 
-export const OBSERVE_JS = String.raw`(() => {
+export const OBSERVE_JS =
+  String.raw`(() => {
   'use strict';
   // Filter/expansion/paging state lives here and in the URL only. Nothing is
   // persisted: no localStorage, no cookie, no server-side map (invariant 1).
@@ -290,7 +291,9 @@ export const OBSERVE_JS = String.raw`(() => {
     // Set by a control that will be destroyed by the re-render it triggers, so
     // render() can put keyboard focus back where the operator left it.
     pendingFocus:null,
-  };` + TIME_POLICY_JS + String.raw`
+  };` +
+  TIME_POLICY_JS +
+  String.raw`
   const q = (id) => document.getElementById(id);
   const token = new URL(location.href).searchParams.get('token') || '';
   const tokenQuery = () => '?token=' + encodeURIComponent(token);

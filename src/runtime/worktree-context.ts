@@ -3,10 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import type { ContextBundle, TurnExecutionFacts } from "./types.js";
 import { validateTurnExecutionFacts } from "./assignment.js";
-import {
-  runtimeCapabilityGuidance,
-  runtimeCapabilityProfile,
-} from "./capabilities.js";
+import { runtimeCapabilityGuidance, runtimeCapabilityProfile } from "./capabilities.js";
 
 export function renderContextBundle(context: ContextBundle): string {
   const sections = [
@@ -29,11 +26,12 @@ export function renderContextBundle(context: ContextBundle): string {
 export function renderTurnExecutionFacts(value: TurnExecutionFacts): string {
   const facts = validateTurnExecutionFacts(value);
   const profile = runtimeCapabilityProfile(facts.assignment.harness);
-  const delegation = facts.roleDelegation.allow.length === 0
-    ? "- Role policy permits no intra-turn subagents."
-    : profile.capabilities.intra_turn_fanout === "unsupported"
-      ? `- Role policy names ${facts.roleDelegation.allow.join(", ")}, but this harness has no fan-out surface; do not spawn subagents.`
-      : `- Role-approved subagent types: ${facts.roleDelegation.allow.join(", ")}. Use no others.`;
+  const delegation =
+    facts.roleDelegation.allow.length === 0
+      ? "- Role policy permits no intra-turn subagents."
+      : profile.capabilities.intra_turn_fanout === "unsupported"
+        ? `- Role policy names ${facts.roleDelegation.allow.join(", ")}, but this harness has no fan-out surface; do not spawn subagents.`
+        : `- Role-approved subagent types: ${facts.roleDelegation.allow.join(", ")}. Use no others.`;
   return [
     "## Turn execution facts",
     `Role: ${facts.role}`,
@@ -42,10 +40,7 @@ export function renderTurnExecutionFacts(value: TurnExecutionFacts): string {
     `Effort: ${facts.assignment.effort}`,
     `Capability profile: ${profile.ref}`,
     "Capability surfaces (profile-derived):",
-    ...runtimeCapabilityGuidance(
-      facts.assignment.harness,
-      facts.requiredCapabilities,
-    ),
+    ...runtimeCapabilityGuidance(facts.assignment.harness, facts.requiredCapabilities),
     "Delegation policy:",
     delegation,
     "This note advertises existing surfaces only; it does not change the role's tools, permissions, or approval boundaries.",
@@ -57,11 +52,7 @@ export interface WorktreeContextFile {
   excludePath: string;
 }
 
-export function writeMaskedWorktreeFile(
-  workdir: string,
-  relativePath: string,
-  content: string,
-): WorktreeContextFile {
+export function writeMaskedWorktreeFile(workdir: string, relativePath: string, content: string): WorktreeContextFile {
   const normalized = normalizeRelativePath(relativePath);
   const target = path.join(workdir, normalized);
   mkdirSync(path.dirname(target), { recursive: true });

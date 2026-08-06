@@ -13,12 +13,7 @@ import { readEvents } from "../runtime/runlog/events.js";
 import { runPaths } from "../runtime/runlog/paths.js";
 import { readStatusRows } from "../runtime/runlog/status.js";
 import type { InvocationRecord, TurnRecord } from "../runtime/telemetry.js";
-import type {
-  IndexedPass,
-  ObserveFiltersV1,
-  ObserveProjectionInput,
-  SourceHealthView,
-} from "./types.js";
+import type { IndexedPass, ObserveFiltersV1, ObserveProjectionInput, SourceHealthView } from "./types.js";
 
 export interface LocalIndexOptions {
   orgName: string;
@@ -28,10 +23,7 @@ export interface LocalIndexOptions {
   now?: Date;
 }
 
-export type LocalProjectionSources = Omit<
-  ObserveProjectionInput,
-  "cursor" | "github"
->;
+export type LocalProjectionSources = Omit<ObserveProjectionInput, "cursor" | "github">;
 
 export async function indexLocalSources(options: LocalIndexOptions): Promise<LocalProjectionSources> {
   const now = options.now ?? new Date();
@@ -42,12 +34,16 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
   const approvals = await indexApprovals(options.stateHome);
   const ledger = await readJsonlDirectory<TurnRecord>(join(options.stateHome, "telemetry"));
   const budgetRows = await rollupBudgets(options.stateHome, options.appsFile, now);
-  const budgetPausedApps = (await Promise.all(
-    options.appsFile.apps.map(async (app) => ({
-      app: app.name,
-      paused: await isOverlayPaused(options.stateHome, app.name),
-    })),
-  )).filter((entry) => entry.paused).map((entry) => entry.app);
+  const budgetPausedApps = (
+    await Promise.all(
+      options.appsFile.apps.map(async (app) => ({
+        app: app.name,
+        paused: await isOverlayPaused(options.stateHome, app.name),
+      })),
+    )
+  )
+    .filter((entry) => entry.paused)
+    .map((entry) => entry.app);
   const invocations = await readJsonlDirectory<InvocationRecord>(join(options.stateHome, "invocations"));
   const schedule = await readObjectFile(join(options.stateHome, "state", "schedule.json"));
   const locks = await indexLocks(join(options.stateHome, "locks"));
@@ -55,29 +51,44 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
   const validationCampaigns = await readValidationCampaignReports(options.stateHome);
   const roadmapExplanation = await readRoadmapExplanation(
     options.stateHome,
-    options.filters.app === undefined
-      ? options.appsFile.apps.map((app) => app.name)
-      : [options.filters.app],
+    options.filters.app === undefined ? options.appsFile.apps.map((app) => app.name) : [options.filters.app],
   );
   errors.push(...validationCampaigns.corrupt.map((item) => `validation campaign ${item.campaign_id}: ${item.detail}`));
   errors.push(...ledger.errors.map((error) => `ledger: ${error}`));
   errors.push(...invocations.errors.map((error) => `invocations: ${error}`));
 
-  const localStatus = errors.some((error) => error.includes("envelope") || error.includes("events")) ? "degraded" : "healthy";
+  const localStatus = errors.some((error) => error.includes("envelope") || error.includes("events"))
+    ? "degraded"
+    : "healthy";
   const sourceHealth: SourceHealthView[] = [
-    source("local_files", localStatus, observedAt, errors.filter((error) => error.includes("envelope") || error.includes("events")).join("; ") || "Run/task files readable"),
-    source("approvals", approvals.errors.length > 0 ? "degraded" : "healthy", observedAt, approvals.errors.join("; ") || "Approval files readable"),
-    source("ledger", ledger.errors.length > 0 ? "degraded" : "healthy", observedAt, ledger.errors.join("; ") || "Telemetry ledger readable"),
+    source(
+      "local_files",
+      localStatus,
+      observedAt,
+      errors.filter((error) => error.includes("envelope") || error.includes("events")).join("; ") ||
+        "Run/task files readable",
+    ),
+    source(
+      "approvals",
+      approvals.errors.length > 0 ? "degraded" : "healthy",
+      observedAt,
+      approvals.errors.join("; ") || "Approval files readable",
+    ),
+    source(
+      "ledger",
+      ledger.errors.length > 0 ? "degraded" : "healthy",
+      observedAt,
+      ledger.errors.join("; ") || "Telemetry ledger readable",
+    ),
     source(
       "scheduler",
       schedule.error !== undefined || locks.errors.length > 0 || inbox.some((item) => item.error !== undefined)
         ? "degraded"
         : "unavailable",
       observedAt,
-      schedule.error ?? (
-        locks.errors.join("; ") ||
-        "Scheduler operational health is not measured by local definition, lock, or inbox readability"
-      ),
+      schedule.error ??
+        (locks.errors.join("; ") ||
+          "Scheduler operational health is not measured by local definition, lock, or inbox readability"),
     ),
     source(
       "roadmap_delivery",
@@ -87,9 +98,12 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
           ? "unavailable"
           : "healthy",
       observedAt,
-      roadmapExplanation.apps.map((app) =>
-        `${app.app}: ${app.source.detail}${app.source.affected_claims.length === 0 ? "" : ` Affected claims: ${app.source.affected_claims.join(", ")}`}`,
-      ).join("; ") || "No app planning scope was selected",
+      roadmapExplanation.apps
+        .map(
+          (app) =>
+            `${app.app}: ${app.source.detail}${app.source.affected_claims.length === 0 ? "" : ` Affected claims: ${app.source.affected_claims.join(", ")}`}`,
+        )
+        .join("; ") || "No app planning scope was selected",
     ),
   ];
 
@@ -162,7 +176,9 @@ async function indexPasses(
     }
     let finishedAt: string | undefined;
     try {
-      const envelope = JSON.parse(await readFile(runPaths(stateHome, row.app, row.runId).envelope, "utf8")) as RunEnvelope;
+      const envelope = JSON.parse(
+        await readFile(runPaths(stateHome, row.app, row.runId).envelope, "utf8"),
+      ) as RunEnvelope;
       finishedAt = envelope.finished_at;
     } catch {
       // readStatusRows already surfaced an unreadable envelope above.
@@ -247,7 +263,9 @@ async function indexApprovals(stateHome: string): Promise<{
     let grant: ApprovalGrant | undefined;
     if (item.grantId !== undefined) {
       try {
-        grant = JSON.parse(await readFile(join(approvalsRoot, "grants", `${item.grantId}.json`), "utf8")) as ApprovalGrant;
+        grant = JSON.parse(
+          await readFile(join(approvalsRoot, "grants", `${item.grantId}.json`), "utf8"),
+        ) as ApprovalGrant;
       } catch (error) {
         errors.push(`grants/${item.grantId}.json: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -270,9 +288,7 @@ async function readJsonlDirectory<T>(dir: string): Promise<{ records: T[]; error
         records.push(JSON.parse(line) as T);
       } catch (error) {
         const hasLaterData = lines.slice(index + 1).some((candidate) => candidate.trim().length > 0);
-        errors.push(
-          `${file}:${index + 1}: ${hasLaterData ? "malformed mid-file" : "torn final append"}`,
-        );
+        errors.push(`${file}:${index + 1}: ${hasLaterData ? "malformed mid-file" : "torn final append"}`);
       }
     }
   }
@@ -313,9 +329,7 @@ async function indexInbox(dir: string): Promise<LocalProjectionSources["inbox"]>
         // An unparseable payload instant is dropped rather than passed through,
         // and is never backfilled from the mtime: a received time is not an
         // event time (#94).
-        ...(typeof occurredAt === "string" && !Number.isNaN(Date.parse(occurredAt))
-          ? { occurred_at: occurredAt }
-          : {}),
+        ...(typeof occurredAt === "string" && !Number.isNaN(Date.parse(occurredAt)) ? { occurred_at: occurredAt } : {}),
         ...(typeof eventId === "string" ? { event_id: eventId } : {}),
         ...(typeof eventSource === "string" ? { source: eventSource } : {}),
         ...(discoveredAt !== undefined ? { discovered_at: discoveredAt } : {}),
@@ -333,7 +347,12 @@ async function indexInbox(dir: string): Promise<LocalProjectionSources["inbox"]>
   return out.sort((a, b) => a.filename.localeCompare(b.filename));
 }
 
-function source(id: SourceHealthView["id"], status: SourceHealthView["status"], observedAt: string, detail: string): SourceHealthView {
+function source(
+  id: SourceHealthView["id"],
+  status: SourceHealthView["status"],
+  observedAt: string,
+  detail: string,
+): SourceHealthView {
   return {
     id,
     status,

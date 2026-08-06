@@ -15,10 +15,7 @@ export const EXPLICIT_GATE_COMMAND_KEYS = [
 
 const MAPPED_GATE_COMMAND_KEYS = ["install", "test", "lint", "e2e"] as const;
 
-export function assertCanonicalGateCommandPlacement(
-  raw: Record<string, unknown>,
-  path: string,
-): void {
+export function assertCanonicalGateCommandPlacement(raw: Record<string, unknown>, path: string): void {
   const apps = asRecord(raw["apps"]);
   if (apps === undefined) return;
 
@@ -48,6 +45,6 @@ export function assertCanonicalGateCommandPlacement(
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : undefined;
 }

@@ -38,11 +38,13 @@ describe("CF-REG-272 — review publication uses the authoritative branch ref", 
     const { gh, prNumber, oldHead } = await scenario();
     handle!.script({ op: "pr.view", stale: true });
 
-    await expect(gh.createReview(prNumber, {
-      state: "comment",
-      body: "must not publish",
-      expectedCommit: oldHead,
-    })).rejects.toThrow(/refusing to publish review/);
+    await expect(
+      gh.createReview(prNumber, {
+        state: "comment",
+        body: "must not publish",
+        expectedCommit: oldHead,
+      }),
+    ).rejects.toThrow(/refusing to publish review/);
 
     handle!.assertScenarioDrained();
     expect(handle!.readState().prs[String(prNumber)]?.reviews).toEqual([]);
@@ -55,10 +57,10 @@ describe("CF-REG-272 — review publication uses the authoritative branch ref", 
     // Seed the removed behavior explicitly: trust only the lagging PR
     // projection, then write without consulting the branch-ref endpoint.
     expect((await gh.readPR(prNumber)).headRefOid).toBe(oldHead);
-    const result = await handle!.exec([
-      "pr", "review", String(prNumber), "--repo", handle!.repo,
-      "--comment", "--body-file", "-",
-    ], "seeded stale publication");
+    const result = await handle!.exec(
+      ["pr", "review", String(prNumber), "--repo", handle!.repo, "--comment", "--body-file", "-"],
+      "seeded stale publication",
+    );
     expect(result.exitCode).toBe(0);
     expect(handle!.readState().prs[String(prNumber)]?.reviews).toHaveLength(1);
     handle!.assertScenarioDrained();

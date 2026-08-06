@@ -153,9 +153,7 @@ export async function executeApprovedCommands(
         });
         continue;
       }
-      const attemptedAt = execution.attemptedAt === undefined
-        ? undefined
-        : new Date(execution.attemptedAt).getTime();
+      const attemptedAt = execution.attemptedAt === undefined ? undefined : new Date(execution.attemptedAt).getTime();
       if (attemptedAt !== undefined && clock().getTime() - attemptedAt < EXECUTION_STALE_MS) {
         // A concurrent dispatch is probably still running it. Saying "ambiguous"
         // here would invent uncertainty rather than report it.
@@ -223,13 +221,15 @@ export async function executeApprovedCommands(
     }
     const command = approvedCommand(item.action);
     if (command === undefined) {
-      outcomes.push(await terminalFailure(
-        store,
-        item,
-        "invalid_action",
-        `approved action ${item.id} is not a recorded shell command`,
-        clock,
-      ));
+      outcomes.push(
+        await terminalFailure(
+          store,
+          item,
+          "invalid_action",
+          `approved action ${item.id} is not a recorded shell command`,
+          clock,
+        ),
+      );
       continue;
     }
     const app = options.appsFile.apps.find((entry) => entry.name === item.app);
@@ -250,13 +250,7 @@ export async function executeApprovedCommands(
     }
     const context = resolveExecutionContext(options.stateHome, item, app);
     if ("problem" in context) {
-      outcomes.push(await terminalFailure(
-        store,
-        item,
-        "execution_context_unavailable",
-        context.problem,
-        clock,
-      ));
+      outcomes.push(await terminalFailure(store, item, "execution_context_unavailable", context.problem, clock));
       continue;
     }
 
@@ -276,13 +270,15 @@ export async function executeApprovedCommands(
       now: clock(),
     });
     if (grant === undefined) {
-      outcomes.push(await terminalFailure(
-        store,
-        item,
-        "grant_unavailable",
-        `approved action has no live matching grant; nothing was executed`,
-        clock,
-      ));
+      outcomes.push(
+        await terminalFailure(
+          store,
+          item,
+          "grant_unavailable",
+          `approved action has no live matching grant; nothing was executed`,
+          clock,
+        ),
+      );
       continue;
     }
     // An approval authorizes exactly what was approved. The grant matched on
@@ -412,16 +408,12 @@ export async function executeApprovedCommands(
  *     the cost is that a legitimate wrapper-prefixed legacy approval is
  *     refused rather than run, which is the fail-closed direction.
  */
-function commandBindingProblem(
-  command: string,
-  item: ApprovalItem,
-  grant: ApprovalGrant,
-): string | undefined {
+function commandBindingProblem(command: string, item: ApprovalItem, grant: ApprovalGrant): string | undefined {
   if (grant.commandSha256 !== undefined) {
     return commandIdentityHash(command) === grant.commandSha256
       ? undefined
       : `the recorded command no longer matches the one approved as ${item.id} ` +
-        `(grant ${grant.grantId} binds a different command); nothing was executed`;
+          `(grant ${grant.grantId} binds a different command); nothing was executed`;
   }
   const identity = normalizeSemanticAction(item.action).command;
   if (identity !== null && identity === command) return undefined;
@@ -505,9 +497,7 @@ async function terminalFailure(
  *  bounded: an approval record is operator-facing state, not a log sink. */
 function commandSummary(cwd: string, result: ApprovedCommandResult): string {
   const detail = truncatePreview(scrubSecrets(result.stderr.trim() || result.stdout.trim()), 400);
-  return (
-    `exit ${result.exitCode} in ${cwd}` + (detail === "" ? "" : `: ${detail}`)
-  );
+  return `exit ${result.exitCode} in ${cwd}` + (detail === "" ? "" : `: ${detail}`);
 }
 
 function errorText(error: unknown): string {
@@ -535,9 +525,16 @@ async function runApprovedCommand(input: {
       child.kill("SIGKILL");
     }, input.timeoutMs);
     deadline.unref?.();
-    child.stdout?.on("data", (chunk: Buffer) => { stdout = tail(stdout + chunk.toString("utf8"), 16_000); });
-    child.stderr?.on("data", (chunk: Buffer) => { stderr = tail(stderr + chunk.toString("utf8"), 16_000); });
-    child.once("error", (error) => { clearTimeout(deadline); reject(error); });
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout = tail(stdout + chunk.toString("utf8"), 16_000);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = tail(stderr + chunk.toString("utf8"), 16_000);
+    });
+    child.once("error", (error) => {
+      clearTimeout(deadline);
+      reject(error);
+    });
     child.once("close", (code) => {
       clearTimeout(deadline);
       resolve({ exitCode: code ?? 1, stdout, stderr, ...(timedOut ? { timedOut: true } : {}) });

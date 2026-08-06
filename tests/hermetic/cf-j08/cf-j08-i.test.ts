@@ -152,10 +152,7 @@ describe("CF-J08-I — kill between provider return and ledger append; ENOSPC va
     // the step evidence agrees with the ledger.
     const envelope = await readEnvelope(state.stateHome, APP, runId);
     expect(envelope.status).toBe("failed");
-    const coverage = settlementCoverage(
-      await readExecutionSteps(state.stateHome, episodeId),
-      rows,
-    );
+    const coverage = settlementCoverage(await readExecutionSteps(state.stateHome, episodeId), rows);
     expect(coverage.missing).toEqual([]);
     expect(coverage.duplicate).toEqual([]);
 

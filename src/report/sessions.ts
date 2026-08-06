@@ -37,22 +37,33 @@ export function groupReportSessions(
     if (id === null) unattributed.push(turn);
     else groups.set(id, [...(groups.get(id) ?? []), turn]);
   }
-  const sessions = [...groups.entries()].map(([id, activities]) => {
-    const ordered = [...activities].sort(activityOrder);
-    return { summary: summarize(id, ordered, details, appScope), activities: ordered };
-  }).sort((a, b) => (b.summary.ended_at ?? b.summary.started_at ?? "").localeCompare(a.summary.ended_at ?? a.summary.started_at ?? "") || a.summary.id.localeCompare(b.summary.id));
+  const sessions = [...groups.entries()]
+    .map(([id, activities]) => {
+      const ordered = [...activities].sort(activityOrder);
+      return { summary: summarize(id, ordered, details, appScope), activities: ordered };
+    })
+    .sort(
+      (a, b) =>
+        (b.summary.ended_at ?? b.summary.started_at ?? "").localeCompare(
+          a.summary.ended_at ?? a.summary.started_at ?? "",
+        ) || a.summary.id.localeCompare(b.summary.id),
+    );
   unattributed.sort(activityOrder);
   return { sessions, unattributed };
 }
 
 function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): ReportTurnV1 {
   const row = source.record;
-  const joined = row.app !== undefined && row.runId !== undefined ? details.envelopes.get(settlementKey(row.app, row.runId)) : undefined;
+  const joined =
+    row.app !== undefined && row.runId !== undefined
+      ? details.envelopes.get(settlementKey(row.app, row.runId))
+      : undefined;
   const envelope = joined?.envelope;
   const unavailable = row.unmeasured === true || normalizedQuality(row.usageQuality) === "unavailable";
   const warnings: string[] = [];
   if (row.runId === undefined || row.app === undefined) warnings.push("legacy correlation missing");
-  if (row.app !== undefined && row.runId !== undefined && envelope === undefined) warnings.push("execution detail expired by retention or is unreadable");
+  if (row.app !== undefined && row.runId !== undefined && envelope === undefined)
+    warnings.push("execution detail expired by retention or is unreadable");
   if (unavailable) warnings.push("usage unavailable; stored zero placeholders are not known zero");
   const ownsPassEvidence =
     envelope?.provider_turn_ids === undefined ||
@@ -94,16 +105,21 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
     usage_quality: unavailable ? "unavailable" : normalizedQuality(row.usageQuality),
     tokens_in: unavailable ? null : row.tokensIn,
     tokens_out: unavailable ? null : row.tokensOut,
-    tokens_in_uncached: unavailable ? null : row.tokensInUncached ?? null,
-    cache_read_tokens: unavailable ? null : row.cacheReadTokens ?? null,
-    cache_creation_tokens: unavailable ? null : row.cacheCreationTokens ?? null,
+    tokens_in_uncached: unavailable ? null : (row.tokensInUncached ?? null),
+    cache_read_tokens: unavailable ? null : (row.cacheReadTokens ?? null),
+    cache_creation_tokens: unavailable ? null : (row.cacheCreationTokens ?? null),
     cost_usd: unavailable ? null : row.costUsd,
     cost_estimated: row.costEstimated === true || row.usageQuality === "estimated",
     subagent_turns: row.subagentTurns,
-    tool_calls: ownsPassEvidence ? joined?.events?.toolCalls ?? (envelope === undefined ? null : Object.values(envelope.tool_counts ?? {}).reduce((a, b) => a + b, 0)) : null,
+    tool_calls: ownsPassEvidence
+      ? (joined?.events?.toolCalls ??
+        (envelope === undefined ? null : Object.values(envelope.tool_counts ?? {}).reduce((a, b) => a + b, 0)))
+      : null,
     escalations: ownsPassEvidence ? Math.max(row.escalations, joined?.events?.escalations ?? 0) : row.escalations,
-    gate_passes: envelope === undefined || !ownsPassEvidence ? null : gates.filter((gate) => gate.status === "passed").length,
-    gate_failures: envelope === undefined || !ownsPassEvidence ? null : gates.filter((gate) => gate.status === "failed").length,
+    gate_passes:
+      envelope === undefined || !ownsPassEvidence ? null : gates.filter((gate) => gate.status === "passed").length,
+    gate_failures:
+      envelope === undefined || !ownsPassEvidence ? null : gates.filter((gate) => gate.status === "failed").length,
     refs,
     native_session_ref: envelope?.session?.native_ref ?? null,
     envelope_available: envelope !== undefined,
@@ -112,7 +128,10 @@ function ledgerTurn(source: LedgerRowSource, details: ReportDetailFacts): Report
   };
 }
 
-function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope"], events: ReportDetailFacts["unsettled"][number]["events"]): ReportTurnV1 {
+function envelopeTurn(
+  envelope: ReportDetailFacts["unsettled"][number]["envelope"],
+  events: ReportDetailFacts["unsettled"][number]["events"],
+): ReportTurnV1 {
   const usage = envelope.usage;
   // These envelopes have no ledger settlement by construction (they are the
   // `unsettled` set), so classifyEnvelopeUsage can decide `none` structurally.
@@ -125,7 +144,8 @@ function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope
   const warnings = isMechanical
     ? ["no provider was invoked; cost is an authoritative zero"]
     : ["no matching ledger settlement; excluded from authoritative accounting totals"];
-  if (!isMechanical && usage !== undefined && envelope.status !== "running") warnings.push("terminal envelope has recorded usage; explicit cormidia budget --reconcile may recover it");
+  if (!isMechanical && usage !== undefined && envelope.status !== "running")
+    warnings.push("terminal envelope has recorded usage; explicit cormidia budget --reconcile may recover it");
   return {
     id: `envelope:${envelope.app}:${envelope.run_id}`,
     source: { day: null, line: null },
@@ -137,9 +157,7 @@ function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope
     episode_id: envelope.episode_id ?? null,
     ...(envelope.plan_version !== undefined ? { plan_version: envelope.plan_version } : {}),
     ...(envelope.plan_step_id !== undefined ? { plan_step_id: envelope.plan_step_id } : {}),
-    ...(envelope.assignment_source !== undefined
-      ? { assignment_source: envelope.assignment_source }
-      : {}),
+    ...(envelope.assignment_source !== undefined ? { assignment_source: envelope.assignment_source } : {}),
     trace_id: envelope.trace_id,
     parent_task_id: envelope.parent_task_id ?? null,
     ticket: envelope.ticket ?? null,
@@ -159,15 +177,27 @@ function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope
     // A mechanical pass consumed no tokens and cost nothing, and that is known
     // rather than missing — so it reports 0, not null, even on a legacy
     // envelope that predates the explicit `none` usage record (#88).
-    tokens_in: isMechanical ? usage?.tokens_in ?? 0 : quality === "unavailable" || usage === undefined ? null : usage.tokens_in,
-    tokens_out: isMechanical ? usage?.tokens_out ?? 0 : quality === "unavailable" || usage === undefined ? null : usage.tokens_out,
+    tokens_in: isMechanical
+      ? (usage?.tokens_in ?? 0)
+      : quality === "unavailable" || usage === undefined
+        ? null
+        : usage.tokens_in,
+    tokens_out: isMechanical
+      ? (usage?.tokens_out ?? 0)
+      : quality === "unavailable" || usage === undefined
+        ? null
+        : usage.tokens_out,
     tokens_in_uncached: null,
     cache_read_tokens: usage?.cache_read_tokens ?? null,
     cache_creation_tokens: usage?.cache_write_tokens ?? null,
-    cost_usd: isMechanical ? usage?.cost_usd ?? 0 : quality === "unavailable" || usage === undefined ? null : usage.cost_usd,
+    cost_usd: isMechanical
+      ? (usage?.cost_usd ?? 0)
+      : quality === "unavailable" || usage === undefined
+        ? null
+        : usage.cost_usd,
     cost_estimated: usage?.cost_estimated === true,
     subagent_turns: usage?.subagent_turns ?? 0,
-    tool_calls: events?.toolCalls ?? (Object.values(envelope.tool_counts ?? {}).reduce((a, b) => a + b, 0)),
+    tool_calls: events?.toolCalls ?? Object.values(envelope.tool_counts ?? {}).reduce((a, b) => a + b, 0),
     escalations: events?.escalations ?? 0,
     gate_passes: gates.filter((gate) => gate.status === "passed").length,
     gate_failures: gates.filter((gate) => gate.status === "failed").length,
@@ -182,15 +212,26 @@ function envelopeTurn(envelope: ReportDetailFacts["unsettled"][number]["envelope
 function groupingId(turn: ReportTurnV1): string | null {
   if (turn.app === null || turn.run_id === null) return null;
   if (turn.parent_task_id !== null) return `task:${turn.parent_task_id}`;
-  if (turn.trace_id !== null && turn.trace_id.length > 0 && turn.trace_id !== "?") return `trace:${turn.app}:${turn.trace_id}`;
+  if (turn.trace_id !== null && turn.trace_id.length > 0 && turn.trace_id !== "?")
+    return `trace:${turn.app}:${turn.trace_id}`;
   return `run:${turn.app}:${turn.run_id}`;
 }
 
-function summarize(id: string, activities: ReportTurnV1[], details: ReportDetailFacts, appScope?: string): ReportSessionSummaryV1 {
+function summarize(
+  id: string,
+  activities: ReportTurnV1[],
+  details: ReportDetailFacts,
+  appScope?: string,
+): ReportSessionSummaryV1 {
   const taskId = id.startsWith("task:") ? id.slice(5) : undefined;
   const task = taskId === undefined ? undefined : details.tasks.get(taskId);
-  const apps = [...new Set(activities.map((activity) => activity.app).filter((value): value is string => value !== null))].sort();
-  const refs = uniqueRefs([...(task === undefined ? [] : taskRefs(task)), ...activities.flatMap((activity) => activity.refs)]);
+  const apps = [
+    ...new Set(activities.map((activity) => activity.app).filter((value): value is string => value !== null)),
+  ].sort();
+  const refs = uniqueRefs([
+    ...(task === undefined ? [] : taskRefs(task)),
+    ...activities.flatMap((activity) => activity.refs),
+  ]);
   const provider = activities.filter((activity) => activity.activity_type === "provider_turn");
   const settledProvider = provider.filter((activity) => activity.settled_at !== null);
   const observable = settledProvider.filter((activity) => activity.tokens_in !== null && activity.tokens_out !== null);
@@ -206,7 +247,10 @@ function summarize(id: string, activities: ReportTurnV1[], details: ReportDetail
   const outcome = task?.status ?? sessionOutcome(activities);
   const completion = task === undefined ? traceCompletion(activities) : taskCompletion(task);
   const warnings = [...new Set(activities.flatMap((activity) => activity.warnings))];
-  const scopePartial = appScope !== undefined && (task?.app !== undefined && task.app !== appScope || task !== undefined && task.refs.traces.length > 0 && apps.length === 1);
+  const scopePartial =
+    appScope !== undefined &&
+    ((task?.app !== undefined && task.app !== appScope) ||
+      (task !== undefined && task.refs.traces.length > 0 && apps.length === 1));
   if (scopePartial) warnings.push("app-scoped slice of a broader parent task");
   return {
     id,
@@ -219,7 +263,8 @@ function summarize(id: string, activities: ReportTurnV1[], details: ReportDetail
     ended_at: task?.endedAt ?? latest(activities.map((activity) => activity.finished_at ?? activity.settled_at)),
     outcome,
     completion_integrity: completion,
-    execution_mode: task === undefined ? "not_recorded" : task.executionMode === "external_manual" ? "manual" : task.executionMode,
+    execution_mode:
+      task === undefined ? "not_recorded" : task.executionMode === "external_manual" ? "manual" : task.executionMode,
     provider_turns: provider.length,
     mechanical_passes: activities.filter((activity) => activity.activity_type === "mechanical_pass").length,
     known_input_tokens: observable.reduce((sum, activity) => sum + activity.tokens_in!, 0),
@@ -232,19 +277,31 @@ function summarize(id: string, activities: ReportTurnV1[], details: ReportDetail
   };
 }
 
-function taskCompletion(task: NonNullable<ReportDetailFacts["tasks"] extends Map<string, infer T> ? T : never>): CompletionIntegrity {
+function taskCompletion(
+  task: NonNullable<ReportDetailFacts["tasks"] extends Map<string, infer T> ? T : never>,
+): CompletionIntegrity {
   if (task.status !== "completed") return "incomplete";
   if (task.completionState === undefined) return "unknown";
-  return task.completionState.implementation === "complete" && ["green", "unknown"].includes(task.completionState.ci) ? "complete" : "incomplete";
+  return task.completionState.implementation === "complete" && ["green", "unknown"].includes(task.completionState.ci)
+    ? "complete"
+    : "incomplete";
 }
 
 function traceCompletion(activities: ReportTurnV1[]): CompletionIntegrity {
-  if (activities.some((activity) => ["running", "failed", "cancelled", "timed_out", "blocked", "blocked_on_gate"].includes(activity.status))) return "incomplete";
-  return activities.length > 0 && activities.every((activity) => activity.status === "completed") ? "complete" : "unknown";
+  if (
+    activities.some((activity) =>
+      ["running", "failed", "cancelled", "timed_out", "blocked", "blocked_on_gate"].includes(activity.status),
+    )
+  )
+    return "incomplete";
+  return activities.length > 0 && activities.every((activity) => activity.status === "completed")
+    ? "complete"
+    : "unknown";
 }
 
 function sessionOutcome(activities: ReportTurnV1[]): string {
-  for (const status of ["running", "failed", "timed_out", "cancelled", "blocked_on_gate", "blocked"]) if (activities.some((activity) => activity.status === status)) return status;
+  for (const status of ["running", "failed", "timed_out", "cancelled", "blocked_on_gate", "blocked"])
+    if (activities.some((activity) => activity.status === status)) return status;
   return activities.every((activity) => activity.status === "completed") ? "completed" : "unknown";
 }
 
@@ -259,7 +316,9 @@ function envelopeRefs(envelope: ReportDetailFacts["unsettled"][number]["envelope
   return uniqueRefs(refs);
 }
 
-function taskRefs(task: NonNullable<ReportDetailFacts["tasks"] extends Map<string, infer T> ? T : never>): SourceRefView[] {
+function taskRefs(
+  task: NonNullable<ReportDetailFacts["tasks"] extends Map<string, infer T> ? T : never>,
+): SourceRefView[] {
   return Object.entries(task.refs).flatMap(([source, refs]) => refs.map((ref) => ({ source, ref: scrubSecrets(ref) })));
 }
 
@@ -278,7 +337,22 @@ export function worstQuality(values: readonly ReportUsageQuality[]): ReportUsage
   return values.reduce<ReportUsageQuality>((worst, value) => worstUsageQuality(worst, value), "complete");
 }
 
-function earliest(values: Array<string | null>): string | null { return values.filter((v): v is string => v !== null).sort()[0] ?? null; }
-function latest(values: Array<string | null>): string | null { return values.filter((v): v is string => v !== null).sort().at(-1) ?? null; }
-function finiteOrNull(value: number): number | null { return Number.isFinite(value) ? value : null; }
-function activityOrder(a: ReportTurnV1, b: ReportTurnV1): number { return (a.started_at ?? a.settled_at ?? "").localeCompare(b.started_at ?? b.settled_at ?? "") || a.id.localeCompare(b.id); }
+function earliest(values: Array<string | null>): string | null {
+  return values.filter((v): v is string => v !== null).sort()[0] ?? null;
+}
+function latest(values: Array<string | null>): string | null {
+  return (
+    values
+      .filter((v): v is string => v !== null)
+      .sort()
+      .at(-1) ?? null
+  );
+}
+function finiteOrNull(value: number): number | null {
+  return Number.isFinite(value) ? value : null;
+}
+function activityOrder(a: ReportTurnV1, b: ReportTurnV1): number {
+  return (
+    (a.started_at ?? a.settled_at ?? "").localeCompare(b.started_at ?? b.settled_at ?? "") || a.id.localeCompare(b.id)
+  );
+}

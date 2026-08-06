@@ -61,15 +61,10 @@ const INCIDENT_EVENT_KINDS = new Set([
   "alert-webhook",
 ]);
 
-export function safetyFactsFromTicketLabels(
-  labels: readonly string[],
-  ticketRef: string,
-): SafetyFact[] {
+export function safetyFactsFromTicketLabels(labels: readonly string[], ticketRef: string): SafetyFact[] {
   const facts: SafetyFact[] = [];
   for (const label of uniqueNormalized(labels)) {
-    const kind = TICKET_LABEL_SAFETY_FACTS[
-      label as keyof typeof TICKET_LABEL_SAFETY_FACTS
-    ];
+    const kind = TICKET_LABEL_SAFETY_FACTS[label as keyof typeof TICKET_LABEL_SAFETY_FACTS];
     if (kind === undefined) continue;
     facts.push({
       kind,
@@ -84,9 +79,7 @@ export function safetyFactsFromPlanningRequest(
 ): SafetyFact[] {
   const facts: SafetyFact[] = [];
   for (const domain of uniqueNormalized(input?.sensitiveDomains ?? [])) {
-    const kind = PLANNING_DOMAIN_SAFETY_FACTS[
-      domain as keyof typeof PLANNING_DOMAIN_SAFETY_FACTS
-    ];
+    const kind = PLANNING_DOMAIN_SAFETY_FACTS[domain as keyof typeof PLANNING_DOMAIN_SAFETY_FACTS];
     if (kind === undefined) continue;
     facts.push({
       kind,
@@ -96,21 +89,23 @@ export function safetyFactsFromPlanningRequest(
   return normalizeSafetyFacts(facts);
 }
 
-export function safetyFactsFromTurnEvent(
-  event: Pick<TurnEvent, "kind" | "key"> | undefined,
-): SafetyFact[] {
+export function safetyFactsFromTurnEvent(event: Pick<TurnEvent, "kind" | "key"> | undefined): SafetyFact[] {
   if (event === undefined) return [];
   if (INCIDENT_EVENT_KINDS.has(event.kind)) {
-    return [{
-      kind: "incident_response",
-      evidenceRefs: [`event:${event.kind}:${event.key}`],
-    }];
+    return [
+      {
+        kind: "incident_response",
+        evidenceRefs: [`event:${event.kind}:${event.key}`],
+      },
+    ];
   }
   if (event.kind === "release-shipped") {
-    return [{
-      kind: "release",
-      evidenceRefs: [`event:${event.kind}:${event.key}`],
-    }];
+    return [
+      {
+        kind: "release",
+        evidenceRefs: [`event:${event.kind}:${event.key}`],
+      },
+    ];
   }
   return [];
 }
@@ -118,9 +113,7 @@ export function safetyFactsFromTurnEvent(
 /** Preserve creator-declared fact identities while deduplicating exact facts.
  * Validation compares creator facts by kind plus their full evidence-ref set,
  * so merging facts by kind would silently destroy creator provenance. */
-export function mergeEpisodeSafetyFacts(
-  ...groups: readonly (readonly SafetyFact[])[]
-): SafetyFact[] {
+export function mergeEpisodeSafetyFacts(...groups: readonly (readonly SafetyFact[])[]): SafetyFact[] {
   return normalizeSafetyFacts(groups.flatMap((group) => group));
 }
 
@@ -131,20 +124,16 @@ function normalizeSafetyFacts(facts: readonly SafetyFact[]): SafetyFact[] {
       kind: fact.kind,
       evidenceRefs: uniqueSorted(fact.evidenceRefs),
     };
-    byIdentity.set(
-      `${normalized.kind}\0${normalized.evidenceRefs.join("\0")}`,
-      normalized,
-    );
+    byIdentity.set(`${normalized.kind}\0${normalized.evidenceRefs.join("\0")}`, normalized);
   }
-  return [...byIdentity.values()].sort((left, right) =>
-    left.kind.localeCompare(right.kind) ||
-    left.evidenceRefs.join("\0").localeCompare(right.evidenceRefs.join("\0"))
+  return [...byIdentity.values()].sort(
+    (left, right) =>
+      left.kind.localeCompare(right.kind) || left.evidenceRefs.join("\0").localeCompare(right.evidenceRefs.join("\0")),
   );
 }
 
 function uniqueNormalized(values: readonly string[]): string[] {
-  return [...new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean))]
-    .sort();
+  return [...new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean))].sort();
 }
 
 function uniqueSorted(values: readonly string[]): string[] {

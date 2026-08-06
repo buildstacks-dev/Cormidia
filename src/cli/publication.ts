@@ -1,8 +1,5 @@
 import { GhCliOps } from "../loop/github.js";
-import {
-  listPlannerPublications,
-  resumePlannerPublication,
-} from "../org/planner-publication.js";
+import { listPlannerPublications, resumePlannerPublication } from "../org/planner-publication.js";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -51,7 +48,7 @@ function parse(args: string[], requireIdentity: boolean): { app?: string; id?: s
 function print(record: Awaited<ReturnType<typeof listPlannerPublications>>[number]): void {
   console.log(
     `${record.publication_id} ${record.app} ${record.state} ` +
-    `${record.branch_created ? `${record.branch}@${record.commit}` : "read-only"}`,
+      `${record.branch_created ? `${record.branch}@${record.commit}` : "read-only"}`,
   );
   if (record.error !== null) console.log(`  ${record.error.code}: ${record.error.message}`);
   if (record.state !== "published") console.log(`  ${record.recovery.command}`);

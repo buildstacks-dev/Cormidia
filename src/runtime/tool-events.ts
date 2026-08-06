@@ -36,17 +36,13 @@ function commandOf(action: ToolAction): string | undefined {
  *  boundary — never persisted raw. Outcome fields are set only when the
  *  adapter's native stream reports them (e.g. Codex item exit codes);
  *  pre-execution emission (Claude's PreToolUse) omits them. */
-export function toolUseEvent(
-  action: ToolAction,
-  outcome: { success?: boolean; durationMs?: number } = {},
-): TurnEvent {
+export function toolUseEvent(action: ToolAction, outcome: { success?: boolean; durationMs?: number } = {}): TurnEvent {
   const category = environmentCategory(action);
   const command = commandOf(action);
   return {
     type: "tool_use",
     name: action.tool,
-    detail:
-      command !== undefined && command.length > 0 ? `${action.tool}: ${command}` : action.tool,
+    detail: command !== undefined && command.length > 0 ? `${action.tool}: ${command}` : action.tool,
     args: action.input,
     ...(category !== undefined ? { category } : {}),
     ...(outcome.success !== undefined ? { success: outcome.success } : {}),

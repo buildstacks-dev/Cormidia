@@ -36,11 +36,7 @@ import {
 } from "../../../src/loop/plan-tickets.js";
 import { installGithubDouble, type GithubDoubleHandle } from "../../fixtures/github-double/install.js";
 import { makeSyntheticSecret, type SyntheticSecret } from "../../fixtures/synthetic-secret.js";
-import {
-  detectSecretEgress,
-  findSecretEgress,
-  makeAllSeeds,
-} from "../../unit/cf-inv-011/secret-egress-detector.js";
+import { detectSecretEgress, findSecretEgress, makeAllSeeds } from "../../unit/cf-inv-011/secret-egress-detector.js";
 
 function ticket(overrides: Partial<PlanTicket>): PlanTicket {
   return {
@@ -146,11 +142,7 @@ describe("CF-INV-011 — published issue bodies carry no secret (L2 on gh double
       expect(issues.length).toBe(2);
     }
     for (const issue of issues) {
-      detectSecretEgress(
-        `published issue #${issue.number}`,
-        `${issue.title}\n${issue.body}`,
-        seeds,
-      );
+      detectSecretEgress(`published issue #${issue.number}`, `${issue.title}\n${issue.body}`, seeds);
     }
 
     // The fix's pinned shape: a typed, loud refusal…
@@ -178,7 +170,11 @@ describe("CF-INV-011 — published issue bodies carry no secret (L2 on gh double
     // field (so a first-ticket-only or stop-at-first-create guard misses it),
     // and a LAST-ticket acceptance criterion (list-rendered, not paragraph
     // prose). Each placement uses a different seed kind.
-    const placements: ReadonlyArray<{ where: string; plant: (plan: TicketPlan, value: string) => void; kind: SyntheticSecret["kind"] }> = [
+    const placements: ReadonlyArray<{
+      where: string;
+      plant: (plan: TicketPlan, value: string) => void;
+      kind: SyntheticSecret["kind"];
+    }> = [
       {
         where: "first ticket title",
         kind: "sk-api-key",
@@ -212,13 +208,9 @@ describe("CF-INV-011 — published issue bodies carry no secret (L2 on gh double
       } catch (error) {
         refusal = error;
       }
-      expect(refusal, `no refusal for secret in ${placement.where}`).toBeInstanceOf(
-        TicketPublicationSecretError,
-      );
+      expect(refusal, `no refusal for secret in ${placement.where}`).toBeInstanceOf(TicketPublicationSecretError);
       const message = (refusal as TicketPublicationSecretError).message;
-      expect(message, `pattern kind not named for ${placement.where}`).toContain(
-        seed.expectedPatternName,
-      );
+      expect(message, `pattern kind not named for ${placement.where}`).toContain(seed.expectedPatternName);
       expect(message, `secret echoed for ${placement.where}`).not.toContain(seed.value);
       // All-or-nothing: after every refusal the remote is untouched — the
       // same double is reused across placements, so any create would persist
@@ -239,9 +231,7 @@ describe("CF-INV-011 — published issue bodies carry no secret (L2 on gh double
     const gh = new GhCliOps(handle.repo, handle.exec);
     const seeds = makeAllSeeds();
 
-    await expect(publishTickets(gh, seededPlan(seeds))).rejects.toThrow(
-      TicketPublicationSecretError,
-    );
+    await expect(publishTickets(gh, seededPlan(seeds))).rejects.toThrow(TicketPublicationSecretError);
     expect(handle.callLog().length).toBe(0); // refusal precedes the seam entirely
 
     const result = await publishTickets(gh, cleanPlan());
@@ -251,11 +241,7 @@ describe("CF-INV-011 — published issue bodies carry no secret (L2 on gh double
     expect(log.some((entry) => entry.op === "issue.create")).toBe(true);
     // And what actually published is clean per the family oracle.
     for (const issue of Object.values(handle.readState().issues)) {
-      detectSecretEgress(
-        `published issue #${issue.number}`,
-        `${issue.title}\n${issue.body}`,
-        seeds,
-      );
+      detectSecretEgress(`published issue #${issue.number}`, `${issue.title}\n${issue.body}`, seeds);
     }
   });
 

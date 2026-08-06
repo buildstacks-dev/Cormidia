@@ -29,13 +29,7 @@ import { isValidLoopScope } from "../memory.js";
 import { writeFileAtomic } from "../atomic.js";
 import { readCapsule, type ReplayCapsule } from "./capsule.js";
 import type { GraderKind } from "./eval-result.js";
-import {
-  optionalString,
-  requireEnum,
-  requireRecord,
-  requireString,
-  requireStringArray,
-} from "./validate.js";
+import { optionalString, requireEnum, requireRecord, requireString, requireStringArray } from "./validate.js";
 
 /** The deterministic build-outcome grader this module drafts fixtures
  *  against; gradeBuildOutcome() is its implementation. Versioned so a
@@ -131,9 +125,7 @@ export interface ConvertedFixture {
   trust_gaps: string[];
 }
 
-export async function convertCapsuleToEvalFixture(
-  options: ConvertCapsuleOptions,
-): Promise<ConvertedFixture> {
+export async function convertCapsuleToEvalFixture(options: ConvertCapsuleOptions): Promise<ConvertedFixture> {
   if (!isValidEvalSet(options.set)) {
     throw new Error(
       `learning: eval set "${options.set}" must be "<scope>/<set-name>" with the V1 scope ` +
@@ -164,11 +156,7 @@ export async function convertCapsuleToEvalFixture(
     // path: a pre-M5 fixture without the verbatim brief can never replay,
     // so redrafting to backfill it is allowed, and the redraft resets
     // validated_by (new content entered; a second actor must re-trust it).
-    if (
-      existing.validated_by !== null &&
-      existing.input.brief !== null &&
-      existing.input.brief !== undefined
-    ) {
+    if (existing.validated_by !== null && existing.input.brief !== null && existing.input.brief !== undefined) {
       throw new Error(
         `learning: ${existing.fixture_id} is already validated by ${existing.validated_by} — ` +
           `a trusted fixture is immutable; convert into a different set instead`,
@@ -221,10 +209,7 @@ function walkStrings(value: unknown, visit: (s: string) => string): unknown {
   if (Array.isArray(value)) return value.map((entry) => walkStrings(entry, visit));
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
-        key,
-        walkStrings(entry, visit),
-      ]),
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, walkStrings(entry, visit)]),
     );
   }
   return value;
@@ -347,9 +332,7 @@ export function gradeBuildOutcome(
     if (attempt.review_cycles === null) {
       reasons.push(`review_cycles: unknown (expected <= ${expected.review_cycles})`);
     } else if (attempt.review_cycles > expected.review_cycles) {
-      reasons.push(
-        `review_cycles: ${attempt.review_cycles} (expected <= ${expected.review_cycles})`,
-      );
+      reasons.push(`review_cycles: ${attempt.review_cycles} (expected <= ${expected.review_cycles})`);
     }
   }
   return { pass: reasons.length === 0, reasons };

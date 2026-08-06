@@ -101,11 +101,17 @@ export async function cmdApprovals(args: string[]): Promise<number> {
     }
     await rearmTicket(homes.orgHome, stateHome, decided);
     if (parsed.json) {
-      console.log(JSON.stringify({
-        schema_version: 1,
-        kind: "approval-decision",
-        item: approvalView(decided),
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            schema_version: 1,
+            kind: "approval-decision",
+            item: approvalView(decided),
+          },
+          null,
+          2,
+        ),
+      );
     } else {
       console.log(
         `${decided.decision} ${decided.id} by ${decided.decidedBy?.identity ?? "unknown"}` +
@@ -120,14 +126,20 @@ export async function cmdApprovals(args: string[]): Promise<number> {
       (item) => item.execution !== undefined || item.status === "expired",
     );
     if (parsed.json) {
-      console.log(JSON.stringify({
-        schema_version: 1,
-        kind: "approvals",
-        view: "status",
-        stateHome,
-        executionCount: executions.length,
-        executions: executions.map(approvalView),
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            schema_version: 1,
+            kind: "approvals",
+            view: "status",
+            stateHome,
+            executionCount: executions.length,
+            executions: executions.map(approvalView),
+          },
+          null,
+          2,
+        ),
+      );
     } else {
       printExecutionTable(executions);
     }
@@ -136,9 +148,12 @@ export async function cmdApprovals(args: string[]): Promise<number> {
 
   if (parsed.subcommand === "disposition") {
     if (parsed.id === undefined) throw new Error("approvals disposition: id required");
-    if (parsed.confirm !== parsed.id) throw new Error(`approvals disposition: --confirm must exactly match ${parsed.id}`);
-    if (parsed.disposition === undefined) throw new Error("approvals disposition: choose exactly one of --executed, --failed, or --retry");
-    if (parsed.reason === undefined || parsed.reason.trim() === "") throw new Error("approvals disposition: --reason is required");
+    if (parsed.confirm !== parsed.id)
+      throw new Error(`approvals disposition: --confirm must exactly match ${parsed.id}`);
+    if (parsed.disposition === undefined)
+      throw new Error("approvals disposition: choose exactly one of --executed, --failed, or --retry");
+    if (parsed.reason === undefined || parsed.reason.trim() === "")
+      throw new Error("approvals disposition: --reason is required");
     const item = await store.dispositionExecution({
       id: parsed.id,
       disposition: parsed.disposition,
@@ -147,13 +162,21 @@ export async function cmdApprovals(args: string[]): Promise<number> {
       now: parsed.now,
     });
     if (parsed.json) {
-      console.log(JSON.stringify({
-        schema_version: 1,
-        kind: "approval-disposition",
-        item: approvalView(item),
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            schema_version: 1,
+            kind: "approval-disposition",
+            item: approvalView(item),
+          },
+          null,
+          2,
+        ),
+      );
     } else {
-      console.log(`approval ${item.id} execution ${item.execution?.state ?? "untracked"}: ${item.execution?.nextAction ?? "none"}`);
+      console.log(
+        `approval ${item.id} execution ${item.execution?.state ?? "untracked"}: ${item.execution?.nextAction ?? "none"}`,
+      );
     }
     return 0;
   }
@@ -161,16 +184,22 @@ export async function cmdApprovals(args: string[]): Promise<number> {
   const pending = await store.listPending();
   const outstanding = (await store.listDecided()).filter(isOutstandingExecution);
   if (parsed.json) {
-    console.log(JSON.stringify({
-      schema_version: 1,
-      kind: "approvals",
-      view: "list",
-      stateHome,
-      pendingCount: pending.length,
-      pending,
-      outstandingCount: outstanding.length,
-      outstanding: outstanding.map(approvalView),
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          schema_version: 1,
+          kind: "approvals",
+          view: "list",
+          stateHome,
+          pendingCount: pending.length,
+          pending,
+          outstandingCount: outstanding.length,
+          outstanding: outstanding.map(approvalView),
+        },
+        null,
+        2,
+      ),
+    );
     return 0;
   }
   printTable(pending, parsed.now);
@@ -219,8 +248,7 @@ function parseArgs(args: string[]): ParsedArgs {
     else if (arg === "--approve" || arg === "--deny") {
       if (decision !== undefined) throw new Error("approvals decide: choose only one decision");
       decision = arg === "--approve" ? "approved" : "denied";
-    }
-    else if (arg === "--scope") {
+    } else if (arg === "--scope") {
       const kind = needValue(args, ++i, "--scope");
       if (kind !== "ticket" && kind !== "app") {
         throw new Error('approvals decide: --scope must be "ticket" or "app"');
@@ -228,17 +256,14 @@ function parseArgs(args: string[]): ParsedArgs {
       const path = args[i + 1];
       if (path !== undefined && !path.startsWith("--")) i += 1;
       scope = { kind, ...(path !== undefined && !path.startsWith("--") ? { pathContains: path } : {}) };
-    }
-    else if (arg === "--executed" || arg === "--failed" || arg === "--retry") {
+    } else if (arg === "--executed" || arg === "--failed" || arg === "--retry") {
       if (disposition !== undefined) throw new Error("approvals disposition: choose only one disposition");
       disposition = arg.slice(2) as ParsedArgs["disposition"];
-    }
-    else if (arg === "review") subcommand = "review";
+    } else if (arg === "review") subcommand = "review";
     else if (arg === "decide") {
       subcommand = "decide";
       id = needValue(args, ++i, "decide");
-    }
-    else if (arg === "show") {
+    } else if (arg === "show") {
       subcommand = "show";
       id = needValue(args, ++i, "show");
     } else if (arg === "revoke") {
@@ -269,7 +294,10 @@ function parseArgs(args: string[]): ParsedArgs {
 
 /** `a` = approve single-use; `a ticket [path]` / `a app [path]` = approve
  *  with an A1 scope; `d` = deny (reason follows); anything else skips. */
-function decisionFromAnswer(answer: string): { kind: "approve" | "deny" | "skip"; scope?: DecideApprovalInput["scope"] } {
+function decisionFromAnswer(answer: string): {
+  kind: "approve" | "deny" | "skip";
+  scope?: DecideApprovalInput["scope"];
+} {
   const parts = answer.trim().toLowerCase().split(/\s+/);
   const head = parts[0] ?? "";
   if (head === "d" || head === "deny") return { kind: "deny" };
@@ -448,20 +476,19 @@ function printTable(items: readonly ApprovalItem[], now: Date): void {
   console.log(`${items.length} pending`);
 }
 
-function printExecutionTable(
-  items: readonly ApprovalItem[],
-  countLabel = "execution record(s)",
-): void {
+function printExecutionTable(items: readonly ApprovalItem[], countLabel = "execution record(s)"): void {
   console.log("ID                       APP                  STATE       TRY ACTOR                    NEXT");
   for (const item of items) {
-    console.log([
-      item.id.padEnd(24),
-      item.app.padEnd(20),
-      displayedLifecycleState(item).padEnd(11),
-      String(item.execution?.attempts ?? 0).padStart(3),
-      (item.execution?.actor ?? "-").slice(0, 24).padEnd(24),
-      item.execution?.nextAction ?? "-",
-    ].join(" "));
+    console.log(
+      [
+        item.id.padEnd(24),
+        item.app.padEnd(20),
+        displayedLifecycleState(item).padEnd(11),
+        String(item.execution?.attempts ?? 0).padStart(3),
+        (item.execution?.actor ?? "-").slice(0, 24).padEnd(24),
+        item.execution?.nextAction ?? "-",
+      ].join(" "),
+    );
     if (item.execution?.result !== undefined) console.log(`  result: ${item.execution.result}`);
     if (item.execution?.state === "approved" && item.grantId !== undefined) {
       // The operator approved this because they wanted it to happen, so the
@@ -470,9 +497,9 @@ function printExecutionTable(
       console.log(
         item.execution.nextAction === "dispatch"
           ? `  waiting for execution: run \`cormidia dispatch\` (grant ${item.grantId}; ` +
-            `revoke with cormidia approvals revoke ${item.grantId} --confirm ${item.grantId})`
+              `revoke with cormidia approvals revoke ${item.grantId} --confirm ${item.grantId})`
           : `  unused grant: ${item.grantId}; only the raising turn can consume it — ` +
-            `revoke with cormidia approvals revoke ${item.grantId} --confirm ${item.grantId}`,
+              `revoke with cormidia approvals revoke ${item.grantId} --confirm ${item.grantId}`,
       );
     }
     if (item.execution?.failureCause !== undefined) console.log(`  cause: ${item.execution.failureCause}`);

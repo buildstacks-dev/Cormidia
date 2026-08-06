@@ -50,13 +50,7 @@ export type LearningEventType =
   | "late_outcome"
   | "publish_committed";
 
-export type LearningEmitter =
-  | "agent"
-  | "orchestrator"
-  | "verifier"
-  | "resolver"
-  | "publisher"
-  | "human";
+export type LearningEmitter = "agent" | "orchestrator" | "verifier" | "resolver" | "publisher" | "human";
 
 /** Metric-bearing events must come from these emitters (spec §4); agent
  *  self-reports are advisory distillation input only (design §10). */
@@ -179,9 +173,7 @@ export interface LearningEventReadResult {
   missingFiles: string[];
 }
 
-export async function readLearningEventsWithDiagnostics(
-  stateHome: string,
-): Promise<LearningEventReadResult> {
+export async function readLearningEventsWithDiagnostics(stateHome: string): Promise<LearningEventReadResult> {
   const events: LearningEvent[] = [];
   const missingFiles: string[] = [];
   for (const path of await listLearningEventFiles(stateHome)) {
@@ -207,9 +199,7 @@ export async function listLearningEventFiles(stateHome: string): Promise<string[
     .map((entry) => entry.name)
     .sort();
   for (const date of dates) {
-    const files = (await readdir(join(root, date)))
-      .filter((name) => name.endsWith(".jsonl"))
-      .sort();
+    const files = (await readdir(join(root, date))).filter((name) => name.endsWith(".jsonl")).sort();
     paths.push(...files.map((name) => join(root, date, name)));
   }
   return paths;

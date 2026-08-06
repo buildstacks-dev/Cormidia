@@ -52,9 +52,7 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
  * request, and never writes: the pi roster is the local model registry, and
  * the other two harnesses report unavailability rather than guessing.
  */
-export async function readRuntimeModelCatalog(
-  runtime: RuntimeKind,
-): Promise<RuntimeModelCatalog> {
+export async function readRuntimeModelCatalog(runtime: RuntimeKind): Promise<RuntimeModelCatalog> {
   if (runtime !== "pi") {
     return { runtime, available: false, reason: UNAVAILABLE_REASON[runtime]! };
   }
@@ -65,10 +63,7 @@ export async function readRuntimeModelCatalog(
     const modelsPath = join(getAgentDir(), "models.json");
     // An in-memory credential store: enumerating the roster needs no
     // credential, and the file-backed store would create and lock auth.json.
-    const registry = ModelRegistry.create(
-      AuthStorage.fromStorage(new InMemoryAuthStorageBackend()),
-      modelsPath,
-    );
+    const registry = ModelRegistry.create(AuthStorage.fromStorage(new InMemoryAuthStorageBackend()), modelsPath);
     const error = registry.getError();
     if (error !== undefined) {
       return { runtime, available: false, reason: `the pi model registry is invalid: ${error}` };
@@ -105,10 +100,7 @@ function piCatalogIdentifiers(models: readonly unknown[]): string[] {
  * perform: an explicit `provider/model` or `provider:model` selector, or a
  * bare model id.
  */
-export function modelServedByCatalog(
-  catalog: RuntimeModelCatalog,
-  model: string,
-): boolean {
+export function modelServedByCatalog(catalog: RuntimeModelCatalog, model: string): boolean {
   if (!catalog.available) return true;
   const served = new Set(catalog.models);
   if (served.has(model)) return true;
@@ -124,10 +116,7 @@ export function modelServedByCatalog(
  * unlisted pi id printed "is served by the pi adapter" directly above
  * "BLOCKED model_not_served" in the same block. The lookup decides the claim.
  */
-export function describeModelCatalogCheck(
-  catalog: RuntimeModelCatalog,
-  model: string,
-): string {
+export function describeModelCatalogCheck(catalog: RuntimeModelCatalog, model: string): string {
   if (!catalog.available) {
     return (
       `model catalog: WARNING ${model} is NOT VERIFIED against the ${catalog.runtime} adapter — ` +

@@ -74,34 +74,36 @@ export interface RunRoleResult {
 export async function runRole(request: RunRoleRequest): Promise<RunRoleResult> {
   const clock = request.clock ?? ((): Date => new Date());
   const context = request.context ?? { taste: [], memoryExcerpts: [] };
-  const brief = request.briefOverride ?? withAuthorityBrief(
-    assembleBrief(
-      {
-        ticket: {
-          title: `Manual role turn: ${request.role.name}`,
-          body: [
-            `Goal: run one ${request.role.name} turn, invoked directly by the human operator`,
-            `(cormidia run-role).`,
-            `Invocation identity: ${request.turnId ?? "(not supplied by this low-level caller)"}.`,
-            "Identity semantics: this is trace/session identity only; it is not a GitHub ticket " +
-              "number and does not bind the turn to a ticket.",
-            `App: ${request.app ?? "(none — org-level turn)"}`,
-            request.networkAccess === true
-              ? "Network access: allowed by explicit --allow-network."
-              : "Network access: denied by default; pass --allow-network only when this turn requires outbound access.",
-            "",
-            request.context === undefined
-              ? "Runtime context: no app context supplied; this brief carries the invocation only."
-              : `Runtime context: ${countLabel(context.taste.length, "taste layer")} and ` +
-                `${countLabel(context.memoryExcerpts.length, "memory excerpt")} supplied through the adapter context channel.`,
-          ].join("\n"),
+  const brief =
+    request.briefOverride ??
+    withAuthorityBrief(
+      assembleBrief(
+        {
+          ticket: {
+            title: `Manual role turn: ${request.role.name}`,
+            body: [
+              `Goal: run one ${request.role.name} turn, invoked directly by the human operator`,
+              `(cormidia run-role).`,
+              `Invocation identity: ${request.turnId ?? "(not supplied by this low-level caller)"}.`,
+              "Identity semantics: this is trace/session identity only; it is not a GitHub ticket " +
+                "number and does not bind the turn to a ticket.",
+              `App: ${request.app ?? "(none — org-level turn)"}`,
+              request.networkAccess === true
+                ? "Network access: allowed by explicit --allow-network."
+                : "Network access: denied by default; pass --allow-network only when this turn requires outbound access.",
+              "",
+              request.context === undefined
+                ? "Runtime context: no app context supplied; this brief carries the invocation only."
+                : `Runtime context: ${countLabel(context.taste.length, "taste layer")} and ` +
+                  `${countLabel(context.memoryExcerpts.length, "memory excerpt")} supplied through the adapter context channel.`,
+            ].join("\n"),
+          },
+          ...(request.workdir !== undefined ? { repo: `Working directory: ${request.workdir}` } : {}),
         },
-        ...(request.workdir !== undefined ? { repo: `Working directory: ${request.workdir}` } : {}),
-      },
-      { budgetTokens: request.briefBudgetTokens ?? DEFAULT_BRIEF_BUDGET_TOKENS },
-    ),
-    context,
-  );
+        { budgetTokens: request.briefBudgetTokens ?? DEFAULT_BRIEF_BUDGET_TOKENS },
+      ),
+      context,
+    );
 
   if (request.dryRun) {
     return { brief, executed: false };

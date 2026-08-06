@@ -20,11 +20,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import {
-  beginTicketClaim,
-  continueAfterApproval,
-  recoverInterruptedClaims,
-} from "../../../src/loop/claim-recovery.js";
+import { beginTicketClaim, continueAfterApproval, recoverInterruptedClaims } from "../../../src/loop/claim-recovery.js";
 import { GhCliOps } from "../../../src/loop/github.js";
 import { readTicketClaimState } from "../../../src/loop/rehydrate.js";
 import { ApprovalStore, actionHash, type ApprovalAction } from "../../../src/org/approvals.js";
@@ -162,9 +158,7 @@ describe("CF-J06-I — crash mid-resume; TTL expiry before resume (L2, HB-012)",
       },
     ];
     const lines = await recoverInterruptedClaims({ root, app: APP, gh: walk.gh, entries });
-    expect(lines).toContain(
-      `#${walk.issueNumber}: repaired approval decision projection -> op:ready`,
-    );
+    expect(lines).toContain(`#${walk.issueNumber}: repaired approval decision projection -> op:ready`);
     expect((await walk.gh.readIssue(walk.issueNumber)).labels).toEqual(["op:ready"]);
     const state = readTicketClaimState(root, APP, walk.issueNumber);
     expect(state.continuation).toMatchObject({ status: "ready", claimNumber: 1 });
@@ -348,9 +342,7 @@ await kp("provider_resumed");
         now: clock.nowDate(),
       }),
     ).toBeUndefined();
-    expect(() => store.consumeGrantSync(grant!.grantId, clock.nowDate())).toThrow(
-      /approval grant .+ is expired/,
-    );
+    expect(() => store.consumeGrantSync(grant!.grantId, clock.nowDate())).toThrow(/approval grant .+ is expired/);
 
     // BLOCKED:F-PT-008 (grant-expiry item disposition, validation-policy.yaml
     // → open_findings): whether expiry creates a fresh item, reopens the old

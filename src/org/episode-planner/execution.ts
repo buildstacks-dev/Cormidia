@@ -1,12 +1,6 @@
 import { existsSync } from "node:fs";
-import {
-  fixedAssignmentFromRole,
-  turnAssignmentsEqual,
-} from "../../runtime/assignment.js";
-import {
-  isRuntimeCapability,
-  type RuntimeCapability,
-} from "../../runtime/capabilities.js";
+import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../../runtime/assignment.js";
+import { isRuntimeCapability, type RuntimeCapability } from "../../runtime/capabilities.js";
 import { writeOutput } from "../../runtime/runlog/forensics.js";
 import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
 import {
@@ -17,14 +11,7 @@ import {
   type EnvelopeUsage,
   type RunEnvelope,
 } from "../../runtime/runlog/envelope.js";
-import type {
-  ContextBundle,
-  RoleConfig,
-  Runtime,
-  TurnAssignment,
-  TurnHooks,
-  TurnUsage,
-} from "../../runtime/types.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks, TurnUsage } from "../../runtime/types.js";
 import {
   finalizeEpisode,
   fingerprint,
@@ -69,10 +56,7 @@ import {
   planRouteLabel,
   routeAdmissionForEpisodePlan,
 } from "../../loop/episode-route.js";
-import {
-  admitPlannedEpisodeRoute,
-  assertPlannedEpisodeRevisionBudgetHeadroom,
-} from "../../loop/planner-admission.js";
+import { admitPlannedEpisodeRoute, assertPlannedEpisodeRevisionBudgetHeadroom } from "../../loop/planner-admission.js";
 import { executePipeline } from "../../loop/pipeline.js";
 import type { PipelineConfig } from "../../loop/pipelines.js";
 import type { TriggerKind } from "../../runtime/telemetry.js";
@@ -106,10 +90,7 @@ export interface ExecuteAcceptedEpisodePlanOptions {
   }) => ContextBundle | Promise<ContextBundle>;
   /** Domain-specific operation adapter. Ticket episodes inject the code-owned
    * operation/template/verdict bridge; generic episodes use the executor below. */
-  provider?: (
-    step: ProviderTurnStep,
-    execution: EpisodeStepExecutionContext,
-  ) => Promise<ProviderStepOutcome>;
+  provider?: (step: ProviderTurnStep, execution: EpisodeStepExecutionContext) => Promise<ProviderStepOutcome>;
   /** Domain answer to "can this provider step reach a terminal outcome from
    * durable evidence, without spending a new turn?" Consulted only by the
    * adopted-revision halt below: a step whose preserved prior material event
@@ -118,18 +99,12 @@ export interface ExecuteAcceptedEpisodePlanOptions {
    * that reconciles more than that (for example a blocked transport carrying a
    * done build verdict) declares it here from the same code the step handler
    * uses, so there is one source of truth. */
-  providerStepCompletableWithoutNewTurn?: (
-    step: ProviderTurnStep,
-    plan: EpisodePlan,
-  ) => Promise<boolean>;
+  providerStepCompletableWithoutNewTurn?: (step: ProviderTurnStep, plan: EpisodePlan) => Promise<boolean>;
   mechanical: (
     step: MechanicalGateStep,
     execution: EpisodeStepExecutionContext,
   ) => Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome>;
-  approval: (
-    step: ApprovalStep,
-    execution: EpisodeStepExecutionContext,
-  ) => Promise<ApprovalStepOutcome>;
+  approval: (step: ApprovalStep, execution: EpisodeStepExecutionContext) => Promise<ApprovalStepOutcome>;
   /** The turn's gate, built per role AND per sandbox cwd. The cwd is passed
    *  by the executor that actually runs the pass, because a builder ticket
    *  pass runs in the per-ticket worktree while the caller that wires this
@@ -146,9 +121,7 @@ export interface ExecuteAcceptedEpisodePlanOptions {
   /** Optional bounded coordinator for an actual future-only revision. The
    * common executor never manufactures a retry plan. Without this callback it
    * returns the durable pending request explicitly to its caller. */
-  proposeRevision?: (
-    input: EpisodePlanRevisionProposalRequest,
-  ) => Promise<EpisodePlanRevisionProposal>;
+  proposeRevision?: (input: EpisodePlanRevisionProposalRequest) => Promise<EpisodePlanRevisionProposal>;
   /** A domain with its own typed request/publication transaction may retain
    * that authority; every other execution uses the common failure handoff. */
   replanAuthority?: "executor" | "caller";
@@ -186,10 +159,7 @@ export class EpisodeProviderReconciliationRequiredError extends Error {
     readonly episodeId: string,
     readonly executionStepIds: readonly string[],
   ) {
-    super(
-      `episode ${episodeId} still has live provider reservation(s): ` +
-        executionStepIds.join(", "),
-    );
+    super(`episode ${episodeId} still has live provider reservation(s): ` + executionStepIds.join(", "));
     this.name = "EpisodeProviderReconciliationRequiredError";
   }
 }
@@ -201,10 +171,7 @@ export async function executeAcceptedEpisodePlan(
   options: ExecuteAcceptedEpisodePlanOptions,
 ): Promise<AcceptedEpisodePlanExecutionResult> {
   assertInvocation(options);
-  const persistedIntent = await readPersistedEpisodeIntent(
-    options.root,
-    options.plan.episodeId,
-  );
+  const persistedIntent = await readPersistedEpisodeIntent(options.root, options.plan.episodeId);
   if (persistedIntent === undefined) {
     throw new Error(`episode ${options.plan.episodeId} has no immutable intent`);
   }
@@ -267,18 +234,17 @@ async function executePlanVersion(
         (receipt) => recoverProviderUsage(options.root, receipt, clock),
       );
       if (reconciled.inFlight.length > 0) {
-        throw new EpisodeProviderReconciliationRequiredError(
-          plan.episodeId,
-          reconciled.inFlight,
-        );
+        throw new EpisodeProviderReconciliationRequiredError(plan.episodeId, reconciled.inFlight);
       }
       await repairTerminalProviderEvidence(versionOptions, clock());
-      await admitPlannedEpisodeRoute(routeAdmissionForEpisodePlan({
-        root: options.root,
-        intent: options.intent,
-        plan,
-        now: clock(),
-      }));
+      await admitPlannedEpisodeRoute(
+        routeAdmissionForEpisodePlan({
+          root: options.root,
+          intent: options.intent,
+          plan,
+          now: clock(),
+        }),
+      );
     },
     afterCompletion: async () => {
       await finalizeEpisode({
@@ -317,11 +283,11 @@ async function executePlanVersion(
     ...(repairedStepIds === undefined
       ? {}
       : {
-        haltBeforeNewProviderTurn: async (step: EpisodeStep) =>
-          step.kind === "provider_turn" &&
-          repairedStepIds.includes(step.id) &&
-          !(await completableWithoutNewProviderTurn(versionOptions, plan, step)),
-      }),
+          haltBeforeNewProviderTurn: async (step: EpisodeStep) =>
+            step.kind === "provider_turn" &&
+            repairedStepIds.includes(step.id) &&
+            !(await completableWithoutNewProviderTurn(versionOptions, plan, step)),
+        }),
     now: clock,
   });
 }
@@ -335,15 +301,9 @@ const FAILED_GATE_REASONS = new Set([
   "ticket_ship_check_findings",
 ]);
 
-const ESTIMATE_EXHAUSTED_REASONS = new Set([
-  "error_route_budget_exhausted",
-  "error_route_budget_unmeasured",
-]);
+const ESTIMATE_EXHAUSTED_REASONS = new Set(["error_route_budget_exhausted", "error_route_budget_unmeasured"]);
 
-const ASSIGNMENT_UNAVAILABLE_REASONS = new Set([
-  "error_adapter_transport_unavailable",
-  "plan_assignment_unavailable",
-]);
+const ASSIGNMENT_UNAVAILABLE_REASONS = new Set(["error_adapter_transport_unavailable", "plan_assignment_unavailable"]);
 
 async function requestMaterialFailureReplan(
   options: ExecuteAcceptedEpisodePlanOptions,
@@ -357,21 +317,16 @@ async function requestMaterialFailureReplan(
   // here would manufacture a new accepted plan that cannot lawfully execute
   // and would obscure the exact ratification path.
   if (result.reasonCode === "refused_ticket_budget") return undefined;
-  const journal = await readEpisodePlanExecutionJournal(
-    options.root,
-    options.plan.episodeId,
+  const journal = await readEpisodePlanExecutionJournal(options.root, options.plan.episodeId);
+  const terminal = journal?.events.findLast(
+    (event) =>
+      event.plan_version === options.plan.version &&
+      event.kind !== "plan_adopted" &&
+      event.step_id === result.nextStepId &&
+      (event.kind === "step_failed" || event.kind === "approval_denied"),
   );
-  const terminal = journal?.events.findLast((event) =>
-    event.plan_version === options.plan.version &&
-    event.kind !== "plan_adopted" &&
-    event.step_id === result.nextStepId &&
-    (event.kind === "step_failed" || event.kind === "approval_denied"),
-  );
-  if (terminal === undefined ||
-      (terminal.kind !== "step_failed" && terminal.kind !== "approval_denied")) {
-    throw new Error(
-      `failed EpisodePlan v${options.plan.version} has no durable typed terminal event`,
-    );
+  if (terminal === undefined || (terminal.kind !== "step_failed" && terminal.kind !== "approval_denied")) {
+    throw new Error(`failed EpisodePlan v${options.plan.version} has no durable typed terminal event`);
   }
   const kind = replanKindForFailure(result.status, terminal.reason_code);
   const requestId = `execution-${fingerprint({
@@ -397,10 +352,7 @@ async function requestMaterialFailureReplan(
   });
   if (options.proposeRevision === undefined) return { record: request };
 
-  const persistedIntent = await readPersistedEpisodeIntent(
-    options.root,
-    options.plan.episodeId,
-  );
+  const persistedIntent = await readPersistedEpisodeIntent(options.root, options.plan.episodeId);
   if (persistedIntent === undefined) {
     throw new Error(`episode ${options.plan.episodeId} has no immutable intent for replanning`);
   }
@@ -410,13 +362,8 @@ async function requestMaterialFailureReplan(
       previousPlan: structuredClone(options.plan),
       replan: structuredClone(request),
     });
-    if (
-      proposal.plan.episodeId !== options.plan.episodeId ||
-      proposal.plan.version !== options.plan.version + 1
-    ) {
-      throw new Error(
-        `revision proposal must target ${options.plan.episodeId} v${options.plan.version + 1}`,
-      );
+    if (proposal.plan.episodeId !== options.plan.episodeId || proposal.plan.version !== options.plan.version + 1) {
+      throw new Error(`revision proposal must target ${options.plan.episodeId} v${options.plan.version + 1}`);
     }
     await assertPlannedEpisodeRevisionBudgetHeadroom({
       root: options.root,
@@ -480,22 +427,19 @@ function replanKindForFailure(
  * terminal execution record but whose process died before the parent run and
  * ledger were finalized. The provider execution record is authoritative; no
  * adapter is reconstructed and no assignment substitution is possible. */
-async function repairTerminalProviderEvidence(
-  options: ExecuteAcceptedEpisodePlanOptions,
-  now: Date,
-): Promise<void> {
+async function repairTerminalProviderEvidence(options: ExecuteAcceptedEpisodePlanOptions, now: Date): Promise<void> {
   const providerSteps = new Map(
     options.plan.steps
       .filter((step): step is ProviderTurnStep => step.kind === "provider_turn")
       .map((step) => [step.id, step]),
   );
-  const records = (await readExecutionSteps(options.root, options.plan.episodeId))
-    .filter((record) =>
+  const records = (await readExecutionSteps(options.root, options.plan.episodeId)).filter(
+    (record) =>
       record.kind === "provider" &&
       record.plan_version === options.plan.version &&
       record.plan_step_id !== undefined &&
       providerSteps.has(record.plan_step_id),
-    );
+  );
   for (const record of records) {
     const step = providerSteps.get(record.plan_step_id!);
     if (step === undefined) continue;
@@ -514,9 +458,7 @@ async function repairTerminalProviderEvidence(
       if (envelope.status === "running") {
         await updateEnvelope(options.root, record.app, record.run_id, {
           ...(record.usage === null ? {} : { usage: envelopeUsage(record.usage) }),
-          ...(record.provider_turn_id === null
-            ? {}
-            : { providerTurnIds: [record.provider_turn_id] }),
+          ...(record.provider_turn_id === null ? {} : { providerTurnIds: [record.provider_turn_id] }),
           executionStepIds: [record.execution_step_id],
           previews: { output: record.reason },
         });
@@ -550,11 +492,7 @@ async function repairTerminalProviderEvidence(
   }
 }
 
-async function readEnvelopeIfPresent(
-  root: string,
-  app: string,
-  runId: string,
-): Promise<RunEnvelope | undefined> {
+async function readEnvelopeIfPresent(root: string, app: string, runId: string): Promise<RunEnvelope | undefined> {
   try {
     return await readEnvelope(root, app, runId);
   } catch (error) {
@@ -578,15 +516,11 @@ function assertEnvelopeMatchesTerminalProvider(
     envelope.effort !== step.assignment.effort ||
     envelope.assignment_source !== step.assignmentSource
   ) {
-    throw new Error(
-      `run envelope ${record.run_id} differs from terminal provider evidence for ${step.id}`,
-    );
+    throw new Error(`run envelope ${record.run_id} differs from terminal provider evidence for ${step.id}`);
   }
 }
 
-function envelopeStatusForExecution(
-  status: ExecutionStepRecord["status"],
-): Exclude<EnvelopeStatus, "running"> {
+function envelopeStatusForExecution(status: ExecutionStepRecord["status"]): Exclude<EnvelopeStatus, "running"> {
   if (status === "completed") return "completed";
   if (status === "blocked") return "blocked";
   if (status === "cancelled") return "cancelled";
@@ -602,12 +536,8 @@ function envelopeUsage(usage: TurnUsage): EnvelopeUsage {
     subagent_turns: usage.subagentTurns,
     quality: usage.quality ?? (usage.costEstimated === true ? "estimated" : "complete"),
     ...(usage.costEstimated === true ? { cost_estimated: true } : {}),
-    ...(usage.cacheReadTokens === undefined
-      ? {}
-      : { cache_read_tokens: usage.cacheReadTokens }),
-    ...(usage.cacheCreationTokens === undefined
-      ? {}
-      : { cache_write_tokens: usage.cacheCreationTokens }),
+    ...(usage.cacheReadTokens === undefined ? {} : { cache_read_tokens: usage.cacheReadTokens }),
+    ...(usage.cacheCreationTokens === undefined ? {} : { cache_write_tokens: usage.cacheCreationTokens }),
   };
 }
 
@@ -618,26 +548,18 @@ async function recoverProviderUsage(
 ): Promise<TurnUsage | undefined> {
   try {
     const envelope = await readEnvelope(root, receipt.app, receipt.run_id);
-    if (
-      !envelope.provider_turn_ids?.includes(receipt.provider_turn_id) ||
-      envelope.usage === undefined
-    ) return undefined;
+    if (!envelope.provider_turn_ids?.includes(receipt.provider_turn_id) || envelope.usage === undefined)
+      return undefined;
     const observedAt = envelope.last_seen_at ?? envelope.finished_at ?? clock().toISOString();
     return {
       tokensIn: envelope.usage.tokens_in,
       tokensOut: envelope.usage.tokens_out,
       costUsd: envelope.usage.cost_usd,
       subagentTurns: envelope.usage.subagent_turns ?? 0,
-      wallClockMs: Math.max(
-        0,
-        new Date(observedAt).getTime() - new Date(receipt.started_at).getTime(),
-      ),
-      quality: envelope.usage.quality ??
-        (envelope.usage.cost_estimated ? "estimated" : "partial"),
+      wallClockMs: Math.max(0, new Date(observedAt).getTime() - new Date(receipt.started_at).getTime()),
+      quality: envelope.usage.quality ?? (envelope.usage.cost_estimated ? "estimated" : "partial"),
       ...(envelope.usage.cost_estimated === true ? { costEstimated: true } : {}),
-      ...(envelope.usage.cache_read_tokens === undefined
-        ? {}
-        : { cacheReadTokens: envelope.usage.cache_read_tokens }),
+      ...(envelope.usage.cache_read_tokens === undefined ? {} : { cacheReadTokens: envelope.usage.cache_read_tokens }),
       ...(envelope.usage.cache_write_tokens === undefined
         ? {}
         : { cacheCreationTokens: envelope.usage.cache_write_tokens }),
@@ -667,8 +589,7 @@ async function executeProviderStep(
     pipeline,
     selection: { tier: planRouteLabel(options.plan) },
     roles: { [role.name]: role },
-    runtimeFor: (selected) =>
-      options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
+    runtimeFor: (selected) => options.runtimeForAssignment(fixedAssignmentFromRole(selected), role),
     runtimeForAssignment: options.runtimeForAssignment,
     briefFor: () => renderProviderStepBrief(options.plan, step),
     promptsDir: ".",
@@ -708,9 +629,7 @@ async function executeProviderStep(
     ...(options.parentTaskId === undefined ? {} : { parentTaskId: options.parentTaskId }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.networkAccess === true ? { networkAccess: true } : {}),
-    ...(options.contextBudgetBytes === undefined
-      ? {}
-      : { contextBudgetBytes: options.contextBudgetBytes }),
+    ...(options.contextBudgetBytes === undefined ? {} : { contextBudgetBytes: options.contextBudgetBytes }),
     ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
     clock,
   });
@@ -760,9 +679,7 @@ async function adaptiveAssignmentReadinessFailure(
   const readiness = await probeSelectedAssignmentReadiness({
     assignment: step.assignment,
     probe: options.assignmentReadinessProbe,
-    ...(options.assignmentReadinessTimeoutMs === undefined
-      ? {}
-      : { timeoutMs: options.assignmentReadinessTimeoutMs }),
+    ...(options.assignmentReadinessTimeoutMs === undefined ? {} : { timeoutMs: options.assignmentReadinessTimeoutMs }),
   });
   if (readiness.status === "ready") return undefined;
   return {
@@ -786,12 +703,9 @@ async function terminalProviderEvidence(
   planVersion: number,
   stepId: string,
 ): Promise<Awaited<ReturnType<typeof readExecutionSteps>>[number] | undefined> {
-  const terminal = (await readExecutionSteps(root, episodeId))
-    .filter((record) =>
-      record.kind === "provider" &&
-      record.plan_version === planVersion &&
-      record.plan_step_id === stepId,
-    );
+  const terminal = (await readExecutionSteps(root, episodeId)).filter(
+    (record) => record.kind === "provider" && record.plan_version === planVersion && record.plan_step_id === stepId,
+  );
   if (terminal.length > 1) {
     throw new Error(`plan step ${stepId} has ${terminal.length} terminal provider executions`);
   }
@@ -807,12 +721,7 @@ async function completableWithoutNewProviderTurn(
   plan: EpisodePlan,
   step: ProviderTurnStep,
 ): Promise<boolean> {
-  const terminal = await terminalProviderEvidence(
-    options.root,
-    plan.episodeId,
-    plan.version,
-    step.id,
-  );
+  const terminal = await terminalProviderEvidence(options.root, plan.episodeId, plan.version, step.id);
   if (terminal !== undefined) return true;
   if (options.providerStepCompletableWithoutNewTurn === undefined) return false;
   return options.providerStepCompletableWithoutNewTurn(step, plan);
@@ -823,23 +732,14 @@ async function priorProviderEvidence(
   step: ProviderTurnStep,
   execution: EpisodeStepExecutionContext,
 ): Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome | undefined> {
-  const prior = await terminalProviderEvidence(
-    options.root,
-    options.plan.episodeId,
-    execution.planVersion,
-    step.id,
-  );
+  const prior = await terminalProviderEvidence(options.root, options.plan.episodeId, execution.planVersion, step.id);
   if (prior !== undefined) return outcomeFromEvidence(prior, step);
 
-  const pending = (await readPendingProviderSteps(options.root, options.plan.episodeId))
-    .filter((receipt) =>
-      receipt.plan_version === execution.planVersion &&
-      receipt.plan_step_id === step.id,
-    );
+  const pending = (await readPendingProviderSteps(options.root, options.plan.episodeId)).filter(
+    (receipt) => receipt.plan_version === execution.planVersion && receipt.plan_step_id === step.id,
+  );
   if (pending.length > 0) {
-    throw new Error(
-      `plan step ${step.id} has an in-flight provider reservation; reconcile or resume it before retry`,
-    );
+    throw new Error(`plan step ${step.id} has an in-flight provider reservation; reconcile or resume it before retry`);
   }
   return undefined;
 }
@@ -853,10 +753,7 @@ function outcomeFromEvidence(
     record.runtime === null ||
     record.model === null ||
     record.effort === null ||
-    !turnAssignmentsEqual(
-      { harness: record.runtime, model: record.model, effort: record.effort },
-      step.assignment,
-    ) ||
+    !turnAssignmentsEqual({ harness: record.runtime, model: record.model, effort: record.effort }, step.assignment) ||
     record.assignment_source !== step.assignmentSource
   ) {
     throw new Error(`terminal provider evidence for ${step.id} differs from its accepted plan`);
@@ -881,16 +778,17 @@ function exactAuthorization(
   step: ProviderTurnStep,
   execution: EpisodeStepExecutionContext,
 ): AuthorizedPass {
-  const matches = passes.filter((pass) =>
-    pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
-    pass.pass === step.id &&
-    pass.role === step.role &&
-    pass.plan_version === execution.planVersion &&
-    pass.plan_step_id === step.id &&
-    pass.runtime === step.assignment.harness &&
-    pass.model === step.assignment.model &&
-    pass.effort === step.assignment.effort &&
-    pass.assignment_source === step.assignmentSource,
+  const matches = passes.filter(
+    (pass) =>
+      pass.pipeline === EPISODE_PLAN_EXECUTION_PIPELINE &&
+      pass.pass === step.id &&
+      pass.role === step.role &&
+      pass.plan_version === execution.planVersion &&
+      pass.plan_step_id === step.id &&
+      pass.runtime === step.assignment.harness &&
+      pass.model === step.assignment.model &&
+      pass.effort === step.assignment.effort &&
+      pass.assignment_source === step.assignmentSource,
   );
   if (matches.length !== 1) {
     throw new Error(`provider step ${step.id} must have exactly one durable route authorization`);
@@ -899,10 +797,9 @@ function exactAuthorization(
 }
 
 function providerRuntimeCapabilities(step: ProviderTurnStep): RuntimeCapability[] {
-  return [...new Set([
-    ...BASELINE_PROVIDER_CAPABILITIES,
-    ...step.requiredCapabilities.filter(isRuntimeCapability),
-  ])].sort();
+  return [
+    ...new Set([...BASELINE_PROVIDER_CAPABILITIES, ...step.requiredCapabilities.filter(isRuntimeCapability)]),
+  ].sort();
 }
 
 function renderProviderStepBrief(plan: EpisodePlan, step: ProviderTurnStep): string {
@@ -920,11 +817,7 @@ function renderProviderStepBrief(plan: EpisodePlan, step: ProviderTurnStep): str
   ].join("\n");
 }
 
-function stableRunId(
-  plan: EpisodePlan,
-  step: ProviderTurnStep,
-  execution: EpisodeStepExecutionContext,
-): string {
+function stableRunId(plan: EpisodePlan, step: ProviderTurnStep, execution: EpisodeStepExecutionContext): string {
   return mintRunId(
     new Date(plan.createdAt),
     EPISODE_PLAN_EXECUTION_PIPELINE,

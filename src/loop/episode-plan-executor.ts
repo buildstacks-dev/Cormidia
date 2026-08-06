@@ -4,11 +4,7 @@ import { join } from "node:path";
 import { withFileLock, type FileLockOptions } from "../runtime/file-lock.js";
 import { turnAssignmentsEqual } from "../runtime/assignment.js";
 import { writeLoopFileAtomic } from "./durable.js";
-import {
-  efficiencyEpisodeDir,
-  readExecutionSteps,
-  settledProviderSteps,
-} from "./efficiency.js";
+import { efficiencyEpisodeDir, readExecutionSteps, settledProviderSteps } from "./efficiency.js";
 import {
   episodePlanHash,
   episodePlanMutationLockPath,
@@ -38,12 +34,7 @@ const DEFAULT_LOCK_OPTIONS: FileLockOptions = {
   retryMaxMs: 60,
 };
 
-export type EpisodePlanExecutionStatus =
-  | "running"
-  | "waiting_approval"
-  | "denied"
-  | "failed"
-  | "completed";
+export type EpisodePlanExecutionStatus = "running" | "waiting_approval" | "denied" | "failed" | "completed";
 
 export type EpisodeStepKind = EpisodeStep["kind"];
 
@@ -211,10 +202,7 @@ export type EpisodeStepSuspendedOutcome = {
   summary: string;
 };
 
-export type ProviderStepOutcome =
-  | EpisodeStepCompletedOutcome
-  | EpisodeStepFailedOutcome
-  | EpisodeStepSuspendedOutcome;
+export type ProviderStepOutcome = EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome | EpisodeStepSuspendedOutcome;
 
 export type ApprovalStepOutcome =
   | EpisodeStepCompletedOutcome
@@ -235,18 +223,12 @@ export type ApprovalStepOutcome =
 type StepOutcome = ApprovalStepOutcome | EpisodeStepSuspendedOutcome;
 
 export interface EpisodePlanStepHandlers {
-  provider(
-    step: ProviderTurnStep,
-    context: EpisodeStepExecutionContext,
-  ): Promise<ProviderStepOutcome>;
+  provider(step: ProviderTurnStep, context: EpisodeStepExecutionContext): Promise<ProviderStepOutcome>;
   mechanical(
     step: MechanicalGateStep,
     context: EpisodeStepExecutionContext,
   ): Promise<EpisodeStepCompletedOutcome | EpisodeStepFailedOutcome>;
-  approval(
-    step: ApprovalStep,
-    context: EpisodeStepExecutionContext,
-  ): Promise<ApprovalStepOutcome>;
+  approval(step: ApprovalStep, context: EpisodeStepExecutionContext): Promise<ApprovalStepOutcome>;
 }
 
 export interface ExecuteEpisodePlanOptions {
@@ -346,9 +328,7 @@ export async function readEpisodePlanExecutionJournal(
 }
 
 /** Completed ids are derived only from durable terminal events. */
-export function completedEpisodePlanStepIds(
-  journal: EpisodePlanExecutionJournal,
-): string[] {
+export function completedEpisodePlanStepIds(journal: EpisodePlanExecutionJournal): string[] {
   assertJournalLifecycle(journal);
   return [...completedEvents(journal).keys()].sort((left, right) => left.localeCompare(right));
 }
@@ -358,9 +338,7 @@ export function completedEpisodePlanStepIds(
  * work is intentionally deterministic here; parallelism can be added above
  * this boundary only with a separate, explicit concurrency policy.
  */
-export async function executeEpisodePlan(
-  options: ExecuteEpisodePlanOptions,
-): Promise<EpisodePlanExecutionResult> {
+export async function executeEpisodePlan(options: ExecuteEpisodePlanOptions): Promise<EpisodePlanExecutionResult> {
   const maxSteps = options.maxSteps ?? Number.MAX_SAFE_INTEGER;
   if (!Number.isSafeInteger(maxSteps) || maxSteps < 0) {
     throw new EpisodePlanExecutionError(
@@ -426,14 +404,15 @@ async function executeLocked(
     }
 
     const active = activeStartedEvent(journal);
-    const step = active === undefined
-      ? nextStep(journal, options.plan, completed)
-      : currentStepForActive(options.plan, planHash, active, completed);
+    const step =
+      active === undefined
+        ? nextStep(journal, options.plan, completed)
+        : currentStepForActive(options.plan, planHash, active, completed);
     if (
       options.haltBeforeNewProviderTurn !== undefined &&
       active === undefined &&
       step.kind === "provider_turn" &&
-      await options.haltBeforeNewProviderTurn(step)
+      (await options.haltBeforeNewProviderTurn(step))
     ) {
       return result(journal, options.plan, planHash, step.id, lastStepId);
     }
@@ -522,10 +501,7 @@ async function hasMatchingTerminalProviderEvidence(
   // Parked turns are excluded: they are terminal EXECUTION records but not
   // step evidence, and a step legitimately accumulates one per budget grant.
   const matching = settledProviderSteps(await readExecutionSteps(root, plan.episodeId)).filter(
-    (record) =>
-      record.kind === "provider" &&
-      record.plan_version === plan.version &&
-      record.plan_step_id === step.id,
+    (record) => record.kind === "provider" && record.plan_version === plan.version && record.plan_step_id === step.id,
   );
   if (matching.length > 1) {
     throw new EpisodePlanExecutionError(
@@ -540,10 +516,7 @@ async function hasMatchingTerminalProviderEvidence(
     record.runtime === null ||
     record.model === null ||
     record.effort === null ||
-    !turnAssignmentsEqual(
-      { harness: record.runtime, model: record.model, effort: record.effort },
-      step.assignment,
-    ) ||
+    !turnAssignmentsEqual({ harness: record.runtime, model: record.model, effort: record.effort }, step.assignment) ||
     record.assignment_source !== step.assignmentSource
   ) {
     throw new EpisodePlanExecutionError(
@@ -648,10 +621,7 @@ async function adoptCurrentPlan(
   return updated;
 }
 
-function assertCompletedStepsPreserved(
-  journal: EpisodePlanExecutionJournal,
-  plan: EpisodePlan,
-): void {
+function assertCompletedStepsPreserved(journal: EpisodePlanExecutionJournal, plan: EpisodePlan): void {
   const byId = new Map(plan.steps.map((step) => [step.id, step]));
   for (const [stepId, event] of completedEvents(journal)) {
     const step = byId.get(stepId);
@@ -684,11 +654,7 @@ function assertCompletedOutputArtifacts(step: EpisodeStep, event: StepCompletedE
   }
 }
 
-function assertJournalMatchesPlan(
-  journal: EpisodePlanExecutionJournal,
-  plan: EpisodePlan,
-  planHash: string,
-): void {
+function assertJournalMatchesPlan(journal: EpisodePlanExecutionJournal, plan: EpisodePlan, planHash: string): void {
   if (
     journal.episode_id !== plan.episodeId ||
     journal.current_plan_version !== plan.version ||
@@ -714,10 +680,7 @@ function nextStep(
     // because it was suspended, never because an approval step went pending.
     const parkedBy = latestPlanEventFor(journal, plan.version, journal.blocked_step_id);
     const expectedKind = parkedBy?.kind === "step_suspended" ? "provider_turn" : "approval";
-    if (
-      parked?.kind !== expectedKind ||
-      !parked.dependsOn.every((id) => completed.has(id))
-    ) {
+    if (parked?.kind !== expectedKind || !parked.dependsOn.every((id) => completed.has(id))) {
       throw new EpisodePlanExecutionError(
         "error_episode_plan_execution_dependency_failed",
         `parked step ${journal.blocked_step_id} no longer has a valid completed dependency set`,
@@ -879,15 +842,16 @@ function applyTerminalEvent(
   journal: EpisodePlanExecutionJournal,
   event: TerminalStepEvent,
 ): EpisodePlanExecutionJournal {
-  const status: EpisodePlanExecutionStatus = event.kind === "step_completed"
-    ? "running"
-    : event.kind === "step_failed"
-      ? "failed"
-      // A budget suspension parks exactly like a pending approval: both are
-      // "this step is open and waiting on a human decision".
-      : event.kind === "approval_pending" || event.kind === "step_suspended"
-        ? "waiting_approval"
-        : "denied";
+  const status: EpisodePlanExecutionStatus =
+    event.kind === "step_completed"
+      ? "running"
+      : event.kind === "step_failed"
+        ? "failed"
+        : // A budget suspension parks exactly like a pending approval: both are
+          // "this step is open and waiting on a human decision".
+          event.kind === "approval_pending" || event.kind === "step_suspended"
+          ? "waiting_approval"
+          : "denied";
   return {
     ...journal,
     status,
@@ -944,11 +908,15 @@ function blockingResult(
       `${journal.status} journal has no blocked step`,
     );
   }
-  const event = [...journal.events].reverse().find((candidate) =>
-    candidate.kind !== "plan_adopted" &&
-    candidate.plan_version === plan.version &&
-    candidate.step_id === stepId &&
-    (candidate.kind === "step_failed" || candidate.kind === "approval_denied"));
+  const event = [...journal.events]
+    .reverse()
+    .find(
+      (candidate) =>
+        candidate.kind !== "plan_adopted" &&
+        candidate.plan_version === plan.version &&
+        candidate.step_id === stepId &&
+        (candidate.kind === "step_failed" || candidate.kind === "approval_denied"),
+    );
   if (event === undefined || (event.kind !== "step_failed" && event.kind !== "approval_denied")) {
     throw new EpisodePlanExecutionError(
       "error_episode_plan_execution_dependency_failed",
@@ -996,8 +964,9 @@ function newJournal(plan: EpisodePlan, planHash: string, now: Date): EpisodePlan
 }
 
 function attemptsFor(journal: EpisodePlanExecutionJournal, planVersion: number, stepId: string): number {
-  return journal.events.filter((event) =>
-    event.kind === "step_started" && event.plan_version === planVersion && event.step_id === stepId).length;
+  return journal.events.filter(
+    (event) => event.kind === "step_started" && event.plan_version === planVersion && event.step_id === stepId,
+  ).length;
 }
 
 function completedEvents(journal: EpisodePlanExecutionJournal): Map<string, StepCompletedEvent> {
@@ -1023,20 +992,29 @@ function latestPlanEventFor(
   planVersion: number,
   stepId: string,
 ): TerminalStepEvent | undefined {
-  return [...journal.events].reverse().find((event): event is TerminalStepEvent =>
-    event.kind !== "plan_adopted" &&
-    event.kind !== "step_started" &&
-    event.plan_version === planVersion &&
-    event.step_id === stepId);
+  return [...journal.events]
+    .reverse()
+    .find(
+      (event): event is TerminalStepEvent =>
+        event.kind !== "plan_adopted" &&
+        event.kind !== "step_started" &&
+        event.plan_version === planVersion &&
+        event.step_id === stepId,
+    );
 }
 
 function activeStartedEvent(journal: EpisodePlanExecutionJournal): StepStartedEvent | undefined {
-  const terminalIds = new Set(journal.events.flatMap((event) =>
-    event.kind === "step_completed" || event.kind === "step_failed" ||
-    event.kind === "approval_pending" || event.kind === "approval_denied" ||
-    event.kind === "step_suspended"
-      ? [event.execution_id]
-      : []));
+  const terminalIds = new Set(
+    journal.events.flatMap((event) =>
+      event.kind === "step_completed" ||
+      event.kind === "step_failed" ||
+      event.kind === "approval_pending" ||
+      event.kind === "approval_denied" ||
+      event.kind === "step_suspended"
+        ? [event.execution_id]
+        : [],
+    ),
+  );
   const active = journal.events.filter(
     (event): event is StepStartedEvent => event.kind === "step_started" && !terminalIds.has(event.execution_id),
   );
@@ -1071,7 +1049,8 @@ function assertJournalLifecycle(journal: EpisodePlanExecutionJournal): void {
     if (event.kind === "step_started") {
       if (starts.has(event.execution_id)) corrupt(`duplicate start ${event.execution_id}`);
       const stepKey = `${event.plan_version}\0${event.step_id}`;
-      if (completed.has(stepKey)) corrupt(`completed step ${event.step_id} was started again in plan v${event.plan_version}`);
+      if (completed.has(stepKey))
+        corrupt(`completed step ${event.step_id} was started again in plan v${event.plan_version}`);
       const expectedAttempt = (attempts.get(stepKey) ?? 0) + 1;
       if (event.attempt !== expectedAttempt) {
         corrupt(`step ${event.step_id} attempt ${event.attempt} is not contiguous; expected ${expectedAttempt}`);
@@ -1110,24 +1089,32 @@ function assertJournalLifecycle(journal: EpisodePlanExecutionJournal): void {
   if (active !== undefined && (journal.status !== "running" || journal.blocked_step_id !== null)) {
     corrupt(`unterminated execution ${active.execution_id} has inconsistent journal status`);
   }
-  const currentEvents = journal.events.filter((event) =>
-    event.kind !== "plan_adopted" && event.plan_version === journal.current_plan_version);
+  const currentEvents = journal.events.filter(
+    (event) => event.kind !== "plan_adopted" && event.plan_version === journal.current_plan_version,
+  );
   const latest = currentEvents.at(-1);
-  if (journal.status === "waiting_approval" &&
-      ((latest?.kind !== "approval_pending" && latest?.kind !== "step_suspended") ||
-        latest.step_id !== journal.blocked_step_id)) {
+  if (
+    journal.status === "waiting_approval" &&
+    ((latest?.kind !== "approval_pending" && latest?.kind !== "step_suspended") ||
+      latest.step_id !== journal.blocked_step_id)
+  ) {
     corrupt(`parked step ${journal.blocked_step_id ?? "<missing>"} lacks a matching current-plan event`);
   }
-  if (journal.status === "failed" &&
-      (latest?.kind !== "step_failed" || latest.step_id !== journal.blocked_step_id)) {
+  if (journal.status === "failed" && (latest?.kind !== "step_failed" || latest.step_id !== journal.blocked_step_id)) {
     corrupt(`failed step ${journal.blocked_step_id ?? "<missing>"} lacks a matching current-plan event`);
   }
-  if (journal.status === "denied" &&
-      (latest?.kind !== "approval_denied" || latest.step_id !== journal.blocked_step_id)) {
+  if (
+    journal.status === "denied" &&
+    (latest?.kind !== "approval_denied" || latest.step_id !== journal.blocked_step_id)
+  ) {
     corrupt(`denied approval ${journal.blocked_step_id ?? "<missing>"} lacks a matching current-plan event`);
   }
-  if (journal.status === "running" && active === undefined &&
-      latest !== undefined && latest.kind !== "step_completed") {
+  if (
+    journal.status === "running" &&
+    active === undefined &&
+    latest !== undefined &&
+    latest.kind !== "step_completed"
+  ) {
     corrupt(`running journal has inconsistent latest event ${latest.kind}`);
   }
 }
@@ -1141,70 +1128,117 @@ async function writeJournal(root: string, journal: EpisodePlanExecutionJournal):
 }
 
 function isExecutionJournal(value: unknown): value is EpisodePlanExecutionJournal {
-  if (!isRecord(value) || !hasOnlyKeys(value, [
-    "schema_version", "episode_id", "current_plan_version", "current_plan_sha256",
-    "status", "blocked_step_id", "events", "created_at", "updated_at",
-  ])) return false;
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, [
+      "schema_version",
+      "episode_id",
+      "current_plan_version",
+      "current_plan_sha256",
+      "status",
+      "blocked_step_id",
+      "events",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (
     value.schema_version !== EPISODE_PLAN_EXECUTION_JOURNAL_VERSION ||
     !nonEmpty(value.episode_id) ||
     !positiveInteger(value.current_plan_version) ||
-    typeof value.current_plan_sha256 !== "string" || !HASH.test(value.current_plan_sha256) ||
+    typeof value.current_plan_sha256 !== "string" ||
+    !HASH.test(value.current_plan_sha256) ||
     !["running", "waiting_approval", "denied", "failed", "completed"].includes(String(value.status)) ||
     !(value.blocked_step_id === null || nonEmpty(value.blocked_step_id)) ||
-    !Array.isArray(value.events) || value.events.length === 0 || value.events.some((event) => !isExecutionEvent(event)) ||
-    !validTimestamp(value.created_at) || !validTimestamp(value.updated_at)
-  ) return false;
+    !Array.isArray(value.events) ||
+    value.events.length === 0 ||
+    value.events.some((event) => !isExecutionEvent(event)) ||
+    !validTimestamp(value.created_at) ||
+    !validTimestamp(value.updated_at)
+  )
+    return false;
   const lastAdopted = [...value.events].reverse().find((event) => event.kind === "plan_adopted");
-  return lastAdopted?.plan_version === value.current_plan_version &&
-    lastAdopted.plan_sha256 === value.current_plan_sha256;
+  return (
+    lastAdopted?.plan_version === value.current_plan_version && lastAdopted.plan_sha256 === value.current_plan_sha256
+  );
 }
 
 function isExecutionEvent(value: unknown): value is EpisodePlanExecutionEvent {
   if (!isRecord(value) || typeof value.kind !== "string") return false;
   if (value.kind === "plan_adopted") {
-    return hasOnlyKeys(value, ["kind", "plan_version", "plan_sha256", "at"]) &&
-      validEventPlan(value) && validTimestamp(value.at);
+    return (
+      hasOnlyKeys(value, ["kind", "plan_version", "plan_sha256", "at"]) &&
+      validEventPlan(value) &&
+      validTimestamp(value.at)
+    );
   }
   const commonKeys = [
-    "kind", "plan_version", "plan_sha256", "step_id", "step_kind", "step_sha256",
-    "attempt", "execution_id", "at",
+    "kind",
+    "plan_version",
+    "plan_sha256",
+    "step_id",
+    "step_kind",
+    "step_sha256",
+    "attempt",
+    "execution_id",
+    "at",
   ];
   if (
-    !validEventPlan(value) || !nonEmpty(value.step_id) ||
+    !validEventPlan(value) ||
+    !nonEmpty(value.step_id) ||
     !["provider_turn", "mechanical_gate", "approval"].includes(String(value.step_kind)) ||
-    typeof value.step_sha256 !== "string" || !HASH.test(value.step_sha256) ||
-    !positiveInteger(value.attempt) || !nonEmpty(value.execution_id) || !validTimestamp(value.at)
-  ) return false;
+    typeof value.step_sha256 !== "string" ||
+    !HASH.test(value.step_sha256) ||
+    !positiveInteger(value.attempt) ||
+    !nonEmpty(value.execution_id) ||
+    !validTimestamp(value.at)
+  )
+    return false;
   if (value.kind === "step_started") return hasOnlyKeys(value, commonKeys);
   if (value.kind === "step_completed") {
-    return hasOnlyOptionalKeys(
-      value,
-      [...commonKeys, "artifact_sha256", "output_artifacts"],
-      [...commonKeys, "artifact_sha256"],
-    ) && typeof value.artifact_sha256 === "string" && HASH.test(value.artifact_sha256) &&
+    return (
+      hasOnlyOptionalKeys(
+        value,
+        [...commonKeys, "artifact_sha256", "output_artifacts"],
+        [...commonKeys, "artifact_sha256"],
+      ) &&
+      typeof value.artifact_sha256 === "string" &&
+      HASH.test(value.artifact_sha256) &&
       (value.output_artifacts === undefined ||
-        validCompletedOutputArtifacts(value.output_artifacts, value.artifact_sha256));
+        validCompletedOutputArtifacts(value.output_artifacts, value.artifact_sha256))
+    );
   }
   if (value.kind === "step_failed") {
-    return hasOnlyKeys(value, [...commonKeys, "reason_code", "summary", "artifact_sha256"]) &&
-      nonEmpty(value.reason_code) && nonEmpty(value.summary) &&
-      typeof value.artifact_sha256 === "string" && HASH.test(value.artifact_sha256);
+    return (
+      hasOnlyKeys(value, [...commonKeys, "reason_code", "summary", "artifact_sha256"]) &&
+      nonEmpty(value.reason_code) &&
+      nonEmpty(value.summary) &&
+      typeof value.artifact_sha256 === "string" &&
+      HASH.test(value.artifact_sha256)
+    );
   }
   if (value.kind === "approval_pending" || value.kind === "approval_denied") {
-    return hasOnlyKeys(value, [...commonKeys, "reason_code", "summary"]) &&
-      value.step_kind === "approval" && nonEmpty(value.reason_code) && nonEmpty(value.summary);
+    return (
+      hasOnlyKeys(value, [...commonKeys, "reason_code", "summary"]) &&
+      value.step_kind === "approval" &&
+      nonEmpty(value.reason_code) &&
+      nonEmpty(value.summary)
+    );
   }
   if (value.kind === "step_suspended") {
-    return hasOnlyKeys(value, [...commonKeys, "reason_code", "summary"]) &&
-      value.step_kind === "provider_turn" && nonEmpty(value.reason_code) && nonEmpty(value.summary);
+    return (
+      hasOnlyKeys(value, [...commonKeys, "reason_code", "summary"]) &&
+      value.step_kind === "provider_turn" &&
+      nonEmpty(value.reason_code) &&
+      nonEmpty(value.summary)
+    );
   }
   return false;
 }
 
 function validEventPlan(value: Record<string, unknown>): boolean {
-  return positiveInteger(value.plan_version) &&
-    typeof value.plan_sha256 === "string" && HASH.test(value.plan_sha256);
+  return positiveInteger(value.plan_version) && typeof value.plan_sha256 === "string" && HASH.test(value.plan_sha256);
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -1218,22 +1252,26 @@ function hasOnlyOptionalKeys(
   requiredKeys: readonly string[],
 ): boolean {
   const allowed = new Set(allowedKeys);
-  return Object.keys(value).every((key) => allowed.has(key)) &&
-    requiredKeys.every((key) => key in value);
+  return Object.keys(value).every((key) => allowed.has(key)) && requiredKeys.every((key) => key in value);
 }
 
 function isCompletedOutputArtifact(value: unknown): value is CompletedOutputArtifact {
-  return isRecord(value) &&
+  return (
+    isRecord(value) &&
     hasOnlyKeys(value, ["output_id", "output_kind", "artifact_sha256"]) &&
-    nonEmpty(value.output_id) && nonEmpty(value.output_kind) &&
-    typeof value.artifact_sha256 === "string" && HASH.test(value.artifact_sha256);
+    nonEmpty(value.output_id) &&
+    nonEmpty(value.output_kind) &&
+    typeof value.artifact_sha256 === "string" &&
+    HASH.test(value.artifact_sha256)
+  );
 }
 
 function validCompletedOutputArtifacts(value: unknown, artifactSha256: string): boolean {
   if (!Array.isArray(value) || !value.every(isCompletedOutputArtifact)) return false;
   const identities = value.map((output) => `${output.output_id}\0${output.output_kind}`);
-  return new Set(identities).size === identities.length &&
-    value.every((output) => output.artifact_sha256 === artifactSha256);
+  return (
+    new Set(identities).size === identities.length && value.every((output) => output.artifact_sha256 === artifactSha256)
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

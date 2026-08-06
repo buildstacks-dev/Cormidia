@@ -5,11 +5,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  analyzeRunlogs,
-  detectRunAnomalies,
-  type RunEvidence,
-} from "../../../src/runtime/runlog/anomalies.js";
+import { analyzeRunlogs, detectRunAnomalies, type RunEvidence } from "../../../src/runtime/runlog/anomalies.js";
 import type { RunlogEvent } from "../../../src/runtime/runlog/events.js";
 import type { RunEnvelope } from "../../../src/runtime/runlog/envelope.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
@@ -75,19 +71,41 @@ describe("HB-046 builder trajectory detectors", () => {
       "low_tokens_high_time",
       "single_turn_long_run",
     ]);
-    expect(anomalies.map((row) => row.detail)).toEqual(expect.arrayContaining([
-      "360s with 600 tokens",
-      "360s single pass",
-      "20 bash calls",
-      "3 environment retry events",
-    ]));
+    expect(anomalies.map((row) => row.detail)).toEqual(
+      expect.arrayContaining([
+        "360s with 600 tokens",
+        "360s single pass",
+        "20 bash calls",
+        "3 environment retry events",
+      ]),
+    );
   });
 
   it("fires the fifth documented detector for a same-model cold-cache miss inside the TTL", async () => {
     const home = await makeTempStateHome({ name: "trajectory" });
     homes.push(home);
-    await persist(home, envelope({ run_id: "pass-1", pass: "contract", started_at: "2026-07-31T12:00:00.000Z", wall_clock_ms: 1_000, tool_counts: {}, usage: { tokens_in: 10, tokens_out: 10, cost_usd: 0.1, cache_read_tokens: 5 } }));
-    await persist(home, envelope({ run_id: "pass-2", pass: "implement", started_at: "2026-07-31T12:04:59.000Z", wall_clock_ms: 1_000, tool_counts: {}, usage: { tokens_in: 10, tokens_out: 10, cost_usd: 0.1, cache_read_tokens: 0 } }));
+    await persist(
+      home,
+      envelope({
+        run_id: "pass-1",
+        pass: "contract",
+        started_at: "2026-07-31T12:00:00.000Z",
+        wall_clock_ms: 1_000,
+        tool_counts: {},
+        usage: { tokens_in: 10, tokens_out: 10, cost_usd: 0.1, cache_read_tokens: 5 },
+      }),
+    );
+    await persist(
+      home,
+      envelope({
+        run_id: "pass-2",
+        pass: "implement",
+        started_at: "2026-07-31T12:04:59.000Z",
+        wall_clock_ms: 1_000,
+        tool_counts: {},
+        usage: { tokens_in: 10, tokens_out: 10, cost_usd: 0.1, cache_read_tokens: 0 },
+      }),
+    );
     const anomalies = await analyzeRunlogs(home.stateHome);
     expect(anomalies).toHaveLength(1);
     expect(anomalies[0]).toMatchObject({ flag: "cold_cache", runId: "pass-2" });

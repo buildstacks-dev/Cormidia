@@ -21,9 +21,7 @@ export type SubmitBehavior = "complete" | "accept" | "lost-after-accept" | "auth
 
 export type SubmitResult = { kind: "completed"; ref: string } | { kind: "accepted" };
 
-export type TargetMarker =
-  | { type: "acceptance"; key: string }
-  | { type: "completion"; key: string; ref: string };
+export type TargetMarker = { type: "acceptance"; key: string } | { type: "completion"; key: string; ref: string };
 
 /** Credential rejection BEFORE any effect (B-17 §3 "target auth/credential
  *  failure → failed"). */

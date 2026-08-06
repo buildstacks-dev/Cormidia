@@ -13,11 +13,7 @@ import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import {
-  GhCliOps,
-  GhOpsError,
-  verifiedSelfApprovalMarker,
-} from "../../../src/loop/github.js";
+import { GhCliOps, GhOpsError, verifiedSelfApprovalMarker } from "../../../src/loop/github.js";
 import { installGithubDouble, type GithubDoubleHandle, type GithubDoubleOptions } from "./install.js";
 
 describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh process seam (B-01)", () => {
@@ -55,9 +51,7 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     expect((await gh.readIssue(issue.number)).labels).toEqual(["op:building"]);
 
     await gh.commentIssue(issue.number, "contract comment");
-    expect((await gh.listIssueComments(issue.number)).map((comment) => comment.body)).toEqual([
-      "contract comment",
-    ]);
+    expect((await gh.listIssueComments(issue.number)).map((comment) => comment.body)).toEqual(["contract comment"]);
 
     const branch = `op/${issue.number}-flux`;
     handle.seedBranch(branch);
@@ -126,9 +120,9 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     const gh = new GhCliOps(handle.repo);
 
     handle.script({ op: "issue.create", fail: "partial_labels" });
-    await expect(
-      gh.createIssue({ title: "half-landed", body: "", labels: ["op:ready"] }),
-    ).rejects.toThrow(/labels could not be applied/);
+    await expect(gh.createIssue({ title: "half-landed", body: "", labels: ["op:ready"] })).rejects.toThrow(
+      /labels could not be applied/,
+    );
 
     // The dangerous half: the remote artifact EXISTS despite the error.
     const issues = Object.values(handle.readState().issues);
@@ -159,9 +153,9 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     const gh = new GhCliOps(handle.repo);
 
     handle.script({ op: "issue.create", fail: "lost_response" });
-    await expect(
-      gh.createIssue({ title: "lost in flight", body: "", labels: [] }),
-    ).rejects.toThrow(/connection reset by peer/);
+    await expect(gh.createIssue({ title: "lost in flight", body: "", labels: [] })).rejects.toThrow(
+      /connection reset by peer/,
+    );
 
     // Demonstrably reproducible (HB-003 acceptance): the response was lost but
     // the remote effect happened — and the call log records effect=true on a
@@ -189,15 +183,13 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     handle.seedBranch(branch);
 
     handle.script({ op: "pr.create", fail: "lost_response" });
-    await expect(
-      gh.createPR({ head: branch, base: "main", title: "t", body: "b" }),
-    ).rejects.toThrow(/connection reset by peer/);
+    await expect(gh.createPR({ head: branch, base: "main", title: "t", body: "b" })).rejects.toThrow(
+      /connection reset by peer/,
+    );
 
     // The op/ branch is the idempotency marker: a retried create for the same
     // head surfaces the prior effect as a typed error, never a second PR.
-    await expect(
-      gh.createPR({ head: branch, base: "main", title: "t", body: "b" }),
-    ).rejects.toThrow(/already exists/);
+    await expect(gh.createPR({ head: branch, base: "main", title: "t", body: "b" })).rejects.toThrow(/already exists/);
     expect(await gh.listPRsForBranch(branch, { state: "all" })).toHaveLength(1);
     handle.assertScenarioDrained();
   });
@@ -299,19 +291,41 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     handle.seedBranch("op/8-checks");
     const pr = await gh.createPR({ head: "op/8-checks", base: "main", title: "t", body: "b" });
 
-    const none = await handle.exec(["pr", "checks", String(pr.number), "--repo", handle.repo, "--json", "name,state,link"]);
+    const none = await handle.exec([
+      "pr",
+      "checks",
+      String(pr.number),
+      "--repo",
+      handle.repo,
+      "--json",
+      "name,state,link",
+    ]);
     expect(none.exitCode).toBe(1);
     expect(none.stderr).toMatch(/no checks reported/);
 
     handle.setChecks(pr.number, [{ name: "ci", state: "SUCCESS", link: "https://example.invalid/ci" }]);
-    const green = await handle.exec(["pr", "checks", String(pr.number), "--repo", handle.repo, "--json", "name,state,link"]);
-    expect(green.exitCode).toBe(0);
-    expect(JSON.parse(green.stdout)).toEqual([
-      { name: "ci", state: "SUCCESS", link: "https://example.invalid/ci" },
+    const green = await handle.exec([
+      "pr",
+      "checks",
+      String(pr.number),
+      "--repo",
+      handle.repo,
+      "--json",
+      "name,state,link",
     ]);
+    expect(green.exitCode).toBe(0);
+    expect(JSON.parse(green.stdout)).toEqual([{ name: "ci", state: "SUCCESS", link: "https://example.invalid/ci" }]);
 
     handle.setChecks(pr.number, [{ name: "ci", state: "FAILURE" }]);
-    const red = await handle.exec(["pr", "checks", String(pr.number), "--repo", handle.repo, "--json", "name,state,link"]);
+    const red = await handle.exec([
+      "pr",
+      "checks",
+      String(pr.number),
+      "--repo",
+      handle.repo,
+      "--json",
+      "name,state,link",
+    ]);
     // Like real gh: non-zero exit while STILL emitting the structured evidence
     // (src/observe/github-source.ts readChecks preserves exactly this).
     expect(red.exitCode).toBe(1);
@@ -354,15 +368,22 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     let calls = 0;
     const delays: number[] = [];
     const random = [0, 1];
-    const gh = new GhCliOps("owner/sandbox", async () => {
-      calls += 1;
-      return calls < 3
-        ? { stdout: "", stderr: calls === 1 ? "HTTP 503 service unavailable" : "secondary rate limit", exitCode: 1 }
-        : { stdout: "[]", stderr: "", exitCode: 0 };
-    }, undefined, {
-      sleep: async (delayMs) => { delays.push(delayMs); },
-      random: () => random.shift() ?? 0,
-    });
+    const gh = new GhCliOps(
+      "owner/sandbox",
+      async () => {
+        calls += 1;
+        return calls < 3
+          ? { stdout: "", stderr: calls === 1 ? "HTTP 503 service unavailable" : "secondary rate limit", exitCode: 1 }
+          : { stdout: "[]", stderr: "", exitCode: 0 };
+      },
+      undefined,
+      {
+        sleep: async (delayMs) => {
+          delays.push(delayMs);
+        },
+        random: () => random.shift() ?? 0,
+      },
+    );
 
     await expect(gh.listLabels()).resolves.toEqual([]);
     expect(calls).toBe(3);
@@ -371,27 +392,44 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
 
   it("negative control: attempt 3 is terminal, 4xx is not retried, and ambiguous writes stay single-shot", async () => {
     let retryableCalls = 0;
-    const retryable = new GhCliOps("owner/sandbox", async () => {
-      retryableCalls += 1;
-      return { stdout: "", stderr: "HTTP 502 bad gateway", exitCode: 1 };
-    }, undefined, { sleep: async () => undefined, random: () => 0.5 });
+    const retryable = new GhCliOps(
+      "owner/sandbox",
+      async () => {
+        retryableCalls += 1;
+        return { stdout: "", stderr: "HTTP 502 bad gateway", exitCode: 1 };
+      },
+      undefined,
+      { sleep: async () => undefined, random: () => 0.5 },
+    );
     await expect(retryable.listLabels()).rejects.toThrow(/exit 1/);
     expect(retryableCalls).toBe(3);
 
     let terminalCalls = 0;
-    const terminal = new GhCliOps("owner/sandbox", async () => {
-      terminalCalls += 1;
-      return { stdout: "", stderr: "HTTP 404 not found", exitCode: 1 };
-    }, undefined, { sleep: async () => undefined, random: () => 0.5 });
+    const terminal = new GhCliOps(
+      "owner/sandbox",
+      async () => {
+        terminalCalls += 1;
+        return { stdout: "", stderr: "HTTP 404 not found", exitCode: 1 };
+      },
+      undefined,
+      { sleep: async () => undefined, random: () => 0.5 },
+    );
     await expect(terminal.listLabels()).rejects.toThrow(/exit 1/);
     expect(terminalCalls).toBe(1);
 
     let createCalls = 0;
-    const ambiguousCreate = new GhCliOps("owner/sandbox", async () => {
-      createCalls += 1;
-      return { stdout: "", stderr: "HTTP 503 response lost after possible effect", exitCode: 1 };
-    }, undefined, { sleep: async () => undefined, random: () => 0.5 });
-    await expect(ambiguousCreate.createIssue({ title: "marker", body: "marker", labels: [] })).rejects.toThrow(/exit 1/);
+    const ambiguousCreate = new GhCliOps(
+      "owner/sandbox",
+      async () => {
+        createCalls += 1;
+        return { stdout: "", stderr: "HTTP 503 response lost after possible effect", exitCode: 1 };
+      },
+      undefined,
+      { sleep: async () => undefined, random: () => 0.5 },
+    );
+    await expect(ambiguousCreate.createIssue({ title: "marker", body: "marker", labels: [] })).rejects.toThrow(
+      /exit 1/,
+    );
     expect(createCalls).toBe(1);
   });
 });

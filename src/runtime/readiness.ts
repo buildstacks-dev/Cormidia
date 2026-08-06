@@ -16,11 +16,7 @@ import {
   type Query as ClaudeQuery,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import {
-  AuthStorage,
-  getAgentDir,
-  ModelRegistry,
-} from "@earendil-works/pi-coding-agent";
+import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { RuntimeKind } from "./types.js";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
 import { resolvePiModel } from "./adapters/pi.js";
@@ -66,17 +62,11 @@ type ProbeOutcome = Pick<RuntimeReadinessResult, "status" | "detail"> & {
   errorCode?: string;
 };
 
-export type RuntimeReadinessImplementation = (
-  request: RuntimeReadinessImplementationRequest,
-) => Promise<ProbeOutcome>;
+export type RuntimeReadinessImplementation = (request: RuntimeReadinessImplementationRequest) => Promise<ProbeOutcome>;
 
-export type RuntimeReadinessImplementations = Partial<
-  Record<RuntimeKind, RuntimeReadinessImplementation>
->;
+export type RuntimeReadinessImplementations = Partial<Record<RuntimeKind, RuntimeReadinessImplementation>>;
 
-export type RuntimeReadinessProbe = (
-  request: RuntimeReadinessRequest,
-) => Promise<RuntimeReadinessResult>;
+export type RuntimeReadinessProbe = (request: RuntimeReadinessRequest) => Promise<RuntimeReadinessResult>;
 
 export interface PiReadinessDependencies {
   agentDir?: string;
@@ -115,20 +105,17 @@ export async function probeRuntimeReadiness(
     }, timeoutMs);
   });
 
-  const implementation =
-    implementations[request.runtime] ?? DEFAULT_IMPLEMENTATIONS[request.runtime];
-  const running = implementation({ ...request, signal: controller.signal }).catch(
-    (error): ProbeOutcome => {
-      if (timedOut) {
-        return {
-          status: "timed_out",
-          errorCode: "error_adapter_readiness_timeout",
-          detail: `${request.runtime} readiness probe exceeded ${timeoutMs}ms`,
-        };
-      }
-      return classifyProbeError(error);
-    },
-  );
+  const implementation = implementations[request.runtime] ?? DEFAULT_IMPLEMENTATIONS[request.runtime];
+  const running = implementation({ ...request, signal: controller.signal }).catch((error): ProbeOutcome => {
+    if (timedOut) {
+      return {
+        status: "timed_out",
+        errorCode: "error_adapter_readiness_timeout",
+        detail: `${request.runtime} readiness probe exceeded ${timeoutMs}ms`,
+      };
+    }
+    return classifyProbeError(error);
+  });
 
   const outcome = await Promise.race([running, timeout]);
   if (timer !== undefined) clearTimeout(timer);
@@ -164,15 +151,15 @@ async function probeClaude(request: RuntimeReadinessImplementationRequest): Prom
   });
   try {
     const account = await query.accountInfo();
-    const status = account.apiProvider !== undefined && account.apiProvider !== "firstParty"
-      ? undefined
-      : await claudeCliAuthStatus(request.processEnv, request.signal);
+    const status =
+      account.apiProvider !== undefined && account.apiProvider !== "firstParty"
+        ? undefined
+        : await claudeCliAuthStatus(request.processEnv, request.signal);
     if (!claudeAuthIsConfigured(account, status)) {
       return {
         status: "unauthenticated",
         errorCode: "error_adapter_unauthenticated",
-        detail:
-          "Claude SDK initialized, but accountInfo reported no first-party credential or external provider",
+        detail: "Claude SDK initialized, but accountInfo reported no first-party credential or external provider",
       };
     }
     const provider = account.apiProvider ?? "firstParty";
@@ -195,9 +182,7 @@ async function probeClaude(request: RuntimeReadinessImplementationRequest): Prom
 
 async function* idleClaudeInput(signal: AbortSignal): AsyncIterable<SDKUserMessage> {
   if (!signal.aborted) {
-    await new Promise<void>((resolve) =>
-      signal.addEventListener("abort", () => resolve(), { once: true }),
-    );
+    await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
   }
 }
 
@@ -208,10 +193,7 @@ export interface ClaudeCliAuthStatus {
   subscriptionType?: string;
 }
 
-export function claudeAuthIsConfigured(
-  account: AccountInfo,
-  status?: ClaudeCliAuthStatus,
-): boolean {
+export function claudeAuthIsConfigured(account: AccountInfo, status?: ClaudeCliAuthStatus): boolean {
   if (account.apiProvider !== undefined && account.apiProvider !== "firstParty") return true;
   // email/subscriptionType are durable account metadata and can outlive the
   // credential itself. API-key/token-backed first-party auth has an explicit
@@ -223,9 +205,9 @@ export function claudeAuthIsConfigured(
   if (
     concreteClaudeCredentialSource(account.tokenSource) !== undefined ||
     concreteClaudeCredentialSource(account.apiKeySource) !== undefined
-  ) return true;
-  return status?.loggedIn === true &&
-    (status.apiProvider === undefined || status.apiProvider === "firstParty");
+  )
+    return true;
+  return status?.loggedIn === true && (status.apiProvider === undefined || status.apiProvider === "firstParty");
 }
 
 function concreteClaudeCredentialSource(source: string | undefined): string | undefined {
@@ -236,10 +218,7 @@ function concreteClaudeCredentialSource(source: string | undefined): string | un
   return normalized !== "" && normalized !== "none" ? source.trim() : undefined;
 }
 
-function claudeCliAuthStatus(
-  env: NodeJS.ProcessEnv | undefined,
-  signal: AbortSignal,
-): Promise<ClaudeCliAuthStatus> {
+function claudeCliAuthStatus(env: NodeJS.ProcessEnv | undefined, signal: AbortSignal): Promise<ClaudeCliAuthStatus> {
   return new Promise((resolve, reject) => {
     execFile(
       "claude",
@@ -257,15 +236,9 @@ function claudeCliAuthStatus(
           }
           resolve({
             loggedIn: parsed["loggedIn"],
-            ...(typeof parsed["authMethod"] === "string"
-              ? { authMethod: parsed["authMethod"] }
-              : {}),
-            ...(typeof parsed["apiProvider"] === "string"
-              ? { apiProvider: parsed["apiProvider"] }
-              : {}),
-            ...(typeof parsed["subscriptionType"] === "string"
-              ? { subscriptionType: parsed["subscriptionType"] }
-              : {}),
+            ...(typeof parsed["authMethod"] === "string" ? { authMethod: parsed["authMethod"] } : {}),
+            ...(typeof parsed["apiProvider"] === "string" ? { apiProvider: parsed["apiProvider"] } : {}),
+            ...(typeof parsed["subscriptionType"] === "string" ? { subscriptionType: parsed["subscriptionType"] } : {}),
           });
         } catch (parseError) {
           reject(error ?? parseError);

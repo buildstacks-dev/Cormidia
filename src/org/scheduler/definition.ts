@@ -78,16 +78,17 @@ export function buildSchedulerExpectation(input: SchedulerDefinitionInput): Sche
     environment_path: environmentPath,
     required_executables: requiredExecutables,
   };
-  const definition = input.backend === "launchd"
-    ? renderLaunchd(metadata, command)
-    : renderSystemd(metadata, command);
+  const definition = input.backend === "launchd" ? renderLaunchd(metadata, command) : renderSystemd(metadata, command);
   return { metadata, command, definition, definitionHash: sha256(definition) };
 }
 
 export function parseSchedulerDefinition(text: string): ParsedSchedulerDefinition {
   const line = text.split("\n").find((value) => value.includes(MARKER));
   if (line === undefined) return { kind: "foreign", reason: "ownership_mismatch" };
-  const encoded = line.slice(line.indexOf(MARKER) + MARKER.length).replace(/\s*(?:-->|$)/, "").trim();
+  const encoded = line
+    .slice(line.indexOf(MARKER) + MARKER.length)
+    .replace(/\s*(?:-->|$)/, "")
+    .trim();
   try {
     const value = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as unknown;
     if (!validMetadata(value)) throw new Error("metadata schema mismatch");
@@ -123,7 +124,7 @@ export function schedulerCommand(input: {
   requiredExecutables: Record<string, string>;
 }): SchedulerCommand {
   const tsx = input.packageEntryPath.endsWith(".ts")
-    ? input.tsxImportPath ?? createRequire(import.meta.url).resolve("tsx")
+    ? (input.tsxImportPath ?? createRequire(import.meta.url).resolve("tsx"))
     : undefined;
   return {
     executablePath: input.executablePath,
@@ -210,32 +211,36 @@ function encodeMetadata(metadata: SchedulerDefinitionMetadata): string {
 function validMetadata(value: unknown): value is SchedulerDefinitionMetadata {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
-  return row.schema_version === SCHEDULER_SCHEMA_VERSION
-    && row.owner === "cormidia"
-    && typeof row.scheduler_id === "string"
-    && typeof row.org_id === "string"
-    && typeof row.org_name === "string"
-    && (row.backend === "launchd" || row.backend === "systemd")
-    && Number.isInteger(row.cadence_minutes)
-    && typeof row.executable_path === "string"
-    && typeof row.package_entry_path === "string"
-    && typeof row.org_home === "string"
-    && typeof row.state_home === "string"
-    && typeof row.command_sha256 === "string"
-    && (row.environment_path === undefined || typeof row.environment_path === "string")
-    && (
-      row.required_executables === undefined
-      || (row.required_executables !== null
-        && typeof row.required_executables === "object"
-        && !Array.isArray(row.required_executables))
-    );
+  return (
+    row.schema_version === SCHEDULER_SCHEMA_VERSION &&
+    row.owner === "cormidia" &&
+    typeof row.scheduler_id === "string" &&
+    typeof row.org_id === "string" &&
+    typeof row.org_name === "string" &&
+    (row.backend === "launchd" || row.backend === "systemd") &&
+    Number.isInteger(row.cadence_minutes) &&
+    typeof row.executable_path === "string" &&
+    typeof row.package_entry_path === "string" &&
+    typeof row.org_home === "string" &&
+    typeof row.state_home === "string" &&
+    typeof row.command_sha256 === "string" &&
+    (row.environment_path === undefined || typeof row.environment_path === "string") &&
+    (row.required_executables === undefined ||
+      (row.required_executables !== null &&
+        typeof row.required_executables === "object" &&
+        !Array.isArray(row.required_executables)))
+  );
 }
 
 function normalizeRequiredExecutables(value: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([name, path]) => {
-    if (!/^[A-Za-z0-9._+-]+$/.test(name)) throw new TypeError(`invalid required executable name: ${name}`);
-    return [name, resolve(path)];
-  }));
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, path]) => {
+        if (!/^[A-Za-z0-9._+-]+$/.test(name)) throw new TypeError(`invalid required executable name: ${name}`);
+        return [name, resolve(path)];
+      }),
+  );
 }
 
 function escapeXml(value: string): string {
@@ -243,5 +248,5 @@ function escapeXml(value: string): string {
 }
 
 function systemdQuote(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`;
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }

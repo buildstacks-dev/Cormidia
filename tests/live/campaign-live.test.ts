@@ -22,11 +22,7 @@ import { assertCompletedCampaignPass, DurableCampaignRunner } from "../campaign/
 import { assertCampaignRepositoryBinding } from "../campaign/repository-binding.js";
 import { runAdapterConformance } from "../fixtures/adapters/conformance.js";
 import { GITHUB_CONFORMANCE_CLAUSE_COUNT, runGithubConformance } from "../fixtures/github-double/conformance/suite.js";
-import {
-  liveCampaignRequiredCaseIds,
-  loadLiveCampaignConfig,
-  type LiveCampaignConfigV1,
-} from "./config.js";
+import { liveCampaignRequiredCaseIds, loadLiveCampaignConfig, type LiveCampaignConfigV1 } from "./config.js";
 import { releaseGithubConformanceOptions } from "./github-conformance-policy.js";
 import { githubConformanceCaseResult } from "./github-conformance-result.js";
 import { RealGithubConformanceSurface } from "./real-github-surface.js";
@@ -60,12 +56,16 @@ beforeAll(async () => {
     maxProviderTurns: ceiling.turns,
     maxEquivUsd: ceiling.usd,
     decisionStatus: "ratified",
-    ...(profile === undefined ? {} : { profile: {
-      identity: profile.identity,
-      sandbox_target: `${profile.sandbox.org}/${profile.sandbox.app}@${profile.sandbox.repo}`,
-      permitted_auto_grant_categories: [...profile.permitted_auto_grant_categories],
-      human_decision_rows: 0,
-    } }),
+    ...(profile === undefined
+      ? {}
+      : {
+          profile: {
+            identity: profile.identity,
+            sandbox_target: `${profile.sandbox.org}/${profile.sandbox.app}@${profile.sandbox.repo}`,
+            permitted_auto_grant_categories: [...profile.permitted_auto_grant_categories],
+            human_decision_rows: 0,
+          },
+        }),
   });
   await campaign.start();
 });
@@ -85,12 +85,16 @@ describe("authorized L3 campaign", () => {
       const caseId = ({ claude: "CF-B02-L3", codex: "CF-B03-L3", pi: "CF-B04-L3" } as const)[target.runtime];
       try {
         await campaign.runCase(caseId, { providerTurns: 2, maxEquivUsd: target.max_turn_budget_usd * 2 }, async () => {
-          const result = await runAdapterConformance(runtime(target.runtime), {
-            runtime: target.runtime,
-            model: target.model,
-            effort: target.effort,
-            maxTurnBudgetUsd: target.max_turn_budget_usd,
-          }, workdir);
+          const result = await runAdapterConformance(
+            runtime(target.runtime),
+            {
+              runtime: target.runtime,
+              model: target.model,
+              effort: target.effort,
+              maxTurnBudgetUsd: target.max_turn_budget_usd,
+            },
+            workdir,
+          );
           return {
             providerTurns: result.providerTurns,
             equivUsd: result.equivUsd,
@@ -98,7 +102,9 @@ describe("authorized L3 campaign", () => {
             evidenceRefs: [`native-session:${target.runtime}:${result.sessionId}`],
           };
         });
-      } catch (error) { errors.push(`${caseId}: ${errorMessage(error)}`); }
+      } catch (error) {
+        errors.push(`${caseId}: ${errorMessage(error)}`);
+      }
     }
     expect(errors).toEqual([]);
   });
@@ -114,10 +120,14 @@ describe("authorized L3 campaign", () => {
         await surface!.cleanup();
         return githubConformanceCaseResult(config.github.repo, report);
       });
-    } catch (error) { errors.push(`CF-B01-L3: ${errorMessage(error)}`); }
-    finally {
-      try { await surface?.cleanup(); }
-      catch (error) { errors.push(`CF-B01-L3-cleanup: ${errorMessage(error)}`); }
+    } catch (error) {
+      errors.push(`CF-B01-L3: ${errorMessage(error)}`);
+    } finally {
+      try {
+        await surface?.cleanup();
+      } catch (error) {
+        errors.push(`CF-B01-L3-cleanup: ${errorMessage(error)}`);
+      }
     }
     expect(GITHUB_CONFORMANCE_CLAUSE_COUNT).toBeGreaterThan(0);
     expect(errors).toEqual([]);
@@ -129,7 +139,8 @@ describe("authorized L3 campaign", () => {
     const root = await mkdtemp(join(tmpdir(), "cormidia-live-launchd-"));
     const orgHome = join(root, "org");
     const stateHome = join(root, "state");
-    await mkdir(orgHome, { recursive: true }); await mkdir(stateHome, { recursive: true });
+    await mkdir(orgHome, { recursive: true });
+    await mkdir(stateHome, { recursive: true });
     const manager = new PlatformSchedulerManager({ backend: "launchd", platform: "darwin" });
     const input = {
       backend: "launchd" as const,
@@ -148,21 +159,39 @@ describe("authorized L3 campaign", () => {
         const status = await schedulerDefinitionStatus(input);
         const tickPath = join(stateHome, "scheduler", "launchd-proof-tick.json");
         await waitForFile(tickPath);
-        const tick = JSON.parse(await readFile(tickPath, "utf8")) as { org_home?: unknown; state_home?: unknown; at?: unknown };
-        const attributableTick = tick.org_home === orgHome && tick.state_home === stateHome && typeof tick.at === "string";
+        const tick = JSON.parse(await readFile(tickPath, "utf8")) as {
+          org_home?: unknown;
+          state_home?: unknown;
+          at?: unknown;
+        };
+        const attributableTick =
+          tick.org_home === orgHome && tick.state_home === stateHome && typeof tick.at === "string";
         const removed = await uninstallScheduler({ ...input, execute: true, confirm: config.launchd.label });
         const afterRemoval = await schedulerDefinitionStatus(input);
         const exactRemoval = removed.changed && !afterRemoval.installed && afterRemoval.loaded === false;
         const violations = [
-          ...(!(installed.changed && status.installed && status.loaded === true && attributableTick) ? ["CORMIDIA-C-B05-001:launchd-not-loaded"] : []),
+          ...(!(installed.changed && status.installed && status.loaded === true && attributableTick)
+            ? ["CORMIDIA-C-B05-001:launchd-not-loaded"]
+            : []),
           ...(!exactRemoval ? ["CORMIDIA-C-B05-001:launchd-not-removed"] : []),
         ];
-        return { providerTurns: 0, equivUsd: 0, violationIds: violations, evidenceRefs: [`launchd:${expected.metadata.scheduler_id}:loaded=${String(status.loaded)}:tick=${String(attributableTick)}:removed=${String(exactRemoval)}`] };
+        return {
+          providerTurns: 0,
+          equivUsd: 0,
+          violationIds: violations,
+          evidenceRefs: [
+            `launchd:${expected.metadata.scheduler_id}:loaded=${String(status.loaded)}:tick=${String(attributableTick)}:removed=${String(exactRemoval)}`,
+          ],
+        };
       });
-    } catch (error) { errors.push(`CF-J16-A: ${errorMessage(error)}`); }
-    finally {
-      try { await uninstallScheduler({ ...input, execute: true, confirm: config.launchd.label }); }
-      catch (error) { errors.push(`CF-J16-A-cleanup: ${errorMessage(error)}`); }
+    } catch (error) {
+      errors.push(`CF-J16-A: ${errorMessage(error)}`);
+    } finally {
+      try {
+        await uninstallScheduler({ ...input, execute: true, confirm: config.launchd.label });
+      } catch (error) {
+        errors.push(`CF-J16-A-cleanup: ${errorMessage(error)}`);
+      }
       await rm(root, { recursive: true, force: true });
     }
     expect(errors).toEqual([]);
@@ -172,16 +201,32 @@ describe("authorized L3 campaign", () => {
     if (!config.unattended.enabled) return;
     await campaign.runCase("CF-J18-A", { providerTurns: 0, maxEquivUsd: 0 }, async () => {
       const profile = createUnattendedValidationProfile(config.sandbox);
-      const ceiling = config.campaign_kind === "release" ? { provider_turns: 24, equiv_usd: 100, release_campaign: true } : { provider_turns: 2, equiv_usd: 5, release_campaign: false };
-      const budget = authorizeUnattendedValidationAction(profile, config.sandbox, { kind: "campaign_budget", ...ceiling });
-      const publication = authorizeUnattendedValidationAction(profile, config.sandbox, { kind: "external_publication", target: config.sandbox.repo });
-      const decidedAfter = (await new ApprovalStore(config.state_home).listDecidedReadOnly()).filter((row) => !decidedBefore.has(row.id));
+      const ceiling =
+        config.campaign_kind === "release"
+          ? { provider_turns: 24, equiv_usd: 100, release_campaign: true }
+          : { provider_turns: 2, equiv_usd: 5, release_campaign: false };
+      const budget = authorizeUnattendedValidationAction(profile, config.sandbox, {
+        kind: "campaign_budget",
+        ...ceiling,
+      });
+      const publication = authorizeUnattendedValidationAction(profile, config.sandbox, {
+        kind: "external_publication",
+        target: config.sandbox.repo,
+      });
+      const decidedAfter = (await new ApprovalStore(config.state_home).listDecidedReadOnly()).filter(
+        (row) => !decidedBefore.has(row.id),
+      );
       const violations = [
         ...(!budget.authorized ? ["CORMIDIA-C-B09B-001:profile-budget-not-authorized"] : []),
         ...(publication.authorized ? ["CORMIDIA-C-B09B-001:publication-widened"] : []),
         ...(decidedAfter.length > 0 ? ["CORMIDIA-C-B09B-001:human-decision-row-created"] : []),
       ];
-      return { providerTurns: 0, equivUsd: 0, violationIds: violations, evidenceRefs: [`profile:${profile.identity}:human-decisions:${decidedAfter.length}`] };
+      return {
+        providerTurns: 0,
+        equivUsd: 0,
+        violationIds: violations,
+        evidenceRefs: [`profile:${profile.identity}:human-decisions:${decidedAfter.length}`],
+      };
     });
   });
 });
@@ -191,7 +236,9 @@ function runtime(kind: RuntimeKind): Runtime {
   if (kind === "codex") return new CodexRuntime();
   return new PiRuntime();
 }
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 async function waitForFile(path: string): Promise<void> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     if (existsSync(path)) return;

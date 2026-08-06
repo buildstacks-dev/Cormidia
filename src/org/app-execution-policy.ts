@@ -1,8 +1,5 @@
 import type { BudgetCeiling } from "../loop/episode-plan.js";
-import {
-  ROUTE_EXECUTION_BOUNDS,
-  type RouteExecutionBounds,
-} from "../loop/route-policy.js";
+import { ROUTE_EXECUTION_BOUNDS, type RouteExecutionBounds } from "../loop/route-policy.js";
 import type { TicketTier } from "../loop/pipelines.js";
 import type { RoleConfig } from "../runtime/types.js";
 import {
@@ -122,29 +119,26 @@ export function appRuntimePolicyYaml(policy: AppRuntimePolicy): Record<string, u
  * YAML. Production entries normally arrive through parseAppRuntimePolicy;
  * this keeps programmatic registrations and test/embedding callers from
  * smuggling an invalid typed cast into a paid turn. */
-export function normalizeAppRuntimePolicy(
-  policy: AppRuntimePolicy,
-  err: (message: string) => Error,
-): AppRuntimePolicy {
+export function normalizeAppRuntimePolicy(policy: AppRuntimePolicy, err: (message: string) => Error): AppRuntimePolicy {
   let yaml: Record<string, unknown>;
   try {
     yaml = appRuntimePolicyYaml(policy);
   } catch (error) {
     throw err(`runtimePolicy is invalid: ${error instanceof Error ? error.message : String(error)}`);
   }
-  return parseAppRuntimePolicy({
-    permissionModes: yaml["permission_modes"],
-    limits: yaml["limits"],
-  }, err);
+  return parseAppRuntimePolicy(
+    {
+      permissionModes: yaml["permission_modes"],
+      limits: yaml["limits"],
+    },
+    err,
+  );
 }
 
 /** Apply app-scoped permission and per-turn cost policy to ephemeral role
  * views. The committed roles.yaml bytes remain the org authority; app policy
  * can only narrow cost and select a non-bypass provider convenience mode. */
-export function resolveAppRoles(
-  roles: readonly RoleConfig[],
-  policy: AppRuntimePolicy,
-): RoleConfig[] {
+export function resolveAppRoles(roles: readonly RoleConfig[], policy: AppRuntimePolicy): RoleConfig[] {
   return roles.map((role) => ({
     ...role,
     maxTurnBudgetUsd:
@@ -166,12 +160,11 @@ export function effectiveEpisodeHardCeiling(
   kind: AppEpisodeKind,
   constraints: Pick<BudgetCeiling, "maxEquivalentCostUsd"> & Partial<BudgetCeiling>,
 ): BudgetCeiling {
-  const configured = kind === "ticket"
-    ? policy.limits.ticketEpisode
-    : policy.limits.genericEpisode;
-  const cost = configured.maxEquivalentCostUsd === null
-    ? constraints.maxEquivalentCostUsd
-    : Math.min(constraints.maxEquivalentCostUsd, configured.maxEquivalentCostUsd);
+  const configured = kind === "ticket" ? policy.limits.ticketEpisode : policy.limits.genericEpisode;
+  const cost =
+    configured.maxEquivalentCostUsd === null
+      ? constraints.maxEquivalentCostUsd
+      : Math.min(constraints.maxEquivalentCostUsd, configured.maxEquivalentCostUsd);
   return {
     maxProviderTurns: Math.min(
       constraints.maxProviderTurns ?? configured.maxProviderTurns,
@@ -181,10 +174,7 @@ export function effectiveEpisodeHardCeiling(
     ...(constraints.maxMechanicalOverheadUsd === undefined
       ? {}
       : { maxMechanicalOverheadUsd: Math.min(constraints.maxMechanicalOverheadUsd, cost) }),
-    maxActiveTimeMs: Math.min(
-      constraints.maxActiveTimeMs ?? configured.maxActiveTimeMs,
-      configured.maxActiveTimeMs,
-    ),
+    maxActiveTimeMs: Math.min(constraints.maxActiveTimeMs ?? configured.maxActiveTimeMs, configured.maxActiveTimeMs),
     maxHumanDecisions: Math.min(
       constraints.maxHumanDecisions ?? configured.maxHumanDecisions,
       configured.maxHumanDecisions,
@@ -224,35 +214,16 @@ function parseExecutionLimits(
 ): AppExecutionLimits {
   if (raw === undefined) return structuredClone(defaults);
   const spec = mapping(raw, "execution.limits", err);
-  assertOnlyKeys(
-    spec,
-    ["per_turn", "generic_episode", "ticket_episode", "route_execution"],
-    "execution.limits",
-    err,
-  );
+  assertOnlyKeys(spec, ["per_turn", "generic_episode", "ticket_episode", "route_execution"], "execution.limits", err);
   return {
     perTurn: parsePerTurn(spec["per_turn"], defaults.perTurn, err),
-    genericEpisode: parseEpisode(
-      spec["generic_episode"],
-      defaults.genericEpisode,
-      "generic_episode",
-      err,
-    ),
-    ticketEpisode: parseEpisode(
-      spec["ticket_episode"],
-      defaults.ticketEpisode,
-      "ticket_episode",
-      err,
-    ),
+    genericEpisode: parseEpisode(spec["generic_episode"], defaults.genericEpisode, "generic_episode", err),
+    ticketEpisode: parseEpisode(spec["ticket_episode"], defaults.ticketEpisode, "ticket_episode", err),
     routeExecution: parseRouteExecution(spec["route_execution"], defaults.routeExecution, err),
   };
 }
 
-function parsePerTurn(
-  raw: unknown,
-  defaults: AppPerTurnLimits,
-  err: (message: string) => Error,
-): AppPerTurnLimits {
+function parsePerTurn(raw: unknown, defaults: AppPerTurnLimits, err: (message: string) => Error): AppPerTurnLimits {
   if (raw === undefined) return { ...defaults };
   const spec = mapping(raw, "execution.limits.per_turn", err);
   assertOnlyKeys(
@@ -298,12 +269,7 @@ function parseEpisode(
   if (raw === undefined) return { ...defaults };
   const prefix = `execution.limits.${field}`;
   const spec = mapping(raw, prefix, err);
-  assertOnlyKeys(
-    spec,
-    ["provider_turns", "equivalent_cost_usd", "active_time_ms", "human_decisions"],
-    prefix,
-    err,
-  );
+  assertOnlyKeys(spec, ["provider_turns", "equivalent_cost_usd", "active_time_ms", "human_decisions"], prefix, err);
   return {
     maxProviderTurns: positiveInteger(
       spec["provider_turns"],
@@ -317,12 +283,7 @@ function parseEpisode(
       `${prefix}.equivalent_cost_usd`,
       err,
     ),
-    maxActiveTimeMs: positiveInteger(
-      spec["active_time_ms"],
-      defaults.maxActiveTimeMs,
-      `${prefix}.active_time_ms`,
-      err,
-    ),
+    maxActiveTimeMs: positiveInteger(spec["active_time_ms"], defaults.maxActiveTimeMs, `${prefix}.active_time_ms`, err),
     maxHumanDecisions: nonNegativeInteger(
       spec["human_decisions"],
       defaults.maxHumanDecisions,
@@ -352,13 +313,36 @@ function parseRouteExecution(
         prefix,
         err,
       );
-      return [route, {
-        environmentRetries: nonNegativeInteger(row["environment_retries"], defaults[route].environmentRetries, `${prefix}.environment_retries`, err),
-        toolCalls: positiveInteger(row["tool_calls"], defaults[route].toolCalls, `${prefix}.tool_calls`, err),
-        claimAttempts: positiveInteger(row["claim_attempts"], defaults[route].claimAttempts, `${prefix}.claim_attempts`, err),
-        repairAttempts: nonNegativeInteger(row["repair_attempts"], defaults[route].repairAttempts, `${prefix}.repair_attempts`, err),
-        reviewCycles: nonNegativeInteger(row["review_cycles"], defaults[route].reviewCycles, `${prefix}.review_cycles`, err),
-      }];
+      return [
+        route,
+        {
+          environmentRetries: nonNegativeInteger(
+            row["environment_retries"],
+            defaults[route].environmentRetries,
+            `${prefix}.environment_retries`,
+            err,
+          ),
+          toolCalls: positiveInteger(row["tool_calls"], defaults[route].toolCalls, `${prefix}.tool_calls`, err),
+          claimAttempts: positiveInteger(
+            row["claim_attempts"],
+            defaults[route].claimAttempts,
+            `${prefix}.claim_attempts`,
+            err,
+          ),
+          repairAttempts: nonNegativeInteger(
+            row["repair_attempts"],
+            defaults[route].repairAttempts,
+            `${prefix}.repair_attempts`,
+            err,
+          ),
+          reviewCycles: nonNegativeInteger(
+            row["review_cycles"],
+            defaults[route].reviewCycles,
+            `${prefix}.review_cycles`,
+            err,
+          ),
+        },
+      ];
     }),
   ) as Record<TicketTier, RouteExecutionBounds>;
 }
@@ -369,11 +353,7 @@ function assertPolicyMonotonic(policy: AppRuntimePolicy, err: (message: string) 
     ["generic_episode", policy.limits.genericEpisode],
     ["ticket_episode", policy.limits.ticketEpisode],
   ] as const) {
-    if (
-      turn !== null &&
-      ceiling.maxEquivalentCostUsd !== null &&
-      turn > ceiling.maxEquivalentCostUsd
-    ) {
+    if (turn !== null && ceiling.maxEquivalentCostUsd !== null && turn > ceiling.maxEquivalentCostUsd) {
       throw err(
         `execution limits are non-monotonic: per_turn.equivalent_cost_usd (${turn}) ` +
           `exceeds ${name}.equivalent_cost_usd (${ceiling.maxEquivalentCostUsd})`,
@@ -393,14 +373,11 @@ function assertPolicyMonotonic(policy: AppRuntimePolicy, err: (message: string) 
     }
   }
 
-  const fields = [
-    "environmentRetries",
-    "toolCalls",
-    "claimAttempts",
-    "repairAttempts",
-    "reviewCycles",
-  ] as const;
-  for (const [narrower, wider] of [["quick", "standard"], ["standard", "deep"]] as const) {
+  const fields = ["environmentRetries", "toolCalls", "claimAttempts", "repairAttempts", "reviewCycles"] as const;
+  for (const [narrower, wider] of [
+    ["quick", "standard"],
+    ["standard", "deep"],
+  ] as const) {
     for (const field of fields) {
       const left = policy.limits.routeExecution[narrower][field];
       const right = policy.limits.routeExecution[wider][field];
@@ -443,12 +420,7 @@ function nullablePositive(
   return value;
 }
 
-function positiveInteger(
-  value: unknown,
-  fallback: number,
-  field: string,
-  err: (message: string) => Error,
-): number {
+function positiveInteger(value: unknown, fallback: number, field: string, err: (message: string) => Error): number {
   if (value === undefined) return fallback;
   if (!Number.isSafeInteger(value) || (value as number) <= 0) throw err(`${field} must be a positive integer`);
   return value as number;
@@ -465,12 +437,7 @@ function nullablePositiveInteger(
   return positiveInteger(value, 1, field, err);
 }
 
-function nonNegativeInteger(
-  value: unknown,
-  fallback: number,
-  field: string,
-  err: (message: string) => Error,
-): number {
+function nonNegativeInteger(value: unknown, fallback: number, field: string, err: (message: string) => Error): number {
   if (value === undefined) return fallback;
   if (!Number.isSafeInteger(value) || (value as number) < 0) throw err(`${field} must be a non-negative integer`);
   return value as number;

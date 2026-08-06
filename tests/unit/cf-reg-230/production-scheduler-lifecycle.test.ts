@@ -12,21 +12,22 @@ describe("CF-REG-230/232 — production scheduler lifecycle wiring", () => {
 
     // Seeded negative control: a turn-local transaction is not resumable if
     // the production scheduler stops reconciling it before provider admission.
-    expect(() => assertLifecycleWiring({
-      ...sources,
-      dispatch: sources.dispatch.replace("await reconcilePendingPlannerPublications({", "await Promise.resolve({"),
-    })).toThrow("scheduler recovery");
-    expect(() => assertLifecycleWiring({
-      ...sources,
-      turn: normalizeWhitespace(sources.turn).replace(
-        PLANNER_WORKTREE_NEEDLE,
-        "options.role.name === \"builder\"",
-      ),
-    })).toThrow("all-route isolated Planner worktree");
+    expect(() =>
+      assertLifecycleWiring({
+        ...sources,
+        dispatch: sources.dispatch.replace("await reconcilePendingPlannerPublications({", "await Promise.resolve({"),
+      }),
+    ).toThrow("scheduler recovery");
+    expect(() =>
+      assertLifecycleWiring({
+        ...sources,
+        turn: normalizeWhitespace(sources.turn).replace(PLANNER_WORKTREE_NEEDLE, 'options.role.name === "builder"'),
+      }),
+    ).toThrow("all-route isolated Planner worktree");
   });
 });
 
-const PLANNER_WORKTREE_NEEDLE = "options.role.name === \"planner\" ? createPlannerTurnWorktree";
+const PLANNER_WORKTREE_NEEDLE = 'options.role.name === "planner" ? createPlannerTurnWorktree';
 
 interface ProductionSources {
   intake: string;
@@ -50,10 +51,14 @@ async function productionSources(): Promise<ProductionSources> {
     status: "src/cli/status.ts",
     narrative: "src/narrative/story.ts",
   };
-  return Object.fromEntries(await Promise.all(Object.entries(paths).map(async ([name, path]) => [
-    name,
-    await readFile(new URL(`../../../${path}`, import.meta.url), "utf8"),
-  ]))) as unknown as ProductionSources;
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(paths).map(async ([name, path]) => [
+        name,
+        await readFile(new URL(`../../../${path}`, import.meta.url), "utf8"),
+      ]),
+    ),
+  ) as unknown as ProductionSources;
 }
 
 function assertLifecycleWiring(sources: ProductionSources): void {

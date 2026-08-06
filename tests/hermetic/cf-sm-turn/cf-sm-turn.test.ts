@@ -46,31 +46,27 @@ describe("CF-SM-TURN — journal phases are forward-only, replayable, and kill-s
     for (const result of results.splice(0).reverse()) await result.cleanup();
   });
 
-  it.each(PRODUCTIVE_PHASES)(
-    "SIGKILL after %s preserves that exact recognized phase",
-    async (phase) => {
-      const result = await runKillPointScenario({
-        source: killSweepSource(),
-        killAt: `phase-${phase}`,
-        env: {
-          JOURNAL_MODULE: pathToFileURL(resolve("src/org/journal.ts")).href,
-        },
-      });
-      results.push(result);
+  it.each(PRODUCTIVE_PHASES)("SIGKILL after %s preserves that exact recognized phase", async (phase) => {
+    const result = await runKillPointScenario({
+      source: killSweepSource(),
+      killAt: `phase-${phase}`,
+      env: {
+        JOURNAL_MODULE: pathToFileURL(resolve("src/org/journal.ts")).href,
+      },
+    });
+    results.push(result);
 
-      expect(result.timedOut).toBe(false);
-      expect(result.killedAt).toBe(`phase-${phase}`);
-      expect(result.markers).toEqual(
-        PRODUCTIVE_PHASES.slice(0, PRODUCTIVE_PHASES.indexOf(phase) + 1)
-          .map((reached) => `phase-${reached}`),
-      );
+    expect(result.timedOut).toBe(false);
+    expect(result.killedAt).toBe(`phase-${phase}`);
+    expect(result.markers).toEqual(
+      PRODUCTIVE_PHASES.slice(0, PRODUCTIVE_PHASES.indexOf(phase) + 1).map((reached) => `phase-${reached}`),
+    );
 
-      const journal = await readJournal(join(result.stateDir, "org-state"), "turn-sweep");
-      expect(RECOGNIZED_PHASES.has(journal.phase)).toBe(true);
-      expect(journal.phase).toBe(phase);
-      expect(journal.turnId).toBe("turn-sweep");
-    },
-  );
+    const journal = await readJournal(join(result.stateDir, "org-state"), "turn-sweep");
+    expect(RECOGNIZED_PHASES.has(journal.phase)).toBe(true);
+    expect(journal.phase).toBe(phase);
+    expect(journal.turnId).toBe("turn-sweep");
+  });
 
   it("the no-kill control reaches every non-empty sweep point and terminates done", async () => {
     const result = await runKillPointScenario({
@@ -126,8 +122,9 @@ describe("CF-SM-TURN — journal phases are forward-only, replayable, and kill-s
   });
 
   it("negative control: a skipped productive phase is rejected before persistence", async () => {
-    expect(() => assertJournalPhaseTransition("assembling", "collecting"))
-      .toThrow(/error_illegal_journal_phase_transition: assembling -> collecting/);
+    expect(() => assertJournalPhaseTransition("assembling", "collecting")).toThrow(
+      /error_illegal_journal_phase_transition: assembling -> collecting/,
+    );
 
     const state = await makeTempStateHome({ name: "cf-sm-turn-negative" });
     try {
@@ -136,11 +133,13 @@ describe("CF-SM-TURN — journal phases are forward-only, replayable, and kill-s
         role: "builder",
         phase: "assembling",
       });
-      await expect(writeJournalPatch(state.stateHome, "turn-negative", {
-        app: "turn-app",
-        role: "builder",
-        phase: "done",
-      })).rejects.toThrow(/error_illegal_journal_phase_transition/);
+      await expect(
+        writeJournalPatch(state.stateHome, "turn-negative", {
+          app: "turn-app",
+          role: "builder",
+          phase: "done",
+        }),
+      ).rejects.toThrow(/error_illegal_journal_phase_transition/);
       expect((await readJournal(state.stateHome, "turn-negative")).phase).toBe("assembling");
     } finally {
       await state.cleanup();

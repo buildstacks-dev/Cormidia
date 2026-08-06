@@ -85,8 +85,7 @@ export function scopeApp(scope: string): string | undefined {
 export function assertSafeConceptName(name: string): string {
   if (!/^[A-Za-z0-9._-]+$/.test(name) || /^\.+$/.test(name)) {
     throw new Error(
-      `learning: concept name "${name}" must be a plain filename segment ` +
-        `([A-Za-z0-9._-], no path separators)`,
+      `learning: concept name "${name}" must be a plain filename segment ` + `([A-Za-z0-9._-], no path separators)`,
     );
   }
   return name;
@@ -207,19 +206,14 @@ export async function loadConceptDir(
       });
     } catch (error) {
       if (onError === "throw") throw error;
-      process.stderr.write(
-        `cormidia: skipping misplaced governed concept — ${(error as Error).message}\n`,
-      );
+      process.stderr.write(`cormidia: skipping misplaced governed concept — ${(error as Error).message}\n`);
     }
   }
   return out;
 }
 
 /** Find one concept by `loop.id` across a root's bundle scope dirs. */
-export async function findBundleConcept(
-  root: LearningRoot,
-  conceptId: string,
-): Promise<LoadedConcept | undefined> {
+export async function findBundleConcept(root: LearningRoot, conceptId: string): Promise<LoadedConcept | undefined> {
   for (const dir of await listBundleScopeDirs(root)) {
     for (const concept of await loadConceptDir(dir, "bundle")) {
       if (concept.doc.frontmatter.loop?.id === conceptId) return concept;
@@ -234,9 +228,7 @@ export async function listBundleScopeDirs(root: LearningRoot): Promise<string[]>
   if (!existsSync(base)) return [];
   const dirs: string[] = [];
   const walk = async (dir: string): Promise<void> => {
-    const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
     if (entries.some((entry) => entry.isFile() && entry.name.endsWith(".md") && entry.name !== "INDEX.md")) {
       dirs.push(dir);
     }
@@ -423,10 +415,7 @@ export interface CutVersionInput {
  *  a mid-trial publish/disable/rollback would silently contaminate the
  *  population under measurement — the trial must close first. A publish
  *  refused here resumes cleanly from its journal after the canary closes. */
-export async function cutManifestVersion(
-  root: LearningRoot,
-  input: CutVersionInput,
-): Promise<ManifestHistoryEntry> {
+export async function cutManifestVersion(root: LearningRoot, input: CutVersionInput): Promise<ManifestHistoryEntry> {
   const now = input.now ?? new Date();
   const manifest = (await readManifest(root)) ?? {
     schema_version: 1 as const,
@@ -528,10 +517,7 @@ export interface RollbackResult {
 /** Revert the latest version cut: deprecate every concept that cut
  *  activated, then cut a new version recording the rollback. History stays
  *  append-only — a rollback is a new entry, never an erased one. */
-export async function rollbackRoot(
-  root: LearningRoot,
-  options: { now?: Date } = {},
-): Promise<RollbackResult> {
+export async function rollbackRoot(root: LearningRoot, options: { now?: Date } = {}): Promise<RollbackResult> {
   // Guard BEFORE deprecating anything: mid-trial the latest cut IS the
   // canary version, and a half-applied rollback would strip the trial's
   // own concepts while status still reports a live trial.
@@ -597,10 +583,7 @@ export interface StartCanaryInput {
 /** Re-point the manifest for a live trial: `stable` returns to the cut
  *  before `version`, `canary` points at `version`. No new cut — starting a
  *  trial changes exposure, not content; history already records the publish. */
-export async function startCanaryOnManifest(
-  root: LearningRoot,
-  input: StartCanaryInput,
-): Promise<LearningManifest> {
+export async function startCanaryOnManifest(root: LearningRoot, input: StartCanaryInput): Promise<LearningManifest> {
   const manifest = await readManifest(root);
   if (manifest === null || manifest.history.length === 0) {
     throw new Error(`learning: ${manifestPath(root)} has no version cuts — nothing to canary`);
@@ -755,10 +738,7 @@ export interface WriteProvisionalInput {
 
 /** Validate and write a human-authored provisional concept into
  *  quarantine/. Enforces the placement rules plus the policy TTL cap. */
-export async function writeProvisionalConcept(
-  root: LearningRoot,
-  input: WriteProvisionalInput,
-): Promise<string> {
+export async function writeProvisionalConcept(root: LearningRoot, input: WriteProvisionalInput): Promise<string> {
   const doc = assertConceptPlacement(input.doc, "quarantine");
   const loop = doc.frontmatter.loop!;
   const ttl = loop["ttl_days"];
@@ -769,9 +749,7 @@ export async function writeProvisionalConcept(
     );
   }
   if (rootKindForScope(loop.scope) !== root.kind) {
-    throw new Error(
-      `learning: scope "${loop.scope}" belongs in the ${rootKindForScope(loop.scope)} root`,
-    );
+    throw new Error(`learning: scope "${loop.scope}" belongs in the ${rootKindForScope(loop.scope)} root`);
   }
   const dir = quarantineDir(root);
   await mkdir(dir, { recursive: true });

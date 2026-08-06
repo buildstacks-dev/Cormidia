@@ -17,10 +17,7 @@
 
 import { sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  CANDIDATE_DESTINATIONS,
-  validateCandidateArtifact,
-} from "../../../src/org/learning/candidate.js";
+import { CANDIDATE_DESTINATIONS, validateCandidateArtifact } from "../../../src/org/learning/candidate.js";
 import {
   assertSafeConceptName,
   bundleScopeDir,
@@ -179,12 +176,10 @@ describe("CF-INV-001 seed d (L1): the learning publish path cannot name a role t
       evidence_refs: [],
       content_hash: `sha256:${"a".repeat(64)}`,
     };
-    expect(() => validateCandidateArtifact({ ...base, destination: "roles_yaml" })).toThrow(
-      /destination/,
+    expect(() => validateCandidateArtifact({ ...base, destination: "roles_yaml" })).toThrow(/destination/);
+    expect(() => validateCandidateArtifact({ ...base, destination: "okf_concept", proposed_scope: "apps/.." })).toThrow(
+      /proposed_scope/,
     );
-    expect(() =>
-      validateCandidateArtifact({ ...base, destination: "okf_concept", proposed_scope: "apps/.." }),
-    ).toThrow(/proposed_scope/);
     expect(() =>
       validateCandidateArtifact({
         ...base,

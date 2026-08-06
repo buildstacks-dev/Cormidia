@@ -101,9 +101,7 @@ describe("CF-REG-202 — a failed_gate revision is executable (#202, sibling of 
 
     // And the repair suffix really is gated behind it, so "skip the step" is
     // not an option either — it has to be settled.
-    expect(REG202_PLAN_V2.steps.find((step) => step.id === "fix")?.dependsOn).toEqual([
-      "review-verify",
-    ]);
+    expect(REG202_PLAN_V2.steps.find((step) => step.id === "fix")?.dependsOn).toEqual(["review-verify"]);
     const withReviewSettled = selectReadyEpisodeSteps(REG202_PLAN_V2, [
       ...REG202_COMPLETED_AT_ADOPTION,
       "review-verify",
@@ -268,49 +266,73 @@ describe("CF-REG-202 — a failed_gate revision is executable (#202, sibling of 
 
     it("negative control: every near miss refuses", () => {
       const refusals: Array<[string, Parameters<typeof reconcilablePriorEvidence>[0]]> = [
-        ["a v1 plan has no prior to reconcile", {
-          ...base,
-          planVersion: 1,
-          priorRecordStatus: "completed",
-          priorVerdict: { kind: "review", findings: 1 },
-        }],
-        ["no accepted revision named the step", {
-          ...base,
-          repairedFromPlanVersion: undefined,
-          priorRecordStatus: "completed",
-          priorVerdict: { kind: "review", findings: 1 },
-        }],
-        ["the revision changed the step, so that evidence is not this step's", {
-          ...base,
-          stepPreserved: false,
-          priorRecordStatus: "completed",
-          priorVerdict: { kind: "review", findings: 1 },
-        }],
-        ["no prior verdict at all", {
-          ...base,
-          priorRecordStatus: "completed",
-          priorVerdict: undefined,
-        }],
-        ["a review with NO findings would not have failed — nothing to repair", {
-          ...base,
-          priorRecordStatus: "completed",
-          priorVerdict: { kind: "review", findings: 0 },
-        }],
-        ["a review whose transport did not complete", {
-          ...base,
-          priorRecordStatus: "failed",
-          priorVerdict: { kind: "review", findings: 1 },
-        }],
-        ["a build whose verdict was not done", {
-          ...base,
-          priorRecordStatus: "blocked",
-          priorVerdict: { kind: "build", status: "blocked" },
-        }],
-        ["a build whose transport completed (its own version's record governs)", {
-          ...base,
-          priorRecordStatus: "completed",
-          priorVerdict: { kind: "build", status: "done" },
-        }],
+        [
+          "a v1 plan has no prior to reconcile",
+          {
+            ...base,
+            planVersion: 1,
+            priorRecordStatus: "completed",
+            priorVerdict: { kind: "review", findings: 1 },
+          },
+        ],
+        [
+          "no accepted revision named the step",
+          {
+            ...base,
+            repairedFromPlanVersion: undefined,
+            priorRecordStatus: "completed",
+            priorVerdict: { kind: "review", findings: 1 },
+          },
+        ],
+        [
+          "the revision changed the step, so that evidence is not this step's",
+          {
+            ...base,
+            stepPreserved: false,
+            priorRecordStatus: "completed",
+            priorVerdict: { kind: "review", findings: 1 },
+          },
+        ],
+        [
+          "no prior verdict at all",
+          {
+            ...base,
+            priorRecordStatus: "completed",
+            priorVerdict: undefined,
+          },
+        ],
+        [
+          "a review with NO findings would not have failed — nothing to repair",
+          {
+            ...base,
+            priorRecordStatus: "completed",
+            priorVerdict: { kind: "review", findings: 0 },
+          },
+        ],
+        [
+          "a review whose transport did not complete",
+          {
+            ...base,
+            priorRecordStatus: "failed",
+            priorVerdict: { kind: "review", findings: 1 },
+          },
+        ],
+        [
+          "a build whose verdict was not done",
+          {
+            ...base,
+            priorRecordStatus: "blocked",
+            priorVerdict: { kind: "build", status: "blocked" },
+          },
+        ],
+        [
+          "a build whose transport completed (its own version's record governs)",
+          {
+            ...base,
+            priorRecordStatus: "completed",
+            priorVerdict: { kind: "build", status: "done" },
+          },
+        ],
       ];
       for (const [why, facts] of refusals) {
         expect(reconcilablePriorEvidence(facts), why).toBeUndefined();
@@ -393,12 +415,7 @@ describe("CF-REG-202 — a failed_gate revision is executable (#202, sibling of 
     } as unknown as TicketProviderExecutionInput;
 
     const before = handle.callLog().length;
-    const applied = await applyProviderOutcome(
-      input,
-      REVIEW_DEFINITION,
-      evidence,
-      JSON.parse(REVIEW_FINDINGS_VERDICT),
-    );
+    const applied = await applyProviderOutcome(input, REVIEW_DEFINITION, evidence, JSON.parse(REVIEW_FINDINGS_VERDICT));
 
     // The step completes — no typed failure, so the revision advances to `fix`.
     expect(applied.failure).toBeUndefined();

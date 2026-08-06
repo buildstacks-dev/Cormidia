@@ -15,12 +15,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { cmdApp } from "../../../src/cli/app.js";
-import {
-  executeAppReset,
-  planAppReset,
-  RESET_STALE_RUN_MS,
-  type AppResetOptions,
-} from "../../../src/org/app-reset.js";
+import { executeAppReset, planAppReset, RESET_STALE_RUN_MS, type AppResetOptions } from "../../../src/org/app-reset.js";
 import { loadApps } from "../../../src/org/apps.js";
 import {
   assertResetScope,
@@ -133,9 +128,7 @@ describe("CF-J14-R — refusal classes and the narrow --force condition (C-OP-LI
     expect(plan.staleRuns).toEqual(["run-stale"]);
     const result = await executeAppReset(input, plan);
     expect(result.archivePath.length).toBeGreaterThan(0);
-    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).not.toContain(
-      TARGET_APP,
-    );
+    expect((await loadApps(join(w.orgHome, "apps.yaml"))).apps.map((app) => app.name)).not.toContain(TARGET_APP);
   });
 
   it("active journal: refuses, never force-eligible", async () => {
@@ -165,9 +158,9 @@ describe("CF-J14-R — refusal classes and the narrow --force condition (C-OP-LI
   it("wrong --confirm identity: the CLI refuses before resolving homes or planning (error split)", async () => {
     // The identity check precedes every read and write — no homes are
     // resolved, so nothing can mutate; the world is not even needed.
-    await expect(
-      cmdApp(["reset", TARGET_APP, "--execute", "--confirm", "not-the-app"]),
-    ).rejects.toThrow(new RegExp(`--execute requires --confirm ${TARGET_APP}`));
+    await expect(cmdApp(["reset", TARGET_APP, "--execute", "--confirm", "not-the-app"])).rejects.toThrow(
+      new RegExp(`--execute requires --confirm ${TARGET_APP}`),
+    );
   });
 
   it("execute with a blocked reviewed plan refuses before locks, archive, or intent", async () => {

@@ -41,7 +41,7 @@ export function renderStoryMarkdown(story: NarrativeStory): string {
     lines.push("## Planner publication", "");
     lines.push(
       `State: **${story.publication.state}** · ` +
-      `${story.publication.branch_created ? `\`${story.publication.branch}\` at \`${story.publication.commit}\`` : "read-only checkout"}`,
+        `${story.publication.branch_created ? `\`${story.publication.branch}\` at \`${story.publication.commit}\`` : "read-only checkout"}`,
       "",
     );
     if (story.publication.error !== null) lines.push(`Error: ${story.publication.error}`, "");
@@ -81,21 +81,28 @@ export function renderStoryMarkdown(story: NarrativeStory): string {
   }
 
   if (story.cost !== undefined) {
-    const unmeasured =
-      story.cost.unmeasured_turns > 0 ? ` (+${story.cost.unmeasured_turns} unmeasured turn(s))` : "";
-    lines.push("## Cost", "", `$${story.cost.usd.toFixed(2)} settled across ${story.cost.provider_turns} provider turn(s)${unmeasured}.`, "");
+    const unmeasured = story.cost.unmeasured_turns > 0 ? ` (+${story.cost.unmeasured_turns} unmeasured turn(s))` : "";
+    lines.push(
+      "## Cost",
+      "",
+      `$${story.cost.usd.toFixed(2)} settled across ${story.cost.provider_turns} provider turn(s)${unmeasured}.`,
+      "",
+    );
   }
 
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+  return (
+    lines
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trimEnd() + "\n"
+  );
 }
 
 /** Time-ordered per-app index: month groups newest-first, stories
  *  newest-first inside each — "show me July" is a slice, the arcs stay
  *  whole in their own files. */
 export function renderIndexMarkdown(app: string, stories: readonly NarrativeStory[]): string {
-  const ordered = [...stories].sort(
-    (a, b) => b.opened.localeCompare(a.opened) || a.story_id.localeCompare(b.story_id),
-  );
+  const ordered = [...stories].sort((a, b) => b.opened.localeCompare(a.opened) || a.story_id.localeCompare(b.story_id));
   const lines: string[] = [`# ${app} — narrative index`, ""];
   const newest = ordered
     .map((s) => s.captured_at)

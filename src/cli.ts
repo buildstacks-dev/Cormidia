@@ -38,11 +38,7 @@ import { cmdNarrative } from "./cli/narrative.js";
 import { cmdScheduler } from "./cli/scheduler.js";
 import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.js";
 import { jsonCliFailure, runJsonCliCommand } from "./cli/json-failure.js";
-import {
-  reportCliInvocation,
-  reportCliInvocationFailure,
-  runAuditedCliInvocation,
-} from "./cli/invocation-audit.js";
+import { reportCliInvocation, reportCliInvocationFailure, runAuditedCliInvocation } from "./cli/invocation-audit.js";
 
 const USAGE = `cormidia — org runtime for a team of AI agents
 
@@ -240,8 +236,7 @@ const COMMANDS: Record<string, CliCommand> = {
   // with outward-facing effects, and `cormidia bootstrap --publish` would read
   // as a modifier on a scan/emit run (#61).
   bootstrap: {
-    run: (args) =>
-      args[0] === "publish" ? cmdBootstrapPublish(args.slice(1)) : cmdBootstrap(args),
+    run: (args) => (args[0] === "publish" ? cmdBootstrapPublish(args.slice(1)) : cmdBootstrap(args)),
     help: HELP.bootstrap,
   },
   budget: { run: (args) => cmdBudget(args), help: HELP.budget },

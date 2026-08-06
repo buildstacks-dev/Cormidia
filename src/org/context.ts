@@ -11,10 +11,7 @@ import type { ContextBundle, ContextComponent, RoleConfig } from "../runtime/typ
 import { resolveAuthority } from "./authority.js";
 import { ticketEpisodeAnchor } from "./learning/episodes.js";
 import { loadLearningPolicy } from "./learning/policy.js";
-import {
-  resolveLearningContext,
-  type ResolvedLearningContext,
-} from "./learning/resolver.js";
+import { resolveLearningContext, type ResolvedLearningContext } from "./learning/resolver.js";
 import { selectAttributedExcerpts } from "./memory.js";
 
 export interface AssembleContextOptions {
@@ -85,12 +82,7 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   });
 
   const roleTastePath = join(orgHome, "taste", `${options.role.name}.md`);
-  const roleTaste = await readLayer(
-    roleTastePath,
-    `Role taste/${options.role.name}.md`,
-    sources,
-    false,
-  );
+  const roleTaste = await readLayer(roleTastePath, `Role taste/${options.role.name}.md`, sources, false);
   if (roleTaste !== undefined) {
     taste.push(roleTaste);
     components.push({
@@ -103,12 +95,7 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   }
 
   const appTastePath = join(appWorkdir, ".cormidia", "TASTE.md");
-  const appTaste = await readLayer(
-    appTastePath,
-    "App .cormidia/TASTE.md",
-    sources,
-    false,
-  );
+  const appTaste = await readLayer(appTastePath, "App .cormidia/TASTE.md", sources, false);
   if (appTaste !== undefined) {
     taste.push(appTaste);
     components.push({
@@ -147,15 +134,9 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
       policy: await loadLearningPolicy(orgHome),
       // An explicit caller cap bounds the COMBINED memory section: governed
       // concepts spend from it first, legacy memory gets the remainder.
-      ...(options.memoryCapBytes !== undefined
-        ? { budgetCapBytes: options.memoryCapBytes }
-        : {}),
-      ...(options.learning.stateHome !== undefined
-        ? { stateHome: options.learning.stateHome }
-        : {}),
-      ...(options.learning.lineageOverride !== undefined
-        ? { lineageOverride: options.learning.lineageOverride }
-        : {}),
+      ...(options.memoryCapBytes !== undefined ? { budgetCapBytes: options.memoryCapBytes } : {}),
+      ...(options.learning.stateHome !== undefined ? { stateHome: options.learning.stateHome } : {}),
+      ...(options.learning.lineageOverride !== undefined ? { lineageOverride: options.learning.lineageOverride } : {}),
     });
     legacyCap = Math.min(legacyCap, resolved.bytes_remaining);
     sources.push(join(orgHome, "learning"), join(appWorkdir, ".cormidia", "learning"));
@@ -167,10 +148,7 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   ].filter((dir) => existsSync(dir));
   const governedSections = resolved?.sections ?? [];
   const legacyExcerpts = await selectAttributedExcerpts(memoryDirs, options.taskText, legacyCap);
-  const memoryExcerpts = [
-    ...governedSections,
-    ...legacyExcerpts.map((item) => item.rendered),
-  ];
+  const memoryExcerpts = [...governedSections, ...legacyExcerpts.map((item) => item.rendered)];
   sources.push(...memoryDirs);
   memoryExcerpts.forEach((rendered, index) => {
     const governed = index < governedSections.length;
@@ -240,9 +218,7 @@ export function createEpisodeContextResolver(
       app: options.app,
       role,
       taskText: `${item.title}\n\n${item.body}`,
-      ...(options.memoryCapBytes !== undefined
-        ? { memoryCapBytes: options.memoryCapBytes }
-        : {}),
+      ...(options.memoryCapBytes !== undefined ? { memoryCapBytes: options.memoryCapBytes } : {}),
       learning: {
         stateHome: options.stateHome,
         turnId: `${options.turnId}-i${item.issueNumber}-${role.name}`,
@@ -266,9 +242,7 @@ export function createEpisodeContextResolver(
 
 export function renderContextBundle(bundle: ContextBundle): string {
   const sections = [
-    ...(bundle.authority !== undefined
-      ? [`## Effective delegated authority\n\n${bundle.authority.text.trim()}`]
-      : []),
+    ...(bundle.authority !== undefined ? [`## Effective delegated authority\n\n${bundle.authority.text.trim()}`] : []),
     ...bundle.taste,
   ];
   if (bundle.memoryExcerpts.length > 0) {

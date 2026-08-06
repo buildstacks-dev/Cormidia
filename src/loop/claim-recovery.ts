@@ -9,12 +9,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { withFileLock } from "../runtime/file-lock.js";
-import {
-  episodeIdFor,
-  readRouteRecord,
-  routeRecordPath,
-  type EpisodeTerminal,
-} from "./efficiency.js";
+import { episodeIdFor, readRouteRecord, routeRecordPath, type EpisodeTerminal } from "./efficiency.js";
 import type { GhIssue, GhOps } from "./github.js";
 import {
   readTicketClaimState,
@@ -24,12 +19,7 @@ import {
   type TicketClaimState,
   type TicketRearmRecord,
 } from "./rehydrate.js";
-import type {
-  LoopContinuation,
-  LoopContinuationDecision,
-  LoopItem,
-  SuppressedOperation,
-} from "./types.js";
+import type { LoopContinuation, LoopContinuationDecision, LoopItem, SuppressedOperation } from "./types.js";
 import { currentProcessStartIdentity, processIdentityStatus } from "../runtime/process-identity.js";
 
 const LOCK_STALE_MS = 10 * 60_000;
@@ -196,10 +186,12 @@ export async function markTicketProviderStarted(input: ClaimMutation & { now?: D
 
 /** Complete a controlled loop outcome. Approval waits retain the exact session
  * and do not consume another claim when the decision is resumed. */
-export async function finishTicketClaim(input: ClaimMutation & {
-  item: LoopItem;
-  now?: Date;
-}): Promise<void> {
+export async function finishTicketClaim(
+  input: ClaimMutation & {
+    item: LoopItem;
+    now?: Date;
+  },
+): Promise<void> {
   const now = input.now ?? new Date();
   await mutateLease(input, (state, active) => {
     const outcome =
@@ -316,8 +308,7 @@ export async function continueAfterApproval(input: {
           decidedAt: at,
         },
       ];
-      const terminalizes =
-        input.decision === "denied" && (state.continuation.pauseKind ?? "approval") === "budget";
+      const terminalizes = input.decision === "denied" && (state.continuation.pauseKind ?? "approval") === "budget";
       if (terminalizes) {
         const detail =
           `claim ${state.continuation.claimNumber}: budget grant ${input.approvalId} denied; ` +
@@ -383,11 +374,7 @@ function recordedSuppression(
 ): Pick<TicketClaimState, "suppressed"> | Record<string, never> {
   if (input.decision !== "denied" || input.suppression === undefined) return {};
   const existing = state.suppressed ?? [];
-  if (
-    existing.some(
-      (record) => record.approvalId === input.approvalId && record.disposition === "denied",
-    )
-  ) {
+  if (existing.some((record) => record.approvalId === input.approvalId && record.disposition === "denied")) {
     return {};
   }
   return {
@@ -409,11 +396,13 @@ function recordedSuppression(
 /** Recover exceptions at the label/selection/lock/pipeline-start boundaries.
  * Once a provider started, ambiguity is never blindly retried: the ticket is
  * returned with the exact re-arm command and preserved evidence. */
-export async function recoverClaimException(input: ClaimMutation & {
-  gh: GhOps;
-  error: unknown;
-  now?: Date;
-}): Promise<string> {
+export async function recoverClaimException(
+  input: ClaimMutation & {
+    gh: GhOps;
+    error: unknown;
+    now?: Date;
+  },
+): Promise<string> {
   const now = input.now ?? new Date();
   let providerStarted = false;
   let claimNumber = 0;
@@ -463,10 +452,7 @@ export async function recoverInterruptedClaims(input: {
   const lines: string[] = [];
   for (const entry of input.entries) {
     const active = entry.state.active;
-    if (
-      active !== undefined &&
-      !processIsAlive(active.ownerPid, active.ownerProcessStartIdentity)
-    ) {
+    if (active !== undefined && !processIsAlive(active.ownerPid, active.ownerProcessStartIdentity)) {
       const issue = await input.gh.readIssue(entry.issueNumber);
       if (active.phase === "provider_started") {
         const workingLabel = activeClaimLabel(issue);
@@ -567,10 +553,7 @@ export async function executeTicketRearm(input: RearmTicketInput): Promise<Rearm
   await withClaimState(input.root, input.app, input.issueNumber, async (state) => {
     const existing = state.rearms?.find((record) => record.rearmId === plan.rearmId);
     if (existing?.status === "completed") return { value: undefined, state };
-    if (
-      existing === undefined &&
-      effectiveClaimAllowance(state, plan.priorAllowance) !== plan.priorAllowance
-    ) {
+    if (existing === undefined && effectiveClaimAllowance(state, plan.priorAllowance) !== plan.priorAllowance) {
       throw new Error(
         `loop rearm: concurrent allowance change; expected ${plan.priorAllowance}, durable allowance is ` +
           `${effectiveClaimAllowance(state, plan.priorAllowance)}`,
@@ -635,10 +618,7 @@ interface ClaimMutation {
 
 async function mutateLease(
   input: ClaimMutation,
-  mutate: (
-    state: TicketClaimState,
-    active: NonNullable<TicketClaimState["active"]>,
-  ) => TicketClaimState,
+  mutate: (state: TicketClaimState, active: NonNullable<TicketClaimState["active"]>) => TicketClaimState,
 ): Promise<void> {
   await withClaimState(input.root, input.app, input.issueNumber, async (state) => ({
     value: undefined,
@@ -646,10 +626,7 @@ async function mutateLease(
   }));
 }
 
-function requireLease(
-  state: TicketClaimState,
-  claimId: string,
-): NonNullable<TicketClaimState["active"]> {
+function requireLease(state: TicketClaimState, claimId: string): NonNullable<TicketClaimState["active"]> {
   if (state.active?.claimId !== claimId) {
     throw new Error(`claim recovery: active claim does not match lease ${claimId}`);
   }
@@ -691,9 +668,7 @@ async function clearOrphan(
 async function projectReturnedLabel(gh: GhOps, issueNumber: number): Promise<void> {
   const issue = await gh.readIssue(issueNumber);
   if (issue.labels.includes("op:returned")) return;
-  const from = issue.labels.find((label) =>
-    ["op:blocked", "op:building", "op:in-review", "op:ready"].includes(label),
-  );
+  const from = issue.labels.find((label) => ["op:blocked", "op:building", "op:in-review", "op:ready"].includes(label));
   if (from === undefined) await gh.addLabel(issueNumber, "op:returned");
   else await gh.swapLabel(issueNumber, from, "op:returned");
 }
@@ -702,9 +677,7 @@ async function projectReadyLabel(gh: GhOps, issueNumber: number, priorLabel: str
   const issue = await gh.readIssue(issueNumber);
   if (issue.labels.includes("op:ready")) return;
   if (!issue.labels.includes(priorLabel)) {
-    throw new Error(
-      `claim recovery: #${issueNumber} label projection is neither ${priorLabel} nor op:ready`,
-    );
+    throw new Error(`claim recovery: #${issueNumber} label projection is neither ${priorLabel} nor op:ready`);
   }
   await gh.swapLabel(issueNumber, priorLabel, "op:ready");
 }
@@ -716,26 +689,26 @@ async function withClaimState<T>(
   fn: (state: TicketClaimState) => Promise<{ value: T; state: TicketClaimState }>,
 ): Promise<T> {
   const path = ticketStatePath(root, app, issueNumber);
-  return withFileLock(
-    `${path}.lock`,
-    { staleMs: LOCK_STALE_MS, maxWaitMs: LOCK_WAIT_MS },
-    async () => {
-      const current = readTicketClaimState(root, app, issueNumber);
-      const result = await fn(current);
-      writeTicketClaimState(root, app, issueNumber, result.state);
-      return result.value;
-    },
-  );
+  return withFileLock(`${path}.lock`, { staleMs: LOCK_STALE_MS, maxWaitMs: LOCK_WAIT_MS }, async () => {
+    const current = readTicketClaimState(root, app, issueNumber);
+    const result = await fn(current);
+    writeTicketClaimState(root, app, issueNumber, result.state);
+    return result.value;
+  });
 }
 
 function appendEvent(state: TicketClaimState, event: TicketClaimEvent): TicketClaimEvent[] {
   return [...(state.events ?? []).slice(-(EVENT_LIMIT - 1)), event];
 }
 
-function stripContinuationState(
-  continuation: NonNullable<TicketClaimState["continuation"]>,
-): LoopContinuation {
-  const { status: _status, claimNumber: _claimNumber, pauseCount: _pauseCount, pauseCostUsd: _pauseCostUsd, ...exact } = continuation;
+function stripContinuationState(continuation: NonNullable<TicketClaimState["continuation"]>): LoopContinuation {
+  const {
+    status: _status,
+    claimNumber: _claimNumber,
+    pauseCount: _pauseCount,
+    pauseCostUsd: _pauseCostUsd,
+    ...exact
+  } = continuation;
   return exact;
 }
 
@@ -780,11 +753,7 @@ function errorMessage(error: unknown): string {
 }
 
 /** Exact operator command embedded in parked comments and status output. */
-export function rearmCommand(input: {
-  app: string;
-  issueNumber: number;
-  allowance: number;
-}): string {
+export function rearmCommand(input: { app: string; issueNumber: number; allowance: number }): string {
   return (
     `cormidia loop rearm --app ${shellWord(input.app)} --ticket ${input.issueNumber} ` +
     `--reason <reason> --actor <actor> --from-allowance ${input.allowance} ` +

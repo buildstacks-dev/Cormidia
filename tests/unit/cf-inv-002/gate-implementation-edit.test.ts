@@ -10,12 +10,7 @@
 // L1 — pure classifier assertions. Risk E-1 / T-1.
 
 import { describe, expect, it } from "vitest";
-import {
-  CRITICAL_RULES,
-  classify,
-  decideDisposition,
-  dispositionTierForRule,
-} from "../../../src/runtime/gate.js";
+import { CRITICAL_RULES, classify, decideDisposition, dispositionTierForRule } from "../../../src/runtime/gate.js";
 import type { ToolAction } from "../../../src/runtime/types.js";
 
 const GATE_IMPLEMENTATION_FILES = [
@@ -127,13 +122,13 @@ describe("CF-INV-003 — Stage 2 ratified tier table (five tightenings + the new
       "dns-or-domain": "grantable",
       "secrets-or-auth": "grantable",
       // §5.3 split (#296, ratified) replaced external-publishing. The foreign
-    // class is a disposition rule the composed gate assigns, not a classifier
-    // rule.
-    "repo-collaboration": "budgeted",
-    "repo-collaboration-foreign": "human-only",
-    "package-publish": "human-only",
-    "release-artifact": "human-only",
-    "outbound-message": "human-only",
+      // class is a disposition rule the composed gate assigns, not a classifier
+      // rule.
+      "repo-collaboration": "budgeted",
+      "repo-collaboration-foreign": "human-only",
+      "package-publish": "human-only",
+      "release-artifact": "human-only",
+      "outbound-message": "human-only",
       "provider-global-memory": "grantable",
       "outbound-network": "grantable",
       "self-merge-or-approve": "human-only",

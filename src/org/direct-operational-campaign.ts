@@ -8,11 +8,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeLoopFileOnce } from "../loop/durable.js";
-import {
-  stableHash,
-  type CreatorScopeProvenance,
-  type ProposedEpisodeStep,
-} from "../loop/episode-plan.js";
+import { stableHash, type CreatorScopeProvenance, type ProposedEpisodeStep } from "../loop/episode-plan.js";
 import type { ApprovalItem } from "./approvals.js";
 import { ApprovalStore } from "./approvals.js";
 import {
@@ -36,7 +32,10 @@ export type CampaignFailureCode =
   | "campaign_effect_not_acknowledged";
 
 export class DirectCampaignError extends Error {
-  constructor(readonly code: CampaignFailureCode, message: string) {
+  constructor(
+    readonly code: CampaignFailureCode,
+    message: string,
+  ) {
     super(`${code}: ${message}`);
     this.name = "DirectCampaignError";
   }
@@ -77,11 +76,13 @@ export interface DirectOperationalCampaignAuthority {
   campaignBriefRef: string;
   directAuthorityRef: AcceptedAuthority<DirectExecutionUnitAuthority>["ref"];
   /** Stable destination order is the content-turn output and approval order. */
-  destinations: Array<CampaignDestination & {
-    payloadOutputId: string;
-    approvalStepId: string;
-    effectId: string;
-  }>;
+  destinations: Array<
+    CampaignDestination & {
+      payloadOutputId: string;
+      approvalStepId: string;
+      effectId: string;
+    }
+  >;
   contentPlanning: {
     maxProviderTurns: 1;
     role: "marketing";
@@ -201,16 +202,18 @@ export function createDirectOperationalCampaignAuthority(
       maxTurnBudgetUsd: input.admittedBudget.maxEquivalentCostUsd,
       selectionReason: "Marketing owns the single bounded multi-destination content-planning turn.",
     },
-    ...destinations.map((destination): ProposedEpisodeStep => ({
-      id: destination.approvalStepId,
-      kind: "approval",
-      approvalKind: "external-publication",
-      actionRef: `plan-output:${destination.payloadOutputId}`,
-      objective: `Authorize only the exact ${destination.channel} payload for ${destination.target}.`,
-      dependsOn: ["campaign-content-plan"],
-      inputRefs: [{ ref: `plan-output:${destination.payloadOutputId}`, required: true }],
-      expectedOutputs: [],
-    })),
+    ...destinations.map(
+      (destination): ProposedEpisodeStep => ({
+        id: destination.approvalStepId,
+        kind: "approval",
+        approvalKind: "external-publication",
+        actionRef: `plan-output:${destination.payloadOutputId}`,
+        objective: `Authorize only the exact ${destination.channel} payload for ${destination.target}.`,
+        dependsOn: ["campaign-content-plan"],
+        inputRefs: [{ ref: `plan-output:${destination.payloadOutputId}`, required: true }],
+        expectedOutputs: [],
+      }),
+    ),
     {
       id: "campaign-effect-authority-ready",
       kind: "mechanical_gate",
@@ -221,11 +224,13 @@ export function createDirectOperationalCampaignAuthority(
         ref: `plan-output:${destination.payloadOutputId}`,
         required: true,
       })),
-      expectedOutputs: [{
-        id: "campaign-effect-contract",
-        kind: "campaign-effect-contract",
-        required: true,
-      }],
+      expectedOutputs: [
+        {
+          id: "campaign-effect-contract",
+          kind: "campaign-effect-contract",
+          required: true,
+        },
+      ],
     },
   ];
   return {
@@ -236,8 +241,7 @@ export function createDirectOperationalCampaignAuthority(
     objective: input.objective,
     inScope: [
       "one coherent campaign content-planning turn",
-      ...destinations.map((destination) =>
-        `content-bound ${destination.channel} effect for ${destination.target}`),
+      ...destinations.map((destination) => `content-bound ${destination.channel} effect for ${destination.target}`),
       "per-destination effect evidence and follow-up scheduling",
     ],
     outOfScope: [
@@ -250,11 +254,13 @@ export function createDirectOperationalCampaignAuthority(
       "each destination has its own exact approval, acknowledgement, evidence, and follow-up outcome",
       "unknown future interactions enter a new direct execution unit and EpisodePlan",
     ],
-    expectedArtifacts: [{
-      id: "campaign-effect-contract",
-      kind: "campaign-effect-contract",
-      required: true,
-    }],
+    expectedArtifacts: [
+      {
+        id: "campaign-effect-contract",
+        kind: "campaign-effect-contract",
+        required: true,
+      },
+    ],
     declaredConstraints: {
       campaignShape: "five_reddit_one_linkedin_one_twitter",
       campaignBriefRef: input.campaignBriefRef,
@@ -265,13 +271,12 @@ export function createDirectOperationalCampaignAuthority(
       followUp: "per_destination",
       unknownInteraction: "new_execution_unit_and_episode_plan",
     },
-    safetyFacts: [{
-      kind: "external_publication",
-      evidenceRefs: [...new Set([
-        input.campaignBriefRef,
-        ...input.provenance.evidenceRefs,
-      ])].sort(),
-    }],
+    safetyFacts: [
+      {
+        kind: "external_publication",
+        evidenceRefs: [...new Set([input.campaignBriefRef, ...input.provenance.evidenceRefs])].sort(),
+      },
+    ],
     steps,
     provenance: structuredClone(input.provenance),
     dedupeKey: input.dedupeKey,
@@ -406,11 +411,7 @@ export async function prepareCampaignEffectApprovals(input: {
 }): Promise<CampaignEffectLinks> {
   assertCampaignDraft(input.campaign, input.draft);
   await persistCampaignContentDraft(input.root, input.campaign, input.draft);
-  const path = campaignEffectLinksPath(
-    input.root,
-    input.campaign.value.app,
-    input.campaign.value.unitId,
-  );
+  const path = campaignEffectLinksPath(input.root, input.campaign.value.app, input.campaign.value.unitId);
   if (existsSync(path)) {
     const existing = await readJson<CampaignEffectLinks>(path);
     assertCampaignEffectIsolation(input.campaign, existing.effects);
@@ -517,17 +518,13 @@ export async function readCampaignEffectLedger(input: {
   campaign: AcceptedCampaignAuthority;
   store?: ApprovalStore;
 }): Promise<CampaignEffectLedger> {
-  const links = await readJson<CampaignEffectLinks>(campaignEffectLinksPath(
-    input.root,
-    input.campaign.value.app,
-    input.campaign.value.unitId,
-  ));
+  const links = await readJson<CampaignEffectLinks>(
+    campaignEffectLinksPath(input.root, input.campaign.value.app, input.campaign.value.unitId),
+  );
   assertCampaignEffectIsolation(input.campaign, links.effects);
-  const draft = await readJson<CampaignContentDraft>(campaignContentDraftPath(
-    input.root,
-    input.campaign.value.app,
-    input.campaign.value.unitId,
-  ));
+  const draft = await readJson<CampaignContentDraft>(
+    campaignContentDraftPath(input.root, input.campaign.value.app, input.campaign.value.unitId),
+  );
   assertCampaignDraft(input.campaign, draft);
   if (links.contentDraftSha256 !== stableHash(draft)) {
     throw new DirectCampaignError(
@@ -557,9 +554,7 @@ export async function readCampaignEffectLedger(input: {
     const destination = input.campaign.value.destinations.find(
       (candidate) => candidate.destinationId === link.destinationId,
     )!;
-    const content = draft.destinations.find(
-      (candidate) => candidate.destinationId === link.destinationId,
-    )!;
+    const content = draft.destinations.find((candidate) => candidate.destinationId === link.destinationId)!;
     const expectedAction = campaignPublishAction(input.campaign, destination, content);
     if (
       snapshot.item.id !== link.approvalId ||
@@ -591,25 +586,26 @@ export function projectCampaignEffectOutcome(
   followUpScheduled = false,
 ): CampaignEffectOutcome {
   const executionState = item.execution?.state;
-  const acknowledgement: CampaignAcknowledgement = item.status === "pending"
-    ? "pending_approval"
-    : item.status === "expired"
-      ? "expired"
-      : item.status !== "approved"
-      ? "denied"
-      : executionState === "executed" &&
-          item.execution?.remoteRef !== undefined &&
-          item.execution.remoteRef.trim().length > 0
-        ? "acknowledged"
-        : executionState === "executed"
-          ? "ambiguous"
-          : executionState === "executing"
-            ? "executing"
-            : executionState === "failed"
-              ? "failed"
-              : executionState === "ambiguous"
-                ? "ambiguous"
-                : "approved_not_executed";
+  const acknowledgement: CampaignAcknowledgement =
+    item.status === "pending"
+      ? "pending_approval"
+      : item.status === "expired"
+        ? "expired"
+        : item.status !== "approved"
+          ? "denied"
+          : executionState === "executed" &&
+              item.execution?.remoteRef !== undefined &&
+              item.execution.remoteRef.trim().length > 0
+            ? "acknowledged"
+            : executionState === "executed"
+              ? "ambiguous"
+              : executionState === "executing"
+                ? "executing"
+                : executionState === "failed"
+                  ? "failed"
+                  : executionState === "ambiguous"
+                    ? "ambiguous"
+                    : "approved_not_executed";
   const evidenceRefs = [
     `approval:${item.id}`,
     ...(item.grantId === undefined ? [] : [`grant:${item.grantId}`]),
@@ -659,15 +655,9 @@ export async function scheduleCampaignFollowUps(input: {
       "follow-up schedule does not cover the accepted destination set",
     );
   }
-  const path = campaignFollowUpPath(
-    input.root,
-    input.campaign.value.app,
-    input.campaign.value.unitId,
-  );
+  const path = campaignFollowUpPath(input.root, input.campaign.value.app, input.campaign.value.unitId);
   const destinations = input.campaign.value.destinations.map((destination) => {
-    const effect = durableLedger.effects.find(
-      (candidate) => candidate.destinationId === destination.destinationId,
-    );
+    const effect = durableLedger.effects.find((candidate) => candidate.destinationId === destination.destinationId);
     const observeAt = input.observeAtByDestination[destination.destinationId];
     if (
       effect?.effectId !== destination.effectId ||
@@ -748,22 +738,24 @@ export function createCampaignInteractionUnit(input: {
       externalEffects: false,
     },
     safetyFacts: [],
-    steps: [{
-      id: "draft-interaction-response",
-      kind: "provider_turn",
-      operation: "marketing/campaign-interaction-response",
-      role: "marketing",
-      objective: "Draft a response; do not publish it.",
-      requiredCapabilities: [],
-      dependsOn: [],
-      inputRefs: [
-        { ref: input.interactionRef, required: true },
-        { ref: `campaign:${input.campaign.ref.sha256}`, required: true },
-      ],
-      expectedOutputs: [{ id: "interaction-response-draft", kind: "campaign-follow-up", required: true }],
-      maxTurnBudgetUsd: input.admittedBudget.maxEquivalentCostUsd,
-      selectionReason: "A new interaction is new direct work with its own EpisodePlan.",
-    }],
+    steps: [
+      {
+        id: "draft-interaction-response",
+        kind: "provider_turn",
+        operation: "marketing/campaign-interaction-response",
+        role: "marketing",
+        objective: "Draft a response; do not publish it.",
+        requiredCapabilities: [],
+        dependsOn: [],
+        inputRefs: [
+          { ref: input.interactionRef, required: true },
+          { ref: `campaign:${input.campaign.ref.sha256}`, required: true },
+        ],
+        expectedOutputs: [{ id: "interaction-response-draft", kind: "campaign-follow-up", required: true }],
+        maxTurnBudgetUsd: input.admittedBudget.maxEquivalentCostUsd,
+        selectionReason: "A new interaction is new direct work with its own EpisodePlan.",
+      },
+    ],
     provenance: structuredClone(input.provenance),
     dedupeKey: `campaign-interaction:${stableHash({
       campaign: input.campaign.ref.sha256,
@@ -802,7 +794,9 @@ function campaignDir(root: string, app: string, unitId: string): string {
   );
 }
 
-function normalizedDestinations(destinations: readonly CampaignDestination[]): DirectOperationalCampaignAuthority["destinations"] {
+function normalizedDestinations(
+  destinations: readonly CampaignDestination[],
+): DirectOperationalCampaignAuthority["destinations"] {
   return destinations.map((destination) => ({
     ...structuredClone(destination),
     payloadOutputId: `payload-${destination.destinationId}`,
@@ -840,10 +834,13 @@ function assertCampaignInput(input: DirectOperationalCampaignInput): void {
     ["objective", input.objective],
     ["campaign brief reference", input.campaignBriefRef],
     ["dedupe key", input.dedupeKey],
-  ] as const) assertNonEmpty(value, label, "campaign_shape_invalid");
+  ] as const)
+    assertNonEmpty(value, label, "campaign_shape_invalid");
   assertDateTime(input.createdAt, "campaign createdAt", "campaign_shape_invalid");
   const counts = new Map<CampaignChannel, number>([
-    ["reddit", 0], ["linkedin", 0], ["twitter", 0],
+    ["reddit", 0],
+    ["linkedin", 0],
+    ["twitter", 0],
   ]);
   const ids = new Set<string>();
   const targets = new Set<string>();
@@ -884,10 +881,7 @@ function assertCampaignInput(input: DirectOperationalCampaignInput): void {
   }
 }
 
-function assertCampaignDraft(
-  campaign: AcceptedCampaignAuthority,
-  draft: CampaignContentDraft,
-): void {
+function assertCampaignDraft(campaign: AcceptedCampaignAuthority, draft: CampaignContentDraft): void {
   if (
     stableHash(draft.campaignRef) !== stableHash(campaign.ref) ||
     draft.schemaVersion !== DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION ||
@@ -901,9 +895,7 @@ function assertCampaignDraft(
   }
   const seen = new Set<string>();
   for (const destination of campaign.value.destinations) {
-    const content = draft.destinations.find(
-      (candidate) => candidate.destinationId === destination.destinationId,
-    );
+    const content = draft.destinations.find((candidate) => candidate.destinationId === destination.destinationId);
     if (
       content === undefined ||
       seen.has(content.destinationId) ||
@@ -1009,11 +1001,7 @@ function renderJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-function assertNonEmpty(
-  value: string,
-  label: string,
-  code: CampaignFailureCode,
-): void {
+function assertNonEmpty(value: string, label: string, code: CampaignFailureCode): void {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new DirectCampaignError(code, `${label} must be non-empty`);
   }

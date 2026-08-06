@@ -18,7 +18,12 @@ function ago(days: number, extraMs = 0): string {
 }
 
 async function exists(path: string): Promise<boolean> {
-  try { await access(path); return true; } catch { return false; }
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function writeJson(path: string, value: unknown): Promise<void> {
@@ -26,22 +31,32 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, JSON.stringify(value) + "\n", "utf8");
 }
 
-async function seedRun(root: string, runId: string, status: "completed" | "running", finishedAt?: string, providerTurnId?: string) {
+async function seedRun(
+  root: string,
+  runId: string,
+  status: "completed" | "running",
+  finishedAt?: string,
+  providerTurnId?: string,
+) {
   const dir = join(root, "runs", "app", runId);
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, "envelope.json"), JSON.stringify({
-    schema_version: 1,
-    run_id: runId,
-    trace_id: runId,
-    app: "app",
-    pipeline: "build",
-    pass: "build",
-    role: "builder",
-    status,
-    started_at: ago(500),
-    ...(finishedAt === undefined ? {} : { finished_at: finishedAt }),
-    ...(providerTurnId === undefined ? {} : { provider_turn_ids: [providerTurnId] }),
-  }) + "\n", "utf8");
+  await writeFile(
+    join(dir, "envelope.json"),
+    JSON.stringify({
+      schema_version: 1,
+      run_id: runId,
+      trace_id: runId,
+      app: "app",
+      pipeline: "build",
+      pass: "build",
+      role: "builder",
+      status,
+      started_at: ago(500),
+      ...(finishedAt === undefined ? {} : { finished_at: finishedAt }),
+      ...(providerTurnId === undefined ? {} : { provider_turn_ids: [providerTurnId] }),
+    }) + "\n",
+    "utf8",
+  );
   return dir;
 }
 
@@ -59,16 +74,38 @@ describe("HB-044 state growth retention", () => {
 
     const exactTask = join(home.stateHome, "tasks", "task-180d");
     const oldTask = join(home.stateHome, "tasks", "task-180d-old");
-    await writeJson(join(exactTask, "task.json"), { schemaVersion: 1, taskId: "task-180d", status: "completed", endedAt: ago(180) });
-    await writeJson(join(oldTask, "task.json"), { schemaVersion: 1, taskId: "task-180d-old", status: "failed", endedAt: ago(180, 1) });
+    await writeJson(join(exactTask, "task.json"), {
+      schemaVersion: 1,
+      taskId: "task-180d",
+      status: "completed",
+      endedAt: ago(180),
+    });
+    await writeJson(join(oldTask, "task.json"), {
+      schemaVersion: 1,
+      taskId: "task-180d-old",
+      status: "failed",
+      endedAt: ago(180, 1),
+    });
 
     const exactLedgerDay = ago(365).slice(0, 10);
     const oldLedgerDay = ago(366).slice(0, 10);
     const protectedLedgerDay = ago(400).slice(0, 10);
     const ledger = join(home.stateHome, "telemetry");
-    await writeFile(join(ledger, `${exactLedgerDay}.jsonl`), JSON.stringify({ app: "app", providerTurnId: "turn-exact" }) + "\n", "utf8");
-    await writeFile(join(ledger, `${oldLedgerDay}.jsonl`), JSON.stringify({ app: "app", providerTurnId: "turn-old" }) + "\n", "utf8");
-    await writeFile(join(ledger, `${protectedLedgerDay}.jsonl`), JSON.stringify({ app: "app", providerTurnId: "turn-protected" }) + "\n", "utf8");
+    await writeFile(
+      join(ledger, `${exactLedgerDay}.jsonl`),
+      JSON.stringify({ app: "app", providerTurnId: "turn-exact" }) + "\n",
+      "utf8",
+    );
+    await writeFile(
+      join(ledger, `${oldLedgerDay}.jsonl`),
+      JSON.stringify({ app: "app", providerTurnId: "turn-old" }) + "\n",
+      "utf8",
+    );
+    await writeFile(
+      join(ledger, `${protectedLedgerDay}.jsonl`),
+      JSON.stringify({ app: "app", providerTurnId: "turn-protected" }) + "\n",
+      "utf8",
+    );
 
     // The evidence-floor clamp intentionally lengthens this nominal 180-day
     // window to 182 days (180-day episode evidence + 2-day reconcile margin).

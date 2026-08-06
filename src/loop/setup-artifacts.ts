@@ -107,8 +107,7 @@ export function describeSetupArtifacts(
   const detail =
     `setup failed: ${describeKinds(kinds)} in ${files.join(", ")} — ` +
     (when === "before"
-      ? "the worktree arrived in a state the setup command's own tooling cannot parse, " +
-        "so the command was not run"
+      ? "the worktree arrived in a state the setup command's own tooling cannot parse, " + "so the command was not run"
       : "the setup command left the worktree in a state it cannot itself repair");
   const evidence = artifacts
     .map(

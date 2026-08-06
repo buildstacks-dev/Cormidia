@@ -51,18 +51,20 @@ export interface BudgetAppSpec {
  *  live app(s) with an explicit monthly budget, and one scheduled role so the
  *  tick always has genuinely due work to refuse or admit. */
 export function budgetAppsYaml(apps: BudgetAppSpec[] = [{}]): string {
-  const blocks = apps.map((spec) => [
-    `  ${spec.name ?? APP}:`,
-    `    repo: fixture/${spec.name ?? APP}`,
-    `    status: ${spec.status ?? "live"}`,
-    `    budget_usd_month: ${spec.budgetUsd ?? 100}`,
-    "    cadence: {}",
-    "    release:",
-    "      kind: deploy",
-    "      owner: sre",
-    "      trigger: command",
-    "      command: ./deploy.sh",
-  ].join("\n"));
+  const blocks = apps.map((spec) =>
+    [
+      `  ${spec.name ?? APP}:`,
+      `    repo: fixture/${spec.name ?? APP}`,
+      `    status: ${spec.status ?? "live"}`,
+      `    budget_usd_month: ${spec.budgetUsd ?? 100}`,
+      "    cadence: {}",
+      "    release:",
+      "      kind: deploy",
+      "      owner: sre",
+      "      trigger: command",
+      "      command: ./deploy.sh",
+    ].join("\n"),
+  );
   return [
     "schema_version: 1",
     "org:",
@@ -209,11 +211,7 @@ export async function seedSpend(
 /** Plant a parseable-but-malformed ledger row (the A-004 seed: a costUsd that
  *  is not a finite number). Raw append on purpose — the product writer would
  *  not produce it; the reader must fail CLOSED on it. */
-export async function seedMalformedSpendRow(
-  stateHome: string,
-  app: string,
-  at: string = FIXED_NOW,
-): Promise<void> {
+export async function seedMalformedSpendRow(stateHome: string, app: string, at: string = FIXED_NOW): Promise<void> {
   const day = at.slice(0, 10);
   const path = join(stateHome, "telemetry", `${day}.jsonl`);
   await mkdir(dirname(path), { recursive: true });
@@ -269,7 +267,12 @@ export async function assertExactlyOneBudgetItem(
   const { pending, decided } = await budgetItemsFor(stateHome, app, month);
   const all = [...pending, ...decided];
   if (all.length !== 1) {
-    throw new BudgetItemConvergenceViolation(app, month, all.length, all.map((item) => item.id));
+    throw new BudgetItemConvergenceViolation(
+      app,
+      month,
+      all.length,
+      all.map((item) => item.id),
+    );
   }
   return all[0]!;
 }
@@ -314,10 +317,7 @@ export class OvershootClampViolation extends Error {
   }
 }
 
-export function assertOvershootRetained(
-  observation: ScriptedTurnObservation,
-  result: TurnResult,
-): void {
+export function assertOvershootRetained(observation: ScriptedTurnObservation, result: TurnResult): void {
   const outcome = observation.scenario.outcome;
   if (outcome.kind !== "success" && outcome.kind !== "failure") return;
   if (result.usage.costUsd !== outcome.costUsd) {
@@ -330,9 +330,7 @@ export function assertOvershootRetained(
  *  spawn and prove the detector is not vacuous. */
 export class PausedAppSpawnViolation extends Error {
   constructor(app: string, turnIds: readonly string[]) {
-    super(
-      `INV-007 violated: paused app ${app} claimed spend — spawned turn(s) [${turnIds.join(", ")}]`,
-    );
+    super(`INV-007 violated: paused app ${app} claimed spend — spawned turn(s) [${turnIds.join(", ")}]`);
     this.name = "PausedAppSpawnViolation";
   }
 }
@@ -340,7 +338,10 @@ export class PausedAppSpawnViolation extends Error {
 export function assertNoSpawnsForApp(tick: DispatchTickResult, app: string): void {
   const offending = tick.spawned.filter((turn) => turn.app === app);
   if (offending.length > 0) {
-    throw new PausedAppSpawnViolation(app, offending.map((turn) => turn.turnId));
+    throw new PausedAppSpawnViolation(
+      app,
+      offending.map((turn) => turn.turnId),
+    );
   }
 }
 

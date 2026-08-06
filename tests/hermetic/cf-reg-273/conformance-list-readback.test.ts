@@ -6,10 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { GhOps } from "../../../src/loop/github.js";
 import { installGithubDouble, type GithubDoubleHandle } from "../../fixtures/github-double/install.js";
 import { makeGithubDoubleSurface } from "../../fixtures/github-double/conformance/double-surface.js";
-import {
-  runGithubConformance,
-  type GithubConformanceSurface,
-} from "../../fixtures/github-double/conformance/suite.js";
+import { runGithubConformance, type GithubConformanceSurface } from "../../fixtures/github-double/conformance/suite.js";
 
 describe("CF-REG-273 — label-filtered conformance readback is eventually visible", () => {
   let handle: GithubDoubleHandle | undefined;
@@ -67,7 +64,9 @@ describe("CF-REG-273 — label-filtered conformance readback is eventually visib
       readBackAttempts: 3,
       readBackDelayMs: 1_000,
       labelSearchReadBackDelayMs: 60_000,
-      wait: async (delayMs) => { waits.push(delayMs); },
+      wait: async (delayMs) => {
+        waits.push(delayMs);
+      },
     });
 
     expect(report.failures).toEqual([]);
@@ -85,10 +84,12 @@ describe("CF-REG-273 — label-filtered conformance readback is eventually visib
 
     expect(report.passed).toEqual([]);
     expect(report.failures.map((failure) => failure.id)).toEqual(["B01-CF-02"]);
-    expect(report.failures).toMatchObject([{
-      classification: "observation_inconclusive",
-      code: "label_filtered_issue_search_not_observed",
-    }]);
+    expect(report.failures).toMatchObject([
+      {
+        classification: "observation_inconclusive",
+        code: "label_filtered_issue_search_not_observed",
+      },
+    ]);
     expect(calls()).toBe(1);
   });
 
@@ -119,10 +120,12 @@ describe("CF-REG-273 — label-filtered conformance readback is eventually visib
     );
 
     expect(report.passed).toEqual([]);
-    expect(report.failures).toMatchObject([{
-      id: "B01-CF-02",
-      classification: "violation",
-      code: "assertion_failed",
-    }]);
+    expect(report.failures).toMatchObject([
+      {
+        id: "B01-CF-02",
+        classification: "violation",
+        code: "assertion_failed",
+      },
+    ]);
   });
 });

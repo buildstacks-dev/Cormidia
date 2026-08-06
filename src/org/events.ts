@@ -15,12 +15,7 @@ import { writeFileAtomic } from "./atomic.js";
 /** Transport kinds: GitHub-polled kinds plus the file-drop `alert-webhook`
  *  inbox transport. `alert-webhook` remains the dedup/transport identity for
  *  inbox files; the *routed* kind is the parsed company-lifecycle kind. */
-export type EventKind =
-  | "ticket-ready"
-  | "pr-opened"
-  | "ci-failed"
-  | "release-shipped"
-  | "alert-webhook";
+export type EventKind = "ticket-ready" | "pr-opened" | "ci-failed" | "release-shipped" | "alert-webhook";
 
 /** The kind a role's trigger matches on. GitHub events keep their transport
  *  kind; file-drop inbox events carry the parsed company-lifecycle kind
@@ -43,10 +38,7 @@ export interface EventPollError {
   message: string;
 }
 
-export type EventPollErrorCode =
-  | "error_event_source"
-  | "invalid_event_transport"
-  | CompanyEventValidationCode;
+export type EventPollErrorCode = "error_event_source" | "invalid_event_transport" | CompanyEventValidationCode;
 
 export interface PollEventsResult {
   events: DueEvent[];
@@ -71,13 +63,7 @@ export interface GitHubIssueSummary {
   labels: string[];
 }
 
-export const EVENT_KINDS: EventKind[] = [
-  "ticket-ready",
-  "pr-opened",
-  "ci-failed",
-  "release-shipped",
-  "alert-webhook",
-];
+export const EVENT_KINDS: EventKind[] = ["ticket-ready", "pr-opened", "ci-failed", "release-shipped", "alert-webhook"];
 
 /** Per-role consumption mark. Multi-subscriber events are consumed per
  *  (eventKey, role) so a co-subscriber pushed to a later tick by the WIP
@@ -150,7 +136,9 @@ export class EventStore {
       // A torn dedup file must never halt the whole tick. Atomic writes make
       // this unreachable in practice; treat a corrupt file as empty so the
       // dispatcher keeps running (the next markConsumed rewrites it cleanly).
-      console.warn(`events: consumed.json unreadable, treating as empty: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn(
+        `events: consumed.json unreadable, treating as empty: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return [];
     }
   }
@@ -191,10 +179,7 @@ export class EventStore {
    *  that fails the company-event contract) is surfaced LOUDLY as an
    *  `error_event_source` — never silently dropped — while sibling files keep
    *  flowing. */
-  async readInbox(
-    app: string,
-    consumed: ReadonlySet<string> = new Set(),
-  ): Promise<PollEventsResult> {
+  async readInbox(app: string, consumed: ReadonlySet<string> = new Set()): Promise<PollEventsResult> {
     await this.ensure();
     const dir = this.inboxDir();
     const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
@@ -207,12 +192,14 @@ export class EventStore {
       // marks in the shared consumed set. Reject loudly at the transport
       // boundary — filenames are our own contract.
       if (file.includes("::")) {
-        errors.push(inboxError(
-          app,
-          file,
-          "invalid_event_transport",
-          new Error("filename must not contain '::' (reserved for consumption marks)"),
-        ));
+        errors.push(
+          inboxError(
+            app,
+            file,
+            "invalid_event_transport",
+            new Error("filename must not contain '::' (reserved for consumption marks)"),
+          ),
+        );
         continue;
       }
       let payload: Record<string, unknown>;
@@ -226,12 +213,14 @@ export class EventStore {
       try {
         event = parseCompanyLifecycleEvent(payload);
       } catch (error) {
-        errors.push(inboxError(
-          app,
-          file,
-          error instanceof CompanyEventValidationError ? error.code : "malformed_company_event",
-          error,
-        ));
+        errors.push(
+          inboxError(
+            app,
+            file,
+            error instanceof CompanyEventValidationError ? error.code : "malformed_company_event",
+            error,
+          ),
+        );
         continue;
       }
       if (event.app !== app) continue;

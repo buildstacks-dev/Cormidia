@@ -10,12 +10,7 @@ import { dirname, join } from "node:path";
 import type { AppsFile } from "./apps.js";
 import { ApprovalStore, type ApprovalItem } from "./approvals.js";
 import { withFileLock } from "../runtime/file-lock.js";
-import {
-  readSettledKeys,
-  recordTurnOnce,
-  settlementKey,
-  type TurnRecord,
-} from "../runtime/telemetry.js";
+import { readSettledKeys, recordTurnOnce, settlementKey, type TurnRecord } from "../runtime/telemetry.js";
 import { finalizeRun, readEnvelope, type RunEnvelope } from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
 import type { TurnResult } from "../runtime/types.js";
@@ -52,11 +47,7 @@ export interface BudgetOverlay {
   pausedApps: string[];
 }
 
-export async function rollupBudgets(
-  orgHome: string,
-  apps: AppsFile,
-  now: Date = new Date(),
-): Promise<BudgetRow[]> {
+export async function rollupBudgets(orgHome: string, apps: AppsFile, now: Date = new Date()): Promise<BudgetRow[]> {
   const month = now.toISOString().slice(0, 7);
   const { spent, unresolved } = await readMonthSpend(orgHome, month);
   return apps.apps.map((app) => {
@@ -98,10 +89,7 @@ export interface LearningSpendRollup {
   reviewsThisWeek: number;
 }
 
-export async function rollupLearningSpend(
-  orgHome: string,
-  now: Date = new Date(),
-): Promise<LearningSpendRollup> {
+export async function rollupLearningSpend(orgHome: string, now: Date = new Date()): Promise<LearningSpendRollup> {
   const month = now.toISOString().slice(0, 7);
   const rollup: LearningSpendRollup = {
     monthUsd: 0,
@@ -473,31 +461,31 @@ export async function reconcileLedger(
   // New-schema execution receipts are authoritative at provider-turn
   // granularity. Repair stale started receipts first, then settle every
   // terminal provider step. Legacy envelopes are handled below.
-  const stale = await reconcileStaleProviderSteps(
-    stateHome,
-    now,
-    IN_FLIGHT_WINDOW_MS,
-    async (receipt) => {
-      try {
-        const envelope = await readEnvelope(stateHome, receipt.app, receipt.run_id);
-        if (!envelope.provider_turn_ids?.includes(receipt.provider_turn_id) || envelope.usage === undefined) return undefined;
-        const observedAt = envelope.last_seen_at ?? envelope.finished_at ?? now.toISOString();
-        return {
-          tokensIn: envelope.usage.tokens_in,
-          tokensOut: envelope.usage.tokens_out,
-          costUsd: envelope.usage.cost_usd,
-          subagentTurns: envelope.usage.subagent_turns ?? 0,
-          wallClockMs: Math.max(0, new Date(observedAt).getTime() - new Date(receipt.started_at).getTime()),
-          quality: envelope.usage.quality ?? (envelope.usage.cost_estimated ? "estimated" : "partial"),
-          ...(envelope.usage.cost_estimated === true ? { costEstimated: true } : {}),
-          ...(envelope.usage.cache_read_tokens !== undefined ? { cacheReadTokens: envelope.usage.cache_read_tokens } : {}),
-          ...(envelope.usage.cache_write_tokens !== undefined ? { cacheCreationTokens: envelope.usage.cache_write_tokens } : {}),
-        };
-      } catch {
+  const stale = await reconcileStaleProviderSteps(stateHome, now, IN_FLIGHT_WINDOW_MS, async (receipt) => {
+    try {
+      const envelope = await readEnvelope(stateHome, receipt.app, receipt.run_id);
+      if (!envelope.provider_turn_ids?.includes(receipt.provider_turn_id) || envelope.usage === undefined)
         return undefined;
-      }
-    },
-  );
+      const observedAt = envelope.last_seen_at ?? envelope.finished_at ?? now.toISOString();
+      return {
+        tokensIn: envelope.usage.tokens_in,
+        tokensOut: envelope.usage.tokens_out,
+        costUsd: envelope.usage.cost_usd,
+        subagentTurns: envelope.usage.subagent_turns ?? 0,
+        wallClockMs: Math.max(0, new Date(observedAt).getTime() - new Date(receipt.started_at).getTime()),
+        quality: envelope.usage.quality ?? (envelope.usage.cost_estimated ? "estimated" : "partial"),
+        ...(envelope.usage.cost_estimated === true ? { costEstimated: true } : {}),
+        ...(envelope.usage.cache_read_tokens !== undefined
+          ? { cacheReadTokens: envelope.usage.cache_read_tokens }
+          : {}),
+        ...(envelope.usage.cache_write_tokens !== undefined
+          ? { cacheCreationTokens: envelope.usage.cache_write_tokens }
+          : {}),
+      };
+    } catch {
+      return undefined;
+    }
+  });
   result.inFlight += stale.inFlight.length;
   result.corrupt += stale.corrupt.length;
   for (const step of stale.finalized) {
@@ -549,11 +537,7 @@ export async function reconcileLedger(
         result.corrupt += 1; // Unreadable spend cannot be reconciled — but count it.
         continue;
       }
-      if (
-        envelope.status === "running" &&
-        !Array.isArray(envelope.provider_turn_ids) &&
-        envelope.usage === undefined
-      ) {
+      if (envelope.status === "running" && !Array.isArray(envelope.provider_turn_ids) && envelope.usage === undefined) {
         // Legacy pre-turn work has no provider identity or measurable spend.
         // Preserve the historical no-usage population rather than guessing
         // that it is an in-flight provider invocation.
@@ -623,11 +607,7 @@ export async function reconcileLedger(
   return result;
 }
 
-async function terminalizeStaleRun(
-  stateHome: string,
-  step: ExecutionStepRecord,
-  now: Date,
-): Promise<void> {
+async function terminalizeStaleRun(stateHome: string, step: ExecutionStepRecord, now: Date): Promise<void> {
   try {
     const envelope = await readEnvelope(stateHome, step.app, step.run_id);
     if (envelope.status !== "running") return;
@@ -711,23 +691,13 @@ export function turnRecordFromExecutionStep(step: ExecutionStepRecord): TurnReco
     episodeId: step.episode_id,
     ...(step.plan_version === undefined ? {} : { planVersion: step.plan_version }),
     ...(step.plan_step_id === undefined ? {} : { planStepId: step.plan_step_id }),
-    ...(step.assignment_source === undefined
-      ? {}
-      : { assignmentSource: step.assignment_source }),
-    ...(step.assignment_candidate_id === undefined
-      ? {}
-      : { assignmentCandidateId: step.assignment_candidate_id }),
-    ...(step.selection_reason === undefined
-      ? {}
-      : { selectionReason: scrubSecrets(step.selection_reason) }),
-    ...(step.resolved_capabilities === undefined
-      ? {}
-      : { resolvedCapabilities: [...step.resolved_capabilities] }),
+    ...(step.assignment_source === undefined ? {} : { assignmentSource: step.assignment_source }),
+    ...(step.assignment_candidate_id === undefined ? {} : { assignmentCandidateId: step.assignment_candidate_id }),
+    ...(step.selection_reason === undefined ? {} : { selectionReason: scrubSecrets(step.selection_reason) }),
+    ...(step.resolved_capabilities === undefined ? {} : { resolvedCapabilities: [...step.resolved_capabilities] }),
     ...(step.experiment_ref === undefined ? {} : { experimentRef: step.experiment_ref }),
     ...(step.candidate_ref === undefined ? {} : { candidateRef: step.candidate_ref }),
-    ...(step.learning_activity === undefined
-      ? {}
-      : { learningActivity: step.learning_activity }),
+    ...(step.learning_activity === undefined ? {} : { learningActivity: step.learning_activity }),
     pipeline: step.operation.split("/", 1)[0] ?? "unknown",
     pass: step.operation.includes("/") ? step.operation.slice(step.operation.indexOf("/") + 1) : step.operation,
   };
@@ -782,10 +752,7 @@ async function countEscalations(eventsPath: string): Promise<number> {
   return count;
 }
 
-function recordFromEnvelope(
-  envelope: RunEnvelope,
-  runtimeByRole: Record<string, string>,
-): TurnRecord {
+function recordFromEnvelope(envelope: RunEnvelope, runtimeByRole: Record<string, string>): TurnRecord {
   const usage = envelope.usage!;
   const status: TurnResult["status"] =
     envelope.status === "completed"
@@ -796,7 +763,7 @@ function recordFromEnvelope(
           ? "cancelled"
           : envelope.status === "timed_out"
             ? "timed_out"
-        : "failed"; // running-with-usage means the turn returned but the pass never terminated; the spend is real.
+            : "failed"; // running-with-usage means the turn returned but the pass never terminated; the spend is real.
   const record: TurnRecord = {
     at: envelope.started_at,
     role: envelope.role,
@@ -808,11 +775,7 @@ function recordFromEnvelope(
     costUsd: usage.cost_usd,
     usageQuality:
       usage.quality ??
-      (envelope.status === "running"
-        ? "partial"
-        : usage.cost_estimated === true
-          ? "estimated"
-          : "complete"),
+      (envelope.status === "running" ? "partial" : usage.cost_estimated === true ? "estimated" : "complete"),
     subagentTurns: usage.subagent_turns ?? 0,
     wallClockMs: envelope.wall_clock_ms ?? 0,
     escalations: 0,

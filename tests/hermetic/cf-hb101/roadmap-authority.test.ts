@@ -46,14 +46,16 @@ function issue(issueNumber: number, overrides: Partial<BacklogSnapshotIssue> = {
   };
 }
 
-function snapshot(input: {
-  version?: number;
-  count?: number;
-  issues?: BacklogSnapshotIssue[];
-  completeness?: BacklogSnapshot["completeness"];
-  hasNextPage?: boolean;
-  unavailablePages?: number[];
-} = {}): BacklogSnapshot {
+function snapshot(
+  input: {
+    version?: number;
+    count?: number;
+    issues?: BacklogSnapshotIssue[];
+    completeness?: BacklogSnapshot["completeness"];
+    hasNextPage?: boolean;
+    unavailablePages?: number[];
+  } = {},
+): BacklogSnapshot {
   const version = input.version ?? 1;
   const issues = input.issues ?? Array.from({ length: input.count ?? 125 }, (_, index) => issue(index + 1));
   return {
@@ -182,14 +184,18 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
       unitId: repair.unitId,
       membershipHash: repair.membershipHash,
     }));
-    expect((await reconcileRoadmapProjections({
-      root: home.stateHome,
-      roadmap: acceptedRoadmap,
-      snapshot: acceptedSnapshot,
-      readiness: [],
-      current: converged,
-      now: new Date(AT),
-    })).every((repair) => repair.reason === "current")).toBe(true);
+    expect(
+      (
+        await reconcileRoadmapProjections({
+          root: home.stateHome,
+          roadmap: acceptedRoadmap,
+          snapshot: acceptedSnapshot,
+          readiness: [],
+          current: converged,
+          now: new Date(AT),
+        })
+      ).every((repair) => repair.reason === "current"),
+    ).toBe(true);
   });
 
   it("refuses partial, paginated, or unavailable snapshots before roadmap authority exists", async () => {
@@ -200,12 +206,9 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
       const home = await makeTempStateHome({ name: `hb101-${name}` });
       homes.push(home);
       await expectCode(() => acceptSnapshot(home, value), "backlog_incomplete");
-      expect(existsSync(backlogSnapshotAuthorityPath(
-        home.stateHome,
-        APP,
-        value.snapshotId,
-        value.version,
-      ))).toBe(false);
+      expect(existsSync(backlogSnapshotAuthorityPath(home.stateHome, APP, value.snapshotId, value.version))).toBe(
+        false,
+      );
     }
   });
 
@@ -214,10 +217,11 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
     homes.push(missingHome);
     const acceptedMissingSnapshot = await acceptSnapshot(missingHome, snapshot({ count: 10 }));
     await expectCode(
-      () => acceptRoadmapPlan({
-        root: missingHome.stateHome,
-        plan: roadmap({ snapshotRef: acceptedMissingSnapshot.ref, issueNumbers: [1, 2, 3, 4, 5, 6, 7, 8, 9] }),
-      }),
+      () =>
+        acceptRoadmapPlan({
+          root: missingHome.stateHome,
+          plan: roadmap({ snapshotRef: acceptedMissingSnapshot.ref, issueNumbers: [1, 2, 3, 4, 5, 6, 7, 8, 9] }),
+        }),
       "issue_unaccounted",
     );
 
@@ -247,9 +251,8 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
       }),
     });
     const nextIssues = firstSnapshot.value.issues.map((entry) =>
-      entry.issueNumber === 120
-        ? { ...entry, contentHash: stableHash({ issueNumber: 120, revision: 2 }) }
-        : entry);
+      entry.issueNumber === 120 ? { ...entry, contentHash: stableHash({ issueNumber: 120, revision: 2 }) } : entry,
+    );
     nextIssues.push(issue(121));
     const secondSnapshot = await acceptSnapshot(home, snapshot({ version: 2, issues: nextIssues }));
     expect(deriveBacklogDelta(firstSnapshot, secondSnapshot)).toMatchObject({
@@ -267,10 +270,7 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
     });
     renamed.deliveryUnits[0]!.unitId = "renamed-001";
     renamed.readyFrontier[0] = "renamed-001";
-    await expectCode(
-      () => acceptRoadmapPlan({ root: home.stateHome, plan: renamed }),
-      "roadmap_invalid",
-    );
+    await expectCode(() => acceptRoadmapPlan({ root: home.stateHome, plan: renamed }), "roadmap_invalid");
 
     const secondRoadmap = await acceptRoadmapPlan({
       root: home.stateHome,
@@ -285,17 +285,18 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
     expect(existsSync(home.path("efficiency"))).toBe(false);
 
     await expectCode(
-      () => admitExecutionBatch({
-        root: home.stateHome,
-        app: APP,
-        batchId: "stale-v1-batch",
-        roadmapRef: firstRoadmap.ref,
-        expectedFrontierHash: firstRoadmap.frontierHash,
-        orderedUnitIds: [firstRoadmap.value.readyFrontier[0]!],
-        readinessRefs: [],
-        routing: [{ issueNumber: 1, disposition: "automated", observedLabels: ["op:ready"] }],
-        admittedAt: AT,
-      }),
+      () =>
+        admitExecutionBatch({
+          root: home.stateHome,
+          app: APP,
+          batchId: "stale-v1-batch",
+          roadmapRef: firstRoadmap.ref,
+          expectedFrontierHash: firstRoadmap.frontierHash,
+          orderedUnitIds: [firstRoadmap.value.readyFrontier[0]!],
+          readinessRefs: [],
+          routing: [{ issueNumber: 1, disposition: "automated", observedLabels: ["op:ready"] }],
+          admittedAt: AT,
+        }),
       "frontier_stale",
     );
   });
@@ -303,16 +304,27 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
   it("requires append-only move evidence when membership crosses delivery units", async () => {
     const home = await makeTempStateHome({ name: "hb101-moves" });
     homes.push(home);
-    const automatedIssues = Array.from(
-      { length: 6 },
-      (_, index) => issue(index + 1, { routing: "automated" }),
-    );
+    const automatedIssues = Array.from({ length: 6 }, (_, index) => issue(index + 1, { routing: "automated" }));
     const firstSnapshot = await acceptSnapshot(home, snapshot({ issues: automatedIssues }));
     const firstPlan: RoadmapPlan = {
       ...roadmap({ snapshotRef: firstSnapshot.ref, issueNumbers: [1, 2, 3, 4, 5, 6], wipLimit: 2 }),
       deliveryUnits: [
-        { unitId: "unit-a", workstreamId: "backlog-loop", issueNumbers: [1, 2, 3], dependsOn: [], priority: 1, objective: "A" },
-        { unitId: "unit-b", workstreamId: "backlog-loop", issueNumbers: [4, 5, 6], dependsOn: [], priority: 2, objective: "B" },
+        {
+          unitId: "unit-a",
+          workstreamId: "backlog-loop",
+          issueNumbers: [1, 2, 3],
+          dependsOn: [],
+          priority: 1,
+          objective: "A",
+        },
+        {
+          unitId: "unit-b",
+          workstreamId: "backlog-loop",
+          issueNumbers: [4, 5, 6],
+          dependsOn: [],
+          priority: 2,
+          objective: "B",
+        },
       ],
       readyFrontier: ["unit-a", "unit-b"],
     };
@@ -329,17 +341,16 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
       ],
       acceptedAt: "2026-08-03T23:05:00.000Z",
     };
-    await expectCode(
-      () => acceptRoadmapPlan({ root: home.stateHome, plan: moved }),
-      "roadmap_invalid",
-    );
-    moved.moves = [{
-      issueNumber: 3,
-      fromUnitId: "unit-a",
-      toUnitId: "unit-b",
-      reason: "shared validation boundary belongs in one PR",
-      movedAt: "2026-08-03T23:04:00.000Z",
-    }];
+    await expectCode(() => acceptRoadmapPlan({ root: home.stateHome, plan: moved }), "roadmap_invalid");
+    moved.moves = [
+      {
+        issueNumber: 3,
+        fromUnitId: "unit-a",
+        toUnitId: "unit-b",
+        reason: "shared validation boundary belongs in one PR",
+        movedAt: "2026-08-03T23:04:00.000Z",
+      },
+    ];
     expect((await acceptRoadmapPlan({ root: home.stateHome, plan: moved })).value.moves).toHaveLength(1);
   });
 });

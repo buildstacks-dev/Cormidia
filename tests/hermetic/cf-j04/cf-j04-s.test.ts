@@ -7,14 +7,7 @@ import { DEFAULT_LOOP_POLICY, runLoopOnce } from "../../../src/loop/driver.js";
 import { type LoopItem } from "../../../src/loop/loop.js";
 import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { script } from "../../fixtures/adapters/scenario.js";
-import {
-  J04_APP,
-  J04_CONTRACT,
-  buildJ04Item,
-  j04Git,
-  makeJ04World,
-  type J04World,
-} from "./support.js";
+import { J04_APP, J04_CONTRACT, buildJ04Item, j04Git, makeJ04World, type J04World } from "./support.js";
 
 function assertArtifactOrder(ops: readonly string[]): void {
   const requireBefore = (first: string, second: string): void => {
@@ -95,7 +88,7 @@ describe("CF-J04-S — full ready→merged delivery walk", () => {
     expect(merged.phase).toBe("merged");
     expect(adapter.recorder.turns).toHaveLength(2);
     expect((await world.gh.readPR(merged.prNumber!)).state).toBe("MERGED");
-    expect((await world.gh.readIssue(merged.issueNumber))).toMatchObject({ state: "CLOSED", labels: [] });
+    expect(await world.gh.readIssue(merged.issueNumber)).toMatchObject({ state: "CLOSED", labels: [] });
     expect(world.github.readState().branches[merged.branch!]).toBeUndefined();
 
     const calls = world.github.callLog();
@@ -108,7 +101,8 @@ describe("CF-J04-S — full ready→merged delivery walk", () => {
   });
 
   it("negative control: the ordering detector fires when a label is seeded before its PR", () => {
-    expect(() => assertArtifactOrder(["label.in-review", "pr.create", "pr.review", "pr.merge", "ref.delete"]))
-      .toThrow(/delivery order violation/);
+    expect(() => assertArtifactOrder(["label.in-review", "pr.create", "pr.review", "pr.merge", "ref.delete"])).toThrow(
+      /delivery order violation/,
+    );
   });
 });

@@ -11,16 +11,9 @@
 // fires against a seeded forged duplicate (negative-control rule).
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  beginTicketClaim,
-  continueAfterApproval,
-} from "../../../src/loop/claim-recovery.js";
+import { beginTicketClaim, continueAfterApproval } from "../../../src/loop/claim-recovery.js";
 import { GhCliOps } from "../../../src/loop/github.js";
-import {
-  readTicketClaimState,
-  writeTicketClaimState,
-  type TicketClaimState,
-} from "../../../src/loop/rehydrate.js";
+import { readTicketClaimState, writeTicketClaimState, type TicketClaimState } from "../../../src/loop/rehydrate.js";
 import { installGithubDouble, type GithubDoubleHandle } from "../../fixtures/github-double/install.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import {
@@ -219,8 +212,6 @@ describe("CF-J06-RC — duplicate continuation attempt refused with original out
 
     const reread = readTicketClaimState(root, APP, walk.issueNumber);
     expect(reread.continuation?.decisions).toHaveLength(2);
-    expect(() => detectDuplicateContinuationDecisions(reread)).toThrow(
-      DuplicateContinuationDecisionViolation,
-    );
+    expect(() => detectDuplicateContinuationDecisions(reread)).toThrow(DuplicateContinuationDecisionViolation);
   });
 });

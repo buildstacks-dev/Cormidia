@@ -147,14 +147,16 @@ describe("CF-INV-009 — merge boundary refuses stale, guessed, forged, and agen
 
   it("a guessed main base fails before PR creation; the resolved trunk base succeeds", async () => {
     const world = await makeBuiltWorld();
-    await expect(advanceGates(world.item, {
-      gh: world.gh,
-      policy: DEFAULT_LOOP_POLICY,
-      commands: { testCommand: "true", lintCommand: "true" },
-      base: { ref: "origin/main", defaultBranch: "main" },
-      criteria: parseAcceptanceCriteria(world.item.body),
-      criterionTests: { AC1: ["cf-inv-009-merge-boundary.test.ts"] },
-    })).rejects.toThrow();
+    await expect(
+      advanceGates(world.item, {
+        gh: world.gh,
+        policy: DEFAULT_LOOP_POLICY,
+        commands: { testCommand: "true", lintCommand: "true" },
+        base: { ref: "origin/main", defaultBranch: "main" },
+        criteria: parseAcceptanceCriteria(world.item.body),
+        criterionTests: { AC1: ["cf-inv-009-merge-boundary.test.ts"] },
+      }),
+    ).rejects.toThrow();
     expect(world.github.readState().prs).toEqual({});
     expect((await world.gh.readIssue(world.item.issueNumber)).labels).toEqual(["op:building"]);
 

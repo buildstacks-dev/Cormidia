@@ -28,17 +28,8 @@ import {
   type EnvelopeUsage,
   type RunEnvelope,
 } from "../../../src/runtime/runlog/envelope.js";
-import {
-  settlementIdentity,
-  settlementKey,
-  toRecord,
-  type TurnRecord,
-} from "../../../src/runtime/telemetry.js";
-import type {
-  RoleConfig,
-  TurnResult,
-  TurnUsage,
-} from "../../../src/runtime/types.js";
+import { settlementIdentity, settlementKey, toRecord, type TurnRecord } from "../../../src/runtime/telemetry.js";
+import type { RoleConfig, TurnResult, TurnUsage } from "../../../src/runtime/types.js";
 
 export const PIPELINE = "build";
 export const PASS = "implement";
@@ -105,9 +96,7 @@ export async function admitTestEpisode(input: {
     app: input.app,
     route: input.route ?? "quick",
     policyVersion: "cf-j08-test-1",
-    factors: [
-      { kind: "uncertainty", evidence: "scripted CF-J08 fixture episode", policy_rule: "rule-cf-j08" },
-    ],
+    factors: [{ kind: "uncertainty", evidence: "scripted CF-J08 fixture episode", policy_rule: "rule-cf-j08" }],
     passes: [
       {
         pipeline: PIPELINE,
@@ -260,11 +249,7 @@ export async function plantEnvelope(input: {
 
 /** Plant a raw corrupt envelope.json — unreadable spend that reconcile must
  *  count, never settle, never delete. No living writer produces this. */
-export async function plantCorruptEnvelope(
-  stateHome: string,
-  app: string,
-  runId: string,
-): Promise<void> {
+export async function plantCorruptEnvelope(stateHome: string, app: string, runId: string): Promise<void> {
   const dir = join(stateHome, "runs", app, runId);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, "envelope.json"), "{torn mid-write", "utf8");
@@ -279,9 +264,7 @@ export class SettlementConservationViolation extends Error {
   constructor(readonly duplicates: ReadonlyMap<string, number>) {
     super(
       "INV-006 violated: settlement key(s) settled more than once — " +
-        [...duplicates.entries()]
-          .map(([key, count]) => `${JSON.stringify(key)} x${count}`)
-          .join(", "),
+        [...duplicates.entries()].map(([key, count]) => `${JSON.stringify(key)} x${count}`).join(", "),
     );
     this.name = "SettlementConservationViolation";
   }

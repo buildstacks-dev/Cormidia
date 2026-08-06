@@ -95,8 +95,7 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     // truncated log line) everything from BEGIN to end-of-text is key
     // material until proven otherwise — swallow it, fail closed.
     name: "private-key-block",
-    pattern:
-      /-----BEGIN [A-Z ]*PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----|[\s\S]*$)/,
+    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----|[\s\S]*$)/,
   },
   {
     // Generic key/token/password assignments: `password = "…"`,

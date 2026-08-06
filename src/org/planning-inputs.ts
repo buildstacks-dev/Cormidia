@@ -179,9 +179,7 @@ export function resolvePlanningSources(input: {
 
     let files: string[];
     try {
-      files = rootInfo.isDirectory()
-        ? walkBoundedDirectory(canonicalRoot)
-        : [canonicalRoot];
+      files = rootInfo.isDirectory() ? walkBoundedDirectory(canonicalRoot) : [canonicalRoot];
     } catch (error) {
       const reason = safeError(error);
       roots[roots.length - 1] = { ...roots[roots.length - 1]!, availability: "rejected", reason };
@@ -209,15 +207,17 @@ export function resolvePlanningSources(input: {
       } else if (requirement === "required") {
         problems.push(`${canonicalPath}: required source ${loaded.reason}`);
       } else {
-        excluded.push(excludedSourceRecord({
-          rootIndex: requestIndex,
-          requestedPath,
-          canonicalPath,
-          sourceCheckout,
-          sourceCheckoutHead: input.sourceCheckoutHead,
-          requirement,
-          reason: loaded.reason,
-        }));
+        excluded.push(
+          excludedSourceRecord({
+            rootIndex: requestIndex,
+            requestedPath,
+            canonicalPath,
+            sourceCheckout,
+            sourceCheckoutHead: input.sourceCheckoutHead,
+            requirement,
+            reason: loaded.reason,
+          }),
+        );
       }
     }
   });
@@ -226,9 +226,7 @@ export function resolvePlanningSources(input: {
     .filter((candidate) => candidate.requirement === "required")
     .reduce((sum, candidate) => sum + candidate.sourceBytes, 0);
   if (requiredBytes > input.budgetBytes) {
-    problems.push(
-      `required source bytes ${requiredBytes} exceed the ${input.budgetBytes}-byte planning-source budget`,
-    );
+    problems.push(`required source bytes ${requiredBytes} exceed the ${input.budgetBytes}-byte planning-source budget`);
   }
   if (problems.length > 0) throw new PlanningSourceResolutionError(problems);
 
@@ -239,13 +237,27 @@ export function resolvePlanningSources(input: {
     const base = sourceRecordBase(candidate, sourceCheckout, input.sourceCheckoutHead);
     if (candidate.requirement === "required") {
       remaining -= candidate.sourceBytes;
-      sources.push({ ...base, included_bytes: candidate.sourceBytes, selection: "selected", inclusion: "full", consumption: "pending", reason: null });
+      sources.push({
+        ...base,
+        included_bytes: candidate.sourceBytes,
+        selection: "selected",
+        inclusion: "full",
+        consumption: "pending",
+        reason: null,
+      });
       documents.push({ source_id: base.source_id, content: candidate.text });
       continue;
     }
     if (candidate.sourceBytes <= remaining) {
       remaining -= candidate.sourceBytes;
-      sources.push({ ...base, included_bytes: candidate.sourceBytes, selection: "selected", inclusion: "full", consumption: "pending", reason: null });
+      sources.push({
+        ...base,
+        included_bytes: candidate.sourceBytes,
+        selection: "selected",
+        inclusion: "full",
+        consumption: "pending",
+        reason: null,
+      });
       documents.push({ source_id: base.source_id, content: candidate.text });
       continue;
     }
@@ -430,7 +442,12 @@ function sourceRecordBase(
     root_index: candidate.rootIndex,
     requested_path: candidate.requestedPath,
     canonical_path: candidate.canonicalPath,
-    canonical_ref: canonicalSourceRef(candidate.canonicalPath, candidate.sourceHash, sourceCheckout, sourceCheckoutHead),
+    canonical_ref: canonicalSourceRef(
+      candidate.canonicalPath,
+      candidate.sourceHash,
+      sourceCheckout,
+      sourceCheckoutHead,
+    ),
     source_sha256: candidate.sourceHash,
     source_bytes: candidate.sourceBytes,
     trust: "operator-supplied-untrusted-data",

@@ -72,11 +72,17 @@ export function evaluateContentionRig(result: ContentionRigResult): string[] {
     ...(result.max_live_observed > result.wip_limit ? ["CF-OPS-CONT:wip_exceeded"] : []),
     ...(result.duplicate_pair_admissions > 0 ? ["CF-OPS-CONT:duplicate_pair_admission"] : []),
     ...(!result.priority_preserved ? ["CF-OPS-CONT:priority_drift"] : []),
-    ...(result.typed_non_admissions !== result.due_candidates - result.first_admitted.length ? ["CF-OPS-CONT:untyped_non_admission"] : []),
+    ...(result.typed_non_admissions !== result.due_candidates - result.first_admitted.length
+      ? ["CF-OPS-CONT:untyped_non_admission"]
+      : []),
     ...(result.reconsidered_after_capacity < 1 ? ["CF-OPS-CONT:eligible_work_not_reconsidered"] : []),
-    ...(result.provider_turns === null || result.provider_turns !== result.provider_settlements ? ["CF-OPS-CONT:settlement_disagreement"] : []),
+    ...(result.provider_turns === null || result.provider_turns !== result.provider_settlements
+      ? ["CF-OPS-CONT:settlement_disagreement"]
+      : []),
     ...(result.duplicate_decisions > 0 || result.duplicate_episodes > 0 ? ["CF-OPS-CONT:duplicate_evidence"] : []),
-    ...(result.orphaned_locks + result.orphaned_journals + result.orphaned_runs + result.orphaned_settlements > 0 ? ["CF-OPS-CONT:orphaned_state"] : []),
+    ...(result.orphaned_locks + result.orphaned_journals + result.orphaned_runs + result.orphaned_settlements > 0
+      ? ["CF-OPS-CONT:orphaned_state"]
+      : []),
     ...(result.settlement_idempotence_refusals < 2 ? ["CF-OPS-CONT:settlement_idempotence_unproven"] : []),
     ...(!result.terminal_integrity ? ["CF-OPS-CONT:terminal_integrity_failed"] : []),
     ...(result.overlapping_batch_refusals < 1 ? ["CF-OPS-CONT:overlapping_batch_admitted"] : []),
@@ -94,8 +100,10 @@ const APPS = ["contend-a", "contend-b", "contend-c"] as const;
 const ROLES = ["builder", "planner", "sre", "support"] as const;
 const AT = new Date("2026-07-31T18:00:00.000Z");
 const SOURCE: GitHubEventSource = {
-  ticketReady: async (app) => [{ issueNumber: APPS.indexOf(app.name as typeof APPS[number]) + 101 }],
-  prOpened: async () => [], ciFailed: async () => [], releaseShipped: async () => [],
+  ticketReady: async (app) => [{ issueNumber: APPS.indexOf(app.name as (typeof APPS)[number]) + 101 }],
+  prOpened: async () => [],
+  ciFailed: async () => [],
+  releaseShipped: async () => [],
 };
 
 export async function runContentionRig(): Promise<ContentionRigResult> {
@@ -107,7 +115,12 @@ export async function runContentionRig(): Promise<ContentionRigResult> {
     const preview = await dispatchTick({ ...common, now: () => AT, dryRun: true, spawn: async () => undefined });
     const first = await dispatchTick({ ...common, now: () => AT, spawn: async () => undefined });
     const schedulerId = schedulerIdentity("contention-rig", home.orgHome);
-    const store = new SchedulerEvidenceStore({ stateHome: home.stateHome, orgName: "contention-rig", orgHome: home.orgHome, schedulerId });
+    const store = new SchedulerEvidenceStore({
+      stateHome: home.stateHome,
+      orgName: "contention-rig",
+      orgHome: home.orgHome,
+      schedulerId,
+    });
     const firstDecisions = await store.listDecisions();
     const firstPairs = first.spawned.map((turn) => `${turn.app}\0${turn.role}`);
     const duplicateAdmissions = firstPairs.length - new Set(firstPairs).size;
@@ -115,9 +128,20 @@ export async function runContentionRig(): Promise<ContentionRigResult> {
 
     const laterAt = new Date(AT.getTime() + 5 * 60_000);
     const second = await dispatchTick({ ...common, now: () => laterAt, spawn: async () => undefined });
-    const blockedPairs = new Set(firstDecisions.filter((row) => row.reason_code === "wip_limit").map((row) => `${row.app}\0${row.role}\0${row.trigger}`));
-    const reconsidered = second.spawned.filter((turn) => blockedPairs.has(`${turn.app}\0${turn.role}\0${turn.trigger}`)).length;
-    const refusedSecond = await settleTogether(home.stateHome, second.spawned, store, new Date(laterAt.getTime() + 1_000));
+    const blockedPairs = new Set(
+      firstDecisions
+        .filter((row) => row.reason_code === "wip_limit")
+        .map((row) => `${row.app}\0${row.role}\0${row.trigger}`),
+    );
+    const reconsidered = second.spawned.filter((turn) =>
+      blockedPairs.has(`${turn.app}\0${turn.role}\0${turn.trigger}`),
+    ).length;
+    const refusedSecond = await settleTogether(
+      home.stateHome,
+      second.spawned,
+      store,
+      new Date(laterAt.getTime() + 1_000),
+    );
     const summary = await store.summarize(new Date(laterAt.getTime() + 2_000));
     const all = await store.listDecisions();
     const terminal = all.every((row) => row.stage === "terminal" && row.outcome !== null && row.reason_code !== null);
@@ -130,7 +154,12 @@ export async function runContentionRig(): Promise<ContentionRigResult> {
       max_live_observed: Math.max(first.spawned.length, second.spawned.length),
       duplicate_pair_admissions: duplicateAdmissions,
       priority_preserved: JSON.stringify(first.spawned.map(identity)) === JSON.stringify(preview.spawned.map(identity)),
-      typed_non_admissions: firstDecisions.filter((row) => !first.spawned.some((turn) => turn.decisionId === row.decision_id) && row.outcome !== null && row.reason_code !== null).length,
+      typed_non_admissions: firstDecisions.filter(
+        (row) =>
+          !first.spawned.some((turn) => turn.decisionId === row.decision_id) &&
+          row.outcome !== null &&
+          row.reason_code !== null,
+      ).length,
       reconsidered_after_capacity: reconsidered,
       provider_turns: summary.provider_turns,
       provider_settlements: summary.provider_settlements,
@@ -149,16 +178,21 @@ export async function runContentionRig(): Promise<ContentionRigResult> {
   }
 }
 
-async function exerciseBatchContention(stateHome: string): Promise<Pick<ContentionRigResult,
-  | "overlapping_batch_refusals"
-  | "duplicate_unit_stimulus_refusals"
-  | "multi_ticket_claim_atomic"
-  | "per_unit_settlements"
-  | "batch_complete"
-  | "every_unit_success"
-  | "sibling_isolation"
-  | "stale_frontier_refusals"
->> {
+async function exerciseBatchContention(
+  stateHome: string,
+): Promise<
+  Pick<
+    ContentionRigResult,
+    | "overlapping_batch_refusals"
+    | "duplicate_unit_stimulus_refusals"
+    | "multi_ticket_claim_atomic"
+    | "per_unit_settlements"
+    | "batch_complete"
+    | "every_unit_success"
+    | "sibling_isolation"
+    | "stale_frontier_refusals"
+  >
+> {
   const first = await acceptDirectExecutionUnit({ root: stateHome, authority: directUnit("contention-direct-a") });
   const second = await acceptDirectExecutionUnit({ root: stateHome, authority: directUnit("contention-direct-b") });
   const batch = await admitExecutionBatch({
@@ -169,22 +203,30 @@ async function exerciseBatchContention(stateHome: string): Promise<Pick<Contenti
     routing: [],
     admittedAt: AT.toISOString(),
   });
-  const overlappingBatchRefusals = await refusalCount(() => admitExecutionBatch({
-    root: stateHome,
-    app: "contend-a",
-    batchId: "contention-overlap",
-    directUnitRefs: [first.ref],
-    routing: [],
-    admittedAt: AT.toISOString(),
-  }), "batch_membership_active");
-  const duplicateUnitStimulusRefusals = await refusalCount(() => admitExecutionBatch({
-    root: stateHome,
-    app: "contend-a",
-    batchId: "contention-duplicate-stimulus",
-    directUnitRefs: [first.ref, first.ref],
-    routing: [],
-    admittedAt: AT.toISOString(),
-  }), "batch_unit_duplicate");
+  const overlappingBatchRefusals = await refusalCount(
+    () =>
+      admitExecutionBatch({
+        root: stateHome,
+        app: "contend-a",
+        batchId: "contention-overlap",
+        directUnitRefs: [first.ref],
+        routing: [],
+        admittedAt: AT.toISOString(),
+      }),
+    "batch_membership_active",
+  );
+  const duplicateUnitStimulusRefusals = await refusalCount(
+    () =>
+      admitExecutionBatch({
+        root: stateHome,
+        app: "contend-a",
+        batchId: "contention-duplicate-stimulus",
+        directUnitRefs: [first.ref, first.ref],
+        routing: [],
+        admittedAt: AT.toISOString(),
+      }),
+    "batch_unit_duplicate",
+  );
 
   await transitionExecutionUnitJournal({
     root: stateHome,
@@ -196,12 +238,7 @@ async function exerciseBatchContention(stateHome: string): Promise<Pick<Contenti
     outcome: "completed",
     now: AT,
   });
-  const siblingBefore = await readExecutionUnitJournal(
-    stateHome,
-    "contend-a",
-    batch.ref.id,
-    "contention-direct-b",
-  );
+  const siblingBefore = await readExecutionUnitJournal(stateHome, "contend-a", batch.ref.id, "contention-direct-b");
   await transitionExecutionUnitJournal({
     root: stateHome,
     app: "contend-a",
@@ -212,16 +249,10 @@ async function exerciseBatchContention(stateHome: string): Promise<Pick<Contenti
     outcome: "failed",
     now: new Date(AT.getTime() + 1_000),
   });
-  const firstAfter = await readExecutionUnitJournal(
-    stateHome,
-    "contend-a",
-    batch.ref.id,
-    "contention-direct-a",
-  );
-  const disposition = JSON.parse(await readFile(
-    executionBatchDispositionPath(stateHome, "contend-a", batch.ref.id),
-    "utf8",
-  )) as { units: Array<{ unitId: string; outcome: string }> };
+  const firstAfter = await readExecutionUnitJournal(stateHome, "contend-a", batch.ref.id, "contention-direct-a");
+  const disposition = JSON.parse(
+    await readFile(executionBatchDispositionPath(stateHome, "contend-a", batch.ref.id), "utf8"),
+  ) as { units: Array<{ unitId: string; outcome: string }> };
 
   return {
     overlapping_batch_refusals: overlappingBatchRefusals,
@@ -230,10 +261,11 @@ async function exerciseBatchContention(stateHome: string): Promise<Pick<Contenti
     per_unit_settlements: disposition.units.length,
     batch_complete: disposition.units.length === batch.value.units.length,
     every_unit_success: disposition.units.every((unit) => unit.outcome === "completed"),
-    sibling_isolation: siblingBefore?.state === "admitted"
-      && siblingBefore.usage.providerTurns === 0
-      && firstAfter?.state === "completed"
-      && firstAfter.outcome === "completed",
+    sibling_isolation:
+      siblingBefore?.state === "admitted" &&
+      siblingBefore.usage.providerTurns === 0 &&
+      firstAfter?.state === "completed" &&
+      firstAfter.outcome === "completed",
     stale_frontier_refusals: await exerciseStaleFrontier(stateHome),
   };
 }
@@ -268,8 +300,10 @@ async function exerciseAtomicMultiTicketClaim(): Promise<boolean> {
       return false;
     } catch (error) {
       if (!(error instanceof Error) || !error.message.includes("seeded contention claim failure")) throw error;
-      return issues.every((issue) => gh.labels(issue.number).includes("op:ready"))
-        && issues.every((issue) => !gh.labels(issue.number).includes("op:building"));
+      return (
+        issues.every((issue) => gh.labels(issue.number).includes("op:ready")) &&
+        issues.every((issue) => !gh.labels(issue.number).includes("op:building"))
+      );
     }
   } finally {
     await Promise.all([repo.cleanup(), rm(worktreeRoot, { recursive: true, force: true })]);
@@ -307,20 +341,29 @@ async function exerciseStaleFrontier(stateHome: string): Promise<number> {
     root: stateHome,
     plan: contentionRoadmap(app, snapshot.ref, 2, firstPlan.ref),
   });
-  return refusalCount(() => admitExecutionBatch({
-    root: stateHome,
-    app,
-    batchId: "contention-stale-frontier",
-    roadmapRef: firstPlan.ref,
-    expectedFrontierHash: firstPlan.frontierHash,
-    orderedUnitIds: ["contention-code-901"],
-    readinessRefs: [],
-    routing: [],
-    admittedAt: AT.toISOString(),
-  }), "frontier_stale");
+  return refusalCount(
+    () =>
+      admitExecutionBatch({
+        root: stateHome,
+        app,
+        batchId: "contention-stale-frontier",
+        roadmapRef: firstPlan.ref,
+        expectedFrontierHash: firstPlan.frontierHash,
+        orderedUnitIds: ["contention-code-901"],
+        readinessRefs: [],
+        routing: [],
+        admittedAt: AT.toISOString(),
+      }),
+    "frontier_stale",
+  );
 }
 
-function contentionRoadmap(app: string, snapshotRef: AuthorityRef, version: number, predecessor: AuthorityRef | null): RoadmapPlan {
+function contentionRoadmap(
+  app: string,
+  snapshotRef: AuthorityRef,
+  version: number,
+  predecessor: AuthorityRef | null,
+): RoadmapPlan {
   const units = [901, 902].map((issueNumber) => ({
     unitId: `contention-code-${issueNumber}`,
     workstreamId: "contention-code",
@@ -370,9 +413,20 @@ function directUnit(unitId: string): DirectExecutionUnitAuthority {
     declaredConstraints: { externalEffects: false, governedTemplate: true },
     safetyFacts: [{ kind: "independent_review", evidenceRefs: ["fixture:contention"] }],
     workflowTemplate: { id: "contention/direct", version: "v1" },
-    provenance: { source: "human", creatorId: "fixture-owner", createdAt: AT.toISOString(), evidenceRefs: [`fixture:${unitId}`] },
+    provenance: {
+      source: "human",
+      creatorId: "fixture-owner",
+      createdAt: AT.toISOString(),
+      evidenceRefs: [`fixture:${unitId}`],
+    },
     dedupeKey: `contention-dedupe:${unitId}`,
-    admittedBudget: { maxProviderTurns: 2, maxEquivalentCostUsd: 2, maxMechanicalOverheadUsd: 0, maxActiveTimeMs: 60_000, maxHumanDecisions: 0 },
+    admittedBudget: {
+      maxProviderTurns: 2,
+      maxEquivalentCostUsd: 2,
+      maxMechanicalOverheadUsd: 0,
+      maxActiveTimeMs: 60_000,
+      maxHumanDecisions: 0,
+    },
     createdAt: AT.toISOString(),
   };
 }
@@ -409,7 +463,7 @@ class ContentionClaimGh {
     }
     const issue = this.issues.get(number)!;
     if (!issue.labels.includes(from)) throw new Error(`${number} lacks ${from}`);
-    issue.labels = issue.labels.map((label) => label === from ? to : label);
+    issue.labels = issue.labels.map((label) => (label === from ? to : label));
   }
 
   labels(number: number): string[] {
@@ -423,50 +477,130 @@ async function settleTogether(
   store: SchedulerEvidenceStore,
   at: Date,
 ): Promise<number> {
-  const results = await Promise.all(turns.map(async (turn, index) => {
-    const runId = `contention-${at.getTime()}-${index}`;
-    const providerTurnId = `provider-${turn.turnId}`;
-    const role = roleConfig(turn.role);
-    const result = turnResult(turn.role);
-    await startRun(stateHome, {
-      runId, traceId: turn.turnId, app: turn.app, pipeline: "contention", pass: "settle", role: turn.role,
-      runtime: "claude", model: role.model, providerTurnIds: [providerTurnId],
-    }, new Date(at.getTime() - 500));
-    await finalizeRun(stateHome, turn.app, runId, { status: "completed", verdictSummary: "contention fixture settled" }, at);
-    await writeJournalPatch(stateHome, turn.turnId, { app: turn.app, role: turn.role, phase: "running" }, new Date(at.getTime() - 400));
-    await writeJournalPatch(stateHome, turn.turnId, { app: turn.app, role: turn.role, phase: "collecting" }, new Date(at.getTime() - 200));
-    await writeJournalPatch(stateHome, turn.turnId, { app: turn.app, role: turn.role, phase: "done" }, at);
-    const record = toRecord(role, result, at, {
-      app: turn.app, trigger: turn.triggerKind, runId, providerTurnId, traceId: turn.turnId, pipeline: "contention", pass: "settle",
-    });
-    const first = await recordTurnOnce(stateHome, record);
-    const duplicate = await recordTurnOnce(stateHome, record);
-    await store.recordTurnReceipt(turn.turnId, at, result.summary);
-    const lock = await readLock(stateHome, turn.app, turn.role);
-    await releaseLock(stateHome, turn.app, turn.role, lock);
-    return first && !duplicate ? 1 : 0;
-  }));
+  const results = await Promise.all(
+    turns.map(async (turn, index) => {
+      const runId = `contention-${at.getTime()}-${index}`;
+      const providerTurnId = `provider-${turn.turnId}`;
+      const role = roleConfig(turn.role);
+      const result = turnResult(turn.role);
+      await startRun(
+        stateHome,
+        {
+          runId,
+          traceId: turn.turnId,
+          app: turn.app,
+          pipeline: "contention",
+          pass: "settle",
+          role: turn.role,
+          runtime: "claude",
+          model: role.model,
+          providerTurnIds: [providerTurnId],
+        },
+        new Date(at.getTime() - 500),
+      );
+      await finalizeRun(
+        stateHome,
+        turn.app,
+        runId,
+        { status: "completed", verdictSummary: "contention fixture settled" },
+        at,
+      );
+      await writeJournalPatch(
+        stateHome,
+        turn.turnId,
+        { app: turn.app, role: turn.role, phase: "running" },
+        new Date(at.getTime() - 400),
+      );
+      await writeJournalPatch(
+        stateHome,
+        turn.turnId,
+        { app: turn.app, role: turn.role, phase: "collecting" },
+        new Date(at.getTime() - 200),
+      );
+      await writeJournalPatch(stateHome, turn.turnId, { app: turn.app, role: turn.role, phase: "done" }, at);
+      const record = toRecord(role, result, at, {
+        app: turn.app,
+        trigger: turn.triggerKind,
+        runId,
+        providerTurnId,
+        traceId: turn.turnId,
+        pipeline: "contention",
+        pass: "settle",
+      });
+      const first = await recordTurnOnce(stateHome, record);
+      const duplicate = await recordTurnOnce(stateHome, record);
+      await store.recordTurnReceipt(turn.turnId, at, result.summary);
+      const lock = await readLock(stateHome, turn.app, turn.role);
+      await releaseLock(stateHome, turn.app, turn.role, lock);
+      return first && !duplicate ? 1 : 0;
+    }),
+  );
   return results.reduce<number>((sum, item) => sum + item, 0);
 }
 
-function identity(turn: DueTurn): string { return `${turn.app}/${turn.role}/${turn.triggerKind}:${turn.trigger}`; }
-function roleConfig(name: string): RoleConfig { return { name, runtime: "claude", model: "claude-scripted-model", effort: "medium", delegation: { allow: [] }, triggers: [], outputs: [], maxTurnBudgetUsd: 1 }; }
-function turnResult(role: string): TurnResult { return { status: "completed", summary: `${role} settled`, artifacts: [], session: { runtime: "claude", id: `session-${role}` }, usage: { tokensIn: 10, tokensOut: 2, costUsd: 0.01, subagentTurns: 0, wallClockMs: 100, quality: "complete" }, escalations: [] }; }
+function identity(turn: DueTurn): string {
+  return `${turn.app}/${turn.role}/${turn.triggerKind}:${turn.trigger}`;
+}
+function roleConfig(name: string): RoleConfig {
+  return {
+    name,
+    runtime: "claude",
+    model: "claude-scripted-model",
+    effort: "medium",
+    delegation: { allow: [] },
+    triggers: [],
+    outputs: [],
+    maxTurnBudgetUsd: 1,
+  };
+}
+function turnResult(role: string): TurnResult {
+  return {
+    status: "completed",
+    summary: `${role} settled`,
+    artifacts: [],
+    session: { runtime: "claude", id: `session-${role}` },
+    usage: { tokensIn: 10, tokensOut: 2, costUsd: 0.01, subagentTurns: 0, wallClockMs: 100, quality: "complete" },
+    escalations: [],
+  };
+}
 
 function appsYaml(): string {
   return [
-    "schema_version: 1", "org:", "  name: contention-rig", "  max_concurrent_turns: 2",
-    "defaults:", "  budget_usd_month: 1000", "apps:",
-    ...APPS.flatMap((app) => [`  ${app}:`, `    repo: fixture/${app}`, "    status: live", "    budget_usd_month: 1000", "    cadence: {}", "    channels:", "      support: [fixture]"]), "",
+    "schema_version: 1",
+    "org:",
+    "  name: contention-rig",
+    "  max_concurrent_turns: 2",
+    "defaults:",
+    "  budget_usd_month: 1000",
+    "apps:",
+    ...APPS.flatMap((app) => [
+      `  ${app}:`,
+      `    repo: fixture/${app}`,
+      "    status: live",
+      "    budget_usd_month: 1000",
+      "    cadence: {}",
+      "    channels:",
+      "      support: [fixture]",
+    ]),
+    "",
   ].join("\n");
 }
 function rolesYaml(): string {
   return [
-    "defaults:", "  max_turn_budget_usd: 1", "roles:",
+    "defaults:",
+    "  max_turn_budget_usd: 1",
+    "roles:",
     ...ROLES.flatMap((role) => [
-      `  ${role}:`, "    runtime: claude", "    model: claude-scripted-model", "    effort: medium", "    delegation: {allow: []}", "    triggers:",
+      `  ${role}:`,
+      "    runtime: claude",
+      "    model: claude-scripted-model",
+      "    effort: medium",
+      "    delegation: {allow: []}",
+      "    triggers:",
       ...(role === "builder" ? ["      - event: ticket-ready"] : []),
-      "      - schedule: \"* * * * *\"", "    outputs: [notes]",
-    ]), "",
+      '      - schedule: "* * * * *"',
+      "    outputs: [notes]",
+    ]),
+    "",
   ].join("\n");
 }

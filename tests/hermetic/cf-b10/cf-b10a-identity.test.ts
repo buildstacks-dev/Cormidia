@@ -23,11 +23,7 @@ import { mkdtemp, rename, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  NoActiveOrgError,
-  resolveCormidiaHomes,
-  writeActiveOrgPointer,
-} from "../../../src/org/home.js";
+import { NoActiveOrgError, resolveCormidiaHomes, writeActiveOrgPointer } from "../../../src/org/home.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 

@@ -1,9 +1,4 @@
-import type {
-  EpisodePlan,
-  EpisodeStep,
-  ProposedEpisodePlan,
-  ProposedEpisodeStep,
-} from "./episode-plan.js";
+import type { EpisodePlan, EpisodeStep, ProposedEpisodePlan, ProposedEpisodeStep } from "./episode-plan.js";
 import type { PipelinesFile, PipelineConfig } from "./pipelines.js";
 import type { ProjectStage } from "./plan-tickets.js";
 
@@ -89,8 +84,7 @@ export const PLANNING_EPISODE_PLAN_REASON_CODES = [
   "planning_plan_output_ref_invalid",
 ] as const;
 
-export type PlanningEpisodePlanReasonCode =
-  (typeof PLANNING_EPISODE_PLAN_REASON_CODES)[number];
+export type PlanningEpisodePlanReasonCode = (typeof PLANNING_EPISODE_PLAN_REASON_CODES)[number];
 
 export interface PlanningEpisodePlanIssue {
   code: PlanningEpisodePlanReasonCode;
@@ -116,9 +110,7 @@ export class PlanningEpisodePlanValidationError extends Error {
 type PlanningStep = EpisodeStep | ProposedEpisodeStep;
 type PlanningPlanLike = Pick<EpisodePlan | ProposedEpisodePlan, "steps">;
 
-export function planningProviderOperation(
-  operation: string,
-): PlanningProviderOperationDefinition | undefined {
+export function planningProviderOperation(operation: string): PlanningProviderOperationDefinition | undefined {
   if (!Object.hasOwn(PLANNING_PROVIDER_OPERATION_CATALOG, operation)) return undefined;
   return PLANNING_PROVIDER_OPERATION_CATALOG[operation as PlanningProviderOperation];
 }
@@ -129,9 +121,7 @@ export function assertPlanningOperationCatalogMatches(file: PipelinesFile): void
   for (const definition of Object.values(PLANNING_PROVIDER_OPERATION_CATALOG)) {
     const pipeline = file.pipelines.find((candidate) => candidate.name === definition.pipeline);
     if (pipeline === undefined) {
-      throw new Error(
-        `planning operation ${definition.operation} requires missing pipeline ${definition.pipeline}`,
-      );
+      throw new Error(`planning operation ${definition.operation} requires missing pipeline ${definition.pipeline}`);
     }
     const matches = pipeline.passes.filter((pass) => pass.id === definition.pass);
     if (matches.length !== 1) {
@@ -154,18 +144,13 @@ export function assertPlanningOperationCatalogMatches(file: PipelinesFile): void
     if (pipeline === undefined) continue; // The missing required pipeline was reported above.
     for (const pass of pipeline.passes) {
       if (!bound.has(`${pipelineName}\0${pass.id}`)) {
-        throw new Error(
-          `governed planning pass ${pipelineName}/${pass.id} has no code-owned operation binding`,
-        );
+        throw new Error(`governed planning pass ${pipelineName}/${pass.id} has no code-owned operation binding`);
       }
     }
   }
 }
 
-export function planningPipelineForOperation(
-  operation: string,
-  file: PipelinesFile,
-): PipelineConfig {
+export function planningPipelineForOperation(operation: string, file: PipelinesFile): PipelineConfig {
   const definition = planningProviderOperation(operation);
   if (definition === undefined) throw new Error(`unknown planning provider operation ${operation}`);
   assertPlanningOperationCatalogMatches(file);
@@ -199,81 +184,91 @@ export function validatePlanningEpisodePlan(
 
   for (const step of steps) {
     if (step.kind !== "provider_turn") {
-      issues.push(issue(
-        "planning_step_kind_unsupported",
-        "product-planning episodes support provider operations only; publication remains outside the plan DAG",
-        step.id,
-      ));
+      issues.push(
+        issue(
+          "planning_step_kind_unsupported",
+          "product-planning episodes support provider operations only; publication remains outside the plan DAG",
+          step.id,
+        ),
+      );
       continue;
     }
     const definition = planningProviderOperation(step.operation);
     if (definition === undefined) {
-      issues.push(issue(
-        "planning_provider_operation_unknown",
-        `provider operation ${step.operation} is not in the planning operation catalog`,
-        step.id,
-      ));
+      issues.push(
+        issue(
+          "planning_provider_operation_unknown",
+          `provider operation ${step.operation} is not in the planning operation catalog`,
+          step.id,
+        ),
+      );
     } else if (step.role !== definition.role) {
-      issues.push(issue(
-        "planning_provider_operation_role_mismatch",
-        `${step.operation} is owned by ${definition.role}, not ${step.role}`,
-        step.id,
-      ));
+      issues.push(
+        issue(
+          "planning_provider_operation_role_mismatch",
+          `${step.operation} is owned by ${definition.role}, not ${step.role}`,
+          step.id,
+        ),
+      );
     }
     validateOutputRefs(step, ancestors(step.id), outputOwners, issues);
   }
 
   const terminals = steps.filter((step) => (dependents.get(step.id)?.length ?? 0) === 0);
   if (terminals.length !== 1) {
-    issues.push(issue(
-      "planning_terminal_count_invalid",
-      `planning workflow must have exactly one terminal TicketPlan step; found ${terminals.length}`,
-    ));
+    issues.push(
+      issue(
+        "planning_terminal_count_invalid",
+        `planning workflow must have exactly one terminal TicketPlan step; found ${terminals.length}`,
+      ),
+    );
   }
   const terminal = terminals[0];
   if (terminal !== undefined) {
     const expectedOperation = stage === "bootstrap" ? "plan/bootstrap" : "plan/decompose";
-    const definition = terminal.kind === "provider_turn"
-      ? planningProviderOperation(terminal.operation)
-      : undefined;
-    if (definition?.output !== "ticket_plan" || terminal.kind !== "provider_turn" ||
-        terminal.operation !== expectedOperation) {
-      issues.push(issue(
-        "planning_terminal_operation_invalid",
-        `${stage} planning must terminate in ${expectedOperation}`,
-        terminal.id,
-      ));
+    const definition = terminal.kind === "provider_turn" ? planningProviderOperation(terminal.operation) : undefined;
+    if (
+      definition?.output !== "ticket_plan" ||
+      terminal.kind !== "provider_turn" ||
+      terminal.operation !== expectedOperation
+    ) {
+      issues.push(
+        issue(
+          "planning_terminal_operation_invalid",
+          `${stage} planning must terminate in ${expectedOperation}`,
+          terminal.id,
+        ),
+      );
     }
     const ticketOutputs = terminal.expectedOutputs.filter((output) => output.id === "ticket-plan");
-    if (
-      ticketOutputs.length !== 1 ||
-      ticketOutputs[0]!.kind !== "TicketPlan" ||
-      ticketOutputs[0]!.required !== true
-    ) {
-      issues.push(issue(
-        "planning_ticket_plan_output_invalid",
-        "terminal step must declare required output ticket-plan of kind TicketPlan",
-        terminal.id,
-      ));
+    if (ticketOutputs.length !== 1 || ticketOutputs[0]!.kind !== "TicketPlan" || ticketOutputs[0]!.required !== true) {
+      issues.push(
+        issue(
+          "planning_ticket_plan_output_invalid",
+          "terminal step must declare required output ticket-plan of kind TicketPlan",
+          terminal.id,
+        ),
+      );
     }
-    if (
-      terminal.kind !== "provider_turn" ||
-      !terminal.requiredCapabilities.includes("structured_verdict")
-    ) {
-      issues.push(issue(
-        "planning_ticket_plan_output_invalid",
-        "terminal TicketPlan operation must require structured_verdict capability",
-        terminal.id,
-      ));
+    if (terminal.kind !== "provider_turn" || !terminal.requiredCapabilities.includes("structured_verdict")) {
+      issues.push(
+        issue(
+          "planning_ticket_plan_output_invalid",
+          "terminal TicketPlan operation must require structured_verdict capability",
+          terminal.id,
+        ),
+      );
     }
   }
   for (const step of steps) {
     if (step !== terminal && step.expectedOutputs.some((output) => output.id === "ticket-plan")) {
-      issues.push(issue(
-        "planning_ticket_plan_output_invalid",
-        "only the terminal governed planning operation may declare ticket-plan",
-        step.id,
-      ));
+      issues.push(
+        issue(
+          "planning_ticket_plan_output_invalid",
+          "only the terminal governed planning operation may declare ticket-plan",
+          step.id,
+        ),
+      );
     }
   }
 
@@ -281,10 +276,7 @@ export function validatePlanningEpisodePlan(
   return { ok: unique.length === 0, issues: unique };
 }
 
-export function assertPlanningEpisodePlanValid(
-  plan: PlanningPlanLike,
-  stage: ProjectStage,
-): void {
+export function assertPlanningEpisodePlanValid(plan: PlanningPlanLike, stage: ProjectStage): void {
   const result = validatePlanningEpisodePlan(plan, stage);
   if (!result.ok) throw new PlanningEpisodePlanValidationError(result.issues);
 }
@@ -302,9 +294,7 @@ function validateOutputRefs(
     if (owners.length !== 1 || !ancestors.has(owners[0]!)) {
       issues.push({
         code: "planning_plan_output_ref_invalid",
-        message:
-          `${input.ref} must resolve to exactly one dependency-ancestor output; ` +
-          `found ${owners.length}`,
+        message: `${input.ref} must resolve to exactly one dependency-ancestor output; ` + `found ${owners.length}`,
         stepId: step.id,
         inputRef: input.ref,
       });
@@ -312,9 +302,7 @@ function validateOutputRefs(
   }
 }
 
-function ancestorResolver(
-  byId: ReadonlyMap<string, PlanningStep>,
-): (stepId: string) => ReadonlySet<string> {
+function ancestorResolver(byId: ReadonlyMap<string, PlanningStep>): (stepId: string) => ReadonlySet<string> {
   const cache = new Map<string, ReadonlySet<string>>();
   const resolve = (stepId: string): ReadonlySet<string> => {
     const cached = cache.get(stepId);
@@ -336,11 +324,7 @@ function ancestorResolver(
   return resolve;
 }
 
-function issue(
-  code: PlanningEpisodePlanReasonCode,
-  message: string,
-  stepId?: string,
-): PlanningEpisodePlanIssue {
+function issue(code: PlanningEpisodePlanReasonCode, message: string, stepId?: string): PlanningEpisodePlanIssue {
   return stepId === undefined ? { code, message } : { code, message, stepId };
 }
 

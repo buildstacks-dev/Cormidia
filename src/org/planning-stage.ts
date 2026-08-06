@@ -43,12 +43,7 @@ export type PlanningStageResolutionReason =
 
 export interface PlanningStageEvidence {
   inspection: "not_required" | "complete" | "unavailable";
-  checkoutSource:
-    | "explicit"
-    | "managed_clone"
-    | "registered_local_checkout"
-    | "unavailable"
-    | "persisted_intent";
+  checkoutSource: "explicit" | "managed_clone" | "registered_local_checkout" | "unavailable" | "persisted_intent";
   greenfieldSeedPresent: boolean | null;
   reachableCommitCount: number | null;
   /** Exact below the probe limit; otherwise a lower bound. */
@@ -134,16 +129,11 @@ export function resolvePlanningStage(input: {
 
   const commits = evidence.reachableCommitCount!;
   const tags = evidence.reachableTagCount!;
-  if (
-    tags === 0 &&
-    commits <= PLANNING_STAGE_THRESHOLDS.bootstrapMaxReachableCommits
-  ) {
+  if (tags === 0 && commits <= PLANNING_STAGE_THRESHOLDS.bootstrapMaxReachableCommits) {
     return {
       stage: "bootstrap",
       source: "repository_evidence",
-      reason: evidence.greenfieldSeedPresent
-        ? "greenfield_seed_low_history_no_releases"
-        : "low_history_no_releases",
+      reason: evidence.greenfieldSeedPresent ? "greenfield_seed_low_history_no_releases" : "low_history_no_releases",
       evidence,
     };
   }
@@ -184,11 +174,8 @@ export function persistedPlanningStageResolution(input: {
 }
 
 export function formatPlanningStage(resolution: PlanningStageResolution): string {
-  const provenance = resolution.source === "explicit"
-    ? "explicit"
-    : resolution.source === "persisted_intent"
-      ? "persisted"
-      : "inferred";
+  const provenance =
+    resolution.source === "explicit" ? "explicit" : resolution.source === "persisted_intent" ? "persisted" : "inferred";
   return `${resolution.stage} (${provenance})`;
 }
 
@@ -198,10 +185,12 @@ export function formatPlanningStageEvidence(resolution: PlanningStageResolution)
   if (evidence.inspection === "unavailable") {
     return `${resolution.reason}; safe bootstrap fallback`;
   }
-  return `${resolution.reason}; ${evidence.reachableCommitCount} reachable commit(s), ` +
+  return (
+    `${resolution.reason}; ${evidence.reachableCommitCount} reachable commit(s), ` +
     `${evidence.reachableTagCountIsLowerBound ? "at least " : ""}` +
     `${evidence.reachableTagCount} reachable tag(s), greenfield seed ` +
-    `${evidence.greenfieldSeedPresent ? "present" : "absent"}`;
+    `${evidence.greenfieldSeedPresent ? "present" : "absent"}`
+  );
 }
 
 function inspectPlanningStageEvidence(
@@ -210,21 +199,22 @@ function inspectPlanningStageEvidence(
 ): PlanningStageEvidence {
   gitText(checkout, ["rev-parse", "--verify", "HEAD^{commit}"]);
   const commitCount = parseCount(gitText(checkout, ["rev-list", "--count", "HEAD"]));
-  const tagRows = splitLines(gitText(checkout, [
-    "for-each-ref",
-    "--merged=HEAD",
-    `--count=${PLANNING_STAGE_THRESHOLDS.reachableTagProbeLimit}`,
-    "--format=1",
-    "refs/tags",
-  ]));
+  const tagRows = splitLines(
+    gitText(checkout, [
+      "for-each-ref",
+      "--merged=HEAD",
+      `--count=${PLANNING_STAGE_THRESHOLDS.reachableTagProbeLimit}`,
+      "--format=1",
+      "refs/tags",
+    ]),
+  );
   return {
     inspection: "complete",
     checkoutSource,
     greenfieldSeedPresent: existsSync(join(checkout, GREENFIELD_SEED_PATH)),
     reachableCommitCount: commitCount,
     reachableTagCount: tagRows.length,
-    reachableTagCountIsLowerBound:
-      tagRows.length === PLANNING_STAGE_THRESHOLDS.reachableTagProbeLimit,
+    reachableTagCountIsLowerBound: tagRows.length === PLANNING_STAGE_THRESHOLDS.reachableTagProbeLimit,
   };
 }
 
@@ -271,10 +261,9 @@ function parsePlanningStageResolution(value: JsonValue | undefined): PlanningSta
   }
   if (!isCheckoutSource(checkoutSource)) return undefined;
   if (seed !== null && typeof seed !== "boolean") return undefined;
-  if (commits !== null &&
-      (typeof commits !== "number" || !Number.isSafeInteger(commits) || commits < 0)) return undefined;
-  if (tags !== null &&
-      (typeof tags !== "number" || !Number.isSafeInteger(tags) || tags < 0)) return undefined;
+  if (commits !== null && (typeof commits !== "number" || !Number.isSafeInteger(commits) || commits < 0))
+    return undefined;
+  if (tags !== null && (typeof tags !== "number" || !Number.isSafeInteger(tags) || tags < 0)) return undefined;
   if (typeof lowerBound !== "boolean") return undefined;
   return {
     stage: value["stage"],
@@ -291,9 +280,7 @@ function parsePlanningStageResolution(value: JsonValue | undefined): PlanningSta
   };
 }
 
-function notRequiredEvidence(
-  checkoutSource: PlanningStageEvidence["checkoutSource"],
-): PlanningStageEvidence {
+function notRequiredEvidence(checkoutSource: PlanningStageEvidence["checkoutSource"]): PlanningStageEvidence {
   return {
     inspection: "not_required",
     checkoutSource,
@@ -304,9 +291,7 @@ function notRequiredEvidence(
   };
 }
 
-function unavailableEvidence(
-  checkoutSource: PlanningStageEvidence["checkoutSource"],
-): PlanningStageEvidence {
+function unavailableEvidence(checkoutSource: PlanningStageEvidence["checkoutSource"]): PlanningStageEvidence {
   return {
     inspection: "unavailable",
     checkoutSource,
@@ -326,22 +311,32 @@ function isProjectStage(value: unknown): value is ProjectStage {
 }
 
 function isResolutionSource(value: unknown): value is PlanningStageResolutionSource {
-  return value === "explicit" || value === "repository_evidence" ||
-    value === "conservative_fallback" || value === "persisted_intent";
+  return (
+    value === "explicit" ||
+    value === "repository_evidence" ||
+    value === "conservative_fallback" ||
+    value === "persisted_intent"
+  );
 }
 
 function isResolutionReason(value: unknown): value is PlanningStageResolutionReason {
-  return value === "operator_supplied" ||
+  return (
+    value === "operator_supplied" ||
     value === "greenfield_seed_low_history_no_releases" ||
     value === "low_history_no_releases" ||
     value === "substantial_versioned_history" ||
     value === "intermediate_repository_history" ||
     value === "repository_evidence_unavailable" ||
-    value === "legacy_intent_stage_preserved";
+    value === "legacy_intent_stage_preserved"
+  );
 }
 
 function isCheckoutSource(value: unknown): value is PlanningStageEvidence["checkoutSource"] {
-  return value === "explicit" || value === "managed_clone" ||
-    value === "registered_local_checkout" || value === "unavailable" ||
-    value === "persisted_intent";
+  return (
+    value === "explicit" ||
+    value === "managed_clone" ||
+    value === "registered_local_checkout" ||
+    value === "unavailable" ||
+    value === "persisted_intent"
+  );
 }

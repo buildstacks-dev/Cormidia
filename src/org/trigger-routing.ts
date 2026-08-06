@@ -62,11 +62,7 @@ export function resolveTriggerRoute(input: ResolveTriggerRouteInput): TriggerRou
 
   if (role === "sre") {
     if (trigger.schedule === "hourly") return { kind: "pipeline", pipeline: "sre-health" };
-    if (
-      trigger.event === "ci-failed" ||
-      trigger.event === "alert-webhook" ||
-      trigger.event === "health-alert"
-    ) {
+    if (trigger.event === "ci-failed" || trigger.event === "alert-webhook" || trigger.event === "health-alert") {
       return { kind: "pipeline", pipeline: "sre-incident" };
     }
   }

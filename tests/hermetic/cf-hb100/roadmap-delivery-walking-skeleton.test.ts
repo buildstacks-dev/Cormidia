@@ -8,11 +8,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  readCurrentEpisodePlan,
-  stableHash,
-  type CreatorEpisodeScope,
-} from "../../../src/loop/episode-plan.js";
+import { readCurrentEpisodePlan, stableHash, type CreatorEpisodeScope } from "../../../src/loop/episode-plan.js";
 import {
   assertTicketEpisodePlanValid,
   ticketGovernedWorkflowTemplates,
@@ -79,7 +75,8 @@ const APP: AppEntry = {
   name: "hb100-app",
   repo: "cormidia-double/hb100-app",
   status: "live",
-  budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
+  budgetUsdMonth: 100,
+  objectiveBudgetUsd: 1000,
   cadence: {},
   execution: { assignmentMode: "fixed", allowedAssignments: {} },
 };
@@ -105,12 +102,7 @@ afterEach(async () => {
   await Promise.all(homes.splice(0).map((home) => home.cleanup()));
 });
 
-function role(
-  name: string,
-  runtime: RoleConfig["runtime"],
-  model: string,
-  outputs: string[],
-): RoleConfig {
+function role(name: string, runtime: RoleConfig["runtime"], model: string, outputs: string[]): RoleConfig {
   return {
     name,
     runtime,
@@ -163,19 +155,23 @@ function roadmapPlan(snapshotRef: AuthorityRef): RoadmapPlan {
     app: APP.name,
     backlogSnapshotRef: snapshotRef,
     predecessor: null,
-    workstreams: [{
-      workstreamId: "autonomous-loop",
-      outcome: "Enable the governed Cormidia delivery loop",
-      priority: 1,
-    }],
-    deliveryUnits: [{
-      unitId: "unit-roadmap-validation",
-      workstreamId: "autonomous-loop",
-      issueNumbers: [...ISSUE_NUMBERS],
-      dependsOn: [],
-      priority: 1,
-      objective: "Land roadmap batching and validation as one reviewable PR",
-    }],
+    workstreams: [
+      {
+        workstreamId: "autonomous-loop",
+        outcome: "Enable the governed Cormidia delivery loop",
+        priority: 1,
+      },
+    ],
+    deliveryUnits: [
+      {
+        unitId: "unit-roadmap-validation",
+        workstreamId: "autonomous-loop",
+        issueNumbers: [...ISSUE_NUMBERS],
+        dependsOn: [],
+        priority: 1,
+        objective: "Land roadmap batching and validation as one reviewable PR",
+      },
+    ],
     completedUnitIds: [],
     readyFrontier: ["unit-roadmap-validation"],
     wipLimit: 1,
@@ -204,11 +200,13 @@ function validationContract(
     acceptanceCriteria: ["The exact two-ticket unit and candidate HEAD retain validation lineage."],
     requiresHarnessRevision: false,
     harnessRevisionReason: null,
-    sharedBoundaryDetectorRefs: [{
-      boundaryId: "B21",
-      caseId: "CF-B21-*",
-      detectorId: "shared-boundary-lineage",
-    }],
+    sharedBoundaryDetectorRefs: [
+      {
+        boundaryId: "B21",
+        caseId: "CF-B21-*",
+        detectorId: "shared-boundary-lineage",
+      },
+    ],
     obligations: [
       {
         obligationId: "shared-boundary",
@@ -458,9 +456,7 @@ function evidenceManifest(input: {
   };
 }
 
-function reviewerVerdict(
-  evidence: AcceptedAuthority<BuilderEvidenceManifest>,
-): ReviewerVerdict {
+function reviewerVerdict(evidence: AcceptedAuthority<BuilderEvidenceManifest>): ReviewerVerdict {
   return {
     schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
     app: APP.name,
@@ -531,10 +527,7 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     expect(raced.map((entry) => entry.disposition).sort()).toEqual(["already_claimed", "claimed"]);
     const claim = raced.find((entry) => entry.disposition === "claimed")!;
     expect(claim.record.payload.issueNumbers).toEqual([...ISSUE_NUMBERS]);
-    const claimPath = deliveryClaimRecordPath(
-      home.stateHome,
-      deliveryClaimIdentity(claim.record.payload),
-    );
+    const claimPath = deliveryClaimRecordPath(home.stateHome, deliveryClaimIdentity(claim.record.payload));
     expect(JSON.parse(await readFile(claimPath, "utf8"))).toMatchObject({
       status: "claimed",
       payload: { issueNumbers: [...ISSUE_NUMBERS] },
@@ -561,10 +554,11 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     const manifest = evidenceManifest({ ...authorities, claim });
     // Seeded negative control: evidence for a different unit cannot cross the join.
     await expectRoadmapError(
-      () => recordBuilderEvidence({
-        root: home.stateHome,
-        manifest: { ...manifest, unitId: "unit-swapped" },
-      }),
+      () =>
+        recordBuilderEvidence({
+          root: home.stateHome,
+          manifest: { ...manifest, unitId: "unit-swapped" },
+        }),
       "evidence_unit_mismatch",
     );
     const evidence = await recordBuilderEvidence({
@@ -580,24 +574,26 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
       sha256: "b".repeat(64),
     };
     await expectRoadmapError(
-      () => assertReviewerVerdictAdmissible({
-        verdict: {
-          ...verdict,
-          validationRef: wrongContract,
-          validationContractHash: wrongContract.sha256,
-        },
-        evidence,
-        validation: authorities.validation,
-      }),
+      () =>
+        assertReviewerVerdictAdmissible({
+          verdict: {
+            ...verdict,
+            validationRef: wrongContract,
+            validationContractHash: wrongContract.sha256,
+          },
+          evidence,
+          validation: authorities.validation,
+        }),
       "validation_contract_invalid",
     );
     // Seeded negative control: a verdict over another HEAD turns the detector red.
     await expectRoadmapError(
-      () => assertReviewerVerdictAdmissible({
-        verdict: { ...verdict, candidateHead: "c".repeat(40) },
-        evidence,
-        validation: authorities.validation,
-      }),
+      () =>
+        assertReviewerVerdictAdmissible({
+          verdict: { ...verdict, candidateHead: "c".repeat(40) },
+          evidence,
+          validation: authorities.validation,
+        }),
       "evidence_head_mismatch",
     );
 
@@ -650,17 +646,18 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
       sha256: "d".repeat(64),
     };
     await expectRoadmapError(
-      () => admitExecutionBatch({
-        root: home.stateHome,
-        app: APP.name,
-        batchId: "batch-label-only",
-        roadmapRef: fabricatedRoadmapRef,
-        expectedFrontierHash: stableHash(["unit-roadmap-validation"]),
-        orderedUnitIds: ["unit-roadmap-validation"],
-        readinessRefs: [],
-        routing: AUTOMATED_ROUTING,
-        admittedAt: AT,
-      }),
+      () =>
+        admitExecutionBatch({
+          root: home.stateHome,
+          app: APP.name,
+          batchId: "batch-label-only",
+          roadmapRef: fabricatedRoadmapRef,
+          expectedFrontierHash: stableHash(["unit-roadmap-validation"]),
+          orderedUnitIds: ["unit-roadmap-validation"],
+          readinessRefs: [],
+          routing: AUTOMATED_ROUTING,
+          admittedAt: AT,
+        }),
       "roadmap_missing",
     );
     expect(existsSync(batchAuthorityPath(home.stateHome, APP.name, "batch-label-only", 1))).toBe(false);
@@ -671,18 +668,20 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     homes.push(home);
     const { roadmap, validation, readiness } = await acceptedPlanningAuthorities(home);
     await expectRoadmapError(
-      () => admitExecutionBatch({
-        root: home.stateHome,
-        app: APP.name,
-        batchId: "batch-human-only",
-        roadmapRef: roadmap.ref,
-        expectedFrontierHash: roadmap.frontierHash,
-        orderedUnitIds: ["unit-roadmap-validation"],
-        readinessRefs: [readiness.ref],
-        routing: AUTOMATED_ROUTING.map((entry) =>
-          entry.issueNumber === 240 ? { ...entry, disposition: "human_only" as const } : entry),
-        admittedAt: AT,
-      }),
+      () =>
+        admitExecutionBatch({
+          root: home.stateHome,
+          app: APP.name,
+          batchId: "batch-human-only",
+          roadmapRef: roadmap.ref,
+          expectedFrontierHash: roadmap.frontierHash,
+          orderedUnitIds: ["unit-roadmap-validation"],
+          readinessRefs: [readiness.ref],
+          routing: AUTOMATED_ROUTING.map((entry) =>
+            entry.issueNumber === 240 ? { ...entry, disposition: "human_only" as const } : entry,
+          ),
+          admittedAt: AT,
+        }),
       "routing_ineligible",
     );
     expect(existsSync(batchAuthorityPath(home.stateHome, APP.name, "batch-human-only", 1))).toBe(false);
@@ -691,19 +690,22 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     expect(existsSync(home.path("efficiency"))).toBe(false);
 
     await expectRoadmapError(
-      () => admitExecutionBatch({
-        root: home.stateHome,
-        app: APP.name,
-        batchId: "batch-manual-review",
-        roadmapRef: roadmap.ref,
-        expectedFrontierHash: roadmap.frontierHash,
-        orderedUnitIds: ["unit-roadmap-validation"],
-        readinessRefs: [readiness.ref],
-        routing: AUTOMATED_ROUTING.map((entry) => entry.issueNumber === 240
-          ? { ...entry, observedLabels: [...entry.observedLabels, "manual-review"] }
-          : entry),
-        admittedAt: AT,
-      }),
+      () =>
+        admitExecutionBatch({
+          root: home.stateHome,
+          app: APP.name,
+          batchId: "batch-manual-review",
+          roadmapRef: roadmap.ref,
+          expectedFrontierHash: roadmap.frontierHash,
+          orderedUnitIds: ["unit-roadmap-validation"],
+          readinessRefs: [readiness.ref],
+          routing: AUTOMATED_ROUTING.map((entry) =>
+            entry.issueNumber === 240
+              ? { ...entry, observedLabels: [...entry.observedLabels, "manual-review"] }
+              : entry,
+          ),
+          admittedAt: AT,
+        }),
       "routing_ineligible",
     );
     expect(existsSync(batchAuthorityPath(home.stateHome, APP.name, "batch-manual-review", 1))).toBe(false);
@@ -715,40 +717,49 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     const authorities = await acceptedEpisode({ home });
     const currentReads: number[][] = [];
     await expectRoadmapError(
-      () => claimDeliveryUnit({
-        root: home.stateHome,
-        app: APP.name,
-        episodeBindingRef: authorities.binding.ref,
-        readCurrentRouting: async () => AUTOMATED_ROUTING.map((entry) =>
-          entry.issueNumber === 240 ? { ...entry, disposition: "human_only" as const } : entry),
-        now: new Date("2026-08-03T22:01:00.000Z"),
-      }),
+      () =>
+        claimDeliveryUnit({
+          root: home.stateHome,
+          app: APP.name,
+          episodeBindingRef: authorities.binding.ref,
+          readCurrentRouting: async () =>
+            AUTOMATED_ROUTING.map((entry) =>
+              entry.issueNumber === 240 ? { ...entry, disposition: "human_only" as const } : entry,
+            ),
+          now: new Date("2026-08-03T22:01:00.000Z"),
+        }),
       "routing_ineligible",
     );
     await expectRoadmapError(
-      () => claimDeliveryUnit({
-        root: home.stateHome,
-        app: APP.name,
-        episodeBindingRef: authorities.binding.ref,
-        readCurrentRouting: async (issueNumbers) => {
-          currentReads.push([...issueNumbers]);
-          return AUTOMATED_ROUTING.map((entry) => entry.issueNumber === 240
-            ? { ...entry, observedLabels: [...entry.observedLabels, "manual-review"] }
-            : entry);
-        },
-        now: new Date("2026-08-03T22:01:00.000Z"),
-      }),
+      () =>
+        claimDeliveryUnit({
+          root: home.stateHome,
+          app: APP.name,
+          episodeBindingRef: authorities.binding.ref,
+          readCurrentRouting: async (issueNumbers) => {
+            currentReads.push([...issueNumbers]);
+            return AUTOMATED_ROUTING.map((entry) =>
+              entry.issueNumber === 240
+                ? { ...entry, observedLabels: [...entry.observedLabels, "manual-review"] }
+                : entry,
+            );
+          },
+          now: new Date("2026-08-03T22:01:00.000Z"),
+        }),
       "routing_ineligible",
     );
     expect(currentReads).toEqual([[...ISSUE_NUMBERS]]);
     await expectRoadmapError(
-      () => claimDeliveryUnit({
-        root: home.stateHome,
-        app: APP.name,
-        episodeBindingRef: authorities.binding.ref,
-        readCurrentRouting: async () => { throw new Error("current labels unavailable"); },
-        now: new Date("2026-08-03T22:01:00.000Z"),
-      }),
+      () =>
+        claimDeliveryUnit({
+          root: home.stateHome,
+          app: APP.name,
+          episodeBindingRef: authorities.binding.ref,
+          readCurrentRouting: async () => {
+            throw new Error("current labels unavailable");
+          },
+          now: new Date("2026-08-03T22:01:00.000Z"),
+        }),
       "routing_ineligible",
     );
   });
@@ -768,13 +779,14 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
     });
 
     await expectRoadmapError(
-      () => claimDeliveryUnit({
-        root: home.stateHome,
-        app: APP.name,
-        episodeBindingRef: authorities.binding.ref,
-        readCurrentRouting: async () => AUTOMATED_ROUTING,
-        now: new Date("2026-08-03T22:03:00.000Z"),
-      }),
+      () =>
+        claimDeliveryUnit({
+          root: home.stateHome,
+          app: APP.name,
+          episodeBindingRef: authorities.binding.ref,
+          readCurrentRouting: async () => AUTOMATED_ROUTING,
+          now: new Date("2026-08-03T22:03:00.000Z"),
+        }),
       "frontier_stale",
     );
   });
@@ -785,18 +797,21 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
     const home = await makeTempStateHome({ name: "hb105-roadmap-fast-path" });
     homes.push(home);
     const authorities = await acceptedPlanningAuthorities(home);
-    const gh = new RecoveryGh(ISSUE_NUMBERS.map((number) => ({
-      ...recoveryIssue(number, "op:ready"),
-      labels: ["op:ready", "planning:preplanned"],
-    })));
+    const gh = new RecoveryGh(
+      ISSUE_NUMBERS.map((number) => ({
+        ...recoveryIssue(number, "op:ready"),
+        labels: ["op:ready", "planning:preplanned"],
+      })),
+    );
     const runtime = createRoadmapLoopRuntime({
       root: home.stateHome,
       app: APP,
       gh: gh as unknown as GhOps,
     });
     const previewAdmission = await runtime.admit({ maxUnits: 1, planOnly: true, now: new Date(AT) });
-    expect(previewAdmission.units[0]?.creatorScope?.workflowTemplate)
-      .toEqual(TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE);
+    expect(previewAdmission.units[0]?.creatorScope?.workflowTemplate).toEqual(
+      TICKET_STANDARD_DELIVERY_WORKFLOW_TEMPLATE,
+    );
     const admission = await runtime.admit({ maxUnits: 1, planOnly: false, now: new Date(AT) });
 
     expect(admission.units, JSON.stringify(admission)).toHaveLength(1);
@@ -836,10 +851,12 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
         maxEquivalentCostUsd: 15,
         maxMechanicalOverheadUsd: 0,
       },
-      requiredSafetyFacts: [{
-        kind: "independent_review" as const,
-        evidenceRefs: ["accepted-validation-contract"],
-      }],
+      requiredSafetyFacts: [
+        {
+          kind: "independent_review" as const,
+          evidenceRefs: ["accepted-validation-contract"],
+        },
+      ],
     };
     const normalized = await prepareEpisodePlan({
       root: home.stateHome,
@@ -857,20 +874,22 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
 
     // Seeded negative control: the same detailed goal/criteria without the
     // accepted provenance-bearing scope must take the provider planning path.
-    expect(previewEpisode({
-      app: APP,
-      roles: ROLES,
-      facts,
-      planner: {
-        limits: {
-          maxAttempts: 2,
-          perAttempt: { equivalentCostUsd: 5, activeTimeMs: 120_000 },
-          aggregate: { providerTurns: 2, equivalentCostUsd: 10, activeTimeMs: 240_000 },
+    expect(
+      previewEpisode({
+        app: APP,
+        roles: ROLES,
+        facts,
+        planner: {
+          limits: {
+            maxAttempts: 2,
+            perAttempt: { equivalentCostUsd: 5, activeTimeMs: 120_000 },
+            aggregate: { providerTurns: 2, equivalentCostUsd: 10, activeTimeMs: 240_000 },
+          },
+          workflowTemplates: workflows,
+          independentReview: { subjectRoles: ["builder"], reviewerRoles: ["reviewer"] },
         },
-        workflowTemplates: workflows,
-        independentReview: { subjectRoles: ["builder"], reviewerRoles: ["reviewer"] },
-      },
-    }).planningPath).toBe("episode_planner_provider_turn");
+      }).planningPath,
+    ).toBe("episode_planner_provider_turn");
 
     const customHome = await makeTempStateHome({ name: "hb105-custom-planning-path" });
     homes.push(customHome);
@@ -878,10 +897,12 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
     const customAdmission = await createRoadmapLoopRuntime({
       root: customHome.stateHome,
       app: APP,
-      gh: new RecoveryGh(ISSUE_NUMBERS.map((number) => ({
-        ...recoveryIssue(number, "op:ready"),
-        labels: ["op:ready", "planning:preplanned"],
-      }))) as unknown as GhOps,
+      gh: new RecoveryGh(
+        ISSUE_NUMBERS.map((number) => ({
+          ...recoveryIssue(number, "op:ready"),
+          labels: ["op:ready", "planning:preplanned"],
+        })),
+      ) as unknown as GhOps,
     }).admit({ maxUnits: 1, planOnly: false, now: new Date(AT) });
     expect(customAdmission.units).toHaveLength(1);
     expect(customAdmission.units[0]?.creatorScope).toBeUndefined();
@@ -900,10 +921,12 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
       gh: new RecoveryGh(changedIssues) as unknown as GhOps,
     }).admit({ maxUnits: 1, planOnly: false, now: new Date(AT) });
     expect(changedAdmission.units).toEqual([]);
-    expect(changedAdmission.refusals).toMatchObject([{
-      issueNumber: ISSUE_NUMBERS[1],
-      code: "roadmap_member_changed",
-    }]);
+    expect(changedAdmission.refusals).toMatchObject([
+      {
+        issueNumber: ISSUE_NUMBERS[1],
+        code: "roadmap_member_changed",
+      },
+    ]);
   });
 
   it("repairs a subset pre-provider claim projection for every member", async () => {
@@ -935,12 +958,9 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
       now: new Date("2026-08-03T22:00:01.000Z"),
     });
     expect(replayedBinding.ref).toEqual(authorities.binding.ref);
-    expect(await readExecutionUnitJournal(
-      home.stateHome,
-      APP.name,
-      authorities.batch.ref.id,
-      "unit-roadmap-validation",
-    )).toMatchObject({ state: "claimed", usage: { providerTurns: 0 } });
+    expect(
+      await readExecutionUnitJournal(home.stateHome, APP.name, authorities.batch.ref.id, "unit-roadmap-validation"),
+    ).toMatchObject({ state: "claimed", usage: { providerTurns: 0 } });
     const gh = new RecoveryGh([
       recoveryIssue(ISSUE_NUMBERS[0], "op:building"),
       recoveryIssue(ISSUE_NUMBERS[1], "op:ready"),
@@ -1001,12 +1021,9 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
       status: "settled",
       outcome: "returned",
     });
-    expect(await readExecutionUnitJournal(
-      home.stateHome,
-      APP.name,
-      authorities.batch.ref.id,
-      "unit-roadmap-validation",
-    )).toMatchObject({ state: "returned", outcome: "returned" });
+    expect(
+      await readExecutionUnitJournal(home.stateHome, APP.name, authorities.batch.ref.id, "unit-roadmap-validation"),
+    ).toMatchObject({ state: "returned", outcome: "returned" });
   });
 
   it("preserves one all-member approval continuation instead of terminalizing it", async () => {
@@ -1102,26 +1119,30 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
       pullRequestNumber: builder.value.pullRequestNumber,
       now: new Date("2026-08-03T22:06:00.000Z"),
     });
-    const gh = new RecoveryGh([
+    const gh = new RecoveryGh(
+      [
+        {
+          ...recoveryIssue(ISSUE_NUMBERS[0], "op:in-review"),
+          labels: ["op:tier-standard", "op:in-review"],
+          state: "CLOSED",
+        },
+        {
+          ...recoveryIssue(ISSUE_NUMBERS[1], "op:in-review"),
+          labels: ["op:tier-standard", "op:in-review"],
+          state: "CLOSED",
+        },
+      ],
       {
-        ...recoveryIssue(ISSUE_NUMBERS[0], "op:in-review"),
-        labels: ["op:tier-standard", "op:in-review"],
-        state: "CLOSED",
+        number: builder.value.pullRequestNumber,
+        title: "delivery unit",
+        body: "Closes #233\nCloses #240",
+        state: "MERGED",
+        headRefName: "op/unit-roadmap-validation",
+        baseRefName: "main",
+        headRefOid: builder.value.candidateHead,
       },
-      {
-        ...recoveryIssue(ISSUE_NUMBERS[1], "op:in-review"),
-        labels: ["op:tier-standard", "op:in-review"],
-        state: "CLOSED",
-      },
-    ], {
-      number: builder.value.pullRequestNumber,
-      title: "delivery unit",
-      body: "Closes #233\nCloses #240",
-      state: "MERGED",
-      headRefName: "op/unit-roadmap-validation",
-      baseRefName: "main",
-      headRefOid: builder.value.candidateHead,
-    }, ISSUE_NUMBERS[1]);
+      ISSUE_NUMBERS[1],
+    );
 
     const runtime = createRoadmapLoopRuntime({
       root: home.stateHome,
@@ -1131,20 +1152,18 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
     // Seeded crash boundary: one member projection lands, then cleanup fails.
     // The exact merge remains approved/committed and the retry repairs the
     // subset; it must never be rewritten as a returned unit.
-    await expect(runtime.reconcile({ now: new Date("2026-08-03T22:07:00.000Z") }))
-      .rejects.toThrow("seeded member cleanup crash");
+    await expect(runtime.reconcile({ now: new Date("2026-08-03T22:07:00.000Z") })).rejects.toThrow(
+      "seeded member cleanup crash",
+    );
     expect(gh.stateLabel(ISSUE_NUMBERS[0])).toBeUndefined();
     expect(gh.stateLabel(ISSUE_NUMBERS[1])).toBe("op:in-review");
     expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
       status: "committed",
       outcome: null,
     });
-    expect(await readExecutionUnitJournal(
-      home.stateHome,
-      APP.name,
-      authorities.batch.ref.id,
-      "unit-roadmap-validation",
-    )).toMatchObject({ state: "approved", outcome: null });
+    expect(
+      await readExecutionUnitJournal(home.stateHome, APP.name, authorities.batch.ref.id, "unit-roadmap-validation"),
+    ).toMatchObject({ state: "approved", outcome: null });
 
     await runtime.reconcile({ now: new Date("2026-08-03T22:07:01.000Z") });
 
@@ -1154,12 +1173,9 @@ describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
       status: "settled",
       outcome: "approved",
     });
-    expect(await readExecutionUnitJournal(
-      home.stateHome,
-      APP.name,
-      authorities.batch.ref.id,
-      "unit-roadmap-validation",
-    )).toMatchObject({ state: "completed", outcome: "completed" });
+    expect(
+      await readExecutionUnitJournal(home.stateHome, APP.name, authorities.batch.ref.id, "unit-roadmap-validation"),
+    ).toMatchObject({ state: "completed", outcome: "completed" });
   });
 });
 
@@ -1185,7 +1201,7 @@ class RecoveryGh {
   async swapLabel(number: number, from: string, to: string): Promise<void> {
     const issue = this.issues.get(number)!;
     if (!issue.labels.includes(from)) throw new Error(`#${number} lacks ${from}`);
-    issue.labels = issue.labels.map((label) => label === from ? to : label);
+    issue.labels = issue.labels.map((label) => (label === from ? to : label));
   }
 
   async removeLabel(number: number, label: string): Promise<void> {
@@ -1205,8 +1221,11 @@ class RecoveryGh {
   }
 
   stateLabel(number: number): string | undefined {
-    return this.issues.get(number)?.labels.find((label) =>
-      ["op:ready", "op:building", "op:in-review", "op:returned", "op:blocked"].includes(label));
+    return this.issues
+      .get(number)
+      ?.labels.find((label) =>
+        ["op:ready", "op:building", "op:in-review", "op:returned", "op:blocked"].includes(label),
+      );
   }
 }
 

@@ -27,17 +27,8 @@ import type { GhOps } from "../../loop/github.js";
 import type { ApprovalStore } from "../approvals.js";
 import { writeFileAtomic } from "../atomic.js";
 import type { LoopTier } from "../memory.js";
-import {
-  assertCandidateCanProceed,
-  type CandidateArtifact,
-  type CandidateDestination,
-} from "./candidate.js";
-import {
-  candidateArtifactHash,
-  conceptDraftPath,
-  findCandidateArtifact,
-  sha256Ref,
-} from "./candidate-store.js";
+import { assertCandidateCanProceed, type CandidateArtifact, type CandidateDestination } from "./candidate.js";
+import { candidateArtifactHash, conceptDraftPath, findCandidateArtifact, sha256Ref } from "./candidate-store.js";
 import {
   bundleScopeDir,
   cutManifestVersion,
@@ -69,12 +60,7 @@ import {
   type PublishKind,
 } from "./intervention.js";
 import type { LearningPolicy } from "./policy.js";
-import {
-  appendRejection,
-  checkSuppression,
-  readRejections,
-  type RejectionEntry,
-} from "./rejections.js";
+import { appendRejection, checkSuppression, readRejections, type RejectionEntry } from "./rejections.js";
 import { readReviewerVerdict, reviewDisposition, reviewerVerdictHash, type ReviewerVerdict } from "./review.js";
 
 export const LEARNING_TICKET_LABEL = "op:learning";
@@ -173,9 +159,7 @@ export async function publishCandidate(
   if (destination === "reject") {
     // Idempotent per candidate: the ledger is append-only, so a re-run must
     // report the existing entry, never write a duplicate.
-    const existing = (await readRejections(deps.orgHome)).find(
-      (entry) => entry.candidate_id === candidateId,
-    );
+    const existing = (await readRejections(deps.orgHome)).find((entry) => entry.candidate_id === candidateId);
     if (existing !== undefined) return { status: "rejected", entry: existing };
     const entry = await appendRejection(deps.orgHome, {
       candidate,
@@ -199,9 +183,7 @@ export async function publishCandidate(
 
   // The conditional experiment gate (design §9.1) with the reviewed tier.
   const experiment =
-    candidate.experiment_ref !== null
-      ? await readExperimentRecord(deps.orgHome, candidate.experiment_ref)
-      : undefined;
+    candidate.experiment_ref !== null ? await readExperimentRecord(deps.orgHome, candidate.experiment_ref) : undefined;
   const gateInput = { ...candidate, proposed_tier: tier };
 
   const destRoot = resolveDestinationRoot(deps, orgRoot, scope);
@@ -210,11 +192,7 @@ export async function publishCandidate(
   // A completed transaction is terminal — checked before rendering, because
   // a finished okf publish has already MOVED the draft out of candidates/.
   const decided = await findLearningPublishItem(deps.approvals, candidateId, "decided");
-  if (
-    decided !== undefined &&
-    decided.decision === "approved" &&
-    (await journalIsDone(deps.stateHome, decided.id))
-  ) {
+  if (decided !== undefined && decided.decision === "approved" && (await journalIsDone(deps.stateHome, decided.id))) {
     return {
       status: "refused",
       reason: `approval ${decided.id} was already published — nothing to redo`,
@@ -228,9 +206,7 @@ export async function publishCandidate(
   const routineJournalId = `routine-${candidateId}`;
   const resumeId = (await journalInFlight(deps.stateHome, routineJournalId))
     ? routineJournalId
-    : decided !== undefined &&
-        decided.decision === "approved" &&
-        (await journalInFlight(deps.stateHome, decided.id))
+    : decided !== undefined && decided.decision === "approved" && (await journalInFlight(deps.stateHome, decided.id))
       ? decided.id
       : undefined;
   if (resumeId !== undefined) {
@@ -383,11 +359,7 @@ interface RenderedArtifact {
 /** The scope alone picks the destination root — a candidate emitted into the
  *  "wrong" root still publishes to the scope's root; the candidate file
  *  location carries no authority. */
-function resolveDestinationRoot(
-  deps: PublisherDeps,
-  orgRoot: LearningRoot,
-  scope: string,
-): LearningRoot | string {
+function resolveDestinationRoot(deps: PublisherDeps, orgRoot: LearningRoot, scope: string): LearningRoot | string {
   if (rootKindForScope(scope) === "org") return orgRoot;
   const app = scopeApp(scope)!;
   const root = deps.appRoots?.[app];
@@ -453,9 +425,7 @@ async function renderArtifact(
         `Learning-loop candidate ${candidate.candidate_id} (routine publish, deduped + rate-capped).`,
         "",
         ...(candidate.error_class !== undefined ? [`Error class: \`${candidate.error_class}\``] : []),
-        ...(candidate.cause_hypothesis !== undefined
-          ? [`Cause hypothesis: ${candidate.cause_hypothesis}`]
-          : []),
+        ...(candidate.cause_hypothesis !== undefined ? [`Cause hypothesis: ${candidate.cause_hypothesis}`] : []),
         ...(acceptance.length > 0 ? ["", "Acceptance:", ...acceptance] : []),
         ...(candidate.evidence_refs.length > 0
           ? ["", "Evidence:", ...candidate.evidence_refs.map((ref) => `- ${ref}`)]
@@ -565,10 +535,7 @@ function journalPath(stateHome: string, journalId: string): string {
 /** In-flight (not-done) okf publish journals targeting a root kind — the
  *  canary start gate reads this: starting a trial while an activation is
  *  mid-journal would let the resume land ungoverned content mid-window. */
-export async function listInFlightOkfJournals(
-  stateHome: string,
-  rootKind: "org" | "app",
-): Promise<string[]> {
+export async function listInFlightOkfJournals(stateHome: string, rootKind: "org" | "app"): Promise<string[]> {
   const dir = join(stateHome, "learning", "publish-journal");
   if (!existsSync(dir)) return [];
   const ids: string[] = [];
@@ -640,10 +607,7 @@ async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise
       schema_version: 1,
       journal_id: input.journalId,
       candidate_id: input.candidate.candidate_id,
-      candidate_hash: await candidateArtifactHash(
-        input.candidateRoot,
-        input.candidate.candidate_id,
-      ),
+      candidate_hash: await candidateArtifactHash(input.candidateRoot, input.candidate.candidate_id),
       destination: input.create.destination,
       tier: input.create.tier,
       scope: input.create.scope,
@@ -721,9 +685,7 @@ async function executePublish(deps: PublisherDeps, input: ExecuteInput): Promise
         approval_ref: journal.approval_ref,
         intervention_id: journal.intervention_id,
         refs,
-        ...(journal.manifest_version !== undefined
-          ? { bundle_version: journal.manifest_version }
-          : {}),
+        ...(journal.manifest_version !== undefined ? { bundle_version: journal.manifest_version } : {}),
       },
     },
   ]);
@@ -785,9 +747,7 @@ async function writeDestinationArtifact(
       // matches the issue this transaction rendered even if the candidate
       // file was re-distilled between crash and resume.
       const open = await deps.gh.listIssues({ state: "open", labels: [LEARNING_TICKET_LABEL] });
-      const journaledHash = new RegExp(`${FINGERPRINT_MARKER} (sha256:[0-9a-f]{64})`).exec(
-        journal.artifact.bytes,
-      )?.[1];
+      const journaledHash = new RegExp(`${FINGERPRINT_MARKER} (sha256:[0-9a-f]{64})`).exec(journal.artifact.bytes)?.[1];
       const marker = `${FINGERPRINT_MARKER} ${journaledHash ?? input.candidate.content_hash}`;
       const existing = open.find((issue) => issue.body.includes(marker));
       if (existing !== undefined) return `#${existing.number}`;
@@ -860,7 +820,7 @@ async function writeLineage(
       kind: journal.artifact.kind,
       ref: activates
         ? `${input.destRoot.kind}@${journal.manifest_version ?? "unversioned"}`
-        : journal.artifact_ref ?? "unknown",
+        : (journal.artifact_ref ?? "unknown"),
       commit: null,
       published_at: publishedAt,
     },
@@ -876,10 +836,7 @@ async function writeLineage(
   return writeInterventionRecord(deps.orgHome, record);
 }
 
-async function readExistingIntervention(
-  deps: PublisherDeps,
-  journal: PublishJournal,
-): Promise<InterventionRecord> {
+async function readExistingIntervention(deps: PublisherDeps, journal: PublishJournal): Promise<InterventionRecord> {
   return readInterventionRecord(
     deps.orgHome,
     journal.intervention_id ?? interventionIdForCandidate(journal.candidate_id),

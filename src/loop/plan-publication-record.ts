@@ -66,10 +66,7 @@ export async function writePublishedTicketsRecord(
       labels: [...ticket.labels],
     })),
   };
-  await writeLoopFileAtomic(
-    publishedTicketsPath(root, app, provenance.runId),
-    JSON.stringify(record, null, 2) + "\n",
-  );
+  await writeLoopFileAtomic(publishedTicketsPath(root, app, provenance.runId), JSON.stringify(record, null, 2) + "\n");
   return record;
 }
 

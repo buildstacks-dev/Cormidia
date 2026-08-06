@@ -12,10 +12,7 @@ import {
 } from "../../../src/org/app-lifecycle.js";
 import { ApprovalStore, type ApprovalItem } from "../../../src/org/approvals.js";
 import { releaseExpiredTicketApprovalClaim } from "../../../src/org/ticket-episode-approval.js";
-import {
-  readTicketClaimState,
-  writeTicketClaimState,
-} from "../../../src/loop/rehydrate.js";
+import { readTicketClaimState, writeTicketClaimState } from "../../../src/loop/rehydrate.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
 import { initWorldOrg, makeInitWorld, type InitWorld } from "../cf-j01/support.js";
 

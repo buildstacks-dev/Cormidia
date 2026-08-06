@@ -70,7 +70,9 @@ export function detectRunAnomalies(run: RunEvidence): Anomaly[] {
   if (bashCount >= 20) flags.push("bash_heavy");
   if (environmentRetryCount >= 3) flags.push("environment_retry");
 
-  return flags.map((flag) => anomaly(run.envelope, flag, detailsFor(flag, { elapsedSeconds, totalTokens, bashCount, environmentRetryCount })));
+  return flags.map((flag) =>
+    anomaly(run.envelope, flag, detailsFor(flag, { elapsedSeconds, totalTokens, bashCount, environmentRetryCount })),
+  );
 }
 
 async function loadRunEvidence(root: string, appFilter?: string): Promise<RunEvidence[]> {

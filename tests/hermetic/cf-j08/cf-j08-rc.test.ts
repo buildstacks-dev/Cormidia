@@ -176,9 +176,9 @@ describe("CF-J08-RC — budget --reconcile back-fills idempotently from survivin
     expect(result.noUsage).toBe(1);
     expect(result.inFlight).toBe(1);
     expect(result.corrupt).toBe(1);
-    expect(
-      result.settled + result.alreadySettled + result.noUsage + result.inFlight + result.corrupt,
-    ).toBe(result.scanned);
+    expect(result.settled + result.alreadySettled + result.noUsage + result.inFlight + result.corrupt).toBe(
+      result.scanned,
+    );
     expect(await readTurnRecords(state.stateHome)).toHaveLength(2);
   });
 
@@ -274,7 +274,16 @@ describe("CF-J08-RC — budget --reconcile back-fills idempotently from survivin
     const apps: AppsFile = {
       org: { name: "cf-j08-rc", maxConcurrentTurns: 1 },
       defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
-      apps: [{ name: APP, repo: "cormidia-double/unused", status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
+      apps: [
+        {
+          name: APP,
+          repo: "cormidia-double/unused",
+          status: "live",
+          budgetUsdMonth: 100,
+          objectiveBudgetUsd: 1000,
+          cadence: {},
+        },
+      ],
     };
     const budget = await rollupBudgets(state.stateHome, apps, T_LATER);
     expect(budget.find((entry) => entry.app === APP)?.spentUsd).toBeCloseTo(0.2, 6);

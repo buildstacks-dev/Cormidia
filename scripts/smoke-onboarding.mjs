@@ -62,16 +62,24 @@ try {
   assert(existsSync(join(piHome, "skills", "cormidia", "SKILL.md")), "pi skill link was not created");
 
   run(cormidia, ["--version"], neutral);
-  const initPreview = JSON.parse(run(
-    cormidia,
-    ["org", "init", orgHome, "--name", "fixture-org", "--state-home", stateHome, "--dry-run", "--json"],
-    neutral,
-  ));
+  const initPreview = JSON.parse(
+    run(
+      cormidia,
+      ["org", "init", orgHome, "--name", "fixture-org", "--state-home", stateHome, "--dry-run", "--json"],
+      neutral,
+    ),
+  );
   assert(initPreview.status === "ready" && initPreview.executable === true, "org init dry-run was not executable");
   assert(initPreview.effects?.state_home?.action === "create", "org init dry-run omitted the state-home effect");
   assert(initPreview.effects?.active_pointer?.action === "create", "org init dry-run omitted the pointer effect");
-  assert(initPreview.roles?.some((role) => role.name === "planner" && role.runtime && role.model && role.effort), "org init dry-run omitted the default role chart");
-  assert(initPreview.effects?.generated_destinations?.some((entry) => entry.relative_path === "prompts/build/contract.md"), "org init dry-run omitted nested generated files");
+  assert(
+    initPreview.roles?.some((role) => role.name === "planner" && role.runtime && role.model && role.effort),
+    "org init dry-run omitted the default role chart",
+  );
+  assert(
+    initPreview.effects?.generated_destinations?.some((entry) => entry.relative_path === "prompts/build/contract.md"),
+    "org init dry-run omitted nested generated files",
+  );
   assert(!existsSync(orgHome), "org init dry-run created the org home");
   // The dry-run creates NO org: no org home, no active pointer. It does write
   // its invocation audit row, which is the documented audit exception every
@@ -95,8 +103,14 @@ try {
   assert(initialized.includes("Automatic:"), "org init did not preview automatic authority");
   assert(initialized.includes("Human-gated:"), "org init did not preview gated authority");
   assert(existsSync(join(orgHome, "AUTHORITY.md")), "org init did not emit canonical authority");
-  assert(readFileSync(join(orgHome, "AGENTS.md"), "utf8").includes("cormidia-authority:start"), "org Codex instructions lack authority");
-  assert(readFileSync(join(orgHome, "CLAUDE.md"), "utf8").includes("cormidia-authority:start"), "org Claude instructions lack authority");
+  assert(
+    readFileSync(join(orgHome, "AGENTS.md"), "utf8").includes("cormidia-authority:start"),
+    "org Codex instructions lack authority",
+  );
+  assert(
+    readFileSync(join(orgHome, "CLAUDE.md"), "utf8").includes("cormidia-authority:start"),
+    "org Claude instructions lack authority",
+  );
 
   await smokeObserver(cormidia, neutral);
 
@@ -109,21 +123,46 @@ try {
   run(cormidia, ["bootstrap", app, "--answers", answers], neutral);
   assert(existsSync(join(app, ".cormidia", "config.yaml")), "full bootstrap did not emit app config");
   assert(existsSync(join(app, ".cormidia", "AUTHORITY.md")), "full bootstrap did not emit app authority");
-  assert(readFileSync(join(app, "AGENTS.md"), "utf8").startsWith("# Existing agent rule\n"), "bootstrap replaced existing AGENTS.md content");
-  assert(readFileSync(join(app, "AGENTS.md"), "utf8").includes("cormidia-authority:start"), "app Codex instructions lack authority");
-  assert(readFileSync(join(app, "CLAUDE.md"), "utf8").startsWith("# Existing Claude rule\n"), "bootstrap replaced existing CLAUDE.md content");
+  assert(
+    readFileSync(join(app, "AGENTS.md"), "utf8").startsWith("# Existing agent rule\n"),
+    "bootstrap replaced existing AGENTS.md content",
+  );
+  assert(
+    readFileSync(join(app, "AGENTS.md"), "utf8").includes("cormidia-authority:start"),
+    "app Codex instructions lack authority",
+  );
+  assert(
+    readFileSync(join(app, "CLAUDE.md"), "utf8").startsWith("# Existing Claude rule\n"),
+    "bootstrap replaced existing CLAUDE.md content",
+  );
   assert(!existsSync(join(app, ".cormidia", "org")), "bootstrap emitted the retired nested org profile");
 
   const context = JSON.parse(run(cormidia, ["context", "--json"], neutral));
   assert(context.orgHome === orgHome, "context resolved the wrong org home");
   assert(context.stateHome === stateHome, "context resolved the wrong state home");
   assert(context.authority?.version === "delegated-operator/v1", "context omitted the org authority version");
-  assert(context.apps.some((entry) => entry.repo === "owner/fixture-app"), "onboarded app is absent from context");
+  assert(
+    context.apps.some((entry) => entry.repo === "owner/fixture-app"),
+    "onboarded app is absent from context",
+  );
 
   const capabilities = JSON.parse(run(cormidia, ["capabilities", "--json"], neutral));
-  assert(capabilities.commands.some((entry) => entry.command === "bootstrap"), "bootstrap capability is absent");
-  assert(capabilities.commands.some((entry) => entry.command === "observe" && entry.writes === false && entry.spendsTokens === false), "observe capability is absent or not read-only/token-free");
-  assert(capabilities.commands.some((entry) => entry.command === "report" && entry.writes === false && entry.spendsTokens === false), "report capability is absent or not read-only/token-free");
+  assert(
+    capabilities.commands.some((entry) => entry.command === "bootstrap"),
+    "bootstrap capability is absent",
+  );
+  assert(
+    capabilities.commands.some(
+      (entry) => entry.command === "observe" && entry.writes === false && entry.spendsTokens === false,
+    ),
+    "observe capability is absent or not read-only/token-free",
+  );
+  assert(
+    capabilities.commands.some(
+      (entry) => entry.command === "report" && entry.writes === false && entry.spendsTokens === false,
+    ),
+    "report capability is absent or not read-only/token-free",
+  );
   const reportJson = JSON.parse(run(cormidia, ["report", "--period", "7d", "--json"], neutral));
   assert(reportJson.schema_version === 1 && reportJson.scope.kind === "org", "report JSON contract is unavailable");
   const portableReport = join(root, "fixture-report.html");
@@ -183,8 +222,12 @@ async function smokeObserver(command, cwd) {
   let stderr = "";
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
-  child.stdout.on("data", (chunk) => { stdout += chunk; });
-  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
   const deadline = Date.now() + 10_000;
   let url;
   while (Date.now() < deadline) {

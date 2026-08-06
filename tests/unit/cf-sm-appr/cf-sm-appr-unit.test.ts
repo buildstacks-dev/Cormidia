@@ -41,11 +41,7 @@ function item(overrides: Partial<ApprovalItem>): ApprovalItem {
   };
 }
 
-function transition(
-  id: string,
-  from: string,
-  to: string,
-): ApprovalLogEvent {
+function transition(id: string, from: string, to: string): ApprovalLogEvent {
   return {
     type: "execution-transition",
     id,
@@ -59,9 +55,7 @@ function transition(
 describe("CF-SM-APPR-L — legal lifecycle set, projected by the product's own reader (L1, HB-011)", () => {
   it("projects the exact ratified set: pending → approved|denied → executing → executed|failed|ambiguous", () => {
     expect(approvalLifecycleState(item({}))).toBe("pending");
-    expect(
-      approvalLifecycleState(item({ status: "denied", decision: "denied", reason: "no" })),
-    ).toBe("denied");
+    expect(approvalLifecycleState(item({ status: "denied", decision: "denied", reason: "no" }))).toBe("denied");
     for (const state of ["approved", "executing", "executed", "failed", "ambiguous"] as const) {
       expect(
         approvalLifecycleState(
@@ -159,17 +153,14 @@ describe("CF-SM-APPR-I/R — transition-relation detector over the append-only l
   });
 
   it("negative control: a seeded chain discontinuity (double-begin from a replayed claim) makes the detector FIRE", () => {
-    const seeded = [
-      transition("bad2", "approved", "executing"),
-      transition("bad2", "approved", "executing"),
-    ];
+    const seeded = [transition("bad2", "approved", "executing"), transition("bad2", "approved", "executing")];
     expect(() => detectIllegalExecutionTransitions(seeded)).toThrow(/chain discontinuity/);
   });
 
   it("negative control: a seeded unknown state makes the detector FIRE instead of defaulting open", () => {
-    expect(() =>
-      detectIllegalExecutionTransitions([transition("bad3", "granted", "executing")]),
-    ).toThrow(/unknown source state/);
+    expect(() => detectIllegalExecutionTransitions([transition("bad3", "granted", "executing")])).toThrow(
+      /unknown source state/,
+    );
   });
 });
 
@@ -187,9 +178,9 @@ describe("CF-SM-APPR/GRANT identity — the authorization identity binds the exa
     const approvedLiteral = "git push origin main --force";
     const editedLiteral = `env INJECTED=pwned ${approvedLiteral}`;
     expect(commandIdentityHash(approvedLiteral)).not.toBe(commandIdentityHash(editedLiteral));
-    expect(
-      actionHash({ tool: "bash", input: { command: approvedLiteral } }),
-    ).not.toBe(actionHash({ tool: "bash", input: { command: editedLiteral } }));
+    expect(actionHash({ tool: "bash", input: { command: approvedLiteral } })).not.toBe(
+      actionHash({ tool: "bash", input: { command: editedLiteral } }),
+    );
   });
 });
 

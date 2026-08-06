@@ -12,11 +12,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
-    exclude: [
-      "**/node_modules/**",
-      "archive-do-not-read/**",
-      "tests/live/**",
-    ],
+    exclude: ["**/node_modules/**", "archive-do-not-read/**", "tests/live/**"],
     passWithNoTests: false,
     testTimeout: 30_000,
     hookTimeout: 30_000,

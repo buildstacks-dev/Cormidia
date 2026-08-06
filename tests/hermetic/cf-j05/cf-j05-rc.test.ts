@@ -15,10 +15,7 @@
 //     never the greener story.
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  executeApprovedDeliveries,
-  githubIssueCreateAction,
-} from "../../../src/org/approval-delivery.js";
+import { executeApprovedDeliveries, githubIssueCreateAction } from "../../../src/org/approval-delivery.js";
 import { ApprovalStore, approvalLifecycleState, type ApprovalItem } from "../../../src/org/approvals.js";
 import type { AppsFile } from "../../../src/org/apps.js";
 import { GhCliOps } from "../../../src/loop/github.js";
@@ -78,7 +75,9 @@ describe("CF-J05-RC — typed idempotency-marker reconciliation of crashed durab
     const appsFile: AppsFile = {
       org: { name: "cf-j05-rc", maxConcurrentTurns: 1 },
       defaults: { budgetUsdMonth: 100, objectiveBudgetUsd: 1000 },
-      apps: [{ name: APP, repo: handle.repo, status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} }],
+      apps: [
+        { name: APP, repo: handle.repo, status: "live", budgetUsdMonth: 100, objectiveBudgetUsd: 1000, cadence: {} },
+      ],
     };
     const run = (fault?: "after_claim" | "after_remote") =>
       executeApprovedDeliveries({

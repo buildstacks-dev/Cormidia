@@ -17,10 +17,7 @@
 // seeded-allow args array that re-enables `unified_exec` must be CAUGHT.
 
 import { describe, expect, it } from "vitest";
-import {
-  codexAppServerArgs,
-  normalizeCodexHookActions,
-} from "../../../src/runtime/adapters/codex-gate-bridge.js";
+import { codexAppServerArgs, normalizeCodexHookActions } from "../../../src/runtime/adapters/codex-gate-bridge.js";
 
 const MODEL_CATALOG = "/tmp/cormidia-direct-tool-model-catalog.json";
 
@@ -44,9 +41,9 @@ const UNGATEABLE_CHANNELS: ReadonlyArray<{ channel: string; disableTokens: reado
 /** The detector: which un-gateable channels are NOT provably disabled by these
  *  args. Empty = every alternate route is fail-closed. */
 function enabledUngateableChannels(args: readonly string[]): string[] {
-  return UNGATEABLE_CHANNELS.filter(
-    ({ disableTokens }) => !disableTokens.every((token) => args.includes(token)),
-  ).map(({ channel }) => channel);
+  return UNGATEABLE_CHANNELS.filter(({ disableTokens }) => !disableTokens.every((token) => args.includes(token))).map(
+    ({ channel }) => channel,
+  );
 }
 
 describe("CF-INV-002 (seed b / T-11) — Codex un-gateable tool routes fail closed, not default-allow (L1, HB-010)", () => {
@@ -100,7 +97,10 @@ describe("CF-INV-002 (seed b / T-11) — Codex un-gateable tool routes fail clos
     // classify critical (so the fail-closed above is a real discriminator, not
     // a normalizer that throws on everything).
     const actions = normalizeCodexHookActions(
-      { tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Update File: roles.yaml\n@@\n-x\n+y\n*** End Patch" } },
+      {
+        tool_name: "apply_patch",
+        tool_input: { command: "*** Begin Patch\n*** Update File: roles.yaml\n@@\n-x\n+y\n*** End Patch" },
+      },
       "/wd",
     );
     expect(actions).toEqual([{ tool: "edit", input: { path: "roles.yaml" } }]);

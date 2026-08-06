@@ -55,9 +55,7 @@ function rolesYaml(roles: readonly ("planner" | "support")[]): string {
       "    model: claude-scripted-model",
       "    effort: medium",
       "    delegation: {allow: []}",
-      ...(roles.length === 0
-        ? ["    triggers: []"]
-        : ["    triggers:", "      - event: support-feedback"]),
+      ...(roles.length === 0 ? ["    triggers: []"] : ["    triggers:", "      - event: support-feedback"]),
       "    outputs: [notes]",
     ]),
     "",
@@ -101,7 +99,11 @@ async function tick(home: TempOrgHome, at: string, fault?: "after_child_spawn") 
     spawn: async () => undefined,
     ...(fault === undefined
       ? {}
-      : { schedulerFault: async (point: string) => { if (point === fault) throw new Error("seeded crash"); } }),
+      : {
+          schedulerFault: async (point: string) => {
+            if (point === fault) throw new Error("seeded crash");
+          },
+        }),
   });
 }
 
@@ -160,7 +162,14 @@ describe("HB-040 event inbox fan-out and state machine", () => {
     await writeFile(join(inbox, FILE), "{not-json", "utf8");
     await writeFile(join(inbox, "future.json"), JSON.stringify(validEvent({ kind: "future-kind" })) + "\n", "utf8");
     const polled = await new EventStore(direct.stateHome).poll(
-      { name: APP, repo: "fixture/event-app", status: "live", budgetUsdMonth: 1000, objectiveBudgetUsd: 1000, cadence: {} },
+      {
+        name: APP,
+        repo: "fixture/event-app",
+        status: "live",
+        budgetUsdMonth: 1000,
+        objectiveBudgetUsd: 1000,
+        cadence: {},
+      },
       NO_GITHUB,
     );
     expect(polled.errors.map((error) => error.code).sort()).toEqual([

@@ -72,7 +72,8 @@ function appsFile(): AppsFile {
         name: APP,
         repo: "cormidia-double/sandbox-report",
         status: "live",
-        budgetUsdMonth: 100, objectiveBudgetUsd: 1000,
+        budgetUsdMonth: 100,
+        objectiveBudgetUsd: 1000,
         cadence: {},
       },
     ],
@@ -237,9 +238,7 @@ describe("CF-INV-011 — portable HTML report carries no secret and no L3 (L2, H
     report.quality.notices.push(`ledger note: ${leak.value}`);
 
     const html = renderReportHtml(report);
-    expect(() => detectSecretEgress("weakened report HTML", html, [leak])).toThrow(
-      SecretEgressViolation,
-    );
+    expect(() => detectSecretEgress("weakened report HTML", html, [leak])).toThrow(SecretEgressViolation);
     expect(() => detectSecretEgress("weakened report HTML", html, [leak])).toThrow(/github-token/);
   });
 });

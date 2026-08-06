@@ -11,21 +11,11 @@ import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  assertCandidateCanProceed,
-  validateCandidateArtifact,
-} from "../../../src/org/learning/candidate.js";
-import {
-  candidateArtifactPath,
-  openCandidateArtifact,
-  sha256Ref,
-} from "../../../src/org/learning/candidate-store.js";
+import { assertCandidateCanProceed, validateCandidateArtifact } from "../../../src/org/learning/candidate.js";
+import { candidateArtifactPath, openCandidateArtifact, sha256Ref } from "../../../src/org/learning/candidate-store.js";
 import { bindingOf, findLearningPublishItem } from "../../../src/org/learning/binding.js";
 import { readManifest } from "../../../src/org/learning/concepts.js";
-import {
-  validateInterventionRecord,
-  writeInterventionRecord,
-} from "../../../src/org/learning/intervention.js";
+import { validateInterventionRecord, writeInterventionRecord } from "../../../src/org/learning/intervention.js";
 import { publishCandidate } from "../../../src/org/learning/publisher.js";
 import { openReviewerVerdict, writeReviewerVerdict } from "../../../src/org/learning/review.js";
 import {
@@ -50,10 +40,7 @@ describe("CF-SM-LEARN-I — silent-promotion paths are unrepresentable (L2, E1, 
   });
 
   it("negative control: publish without a reviewer verdict is refused — review fails closed, a queued candidate never advances on its own", async () => {
-    await openCandidateArtifact(
-      world.orgRoot,
-      candidateSpec({ id: "cand_i_unreviewed", destination: "skill_draft" }),
-    );
+    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: "cand_i_unreviewed", destination: "skill_draft" }));
     const outcome = await publishCandidate(world.deps, "cand_i_unreviewed");
     expect(outcome.status).toBe("refused");
     if (outcome.status === "refused") expect(outcome.reason).toContain("review fails closed");
@@ -82,10 +69,7 @@ describe("CF-SM-LEARN-I — silent-promotion paths are unrepresentable (L2, E1, 
   });
 
   it("negative control: a non-clean injection screen escalates regardless of an approve verdict word (spec §15 fail-closed)", async () => {
-    await openCandidateArtifact(
-      world.orgRoot,
-      candidateSpec({ id: "cand_i_injected", destination: "skill_draft" }),
-    );
+    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: "cand_i_injected", destination: "skill_draft" }));
     await writeReviewerVerdict(
       world.org.orgHome,
       verdictSpec({
@@ -110,9 +94,7 @@ describe("CF-SM-LEARN-I — silent-promotion paths are unrepresentable (L2, E1, 
     const again = await publishCandidate(world.deps, "cand_i_pending");
     expect(again.status).toBe("awaiting_approval");
     // Nothing governed moved: no bundle file, no manifest, no intervention.
-    expect(
-      existsSync(join(world.org.orgHome, "learning", "bundle", "org", "i-pending-lesson.md")),
-    ).toBe(false);
+    expect(existsSync(join(world.org.orgHome, "learning", "bundle", "org", "i-pending-lesson.md"))).toBe(false);
     expect(await readManifest(world.orgRoot)).toBeNull();
     expect(existsSync(join(world.org.orgHome, "learning", "interventions"))).toBe(false);
   });
@@ -135,17 +117,18 @@ describe("CF-SM-LEARN-I — silent-promotion paths are unrepresentable (L2, E1, 
     const outcome = await publishCandidate(world.deps, "cand_i_voided");
     // Superseded into a FRESH raise — never published under the old grant.
     expect(outcome.status).toBe("raised");
-    expect(
-      existsSync(join(world.org.orgHome, "learning", "bundle", "org", "i-voided-lesson.md")),
-    ).toBe(false);
+    expect(existsSync(join(world.org.orgHome, "learning", "bundle", "org", "i-voided-lesson.md"))).toBe(false);
     const fresh = await findLearningPublishItem(world.approvals, "cand_i_voided", "pending");
     expect(fresh).toBeDefined();
     expect(bindingOf(fresh!)?.candidate_hash).toBe(sha256Ref(JSON.stringify(mutated, null, 2) + "\n"));
   });
 
   it("the candidate store is create-only: a same-id candidate with different bytes is refused (evidence cannot be rewritten while queued)", async () => {
-    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: "cand_i_createonly" }),
-      conceptDraftMarkdown({ conceptId: "lrn_i_createonly", name: "i-createonly" }));
+    await openCandidateArtifact(
+      world.orgRoot,
+      candidateSpec({ id: "cand_i_createonly" }),
+      conceptDraftMarkdown({ conceptId: "lrn_i_createonly", name: "i-createonly" }),
+    );
     await expect(
       openCandidateArtifact(
         world.orgRoot,
@@ -156,10 +139,7 @@ describe("CF-SM-LEARN-I — silent-promotion paths are unrepresentable (L2, E1, 
   });
 
   it("the review store is create-only: a second, different verdict cannot overwrite the first durable one", async () => {
-    await openCandidateArtifact(
-      world.orgRoot,
-      candidateSpec({ id: "cand_i_review_once", destination: "skill_draft" }),
-    );
+    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: "cand_i_review_once", destination: "skill_draft" }));
     const first = await openReviewerVerdict(
       world.org.orgHome,
       verdictSpec({ id: "cand_i_review_once", destination: "skill_draft", verdict: "revise" }),
@@ -174,13 +154,9 @@ describe("CF-SM-LEARN-I — silent-promotion paths are unrepresentable (L2, E1, 
   });
 
   it("an efficacy CLAIM is never waivable into truth, and a T2 activation without experiment needs an explicit non-empty human waiver (design §9.1)", () => {
-    const claiming = validateCandidateArtifact(
-      candidateSpec({ id: "cand_i_claims", claimsEfficacy: true }),
-    );
+    const claiming = validateCandidateArtifact(candidateSpec({ id: "cand_i_claims", claimsEfficacy: true }));
     expect(() => assertCandidateCanProceed(claiming)).toThrow(/claims efficacy/);
-    expect(() =>
-      assertCandidateCanProceed(claiming, { humanWaiver: "please just ship it" }),
-    ).toThrow(/never waivable/);
+    expect(() => assertCandidateCanProceed(claiming, { humanWaiver: "please just ship it" })).toThrow(/never waivable/);
 
     const t2 = validateCandidateArtifact(candidateSpec({ id: "cand_i_t2", tier: "T2" }));
     expect(() => assertCandidateCanProceed(t2)).toThrow(/without an experiment/);
@@ -245,11 +221,7 @@ describe("CF-SM-LEARN-I — silent-promotion paths are unrepresentable (L2, E1, 
         }),
       ),
     ).toThrow(/proposed intervention cannot carry an activation/);
-    expect(() => validateInterventionRecord(shape({ publish: null }))).toThrow(
-      /without a publish block/,
-    );
-    expect(() => validateInterventionRecord(shape({ status: "rolled_back" }))).toThrow(
-      /requires the rollback block/,
-    );
+    expect(() => validateInterventionRecord(shape({ publish: null }))).toThrow(/without a publish block/);
+    expect(() => validateInterventionRecord(shape({ status: "rolled_back" }))).toThrow(/requires the rollback block/);
   });
 });

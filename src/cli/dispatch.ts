@@ -23,8 +23,7 @@ export async function cmdDispatch(args: string[]): Promise<number> {
     else if (arg === "--dry-run") dryRun = true;
     else if (arg === "--retry-schedule") {
       explicitScheduleRetries.push(needValue(common.rest, ++i, "--retry-schedule"));
-    }
-    else throw new Error(`dispatch: unknown argument "${arg}"`);
+    } else throw new Error(`dispatch: unknown argument "${arg}"`);
   }
 
   const homes = await resolveCormidiaHomes(common);

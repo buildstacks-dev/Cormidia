@@ -31,7 +31,17 @@ export const REVISION_REGISTRY_IDS = [
 
 export const REVISION_FAMILY_EVIDENCE: readonly RevisionFamilyEvidence[] = [
   {
-    case_ids: ["CF-J03-S", "CF-J03-R", "CF-J03-I", "CF-J03-RC", "CF-J03-A", "CF-SM-ROADMAP-L/I/R/C", "CF-B20-*", "CF-C-B20", "CF-S1-env"],
+    case_ids: [
+      "CF-J03-S",
+      "CF-J03-R",
+      "CF-J03-I",
+      "CF-J03-RC",
+      "CF-J03-A",
+      "CF-SM-ROADMAP-L/I/R/C",
+      "CF-B20-*",
+      "CF-C-B20",
+      "CF-S1-env",
+    ],
     test_path: "tests/hermetic/cf-hb101/roadmap-authority.test.ts",
     seeded_detector_marker: "turns red for unaccounted and multiply-assigned issues",
   },
@@ -41,7 +51,17 @@ export const REVISION_FAMILY_EVIDENCE: readonly RevisionFamilyEvidence[] = [
     seeded_detector_marker: "rolls every member back when a seeded subset label transition fails",
   },
   {
-    case_ids: ["CF-J20-S", "CF-J20-R", "CF-J20-I", "CF-J20-RC", "CF-J20-A", "CF-SM-BATCH-L/I/R/C", "CF-B22-*", "CF-C-B22", "CF-C-OPBATCH"],
+    case_ids: [
+      "CF-J20-S",
+      "CF-J20-R",
+      "CF-J20-I",
+      "CF-J20-RC",
+      "CF-J20-A",
+      "CF-SM-BATCH-L/I/R/C",
+      "CF-B22-*",
+      "CF-C-B22",
+      "CF-C-OPBATCH",
+    ],
     test_path: "tests/hermetic/cf-hb104/execution-unit-batching.test.ts",
     seeded_detector_marker: "Seeded negative control: the complete governed shortcut still cannot",
   },
@@ -87,14 +107,15 @@ export async function auditRevisionCatalogClosure(
   }
   const active = record(policyValue["active_revision"]) ? policyValue["active_revision"] : {};
   const registry = record(active["registry"]) ? active["registry"] : {};
-  const registeredIds = new Set(Object.values(registry).flatMap((value) =>
-    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []));
+  const registeredIds = new Set(
+    Object.values(registry).flatMap((value) =>
+      Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [],
+    ),
+  );
   for (const id of REVISION_REGISTRY_IDS) {
     if (!registeredIds.has(id)) violations.push(`revision_registry_missing:${id}`);
   }
-  const authority = record(active["validation_contract_authority"])
-    ? active["validation_contract_authority"]
-    : {};
+  const authority = record(active["validation_contract_authority"]) ? active["validation_contract_authority"] : {};
   if (authority["catalog_slice_content_sha256"] !== RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256) {
     violations.push("revision_catalog_pin_mismatch");
   }

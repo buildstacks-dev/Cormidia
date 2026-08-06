@@ -15,7 +15,10 @@ const role = () => doubleRole({ runtime: "codex", model: "gpt-5.6-sol", maxTurnB
 
 describe("Codex adapter double — core/T-11 conformance (HB-024)", () => {
   let state: TempStateHome | undefined;
-  afterEach(async () => { await state?.cleanup(); state = undefined; });
+  afterEach(async () => {
+    await state?.cleanup();
+    state = undefined;
+  });
 
   async function request(overrides: Omit<Partial<TurnRequest>, "workdir"> = {}) {
     state ??= await makeTempStateHome({ name: "codex-double" });
@@ -56,10 +59,9 @@ describe("Codex adapter double — core/T-11 conformance (HB-024)", () => {
       }),
     ]);
     await expect(
-      dbl.runtime.runTurn(
-        await request({ session: { runtime: "codex", id: "thread-requested" } }),
-        { gate: () => ({ allow: true }) },
-      ),
+      dbl.runtime.runTurn(await request({ session: { runtime: "codex", id: "thread-requested" } }), {
+        gate: () => ({ allow: true }),
+      }),
     ).rejects.toBeInstanceOf(CodexSessionResumeMismatchError);
     expect(dbl.recorder.turns[0]!.requests.map((entry) => entry.method)).not.toContain("turn/start");
   });
@@ -69,25 +71,23 @@ describe("Codex adapter double — core/T-11 conformance (HB-024)", () => {
       sessionId: "thread-rotation",
       outcome: script.success("recovered", { usage: { inputTokens: 300, outputTokens: 20 } }),
     });
-    const dbl = codexDouble([
-      { ...recovery, rotation: "auth_loss" },
-      recovery,
-    ]);
+    const dbl = codexDouble([{ ...recovery, rotation: "auth_loss" }, recovery]);
     const failed = await dbl.runtime.runTurn(await request(), { gate: () => ({ allow: true }) });
     expect(failed).toMatchObject({ status: "failed", errorCode: "error_auth", session: { id: "thread-rotation" } });
-    const resumed = await dbl.runtime.runTurn(
-      await request({ session: failed.session }),
-      { gate: () => ({ allow: true }) },
-    );
+    const resumed = await dbl.runtime.runTurn(await request({ session: failed.session }), {
+      gate: () => ({ allow: true }),
+    });
     expect(resumed.status).toBe("completed");
     expect(dbl.recorder.turns[1]!.requests.map((entry) => entry.method)).toContain("thread/resume");
   });
 
   it("protocol-valid stale capabilities are a distinguished terminal failure", async () => {
-    const dbl = codexDouble([{
-      ...script.turn({ sessionId: "thread-stale", outcome: script.success("unused", { usage: "absent" }) }),
-      rotation: "stale_capabilities",
-    }]);
+    const dbl = codexDouble([
+      {
+        ...script.turn({ sessionId: "thread-stale", outcome: script.success("unused", { usage: "absent" }) }),
+        rotation: "stale_capabilities",
+      },
+    ]);
     const result = await dbl.runtime.runTurn(await request(), { gate: () => ({ allow: true }) });
     expect(result).toMatchObject({ status: "failed", errorCode: "error_protocol_stale_capabilities" });
   });
@@ -97,7 +97,13 @@ describe("Codex adapter double — core/T-11 conformance (HB-024)", () => {
     const dbl = codexDouble([
       script.turn({
         sessionId: "thread-tool",
-        steps: [script.tool("Bash", { command: "pwd" }, { channel: "permission", terminal: { success: true, durationMs: 17 } })],
+        steps: [
+          script.tool(
+            "Bash",
+            { command: "pwd" },
+            { channel: "permission", terminal: { success: true, durationMs: 17 } },
+          ),
+        ],
         outcome: script.success("done", { usage: { inputTokens: 100, outputTokens: 10 } }),
       }),
     ]);

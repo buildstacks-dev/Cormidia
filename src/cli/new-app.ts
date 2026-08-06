@@ -1,20 +1,13 @@
 // `cormidia new-app` — greenfield product bootstrap. This creates the target app
 // repo skeleton first, then hands off to the normal bootstrap/register path.
 
-import {
-  createNewApp,
-  DEFAULT_NEW_APP_TEMPLATE,
-  NEW_APP_TEMPLATES,
-  type NewAppTemplate,
-} from "../org/new-app.js";
+import { createNewApp, DEFAULT_NEW_APP_TEMPLATE, NEW_APP_TEMPLATES, type NewAppTemplate } from "../org/new-app.js";
 import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION } from "../org/home.js";
 import { reportCliInvocation } from "./invocation-audit.js";
 
 export async function cmdNewApp(args: string[]): Promise<number> {
   const parsed = parseArgs(args);
-  const homes = await resolveCormidiaHomes(
-    parsed.orgHome !== undefined ? { orgHome: parsed.orgHome } : {},
-  );
+  const homes = await resolveCormidiaHomes(parsed.orgHome !== undefined ? { orgHome: parsed.orgHome } : {});
   const result = await createNewApp({
     appName: parsed.appName,
     targetDir: parsed.targetDir,
@@ -90,7 +83,7 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
   if (!first || first.startsWith("--")) {
     throw new Error(
       "new-app: usage: cormidia new-app <name-or-goal> --target-dir <path> --repo <owner/repo> " +
-        '[--goal <string>] [--name <app>] [--template typescript-node|bare] [--org-home <path>] ' +
+        "[--goal <string>] [--name <app>] [--template typescript-node|bare] [--org-home <path>] " +
         "[--support-channel <id>] [--marketing-channel <id>] [--dry-run] [--json]",
     );
   }
@@ -156,9 +149,7 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
 function parseTemplate(value: string): NewAppTemplate {
   const template = NEW_APP_TEMPLATES.find((candidate) => candidate === value);
   if (template === undefined) {
-    throw new Error(
-      `new-app: --template must be one of ${NEW_APP_TEMPLATES.join("|")} (got "${value}")`,
-    );
+    throw new Error(`new-app: --template must be one of ${NEW_APP_TEMPLATES.join("|")} (got "${value}")`);
   }
   return template;
 }

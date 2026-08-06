@@ -53,9 +53,7 @@ const PATTERN_LIST_SIGNATURES: ReadonlyArray<{ family: string; signature: RegExp
 ];
 
 function signatureFamilies(source: string): string[] {
-  return PATTERN_LIST_SIGNATURES.filter(({ signature }) => signature.test(source)).map(
-    ({ family }) => family,
-  );
+  return PATTERN_LIST_SIGNATURES.filter(({ signature }) => signature.test(source)).map(({ family }) => family);
 }
 
 describe("CF-INV-011 — exactly one pattern-policy source in src/ (structural, HB-016)", () => {

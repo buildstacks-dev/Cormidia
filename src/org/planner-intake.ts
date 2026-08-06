@@ -89,10 +89,10 @@ export function parsePlannerReadinessDecisions(output: string): PlannerReadiness
     const decision = value as Record<string, unknown>;
     const reasonCode = decision["reason_code"];
     if (
-      !Number.isInteger(decision["issue_number"])
-      || (decision["disposition"] !== "ready" && decision["disposition"] !== "unready")
-      || !isReadinessReasonCode(reasonCode)
-      || typeof decision["reason"] !== "string"
+      !Number.isInteger(decision["issue_number"]) ||
+      (decision["disposition"] !== "ready" && decision["disposition"] !== "unready") ||
+      !isReadinessReasonCode(reasonCode) ||
+      typeof decision["reason"] !== "string"
     ) {
       throw new Error(`Planner readiness decision ${index} has invalid fields`);
     }
@@ -157,10 +157,18 @@ export async function preparePlannerIssueIntake(input: {
     .filter((issue) => issue.state === "OPEN")
     .sort((left, right) => left.number - right.number);
   if (candidates.length >= PLANNER_BACKLOG_COMPLETENESS_LIMIT) {
-    return intakeRecord(input, query, [], 0, candidates.length, {
-      code: "backlog_completeness_bound",
-      detail: `open backlog reached the ${PLANNER_BACKLOG_COMPLETENESS_LIMIT - 1} issue completeness bound`,
-    }, budgetBytes);
+    return intakeRecord(
+      input,
+      query,
+      [],
+      0,
+      candidates.length,
+      {
+        code: "backlog_completeness_bound",
+        detail: `open backlog reached the ${PLANNER_BACKLOG_COMPLETENESS_LIMIT - 1} issue completeness bound`,
+      },
+      budgetBytes,
+    );
   }
   for (const issue of candidates.slice(0, maxIssues)) {
     const header = `#${issue.number} ${issue.title}\nLabels: ${issue.labels.join(", ") || "none"}\n`;
@@ -180,9 +188,13 @@ export async function preparePlannerIssueIntake(input: {
     });
     remaining -= Buffer.byteLength(header) + includedBytes;
   }
-  const diagnostic = candidates.length === 0
-    ? { code: "empty_repository" as const, detail: "GitHub returned no eligible open issues" }
-    : { code: "planner_input_ready" as const, detail: `${selected.length} open issue(s) selected without an op:ready filter` };
+  const diagnostic =
+    candidates.length === 0
+      ? { code: "empty_repository" as const, detail: "GitHub returned no eligible open issues" }
+      : {
+          code: "planner_input_ready" as const,
+          detail: `${selected.length} open issue(s) selected without an op:ready filter`,
+        };
   return intakeRecord(
     input,
     query,
@@ -199,14 +211,19 @@ export function plannerIssueIntakeJson(intake: PlannerIssueIntake): string {
 }
 
 export function plannerIssueIntakeBrief(intake: PlannerIssueIntake): string {
-  if (intake.issues.length === 0) return `Planner issue intake: ${intake.diagnostic.code} — ${intake.diagnostic.detail}`;
-  return intake.issues.map((issue) => [
-    `### #${issue.number} ${issue.title}`,
-    `Labels: ${issue.labels.join(", ") || "none"}`,
-    `Provenance: GitHub issue #${issue.number}; body ${issue.inclusion}, ${issue.included_bytes}/${issue.source_bytes} bytes.`,
-    "",
-    issue.body,
-  ].join("\n")).join("\n\n");
+  if (intake.issues.length === 0)
+    return `Planner issue intake: ${intake.diagnostic.code} — ${intake.diagnostic.detail}`;
+  return intake.issues
+    .map((issue) =>
+      [
+        `### #${issue.number} ${issue.title}`,
+        `Labels: ${issue.labels.join(", ") || "none"}`,
+        `Provenance: GitHub issue #${issue.number}; body ${issue.inclusion}, ${issue.included_bytes}/${issue.source_bytes} bytes.`,
+        "",
+        issue.body,
+      ].join("\n"),
+    )
+    .join("\n\n");
 }
 
 export async function applyPlannerReadinessDecisions(input: {
@@ -239,11 +256,7 @@ export async function applyPlannerReadinessDecisions(input: {
     }
     const beforeExclusion = autonomousExecutionExclusionLabel(before.labels);
     if (beforeExclusion !== undefined) {
-      outcomes[index] = routingOutcome(
-        outcome,
-        "autonomous_execution_excluded",
-        exclusionReason(beforeExclusion),
-      );
+      outcomes[index] = routingOutcome(outcome, "autonomous_execution_excluded", exclusionReason(beforeExclusion));
       continue;
     }
 
@@ -304,18 +317,21 @@ function validateReadinessDecisions(
   intake: PlannerIssueIntake,
   decisions: readonly PlannerReadinessDecision[],
 ): PlannerReadinessOutcome[] {
-  const actionable = intake.issues.filter((issue) =>
-    !issue.labels.some((label) => STATE_LABELS.includes(label as (typeof STATE_LABELS)[number])),
+  const actionable = intake.issues.filter(
+    (issue) => !issue.labels.some((label) => STATE_LABELS.includes(label as (typeof STATE_LABELS)[number])),
   );
   const byNumber = new Map<number, PlannerReadinessDecision>();
   for (const decision of decisions) {
-    if (byNumber.has(decision.issue_number)) throw new Error(`duplicate Planner readiness decision for #${decision.issue_number}`);
-    if (decision.reason.trim().length === 0) throw new Error(`Planner readiness decision #${decision.issue_number} has no reason`);
+    if (byNumber.has(decision.issue_number))
+      throw new Error(`duplicate Planner readiness decision for #${decision.issue_number}`);
+    if (decision.reason.trim().length === 0)
+      throw new Error(`Planner readiness decision #${decision.issue_number} has no reason`);
     byNumber.set(decision.issue_number, decision);
   }
   const allowed = new Set(actionable.map((issue) => issue.number));
   for (const number of byNumber.keys()) {
-    if (!allowed.has(number)) throw new Error(`Planner readiness decision references unknown or already-active issue #${number}`);
+    if (!allowed.has(number))
+      throw new Error(`Planner readiness decision references unknown or already-active issue #${number}`);
   }
   return actionable.map((issue) => {
     const requested = byNumber.get(issue.number);
@@ -340,10 +356,12 @@ function validateReadinessDecisions(
   });
 }
 
-export function plannerRoutineReadinessGuard(issue: PlannerIssueInput): {
-  code: "high_risk" | "validation_incomplete" | "autonomous_execution_excluded";
-  detail: string;
-} | undefined {
+export function plannerRoutineReadinessGuard(issue: PlannerIssueInput):
+  | {
+      code: "high_risk" | "validation_incomplete" | "autonomous_execution_excluded";
+      detail: string;
+    }
+  | undefined {
   const exclusion = autonomousExecutionExclusionLabel(issue.labels);
   if (exclusion !== undefined) {
     return {
@@ -363,8 +381,16 @@ export function plannerRoutineReadinessGuard(issue: PlannerIssueInput): {
   ];
   const tiers = issue.labels.filter((label) => /^op:tier-(?:quick|standard|deep)$/.test(label));
   const priorities = issue.labels.filter((label) => /^p[123]$/.test(label));
-  if (issue.inclusion !== "full" || tiers.length !== 1 || priorities.length !== 1 || required.some((pattern) => !pattern.test(issue.body))) {
-    return { code: "validation_incomplete", detail: "ticket lacks complete tier, priority, scope, dependency, or binary acceptance evidence" };
+  if (
+    issue.inclusion !== "full" ||
+    tiers.length !== 1 ||
+    priorities.length !== 1 ||
+    required.some((pattern) => !pattern.test(issue.body))
+  ) {
+    return {
+      code: "validation_incomplete",
+      detail: "ticket lacks complete tier, priority, scope, dependency, or binary acceptance evidence",
+    };
   }
   return undefined;
 }

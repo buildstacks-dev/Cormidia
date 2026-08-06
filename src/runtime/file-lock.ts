@@ -14,15 +14,7 @@
 // and src/loop may depend on this leaf.
 
 import { randomUUID } from "node:crypto";
-import {
-  closeSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, open, readFile, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import { currentProcessStartIdentity, processIdentityStatus } from "./process-identity.js";
@@ -143,11 +135,7 @@ export async function releaseFileLock(lockPath: string, token: FileLockToken): P
 }
 
 /** RAII shape: acquire, run `fn`, release exactly once. */
-export async function withFileLock<T>(
-  lockPath: string,
-  options: FileLockOptions,
-  fn: () => Promise<T>,
-): Promise<T> {
+export async function withFileLock<T>(lockPath: string, options: FileLockOptions, fn: () => Promise<T>): Promise<T> {
   const token = await acquireFileLock(lockPath, options);
   try {
     return await fn();
@@ -159,10 +147,7 @@ export async function withFileLock<T>(
 /** Synchronous O_EXCL acquisition for code paths whose contract is itself
  * synchronous. A live holder is never broken or waited out; contention is
  * surfaced immediately so the caller can deny/retry safely. */
-export function acquireFileLockSync(
-  lockPath: string,
-  options: FileLockSyncOptions,
-): FileLockToken {
+export function acquireFileLockSync(lockPath: string, options: FileLockSyncOptions): FileLockToken {
   const now = options.now ?? Date.now;
   const token: FileLockToken = {
     pid: process.pid,
@@ -201,11 +186,7 @@ export function releaseFileLockSync(lockPath: string, token: FileLockToken): voi
 }
 
 /** Synchronous RAII shape over the shared lock policy. */
-export function withFileLockSync<T>(
-  lockPath: string,
-  options: FileLockSyncOptions,
-  fn: () => T,
-): T {
+export function withFileLockSync<T>(lockPath: string, options: FileLockSyncOptions, fn: () => T): T {
   const token = acquireFileLockSync(lockPath, options);
   try {
     return fn();

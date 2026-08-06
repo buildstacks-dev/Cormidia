@@ -133,15 +133,7 @@ function assertTime(hour: number, minute: number, spec: string): void {
 }
 
 function atLocalTime(date: Date, hour: number, minute: number): Date {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    hour,
-    minute,
-    0,
-    0,
-  );
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minute, 0, 0);
 }
 
 function dayIndex(day: string): number {

@@ -5,17 +5,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { join } from "node:path";
 import { baseRevisionForBranch } from "../../../src/loop/default-branch.js";
-import {
-  DEFAULT_LOOP_POLICY,
-  runLoopOnce,
-  type LoopDriverOptions,
-} from "../../../src/loop/driver.js";
+import { DEFAULT_LOOP_POLICY, runLoopOnce, type LoopDriverOptions } from "../../../src/loop/driver.js";
 import { loopDriverExitCode } from "../../../src/cli/loop.js";
-import {
-  enforceBudgetOverlay,
-  isBudgetBlocking,
-  type BudgetRow,
-} from "../../../src/org/budget.js";
+import { enforceBudgetOverlay, isBudgetBlocking, type BudgetRow } from "../../../src/org/budget.js";
 import type { DispatchTickResult } from "../../../src/org/dispatch.js";
 import { makeTestClock } from "../../fixtures/clock.js";
 import {
@@ -65,11 +57,14 @@ describe("CF-J07-R — paused app cannot claim spend; manual loop --once refuses
       repo: `fixture/${APP}`,
       // Budget refusal occurs before the first GitHub read. A throwing stub
       // therefore proves the preflight really is pre-claim.
-      gh: new Proxy({}, {
-        get: () => {
-          throw new Error("GitHub must not be touched after budget refusal");
+      gh: new Proxy(
+        {},
+        {
+          get: () => {
+            throw new Error("GitHub must not be touched after budget refusal");
+          },
         },
-      }) as LoopDriverOptions["gh"],
+      ) as LoopDriverOptions["gh"],
       localRepo: rig.org.root,
       worktreeRoot: join(rig.org.root, "worktrees"),
       policy: DEFAULT_LOOP_POLICY,

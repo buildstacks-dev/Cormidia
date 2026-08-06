@@ -3,13 +3,7 @@ import type { RuntimeKind } from "./types.js";
 export const CODEX_PERMISSION_MODES = ["untrusted", "on-request", "never"] as const;
 export type CodexPermissionMode = (typeof CODEX_PERMISSION_MODES)[number];
 
-export const CLAUDE_PERMISSION_MODES = [
-  "default",
-  "acceptEdits",
-  "plan",
-  "dontAsk",
-  "auto",
-] as const;
+export const CLAUDE_PERMISSION_MODES = ["default", "acceptEdits", "plan", "dontAsk", "auto"] as const;
 export type ClaudePermissionMode = (typeof CLAUDE_PERMISSION_MODES)[number];
 
 /** App-resolved provider permission policy. Bypass modes are deliberately

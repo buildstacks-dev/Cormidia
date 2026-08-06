@@ -164,9 +164,7 @@ describe("CF-INV-006 — exactly-once settlement keyed (app, providerTurnId) (L1
     const record = makeRecord();
     delete record.providerTurnId;
     delete record.runId;
-    await expect(recordTurnOnce(state.stateHome, record)).rejects.toThrow(
-      /providerTurnId or legacy runId is required/,
-    );
+    await expect(recordTurnOnce(state.stateHome, record)).rejects.toThrow(/providerTurnId or legacy runId is required/);
     expect(await readTurnRecords(state.stateHome)).toHaveLength(0);
   });
 
@@ -195,9 +193,9 @@ describe("CF-INV-006 — exactly-once settlement keyed (app, providerTurnId) (L1
     await recordTurnOnce(state.stateHome, makeRecord({ providerTurnId: "ptid-clean" }));
     await writeFile(pendingSettlementPath(state.stateHome), "{torn mid-write", "utf8");
 
-    await expect(
-      recordTurnOnce(state.stateHome, makeRecord({ providerTurnId: "ptid-blocked" })),
-    ).rejects.toThrow(/pending settlement is unreadable/);
+    await expect(recordTurnOnce(state.stateHome, makeRecord({ providerTurnId: "ptid-blocked" }))).rejects.toThrow(
+      /pending settlement is unreadable/,
+    );
 
     // Fail-closed means NO new row was appended while the ambiguity stands.
     const rows = await readTurnRecords(state.stateHome);

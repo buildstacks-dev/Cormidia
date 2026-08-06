@@ -27,7 +27,11 @@ export async function earliestLedgerDay(stateHome: string): Promise<string | und
   let earliest: string | undefined;
   for (const file of (await readdir(directory)).filter(isDayFile).sort()) {
     let text: string;
-    try { text = await readFile(join(directory, file), "utf8"); } catch { continue; }
+    try {
+      text = await readFile(join(directory, file), "utf8");
+    } catch {
+      continue;
+    }
     for (const line of text.split("\n")) {
       if (line.trim().length === 0) continue;
       try {
@@ -37,7 +41,9 @@ export async function earliestLedgerDay(stateHome: string): Promise<string | und
         if (!Number.isFinite(at.getTime())) continue;
         const day = at.toISOString().slice(0, 10);
         if (earliest === undefined || day < earliest) earliest = day;
-      } catch { /* unreadable row is not an all-history boundary */ }
+      } catch {
+        /* unreadable row is not an all-history boundary */
+      }
     }
   }
   return earliest;
@@ -73,7 +79,13 @@ export async function readLedgerRange(
     }
     readableDays.push(day);
     fingerprint.update(`${file}\0${result.signature}\0`);
-    if (result.concurrent) diagnostics.push({ kind: "concurrent_write", day, line: null, detail: "file changed during both read attempts; last complete read used" });
+    if (result.concurrent)
+      diagnostics.push({
+        kind: "concurrent_write",
+        day,
+        line: null,
+        detail: "file changed during both read attempts; last complete read used",
+      });
     const lines = result.text.split("\n");
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index]!;
@@ -84,7 +96,12 @@ export async function readLedgerRange(
         value = JSON.parse(line);
       } catch {
         const hasLater = lines.slice(index + 1).some((candidate) => candidate.trim().length > 0);
-        diagnostics.push({ kind: hasLater ? "corrupt_line" : "torn_tail", day, line: lineNumber, detail: hasLater ? "malformed mid-file JSON" : "malformed final non-empty line" });
+        diagnostics.push({
+          kind: hasLater ? "corrupt_line" : "torn_tail",
+          day,
+          line: lineNumber,
+          detail: hasLater ? "malformed mid-file JSON" : "malformed final non-empty line",
+        });
         continue;
       }
       const validation = validateTurnRecord(value);
@@ -95,10 +112,16 @@ export async function readLedgerRange(
       const record = value as TurnRecord;
       const at = new Date(record.at).getTime();
       if (!Number.isFinite(at)) {
-        diagnostics.push({ kind: "invalid_timestamp", day, line: lineNumber, detail: "TurnRecord.at is not a valid ISO timestamp" });
+        diagnostics.push({
+          kind: "invalid_timestamp",
+          day,
+          line: lineNumber,
+          detail: "TurnRecord.at is not a valid ISO timestamp",
+        });
         continue;
       }
-      if (at > now.getTime() + 30_000) diagnostics.push({ kind: "future_timestamp", day, line: lineNumber, detail: "TurnRecord.at is in the future" });
+      if (at > now.getTime() + 30_000)
+        diagnostics.push({ kind: "future_timestamp", day, line: lineNumber, detail: "TurnRecord.at is in the future" });
       if (at >= new Date(range.from_inclusive).getTime() && at < new Date(range.to_exclusive).getTime()) {
         rows.push({ day, line: lineNumber, record });
       }
@@ -115,7 +138,10 @@ export async function readLedgerRange(
   };
 }
 
-async function readStableFile(path: string, hooks: { afterRead?: (path: string, attempt: number) => void | Promise<void> }): Promise<{ text: string; signature: string; concurrent: boolean }> {
+async function readStableFile(
+  path: string,
+  hooks: { afterRead?: (path: string, attempt: number) => void | Promise<void> },
+): Promise<{ text: string; signature: string; concurrent: boolean }> {
   let lastText = "";
   let lastSignature = "";
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -139,10 +165,12 @@ function validateTurnRecord(value: unknown): string | undefined {
     if (typeof row[key] !== "string") return `${key} must be a string`;
   }
   for (const key of ["tokensIn", "tokensOut", "costUsd", "subagentTurns", "wallClockMs", "escalations"] as const) {
-    if (typeof row[key] !== "number" || !Number.isFinite(row[key]) || row[key] < 0) return `${key} must be a finite non-negative number`;
+    if (typeof row[key] !== "number" || !Number.isFinite(row[key]) || row[key] < 0)
+      return `${key} must be a finite non-negative number`;
   }
   for (const key of ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"] as const) {
-    if (row[key] !== undefined && (typeof row[key] !== "number" || !Number.isFinite(row[key]) || row[key] < 0)) return `${key} must be a finite non-negative number`;
+    if (row[key] !== undefined && (typeof row[key] !== "number" || !Number.isFinite(row[key]) || row[key] < 0))
+      return `${key} must be a finite non-negative number`;
   }
   return undefined;
 }
@@ -160,5 +188,13 @@ function safeMessage(error: unknown): string {
 }
 
 function emptyRead(): LedgerRangeRead {
-  return { rows: [], diagnostics: [], readableDays: [], selectedDays: [], retainedFrom: null, retainedTo: null, fingerprint: createHash("sha256").digest("hex") };
+  return {
+    rows: [],
+    diagnostics: [],
+    readableDays: [],
+    selectedDays: [],
+    retainedFrom: null,
+    retainedTo: null,
+    fingerprint: createHash("sha256").digest("hex"),
+  };
 }

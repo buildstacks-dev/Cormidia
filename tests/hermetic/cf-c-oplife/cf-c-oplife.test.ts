@@ -27,10 +27,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runAuditedCliInvocation } from "../../../src/cli/invocation-audit.js";
 import { cmdOrg } from "../../../src/cli/org.js";
-import {
-  LEGACY_CONSERVATIVE_VERSION,
-  resolveAuthority,
-} from "../../../src/org/authority.js";
+import { LEGACY_CONSERVATIVE_VERSION, resolveAuthority } from "../../../src/org/authority.js";
 import { executeAppPromotion, planAppPromotion, verifyApp } from "../../../src/org/app-lifecycle.js";
 import { executeAppReset, planAppReset, type AppResetOptions } from "../../../src/org/app-reset.js";
 import { loadApps } from "../../../src/org/apps.js";
@@ -46,13 +43,7 @@ import {
   snapshotTree,
   snapshotTreeAllowEmpty,
 } from "../cf-j01/support.js";
-import {
-  diffWorld,
-  makeResetWorld,
-  snapshotWorld,
-  TARGET_APP,
-  type ResetWorld,
-} from "../cf-j14/support.js";
+import { diffWorld, makeResetWorld, snapshotWorld, TARGET_APP, type ResetWorld } from "../cf-j14/support.js";
 
 describe("CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md)", () => {
   let cleanups: Array<() => Promise<void>> = [];
@@ -85,17 +76,7 @@ describe("CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecy
     // in runAuditedCliInvocation) — a bare cmdOrg call has no audit scope and
     // would prove nothing about the sole preview write. `org init` is exempt
     // from the initial home resolution, so no ambient pointer is consulted.
-    const argv = [
-      "org",
-      "init",
-      w.target,
-      "--name",
-      "preview-org",
-      "--state-home",
-      w.stateHome,
-      "--dry-run",
-      "--json",
-    ];
+    const argv = ["org", "init", w.target, "--name", "preview-org", "--state-home", w.stateHome, "--dry-run", "--json"];
     const code = await runAuditedCliInvocation(argv, () =>
       cmdOrg(argv.slice(1), { homeDir: w.homeDir, pointerPath: w.pointerPath }),
     );
@@ -107,7 +88,8 @@ describe("CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecy
     // home. Nothing lands in the org target or the pointer.
     expect(diff.added.length).toBeGreaterThan(0); // the audit row itself is evidence (INV-014)
     const offenders = diff.added.filter(
-      (rel) => !/^state\/(?:invocations|invocation-journal)\//.test(rel) && !/^state\/state\/invocation-journal\//.test(rel),
+      (rel) =>
+        !/^state\/(?:invocations|invocation-journal)\//.test(rel) && !/^state\/state\/invocation-journal\//.test(rel),
     );
     expect(offenders, `dry-run wrote beyond the audit row: ${offenders.join(", ")}`).toEqual([]);
     expect(existsSync(w.target)).toBe(false);
@@ -257,9 +239,7 @@ describe("CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecy
     const remediation = plan.verification.checks.find((check) => check.id === "lifecycle-record");
     expect(remediation?.remediation).toContain("retry promotion");
 
-    await expect(executeAppPromotion(options, plan)).rejects.toThrow(
-      /verification is blocked; promotion refused/,
-    );
+    await expect(executeAppPromotion(options, plan)).rejects.toThrow(/verification is blocked; promotion refused/);
     // Preview + refused execute together mutated nothing (the lifecycle
     // operation lock is created and released; only files count here).
     const diff = diffWorld(before, await snapshotWorld(w));

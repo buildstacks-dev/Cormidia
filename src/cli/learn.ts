@@ -31,11 +31,7 @@ import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { rollupLearningSpend } from "../org/budget.js";
 import { resolveCormidiaHomes, type CormidiaHomes } from "../org/home.js";
 import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
-import {
-  previewCaptureEvents,
-  projectCaptureEvents,
-  type CaptureProjectionResult,
-} from "../org/learning/capture.js";
+import { previewCaptureEvents, projectCaptureEvents, type CaptureProjectionResult } from "../org/learning/capture.js";
 import {
   createEpisodeProjector,
   readEpisodeRecord,
@@ -50,24 +46,10 @@ import {
   readLearningEventsWithDiagnostics,
   type LearningEvent,
 } from "../org/learning/events.js";
-import {
-  computeSystemFingerprint,
-  storeFingerprint,
-} from "../org/learning/fingerprint.js";
-import {
-  convertCapsuleToEvalFixture,
-  trustEvalFixture,
-} from "../org/learning/eval-fixture.js";
-import {
-  listEvalResults,
-  readEvalResult,
-  type EvalResult,
-} from "../org/learning/eval-result.js";
-import {
-  listExperimentRecords,
-  readExperimentRecord,
-  type ExperimentRecord,
-} from "../org/learning/experiment.js";
+import { computeSystemFingerprint, storeFingerprint } from "../org/learning/fingerprint.js";
+import { convertCapsuleToEvalFixture, trustEvalFixture } from "../org/learning/eval-fixture.js";
+import { listEvalResults, readEvalResult, type EvalResult } from "../org/learning/eval-result.js";
+import { listExperimentRecords, readExperimentRecord, type ExperimentRecord } from "../org/learning/experiment.js";
 import {
   interventionChainGaps,
   interventionIdForCandidate,
@@ -77,17 +59,10 @@ import {
 } from "../org/learning/intervention.js";
 import { loadRoles } from "../org/roles.js";
 import { runDispatchedTurn } from "../org/turn-runner.js";
-import {
-  compactionReport,
-  listM6RunRecords,
-  prepareDistillation,
-} from "../org/learning/distillation.js";
+import { compactionReport, listM6RunRecords, prepareDistillation } from "../org/learning/distillation.js";
 import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import { loadLearningPolicy } from "../org/learning/policy.js";
-import {
-  projectLearningEfficiencyHealth,
-  type LearningEfficiencyHealth,
-} from "../org/learning/efficiency-health.js";
+import { projectLearningEfficiencyHealth, type LearningEfficiencyHealth } from "../org/learning/efficiency-health.js";
 import { readRejections } from "../org/learning/rejections.js";
 import { listReviewerVerdicts, readReviewerVerdict } from "../org/learning/review.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -175,14 +150,14 @@ export async function cmdLearn(args: string[]): Promise<number> {
       return distill(homes, rest);
     default:
       throw new Error(
-        'learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | ' +
-          'show <event|experiment|eval|intervention-id> | ' +
-          'fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | ' +
-          'report [--efficiency-health] [--json] [--refresh] | ' +
-          'review <candidate-id> | publish <candidate-id> | resolve --app <app> --role <role> | ' +
-          'disable <concept-id> | rollback --root org|app | provisional | ' +
-          'experiment declare|run|list | canary start|status|promote|stop | ' +
-          'distill [--app <app>] [--dry-run]',
+        "learn: expected a subcommand — inspect <episode-id> | emit [--episode <id>] | " +
+          "show <event|experiment|eval|intervention-id> | " +
+          "fixture <episode-id> --set <scope>/<set> [--validate] --by <name> | " +
+          "report [--efficiency-health] [--json] [--refresh] | " +
+          "review <candidate-id> | publish <candidate-id> | resolve --app <app> --role <role> | " +
+          "disable <concept-id> | rollback --root org|app | provisional | " +
+          "experiment declare|run|list | canary start|status|promote|stop | " +
+          "distill [--app <app>] [--dry-run]",
       );
   }
 }
@@ -232,7 +207,10 @@ async function distill(homes: CormidiaHomes, args: string[]): Promise<number> {
     return 0;
   }
 
-  const turnId = `learn-distill-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}`;
+  const turnId = `learn-distill-${new Date()
+    .toISOString()
+    .replace(/[^0-9]/g, "")
+    .slice(0, 14)}`;
   const cancellation = installProcessCancellation();
   const result = await runDispatchedTurn({
     role,
@@ -252,18 +230,10 @@ async function distill(homes: CormidiaHomes, args: string[]): Promise<number> {
 // inspect
 // ---------------------------------------------------------------------------
 
-async function inspect(
-  homes: CormidiaHomes,
-  episodeId: string,
-  projection: CaptureProjectionResult,
-): Promise<number> {
+async function inspect(homes: CormidiaHomes, episodeId: string, projection: CaptureProjectionResult): Promise<number> {
   const stateHome = homes.stateHome;
-  const events = (await readLearningEvents(stateHome)).filter(
-    (event) => event.episode_id === episodeId,
-  );
-  const record = (await readEpisodeRecords(stateHome)).find(
-    (candidate) => candidate.episode_id === episodeId,
-  );
+  const events = (await readLearningEvents(stateHome)).filter((event) => event.episode_id === episodeId);
+  const record = (await readEpisodeRecords(stateHome)).find((candidate) => candidate.episode_id === episodeId);
   if (record === undefined && events.length === 0) {
     console.error(
       `learn: no captured events for ${episodeId}` +
@@ -282,9 +252,7 @@ async function inspect(
       `App: ${record.app}${record.stage !== null ? ` (stage ${record.stage})` : ""}   ` +
         `Source: ${record.source.kind} ${record.source.ref}`,
     );
-    lines.push(
-      `Opened: ${record.opened}` + (record.closed !== undefined ? `   Closed: ${record.closed}` : ""),
-    );
+    lines.push(`Opened: ${record.opened}` + (record.closed !== undefined ? `   Closed: ${record.closed}` : ""));
 
     lines.push("", "Turns:");
     for (const turn of record.turns) {
@@ -298,8 +266,7 @@ async function inspect(
       lines.push("", "Gate outcomes:");
       for (const gate of record.gates) {
         lines.push(
-          `  [${gate.status}] ${gate.gate} (${gate.run_id})` +
-            (gate.detail !== undefined ? ` — ${gate.detail}` : ""),
+          `  [${gate.status}] ${gate.gate} (${gate.run_id})` + (gate.detail !== undefined ? ` — ${gate.detail}` : ""),
         );
       }
     }
@@ -321,21 +288,16 @@ async function inspect(
       lines.push("", "Turns:");
       for (const [turnId, turnEvents] of [...turns.entries()].sort()) {
         const roles = uniq(turnEvents.map((event) => event.agent_role ?? "?"));
-        const passes = uniq(
-          turnEvents.map((event) => `${event.pipeline ?? "?"}/${event.pass ?? "?"}`),
-        );
+        const passes = uniq(turnEvents.map((event) => `${event.pipeline ?? "?"}/${event.pass ?? "?"}`));
         const runs = uniq(turnEvents.map((event) => event.run_id ?? "?"));
-        lines.push(
-          `  ${turnId} — role ${roles.join(", ")}; passes ${passes.join(", ")}; runs ${runs.join(", ")}`,
-        );
+        lines.push(`  ${turnId} — role ${roles.join(", ")}; passes ${passes.join(", ")}; runs ${runs.join(", ")}`);
       }
     }
     const gateEvents = events.filter((event) => event.type === "gate_verdict");
     if (gateEvents.length > 0) {
       lines.push("", "Gate outcomes:");
       for (const gate of gateEvents) {
-        const detail =
-          typeof gate.payload?.["detail"] === "string" ? ` — ${gate.payload["detail"]}` : "";
+        const detail = typeof gate.payload?.["detail"] === "string" ? ` — ${gate.payload["detail"]}` : "";
         lines.push(`  [${gate.payload?.["status"]}] ${gate.payload?.["gate"]} (${gate.run_id})${detail}`);
       }
     }
@@ -356,9 +318,7 @@ async function inspect(
   if (verdicts.length > 0) {
     lines.push("", "Pass verdicts:");
     for (const verdict of verdicts) {
-      lines.push(
-        `  ${verdict.pipeline}/${verdict.pass}: ${compactPayload(verdict.payload)} (${verdict.run_id})`,
-      );
+      lines.push(`  ${verdict.pipeline}/${verdict.pass}: ${compactPayload(verdict.payload)} (${verdict.run_id})`);
     }
   }
 
@@ -368,9 +328,7 @@ async function inspect(
     lines.push(
       `  completed ${outcome.completed ? "yes" : "no"}` +
         (outcome.merged !== undefined ? `; merged ${outcome.merged ? "yes" : "no"}` : "") +
-        (outcome.release_disposition !== null
-          ? `; release disposition ${outcome.release_disposition}`
-          : ""),
+        (outcome.release_disposition !== null ? `; release disposition ${outcome.release_disposition}` : ""),
     );
     lines.push(
       `  review cycles ${outcome.review_cycles}; gate failures ${outcome.gate_failures}; ` +
@@ -390,9 +348,7 @@ async function inspect(
   if (record !== undefined && record.artifacts.length > 0) {
     lines.push("", `Artifacts: ${record.artifacts.join(", ")}`);
     for (const effect of record.side_effects) {
-      lines.push(
-        `  ${effect.kind} ${effect.ref} (${effect.reversible ? "reversible" : "irreversible"})`,
-      );
+      lines.push(`  ${effect.kind} ${effect.ref} (${effect.reversible ? "reversible" : "irreversible"})`);
     }
   }
 
@@ -404,8 +360,7 @@ async function inspect(
     lines.push("", "Late outcomes:");
     for (const late of record.late_outcomes) {
       lines.push(
-        `  ${late.kind} ${late.ref} (recorded ${late.recorded})` +
-          (late.note !== undefined ? ` — ${late.note}` : ""),
+        `  ${late.kind} ${late.ref} (recorded ${late.recorded})` + (late.note !== undefined ? ` — ${late.note}` : ""),
       );
     }
   }
@@ -488,12 +443,8 @@ async function capsuleLines(homes: CormidiaHomes, record: EpisodeRecord): Promis
   }
   return [
     `Replay capsule: ${capsule.capsule_id} — ${capsule.replayability}`,
-    ...(capsule.missing.length > 0
-      ? [`  missing for trusted replay: ${capsule.missing.join(", ")}`]
-      : []),
-    ...(fingerprintFailure !== undefined
-      ? [`  fingerprint not computed: ${fingerprintFailure}`]
-      : []),
+    ...(capsule.missing.length > 0 ? [`  missing for trusted replay: ${capsule.missing.join(", ")}`] : []),
+    ...(fingerprintFailure !== undefined ? [`  fingerprint not computed: ${fingerprintFailure}`] : []),
     ...(capsule.seed.repo !== null && capsule.seed.commit !== null
       ? [`  seed: ${capsule.seed.repo}@${capsule.seed.commit}`]
       : []),
@@ -543,18 +494,14 @@ async function emit(
       );
     }
   } else if (parsed.ref !== undefined || parsed.note !== undefined) {
-    throw new Error(
-      "learn emit: --ref/--note only apply with --late-outcome <kind>",
-    );
+    throw new Error("learn emit: --ref/--note only apply with --late-outcome <kind>");
   }
 
   // Late outcomes are the record's one append-only lane (design §8.3):
   // routed through the projector so they fold into the EpisodeRecord.
   if (parsed.lateOutcome !== undefined) {
     if (parsed.episode === undefined || parsed.ref === undefined) {
-      throw new Error(
-        "learn emit: --late-outcome <kind> requires --episode <id> and --ref <ref>",
-      );
+      throw new Error("learn emit: --late-outcome <kind> requires --episode <id> and --ref <ref>");
     }
     await projectCaptureEvents({ stateHome, appStages });
     await projector.project();
@@ -586,9 +533,7 @@ async function emit(
         parsed.episode ??= (await rl.question("Episode id (ep_…): ")).trim();
         parsed.observation ??= (await rl.question("Observation (what you directly saw): ")).trim();
         parsed.cause ??= orUndefined((await rl.question("Cause hypothesis (optional): ")).trim());
-        parsed.intervention ??= orUndefined(
-          (await rl.question("Suggested intervention (optional): ")).trim(),
-        );
+        parsed.intervention ??= orUndefined((await rl.question("Suggested intervention (optional): ")).trim());
       } finally {
         rl.close();
       }
@@ -627,9 +572,7 @@ async function emit(
       // even from a human; the intervention still requires review.
       observation: parsed.observation,
       ...(parsed.cause !== undefined ? { cause_hypothesis_text: parsed.cause } : {}),
-      ...(parsed.intervention !== undefined
-        ? { suggested_intervention: parsed.intervention }
-        : {}),
+      ...(parsed.intervention !== undefined ? { suggested_intervention: parsed.intervention } : {}),
       ...(parsed.artifacts.length > 0 ? { artifacts: parsed.artifacts } : {}),
     },
   };
@@ -722,9 +665,7 @@ async function show(homes: CormidiaHomes, id: string): Promise<number> {
         const gaps = interventionChainGaps(intervention);
         console.log(
           `disposition: ${intervention.status} ${intervention.destination}` +
-            (intervention.activation !== null
-              ? `; claim ${claimLabel(intervention.activation.claim)}`
-              : "") +
+            (intervention.activation !== null ? `; claim ${claimLabel(intervention.activation.claim)}` : "") +
             (gaps.length > 0 ? `; chain INCOMPLETE — missing ${gaps.join(", ")}` : "; chain complete"),
         );
       }
@@ -762,9 +703,7 @@ async function show(homes: CormidiaHomes, id: string): Promise<number> {
           `trace it with: cormidia learn show ${intervention.intervention_id}`,
       );
     } else {
-      const rejected = (await readRejections(homes.orgHome)).find(
-        (entry) => entry.candidate_id === id,
-      );
+      const rejected = (await readRejections(homes.orgHome)).find((entry) => entry.candidate_id === id);
       console.log(
         rejected !== undefined
           ? `disposition: rejected ${rejected.rejected_at} by ${rejected.by} — ${rejected.reason}`
@@ -968,11 +907,8 @@ async function report(
     (result) => result.verdict === "improved" && result.decided_at.startsWith(month),
   ).length;
   const costPerExperiment =
-    learningSpend.experimentsThisMonth > 0
-      ? learningSpend.monthUsd / learningSpend.experimentsThisMonth
-      : null;
-  const costPerImprovement =
-    improvedThisMonth > 0 ? learningSpend.monthUsd / improvedThisMonth : null;
+    learningSpend.experimentsThisMonth > 0 ? learningSpend.monthUsd / learningSpend.experimentsThisMonth : null;
+  const costPerImprovement = improvedThisMonth > 0 ? learningSpend.monthUsd / improvedThisMonth : null;
   const canaryLines =
     policy !== undefined
       ? await canaryStatusLines(homes, policy, records).catch((error: Error) => {
@@ -1068,18 +1004,14 @@ async function report(
             control: experiment.control.fingerprint_ref,
             treatment: experiment.treatment.fingerprint_ref,
             result: experiment.result,
-            ...(experiment.result !== null
-              ? { verdict: verdictFor(experiment, evalById) }
-              : {}),
+            ...(experiment.result !== null ? { verdict: verdictFor(experiment, evalById) } : {}),
           })),
           interventions: interventions.map((intervention) => ({
             intervention_id: intervention.intervention_id,
             destination: intervention.destination,
             status: intervention.status,
             claim: intervention.activation?.claim ?? null,
-            ...(intervention.activation !== null
-              ? { claim_display: claimLabel(intervention.activation.claim) }
-              : {}),
+            ...(intervention.activation !== null ? { claim_display: claimLabel(intervention.activation.claim) } : {}),
             chain_gaps: interventionChainGaps(intervention),
           })),
           reviews: verdicts.map((verdict) => ({
@@ -1186,24 +1118,21 @@ async function report(
   for (const recommendation of compaction) {
     lines.push(
       `  ${recommendation.action}: ${recommendation.concept_ids.join(", ")} — ${recommendation.rationale}` +
-        (recommendation.proposed_scope !== undefined
-          ? `; proposed scope ${recommendation.proposed_scope}`
-          : ""),
+        (recommendation.proposed_scope !== undefined ? `; proposed scope ${recommendation.proposed_scope}` : ""),
     );
   }
   if (experiments.length > 0) {
     lines.push("", `Experiments: ${experiments.length}`);
     for (const experiment of experiments) {
-      const suffix =
-        experiment.result !== null
-          ? ` → ${experiment.result} (${verdictFor(experiment, evalById)})`
-          : "";
+      const suffix = experiment.result !== null ? ` → ${experiment.result} (${verdictFor(experiment, evalById)})` : "";
       const cost = learningSpend.byExperiment.get(experiment.experiment_id);
       lines.push(
         `  ${experiment.experiment_id} — ${experiment.unit}, ${experiment.status}${suffix}` +
           (cost !== undefined ? `; $${cost.toFixed(2)} this month` : ""),
       );
-      lines.push(`    control ${experiment.control.fingerprint_ref} vs treatment ${experiment.treatment.fingerprint_ref}`);
+      lines.push(
+        `    control ${experiment.control.fingerprint_ref} vs treatment ${experiment.treatment.fingerprint_ref}`,
+      );
     }
   }
   if (learningSpend.monthUsd > 0) {
@@ -1230,9 +1159,7 @@ async function report(
       const gaps = interventionChainGaps(intervention);
       lines.push(
         `  ${intervention.intervention_id} — ${intervention.destination}, ${intervention.status}` +
-          (intervention.activation !== null
-            ? `; claim ${claimLabel(intervention.activation.claim)}`
-            : "") +
+          (intervention.activation !== null ? `; claim ${claimLabel(intervention.activation.claim)}` : "") +
           (gaps.length > 0 ? `; chain INCOMPLETE (missing ${gaps.join(", ")})` : ""),
       );
     }
@@ -1260,9 +1187,7 @@ async function report(
       for (const [conceptId, n] of conceptLoads) lines.push(`    ${conceptId}: ${n}`);
     }
     if (activation.agreement.compared > 0) {
-      lines.push(
-        `  reviewer-human agreement: ${activation.agreement.agreed}/${activation.agreement.compared}`,
-      );
+      lines.push(`  reviewer-human agreement: ${activation.agreement.agreed}/${activation.agreement.compared}`);
     }
     if (activation.suppressions > 0) {
       lines.push(`  rejection ledger entries: ${activation.suppressions}`);

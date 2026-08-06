@@ -45,15 +45,7 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import * as path from "node:path";
 import { gitWorktreeWritableRoots } from "../git-worktree-sandbox.js";
-import type {
-  GateEscalation,
-  Runtime,
-  ToolAction,
-  TurnHooks,
-  TurnRequest,
-  TurnResult,
-  TurnUsage,
-} from "../types.js";
+import type { GateEscalation, Runtime, ToolAction, TurnHooks, TurnRequest, TurnResult, TurnUsage } from "../types.js";
 import { resolveTurnRequestAssignment } from "../assignment.js";
 import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { claudeDenyRulesForRole } from "../role-shaping.js";
@@ -63,10 +55,7 @@ import { permissionModeFor, type ClaudePermissionMode } from "../permission-mode
 
 /** The SDK's query() shape, injectable so unit tests run with a scripted
  *  stand-in and zero network/CLI dependency. */
-export type QueryFn = (params: {
-  prompt: string;
-  options?: SdkOptions;
-}) => AsyncIterable<SDKMessage>;
+export type QueryFn = (params: { prompt: string; options?: SdkOptions }) => AsyncIterable<SDKMessage>;
 
 export interface ClaudeRuntimeOptions {
   /** Test injection point; defaults to the real SDK's query(). */
@@ -109,11 +98,7 @@ const STRUCTURED_OUTPUT_TOOL = "structuredoutput";
  * `description`, timeouts) dropped so identical intents normalize
  * identically across turns.
  */
-export function normalizeToolAction(
-  toolName: string,
-  input: Record<string, unknown>,
-  workdir: string,
-): ToolAction {
+export function normalizeToolAction(toolName: string, input: Record<string, unknown>, workdir: string): ToolAction {
   const tool = toolName.toLowerCase();
   const rel = (p: unknown): string => {
     const raw = typeof p === "string" ? p : "";
@@ -224,10 +209,7 @@ export class ClaudeRuntime implements Runtime {
     // auto-allowed read-only commands and subagent calls (see header note).
     const preToolUseGate = async (input: HookInput): Promise<HookJSONOutput> => {
       if (input.hook_event_name !== "PreToolUse") return {};
-      if (
-        req.verdictSchema !== undefined &&
-        input.tool_name.toLowerCase() === STRUCTURED_OUTPUT_TOOL
-      ) {
+      if (req.verdictSchema !== undefined && input.tool_name.toLowerCase() === STRUCTURED_OUTPUT_TOOL) {
         return {
           hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" },
         };
@@ -237,10 +219,7 @@ export class ClaudeRuntime implements Runtime {
           hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" },
         };
       }
-      const verdict = routeThroughGate(
-        input.tool_name,
-        (input.tool_input ?? {}) as Record<string, unknown>,
-      );
+      const verdict = routeThroughGate(input.tool_name, (input.tool_input ?? {}) as Record<string, unknown>);
       return {
         hookSpecificOutput: {
           hookEventName: "PreToolUse",
@@ -252,23 +231,15 @@ export class ClaudeRuntime implements Runtime {
 
     // Fail-closed backstop: dormant while the hook decides everything (an
     // explicit hook allow/deny means the permission system never asks).
-    const canUseTool = async (
-      toolName: string,
-      input: Record<string, unknown>,
-    ): Promise<PermissionResult> => {
-      if (
-        req.verdictSchema !== undefined &&
-        toolName.toLowerCase() === STRUCTURED_OUTPUT_TOOL
-      ) {
+    const canUseTool = async (toolName: string, input: Record<string, unknown>): Promise<PermissionResult> => {
+      if (req.verdictSchema !== undefined && toolName.toLowerCase() === STRUCTURED_OUTPUT_TOOL) {
         return { behavior: "allow", updatedInput: input };
       }
       if (SUBAGENT_SPAWN_TOOLS.has(toolName.toLowerCase())) {
         return { behavior: "allow", updatedInput: input };
       }
       const verdict = routeThroughGate(toolName, input);
-      return verdict.allow
-        ? { behavior: "allow", updatedInput: input }
-        : { behavior: "deny", message: verdict.reason };
+      return verdict.allow ? { behavior: "allow", updatedInput: input } : { behavior: "deny", message: verdict.reason };
     };
 
     // Toolset shaping (A4/Stage 6 follow-up): role-forbidden acts are
@@ -340,11 +311,7 @@ export class ClaudeRuntime implements Runtime {
       for await (const message of this.queryFn({ prompt: req.task, options })) {
         if (message.type === "system" && message.subtype === "init") {
           sessionId = message.session_id;
-          if (
-            req.session !== undefined &&
-            sessionId !== undefined &&
-            sessionId !== req.session.id
-          ) {
+          if (req.session !== undefined && sessionId !== undefined && sessionId !== req.session.id) {
             // Core §4 fail-closed pre-spend: stop the SDK session before any
             // tool action or usage, then surface the typed refusal.
             const mismatch = new ClaudeSessionResumeMismatchError(req.session.id, sessionId);
@@ -358,9 +325,7 @@ export class ClaudeRuntime implements Runtime {
           sessionId = message.session_id;
           partialUsage = addClaudeMessageUsage(partialUsage, message.message.usage, subagentTurns);
           hooks.onProgress?.({
-            ...(sessionId !== undefined
-              ? { session: { runtime: "claude" as const, id: sessionId } }
-              : {}),
+            ...(sessionId !== undefined ? { session: { runtime: "claude" as const, id: sessionId } } : {}),
             usage: partialUsage,
           });
         } else if (
@@ -427,16 +392,13 @@ export class ClaudeRuntime implements Runtime {
     // retained as `partial`; with no checkpoint the snapshot is
     // `unavailable` — zeros are the unknown marker, never a claim.
     const usage = resultMsg.usage as (typeof resultMsg)["usage"] | undefined;
-    const totalCostUsd =
-      typeof resultMsg.total_cost_usd === "number" ? resultMsg.total_cost_usd : 0;
+    const totalCostUsd = typeof resultMsg.total_cost_usd === "number" ? resultMsg.total_cost_usd : 0;
     const wallClockMs = typeof resultMsg.duration_ms === "number" ? resultMsg.duration_ms : 0;
     const budgetOverrun = resultMsg.subtype === "error_max_budget_usd";
     let turnUsage: TurnUsage;
     if (usage !== undefined) {
       const tokensIn =
-        usage.input_tokens +
-        (usage.cache_creation_input_tokens ?? 0) +
-        (usage.cache_read_input_tokens ?? 0);
+        usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
       const tokensOut = usage.output_tokens;
       turnUsage = {
         tokensIn,

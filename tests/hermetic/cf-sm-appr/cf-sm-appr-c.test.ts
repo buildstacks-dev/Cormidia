@@ -269,11 +269,12 @@ describe("CF-SM-APPR-C — orphan-grant intermediate (B-09a §3, L2, HB-011)", (
       scope: { kind: "ticket" },
       maxUses: 5,
     });
-    const gate = composeGate(
-      () => ({ allow: false, reason: "base gate escalates", escalate: true }),
-      rig.store,
-      { app: APP, role: ROLE, ticketRef: "TICKET-C", now: () => rig.clock.nowDate() },
-    );
+    const gate = composeGate(() => ({ allow: false, reason: "base gate escalates", escalate: true }), rig.store, {
+      app: APP,
+      role: ROLE,
+      ticketRef: "TICKET-C",
+      now: () => rig.clock.nowDate(),
+    });
     const decision = gate(scopedAction);
     expect(decision.allow).toBe(false);
   });
@@ -429,12 +430,8 @@ describe("CF-SM-APPR-C — pending-ghost intermediate (B-09a §3 / B-09b §3-§4
     detectPendingGhosts(rig.state.stateHome);
     // The repair left durable evidence, exactly once, and is idempotent.
     await rig.store.reconcile(rig.clock.nowDate());
-    const repairs = (await readLogEvents(rig)).filter(
-      (event) => event.type === "pending-ghost-repaired",
-    );
-    expect(repairs).toEqual([
-      { type: "pending-ghost-repaired", id: item.id, at: rig.clock.nowIso() },
-    ]);
+    const repairs = (await readLogEvents(rig)).filter((event) => event.type === "pending-ghost-repaired");
+    expect(repairs).toEqual([{ type: "pending-ghost-repaired", id: item.id, at: rig.clock.nowIso() }]);
   });
 
   // PROMOTED TRIPWIRE D3b (HB-011, fixed 2026-07-31): decide() now treats the

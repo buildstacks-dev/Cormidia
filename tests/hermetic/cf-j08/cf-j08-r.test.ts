@@ -16,11 +16,7 @@
 // violations through the raw recordTurn bypass and prove it fires.
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  readExecutionSteps,
-  recordMechanicalStep,
-  settlementCoverage,
-} from "../../../src/loop/efficiency.js";
+import { readExecutionSteps, recordMechanicalStep, settlementCoverage } from "../../../src/loop/efficiency.js";
 import { reconcileLedger } from "../../../src/org/budget.js";
 import { aggregateCost } from "../../../src/runtime/cost.js";
 import {
@@ -143,9 +139,7 @@ describe("CF-J08-R — mechanical steps never settle as provider turns; duplicat
     });
     expect(await recordTurnOnce(state.stateHome, settlement)).toBe(true);
     // Entry 1: the executor retry (even with drifted figures) refuses.
-    expect(
-      await recordTurnOnce(state.stateHome, { ...settlement, costUsd: 99.99 }),
-    ).toBe(false);
+    expect(await recordTurnOnce(state.stateHome, { ...settlement, costUsd: 99.99 })).toBe(false);
     // Entry 2: reconcile sees the settled key and deposits nothing.
     const reconciled = await reconcileLedger(state.stateHome, {}, T1);
     expect(reconciled.settled).toBe(0);

@@ -25,16 +25,8 @@ import { GhCliOps } from "../../../src/loop/github.js";
 import { readTicketClaimState } from "../../../src/loop/rehydrate.js";
 import type { LoopContinuationDecision } from "../../../src/loop/types.js";
 import { ClaudeSessionResumeMismatchError } from "../../../src/runtime/adapters/claude.js";
-import {
-  claudeDouble,
-  doubleRole,
-  doubleTurnRequest,
-} from "../../fixtures/adapters/claude-double.js";
-import {
-  AdapterContractViolation,
-  checkSessionIdentityHonest,
-  script,
-} from "../../fixtures/adapters/scenario.js";
+import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
+import { AdapterContractViolation, checkSessionIdentityHonest, script } from "../../fixtures/adapters/scenario.js";
 import { installGithubDouble } from "../../fixtures/github-double/install.js";
 import { makeTempStateHome } from "../../fixtures/state-home.js";
 import {
@@ -117,9 +109,7 @@ describe("CF-J06-S — approve and deny both resume the same session/claim with 
       expect(record.workFingerprint).toBe(continuation.workFingerprint);
 
       // The claim-accounting commit point saw a RESUMED turn exactly once.
-      expect(attempt.beforeProviderTurnCalls).toEqual([
-        { pipeline: PIPELINE_NAME, pass: ACT_PASS, resumed: true },
-      ]);
+      expect(attempt.beforeProviderTurnCalls).toEqual([{ pipeline: PIPELINE_NAME, pass: ACT_PASS, resumed: true }]);
     });
   }
 
@@ -369,11 +359,7 @@ describe("CF-J06-S — approve and deny both resume the same session/claim with 
     );
     expect(lyingResult.session.id).toBe(PAUSED_SESSION_ID); // the lie
     expect(() =>
-      checkSessionIdentityHonest(
-        lying.recorder.turns[0]!,
-        { runtime: "claude", id: PAUSED_SESSION_ID },
-        lyingResult,
-      ),
+      checkSessionIdentityHonest(lying.recorder.turns[0]!, { runtime: "claude", id: PAUSED_SESSION_ID }, lyingResult),
     ).toThrow(AdapterContractViolation);
   });
 });

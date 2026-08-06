@@ -48,10 +48,7 @@ import {
   type TicketBudgetRatification,
   type TicketPlan,
 } from "../loop/plan-tickets.js";
-import {
-  readPublishedTicketsRecord,
-  writePublishedTicketsRecord,
-} from "../loop/plan-publication-record.js";
+import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import { writeFileAtomic } from "./atomic.js";
 import {
   acquireLifecycleOperationLock,
@@ -224,10 +221,7 @@ export async function readRefusedDecomposition(
 
 /** Newest first. Used by the token-free planning preview so a pending
  *  ratification is visible before anything is spent. */
-export async function listRefusedDecompositions(
-  stateHome: string,
-  app: string,
-): Promise<RefusedDecompositionRecord[]> {
+export async function listRefusedDecompositions(stateHome: string, app: string): Promise<RefusedDecompositionRecord[]> {
   let dir: string;
   try {
     dir = refusedDecompositionDir(stateHome, app);
@@ -471,11 +465,7 @@ export async function executeTicketBudgetRatification(
       // Same idempotency guard runAutoPlan uses: a durable published-tickets
       // record for this run means publication already happened, so a retry
       // reports it instead of creating a second set of issues.
-      const prior = await readPublishedTicketsRecord(
-        input.stateHome,
-        input.app,
-        record.provenance.run_id,
-      );
+      const prior = await readPublishedTicketsRecord(input.stateHome, input.app, record.provenance.run_id);
       if (prior !== undefined) {
         published = prior.published.map((ticket) => ({
           index: ticket.index,
@@ -494,12 +484,7 @@ export async function executeTicketBudgetRatification(
           runId: record.provenance.run_id,
           traceId: record.provenance.trace_id,
         };
-        ({ published } = await publishPlanProjection(
-          gh,
-          projection,
-          refused.planning_sources,
-          provenance,
-        ));
+        ({ published } = await publishPlanProjection(gh, projection, refused.planning_sources, provenance));
         try {
           await writePublishedTicketsRecord(input.stateHome, input.app, provenance, published, now);
         } catch (error) {
@@ -527,14 +512,16 @@ export async function executeTicketBudgetRatification(
       stateHome: input.stateHome,
       app: input.app,
       operation: "plan ratify-ticket-budget",
-      inputFingerprint: sha256(stableJson({
-        app: input.app,
-        decomposition: complete.decomposition_id,
-        stage: complete.stage,
-        from: complete.stage_ticket_budget,
-        to: complete.ratified_ticket_count,
-        actor: complete.actor,
-      })),
+      inputFingerprint: sha256(
+        stableJson({
+          app: input.app,
+          decomposition: complete.decomposition_id,
+          stage: complete.stage,
+          from: complete.stage_ticket_budget,
+          to: complete.ratified_ticket_count,
+          actor: complete.actor,
+        }),
+      ),
       status: "completed",
       reason:
         `${complete.actor} ratified ${complete.stage} ticket budget ` +
@@ -629,23 +616,31 @@ function isProjectStage(value: unknown): value is ProjectStage {
 function isProvenance(value: unknown): value is RefusedDecompositionProvenance {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  return typeof record["episode_id"] === "string" &&
+  return (
+    typeof record["episode_id"] === "string" &&
     typeof record["run_id"] === "string" &&
-    typeof record["trace_id"] === "string";
+    typeof record["trace_id"] === "string"
+  );
 }
 
 function isTicketPlan(value: unknown): value is TicketPlan {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  return isProjectStage(record["stage"]) &&
+  return (
+    isProjectStage(record["stage"]) &&
     typeof record["ticketCountRationale"] === "string" &&
     typeof record["releaseDisposition"] === "string" &&
     typeof record["releaseKind"] === "string" &&
     Array.isArray(record["tickets"]) &&
-    record["tickets"].every((ticket) =>
-      ticket !== null && typeof ticket === "object" && !Array.isArray(ticket) &&
-      typeof (ticket as Record<string, unknown>)["title"] === "string" &&
-      Array.isArray((ticket as Record<string, unknown>)["dependsOn"]));
+    record["tickets"].every(
+      (ticket) =>
+        ticket !== null &&
+        typeof ticket === "object" &&
+        !Array.isArray(ticket) &&
+        typeof (ticket as Record<string, unknown>)["title"] === "string" &&
+        Array.isArray((ticket as Record<string, unknown>)["dependsOn"]),
+    )
+  );
 }
 
 function message(error: unknown): string {

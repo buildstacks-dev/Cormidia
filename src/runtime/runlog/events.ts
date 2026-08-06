@@ -106,11 +106,7 @@ export interface EventWriter {
   toolCalled(options: ToolCalledOptions): Promise<RunlogEvent>;
 }
 
-export function createEventWriter(
-  root: string,
-  ctx: EventContext & { runId: string },
-  clock: () => Date,
-): EventWriter {
+export function createEventWriter(root: string, ctx: EventContext & { runId: string }, clock: () => Date): EventWriter {
   const { runId, ...identity } = ctx;
   const path = runPaths(root, identity.app, runId).events;
 
@@ -164,11 +160,7 @@ function scrubDetail(detail: EventDetail): EventDetail {
  *  reality): a malformed TRAILING line — the one a crash mid-append leaves
  *  behind — is dropped; a malformed line anywhere else is corruption and
  *  throws loudly. */
-export async function readEvents(
-  root: string,
-  app: string,
-  runId: string,
-): Promise<RunlogEvent[]> {
+export async function readEvents(root: string, app: string, runId: string): Promise<RunlogEvent[]> {
   const path = runPaths(root, app, runId).events;
   const lines = (await readFile(path, "utf8")).split("\n").filter((l) => l !== "");
   const events: RunlogEvent[] = [];

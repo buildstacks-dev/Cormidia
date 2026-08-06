@@ -30,7 +30,10 @@ export function sanitizeIdPart(part: string): string {
  *  one file, and no id can escape its directory. Never throws — an id with
  *  no safe characters still gets a stem from its hash. */
 export function hashedFileStem(id: string): string {
-  const readable = id.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  const readable = id
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
   const hash = createHash("sha256").update(id).digest("hex").slice(0, 8);
   return `${readable === "" ? "id" : readable}-${hash}`;
 }

@@ -98,9 +98,7 @@ describe("CF-J14-S — reset plan mutates nothing; execute order archive→close
       if (checkpoints.has(point)) return; // first firing only
       checkpoints.set(point, {
         mutatingOps: mutatingOpsSince(w),
-        registryHasTarget: (await loadApps(join(w.orgHome, "apps.yaml"))).apps.some(
-          (app) => app.name === TARGET_APP,
-        ),
+        registryHasTarget: (await loadApps(join(w.orgHome, "apps.yaml"))).apps.some((app) => app.name === TARGET_APP),
         targetRunsPresent: existsSync(join(w.stateHome, "runs", TARGET_APP, "seed-run", "artifact.txt")),
         finalArchivePresent: existsSync(join(w.archiveRoot, plan.archiveId, "manifest.json")),
         intentPresent: existsSync(join(w.stateHome, "lifecycle", "transactions", `reset-${TARGET_APP}.json`)),
@@ -157,31 +155,28 @@ describe("CF-J14-S — reset plan mutates nothing; execute order archive→close
   // validation-policy.yaml → open_findings). The body below asserts the
   // contract-prose order and stays parked; unskip + resolve polarity when the
   // finding ratifies.
-  it.skip(
-    "BLOCKED:F-PT-012 — execute-order clause (registry boundary vs local clears) awaits owner ruling",
-    async () => {
-      const w = await world();
-      const input = resetInput(w);
-      const plan = await planAppReset(input);
-      let targetStateAtRegistryWrite: boolean | undefined;
-      await executeAppReset(
-        {
-          ...input,
-          fault: (point) => {
-            if (point === "before_registry_write" && targetStateAtRegistryWrite === undefined) {
-              targetStateAtRegistryWrite = existsSync(join(w.stateHome, "runs", TARGET_APP));
-            }
-          },
+  it.skip("BLOCKED:F-PT-012 — execute-order clause (registry boundary vs local clears) awaits owner ruling", async () => {
+    const w = await world();
+    const input = resetInput(w);
+    const plan = await planAppReset(input);
+    let targetStateAtRegistryWrite: boolean | undefined;
+    await executeAppReset(
+      {
+        ...input,
+        fault: (point) => {
+          if (point === "before_registry_write" && targetStateAtRegistryWrite === undefined) {
+            targetStateAtRegistryWrite = existsSync(join(w.stateHome, "runs", TARGET_APP));
+          }
         },
-        plan,
-      );
-      // Ratified §6 order: "…closes planned PRs/issues, deletes their head
-      // branches, removes registry entry, clears managed state". Actual
-      // (2026-07-31): removeLocalAppState has already run — the managed
-      // state is gone before the registry write.
-      expect(targetStateAtRegistryWrite).toBe(true);
-    },
-  );
+      },
+      plan,
+    );
+    // Ratified §6 order: "…closes planned PRs/issues, deletes their head
+    // branches, removes registry entry, clears managed state". Actual
+    // (2026-07-31): removeLocalAppState has already run — the managed
+    // state is gone before the registry write.
+    expect(targetStateAtRegistryWrite).toBe(true);
+  });
 
   it("execute stays inside the authorized destructive set (INV-010 oracle over the full world)", async () => {
     const w = await world();

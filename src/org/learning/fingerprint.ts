@@ -56,10 +56,7 @@ export interface ComputeFingerprintOptions {
   packageRoot: string;
   orgHome: string;
   app: { name: string; workdir?: string; budgetUsdMonth?: number };
-  roles: Record<
-    string,
-    Pick<RoleConfig, "runtime" | "model" | "effort" | "maxTurnBudgetUsd">
-  >;
+  roles: Record<string, Pick<RoleConfig, "runtime" | "model" | "effort" | "maxTurnBudgetUsd">>;
   /** Injectable for deterministic tests; defaults to the live process. */
   env?: { node: string; platform: string };
   /** Resolved bundle versions + lineage for the arm this fingerprint
@@ -69,9 +66,7 @@ export interface ComputeFingerprintOptions {
   bundle?: { versions: Record<string, string>; lineage: string };
 }
 
-export async function computeSystemFingerprint(
-  options: ComputeFingerprintOptions,
-): Promise<SystemFingerprint> {
+export async function computeSystemFingerprint(options: ComputeFingerprintOptions): Promise<SystemFingerprint> {
   const roleNames = Object.keys(options.roles).sort();
   const models: Record<string, FingerprintModelEntry> = {};
   const perTurn: Record<string, number> = {};
@@ -81,17 +76,16 @@ export async function computeSystemFingerprint(
     perTurn[name] = role.maxTurnBudgetUsd;
   }
 
-  const [version, tasteHash, rolesHash, pipelinesHash, promptsHash, configHash] =
-    await Promise.all([
-      packageVersion(options.packageRoot),
-      fileHash(join(options.orgHome, "TASTE.md")),
-      fileHash(join(options.orgHome, "roles.yaml")),
-      fileHash(join(options.orgHome, "pipelines.yaml")),
-      treeHash(join(options.orgHome, "prompts")),
-      options.app.workdir !== undefined
-        ? fileHash(join(options.app.workdir, ".cormidia", "config.yaml"))
-        : Promise.resolve(null),
-    ]);
+  const [version, tasteHash, rolesHash, pipelinesHash, promptsHash, configHash] = await Promise.all([
+    packageVersion(options.packageRoot),
+    fileHash(join(options.orgHome, "TASTE.md")),
+    fileHash(join(options.orgHome, "roles.yaml")),
+    fileHash(join(options.orgHome, "pipelines.yaml")),
+    treeHash(join(options.orgHome, "prompts")),
+    options.app.workdir !== undefined
+      ? fileHash(join(options.app.workdir, ".cormidia", "config.yaml"))
+      : Promise.resolve(null),
+  ]);
 
   const body: Omit<SystemFingerprint, "fingerprint_id"> = {
     cormidia: {
@@ -110,8 +104,7 @@ export async function computeSystemFingerprint(
     },
     app: {
       name: options.app.name,
-      commit:
-        options.app.workdir !== undefined ? (gitHeadOf(options.app.workdir) ?? null) : null,
+      commit: options.app.workdir !== undefined ? (gitHeadOf(options.app.workdir) ?? null) : null,
       config_hash: configHash,
     },
     bundle_versions: options.bundle?.versions ?? {},
@@ -155,10 +148,7 @@ export function fingerprintPath(stateHome: string, fingerprintId: string): strin
 
 /** Content-addressed store: writing the same configuration twice is a no-op
  *  by construction (same id, same bytes). Returns the fingerprint id. */
-export async function storeFingerprint(
-  stateHome: string,
-  fingerprint: SystemFingerprint,
-): Promise<string> {
+export async function storeFingerprint(stateHome: string, fingerprint: SystemFingerprint): Promise<string> {
   const path = fingerprintPath(stateHome, fingerprint.fingerprint_id);
   if (!existsSync(path)) {
     await mkdir(fingerprintsDir(stateHome), { recursive: true });
@@ -210,7 +200,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  content, never a caller's object-literal insertion order (the injectable
  *  `env` would otherwise split one configuration into two ids). */
 function contentHash(body: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonical(body)), "utf8").digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(canonical(body)), "utf8")
+    .digest("hex");
 }
 
 function canonical(value: unknown): unknown {
@@ -228,9 +220,7 @@ function canonical(value: unknown): unknown {
 
 async function packageVersion(packageRoot: string): Promise<string | null> {
   try {
-    const parsed = JSON.parse(
-      await readFile(join(packageRoot, "package.json"), "utf8"),
-    ) as { version?: string };
+    const parsed = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")) as { version?: string };
     return parsed.version ?? null;
   } catch {
     return null;
@@ -239,7 +229,9 @@ async function packageVersion(packageRoot: string): Promise<string | null> {
 
 async function fileHash(path: string): Promise<string | null> {
   try {
-    return `sha256:${createHash("sha256").update(await readFile(path)).digest("hex")}`;
+    return `sha256:${createHash("sha256")
+      .update(await readFile(path))
+      .digest("hex")}`;
   } catch {
     return null;
   }

@@ -24,10 +24,7 @@ export interface RepositoryInspection {
  * git metadata, path inventory, and declared command names; it never reads
  * arbitrary source prose or classifies safety from keywords.
  */
-export function inspectEpisodeRepository(input: {
-  workdir: string;
-  baseRevision: BaseRevision;
-}): RepositoryInspection {
+export function inspectEpisodeRepository(input: { workdir: string; baseRevision: BaseRevision }): RepositoryInspection {
   const workdir = realpathSync(input.workdir);
   if (!statSync(workdir).isDirectory()) throw new Error(`repository inspection: ${workdir} is not a directory`);
   const snapshot = gitSnapshotOf(workdir);
@@ -38,14 +35,7 @@ export function inspectEpisodeRepository(input: {
   const trackedRaw = gitBuffer(workdir, ["ls-files", "-z"]);
   const tracked = splitNul(trackedRaw.toString("utf8")).sort();
   const statusRaw = gitBuffer(workdir, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
-  const changesRaw = gitBuffer(workdir, [
-    "diff",
-    "--name-status",
-    "-z",
-    "--no-renames",
-    input.baseRevision.ref,
-    "--",
-  ]);
+  const changesRaw = gitBuffer(workdir, ["diff", "--name-status", "-z", "--no-renames", input.baseRevision.ref, "--"]);
   const untrackedRaw = gitBuffer(workdir, ["ls-files", "--others", "--exclude-standard", "-z"]);
   const trackedChanges = parseNameStatus(changesRaw.toString("utf8"));
   const untracked = splitNul(untrackedRaw.toString("utf8"))
@@ -101,8 +91,7 @@ function inspectPackageManifest(workdir: string): JsonValue {
       ? { packageManager: value["packageManager"].slice(0, MAX_FACT_STRING) }
       : {}),
     scriptNames: scripts,
-    scriptNamesTruncated:
-      isRecord(value["scripts"]) && Object.keys(value["scripts"]).length > MAX_SCRIPT_NAMES,
+    scriptNamesTruncated: isRecord(value["scripts"]) && Object.keys(value["scripts"]).length > MAX_SCRIPT_NAMES,
   };
 }
 
@@ -166,10 +155,7 @@ function splitNul(value: string): string[] {
   return value.split("\0").filter((entry) => entry.length > 0);
 }
 
-function comparePathFact(
-  left: { status: string; path: string },
-  right: { status: string; path: string },
-): number {
+function comparePathFact(left: { status: string; path: string }, right: { status: string; path: string }): number {
   return left.path.localeCompare(right.path) || left.status.localeCompare(right.status);
 }
 

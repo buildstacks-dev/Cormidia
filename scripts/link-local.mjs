@@ -65,10 +65,7 @@ async function linkExact(source, target, kind, options = {}) {
 }
 
 async function migrateOwnedSymlink(source, target, kind, observed) {
-  const temporaryTarget = join(
-    dirname(target),
-    `.${basename(target)}.cormidia-link-${process.pid}-${randomUUID()}`,
-  );
+  const temporaryTarget = join(dirname(target), `.${basename(target)}.cormidia-link-${process.pid}-${randomUUID()}`);
 
   try {
     await symlink(source, temporaryTarget, kind);

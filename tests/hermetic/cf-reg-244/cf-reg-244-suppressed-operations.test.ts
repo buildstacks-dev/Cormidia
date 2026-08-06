@@ -24,10 +24,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { renderReviewBody, renderSuppressedOperations } from "../../../src/loop/loop.js";
 import type { ReviewVerdict } from "../../../src/loop/verdicts.js";
 import { continueAfterApproval } from "../../../src/loop/claim-recovery.js";
-import {
-  readTicketClaimState,
-  writeTicketClaimState,
-} from "../../../src/loop/rehydrate.js";
+import { readTicketClaimState, writeTicketClaimState } from "../../../src/loop/rehydrate.js";
 import type { GhIssue, GhOps } from "../../../src/loop/github.js";
 import { actionHash, ApprovalStore } from "../../../src/org/approvals.js";
 import { releaseExpiredTicketApprovalClaim } from "../../../src/org/ticket-episode-approval.js";
@@ -239,29 +236,33 @@ describe("CF-REG-244 — suppression is recorded against the ticket", () => {
 
   it("negative control: a BUDGET escalation suppresses nothing and deposits no record", async () => {
     const { home, store } = await fixture();
-    const budget = await raiseTurnBudgetEscalation(home.stateHome, {
-      app: "app",
-      role: "builder",
-      ticketRef: "#7",
-      episodeId: "ticket:app:#7",
-      runId: "run-1",
-      pipeline: "episode-plan",
-      pass: "implement",
-      stop: {
-        dimension: "equivalent_cost_usd",
-        cap: 2,
-        observed: 2,
-        costMeasurement: "measured",
-        episodeRemaining: 10,
+    const budget = await raiseTurnBudgetEscalation(
+      home.stateHome,
+      {
+        app: "app",
+        role: "builder",
+        ticketRef: "#7",
+        episodeId: "ticket:app:#7",
+        runId: "run-1",
+        pipeline: "episode-plan",
+        pass: "implement",
+        stop: {
+          dimension: "equivalent_cost_usd",
+          cap: 2,
+          observed: 2,
+          costMeasurement: "measured",
+          episodeRemaining: 10,
+        },
+        spentUsd: 2,
+        resume: resumeCostEstimate({
+          tokensIn: 100_000,
+          costUsd: 2,
+          cacheReadTokens: 50_000,
+          cacheCreationTokens: 30_000,
+        }),
       },
-      spentUsd: 2,
-      resume: resumeCostEstimate({
-        tokensIn: 100_000,
-        costUsd: 2,
-        cacheReadTokens: 50_000,
-        cacheCreationTokens: 30_000,
-      }),
-    }, new Date("2026-08-01T09:36:00.000Z"));
+      new Date("2026-08-01T09:36:00.000Z"),
+    );
     const observedAt = new Date("2026-08-02T09:36:01.000Z");
     const expired = (await store.expirePendingItem(budget.id, observedAt))!;
     await releaseExpiredTicketApprovalClaim(home.stateHome, expired, observedAt);
@@ -318,24 +319,15 @@ describe("CF-REG-244 — the turn verdict surfaces the suppression", () => {
     // an older verdict that never checked — the exact ambiguity #244 removes.
     expect(body).toContain("## Suppressed critical operations");
     expect(body).toContain("- None recorded.");
-    expect(renderSuppressedOperations([])).toEqual([
-      "## Suppressed critical operations",
-      "- None recorded.",
-    ]);
+    expect(renderSuppressedOperations([])).toEqual(["## Suppressed critical operations", "- None recorded."]);
   });
 
   it("negative control: the pre-fix verdict shape fails the detector", () => {
     // What the 2026-08-01 run published: a complete-looking verdict with no
     // statement about the Reviewer's suppressed negative control.
-    const preFix = [
-      "Verdict: approve",
-      "",
-      "Passes:",
-      "- review: approve",
-      "",
-      "## Not reviewed",
-      "- None.",
-    ].join("\n");
+    const preFix = ["Verdict: approve", "", "Passes:", "- review: approve", "", "## Not reviewed", "- None."].join(
+      "\n",
+    );
     expect(preFix).not.toContain("## Suppressed critical operations");
   });
 });

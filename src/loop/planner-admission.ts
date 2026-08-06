@@ -16,11 +16,7 @@ import {
   type RuntimeCapability,
 } from "../runtime/capabilities.js";
 import { withFileLock } from "../runtime/file-lock.js";
-import type {
-  RoleConfig,
-  TurnAssignment,
-  TurnResult,
-} from "../runtime/types.js";
+import type { RoleConfig, TurnAssignment, TurnResult } from "../runtime/types.js";
 import { runPaths } from "../runtime/runlog/paths.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import {
@@ -60,10 +56,7 @@ import {
   type EpisodePlanValidationPolicy,
   type ProviderTurnStep,
 } from "./episode-plan.js";
-import {
-  completedEpisodePlanStepIds,
-  readEpisodePlanExecutionJournal,
-} from "./episode-plan-executor.js";
+import { completedEpisodePlanStepIds, readEpisodePlanExecutionJournal } from "./episode-plan-executor.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE } from "./episode-route.js";
 
 export const PLANNER_ADMISSION_SCHEMA_VERSION = 1 as const;
@@ -245,7 +238,7 @@ export async function admitEpisodePlanner(input: {
         `episode ${input.episodeId} already has a derived route; planner boot admission must precede route admission`,
       );
     }
-    if (await readCurrentEpisodePlan(input.root, input.episodeId) !== undefined) {
+    if ((await readCurrentEpisodePlan(input.root, input.episodeId)) !== undefined) {
       throw new PlannerAdmissionError(
         "error_episode_planner_plan_already_accepted",
         `episode ${input.episodeId} already has an accepted plan`,
@@ -258,11 +251,7 @@ export async function admitEpisodePlanner(input: {
       throw new TypeError("EpisodePlanner admission intentHash must be a lowercase sha256 digest");
     }
     const assignment = fixedAssignmentFromRole(input.plannerRole);
-    const executionFacts = buildTurnExecutionFacts(
-      assignment,
-      input.plannerRole,
-      input.requiredCapabilities,
-    );
+    const executionFacts = buildTurnExecutionFacts(assignment, input.plannerRole, input.requiredCapabilities);
     const limits = validatePlannerLimits(input.limits, input.plannerRole.maxTurnBudgetUsd);
     const record: PlannerAdmissionRecord = {
       schema_version: PLANNER_ADMISSION_SCHEMA_VERSION,
@@ -492,9 +481,7 @@ export async function finalizeEpisodePlannerAttempt(input: {
       result: input.result,
       finishedAt: input.finishedAt,
       contextManifestRef: input.contextManifestRef,
-      ...(input.artifactFingerprint !== undefined
-        ? { artifactFingerprint: input.artifactFingerprint }
-        : {}),
+      ...(input.artifactFingerprint !== undefined ? { artifactFingerprint: input.artifactFingerprint } : {}),
       ...(input.toolCallCount !== undefined ? { toolCallCount: input.toolCallCount } : {}),
     });
     const status = await plannerBudgetStatusInternal(input.root, admission);
@@ -516,10 +503,7 @@ export async function finalizeEpisodePlannerAttempt(input: {
   });
 }
 
-export async function readPlannerBudgetStatus(
-  root: string,
-  episodeId: string,
-): Promise<PlannerBudgetStatus> {
+export async function readPlannerBudgetStatus(root: string, episodeId: string): Promise<PlannerBudgetStatus> {
   const admission = await requirePlannerAdmission(root, episodeId);
   return plannerBudgetStatusInternal(root, admission);
 }
@@ -547,7 +531,8 @@ export async function persistAcceptedEpisodePlannerPlan(input: {
     planHash: episodePlanHash(input.plan),
   };
   const alreadyPersisted = await readCurrentEpisodePlan(input.root, input.plan.episodeId);
-  const matchesCurrent = alreadyPersisted !== undefined &&
+  const matchesCurrent =
+    alreadyPersisted !== undefined &&
     alreadyPersisted.version === expected.version &&
     episodePlanHash(alreadyPersisted) === expected.planHash;
   if (!matchesCurrent && input.plan.version !== 1) {
@@ -584,10 +569,7 @@ export async function persistAcceptedEpisodePlannerPlan(input: {
 
   return withPlannerLock(input.root, input.plan.episodeId, async () => {
     const claim = await readPlanPublication(input.root, input.plan.episodeId);
-    if (
-      claim !== undefined &&
-      (claim.plan_version !== pointer.version || claim.plan_hash !== pointer.planHash)
-    ) {
+    if (claim !== undefined && (claim.plan_version !== pointer.version || claim.plan_hash !== pointer.planHash)) {
       throw new PlannerAdmissionError(
         "error_episode_planner_admission_conflict",
         "EpisodePlanner plan publication claim changed before acceptance",
@@ -595,11 +577,7 @@ export async function persistAcceptedEpisodePlannerPlan(input: {
     }
     await assertPlanAcceptanceReady(input.root, input.plan, input.intent, input.policy);
     const current = await readCurrentEpisodePlan(input.root, input.plan.episodeId);
-    if (
-      current === undefined ||
-      current.version !== pointer.version ||
-      episodePlanHash(current) !== pointer.planHash
-    ) {
+    if (current === undefined || current.version !== pointer.version || episodePlanHash(current) !== pointer.planHash) {
       throw new PlannerAdmissionError(
         "error_episode_planner_admission_conflict",
         "current EpisodePlanner plan changed before acceptance",
@@ -649,18 +627,18 @@ export async function admitPlannedEpisodeRoute(
     };
     assertRouteMatchesCurrentPlan(projectedInput, plan);
     const routeExists = existsSync(routeRecordPath(input.root, input.episodeId));
-    const existingRoute = routeExists
-      ? await readRouteRecord(input.root, input.episodeId)
-      : undefined;
+    const existingRoute = routeExists ? await readRouteRecord(input.root, input.episodeId) : undefined;
     const completedStepIds = await completedPlanStepSet(input.root, plan.episodeId);
-    const priorRoutePlanVersion = existingRoute === undefined
-      ? undefined
-      : existingRoute.current_plan_version ?? latestAuthorizedPlanVersion(existingRoute.authorized_passes);
-    const routePasses = existingRoute !== undefined && priorRoutePlanVersion === plan.version
-      ? existingRoute.authorized_passes.filter((pass) => pass.plan_version === plan.version)
-      : priorRoutePlanVersion !== undefined && priorRoutePlanVersion < plan.version
-        ? input.passes.filter((pass) => !completedStepIds.has(pass.plan_step_id!))
-        : input.passes;
+    const priorRoutePlanVersion =
+      existingRoute === undefined
+        ? undefined
+        : (existingRoute.current_plan_version ?? latestAuthorizedPlanVersion(existingRoute.authorized_passes));
+    const routePasses =
+      existingRoute !== undefined && priorRoutePlanVersion === plan.version
+        ? existingRoute.authorized_passes.filter((pass) => pass.plan_version === plan.version)
+        : priorRoutePlanVersion !== undefined && priorRoutePlanVersion < plan.version
+          ? input.passes.filter((pass) => !completedStepIds.has(pass.plan_step_id!))
+          : input.passes;
     const authoritativeInput: RouteAdmissionInput = {
       ...projectedInput,
       passes: routePasses,
@@ -684,11 +662,11 @@ export async function admitPlannedEpisodeRoute(
         );
       }
       const terminal = await plannerTerminalSteps(input.root, admission);
-      const accepted = await readOptionalJson(
-        plannerPlanAcceptancePath(input.root, input.episodeId),
-      );
-      const acceptedCurrent = isPlanAcceptanceRecord(accepted, input.episodeId) &&
-        accepted.plan_version === plan.version && accepted.plan_hash === planHash;
+      const accepted = await readOptionalJson(plannerPlanAcceptancePath(input.root, input.episodeId));
+      const acceptedCurrent =
+        isPlanAcceptanceRecord(accepted, input.episodeId) &&
+        accepted.plan_version === plan.version &&
+        accepted.plan_hash === planHash;
       if (!terminal.some((step) => step.status === "completed") && !acceptedCurrent) {
         throw new PlannerAdmissionError(
           "error_episode_planner_plan_missing",
@@ -711,9 +689,8 @@ export async function admitPlannedEpisodeRoute(
     if (!routeExists) {
       const steps = await readExecutionSteps(input.root, input.episodeId);
       const plannerStepIds = new Set(
-        Array.from(
-          { length: admission?.budget.max_attempts ?? 0 },
-          (_, index) => plannerAttemptExecutionStepId(index + 1),
+        Array.from({ length: admission?.budget.max_attempts ?? 0 }, (_, index) =>
+          plannerAttemptExecutionStepId(index + 1),
         ),
       );
       const foreignProvider = steps.find(
@@ -789,8 +766,7 @@ export async function assertPlannedEpisodeRevisionBudgetHeadroom(input: {
   const conflict =
     future.providerTurns > exposure.remaining.provider_turns
       ? `route has ${exposure.remaining.provider_turns} provider turn(s) remaining but revision requires ${future.providerTurns}`
-      : future.totalBudgetUsd >
-          exposure.remaining.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+      : future.totalBudgetUsd > exposure.remaining.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
         ? `route has $${exposure.remaining.equivalent_cost_usd} remaining but revision requires $${future.totalBudgetUsd}`
         : undefined;
   if (conflict !== undefined) {
@@ -814,11 +790,7 @@ async function remainingPlanBudget(
   // remaining would double-count both one provider turn and its full ceiling.
   const terminalProviderSteps = new Set<string>();
   for (const record of await readExecutionSteps(root, plan.episodeId)) {
-    if (
-      record.kind !== "provider" ||
-      record.plan_version !== plan.version ||
-      record.plan_step_id === undefined
-    ) {
+    if (record.kind !== "provider" || record.plan_version !== plan.version || record.plan_step_id === undefined) {
       continue;
     }
     if (terminalProviderSteps.has(record.plan_step_id)) {
@@ -831,9 +803,7 @@ async function remainingPlanBudget(
   }
   const remainingProvider = plan.steps.filter(
     (step): step is ProviderTurnStep =>
-      step.kind === "provider_turn" &&
-      !completed.has(step.id) &&
-      !terminalProviderSteps.has(step.id),
+      step.kind === "provider_turn" && !completed.has(step.id) && !terminalProviderSteps.has(step.id),
   );
   return {
     providerTurns: remainingProvider.length,
@@ -862,9 +832,7 @@ function assertRouteMatchesCurrentPlan(input: RouteAdmissionInput, plan: Episode
       `route ${input.route} does not match EpisodePlan v${plan.version} derived route ${plan.derivedSafetyRoute.label}`,
     );
   }
-  const providerSteps = plan.steps.filter(
-    (step): step is ProviderTurnStep => step.kind === "provider_turn",
-  );
+  const providerSteps = plan.steps.filter((step): step is ProviderTurnStep => step.kind === "provider_turn");
   if (input.passes.length !== providerSteps.length) {
     throw new PlannerAdmissionError(
       "error_episode_planner_admission_conflict",
@@ -875,14 +843,12 @@ function assertRouteMatchesCurrentPlan(input: RouteAdmissionInput, plan: Episode
     const matches = input.passes.filter((pass) => pass.plan_step_id === step.id);
     const pass = matches[0];
     if (
-      matches.length !== 1 || pass === undefined ||
+      matches.length !== 1 ||
+      pass === undefined ||
       pass.pipeline !== EPISODE_PLAN_EXECUTION_PIPELINE ||
       pass.pass !== step.id ||
       pass.role !== step.role ||
-      !turnAssignmentsEqual(
-        { harness: pass.runtime, model: pass.model, effort: pass.effort },
-        step.assignment,
-      ) ||
+      !turnAssignmentsEqual({ harness: pass.runtime, model: pass.model, effort: pass.effort }, step.assignment) ||
       pass.assignment_source !== step.assignmentSource ||
       pass.plan_version !== plan.version ||
       pass.selection_reason !== step.selectionReason
@@ -929,7 +895,9 @@ async function plannerBudgetStatusInternal(
         limitViolations.push(`attempt ${attempt} cost $${usage.costUsd} exceeds $${ceiling.equivalent_cost_usd}`);
       }
       if (usage.wallClockMs > ceiling.active_time_ms) {
-        limitViolations.push(`attempt ${attempt} active time ${usage.wallClockMs}ms exceeds ${ceiling.active_time_ms}ms`);
+        limitViolations.push(
+          `attempt ${attempt} active time ${usage.wallClockMs}ms exceeds ${ceiling.active_time_ms}ms`,
+        );
       }
       continue;
     }
@@ -946,7 +914,7 @@ async function plannerBudgetStatusInternal(
   }
   if (
     settled.equivalentCostUsd + reserved.equivalentCostUsd >
-      aggregate.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
+    aggregate.equivalent_cost_usd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD
   ) {
     limitViolations.push("aggregate equivalent-cost ceiling exceeded");
   }
@@ -958,8 +926,7 @@ async function plannerBudgetStatusInternal(
     reserved,
     remaining: {
       providerTurns: aggregate.provider_turns - settled.providerTurns - reserved.providerTurns,
-      equivalentCostUsd:
-        aggregate.equivalent_cost_usd - settled.equivalentCostUsd - reserved.equivalentCostUsd,
+      equivalentCostUsd: aggregate.equivalent_cost_usd - settled.equivalentCostUsd - reserved.equivalentCostUsd,
       activeTimeMs: aggregate.active_time_ms - settled.activeTimeMs - reserved.activeTimeMs,
     },
     terminalAttempts,
@@ -969,10 +936,7 @@ async function plannerBudgetStatusInternal(
   };
 }
 
-async function plannerTerminalSteps(
-  root: string,
-  admission: PlannerAdmissionRecord,
-): Promise<ExecutionStepRecord[]> {
+async function plannerTerminalSteps(root: string, admission: PlannerAdmissionRecord): Promise<ExecutionStepRecord[]> {
   const steps: ExecutionStepRecord[] = [];
   for (let attempt = 1; attempt <= admission.budget.max_attempts; attempt += 1) {
     const step = await readPlannerAttemptTerminal(root, admission, attempt);
@@ -998,8 +962,7 @@ async function readPlannerAttemptTerminal(
     !HASH.test(record.input_fingerprint) ||
     !validTimestamp(record.started_at) ||
     !validTimestamp(record.finished_at) ||
-    !(["completed", "failed", "blocked", "cancelled", "timed_out", "interrupted"] as const)
-      .includes(record.status) ||
+    !(["completed", "failed", "blocked", "cancelled", "timed_out", "interrupted"] as const).includes(record.status) ||
     (record.usage !== null && !isRecord(record.usage))
   ) {
     throw corruptAttempt(admission.episode_id, attempt, "terminal record is malformed");
@@ -1043,11 +1006,14 @@ function assertPlannerEvidenceIdentity(
   admission: PlannerAdmissionRecord,
   attempt: number,
 ): void {
-  const assignment = validateTurnAssignment({
-    harness: evidence.runtime,
-    model: evidence.model,
-    effort: evidence.effort,
-  }, `EpisodePlanner attempt ${attempt} persisted assignment`);
+  const assignment = validateTurnAssignment(
+    {
+      harness: evidence.runtime,
+      model: evidence.model,
+      effort: evidence.effort,
+    },
+    `EpisodePlanner attempt ${attempt} persisted assignment`,
+  );
   const expectedStepId = plannerAttemptExecutionStepId(attempt);
   const expectedTurnId = sha256(`${admission.episode_id}\0${expectedStepId}`);
   const same =
@@ -1063,18 +1029,13 @@ function assertPlannerEvidenceIdentity(
     evidence.assignment_candidate_id === CONFIGURED_ASSIGNMENT_CANDIDATE_ID &&
     evidence.selection_reason === "Fixed EpisodePlanner boot assignment" &&
     evidence.provider_family === admission.provider_family &&
-    JSON.stringify(evidence.resolved_capabilities) ===
-      JSON.stringify(admission.resolved_capabilities);
+    JSON.stringify(evidence.resolved_capabilities) === JSON.stringify(admission.resolved_capabilities);
   if (!same) {
     throw corruptAttempt(admission.episode_id, attempt, "provider identity differs from admission");
   }
 }
 
-function assertAttemptFits(
-  admission: PlannerAdmissionRecord,
-  status: PlannerBudgetStatus,
-  attempt: number,
-): void {
+function assertAttemptFits(admission: PlannerAdmissionRecord, status: PlannerBudgetStatus, attempt: number): void {
   if (status.terminalAttempts.length >= admission.budget.max_attempts) {
     throw new PlannerAdmissionError(
       "error_episode_planner_attempt_limit",
@@ -1084,8 +1045,7 @@ function assertAttemptFits(
   const ceiling = admission.budget.per_attempt;
   const fits =
     status.remaining.providerTurns >= 1 &&
-    status.remaining.equivalentCostUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD >=
-      ceiling.equivalent_cost_usd &&
+    status.remaining.equivalentCostUsd + EQUIVALENT_COST_ARITHMETIC_TOLERANCE_USD >= ceiling.equivalent_cost_usd &&
     status.remaining.activeTimeMs >= ceiling.active_time_ms;
   if (!fits) {
     throw new PlannerAdmissionError(
@@ -1133,7 +1093,7 @@ async function assertPlanAcceptanceReady(
     );
   }
   const terminal = await plannerTerminalSteps(root, admission);
-  if (!await plannerEvidenceBacksPlan(root, terminal, plan, intent, policy)) {
+  if (!(await plannerEvidenceBacksPlan(root, terminal, plan, intent, policy))) {
     throw new PlannerAdmissionError(
       "error_episode_planner_plan_missing",
       "an EpisodePlanner-authored plan requires a completed attempt or exact revalidated terminal output",
@@ -1154,11 +1114,7 @@ async function plannerEvidenceBacksPlan(
 ): Promise<boolean> {
   if (terminal.some((step) => step.status === "completed")) return true;
   for (const step of terminal) {
-    if (
-      step.status !== "failed" ||
-      step.error_code === null ||
-      !EPISODE_PLAN_REASON_CODE_SET.has(step.error_code)
-    ) {
+    if (step.status !== "failed" || step.error_code === null || !EPISODE_PLAN_REASON_CODE_SET.has(step.error_code)) {
       continue;
     }
     try {
@@ -1167,10 +1123,7 @@ async function plannerEvidenceBacksPlan(
       const materialized = materializeEpisodePlanAssignments(proposal, policy);
       const candidate: EpisodePlan = {
         ...materialized,
-        derivedSafetyRoute: deriveEpisodeSafetyRoute(
-          materialized.steps,
-          intent.requiredSafetyFacts,
-        ),
+        derivedSafetyRoute: deriveEpisodeSafetyRoute(materialized.steps, intent.requiredSafetyFacts),
       };
       assertEpisodePlanValid(candidate, intent, policy);
       if (episodePlanHash(candidate) === episodePlanHash(plan)) return true;
@@ -1199,11 +1152,7 @@ async function claimPlanPublication(
   const won = await writeLoopFileOnce(path, `${JSON.stringify(record, null, 2)}\n`);
   if (won) return record;
   const existing = await readPlanPublication(root, episodeId);
-  if (
-    existing !== undefined &&
-    existing.plan_version === pointer.version &&
-    existing.plan_hash === pointer.planHash
-  ) {
+  if (existing !== undefined && existing.plan_version === pointer.version && existing.plan_hash === pointer.planHash) {
     return existing;
   }
   throw new PlannerAdmissionError(
@@ -1212,10 +1161,7 @@ async function claimPlanPublication(
   );
 }
 
-async function readPlanPublication(
-  root: string,
-  episodeId: string,
-): Promise<PlannerPlanPublicationRecord | undefined> {
+async function readPlanPublication(root: string, episodeId: string): Promise<PlannerPlanPublicationRecord | undefined> {
   const value = await readOptionalJson(plannerPlanPublicationPath(root, episodeId));
   if (value === undefined) return undefined;
   if (
@@ -1237,11 +1183,9 @@ async function readPlanPublication(
   return value as unknown as PlannerPlanPublicationRecord;
 }
 
-function isPlanAcceptanceRecord(
-  value: unknown,
-  episodeId: string,
-): value is PlannerPlanAcceptanceRecord {
-  return isRecord(value) &&
+function isPlanAcceptanceRecord(value: unknown, episodeId: string): value is PlannerPlanAcceptanceRecord {
+  return (
+    isRecord(value) &&
     value.schema_version === PLANNER_PLAN_ACCEPTANCE_SCHEMA_VERSION &&
     value.episode_id === episodeId &&
     Number.isSafeInteger(value.plan_version) &&
@@ -1249,7 +1193,8 @@ function isPlanAcceptanceRecord(
     typeof value.plan_hash === "string" &&
     HASH.test(value.plan_hash) &&
     typeof value.accepted_at === "string" &&
-    Number.isFinite(Date.parse(value.accepted_at));
+    Number.isFinite(Date.parse(value.accepted_at))
+  );
 }
 
 async function writePlanAcceptance(
@@ -1312,11 +1257,12 @@ async function writeVersionedPlanAcceptance(
   );
 }
 
-function validatePlannerLimits(
-  value: PlannerAdmissionLimits,
-  roleMaxTurnBudgetUsd: number,
-): PlannerAdmissionLimits {
-  if (!Number.isSafeInteger(value.maxAttempts) || value.maxAttempts < 1 || value.maxAttempts > MAX_EPISODE_PLANNER_ATTEMPTS) {
+function validatePlannerLimits(value: PlannerAdmissionLimits, roleMaxTurnBudgetUsd: number): PlannerAdmissionLimits {
+  if (
+    !Number.isSafeInteger(value.maxAttempts) ||
+    value.maxAttempts < 1 ||
+    value.maxAttempts > MAX_EPISODE_PLANNER_ATTEMPTS
+  ) {
     throw new TypeError(`EpisodePlanner maxAttempts must be between 1 and ${MAX_EPISODE_PLANNER_ATTEMPTS}`);
   }
   if (!finitePositive(roleMaxTurnBudgetUsd)) {
@@ -1398,22 +1344,25 @@ function withPlannerLock<T>(root: string, episodeId: string, work: () => Promise
 function isPlannerAdmissionRecord(value: unknown): value is PlannerAdmissionRecord {
   if (!isRecord(value) || value.schema_version !== PLANNER_ADMISSION_SCHEMA_VERSION) return false;
   try {
-    if (!hasOnlyKeys(value, [
-      "schema_version",
-      "episode_id",
-      "app",
-      "policy_version",
-      "admitted_at",
-      "intent_hash",
-      "planner_role",
-      "boot_assignment",
-      "assignment_source",
-      "assignment_candidate_id",
-      "provider_family",
-      "resolved_capabilities",
-      "role_max_turn_budget_usd",
-      "budget",
-    ])) return false;
+    if (
+      !hasOnlyKeys(value, [
+        "schema_version",
+        "episode_id",
+        "app",
+        "policy_version",
+        "admitted_at",
+        "intent_hash",
+        "planner_role",
+        "boot_assignment",
+        "assignment_source",
+        "assignment_candidate_id",
+        "provider_family",
+        "resolved_capabilities",
+        "role_max_turn_budget_usd",
+        "budget",
+      ])
+    )
+      return false;
     const assignment = validateTurnAssignment(value.boot_assignment, "persisted EpisodePlanner boot assignment");
     const limits = persistedRecordLimits(value);
     validatePlannerLimits(limits, value.role_max_turn_budget_usd as number);
@@ -1421,19 +1370,22 @@ function isPlannerAdmissionRecord(value: unknown): value is PlannerAdmissionReco
       value.resolved_capabilities,
       "persisted EpisodePlanner resolved capabilities",
     );
-    return typeof value.episode_id === "string" &&
+    return (
+      typeof value.episode_id === "string" &&
       typeof value.app === "string" &&
       typeof value.policy_version === "string" &&
       typeof value.admitted_at === "string" &&
       Number.isFinite(Date.parse(value.admitted_at)) &&
-      typeof value.intent_hash === "string" && HASH.test(value.intent_hash) &&
+      typeof value.intent_hash === "string" &&
+      HASH.test(value.intent_hash) &&
       typeof value.planner_role === "string" &&
       value.assignment_source === "configured" &&
       value.assignment_candidate_id === CONFIGURED_ASSIGNMENT_CANDIDATE_ID &&
       value.provider_family === configuredProviderFamily(assignment) &&
       Array.isArray(value.resolved_capabilities) &&
       JSON.stringify(resolvedCapabilities) === JSON.stringify(resolvedRuntimeCapabilities(assignment.harness)) &&
-      turnAssignmentsEqual(assignment, value.boot_assignment as TurnAssignment);
+      turnAssignmentsEqual(assignment, value.boot_assignment as TurnAssignment)
+    );
   } catch {
     return false;
   }
@@ -1446,11 +1398,7 @@ function persistedRecordLimits(value: Record<string, unknown>): PlannerAdmission
   if (
     !hasOnlyKeys(value.budget, ["max_attempts", "per_attempt", "aggregate"]) ||
     !hasBudgetKeys(value.budget.per_attempt, ["equivalent_cost_usd", "active_time_ms"]) ||
-    !hasBudgetKeys(value.budget.aggregate, [
-      "provider_turns",
-      "equivalent_cost_usd",
-      "active_time_ms",
-    ])
+    !hasBudgetKeys(value.budget.aggregate, ["provider_turns", "equivalent_cost_usd", "active_time_ms"])
   ) {
     throw new TypeError("persisted EpisodePlanner budget has unknown fields");
   }
@@ -1525,10 +1473,7 @@ async function readOptionalJson(path: string): Promise<unknown | undefined> {
   try {
     return JSON.parse(raw) as unknown;
   } catch {
-    throw new PlannerAdmissionError(
-      "error_episode_planner_admission_corrupt",
-      `invalid JSON in ${path}`,
-    );
+    throw new PlannerAdmissionError("error_episode_planner_admission_corrupt", `invalid JSON in ${path}`);
   }
 }
 
@@ -1545,10 +1490,9 @@ function validTimestamp(value: unknown): value is string {
 }
 
 function stablePersistedText(value: unknown): value is string {
-  return typeof value === "string" &&
-    value.length > 0 &&
-    value === value.trim() &&
-    !/[\u0000-\u001f\u007f]/u.test(value);
+  return (
+    typeof value === "string" && value.length > 0 && value === value.trim() && !/[\u0000-\u001f\u007f]/u.test(value)
+  );
 }
 
 function finitePositive(value: unknown): value is number {
@@ -1584,6 +1528,7 @@ function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[])
  * was removed still parse. Nothing reads it and nothing writes it again. */
 function hasBudgetKeys(value: Record<string, unknown>, required: readonly string[]): boolean {
   const keys = Object.keys(value);
-  return required.every((key) => keys.includes(key)) &&
-    keys.every((key) => required.includes(key) || key === "input_tokens");
+  return (
+    required.every((key) => keys.includes(key)) && keys.every((key) => required.includes(key) || key === "input_tokens")
+  );
 }

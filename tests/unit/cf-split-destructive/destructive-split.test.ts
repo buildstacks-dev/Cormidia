@@ -127,7 +127,12 @@ describe("CF-SPLIT-DESTRUCTIVE — local destruction and the raw-API default kee
 
   it("seeded direction guard: no split class decides looser than the pre-split grantable bucket except the ratified owned-namespace case", () => {
     const strictness = { routine: 0, budgeted: 1, grantable: 2, "human-only": 3, "un-grantable": 4 } as const;
-    for (const rule of ["destructive-remote-data", "history-rewrite-foreign", "destructive-local", "gh-api-unrecognized"]) {
+    for (const rule of [
+      "destructive-remote-data",
+      "history-rewrite-foreign",
+      "destructive-local",
+      "gh-api-unrecognized",
+    ]) {
       expect(strictness[dispositionTierForRule(rule)], rule).toBeGreaterThanOrEqual(strictness.grantable);
     }
     // The one ratified loosening, named exactly: owned-namespace force-push.

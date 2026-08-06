@@ -37,11 +37,7 @@ import { readEvalResult } from "./eval-result.js";
 import { readExperimentRecord } from "./experiment.js";
 import { readEpisodeRecords } from "./episode.js";
 import { listInFlightOkfJournals } from "./publisher.js";
-import {
-  readInterventionRecord,
-  writeInterventionRecord,
-  type InterventionRecord,
-} from "./intervention.js";
+import { readInterventionRecord, writeInterventionRecord, type InterventionRecord } from "./intervention.js";
 import type { LearningPolicy, TierCanaryPolicy } from "./policy.js";
 
 export type BundleLineage = "stable" | "canary";
@@ -104,9 +100,7 @@ export async function readCanaryAssignment(
   try {
     return JSON.parse(await readFile(path, "utf8")) as CanaryAssignmentRecord;
   } catch (error) {
-    throw new Error(
-      `learning: ${path}: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new Error(`learning: ${path}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -144,23 +138,17 @@ export async function settleCanaryAssignmentRoot(
     ...existing,
     roots: { ...existing.roots, ...(assignment !== undefined ? { [kind]: assignment } : {}) },
     ...(undecided.length > 0 ? { undecided } : {}),
-    lineage:
-      assignment?.lineage === "canary" ? "canary" : existing.lineage,
+    lineage: assignment?.lineage === "canary" ? "canary" : existing.lineage,
   };
   if (undecided.length === 0) delete (next as { undecided?: CanaryRootKind[] }).undecided;
-  await writeFileAtomic(
-    canaryAssignmentPath(stateHome, episodeId),
-    JSON.stringify(next, null, 2) + "\n",
-  );
+  await writeFileAtomic(canaryAssignmentPath(stateHome, episodeId), JSON.stringify(next, null, 2) + "\n");
   return next;
 }
 
 /** Every assignment record, sorted by file name. One torn record degrades
  *  with a loud stderr line (skip-warn) — status and reports must not die on
  *  a single crashed write. */
-export async function listCanaryAssignments(
-  stateHome: string,
-): Promise<CanaryAssignmentRecord[]> {
+export async function listCanaryAssignments(stateHome: string): Promise<CanaryAssignmentRecord[]> {
   const dir = canaryAssignmentsDir(stateHome);
   if (!existsSync(dir)) return [];
   const files = (await readdir(dir)).filter((name) => name.endsWith(".json")).sort();
@@ -170,8 +158,7 @@ export async function listCanaryAssignments(
       records.push(JSON.parse(await readFile(join(dir, name), "utf8")) as CanaryAssignmentRecord);
     } catch (error) {
       process.stderr.write(
-        `learning: skipping ${join(dir, name)} — ` +
-          `${error instanceof Error ? error.message : String(error)}\n`,
+        `learning: skipping ${join(dir, name)} — ` + `${error instanceof Error ? error.message : String(error)}\n`,
       );
     }
   }
@@ -308,8 +295,7 @@ export async function startCanary(options: StartCanaryOptions): Promise<StartedC
   }
   if (tierPolicy.canary === null) {
     throw new Error(
-      `learning: tier ${tier} declares no canary policy — a tier without one has no ` +
-        `canary path (fail closed)`,
+      `learning: tier ${tier} declares no canary policy — a tier without one has no ` + `canary path (fail closed)`,
     );
   }
   if (tierPolicy.canary.requires_replay_pass) {
@@ -409,20 +395,12 @@ export async function promoteCanary(options: CloseCanaryOptions): Promise<Canary
 
 /** Stop = the trial failed or is abandoned: deprecate its concepts, cut the
  *  stop version, and mark the intervention rolled back. */
-export async function stopCanary(
-  options: CloseCanaryOptions & { reason: string },
-): Promise<CanaryCloseResult> {
+export async function stopCanary(options: CloseCanaryOptions & { reason: string }): Promise<CanaryCloseResult> {
   const root = resolveRoot(options.root, options);
-  const result = await stopCanaryOnManifest(
-    root,
-    options.now !== undefined ? { now: options.now } : {},
-  );
+  const result = await stopCanaryOnManifest(root, options.now !== undefined ? { now: options.now } : {});
   const now = options.now ?? new Date();
   try {
-    const intervention = await readInterventionRecord(
-      options.orgHome,
-      result.meta.intervention_ref,
-    );
+    const intervention = await readInterventionRecord(options.orgHome, result.meta.intervention_ref);
     const next: InterventionRecord = {
       ...intervention,
       status: "rolled_back",
@@ -444,10 +422,7 @@ export async function stopCanary(
 // helpers
 // ---------------------------------------------------------------------------
 
-function resolveRoot(
-  kind: CanaryRootKind,
-  options: { orgHome: string; appWorkdir?: string },
-): LearningRoot {
+function resolveRoot(kind: CanaryRootKind, options: { orgHome: string; appWorkdir?: string }): LearningRoot {
   if (kind === "org") return orgLearningRoot(options.orgHome);
   if (options.appWorkdir === undefined) {
     throw new Error("learning: an app-root canary needs the app checkout (--app)");
@@ -455,24 +430,15 @@ function resolveRoot(
   return appLearningRoot(options.appWorkdir);
 }
 
-function parseBundleRef(
-  ref: string,
-  interventionId: string,
-): { rootKind: CanaryRootKind; version: string } {
+function parseBundleRef(ref: string, interventionId: string): { rootKind: CanaryRootKind; version: string } {
   const match = /^(org|app)@(.+)$/.exec(ref);
   if (match === null || match[2] === "unversioned") {
-    throw new Error(
-      `learning: ${interventionId} publish ref "${ref}" is not a versioned bundle ref`,
-    );
+    throw new Error(`learning: ${interventionId} publish ref "${ref}" is not a versioned bundle ref`);
   }
   return { rootKind: match[1] as CanaryRootKind, version: match[2]! };
 }
 
-async function requireReplayPass(
-  orgHome: string,
-  intervention: InterventionRecord,
-  tier: string,
-): Promise<void> {
+async function requireReplayPass(orgHome: string, intervention: InterventionRecord, tier: string): Promise<void> {
   const refuse = (detail: string): never => {
     throw new Error(
       `learning: tier ${tier} requires a passed replay before live canary ` +
@@ -489,8 +455,7 @@ async function requireReplayPass(
   const result = await readEvalResult(orgHome, experiment.result!);
   if (result.layer !== "replay" || result.verdict !== "improved") {
     refuse(
-      `${result.eval_id} is a ${result.layer}-layer "${result.verdict}" — ` +
-        `an improved replay verdict is the gate`,
+      `${result.eval_id} is a ${result.layer}-layer "${result.verdict}" — ` + `an improved replay verdict is the gate`,
     );
   }
 }

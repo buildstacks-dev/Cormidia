@@ -2,10 +2,7 @@ import type { AppEntry } from "./apps.js";
 import { resolveAppWorkdir } from "./app-workdir.js";
 import { STATE_LABELS } from "../loop/plan-tickets.js";
 import type { DueEvent, GitHubIssueSummary } from "./events.js";
-import {
-  prepareDistillation,
-  prepareLearningReview,
-} from "./learning/distillation.js";
+import { prepareDistillation, prepareLearningReview } from "./learning/distillation.js";
 import { loadLearningPolicy } from "./learning/policy.js";
 import { readPlannerFeeds } from "./standing-roles.js";
 
@@ -55,7 +52,9 @@ export async function scheduledRoleEligibility(input: {
     }
     // The matching event is already its own due turn. Name it in diagnostics,
     // but do not dispatch a second scheduled run for the same input.
-    const pendingEvents = input.polledEvents.filter((event) => event.kind === "health-alert" || event.kind === "ci-failed");
+    const pendingEvents = input.polledEvents.filter(
+      (event) => event.kind === "health-alert" || event.kind === "ci-failed",
+    );
     if (pendingEvents.length > 0) checked.push(`event_turns_routed_separately:${pendingEvents.length}`);
     return result(actionable, checked, input.app.release === undefined ? "missing" : "declared");
   }
@@ -93,8 +92,9 @@ export async function scheduledRoleEligibility(input: {
         actionable.push(`untriaged_issue:${issue.number}`);
       }
     }
-    const pendingFeeds = (await readPlannerFeeds(input.stateHome, input.app.name))
-      .filter((feed) => feed.status === "pending");
+    const pendingFeeds = (await readPlannerFeeds(input.stateHome, input.app.name)).filter(
+      (feed) => feed.status === "pending",
+    );
     actionable.push(...pendingFeeds.map((feed) => `planner_feed:${feed.feed_id}`));
     return result(
       actionable,
@@ -116,24 +116,25 @@ export async function scheduledRoleEligibility(input: {
         runtimeHome: input.stateHome,
       });
       const policy = await loadLearningPolicy(input.orgHome);
-      const prepared = input.role === "distiller"
-        ? await prepareDistillation({
-            orgHome: input.orgHome,
-            stateHome: input.stateHome,
-            app: input.app.name,
-            appWorkdir,
-            appStages: input.appStages,
-            policy,
-            now: input.now,
-          })
-        : await prepareLearningReview({
-            orgHome: input.orgHome,
-            stateHome: input.stateHome,
-            app: input.app.name,
-            appWorkdir,
-            policy,
-            now: input.now,
-          });
+      const prepared =
+        input.role === "distiller"
+          ? await prepareDistillation({
+              orgHome: input.orgHome,
+              stateHome: input.stateHome,
+              app: input.app.name,
+              appWorkdir,
+              appStages: input.appStages,
+              policy,
+              now: input.now,
+            })
+          : await prepareLearningReview({
+              orgHome: input.orgHome,
+              stateHome: input.stateHome,
+              app: input.app.name,
+              appWorkdir,
+              policy,
+              now: input.now,
+            });
       if (prepared.status === "ready") actionable.push(`learning_${input.role}_window_ready`);
       else checked.push(`learning_preflight:${prepared.status}:${prepared.reason ?? "no_reason"}`);
       return result(actionable, checked, "declared");

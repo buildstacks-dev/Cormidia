@@ -13,16 +13,19 @@ import {
 class IntakeGithub {
   readonly queries: ListIssueOptions[] = [];
   readonly issues: GhIssue[];
-  constructor(issues: GhIssue[], readonly failure?: Error) {
+  constructor(
+    issues: GhIssue[],
+    readonly failure?: Error,
+  ) {
     this.issues = issues.map((issue) => ({ ...issue, labels: [...issue.labels] }));
   }
   async listIssues(options: ListIssueOptions = {}): Promise<GhIssue[]> {
     this.queries.push(structuredClone(options));
     if (this.failure !== undefined) throw this.failure;
     const labels = options.labels ?? [];
-    return this.issues.filter((issue) =>
-      issue.state === "OPEN" && labels.every((label) => issue.labels.includes(label)),
-    ).map((issue) => ({ ...issue, labels: [...issue.labels] }));
+    return this.issues
+      .filter((issue) => issue.state === "OPEN" && labels.every((label) => issue.labels.includes(label)))
+      .map((issue) => ({ ...issue, labels: [...issue.labels] }));
   }
   async readIssue(number: number): Promise<GhIssue> {
     const issue = this.issues.find((candidate) => candidate.number === number);
@@ -52,10 +55,7 @@ function issue(number: number, labels: string[] = [], body = completeBody): GhIs
 
 describe("CF-REG-230 — Planner intake and readiness application", () => {
   it("shows untriaged issues to Planner while Builder's ready-only query sees none", async () => {
-    const gh = new IntakeGithub([
-      issue(1, ["p2", "op:tier-quick"]),
-      issue(2, ["p3", "op:tier-standard"]),
-    ]);
+    const gh = new IntakeGithub([issue(1, ["p2", "op:tier-quick"]), issue(2, ["p3", "op:tier-standard"])]);
 
     const planner = await preparePlannerIssueIntake({
       gh: gh as unknown as GhOps,
@@ -154,26 +154,36 @@ describe("CF-REG-230 — Planner intake and readiness application", () => {
   it("parses the content-bound readiness block and rejects omitted decisions", async () => {
     const gh = new IntakeGithub([issue(1, ["p2", "op:tier-quick"])]);
     const intake = await preparePlannerIssueIntake({ gh: gh as unknown as GhOps, app: "demo", turnId: "turn-parse" });
-    const decisions = parsePlannerReadinessDecisions([
-      "## Readiness decisions",
-      "<!-- cormidia:planner-readiness-v1 -->",
-      "```json",
-      JSON.stringify({ schema_version: 1, decisions: [{ issue_number: 1, disposition: "ready", reason_code: "routine_ready", reason: "Complete." }] }),
-      "```",
-    ].join("\n"));
+    const decisions = parsePlannerReadinessDecisions(
+      [
+        "## Readiness decisions",
+        "<!-- cormidia:planner-readiness-v1 -->",
+        "```json",
+        JSON.stringify({
+          schema_version: 1,
+          decisions: [{ issue_number: 1, disposition: "ready", reason_code: "routine_ready", reason: "Complete." }],
+        }),
+        "```",
+      ].join("\n"),
+    );
     expect(decisions).toHaveLength(1);
-    await expect(applyPlannerReadinessDecisions({
-      gh: gh as unknown as GhOps,
-      intake,
-      decisions: [],
-    })).rejects.toThrow("Planner omitted readiness decision for #1");
+    await expect(
+      applyPlannerReadinessDecisions({
+        gh: gh as unknown as GhOps,
+        intake,
+        decisions: [],
+      }),
+    ).rejects.toThrow("Planner omitted readiness decision for #1");
   });
 
   it("uses the observed GitHub label on the next intake after interruption without applying twice", async () => {
     const gh = new IntakeGithub([issue(1, ["p2", "op:tier-quick"])]);
     let addCalls = 0;
     const originalAdd = gh.addLabel.bind(gh);
-    gh.addLabel = async (number, label) => { addCalls += 1; await originalAdd(number, label); };
+    gh.addLabel = async (number, label) => {
+      addCalls += 1;
+      await originalAdd(number, label);
+    };
     const intake = await preparePlannerIssueIntake({ gh: gh as unknown as GhOps, app: "demo", turnId: "turn-crash" });
     const decision: PlannerReadinessDecision = {
       issue_number: 1,
@@ -181,12 +191,16 @@ describe("CF-REG-230 — Planner intake and readiness application", () => {
       reason_code: "routine_ready",
       reason: "Complete.",
     };
-    await expect(applyPlannerReadinessDecisions({
-      gh: gh as unknown as GhOps,
-      intake,
-      decisions: [decision],
-      fault: (boundary) => { if (boundary === "after_remote") throw new Error("simulated crash"); },
-    })).rejects.toThrow("simulated crash");
+    await expect(
+      applyPlannerReadinessDecisions({
+        gh: gh as unknown as GhOps,
+        intake,
+        decisions: [decision],
+        fault: (boundary) => {
+          if (boundary === "after_remote") throw new Error("simulated crash");
+        },
+      }),
+    ).rejects.toThrow("simulated crash");
     expect((await gh.readIssue(1)).labels).toContain("op:ready");
 
     const nextIntake = await preparePlannerIssueIntake({

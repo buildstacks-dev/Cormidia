@@ -13,10 +13,7 @@ import type { ContextBundle, RoleConfig, Runtime, TurnHooks } from "../runtime/t
 import type { TriggerKind } from "../runtime/telemetry.js";
 import type { GateResultEntry } from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
-import {
-  preflightGitWorktreeIndex,
-  type GitIndexPreflightResult,
-} from "../runtime/git-worktree-sandbox.js";
+import { preflightGitWorktreeIndex, type GitIndexPreflightResult } from "../runtime/git-worktree-sandbox.js";
 import { assembleBrief, type SpecDoc } from "./brief.js";
 import { stableHash } from "./episode-plan.js";
 import type { BaseRevision } from "./default-branch.js";
@@ -152,9 +149,7 @@ export async function readAutonomousClaimIssue(
   const exclusion = autonomousExecutionExclusionLabel(observed.labels);
   if (exclusion !== undefined) {
     throw new AutonomousRoutingExclusionError(
-      exclusion === AUTONOMOUS_EXECUTION_EXCLUSION_LABEL
-        ? "autonomous_routing_human_only"
-        : "autonomous_manual_review",
+      exclusion === AUTONOMOUS_EXECUTION_EXCLUSION_LABEL ? "autonomous_routing_human_only" : "autonomous_manual_review",
       issue.number,
       exclusion === MANUAL_REVIEW_EXCLUSION_LABEL
         ? `carries ${exclusion}; only a human may remove this review hold`
@@ -164,11 +159,7 @@ export async function readAutonomousClaimIssue(
   return observed;
 }
 
-function requireLoopPhase(
-  operation: string,
-  item: Pick<LoopItem, "phase">,
-  expected: readonly LoopPhase[],
-): void {
+function requireLoopPhase(operation: string, item: Pick<LoopItem, "phase">, expected: readonly LoopPhase[]): void {
   if (!expected.includes(item.phase)) {
     throw new LoopPhaseTransitionError(operation, item.phase, expected);
   }
@@ -189,10 +180,7 @@ export interface GatePhaseOptions {
   headRef?: string;
   reviewState?: ReviewFreshnessState;
   /** Test/M5 harness hook: performs the bounded fix pass before gates retry. */
-  remediate?: (
-    item: LoopItem,
-    result: GateRunResult,
-  ) => LoopItem | void | Promise<LoopItem | void>;
+  remediate?: (item: LoopItem, result: GateRunResult) => LoopItem | void | Promise<LoopItem | void>;
   prDraft?: boolean;
   /** When present, the gate phase gets its own run record: `gate.started/
    *  passed/failed` + `ticket.transition` events and `envelope.gate_results`
@@ -311,17 +299,12 @@ async function blockedOnApproval(
   stopped: string,
 ): Promise<LoopItem | undefined> {
   const last = result.passes.at(-1);
-  if (
-    last?.result.status !== "blocked_on_gate" ||
-    last.result.errorCode?.startsWith("error_route_budget_") === true
-  ) {
+  if (last?.result.status !== "blocked_on_gate" || last.result.errorCode?.startsWith("error_route_budget_") === true) {
     return undefined;
   }
   const completedPasses = [
     ...(options.continuation?.completedPasses ?? []),
-    ...result.passes
-      .filter((record) => record.result.status === "completed")
-      .map((record) => record.pass.id),
+    ...result.passes.filter((record) => record.result.status === "completed").map((record) => record.pass.id),
   ].filter((pass, index, all) => all.indexOf(pass) === index);
   const continuation: NonNullable<LoopItem["continuation"]> = {
     pipeline: pipelineName,
@@ -397,10 +380,7 @@ export function branchNameForDeliveryUnit(
   return `op/unit-${slugify(unit.unitId)}-${unit.membershipHash.slice(0, 12)}`;
 }
 
-export async function claimTicket(
-  issue: GhIssue,
-  options: ClaimTicketOptions,
-): Promise<LoopItem> {
+export async function claimTicket(issue: GhIssue, options: ClaimTicketOptions): Promise<LoopItem> {
   return claimDeliveryUnitIssues([issue], {
     ...options,
     unit: {
@@ -433,17 +413,13 @@ export async function claimDeliveryUnitIssues(
     const current = await readAutonomousClaimIssue(supplied.get(number)!, options.gh);
     const authority = options.unit.members.find((member) => member.issueNumber === number)!;
     if (issueContentHash(current) !== authority.contentHash) {
-      throw new Error(
-        `delivery unit ${options.unit.unitId} member #${number} changed after admission`,
-      );
+      throw new Error(`delivery unit ${options.unit.unitId} member #${number} changed after admission`);
     }
     const states = current.labels.filter((label) => (STATE_LABELS as readonly string[]).includes(label));
     if (states.length !== 1 || states[0] !== "op:ready") {
-      throw new LoopPhaseTransitionError(
-        `claimDeliveryUnit(${options.unit.unitId})`,
-        phaseFromLabels(current.labels),
-        ["ready"],
-      );
+      throw new LoopPhaseTransitionError(`claimDeliveryUnit(${options.unit.unitId})`, phaseFromLabels(current.labels), [
+        "ready",
+      ]);
     }
     observed.push(current);
   }
@@ -510,12 +486,7 @@ function issueMember(issue: GhIssue): LoopDeliveryUnit["members"][number] {
   };
 }
 
-export async function swapDeliveryUnitLabel(
-  item: LoopItem,
-  gh: GhOps,
-  from: string,
-  to: string,
-): Promise<void> {
+export async function swapDeliveryUnitLabel(item: LoopItem, gh: GhOps, from: string, to: string): Promise<void> {
   const transitioned: number[] = [];
   try {
     for (const issueNumber of deliveryUnitIssueNumbers(item)) {
@@ -539,12 +510,7 @@ export async function swapDeliveryUnitLabel(
   }
 }
 
-async function rollbackLabels(
-  gh: GhOps,
-  issueNumbers: readonly number[],
-  from: string,
-  to: string,
-): Promise<string[]> {
+async function rollbackLabels(gh: GhOps, issueNumbers: readonly number[], from: string, to: string): Promise<string[]> {
   const failures: string[] = [];
   for (const issueNumber of [...issueNumbers].reverse()) {
     try {
@@ -560,10 +526,7 @@ export function deliveryUnitIssueNumbers(item: LoopItem): number[] {
   return item.deliveryUnit?.members.map((member) => member.issueNumber) ?? [item.issueNumber];
 }
 
-export async function advanceGates(
-  item: LoopItem,
-  options: GatePhaseOptions,
-): Promise<LoopItem> {
+export async function advanceGates(item: LoopItem, options: GatePhaseOptions): Promise<LoopItem> {
   requireLoopPhase("advanceGates", item, ["building", "gates"]);
   const worktree = requireField(item, "worktree");
   const branch = requireField(item, "branch");
@@ -575,7 +538,8 @@ export async function advanceGates(
   let previousFailureIdentity: string | undefined;
 
   while (true) {
-    if (rec !== undefined) await rec.events.append({ type: "gate.started", detail: { attempt: current.remediationAttempts } });
+    if (rec !== undefined)
+      await rec.events.append({ type: "gate.started", detail: { attempt: current.remediationAttempts } });
     const result = await runGateSet(current, options, previousFailureIdentity);
     previousFailureIdentity = result.remediation.failureIdentity;
     gateResults.push(result);
@@ -588,12 +552,7 @@ export async function advanceGates(
         head: headSha(worktree),
       });
       await journalBoundary(options.journal, "gates", result);
-      const pr = await ensurePr(
-        { ...current, gateResults },
-        options.gh,
-        options.prDraft === true,
-        options.base,
-      );
+      const pr = await ensurePr({ ...current, gateResults }, options.gh, options.prDraft === true, options.base);
       await journalBoundary(options.journal, "pr", {
         number: pr.number,
         head: headSha(worktree),
@@ -688,37 +647,26 @@ export interface ProvisionSetupOptions {
  *  to today. A setup FAILURE is surfaced loudly, mirroring `advanceGates`: a
  *  blocked-with-evidence comment plus an `op:returned` transition, and no
  *  implement pass runs. It is never a silent proceed into a doomed baseline. */
-export async function advanceProvisionSetup(
-  item: LoopItem,
-  options: ProvisionSetupOptions,
-): Promise<LoopItem> {
+export async function advanceProvisionSetup(item: LoopItem, options: ProvisionSetupOptions): Promise<LoopItem> {
   const worktree = requireField(item, "worktree");
-  const indexPreflight =
-    (options.indexPreflight ?? preflightGitWorktreeIndex)(worktree);
+  const indexPreflight = (options.indexPreflight ?? preflightGitWorktreeIndex)(worktree);
   if (indexPreflight.status === "fail") {
     const fromLabel = stateLabelForPhase(item.phase);
     const rec =
-      options.runlog !== undefined
-        ? await openPhaseRun(options.runlog, "provision", "git-index-preflight")
-        : undefined;
+      options.runlog !== undefined ? await openPhaseRun(options.runlog, "provision", "git-index-preflight") : undefined;
     await rec?.events.append({
       type: "gate.failed",
       severity: "error",
       detail: {
         gate: "git-index-preflight",
-        ...(indexPreflight.errorCode === undefined
-          ? {}
-          : { errorCode: indexPreflight.errorCode }),
+        ...(indexPreflight.errorCode === undefined ? {} : { errorCode: indexPreflight.errorCode }),
         detail: indexPreflight.detail,
         worktree,
         ...(indexPreflight.gitDir === undefined ? {} : { gitDir: indexPreflight.gitDir }),
         ...(indexPreflight.indexPath === undefined ? {} : { indexPath: indexPreflight.indexPath }),
       },
     });
-    await options.gh.commentIssue(
-      item.issueNumber,
-      provisionGitIndexFailedComment(worktree, indexPreflight),
-    );
+    await options.gh.commentIssue(item.issueNumber, provisionGitIndexFailedComment(worktree, indexPreflight));
     await swapDeliveryUnitLabel(item, options.gh, fromLabel, "op:returned");
     await rec?.transition(fromLabel, "op:returned");
     await rec?.finalize("blocked");
@@ -731,8 +679,7 @@ export async function advanceProvisionSetup(
   const setupResult = await runSetupGate(worktree, options.commands, options.process);
   if (setupResult === undefined) return item;
 
-  const rec =
-    options.runlog !== undefined ? await openPhaseRun(options.runlog, "provision", "setup") : undefined;
+  const rec = options.runlog !== undefined ? await openPhaseRun(options.runlog, "provision", "setup") : undefined;
   if (rec !== undefined) {
     await rec.events.append({ type: "gate.started", detail: { gate: "setup", provision: true } });
     if (setupResult.status === "fail") {
@@ -772,10 +719,7 @@ export async function advanceProvisionSetup(
   };
 }
 
-function provisionGitIndexFailedComment(
-  worktree: string,
-  result: GitIndexPreflightResult,
-): string {
+function provisionGitIndexFailedComment(worktree: string, result: GitIndexPreflightResult): string {
   return [
     "## Blocked with evidence — Git index is unwritable at worktree provision",
     "",
@@ -886,10 +830,7 @@ function toGateResultEntry(gate: GateResult): GateResultEntry {
   return { gate: gate.gate, status, detail: scrubSecrets(parts.join("\n")) };
 }
 
-export async function advanceReviewing(
-  item: LoopItem,
-  options: ReviewPhaseOptions,
-): Promise<LoopItem> {
+export async function advanceReviewing(item: LoopItem, options: ReviewPhaseOptions): Promise<LoopItem> {
   requireLoopPhase("advanceReviewing", item, ["reviewing"]);
   const prNumber = requireField(item, "prNumber");
   const reviews = await options.gh.listReviews(prNumber);
@@ -910,10 +851,7 @@ export async function advanceReviewing(
     const findings = parsed.ok ? parsed.verdict.findings : [unstructuredReviewFinding(latest.body)];
     const cycles = item.cycles + 1;
     if (cycles > (options.maxCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
-      await options.gh.commentIssue(
-        item.issueNumber,
-        returnedFindingsComment(cycles, findings),
-      );
+      await options.gh.commentIssue(item.issueNumber, returnedFindingsComment(cycles, findings));
       await swapDeliveryUnitLabel(item, options.gh, "op:in-review", "op:returned");
       return {
         ...item,
@@ -971,11 +909,7 @@ export async function advanceReviewing(
  *  bounding discipline advanceReviewing's CHANGES_REQUESTED path and
  *  advanceGates already use). The freshness property is untouched — a stale
  *  approval still never merges; it just stops spinning. */
-async function stalledReviewing(
-  item: LoopItem,
-  options: ReviewPhaseOptions,
-  reason: string,
-): Promise<LoopItem> {
+async function stalledReviewing(item: LoopItem, options: ReviewPhaseOptions, reason: string): Promise<LoopItem> {
   const cycles = item.cycles + 1;
   if (cycles > (options.maxCycles ?? DEFAULT_MAX_REVIEW_CYCLES)) {
     await options.gh.commentIssue(item.issueNumber, reviewStalledComment(cycles, reason));
@@ -990,10 +924,7 @@ async function stalledReviewing(
   return { ...item, cycles };
 }
 
-export async function runBuilderPipeline(
-  item: LoopItem,
-  options: BuilderPipelineOptions,
-): Promise<LoopItem> {
+export async function runBuilderPipeline(item: LoopItem, options: BuilderPipelineOptions): Promise<LoopItem> {
   const worktree = requireField(item, "worktree");
   const pipelineName = options.pipelineName ?? "build";
   const pipeline = getPipeline(options.pipelines, pipelineName);
@@ -1080,11 +1011,7 @@ export async function runBuilderPipeline(
     if (options.gateResult === undefined) {
       const last = result.passes[result.passes.length - 1]?.result;
       const stopKind = journalStopKind(last?.errorCode, last?.status);
-      await journalStop(
-        journal,
-        stopKind,
-        last?.summary ?? `${pipelineName} pipeline aborted`,
-      );
+      await journalStop(journal, stopKind, last?.summary ?? `${pipelineName} pipeline aborted`);
       const work = durableWorkSummary(worktree, item.branch, options.base);
       const stopped =
         `## Turn stopped before completion\n\n` +
@@ -1131,10 +1058,7 @@ export async function runBuilderPipeline(
   // findings ledger survives the pass (verdicts otherwise live only in the
   // run log) and every later review round sees fixed/rebutted vs still open.
   if (pipelineName === "fix" && buildVerdict?.resolutions !== undefined) {
-    await options.gh.commentIssue(
-      item.issueNumber,
-      renderFixResolutionsComment(buildVerdict.resolutions),
-    );
+    await options.gh.commentIssue(item.issueNumber, renderFixResolutionsComment(buildVerdict.resolutions));
   }
 
   if (buildVerdict?.status === "blocked") {
@@ -1156,10 +1080,7 @@ export async function runBuilderPipeline(
   };
 }
 
-export async function runReviewPipeline(
-  item: LoopItem,
-  options: LoopPipelineOptions,
-): Promise<LoopItem> {
+export async function runReviewPipeline(item: LoopItem, options: LoopPipelineOptions): Promise<LoopItem> {
   const prNumber = requireField(item, "prNumber");
   const pipeline = getPipeline(options.pipelines, "review");
   const verdicts: { pass: string; verdict: ReviewVerdict }[] = [];
@@ -1276,10 +1197,7 @@ export async function runReviewPipeline(
   });
 }
 
-export async function runShipCheckPipeline(
-  item: LoopItem,
-  options: LoopPipelineOptions,
-): Promise<LoopItem> {
+export async function runShipCheckPipeline(item: LoopItem, options: LoopPipelineOptions): Promise<LoopItem> {
   const pipeline = getPipeline(options.pipelines, "ship");
   const verdicts: { pass: string; verdict: ReviewVerdict }[] = [];
   const journal = journalFromPipelineOptions(options);
@@ -1384,10 +1302,7 @@ export async function runShipCheckPipeline(
   };
 }
 
-export async function advanceShipping(
-  item: LoopItem,
-  options: ShippingPhaseOptions,
-): Promise<LoopItem> {
+export async function advanceShipping(item: LoopItem, options: ShippingPhaseOptions): Promise<LoopItem> {
   requireLoopPhase("advanceShipping", item, ["shipping"]);
   const branch = requireField(item, "branch");
   const worktree = requireField(item, "worktree");
@@ -1460,7 +1375,9 @@ export async function advanceShipping(
   try {
     mergedPullRequest = await options.gh.squashMerge(prNumber, {
       subject: squashSubject(item),
-      body: deliveryUnitIssueNumbers(item).map((number) => `Closes #${number}`).join("\n"),
+      body: deliveryUnitIssueNumbers(item)
+        .map((number) => `Closes #${number}`)
+        .join("\n"),
       ...(item.approvedCommitId !== undefined ? { matchHeadCommit: item.approvedCommitId } : {}),
     });
     await journalBoundary(options.journal, "merge", {
@@ -1487,10 +1404,12 @@ export async function advanceShipping(
   // Render done-ness: the merged ticket's acceptance boxes end checked, and
   // the orchestrator is the only party the design allows to write them
   // (criteria are never Builder-edited; publication renders them unchecked).
-  for (const member of item.deliveryUnit?.members ?? [{
-    issueNumber: item.issueNumber,
-    body: item.body,
-  }]) {
+  for (const member of item.deliveryUnit?.members ?? [
+    {
+      issueNumber: item.issueNumber,
+      body: item.body,
+    },
+  ]) {
     const checkedBody = checkAcceptanceBoxes(member.body);
     if (checkedBody !== member.body) {
       await options.gh.updateIssueBody(member.issueNumber, checkedBody);
@@ -1532,9 +1451,7 @@ export async function advanceShipping(
     kind: releaseTrigger?.kind ?? "merge-only",
     owner: releaseTrigger?.owner ?? null,
     commandHash:
-      releaseTrigger === undefined
-        ? null
-        : createHash("sha256").update(releaseTrigger.command).digest("hex"),
+      releaseTrigger === undefined ? null : createHash("sha256").update(releaseTrigger.command).digest("hex"),
   });
 
   return {
@@ -1562,9 +1479,12 @@ export async function recoverAlreadyMergedTicket(
     // Remote deletion is idempotent: an already-absent branch is success. A
     // transport/auth failure remains loud rather than being misreported as a
     // completed cleanup.
-    if (!/not found|does not exist|no matching ref|reference does not exist/i.test(
-      error instanceof Error ? error.message : String(error),
-    )) throw error;
+    if (
+      !/not found|does not exist|no matching ref|reference does not exist/i.test(
+        error instanceof Error ? error.message : String(error),
+      )
+    )
+      throw error;
   }
   for (const issueNumber of deliveryUnitIssueNumbers(item)) {
     const issue = await options.gh.readIssue(issueNumber);
@@ -1580,9 +1500,7 @@ export async function recoverAlreadyMergedTicket(
   const requiredKind = parseReleaseKind(item.body);
   const mergedPullRequest = await options.gh.readPR(requireField(item, "prNumber"));
   const releaseCommand =
-    requiredKind !== undefined &&
-    requiredKind !== "merge-only" &&
-    options.release?.kind === requiredKind
+    requiredKind !== undefined && requiredKind !== "merge-only" && options.release?.kind === requiredKind
       ? resolveReleaseCommand(options.release, item.body)
       : undefined;
   const releaseTrigger =
@@ -1725,11 +1643,7 @@ interface BuildBriefState {
   gateResult?: GateRunResult;
 }
 
-function buildBrief(
-  item: LoopItem,
-  options: BuilderPipelineOptions,
-  state: BuildBriefState,
-): string {
+function buildBrief(item: LoopItem, options: BuilderPipelineOptions, state: BuildBriefState): string {
   const specs = resolveContextSpecs(item);
   const attempts = historyEntries(item);
   return assembleBrief(
@@ -1743,9 +1657,7 @@ function buildBrief(
         resolved: false,
       })),
       ...(state.gateResult !== undefined ? { gateOutput: formatGateResult(state.gateResult) } : {}),
-      ...(attempts.length > 0
-        ? { attempts, maxAttempts: options.policy.remediation.maxAttempts }
-        : {}),
+      ...(attempts.length > 0 ? { attempts, maxAttempts: options.policy.remediation.maxAttempts } : {}),
       memory: options.context?.memoryExcerpts ?? [],
       repo: repoBrief(item, options),
     },
@@ -1753,11 +1665,7 @@ function buildBrief(
   );
 }
 
-function reviewBrief(
-  item: LoopItem,
-  options: LoopPipelineOptions,
-  _pass: PassConfig,
-): string {
+function reviewBrief(item: LoopItem, options: LoopPipelineOptions, _pass: PassConfig): string {
   const specs = resolveContextSpecs(item);
   return assembleBrief(
     {
@@ -1845,13 +1753,7 @@ function historyEntries(item: LoopItem): string[] {
 
 function repoBrief(item: LoopItem, options: LoopPipelineOptions): string {
   const worktree = requireField(item, "worktree");
-  const changedFiles = gitLines(
-    worktree,
-    "diff",
-    "--name-only",
-    options.base.ref,
-    options.headRef ?? "HEAD",
-  );
+  const changedFiles = gitLines(worktree, "diff", "--name-only", options.base.ref, options.headRef ?? "HEAD");
   const selection = passSelectionForItem(item, options);
   return [
     `Target repo: ${item.targetRepo}`,
@@ -1875,7 +1777,6 @@ function verdictKindForPass(pass: PassConfig): PassVerdictKind {
   if (pass.role === "builder") return "build";
   return "review";
 }
-
 
 type PassVerdictOutcome<K extends PassVerdictKind> =
   | { ok: true; verdict: VerdictTypes[K] }
@@ -2019,9 +1920,9 @@ export function renderReviewBody(
     ...entries.map((entry) => `- ${entry.pass}: ${entry.verdict.review.rationale}`),
     "",
     "## Evidence",
-    ...entries.flatMap((entry) => entry.verdict.review.evidence.map((evidence) =>
-      `- [${entry.pass}] ${evidence.claim} => ${evidence.evidence}`,
-    )),
+    ...entries.flatMap((entry) =>
+      entry.verdict.review.evidence.map((evidence) => `- [${entry.pass}] ${evidence.claim} => ${evidence.evidence}`),
+    ),
     "",
     "## Not reviewed",
     ...(notReviewed.length === 0 ? ["- None."] : notReviewed.map((scope) => `- ${scope}`)),
@@ -2038,17 +1939,16 @@ export function renderReviewBody(
  *  indistinguishable from an older verdict that never checked, which is the
  *  exact ambiguity the issue exists to remove. It is a record, not a gate:
  *  whether a verdict may still PASS with evidence missing is #234's decision. */
-export function renderSuppressedOperations(
-  suppressed: readonly SuppressedOperation[],
-): string[] {
+export function renderSuppressedOperations(suppressed: readonly SuppressedOperation[]): string[] {
   return [
     "## Suppressed critical operations",
     ...(suppressed.length === 0
       ? ["- None recorded."]
-      : suppressed.map((record) =>
-          `- ${record.rule} (${record.disposition}) \`${record.tool}\` ` +
-          `action=${record.actionSha256.slice(0, 12)} approval=${record.approvalId}` +
-          `${record.reason === undefined ? "" : ` — ${record.reason}`}`,
+      : suppressed.map(
+          (record) =>
+            `- ${record.rule} (${record.disposition}) \`${record.tool}\` ` +
+            `action=${record.actionSha256.slice(0, 12)} approval=${record.approvalId}` +
+            `${record.reason === undefined ? "" : ` — ${record.reason}`}`,
         )),
   ];
 }
@@ -2093,56 +1993,37 @@ async function runGateSet(
   const head = headSha(worktree);
   const reviewState = options.reviewState ?? { approvedCommitId: head, headCommitId: head };
 
-  const result = await runGates(
-    riskTier,
-    worktree,
-    options.criteria,
-    options.findings ?? [],
-    reviewState,
-    {
-      policy: options.policy,
-      commands: options.commands,
-      criterionTests: options.criterionTests,
-      currentAttempt: item.remediationAttempts,
-      ...(previousFailureIdentity !== undefined ? { previousFailureIdentity } : {}),
-      ...(options.process !== undefined ? { process: options.process } : {}),
-      diff: { baseRef, headRef },
-    },
-  );
+  const result = await runGates(riskTier, worktree, options.criteria, options.findings ?? [], reviewState, {
+    policy: options.policy,
+    commands: options.commands,
+    criterionTests: options.criterionTests,
+    currentAttempt: item.remediationAttempts,
+    ...(previousFailureIdentity !== undefined ? { previousFailureIdentity } : {}),
+    ...(options.process !== undefined ? { process: options.process } : {}),
+    diff: { baseRef, headRef },
+  });
   return { ...result, headCommitId: head };
 }
 
 /** Open (or recover) the ticket's pull request. The base is the *resolved*
  *  default branch: opening against a hardcoded `main` in a `master` repo is
  *  rejected by GitHub after the branch has already been pushed (#101). */
-async function ensurePr(
-  item: LoopItem,
-  gh: GhOps,
-  draft: boolean,
-  base: BaseRevision,
-): Promise<GhPullRequest> {
+async function ensurePr(item: LoopItem, gh: GhOps, draft: boolean, base: BaseRevision): Promise<GhPullRequest> {
   const branch = requireField(item, "branch");
   const evidence = renderPrGateEvidence(item);
   const localHead = headSha(requireField(item, "worktree"));
-  if (
-    evidence?.headCommitId !== undefined &&
-    evidence.headCommitId !== localHead
-  ) {
+  if (evidence?.headCommitId !== undefined && evidence.headCommitId !== localHead) {
     throw new Error(
-      `refusing to publish gate evidence for ${evidence.headCommitId}: ` +
-      `worktree HEAD is ${localHead}`,
+      `refusing to publish gate evidence for ${evidence.headCommitId}: ` + `worktree HEAD is ${localHead}`,
     );
   }
   const existing = await gh.listPRsForBranch(branch, { state: "all" });
   if (existing.length > 0) {
     const pr = existing[0]!;
-    if (
-      evidence?.headCommitId !== undefined &&
-      evidence.headCommitId !== pr.headRefOid
-    ) {
+    if (evidence?.headCommitId !== undefined && evidence.headCommitId !== pr.headRefOid) {
       throw new Error(
         `refusing to publish gate evidence for ${evidence.headCommitId}: ` +
-        `PR #${pr.number} head is ${pr.headRefOid ?? "unresolved"}`,
+          `PR #${pr.number} head is ${pr.headRefOid ?? "unresolved"}`,
       );
     }
     const body = upsertPrGateEvidence(pr.body, item);
@@ -2159,13 +2040,10 @@ async function ensurePr(
     body: prBody(item),
     draft,
   });
-  if (
-    evidence?.headCommitId !== undefined &&
-    created.headRefOid !== evidence.headCommitId
-  ) {
+  if (evidence?.headCommitId !== undefined && created.headRefOid !== evidence.headCommitId) {
     throw new Error(
       `PR #${created.number} was created at ${created.headRefOid ?? "an unresolved head"}, ` +
-      `expected gated revision ${evidence.headCommitId}`,
+        `expected gated revision ${evidence.headCommitId}`,
     );
   }
   return created;
@@ -2180,16 +2058,19 @@ function prTitle(item: LoopItem): string {
 
 function prBody(item: LoopItem): string {
   const evidence = renderPrGateEvidence(item);
-  const members = item.deliveryUnit?.members ?? [{
-    issueNumber: item.issueNumber,
-    ticketRef: item.ticketRef,
-    title: item.title,
-    body: item.body,
-    labels: item.labels,
-  }];
-  const implementationLines = members.length === 1
-    ? [`Implements ${members[0]!.ticketRef}: ${members[0]!.title}`]
-    : members.map((member) => `- Implements ${member.ticketRef}: ${member.title}`);
+  const members = item.deliveryUnit?.members ?? [
+    {
+      issueNumber: item.issueNumber,
+      ticketRef: item.ticketRef,
+      title: item.title,
+      body: item.body,
+      labels: item.labels,
+    },
+  ];
+  const implementationLines =
+    members.length === 1
+      ? [`Implements ${members[0]!.ticketRef}: ${members[0]!.title}`]
+      : members.map((member) => `- Implements ${member.ticketRef}: ${member.title}`);
   return [
     "## What",
     ...implementationLines,
@@ -2206,8 +2087,7 @@ function prBody(item: LoopItem): string {
 }
 
 export function deliveryUnitClosingReferences(item: LoopItem): string[] {
-  return (item.deliveryUnit?.members ?? [{ ticketRef: item.ticketRef }])
-    .map((member) => `Closes ${member.ticketRef}`);
+  return (item.deliveryUnit?.members ?? [{ ticketRef: item.ticketRef }]).map((member) => `Closes ${member.ticketRef}`);
 }
 
 const PR_GATE_EVIDENCE_START = "<!-- cormidia:gate-evidence:start -->";
@@ -2225,21 +2105,23 @@ interface RenderedPrGateEvidence {
  * branch head, gate result, or review judgment. */
 function renderPrGateEvidence(item: LoopItem): RenderedPrGateEvidence | undefined {
   const latestGreen = [...item.gateResults].reverse().find((run) => run.status === "pass");
-  const executed = latestGreen?.results.filter((gate) =>
-    gate.status === "pass" && gate.command !== undefined && gate.exitCode !== undefined
-  ) ?? [];
+  const executed =
+    latestGreen?.results.filter(
+      (gate) => gate.status === "pass" && gate.command !== undefined && gate.exitCode !== undefined,
+    ) ?? [];
   if (executed.length === 0) return undefined;
 
   const artifactReferences: string[] = [];
   const sections = executed.flatMap((gate) => {
     const command = scrubSecrets(gate.command!);
     const rawOutput = gate.outputTail ?? "";
-    const bounded = rawOutput.length <= PR_GATE_EVIDENCE_OUTPUT_BOUND
-      ? { output: rawOutput, truncated: false }
-      : {
-          output: rawOutput.slice(-PR_GATE_EVIDENCE_OUTPUT_BOUND),
-          truncated: true,
-        };
+    const bounded =
+      rawOutput.length <= PR_GATE_EVIDENCE_OUTPUT_BOUND
+        ? { output: rawOutput, truncated: false }
+        : {
+            output: rawOutput.slice(-PR_GATE_EVIDENCE_OUTPUT_BOUND),
+            truncated: true,
+          };
     const output = scrubSecrets(bounded.output);
     const artifactContent = [
       latestGreen?.headCommitId ?? "unresolved",
@@ -2248,9 +2130,7 @@ function renderPrGateEvidence(item: LoopItem): RenderedPrGateEvidence | undefine
       String(gate.exitCode),
       output,
     ].join("\0");
-    const digest = createHash("sha256")
-      .update(artifactContent)
-      .digest("hex");
+    const digest = createHash("sha256").update(artifactContent).digest("hex");
     const artifact = `cormidia-pr-gate-evidence:${gate.gate}:sha256:${digest}`;
     artifactReferences.push(artifact);
     return [
@@ -2273,9 +2153,7 @@ function renderPrGateEvidence(item: LoopItem): RenderedPrGateEvidence | undefine
     body: [
       PR_GATE_EVIDENCE_START,
       "The following content-addressed evidence was captured by the gate runner; secrets are redacted before publication.",
-      ...(latestGreen?.headCommitId === undefined
-        ? []
-        : ["", `**Revision:** \`${latestGreen.headCommitId}\``]),
+      ...(latestGreen?.headCommitId === undefined ? [] : ["", `**Revision:** \`${latestGreen.headCommitId}\``]),
       "",
       ...sections,
       PR_GATE_EVIDENCE_END,
@@ -2297,11 +2175,7 @@ function upsertPrGateEvidence(body: string, item: LoopItem): string {
   const start = body.indexOf(PR_GATE_EVIDENCE_START);
   const end = body.indexOf(PR_GATE_EVIDENCE_END);
   if (start >= 0 && end >= start) {
-    return [
-      body.slice(0, start),
-      evidence.body,
-      body.slice(end + PR_GATE_EVIDENCE_END.length),
-    ].join("");
+    return [body.slice(0, start), evidence.body, body.slice(end + PR_GATE_EVIDENCE_END.length)].join("");
   }
 
   const legacy = "## Evidence\n- Quality gates passed before review.";
@@ -2312,20 +2186,12 @@ function upsertPrGateEvidence(body: string, item: LoopItem): string {
   const evidenceHeading = /^## Evidence\s*$/m.exec(body);
   if (evidenceHeading?.index !== undefined) {
     const insertAt = evidenceHeading.index + evidenceHeading[0].length;
-    return [
-      body.slice(0, insertAt),
-      `\n${evidence.body}`,
-      body.slice(insertAt),
-    ].join("");
+    return [body.slice(0, insertAt), `\n${evidence.body}`, body.slice(insertAt)].join("");
   }
 
   const closes = /^Closes\s+#\d+\s*$/m.exec(body);
   if (closes?.index !== undefined) {
-    return [
-      body.slice(0, closes.index),
-      `## Evidence\n${evidence.body}\n\n`,
-      body.slice(closes.index),
-    ].join("");
+    return [body.slice(0, closes.index), `## Evidence\n${evidence.body}\n\n`, body.slice(closes.index)].join("");
   }
   return `${body.replace(/\s*$/, "")}\n\n## Evidence\n${evidence.body}\n`;
 }
@@ -2339,10 +2205,7 @@ export interface PrGateEvidenceRepair {
 
 /** Repair an absent/stale managed PR evidence block from already-persisted
  * green gate results. This never executes a command or changes the PR head. */
-export async function repairPrGateEvidence(
-  item: LoopItem,
-  gh: GhOps,
-): Promise<PrGateEvidenceRepair> {
+export async function repairPrGateEvidence(item: LoopItem, gh: GhOps): Promise<PrGateEvidenceRepair> {
   const rendered = renderPrGateEvidence(item);
   if (rendered === undefined || item.prNumber === undefined) {
     return { repaired: false, satisfied: false, artifactReferences: [] };
@@ -2366,14 +2229,12 @@ export async function repairPrGateEvidence(
   if (after.headRefOid !== before.headRefOid) {
     throw new Error(
       `PR #${before.number} head changed while repairing gate evidence: ` +
-      `${before.headRefOid ?? "unresolved"} -> ${after.headRefOid ?? "unresolved"}`,
+        `${before.headRefOid ?? "unresolved"} -> ${after.headRefOid ?? "unresolved"}`,
     );
   }
   return {
     repaired: body !== before.body,
-    satisfied:
-      after.body.includes(PR_GATE_EVIDENCE_START) &&
-      after.body.includes(PR_GATE_EVIDENCE_END),
+    satisfied: after.body.includes(PR_GATE_EVIDENCE_START) && after.body.includes(PR_GATE_EVIDENCE_END),
     ...(after.headRefOid !== undefined ? { headRefOid: after.headRefOid } : {}),
     artifactReferences: rendered.artifactReferences,
   };
@@ -2387,12 +2248,8 @@ export function isPrGateEvidenceOnlyFinding(finding: Finding): boolean {
   const description = finding.description.toLowerCase();
   const action = finding.action.toLowerCase();
   const all = `${location} ${description} ${action}`;
-  const prSurface =
-    /\b(?:pr|pull request)\b/.test(location) &&
-    /\b(?:body|description|comment)\b/.test(location);
-  const missing = /\b(?:missing|omits?|omitted|lacks?|absent|not included|does not include)\b/.test(
-    description,
-  );
+  const prSurface = /\b(?:pr|pull request)\b/.test(location) && /\b(?:body|description|comment)\b/.test(location);
+  const missing = /\b(?:missing|omits?|omitted|lacks?|absent|not included|does not include)\b/.test(description);
   const evidenceAction =
     /\b(?:paste|include|attach|add|provide)\b/.test(action) &&
     /\b(?:output|evidence|result|results|log|logs)\b/.test(action) &&
@@ -2504,11 +2361,7 @@ function isIndependentApproval(review: GhReview, auth?: ReviewAuthorization): bo
   return true;
 }
 
-function isMarkedSelfApproval(
-  review: GhReview,
-  prNumber: number,
-  auth?: ReviewAuthorization,
-): boolean {
+function isMarkedSelfApproval(review: GhReview, prNumber: number, auth?: ReviewAuthorization): boolean {
   // The marker path must clear the SAME author-independence gate as a real
   // APPROVE (mirroring isIndependentApproval): a marker authored by the builder
   // identity, or by an identity outside a configured reviewer allowlist, is not
@@ -2520,9 +2373,7 @@ function isMarkedSelfApproval(
   // replayed on a later push carries a commit_id GitHub stamped to the NEW
   // head, which no longer matches what the tag was signed for. An absent
   // commit_id fails closed (undefined → not verifiable).
-  if (
-    !verifiedSelfApprovalMarker(review.body, auth?.selfApprovalSecret, prNumber, review.commitId)
-  ) {
+  if (!verifiedSelfApprovalMarker(review.body, auth?.selfApprovalSecret, prNumber, review.commitId)) {
     return false;
   }
   const parsed = parseVerdict("review", review.body);
@@ -2530,16 +2381,13 @@ function isMarkedSelfApproval(
   // Compatibility for HMAC-authorized reviews published before the audit
   // payload became required. Authority comes from the commit-bound HMAC, not
   // this text; new orchestrator publications always carry the full audit.
-  return /^\s*Verdict:\s*`?approve`?\s*$/m.test(review.body) &&
-    !/^\s*-\s+(?:architecture|testing|security|style|scope)\//im.test(review.body);
+  return (
+    /^\s*Verdict:\s*`?approve`?\s*$/m.test(review.body) &&
+    !/^\s*-\s+(?:architecture|testing|security|style|scope)\//im.test(review.body)
+  );
 }
 
-function createWorktree(
-  localRepo: string,
-  worktreeRoot: string,
-  branch: string,
-  baseBranch: string,
-): string {
+function createWorktree(localRepo: string, worktreeRoot: string, branch: string, baseBranch: string): string {
   mkdirSync(worktreeRoot, { recursive: true });
   const worktree = join(worktreeRoot, pathSafeBranch(branch));
   if (existsSync(worktree)) return worktree;
@@ -2597,9 +2445,7 @@ export function pushBranch(worktree: string, branch: string): void {
 
 function isNonFastForwardPush(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /non-fast-forward|\[rejected\]|tip of your current branch is behind|fetch first/i.test(
-    message,
-  );
+  return /non-fast-forward|\[rejected\]|tip of your current branch is behind|fetch first/i.test(message);
 }
 
 function headSha(worktree: string): string {
@@ -2723,11 +2569,7 @@ function phaseFromLabels(labels: readonly string[]): LoopPhase {
  *  interrupted turn as "(worktree state unreadable)", hiding real pushed work
  *  behind a swallowed error (#101). Read-only; a broken worktree still
  *  degrades to a note. */
-function durableWorkSummary(
-  worktree: string,
-  branch: string | undefined,
-  base: BaseRevision,
-): string {
+function durableWorkSummary(worktree: string, branch: string | undefined, base: BaseRevision): string {
   try {
     const ahead = git(worktree, "rev-list", "--count", `${base.ref}..HEAD`);
     if (ahead.trim() === "0") return `no commits beyond ${base.ref}`;
@@ -2783,10 +2625,7 @@ async function journalStop(
   });
 }
 
-function journalStopKind(
-  errorCode: string | undefined,
-  status: string | undefined,
-): JournalStopKind {
+function journalStopKind(errorCode: string | undefined, status: string | undefined): JournalStopKind {
   if (status === "cancelled" || errorCode === "error_cancelled") return "cancelled";
   if (status === "timed_out" || errorCode?.includes("timeout") || errorCode?.includes("wall_clock")) {
     return "provider_timeout";
@@ -2902,7 +2741,12 @@ function pathSafeBranch(branch: string): string {
 }
 
 function firstParagraph(text: string): string {
-  return text.trim().split(/\n\s*\n/)[0]?.trim() ?? "";
+  return (
+    text
+      .trim()
+      .split(/\n\s*\n/)[0]
+      ?.trim() ?? ""
+  );
 }
 
 function headingSection(text: string, heading: string): string | undefined {
@@ -2919,10 +2763,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function requireField<K extends keyof LoopItem>(
-  item: LoopItem,
-  key: K,
-): Exclude<LoopItem[K], undefined> {
+function requireField<K extends keyof LoopItem>(item: LoopItem, key: K): Exclude<LoopItem[K], undefined> {
   const value = item[key];
   if (value === undefined) throw new Error(`loop item ${item.ticketRef} missing ${String(key)}`);
   return value as Exclude<LoopItem[K], undefined>;

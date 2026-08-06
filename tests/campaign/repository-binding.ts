@@ -25,7 +25,9 @@ export async function assertCampaignRepositoryBinding(
   const canonicalPolicy = await realpath(join(root, "validation-design", "validation-policy.yaml"));
   const policyPath = await realpath(input.policyPath);
   if (policyPath !== canonicalPolicy) {
-    throw new Error(`campaign refused: policy_path must be the canonical validation-design/validation-policy.yaml at HEAD`);
+    throw new Error(
+      `campaign refused: policy_path must be the canonical validation-design/validation-policy.yaml at HEAD`,
+    );
   }
   await assertTrackedBlob(root, input.commit, policyPath, "policy");
   const trackedInputPaths: string[] = [];

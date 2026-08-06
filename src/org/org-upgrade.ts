@@ -90,10 +90,15 @@ export async function planOrgUpgrade(options: OrgUpgradeOptions): Promise<OrgUpg
 
   const changes: OrgUpgradeChange[] = [];
   if (currentSchema < LIFECYCLE_SCHEMA_VERSION) {
-    changes.push({ path: "apps.yaml", action: "schema_add", detail: `schema_version ${currentSchema} -> ${LIFECYCLE_SCHEMA_VERSION}` });
+    changes.push({
+      path: "apps.yaml",
+      action: "schema_add",
+      detail: `schema_version ${currentSchema} -> ${LIFECYCLE_SCHEMA_VERSION}`,
+    });
   }
   for (const rel of ADDITIVE_FILES) {
-    if (!existsSync(join(orgHome, rel))) changes.push({ path: rel, action: "add", detail: "copy packaged ratified surface" });
+    if (!existsSync(join(orgHome, rel)))
+      changes.push({ path: rel, action: "add", detail: "copy packaged ratified surface" });
   }
   for (const rel of ADDITIVE_TREES) {
     if (!existsSync(join(templateRoot, rel))) continue;
@@ -119,21 +124,31 @@ export async function planOrgUpgrade(options: OrgUpgradeOptions): Promise<OrgUpg
     }
   }
   const authorityPresent = existsSync(join(orgHome, "AUTHORITY.md"));
-  if (!authorityPresent) changes.push({ path: "AUTHORITY.md", action: "add", detail: "write explicit authority choice" });
+  if (!authorityPresent)
+    changes.push({ path: "AUTHORITY.md", action: "add", detail: "write explicit authority choice" });
 
   const blockers: Array<{ code: string; remediation: string }> = [];
   const authorityChoice = options.authorityChoice ?? (authorityPresent ? "preserve" : "required");
   if (!authorityPresent && (options.authorityChoice === undefined || options.authorityChoice === "preserve")) {
-    blockers.push({ code: "authority_choice_required", remediation: "rerun with --authority delegated-operator|conservative|custom" });
+    blockers.push({
+      code: "authority_choice_required",
+      remediation: "rerun with --authority delegated-operator|conservative|custom",
+    });
   }
   if (authorityPresent && options.authorityChoice !== undefined && options.authorityChoice !== "preserve") {
     const existing = await resolveAuthority({ orgHome });
     if (existing.profile !== options.authorityChoice) {
-      blockers.push({ code: "authority_already_present", remediation: "use --authority preserve; upgrade never rewrites an existing authority charter" });
+      blockers.push({
+        code: "authority_already_present",
+        remediation: "use --authority preserve; upgrade never rewrites an existing authority charter",
+      });
     }
   }
   if (options.authorityChoice === "custom" && (!options.authorityCustomText || !options.authorityGrantedBy)) {
-    blockers.push({ code: "custom_authority_incomplete", remediation: "custom authority requires --authority-file and --authority-by" });
+    blockers.push({
+      code: "custom_authority_incomplete",
+      remediation: "custom authority requires --authority-file and --authority-by",
+    });
   }
 
   const identity = sha256(stableJson({ currentSchema, changes, authorityChoice, orgHome }));
@@ -267,14 +282,18 @@ async function createUpgradeArchive(plan: OrgUpgradePlan, fault?: LifecycleFault
     await fault?.("after_archive_creation");
     await fault?.("before_archive_checksum");
     const files = await fileManifest(staged);
-    await writeFile(join(staged, "manifest.json"), stableJson({
-      schema_version: LIFECYCLE_SCHEMA_VERSION,
-      kind: "org-upgrade",
-      archive_id: plan.archive_id,
-      org_home: plan.org_home,
-      changes: plan.changes,
-      files,
-    }), "utf8");
+    await writeFile(
+      join(staged, "manifest.json"),
+      stableJson({
+        schema_version: LIFECYCLE_SCHEMA_VERSION,
+        kind: "org-upgrade",
+        archive_id: plan.archive_id,
+        org_home: plan.org_home,
+        changes: plan.changes,
+        files,
+      }),
+      "utf8",
+    );
     await fault?.("after_archive_checksum");
     await fault?.("before_archive_rename");
     await rename(staged, target);
@@ -297,7 +316,8 @@ async function stageUpgrade(plan: OrgUpgradePlan, options: OrgUpgradeOptions): P
       if (rel === "apps.yaml") {
         const before = await readFile(join(plan.org_home, rel), "utf8");
         const parsed = parse(before) as Record<string, unknown>;
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("org upgrade: invalid apps.yaml mapping");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+          throw new Error("org upgrade: invalid apps.yaml mapping");
         // Keep `apps:` as the final top-level mapping because registration's
         // byte-preserving append relies on that human-edit-friendly layout.
         const next = /^schema_version\s*:/m.test(before)
@@ -307,7 +327,8 @@ async function stageUpgrade(plan: OrgUpgradePlan, options: OrgUpgradeOptions): P
         await writeFile(join(staged, rel), next, "utf8");
       } else if (rel === "AUTHORITY.md") {
         const choice = options.authorityChoice;
-        if (choice === undefined || choice === "preserve") throw new Error("org upgrade: explicit authority choice missing");
+        if (choice === undefined || choice === "preserve")
+          throw new Error("org upgrade: explicit authority choice missing");
         await writeOrgAuthority(staged, choice, options.authorityCustomText, options.authorityGrantedBy);
       } else {
         const source = join(templateRoot, rel);
@@ -336,7 +357,11 @@ async function verifyUpgradeArchive(path: string, plan: OrgUpgradePlan): Promise
   const manifestPath = join(path, "manifest.json");
   await assertRegularFile(manifestPath, "org upgrade archive manifest");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
-  if (manifest["kind"] !== "org-upgrade" || manifest["archive_id"] !== plan.archive_id || manifest["org_home"] !== plan.org_home) {
+  if (
+    manifest["kind"] !== "org-upgrade" ||
+    manifest["archive_id"] !== plan.archive_id ||
+    manifest["org_home"] !== plan.org_home
+  ) {
     throw new Error(`org upgrade: conflicting archive ${path}`);
   }
   const files = manifest["files"];
@@ -356,7 +381,10 @@ async function verifyUpgradeArchive(path: string, plan: OrgUpgradePlan): Promise
       throw new Error(`org upgrade: archive checksum mismatch for ${spec["path"]}`);
     }
   }
-  const actual = (await fileManifest(path)).map((entry) => entry.path).filter((entry) => entry !== "manifest.json").sort();
+  const actual = (await fileManifest(path))
+    .map((entry) => entry.path)
+    .filter((entry) => entry !== "manifest.json")
+    .sort();
   if (stableJson(actual) !== stableJson(declared.sort())) {
     throw new Error(`org upgrade: archive contains unchecksummed or missing paths ${path}`);
   }
@@ -387,8 +415,9 @@ async function additiveTreeFiles(templateRoot: string, tree: string): Promise<st
   const root = join(templateRoot, tree);
   const files: string[] = [];
   async function visit(directory: string): Promise<void> {
-    for (const entry of (await readdir(directory, { withFileTypes: true }))
-      .sort((left, right) => left.name.localeCompare(right.name))) {
+    for (const entry of (await readdir(directory, { withFileTypes: true })).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    )) {
       const path = join(directory, entry.name);
       if (entry.isSymbolicLink()) {
         throw new Error(`org upgrade: packaged migration source symlink forbidden: ${path}`);

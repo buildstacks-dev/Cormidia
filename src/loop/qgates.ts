@@ -294,11 +294,7 @@ export function runTestsGate(
 }
 
 /** Lint gate — same mechanics as tests (loop.md §5 "lint_command" row). */
-export function runLintGate(
-  worktree: string,
-  commands: GateCommands,
-  opts: ProcessGateOpts = {},
-): Promise<GateResult> {
+export function runLintGate(worktree: string, commands: GateCommands, opts: ProcessGateOpts = {}): Promise<GateResult> {
   return runProcessGate(worktree, opts, {
     gate: "lint",
     command: commands.lintCommand,
@@ -310,11 +306,7 @@ export function runLintGate(
 
 /** E2e gate — "when configured" (§5 row): unconfigured is a SKIP, the one
  *  process gate that is optional by design. */
-export function runE2eGate(
-  worktree: string,
-  commands: GateCommands,
-  opts: ProcessGateOpts = {},
-): Promise<GateResult> {
+export function runE2eGate(worktree: string, commands: GateCommands, opts: ProcessGateOpts = {}): Promise<GateResult> {
   return runProcessGate(worktree, opts, {
     gate: "e2e",
     command: commands.e2eTestCommand,
@@ -370,9 +362,7 @@ export function runSecurityGate(worktree: string, opts: SecurityGateOpts = {}): 
   }
 
   const binarySuffix =
-    skippedBinary === 0
-      ? ""
-      : `; skipped ${skippedBinary} binary file${skippedBinary === 1 ? "" : "s"}`;
+    skippedBinary === 0 ? "" : `; skipped ${skippedBinary} binary file${skippedBinary === 1 ? "" : "s"}`;
   if (matches.length === 0) {
     return {
       gate: "security",
@@ -465,10 +455,7 @@ export function runCompletenessGate(
   };
 }
 
-export function runReviewFreshnessGate(
-  worktree: string,
-  reviewState: ReviewFreshnessState,
-): GateResult {
+export function runReviewFreshnessGate(worktree: string, reviewState: ReviewFreshnessState): GateResult {
   let head: string;
   try {
     head = reviewState.headCommitId ?? git(worktree, ["rev-parse", "HEAD"]);
@@ -533,9 +520,7 @@ export async function runGates(
 
   if (setupResult === undefined || setupResult.status !== "fail") {
     for (const gate of gatesForTier(options.policy, tier)) {
-      results.push(
-        await runScheduledGate(gate, worktree, criteria, findings, options),
-      );
+      results.push(await runScheduledGate(gate, worktree, criteria, findings, options));
     }
     results.push(runReviewFreshnessGate(worktree, reviewState));
   }
@@ -655,14 +640,7 @@ interface ChangedFile {
 function changedFiles(worktree: string, range: DiffRange): ChangedFile[] {
   const baseRef = range.baseRef ?? "HEAD~1";
   const headRef = range.headRef ?? "HEAD";
-  const output = git(worktree, [
-    "diff",
-    "--numstat",
-    "--diff-filter=ACMRT",
-    baseRef,
-    headRef,
-    "--",
-  ]);
+  const output = git(worktree, ["diff", "--numstat", "--diff-filter=ACMRT", baseRef, headRef, "--"]);
   if (output === "") return [];
   return output.split("\n").map((line) => {
     const [added, deleted, ...pathParts] = line.split("\t");
@@ -742,11 +720,7 @@ interface ProcessGateSpec {
   defaultTimeoutMs: number;
 }
 
-async function runProcessGate(
-  worktree: string,
-  opts: ProcessGateOpts,
-  spec: ProcessGateSpec,
-): Promise<GateResult> {
+async function runProcessGate(worktree: string, opts: ProcessGateOpts, spec: ProcessGateSpec): Promise<GateResult> {
   if (spec.command === undefined || spec.command === "") {
     if (spec.unconfigured === "skip") {
       return {

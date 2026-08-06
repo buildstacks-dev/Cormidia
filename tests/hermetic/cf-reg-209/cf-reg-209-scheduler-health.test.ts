@@ -36,15 +36,14 @@ function assertDecisionAlertResolved(value: { resolved: boolean }): void {
   if (!value.resolved) throw new UnresolvedDecisionAlert();
 }
 
-function assertPendingBookkeepingFailure(value: Pick<
-  SchedulerDecisionRecord,
-  "stage" | "outcome" | "classification" | "reason_code"
->): void {
+function assertPendingBookkeepingFailure(
+  value: Pick<SchedulerDecisionRecord, "stage" | "outcome" | "classification" | "reason_code">,
+): void {
   if (
-    value.stage !== "spawned"
-    || value.outcome !== null
-    || value.classification !== "pending"
-    || value.reason_code !== "post_spawn_bookkeeping_failure"
+    value.stage !== "spawned" ||
+    value.outcome !== null ||
+    value.classification !== "pending" ||
+    value.reason_code !== "post_spawn_bookkeeping_failure"
   ) {
     throw new PrematureDecisionTerminalization();
   }
@@ -59,43 +58,51 @@ describe("CF-REG-209 — scheduler health truth", () => {
 
   async function configure(appNames: string[] = ["app-a", "app-b"]): Promise<void> {
     org = await makeTempOrgHome({ name: "health-org" });
-    await writeFile(join(org.orgHome, "apps.yaml"), [
-      "schema_version: 1",
-      "org:",
-      "  name: health-org",
-      "  max_concurrent_turns: 1",
-      "defaults:",
-      "  budget_usd_month: 1000",
-      "apps:",
-      ...appNames.flatMap((app) => [
-        `  ${app}:`,
-        `    repo: fixture/${app}`,
-        "    status: live",
-        "    cadence: {}",
-        "    release:",
-        "      kind: deploy",
-        "      owner: sre",
-        "      trigger: command",
-        "      command: ./deploy.sh",
-      ]),
-      "",
-    ].join("\n"), "utf8");
-    await writeFile(join(org.orgHome, "roles.yaml"), [
-      "defaults:",
-      "  max_turn_budget_usd: 5",
-      "roles:",
-      ...["sre"].flatMap((role) => [
-        `  ${role}:`,
-        "    runtime: claude",
-        "    model: claude-scripted-model",
-        "    effort: medium",
-        "    delegation: {allow: []}",
-        "    triggers:",
-        "      - schedule: hourly",
-        "    outputs: [notes]",
-      ]),
-      "",
-    ].join("\n"), "utf8");
+    await writeFile(
+      join(org.orgHome, "apps.yaml"),
+      [
+        "schema_version: 1",
+        "org:",
+        "  name: health-org",
+        "  max_concurrent_turns: 1",
+        "defaults:",
+        "  budget_usd_month: 1000",
+        "apps:",
+        ...appNames.flatMap((app) => [
+          `  ${app}:`,
+          `    repo: fixture/${app}`,
+          "    status: live",
+          "    cadence: {}",
+          "    release:",
+          "      kind: deploy",
+          "      owner: sre",
+          "      trigger: command",
+          "      command: ./deploy.sh",
+        ]),
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(org.orgHome, "roles.yaml"),
+      [
+        "defaults:",
+        "  max_turn_budget_usd: 5",
+        "roles:",
+        ...["sre"].flatMap((role) => [
+          `  ${role}:`,
+          "    runtime: claude",
+          "    model: claude-scripted-model",
+          "    effort: medium",
+          "    delegation: {allow: []}",
+          "    triggers:",
+          "      - schedule: hourly",
+          "    outputs: [notes]",
+        ]),
+        "",
+      ].join("\n"),
+      "utf8",
+    );
   }
 
   function evidence(): SchedulerEvidenceStore {
@@ -122,8 +129,19 @@ describe("CF-REG-209 — scheduler health truth", () => {
     const invocations = await evidence().listInvocations();
     expect(invocations[0]).toMatchObject({ terminal: "completed", reason_code: "executed" });
     const decisions = await evidence().listDecisions();
-    expect(decisions.map((item) => ({ role: item.role, outcome: item.outcome, reason: item.reason_code, classification: item.classification })))
-      .toContainEqual({ role: expect.any(String), outcome: "blocked", reason: "wip_limit", classification: "blocked_backpressure" });
+    expect(
+      decisions.map((item) => ({
+        role: item.role,
+        outcome: item.outcome,
+        reason: item.reason_code,
+        classification: item.classification,
+      })),
+    ).toContainEqual({
+      role: expect.any(String),
+      outcome: "blocked",
+      reason: "wip_limit",
+      classification: "blocked_backpressure",
+    });
     const provider = decisions.find((item) => item.episode_id === tick.spawned[0]!.turnId);
     expect(provider).toMatchObject({ stage: "spawned", outcome: null, classification: "pending" });
     expect(await evidence().listAlerts()).toEqual([]);
@@ -141,26 +159,39 @@ describe("CF-REG-209 — scheduler health truth", () => {
     const turn = tick.spawned[0]!;
     const runDir = join(org!.stateHome, "runs", turn.app, "provider-pass");
     await mkdir(runDir, { recursive: true });
-    await writeFile(join(runDir, "envelope.json"), JSON.stringify({
-      schema_version: 1,
-      trace_id: turn.turnId,
-      provider_turn_ids: ["provider-1"],
-    }) + "\n", "utf8");
+    await writeFile(
+      join(runDir, "envelope.json"),
+      JSON.stringify({
+        schema_version: 1,
+        trace_id: turn.turnId,
+        provider_turn_ids: ["provider-1"],
+      }) + "\n",
+      "utf8",
+    );
     const telemetry = join(org!.stateHome, "telemetry", "2026-08.jsonl");
     await mkdir(dirname(telemetry), { recursive: true });
-    await writeFile(telemetry, JSON.stringify({
-      app: turn.app,
-      traceId: turn.turnId,
-      providerTurnId: "provider-1",
-      costUsd: 1,
-    }) + "\n", "utf8");
-    for (const phase of ["running", "collecting", "done"] as const) {
-      await writeJournalPatch(org!.stateHome, turn.turnId, {
+    await writeFile(
+      telemetry,
+      JSON.stringify({
         app: turn.app,
-        role: turn.role,
-        phase,
-        message: "fixture provider completed",
-      }, NOW);
+        traceId: turn.turnId,
+        providerTurnId: "provider-1",
+        costUsd: 1,
+      }) + "\n",
+      "utf8",
+    );
+    for (const phase of ["running", "collecting", "done"] as const) {
+      await writeJournalPatch(
+        org!.stateHome,
+        turn.turnId,
+        {
+          app: turn.app,
+          role: turn.role,
+          phase,
+          message: "fixture provider completed",
+        },
+        NOW,
+      );
     }
 
     const receipt = await evidence().recordTurnReceipt(turn.turnId, NOW, "fixture provider completed");
@@ -171,7 +202,7 @@ describe("CF-REG-209 — scheduler health truth", () => {
       provider_turns: 1,
       provider_settlements: 1,
     });
-    expect((await evidence().summarize(NOW))).toMatchObject({
+    expect(await evidence().summarize(NOW)).toMatchObject({
       provider_turns: 1,
       provider_settlements: 1,
       provider_settlement_agreement: true,
@@ -202,14 +233,18 @@ describe("CF-REG-209 — scheduler health truth", () => {
       runtimeHome: org!.stateHome,
       now: () => NOW,
       eventSource: source,
-      spawn: async () => { throw new Error("fresh lock must prevent spawn"); },
+      spawn: async () => {
+        throw new Error("fresh lock must prevent spawn");
+      },
     });
 
     expect(tick.errors).toEqual([]);
     expect(tick.spawned).toEqual([]);
     expect((await evidence().listInvocations())[0]).toMatchObject({ terminal: "completed" });
-    expect((await evidence().listDecisions()).find((item) => item.reason_code === "fresh_lock"))
-      .toMatchObject({ outcome: "blocked", classification: "blocked_backpressure" });
+    expect((await evidence().listDecisions()).find((item) => item.reason_code === "fresh_lock")).toMatchObject({
+      outcome: "blocked",
+      classification: "blocked_backpressure",
+    });
     expect(await evidence().listAlerts()).toEqual([]);
   });
 
@@ -245,12 +280,17 @@ describe("CF-REG-209 — scheduler health truth", () => {
       now: NOW,
     });
     for (const phase of ["assembling", "failed"] as const) {
-      await writeJournalPatch(org!.stateHome, failedDecision.record.episode_id!, {
-        app: "app-a",
-        role: "sre",
-        phase,
-        message: "seeded provider failure",
-      }, NOW);
+      await writeJournalPatch(
+        org!.stateHome,
+        failedDecision.record.episode_id!,
+        {
+          app: "app-a",
+          role: "sre",
+          phase,
+          message: "seeded provider failure",
+        },
+        NOW,
+      );
     }
     await store.recordTurnReceipt(failedDecision.record.episode_id!, NOW, "seeded provider failure");
     expect(await store.listAlerts()).toEqual([
@@ -272,16 +312,12 @@ describe("CF-REG-209 — scheduler health truth", () => {
       trigger: "hourly",
       now: blockedAt,
     });
-    await store.finishDecision(
-      blockedDecision.record.decision_id,
-      "blocked",
-      "wip_limit",
-      blockedAt,
-      { detail: "healthy backpressure is not recovery evidence" },
-    );
-    expect((await store.listAlerts())
-      .find((candidate) => candidate.evidence_id === failedDecision.record.decision_id))
-      .toMatchObject({ resolved: false });
+    await store.finishDecision(blockedDecision.record.decision_id, "blocked", "wip_limit", blockedAt, {
+      detail: "healthy backpressure is not recovery evidence",
+    });
+    expect(
+      (await store.listAlerts()).find((candidate) => candidate.evidence_id === failedDecision.record.decision_id),
+    ).toMatchObject({ resolved: false });
 
     const later = new Date(NOW.getTime() + 10 * 60_000);
     const recoveredInvocation = await store.beginInvocation(later);
@@ -295,17 +331,23 @@ describe("CF-REG-209 — scheduler health truth", () => {
       now: later,
     });
     for (const phase of ["assembling", "running", "collecting", "done"] as const) {
-      await writeJournalPatch(org!.stateHome, recoveredDecision.record.episode_id!, {
-        app: "app-a",
-        role: "sre",
-        phase,
-        message: "fixture recovered",
-      }, later);
+      await writeJournalPatch(
+        org!.stateHome,
+        recoveredDecision.record.episode_id!,
+        {
+          app: "app-a",
+          role: "sre",
+          phase,
+          message: "fixture recovered",
+        },
+        later,
+      );
     }
     await store.recordTurnReceipt(recoveredDecision.record.episode_id!, later, "fixture recovered");
 
-    const alert = (await store.listAlerts())
-      .find((candidate) => candidate.evidence_id === failedDecision.record.decision_id);
+    const alert = (await store.listAlerts()).find(
+      (candidate) => candidate.evidence_id === failedDecision.record.decision_id,
+    );
     expect(alert).toBeDefined();
     expect(alert).toMatchObject({
       evidence_id: failedDecision.record.decision_id,
@@ -329,13 +371,9 @@ describe("CF-REG-209 — scheduler health truth", () => {
       trigger: "hourly",
       now: priorAt,
     });
-    await store.finishDecision(
-      priorDecision.record.decision_id,
-      "failed",
-      "scheduler_state_failure",
-      priorAt,
-      { detail: "seeded prior child failure" },
-    );
+    await store.finishDecision(priorDecision.record.decision_id, "failed", "scheduler_state_failure", priorAt, {
+      detail: "seeded prior child failure",
+    });
 
     let spawned = 0;
     const tick = await dispatchTick({
@@ -343,7 +381,9 @@ describe("CF-REG-209 — scheduler health truth", () => {
       runtimeHome: org!.stateHome,
       now: () => NOW,
       eventSource: SOURCE,
-      spawn: async () => { spawned += 1; },
+      spawn: async () => {
+        spawned += 1;
+      },
       schedulerFault: async (boundary) => {
         if (boundary === "post_spawn_bookkeeping") throw new Error("seeded schedule-state EIO");
       },
@@ -351,8 +391,7 @@ describe("CF-REG-209 — scheduler health truth", () => {
 
     expect(spawned).toBe(1);
     expect(tick.errors).toContain("app-a/sre: post-spawn bookkeeping failed: seeded schedule-state EIO");
-    const pending = (await store.listDecisions())
-      .find((decision) => decision.episode_id === tick.spawned[0]!.turnId);
+    const pending = (await store.listDecisions()).find((decision) => decision.episode_id === tick.spawned[0]!.turnId);
     expect(pending).toBeDefined();
     expect(pending).toMatchObject({
       stage: "spawned",
@@ -363,9 +402,9 @@ describe("CF-REG-209 — scheduler health truth", () => {
       provider_settlements: null,
     });
     expect(() => assertPendingBookkeepingFailure(pending!)).not.toThrow();
-    expect((await store.listAlerts())
-      .find((alert) => alert.evidence_id === priorDecision.record.decision_id))
-      .toMatchObject({ resolved: false });
+    expect(
+      (await store.listAlerts()).find((alert) => alert.evidence_id === priorDecision.record.decision_id),
+    ).toMatchObject({ resolved: false });
   });
 
   it("negative control: the detector rejects error-classification of normal backpressure", () => {
@@ -377,11 +416,13 @@ describe("CF-REG-209 — scheduler health truth", () => {
   });
 
   it("negative control: the receipt-boundary detector rejects the old executed bookkeeping outcome", () => {
-    expect(() => assertPendingBookkeepingFailure({
-      stage: "terminal",
-      outcome: "executed",
-      classification: "executed",
-      reason_code: "post_spawn_bookkeeping_failure",
-    })).toThrow(PrematureDecisionTerminalization);
+    expect(() =>
+      assertPendingBookkeepingFailure({
+        stage: "terminal",
+        outcome: "executed",
+        classification: "executed",
+        reason_code: "post_spawn_bookkeeping_failure",
+      }),
+    ).toThrow(PrematureDecisionTerminalization);
   });
 });

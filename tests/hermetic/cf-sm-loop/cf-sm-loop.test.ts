@@ -12,13 +12,7 @@ import {
   recoverAlreadyMergedTicket,
   type LoopItem,
 } from "../../../src/loop/loop.js";
-import {
-  buildJ04Item,
-  j04Git,
-  makeJ04World,
-  reviewJ04Item,
-  type J04World,
-} from "../cf-j04/support.js";
+import { buildJ04Item, j04Git, makeJ04World, reviewJ04Item, type J04World } from "../cf-j04/support.js";
 
 describe("CF-SM-LOOP-L/I/R — loop transition relation", () => {
   const worlds: J04World[] = [];
@@ -46,8 +40,12 @@ describe("CF-SM-LOOP-L/I/R — loop transition relation", () => {
       criteria: parseAcceptanceCriteria(shipping.body),
       criterionTests: shipping.criterionTests ?? {},
     });
-    expect([building.phase, reviewing.phase, shipping.phase, merged.phase])
-      .toEqual(["building", "reviewing", "shipping", "merged"]);
+    expect([building.phase, reviewing.phase, shipping.phase, merged.phase]).toEqual([
+      "building",
+      "reviewing",
+      "shipping",
+      "merged",
+    ]);
 
     const mergeCount = world.github.callLog().filter((entry) => entry.op === "pr.merge").length;
     const replay = await recoverAlreadyMergedTicket(merged, { gh: world.gh, localRepo: world.repo.dir });
@@ -62,23 +60,30 @@ describe("CF-SM-LOOP-L/I/R — loop transition relation", () => {
     const calls = world.github.callLog().length;
 
     await expect(advanceReviewing(building, { gh: world.gh })).rejects.toBeInstanceOf(LoopPhaseTransitionError);
-    await expect(advanceShipping({ ...building, phase: "ready" } as LoopItem, {
-      gh: world.gh,
-      localRepo: world.repo.dir,
-      policy: DEFAULT_LOOP_POLICY,
-      commands: { testCommand: "true" },
-      base: world.base,
-      criteria: [],
-      criterionTests: {},
-    })).rejects.toBeInstanceOf(LoopPhaseTransitionError);
-    await expect(advanceGates({ ...building, phase: "returned" }, {
-      gh: world.gh,
-      policy: DEFAULT_LOOP_POLICY,
-      commands: { testCommand: "true" },
-      base: world.base,
-      criteria: [],
-      criterionTests: {},
-    })).rejects.toBeInstanceOf(LoopPhaseTransitionError);
+    await expect(
+      advanceShipping({ ...building, phase: "ready" } as LoopItem, {
+        gh: world.gh,
+        localRepo: world.repo.dir,
+        policy: DEFAULT_LOOP_POLICY,
+        commands: { testCommand: "true" },
+        base: world.base,
+        criteria: [],
+        criterionTests: {},
+      }),
+    ).rejects.toBeInstanceOf(LoopPhaseTransitionError);
+    await expect(
+      advanceGates(
+        { ...building, phase: "returned" },
+        {
+          gh: world.gh,
+          policy: DEFAULT_LOOP_POLICY,
+          commands: { testCommand: "true" },
+          base: world.base,
+          criteria: [],
+          criterionTests: {},
+        },
+      ),
+    ).rejects.toBeInstanceOf(LoopPhaseTransitionError);
     expect(world.github.callLog()).toHaveLength(calls);
   });
 

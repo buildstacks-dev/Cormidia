@@ -14,24 +14,9 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import {
-  isDocument,
-  isMap,
-  isScalar,
-  parseDocument,
-  stringify,
-  type Document,
-  type Pair,
-  type YAMLMap,
-} from "yaml";
-import {
-  TURN_ASSIGNMENT_EFFORTS,
-  validateTurnAssignment,
-} from "../runtime/assignment.js";
-import {
-  resolvedRuntimeCapabilities,
-  runtimeCapabilityProfile,
-} from "../runtime/capabilities.js";
+import { isDocument, isMap, isScalar, parseDocument, stringify, type Document, type Pair, type YAMLMap } from "yaml";
+import { TURN_ASSIGNMENT_EFFORTS, validateTurnAssignment } from "../runtime/assignment.js";
+import { resolvedRuntimeCapabilities, runtimeCapabilityProfile } from "../runtime/capabilities.js";
 import {
   describeModelCatalogCheck,
   modelServedByCatalog,
@@ -192,18 +177,17 @@ export async function applyRoleAssignmentChange(
 
   const edit = options.edit;
   if (
-    edit.runtime === undefined && edit.model === undefined &&
-    edit.effort === undefined && edit.turnBudgetUsd === undefined
+    edit.runtime === undefined &&
+    edit.model === undefined &&
+    edit.effort === undefined &&
+    edit.turnBudgetUsd === undefined
   ) {
     return blocked(base, {
       code: "no_change_requested",
       detail: "supply at least one of --runtime, --model, --effort, --turn-budget",
     });
   }
-  if (
-    edit.turnBudgetUsd !== undefined &&
-    (!Number.isFinite(edit.turnBudgetUsd) || edit.turnBudgetUsd <= 0)
-  ) {
+  if (edit.turnBudgetUsd !== undefined && (!Number.isFinite(edit.turnBudgetUsd) || edit.turnBudgetUsd <= 0)) {
     return blocked(base, {
       code: "invalid_turn_budget",
       detail: "--turn-budget must be a positive number of US dollars",
@@ -260,9 +244,7 @@ export async function applyRoleAssignmentChange(
     runtime: after.runtime,
     model: after.model,
     verified: catalog.available && served,
-    ...(catalog.available
-      ? { source: catalog.source, modelCount: catalog.models.length }
-      : { reason: catalog.reason }),
+    ...(catalog.available ? { source: catalog.source, modelCount: catalog.models.length } : { reason: catalog.reason }),
   };
   base.modelCatalogNote = describeModelCatalogCheck(catalog, after.model);
   if (!served && catalog.available) {
@@ -339,10 +321,7 @@ export interface RoleAssignmentJournalEntry {
   roles_sha256_after?: string;
 }
 
-async function appendRoleAssignmentJournal(
-  path: string,
-  entry: RoleAssignmentJournalEntry,
-): Promise<void> {
+async function appendRoleAssignmentJournal(path: string, entry: RoleAssignmentJournalEntry): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await appendFile(path, `${JSON.stringify(entry)}\n`, "utf8");
 }
@@ -360,11 +339,7 @@ async function appendRoleAssignmentJournal(
  * effort-only edit of a long-settled role would train the operator to skip it.
  */
 export function isUnverifiedModelIdChange(plan: RoleAssignmentChangePlan): boolean {
-  if (
-    plan.modelCatalog === undefined ||
-    plan.modelCatalog.verified ||
-    plan.modelCatalog.reason === undefined
-  ) {
+  if (plan.modelCatalog === undefined || plan.modelCatalog.verified || plan.modelCatalog.reason === undefined) {
     return false;
   }
   return plan.changes.some((change) => change.field === "model" || change.field === "runtime");
@@ -372,9 +347,7 @@ export function isUnverifiedModelIdChange(plan: RoleAssignmentChangePlan): boole
 
 /** Human-readable before/after, for the text surface. */
 export function formatRoleAssignmentPlan(plan: RoleAssignmentChangePlan): string {
-  const lines = [
-    `${plan.executed ? "APPLIED" : "PREVIEW"} roles set ${plan.role} — ${plan.rolesPath}`,
-  ];
+  const lines = [`${plan.executed ? "APPLIED" : "PREVIEW"} roles set ${plan.role} — ${plan.rolesPath}`];
   if (plan.before !== undefined) {
     lines.push(`  before: ${describeSnapshot(plan.before)}`);
   }
@@ -390,17 +363,15 @@ export function formatRoleAssignmentPlan(plan: RoleAssignmentChangePlan): string
     lines.push(
       plan.executed
         ? `  WARNING: applied an UNVERIFIED model id — nothing has proven ${plan.modelCatalog.runtime} ` +
-          `serves ${plan.modelCatalog.model}; prove it with \`cormidia doctor\` before the next turn ` +
-          "spends on it"
+            `serves ${plan.modelCatalog.model}; prove it with \`cormidia doctor\` before the next turn ` +
+            "spends on it"
         : `  WARNING: ${plan.modelCatalog.model} cannot be checked before it is applied; ` +
-          `\`cormidia doctor\` probes the ${plan.modelCatalog.runtime} adapter and is what proves it`,
+            `\`cormidia doctor\` probes the ${plan.modelCatalog.runtime} adapter and is what proves it`,
     );
   }
   for (const blocker of plan.blockers) lines.push(`  BLOCKED ${blocker.code}: ${blocker.detail}`);
   if (plan.blockers.length === 0 && !plan.executed) {
-    lines.push(
-      "  Nothing was written. Apply with: --execute --by <identity> --reason <text>",
-    );
+    lines.push("  Nothing was written. Apply with: --execute --by <identity> --reason <text>");
   }
   if (plan.executed) lines.push(`  journaled: ${plan.journalPath}`);
   return lines.join("\n");
@@ -413,10 +384,7 @@ function describeSnapshot(snapshot: RoleAssignmentSnapshot): string {
   );
 }
 
-function fieldChanges(
-  before: RoleAssignmentSnapshot,
-  after: RoleAssignmentSnapshot,
-): RoleAssignmentFieldChange[] {
+function fieldChanges(before: RoleAssignmentSnapshot, after: RoleAssignmentSnapshot): RoleAssignmentFieldChange[] {
   const changes: RoleAssignmentFieldChange[] = [];
   if (before.runtime !== after.runtime) {
     changes.push({ field: "runtime", from: before.runtime, to: after.runtime });
@@ -552,12 +520,7 @@ function alignedSplice(text: string, start: number, end: number, value: string):
  * the nearest preceding sibling this command owns (and after that sibling's
  * own trailing comment block, so nothing is split apart).
  */
-function insertScalarLine(
-  text: string,
-  entry: YAMLMap,
-  key: string,
-  value: string,
-): TextSplice | undefined {
+function insertScalarLine(text: string, entry: YAMLMap, key: string, value: string): TextSplice | undefined {
   const position = ROLE_SCALAR_KEYS.indexOf(key as (typeof ROLE_SCALAR_KEYS)[number]);
   if (position < 0) return undefined;
   for (let index = position - 1; index >= 0; index--) {
@@ -574,9 +537,7 @@ function insertScalarLine(
 }
 
 function findPair(entry: YAMLMap, key: string): Pair | undefined {
-  return (entry.items as Pair[]).find(
-    (item) => isScalar(item.key) && item.key.value === key,
-  );
+  return (entry.items as Pair[]).find((item) => isScalar(item.key) && item.key.value === key);
 }
 
 function scalarRange(node: unknown): readonly [number, number, number] | undefined {
@@ -613,17 +574,14 @@ function applySplices(text: string, splices: readonly TextSplice[]): string | un
   return result;
 }
 
-function assertRenderedRole(
-  parsed: RolesFile,
-  role: string,
-  after: RoleAssignmentSnapshot,
-  rolesPath: string,
-): void {
+function assertRenderedRole(parsed: RolesFile, role: string, after: RoleAssignmentSnapshot, rolesPath: string): void {
   const written = parsed.roles.find((entry) => entry.name === role);
   const budget = parsed.roleTurnBudgets.find((entry) => entry.name === role);
   if (
-    written === undefined || budget === undefined ||
-    written.runtime !== after.runtime || written.model !== after.model ||
+    written === undefined ||
+    budget === undefined ||
+    written.runtime !== after.runtime ||
+    written.model !== after.model ||
     written.effort !== after.effort ||
     budget.effectiveTurnBudgetUsd !== after.maxTurnBudgetUsd
   ) {
@@ -634,10 +592,7 @@ function assertRenderedRole(
   }
 }
 
-function blocked(
-  plan: RoleAssignmentChangePlan,
-  blocker: RoleAssignmentBlocker,
-): RoleAssignmentChangePlan {
+function blocked(plan: RoleAssignmentChangePlan, blocker: RoleAssignmentBlocker): RoleAssignmentChangePlan {
   return { ...plan, blockers: [...plan.blockers, blocker], executed: false };
 }
 

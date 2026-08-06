@@ -7,17 +7,10 @@ import {
   validateAssignmentProviderFamily,
   validateTurnAssignment,
 } from "../runtime/assignment.js";
-import type {
-  TurnAssignment,
-  TurnAssignmentSource,
-} from "../runtime/types.js";
+import type { TurnAssignment, TurnAssignmentSource } from "../runtime/types.js";
 import { withFileLock, type FileLockOptions } from "../runtime/file-lock.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
-import {
-  efficiencyEpisodeDir,
-  readRouteRecord,
-  routeRecordPath,
-} from "./efficiency.js";
+import { efficiencyEpisodeDir, readRouteRecord, routeRecordPath } from "./efficiency.js";
 
 export const EPISODE_PLAN_SCHEMA_VERSION = 1 as const;
 export const EPISODE_PLAN_POINTER_SCHEMA_VERSION = 1 as const;
@@ -89,8 +82,17 @@ export const EPISODE_PLAN_PROPOSAL_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [
-    "schemaVersion", "episodeId", "version", "intentHash", "summary", "workflowClass",
-    "planningSource", "steps", "estimatedBudget", "derivedSafetyRoute", "createdAt",
+    "schemaVersion",
+    "episodeId",
+    "version",
+    "intentHash",
+    "summary",
+    "workflowClass",
+    "planningSource",
+    "steps",
+    "estimatedBudget",
+    "derivedSafetyRoute",
+    "createdAt",
   ],
   properties: {
     schemaVersion: { const: EPISODE_PLAN_SCHEMA_VERSION },
@@ -119,7 +121,14 @@ export const EPISODE_PLAN_PROPOSAL_SCHEMA = {
           {
             type: "object",
             additionalProperties: false,
-            required: [...STEP_BASE_REQUIRED, "operation", "role", "requiredCapabilities", "maxTurnBudgetUsd", "selectionReason"],
+            required: [
+              ...STEP_BASE_REQUIRED,
+              "operation",
+              "role",
+              "requiredCapabilities",
+              "maxTurnBudgetUsd",
+              "selectionReason",
+            ],
             properties: {
               ...STEP_BASE_PROPERTIES,
               kind: { const: "provider_turn" },
@@ -223,9 +232,7 @@ export function episodePlanProposalSchemaForOperations(
       throw new TypeError(`invalid EpisodePlanner provider operation ${operation}`);
     }
   }
-  const gates = options.mechanicalGates === undefined
-    ? undefined
-    : [...new Set(options.mechanicalGates)].sort();
+  const gates = options.mechanicalGates === undefined ? undefined : [...new Set(options.mechanicalGates)].sort();
   if (gates !== undefined) {
     if (gates.length === 0) {
       throw new TypeError("EpisodePlanner mechanical gate registry must not be empty");
@@ -325,9 +332,7 @@ export function annotateRepairRegression(
   const assessment = assessRepairRegression(priorIssues, repairedIssues);
   const repaired = repairedIssues.map((issue) => ({ ...issue }));
   if (assessment.progress !== "regressive") return repaired;
-  const introduced = assessment.introduced
-    .map((issue) => `${issue.code}: ${issue.message}`)
-    .join("; ");
+  const introduced = assessment.introduced.map((issue) => `${issue.code}: ${issue.message}`).join("; ");
   return [
     {
       code: "plan_repair_regressive",
@@ -343,13 +348,7 @@ export function annotateRepairRegression(
   ];
 }
 
-export type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 export interface CreatorScopeProvenance {
   source: "human" | "agent";
@@ -515,10 +514,7 @@ export interface ProposedProviderTurnStep extends EpisodeStepBase {
   selectionReason: string;
 }
 
-export type ProposedEpisodeStep =
-  | ProposedProviderTurnStep
-  | MechanicalGateStep
-  | ApprovalStep;
+export type ProposedEpisodeStep = ProposedProviderTurnStep | MechanicalGateStep | ApprovalStep;
 
 export interface EpisodeBudgetEstimate {
   providerTurns: number;
@@ -779,14 +775,16 @@ export function parseProposedEpisodePlan(value: unknown): ProposedEpisodePlan {
     // tripwires. If they ever drift, a model repair has no field-level defect
     // to act on; fail once with a developer-facing diagnostic instead of
     // buying a second guess.
-    throw new EpisodePlanValidationError([{
-      code: "plan_structure_invalid",
-      message: "proposal matched the EpisodePlan schema but failed the internal strict parser",
-      path: "$",
-      constraint: "internal_schema_consistency",
-      expected: "EPISODE_PLAN_PROPOSAL_SCHEMA and strict parser to agree",
-      received: "schema-valid proposal",
-    }]);
+    throw new EpisodePlanValidationError([
+      {
+        code: "plan_structure_invalid",
+        message: "proposal matched the EpisodePlan schema but failed the internal strict parser",
+        path: "$",
+        constraint: "internal_schema_consistency",
+        expected: "EPISODE_PLAN_PROPOSAL_SCHEMA and strict parser to agree",
+        received: "schema-valid proposal",
+      },
+    ]);
   }
   return structuredClone(value);
 }
@@ -834,9 +832,12 @@ function normalizeProviderProposal(value: unknown): {
     const mechanicalOverhead = estimate["mechanicalOverheadUsd"];
     const total = estimate["totalBudgetUsd"];
     if (
-      typeof providerBudget === "number" && finiteNonNegative(providerBudget) &&
-      typeof mechanicalOverhead === "number" && finiteNonNegative(mechanicalOverhead) &&
-      typeof total === "number" && finiteNonNegative(total) &&
+      typeof providerBudget === "number" &&
+      finiteNonNegative(providerBudget) &&
+      typeof mechanicalOverhead === "number" &&
+      finiteNonNegative(mechanicalOverhead) &&
+      typeof total === "number" &&
+      finiteNonNegative(total) &&
       near(total, providerBudget + mechanicalOverhead)
     ) {
       estimate["mechanicalOverheadUsd"] = 0;
@@ -865,18 +866,13 @@ function stripUndeclaredScalarProperties(
     }
     const type = nodeSchema["type"];
     if (type === "object" && isRecord(node)) {
-      const properties = isRecord(nodeSchema["properties"])
-        ? nodeSchema["properties"]
-        : {};
+      const properties = isRecord(nodeSchema["properties"]) ? nodeSchema["properties"] : {};
       if (nodeSchema["additionalProperties"] === false) {
         for (const key of Object.keys(node)) {
           if (Object.hasOwn(properties, key)) continue;
           const propertyValue = node[key];
           const property = propertyPath(path, key);
-          if (
-            isRepairScalar(propertyValue) &&
-            !scalarPropertyReferenced(referenceRoot, key, propertyValue, property)
-          ) {
+          if (isRepairScalar(propertyValue) && !scalarPropertyReferenced(referenceRoot, key, propertyValue, property)) {
             delete node[key];
             repairs.push({
               kind: "undeclared_scalar_property_removed",
@@ -903,8 +899,12 @@ function stripUndeclaredScalarProperties(
 }
 
 function isRepairScalar(value: unknown): value is PlanRepairScalar {
-  return value === null || typeof value === "string" || typeof value === "boolean" ||
-    (typeof value === "number" && Number.isFinite(value));
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  );
 }
 
 function scalarPropertyReferenced(
@@ -928,10 +928,7 @@ function scalarPropertyReferenced(
       const entryPath = propertyPath(path, key);
       if (entryPath === excludedPath) continue;
       if (candidates.some((candidate) => key.includes(candidate))) return true;
-      if (
-        typeof entry === "string" &&
-        candidates.some((candidate) => entry.includes(candidate))
-      ) return true;
+      if (typeof entry === "string" && candidates.some((candidate) => entry.includes(candidate))) return true;
       if (visit(entry, entryPath)) return true;
     }
     return false;
@@ -945,9 +942,12 @@ function normalizePlanOutputRefs(steps: unknown[]): void {
     if (!isRecord(value) || typeof value["id"] !== "string") continue;
     const outputs = value["expectedOutputs"];
     if (!Array.isArray(outputs)) continue;
-    declared.set(value["id"], new Set(outputs.flatMap((output) =>
-      isRecord(output) && typeof output["id"] === "string" ? [output["id"]] : []
-    )));
+    declared.set(
+      value["id"],
+      new Set(
+        outputs.flatMap((output) => (isRecord(output) && typeof output["id"] === "string" ? [output["id"]] : [])),
+      ),
+    );
   }
   for (const value of steps) {
     if (!isRecord(value) || !Array.isArray(value["inputRefs"])) continue;
@@ -955,8 +955,9 @@ function normalizePlanOutputRefs(steps: unknown[]): void {
       if (!isRecord(input) || typeof input["ref"] !== "string") continue;
       const ref = input["ref"];
       if (!ref.startsWith(PLAN_OUTPUT_REF_PREFIX)) continue;
-      const qualified = /^([a-z][a-z0-9]*(?:[-_][a-z0-9]+)*)[.:]([a-z][a-z0-9]*(?:[-_][a-z0-9]+)*)$/
-        .exec(ref.slice(PLAN_OUTPUT_REF_PREFIX.length));
+      const qualified = /^([a-z][a-z0-9]*(?:[-_][a-z0-9]+)*)[.:]([a-z][a-z0-9]*(?:[-_][a-z0-9]+)*)$/.exec(
+        ref.slice(PLAN_OUTPUT_REF_PREFIX.length),
+      );
       if (qualified === null) continue;
       const [, producerId, outputId] = qualified;
       if (declared.get(producerId!)?.has(outputId!) === true) {
@@ -1030,17 +1031,17 @@ export function deriveEpisodeSafetyRoute(
     "critical_operation",
   ]);
   const highFloor = safetyFacts.some((fact) => highFloorKinds.has(fact.kind));
-  const label = highFloor || providerTurns >= 4
-    ? "deep"
-    : providerTurns >= 2 || gates.length > 0 || approvals.length > 0
-      ? "standard"
-      : "quick";
+  const label =
+    highFloor || providerTurns >= 4
+      ? "deep"
+      : providerTurns >= 2 || gates.length > 0 || approvals.length > 0
+        ? "standard"
+        : "quick";
   return {
     label,
-    reasons: [...new Set([
-      `derived-from-${providerTurns}-provider-turns`,
-      ...safetyFacts.map((fact) => `safety:${fact.kind}`),
-    ])].sort(),
+    reasons: [
+      ...new Set([`derived-from-${providerTurns}-provider-turns`, ...safetyFacts.map((fact) => `safety:${fact.kind}`)]),
+    ].sort(),
     gateStepIds: gates,
     approvalStepIds: approvals,
   };
@@ -1079,7 +1080,9 @@ export function materializeEpisodePlanAssignments(
       continue;
     }
     if (step.assignment === undefined) {
-      issues.push(issue("plan_adaptive_assignment_missing", `adaptive step ${step.id} requires an assignment`, step.id));
+      issues.push(
+        issue("plan_adaptive_assignment_missing", `adaptive step ${step.id} requires an assignment`, step.id),
+      );
       continue;
     }
     let assignment: TurnAssignment;
@@ -1090,12 +1093,13 @@ export function materializeEpisodePlanAssignments(
       continue;
     }
     if (!policy.isAssignmentAllowed(step.role, assignment)) {
-      issues.push(issue("plan_assignment_not_allowed", `assignment for ${step.id} is not approved for ${step.role}`, step.id));
+      issues.push(
+        issue("plan_assignment_not_allowed", `assignment for ${step.id} is not approved for ${step.role}`, step.id),
+      );
       continue;
     }
-    const assignmentSource: TurnAssignmentSource = proposal.planningSource === "creator_scope"
-      ? "creator"
-      : "episode_planner";
+    const assignmentSource: TurnAssignmentSource =
+      proposal.planningSource === "creator_scope" ? "creator" : "episode_planner";
     steps.push({ ...cloneProviderProposal(step), assignment, assignmentSource });
   }
   if (issues.length > 0) throw new EpisodePlanValidationError(issues);
@@ -1117,33 +1121,57 @@ export function assessCreatorScope(
     return {
       executionReady: false,
       runEpisodePlanner: true,
-      issues: [issue("creator_scope_bypass_not_requested", "creator scope is authoritative planner input, not an execution-ready bypass")],
+      issues: [
+        issue(
+          "creator_scope_bypass_not_requested",
+          "creator scope is authoritative planner input, not an execution-ready bypass",
+        ),
+      ],
     };
   }
 
   const issues: EpisodePlanIssue[] = [];
   validateCreatorProvenance(scope.provenance, issues);
-  if (!nonEmpty(scope.objective)) issues.push(issue("creator_scope_objective_required", "creator objective is required"));
-  if (!nonEmptyStrings(scope.inScope)) issues.push(issue("creator_scope_in_scope_required", "creator scope must name in-scope work"));
+  if (!nonEmpty(scope.objective))
+    issues.push(issue("creator_scope_objective_required", "creator objective is required"));
+  if (!nonEmptyStrings(scope.inScope))
+    issues.push(issue("creator_scope_in_scope_required", "creator scope must name in-scope work"));
   if (!Array.isArray(scope.outOfScope) || scope.outOfScope.some((entry) => !nonEmpty(entry))) {
-    issues.push(issue("creator_scope_out_of_scope_invalid", "creator scope must explicitly provide valid out-of-scope work"));
+    issues.push(
+      issue("creator_scope_out_of_scope_invalid", "creator scope must explicitly provide valid out-of-scope work"),
+    );
   }
-  if (!nonEmptyStrings(scope.acceptanceCriteria)) issues.push(issue("creator_scope_acceptance_required", "creator scope must name acceptance criteria"));
+  if (!nonEmptyStrings(scope.acceptanceCriteria))
+    issues.push(issue("creator_scope_acceptance_required", "creator scope must name acceptance criteria"));
   validateCreatorExpectedArtifacts(scope.expectedArtifacts, issues);
   if (!isRecord(scope.declaredConstraints)) {
-    issues.push(issue("creator_scope_constraints_invalid", "creator scope must explicitly provide declared constraints"));
+    issues.push(
+      issue("creator_scope_constraints_invalid", "creator scope must explicitly provide declared constraints"),
+    );
   }
   if (!Array.isArray(scope.safetyFacts) || scope.safetyFacts.some((entry) => !validSafetyFact(entry))) {
-    issues.push(issue("creator_scope_safety_facts_invalid", "creator scope must explicitly provide typed safety facts with evidence references"));
+    issues.push(
+      issue(
+        "creator_scope_safety_facts_invalid",
+        "creator scope must explicitly provide typed safety facts with evidence references",
+      ),
+    );
   }
 
   const hasSteps = scope.steps !== undefined;
   const hasTemplate = scope.workflowTemplate !== undefined;
   if (!hasSteps && !hasTemplate) {
-    issues.push(issue("creator_scope_workflow_missing", "creator scope requires explicit steps or one governed workflow template"));
+    issues.push(
+      issue(
+        "creator_scope_workflow_missing",
+        "creator scope requires explicit steps or one governed workflow template",
+      ),
+    );
   }
   if (hasSteps && hasTemplate) {
-    issues.push(issue("creator_scope_workflow_ambiguous", "creator scope cannot specify both steps and a workflow template"));
+    issues.push(
+      issue("creator_scope_workflow_ambiguous", "creator scope cannot specify both steps and a workflow template"),
+    );
   }
 
   let resolvedSteps: ProposedEpisodeStep[] | undefined;
@@ -1151,7 +1179,12 @@ export function assessCreatorScope(
   if (hasTemplate) {
     const resolved = policy.resolveWorkflowTemplate(scope.workflowTemplate!);
     if (resolved === undefined || resolved.length === 0) {
-      issues.push(issue("creator_scope_template_unresolved", `workflow template ${scope.workflowTemplate!.id}@${scope.workflowTemplate!.version} did not resolve unambiguously`));
+      issues.push(
+        issue(
+          "creator_scope_template_unresolved",
+          `workflow template ${scope.workflowTemplate!.id}@${scope.workflowTemplate!.version} did not resolve unambiguously`,
+        ),
+      );
     } else {
       resolvedSteps = resolved.map(cloneProposedStep);
     }
@@ -1167,7 +1200,9 @@ export function assessCreatorScope(
       if (policy.mode === "fixed") {
         const configured = policy.configuredAssignmentFor(step.role);
         if (configured === undefined) {
-          issues.push(issue("creator_scope_assignment_unresolved", `fixed assignment for ${step.role} does not resolve`, step.id));
+          issues.push(
+            issue("creator_scope_assignment_unresolved", `fixed assignment for ${step.role} does not resolve`, step.id),
+          );
           continue;
         }
         try {
@@ -1179,13 +1214,21 @@ export function assessCreatorScope(
         continue;
       }
       if (step.assignment === undefined) {
-        issues.push(issue("creator_scope_assignment_unresolved", `adaptive creator step ${step.id} requires an exact assignment`, step.id));
+        issues.push(
+          issue(
+            "creator_scope_assignment_unresolved",
+            `adaptive creator step ${step.id} requires an exact assignment`,
+            step.id,
+          ),
+        );
         continue;
       }
       try {
         const assignment = validateTurnAssignment(step.assignment, `creator assignment for ${step.id}`);
         if (!policy.isAssignmentAllowed(step.role, assignment)) {
-          issues.push(issue("creator_scope_assignment_not_allowed", `creator assignment for ${step.id} is not approved`, step.id));
+          issues.push(
+            issue("creator_scope_assignment_not_allowed", `creator assignment for ${step.id} is not approved`, step.id),
+          );
         }
         validateCreatorTurnCeiling(step, assignment, policy, issues);
       } catch (error) {
@@ -1218,7 +1261,12 @@ export function validateEpisodePlan(
     issues.push(issue("plan_schema_version_invalid", `schema version must be ${EPISODE_PLAN_SCHEMA_VERSION}`));
   }
   if (plan.episodeId !== intent.episodeId || !nonEmpty(plan.episodeId)) {
-    issues.push(issue("plan_episode_identity_mismatch", `plan episode ${plan.episodeId} does not match intent ${intent.episodeId}`));
+    issues.push(
+      issue(
+        "plan_episode_identity_mismatch",
+        `plan episode ${plan.episodeId} does not match intent ${intent.episodeId}`,
+      ),
+    );
   }
   if (!Number.isSafeInteger(plan.version) || plan.version < 1) {
     issues.push(issue("plan_version_invalid", "plan version must be a positive safe integer"));
@@ -1228,11 +1276,17 @@ export function validateEpisodePlan(
     issues.push(issue("plan_intent_hash_mismatch", `intent hash must be ${expectedIntentHash}`));
   }
   if (intent.assignmentMode !== policy.mode) {
-    issues.push(issue("plan_assignment_mode_mismatch", `intent mode ${intent.assignmentMode} does not match validation mode ${policy.mode}`));
+    issues.push(
+      issue(
+        "plan_assignment_mode_mismatch",
+        `intent mode ${intent.assignmentMode} does not match validation mode ${policy.mode}`,
+      ),
+    );
   }
   if (!nonEmpty(plan.summary)) issues.push(issue("plan_summary_required", "plan summary is required"));
   if (!nonEmpty(plan.workflowClass)) issues.push(issue("plan_workflow_class_required", "workflow class is required"));
-  if (!validTimestamp(plan.createdAt)) issues.push(issue("plan_created_at_invalid", "createdAt must be an ISO-8601 timestamp"));
+  if (!validTimestamp(plan.createdAt))
+    issues.push(issue("plan_created_at_invalid", "createdAt must be an ISO-8601 timestamp"));
   validateNormalizationProvenance(plan.normalizationProvenance, issues);
   validatePlanningSource(plan, intent, issues);
   validateIntentAssignmentCatalog(intent, policy, issues);
@@ -1242,10 +1296,12 @@ export function validateEpisodePlan(
     const required = new Set(intent.requiredSafetyFacts.map(safetyFactIdentity));
     for (const creatorFact of intent.creatorScope?.safetyFacts ?? []) {
       if (!required.has(safetyFactIdentity(creatorFact))) {
-        issues.push(issue(
-          "plan_creator_safety_fact_missing",
-          `episode intent dropped creator-declared safety fact ${creatorFact.kind}`,
-        ));
+        issues.push(
+          issue(
+            "plan_creator_safety_fact_missing",
+            `episode intent dropped creator-declared safety fact ${creatorFact.kind}`,
+          ),
+        );
       }
     }
   }
@@ -1253,12 +1309,16 @@ export function validateEpisodePlan(
   if (plan.steps.length === 0) issues.push(issue("plan_steps_empty", "plan must contain at least one step"));
   const ids = new Set<string>();
   for (const step of plan.steps) {
-    if (!STEP_ID.test(step.id)) issues.push(issue("plan_step_id_invalid", `invalid stable step id ${step.id}`, step.id));
+    if (!STEP_ID.test(step.id))
+      issues.push(issue("plan_step_id_invalid", `invalid stable step id ${step.id}`, step.id));
     if (ids.has(step.id)) issues.push(issue("plan_step_id_duplicate", `duplicate step id ${step.id}`, step.id));
     ids.add(step.id);
-    if (!nonEmpty(step.objective)) issues.push(issue("plan_step_objective_required", "step objective is required", step.id));
+    if (!nonEmpty(step.objective))
+      issues.push(issue("plan_step_objective_required", "step objective is required", step.id));
     if (step.expectedOutputs.some((output) => !validOutput(output))) {
-      issues.push(issue("plan_expected_output_invalid", "expected outputs require stable ids and non-empty kinds", step.id));
+      issues.push(
+        issue("plan_expected_output_invalid", "expected outputs require stable ids and non-empty kinds", step.id),
+      );
     }
     if (step.kind === "provider_turn") validateProviderStep(step, plan.planningSource, intent, policy, issues);
   }
@@ -1303,23 +1363,23 @@ export function validateForwardOnlyRevision(
   for (const stepId of new Set(completedStepIds)) {
     const prior = priorById.get(stepId);
     if (prior === undefined) {
-      issues.push(issue("plan_revision_unknown_completed_step", `completed step ${stepId} is absent from the prior plan`, stepId));
+      issues.push(
+        issue("plan_revision_unknown_completed_step", `completed step ${stepId} is absent from the prior plan`, stepId),
+      );
       continue;
     }
     const replacement = nextById.get(stepId);
     if (replacement === undefined) {
-      issues.push(issue("plan_revision_completed_step_missing", `completed step ${stepId} must remain in the revision`, stepId));
+      issues.push(
+        issue("plan_revision_completed_step_missing", `completed step ${stepId} must remain in the revision`, stepId),
+      );
       continue;
     }
     if (stableHash(prior) !== stableHash(replacement)) {
       issues.push(issue("plan_revision_completed_step_changed", `completed step ${stepId} is immutable`, stepId));
     }
   }
-  issues.push(...validateRevisionContractSupersessions(
-    priorById,
-    next,
-    new Set(completedStepIds),
-  ));
+  issues.push(...validateRevisionContractSupersessions(priorById, next, new Set(completedStepIds)));
   return issues;
 }
 
@@ -1329,12 +1389,9 @@ export function validateForwardOnlyRevision(
 export function validateInitialPlanSupersessions(plan: EpisodePlan): EpisodePlanIssue[] {
   return plan.steps.flatMap((step) =>
     step.kind === "provider_turn" && step.supersedes !== undefined
-      ? [issue(
-          "plan_supersession_invalid",
-          `initial plan step ${step.id} cannot supersede prior work`,
-          step.id,
-        )]
-      : []);
+      ? [issue("plan_supersession_invalid", `initial plan step ${step.id} cannot supersede prior work`, step.id)]
+      : [],
+  );
 }
 
 function validateRevisionContractSupersessions(
@@ -1358,32 +1415,21 @@ function validateRevisionContractSupersessions(
       invalid(`superseding contract ${step.id} must be a new revision step`);
     }
     const priorTarget = priorById.get(step.supersedes);
-    if (
-      priorTarget?.kind !== "provider_turn" ||
-      priorTarget.operation !== "build/contract"
-    ) {
-      invalid(
-        `superseding contract ${step.id} must identify a prior build/contract step`,
-      );
+    if (priorTarget?.kind !== "provider_turn" || priorTarget.operation !== "build/contract") {
+      invalid(`superseding contract ${step.id} must identify a prior build/contract step`);
     }
     if (!completedStepIds.has(step.supersedes)) {
-      invalid(
-        `superseding contract ${step.id} may replace only completed step ${step.supersedes}`,
-      );
+      invalid(`superseding contract ${step.id} may replace only completed step ${step.supersedes}`);
     }
     if (step.operation !== "build/contract") {
       invalid(`only a new build/contract step may supersede a completed contract`);
     }
     if (!step.dependsOn.includes(step.supersedes)) {
-      invalid(
-        `superseding contract ${step.id} must depend on immutable contract ${step.supersedes}`,
-      );
+      invalid(`superseding contract ${step.id} must depend on immutable contract ${step.supersedes}`);
     }
     const priorClaim = claimedTargets.get(step.supersedes);
     if (priorClaim !== undefined && priorClaim !== step.id) {
-      invalid(
-        `completed contract ${step.supersedes} is already superseded by ${priorClaim}`,
-      );
+      invalid(`completed contract ${step.supersedes} is already superseded by ${priorClaim}`);
     } else {
       claimedTargets.set(step.supersedes, step.id);
     }
@@ -1404,7 +1450,9 @@ export function selectReadyEpisodeSteps(
   const completed = new Set(completedStepIds);
   const inFlight = new Set(inFlightStepIds);
   return plan.steps
-    .filter((step) => !completed.has(step.id) && !inFlight.has(step.id) && step.dependsOn.every((id) => completed.has(id)))
+    .filter(
+      (step) => !completed.has(step.id) && !inFlight.has(step.id) && step.dependsOn.every((id) => completed.has(id)),
+    )
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -1418,10 +1466,7 @@ export function episodeIntentPath(root: string, episodeId: string): string {
 
 /** Persist the bounded EpisodeIntent once. Every revision validates against
  * these immutable bytes rather than a caller-supplied replacement object. */
-export async function persistEpisodeIntent(
-  root: string,
-  intent: EpisodeIntent,
-): Promise<string> {
+export async function persistEpisodeIntent(root: string, intent: EpisodeIntent): Promise<string> {
   const validated = parseEpisodeIntent(intent);
   const hash = episodeIntentHash(validated);
   const path = episodeIntentPath(root, intent.episodeId);
@@ -1439,10 +1484,7 @@ export async function persistEpisodeIntent(
   return hash;
 }
 
-export async function readPersistedEpisodeIntent(
-  root: string,
-  episodeId: string,
-): Promise<EpisodeIntent | undefined> {
+export async function readPersistedEpisodeIntent(root: string, episodeId: string): Promise<EpisodeIntent | undefined> {
   const raw = await readOptionalFile(episodeIntentPath(root, episodeId));
   if (raw === undefined) return undefined;
   let value: unknown;
@@ -1485,10 +1527,16 @@ export async function readEpisodePlanVersion(
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new EpisodePlanPersistenceError("error_episode_plan_corrupt", `plan v${version} for ${episodeId} is not valid JSON`);
+    throw new EpisodePlanPersistenceError(
+      "error_episode_plan_corrupt",
+      `plan v${version} for ${episodeId} is not valid JSON`,
+    );
   }
   if (!isEpisodePlan(parsed) || parsed.episodeId !== episodeId || parsed.version !== version) {
-    throw new EpisodePlanPersistenceError("error_episode_plan_corrupt", `plan v${version} for ${episodeId} is not a valid matching v1 plan`);
+    throw new EpisodePlanPersistenceError(
+      "error_episode_plan_corrupt",
+      `plan v${version} for ${episodeId} is not a valid matching v1 plan`,
+    );
   }
   return parsed;
 }
@@ -1503,10 +1551,16 @@ export async function readCurrentEpisodePlanPointer(
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new EpisodePlanPersistenceError("error_episode_plan_corrupt", `current plan pointer for ${episodeId} is not valid JSON`);
+    throw new EpisodePlanPersistenceError(
+      "error_episode_plan_corrupt",
+      `current plan pointer for ${episodeId} is not valid JSON`,
+    );
   }
   if (!isCurrentPointer(parsed) || parsed.episodeId !== episodeId) {
-    throw new EpisodePlanPersistenceError("error_episode_plan_corrupt", `current plan pointer for ${episodeId} is invalid`);
+    throw new EpisodePlanPersistenceError(
+      "error_episode_plan_corrupt",
+      `current plan pointer for ${episodeId} is invalid`,
+    );
   }
   return parsed;
 }
@@ -1515,8 +1569,15 @@ export async function readCurrentEpisodePlan(root: string, episodeId: string): P
   const pointer = await readCurrentEpisodePlanPointer(root, episodeId);
   if (pointer === undefined) return undefined;
   const plan = await readEpisodePlanVersion(root, episodeId, pointer.version);
-  if (plan === undefined || episodePlanHash(plan) !== pointer.planHash || pointer.file !== `plan-v${pointer.version}.json`) {
-    throw new EpisodePlanPersistenceError("error_episode_plan_corrupt", `current plan pointer for ${episodeId} does not match its immutable plan`);
+  if (
+    plan === undefined ||
+    episodePlanHash(plan) !== pointer.planHash ||
+    pointer.file !== `plan-v${pointer.version}.json`
+  ) {
+    throw new EpisodePlanPersistenceError(
+      "error_episode_plan_corrupt",
+      `current plan pointer for ${episodeId} does not match its immutable plan`,
+    );
   }
   return plan;
 }
@@ -1565,16 +1626,20 @@ export async function persistEpisodePlanRevisionFromReplan(input: {
   );
 }
 
-async function persistEpisodePlanLocked(input: {
-  root: string;
-  plan: EpisodePlan;
-  intent: EpisodeIntent;
-  policy: EpisodePlanValidationPolicy;
-}, authority: EpisodePlanRevisionAuthority | undefined): Promise<CurrentEpisodePlanPointer> {
+async function persistEpisodePlanLocked(
+  input: {
+    root: string;
+    plan: EpisodePlan;
+    intent: EpisodeIntent;
+    policy: EpisodePlanValidationPolicy;
+  },
+  authority: EpisodePlanRevisionAuthority | undefined,
+): Promise<CurrentEpisodePlanPointer> {
   const current = await readCurrentEpisodePlan(input.root, input.plan.episodeId);
-  const validationIntent = authority === undefined
-    ? input.intent
-    : await requireImmutableRevisionIntent(input.root, input.intent, current, input.plan);
+  const validationIntent =
+    authority === undefined
+      ? input.intent
+      : await requireImmutableRevisionIntent(input.root, input.intent, current, input.plan);
   const validationPolicy = immutableIntentPolicy(input.policy, validationIntent);
   const planHash = assertEpisodePlanValid(input.plan, validationIntent, validationPolicy);
   if (authority === undefined) {
@@ -1640,7 +1705,10 @@ async function persistEpisodePlanLocked(input: {
   // Re-read after immutable publication so the pointer can never lead it.
   const persisted = await readEpisodePlanVersion(input.root, input.plan.episodeId, input.plan.version);
   if (persisted === undefined || episodePlanHash(persisted) !== planHash) {
-    throw new EpisodePlanPersistenceError("error_episode_plan_corrupt", `persisted plan v${input.plan.version} failed hash verification`);
+    throw new EpisodePlanPersistenceError(
+      "error_episode_plan_corrupt",
+      `persisted plan v${input.plan.version} failed hash verification`,
+    );
   }
   const pointer: CurrentEpisodePlanPointer = {
     schemaVersion: EPISODE_PLAN_POINTER_SCHEMA_VERSION,
@@ -1676,10 +1744,9 @@ async function requireImmutableRevisionIntent(
     next.intentHash !== persistedHash ||
     episodeIntentHash(supplied) !== persistedHash
   ) {
-    throw new EpisodePlanValidationError([issue(
-      "plan_intent_hash_mismatch",
-      `revision intent must remain ${persistedHash}`,
-    )]);
+    throw new EpisodePlanValidationError([
+      issue("plan_intent_hash_mismatch", `revision intent must remain ${persistedHash}`),
+    ]);
   }
   return persisted;
 }
@@ -1694,8 +1761,7 @@ function immutableIntentPolicy(
   const roles = new Map(intent.availableRoles.map((role) => [role.role, role]));
   const candidates = intent.allowedAssignments;
   const candidateFor = (role: string, assignment: TurnAssignment): AllowedTurnAssignment | undefined =>
-    candidates.find((candidate) =>
-      candidate.role === role && assignmentsEqualSafe(candidate.assignment, assignment));
+    candidates.find((candidate) => candidate.role === role && assignmentsEqualSafe(candidate.assignment, assignment));
   return {
     ...policy,
     configuredAssignmentFor: (role) => roles.get(role)?.configuredAssignment,
@@ -1729,20 +1795,12 @@ async function assertEpisodeRevisionOpen(root: string, episodeId: string): Promi
   }
 }
 
-async function assertPendingReplanAuthority(
-  root: string,
-  current: EpisodePlan,
-  requestId: string,
-): Promise<void> {
+async function assertPendingReplanAuthority(root: string, current: EpisodePlan, requestId: string): Promise<void> {
   try {
     const replan = await import("./episode-replan.js");
     const journal = await replan.readEpisodeReplanJournal(root, current.episodeId);
     const request = journal?.records.find((record) => record.trigger.id === requestId);
-    if (
-      request === undefined ||
-      request.status !== "pending" ||
-      request.trigger.planVersion !== current.version
-    ) {
+    if (request === undefined || request.status !== "pending" || request.trigger.planVersion !== current.version) {
       throw new EpisodePlanPersistenceError(
         "error_episode_plan_revision_authority_required",
         `plan revision requires pending replan request ${requestId} for current v${current.version}`,
@@ -1768,10 +1826,7 @@ async function assertPendingReplanAuthority(
  * plan contract in order to execute it, while revisions need only its durable
  * journal reader after both modules have initialized.
  */
-async function journalDerivedCompletedStepIds(
-  root: string,
-  current: EpisodePlan,
-): Promise<string[]> {
+async function journalDerivedCompletedStepIds(root: string, current: EpisodePlan): Promise<string[]> {
   let journal: import("./episode-plan-executor.js").EpisodePlanExecutionJournal | undefined;
   let completedStepIds: string[];
   try {
@@ -1794,13 +1849,20 @@ async function journalDerivedCompletedStepIds(
     );
   }
 
-  const terminalExecutionIds = new Set(journal.events.flatMap((event) =>
-    event.kind === "step_completed" || event.kind === "step_failed" ||
-      event.kind === "approval_pending" || event.kind === "approval_denied"
-      ? [event.execution_id]
-      : []));
-  const active = journal.events.find((event): event is import("./episode-plan-executor.js").StepStartedEvent =>
-    event.kind === "step_started" && !terminalExecutionIds.has(event.execution_id));
+  const terminalExecutionIds = new Set(
+    journal.events.flatMap((event) =>
+      event.kind === "step_completed" ||
+      event.kind === "step_failed" ||
+      event.kind === "approval_pending" ||
+      event.kind === "approval_denied"
+        ? [event.execution_id]
+        : [],
+    ),
+  );
+  const active = journal.events.find(
+    (event): event is import("./episode-plan-executor.js").StepStartedEvent =>
+      event.kind === "step_started" && !terminalExecutionIds.has(event.execution_id),
+  );
   if (active !== undefined) {
     throw new EpisodePlanPersistenceError(
       "error_episode_plan_revision_execution_active",
@@ -1810,8 +1872,9 @@ async function journalDerivedCompletedStepIds(
 
   const plansByVersion = new Map<number, EpisodePlan>();
   for (const event of journal.events) {
-    const persisted = plansByVersion.get(event.plan_version) ??
-      await readEpisodePlanVersion(root, current.episodeId, event.plan_version);
+    const persisted =
+      plansByVersion.get(event.plan_version) ??
+      (await readEpisodePlanVersion(root, current.episodeId, event.plan_version));
     if (persisted === undefined || episodePlanHash(persisted) !== event.plan_sha256) {
       throw new EpisodePlanPersistenceError(
         "error_episode_plan_corrupt",
@@ -1855,18 +1918,33 @@ function validatePlanningSource(plan: EpisodePlan, intent: EpisodeIntent, issues
   if (plan.planningSource === "creator_scope") {
     const assessmentScope = intent.creatorScope;
     if (assessmentScope?.planningDisposition !== "execution_ready") {
-      issues.push(issue("plan_creator_scope_not_execution_ready", "creator-authored plan requires explicit execution-ready scope"));
+      issues.push(
+        issue(
+          "plan_creator_scope_not_execution_ready",
+          "creator-authored plan requires explicit execution-ready scope",
+        ),
+      );
       return;
     }
     validateCreatorProvenance(assessmentScope.provenance, issues);
     validateCreatorExpectedArtifacts(assessmentScope.expectedArtifacts, issues);
-    if (plan.creatorProvenance === undefined || stableHash(plan.creatorProvenance) !== stableHash(assessmentScope.provenance)) {
-      issues.push(issue("plan_creator_provenance_mismatch", "plan creator provenance must exactly match the episode intent"));
+    if (
+      plan.creatorProvenance === undefined ||
+      stableHash(plan.creatorProvenance) !== stableHash(assessmentScope.provenance)
+    ) {
+      issues.push(
+        issue("plan_creator_provenance_mismatch", "plan creator provenance must exactly match the episode intent"),
+      );
     }
     return;
   }
   if (plan.creatorProvenance !== undefined) {
-    issues.push(issue("plan_unexpected_creator_provenance", "EpisodePlanner-authored plans cannot claim creator-scope provenance"));
+    issues.push(
+      issue(
+        "plan_unexpected_creator_provenance",
+        "EpisodePlanner-authored plans cannot claim creator-scope provenance",
+      ),
+    );
   }
 }
 
@@ -1876,10 +1954,12 @@ function validateNormalizationProvenance(
 ): void {
   if (provenance === undefined) return;
   if (!isNormalizationProvenanceStrict(provenance)) {
-    issues.push(issue(
-      "plan_normalization_provenance_invalid",
-      "plan normalization provenance must contain only typed code-owned scalar-removal records",
-    ));
+    issues.push(
+      issue(
+        "plan_normalization_provenance_invalid",
+        "plan normalization provenance must contain only typed code-owned scalar-removal records",
+      ),
+    );
   }
 }
 
@@ -1890,28 +1970,22 @@ function validateProviderStep(
   policy: EpisodePlanValidationPolicy,
   issues: EpisodePlanIssue[],
 ): void {
-  if (
-    step.supersedes !== undefined &&
-    (typeof step.supersedes !== "string" || !STEP_ID.test(step.supersedes))
-  ) {
-    issues.push(issue(
-      "plan_supersession_invalid",
-      "superseded step must be a stable step id",
-      step.id,
-    ));
+  if (step.supersedes !== undefined && (typeof step.supersedes !== "string" || !STEP_ID.test(step.supersedes))) {
+    issues.push(issue("plan_supersession_invalid", "superseded step must be a stable step id", step.id));
   }
   if (!machineReadableOperation(step.operation)) {
-    issues.push(issue("plan_operation_invalid", "provider operation must be a stable machine-readable identifier", step.id));
-  } else if (
-    policy.knownProviderOperations !== undefined &&
-    !policy.knownProviderOperations.includes(step.operation)
-  ) {
+    issues.push(
+      issue("plan_operation_invalid", "provider operation must be a stable machine-readable identifier", step.id),
+    );
+  } else if (policy.knownProviderOperations !== undefined && !policy.knownProviderOperations.includes(step.operation)) {
     const known = [...new Set(policy.knownProviderOperations)].sort();
-    issues.push(issue(
-      "plan_operation_unknown",
-      `unknown provider operation ${JSON.stringify(step.operation)}; valid operations are: ${known.join(", ")}`,
-      step.id,
-    ));
+    issues.push(
+      issue(
+        "plan_operation_unknown",
+        `unknown provider operation ${JSON.stringify(step.operation)}; valid operations are: ${known.join(", ")}`,
+        step.id,
+      ),
+    );
   }
   if (!policy.isKnownRole(step.role)) issues.push(issue("plan_role_unknown", `unknown role ${step.role}`, step.id));
   let assignment: TurnAssignment;
@@ -1927,39 +2001,32 @@ function validateProviderStep(
   if (!(["configured", "episode_planner", "creator"] as const).includes(step.assignmentSource)) {
     issues.push(issue("plan_assignment_source_invalid", "assignment source is invalid", step.id));
   }
-  const expectedSource: TurnAssignmentSource = policy.mode === "fixed"
-    ? "configured"
-    : planningSource === "creator_scope" ? "creator" : "episode_planner";
+  const expectedSource: TurnAssignmentSource =
+    policy.mode === "fixed" ? "configured" : planningSource === "creator_scope" ? "creator" : "episode_planner";
   if (step.assignmentSource !== expectedSource) {
     issues.push(issue("plan_assignment_source_invalid", `assignment source must be ${expectedSource}`, step.id));
   }
   if (policy.mode === "fixed") {
     const configured = policy.configuredAssignmentFor(step.role);
     if (configured === undefined || !turnAssignmentsEqual(configured, assignment)) {
-      issues.push(issue("plan_assignment_not_allowed", `fixed step must use the configured assignment for ${step.role}`, step.id));
+      issues.push(
+        issue("plan_assignment_not_allowed", `fixed step must use the configured assignment for ${step.role}`, step.id),
+      );
     }
   }
   const capabilities = new Set(policy.capabilitiesFor(step.role, assignment));
   const declaredCapabilities = new Set(step.requiredCapabilities);
   const roleRequirements = new Set(
-    intent.availableRoles
-      .filter((view) => view.role === step.role)
-      .flatMap((view) => view.requiredCapabilities),
+    intent.availableRoles.filter((view) => view.role === step.role).flatMap((view) => view.requiredCapabilities),
   );
   for (const capability of roleRequirements) {
     if (!declaredCapabilities.has(capability)) {
-      issues.push(issue(
-        "plan_capability_missing",
-        `provider step omits role-required capability ${capability}`,
-        step.id,
-      ));
+      issues.push(
+        issue("plan_capability_missing", `provider step omits role-required capability ${capability}`, step.id),
+      );
     }
     if (!capabilities.has(capability)) {
-      issues.push(issue(
-        "plan_capability_missing",
-        `assignment lacks role-required capability ${capability}`,
-        step.id,
-      ));
+      issues.push(issue("plan_capability_missing", `assignment lacks role-required capability ${capability}`, step.id));
     }
   }
   for (const capability of declaredCapabilities) {
@@ -1968,7 +2035,8 @@ function validateProviderStep(
       issues.push(issue("plan_capability_missing", `assignment lacks required capability ${capability}`, step.id));
     }
   }
-  if (!nonEmpty(step.selectionReason)) issues.push(issue("plan_selection_reason_required", "selectionReason is required", step.id));
+  if (!nonEmpty(step.selectionReason))
+    issues.push(issue("plan_selection_reason_required", "selectionReason is required", step.id));
   if (!finiteNonNegative(step.maxTurnBudgetUsd) || step.maxTurnBudgetUsd === 0) {
     issues.push(issue("plan_turn_budget_invalid", "provider turn budget must be finite and positive", step.id));
   }
@@ -1976,15 +2044,19 @@ function validateProviderStep(
     (candidate) => candidate.role === step.role && assignmentsEqualSafe(candidate.assignment, assignment),
   );
   if (candidates.length !== 1) {
-    issues.push(issue("plan_assignment_not_allowed", `step assignment must resolve to exactly one intent candidate`, step.id));
+    issues.push(
+      issue("plan_assignment_not_allowed", `step assignment must resolve to exactly one intent candidate`, step.id),
+    );
   } else if (!candidates[0]!.available) {
     issues.push(issue("plan_assignment_unavailable", `step assignment is not currently available`, step.id));
   } else if (step.maxTurnBudgetUsd > candidates[0]!.maxTurnCostUsd + EPSILON) {
-    issues.push(issue(
-      "plan_turn_budget_exceeds_assignment",
-      `step budget $${step.maxTurnBudgetUsd} exceeds approved assignment ceiling $${candidates[0]!.maxTurnCostUsd}`,
-      step.id,
-    ));
+    issues.push(
+      issue(
+        "plan_turn_budget_exceeds_assignment",
+        `step budget $${step.maxTurnBudgetUsd} exceeds approved assignment ceiling $${candidates[0]!.maxTurnCostUsd}`,
+        step.id,
+      ),
+    );
   }
 }
 
@@ -2004,13 +2076,26 @@ function validateIntentAssignmentCatalog(
     }
     const key = `${candidate.role}\0${stableHash(assignment)}`;
     if (seen.has(key)) {
-      issues.push(issue("plan_assignment_catalog_duplicate", `role ${candidate.role} contains a duplicate atomic assignment`));
+      issues.push(
+        issue("plan_assignment_catalog_duplicate", `role ${candidate.role} contains a duplicate atomic assignment`),
+      );
     }
     seen.add(key);
-    if (!nonEmpty(candidate.candidateId) || !nonEmpty(candidate.role) || !nonEmpty(candidate.providerFamily) ||
-        !nonEmpty(candidate.qualificationRef) || !nonEmpty(candidate.priceRef) ||
-        !Array.isArray(candidate.capabilities) || candidate.capabilities.some((capability) => !nonEmpty(capability))) {
-      issues.push(issue("plan_assignment_candidate_invalid", "allowed assignment metadata must be complete and provenance-bearing"));
+    if (
+      !nonEmpty(candidate.candidateId) ||
+      !nonEmpty(candidate.role) ||
+      !nonEmpty(candidate.providerFamily) ||
+      !nonEmpty(candidate.qualificationRef) ||
+      !nonEmpty(candidate.priceRef) ||
+      !Array.isArray(candidate.capabilities) ||
+      candidate.capabilities.some((capability) => !nonEmpty(capability))
+    ) {
+      issues.push(
+        issue(
+          "plan_assignment_candidate_invalid",
+          "allowed assignment metadata must be complete and provenance-bearing",
+        ),
+      );
     }
     try {
       validateAssignmentProviderFamily(
@@ -2022,10 +2107,20 @@ function validateIntentAssignmentCatalog(
       issues.push(issue("plan_assignment_candidate_invalid", errorMessage(error)));
     }
     if (!finiteNonNegative(candidate.maxTurnCostUsd) || candidate.maxTurnCostUsd === 0) {
-      issues.push(issue("plan_assignment_price_invalid", `allowed assignment ${candidate.candidateId} requires a finite positive maxTurnCostUsd`));
+      issues.push(
+        issue(
+          "plan_assignment_price_invalid",
+          `allowed assignment ${candidate.candidateId} requires a finite positive maxTurnCostUsd`,
+        ),
+      );
     }
     if (!policy.isKnownRole(candidate.role) || !policy.isAssignmentAllowed(candidate.role, assignment)) {
-      issues.push(issue("plan_assignment_not_allowed", `intent assignment ${candidate.candidateId} is not allowed by current policy`));
+      issues.push(
+        issue(
+          "plan_assignment_not_allowed",
+          `intent assignment ${candidate.candidateId} is not allowed by current policy`,
+        ),
+      );
     }
   }
 }
@@ -2042,9 +2137,21 @@ function validateCreatorTurnCeiling(
   }
   const ceiling = policy.maxTurnCostUsdFor(step.role, assignment);
   if (ceiling === undefined || !finiteNonNegative(ceiling) || ceiling === 0) {
-    issues.push(issue("plan_assignment_price_invalid", `creator assignment for ${step.id} has no valid approved cost ceiling`, step.id));
+    issues.push(
+      issue(
+        "plan_assignment_price_invalid",
+        `creator assignment for ${step.id} has no valid approved cost ceiling`,
+        step.id,
+      ),
+    );
   } else if (step.maxTurnBudgetUsd > ceiling + EPSILON) {
-    issues.push(issue("plan_turn_budget_exceeds_assignment", `creator step budget exceeds its approved assignment ceiling`, step.id));
+    issues.push(
+      issue(
+        "plan_turn_budget_exceeds_assignment",
+        `creator step budget exceeds its approved assignment ceiling`,
+        step.id,
+      ),
+    );
   }
 }
 
@@ -2055,24 +2162,32 @@ function validateGraph(
   const issues: EpisodePlanIssue[] = [];
   const byId = new Map<string, ProposedEpisodeStep | EpisodeStep>();
   for (const step of steps) {
-    if (!STEP_ID.test(step.id)) issues.push(issue("plan_step_id_invalid", `invalid stable step id ${step.id}`, step.id));
+    if (!STEP_ID.test(step.id))
+      issues.push(issue("plan_step_id_invalid", `invalid stable step id ${step.id}`, step.id));
     if (byId.has(step.id)) {
       issues.push(issue("plan_step_id_duplicate", `duplicate step id ${step.id}`, step.id));
       continue;
     }
     byId.set(step.id, step);
-    if (!nonEmpty(step.objective)) issues.push(issue("plan_step_objective_required", "step objective is required", step.id));
+    if (!nonEmpty(step.objective))
+      issues.push(issue("plan_step_objective_required", "step objective is required", step.id));
     if (step.expectedOutputs.some((output) => !validOutput(output))) {
-      issues.push(issue("plan_expected_output_invalid", "expected outputs require stable ids and non-empty kinds", step.id));
+      issues.push(
+        issue("plan_expected_output_invalid", "expected outputs require stable ids and non-empty kinds", step.id),
+      );
     }
     if (step.kind === "provider_turn" && !machineReadableOperation(step.operation)) {
-      issues.push(issue("plan_operation_invalid", "provider operation must be a stable machine-readable identifier", step.id));
+      issues.push(
+        issue("plan_operation_invalid", "provider operation must be a stable machine-readable identifier", step.id),
+      );
     }
   }
   for (const step of steps) {
     for (const dependency of step.dependsOn) {
-      if (dependency === step.id) issues.push(issue("plan_step_self_dependency", "step cannot depend on itself", step.id));
-      else if (!byId.has(dependency)) issues.push(issue("plan_step_dependency_missing", `missing dependency ${dependency}`, step.id));
+      if (dependency === step.id)
+        issues.push(issue("plan_step_self_dependency", "step cannot depend on itself", step.id));
+      else if (!byId.has(dependency))
+        issues.push(issue("plan_step_dependency_missing", `missing dependency ${dependency}`, step.id));
     }
   }
   const colors = new Map<string, 0 | 1 | 2>();
@@ -2095,7 +2210,9 @@ function validateGraph(
     for (const output of step.expectedOutputs) {
       const prior = outputOwners.get(output.id);
       if (prior !== undefined) {
-        issues.push(issue("plan_expected_output_duplicate", `output ${output.id} is already produced by ${prior}`, step.id));
+        issues.push(
+          issue("plan_expected_output_duplicate", `output ${output.id} is already produced by ${prior}`, step.id),
+        );
       } else {
         outputOwners.set(output.id, step.id);
       }
@@ -2112,26 +2229,24 @@ function validateGraph(
       if (!input.ref.startsWith(PLAN_OUTPUT_REF_PREFIX)) continue;
       const outputId = input.ref.slice(PLAN_OUTPUT_REF_PREFIX.length);
       if (!STEP_ID.test(outputId)) {
-        issues.push(issue(
-          "plan_output_ref_invalid",
-          `${input.ref} must use ${PLAN_OUTPUT_REF_PREFIX}<output-id>`,
-          step.id,
-        ));
+        issues.push(
+          issue("plan_output_ref_invalid", `${input.ref} must use ${PLAN_OUTPUT_REF_PREFIX}<output-id>`, step.id),
+        );
         continue;
       }
       const owner = outputOwners.get(outputId);
       if (owner === undefined) {
-        issues.push(issue(
-          "plan_output_ref_invalid",
-          `${input.ref} does not resolve to a declared plan output`,
-          step.id,
-        ));
+        issues.push(
+          issue("plan_output_ref_invalid", `${input.ref} does not resolve to a declared plan output`, step.id),
+        );
       } else if (!ancestors(step.id).has(owner)) {
-        issues.push(issue(
-          "plan_output_ref_invalid",
-          `${input.ref} is not produced by a dependency ancestor of ${step.id}`,
-          step.id,
-        ));
+        issues.push(
+          issue(
+            "plan_output_ref_invalid",
+            `${input.ref} is not produced by a dependency ancestor of ${step.id}`,
+            step.id,
+          ),
+        );
       }
     }
   }
@@ -2142,10 +2257,9 @@ function validateGraph(
     for (const output of step.expectedOutputs) if (output.required) terminalOutputOwners.set(output.id, step.id);
   }
   if (terminalOutputOwners.size === 0) {
-    issues.push(issue(
-      "plan_terminal_output_missing",
-      "plan requires at least one terminal step with a required output",
-    ));
+    issues.push(
+      issue("plan_terminal_output_missing", "plan requires at least one terminal step with a required output"),
+    );
   }
 
   const requiredOutputIds = new Set(requiredTerminalOutputIds);
@@ -2161,19 +2275,19 @@ function validateGraph(
       }
       const output = byId.get(owner)?.expectedOutputs.find((candidate) => candidate.id === outputId);
       if (output?.required !== true) {
-        issues.push(issue(
-          "plan_terminal_output_missing",
-          `required terminal output ${outputId} must be marked required`,
-          owner,
-        ));
+        issues.push(
+          issue("plan_terminal_output_missing", `required terminal output ${outputId} must be marked required`, owner),
+        );
         continue;
       }
       if (!terminalIds.has(owner)) {
-        issues.push(issue(
-          "plan_terminal_output_not_terminal",
-          `required output ${outputId} is produced before a dependent step`,
-          owner,
-        ));
+        issues.push(
+          issue(
+            "plan_terminal_output_not_terminal",
+            `required output ${outputId} is produced before a dependent step`,
+            owner,
+          ),
+        );
         continue;
       }
       validTerminalIds.add(owner);
@@ -2225,7 +2339,8 @@ function validateBudget(plan: EpisodePlan, ceiling: BudgetCeiling, issues: Episo
   // equivalent-provider monetary cost in the current budget model. Keep this
   // code-owned instead of accepting planner-authored overhead.
   const actualMechanicalOverheadUsd = 0;
-  const arithmeticValid = Number.isSafeInteger(estimate.providerTurns) &&
+  const arithmeticValid =
+    Number.isSafeInteger(estimate.providerTurns) &&
     estimate.providerTurns === actualProvider.length &&
     finiteNonNegative(estimate.providerTurnBudgetUsd) &&
     near(estimate.providerTurnBudgetUsd, actualUsd) &&
@@ -2233,29 +2348,59 @@ function validateBudget(plan: EpisodePlan, ceiling: BudgetCeiling, issues: Episo
     near(estimate.mechanicalOverheadUsd, actualMechanicalOverheadUsd) &&
     finiteNonNegative(estimate.totalBudgetUsd) &&
     near(estimate.totalBudgetUsd, estimate.providerTurnBudgetUsd + estimate.mechanicalOverheadUsd);
-  if (!arithmeticValid) issues.push(issue("plan_budget_arithmetic_invalid", "estimated budget does not equal the plan's exact turn budgets plus overhead"));
+  if (!arithmeticValid)
+    issues.push(
+      issue(
+        "plan_budget_arithmetic_invalid",
+        "estimated budget does not equal the plan's exact turn budgets plus overhead",
+      ),
+    );
   const optionalCeilings = [
     ceiling.maxMechanicalOverheadUsd,
     ceiling.maxActiveTimeMs,
     ceiling.maxHumanDecisions,
   ].filter((value): value is number => value !== undefined);
-  if (!Number.isSafeInteger(ceiling.maxProviderTurns) || ceiling.maxProviderTurns < 0 ||
-      !finiteNonNegative(ceiling.maxEquivalentCostUsd) ||
-      optionalCeilings.some((value) => !finiteNonNegative(value))) {
+  if (
+    !Number.isSafeInteger(ceiling.maxProviderTurns) ||
+    ceiling.maxProviderTurns < 0 ||
+    !finiteNonNegative(ceiling.maxEquivalentCostUsd) ||
+    optionalCeilings.some((value) => !finiteNonNegative(value))
+  ) {
     issues.push(issue("plan_budget_ceiling_invalid", "hard budget ceilings must be finite and non-negative"));
   }
   if (actualProvider.length > ceiling.maxProviderTurns) {
-    issues.push(issue("plan_budget_provider_turns_exceeded", `plan requires ${actualProvider.length} provider turns; ceiling is ${ceiling.maxProviderTurns}`));
+    issues.push(
+      issue(
+        "plan_budget_provider_turns_exceeded",
+        `plan requires ${actualProvider.length} provider turns; ceiling is ${ceiling.maxProviderTurns}`,
+      ),
+    );
   }
-  if (!finiteNonNegative(ceiling.maxEquivalentCostUsd) || estimate.totalBudgetUsd > ceiling.maxEquivalentCostUsd + EPSILON) {
-    issues.push(issue("plan_budget_cost_exceeded", `plan total $${estimate.totalBudgetUsd} exceeds hard ceiling $${ceiling.maxEquivalentCostUsd}`));
+  if (
+    !finiteNonNegative(ceiling.maxEquivalentCostUsd) ||
+    estimate.totalBudgetUsd > ceiling.maxEquivalentCostUsd + EPSILON
+  ) {
+    issues.push(
+      issue(
+        "plan_budget_cost_exceeded",
+        `plan total $${estimate.totalBudgetUsd} exceeds hard ceiling $${ceiling.maxEquivalentCostUsd}`,
+      ),
+    );
   }
-  if (ceiling.maxMechanicalOverheadUsd !== undefined && estimate.mechanicalOverheadUsd > ceiling.maxMechanicalOverheadUsd + EPSILON) {
+  if (
+    ceiling.maxMechanicalOverheadUsd !== undefined &&
+    estimate.mechanicalOverheadUsd > ceiling.maxMechanicalOverheadUsd + EPSILON
+  ) {
     issues.push(issue("plan_budget_mechanical_overhead_exceeded", "mechanical overhead exceeds its hard ceiling"));
   }
   const humanDecisions = plan.steps.filter((step) => step.kind === "approval").length;
   if (ceiling.maxHumanDecisions !== undefined && humanDecisions > ceiling.maxHumanDecisions) {
-    issues.push(issue("plan_budget_human_decisions_exceeded", `plan requires ${humanDecisions} approval decisions; ceiling is ${ceiling.maxHumanDecisions}`));
+    issues.push(
+      issue(
+        "plan_budget_human_decisions_exceeded",
+        `plan requires ${humanDecisions} approval decisions; ceiling is ${ceiling.maxHumanDecisions}`,
+      ),
+    );
   }
 }
 
@@ -2268,39 +2413,38 @@ function validateSafetyRoute(
   const gates = new Set(plan.steps.filter((step) => step.kind === "mechanical_gate").map((step) => step.id));
   const approvals = new Set(plan.steps.filter((step) => step.kind === "approval").map((step) => step.id));
   const expected = deriveEpisodeSafetyRoute(plan.steps, intent.requiredSafetyFacts);
-  if (!new Set(["quick", "standard", "deep"]).has(plan.derivedSafetyRoute.label) ||
-      plan.derivedSafetyRoute.gateStepIds.some((id) => !gates.has(id)) ||
-      plan.derivedSafetyRoute.approvalStepIds.some((id) => !approvals.has(id)) ||
-      stableHash(plan.derivedSafetyRoute) !== stableHash(expected)) {
-    issues.push(issue("plan_safety_route_invalid", "derived safety route must reference only typed plan gates and approvals"));
+  if (
+    !new Set(["quick", "standard", "deep"]).has(plan.derivedSafetyRoute.label) ||
+    plan.derivedSafetyRoute.gateStepIds.some((id) => !gates.has(id)) ||
+    plan.derivedSafetyRoute.approvalStepIds.some((id) => !approvals.has(id)) ||
+    stableHash(plan.derivedSafetyRoute) !== stableHash(expected)
+  ) {
+    issues.push(
+      issue("plan_safety_route_invalid", "derived safety route must reference only typed plan gates and approvals"),
+    );
   }
   const byId = new Map(plan.steps.map((step) => [step.id, step]));
   const terminals = terminalSteps(plan.steps);
-  const providerSteps = plan.steps.filter(
-    (step): step is ProviderTurnStep => step.kind === "provider_turn",
-  );
+  const providerSteps = plan.steps.filter((step): step is ProviderTurnStep => step.kind === "provider_turn");
   for (const required of new Set(policy.requiredProviderRoles ?? [])) {
     const matching = providerSteps.filter((step) => step.role === required);
     if (matching.length === 0) {
-      issues.push(issue(
-        "plan_safety_provider_missing",
-        `safety policy requires ${required}-owned provider work`,
-      ));
+      issues.push(issue("plan_safety_provider_missing", `safety policy requires ${required}-owned provider work`));
       continue;
     }
     for (const terminal of terminals) {
       if (!matching.some((step) => stepIsAncestorOrSelf(step.id, terminal, byId))) {
-        issues.push(issue(
-          "plan_safety_provider_missing",
-          `terminal outcome ${terminal.id} bypasses required ${required}-owned provider work`,
-          terminal.id,
-        ));
+        issues.push(
+          issue(
+            "plan_safety_provider_missing",
+            `terminal outcome ${terminal.id} bypasses required ${required}-owned provider work`,
+            terminal.id,
+          ),
+        );
       }
     }
   }
-  const gateSteps = plan.steps.filter(
-    (step): step is MechanicalGateStep => step.kind === "mechanical_gate",
-  );
+  const gateSteps = plan.steps.filter((step): step is MechanicalGateStep => step.kind === "mechanical_gate");
   for (const required of new Set(policy.requiredGateKinds ?? [])) {
     const matching = gateSteps.filter((step) => step.gate === required);
     if (matching.length === 0) {
@@ -2309,17 +2453,17 @@ function validateSafetyRoute(
     }
     for (const terminal of terminals) {
       if (!matching.some((step) => stepIsAncestorOrSelf(step.id, terminal, byId))) {
-        issues.push(issue(
-          "plan_safety_gate_missing",
-          `terminal outcome ${terminal.id} bypasses required mechanical gate ${required}`,
-          terminal.id,
-        ));
+        issues.push(
+          issue(
+            "plan_safety_gate_missing",
+            `terminal outcome ${terminal.id} bypasses required mechanical gate ${required}`,
+            terminal.id,
+          ),
+        );
       }
     }
   }
-  const approvalSteps = plan.steps.filter(
-    (step): step is ApprovalStep => step.kind === "approval",
-  );
+  const approvalSteps = plan.steps.filter((step): step is ApprovalStep => step.kind === "approval");
   for (const required of new Set(policy.requiredApprovalKinds ?? [])) {
     const matching = approvalSteps.filter((step) => step.approvalKind === required);
     if (matching.length === 0) {
@@ -2328,11 +2472,13 @@ function validateSafetyRoute(
     }
     for (const terminal of terminals) {
       if (!matching.some((step) => stepIsAncestorOrSelf(step.id, terminal, byId))) {
-        issues.push(issue(
-          "plan_safety_approval_missing",
-          `terminal outcome ${terminal.id} bypasses required approval ${required}`,
-          terminal.id,
-        ));
+        issues.push(
+          issue(
+            "plan_safety_approval_missing",
+            `terminal outcome ${terminal.id} bypasses required approval ${required}`,
+            terminal.id,
+          ),
+        );
       }
     }
   }
@@ -2351,7 +2497,9 @@ function validateIndependentReview(
   for (const subject of subjects) {
     const covering = reviewers.filter((reviewer) => stepIsAncestorOrSelf(subject.id, reviewer, byId));
     if (covering.length === 0) {
-      issues.push(issue("plan_independent_review_missing", `provider step ${subject.id} has no dependent review`, subject.id));
+      issues.push(
+        issue("plan_independent_review_missing", `provider step ${subject.id} has no dependent review`, subject.id),
+      );
     } else if (!covering.some((reviewer) => reviewPolicy.isIndependent(subject, reviewer))) {
       issues.push(issue("plan_independent_review_invalid", `review of ${subject.id} is not independent`, subject.id));
     }
@@ -2363,11 +2511,7 @@ function terminalSteps(steps: readonly EpisodeStep[]): EpisodeStep[] {
   return steps.filter((step) => !dependencyIds.has(step.id));
 }
 
-function stepIsAncestorOrSelf(
-  ancestorId: string,
-  step: EpisodeStep,
-  byId: ReadonlyMap<string, EpisodeStep>,
-): boolean {
+function stepIsAncestorOrSelf(ancestorId: string, step: EpisodeStep, byId: ReadonlyMap<string, EpisodeStep>): boolean {
   if (step.id === ancestorId) return true;
   const seen = new Set<string>();
   const visit = (candidate: EpisodeStep): boolean => {
@@ -2383,24 +2527,35 @@ function stepIsAncestorOrSelf(
 }
 
 function validateCreatorProvenance(provenance: CreatorScopeProvenance, issues: EpisodePlanIssue[]): void {
-  if (!(["human", "agent"] as const).includes(provenance.source) ||
-      !nonEmpty(provenance.creatorId) || !validTimestamp(provenance.createdAt) ||
-      !Array.isArray(provenance.evidenceRefs) || provenance.evidenceRefs.length === 0 ||
-      provenance.evidenceRefs.some((ref) => !nonEmpty(ref))) {
-    issues.push(issue("creator_scope_provenance_invalid", "creator scope requires typed source, identity, timestamp, and valid evidence references"));
+  if (
+    !(["human", "agent"] as const).includes(provenance.source) ||
+    !nonEmpty(provenance.creatorId) ||
+    !validTimestamp(provenance.createdAt) ||
+    !Array.isArray(provenance.evidenceRefs) ||
+    provenance.evidenceRefs.length === 0 ||
+    provenance.evidenceRefs.some((ref) => !nonEmpty(ref))
+  ) {
+    issues.push(
+      issue(
+        "creator_scope_provenance_invalid",
+        "creator scope requires typed source, identity, timestamp, and valid evidence references",
+      ),
+    );
   }
 }
 
-function validateCreatorExpectedArtifacts(
-  artifacts: readonly PlannedOutput[],
-  issues: EpisodePlanIssue[],
-): void {
-  if (artifacts.length === 0 || artifacts.some((output) => !validOutput(output)) ||
-      !artifacts.some((output) => output.required)) {
-    issues.push(issue(
-      "creator_scope_artifacts_required",
-      "creator scope must name valid expected artifacts and mark at least one as required",
-    ));
+function validateCreatorExpectedArtifacts(artifacts: readonly PlannedOutput[], issues: EpisodePlanIssue[]): void {
+  if (
+    artifacts.length === 0 ||
+    artifacts.some((output) => !validOutput(output)) ||
+    !artifacts.some((output) => output.required)
+  ) {
+    issues.push(
+      issue(
+        "creator_scope_artifacts_required",
+        "creator scope must name valid expected artifacts and mark at least one as required",
+      ),
+    );
   }
 }
 
@@ -2437,7 +2592,9 @@ function cloneProposedStep<T extends ProposedEpisodeStep>(step: T): T {
   return structuredClone(step);
 }
 
-function cloneProviderProposal(step: ProposedProviderTurnStep): Omit<ProviderTurnStep, "assignment" | "assignmentSource"> {
+function cloneProviderProposal(
+  step: ProposedProviderTurnStep,
+): Omit<ProviderTurnStep, "assignment" | "assignmentSource"> {
   const { assignment: _assignment, ...base } = structuredClone(step);
   return base;
 }
@@ -2517,102 +2674,187 @@ async function readOptionalFile(path: string): Promise<string | undefined> {
 }
 
 function isCreatorEpisodeScopeStrict(value: unknown): value is CreatorEpisodeScope {
-  if (!isRecord(value) || !exactKeys(
-    value,
-    [
-      "planningDisposition", "provenance", "workKind", "objective", "inScope", "outOfScope",
-      "acceptanceCriteria", "expectedArtifacts", "declaredConstraints", "safetyFacts", "steps",
-      "workflowTemplate",
-    ],
-    [
-      "planningDisposition", "provenance", "objective", "inScope", "outOfScope",
-      "acceptanceCriteria", "expectedArtifacts", "declaredConstraints", "safetyFacts",
-    ],
-  )) return false;
-  if ((value["planningDisposition"] !== "planner_input" && value["planningDisposition"] !== "execution_ready") ||
-      !isCreatorProvenanceStrict(value["provenance"]) ||
-      (value["workKind"] !== undefined && typeof value["workKind"] !== "string") ||
-      typeof value["objective"] !== "string" || !stringArray(value["inScope"]) ||
-      !stringArray(value["outOfScope"]) || !stringArray(value["acceptanceCriteria"]) ||
-      !Array.isArray(value["expectedArtifacts"]) || !value["expectedArtifacts"].every(isPlannedOutput) ||
-      !isJsonValue(value["declaredConstraints"]) ||
-      !Array.isArray(value["safetyFacts"]) || !value["safetyFacts"].every(validSafetyFact) ||
-      (value["steps"] !== undefined &&
-        (!Array.isArray(value["steps"]) || !value["steps"].every(isProposedEpisodeStep)))) return false;
+  if (
+    !isRecord(value) ||
+    !exactKeys(
+      value,
+      [
+        "planningDisposition",
+        "provenance",
+        "workKind",
+        "objective",
+        "inScope",
+        "outOfScope",
+        "acceptanceCriteria",
+        "expectedArtifacts",
+        "declaredConstraints",
+        "safetyFacts",
+        "steps",
+        "workflowTemplate",
+      ],
+      [
+        "planningDisposition",
+        "provenance",
+        "objective",
+        "inScope",
+        "outOfScope",
+        "acceptanceCriteria",
+        "expectedArtifacts",
+        "declaredConstraints",
+        "safetyFacts",
+      ],
+    )
+  )
+    return false;
+  if (
+    (value["planningDisposition"] !== "planner_input" && value["planningDisposition"] !== "execution_ready") ||
+    !isCreatorProvenanceStrict(value["provenance"]) ||
+    (value["workKind"] !== undefined && typeof value["workKind"] !== "string") ||
+    typeof value["objective"] !== "string" ||
+    !stringArray(value["inScope"]) ||
+    !stringArray(value["outOfScope"]) ||
+    !stringArray(value["acceptanceCriteria"]) ||
+    !Array.isArray(value["expectedArtifacts"]) ||
+    !value["expectedArtifacts"].every(isPlannedOutput) ||
+    !isJsonValue(value["declaredConstraints"]) ||
+    !Array.isArray(value["safetyFacts"]) ||
+    !value["safetyFacts"].every(validSafetyFact) ||
+    (value["steps"] !== undefined && (!Array.isArray(value["steps"]) || !value["steps"].every(isProposedEpisodeStep)))
+  )
+    return false;
   const template = value["workflowTemplate"];
-  return template === undefined || (
-    isRecord(template) && exactKeys(template, ["id", "version"], ["id", "version"]) &&
-    nonEmpty(template["id"]) && nonEmpty(template["version"])
+  return (
+    template === undefined ||
+    (isRecord(template) &&
+      exactKeys(template, ["id", "version"], ["id", "version"]) &&
+      nonEmpty(template["id"]) &&
+      nonEmpty(template["version"]))
   );
 }
 
 function isEpisodeIntentStrict(value: unknown): value is EpisodeIntent {
-  if (!isRecord(value) || !exactKeys(
-    value,
-    [
-      "episodeId", "app", "assignmentMode", "trigger", "goal", "lifecycle", "appStage",
-      "repositoryFacts", "changeFacts", "requestedConstraints", "hardBudget", "availableRoles",
-      "allowedAssignments", "requiredSafetyFacts", "creatorScope",
-    ],
-    [
-      "episodeId", "app", "assignmentMode", "trigger", "goal", "lifecycle", "appStage",
-      "repositoryFacts", "requestedConstraints", "hardBudget", "availableRoles",
-      "allowedAssignments", "requiredSafetyFacts",
-    ],
-  )) return false;
-  if (!nonEmpty(value["episodeId"]) || !nonEmpty(value["app"]) ||
-      !ASSIGNMENT_MODES.includes(value["assignmentMode"] as AssignmentMode) ||
-      !isTriggerDescriptor(value["trigger"]) || !nonEmpty(value["goal"]) ||
-      !nonEmpty(value["lifecycle"]) || !nonEmpty(value["appStage"]) ||
-      !isRecord(value["repositoryFacts"]) || !isJsonValue(value["repositoryFacts"]) ||
-      (value["changeFacts"] !== undefined &&
-        (!isRecord(value["changeFacts"]) || !isJsonValue(value["changeFacts"]))) ||
-      !isRecord(value["requestedConstraints"]) || !isJsonValue(value["requestedConstraints"]) ||
-      !isBudgetCeilingStrict(value["hardBudget"]) ||
-      !Array.isArray(value["availableRoles"]) || value["availableRoles"].length === 0 ||
-      !value["availableRoles"].every(isRolePlanningViewStrict) ||
-      !Array.isArray(value["allowedAssignments"]) || value["allowedAssignments"].length === 0 ||
-      !value["allowedAssignments"].every(isAllowedAssignmentStrict) ||
-      !Array.isArray(value["requiredSafetyFacts"]) || !value["requiredSafetyFacts"].every(validSafetyFact)) return false;
+  if (
+    !isRecord(value) ||
+    !exactKeys(
+      value,
+      [
+        "episodeId",
+        "app",
+        "assignmentMode",
+        "trigger",
+        "goal",
+        "lifecycle",
+        "appStage",
+        "repositoryFacts",
+        "changeFacts",
+        "requestedConstraints",
+        "hardBudget",
+        "availableRoles",
+        "allowedAssignments",
+        "requiredSafetyFacts",
+        "creatorScope",
+      ],
+      [
+        "episodeId",
+        "app",
+        "assignmentMode",
+        "trigger",
+        "goal",
+        "lifecycle",
+        "appStage",
+        "repositoryFacts",
+        "requestedConstraints",
+        "hardBudget",
+        "availableRoles",
+        "allowedAssignments",
+        "requiredSafetyFacts",
+      ],
+    )
+  )
+    return false;
+  if (
+    !nonEmpty(value["episodeId"]) ||
+    !nonEmpty(value["app"]) ||
+    !ASSIGNMENT_MODES.includes(value["assignmentMode"] as AssignmentMode) ||
+    !isTriggerDescriptor(value["trigger"]) ||
+    !nonEmpty(value["goal"]) ||
+    !nonEmpty(value["lifecycle"]) ||
+    !nonEmpty(value["appStage"]) ||
+    !isRecord(value["repositoryFacts"]) ||
+    !isJsonValue(value["repositoryFacts"]) ||
+    (value["changeFacts"] !== undefined && (!isRecord(value["changeFacts"]) || !isJsonValue(value["changeFacts"]))) ||
+    !isRecord(value["requestedConstraints"]) ||
+    !isJsonValue(value["requestedConstraints"]) ||
+    !isBudgetCeilingStrict(value["hardBudget"]) ||
+    !Array.isArray(value["availableRoles"]) ||
+    value["availableRoles"].length === 0 ||
+    !value["availableRoles"].every(isRolePlanningViewStrict) ||
+    !Array.isArray(value["allowedAssignments"]) ||
+    value["allowedAssignments"].length === 0 ||
+    !value["allowedAssignments"].every(isAllowedAssignmentStrict) ||
+    !Array.isArray(value["requiredSafetyFacts"]) ||
+    !value["requiredSafetyFacts"].every(validSafetyFact)
+  )
+    return false;
   return value["creatorScope"] === undefined || isCreatorEpisodeScopeStrict(value["creatorScope"]);
 }
 
 function isTriggerDescriptor(value: unknown): value is TriggerDescriptor {
-  return isRecord(value) && exactKeys(
-    value,
-    ["kind", "sourceRef", "payloadHash"],
-    ["kind"],
-  ) && nonEmpty(value["kind"]) &&
+  return (
+    isRecord(value) &&
+    exactKeys(value, ["kind", "sourceRef", "payloadHash"], ["kind"]) &&
+    nonEmpty(value["kind"]) &&
     (value["sourceRef"] === undefined || nonEmpty(value["sourceRef"])) &&
-    (value["payloadHash"] === undefined || nonEmpty(value["payloadHash"]));
+    (value["payloadHash"] === undefined || nonEmpty(value["payloadHash"]))
+  );
 }
 
 function isBudgetCeilingStrict(value: unknown): value is BudgetCeiling {
   // `maxInputTokens` stays in the accepted key set so intents persisted before
   // the ceiling was removed still parse. It is read by nothing and enforced
   // nowhere; new intents never write it.
-  if (!isRecord(value) || !exactKeys(
-    value,
-    [
-      "maxProviderTurns", "maxEquivalentCostUsd", "maxMechanicalOverheadUsd",
-      "maxInputTokens", "maxActiveTimeMs", "maxHumanDecisions",
-    ],
-    ["maxProviderTurns", "maxEquivalentCostUsd"],
-  )) return false;
-  if (!Number.isSafeInteger(value["maxProviderTurns"]) || (value["maxProviderTurns"] as number) < 0 ||
-      typeof value["maxEquivalentCostUsd"] !== "number" || !finiteNonNegative(value["maxEquivalentCostUsd"])) return false;
-  return ["maxMechanicalOverheadUsd", "maxActiveTimeMs", "maxHumanDecisions"]
-    .every((key) => value[key] === undefined ||
-      (typeof value[key] === "number" && finiteNonNegative(value[key] as number)));
+  if (
+    !isRecord(value) ||
+    !exactKeys(
+      value,
+      [
+        "maxProviderTurns",
+        "maxEquivalentCostUsd",
+        "maxMechanicalOverheadUsd",
+        "maxInputTokens",
+        "maxActiveTimeMs",
+        "maxHumanDecisions",
+      ],
+      ["maxProviderTurns", "maxEquivalentCostUsd"],
+    )
+  )
+    return false;
+  if (
+    !Number.isSafeInteger(value["maxProviderTurns"]) ||
+    (value["maxProviderTurns"] as number) < 0 ||
+    typeof value["maxEquivalentCostUsd"] !== "number" ||
+    !finiteNonNegative(value["maxEquivalentCostUsd"])
+  )
+    return false;
+  return ["maxMechanicalOverheadUsd", "maxActiveTimeMs", "maxHumanDecisions"].every(
+    (key) => value[key] === undefined || (typeof value[key] === "number" && finiteNonNegative(value[key] as number)),
+  );
 }
 
 function isRolePlanningViewStrict(value: unknown): value is RolePlanningView {
-  if (!isRecord(value) || !exactKeys(
-    value,
-    ["role", "responsibility", "requiredCapabilities", "expectedOutputs", "configuredAssignment"],
-    ["role", "responsibility", "requiredCapabilities", "expectedOutputs"],
-  ) || !nonEmpty(value["role"]) || !nonEmpty(value["responsibility"]) ||
-      !stringArray(value["requiredCapabilities"]) || !stringArray(value["expectedOutputs"])) return false;
+  if (
+    !isRecord(value) ||
+    !exactKeys(
+      value,
+      ["role", "responsibility", "requiredCapabilities", "expectedOutputs", "configuredAssignment"],
+      ["role", "responsibility", "requiredCapabilities", "expectedOutputs"],
+    ) ||
+    !nonEmpty(value["role"]) ||
+    !nonEmpty(value["responsibility"]) ||
+    !stringArray(value["requiredCapabilities"]) ||
+    !stringArray(value["expectedOutputs"])
+  )
+    return false;
   if (value["configuredAssignment"] === undefined) return true;
   try {
     validateTurnAssignment(value["configuredAssignment"]);
@@ -2623,21 +2865,45 @@ function isRolePlanningViewStrict(value: unknown): value is RolePlanningView {
 }
 
 function isAllowedAssignmentStrict(value: unknown): value is AllowedTurnAssignment {
-  if (!isRecord(value) || !exactKeys(
-    value,
-    [
-      "candidateId", "role", "assignment", "providerFamily", "capabilities", "qualificationRef",
-      "priceRef", "maxTurnCostUsd", "available",
-    ],
-    [
-      "candidateId", "role", "assignment", "providerFamily", "capabilities", "qualificationRef",
-      "priceRef", "maxTurnCostUsd", "available",
-    ],
-  ) || !nonEmpty(value["candidateId"]) || !nonEmpty(value["role"]) ||
-      !nonEmpty(value["providerFamily"]) || !stringArray(value["capabilities"]) ||
-      !nonEmpty(value["qualificationRef"]) || !nonEmpty(value["priceRef"]) ||
-      typeof value["maxTurnCostUsd"] !== "number" || !finiteNonNegative(value["maxTurnCostUsd"]) ||
-      value["maxTurnCostUsd"] === 0 || typeof value["available"] !== "boolean") return false;
+  if (
+    !isRecord(value) ||
+    !exactKeys(
+      value,
+      [
+        "candidateId",
+        "role",
+        "assignment",
+        "providerFamily",
+        "capabilities",
+        "qualificationRef",
+        "priceRef",
+        "maxTurnCostUsd",
+        "available",
+      ],
+      [
+        "candidateId",
+        "role",
+        "assignment",
+        "providerFamily",
+        "capabilities",
+        "qualificationRef",
+        "priceRef",
+        "maxTurnCostUsd",
+        "available",
+      ],
+    ) ||
+    !nonEmpty(value["candidateId"]) ||
+    !nonEmpty(value["role"]) ||
+    !nonEmpty(value["providerFamily"]) ||
+    !stringArray(value["capabilities"]) ||
+    !nonEmpty(value["qualificationRef"]) ||
+    !nonEmpty(value["priceRef"]) ||
+    typeof value["maxTurnCostUsd"] !== "number" ||
+    !finiteNonNegative(value["maxTurnCostUsd"]) ||
+    value["maxTurnCostUsd"] === 0 ||
+    typeof value["available"] !== "boolean"
+  )
+    return false;
   try {
     validateTurnAssignment(value["assignment"]);
     return true;
@@ -2658,11 +2924,7 @@ function isJsonValue(value: unknown): value is JsonValue {
  * keywords used by EPISODE_PLAN_PROPOSAL_SCHEMA, not a second general-purpose
  * JSON Schema dependency. */
 function validateProposalSchema(value: unknown): EpisodePlanIssue[] {
-  return validateSchemaNode(
-    value,
-    EPISODE_PLAN_PROPOSAL_SCHEMA as Record<string, unknown>,
-    "$",
-  );
+  return validateSchemaNode(value, EPISODE_PLAN_PROPOSAL_SCHEMA as Record<string, unknown>, "$");
 }
 
 function validateSchemaNode(
@@ -2686,48 +2948,41 @@ function validateSchemaNode(
     });
     if (kinds.length > 0) {
       const receivedKind = isRecord(value) ? value["kind"] : undefined;
-      return [structureIssue(
-        `${path}.kind`,
-        "oneOf",
-        kinds.map((kind) => JSON.stringify(kind)).join(" | "),
-        describeReceived(receivedKind),
-        stepId,
-      )];
+      return [
+        structureIssue(
+          `${path}.kind`,
+          "oneOf",
+          kinds.map((kind) => JSON.stringify(kind)).join(" | "),
+          describeReceived(receivedKind),
+          stepId,
+        ),
+      ];
     }
-    const candidates = alternatives.map((alternative) =>
-      validateSchemaNode(value, alternative, path, stepId));
+    const candidates = alternatives.map((alternative) => validateSchemaNode(value, alternative, path, stepId));
     const matches = candidates.filter((issues) => issues.length === 0);
     if (matches.length === 1) return [];
     if (matches.length === 0 && candidates.length > 0) {
       return [...candidates].sort((left, right) => left.length - right.length)[0]!;
     }
-    return [structureIssue(
-      path,
-      "oneOf",
-      "exactly one schema alternative",
-      `${matches.length} matching alternatives`,
-      stepId,
-    )];
+    return [
+      structureIssue(
+        path,
+        "oneOf",
+        "exactly one schema alternative",
+        `${matches.length} matching alternatives`,
+        stepId,
+      ),
+    ];
   }
 
   if (Object.hasOwn(schema, "const") && !Object.is(value, schema["const"])) {
-    return [structureIssue(
-      path,
-      "const",
-      describeReceived(schema["const"]),
-      describeReceived(value),
-      stepId,
-    )];
+    return [structureIssue(path, "const", describeReceived(schema["const"]), describeReceived(value), stepId)];
   }
   const enumeration = schema["enum"];
   if (Array.isArray(enumeration) && !enumeration.some((entry) => Object.is(entry, value))) {
-    return [structureIssue(
-      path,
-      "enum",
-      enumeration.map(describeReceived).join(" | "),
-      describeReceived(value),
-      stepId,
-    )];
+    return [
+      structureIssue(path, "enum", enumeration.map(describeReceived).join(" | "), describeReceived(value), stepId),
+    ];
   }
 
   const type = schema["type"];
@@ -2743,36 +2998,35 @@ function validateSchemaNode(
       : [];
     for (const key of required) {
       if (!Object.hasOwn(value, key)) {
-        issues.push(structureIssue(
-          propertyPath(path, key),
-          "required",
-          schemaExpectation(isRecord(properties[key]) ? properties[key] : {}),
-          "missing",
-          stepId,
-        ));
+        issues.push(
+          structureIssue(
+            propertyPath(path, key),
+            "required",
+            schemaExpectation(isRecord(properties[key]) ? properties[key] : {}),
+            "missing",
+            stepId,
+          ),
+        );
       }
     }
     if (schema["additionalProperties"] === false) {
       for (const key of Object.keys(value)) {
         if (!Object.hasOwn(properties, key)) {
-          issues.push(structureIssue(
-            propertyPath(path, key),
-            "additionalProperties",
-            "no undeclared property",
-            describeReceived(value[key]),
-            stepId,
-          ));
+          issues.push(
+            structureIssue(
+              propertyPath(path, key),
+              "additionalProperties",
+              "no undeclared property",
+              describeReceived(value[key]),
+              stepId,
+            ),
+          );
         }
       }
     }
     for (const [key, childSchema] of Object.entries(properties)) {
       if (Object.hasOwn(value, key) && isRecord(childSchema)) {
-        issues.push(...validateSchemaNode(
-          value[key],
-          childSchema,
-          propertyPath(path, key),
-          stepId,
-        ));
+        issues.push(...validateSchemaNode(value[key], childSchema, propertyPath(path, key), stepId));
       }
     }
   }
@@ -2780,20 +3034,12 @@ function validateSchemaNode(
   if (type === "array" && Array.isArray(value)) {
     const minItems = schema["minItems"];
     if (typeof minItems === "number" && value.length < minItems) {
-      issues.push(structureIssue(
-        path,
-        "minItems",
-        `at least ${minItems} item(s)`,
-        `${value.length} item(s)`,
-        stepId,
-      ));
+      issues.push(structureIssue(path, "minItems", `at least ${minItems} item(s)`, `${value.length} item(s)`, stepId));
     }
     const items = schema["items"];
     if (isRecord(items)) {
       value.forEach((entry, index) => {
-        const childStepId = path === "$.steps" && isRecord(entry) && nonEmpty(entry["id"])
-          ? entry["id"]
-          : stepId;
+        const childStepId = path === "$.steps" && isRecord(entry) && nonEmpty(entry["id"]) ? entry["id"] : stepId;
         issues.push(...validateSchemaNode(entry, items, `${path}[${index}]`, childStepId));
       });
     }
@@ -2801,36 +3047,23 @@ function validateSchemaNode(
 
   if (type === "string" && typeof value === "string") {
     const minLength = schema["minLength"];
-    if (
-      typeof minLength === "number" &&
-      (value.length < minLength || (minLength > 0 && value.trim().length === 0))
-    ) {
-      issues.push(structureIssue(
-        path,
-        "minLength",
-        `at least ${minLength} non-blank character(s)`,
-        describeReceived(value),
-        stepId,
-      ));
+    if (typeof minLength === "number" && (value.length < minLength || (minLength > 0 && value.trim().length === 0))) {
+      issues.push(
+        structureIssue(
+          path,
+          "minLength",
+          `at least ${minLength} non-blank character(s)`,
+          describeReceived(value),
+          stepId,
+        ),
+      );
     }
     const pattern = schema["pattern"];
     if (typeof pattern === "string" && !new RegExp(pattern).test(value)) {
-      issues.push(structureIssue(
-        path,
-        "pattern",
-        `string matching /${pattern}/`,
-        describeReceived(value),
-        stepId,
-      ));
+      issues.push(structureIssue(path, "pattern", `string matching /${pattern}/`, describeReceived(value), stepId));
     }
     if (schema["format"] === "date-time" && !validTimestamp(value)) {
-      issues.push(structureIssue(
-        path,
-        "format",
-        "ISO date-time",
-        describeReceived(value),
-        stepId,
-      ));
+      issues.push(structureIssue(path, "format", "ISO date-time", describeReceived(value), stepId));
     }
   }
 
@@ -2841,13 +3074,7 @@ function validateSchemaNode(
     }
     const exclusiveMinimum = schema["exclusiveMinimum"];
     if (typeof exclusiveMinimum === "number" && value <= exclusiveMinimum) {
-      issues.push(structureIssue(
-        path,
-        "exclusiveMinimum",
-        `number > ${exclusiveMinimum}`,
-        String(value),
-        stepId,
-      ));
+      issues.push(structureIssue(path, "exclusiveMinimum", `number > ${exclusiveMinimum}`, String(value), stepId));
     }
   }
   return issues;
@@ -2860,21 +3087,28 @@ function discriminatedAlternative(
   if (!isRecord(value) || typeof value["kind"] !== "string") return undefined;
   return alternatives.find((alternative) => {
     const properties = alternative["properties"];
-    return isRecord(properties) && isRecord(properties["kind"]) &&
-      properties["kind"]["const"] === value["kind"];
+    return isRecord(properties) && isRecord(properties["kind"]) && properties["kind"]["const"] === value["kind"];
   });
 }
 
 function matchesSchemaType(value: unknown, type: string): boolean {
   switch (type) {
-    case "object": return isRecord(value);
-    case "array": return Array.isArray(value);
-    case "string": return typeof value === "string";
-    case "integer": return typeof value === "number" && Number.isSafeInteger(value);
-    case "number": return typeof value === "number" && Number.isFinite(value);
-    case "boolean": return typeof value === "boolean";
-    case "null": return value === null;
-    default: return true;
+    case "object":
+      return isRecord(value);
+    case "array":
+      return Array.isArray(value);
+    case "string":
+      return typeof value === "string";
+    case "integer":
+      return typeof value === "number" && Number.isSafeInteger(value);
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+    default:
+      return true;
   }
 }
 
@@ -2904,9 +3138,7 @@ function schemaExpectation(schema: Record<string, unknown>): string {
 }
 
 function propertyPath(parent: string, key: string): string {
-  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)
-    ? `${parent}.${key}`
-    : `${parent}[${JSON.stringify(key)}]`;
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? `${parent}.${key}` : `${parent}[${JSON.stringify(key)}]`;
 }
 
 function describeReceived(value: unknown): string {
@@ -2922,25 +3154,59 @@ function describeReceived(value: unknown): string {
 }
 
 function isProposedEpisodePlan(value: unknown): value is ProposedEpisodePlan {
-  if (!isRecord(value) || !exactKeys(
-    value,
-    [
-      "schemaVersion", "episodeId", "version", "intentHash", "summary", "workflowClass",
-      "planningSource", "creatorProvenance", "steps", "estimatedBudget", "derivedSafetyRoute", "createdAt",
-    ],
-    [
-      "schemaVersion", "episodeId", "version", "intentHash", "summary", "workflowClass",
-      "planningSource", "steps", "estimatedBudget", "derivedSafetyRoute", "createdAt",
-    ],
-  )) return false;
-  if (value["schemaVersion"] !== EPISODE_PLAN_SCHEMA_VERSION || !nonEmpty(value["episodeId"]) ||
-      !Number.isSafeInteger(value["version"]) || (value["version"] as number) < 1 ||
-      typeof value["intentHash"] !== "string" || !HASH.test(value["intentHash"]) ||
-      !nonEmpty(value["summary"]) || !nonEmpty(value["workflowClass"]) ||
-      (value["planningSource"] !== "episode_planner" && value["planningSource"] !== "creator_scope") ||
-      !Array.isArray(value["steps"]) || value["steps"].length === 0 || !value["steps"].every(isProposedEpisodeStep) ||
-      !isBudgetEstimateStrict(value["estimatedBudget"]) || !isSafetyRouteStrict(value["derivedSafetyRoute"]) ||
-      typeof value["createdAt"] !== "string" || !validTimestamp(value["createdAt"])) return false;
+  if (
+    !isRecord(value) ||
+    !exactKeys(
+      value,
+      [
+        "schemaVersion",
+        "episodeId",
+        "version",
+        "intentHash",
+        "summary",
+        "workflowClass",
+        "planningSource",
+        "creatorProvenance",
+        "steps",
+        "estimatedBudget",
+        "derivedSafetyRoute",
+        "createdAt",
+      ],
+      [
+        "schemaVersion",
+        "episodeId",
+        "version",
+        "intentHash",
+        "summary",
+        "workflowClass",
+        "planningSource",
+        "steps",
+        "estimatedBudget",
+        "derivedSafetyRoute",
+        "createdAt",
+      ],
+    )
+  )
+    return false;
+  if (
+    value["schemaVersion"] !== EPISODE_PLAN_SCHEMA_VERSION ||
+    !nonEmpty(value["episodeId"]) ||
+    !Number.isSafeInteger(value["version"]) ||
+    (value["version"] as number) < 1 ||
+    typeof value["intentHash"] !== "string" ||
+    !HASH.test(value["intentHash"]) ||
+    !nonEmpty(value["summary"]) ||
+    !nonEmpty(value["workflowClass"]) ||
+    (value["planningSource"] !== "episode_planner" && value["planningSource"] !== "creator_scope") ||
+    !Array.isArray(value["steps"]) ||
+    value["steps"].length === 0 ||
+    !value["steps"].every(isProposedEpisodeStep) ||
+    !isBudgetEstimateStrict(value["estimatedBudget"]) ||
+    !isSafetyRouteStrict(value["derivedSafetyRoute"]) ||
+    typeof value["createdAt"] !== "string" ||
+    !validTimestamp(value["createdAt"])
+  )
+    return false;
   const provenance = value["creatorProvenance"];
   return provenance === undefined || isCreatorProvenanceStrict(provenance);
 }
@@ -2948,29 +3214,62 @@ function isProposedEpisodePlan(value: unknown): value is ProposedEpisodePlan {
 function isProposedEpisodeStep(value: unknown): value is ProposedEpisodeStep {
   if (!isRecord(value)) return false;
   const commonRequired = ["kind", "id", "objective", "dependsOn", "inputRefs", "expectedOutputs"];
-  const baseValid = STEP_ID.test(String(value["id"] ?? "")) && nonEmpty(value["objective"]) &&
-    stringArray(value["dependsOn"]) && Array.isArray(value["inputRefs"]) && value["inputRefs"].every(isPlannedInputRef) &&
-    Array.isArray(value["expectedOutputs"]) && value["expectedOutputs"].every(isPlannedOutput);
+  const baseValid =
+    STEP_ID.test(String(value["id"] ?? "")) &&
+    nonEmpty(value["objective"]) &&
+    stringArray(value["dependsOn"]) &&
+    Array.isArray(value["inputRefs"]) &&
+    value["inputRefs"].every(isPlannedInputRef) &&
+    Array.isArray(value["expectedOutputs"]) &&
+    value["expectedOutputs"].every(isPlannedOutput);
   if (!baseValid) return false;
   if (value["kind"] === "mechanical_gate") {
     return exactKeys(value, [...commonRequired, "gate"], [...commonRequired, "gate"]) && nonEmpty(value["gate"]);
   }
   if (value["kind"] === "approval") {
-    return exactKeys(value, [...commonRequired, "approvalKind", "actionRef"], [...commonRequired, "approvalKind", "actionRef"]) &&
-      nonEmpty(value["approvalKind"]) && nonEmpty(value["actionRef"]);
+    return (
+      exactKeys(
+        value,
+        [...commonRequired, "approvalKind", "actionRef"],
+        [...commonRequired, "approvalKind", "actionRef"],
+      ) &&
+      nonEmpty(value["approvalKind"]) &&
+      nonEmpty(value["actionRef"])
+    );
   }
-  if (value["kind"] !== "provider_turn" || !exactKeys(
-    value,
-    [...commonRequired, "operation", "role", "requiredCapabilities", "supersedes", "assignment", "maxTurnBudgetUsd", "selectionReason"],
-    [...commonRequired, "operation", "role", "requiredCapabilities", "maxTurnBudgetUsd", "selectionReason"],
-  )) return false;
-  if (!machineReadableOperation(value["operation"]) || !nonEmpty(value["role"]) || !stringArray(value["requiredCapabilities"]) ||
-      typeof value["maxTurnBudgetUsd"] !== "number" || !finiteNonNegative(value["maxTurnBudgetUsd"]) ||
-      value["maxTurnBudgetUsd"] === 0 || !nonEmpty(value["selectionReason"])) return false;
+  if (
+    value["kind"] !== "provider_turn" ||
+    !exactKeys(
+      value,
+      [
+        ...commonRequired,
+        "operation",
+        "role",
+        "requiredCapabilities",
+        "supersedes",
+        "assignment",
+        "maxTurnBudgetUsd",
+        "selectionReason",
+      ],
+      [...commonRequired, "operation", "role", "requiredCapabilities", "maxTurnBudgetUsd", "selectionReason"],
+    )
+  )
+    return false;
+  if (
+    !machineReadableOperation(value["operation"]) ||
+    !nonEmpty(value["role"]) ||
+    !stringArray(value["requiredCapabilities"]) ||
+    typeof value["maxTurnBudgetUsd"] !== "number" ||
+    !finiteNonNegative(value["maxTurnBudgetUsd"]) ||
+    value["maxTurnBudgetUsd"] === 0 ||
+    !nonEmpty(value["selectionReason"])
+  )
+    return false;
   if (
     value["supersedes"] !== undefined &&
     (typeof value["supersedes"] !== "string" || !STEP_ID.test(value["supersedes"]))
-  ) return false;
+  )
+    return false;
   if (value["assignment"] === undefined) return true;
   try {
     validateTurnAssignment(value["assignment"]);
@@ -2981,61 +3280,90 @@ function isProposedEpisodeStep(value: unknown): value is ProposedEpisodeStep {
 }
 
 function isPlannedInputRef(value: unknown): value is PlannedInputRef {
-  return isRecord(value) && exactKeys(value, ["ref", "required"], ["ref", "required"]) &&
-    nonEmpty(value["ref"]) && typeof value["required"] === "boolean";
+  return (
+    isRecord(value) &&
+    exactKeys(value, ["ref", "required"], ["ref", "required"]) &&
+    nonEmpty(value["ref"]) &&
+    typeof value["required"] === "boolean"
+  );
 }
 
 function isPlannedOutput(value: unknown): value is PlannedOutput {
-  return isRecord(value) && exactKeys(value, ["id", "kind", "required"], ["id", "kind", "required"]) &&
-    validOutput(value as unknown as PlannedOutput);
+  return (
+    isRecord(value) &&
+    exactKeys(value, ["id", "kind", "required"], ["id", "kind", "required"]) &&
+    validOutput(value as unknown as PlannedOutput)
+  );
 }
 
 function isBudgetEstimateStrict(value: unknown): value is EpisodeBudgetEstimate {
-  return isRecord(value) && exactKeys(
-    value,
-    ["providerTurns", "providerTurnBudgetUsd", "mechanicalOverheadUsd", "totalBudgetUsd"],
-    ["providerTurns", "providerTurnBudgetUsd", "mechanicalOverheadUsd", "totalBudgetUsd"],
-  ) && Number.isSafeInteger(value["providerTurns"]) && (value["providerTurns"] as number) >= 0 &&
-    typeof value["providerTurnBudgetUsd"] === "number" && finiteNonNegative(value["providerTurnBudgetUsd"]) &&
-    typeof value["mechanicalOverheadUsd"] === "number" && finiteNonNegative(value["mechanicalOverheadUsd"]) &&
-    typeof value["totalBudgetUsd"] === "number" && finiteNonNegative(value["totalBudgetUsd"]);
+  return (
+    isRecord(value) &&
+    exactKeys(
+      value,
+      ["providerTurns", "providerTurnBudgetUsd", "mechanicalOverheadUsd", "totalBudgetUsd"],
+      ["providerTurns", "providerTurnBudgetUsd", "mechanicalOverheadUsd", "totalBudgetUsd"],
+    ) &&
+    Number.isSafeInteger(value["providerTurns"]) &&
+    (value["providerTurns"] as number) >= 0 &&
+    typeof value["providerTurnBudgetUsd"] === "number" &&
+    finiteNonNegative(value["providerTurnBudgetUsd"]) &&
+    typeof value["mechanicalOverheadUsd"] === "number" &&
+    finiteNonNegative(value["mechanicalOverheadUsd"]) &&
+    typeof value["totalBudgetUsd"] === "number" &&
+    finiteNonNegative(value["totalBudgetUsd"])
+  );
 }
 
 function isSafetyRouteStrict(value: unknown): value is DerivedSafetyRoute {
-  return isRecord(value) && exactKeys(
-    value,
-    ["label", "reasons", "gateStepIds", "approvalStepIds"],
-    ["label", "reasons", "gateStepIds", "approvalStepIds"],
-  ) && nonEmpty(value["label"]) && stringArray(value["reasons"]) &&
-    stringArray(value["gateStepIds"]) && stringArray(value["approvalStepIds"]);
+  return (
+    isRecord(value) &&
+    exactKeys(
+      value,
+      ["label", "reasons", "gateStepIds", "approvalStepIds"],
+      ["label", "reasons", "gateStepIds", "approvalStepIds"],
+    ) &&
+    nonEmpty(value["label"]) &&
+    stringArray(value["reasons"]) &&
+    stringArray(value["gateStepIds"]) &&
+    stringArray(value["approvalStepIds"])
+  );
 }
 
 function isCreatorProvenanceStrict(value: unknown): value is CreatorScopeProvenance {
-  return isRecord(value) && exactKeys(
-    value,
-    ["source", "creatorId", "createdAt", "evidenceRefs"],
-    ["source", "creatorId", "createdAt", "evidenceRefs"],
-  ) && (value["source"] === "human" || value["source"] === "agent") && nonEmpty(value["creatorId"]) &&
-    typeof value["createdAt"] === "string" && validTimestamp(value["createdAt"]) && stringArray(value["evidenceRefs"]);
+  return (
+    isRecord(value) &&
+    exactKeys(
+      value,
+      ["source", "creatorId", "createdAt", "evidenceRefs"],
+      ["source", "creatorId", "createdAt", "evidenceRefs"],
+    ) &&
+    (value["source"] === "human" || value["source"] === "agent") &&
+    nonEmpty(value["creatorId"]) &&
+    typeof value["createdAt"] === "string" &&
+    validTimestamp(value["createdAt"]) &&
+    stringArray(value["evidenceRefs"])
+  );
 }
 
-function isNormalizationProvenanceStrict(
-  value: unknown,
-): value is PlanNormalizationProvenance {
-  if (!isRecord(value) || !exactKeys(
-    value,
-    ["schemaVersion", "repairs"],
-    ["schemaVersion", "repairs"],
-  ) || value["schemaVersion"] !== 1 || !Array.isArray(value["repairs"]) ||
-      value["repairs"].length === 0) return false;
-  return value["repairs"].every((repair) =>
-    isRecord(repair) && exactKeys(
-      repair,
-      ["kind", "path", "property", "value"],
-      ["kind", "path", "property", "value"],
-    ) && repair["kind"] === "undeclared_scalar_property_removed" &&
-    nonEmpty(repair["path"]) && nonEmpty(repair["property"]) &&
-    isRepairScalar(repair["value"]));
+function isNormalizationProvenanceStrict(value: unknown): value is PlanNormalizationProvenance {
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, ["schemaVersion", "repairs"], ["schemaVersion", "repairs"]) ||
+    value["schemaVersion"] !== 1 ||
+    !Array.isArray(value["repairs"]) ||
+    value["repairs"].length === 0
+  )
+    return false;
+  return value["repairs"].every(
+    (repair) =>
+      isRecord(repair) &&
+      exactKeys(repair, ["kind", "path", "property", "value"], ["kind", "path", "property", "value"]) &&
+      repair["kind"] === "undeclared_scalar_property_removed" &&
+      nonEmpty(repair["path"]) &&
+      nonEmpty(repair["property"]) &&
+      isRepairScalar(repair["value"]),
+  );
 }
 
 function exactKeys(record: Record<string, unknown>, allowed: readonly string[], required: readonly string[]): boolean {
@@ -3048,80 +3376,144 @@ function exactKeys(record: Record<string, unknown>, allowed: readonly string[], 
  * without a test-local re-implementation of the durable shape. */
 export function isEpisodePlan(value: unknown): value is EpisodePlan {
   if (!isRecord(value) || value["schemaVersion"] !== EPISODE_PLAN_SCHEMA_VERSION) return false;
-  if (!nonEmpty(value["episodeId"]) || !Number.isSafeInteger(value["version"]) ||
-      typeof value["intentHash"] !== "string" || !HASH.test(value["intentHash"]) ||
-      !nonEmpty(value["summary"]) || !nonEmpty(value["workflowClass"]) ||
-      !(["episode_planner", "creator_scope"] as const).includes(value["planningSource"] as "episode_planner") ||
-      !Array.isArray(value["steps"]) || !value["steps"].every(isEpisodeStep) ||
-      !isBudgetEstimate(value["estimatedBudget"]) || !isSafetyRoute(value["derivedSafetyRoute"]) ||
-      typeof value["createdAt"] !== "string") return false;
+  if (
+    !nonEmpty(value["episodeId"]) ||
+    !Number.isSafeInteger(value["version"]) ||
+    typeof value["intentHash"] !== "string" ||
+    !HASH.test(value["intentHash"]) ||
+    !nonEmpty(value["summary"]) ||
+    !nonEmpty(value["workflowClass"]) ||
+    !(["episode_planner", "creator_scope"] as const).includes(value["planningSource"] as "episode_planner") ||
+    !Array.isArray(value["steps"]) ||
+    !value["steps"].every(isEpisodeStep) ||
+    !isBudgetEstimate(value["estimatedBudget"]) ||
+    !isSafetyRoute(value["derivedSafetyRoute"]) ||
+    typeof value["createdAt"] !== "string"
+  )
+    return false;
   const provenance = value["creatorProvenance"];
   const normalization = value["normalizationProvenance"];
-  return (provenance === undefined || isCreatorProvenance(provenance)) &&
-    (normalization === undefined || isNormalizationProvenanceStrict(normalization));
+  return (
+    (provenance === undefined || isCreatorProvenance(provenance)) &&
+    (normalization === undefined || isNormalizationProvenanceStrict(normalization))
+  );
 }
 
 function isEpisodeStep(value: unknown): value is EpisodeStep {
-  if (!isRecord(value) || !nonEmpty(value["id"]) || !nonEmpty(value["objective"]) ||
-      !stringArray(value["dependsOn"]) || !Array.isArray(value["inputRefs"]) ||
-      !value["inputRefs"].every((entry) => isRecord(entry) && nonEmpty(entry["ref"]) && typeof entry["required"] === "boolean") ||
-      !Array.isArray(value["expectedOutputs"]) || !value["expectedOutputs"].every((entry) => isRecord(entry) && validOutput(entry as unknown as PlannedOutput))) return false;
+  if (
+    !isRecord(value) ||
+    !nonEmpty(value["id"]) ||
+    !nonEmpty(value["objective"]) ||
+    !stringArray(value["dependsOn"]) ||
+    !Array.isArray(value["inputRefs"]) ||
+    !value["inputRefs"].every(
+      (entry) => isRecord(entry) && nonEmpty(entry["ref"]) && typeof entry["required"] === "boolean",
+    ) ||
+    !Array.isArray(value["expectedOutputs"]) ||
+    !value["expectedOutputs"].every((entry) => isRecord(entry) && validOutput(entry as unknown as PlannedOutput))
+  )
+    return false;
   const commonRequired = ["kind", "id", "objective", "dependsOn", "inputRefs", "expectedOutputs"];
   if (value["kind"] === "mechanical_gate") {
     return exactKeys(value, [...commonRequired, "gate"], [...commonRequired, "gate"]) && nonEmpty(value["gate"]);
   }
   if (value["kind"] === "approval") {
-    return exactKeys(
-      value,
-      [...commonRequired, "approvalKind", "actionRef"],
-      [...commonRequired, "approvalKind", "actionRef"],
-    ) && nonEmpty(value["approvalKind"]) && nonEmpty(value["actionRef"]);
+    return (
+      exactKeys(
+        value,
+        [...commonRequired, "approvalKind", "actionRef"],
+        [...commonRequired, "approvalKind", "actionRef"],
+      ) &&
+      nonEmpty(value["approvalKind"]) &&
+      nonEmpty(value["actionRef"])
+    );
   }
   if (value["kind"] !== "provider_turn") return false;
-  if (!exactKeys(
-    value,
-    [
-      ...commonRequired, "operation", "role", "requiredCapabilities", "assignment",
-      "assignmentSource", "supersedes", "maxTurnBudgetUsd", "selectionReason",
-    ],
-    [
-      ...commonRequired, "operation", "role", "requiredCapabilities", "assignment",
-      "assignmentSource", "maxTurnBudgetUsd", "selectionReason",
-    ],
-  )) return false;
+  if (
+    !exactKeys(
+      value,
+      [
+        ...commonRequired,
+        "operation",
+        "role",
+        "requiredCapabilities",
+        "assignment",
+        "assignmentSource",
+        "supersedes",
+        "maxTurnBudgetUsd",
+        "selectionReason",
+      ],
+      [
+        ...commonRequired,
+        "operation",
+        "role",
+        "requiredCapabilities",
+        "assignment",
+        "assignmentSource",
+        "maxTurnBudgetUsd",
+        "selectionReason",
+      ],
+    )
+  )
+    return false;
   try {
     validateTurnAssignment(value["assignment"]);
   } catch {
     return false;
   }
-  return machineReadableOperation(value["operation"]) && nonEmpty(value["role"]) && stringArray(value["requiredCapabilities"]) &&
+  return (
+    machineReadableOperation(value["operation"]) &&
+    nonEmpty(value["role"]) &&
+    stringArray(value["requiredCapabilities"]) &&
     (["configured", "episode_planner", "creator"] as const).includes(value["assignmentSource"] as "configured") &&
     (value["supersedes"] === undefined ||
       (typeof value["supersedes"] === "string" && STEP_ID.test(value["supersedes"]))) &&
-    typeof value["maxTurnBudgetUsd"] === "number" && nonEmpty(value["selectionReason"]);
+    typeof value["maxTurnBudgetUsd"] === "number" &&
+    nonEmpty(value["selectionReason"])
+  );
 }
 
 function isBudgetEstimate(value: unknown): value is EpisodeBudgetEstimate {
-  return isRecord(value) && Number.isSafeInteger(value["providerTurns"]) &&
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value["providerTurns"]) &&
     typeof value["providerTurnBudgetUsd"] === "number" &&
-    typeof value["mechanicalOverheadUsd"] === "number" && typeof value["totalBudgetUsd"] === "number";
+    typeof value["mechanicalOverheadUsd"] === "number" &&
+    typeof value["totalBudgetUsd"] === "number"
+  );
 }
 
 function isSafetyRoute(value: unknown): value is DerivedSafetyRoute {
-  return isRecord(value) && nonEmpty(value["label"]) && stringArray(value["reasons"]) &&
-    stringArray(value["gateStepIds"]) && stringArray(value["approvalStepIds"]);
+  return (
+    isRecord(value) &&
+    nonEmpty(value["label"]) &&
+    stringArray(value["reasons"]) &&
+    stringArray(value["gateStepIds"]) &&
+    stringArray(value["approvalStepIds"])
+  );
 }
 
 function isCreatorProvenance(value: unknown): value is CreatorScopeProvenance {
-  return isRecord(value) && (value["source"] === "human" || value["source"] === "agent") &&
-    nonEmpty(value["creatorId"]) && typeof value["createdAt"] === "string" && stringArray(value["evidenceRefs"]);
+  return (
+    isRecord(value) &&
+    (value["source"] === "human" || value["source"] === "agent") &&
+    nonEmpty(value["creatorId"]) &&
+    typeof value["createdAt"] === "string" &&
+    stringArray(value["evidenceRefs"])
+  );
 }
 
 function isCurrentPointer(value: unknown): value is CurrentEpisodePlanPointer {
-  return isRecord(value) && value["schemaVersion"] === EPISODE_PLAN_POINTER_SCHEMA_VERSION &&
-    nonEmpty(value["episodeId"]) && Number.isSafeInteger(value["version"]) &&
-    typeof value["planHash"] === "string" && HASH.test(value["planHash"]) &&
-    nonEmpty(value["file"]) && typeof value["updatedAt"] === "string";
+  return (
+    isRecord(value) &&
+    value["schemaVersion"] === EPISODE_PLAN_POINTER_SCHEMA_VERSION &&
+    nonEmpty(value["episodeId"]) &&
+    Number.isSafeInteger(value["version"]) &&
+    typeof value["planHash"] === "string" &&
+    HASH.test(value["planHash"]) &&
+    nonEmpty(value["file"]) &&
+    typeof value["updatedAt"] === "string"
+  );
 }
 
 function stringArray(value: unknown): value is string[] {

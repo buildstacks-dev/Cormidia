@@ -17,10 +17,7 @@ import type { RunEnvelope } from "../runtime/runlog/envelope.js";
 import { runPaths } from "../runtime/runlog/paths.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
 import { readExecutionJournal, type ExecutionJournal } from "../loop/execution-journal.js";
-import {
-  readPublishedTicketsRecord,
-  type PublishedTicketsRecord,
-} from "../loop/plan-publication-record.js";
+import { readPublishedTicketsRecord, type PublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import { readTurnRecords, type TurnRecord } from "../runtime/telemetry.js";
 import { readParentTaskPrompt } from "../org/parent-task.js";
 import type { NarrativeQuote } from "./types.js";
@@ -47,9 +44,7 @@ export async function readAppRunSources(stateHome: string, app: string): Promise
     .map((entry) => entry.name)
     .sort()) {
     try {
-      const parsed = JSON.parse(
-        await readFile(join(dir, runId, "envelope.json"), "utf8"),
-      ) as RunEnvelope;
+      const parsed = JSON.parse(await readFile(join(dir, runId, "envelope.json"), "utf8")) as RunEnvelope;
       // Identity binds to the directory, like every sibling reader
       // (readParentTask, readExecutionJournal, readPublishedTicketsRecord):
       // a copied/tampered envelope must never smuggle a foreign run_id into
@@ -77,10 +72,7 @@ export async function readAppRunSources(stateHome: string, app: string): Promise
 
 /** The execution journal for a build episode — absence is ordinary
  *  (non-ticket stories, swept efficiency dirs). */
-export async function readDeliveryJournal(
-  stateHome: string,
-  episodeId: string,
-): Promise<ExecutionJournal | undefined> {
+export async function readDeliveryJournal(stateHome: string, episodeId: string): Promise<ExecutionJournal | undefined> {
   try {
     return await readExecutionJournal(stateHome, episodeId);
   } catch {
@@ -118,10 +110,7 @@ export async function readRunQuote(
 }
 
 /** The exact outer prompt of a delegated parent task, when recorded. */
-export async function readTaskOriginQuote(
-  stateHome: string,
-  taskId: string,
-): Promise<NarrativeQuote | undefined> {
+export async function readTaskOriginQuote(stateHome: string, taskId: string): Promise<NarrativeQuote | undefined> {
   try {
     const prompt = await readParentTaskPrompt(stateHome, taskId);
     return boundQuote(`tasks/${taskId}/prompt.md`, prompt, ORIGIN_QUOTE_MAX);

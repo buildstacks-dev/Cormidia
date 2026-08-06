@@ -82,12 +82,7 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
     const published = await publishCandidate(world.deps, CAND);
     expect(published.status).toBe("published");
 
-    const rawPath = join(
-      world.state.stateHome,
-      "learning",
-      "publish-journal",
-      `${approvalId}.json`,
-    );
+    const rawPath = join(world.state.stateHome, "learning", "publish-journal", `${approvalId}.json`);
     expect(rawPath).not.toBe(journalPath(approvalId));
     await expect(readFile(rawPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 
@@ -125,10 +120,7 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
 
     const resumed = await publishCandidate(world.deps, CAND);
     expect(resumed.status).toBe("published");
-    const conceptBytes = await readFile(
-      join(world.org.orgHome, "learning", "bundle", "org", `${NAME}.md`),
-      "utf8",
-    );
+    const conceptBytes = await readFile(join(world.org.orgHome, "learning", "bundle", "org", `${NAME}.md`), "utf8");
     expect(conceptBytes).toBe(approvedBytes);
     expect(conceptBytes).not.toContain("TAMPERED");
 
@@ -148,9 +140,9 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
 
     // Fault at the injected clock seam: one read is served (the suppression
     // check), the next (the manifest cut's timestamp) throws.
-    await expect(
-      publishCandidate({ ...world.deps, clock: clockFuse(world.clock, 1) }, CAND),
-    ).rejects.toThrow(ClockFuseError);
+    await expect(publishCandidate({ ...world.deps, clock: clockFuse(world.clock, 1) }, CAND)).rejects.toThrow(
+      ClockFuseError,
+    );
 
     // Precondition pin: artifact receipt exists, manifest cut does not —
     // this is exactly the between-two-durable-writes window.
@@ -176,10 +168,7 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
 
     // The activated bytes are still the approved bytes (content binding
     // survived the crash/resume pair).
-    const conceptBytes = await readFile(
-      join(world.org.orgHome, "learning", "bundle", "org", `${NAME}.md`),
-      "utf8",
-    );
+    const conceptBytes = await readFile(join(world.org.orgHome, "learning", "bundle", "org", `${NAME}.md`), "utf8");
     expect(sha256Ref(conceptBytes)).toBe(sha256Ref(journal.artifact.bytes));
   });
 
@@ -191,9 +180,9 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
     // Seed the violation at the earliest point: the fuse serves NO reads, so
     // the transaction dies on its very first clock read (the suppression
     // check), before the journal intent could land.
-    await expect(
-      publishCandidate({ ...world.deps, clock: clockFuse(world.clock, 0) }, CAND),
-    ).rejects.toThrow(ClockFuseError);
+    await expect(publishCandidate({ ...world.deps, clock: clockFuse(world.clock, 0) }, CAND)).rejects.toThrow(
+      ClockFuseError,
+    );
 
     // Detector: no journal exists — nothing durable happened at all.
     const { existsSync } = await import("node:fs");
@@ -224,9 +213,9 @@ describe("CF-J12-I — publisher crash mid-transaction forward-completes or no-o
     world = await makeLearningWorld("cf-j12-i-tripwire");
     await seedReviewedOkfCandidate(world, { id: CAND, conceptId: CONCEPT, name: NAME });
     const approvalId = await raiseAndApprove(world, CAND);
-    await expect(
-      publishCandidate({ ...world.deps, clock: clockFuse(world.clock, 1) }, CAND),
-    ).rejects.toThrow(ClockFuseError);
+    await expect(publishCandidate({ ...world.deps, clock: clockFuse(world.clock, 1) }, CAND)).rejects.toThrow(
+      ClockFuseError,
+    );
     // The transaction is provably mid-flight: artifact written, no manifest.
     const journal = await readJournal(approvalId);
     expect(journal.artifact_ref).toBeDefined();

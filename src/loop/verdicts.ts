@@ -43,13 +43,7 @@
 // Verdict types — docs/loop/design.md §6 sketch
 // ---------------------------------------------------------------------------
 
-export const FINDING_CATEGORIES = [
-  "architecture",
-  "testing",
-  "security",
-  "style",
-  "scope",
-] as const;
+export const FINDING_CATEGORIES = ["architecture", "testing", "security", "style", "scope"] as const;
 export type FindingCategory = (typeof FINDING_CATEGORIES)[number];
 
 export const FINDING_SEVERITIES = ["critical", "major", "minor"] as const;
@@ -137,13 +131,7 @@ export interface ReviewVerdict {
  * the model only proposes the governed candidate payload. */
 export interface DistillationProposal {
   cluster_fingerprint: string;
-  destination:
-    | "okf_concept"
-    | "skill_draft"
-    | "protocol_proposal"
-    | "eval_or_gate_proposal"
-    | "ticket"
-    | "reject";
+  destination: "okf_concept" | "skill_draft" | "protocol_proposal" | "eval_or_gate_proposal" | "ticket" | "reject";
   title: string;
   proposed_scope: string;
   proposed_tier: "T0" | "T1" | "T2" | "T3";
@@ -203,9 +191,7 @@ export interface ParseFailure {
   reason: string;
 }
 
-export type ParseResult<K extends VerdictKind> =
-  | { ok: true; verdict: VerdictTypes[K] }
-  | ParseFailure;
+export type ParseResult<K extends VerdictKind> = { ok: true; verdict: VerdictTypes[K] } | ParseFailure;
 
 const failure = (kind: VerdictKind, reason: string): ParseFailure => ({
   ok: false,
@@ -281,16 +267,10 @@ function extractKeywordValueStrict(
  *  section's value runs to the next marker (any key) or end of text. First
  *  occurrence of a key wins. Bare `Key:` lines are deliberately NOT markers —
  *  multi-line section bodies quote things like "Tests: 12 passed". */
-function extractSections(
-  text: string,
-  keys: readonly string[],
-): Map<string, string> {
+function extractSections(text: string, keys: readonly string[]): Map<string, string> {
   const markers: { key: string; start: number; valueStart: number }[] = [];
   for (const key of keys) {
-    const forms = [
-      new RegExp(`\\*\\*${key}\\s*:?\\s*\\*\\*\\s*:?`, "g"),
-      new RegExp(`^##+\\s+${key}\\b\\s*:?`, "gm"),
-    ];
+    const forms = [new RegExp(`\\*\\*${key}\\s*:?\\s*\\*\\*\\s*:?`, "g"), new RegExp(`^##+\\s+${key}\\b\\s*:?`, "gm")];
     for (const re of forms) {
       for (const m of text.matchAll(re)) {
         markers.push({ key, start: m.index, valueStart: m.index + m[0].length });
@@ -331,7 +311,10 @@ function parseContractTests(section: string): ParseResult<"contract"> | Contract
     }
     entries.push({
       criterionId: match[1]!,
-      tests: match[2]!.split(";").map((test) => test.trim()).filter(Boolean),
+      tests: match[2]!
+        .split(";")
+        .map((test) => test.trim())
+        .filter(Boolean),
     });
   }
   const problem = contractTestsProblem(entries);
@@ -353,7 +336,12 @@ function parseContract(text: string): ParseResult<"contract"> {
   const files = sections
     .get("Files")!
     .split("\n")
-    .map((line) => line.replace(/^\s*[-*]\s+/, "").replace(/`/g, "").trim())
+    .map((line) =>
+      line
+        .replace(/^\s*[-*]\s+/, "")
+        .replace(/`/g, "")
+        .trim(),
+    )
     .filter((line) => line.length > 0);
   if (files.length === 0) {
     return failure("contract", "Files section lists no files — one per line");
@@ -362,10 +350,7 @@ function parseContract(text: string): ParseResult<"contract"> {
   const complexityRaw = sections.get("Complexity")!;
   const cm = /([A-Za-z]+)/.exec(complexityRaw.replace(/`/g, ""));
   const complexity = cm?.[1]?.toLowerCase();
-  if (
-    complexity === undefined ||
-    !(CONTRACT_COMPLEXITIES as readonly string[]).includes(complexity)
-  ) {
+  if (complexity === undefined || !(CONTRACT_COMPLEXITIES as readonly string[]).includes(complexity)) {
     return failure(
       "contract",
       `complexity ${JSON.stringify(complexityRaw.split("\n")[0])} not recognized ` +
@@ -460,8 +445,7 @@ function parseBuild(text: string): ParseResult<"build"> {
 
 /** `- category/severity file:line -- description -> action`; unicode or
  *  ASCII delimiters (predecessor FINDING_PATTERN parity). */
-const FINDING_LINE =
-  /^\s*-\s+([A-Za-z][\w-]*)\/([A-Za-z][\w-]*)\s+(\S+)\s+(?:--|—)\s+(.+?)\s+(?:->|→)\s+(.+?)\s*$/;
+const FINDING_LINE = /^\s*-\s+([A-Za-z][\w-]*)\/([A-Za-z][\w-]*)\s+(\S+)\s+(?:--|—)\s+(.+?)\s+(?:->|→)\s+(.+?)\s*$/;
 
 // A line is a finding ATTEMPT (and therefore a loud failure when the full
 // grammar doesn't match) when a known severity follows a slash …
@@ -470,8 +454,7 @@ const FINDING_PROBE_SEVERITY = /^\s*-\s+[\w.-]+\/(critical|major|minor)\b/i;
 const FINDING_PROBE_DELIMITERS = /^\s*-\s+\S+\/\S+.*(?:--|—).*(?:->|→)/;
 
 function categoryProblem(category: string): string {
-  const base =
-    `unknown category "${category}" (allowed: ${FINDING_CATEGORIES.join(", ")})`;
+  const base = `unknown category "${category}" (allowed: ${FINDING_CATEGORIES.join(", ")})`;
   if (category === "perf" || category === "performance") {
     return (
       base +
@@ -496,9 +479,7 @@ function parseReview(text: string): ParseResult<"review"> {
         lineProblems.push(categoryProblem(category));
       }
       if (!(FINDING_SEVERITIES as readonly string[]).includes(severity)) {
-        lineProblems.push(
-          `unknown severity "${severity}" (allowed: ${FINDING_SEVERITIES.join(", ")})`,
-        );
+        lineProblems.push(`unknown severity "${severity}" (allowed: ${FINDING_SEVERITIES.join(", ")})`);
       }
       if (lineProblems.length > 0) {
         problems.push(...lineProblems);
@@ -522,10 +503,7 @@ function parseReview(text: string): ParseResult<"review"> {
 
   const extracted = extractKeywordValueStrict(text, ["Verdict", "Status"]);
   if (extracted === undefined) {
-    return failure(
-      "review",
-      `no verdict found — state "Verdict: approve" or "Verdict: findings"`,
-    );
+    return failure("review", `no verdict found — state "Verdict: approve" or "Verdict: findings"`);
   }
   if ("conflict" in extracted) {
     return failure(
@@ -536,10 +514,7 @@ function parseReview(text: string): ParseResult<"review"> {
   }
   const verdict = extracted.value;
   if (verdict !== "approve" && verdict !== "findings") {
-    return failure(
-      "review",
-      `verdict "${verdict}" not recognized (expected approve | findings)`,
-    );
+    return failure("review", `verdict "${verdict}" not recognized (expected approve | findings)`);
   }
   if (verdict === "approve" && findings.length > 0) {
     return failure(
@@ -567,9 +542,7 @@ function parseReviewAudit(
   text: string,
   verdict: ReviewVerdict["verdict"],
   findings: readonly Finding[],
-):
-  | { ok: true; review: ReviewVerdict["review"] }
-  | ParseFailure {
+): { ok: true; review: ReviewVerdict["review"] } | ParseFailure {
   const sections = extractSections(text, REVIEW_AUDIT_KEYS);
   const present = REVIEW_AUDIT_KEYS.filter((key) => sections.has(key));
   if (present.length === 0 && verdict === "findings") {
@@ -607,8 +580,7 @@ function parseReviewAudit(
     if (match === null) {
       return failure(
         "review",
-        `malformed review evidence ${JSON.stringify(line.trim())} — expected ` +
-          '"- claim => concrete evidence"',
+        `malformed review evidence ${JSON.stringify(line.trim())} — expected ` + '"- claim => concrete evidence"',
       );
     }
     evidence.push({ claim: match[1]!.trim(), evidence: match[2]!.trim() });
@@ -616,13 +588,13 @@ function parseReviewAudit(
   if (evidence.length === 0) {
     return failure("review", "review evidence contains no entries");
   }
-  const rawNotReviewed = sections.get("Not reviewed")!
+  const rawNotReviewed = sections
+    .get("Not reviewed")!
     .split("\n")
     .map((line) => line.replace(/^\s*[-*]\s+/, "").trim())
     .filter(Boolean);
-  const notReviewed = rawNotReviewed.length === 1 && /^(?:none|nothing)\.?$/i.test(rawNotReviewed[0]!)
-    ? []
-    : rawNotReviewed;
+  const notReviewed =
+    rawNotReviewed.length === 1 && /^(?:none|nothing)\.?$/i.test(rawNotReviewed[0]!) ? [] : rawNotReviewed;
   return { ok: true, review: { rationale, evidence, notReviewed } };
 }
 
@@ -665,10 +637,7 @@ export class VerdictParseError extends Error {
 
   constructor(kind: VerdictKind, attempts: readonly ParseAttempt[]) {
     const last = attempts[attempts.length - 1];
-    super(
-      `${kind} verdict unparseable after ${attempts.length} attempt(s): ` +
-        `${last?.reason ?? "no attempts"}`,
-    );
+    super(`${kind} verdict unparseable after ${attempts.length} attempt(s): ` + `${last?.reason ?? "no attempts"}`);
     this.name = "VerdictParseError";
     this.kind = kind;
     this.attempts = attempts;
@@ -763,8 +732,7 @@ const FINDING_SCHEMA: VerdictSchema = {
 
 const REVIEW_AUDIT_SCHEMA: VerdictSchema = {
   title: "ReviewAudit",
-  description:
-    "Auditable review rationale, concrete claim/evidence pairs, and explicit deliberately-unreviewed scope.",
+  description: "Auditable review rationale, concrete claim/evidence pairs, and explicit deliberately-unreviewed scope.",
   type: "object",
   additionalProperties: false,
   required: ["rationale", "evidence", "notReviewed"],
@@ -821,8 +789,7 @@ const FINDING_RESOLUTION_SCHEMA: VerdictSchema = {
 
 const BLOCKED_ENTRY_SCHEMA: VerdictSchema = {
   title: "BlockedEntry",
-  description:
-    "The §7 blocked protocol: error verbatim, attempted fix, result, assessment.",
+  description: "The §7 blocked protocol: error verbatim, attempted fix, result, assessment.",
   type: "object",
   additionalProperties: false,
   required: ["error", "attempted", "result", "assessment"],
@@ -884,14 +851,7 @@ const DISTILLATION_PROPOSAL_SCHEMA: VerdictSchema = {
 const LEARNING_RUBRIC_SCHEMA: VerdictSchema = {
   type: "object",
   additionalProperties: false,
-  required: [
-    "correctness",
-    "generality",
-    "scope_fit",
-    "destination_fit",
-    "provenance_trust",
-    "injection_screen",
-  ],
+  required: ["correctness", "generality", "scope_fit", "destination_fit", "provenance_trust", "injection_screen"],
   properties: {
     correctness: { type: "integer", minimum: 0, maximum: 5 },
     generality: { type: "integer", minimum: 0, maximum: 5 },
@@ -987,8 +947,7 @@ export const VERDICT_SCHEMAS: Readonly<Record<VerdictKind, VerdictSchema>> = {
       resolutions: {
         type: "array",
         items: FINDING_RESOLUTION_SCHEMA,
-        description:
-          "fix passes only: one fixed/rebutted disposition per finding, in the order given",
+        description: "fix passes only: one fixed/rebutted disposition per finding, in the order given",
       },
     },
   },
@@ -1039,9 +998,7 @@ function schemaErrors(schema: VerdictSchema, value: unknown, path: string): stri
   const errors: string[] = [];
   if (schema.enum) {
     if (typeof value !== "string" || !schema.enum.includes(value)) {
-      errors.push(
-        `${path}: expected one of ${schema.enum.join(" | ")}, got ${JSON.stringify(value)}`,
-      );
+      errors.push(`${path}: expected one of ${schema.enum.join(" | ")}, got ${JSON.stringify(value)}`);
     }
     return errors;
   }
@@ -1079,9 +1036,7 @@ function schemaErrors(schema: VerdictSchema, value: unknown, path: string): stri
         errors.push(`${path}: expected at least ${schema.minItems} item(s), got ${value.length}`);
       }
       if (schema.items) {
-        value.forEach((item, i) =>
-          errors.push(...schemaErrors(schema.items!, item, `${path}[${i}]`)),
-        );
+        value.forEach((item, i) => errors.push(...schemaErrors(schema.items!, item, `${path}[${i}]`)));
       }
       break;
     }
@@ -1149,10 +1104,7 @@ function normalizeStrictNulls(schema: VerdictSchema, value: unknown): unknown {
 /** Validate a native-structured-output verdict (parsed JSON) against its
  *  kind's schema, plus the same consistency rules the text parser enforces.
  *  Same ParseResult shape as parseVerdict — both transports converge. */
-export function validateVerdict<K extends VerdictKind>(
-  kind: K,
-  value: unknown,
-): ParseResult<K> {
+export function validateVerdict<K extends VerdictKind>(kind: K, value: unknown): ParseResult<K> {
   const schema = VERDICT_SCHEMAS[kind] as VerdictSchema | undefined;
   if (!schema) {
     throw new Error(
@@ -1172,8 +1124,7 @@ export function validateVerdict<K extends VerdictKind>(
     if (rv.verdict === "approve" && rv.findings.length > 0) {
       return failure(
         kind,
-        `verdict says approve but ${rv.findings.length} finding(s) are listed — ` +
-          `approve means the list is empty`,
+        `verdict says approve but ${rv.findings.length} finding(s) are listed — ` + `approve means the list is empty`,
       );
     }
     if (rv.verdict === "findings" && rv.findings.length === 0) {
@@ -1265,11 +1216,13 @@ function reviewDigest(record: Record<string, unknown>): DurableVerdictDigest {
     .filter(isRecord)
     .map((entry) => `${text(entry["claim"])} => ${text(entry["evidence"])}`)
     .filter((entry) => entry !== " => ");
-  const notReviewed = (Array.isArray(audit?.["notReviewed"]) ? audit["notReviewed"] : [])
-    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
-  const rationale = typeof audit?.["rationale"] === "string" && audit["rationale"].trim().length > 0
-    ? audit["rationale"].trim()
-    : undefined;
+  const notReviewed = (Array.isArray(audit?.["notReviewed"]) ? audit["notReviewed"] : []).filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
+  const rationale =
+    typeof audit?.["rationale"] === "string" && audit["rationale"].trim().length > 0
+      ? audit["rationale"].trim()
+      : undefined;
   return {
     kind: "review",
     headline:
@@ -1278,9 +1231,10 @@ function reviewDigest(record: Record<string, unknown>): DurableVerdictDigest {
     ...(rationale === undefined ? {} : { rationale }),
     evidence,
     notReviewed,
-    details: findings.map((finding) =>
-      `${text(finding["category"])}/${text(finding["severity"])} ${text(finding["location"])}: ` +
-      `${text(finding["description"])}`
+    details: findings.map(
+      (finding) =>
+        `${text(finding["category"])}/${text(finding["severity"])} ${text(finding["location"])}: ` +
+        `${text(finding["description"])}`,
     ),
   };
 }
@@ -1301,9 +1255,7 @@ function buildDigest(record: Record<string, unknown>): DurableVerdictDigest {
 }
 
 function contractDigest(record: Record<string, unknown>): DurableVerdictDigest {
-  const files = (record["files"] as unknown[]).filter((entry): entry is string =>
-    typeof entry === "string"
-  );
+  const files = (record["files"] as unknown[]).filter((entry): entry is string => typeof entry === "string");
   const tests = (Array.isArray(record["tests"]) ? record["tests"] : []).filter(isRecord);
   return {
     kind: "contract",
@@ -1311,12 +1263,11 @@ function contractDigest(record: Record<string, unknown>): DurableVerdictDigest {
       `contract — ${files.length} file(s), ${tests.length} criterion mapping(s), ` +
       `complexity ${text(record["complexity"])}`,
     ...(typeof record["approach"] === "string" ? { rationale: record["approach"].trim() } : {}),
-    evidence: tests.map((entry) =>
-      `${text(entry["criterionId"])} => ${
-        (Array.isArray(entry["tests"]) ? entry["tests"] : [])
+    evidence: tests.map(
+      (entry) =>
+        `${text(entry["criterionId"])} => ${(Array.isArray(entry["tests"]) ? entry["tests"] : [])
           .filter((name): name is string => typeof name === "string")
-          .join(", ")
-      }`
+          .join(", ")}`,
     ),
     notReviewed: [],
     details: files,

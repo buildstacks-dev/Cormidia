@@ -11,11 +11,7 @@ import { resolveAppAssignments } from "../execution-assignments.js";
 export interface AssignmentReadinessSnapshot {
   /** One result per distinct harness/model pair, sorted by identity. */
   results: RuntimeReadinessResult[];
-  available(input: {
-    role: RoleConfig;
-    candidateId: string;
-    assignment: TurnAssignment;
-  }): boolean;
+  available(input: { role: RoleConfig; candidateId: string; assignment: TurnAssignment }): boolean;
   resultFor(assignment: TurnAssignment): RuntimeReadinessResult | undefined;
 }
 
@@ -45,10 +41,7 @@ export async function probeApprovedAssignmentReadiness(
   const pairs = new Map<string, TurnAssignment>();
   // The fixed boot tuple is deliberately outside adaptive selection and may
   // be absent from the Planner role's narrowed catalog.
-  pairs.set(
-    harnessModelKey(resolved.plannerBootAssignment),
-    resolved.plannerBootAssignment,
-  );
+  pairs.set(harnessModelKey(resolved.plannerBootAssignment), resolved.plannerBootAssignment);
   for (const role of resolved.roles) {
     for (const candidate of role.assignments) {
       const key = harnessModelKey(candidate.assignment);

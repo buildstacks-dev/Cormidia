@@ -200,11 +200,7 @@ function reqNumber(obj: Record<string, unknown>, where: string, key: string): nu
   return value;
 }
 
-function reqRecord(
-  obj: Record<string, unknown>,
-  where: string,
-  key: string,
-): Record<string, unknown> {
+function reqRecord(obj: Record<string, unknown>, where: string, key: string): Record<string, unknown> {
   const value = reqField(obj, where, key);
   if (!isRecord(value)) {
     throw new PolicyLoadError(`relied-on field ${where}${key} must be a mapping`);
@@ -228,10 +224,7 @@ function reqStringArray(obj: Record<string, unknown>, where: string, key: string
   return value;
 }
 
-function obligationRows(
-  obj: Record<string, unknown>,
-  where: string,
-): readonly ObligationRow[] {
+function obligationRows(obj: Record<string, unknown>, where: string): readonly ObligationRow[] {
   return reqArray(obj, where, "obligations").map((entry, i) => {
     if (!isRecord(entry)) {
       throw new PolicyLoadError(`${where}obligations[${i}] must be a mapping`);
@@ -253,23 +246,17 @@ export function loadValidationPolicy(repoRoot: string): ValidationPolicy {
   try {
     text = readFileSync(policyPath, "utf8");
   } catch (cause) {
-    throw new PolicyLoadError(
-      `cannot read validation policy at ${policyPath}: ${String(cause)}`,
-    );
+    throw new PolicyLoadError(`cannot read validation policy at ${policyPath}: ${String(cause)}`);
   }
 
   let doc: unknown;
   try {
     doc = parse(text);
   } catch (cause) {
-    throw new PolicyLoadError(
-      `validation policy at ${policyPath} is not parseable YAML: ${String(cause)}`,
-    );
+    throw new PolicyLoadError(`validation policy at ${policyPath} is not parseable YAML: ${String(cause)}`);
   }
   if (!isRecord(doc)) {
-    throw new PolicyLoadError(
-      `validation policy at ${policyPath} did not parse to a YAML mapping`,
-    );
+    throw new PolicyLoadError(`validation policy at ${policyPath} did not parse to a YAML mapping`);
   }
 
   const schema_version = reqNumber(doc, "", "schema_version");
@@ -285,18 +272,12 @@ export function loadValidationPolicy(repoRoot: string): ValidationPolicy {
     artifacts[key] = value;
   }
   if (Object.keys(artifacts).length === 0) {
-    throw new PolicyLoadError(
-      "artifacts: must list at least one artifact (an empty registry would pin nothing)",
-    );
+    throw new PolicyLoadError("artifacts: must list at least one artifact (an empty registry would pin nothing)");
   }
 
   const implementation_root = reqString(doc, "", "implementation_root");
 
-  const protected_paths: readonly ProtectedPath[] = reqArray(
-    doc,
-    "",
-    "protected_paths",
-  ).map((entry, i) => {
+  const protected_paths: readonly ProtectedPath[] = reqArray(doc, "", "protected_paths").map((entry, i) => {
     if (!isRecord(entry)) {
       throw new PolicyLoadError(`protected_paths[${i}] must be a mapping`);
     }
@@ -374,11 +355,7 @@ export function loadValidationPolicy(repoRoot: string): ValidationPolicy {
   };
 
   const prRaw = reqRecord(doc, "", "proposed_register");
-  const items: readonly ProposedRegisterItem[] = reqArray(
-    prRaw,
-    "proposed_register.",
-    "items",
-  ).map((entry, i) => {
+  const items: readonly ProposedRegisterItem[] = reqArray(prRaw, "proposed_register.", "items").map((entry, i) => {
     if (!isRecord(entry)) {
       throw new PolicyLoadError(`proposed_register.items[${i}] must be a mapping`);
     }
@@ -391,19 +368,17 @@ export function loadValidationPolicy(repoRoot: string): ValidationPolicy {
   });
   const proposed_register: ProposedRegister = { ...prRaw, items };
 
-  const open_findings: readonly OpenFinding[] = reqArray(doc, "", "open_findings").map(
-    (entry, i) => {
-      if (!isRecord(entry)) {
-        throw new PolicyLoadError(`open_findings[${i}] must be a mapping`);
-      }
-      return {
-        ...entry,
-        id: reqString(entry, `open_findings[${i}].`, "id"),
-        status: reqString(entry, `open_findings[${i}].`, "status"),
-        subject: reqString(entry, `open_findings[${i}].`, "subject"),
-      };
-    },
-  );
+  const open_findings: readonly OpenFinding[] = reqArray(doc, "", "open_findings").map((entry, i) => {
+    if (!isRecord(entry)) {
+      throw new PolicyLoadError(`open_findings[${i}] must be a mapping`);
+    }
+    return {
+      ...entry,
+      id: reqString(entry, `open_findings[${i}].`, "id"),
+      status: reqString(entry, `open_findings[${i}].`, "status"),
+      subject: reqString(entry, `open_findings[${i}].`, "subject"),
+    };
+  });
 
   const case_sourcing = reqStringArray(doc, "", "case_sourcing");
   const harness_self_tests = reqStringArray(doc, "", "harness_self_tests");
@@ -466,10 +441,7 @@ export function missingArtifacts(policy: ValidationPolicy): string[] {
   return resolveArtifacts(policy)
     .filter((a) => a.kind === "missing" || a.kind === "empty-dir")
     .map(
-      (a) =>
-        `${a.key}: ${a.relPath} (${
-          a.kind === "missing" ? "does not exist" : "exists but is an empty directory"
-        })`,
+      (a) => `${a.key}: ${a.relPath} (${a.kind === "missing" ? "does not exist" : "exists but is an empty directory"})`,
     );
 }
 
@@ -486,15 +458,42 @@ export const RATIFIED_PINS = {
   pre_merge_adapter_campaign: { max_provider_turns: 2, max_equiv_usd: 5 },
   release_campaign: { max_provider_turns: 24, max_equiv_usd: 100 },
   hb007_decisions: [
-    { id: 1, decision_status: "adjusted-ratified", value: "GitHub retry budget: 3 total attempts per operation with jittered exponential backoff and an injectable clock" },
-    { id: 2, decision_status: "adjusted-ratified", value: "liveness identity: PID + process-start identity + nonce, so PID reuse cannot impersonate the holder" },
-    { id: 3, decision_status: "adjusted-ratified", value: "descendant cleanup: owned process group/session; TERM, bounded grace, then KILL; prove no owned descendants remain" },
+    {
+      id: 1,
+      decision_status: "adjusted-ratified",
+      value:
+        "GitHub retry budget: 3 total attempts per operation with jittered exponential backoff and an injectable clock",
+    },
+    {
+      id: 2,
+      decision_status: "adjusted-ratified",
+      value: "liveness identity: PID + process-start identity + nonce, so PID reuse cannot impersonate the holder",
+    },
+    {
+      id: 3,
+      decision_status: "adjusted-ratified",
+      value:
+        "descendant cleanup: owned process group/session; TERM, bounded grace, then KILL; prove no owned descendants remain",
+    },
     { id: 4, decision_status: "ratified", value: "preview->execute exact-hash comparison on depended-on surfaces" },
     { id: 5, decision_status: "ratified", value: "index.lock wait <=30s, never delete/steal a foreign lock" },
     { id: 6, decision_status: "ratified", value: "hooks-disabled managed clones (core.hooksPath empty)" },
-    { id: 7, decision_status: "adjusted-ratified", value: "explicit default gate caps: setup/tests 5min, lint 2min, e2e 10min; 15min is the CI core-job ceiling, not a per-gate default" },
-    { id: 8, decision_status: "ratified", value: "candidate-mutation detection: candidate HEAD + tracked/decision-relevant diff + governed generated paths" },
-    { id: 13, decision_status: "ratified", value: "CI per-commit wall-clock target 5min (reported optimization target only; no verdict effect)" },
+    {
+      id: 7,
+      decision_status: "adjusted-ratified",
+      value:
+        "explicit default gate caps: setup/tests 5min, lint 2min, e2e 10min; 15min is the CI core-job ceiling, not a per-gate default",
+    },
+    {
+      id: 8,
+      decision_status: "ratified",
+      value: "candidate-mutation detection: candidate HEAD + tracked/decision-relevant diff + governed generated paths",
+    },
+    {
+      id: 13,
+      decision_status: "ratified",
+      value: "CI per-commit wall-clock target 5min (reported optimization target only; no verdict effect)",
+    },
   ],
 } as const;
 
@@ -529,10 +528,7 @@ export function auditRatifiedPins(policy: ValidationPolicy): string[] {
     bound: SpendBound,
     pin: { max_provider_turns: number; max_equiv_usd: number },
   ): void => {
-    if (
-      bound.max_provider_turns !== pin.max_provider_turns ||
-      bound.max_equiv_usd !== pin.max_equiv_usd
-    ) {
+    if (bound.max_provider_turns !== pin.max_provider_turns || bound.max_equiv_usd !== pin.max_equiv_usd) {
       violations.push(
         `${label} spend bound is ${bound.max_provider_turns} turns / $${bound.max_equiv_usd} — ` +
           `ratified 2026-07-31 as ${pin.max_provider_turns} turns / $${pin.max_equiv_usd}; ` +
@@ -540,11 +536,7 @@ export function auditRatifiedPins(policy: ValidationPolicy): string[] {
       );
     }
   };
-  checkBound(
-    "pre_merge_adapter_campaign",
-    spend.pre_merge_adapter_campaign,
-    RATIFIED_PINS.pre_merge_adapter_campaign,
-  );
+  checkBound("pre_merge_adapter_campaign", spend.pre_merge_adapter_campaign, RATIFIED_PINS.pre_merge_adapter_campaign);
   checkBound("release_campaign", spend.release_campaign, RATIFIED_PINS.release_campaign);
 
   for (const pin of RATIFIED_PINS.hb007_decisions) {
@@ -619,9 +611,7 @@ export function auditCoreChecksWorkflow(workflowSource: string): string[] {
 
   const on = doc["on"];
   if (!isRecord(on) || !("push" in on) || !("pull_request" in on)) {
-    violations.push(
-      "per-commit triggers drifted: `on:` must include both push and pull_request",
-    );
+    violations.push("per-commit triggers drifted: `on:` must include both push and pull_request");
   }
 
   const jobs = doc["jobs"];
@@ -637,9 +627,7 @@ export function auditCoreChecksWorkflow(workflowSource: string): string[] {
     const runs = jobSteps(core).map(stepRun);
     for (const command of ["pnpm typecheck", "pnpm build", "pnpm test"]) {
       if (!runs.some((run) => runsCommand(run, command))) {
-        violations.push(
-          `core job no longer runs \`${command}\` (per-commit L1/L2 lane drift; policy ci.per_commit)`,
-        );
+        violations.push(`core job no longer runs \`${command}\` (per-commit L1/L2 lane drift; policy ci.per_commit)`);
       }
     }
     if (jobAllowsFailure(core)) {
@@ -649,9 +637,7 @@ export function auditCoreChecksWorkflow(workflowSource: string): string[] {
 
   const gitleaks = jobs["gitleaks"];
   if (!isRecord(gitleaks)) {
-    violations.push(
-      "gitleaks secret-hygiene job is missing (policy L5_ops → secret-hygiene; ci.per_commit)",
-    );
+    violations.push("gitleaks secret-hygiene job is missing (policy L5_ops → secret-hygiene; ci.per_commit)");
     return violations;
   }
 
@@ -660,9 +646,7 @@ export function auditCoreChecksWorkflow(workflowSource: string): string[] {
   if (version === undefined) {
     violations.push("gitleaks version pin (GITLEAKS_VERSION env) is missing");
   } else if (!/^\d+\.\d+\.\d+$/.test(String(version))) {
-    violations.push(
-      `GITLEAKS_VERSION "${String(version)}" is not an exact semver version pin`,
-    );
+    violations.push(`GITLEAKS_VERSION "${String(version)}" is not an exact semver version pin`);
   }
   const sha = isRecord(env) ? env["GITLEAKS_SHA256"] : undefined;
   if (!isString(sha) || !/^[0-9a-f]{64}$/.test(sha)) {
@@ -672,31 +656,21 @@ export function auditCoreChecksWorkflow(workflowSource: string): string[] {
   const steps = jobSteps(gitleaks);
   const runs = steps.map(stepRun);
   if (!runs.some((run) => run.includes("sha256sum -c"))) {
-    violations.push(
-      "gitleaks download is not checksum-verified (no `sha256sum -c` step)",
-    );
+    violations.push("gitleaks download is not checksum-verified (no `sha256sum -c` step)");
   }
 
-  const canary = steps.find(
-    (step) => /canary/i.test(stepName(step)) || /canary/i.test(stepRun(step)),
-  );
+  const canary = steps.find((step) => /canary/i.test(stepName(step)) || /canary/i.test(stepRun(step)));
   if (canary === undefined) {
     violations.push(
       "gitleaks canary negative-control step is missing (a detector that has never fired is an assumption)",
     );
   } else if (!stepRun(canary).includes("exit 1")) {
-    violations.push(
-      "gitleaks canary step has no failure path (`exit 1`) when the scanner fails to fire",
-    );
+    violations.push("gitleaks canary step has no failure path (`exit 1`) when the scanner fails to fire");
   }
 
-  const scan = runs.find(
-    (run) => run.includes("gitleaks detect") && run.includes("--config .gitleaks.toml"),
-  );
+  const scan = runs.find((run) => run.includes("gitleaks detect") && run.includes("--config .gitleaks.toml"));
   if (scan === undefined) {
-    violations.push(
-      "repository gitleaks scan with the pinned config (`--config .gitleaks.toml`) is missing",
-    );
+    violations.push("repository gitleaks scan with the pinned config (`--config .gitleaks.toml`) is missing");
   } else if (scan.includes("|| true")) {
     violations.push("gitleaks scan swallows failures (`|| true`) — must be fail-closed");
   }
@@ -732,22 +706,16 @@ export function auditVitestConfigs(defaultConfig: unknown, liveConfig: unknown):
   } else {
     const exclude = defaultTest["exclude"];
     if (!isStringArray(exclude) || !exclude.includes("tests/live/**")) {
-      violations.push(
-        "default vitest config no longer excludes tests/live/** — the L3 lane would run per commit",
-      );
+      violations.push("default vitest config no longer excludes tests/live/** — the L3 lane would run per commit");
     }
     if (defaultTest["passWithNoTests"] !== false) {
-      violations.push(
-        "default vitest config passWithNoTests must be exactly false (no green by absence)",
-      );
+      violations.push("default vitest config passWithNoTests must be exactly false (no green by absence)");
     }
     const include = defaultTest["include"];
     if (!isStringArray(include) || include.length === 0) {
       violations.push("default vitest config include is missing or empty");
     } else if (!include.every((pattern) => pattern.startsWith("tests/"))) {
-      violations.push(
-        "default vitest config include reaches outside tests/ (policy implementation_root)",
-      );
+      violations.push("default vitest config include reaches outside tests/ (policy implementation_root)");
     }
   }
 

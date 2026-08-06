@@ -5,7 +5,11 @@ import { existsSync } from "node:fs";
 import { mkdir, open, readFile, readdir, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "./atomic.js";
-import { currentProcessStartIdentity, processIdentityStatus, processStartIdentity } from "../runtime/process-identity.js";
+import {
+  currentProcessStartIdentity,
+  processIdentityStatus,
+  processStartIdentity,
+} from "../runtime/process-identity.js";
 
 export interface TurnLock {
   app: string;
@@ -65,10 +69,7 @@ async function withLockMutation<T>(
   }
 }
 
-async function acquireMutationGuard(
-  directory: string,
-  options: TurnLockMutationOptions,
-): Promise<MutationGuard> {
+async function acquireMutationGuard(directory: string, options: TurnLockMutationOptions): Promise<MutationGuard> {
   const nonce = randomUUID();
   const ownerName = `owner-${nonce}.json`;
   const temporary = `${directory}.${process.pid}.${nonce}.tmp`;
@@ -123,11 +124,14 @@ async function reclaimMutationGuard(directory: string): Promise<boolean> {
   let reclaimable = false;
   try {
     const [payload, metadata] = await Promise.all([
-      readFile(ownerFile, "utf8").then((text) => JSON.parse(text) as {
-        pid?: unknown;
-        processStartIdentity?: unknown;
-        at?: unknown;
-      }),
+      readFile(ownerFile, "utf8").then(
+        (text) =>
+          JSON.parse(text) as {
+            pid?: unknown;
+            processStartIdentity?: unknown;
+            at?: unknown;
+          },
+      ),
       stat(ownerFile),
     ]);
     const ageBase = typeof payload.at === "string" ? new Date(payload.at).getTime() : metadata.mtimeMs;
@@ -171,9 +175,7 @@ export async function acquireLock(
 ): Promise<AcquireLockResult> {
   const now = input.now ?? new Date();
   const ownerPid = input.pid ?? process.pid;
-  const ownerStart = ownerPid === process.pid
-    ? currentProcessStartIdentity()
-    : processStartIdentity(ownerPid);
+  const ownerStart = ownerPid === process.pid ? currentProcessStartIdentity() : processStartIdentity(ownerPid);
   const lock: TurnLock = {
     app: input.app,
     role: input.role,
@@ -215,11 +217,7 @@ export async function readLock(root: string, app: string, role: string): Promise
  *  not yet readable — a vanished/torn file during a concurrent release or a
  *  mid-write acquire. Never throws on those ordinary races, so a check-then-act
  *  caller cannot turn contention into an unhandled ENOENT (F-007). */
-export async function readLockOrUndefined(
-  root: string,
-  app: string,
-  role: string,
-): Promise<TurnLock | undefined> {
+export async function readLockOrUndefined(root: string, app: string, role: string): Promise<TurnLock | undefined> {
   try {
     return await readLock(root, app, role);
   } catch {
@@ -289,19 +287,24 @@ export async function releaseLock(
   mutationOptions: TurnLockMutationOptions = {},
 ): Promise<boolean> {
   const path = lockPath(root, app, role);
-  return withLockMutation(path, async () => {
-    const current = await readLockOrUndefined(root, app, role);
-    if (
-      current === undefined ||
-      expected.nonce === undefined ||
-      current.nonce !== expected.nonce ||
-      current.turnId !== expected.turnId ||
-      current.pid !== expected.pid ||
-      current.processStartIdentity !== expected.processStartIdentity
-    ) return false;
-    await rm(path, { force: true });
-    return true;
-  }, mutationOptions);
+  return withLockMutation(
+    path,
+    async () => {
+      const current = await readLockOrUndefined(root, app, role);
+      if (
+        current === undefined ||
+        expected.nonce === undefined ||
+        current.nonce !== expected.nonce ||
+        current.turnId !== expected.turnId ||
+        current.pid !== expected.pid ||
+        current.processStartIdentity !== expected.processStartIdentity
+      )
+        return false;
+      await rm(path, { force: true });
+      return true;
+    },
+    mutationOptions,
+  );
 }
 
 export function isStale(lock: TurnLock, now: Date = new Date(), staleMs = DEFAULT_STALE_MS): boolean {

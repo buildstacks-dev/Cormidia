@@ -51,11 +51,7 @@ export type ExperimentLayer = (typeof EXPERIMENT_LAYERS)[number];
 export type ExperimentStatus = "declared" | "running" | "decided";
 export type MetricDirection = "increase" | "decrease";
 
-export type GuardrailRule =
-  | "must_not_decrease"
-  | "must_not_increase"
-  | "max_increase_pct"
-  | "max_decrease_pct";
+export type GuardrailRule = "must_not_decrease" | "must_not_increase" | "max_increase_pct" | "max_decrease_pct";
 
 export interface ExperimentGuardrail {
   metric: string;
@@ -185,26 +181,14 @@ export function validateExperimentRecord(value: unknown): ExperimentRecord {
     layer: requireEnum(trialsSpec, "layer", EXPERIMENT_LAYERS, `${source}.trials`),
     repetitions: requirePositiveInt(trialsSpec, "repetitions", `${source}.trials`),
     early_stop: {
-      on_held_in_failure: requireBoolean(
-        earlyStop,
-        "on_held_in_failure",
-        `${source}.trials.early_stop`,
-      ),
-      on_guardrail_trip: requireBoolean(
-        earlyStop,
-        "on_guardrail_trip",
-        `${source}.trials.early_stop`,
-      ),
+      on_held_in_failure: requireBoolean(earlyStop, "on_held_in_failure", `${source}.trials.early_stop`),
+      on_guardrail_trip: requireBoolean(earlyStop, "on_guardrail_trip", `${source}.trials.early_stop`),
     },
   };
 
   const observationSpec = requireRecord(spec["observation"], `${source}.observation`);
   const observation = {
-    outcome_maturity_days: requireNonNegativeNumber(
-      observationSpec,
-      "outcome_maturity_days",
-      `${source}.observation`,
-    ),
+    outcome_maturity_days: requireNonNegativeNumber(observationSpec, "outcome_maturity_days", `${source}.observation`),
   };
 
   let stopThresholds: ExperimentRecord["stop_thresholds"] = null;
@@ -216,11 +200,7 @@ export function validateExperimentRecord(value: unknown): ExperimentRecord {
     );
     stopThresholds = {
       rollback_immediately_if: {
-        metric: requireString(
-          rollback,
-          "metric",
-          `${source}.stop_thresholds.rollback_immediately_if`,
-        ),
+        metric: requireString(rollback, "metric", `${source}.stop_thresholds.rollback_immediately_if`),
         below_control_pct: requireNonNegativeNumber(
           rollback,
           "below_control_pct",
@@ -273,10 +253,7 @@ export function validateExperimentRecord(value: unknown): ExperimentRecord {
   };
 }
 
-function validateEfficacyProtocol(
-  value: unknown,
-  source: string,
-): ExperimentEfficacyProtocol | null {
+function validateEfficacyProtocol(value: unknown, source: string): ExperimentEfficacyProtocol | null {
   if (value === undefined || value === null) return null;
   const protocol = requireRecord(value, `${source}.efficacy_protocol`);
   const declaredAt = requireString(protocol, "declared_at", `${source}.efficacy_protocol`);
@@ -290,7 +267,10 @@ function validateEfficacyProtocol(
   );
   const sha256 = requireString(commitment, "sha256", `${source}.efficacy_protocol.hidden_guardrail_commitment`);
   const eligibilitySha = requireString(protocol, "eligibility_sha256", `${source}.efficacy_protocol`);
-  for (const [label, hash] of [["hidden_guardrail_commitment.sha256", sha256], ["eligibility_sha256", eligibilitySha]] as const) {
+  for (const [label, hash] of [
+    ["hidden_guardrail_commitment.sha256", sha256],
+    ["eligibility_sha256", eligibilitySha],
+  ] as const) {
     if (!/^sha256:[a-f0-9]{64}$/.test(hash)) {
       throw new Error(`learning: ${source}.efficacy_protocol.${label} must be sha256:<64 lowercase hex>`);
     }
@@ -349,11 +329,7 @@ function validateEfficacyProtocol(
     },
     stop_rules: {
       retain_attempted_pairs: true,
-      early_stop_reasons: requireStringArray(
-        stop,
-        "early_stop_reasons",
-        `${source}.efficacy_protocol.stop_rules`,
-      ),
+      early_stop_reasons: requireStringArray(stop, "early_stop_reasons", `${source}.efficacy_protocol.stop_rules`),
     },
     side_effect_replacement: {
       network: "fixture_only",
@@ -478,27 +454,18 @@ export async function declareExperiment(
 
 /** declared → running: the M5 runner's entry point; recorded now so the
  *  status enum is exercised end-to-end before model tokens exist. */
-export async function markExperimentRunning(
-  orgHome: string,
-  experimentId: string,
-): Promise<ExperimentRecord> {
+export async function markExperimentRunning(orgHome: string, experimentId: string): Promise<ExperimentRecord> {
   const record = await readExperimentRecord(orgHome, experimentId);
   if (record.status === "decided") {
     throw new Error(`learning: ${experimentId} is already decided — it cannot re-run`);
   }
   if (record.status === "running") return record;
   const next: ExperimentRecord = { ...record, status: "running" };
-  await writeFileAtomic(
-    experimentPath(orgHome, experimentId),
-    JSON.stringify(next, null, 2) + "\n",
-  );
+  await writeFileAtomic(experimentPath(orgHome, experimentId), JSON.stringify(next, null, 2) + "\n");
   return next;
 }
 
-export async function readExperimentRecord(
-  orgHome: string,
-  experimentId: string,
-): Promise<ExperimentRecord> {
+export async function readExperimentRecord(orgHome: string, experimentId: string): Promise<ExperimentRecord> {
   return readJsonRecord(
     experimentPath(orgHome, experimentId),
     validateExperimentRecord,

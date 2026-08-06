@@ -75,9 +75,9 @@ describe("CF-SPLIT-NETWORK — allowlisted egress is budgeted at the composed ga
     expect(decision.allow).toBe(false);
     const pending = await approvals.listPending();
     expect(pending.map((item) => item.rule)).toEqual(["outbound-network-undeterminable"]);
-    await expect(
-      approvals.decide(pending[0]!.id, { decision: "approved", scope: { kind: "app" } }),
-    ).rejects.toThrow(/never scopeable/);
+    await expect(approvals.decide(pending[0]!.id, { decision: "approved", scope: { kind: "app" } })).rejects.toThrow(
+      /never scopeable/,
+    );
   });
 
   it("the allowlist is CONFIG: a custom per-app list replaces the default trio in both directions", async () => {
@@ -85,8 +85,9 @@ describe("CF-SPLIT-NETWORK — allowlisted egress is budgeted at the composed ga
       networkAllowlist: ["internal.example.com"],
     });
     // The custom host is budgeted…
-    expect(gate({ tool: "bash", input: { command: "curl https://internal.example.com/health" } }))
-      .toEqual({ allow: true });
+    expect(gate({ tool: "bash", input: { command: "curl https://internal.example.com/health" } })).toEqual({
+      allow: true,
+    });
     expect(objectives.readLogSync().filter((event) => event.type === "budgeted-action")).toHaveLength(1);
     // …and the DEFAULT trio's host now escalates — the default was a default,
     // not a hardcoded floor.

@@ -15,11 +15,13 @@ export interface SchedulerOperationalStatus {
   local_alerts_requiring_attention: number;
 }
 
-export async function schedulerOperationalStatus(input: SchedulerDefinitionInput & {
-  manager: SchedulerManager;
-  now?: Date;
-  runtime?: boolean;
-}): Promise<SchedulerOperationalStatus> {
+export async function schedulerOperationalStatus(
+  input: SchedulerDefinitionInput & {
+    manager: SchedulerManager;
+    now?: Date;
+    runtime?: boolean;
+  },
+): Promise<SchedulerOperationalStatus> {
   const now = input.now ?? new Date();
   const definition = await schedulerDefinitionStatus(input);
   const store = new SchedulerEvidenceStore({
@@ -54,22 +56,27 @@ export async function schedulerOperationalStatus(input: SchedulerDefinitionInput
       reasons.add("scheduler_state_corrupt");
     }
   }
-  const recentlyTicking = evidence.last_completed_tick !== null
-    && now.getTime() - Date.parse(evidence.last_completed_tick) <= definition.configured_cadence_minutes * 2 * 60_000;
+  const recentlyTicking =
+    evidence.last_completed_tick !== null &&
+    now.getTime() - Date.parse(evidence.last_completed_tick) <= definition.configured_cadence_minutes * 2 * 60_000;
   if (definition.installed && recentlyTicking && evidence.overdue !== true) reasons.add("healthy_recent_tick");
   if (definition.installed && input.runtime === false) reasons.add("measurement_unavailable");
-  const blocking = [...reasons].filter((reason) => !["definition_valid", "healthy_recent_tick", "missed_window_reconciled"].includes(reason)).sort();
-  const measurementValid = evidence.measurement_valid
-    && evidence.last_invocation !== null
-    && input.runtime !== false
-    && definition.active !== null;
-  const healthy = definition.definition_valid
-    && definition.installation_state_valid
-    && definition.active === true
-    && measurementValid
-    && recentlyTicking
-    && evidence.provider_settlement_agreement !== false
-    && blocking.length === 0;
+  const blocking = [...reasons]
+    .filter((reason) => !["definition_valid", "healthy_recent_tick", "missed_window_reconciled"].includes(reason))
+    .sort();
+  const measurementValid =
+    evidence.measurement_valid &&
+    evidence.last_invocation !== null &&
+    input.runtime !== false &&
+    definition.active !== null;
+  const healthy =
+    definition.definition_valid &&
+    definition.installation_state_valid &&
+    definition.active === true &&
+    measurementValid &&
+    recentlyTicking &&
+    evidence.provider_settlement_agreement !== false &&
+    blocking.length === 0;
   return {
     schema_version: 1,
     healthy,

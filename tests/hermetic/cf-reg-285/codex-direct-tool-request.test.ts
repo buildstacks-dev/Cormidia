@@ -46,10 +46,7 @@ describe("CF-REG-285 — assigned Codex models reach only direct gateable tools"
   });
 
   it("real direct shell call reaches the gate before execution and denial is terminal", async () => {
-    const run = await runAgainstLoopback(
-      false,
-      (marker) => `touch ${JSON.stringify(marker)}`,
-    );
+    const run = await runAgainstLoopback(false, (marker) => `touch ${JSON.stringify(marker)}`);
     expect(existsSync(run.marker)).toBe(false);
     expect(run.result.escalations).toHaveLength(1);
     expect(run.requests).toHaveLength(2);
@@ -64,11 +61,7 @@ describe("CF-REG-285 — assigned Codex models reach only direct gateable tools"
   });
 
   it("negative control: dropping hook trust lets an auto-approved read reach command execution", async () => {
-    const run = await runAgainstLoopback(
-      false,
-      () => "cat /etc/hosts",
-      true,
-    );
+    const run = await runAgainstLoopback(false, () => "cat /etc/hosts", true);
     expect(functionCallOutput(run.requests[1]!, "call-cf-reg-285")).toEqual(expect.any(String));
     expect(run.result.escalations).toHaveLength(0);
     expect(run.result.status).toBe("completed");
@@ -96,9 +89,10 @@ async function runAgainstLoopback(
   roots.push(codexHome, workdir);
   const marker = join(workdir, "forbidden-by-cormidia-gate");
   const captured: Record<string, unknown>[] = [];
-  const responseBodies = gateCommand !== undefined
-    ? [shellCommandResponseSse(gateCommand(marker)), finalResponseSse()]
-    : [finalResponseSse()];
+  const responseBodies =
+    gateCommand !== undefined
+      ? [shellCommandResponseSse(gateCommand(marker)), finalResponseSse()]
+      : [finalResponseSse()];
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -120,10 +114,7 @@ async function runAgainstLoopback(
       }
       const client = new StdioCodexAppServerClient({
         ...launch,
-        args: withMockProvider(
-          seedForcedCodeMode ? seedMatchingCodeModeCatalog(launch) : launch.args,
-          baseUrl,
-        ),
+        args: withMockProvider(seedForcedCodeMode ? seedMatchingCodeModeCatalog(launch) : launch.args, baseUrl),
       });
       return seedMissingHookTrust ? withoutHookTrustOverride(client) : client;
     },
@@ -137,9 +128,10 @@ async function runAgainstLoopback(
       context: { taste: [], memoryExcerpts: [] },
     },
     {
-      gate: () => gateCommand !== undefined
-        ? { allow: false, reason: "CF-REG-285 seeded denial", escalate: true }
-        : { allow: true },
+      gate: () =>
+        gateCommand !== undefined
+          ? { allow: false, reason: "CF-REG-285 seeded denial", escalate: true }
+          : { allow: true },
     },
   );
   return { requests: captured, result, marker };
@@ -233,9 +225,9 @@ function tools(request: Record<string, unknown>): Array<Record<string, unknown>>
 
 function functionCallOutput(request: Record<string, unknown>, callId: string): string | undefined {
   if (!Array.isArray(request.input)) return undefined;
-  const output = request.input.filter(isRecord).find((item) =>
-    item.type === "function_call_output" && item.call_id === callId
-  );
+  const output = request.input
+    .filter(isRecord)
+    .find((item) => item.type === "function_call_output" && item.call_id === callId);
   return typeof output?.output === "string" ? output.output : undefined;
 }
 

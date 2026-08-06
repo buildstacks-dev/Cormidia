@@ -28,12 +28,7 @@ import { readEfficiencyEvidence, type EfficiencyEpisodeEvidence } from "../../lo
 import { readExecutionJournal, type ExecutionJournal } from "../../loop/execution-journal.js";
 import { writeFileAtomic } from "../atomic.js";
 import { readJournal } from "../journal.js";
-import {
-  journalEpisodeAnchor,
-  ticketEpisodeAnchor,
-  turnEpisodeAnchor,
-  type EpisodeAnchor,
-} from "./episodes.js";
+import { journalEpisodeAnchor, ticketEpisodeAnchor, turnEpisodeAnchor, type EpisodeAnchor } from "./episodes.js";
 import {
   appendLearningEventsDeduped,
   learningEventPath,
@@ -47,13 +42,16 @@ import { readSchedulerMissEvidence } from "../scheduler/evidence.js";
 export interface CaptureCursor {
   schema_version: 1;
   /** `<app>/<runId>` → projection receipt. Presence means fully projected. */
-  runs: Record<string, {
-    projected_at: string;
-    events: number;
-    event_files?: string[];
-    /** Phase 4 binds a receipt to exact deterministic event identities. */
-    event_ids?: string[];
-  }>;
+  runs: Record<
+    string,
+    {
+      projected_at: string;
+      events: number;
+      event_files?: string[];
+      /** Phase 4 binds a receipt to exact deterministic event identities. */
+      event_ids?: string[];
+    }
+  >;
 }
 
 export type CaptureBlockingReason =
@@ -128,25 +126,18 @@ export function captureCursorPath(stateHome: string): string {
   return join(stateHome, "learning", "metrics", "capture-cursor.json");
 }
 
-export async function projectCaptureEvents(
-  options: ProjectCaptureOptions,
-): Promise<CaptureProjectionResult> {
+export async function projectCaptureEvents(options: ProjectCaptureOptions): Promise<CaptureProjectionResult> {
   return captureEvents(options, true);
 }
 
 /** Read-only scan used by `cormidia learn report`. It derives enough from the
  * immutable run evidence to identify new/missing projections but never
  * appends events, rewrites the cursor, or projects episode records. */
-export async function previewCaptureEvents(
-  options: ProjectCaptureOptions,
-): Promise<CaptureProjectionResult> {
+export async function previewCaptureEvents(options: ProjectCaptureOptions): Promise<CaptureProjectionResult> {
   return captureEvents(options, false);
 }
 
-async function captureEvents(
-  options: ProjectCaptureOptions,
-  write: boolean,
-): Promise<CaptureProjectionResult> {
+async function captureEvents(options: ProjectCaptureOptions, write: boolean): Promise<CaptureProjectionResult> {
   const { stateHome } = options;
   const clock = options.clock ?? ((): Date => new Date());
   const cursor = await readCursor(stateHome);
@@ -214,12 +205,7 @@ async function captureEvents(
 
     let events: LearningEvent[];
     try {
-      events = await deriveRunEvents(
-        stateHome,
-        envelope,
-        options.appStages,
-        efficiencyRun,
-      );
+      events = await deriveRunEvents(stateHome, envelope, options.appStages, efficiencyRun);
     } catch {
       block(result, app, runId, "corrupt_events");
       continue;
@@ -239,7 +225,7 @@ async function captureEvents(
       }
     }
 
-    if (receipt !== undefined && await receiptIsComplete(stateHome, receipt, eventIds)) {
+    if (receipt !== undefined && (await receiptIsComplete(stateHome, receipt, eventIds))) {
       result.runsAlreadyProjected += 1;
       result.projectedExactlyOnce += 1;
       continue;
@@ -250,7 +236,7 @@ async function captureEvents(
       );
     }
     const missingBefore = eventFiles.filter((path) => !existsSync(join(stateHome, path)));
-    if (receipt !== undefined && missingBefore.length === 0 && await eventsAlreadyPresent(stateHome, events)) {
+    if (receipt !== undefined && missingBefore.length === 0 && (await eventsAlreadyPresent(stateHome, events))) {
       // Legacy receipt migration: the events are all already on disk, but
       // older cursors did not bind the receipt to its paths. Upgrade the
       // receipt without re-appending.
@@ -330,9 +316,7 @@ async function captureEvents(
 }
 
 function eventFileRefs(stateHome: string, events: LearningEvent[]): string[] {
-  return [
-    ...new Set(events.map((event) => relative(stateHome, learningEventPath(stateHome, event)))),
-  ].sort();
+  return [...new Set(events.map((event) => relative(stateHome, learningEventPath(stateHome, event))))].sort();
 }
 
 function receiptFilesExist(stateHome: string, refs: string[] | undefined): boolean {
@@ -340,10 +324,7 @@ function receiptFilesExist(stateHome: string, refs: string[] | undefined): boole
   return refs.every((ref) => {
     const parts = ref.split(/[\\/]/);
     return (
-      parts[0] === "learning" &&
-      parts[1] === "events" &&
-      !parts.includes("..") &&
-      existsSync(join(stateHome, ref))
+      parts[0] === "learning" && parts[1] === "events" && !parts.includes("..") && existsSync(join(stateHome, ref))
     );
   });
 }
@@ -441,14 +422,16 @@ async function deriveRunEvents(
   // nothing and dropped 100% of efficiency evidence in every org (#137).
   out.push(
     ...projectEfficiencyEvidence({
-      runs: [{
-        envelope,
-        learning_episode_id: anchor.episodeId,
-        events: l2,
-        route: efficiency?.route ?? null,
-        journal,
-        steps: efficiency?.steps ?? [],
-      }],
+      runs: [
+        {
+          envelope,
+          learning_episode_id: anchor.episodeId,
+          events: l2,
+          route: efficiency?.route ?? null,
+          journal,
+          steps: efficiency?.steps ?? [],
+        },
+      ],
       ...(appStages !== undefined ? { appStages } : {}),
     }),
   );
@@ -460,10 +443,7 @@ async function deriveRunEvents(
  *  journal's persisted TurnEvent (issue #26); schedule-triggered turns are
  *  their own episode (spec §5, design §8.1). Shared with the M2 episode
  *  projector, which needs the anchor's kind and source ref too. */
-export async function deriveEpisodeAnchor(
-  stateHome: string,
-  envelope: RunEnvelope,
-): Promise<EpisodeAnchor> {
+export async function deriveEpisodeAnchor(stateHome: string, envelope: RunEnvelope): Promise<EpisodeAnchor> {
   if (envelope.ticket !== undefined) {
     return ticketEpisodeAnchor(envelope.app, envelope.ticket);
   }
@@ -508,9 +488,7 @@ function idSegment(part: string): string {
  *  is what makes the reservation real. */
 export const REPLAY_RUNLOG_APP = "learning-replay";
 
-export async function listRuns(
-  stateHome: string,
-): Promise<Array<{ app: string; runId: string }>> {
+export async function listRuns(stateHome: string): Promise<Array<{ app: string; runId: string }>> {
   const root = join(stateHome, "runs");
   if (!existsSync(root)) return [];
   const out: Array<{ app: string; runId: string }> = [];
@@ -532,9 +510,7 @@ export async function listRuns(
   return out;
 }
 
-async function listReplayRuns(
-  stateHome: string,
-): Promise<CaptureProjectionResult["ineligibleRuns"]> {
+async function listReplayRuns(stateHome: string): Promise<CaptureProjectionResult["ineligibleRuns"]> {
   const root = join(stateHome, "runs", REPLAY_RUNLOG_APP);
   if (!existsSync(root)) return [];
   return (await readdir(root, { withFileTypes: true }))
@@ -595,18 +571,15 @@ function isMechanicalRun(envelope: RunEnvelope, indexed: IndexedEfficiencyRun | 
   if (indexed !== undefined && indexed.steps.length > 0) {
     return indexed.steps.every((step) => step.kind === "mechanical");
   }
-  return envelope.runtime === undefined &&
+  return (
+    envelope.runtime === undefined &&
     envelope.model === undefined &&
     envelope.role === "orchestrator" &&
-    (envelope.pipeline === "gates" || envelope.pass.includes("gate"));
+    (envelope.pipeline === "gates" || envelope.pass.includes("gate"))
+  );
 }
 
-function block(
-  result: CaptureProjectionResult,
-  app: string,
-  runId: string,
-  reason: CaptureBlockingReason,
-): void {
+function block(result: CaptureProjectionResult, app: string, runId: string, reason: CaptureBlockingReason): void {
   const item = { app, runId, reason };
   result.runsPending += 1;
   result.pendingRuns.push(item);

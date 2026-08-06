@@ -41,14 +41,8 @@ describe("CF-SM-LEARN-R — completed routine publish replays as a no-op with re
 
   beforeAll(async () => {
     world = await makeLearningWorld("cf-sm-learn-r");
-    await openCandidateArtifact(
-      world.orgRoot,
-      candidateSpec({ id: CAND, destination: "skill_draft" }),
-    );
-    await writeReviewerVerdict(
-      world.org.orgHome,
-      verdictSpec({ id: CAND, destination: "skill_draft" }),
-    );
+    await openCandidateArtifact(world.orgRoot, candidateSpec({ id: CAND, destination: "skill_draft" }));
+    await writeReviewerVerdict(world.org.orgHome, verdictSpec({ id: CAND, destination: "skill_draft" }));
     first = await publishCandidate(world.deps, CAND);
     if (first.status !== "published") {
       throw new Error(`routine publish failed: ${JSON.stringify(first)}`);
@@ -66,9 +60,7 @@ describe("CF-SM-LEARN-R — completed routine publish replays as a no-op with re
     expect(replay.status).toBe("published");
     if (first.status === "published" && replay.status === "published") {
       expect(replay.intervention.intervention_id).toBe(first.intervention.intervention_id);
-      expect(replay.intervention.publish?.published_at).toBe(
-        first.intervention.publish?.published_at,
-      );
+      expect(replay.intervention.publish?.published_at).toBe(first.intervention.publish?.published_at);
       expect(replay.refs).toEqual(first.refs);
       expect(replay.intervention.status).toBe("published");
     }
@@ -93,16 +85,8 @@ describe("CF-SM-LEARN-R — completed routine publish replays as a no-op with re
     const committed = (await readLearningEvents(world.state.stateHome)).find(
       (event) => event.type === "publish_committed",
     )!;
-    const path = join(
-      world.state.stateHome,
-      "learning",
-      "events",
-      committed.ts.slice(0, 10),
-      "publisher.jsonl",
-    );
+    const path = join(world.state.stateHome, "learning", "events", committed.ts.slice(0, 10), "publisher.jsonl");
     await appendFile(path, JSON.stringify(committed) + "\n", "utf8");
-    await expect(assertExactlyOncePublish({ world, candidateId: CAND })).rejects.toThrow(
-      PublishConservationViolation,
-    );
+    await expect(assertExactlyOncePublish({ world, candidateId: CAND })).rejects.toThrow(PublishConservationViolation);
   });
 });

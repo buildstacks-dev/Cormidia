@@ -10,11 +10,7 @@ import { vi } from "vitest";
 import { dispatchTick } from "../../../src/org/dispatch.js";
 import { acquireLock, lockPath, readLock, releaseLock } from "../../../src/org/locks.js";
 import { writeJournalPatch } from "../../../src/org/journal.js";
-import {
-  acquireFileLock,
-  releaseFileLock,
-  type FileLockToken,
-} from "../../../src/runtime/file-lock.js";
+import { acquireFileLock, releaseFileLock, type FileLockToken } from "../../../src/runtime/file-lock.js";
 import { processStartIdentity } from "../../../src/runtime/process-identity.js";
 import { makeTestClock } from "../../fixtures/clock.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
@@ -24,8 +20,10 @@ class BarePidIdentityViolation extends Error {}
 function assertCompleteIdentity(token: Partial<FileLockToken>): void {
   if (
     !Number.isInteger(token.pid) ||
-    typeof token.processStartIdentity !== "string" || token.processStartIdentity === "" ||
-    typeof token.nonce !== "string" || token.nonce === ""
+    typeof token.processStartIdentity !== "string" ||
+    token.processStartIdentity === "" ||
+    typeof token.nonce !== "string" ||
+    token.nonce === ""
   ) {
     throw new BarePidIdentityViolation("durable owner is not PID + process-start identity + nonce");
   }
@@ -38,7 +36,11 @@ describe("CF-B07 — OS process lifecycle (L2, HB-023)", () => {
 
   afterEach(async () => {
     if (processGroup?.pid !== undefined) {
-      try { process.kill(-processGroup.pid, "SIGKILL"); } catch { /* already dead */ }
+      try {
+        process.kill(-processGroup.pid, "SIGKILL");
+      } catch {
+        /* already dead */
+      }
     }
     await org?.org.cleanup();
     await state?.cleanup();
@@ -61,12 +63,15 @@ describe("CF-B07 — OS process lifecycle (L2, HB-023)", () => {
     // start identity belongs to a prior process. Reclamation must not confuse
     // that new process for the old holder.
     await mkdir(dirname(lockPath), { recursive: true });
-    await writeFile(lockPath, `${JSON.stringify({
-      pid: process.pid,
-      processStartIdentity: "darwin-lstart:prior process",
-      nonce: "prior-nonce",
-      at: clock.nowDate().toISOString(),
-    })}\n`);
+    await writeFile(
+      lockPath,
+      `${JSON.stringify({
+        pid: process.pid,
+        processStartIdentity: "darwin-lstart:prior process",
+        nonce: "prior-nonce",
+        at: clock.nowDate().toISOString(),
+      })}\n`,
+    );
     const successor = await acquireFileLock(lockPath, { staleMs: 60_000, maxWaitMs: 1_000, clock });
     expect(successor.nonce).not.toBe("prior-nonce");
     expect(successor.processStartIdentity).toBe(processStartIdentity(process.pid));
@@ -81,12 +86,23 @@ describe("CF-B07 — OS process lifecycle (L2, HB-023)", () => {
     state = await makeTempStateHome({ name: "cf-b07-release" });
     const path = lockPath(state.stateHome, "app", "builder");
     await mkdir(dirname(path), { recursive: true });
-    const prior = { app: "app", role: "builder", pid: 1, processStartIdentity: "old", nonce: "old-nonce", turnId: "old-turn", startedAt: "2026-07-31T10:00:00.000Z", heartbeatAt: "2026-07-31T10:00:00.000Z" };
+    const prior = {
+      app: "app",
+      role: "builder",
+      pid: 1,
+      processStartIdentity: "old",
+      nonce: "old-nonce",
+      turnId: "old-turn",
+      startedAt: "2026-07-31T10:00:00.000Z",
+      heartbeatAt: "2026-07-31T10:00:00.000Z",
+    };
     const successor = { ...prior, pid: 2, processStartIdentity: "new", nonce: "new-nonce", turnId: "new-turn" };
     await writeFile(path, `${JSON.stringify(successor)}\n`, "utf8");
-    expect(await releaseLock(state.stateHome, "app", "builder", prior, {
-      currentStartIdentity: () => "fixture-process-start",
-    })).toBe(false);
+    expect(
+      await releaseLock(state.stateHome, "app", "builder", prior, {
+        currentStartIdentity: () => "fixture-process-start",
+      }),
+    ).toBe(false);
     expect(await readLock(state.stateHome, "app", "builder")).toEqual(successor);
   });
 
@@ -94,40 +110,92 @@ describe("CF-B07 — OS process lifecycle (L2, HB-023)", () => {
     org = await makeBudgetOrg([{ status: "paused" }]);
     const now = new Date("2026-07-31T10:01:00.000Z");
     await mkdir(dirname(lockPath(org.org.stateHome, "budget-app", "builder")), { recursive: true });
-    await writeFile(lockPath(org.org.stateHome, "budget-app", "builder"), `${JSON.stringify({
-      app: "budget-app", role: "builder", pid: 4242, processStartIdentity: "fake-start",
-      nonce: "current-lock-nonce", turnId: "turn-b07-mismatch",
-      startedAt: now.toISOString(), heartbeatAt: now.toISOString(),
-    })}\n`);
-    await writeJournalPatch(org.org.stateHome, "turn-b07-mismatch", {
-      app: "budget-app", role: "builder", phase: "assembling",
-    }, new Date("2026-07-31T09:00:00.000Z"));
-    await writeJournalPatch(org.org.stateHome, "turn-b07-mismatch", {
-      app: "budget-app", role: "builder", phase: "running", pid: 4242,
-      processStartIdentity: "fake-start", processNonce: "stale-journal-nonce",
-      processGroupId: 4242, passStartedAt: "2026-07-31T09:00:00.000Z", wallClockCapMs: 1,
-    }, now);
+    await writeFile(
+      lockPath(org.org.stateHome, "budget-app", "builder"),
+      `${JSON.stringify({
+        app: "budget-app",
+        role: "builder",
+        pid: 4242,
+        processStartIdentity: "fake-start",
+        nonce: "current-lock-nonce",
+        turnId: "turn-b07-mismatch",
+        startedAt: now.toISOString(),
+        heartbeatAt: now.toISOString(),
+      })}\n`,
+    );
+    await writeJournalPatch(
+      org.org.stateHome,
+      "turn-b07-mismatch",
+      {
+        app: "budget-app",
+        role: "builder",
+        phase: "assembling",
+      },
+      new Date("2026-07-31T09:00:00.000Z"),
+    );
+    await writeJournalPatch(
+      org.org.stateHome,
+      "turn-b07-mismatch",
+      {
+        app: "budget-app",
+        role: "builder",
+        phase: "running",
+        pid: 4242,
+        processStartIdentity: "fake-start",
+        processNonce: "stale-journal-nonce",
+        processGroupId: 4242,
+        passStartedAt: "2026-07-31T09:00:00.000Z",
+        wallClockCapMs: 1,
+      },
+      now,
+    );
     const kill = vi.fn(async () => undefined);
     const result = await dispatchTick({
-      orgRoot: org.org.orgHome, runtimeHome: org.org.stateHome, now: () => now,
-      eventSource: NO_EVENTS, spawn: async () => undefined, kill,
-      processIdentityStatus: () => "match", pidAlive: () => true, groupAlive: () => true,
-      killGraceMs: 0, killPollMs: 0,
+      orgRoot: org.org.orgHome,
+      runtimeHome: org.org.stateHome,
+      now: () => now,
+      eventSource: NO_EVENTS,
+      spawn: async () => undefined,
+      kill,
+      processIdentityStatus: () => "match",
+      pidAlive: () => true,
+      groupAlive: () => true,
+      killGraceMs: 0,
+      killPollMs: 0,
     });
     expect(kill).not.toHaveBeenCalled();
-    expect(result.skipped).toContainEqual(expect.stringContaining("ownership token mismatch; refusing to signal or recover"));
+    expect(result.skipped).toContainEqual(
+      expect.stringContaining("ownership token mismatch; refusing to signal or recover"),
+    );
 
-    await writeJournalPatch(org.org.stateHome, "turn-b07-mismatch", {
-      app: "budget-app", role: "builder", phase: "running", processNonce: "current-lock-nonce",
-    }, now);
+    await writeJournalPatch(
+      org.org.stateHome,
+      "turn-b07-mismatch",
+      {
+        app: "budget-app",
+        role: "builder",
+        phase: "running",
+        processNonce: "current-lock-nonce",
+      },
+      now,
+    );
     const unknown = await dispatchTick({
-      orgRoot: org.org.orgHome, runtimeHome: org.org.stateHome, now: () => now,
-      eventSource: NO_EVENTS, spawn: async () => undefined, kill,
-      processIdentityStatus: () => "unknown", pidAlive: () => true, groupAlive: () => true,
-      killGraceMs: 0, killPollMs: 0,
+      orgRoot: org.org.orgHome,
+      runtimeHome: org.org.stateHome,
+      now: () => now,
+      eventSource: NO_EVENTS,
+      spawn: async () => undefined,
+      kill,
+      processIdentityStatus: () => "unknown",
+      pidAlive: () => true,
+      groupAlive: () => true,
+      killGraceMs: 0,
+      killPollMs: 0,
     });
     expect(kill).not.toHaveBeenCalled();
-    expect(unknown.skipped).toContainEqual(expect.stringContaining("process identity unverified; refusing to signal or recover"));
+    expect(unknown.skipped).toContainEqual(
+      expect.stringContaining("process identity unverified; refusing to signal or recover"),
+    );
   });
 
   it("hung-turn recovery TERM→bounded grace→KILL reaches the owned process group and leaves no descendant alive", async () => {
@@ -163,18 +231,23 @@ setInterval(() => {}, 1000);
       phase: "assembling",
       attempt: 0,
     });
-    await writeJournalPatch(org.org.stateHome, "turn-b07-hung", {
-      app: "budget-app",
-      role: "builder",
-      phase: "running",
-      attempt: 0,
-      pid: leaderPid,
-      processStartIdentity: started!,
-      processNonce: lock.lock.nonce!,
-      processGroupId: leaderPid,
-      passStartedAt: at.toISOString(),
-      wallClockCapMs: 1,
-    }, at);
+    await writeJournalPatch(
+      org.org.stateHome,
+      "turn-b07-hung",
+      {
+        app: "budget-app",
+        role: "builder",
+        phase: "running",
+        attempt: 0,
+        pid: leaderPid,
+        processStartIdentity: started!,
+        processNonce: lock.lock.nonce!,
+        processGroupId: leaderPid,
+        passStartedAt: at.toISOString(),
+        wallClockCapMs: 1,
+      },
+      at,
+    );
 
     const result = await dispatchTick({
       orgRoot: org.org.orgHome,
@@ -216,17 +289,26 @@ async function waitForExit(child: ChildProcess, timeoutMs: number): Promise<void
   if (child.exitCode !== null || child.signalCode !== null) return;
   await Promise.race([
     new Promise<void>((resolve) => child.once("close", () => resolve())),
-    new Promise<void>((_, reject) => setTimeout(() => reject(new Error("process group leader did not exit")), timeoutMs)),
+    new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error("process group leader did not exit")), timeoutMs),
+    ),
   ]);
 }
 
 async function waitUntilDead(pid: number, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    try { process.kill(pid, 0); }
-    catch { return true; }
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  try { process.kill(pid, 0); return false; }
-  catch { return true; }
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch {
+    return true;
+  }
 }

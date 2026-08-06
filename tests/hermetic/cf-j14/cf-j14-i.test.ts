@@ -39,18 +39,9 @@ interface ResetLegExpectation {
 }
 
 const LEGS: Array<[killAt: string, expectation: ResetLegExpectation]> = [
-  [
-    "before_archive_creation",
-    { mutatingOps: [], finalArchive: false, targetStateIntact: true, registryIntact: true },
-  ],
-  [
-    "before_archive_rename",
-    { mutatingOps: [], finalArchive: false, targetStateIntact: true, registryIntact: true },
-  ],
-  [
-    "after_archive_rename",
-    { mutatingOps: [], finalArchive: true, targetStateIntact: true, registryIntact: true },
-  ],
+  ["before_archive_creation", { mutatingOps: [], finalArchive: false, targetStateIntact: true, registryIntact: true }],
+  ["before_archive_rename", { mutatingOps: [], finalArchive: false, targetStateIntact: true, registryIntact: true }],
+  ["after_archive_rename", { mutatingOps: [], finalArchive: true, targetStateIntact: true, registryIntact: true }],
   [
     "after_pull_request_update",
     { mutatingOps: ["pr.close"], finalArchive: true, targetStateIntact: true, registryIntact: true },
@@ -144,10 +135,7 @@ describe("CF-J14-I — kill at each reset step; durable intent + archive keep it
     // When the archive is complete it already holds the restorable bytes.
     if (expectation.finalArchive) {
       expect(
-        await readFile(
-          join(w.archiveRoot, archiveId, "state", "runs", TARGET_APP, "seed-run", "artifact.txt"),
-          "utf8",
-        ),
+        await readFile(join(w.archiveRoot, archiveId, "state", "runs", TARGET_APP, "seed-run", "artifact.txt"), "utf8"),
       ).toBe(`${TARGET_APP} run artifact\n`);
     }
   });

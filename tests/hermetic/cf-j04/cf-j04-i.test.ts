@@ -11,9 +11,7 @@ import { devNull, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  recoverInterruptedClaims,
-} from "../../../src/loop/claim-recovery.js";
+import { recoverInterruptedClaims } from "../../../src/loop/claim-recovery.js";
 import { baseRevisionForBranch, resolveRemoteDefaultBranch } from "../../../src/loop/default-branch.js";
 import { GhCliOps, type GhIssue } from "../../../src/loop/github.js";
 import {
@@ -22,10 +20,7 @@ import {
   recoverAlreadyMergedTicket,
   type LoopItem,
 } from "../../../src/loop/loop.js";
-import {
-  readTicketClaimState,
-  rehydrateTicketState,
-} from "../../../src/loop/rehydrate.js";
+import { readTicketClaimState, rehydrateTicketState } from "../../../src/loop/rehydrate.js";
 import { runKillPointScenario, type KillPointResult } from "../../fixtures/kill-point.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
 import { installGithubDouble, type GithubDoubleHandle } from "../../fixtures/github-double/install.js";
@@ -287,7 +282,10 @@ describe("CF-J04-I — crash-point sweep follows artifact authority", () => {
     };
   }
 
-  async function killAt(world: World, stage: Checkpoint["stage"]): Promise<{
+  async function killAt(
+    world: World,
+    stage: Checkpoint["stage"],
+  ): Promise<{
     result: KillPointResult;
     checkpoint: Checkpoint;
   }> {
@@ -311,9 +309,7 @@ describe("CF-J04-I — crash-point sweep follows artifact authority", () => {
     expect(result.timedOut).toBe(false);
     expect(result.killedAt).toBe(stage);
     expect(result.markers.at(-1)).toBe(stage);
-    const checkpoint = JSON.parse(
-      await readFile(join(result.stateDir, "checkpoint.json"), "utf8"),
-    ) as Checkpoint;
+    const checkpoint = JSON.parse(await readFile(join(result.stateDir, "checkpoint.json"), "utf8")) as Checkpoint;
     expect(checkpoint.stage).toBe(stage);
     return { result, checkpoint };
   }
@@ -384,7 +380,7 @@ describe("CF-J04-I — crash-point sweep follows artifact authority", () => {
     expect(checkpoint.item).toBeDefined();
     const pr = await world.gh.readPR(checkpoint.prNumber!);
     expect(pr.state).toBe("OPEN");
-    expect((await world.gh.listReviews(checkpoint.prNumber!))).toHaveLength(1);
+    expect(await world.gh.listReviews(checkpoint.prNumber!)).toHaveLength(1);
 
     const recovered = await advanceReviewing(checkpoint.item!, { gh: world.gh });
     expect(recovered).toMatchObject({

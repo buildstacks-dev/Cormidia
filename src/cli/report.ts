@@ -8,13 +8,23 @@ import { renderReportTerminal } from "../report/render-terminal.js";
 import type { ReportQuery } from "../report/types.js";
 import { extractHomeFlags } from "./home-flags.js";
 
-interface ReportArgs { query: ReportQuery; json: boolean; html?: string; open: boolean; }
+interface ReportArgs {
+  query: ReportQuery;
+  json: boolean;
+  html?: string;
+  open: boolean;
+}
 
 export async function cmdReport(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "report");
   const parsed = parseReportArgs(common.rest);
   const homes = await resolveCormidiaHomes(common);
-  const report = await buildReport({ orgName: homes.appsFile.org.name, stateHome: homes.stateHome, appsFile: homes.appsFile, query: parsed.query });
+  const report = await buildReport({
+    orgName: homes.appsFile.org.name,
+    stateHome: homes.stateHome,
+    appsFile: homes.appsFile,
+    query: parsed.query,
+  });
   if (parsed.html !== undefined) {
     const target = resolve(parsed.html);
     await writeFileAtomic(target, renderReportHtml(report));
@@ -51,7 +61,12 @@ async function writeFileAtomic(target: string, content: string): Promise<void> {
   const temporary = `${target}.tmp-${process.pid}-${Date.now()}`;
   try {
     const handle = await open(temporary, "wx", 0o600);
-    try { await handle.writeFile(content, "utf8"); await handle.sync(); } finally { await handle.close(); }
+    try {
+      await handle.writeFile(content, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     await rename(temporary, target);
   } catch (error) {
     await rm(temporary, { force: true }).catch(() => undefined);
@@ -65,6 +80,17 @@ function openBrowser(path: string): void {
   spawn(command, args, { detached: true, stdio: "ignore" }).unref();
 }
 
-function need(args: string[], index: number, flag: string): string { const value = args[index]; if (!value || value.startsWith("--")) throw new Error(`report: ${flag} requires a value`); return value; }
-function period(value: string): NonNullable<ReportQuery["period"]> { if (!["7d", "30d", "90d", "1y", "all"].includes(value)) throw new Error("report: --period must be 7d|30d|90d|1y|all"); return value as NonNullable<ReportQuery["period"]>; }
-function bucket(value: string): NonNullable<ReportQuery["bucket"]> { if (!["auto", "day", "week", "month"].includes(value)) throw new Error("report: --bucket must be auto|day|week|month"); return value as NonNullable<ReportQuery["bucket"]>; }
+function need(args: string[], index: number, flag: string): string {
+  const value = args[index];
+  if (!value || value.startsWith("--")) throw new Error(`report: ${flag} requires a value`);
+  return value;
+}
+function period(value: string): NonNullable<ReportQuery["period"]> {
+  if (!["7d", "30d", "90d", "1y", "all"].includes(value)) throw new Error("report: --period must be 7d|30d|90d|1y|all");
+  return value as NonNullable<ReportQuery["period"]>;
+}
+function bucket(value: string): NonNullable<ReportQuery["bucket"]> {
+  if (!["auto", "day", "week", "month"].includes(value))
+    throw new Error("report: --bucket must be auto|day|week|month");
+  return value as NonNullable<ReportQuery["bucket"]>;
+}

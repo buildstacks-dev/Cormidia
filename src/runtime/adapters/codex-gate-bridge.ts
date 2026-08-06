@@ -92,18 +92,16 @@ export async function startCodexGateBridge(
         answer({
           allow: false,
           reason:
-            `Cormidia Codex gate bridge failed closed: ` +
-            `${error instanceof Error ? error.message : String(error)}`,
+            `Cormidia Codex gate bridge failed closed: ` + `${error instanceof Error ? error.message : String(error)}`,
         });
       }
     });
   });
   try {
-    await writeFile(
-      modelCatalogPath,
-      `${JSON.stringify(await codexDirectToolCatalog(model))}\n`,
-      { encoding: "utf8", mode: 0o600 },
-    );
+    await writeFile(modelCatalogPath, `${JSON.stringify(await codexDirectToolCatalog(model))}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
     await listen(server, socketPath);
   } catch (error) {
     await rm(directory, { recursive: true, force: true });
@@ -140,9 +138,7 @@ export async function startCodexGateBridge(
  * other capability and instruction byte remains the package's own. Direct
  * shell/file calls pass through the existing hook and approval boundaries.
  */
-export async function codexDirectToolCatalog(
-  model: string,
-): Promise<{ models: Array<Record<string, unknown>> }> {
+export async function codexDirectToolCatalog(model: string): Promise<{ models: Array<Record<string, unknown>> }> {
   const parsed = await loadBundledCodexCatalog();
   if (!isRecord(parsed) || !Array.isArray(parsed.models)) {
     throw new Error("Codex bundled model catalog has no models array");
@@ -157,9 +153,7 @@ export async function codexDirectToolCatalog(
   }
   return {
     models: models.map((entry, index) =>
-      index === selected
-        ? { ...entry, tool_mode: null, use_responses_lite: false }
-        : entry
+      index === selected ? { ...entry, tool_mode: null, use_responses_lite: false } : entry,
     ),
   };
 }
@@ -168,20 +162,16 @@ function loadBundledCodexCatalog(): Promise<unknown> {
   bundledCodexCatalog ??= (async () => {
     const require = createRequire(import.meta.url);
     const codexBin = require.resolve("@openai/codex/bin/codex.js");
-    const { stdout } = await execFileAsync(
-      process.execPath,
-      [codexBin, "debug", "models", "--bundled"],
-      { encoding: "utf8", maxBuffer: MAX_BRIDGE_BYTES },
-    );
+    const { stdout } = await execFileAsync(process.execPath, [codexBin, "debug", "models", "--bundled"], {
+      encoding: "utf8",
+      maxBuffer: MAX_BRIDGE_BYTES,
+    });
     return JSON.parse(stdout) as unknown;
   })();
   return bundledCodexCatalog;
 }
 
-function selectCodexModelMetadataIndex(
-  model: string,
-  candidates: ReadonlyArray<Record<string, unknown>>,
-): number {
+function selectCodexModelMetadataIndex(model: string, candidates: ReadonlyArray<Record<string, unknown>>): number {
   const direct = longestPrefixIndex(model, candidates);
   if (direct >= 0) return direct;
   const separator = model.indexOf("/");
@@ -191,10 +181,7 @@ function selectCodexModelMetadataIndex(
   return longestPrefixIndex(model.slice(separator + 1), candidates);
 }
 
-function longestPrefixIndex(
-  model: string,
-  candidates: ReadonlyArray<Record<string, unknown>>,
-): number {
+function longestPrefixIndex(model: string, candidates: ReadonlyArray<Record<string, unknown>>): number {
   let best = -1;
   let bestLength = -1;
   for (const [index, candidate] of candidates.entries()) {

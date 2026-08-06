@@ -23,20 +23,28 @@ describe("HB-047 format repair", () => {
       script.turn({
         sessionId: "session-format-1",
         outcome: script.success("I finished the work but omitted the required marker.", {
-          usage: { inputTokens: 100, outputTokens: 20 }, costUsd: 0.01, durationMs: 100,
+          usage: { inputTokens: 100, outputTokens: 20 },
+          costUsd: 0.01,
+          durationMs: 100,
         }),
       }),
       script.turn({
         sessionId: "session-format-1",
         outcome: script.success("Status: done", {
-          usage: { inputTokens: 40, outputTokens: 5 }, costUsd: 0.005, durationMs: 50,
+          usage: { inputTokens: 40, outputTokens: 5 },
+          costUsd: 0.005,
+          durationMs: 50,
         }),
       }),
     ]);
     const role = doubleRole({ name: "builder", maxTurnBudgetUsd: 5 });
 
     const result = await executePipeline({
-      pipeline: { name: "format-contract", mechanical: false, passes: [{ id: "implement", role: "builder", template: "" }] },
+      pipeline: {
+        name: "format-contract",
+        mechanical: false,
+        passes: [{ id: "implement", role: "builder", template: "" }],
+      },
       selection: { tier: "quick" },
       roles: { builder: role },
       runtimeFor: () => scripted.runtime,
@@ -51,11 +59,14 @@ describe("HB-047 format repair", () => {
           const verdict = await parseWithRetry(
             "build",
             ctx.result.summary,
-            async (reason) => (await ctx.runProviderTurn({
-              operation: "build-verdict-reformat",
-              task: `Reformat only: ${reason}`,
-              session: ctx.result.session,
-            })).summary,
+            async (reason) =>
+              (
+                await ctx.runProviderTurn({
+                  operation: "build-verdict-reformat",
+                  task: `Reformat only: ${reason}`,
+                  session: ctx.result.session,
+                })
+              ).summary,
             (text) => parseVerdictEither("build", text),
           );
           await ctx.events.append({ type: "verdict.recorded", detail: { kind: "build", status: verdict.status } });
@@ -85,7 +96,9 @@ describe("HB-047 format repair", () => {
     const runId = result.passes[0]!.runId;
     const durable = await readEnvelope(home.stateHome, "app", runId);
     expect(durable.usage).toMatchObject({ tokens_in: 140, tokens_out: 25, cost_usd: 0.015 });
-    const verdictEvents = (await readEvents(home.stateHome, "app", runId)).filter((event) => event.event === "verdict.recorded");
+    const verdictEvents = (await readEvents(home.stateHome, "app", runId)).filter(
+      (event) => event.event === "verdict.recorded",
+    );
     expect(verdictEvents).toHaveLength(1);
   });
 
@@ -94,11 +107,17 @@ describe("HB-047 format repair", () => {
     const failure = await parseWithRetry(
       "build",
       "missing",
-      async () => { calls += 1; return "still missing"; },
+      async () => {
+        calls += 1;
+        return "still missing";
+      },
       (text) => parseVerdictEither("build", text),
     ).catch((error: unknown) => error);
     expect(calls).toBe(1);
     expect(failure).toBeInstanceOf(VerdictParseError);
-    expect((failure as VerdictParseError).attempts.map((attempt) => attempt.text)).toEqual(["missing", "still missing"]);
+    expect((failure as VerdictParseError).attempts.map((attempt) => attempt.text)).toEqual([
+      "missing",
+      "still missing",
+    ]);
   });
 });

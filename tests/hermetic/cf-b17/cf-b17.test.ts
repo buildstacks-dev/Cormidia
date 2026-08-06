@@ -35,10 +35,7 @@ import {
   TargetConnectionLostError,
   type SubmitBehavior,
 } from "./scripted-target.js";
-import {
-  executeTypedExternalAction,
-  TYPED_EXECUTOR_ACTOR,
-} from "./typed-executor-driver.js";
+import { executeTypedExternalAction, TYPED_EXECUTOR_ACTOR } from "./typed-executor-driver.js";
 
 const APP = "publisher-app";
 const ROLE = "marketing";
@@ -94,8 +91,7 @@ describe("CF-B17-* — scripted external target: marker typing, lost response, a
       approvalId: raised.id,
       key,
       target,
-      drive: () =>
-        executeTypedExternalAction({ store, approvalId: raised.id, target, now: clock.dateFn }),
+      drive: () => executeTypedExternalAction({ store, approvalId: raised.id, target, now: clock.dateFn }),
     };
   }
 

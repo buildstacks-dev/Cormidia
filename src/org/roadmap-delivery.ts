@@ -90,7 +90,36 @@ import {
   type ValidationObligation,
   type ValidationWaiver,
 } from "./roadmap-delivery/validation-contract.js";
+import {
+  acceptBacklogSnapshot,
+  deriveBacklogDelta,
+  readBacklogSnapshotAuthority,
+} from "./roadmap-delivery/backlog-authority.js";
 import { RoadmapDeliveryError } from "./roadmap-delivery/failure.js";
+import {
+  assertRoadmapPlan,
+  assertRoutingEligible,
+  requireUnit,
+  routingSnapshotHash,
+  unitMembershipHash,
+} from "./roadmap-delivery/roadmap-invariants.js";
+import type {
+  AcceptedRoadmapPlan,
+  BacklogSnapshot,
+  BacklogSnapshotIssue,
+  RoadmapDeliveryUnit,
+  RoadmapIssueMove,
+  RoadmapIssueProjection,
+  RoadmapPlan,
+  RoadmapWorkstream,
+  RoutingSnapshotEntry,
+} from "./roadmap-delivery/roadmap-model.js";
+import {
+  ROADMAP_MUTATION_LOCK,
+  acceptRoadmapPlan,
+  assertCurrentRoadmapRef,
+  readCurrentRoadmapPlan,
+} from "./roadmap-delivery/roadmap-plan.js";
 
 export { RoadmapDeliveryError };
 export { ROADMAP_DELIVERY_SCHEMA_VERSION };
@@ -110,99 +139,25 @@ export {
 export { VALIDATION_CONTRACT_SCHEMA };
 export type { ValidationAffectedStructure, ValidationCatalog, ValidationCatalogCase };
 export type { ValidationContract, ValidationObligation, ValidationWaiver };
+export { acceptBacklogSnapshot, acceptRoadmapPlan, deriveBacklogDelta, readBacklogSnapshotAuthority };
+export { readCurrentRoadmapPlan, unitMembershipHash };
+export type {
+  AcceptedRoadmapPlan,
+  BacklogSnapshot,
+  BacklogSnapshotIssue,
+  RoadmapDeliveryUnit,
+  RoadmapIssueMove,
+  RoadmapIssueProjection,
+  RoadmapPlan,
+  RoadmapWorkstream,
+  RoutingSnapshotEntry,
+};
 
 const VALIDATION_CATALOG_SCHEMA_VERSION = 1 as const;
 const RATIFIED_HARNESS_REVISION_ID = "roadmap-validation-delivery-batching-2026-08-03" as const;
 /** Content root for the complete deterministic HB-100..108 catalog. */
 export const RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 =
   "58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880" as const;
-
-export interface RoadmapWorkstream {
-  workstreamId: string;
-  outcome: string;
-  priority: number;
-}
-
-export interface BacklogSnapshotIssue {
-  issueNumber: number;
-  contentHash: string;
-  lifecycle: "open" | "closed";
-  routing: "automated" | "human_only";
-  /** Exact labels observed with this snapshot. `manual-review` is evaluated
-   * independently from the technical routing disposition. */
-  observedLabels: string[];
-  dependencyIssues: number[];
-}
-
-export interface BacklogSnapshot {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  snapshotId: string;
-  version: number;
-  app: string;
-  source: string;
-  capturedAt: string;
-  completeness: "complete" | "partial" | "unavailable";
-  pagination: {
-    pagesObserved: number;
-    hasNextPage: boolean;
-    unavailablePages: number[];
-  };
-  issues: BacklogSnapshotIssue[];
-}
-
-interface BacklogDelta {
-  previousSnapshotRef: AuthorityRef;
-  currentSnapshotRef: AuthorityRef;
-  addedIssueNumbers: number[];
-  removedIssueNumbers: number[];
-  changedIssueNumbers: number[];
-  unchangedIssueNumbers: number[];
-}
-
-export interface RoadmapDeliveryUnit {
-  unitId: string;
-  workstreamId: string;
-  issueNumbers: number[];
-  dependsOn: string[];
-  priority: number;
-  objective: string;
-}
-
-export interface RoadmapIssueMove {
-  issueNumber: number;
-  fromUnitId: string;
-  toUnitId: string;
-  reason: string;
-  movedAt: string;
-}
-
-export interface RoadmapPlan {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  planId: string;
-  version: number;
-  app: string;
-  backlogSnapshotRef: AuthorityRef;
-  predecessor: AuthorityRef | null;
-  workstreams: RoadmapWorkstream[];
-  deliveryUnits: RoadmapDeliveryUnit[];
-  completedUnitIds: string[];
-  readyFrontier: string[];
-  wipLimit: number;
-  moves: RoadmapIssueMove[];
-  acceptedAt: string;
-}
-
-export interface AcceptedRoadmapPlan extends AcceptedAuthority<RoadmapPlan> {
-  frontierHash: string;
-}
-
-export interface RoadmapIssueProjection {
-  issueNumber: number;
-  labels: string[];
-  authorityRef: AuthorityRef | null;
-  unitId: string | null;
-  membershipHash: string | null;
-}
 
 interface RoadmapProjectionRepair {
   issueNumber: number;
@@ -280,13 +235,6 @@ interface ValidationContractLifecycleRecord {
     at: string;
     authorityRef: AuthorityRef | null;
   }>;
-}
-
-export interface RoutingSnapshotEntry {
-  issueNumber: number;
-  disposition: "automated" | "human_only";
-  /** Projection evidence only. Labels never establish roadmap or validation authority. */
-  observedLabels: string[];
 }
 
 interface ExecutionBatchUnit {
@@ -550,19 +498,6 @@ const ID = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const MACHINE_ID = /^[A-Za-z0-9][A-Za-z0-9._*:/-]{0,255}$/;
 const HASH = /^[a-f0-9]{64}$/;
 const CANDIDATE_HEAD = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/;
-const ROADMAP_MUTATION_LOCK = {
-  staleMs: 30_000,
-  maxWaitMs: 31_000,
-  retryMinMs: 2,
-  retryMaxMs: 8,
-} as const;
-
-interface CurrentRoadmapPointer {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  app: string;
-  ref: AuthorityRef;
-  updatedAt: string;
-}
 
 interface CurrentValidationCatalogPointer {
   schemaVersion: typeof VALIDATION_CATALOG_SCHEMA_VERSION;
@@ -580,139 +515,6 @@ interface CurrentValidationContractPointer {
 }
 
 const VALIDATION_MUTATION_LOCK = ROADMAP_MUTATION_LOCK;
-
-export async function acceptBacklogSnapshot(input: {
-  root: string;
-  snapshot: BacklogSnapshot;
-  project?: RoadmapDeliveryProjector;
-}): Promise<AcceptedAuthority<BacklogSnapshot>> {
-  assertBacklogSnapshot(input.snapshot);
-  if (
-    input.snapshot.completeness !== "complete" ||
-    input.snapshot.pagination.hasNextPage ||
-    input.snapshot.pagination.unavailablePages.length > 0
-  ) {
-    throw new RoadmapDeliveryError(
-      "backlog_incomplete",
-      `snapshot ${input.snapshot.snapshotId}@${input.snapshot.version} is ${input.snapshot.completeness} ` +
-        `with ${input.snapshot.pagination.unavailablePages.length} unavailable page(s)`,
-    );
-  }
-  const accepted = await persistAuthority(
-    input.root,
-    input.snapshot.app,
-    "backlog_snapshot",
-    input.snapshot.snapshotId,
-    input.snapshot.version,
-    input.snapshot,
-  );
-  await projectAccepted(input.root, input.snapshot.app, accepted, input.project);
-  return accepted;
-}
-
-export function deriveBacklogDelta(
-  previous: AcceptedAuthority<BacklogSnapshot>,
-  current: AcceptedAuthority<BacklogSnapshot>,
-): BacklogDelta {
-  if (previous.value.app !== current.value.app) {
-    throw new RoadmapDeliveryError("roadmap_invalid", "a backlog delta cannot cross apps");
-  }
-  const before = new Map(previous.value.issues.map((issue) => [issue.issueNumber, issue]));
-  const after = new Map(current.value.issues.map((issue) => [issue.issueNumber, issue]));
-  const addedIssueNumbers = [...after.keys()].filter((issue) => !before.has(issue)).sort(numeric);
-  const removedIssueNumbers = [...before.keys()].filter((issue) => !after.has(issue)).sort(numeric);
-  const changedIssueNumbers: number[] = [];
-  const unchangedIssueNumbers: number[] = [];
-  for (const issueNumber of [...before.keys()].filter((issue) => after.has(issue)).sort(numeric)) {
-    if (stableHash(before.get(issueNumber)) === stableHash(after.get(issueNumber))) {
-      unchangedIssueNumbers.push(issueNumber);
-    } else {
-      changedIssueNumbers.push(issueNumber);
-    }
-  }
-  return {
-    previousSnapshotRef: previous.ref,
-    currentSnapshotRef: current.ref,
-    addedIssueNumbers,
-    removedIssueNumbers,
-    changedIssueNumbers,
-    unchangedIssueNumbers,
-  };
-}
-
-export async function acceptRoadmapPlan(input: {
-  root: string;
-  plan: RoadmapPlan;
-  project?: RoadmapDeliveryProjector;
-}): Promise<AcceptedRoadmapPlan> {
-  assertRoadmapPlan(input.plan);
-  const snapshot = await requireAuthority<BacklogSnapshot>(
-    input.root,
-    input.plan.app,
-    input.plan.backlogSnapshotRef,
-    "backlog_snapshot",
-    "backlog_incomplete",
-  );
-  assertBacklogSnapshot(snapshot.value);
-  if (snapshot.value.completeness !== "complete" || snapshot.value.pagination.hasNextPage) {
-    throw new RoadmapDeliveryError("backlog_incomplete", "RoadmapPlan names an incomplete backlog snapshot");
-  }
-  assertRoadmapAccounting(input.plan, snapshot.value);
-  assertRoadmapRoutingFrontier(input.plan, snapshot.value);
-  const accepted = await withFileLock(
-    roadmapMutationLockPath(input.root, input.plan.app),
-    ROADMAP_MUTATION_LOCK,
-    async () => {
-      const current = await readCurrentRoadmapPlan(input.root, input.plan.app);
-      assertRoadmapRevision(input.plan, current);
-      const persisted = await persistAuthority(
-        input.root,
-        input.plan.app,
-        "roadmap_plan",
-        input.plan.planId,
-        input.plan.version,
-        input.plan,
-      );
-      const pointer: CurrentRoadmapPointer = {
-        schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-        app: input.plan.app,
-        ref: persisted.ref,
-        updatedAt: input.plan.acceptedAt,
-      };
-      await writeLoopFileAtomic(
-        currentRoadmapPointerPath(input.root, input.plan.app),
-        `${JSON.stringify(pointer, null, 2)}\n`,
-      );
-      return persisted;
-    },
-  );
-  await projectAccepted(input.root, input.plan.app, accepted, input.project);
-  return {
-    ...accepted,
-    frontierHash: stableHash(input.plan.readyFrontier),
-  };
-}
-
-export async function readCurrentRoadmapPlan(
-  root: string,
-  app: string,
-): Promise<AcceptedAuthority<RoadmapPlan> | undefined> {
-  const pointerPath = currentRoadmapPointerPath(root, app);
-  if (!existsSync(pointerPath)) return undefined;
-  let pointer: unknown;
-  try {
-    pointer = JSON.parse(await readFile(pointerPath, "utf8")) as unknown;
-  } catch (error) {
-    throw new RoadmapDeliveryError(
-      "authority_corrupt",
-      `current RoadmapPlan pointer is unreadable: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (!isCurrentRoadmapPointer(pointer) || pointer.app !== app) {
-    throw new RoadmapDeliveryError("authority_corrupt", "current RoadmapPlan pointer is invalid");
-  }
-  return requireAuthority<RoadmapPlan>(root, app, pointer.ref, "roadmap_plan", "roadmap_missing");
-}
 
 export async function reconcileRoadmapProjections(input: {
   root: string;
@@ -935,25 +737,6 @@ async function assertCurrentValidationCatalogRef(root: string, app: string, expe
     throw new RoadmapDeliveryError(
       "validation_catalog_stale",
       "validation lineage does not bind the current accepted harness catalog",
-    );
-  }
-}
-
-async function assertCurrentRoadmapRef(
-  root: string,
-  app: string,
-  expected: AuthorityRef,
-  expectedFrontierHash?: string,
-): Promise<void> {
-  const current = await readCurrentRoadmapPlan(root, app);
-  if (
-    current === undefined ||
-    !sameAuthorityRef(current.ref, expected) ||
-    (expectedFrontierHash !== undefined && stableHash(current.value.readyFrontier) !== expectedFrontierHash)
-  ) {
-    throw new RoadmapDeliveryError(
-      "frontier_stale",
-      "delivery lineage does not bind the current RoadmapPlan and frontier",
     );
   }
 }
@@ -2399,16 +2182,6 @@ export async function readExecutionBatch(
   return batch;
 }
 
-export async function readBacklogSnapshotAuthority(
-  root: string,
-  app: string,
-  ref: AuthorityRef,
-): Promise<AcceptedAuthority<BacklogSnapshot>> {
-  const snapshot = await requireAuthority<BacklogSnapshot>(root, app, ref, "backlog_snapshot", "backlog_incomplete");
-  assertBacklogSnapshot(snapshot.value);
-  return snapshot;
-}
-
 export async function findActiveExecutionUnit(
   root: string,
   app: string,
@@ -2495,10 +2268,6 @@ export function deliveryClaimIdentity(payload: DeliveryUnitClaimPayload): string
     payload.batchRef.sha256,
     payload.episodeBindingRef.sha256,
   ].join("\0");
-}
-
-export function unitMembershipHash(issueNumbers: readonly number[]): string {
-  return stableHash([...issueNumbers]);
 }
 
 function deliveryClaimStore(root: string): DurableClaimStore<DeliveryUnitClaimPayload> {
@@ -2705,264 +2474,6 @@ function uniqueInputRefs(refs: Array<{ ref: string; required: boolean }>): Array
     byRef.set(ref.ref, { ref: ref.ref, required: ref.required || existing?.required === true });
   }
   return [...byRef.values()].sort((left, right) => left.ref.localeCompare(right.ref));
-}
-
-function assertRoadmapPlan(plan: RoadmapPlan): void {
-  if (plan.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
-    throw new RoadmapDeliveryError("roadmap_invalid", "unsupported RoadmapPlan schema");
-  }
-  assertId(plan.planId, "roadmap plan id");
-  assertVersion(plan.version, "roadmap plan version");
-  assertAuthorityRef(plan.backlogSnapshotRef, "backlog_snapshot");
-  requireDateTime(plan.acceptedAt, "roadmap acceptedAt");
-  if (
-    plan.app.trim().length === 0 ||
-    plan.workstreams.length === 0 ||
-    plan.deliveryUnits.length === 0 ||
-    !Number.isInteger(plan.wipLimit) ||
-    plan.wipLimit < 1 ||
-    plan.readyFrontier.length > plan.wipLimit
-  ) {
-    throw new RoadmapDeliveryError("roadmap_invalid", "app, workstreams, and delivery units are required");
-  }
-  if (plan.predecessor !== null) assertAuthorityRef(plan.predecessor, "roadmap_plan");
-  const workstreams = new Set<string>();
-  for (const workstream of plan.workstreams) {
-    assertId(workstream.workstreamId, "workstream id");
-    if (workstreams.has(workstream.workstreamId)) {
-      throw new RoadmapDeliveryError("roadmap_invalid", `duplicate workstream ${workstream.workstreamId}`);
-    }
-    workstreams.add(workstream.workstreamId);
-    if (!Number.isInteger(workstream.priority) || workstream.outcome.trim().length === 0) {
-      throw new RoadmapDeliveryError("roadmap_invalid", `invalid workstream ${workstream.workstreamId}`);
-    }
-  }
-  const units = new Map<string, RoadmapDeliveryUnit>();
-  const issues = new Set<number>();
-  for (const unit of plan.deliveryUnits) {
-    assertId(unit.unitId, "delivery unit id");
-    if (units.has(unit.unitId)) {
-      throw new RoadmapDeliveryError("roadmap_invalid", `duplicate delivery unit ${unit.unitId}`);
-    }
-    if (!workstreams.has(unit.workstreamId) || unit.issueNumbers.length === 0) {
-      throw new RoadmapDeliveryError("roadmap_invalid", `invalid delivery unit ${unit.unitId}`);
-    }
-    for (const issue of unit.issueNumbers) {
-      if (!Number.isInteger(issue) || issue < 1) {
-        throw new RoadmapDeliveryError("issue_unaccounted", `${unit.unitId} has invalid issue ${issue}`);
-      }
-      if (issues.has(issue)) {
-        throw new RoadmapDeliveryError("issue_multiply_assigned", `issue #${issue} appears in multiple units`);
-      }
-      issues.add(issue);
-    }
-    units.set(unit.unitId, unit);
-  }
-  for (const unit of plan.deliveryUnits) {
-    for (const dependency of unit.dependsOn) {
-      if (!units.has(dependency) || dependency === unit.unitId) {
-        throw new RoadmapDeliveryError("unit_cycle", `${unit.unitId} has invalid dependency ${dependency}`);
-      }
-    }
-  }
-  assertAcyclic(plan.deliveryUnits);
-  const completed = new Set<string>();
-  for (const unitId of plan.completedUnitIds) {
-    if (completed.has(unitId) || !units.has(unitId)) {
-      throw new RoadmapDeliveryError("roadmap_invalid", `invalid completed unit ${unitId}`);
-    }
-    completed.add(unitId);
-  }
-  const frontier = new Set<string>();
-  for (const unitId of plan.readyFrontier) {
-    if (frontier.has(unitId) || !units.has(unitId) || completed.has(unitId)) {
-      throw new RoadmapDeliveryError("roadmap_invalid", `invalid ready-frontier unit ${unitId}`);
-    }
-    const unit = units.get(unitId)!;
-    const unmet = unit.dependsOn.filter((dependency) => !completed.has(dependency));
-    if (unmet.length > 0) {
-      throw new RoadmapDeliveryError(
-        "roadmap_invalid",
-        `ready-frontier unit ${unitId} has unmet dependencies: ${unmet.join(", ")}`,
-      );
-    }
-    frontier.add(unitId);
-  }
-  const expectedOrder = plan.readyFrontier
-    .map((unitId) => units.get(unitId)!)
-    .sort((left, right) => left.priority - right.priority || left.unitId.localeCompare(right.unitId))
-    .map((unit) => unit.unitId);
-  if (stableHash(expectedOrder) !== stableHash(plan.readyFrontier)) {
-    throw new RoadmapDeliveryError("roadmap_invalid", "ready frontier is not in stable priority order");
-  }
-  const seenMoves = new Set<string>();
-  for (const move of plan.moves) {
-    if (
-      !Number.isInteger(move.issueNumber) ||
-      move.issueNumber < 1 ||
-      !units.has(move.toUnitId) ||
-      move.fromUnitId === move.toUnitId ||
-      move.reason.trim().length === 0 ||
-      seenMoves.has(`${move.issueNumber}\0${move.fromUnitId}\0${move.toUnitId}`)
-    ) {
-      throw new RoadmapDeliveryError("roadmap_invalid", `invalid move for issue #${move.issueNumber}`);
-    }
-    requireDateTime(move.movedAt, "roadmap move movedAt");
-    seenMoves.add(`${move.issueNumber}\0${move.fromUnitId}\0${move.toUnitId}`);
-  }
-}
-
-function assertBacklogSnapshot(snapshot: BacklogSnapshot): void {
-  if (snapshot.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
-    throw new RoadmapDeliveryError("backlog_incomplete", "unsupported backlog snapshot schema");
-  }
-  assertId(snapshot.snapshotId, "snapshot id");
-  assertVersion(snapshot.version, "snapshot version");
-  requireDateTime(snapshot.capturedAt, "snapshot capturedAt");
-  if (
-    snapshot.app.trim().length === 0 ||
-    snapshot.source.trim().length === 0 ||
-    !Number.isInteger(snapshot.pagination.pagesObserved) ||
-    snapshot.pagination.pagesObserved < 1 ||
-    snapshot.issues.length === 0
-  ) {
-    throw new RoadmapDeliveryError("backlog_incomplete", "backlog snapshot metadata is incomplete");
-  }
-  const issues = new Set<number>();
-  for (const issue of snapshot.issues) {
-    if (!Number.isInteger(issue.issueNumber) || issue.issueNumber < 1 || issues.has(issue.issueNumber)) {
-      throw new RoadmapDeliveryError(
-        issues.has(issue.issueNumber) ? "issue_multiply_assigned" : "backlog_incomplete",
-        `invalid or duplicate snapshot issue #${issue.issueNumber}`,
-      );
-    }
-    assertHash(issue.contentHash, `snapshot issue #${issue.issueNumber} content hash`);
-    if (
-      !Array.isArray(issue.observedLabels) ||
-      issue.observedLabels.some((label) => typeof label !== "string" || label.trim().length === 0) ||
-      new Set(issue.observedLabels).size !== issue.observedLabels.length ||
-      new Set(issue.dependencyIssues).size !== issue.dependencyIssues.length ||
-      issue.dependencyIssues.some((dependency) => !Number.isInteger(dependency) || dependency < 1)
-    ) {
-      throw new RoadmapDeliveryError("backlog_incomplete", `invalid dependencies for #${issue.issueNumber}`);
-    }
-    issues.add(issue.issueNumber);
-  }
-  for (const issue of snapshot.issues) {
-    const missing = issue.dependencyIssues.filter((dependency) => !issues.has(dependency));
-    if (missing.length > 0) {
-      throw new RoadmapDeliveryError(
-        "backlog_incomplete",
-        `snapshot issue #${issue.issueNumber} has unavailable dependencies: ${missing.join(", ")}`,
-      );
-    }
-  }
-}
-
-function assertRoadmapAccounting(plan: RoadmapPlan, snapshot: BacklogSnapshot): void {
-  if (plan.app !== snapshot.app || !sameAuthorityRef(plan.backlogSnapshotRef, authorityRefForSnapshot(snapshot))) {
-    throw new RoadmapDeliveryError("roadmap_invalid", "RoadmapPlan does not bind the accepted backlog snapshot");
-  }
-  const expected = snapshot.issues
-    .filter((issue) => issue.lifecycle === "open")
-    .map((issue) => issue.issueNumber)
-    .sort(numeric);
-  const actual = plan.deliveryUnits.flatMap((unit) => unit.issueNumbers).sort(numeric);
-  if (stableHash(expected) !== stableHash(actual)) {
-    const actualSet = new Set(actual);
-    const expectedSet = new Set(expected);
-    const missing = expected.filter((issue) => !actualSet.has(issue));
-    const unexpected = actual.filter((issue) => !expectedSet.has(issue));
-    throw new RoadmapDeliveryError(
-      "issue_unaccounted",
-      `RoadmapPlan accounting mismatch; missing [${missing.join(",")}], unexpected [${unexpected.join(",")}]`,
-    );
-  }
-}
-
-function assertRoadmapRoutingFrontier(plan: RoadmapPlan, snapshot: BacklogSnapshot): void {
-  const routing = new Map(snapshot.issues.map((issue) => [issue.issueNumber, issue]));
-  for (const unitId of plan.readyFrontier) {
-    const unit = requireUnit(plan, unitId);
-    for (const issueNumber of unit.issueNumbers) {
-      const issue = routing.get(issueNumber);
-      if (issue?.routing !== "automated" || autonomousExecutionExclusionLabel(issue.observedLabels) !== undefined) {
-        throw new RoadmapDeliveryError(
-          "routing_ineligible",
-          `ready-frontier unit ${unitId} contains excluded or unreadable issue #${issueNumber}`,
-        );
-      }
-    }
-  }
-}
-
-function assertRoadmapRevision(plan: RoadmapPlan, current: AcceptedAuthority<RoadmapPlan> | undefined): void {
-  const proposedRef: AuthorityRef = {
-    kind: "roadmap_plan",
-    id: plan.planId,
-    version: plan.version,
-    sha256: stableHash(plan),
-  };
-  if (current === undefined) {
-    if (plan.version !== 1 || plan.predecessor !== null || plan.moves.length !== 0) {
-      throw new RoadmapDeliveryError(
-        "roadmap_invalid",
-        "the first RoadmapPlan must be v1 with no predecessor or move history",
-      );
-    }
-    return;
-  }
-  if (sameAuthorityRef(current.ref, proposedRef)) return;
-  if (
-    plan.planId !== current.value.planId ||
-    plan.version !== current.value.version + 1 ||
-    plan.predecessor === null ||
-    !sameAuthorityRef(plan.predecessor, current.ref)
-  ) {
-    throw new RoadmapDeliveryError(
-      "frontier_stale",
-      `RoadmapPlan revision must advance ${renderAuthorityRef(current.ref)} by exactly one version`,
-    );
-  }
-  if (plan.moves.length < current.value.moves.length) {
-    throw new RoadmapDeliveryError("roadmap_invalid", "roadmap move history cannot shrink");
-  }
-  for (let index = 0; index < current.value.moves.length; index += 1) {
-    if (stableHash(plan.moves[index]) !== stableHash(current.value.moves[index])) {
-      throw new RoadmapDeliveryError("roadmap_invalid", "roadmap move history is not append-only");
-    }
-  }
-  const priorByIssue = unitByIssue(current.value);
-  const nextByIssue = unitByIssue(plan);
-  const newMoves = plan.moves.slice(current.value.moves.length);
-  for (const [issueNumber, priorUnit] of priorByIssue) {
-    const nextUnit = nextByIssue.get(issueNumber);
-    if (nextUnit === undefined || nextUnit.unitId === priorUnit.unitId) continue;
-    const move = newMoves.find(
-      (candidate) =>
-        candidate.issueNumber === issueNumber &&
-        candidate.fromUnitId === priorUnit.unitId &&
-        candidate.toUnitId === nextUnit.unitId,
-    );
-    if (move === undefined) {
-      throw new RoadmapDeliveryError(
-        "roadmap_invalid",
-        `issue #${issueNumber} moved ${priorUnit.unitId} → ${nextUnit.unitId} without append-only evidence`,
-      );
-    }
-  }
-  const priorMembershipIds = new Map(
-    current.value.deliveryUnits.map((unit) => [stableHash([...unit.issueNumbers].sort(numeric)), unit.unitId]),
-  );
-  for (const unit of plan.deliveryUnits) {
-    const priorId = priorMembershipIds.get(stableHash([...unit.issueNumbers].sort(numeric)));
-    if (priorId !== undefined && priorId !== unit.unitId) {
-      throw new RoadmapDeliveryError(
-        "roadmap_invalid",
-        `unchanged membership ${unit.issueNumbers.join(",")} changed stable unit id ${priorId} → ${unit.unitId}`,
-      );
-    }
-  }
 }
 
 function assertValidationCatalogShape(catalog: ValidationCatalog): void {
@@ -4673,68 +4184,6 @@ function assertReviewerVerdictShape(verdict: ReviewerVerdict): void {
   requireDateTime(verdict.recordedAt, "Reviewer verdict recordedAt");
 }
 
-function assertRoutingEligible(unit: RoadmapDeliveryUnit, routing: readonly RoutingSnapshotEntry[]): void {
-  if (new Set(routing.map((entry) => entry.issueNumber)).size !== routing.length) {
-    throw new RoadmapDeliveryError("routing_ineligible", "routing snapshot contains duplicate issue facts");
-  }
-  const byIssue = new Map(routing.map((entry) => [entry.issueNumber, entry]));
-  for (const issueNumber of unit.issueNumbers) {
-    const current = byIssue.get(issueNumber);
-    if (
-      current === undefined ||
-      current.disposition !== "automated" ||
-      !Array.isArray(current.observedLabels) ||
-      current.observedLabels.some((label) => typeof label !== "string" || label.trim().length === 0) ||
-      new Set(current.observedLabels).size !== current.observedLabels.length ||
-      autonomousExecutionExclusionLabel(current.observedLabels) !== undefined
-    ) {
-      const exclusion =
-        current === undefined
-          ? "unreadable"
-          : (autonomousExecutionExclusionLabel(current.observedLabels) ?? current.disposition);
-      throw new RoadmapDeliveryError(
-        "routing_ineligible",
-        `delivery unit ${unit.unitId} is excluded because #${issueNumber} is ${exclusion}`,
-      );
-    }
-  }
-}
-
-function routingSnapshotHash(unit: RoadmapDeliveryUnit, routing: readonly RoutingSnapshotEntry[]): string {
-  assertRoutingEligible(unit, routing);
-  const byIssue = new Map(routing.map((entry) => [entry.issueNumber, entry]));
-  return stableHash(
-    [...unit.issueNumbers].sort(numeric).map((issueNumber) => ({
-      issueNumber,
-      disposition: byIssue.get(issueNumber)?.disposition,
-      observedLabels: [...(byIssue.get(issueNumber)?.observedLabels ?? [])].sort(),
-    })),
-  );
-}
-
-function requireUnit(plan: RoadmapPlan, unitId: string): RoadmapDeliveryUnit {
-  const unit = plan.deliveryUnits.find((candidate) => candidate.unitId === unitId);
-  if (unit === undefined) {
-    throw new RoadmapDeliveryError("issue_unaccounted", `RoadmapPlan has no unit ${unitId}`);
-  }
-  return unit;
-}
-
-function assertAcyclic(units: readonly RoadmapDeliveryUnit[]): void {
-  const byId = new Map(units.map((unit) => [unit.unitId, unit]));
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-  const visit = (id: string): void => {
-    if (visited.has(id)) return;
-    if (visiting.has(id)) throw new RoadmapDeliveryError("unit_cycle", `cycle includes ${id}`);
-    visiting.add(id);
-    for (const dependency of byId.get(id)?.dependsOn ?? []) visit(dependency);
-    visiting.delete(id);
-    visited.add(id);
-  };
-  for (const unit of units) visit(unit.unitId);
-}
-
 function executionUnitIdentityHash(unit: ExecutionUnit): string {
   return unit.kind === "direct_operation"
     ? stableHash({ kind: unit.kind, dedupeKey: unit.dedupeKey })
@@ -4931,10 +4380,6 @@ function executionUnitExclusiveKeys(unit: ExecutionUnit): string[] {
     : [`code-membership:${unit.membershipHash}`, ...(unit.issueNumbers ?? []).map((number) => `issue:${number}`)];
 }
 
-function roadmapMutationLockPath(root: string, app: string): string {
-  return join(planningAppDir(root, app), "roadmap-mutation.lock");
-}
-
 function batchMutationLockPath(root: string, app: string): string {
   return join(planningAppDir(root, app), "execution-batch.lock");
 }
@@ -4967,47 +4412,6 @@ async function projectClaim(
     throw new RoadmapDeliveryError("authority_corrupt", `claim projection preceded persistence: ${path}`);
   }
   await project({ kind, app, path, settlementId });
-}
-
-function authorityRefForSnapshot(snapshot: BacklogSnapshot): AuthorityRef {
-  return {
-    kind: "backlog_snapshot",
-    id: snapshot.snapshotId,
-    version: snapshot.version,
-    sha256: stableHash(snapshot),
-  };
-}
-
-function isCurrentRoadmapPointer(value: unknown): value is CurrentRoadmapPointer {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const row = value as Record<string, unknown>;
-  if (
-    row["schemaVersion"] !== ROADMAP_DELIVERY_SCHEMA_VERSION ||
-    typeof row["app"] !== "string" ||
-    typeof row["updatedAt"] !== "string"
-  )
-    return false;
-  const ref = row["ref"];
-  if (ref === null || typeof ref !== "object" || Array.isArray(ref)) return false;
-  const candidate = ref as Record<string, unknown>;
-  return (
-    candidate["kind"] === "roadmap_plan" &&
-    typeof candidate["id"] === "string" &&
-    Number.isInteger(candidate["version"]) &&
-    typeof candidate["sha256"] === "string"
-  );
-}
-
-function unitByIssue(plan: RoadmapPlan): Map<number, RoadmapDeliveryUnit> {
-  const result = new Map<number, RoadmapDeliveryUnit>();
-  for (const unit of plan.deliveryUnits) {
-    for (const issueNumber of unit.issueNumbers) result.set(issueNumber, unit);
-  }
-  return result;
-}
-
-function numeric(left: number, right: number): number {
-  return left - right;
 }
 
 function sameAssignment(left: TurnAssignment, right: TurnAssignment): boolean {

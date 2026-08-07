@@ -878,7 +878,7 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 5039,
+      "lines": 4443,
       "newModule": false
     },
     "src/org/roadmap-delivery/authority-core.ts": {
@@ -896,9 +896,29 @@
       "lines": 136,
       "newModule": true
     },
+    "src/org/roadmap-delivery/backlog-authority.ts": {
+      "exports": 3,
+      "lines": 88,
+      "newModule": true
+    },
     "src/org/roadmap-delivery/failure.ts": {
       "exports": 1,
       "lines": 45,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/roadmap-invariants.ts": {
+      "exports": 6,
+      "lines": 240,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/roadmap-model.ts": {
+      "exports": 9,
+      "lines": 87,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/roadmap-plan.ts": {
+      "exports": 4,
+      "lines": 283,
       "newModule": true
     },
     "src/org/roadmap-delivery/validation-catalog.ts": {

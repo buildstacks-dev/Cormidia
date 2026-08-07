@@ -237,6 +237,41 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
     ).toBe(0);
   });
 
+  it("leaves the journal and batch disposition untouched when a transition is rejected", async () => {
+    const home = await stateHome();
+    const authority = await acceptDirectExecutionUnit({
+      root: home.stateHome,
+      authority: direct("atomic-transition"),
+    });
+    const batch = await admitExecutionBatch({
+      root: home.stateHome,
+      app: APP.name,
+      batchId: "atomic-transition-batch",
+      directUnitRefs: [authority.ref],
+      routing: [],
+      admittedAt: AT,
+    });
+    const before = await readExecutionUnitJournal(home.stateHome, APP.name, batch.ref.id, authority.ref.id);
+
+    await expectCode(
+      () =>
+        transitionExecutionUnitJournal({
+          root: home.stateHome,
+          app: APP.name,
+          batchRef: batch.ref,
+          unitId: authority.ref.id,
+          expectedStates: ["admitted"],
+          nextState: "running",
+          usageDelta: { providerTurns: -1 },
+          now: new Date(AT),
+        }),
+      "unit_journal_conflict",
+    );
+
+    expect(await readExecutionUnitJournal(home.stateHome, APP.name, batch.ref.id, authority.ref.id)).toEqual(before);
+    expect(existsSync(executionBatchDispositionPath(home.stateHome, APP.name, batch.ref.id))).toBe(false);
+  });
+
   it("refuses manifest overflow and verbose prose without complete structured provenance", async () => {
     const home = await stateHome();
     const verbose = direct("verbose-only");

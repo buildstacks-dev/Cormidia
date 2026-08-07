@@ -101,17 +101,59 @@ export function resolveProviderSkillHomes(env = process.env) {
  */
 export async function linkPackagedSkills(packageRoot, env = process.env) {
   const linked = [];
+  const refused = [];
+
   for (const skill of PACKAGED_SKILLS) {
     const source = join(packageRoot, "agent-skills", skill);
+
+    // Never create a dangling link. A truncated or mis-packed install would
+    // otherwise leave every provider pointing at nothing, which presents to
+    // the agent as a skill that exists and cannot load.
+    const sourceUsable = await isDirectory(source);
+
     for (const [provider, home] of resolveProviderSkillHomes(env)) {
       const target = join(home, "skills", skill);
-      // adoptPriorInstall: an upgrade, or a node-version change that moved the
-      // npm prefix, leaves this package's own links pointing at the old root.
-      const action = await linkExact(source, target, "dir", { adoptPriorInstall: true });
-      linked.push({ skill, provider, source, target, action });
+      if (!sourceUsable) {
+        refused.push({ skill, provider, source, target, reason: `packaged skill directory is missing: ${source}` });
+        continue;
+      }
+      try {
+        // adoptPriorInstall: an upgrade, or a node-version change that moved
+        // the npm prefix, leaves this package's own links pointing at the old
+        // root.
+        const action = await linkExact(source, target, "dir", { adoptPriorInstall: true });
+        linked.push({ skill, provider, source, target, action });
+      } catch (error) {
+        // One unusable target must not cost the other five. A machine with a
+        // human-owned directory at one provider path is ordinary, and the
+        // other providers are still installable — all-or-nothing turns a
+        // partial obstacle into a total install failure.
+        refused.push({ skill, provider, source, target, reason: describeLinkFailure(error, target) });
+      }
     }
   }
-  return linked;
+
+  return { linked, refused };
+}
+
+async function isDirectory(path) {
+  try {
+    return (await lstat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Turn the raw failure into something an operator can act on. The common ones
+ *  are not bugs: a directory they created, or a home they cannot write. */
+function describeLinkFailure(error, target) {
+  if (error?.code === "EACCES" || error?.code === "EPERM") {
+    return `permission denied writing ${target} — check ownership of this path, then re-run`;
+  }
+  if (error?.code === "ENOTDIR") {
+    return `a parent of ${target} exists as a file, so the skills directory cannot be created`;
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**

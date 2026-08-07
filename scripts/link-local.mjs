@@ -33,7 +33,11 @@ for (const binary of binaries) {
   linkedBinaries.push({ ...binary, target, action });
 }
 
-const linkedSkills = await linkPackagedSkills(packageRoot);
+// Binaries above are fail-fast: without them there is no dev install at all,
+// and a refusal there must stop before any skill is touched (contract B-14 §2,
+// pinned by tests/hermetic/cf-b14/). Skills below are per-target: one
+// human-owned provider path must not cost the other five.
+const { linked: linkedSkills, refused: refusedSkills } = await linkPackagedSkills(packageRoot);
 
 for (const binary of linkedBinaries) {
   if (binary.action === "migrated") {
@@ -43,6 +47,12 @@ for (const binary of linkedBinaries) {
 }
 for (const linked of linkedSkills) {
   console.log(`$${linked.skill} skill linked (${linked.provider}): ${linked.target} -> ${linked.source}`);
+}
+if (refusedSkills.length > 0) {
+  console.error(`\n${refusedSkills.length} skill target(s) were left untouched:`);
+  for (const row of refusedSkills) console.error(`  $${row.skill} (${row.provider}): ${row.reason}`);
+  console.error("Cormidia never replaces a path it does not own — inspect each, remove if stale, then re-run.");
+  process.exitCode = 1;
 }
 console.log("This local link is source-backed: the next invocation picks up source changes without update or rebuild.");
 if (!process.env.PATH?.split(":").includes(binDir)) {

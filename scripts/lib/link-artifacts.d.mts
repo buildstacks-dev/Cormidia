@@ -29,7 +29,21 @@ export interface LinkedSkill {
   readonly action: "created" | "current" | "migrated";
 }
 
-export declare function linkPackagedSkills(packageRoot: string, env?: NodeJS.ProcessEnv): Promise<LinkedSkill[]>;
+export interface RefusedSkill {
+  readonly skill: string;
+  readonly provider: string;
+  readonly source: string;
+  readonly target: string;
+  /** Operator-actionable explanation, not a raw errno. */
+  readonly reason: string;
+}
+
+/** Never rejects for a per-target obstacle: unusable targets land in `refused`
+ *  so one human-owned provider path cannot cost the others. */
+export declare function linkPackagedSkills(
+  packageRoot: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<{ linked: LinkedSkill[]; refused: RefusedSkill[] }>;
 
 export declare function linkExact(
   source: string,

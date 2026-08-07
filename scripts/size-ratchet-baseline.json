@@ -201,6 +201,16 @@
       "lines": 1193,
       "newModule": false
     },
+    "src/jobs/config.ts": {
+      "exports": 4,
+      "lines": 292,
+      "newModule": true
+    },
+    "src/jobs/types.ts": {
+      "exports": 7,
+      "lines": 64,
+      "newModule": true
+    },
     "src/loop/brief.ts": {
       "exports": 2,
       "lines": 246,

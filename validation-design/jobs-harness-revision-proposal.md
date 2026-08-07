@@ -1,7 +1,9 @@
 # Harness revision proposal — jobs subsystem
 
-*Status: **Phase 0 complete, awaiting the Phase 0 hard stop.** Authorized by the owner
-2026-08-07 (`validation-harness-design`, `harness-revision` mode). This file is a
+*Status: **Phases 0–8 complete.** Authorized by the owner 2026-08-07
+(`validation-harness-design`, `harness-revision` mode), who additionally directed that the
+revision run through every phase without per-phase review; each gate below therefore
+records the decision taken and its basis. This file is a
 **proposal**: `validation-policy.yaml`, `case-catalog.md`, `boundary-map.md`,
 `system-map.md`, `invariants.md`, and `risk-allocation.md` are ratified artifacts and are
 **not** edited until this package is accepted. Follows the house pattern of
@@ -36,7 +38,7 @@ corpus and does not need invariants, boundaries, or risk tiers re-taught. Beats 
 collapse to a two-sentence recap per concept; beats 3–4 (elicit, synthesize) run in full,
 because the substance of this revision is genuinely undecided.
 
-*Owner confirmation required — this is a Phase 0 gate item, not a designer choice.*
+*Confirmed by the owner 2026-08-07.*
 
 ### 0.3 Proposed additions
 
@@ -268,3 +270,142 @@ I do not proceed on silence.
 8. **§0.9** — disposition of the import-direction gap.
 
 Item 6 is the one I most need answered and the one I am least willing to guess.
+
+---
+
+## Phases 1–8 (fast mode, owner-authorized 2026-08-07)
+
+Beats 1–2 collapsed per §0.2; elicitation and synthesis run in full. The owner
+authorized proceeding through all phases without per-phase review, so each gate below
+records the decision taken and its basis rather than waiting.
+
+### Phase 1 — Tier
+
+Jobs **inherit the product base tier C2** with the T-3/T-5/T-6/T-9 slices established in
+§0.4. No override. Deployment shape is unchanged (laptop-first, one runtime over N apps);
+jobs add a long-running human-invoked mode, which is why resume is a first-class
+requirement rather than a nicety.
+
+### Phase 2 — Invariants
+
+**No new invariant.** Jobs are constrained entirely by the §0.5 inheritance set. This is
+the correct outcome and worth stating explicitly rather than inventing an INV-017 for
+symmetry: every falsifiable claim jobs make is already a claim one of INV-001/002/004/
+006/008/011/013/015 makes. INV-016 is out of domain per F-PT-025.
+
+Two inherited invariants **tighten** for jobs, which is permitted (never loosen):
+
+- **INV-008 tightens.** "Completed" for a job step means provider-returned **and** every
+  declared output check passed. A step whose check failed may not be rendered completed by
+  any surface, and a step with no declared outputs renders `completed (unverified)` — not
+  bare `completed`. Absence of a check is a visible property, never silence.
+- **INV-015 tightens.** A config that changed under a live journal refuses rather than
+  resuming, and a step's completion is read from the journal only — never inferred from an
+  output file's presence, because a half-written file is indistinguishable from a complete
+  one.
+
+### Phase 3 — Boundaries
+
+**B-23** as drafted in §0.6, accepted. One boundary, not two: the config→journal seam and
+the journal→execution seam share a failure domain (the journal is the only thing that
+survives), so splitting them would create two contracts with one truth.
+
+`cormidia-job` as a **process** is not a new boundary — it joins B-15 (local persistence
+and git substrate) and the existing CLI-as-effect-surface classification. Recorded here so
+nobody re-litigates it (boundary-map.md §2 pattern).
+
+### Phase 4 — Contracts
+
+**`CORMIDIA-C-B23-001` — job config authority.** Valid input: a YAML mapping with a
+path-safe `job` id, optional `app`, and ≥1 step; each step has a unique path-safe `id`,
+`dependsOn` resolving to declared ids, an acyclic graph, and either
+(`objective` [+ optional `assignment`, `outputs`]) or (`checkpoint`) but never both.
+Guaranteed output: a validated plan, or a typed refusal naming the exact defect, **before
+any runtime is constructed**. Error behavior: fail closed, exit non-zero, no state
+written. Idempotency: loading is pure.
+
+**`CORMIDIA-C-B23-002` — journal authority.** The journal is the sole completion
+authority. Guarantees: a completed step is never re-executed; an interrupted step is
+retried at most once under its recorded attempt identity; every write is atomic
+(`writeLoopFileAtomic` semantics); the config hash is bound at first write and a mismatch
+is a typed refusal, never a resume. Ordering: steps are selected by
+`selectReadyEpisodeSteps` and executed one at a time, id-ordered.
+
+**`CORMIDIA-C-B23-003` — declared output checks.** Each check kind (`exists`,
+`non_empty`, `json`, `schema`, `command`) is deterministic and fail-closed. A failed check
+makes the step `failed` regardless of provider status. A step with no declared outputs
+completes as explicitly unverified.
+
+**`CORMIDIA-C-OP-JOB` — operation contract.** `cormidia-job run <config>` refuses when
+invoked inside a Cormidia provider turn; settles exactly one ledger row per provider turn
+including failed/cancelled; writes run records to exactly one canonical location per job;
+raises gated items through the existing gate without special-casing.
+
+### Phase 5 — LLM call sites
+
+**No new S-site**, per §0.7. Job steps get contract-layer coverage only. The
+handoff assertion (a dependency's declared outputs reach the downstream `brief.md`
+verbatim) is deterministic, not statistical. `llm-eval-plan.md` gains one paragraph
+recording the deliberate exclusion so a later reader does not read it as an omission.
+
+### Phase 6 — Risk allocation
+
+Jobs join **E-1** (the gate/authority slice: `operator` ceiling, assignment never widens
+the role, nested-invocation refusal) and **E-2** (durability and money together: journal
+resume, no double spend, exactly-once settlement, preserved paid work on an interrupted
+step). No new exhaustive family — the compound worst case for jobs is a subset of the
+existing one in `system-map.md` §5.5.
+
+Everything else is **STD**. Job step output *quality* is explicitly **THIN** (no lane).
+
+### Phase 7 — Tooling
+
+Parent stack, no divergence: vitest, the existing fixture kit (`fixtures/state-home.ts`,
+`fixtures/clock.ts`, `fixtures/kill-point.ts`, `fixtures/adapters/`, `fixtures/walk.ts`).
+Burden of proof for divergence not met, and not attempted.
+
+### Phase 8 — Case families
+
+Nine families, every one falsifiable at L1 or L2. `runs`/`layer`/`oracle`/`risk` keys per
+`case-catalog.md` conventions.
+
+| Family | Layer | Oracle | Risk | Covers |
+| --- | --- | --- | --- | --- |
+| `CF-B23-CFG` | 1 | refusal | E1 | cycle, unknown/duplicate id, both-or-neither objective/checkpoint, refusal precedes any runtime construction |
+| `CF-B23-JRN` | 2 | state | E2 | resume skips completed steps at zero cost; interrupted step retried once under its attempt identity; atomic write under kill-point; completion never inferred from output files |
+| `CF-B23-DRIFT` | 1 | refusal | E2 | config edited under a live journal refuses and names the drift; no step executes |
+| `CF-B23-CHK` | 1 | det | E1 | each check kind fires; failed check ⇒ step `failed` despite provider `completed`; no declared outputs ⇒ `completed (unverified)` |
+| `CF-B23-HND` | 2 | evid | STD | dependency outputs appear verbatim in the downstream persisted `brief.md`; missing required input refuses |
+| `CF-B23-NEST` | 1 | refusal | E1 | invocation inside a Cormidia provider turn refused |
+| `CF-B23-SET` | 2 | state | E2 | exactly one ledger row per provider turn incl. failed/cancelled; job envelope debited, app envelope untouched |
+| `CF-J21-APP` | 2 | evid | E2 | app-scoped records land under `runs/<app>/` and nowhere else; `observe` surfaces them unchanged |
+| `CF-J22-ADHOC` | 2 | evid | STD | runs with no app registered; records under `runs/adhoc/`; refusal messages use no ticket/episode/app vocabulary |
+
+**Negative controls** (policy `harness_self_tests`, skill rule 4 — each seeds the
+violation and asserts the detector FIRES): cyclic config; drifted config hash; a declared
+output that exists but is empty; a lying fake provider reporting `completed` for a step
+whose check fails; nested invocation; a seeded double-settle.
+
+**Closure.** No `PRUNE-na` cells. Job step output quality is `PRUNE-thin` with its reason
+recorded in Phase 5. Nothing is `BLOCKED` — F-PT-025 resolved, and no other finding gates
+these families.
+
+### Phase 8 — Adversarial reader test
+
+Simulated a new engineer holding only these artifacts plus `docs/jobs/design.md`:
+
+- *What must never break?* §0.5 inheritance table plus the two Phase-2 tightenings. **Pass.**
+- *Where are the boundaries?* B-23, with an explicit "not a boundary" note for the process. **Pass.**
+- *What is inherited vs new?* §0.5 marks every invariant; Phase 2 states no new invariant and says why. **Pass.**
+- *What do I do when a check fails?* `CORMIDIA-C-B23-003`: step `failed`, job stops, downstream does not run. **Pass.**
+- *Gap found and fixed:* the reader could not tell whether a job step with no declared outputs was a defect or a choice. Resolved by making `completed (unverified)` a distinct rendered state in the INV-008 tightening rather than leaving it as bare `completed`.
+
+### Artifact edits this proposal requests on acceptance
+
+`scope-and-module-map.md` §2 (M18) · `system-map.md` §1.3 (J-21/J-22) and §5.3 (jobs
+sentence) · `invariants.md` (INV-016 scope clause + the two tightenings) ·
+`boundary-map.md` §1 (B-23) and §2 (process note) · `contracts/B-23.md` +
+`contracts/OP-JOB.md` · `risk-allocation.md` §2 (E-1/E-2 job slices) ·
+`llm-eval-plan.md` (exclusion paragraph) · `case-catalog.md` (nine families) ·
+`validation-policy.yaml` (F-PT-025 resolved; nine families; no new gate class) ·
+`harness-backlog.md` (HB wave, walking skeleton first).

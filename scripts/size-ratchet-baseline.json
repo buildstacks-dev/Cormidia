@@ -882,7 +882,7 @@
       "newModule": false
     },
     "src/org/roadmap-delivery/validation-catalog.ts": {
-      "exports": 10,
+      "exports": 8,
       "lines": 88,
       "newModule": true
     },
@@ -892,7 +892,7 @@
       "newModule": true
     },
     "src/org/roadmap-delivery/validation-contract.ts": {
-      "exports": 5,
+      "exports": 4,
       "lines": 66,
       "newModule": true
     },

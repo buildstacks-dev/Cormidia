@@ -24,13 +24,13 @@ export interface ValidationCatalogId {
   aliases: string[];
 }
 
-export interface ValidationCatalogBoundary extends ValidationCatalogId {
+interface ValidationCatalogBoundary extends ValidationCatalogId {
   requiresSharedDetector: boolean;
   sharedDetectorId: string | null;
   routineEligible: boolean;
 }
 
-export interface ValidationCatalogInvariant extends ValidationCatalogId {
+interface ValidationCatalogInvariant extends ValidationCatalogId {
   floor: boolean;
 }
 

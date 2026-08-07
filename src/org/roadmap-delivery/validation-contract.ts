@@ -6,7 +6,7 @@ import {
 
 export const VALIDATION_CONTRACT_SCHEMA_VERSION = 1 as const;
 
-export interface ValidationTemplateRef {
+interface ValidationTemplateRef {
   templateId: string;
   version: number;
 }

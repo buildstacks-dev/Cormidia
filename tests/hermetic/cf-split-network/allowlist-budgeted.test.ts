@@ -41,7 +41,11 @@ describe("CF-SPLIT-NETWORK — allowlisted egress is budgeted at the composed ga
     const home = await makeTempStateHome({ name: "cf-split-network" });
     cleanups.push(() => home.cleanup());
     const clock = makeTestClock("2026-08-06T13:00:00.000Z");
-    const approvals = new ApprovalStore(home.stateHome);
+    // The store takes the same pinned clock as the gate (B-06 §1) — otherwise
+    // the item is raised at the fixture instant and judged against host wall
+    // time, and every case below rots into a TTL-expiry failure on the day real
+    // time passes the fixture (#356 / CF-REG-356).
+    const approvals = new ApprovalStore(home.stateHome, { now: clock.dateFn });
     const objectives = new ObjectiveGrantStore(home.stateHome);
     const gate = composeGate(defaultGate, approvals, {
       app: APP,

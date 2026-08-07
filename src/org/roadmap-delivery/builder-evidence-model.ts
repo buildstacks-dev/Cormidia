@@ -1,3 +1,4 @@
+import { TURN_ASSIGNMENT_EFFORTS, TURN_ASSIGNMENT_HARNESSES } from "../../runtime/assignment.js";
 import type { TurnAssignment } from "../../runtime/types.js";
 import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
@@ -195,10 +196,10 @@ export function assertTurnAssignmentShape(
   assertExactObjectKeys(assignment, ["harness", "model", "effort"], label, code);
   const row = assignment as Record<string, unknown>;
   if (
-    !["claude", "codex", "pi"].includes(String(row["harness"])) ||
+    !TURN_ASSIGNMENT_HARNESSES.includes(String(row["harness"]) as TurnAssignment["harness"]) ||
     typeof row["model"] !== "string" ||
     row["model"].trim().length === 0 ||
-    !["low", "medium", "high", "xhigh", "max"].includes(String(row["effort"]))
+    !TURN_ASSIGNMENT_EFFORTS.includes(String(row["effort"]) as TurnAssignment["effort"])
   ) {
     throw new RoadmapDeliveryError(code, `${label} is invalid`);
   }

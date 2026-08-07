@@ -55,7 +55,12 @@ export interface EffectiveTurnBounds {
   cost_enforcement:
     | "native_cap_and_progress"
     | "estimated_progress_no_strict_provider_cap"
-    | "measured_progress_no_strict_provider_cap";
+    | "measured_progress_no_strict_provider_cap"
+    /** The harness reports usage only in its terminal result, so there is no
+     *  in-turn progress signal to guard against and the cap is a turn-boundary
+     *  check on an estimate (cursor-agent). Never described as a running
+     *  guard — INV-008 forbids implying a hard mid-run ceiling. */
+    | "estimated_terminal_only_no_progress";
   /** The full provider-turn exposure reserved before runtime construction.
    * Adapters without a native strict cap cannot promise a smaller monetary
    * increment, so this conservative reservation is their hard admission. */
@@ -86,6 +91,7 @@ export interface TurnBudgetStop {
 export function costEnforcementFor(runtime: RuntimeKind): EffectiveTurnBounds["cost_enforcement"] {
   if (runtime === "claude") return "native_cap_and_progress";
   if (runtime === "codex") return "estimated_progress_no_strict_provider_cap";
+  if (runtime === "cursor") return "estimated_terminal_only_no_progress";
   return "measured_progress_no_strict_provider_cap";
 }
 

@@ -57,6 +57,9 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
   codex:
     "the Codex App Server protocol Cormidia speaks exposes account and thread methods only, " +
     "with no model enumeration; the id is proven when a turn starts",
+  cursor:
+    "the Cursor roster is account-scoped and reachable only by running `cursor-agent --list-models` " +
+    "with a working credential, which a config edit must not require; the id is proven when a turn starts",
   pi: undefined,
 };
 

@@ -334,6 +334,7 @@ async function acceptedPlanningAuthorities(
 async function acceptedEpisode(input: {
   home: TempStateHome;
   project?: (entry: Readonly<RoadmapDeliveryProjection>) => void | Promise<void>;
+  assertLazyAdmission?: boolean;
 }): Promise<{
   roadmap: AcceptedRoadmapPlan;
   validation: AcceptedAuthority<ValidationContract>;
@@ -355,7 +356,7 @@ async function acceptedEpisode(input: {
     ...(input.project === undefined ? {} : { project: input.project }),
   });
   // Batch admission is a token-free grouping decision and must remain lazy.
-  expect(existsSync(input.home.path("efficiency"))).toBe(false);
+  if (input.assertLazyAdmission !== false) expect(existsSync(input.home.path("efficiency"))).toBe(false);
   const normalized = await normalizeDeliveryUnitEpisode({
     root: input.home.stateHome,
     app: APP,
@@ -634,6 +635,39 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
       "reviewer_verdict",
       "delivery_unit_settled",
     ]);
+  });
+
+  it("replays a projected binding only after its planning journal is durable", async () => {
+    const home = await makeTempStateHome({ name: "hb100-binding-projection-replay" });
+    homes.push(home);
+    let projectedBinding: AuthorityRef | undefined;
+
+    await expect(
+      acceptedEpisode({
+        home,
+        project: async (entry) => {
+          if (entry.kind !== "delivery_episode_binding") return;
+          const persisted = JSON.parse(await readFile(entry.path, "utf8"));
+          expect(
+            await readExecutionUnitJournal(home.stateHome, APP.name, "batch-hb100", "unit-roadmap-validation"),
+          ).toMatchObject({ state: "planning", episodeBindingRef: persisted.ref });
+          projectedBinding = structuredClone(persisted.ref);
+          throw new Error("seeded binding projection interruption");
+        },
+      }),
+    ).rejects.toThrow("seeded binding projection interruption");
+
+    const replay = await acceptedEpisode({ home, assertLazyAdmission: false });
+    expect(replay.binding.ref).toEqual(projectedBinding);
+    const claim = await claimDeliveryUnit({
+      root: home.stateHome,
+      app: APP.name,
+      episodeBindingRef: replay.binding.ref,
+      readCurrentRouting: async () => AUTOMATED_ROUTING,
+      now: new Date("2026-08-03T22:01:00.000Z"),
+    });
+    expect(claim.disposition).toBe("claimed");
+    expect(claim.record.payload.issueNumbers).toEqual([...ISSUE_NUMBERS]);
   });
 
   it("refuses ready-looking labels when the RoadmapPlan artifact is absent", async () => {

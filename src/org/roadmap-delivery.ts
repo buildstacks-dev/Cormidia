@@ -6,41 +6,15 @@
 // EpisodePlanner coordinator and produces the same durable EpisodePlan as every
 // other episode without constructing a runtime.
 
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
-import {
-  episodePlanHash,
-  readCurrentEpisodePlan,
-  stableHash,
-  type CreatorEpisodeScope,
-  type EpisodePlan,
-} from "../loop/episode-plan.js";
-import {
-  durableClaimSettlementId,
-  DurableClaimStore,
-  type DurableClaimDisposition,
-  type DurableClaimRecord,
-  type DurableClaimToken,
-} from "../runtime/durable-claim.js";
-import type { RoleConfig, TurnAssignment } from "../runtime/types.js";
-import type { AppEntry } from "./apps.js";
-import {
-  prepareEpisodePlan,
-  type EpisodePlannerProposer,
-  type PreparedEpisodePlan,
-} from "./episode-planner/coordinator.js";
-import {
-  buildEpisodeIntent,
-  type EpisodeIntentFacts,
-  type EpisodePlanningPolicyOptions,
-} from "./episode-planner/policy.js";
+import { episodePlanHash, readCurrentEpisodePlan, stableHash } from "../loop/episode-plan.js";
+import type { DurableClaimRecord } from "../runtime/durable-claim.js";
+import type { TurnAssignment } from "../runtime/types.js";
 import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
   assertAuthorityRef,
   assertExactObjectKeys,
   assertHash,
   assertId,
-  assertVersion,
   type AcceptedAuthority,
   type AuthorityRef,
   type RoadmapDeliveryProjection,
@@ -61,7 +35,6 @@ import {
 import {
   persistAuthority,
   projectAccepted,
-  renderAuthorityRef,
   requireAuthority,
   sameAuthorityRef,
 } from "./roadmap-delivery/authority-store.js";
@@ -90,7 +63,6 @@ import { assertValidationContractBaseShape } from "./roadmap-delivery/validation
 import { readValidationContractLifecycle } from "./roadmap-delivery/validation-lifecycle.js";
 import { assertNonEmpty, requireDateTime } from "./roadmap-delivery/validation-values.js";
 import {
-  assertValidationWaiverAuthorities,
   assertValidationWaiversCurrent,
   validationWaiverApprovalAction,
 } from "./roadmap-delivery/validation-waivers.js";
@@ -102,13 +74,11 @@ import {
 import { RoadmapDeliveryError } from "./roadmap-delivery/failure.js";
 import {
   acceptDeliveryUnitReadiness,
-  assertDeliveryUnitReadinessShape,
   readCurrentDeliveryUnitReadiness,
   type DeliveryUnitReadiness,
 } from "./roadmap-delivery/delivery-readiness.js";
 import {
   acceptDirectExecutionUnit,
-  assertDirectExecutionUnit,
   type DirectExecutionUnitAuthority,
 } from "./roadmap-delivery/direct-execution-authority.js";
 import {
@@ -117,6 +87,21 @@ import {
   readExecutionBatch,
 } from "./roadmap-delivery/active-execution-units.js";
 import { admitExecutionBatch } from "./roadmap-delivery/execution-batch-admission.js";
+import { bindDeliveryUnitEpisodePlan } from "./roadmap-delivery/delivery-episode-binding.js";
+import { normalizeDeliveryUnitEpisode } from "./roadmap-delivery/delivery-episode-normalization.js";
+import { loadDeliveryJoin, type DeliveryEpisodeBinding } from "./roadmap-delivery/delivery-join.js";
+import {
+  claimDeliveryUnit,
+  commitDeliveryUnitClaim,
+  deliveryClaimIdentity,
+  deliveryClaimRecordPath,
+  deliveryClaimStore,
+  type DeliveryUnitClaim,
+  type DeliveryUnitClaimPayload,
+  projectClaim,
+  readDeliveryUnitClaim,
+} from "./roadmap-delivery/delivery-unit-claims.js";
+import { normalizeDirectExecutionUnitEpisode } from "./roadmap-delivery/direct-episode-normalization.js";
 import {
   executionBatchDispositionPath,
   readExecutionUnitJournal,
@@ -124,13 +109,11 @@ import {
 } from "./roadmap-delivery/execution-journal.js";
 import type { ExecutionUnitJournal } from "./roadmap-delivery/execution-journal-model.js";
 import {
-  assertExecutionBatchShape,
-  normalizeExecutionUnitBudget,
   type ExecutionBatch,
   type ExecutionUnit,
   type ExecutionUnitBudget,
 } from "./roadmap-delivery/execution-model.js";
-import { assertRoutingEligible, requireUnit, unitMembershipHash } from "./roadmap-delivery/roadmap-invariants.js";
+import { unitMembershipHash } from "./roadmap-delivery/roadmap-invariants.js";
 import type {
   AcceptedRoadmapPlan,
   BacklogSnapshot,
@@ -142,7 +125,7 @@ import type {
   RoadmapWorkstream,
   RoutingSnapshotEntry,
 } from "./roadmap-delivery/roadmap-model.js";
-import { acceptRoadmapPlan, assertCurrentRoadmapRef, readCurrentRoadmapPlan } from "./roadmap-delivery/roadmap-plan.js";
+import { acceptRoadmapPlan, readCurrentRoadmapPlan } from "./roadmap-delivery/roadmap-plan.js";
 import { reconcileRoadmapProjections } from "./roadmap-delivery/roadmap-projections.js";
 
 export { RoadmapDeliveryError };
@@ -178,6 +161,15 @@ export { acceptDeliveryUnitReadiness, readCurrentDeliveryUnitReadiness, reconcil
 export type { DeliveryUnitReadiness };
 export { acceptDirectExecutionUnit };
 export { admitExecutionBatch };
+export { bindDeliveryUnitEpisodePlan, normalizeDeliveryUnitEpisode, normalizeDirectExecutionUnitEpisode };
+export {
+  claimDeliveryUnit,
+  commitDeliveryUnitClaim,
+  deliveryClaimIdentity,
+  deliveryClaimRecordPath,
+  readDeliveryUnitClaim,
+};
+export type { DeliveryEpisodeBinding, DeliveryUnitClaim };
 export type { DirectExecutionUnitAuthority, ExecutionBatch, ExecutionUnit, ExecutionUnitBudget };
 export {
   executionBatchDispositionPath,
@@ -200,53 +192,6 @@ export type {
   RoadmapWorkstream,
   RoutingSnapshotEntry,
 };
-
-export interface DeliveryEpisodeBinding {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  app: string;
-  unitId: string;
-  membershipHash: string;
-  roadmapRef: AuthorityRef;
-  readinessRef: AuthorityRef;
-  validationRef: AuthorityRef;
-  validationContractHash: string;
-  batchRef: AuthorityRef;
-  episodeId: string;
-  episodePlanVersion: number;
-  episodePlanHash: string;
-  createdAt: string;
-}
-
-interface DirectEpisodeBinding {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  app: string;
-  unitId: string;
-  directAuthorityRef: AuthorityRef;
-  batchRef: AuthorityRef;
-  episodeId: string;
-  episodePlanVersion: number;
-  episodePlanHash: string;
-  createdAt: string;
-}
-
-interface DeliveryUnitClaimPayload {
-  app: string;
-  unitId: string;
-  issueNumbers: number[];
-  membershipHash: string;
-  roadmapRef: AuthorityRef;
-  readinessRef: AuthorityRef;
-  validationRef: AuthorityRef;
-  validationContractHash: string;
-  batchRef: AuthorityRef;
-  episodeBindingRef: AuthorityRef;
-}
-
-export interface DeliveryUnitClaim {
-  disposition: DurableClaimDisposition;
-  record: DurableClaimRecord<DeliveryUnitClaimPayload>;
-  token?: DurableClaimToken;
-}
 
 interface CaseEvidence {
   caseId: string;
@@ -315,490 +260,7 @@ export interface ReviewerVerdict {
   recordedAt: string;
 }
 
-type DeliveryEpisodeFacts = Omit<EpisodeIntentFacts, "episodeId" | "app" | "roles" | "creatorScope">;
-
-const CLAIM_NAMESPACE = "planning/delivery-unit-claims";
 const CANDIDATE_HEAD = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/;
-
-/** Lazily normalize exactly one admitted unit through the real EpisodePlanner coordinator. */
-export async function normalizeDeliveryUnitEpisode(input: {
-  root: string;
-  app: AppEntry;
-  roles: readonly RoleConfig[];
-  batchRef: AuthorityRef;
-  unitId: string;
-  facts: DeliveryEpisodeFacts;
-  creatorScope?: CreatorEpisodeScope;
-  propose?: EpisodePlannerProposer;
-  providerOperations?: readonly string[];
-  workflowTemplates?: EpisodePlanningPolicyOptions["workflowTemplates"];
-  independentReview?: EpisodePlanningPolicyOptions["independentReview"];
-  now?: () => Date;
-  project?: RoadmapDeliveryProjector;
-}): Promise<{
-  prepared: PreparedEpisodePlan;
-  plan: EpisodePlan;
-  binding: AcceptedAuthority<DeliveryEpisodeBinding>;
-}> {
-  const batch = await requireAuthority<ExecutionBatch>(
-    input.root,
-    input.app.name,
-    input.batchRef,
-    "execution_batch",
-    "batch_hard_constraint_failed",
-  );
-  assertExecutionBatchShape(batch.value);
-  const batchUnit = batch.value.units.find((candidate) => candidate.unitId === input.unitId);
-  if (batchUnit === undefined) {
-    throw new RoadmapDeliveryError(
-      "batch_hard_constraint_failed",
-      `${input.unitId} is not admitted in ${batch.value.batchId}`,
-    );
-  }
-  if (batchUnit.kind === "direct_operation") {
-    throw new RoadmapDeliveryError(
-      "batch_hard_constraint_failed",
-      `${input.unitId} is direct work; use normalizeDirectExecutionUnitEpisode`,
-    );
-  }
-  if (batch.value.roadmapRef === null || batch.value.frontierHash === null) {
-    throw new RoadmapDeliveryError("roadmap_missing", "roadmap code batch lost roadmap authority");
-  }
-  const roadmap = await requireAuthority<RoadmapPlan>(
-    input.root,
-    input.app.name,
-    batch.value.roadmapRef,
-    "roadmap_plan",
-    "roadmap_missing",
-  );
-  await assertCurrentRoadmapRef(input.root, input.app.name, roadmap.ref, batch.value.frontierHash);
-  const unit = requireUnit(roadmap.value, input.unitId);
-  const readiness = await requireAuthority<DeliveryUnitReadiness>(
-    input.root,
-    input.app.name,
-    batchUnit.readinessRef,
-    "delivery_unit_readiness",
-    "validation_incomplete",
-  );
-  assertDeliveryUnitReadinessShape(readiness.value);
-  const validation = await requireAuthority<ValidationContract>(
-    input.root,
-    input.app.name,
-    batchUnit.validationRef,
-    "validation_contract",
-    "validation_contract_missing",
-  );
-  assertValidationContractBaseShape(validation.value);
-  await assertValidationWaiverAuthorities(input.root, validation.value);
-  await assertCurrentValidationCatalogRef(input.root, input.app.name, validation.value.catalogRef);
-  const currentValidation = await readCurrentValidationContract(input.root, input.app.name, input.unitId);
-  if (
-    currentValidation === undefined ||
-    !sameAuthorityRef(currentValidation.ref, validation.ref) ||
-    !sameAuthorityRef(readiness.value.validationRef, validation.ref) ||
-    readiness.value.validationContractHash !== validation.ref.sha256 ||
-    batchUnit.validationContractHash !== validation.ref.sha256
-  ) {
-    throw new RoadmapDeliveryError(
-      "validation_contract_stale",
-      "EpisodePlan normalization requires the current readiness and validation hash",
-    );
-  }
-  const operationNow = input.now?.() ?? new Date();
-  assertValidationWaiversCurrent(validation.value, operationNow);
-  const episodeId = `delivery-${stableHash({
-    app: input.app.name,
-    unitId: input.unitId,
-    roadmap: roadmap.ref,
-    validation: validation.ref,
-  }).slice(0, 32)}`;
-  const authorityInputs = [
-    renderAuthorityRef(roadmap.ref),
-    renderAuthorityRef(readiness.ref),
-    renderAuthorityRef(validation.ref),
-    renderAuthorityRef(batch.ref),
-  ];
-  const creatorScope =
-    input.creatorScope === undefined ? undefined : bindCreatorScope(input.creatorScope, authorityInputs);
-  const intent = buildEpisodeIntent({
-    ...input.facts,
-    episodeId,
-    app: input.app,
-    roles: input.roles,
-    ...(creatorScope === undefined ? {} : { creatorScope }),
-  });
-  const prepared = await prepareEpisodePlan({
-    root: input.root,
-    app: input.app,
-    roles: input.roles,
-    intent,
-    ...(input.providerOperations === undefined ? {} : { providerOperations: input.providerOperations }),
-    ...(input.workflowTemplates === undefined ? {} : { workflowTemplates: input.workflowTemplates }),
-    ...(input.independentReview === undefined ? {} : { independentReview: input.independentReview }),
-    ...(input.propose === undefined ? {} : { propose: input.propose }),
-    now: () => operationNow,
-  });
-  const validationLineage = renderAuthorityRef(validation.ref);
-  if (prepared.planningTurnSkipped && !prepared.plan.creatorProvenance?.evidenceRefs.includes(validationLineage)) {
-    throw new RoadmapDeliveryError(
-      "validation_contract_invalid",
-      "EpisodePlan dropped the exact validation-contract ref and hash",
-    );
-  }
-  const bindingValue: DeliveryEpisodeBinding = {
-    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-    app: input.app.name,
-    unitId: input.unitId,
-    membershipHash: unitMembershipHash(unit.issueNumbers),
-    roadmapRef: roadmap.ref,
-    readinessRef: readiness.ref,
-    validationRef: validation.ref,
-    validationContractHash: validation.ref.sha256,
-    batchRef: batch.ref,
-    episodeId,
-    episodePlanVersion: prepared.plan.version,
-    episodePlanHash: episodePlanHash(prepared.plan),
-    createdAt: prepared.plan.createdAt,
-  };
-  const binding = await persistAuthority(
-    input.root,
-    input.app.name,
-    "delivery_episode_binding",
-    input.unitId,
-    prepared.plan.version,
-    bindingValue,
-  );
-  await markExecutionUnitPlanned(input.root, input.app.name, batch.ref, input.unitId, binding.ref, operationNow);
-  await projectAccepted(input.root, input.app.name, binding, input.project);
-  return { prepared, plan: prepared.plan, binding };
-}
-
-/** Bind an EpisodePlan produced by the production ticket planner to the exact
- * admitted roadmap/validation join. This is the non-shortcut lazy path. */
-export async function bindDeliveryUnitEpisodePlan(input: {
-  root: string;
-  app: string;
-  batchRef: AuthorityRef;
-  unitId: string;
-  plan: EpisodePlan;
-  now: Date;
-  project?: RoadmapDeliveryProjector;
-}): Promise<AcceptedAuthority<DeliveryEpisodeBinding>> {
-  const batch = await requireAuthority<ExecutionBatch>(
-    input.root,
-    input.app,
-    input.batchRef,
-    "execution_batch",
-    "batch_hard_constraint_failed",
-  );
-  assertExecutionBatchShape(batch.value);
-  const batchUnit = batch.value.units.find((candidate) => candidate.unitId === input.unitId);
-  if (batchUnit === undefined || batchUnit.kind === "direct_operation") {
-    throw new RoadmapDeliveryError("batch_hard_constraint_failed", `${input.unitId} is not admitted code work`);
-  }
-  if (batch.value.roadmapRef === null || batch.value.frontierHash === null) {
-    throw new RoadmapDeliveryError("roadmap_missing", "code batch lost RoadmapPlan lineage");
-  }
-  const roadmap = await requireAuthority<RoadmapPlan>(
-    input.root,
-    input.app,
-    batch.value.roadmapRef,
-    "roadmap_plan",
-    "roadmap_missing",
-  );
-  await assertCurrentRoadmapRef(input.root, input.app, roadmap.ref, batch.value.frontierHash);
-  const unit = requireUnit(roadmap.value, input.unitId);
-  const readiness = await requireAuthority<DeliveryUnitReadiness>(
-    input.root,
-    input.app,
-    batchUnit.readinessRef,
-    "delivery_unit_readiness",
-    "validation_incomplete",
-  );
-  const validation = await requireAuthority<ValidationContract>(
-    input.root,
-    input.app,
-    batchUnit.validationRef,
-    "validation_contract",
-    "validation_contract_missing",
-  );
-  assertValidationWaiversCurrent(validation.value, input.now);
-  await assertValidationWaiverAuthorities(input.root, validation.value);
-  const currentValidation = await readCurrentValidationContract(input.root, input.app, input.unitId);
-  if (
-    currentValidation === undefined ||
-    !sameAuthorityRef(currentValidation.ref, validation.ref) ||
-    !sameAuthorityRef(readiness.value.validationRef, validation.ref) ||
-    batchUnit.validationContractHash !== validation.ref.sha256
-  ) {
-    throw new RoadmapDeliveryError("validation_contract_stale", "plan binding uses stale validation authority");
-  }
-  assertPlanWithinExecutionUnitBudget(input.plan, normalizeExecutionUnitBudget(batchUnit.budget));
-  const bindingValue: DeliveryEpisodeBinding = {
-    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-    app: input.app,
-    unitId: input.unitId,
-    membershipHash: unitMembershipHash(unit.issueNumbers),
-    roadmapRef: roadmap.ref,
-    readinessRef: readiness.ref,
-    validationRef: validation.ref,
-    validationContractHash: validation.ref.sha256,
-    batchRef: batch.ref,
-    episodeId: input.plan.episodeId,
-    episodePlanVersion: input.plan.version,
-    episodePlanHash: episodePlanHash(input.plan),
-    createdAt: input.plan.createdAt,
-  };
-  const binding = await persistAuthority(
-    input.root,
-    input.app,
-    "delivery_episode_binding",
-    input.unitId,
-    input.plan.version,
-    bindingValue,
-  );
-  await markExecutionUnitPlanned(input.root, input.app, batch.ref, input.unitId, binding.ref, input.now);
-  await projectAccepted(input.root, input.app, binding, input.project);
-  return binding;
-}
-
-/** Direct work uses the same EpisodePlanner coordinator but needs no
- * RoadmapPlan. Its accepted authority is itself the complete creator scope,
- * so normalization is necessarily a strict zero-turn path. */
-export async function normalizeDirectExecutionUnitEpisode(input: {
-  root: string;
-  app: AppEntry;
-  roles: readonly RoleConfig[];
-  batchRef: AuthorityRef;
-  unitId: string;
-  facts: DeliveryEpisodeFacts;
-  providerOperations?: readonly string[];
-  workflowTemplates: EpisodePlanningPolicyOptions["workflowTemplates"];
-  independentReview?: EpisodePlanningPolicyOptions["independentReview"];
-  now?: () => Date;
-  project?: RoadmapDeliveryProjector;
-}): Promise<{
-  prepared: PreparedEpisodePlan;
-  plan: EpisodePlan;
-  binding: AcceptedAuthority<DirectEpisodeBinding>;
-}> {
-  const batch = await requireAuthority<ExecutionBatch>(
-    input.root,
-    input.app.name,
-    input.batchRef,
-    "execution_batch",
-    "batch_hard_constraint_failed",
-  );
-  assertExecutionBatchShape(batch.value);
-  const unit = batch.value.units.find((candidate) => candidate.unitId === input.unitId);
-  if (unit === undefined || unit.kind !== "direct_operation") {
-    throw new RoadmapDeliveryError("batch_hard_constraint_failed", `${input.unitId} is not direct work`);
-  }
-  const authority = await requireAuthority<DirectExecutionUnitAuthority>(
-    input.root,
-    input.app.name,
-    unit.authorityRef,
-    "direct_execution_unit",
-    "direct_unit_incomplete",
-  );
-  assertDirectExecutionUnit(authority.value);
-  const operationNow = input.now?.() ?? new Date();
-  const creatorScope: CreatorEpisodeScope = {
-    planningDisposition: "execution_ready",
-    provenance: {
-      ...authority.value.provenance,
-      evidenceRefs: [
-        ...authority.value.provenance.evidenceRefs,
-        renderAuthorityRef(authority.ref),
-        renderAuthorityRef(batch.ref),
-      ],
-    },
-    objective: authority.value.objective,
-    inScope: [...authority.value.inScope],
-    outOfScope: [...authority.value.outOfScope],
-    acceptanceCriteria: [...authority.value.acceptanceCriteria],
-    expectedArtifacts: structuredClone(authority.value.expectedArtifacts),
-    declaredConstraints: structuredClone(authority.value.declaredConstraints),
-    safetyFacts: structuredClone(authority.value.safetyFacts),
-    ...(authority.value.workflowTemplate === undefined
-      ? { steps: structuredClone(authority.value.steps!) }
-      : { workflowTemplate: structuredClone(authority.value.workflowTemplate) }),
-  };
-  const episodeId = `direct-${stableHash({ app: input.app.name, authority: authority.ref }).slice(0, 32)}`;
-  const intent = buildEpisodeIntent({
-    ...input.facts,
-    episodeId,
-    app: input.app,
-    roles: input.roles,
-    requiredSafetyFacts: [
-      ...new Map(
-        [...input.facts.requiredSafetyFacts, ...authority.value.safetyFacts].map((fact) => [
-          stableHash(fact),
-          structuredClone(fact),
-        ]),
-      ).values(),
-    ],
-    creatorScope,
-  });
-  const prepared = await prepareEpisodePlan({
-    root: input.root,
-    app: input.app,
-    roles: input.roles,
-    intent,
-    workflowTemplates: input.workflowTemplates,
-    ...(input.providerOperations === undefined ? {} : { providerOperations: input.providerOperations }),
-    ...(input.independentReview === undefined ? {} : { independentReview: input.independentReview }),
-    now: () => operationNow,
-  });
-  if (!prepared.planningTurnSkipped || prepared.plannerAttempts !== 0) {
-    throw new RoadmapDeliveryError("direct_unit_incomplete", "complete direct authority did not normalize zero-turn");
-  }
-  assertPlanWithinExecutionUnitBudget(prepared.plan, unit.budget);
-  const value: DirectEpisodeBinding = {
-    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-    app: input.app.name,
-    unitId: input.unitId,
-    directAuthorityRef: authority.ref,
-    batchRef: batch.ref,
-    episodeId,
-    episodePlanVersion: prepared.plan.version,
-    episodePlanHash: episodePlanHash(prepared.plan),
-    createdAt: prepared.plan.createdAt,
-  };
-  const binding = await persistAuthority(
-    input.root,
-    input.app.name,
-    "direct_episode_binding",
-    input.unitId,
-    prepared.plan.version,
-    value,
-  );
-  await markExecutionUnitPlanned(input.root, input.app.name, batch.ref, input.unitId, binding.ref, operationNow);
-  await projectAccepted(input.root, input.app.name, binding, input.project);
-  return { prepared, plan: prepared.plan, binding };
-}
-
-/** One content-bound claim owns every member. No per-ticket partial claim exists here. */
-export async function claimDeliveryUnit(input: {
-  root: string;
-  app: string;
-  episodeBindingRef: AuthorityRef;
-  /** Builder-owned current-fact read. The claim boundary invokes this after
-   * loading durable authority; a caller cannot pass a stale routing snapshot
-   * through as if it were a fresh re-read. */
-  readCurrentRouting: (issueNumbers: readonly number[]) => Promise<RoutingSnapshotEntry[]>;
-  now: Date;
-  project?: RoadmapDeliveryProjector;
-}): Promise<DeliveryUnitClaim> {
-  const joined = await loadDeliveryJoin(input.root, input.app, input.episodeBindingRef);
-  assertValidationWaiversCurrent(joined.validation.value, input.now);
-  let currentRouting: RoutingSnapshotEntry[];
-  try {
-    currentRouting = await input.readCurrentRouting([...joined.unit.issueNumbers]);
-  } catch (error) {
-    throw new RoadmapDeliveryError(
-      "routing_ineligible",
-      `Builder could not reread current delivery-unit labels: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  assertRoutingEligible(joined.unit, currentRouting);
-  const payload: DeliveryUnitClaimPayload = {
-    app: input.app,
-    unitId: joined.unit.unitId,
-    issueNumbers: [...joined.unit.issueNumbers],
-    membershipHash: joined.binding.value.membershipHash,
-    roadmapRef: joined.roadmap.ref,
-    readinessRef: joined.readiness.ref,
-    validationRef: joined.validation.ref,
-    validationContractHash: joined.validation.ref.sha256,
-    batchRef: joined.batch.ref,
-    episodeBindingRef: joined.binding.ref,
-  };
-  const identity = deliveryClaimIdentity(payload);
-  const store = deliveryClaimStore(input.root);
-  const claimed = await store.claim({ identity, payload, maxAttempts: 1, now: input.now });
-  if (claimed.disposition === "claimed" || claimed.disposition === "recovered_claim") {
-    await transitionExecutionUnitJournal({
-      root: input.root,
-      app: input.app,
-      batchRef: joined.batch.ref,
-      unitId: joined.unit.unitId,
-      expectedStates: ["planning", "claimed"],
-      nextState: "claimed",
-      episodeBindingRef: joined.binding.ref,
-      claimSettlementId: claimed.record.settlement_id,
-      now: input.now,
-    });
-    await projectClaim(input.root, input.app, claimed.record.settlement_id, "delivery_unit_claimed", input.project);
-  }
-  return claimed;
-}
-
-export async function commitDeliveryUnitClaim(input: {
-  root: string;
-  app: string;
-  claim: DeliveryUnitClaim;
-  runId: string;
-  now: Date;
-  project?: RoadmapDeliveryProjector;
-}): Promise<DurableClaimRecord<DeliveryUnitClaimPayload>> {
-  if (input.claim.token === undefined) {
-    throw new RoadmapDeliveryError("already_claimed", "claim attempt does not own the unit");
-  }
-  const joined = await loadDeliveryJoin(input.root, input.app, input.claim.record.payload.episodeBindingRef);
-  assertValidationWaiversCurrent(joined.validation.value, input.now);
-  const record = await deliveryClaimStore(input.root).commit({
-    settlementId: input.claim.record.settlement_id,
-    attempt: input.claim.record.attempt,
-    token: input.claim.token,
-    runId: input.runId,
-    now: input.now,
-  });
-  await transitionExecutionUnitJournal({
-    root: input.root,
-    app: input.app,
-    batchRef: joined.batch.ref,
-    unitId: joined.unit.unitId,
-    expectedStates: ["claimed"],
-    nextState: "claimed",
-    episodeBindingRef: joined.binding.ref,
-    claimSettlementId: record.settlement_id,
-    now: input.now,
-  });
-  await projectClaim(input.root, input.app, record.settlement_id, "delivery_unit_claim_committed", input.project);
-  return record;
-}
-
-async function markExecutionUnitPlanned(
-  root: string,
-  app: string,
-  batchRef: AuthorityRef,
-  unitId: string,
-  episodeBindingRef: AuthorityRef,
-  now: Date,
-): Promise<void> {
-  const current = await readExecutionUnitJournal(root, app, batchRef.id, unitId);
-  if (
-    current?.state === "claimed" &&
-    current.episodeBindingRef !== null &&
-    sameAuthorityRef(current.episodeBindingRef, episodeBindingRef)
-  ) {
-    // A committed claim with no provider usage is still a pre-provider
-    // recovery point. Replaying the immutable plan/binding must not move the
-    // journal backwards or consume another claim allowance.
-    return;
-  }
-  await transitionExecutionUnitJournal({
-    root,
-    app,
-    batchRef,
-    unitId,
-    expectedStates: ["admitted", "planning"],
-    nextState: "planning",
-    episodeBindingRef,
-    now,
-  });
-}
 
 export async function recordBuilderEvidence(input: {
   root: string;
@@ -1114,113 +576,6 @@ export async function settleDeliveryUnitRefusal(input: {
   });
 }
 
-export function deliveryClaimRecordPath(root: string, identity: string): string {
-  const settlementId = durableClaimSettlementId(identity);
-  return join(resolve(root), CLAIM_NAMESPACE, "records", `${settlementId}.json`);
-}
-
-export async function readDeliveryUnitClaim(
-  root: string,
-  settlementId: string,
-): Promise<DurableClaimRecord<DeliveryUnitClaimPayload> | undefined> {
-  return deliveryClaimStore(root).read(settlementId);
-}
-
-export function deliveryClaimIdentity(payload: DeliveryUnitClaimPayload): string {
-  return [
-    "roadmap-delivery-unit/v1",
-    payload.app,
-    payload.unitId,
-    payload.membershipHash,
-    payload.roadmapRef.sha256,
-    payload.readinessRef.sha256,
-    payload.validationRef.sha256,
-    payload.validationContractHash,
-    payload.batchRef.sha256,
-    payload.episodeBindingRef.sha256,
-  ].join("\0");
-}
-
-function deliveryClaimStore(root: string): DurableClaimStore<DeliveryUnitClaimPayload> {
-  return new DurableClaimStore<DeliveryUnitClaimPayload>({ root, namespace: CLAIM_NAMESPACE });
-}
-
-async function loadDeliveryJoin(root: string, app: string, bindingRef: AuthorityRef) {
-  const binding = await requireAuthority<DeliveryEpisodeBinding>(
-    root,
-    app,
-    bindingRef,
-    "delivery_episode_binding",
-    "batch_hard_constraint_failed",
-  );
-  assertDeliveryEpisodeBindingShape(binding.value);
-  const roadmap = await requireAuthority<RoadmapPlan>(
-    root,
-    app,
-    binding.value.roadmapRef,
-    "roadmap_plan",
-    "roadmap_missing",
-  );
-  const readiness = await requireAuthority<DeliveryUnitReadiness>(
-    root,
-    app,
-    binding.value.readinessRef,
-    "delivery_unit_readiness",
-    "validation_incomplete",
-  );
-  assertDeliveryUnitReadinessShape(readiness.value);
-  const validation = await requireAuthority<ValidationContract>(
-    root,
-    app,
-    binding.value.validationRef,
-    "validation_contract",
-    "validation_contract_missing",
-  );
-  assertValidationContractBaseShape(validation.value);
-  await assertValidationWaiverAuthorities(root, validation.value);
-  await assertCurrentValidationCatalogRef(root, app, validation.value.catalogRef);
-  const batch = await requireAuthority<ExecutionBatch>(
-    root,
-    app,
-    binding.value.batchRef,
-    "execution_batch",
-    "batch_hard_constraint_failed",
-  );
-  assertExecutionBatchShape(batch.value);
-  if (batch.value.roadmapRef === null || batch.value.frontierHash === null) {
-    throw new RoadmapDeliveryError("evidence_unit_mismatch", "code delivery binding points at a direct-only batch");
-  }
-  await assertCurrentRoadmapRef(root, app, roadmap.ref, batch.value.frontierHash);
-  const unit = requireUnit(roadmap.value, binding.value.unitId);
-  const currentValidation = await readCurrentValidationContract(root, app, unit.unitId);
-  if (
-    binding.value.membershipHash !== unitMembershipHash(unit.issueNumbers) ||
-    !sameAuthorityRef(readiness.value.roadmapRef, roadmap.ref) ||
-    !sameAuthorityRef(readiness.value.validationRef, validation.ref) ||
-    readiness.value.validationContractHash !== validation.ref.sha256 ||
-    !sameAuthorityRef(binding.value.readinessRef, readiness.ref) ||
-    binding.value.validationContractHash !== validation.ref.sha256 ||
-    !sameAuthorityRef(validation.value.roadmapRef, roadmap.ref) ||
-    currentValidation === undefined ||
-    !sameAuthorityRef(currentValidation.ref, validation.ref) ||
-    !batch.value.units.some(
-      (entry) =>
-        entry.kind !== "direct_operation" &&
-        entry.unitId === unit.unitId &&
-        entry.membershipHash === binding.value.membershipHash &&
-        sameAuthorityRef(entry.readinessRef, readiness.ref) &&
-        sameAuthorityRef(entry.validationRef, validation.ref) &&
-        entry.validationContractHash === validation.ref.sha256,
-    )
-  ) {
-    throw new RoadmapDeliveryError(
-      "evidence_unit_mismatch",
-      "delivery episode binding does not reproduce its roadmap, validation, and batch lineage",
-    );
-  }
-  return { binding, roadmap, readiness, validation, batch, unit };
-}
-
 function assertEvidenceJoin(
   manifest: BuilderEvidenceManifest,
   joined: Awaited<ReturnType<typeof loadDeliveryJoin>>,
@@ -1262,21 +617,6 @@ async function assertEvidencePlanCurrent(
   }
 }
 
-function assertPlanWithinExecutionUnitBudget(plan: EpisodePlan, budget: ExecutionUnitBudget): void {
-  const humanDecisions = plan.steps.filter((step) => step.kind === "approval").length;
-  if (
-    plan.estimatedBudget.providerTurns > budget.maxProviderTurns ||
-    plan.estimatedBudget.providerTurnBudgetUsd > budget.maxEquivalentCostUsd ||
-    plan.estimatedBudget.mechanicalOverheadUsd > budget.maxMechanicalOverheadUsd ||
-    humanDecisions > budget.maxHumanDecisions
-  ) {
-    throw new RoadmapDeliveryError(
-      "unit_budget_exhausted",
-      `EpisodePlan ${plan.episodeId}@${plan.version} exceeds the admitted unit budget`,
-    );
-  }
-}
-
 export function assertValidationEvidenceComplete(
   manifest: Pick<BuilderEvidenceManifest, "cases" | "gates">,
   contract: ValidationContract,
@@ -1313,78 +653,6 @@ export function assertValidationEvidenceComplete(
   const missingGates = contract.requiredGates.filter((gate) => !gates.has(gate));
   if (missingGates.length > 0) {
     throw new RoadmapDeliveryError("builder_evidence_missing", `missing gate evidence for ${missingGates.join(", ")}`);
-  }
-}
-
-function bindCreatorScope(scope: CreatorEpisodeScope, authorityInputs: readonly string[]): CreatorEpisodeScope {
-  const inputs = authorityInputs.map((ref) => ({ ref, required: true }));
-  return {
-    ...structuredClone(scope),
-    provenance: {
-      ...structuredClone(scope.provenance),
-      evidenceRefs: [...new Set([...scope.provenance.evidenceRefs, ...authorityInputs])].sort(),
-    },
-    ...(scope.steps === undefined
-      ? {}
-      : {
-          steps: scope.steps.map((step) => ({
-            ...structuredClone(step),
-            inputRefs:
-              step.dependsOn.length === 0
-                ? uniqueInputRefs([...step.inputRefs, ...inputs])
-                : structuredClone(step.inputRefs),
-          })),
-        }),
-  };
-}
-
-function uniqueInputRefs(refs: Array<{ ref: string; required: boolean }>): Array<{ ref: string; required: boolean }> {
-  const byRef = new Map<string, { ref: string; required: boolean }>();
-  for (const ref of refs) {
-    const existing = byRef.get(ref.ref);
-    byRef.set(ref.ref, { ref: ref.ref, required: ref.required || existing?.required === true });
-  }
-  return [...byRef.values()].sort((left, right) => left.ref.localeCompare(right.ref));
-}
-
-function assertDeliveryEpisodeBindingShape(binding: DeliveryEpisodeBinding): void {
-  assertExactObjectKeys(
-    binding,
-    [
-      "schemaVersion",
-      "app",
-      "unitId",
-      "membershipHash",
-      "roadmapRef",
-      "readinessRef",
-      "validationRef",
-      "validationContractHash",
-      "batchRef",
-      "episodeId",
-      "episodePlanVersion",
-      "episodePlanHash",
-      "createdAt",
-    ],
-    "delivery episode binding",
-    "evidence_unit_mismatch",
-  );
-  if (binding.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
-    throw new RoadmapDeliveryError("evidence_unit_mismatch", "unsupported delivery binding schema");
-  }
-  assertNonEmpty(binding.app, "delivery binding app");
-  assertId(binding.unitId, "delivery binding unit id");
-  assertHash(binding.membershipHash, "delivery binding membership hash");
-  assertAuthorityRef(binding.roadmapRef, "roadmap_plan");
-  assertAuthorityRef(binding.readinessRef, "delivery_unit_readiness");
-  assertAuthorityRef(binding.validationRef, "validation_contract");
-  assertHash(binding.validationContractHash, "delivery binding validation-contract hash");
-  assertAuthorityRef(binding.batchRef, "execution_batch");
-  assertNonEmpty(binding.episodeId, "delivery binding episode id");
-  assertVersion(binding.episodePlanVersion, "delivery binding EpisodePlan version");
-  assertHash(binding.episodePlanHash, "delivery binding EpisodePlan hash");
-  requireDateTime(binding.createdAt, "delivery binding createdAt");
-  if (binding.validationContractHash !== binding.validationRef.sha256) {
-    throw new RoadmapDeliveryError("evidence_unit_mismatch", "delivery binding validation hash differs");
   }
 }
 
@@ -1575,28 +843,6 @@ function assertReviewerVerdictShape(verdict: ReviewerVerdict): void {
   }
   assertTurnAssignmentShape(verdict.reviewerAssignment, "Reviewer assignment", "reviewer_evidence_incomplete");
   requireDateTime(verdict.recordedAt, "Reviewer verdict recordedAt");
-}
-
-function claimRecordPath(root: string, settlementId: string): string {
-  return join(resolve(root), CLAIM_NAMESPACE, "records", `${settlementId}.json`);
-}
-
-async function projectClaim(
-  root: string,
-  app: string,
-  settlementId: string,
-  kind: Extract<
-    RoadmapDeliveryProjection["kind"],
-    "delivery_unit_claimed" | "delivery_unit_claim_committed" | "delivery_unit_settled"
-  >,
-  project?: RoadmapDeliveryProjector,
-): Promise<void> {
-  if (project === undefined) return;
-  const path = claimRecordPath(root, settlementId);
-  if (!existsSync(path)) {
-    throw new RoadmapDeliveryError("authority_corrupt", `claim projection preceded persistence: ${path}`);
-  }
-  await project({ kind, app, path, settlementId });
 }
 
 function sameAssignment(left: TurnAssignment, right: TurnAssignment): boolean {

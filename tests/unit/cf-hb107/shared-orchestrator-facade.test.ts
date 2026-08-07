@@ -28,12 +28,12 @@ describe("HB-107 — shared orchestrateEpisode façade wiring", () => {
   });
 
   it("retains separate RoadmapPlan and EpisodePlan schemas and authority persistence", async () => {
-    const [roadmapDelivery, episodePlan, roadmapPlanning] = await Promise.all([
-      source("src/org/roadmap-delivery.ts"),
+    const [roadmapModel, episodePlan, roadmapPlanning] = await Promise.all([
+      source("src/org/roadmap-delivery/roadmap-model.ts"),
       source("src/loop/episode-plan.ts"),
       source("src/org/plan-auto.ts"),
     ]);
-    expect(roadmapDelivery).toContain("export interface RoadmapPlan {");
+    expect(roadmapModel).toContain("export interface RoadmapPlan {");
     expect(episodePlan).toContain("export interface EpisodePlan {");
     expect(roadmapPlanning).toContain("await persistPublishedRoadmap({");
     expect(roadmapPlanning).toContain("await orchestrateEpisode({");

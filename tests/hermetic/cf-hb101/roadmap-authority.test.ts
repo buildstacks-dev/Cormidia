@@ -258,6 +258,37 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
     ).toBe(true);
   });
 
+  it("publishes current roadmap authority before projection and preserves it across conflicting replay", async () => {
+    const home = await makeTempStateHome({ name: "hb101-roadmap-current-pointer" });
+    homes.push(home);
+    const acceptedSnapshot = await acceptSnapshot(home, snapshot({ count: 3 }));
+    const value = roadmap({
+      snapshotRef: acceptedSnapshot.ref,
+      issueNumbers: acceptedSnapshot.value.issues.map((entry) => entry.issueNumber),
+    });
+    let currentDuringProjection: Awaited<ReturnType<typeof readCurrentRoadmapPlan>>;
+
+    const accepted = await acceptRoadmapPlan({
+      root: home.stateHome,
+      plan: value,
+      project: async () => {
+        currentDuringProjection = await readCurrentRoadmapPlan(home.stateHome, APP);
+      },
+    });
+    const expectedCurrent = {
+      schemaVersion: accepted.schemaVersion,
+      ref: accepted.ref,
+      value: accepted.value,
+    };
+    expect(currentDuringProjection).toEqual(expectedCurrent);
+    expect(await acceptRoadmapPlan({ root: home.stateHome, plan: value })).toEqual(accepted);
+
+    const conflicting = structuredClone(value);
+    conflicting.deliveryUnits[0]!.objective = "Conflicting replay must not replace current authority";
+    await expectCode(() => acceptRoadmapPlan({ root: home.stateHome, plan: conflicting }), "frontier_stale");
+    expect(await readCurrentRoadmapPlan(home.stateHome, APP)).toEqual(expectedCurrent);
+  });
+
   it("refuses partial, paginated, or unavailable snapshots before roadmap authority exists", async () => {
     for (const [name, value] of [
       ["partial", snapshot({ completeness: "partial", hasNextPage: true })],

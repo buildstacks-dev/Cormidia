@@ -116,9 +116,10 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
       return result(journal, "completed", providerTurns);
     }
 
-    // A step whose latest event is `started` was interrupted mid-flight. Its
-    // provider turn may already have been paid for, so it is retried under the
-    // SAME attempt number rather than counted as a fresh attempt.
+    // A step whose latest event is `started` was interrupted mid-flight: the
+    // process died between the durable start and the terminal event. It is
+    // retried once (see the bound below) rather than skipped, because skipping
+    // would lose work that may already have been paid for.
     const interrupted = interruptedStep(journal);
     const ready = readyJobSteps(config, completed);
     const step = interrupted === undefined ? ready[0] : config.steps.find((entry) => entry.id === interrupted.step);
@@ -148,18 +149,11 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
       continue;
     }
 
-    const attempt = interrupted?.attempt ?? attemptsFor(journal, step.id) + 1;
-    if (interrupted === undefined) {
-      journal = appendJobEvent(journal, {
-        step: step.id,
-        status: "started",
-        attempt,
-        at: clock().toISOString(),
-      });
-      await writeJobJournal(stateHome, journal);
-    } else if (attemptsFor(journal, step.id) > 1) {
-      // Already retried once under this identity. Retrying again would spend a
-      // third turn on a step that has died twice; stop with evidence instead.
+    const attempt = attemptsFor(journal, step.id) + 1;
+    // A recovery that had ALREADY been recovered once has now died twice. Stop
+    // with evidence rather than spending a third turn on it. This is checked
+    // before the start event is appended, so the count is of prior starts only.
+    if (interrupted !== undefined && attemptsFor(journal, step.id) > 1) {
       return result(journal, "failed", providerTurns, {
         step: step.id,
         status: "failed",
@@ -169,6 +163,20 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
         summary: "step was interrupted after a prior recovery attempt; not retried again",
       });
     }
+
+    // Every provider turn gets its own start event, recovery included. Two
+    // reasons this is not "reuse the interrupted attempt's identity": the count
+    // of start events is what bounds retries at all, and a recovery runs a
+    // genuinely NEW paid turn — settling it under the previous identity would be
+    // deduped by recordTurnOnce and silently UNDERCOUNT spend, which is the
+    // dangerous direction for T-5 (INV-006).
+    journal = appendJobEvent(journal, {
+      step: step.id,
+      status: "started",
+      attempt,
+      at: clock().toISOString(),
+    });
+    await writeJobJournal(stateHome, journal);
 
     const event = await executeProviderStep(options, step, attempt, clock);
     providerTurns += 1;

@@ -200,10 +200,20 @@ feature.
 
 **Resume.** A journal at `jobs/<job-id>/journal.json` records step start and
 terminal events. Re-running the command resumes: completed steps are never
-re-executed, and an interrupted step is retried at most once under its recorded
-attempt identity. Nothing is inferred from the presence of an output file — the
-journal is the authority, because a half-written file is indistinguishable from
-a complete one.
+re-executed, and an interrupted step — one whose latest event is `started`,
+meaning the process died between the durable start and the terminal event — is
+retried **at most once**. Nothing is inferred from the presence of an output
+file; the journal is the authority, because a half-written file is
+indistinguishable from a complete one.
+
+Every provider turn, recovery included, gets its **own** start event and its own
+settlement identity (`job:<job>:<step>:<n>` where n counts start events).
+Reusing the interrupted attempt's identity would look tidier and is wrong twice
+over: the count of start events is the only thing bounding the retry, and a
+recovery runs a *genuinely new paid turn* whose settlement would be deduped by
+`recordTurnOnce` — silently under-counting spend, which is the dangerous
+direction for T-5 (INV-006). Recorded here because the first implementation got
+this wrong and `CF-B23-JRN` caught it.
 
 **Failure is terminal for the job, not silent.** A failed step stops the job and
 reports which step failed, why, and what the executable next step is. Downstream

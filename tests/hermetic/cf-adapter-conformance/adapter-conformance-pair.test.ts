@@ -2,9 +2,13 @@
 // runs against all three scripted transports in L2, with a seeded liar proving
 // the detector fires.
 
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { claudeDouble } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble } from "../../fixtures/adapters/codex-double.js";
+import { museDouble } from "../../fixtures/adapters/muse-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { runAdapterConformance } from "../../fixtures/adapters/conformance.js";
 import { script } from "../../fixtures/adapters/scenario.js";
@@ -12,7 +16,17 @@ import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
 import type { Runtime, RuntimeKind, TurnResult } from "../../../src/runtime/types.js";
 
 let repo: TempGitRepo | undefined;
-afterEach(async () => repo?.cleanup());
+let museLogRoot: string | undefined;
+afterEach(async () => {
+  await repo?.cleanup();
+  if (museLogRoot !== undefined) await rm(museLogRoot, { recursive: true, force: true });
+  museLogRoot = undefined;
+});
+
+async function museRuntimeFor(scenarioList: ReturnType<typeof scenarios>): Promise<Runtime> {
+  museLogRoot = await mkdtemp(join(tmpdir(), "cormidia-muse-walk-"));
+  return museDouble(scenarioList, { sessionLogRoot: museLogRoot }).runtime;
+}
 
 function scenarios(runtime: RuntimeKind, session = "session-conformance") {
   return [
@@ -38,14 +52,18 @@ describe("shared adapter conformance suite", () => {
     {
       runtime: "claude" as const,
       model: "claude-scripted-model",
-      make: () => claudeDouble(scenarios("claude")).runtime,
+      make: async () => claudeDouble(scenarios("claude")).runtime,
     },
-    { runtime: "codex" as const, model: "gpt-5.6-sol", make: () => codexDouble(scenarios("codex")).runtime },
-    { runtime: "pi" as const, model: "claude-scripted-model", make: () => piDouble(scenarios("pi")).runtime },
+    { runtime: "codex" as const, model: "gpt-5.6-sol", make: async () => codexDouble(scenarios("codex")).runtime },
+    { runtime: "pi" as const, model: "claude-scripted-model", make: async () => piDouble(scenarios("pi")).runtime },
+    // B-26: the walk is reused verbatim, so a muse failure isolates to the
+    // adapter. The scripted transport carries a LIVE hook seam; the real 0.1.0
+    // binary does not, which is why the live cell reports its refusal instead.
+    { runtime: "muse" as const, model: "muse-spark-1.2", make: () => museRuntimeFor(scenarios("muse")) },
   ])("passes against the real $runtime adapter over its scripted transport", async ({ runtime, model, make }) => {
     repo = await makeTempGitRepo();
     const report = await runAdapterConformance(
-      make(),
+      await make(),
       {
         runtime,
         model,

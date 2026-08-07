@@ -38,7 +38,21 @@ provider-neutral and reaches providers only through this seam. The import
 direction is one-way (`src/org` → `src/loop` → `src/runtime`; the runtime
 layer imports nothing above it), which is what keeps harnesses swappable and
 the loop extractable. Current harnesses: `claude.ts`, `codex.ts` (+
-`codex-gate-bridge.ts`, `codex-gate-hook.ts`), `pi.ts` (+ `pi-gate.ts`).
+`codex-gate-bridge.ts`, `codex-gate-hook.ts`), `pi.ts` (+ `pi-gate.ts`), and
+`muse.ts` (+ `muse-exec.ts`, `muse-usage.ts`, `muse-events.ts`,
+`muse-gate-bridge.ts`, `muse-hook-router.ts`, `muse-managed-hooks.ts`,
+`muse-gate-hook.ts`).
+
+**A harness whose gate seam cannot be proven refuses; it does not degrade.**
+`muse` is the worked example and the standing rule: `muse exec` auto-approves
+tool calls headlessly, and its managed-hook seam did not fire on the certified
+build, so the adapter proves the seam at the start of every turn with a
+token-free handshake and refuses (`error_gate_seam_unavailable`) when the proof
+does not arrive. Its capability profile records `tool_gate: unsupported` and
+`intra_turn_fanout: unsupported`, its L3 walk reports **incomplete** rather than
+pass, and `roles.yaml` stays untouched
+(`research/2026-08-07_muse-code-adapter-certification.md`). Never turn an
+unproven gate into a best-effort one.
 
 ## 2. The contract a harness must honor
 

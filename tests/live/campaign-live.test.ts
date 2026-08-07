@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { ClaudeRuntime } from "../../src/runtime/adapters/claude.js";
 import { CodexRuntime } from "../../src/runtime/adapters/codex.js";
+import { MuseRuntime } from "../../src/runtime/adapters/muse.js";
 import { PiRuntime } from "../../src/runtime/adapters/pi.js";
 import { toErrorMessage as errorMessage } from "../../src/runtime/error-message.js";
 import type { Runtime, RuntimeKind } from "../../src/runtime/types.js";
@@ -83,7 +84,14 @@ describe("authorized L3 campaign", () => {
   it("runs the selected real adapter conformance pairs within the campaign envelope", async () => {
     const errors: string[] = [];
     for (const target of config.adapters) {
-      const caseId = ({ claude: "CF-B02-L3", codex: "CF-B03-L3", pi: "CF-B04-L3" } as const)[target.runtime];
+      const caseId = (
+        {
+          claude: "CF-B02-L3",
+          codex: "CF-B03-L3",
+          pi: "CF-B04-L3",
+          muse: "CF-B26-L3",
+        } as const
+      )[target.runtime];
       try {
         await campaign.runCase(caseId, { providerTurns: 2, maxEquivUsd: target.max_turn_budget_usd * 2 }, async () => {
           const result = await runAdapterConformance(
@@ -235,6 +243,7 @@ describe("authorized L3 campaign", () => {
 function runtime(kind: RuntimeKind): Runtime {
   if (kind === "claude") return new ClaudeRuntime();
   if (kind === "codex") return new CodexRuntime();
+  if (kind === "muse") return new MuseRuntime();
   return new PiRuntime();
 }
 async function waitForFile(path: string): Promise<void> {

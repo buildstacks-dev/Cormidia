@@ -6,7 +6,7 @@ AGENTS.md rules still apply; this file adds the local ones.
 
 ## Purpose
 `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, and
-the adapters (Claude Agent SDK, Codex App Server, pi SDK).
+the adapters (Claude Agent SDK, Codex App Server, pi SDK, Muse Code CLI).
 
 ## Local rules
 - This layer imports nothing from `src/loop` or `src/org` — it is the bottom
@@ -33,6 +33,23 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
 - Capability flow is one-way (#116). Follow
   `docs/harness/adding-updating.md` for the adapter contract, registration
   checklist, three test tiers, and update obligations.
+- **An adapter with no proven gate seam refuses; it does not degrade.**
+  `adapters/muse*.ts` is the worked example: Muse Code auto-approves tool calls
+  headlessly and its managed-hook seam did not fire on the certified build, so
+  every turn proves the seam first (token-free `--provider echo` handshake) and
+  refuses with `error_gate_seam_unavailable` when it cannot. The capability
+  profile says `tool_gate: unsupported` and `intra_turn_fanout: unsupported` to
+  match. Never soften this into "gate on a best-effort basis" — an unproven gate
+  is an ungated turn (`research/2026-08-07_muse-code-adapter-certification.md`).
+- **`subagentTurns` comes from records, never from prose.** Muse narrated
+  parallel subagents it had not spawned; the offline suite carries a seeded liar
+  for exactly that. Fan-out accounting reads the hook join table and the durable
+  session log only.
+- The Muse adapter is deliberately split by concern so each module stays inside
+  the public-symbol budget: `muse.ts` (turn orchestration), `muse-exec.ts`
+  (argv + subprocess + auth resolution), `muse-usage.ts` (durable-log spend),
+  `muse-events.ts` (stream folding), `muse-gate-bridge.ts` +
+  `muse-hook-router.ts` + `muse-managed-hooks.ts` + `muse-gate-hook.ts` (gate).
 
 ## Testing
 Interim during the validation rebuild (root AGENTS.md → Testing expectations):

@@ -45,7 +45,17 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
     "the Codex App Server protocol Cormidia speaks exposes account and thread methods only, " +
     "with no model enumeration; the id is proven when a turn starts",
   pi: undefined,
+  muse: undefined,
 };
+
+/**
+ * Muse Spark identifiers Muse Code accepts, from the vendor announcement
+ * recorded in `research/2026-08-06_adapter-upstream-references.md`. The roster
+ * is a published DOCUMENTED list, not a probe: `muse` exposes no token-free
+ * enumeration command, so `source` names the record rather than a local file.
+ * Publishing a roster never assigns a model to a role.
+ */
+const MUSE_MODELS = ["muse-spark-1.1", "muse-spark-1.2"] as const;
 
 /**
  * Read the harness roster. Never contacts a provider, never sends a model
@@ -53,6 +63,14 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
  * the other two harnesses report unavailability rather than guessing.
  */
 export async function readRuntimeModelCatalog(runtime: RuntimeKind): Promise<RuntimeModelCatalog> {
+  if (runtime === "muse") {
+    return {
+      runtime,
+      available: true,
+      source: "research/2026-08-06_adapter-upstream-references.md (Muse Code / Muse Spark)",
+      models: [...MUSE_MODELS],
+    };
+  }
   if (runtime !== "pi") {
     return { runtime, available: false, reason: UNAVAILABLE_REASON[runtime]! };
   }

@@ -559,17 +559,18 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   clears real-repo use** `[stated]`. Spend-bounded per policy.
 - **Layer:** 2 + L3 certification (risk-review-gated).
 
-### B-26 — Muse Code (`muse exec` headless, swarm) `[doc]` (design-only, #340)
+### B-26 — Muse Code (`muse exec` headless, swarm) `[doc]` (adapter landed #340, certified 2026-08-07)
 - **Boundary test:** PASS.
 - **Failure modes:** the B-02 core shapes, plus: **a swarm-spawned agent's tool
   action escaping the gate** — an INV-002 gate hole, never a degradation `[stated]`;
   swarm-member attribution loss (events without paired subagent lifecycle/spanId);
-  **no gate/hook seam covering swarm members in the beta — existence unknown
-  (F-PT-028)**, with the owner-decided fallback already contract truth (no seam ⇒
-  `tool_gate: unsupported` for swarm mode, fan-out disabled — never an ungated
-  swarm `[stated]`); **ambient-config ingestion** — default runs pull the operator's
-  personal Claude/Codex rules + skills into org turns (field-verified `[stated]`;
-  disable path must be found, pinned, and proven, else documented degradation);
+  **no gate/hook seam AT ALL on 0.1.0-R708.1 — F-PT-028 resolved by field evidence
+  2026-08-07**, so the owner-decided fallback applies at its widest: `tool_gate` and
+  `intra_turn_fanout` `unsupported`, `subagent_spawn` refused, and any turn with an
+  unproven seam refused pre-spend — never an ungated swarm, never an ungated turn
+  `[stated]`; **ambient-config ingestion** — default runs pull the operator's
+  personal Claude/Codex rules + skills into org turns (disable path found, pinned,
+  and certified by the skills-count delta 23 → 17);
   `--workspace` containment escape (tool effect outside the declared root — T-6);
   JSONL event-schema drift on the 0.1.x beta (typed failure, never silent re-parse);
   effort-ladder mismatch (`ultra` above `xhigh`; Cormidia `max` unmapped and throws
@@ -583,8 +584,11 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   the load-bearing case** (`intra_turn_fanout`: spawned agent's critical op reaches
   the gate identically, event → gate → escalation ordering) — no role goes live
   before it passes live, or fan-out is disabled with the documented degradation
-  `[stated]`; plus the hermeticity disable-path proof. Spend-bounded per policy;
-  re-certification on every version bump.
+  `[stated]`. **2026-08-07 outcome: the walk did not run and CF-B26-L3 is INCOMPLETE**
+  — the adapter refuses before the first provider turn because no seam is live, and
+  the swarm probe is unprovable on this build. Certified live instead: the fail-closed
+  refusal against the real binary, the hermeticity delta, and the durable-log usage
+  path. Spend-bounded per policy; re-certification on every version bump.
 - **Layer:** 2 (+ echo-mode hermetic transport lane) + L3 certification.
 
 ## 2. Not boundaries (named, so nobody re-litigates)
@@ -702,7 +706,10 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
   tool-action class? denial semantics? headless auto-approve bypass?) unspecified
   upstream; the gate-bridge contract cannot be authored from a guess. Live
   certification separately human-risk-review-gated (#339).
-- **F-PT-028 (open, B-26):** whether the Muse Code beta exposes any hook/permission
-  seam covering swarm-spawned agents is unknown; the owner-decided fallback (no seam
-  ⇒ `tool_gate: unsupported` for swarm mode, fan-out disabled) is already contract
-  truth — only the mechanism-level cases park.
+- **F-PT-028 (RESOLVED-by-evidence 2026-08-07, B-26):** #340 certification against
+  Muse Code 0.1.0-R708.1 found no hook/permission seam firing at all — not for swarm
+  members and not for the parent — so the owner-decided fallback applies at its
+  widest: `tool_gate` and `intra_turn_fanout` are `unsupported` and the adapter
+  refuses any turn whose seam is unproven. The mechanism-level cases stay
+  scripted-only; CF-B26-L3 reports incomplete
+  (`research/2026-08-07_muse-code-adapter-certification.md`).

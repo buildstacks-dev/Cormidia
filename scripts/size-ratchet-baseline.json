@@ -1296,6 +1296,46 @@
       "lines": 1033,
       "newModule": false
     },
+    "src/runtime/adapters/muse-events.ts": {
+      "exports": 4,
+      "lines": 79,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-exec.ts": {
+      "exports": 10,
+      "lines": 173,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-gate-bridge.ts": {
+      "exports": 2,
+      "lines": 153,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-gate-hook.ts": {
+      "exports": 0,
+      "lines": 98,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-hook-router.ts": {
+      "exports": 5,
+      "lines": 147,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-managed-hooks.ts": {
+      "exports": 2,
+      "lines": 76,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-usage.ts": {
+      "exports": 7,
+      "lines": 170,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse.ts": {
+      "exports": 5,
+      "lines": 300,
+      "newModule": true
+    },
     "src/runtime/adapters/pi-gate.ts": {
       "exports": 2,
       "lines": 90,
@@ -1313,7 +1353,7 @@
     },
     "src/runtime/capabilities.ts": {
       "exports": 8,
-      "lines": 176,
+      "lines": 205,
       "newModule": false
     },
     "src/runtime/cost.ts": {
@@ -1358,7 +1398,7 @@
     },
     "src/runtime/model-catalog.ts": {
       "exports": 4,
-      "lines": 136,
+      "lines": 154,
       "newModule": false
     },
     "src/runtime/non-interactive-env.ts": {
@@ -1383,17 +1423,17 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 435,
+      "lines": 513,
       "newModule": false
     },
     "src/runtime/registry.ts": {
       "exports": 2,
-      "lines": 16,
+      "lines": 18,
       "newModule": false
     },
     "src/runtime/role-shaping.ts": {
-      "exports": 2,
-      "lines": 61,
+      "exports": 3,
+      "lines": 83,
       "newModule": false
     },
     "src/runtime/runlog/anomalies.ts": {

@@ -59,3 +59,25 @@ export function claudeDenyRulesForRole(roleName: string): string[] {
   const rules = FORBIDDEN_BY_ROLE[roleName] ?? [];
   return rules.flatMap((rule) => CLAUDE_PATTERNS_BY_RULE[rule] ?? []);
 }
+
+/**
+ * Nested-harness invocation.
+ *
+ * Cormidia owns the child process environment, which is what carries a
+ * harness's gate wiring (Muse's `TBH_MANAGED_HOOKS_PATH`, Claude's inline
+ * settings, Codex's hook socket). An agent WITH SHELL ACCESS can defeat that by
+ * launching a second agent itself: `muse exec …` spawned from inside a turn
+ * inherits no managed hook root, so its tool actions never reach the gate. The
+ * nested process is a gate hole, not a convenience, and the deny is the
+ * enforcement — the composed gate refuses the command before it runs.
+ *
+ * Matching is per command and deliberately narrow: the harness binaries only,
+ * at a command position (start of line, after a separator, or inside a
+ * substitution), with an optional path prefix.
+ */
+const NESTED_HARNESS_COMMAND =
+  /(?:^|[;&|(]|\$\(|`|\n)\s*(?:[\w./+-]*\/)?(?:muse|claude|codex|cursor-agent|grok)(?:\s|$)/;
+
+export function invokesNestedHarness(command: string): boolean {
+  return NESTED_HARNESS_COMMAND.test(command);
+}

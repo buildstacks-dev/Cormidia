@@ -90,6 +90,35 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
     },
   },
+  muse: {
+    ref: "muse/v1",
+    runtime: "muse",
+    capabilities: {
+      // Token counts (including the cached split) exist only in the durable
+      // session log, which the adapter reads; the stream reports no dollars.
+      cache_telemetry: "adapter",
+      cancellation: "adapter",
+      // Muse Code's swarm is the harness advantage, but no hook/permission
+      // seam covering swarm members was observed on 0.1.0-R708.1, and the
+      // owner-decided fallback is contract truth: never an ungated swarm
+      // (contracts/B-26-muse-code.md, F-PT-028). Fan-out stays absent.
+      intra_turn_fanout: "unsupported",
+      session_resume: "native",
+      // No JSON-schema output surface; the loop's lenient parser is the path.
+      structured_verdict: "fallback",
+      // `muse exec` auto-approves headlessly and no managed hook fired across
+      // twenty configurations, so no pre-execution classification seam was
+      // proven. The adapter refuses every turn whose seam is unproven rather
+      // than running one ungated (INV-002); that refusal is the degradation
+      // artifact this tier owes.
+      tool_gate: "unsupported",
+    },
+    cache: {
+      supported: true,
+      observable: true,
+      fields: ["tokensInUncached", "cacheReadTokens"],
+    },
+  },
 };
 
 const CAPABILITY_LABELS: Record<RuntimeCapability, string> = {

@@ -103,7 +103,15 @@ rewrite; legacy test/eval scripts removed with the archive move).
   `@earendil-works/pi-coding-agent`, `@opencode-ai/sdk` — the last added by
   #337 for the OpenCode harness; it is the generated client for the operator's
   own `opencode serve`, and Cormidia never installs the opencode binary itself,
-  #224). Adding one is a decision, not a convenience.
+  #224). Adding one is a decision, not a convenience. Cursor, Grok Build and
+  Muse Code add no dependency at all — each is a *required preinstalled binary*
+  (#224: Cormidia never installs a provider).
+- **Grok Build is sandbox-only.** The adapter (`src/runtime/adapters/grok*.ts`)
+  is implemented and certified, but #339's human risk review of the vendor is
+  OPEN. Certification proves the adapter, never the vendor. Never point a grok
+  turn at a real repository and never assign a role to it in `roles.yaml` until
+  that review is recorded
+  (`research/2026-08-07_grok-build-adapter-certification.md`).
 - **Agent-authored engineering standard:**
   `research/2026-08-05_pi-forensic-analysis/pi-engineering-standards-skill.md`
   is binding for agent-authored code. The single module budget is public-symbol

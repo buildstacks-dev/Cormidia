@@ -21,9 +21,20 @@
 // - `resume` restores a session by id → SessionHandle.id round-trips.
 // - ContextBundle is injected via the system-prompt append channel
 //   (docs/architecture.md §5, claude row: "no files written").
-//   `settingSources: []` keeps the turn hermetic — the operator's personal
-//   settings/CLAUDE.md never leak into an org turn, and no filesystem
-//   permission rule can silently pre-approve a tool around the gate.
+//   Hermeticity is TWO options, because they cover disjoint discovery paths
+//   (verified against 0.3.224 type definitions, research/2026-08-07):
+//   `settingSources: []` disables the user/project/local *settings* layer and
+//   CLAUDE.md, so the operator's personal settings never leak into an org turn
+//   and no filesystem permission rule can silently pre-approve a tool around
+//   the gate. It does NOT cover MCP discovery: the SDK's own `strictMcpConfig`
+//   doc names "project `.mcp.json`, user settings, plugins, and on-disk agent
+//   frontmatter" as consulted unless that flag is set. `strictMcpConfig: true`
+//   closes it — an app repo checked out into `req.workdir` cannot introduce
+//   MCP tool surface into an org turn. The CLI's `--bare` would subsume both,
+//   but 0.3.224 exposes no SDK option for it (60 `Options` keys, no `bare`)
+//   and bare mode "never reads OAuth credentials or the system keychain",
+//   which would break the operator subscription auth this adapter's
+//   protectedHome path exists to serve. Not adopted; see the research record.
 // - `effort` maps 1:1: the SDK's EffortLevel and our Effort are the same
 //   five-level union.
 //
@@ -62,9 +73,9 @@ interface ClaudeRuntimeOptions {
   /** Test injection point; defaults to the real SDK's query(). */
   queryFn?: QueryFn;
   /** Extra SDK options merged UNDER the adapter's own — adapter-computed
-   *  keys (model, cwd, resume, systemPrompt, settingSources, canUseTool,
-   *  effort) always win. This is where org-level tuning and the live
-   *  conformance harness's per-scenario knobs (tools, agents, maxTurns)
+   *  keys (model, cwd, resume, systemPrompt, settingSources, strictMcpConfig,
+   *  canUseTool, effort) always win. This is where org-level tuning and the
+   *  live conformance harness's per-scenario knobs (tools, agents, maxTurns)
    *  enter. */
   baseOptions?: Partial<SdkOptions>;
   /** Optional host home needed only for macOS Keychain-backed authentication.
@@ -281,6 +292,12 @@ export class ClaudeRuntime implements Runtime {
         append: buildSystemPromptAppend(req),
       },
       settingSources: [],
+      // Second half of hermeticity (see header): settings sources and MCP
+      // discovery are disjoint paths, and only this one closes `.mcp.json`,
+      // plugin, and agent-frontmatter MCP servers. Servers a caller passes
+      // explicitly via baseOptions.mcpServers still load, so this restricts
+      // ambient discovery without removing a deliberate org-level surface.
+      strictMcpConfig: true,
       permissionMode,
       hooks: { PreToolUse: [{ hooks: [preToolUseGate] }] },
       canUseTool,

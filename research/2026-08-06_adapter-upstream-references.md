@@ -88,7 +88,11 @@ initiative; supersedes the vendor facts (not the decisions) in
   <https://cursor.com/docs/cli/headless> · permissions
   <https://cursor.com/docs/cli/reference/permissions> · SDK
   <https://cursor.com/docs/sdk/typescript>
-- Binary renamed `cursor-agent` → **`agent`** (2026-01; alias kept). Headless:
+- ~~Binary renamed `cursor-agent` → **`agent`** (2026-01; alias kept).~~
+  **Corrected 2026-08-07 by field verification (#338): resolve `cursor-agent`,
+  never `agent` — on the operator host `agent` is Grok Build. See
+  `research/2026-08-07_cursor-adapter-certification.md`, which supersedes the
+  Cursor facts in this section.** Headless:
   `agent -p` with `--output-format text|json|stream-json`; **`--force`
   required to actually apply file edits**; threads via `--resume`/`agent ls`.
 - `@cursor/sdk` (TS) is official but **public beta** (since 2026-04-29);

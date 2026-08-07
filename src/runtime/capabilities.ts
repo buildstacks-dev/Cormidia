@@ -71,6 +71,37 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       fields: ["tokensInUncached", "cacheReadTokens"],
     },
   },
+  // Every tier below was certified live against cursor-agent
+  // 2026.08.04-aaa8809 on 2026-08-07
+  // (research/2026-08-07_cursor-adapter-certification.md). Nothing here is
+  // claimed from documentation alone.
+  cursor: {
+    ref: "cursor/v1",
+    runtime: "cursor",
+    capabilities: {
+      // Terminal-boundary usage only (see the matrix) but the cache split is
+      // real and reported.
+      cache_telemetry: "adapter",
+      cancellation: "adapter",
+      // `Task` fan-out is real AND gate-covered: a subagent's own tool calls
+      // reach the same preToolUse hook from the subagent's conversation, and a
+      // denial there produced no side effect. The parent stream does not
+      // itemize the subagent's inner calls, which the matrix records.
+      intra_turn_fanout: "native",
+      session_resume: "native",
+      // No output-schema knob on the CLI surface; the loop's lenient parser is
+      // the fallback.
+      structured_verdict: "fallback",
+      // `.cursor/hooks.json` preToolUse → per-turn Unix socket → the
+      // in-process GateFn, fail-closed, proven pre-spend each turn.
+      tool_gate: "adapter",
+    },
+    cache: {
+      supported: true,
+      observable: true,
+      fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
+    },
+  },
   // Tiers certified against the operator's opencode 1.18.15 on 2026-08-07
   // (research/2026-08-07_opencode-adapter-certification.md). `tool_gate` is
   // adapter-built because OpenCode ships no Cormidia-gate surface: the enforcing
@@ -109,6 +140,31 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       intra_turn_fanout: "unsupported",
       session_resume: "native",
       structured_verdict: "fallback",
+      tool_gate: "adapter",
+    },
+    cache: {
+      supported: true,
+      observable: true,
+      fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
+    },
+  },
+  grok: {
+    ref: "grok/v1",
+    runtime: "grok",
+    capabilities: {
+      cache_telemetry: "adapter",
+      cancellation: "adapter",
+      // Grok CAN spawn subagents, but no probe has proven that a subagent's
+      // tool calls traverse the PreToolUse gate. Rather than claim an
+      // uncertified surface, the adapter's gate bridge denies spawn_subagent
+      // outright and the turn is told to work serially (B-25, #339).
+      intra_turn_fanout: "unsupported",
+      session_resume: "native",
+      // ACP exposes no client-settable output schema on this surface, so the
+      // loop's lenient parser is the fallback.
+      structured_verdict: "fallback",
+      // The gate is Cormidia's PreToolUse hook bridge plus a fail-closed
+      // per-turn handshake, not a native provider approval contract.
       tool_gate: "adapter",
     },
     cache: {

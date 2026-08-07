@@ -1876,6 +1876,28 @@ function sessionEvidence(session: TurnResult["session"]): SessionEvidence {
       transcript_note: "Provider session reference recorded; session.log is activity only.",
     };
   }
+  if (session.runtime === "cursor") {
+    return {
+      ...session,
+      native_ref: session.id,
+      transcript: "provider_session",
+      transcript_note: "Resume the chat with `cursor-agent --resume <id>`; session.log is activity only.",
+    };
+  }
+  if (session.runtime === "grok") {
+    // Grok resumes the exact id over ACP `session/load` and keeps the real
+    // transcript under the turn's isolated `$GROK_HOME/sessions`. Falling
+    // through to the final branch would have recorded a grok turn as having no
+    // provider transcript AND attributed the absence to the Claude SDK.
+    return {
+      ...session,
+      native_ref: session.id,
+      transcript: "provider_session",
+      transcript_note:
+        "Provider session reference recorded; the transcript lives under the turn's " +
+        "isolated $GROK_HOME/sessions and session.log is activity only.",
+    };
+  }
   return {
     ...session,
     transcript: "unavailable",

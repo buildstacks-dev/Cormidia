@@ -211,12 +211,15 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await git(repo, ["commit", "-qm", "seed post-review golden mutation"]);
     const alteredCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
     await expect(releaseRepositorySnapshot(repo, alteredCommit)).rejects.toThrow(/content changed after human review/);
-    // This case takes several full candidate snapshots, each a clone plus a real
-    // offline install plus a nested Vitest run, so its wall clock scales with the
-    // dependency set and with how loaded the suite is around it. The budget is
-    // headroom for that, not tolerance for a hang: every assertion above still
-    // has to hold.
-  }, 180_000);
+    // Budget, not an assertion: this case takes several full candidate
+    // snapshots, each a clone plus a real offline install plus a nested Vitest
+    // run, so its wall clock tracks the size of the vendored harness binaries
+    // and how loaded the suite is around it. The 0.3.224 bump (#335) grew the
+    // Claude platform package 221 MB → 265 MB and pushed the old 90s budget
+    // into flaky territory (~83s observed); the adapter wave adds more
+    // dependencies still. Nothing about what this case proves changed — every
+    // assertion above still has to hold — only how long the I/O takes.
+  }, 240_000);
 
   it("negative control: machine inventory catches alternate skip syntax and refuses missing or forged skip rows", async () => {
     const repo = await mkdtemp(join(tmpdir(), "rq1-vitest-inventory-"));
@@ -277,10 +280,8 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await expect(releaseRepositorySnapshot(repo, narrowedCommit)).rejects.toThrow(
       /config differs from the pinned offline lane/,
     );
-    // Same budget as its sibling above: this case clones the candidate, runs a
-    // real offline `pnpm install`, and executes Vitest inside it, so it scales
-    // with the dependency set rather than with the assertion.
-  }, 90_000);
+    // Same install-bound budget as the case above — see its note.
+  }, 240_000);
 
   it("admits every exact deterministic check and preserves the one ratified skip", () => {
     const manifest = fixtureManifest();
@@ -987,9 +988,8 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
         tag: "v0.1.2",
       }),
     ).rejects.toThrow(/outside evidence namespace/);
-    // Same budget as the sibling repository-snapshot cases: a real candidate
-    // clone plus an offline install plus a nested Vitest run.
-  }, 90_000);
+    // Same install-bound budget as the repository-state cases — see their note.
+  }, 240_000);
 });
 
 function fixtureManifest(): ReleaseManifestV1 {
@@ -1482,14 +1482,16 @@ async function writeRepositoryFixture(
   );
   await writeFile(join(repo, ".gitignore"), await readFile(join(process.cwd(), ".gitignore")), "utf8");
   await writeFile(join(repo, "pnpm-lock.yaml"), await readFile(join(process.cwd(), "pnpm-lock.yaml")), "utf8");
-  // pnpm 11 reads its per-repo settings from pnpm-workspace.yaml, and the
-  // candidate is installed with `pnpm install --offline --frozen-lockfile` and
-  // then run with `pnpm exec`. Two of those settings are load-bearing for this
-  // fixture: `minimumReleaseAgeExclude` (without it the install refuses any
-  // dependency pinned recently enough to still be inside the age window) and
+  // The release lane re-installs this fixture with `--frozen-lockfile`, so the
+  // fixture must carry EVERY input that install reads — pnpm-workspace.yaml is
+  // this repo's pnpm config (supply-chain policy, allowBuilds), not a workspace
+  // declaration. Omitting it made the lockfile and the policy disagree, so any
+  // dependency published inside the minimumReleaseAge window failed the fixture
+  // install rather than the candidate (surfaced by the 0.3.224 bump, #335).
+  // Two settings are load-bearing here: `minimumReleaseAgeExclude` and
   // `verifyDepsBeforeRun: false` (without it every `pnpm exec` re-verifies the
-  // dependency tree). The `packages:` selector is deliberately dropped so the
-  // fixture does not also declare itself a workspace root.
+  // tree). The `packages:` selector is deliberately dropped so the fixture does
+  // not also declare itself a workspace root.
   await writeFile(
     join(repo, "pnpm-workspace.yaml"),
     (await readFile(join(process.cwd(), "pnpm-workspace.yaml"), "utf8"))

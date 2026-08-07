@@ -12,14 +12,17 @@ import {
   type Query as ClaudeQuery,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
+import { StdioGrokAcpClient } from "./adapters/grok-acp-client.js";
+import { createIsolatedGrokHome, grokBinaryVersion } from "./adapters/grok-isolation.js";
 import { resolvePiModel } from "./adapters/pi.js";
 import { toErrorMessage as errorMessage } from "./error-message.js";
+import { assessHarnessVersion, type HarnessVersionDetector } from "./harness-support.js";
 import type { RuntimeKind } from "./types.js";
 import { definedProps } from "./optional-properties.js";
 
@@ -33,6 +36,7 @@ type RuntimeReadinessStatus =
   | "missing_binary"
   | "transport_unavailable"
   | "unauthenticated"
+  | "unsupported_version"
   | "misconfigured"
   | "timed_out";
 
@@ -72,25 +76,44 @@ export type RuntimeReadinessProbe = (request: RuntimeReadinessRequest) => Promis
 
 interface PiReadinessDependencies {
   agentDir?: string;
-  createAuthStorage?: (authPath: string) => AuthStorage;
-  createModelRegistry?: (authStorage: AuthStorage, modelsPath: string) => ModelRegistry;
+  createModelRuntime?: (authPath: string, modelsPath: string) => Promise<ModelRuntime>;
 }
 
 const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementation> = {
   claude: probeClaude,
   codex: probeCodex,
+  cursor: probeCursor,
   opencode: probeOpencode,
   pi: probePi,
+  grok: probeGrok,
 };
 
 export async function probeRuntimeReadiness(
   request: RuntimeReadinessRequest,
   implementations: RuntimeReadinessImplementations = {},
+  detectVersion?: HarnessVersionDetector,
 ): Promise<RuntimeReadinessResult> {
   const started = Date.now();
   const timeoutMs = request.timeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error(`runtime readiness timeout must be positive; received ${timeoutMs}`);
+  }
+
+  // A harness below its declared floor cannot speak the interface this adapter
+  // targets (#331). Refuse here, before any provider is constructed: a probe
+  // that launches an unsupported harness fails later, more expensively, and in
+  // a shape that reads as an auth or transport fault.
+  const version = assessHarnessVersion(request.runtime, detectVersion);
+  if (version.band === "below_floor") {
+    return {
+      runtime: request.runtime,
+      models: [...new Set(request.models)].sort(),
+      status: "unsupported_version",
+      detail: version.detail,
+      durationMs: Date.now() - started,
+      billable: false,
+      errorCode: "error_adapter_version_below_floor",
+    };
   }
 
   const controller = new AbortController();
@@ -301,6 +324,153 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
 }
 
 /**
+ * Cursor ships via a curl installer, so the binary is a REQUIRED PREINSTALLED
+ * artifact — Cormidia never installs a provider (#224). Readiness is therefore
+ * two things and no fewer: the `cursor-agent` binary is resolvable (never the
+ * short alias `agent`, which is Grok Build on real operator machines), and the
+ * stored login is usable or an explicit `CURSOR_API_KEY` is present.
+ * `cursor-agent status` reads the stored credential without sending a model
+ * request, so the probe stays non-billable.
+ */
+async function probeCursor(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
+  const env = request.processEnv ?? process.env;
+  const version = (await runCursorAgent(["--version"], env, request.signal)).stdout.trim();
+  const status = await runCursorAgent(["status"], env, request.signal);
+  const output = `${status.stdout}\n${status.stderr}`.trim();
+  if (status.code === 0 && /logged in/i.test(output)) {
+    return {
+      status: "ready",
+      detail: `cursor-agent ${version} reports a usable stored login (${firstLine(output)}); no model turn sent`,
+    };
+  }
+  const apiKey = env["CURSOR_API_KEY"];
+  if (typeof apiKey === "string" && apiKey.trim().length > 0) {
+    return {
+      status: "ready",
+      detail: `cursor-agent ${version} has no stored login, but CURSOR_API_KEY is set; no model turn sent`,
+    };
+  }
+  return {
+    status: "unauthenticated",
+    errorCode: "error_adapter_unauthenticated",
+    detail:
+      `cursor-agent ${version} reports no usable credential ` +
+      `(${firstLine(output) || `status exited ${status.code}`}); run \`cursor-agent login\` or set CURSOR_API_KEY`,
+  };
+}
+
+function runCursorAgent(
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  signal: AbortSignal,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile("cursor-agent", args, { env, signal, encoding: "utf8" }, (error, stdout, stderr) => {
+      const code = (error as (Error & { code?: unknown }) | null)?.code;
+      if (error !== null && typeof code !== "number") {
+        // ENOENT and friends carry a string code — classifyProbeError turns
+        // those into missing_binary rather than a misconfiguration.
+        reject(error);
+        return;
+      }
+      resolve({ code: typeof code === "number" ? code : 0, stdout, stderr });
+    });
+  });
+}
+
+function firstLine(value: string): string {
+  return (
+    value
+      .split(/\r?\n/)
+      .find((line) => line.trim().length > 0)
+      ?.trim() ?? ""
+  );
+}
+
+/**
+ * Grok Build readiness.
+ *
+ * Grok ships via an installer, never npm, so the binary is a *required
+ * preinstalled* dependency (#224) and its absence is `missing_binary`, not a
+ * Cormidia bug to work around. Readiness then means usable request
+ * authentication, proved through ACP `authenticate`, which resolves the stored
+ * credential (or `XAI_API_KEY`) against the vendor and returns account
+ * metadata without sending a model request.
+ *
+ * The credential-source check before that call is load-bearing, not a
+ * shortcut: with no credential at all, `authenticate` starts an interactive
+ * login flow that a headless probe can never complete, so it would hang until
+ * the deadline instead of reporting the honest answer. The probe runs in the
+ * same per-turn isolated provider home the adapter uses, so a green result
+ * describes the environment a turn will actually get.
+ */
+async function probeGrok(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
+  const version = await grokBinaryVersion(request.processEnv ?? process.env);
+  const isolated = await createIsolatedGrokHome();
+  const apiKey = (request.processEnv ?? process.env)["XAI_API_KEY"];
+  const hasApiKey = typeof apiKey === "string" && apiKey.trim().length > 0;
+  if (!isolated.credentialCopied && !hasApiKey) {
+    await isolated.close();
+    return {
+      status: "unauthenticated",
+      errorCode: "error_adapter_unauthenticated",
+      detail: `grok ${version} is installed, but no stored login (auth.json) and no XAI_API_KEY were found`,
+    };
+  }
+  const client = new StdioGrokAcpClient({
+    args: ["agent", "stdio"],
+    env: { ...(request.processEnv ?? process.env), ...isolated.env },
+  });
+  const abort = (): void => {
+    void client.close();
+  };
+  if (request.signal.aborted) abort();
+  else request.signal.addEventListener("abort", abort, { once: true });
+  try {
+    const initialize = await client.request("initialize", {
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+      clientInfo: { name: "cormidia-readiness", title: "Cormidia readiness", version: "0.1.0" },
+    });
+    const result = isRecord(initialize) ? initialize : {};
+    if (result["protocolVersion"] !== 1) {
+      return {
+        status: "misconfigured",
+        errorCode: "error_adapter_misconfigured",
+        detail: `grok ${version} negotiated ACP protocolVersion ${JSON.stringify(result["protocolVersion"])}; Cormidia speaks 1`,
+      };
+    }
+    const meta = isRecord(result["_meta"]) ? result["_meta"] : {};
+    const defaultMethod = typeof meta["defaultAuthMethodId"] === "string" ? meta["defaultAuthMethodId"] : undefined;
+    // grok answers `initialize` with `defaultAuthMethodId: null` and drops
+    // `cached_token` from `authMethods` when it found no usable credential.
+    // Probed 2026-08-07: calling `authenticate` in that state starts a browser
+    // login and fails ten minutes later, so classify it here instead.
+    if (!hasApiKey && defaultMethod === undefined) {
+      return {
+        status: "unauthenticated",
+        errorCode: "error_adapter_unauthenticated",
+        detail: `grok ${version} offered no usable auth method; the stored login is missing or expired (run \`grok login\`)`,
+      };
+    }
+    const methodId = hasApiKey ? "api_key" : (defaultMethod ?? "cached_token");
+    const account = await client.request("authenticate", { methodId });
+    const accountMeta = isRecord(account) && isRecord(account["_meta"]) ? account["_meta"] : {};
+    const mode = typeof accountMeta["auth_mode"] === "string" ? accountMeta["auth_mode"] : methodId;
+    const tier =
+      typeof accountMeta["subscription_tier"] === "string" ? `; tier=${accountMeta["subscription_tier"]}` : "";
+    return {
+      status: "ready",
+      detail: `grok ${version} authenticated over ACP; method=${methodId}; mode=${mode}${tier}; no model turn sent`,
+    };
+  } finally {
+    request.signal.removeEventListener("abort", abort);
+    await client.close();
+    await isolated.close();
+  }
+}
+
+/**
  * OpenCode readiness: the operator's preinstalled binary (never installed by
  * Cormidia, #224), its version band (#331), and — the part that actually
  * matters — a provider roster resolved from the real auth store. `/config/providers`
@@ -408,12 +578,14 @@ async function probePi(
   // OAuth resolution may rotate a refresh token. Readiness must use the same
   // file-backed store as PiRuntime so a successful refresh is persisted for
   // the subsequent turn; the old in-memory copy consumed the rotation and
-  // then discarded it, making a green probe break the live runtime.
-  const authStorage = (dependencies.createAuthStorage ?? AuthStorage.create)(authPath);
-  const registry = (dependencies.createModelRegistry ?? ModelRegistry.create)(
-    authStorage,
+  // then discarded it, making a green probe break the live runtime. pi 0.84
+  // builds that store inside ModelRuntime from `authPath`; `allowModelNetwork`
+  // stays default-false so the probe remains offline and non-billable.
+  const modelRuntime = await (dependencies.createModelRuntime ?? createPiModelRuntime)(
+    authPath,
     join(agentDir, "models.json"),
   );
+  const registry = new ModelRegistry(modelRuntime);
   const registryError = registry.getError();
   if (registryError !== undefined) {
     return {
@@ -476,6 +648,10 @@ async function probePi(
   };
 }
 
+function createPiModelRuntime(authPath: string, modelsPath: string): Promise<ModelRuntime> {
+  return ModelRuntime.create({ authPath, modelsPath });
+}
+
 function classifyProbeError(error: unknown): ProbeOutcome {
   const code =
     error !== null && typeof error === "object" && "code" in error
@@ -490,6 +666,15 @@ function classifyProbeError(error: unknown): ProbeOutcome {
     return {
       status: "missing_binary",
       errorCode: "error_adapter_binary_missing",
+      detail: message,
+    };
+  }
+  if (
+    /not logged in|no cached auth|session expired|re-?authentication|unauthorized|no credentials found/i.test(message)
+  ) {
+    return {
+      status: "unauthenticated",
+      errorCode: "error_adapter_unauthenticated",
       detail: message,
     };
   }

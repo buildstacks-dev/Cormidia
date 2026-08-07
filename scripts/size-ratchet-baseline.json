@@ -1278,7 +1278,7 @@
     },
     "src/runtime/adapters/claude.ts": {
       "exports": 4,
-      "lines": 573,
+      "lines": 590,
       "newModule": false
     },
     "src/runtime/adapters/codex-gate-bridge.ts": {
@@ -1353,7 +1353,7 @@
     },
     "src/runtime/harness-support.ts": {
       "exports": 9,
-      "lines": 276,
+      "lines": 281,
       "newModule": true
     },
     "src/runtime/invocation-ledger.ts": {

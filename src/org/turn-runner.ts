@@ -31,6 +31,7 @@ import { getPipeline, loadPipelines, selectPasses, type PassConfig, type Pipelin
 import type { PlannerAdmissionLimits } from "../loop/planner-admission.js";
 import { loadPolicy } from "../loop/policy.js";
 import { VERDICT_SCHEMAS, VerdictParseError, type ParseResult, type VerdictTypes } from "../loop/verdicts.js";
+import type { HarnessAuthConfig } from "../runtime/auth-mode.js";
 import { worstUsageQuality } from "../runtime/cost.js";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
@@ -305,6 +306,10 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
     // the dispatcher journal remains the role-invocation lifecycle record.
     const telemetry = {
       orgDir: runtimeHome,
+      // #333: the org's declared billing per harness connection travels with
+      // settlement, so a subscription-backed turn settles as an authoritative
+      // $0 instead of an equivalent-cost figure nobody is invoiced for.
+      ...(options.appsFile.harnesses === undefined ? {} : { harnessAuth: options.appsFile.harnesses }),
       ...(journal.triggerKind !== undefined ? { trigger: journal.triggerKind as TriggerKind } : {}),
       ...(route.kind === "pipeline" && route.pipeline === "learning-distill"
         ? { learningActivity: "distillation" as const }
@@ -636,7 +641,7 @@ async function runGenericEpisodeTurn(
     context: ContextBundle;
     hooks: TurnHooks;
     journal: TurnJournal;
-    telemetry: { orgDir: string; trigger?: TriggerKind };
+    telemetry: { orgDir: string; trigger?: TriggerKind; harnessAuth?: HarnessAuthConfig };
     store: ApprovalStore;
   },
 ): Promise<TurnResult> {
@@ -1028,6 +1033,7 @@ async function runProtocolPipelineTurn(
       orgDir: string;
       trigger?: TriggerKind;
       learningActivity?: "distillation" | "review";
+      harnessAuth?: HarnessAuthConfig;
     };
   },
 ): Promise<TurnResult> {
@@ -1387,6 +1393,7 @@ async function runM6PipelineTurn(
       orgDir: string;
       trigger?: TriggerKind;
       learningActivity?: "distillation" | "review";
+      harnessAuth?: HarnessAuthConfig;
     };
     roles: Record<string, RoleConfig>;
     pipeline: PipelineConfig;
@@ -1676,6 +1683,7 @@ async function executeM6Pipeline<K extends "learning-distill" | "learning-review
       orgDir: string;
       trigger?: TriggerKind;
       learningActivity?: "distillation" | "review";
+      harnessAuth?: HarnessAuthConfig;
     };
     roles: Record<string, RoleConfig>;
     pipeline: PipelineConfig;
@@ -1921,7 +1929,7 @@ async function runBuilderTicketTurn(
     hooks: TurnHooks;
     journal: TurnJournal;
     store: ApprovalStore;
-    telemetry: { orgDir: string; trigger?: TriggerKind };
+    telemetry: { orgDir: string; trigger?: TriggerKind; harnessAuth?: HarnessAuthConfig };
   },
 ): Promise<TurnResult> {
   const clock = options.now ?? (() => new Date());

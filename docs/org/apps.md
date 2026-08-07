@@ -112,6 +112,50 @@ campaign. App
 roles or IDs fail configuration loading before execution, so app configuration
 can only narrow the org catalog.
 
+### Harness auth modes — `harnesses:` (org home, #333)
+
+Auth binds to the **(harness × provider-family) connection**, never to the
+model. The same Opus is reachable on the operator's Claude subscription through
+`claude` and on an Anthropic API key through `opencode`, in one org, at the same
+time — a model-keyed declaration could not express that.
+
+```yaml
+harnesses:
+  claude:
+    auth: subscription            # Claude Code on the operator's own plan
+  codex:
+    auth: subscription
+  opencode:                       # multi-provider backbone: per family
+    providers:
+      anthropic: api_key
+      openai: api_key
+  pi:
+    auth: api_key                 # covers families `providers:` omits
+    providers:
+      anthropic: subscription
+  muse:
+    auth: api_key                 # the only mode muse has
+```
+
+- `auth:` covers the whole harness; `providers:` narrows per provider family
+  and is accepted **only** on the multi-provider backbones (`pi`, `opencode`).
+- The block is org-level and optional. An undeclared harness is not verified
+  and its turns are not labeled — exactly the behaviour before #333.
+- Declaring a mode a harness cannot serve fails at load: `muse` exposes no
+  subscription login, so `muse: {auth: subscription}` is invalid by
+  construction, not a runtime mismatch.
+- `cormidia doctor` and `cormidia app verify` **verify** the declaration against
+  the real credential state with the same token-free probes readiness already
+  runs; a mismatch is a typed readiness failure
+  (`error_auth_mode_mismatch`) in both directions, and an indeterminate
+  credential state is `error_auth_mode_unverifiable` rather than a pass. Per
+  harness, the verification method is in
+  [`../harness/capability-matrix.md`](../harness/capability-matrix.md).
+- Cormidia never falls back silently: subscription→API is surprise billing,
+  API→subscription is quota the operator did not approve.
+- `cormidia apps` prints the declared connections; `cormidia doctor` prints the
+  observed ones.
+
 - **One-turn-one-app is structural:** `TurnRequest` has a single `workdir`;
 multi-app exists only in the dispatcher (which iterates apps) and human
 surfaces (the app-tagged approval queue, per-app budget rollups). No turn
@@ -133,6 +177,17 @@ month per app (telemetry records gain an `app` field — small addition to
 - ≥ 100% → app auto-set to `paused` (state overlay, not a YAML edit) + a
 `budget-exceeded` item in the approval queue (`../approvals/design.md`); human approval resumes the
 app (optionally raising the budget in apps.yaml themselves).
+
+**Subscription turns are volume, not dollars (#333).** A turn on a connection
+declared `subscription` settles with `billing: "subscription"` and an
+*authoritative* `costUsd: 0` — no marginal charge exists, so summing an
+equivalent-cost figure into the month would invent an invoice. `BudgetRow`
+therefore reports metered `spentUsd` and `subscriptionTurns` as two numbers,
+and the monthly cap (a spend cap) is unmoved by plan work; the episode
+contract's provider-turn and active-time ceilings are what bound its volume.
+The zero is never silent: a row labeled `subscription` that carries real
+dollars is incoherent and marks the app's month `unknown`, which blocks exactly
+like `exceeded` (INV-006, A-004).
 
 The overlay (`state/budget-overlay.json`) is recomputed on **every dispatch
 tick** — `enforceBudgetOverlay` runs before due-turn computation, and

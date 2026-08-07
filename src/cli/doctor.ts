@@ -24,6 +24,7 @@ import {
   type RuntimeReadinessProbe,
   type RuntimeReadinessRequest,
 } from "../runtime/readiness.js";
+import type { HarnessAuthConfig, HarnessAuthDeclaration } from "../runtime/auth-mode.js";
 import { assessHarnessVersion, type HarnessVersionAssessment } from "../runtime/harness-support.js";
 import { RUNTIME_KINDS } from "../runtime/registry.js";
 import type { RuntimeKind } from "../runtime/types.js";
@@ -66,13 +67,17 @@ async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   const config: CheckRow[] = [];
   let homes: Awaited<ReturnType<typeof resolveCormidiaHomes>> | undefined;
   let roles: Awaited<ReturnType<typeof loadRoles>> | undefined;
+  // Declared billing per harness connection (#333). An unreadable registry
+  // leaves it undefined, and undefined verifies nothing — doctor never invents
+  // a declaration it could not read.
+  let harnessAuth: HarnessAuthConfig | undefined;
   try {
     homes = await resolveCormidiaHomes(options);
     const rolesPath = join(homes.orgHome, "roles.yaml");
     const appsPath = join(homes.orgHome, "apps.yaml");
     const pipelinesPath = join(homes.orgHome, "pipelines.yaml");
     roles = await checked(config, "roles.yaml", () => loadRoles(rolesPath));
-    await checked(config, "apps.yaml", () => loadApps(appsPath));
+    harnessAuth = (await checked(config, "apps.yaml", () => loadApps(appsPath)))?.harnesses;
     const authority = await resolveAuthority({ orgHome: homes.orgHome });
     config.push({
       name: "AUTHORITY.md",
@@ -98,7 +103,7 @@ async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   // Version bands are token-free and independent of the readiness probe, so
   // they are reported even under --config-only (#331).
   const harnessVersions = RUNTIME_KINDS.map((kind) => assessHarnessVersion(kind));
-  const adapters = await adapterChecks(roles?.roles, options, harnessVersions);
+  const adapters = await adapterChecks(roles?.roles, options, harnessVersions, harnessAuth ?? {});
 
   const platform = options.platform ?? process.platform;
   const backend = platform === "darwin" ? "launchd" : "systemd";
@@ -282,11 +287,12 @@ async function adapterChecks(
   roles: Array<{ runtime: RuntimeKind; model: string }> | undefined,
   options: DoctorOptions,
   harnessVersions: readonly HarnessVersionAssessment[],
+  harnessAuth: HarnessAuthConfig,
 ): Promise<CheckRow[]> {
   const probe = options.readinessProbe ?? probeRuntimeReadiness;
   return Promise.all(
     RUNTIME_KINDS.map(async (kind): Promise<CheckRow> => {
-      const row = await adapterRow(kind, roles, options, probe);
+      const row = await adapterRow(kind, roles, options, probe, harnessAuth[kind]);
       return withVersionBand(
         row,
         harnessVersions.find((assessment) => assessment.runtime === kind),
@@ -308,6 +314,7 @@ async function adapterRow(
   roles: Array<{ runtime: RuntimeKind; model: string }> | undefined,
   options: DoctorOptions,
   probe: RuntimeReadinessProbe,
+  auth: HarnessAuthDeclaration | undefined,
 ): Promise<CheckRow> {
   if (roles === undefined) {
     return {
@@ -330,7 +337,10 @@ async function adapterRow(
       status: "WARN",
       detail:
         `configured for ${models.join(", ")}; readiness probe skipped (--config-only); ` +
-        "configuration validity is not runtime readiness",
+        "configuration validity is not runtime readiness" +
+        // A declaration is verified by reading the real credential state, so
+        // --config-only can report that a declaration EXISTS and nothing more.
+        (auth === undefined ? "" : "; declared auth mode not verified either"),
     };
   }
   try {
@@ -338,6 +348,7 @@ async function adapterRow(
       runtime: kind,
       models,
       ...definedProps({ timeoutMs: options.readinessTimeoutMs }),
+      ...definedProps({ auth }),
     };
     const result = await probe(request);
     return {

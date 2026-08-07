@@ -1,6 +1,7 @@
 // The runtime contract. Everything above this layer (loop, org) sees only
 // these types — never a provider SDK. See research/2026-07-03_runtime-layer.md.
 
+import type { AuthMode } from "./auth-mode.js";
 import type { RuntimeCapability } from "./capabilities.js";
 import type { ProviderPermissionModes } from "./permission-mode.js";
 
@@ -221,6 +222,14 @@ export interface TurnUsage {
    *  an estimate is far better than the previous silent $0. Absent/false
    *  means the cost is provider-reported (Claude, pi). */
   costEstimated?: boolean;
+  /** Billing of the (harness × provider-family) connection this turn ran on
+   *  (#333). `subscription` means `costUsd` is an AUTHORITATIVE zero: the turn
+   *  ran on the operator's own plan and has no marginal dollar cost — which is
+   *  explicitly NOT the unknown-cost case (`quality: "unavailable"`), and
+   *  explicitly not a silent zero (INV-006). `api_key` means metered spend.
+   *  Absent = the connection is undeclared and `costUsd` is read exactly as it
+   *  always was. Purely additive: old records parse unchanged. */
+  billing?: AuthMode;
   /** Subagent turns spawned inside this turn — silent fan-out must be visible. */
   subagentTurns: number;
   wallClockMs: number;

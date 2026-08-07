@@ -12,6 +12,7 @@ import { toErrorMessage as message } from "../runtime/error-message.js";
 import { loadGateCommands } from "../loop/driver.js";
 import type { GhOps } from "../loop/github.js";
 import { CANONICAL_LABELS } from "../loop/plan-tickets.js";
+import type { HarnessAuthConfig } from "../runtime/auth-mode.js";
 import { appCommandEnv } from "../runtime/non-interactive-env.js";
 import {
   probeRuntimeReadiness,
@@ -694,6 +695,9 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
         ...definedProps({ probe: options.readinessProbe }),
         configOnly: options.configOnly === true,
         ...definedProps({ timeoutMs: options.readinessTimeoutMs }),
+        // Same declaration doctor verifies, from the same registry — verify
+        // and doctor must never disagree about which billing a harness is on.
+        harnessAuth: apps.harnesses ?? {},
       }));
   checks.push(...(await runtimeInspector(runtimeCandidatesForApp(await loadRoles(join(orgHome, "roles.yaml")), app))));
 
@@ -1597,6 +1601,8 @@ interface RuntimeReadinessProbeConfig {
   probe?: RuntimeReadinessProbe;
   configOnly?: boolean;
   timeoutMs?: number;
+  /** Org-declared billing per harness connection (#333). */
+  harnessAuth?: HarnessAuthConfig;
 }
 
 // Verify's `runtime-<provider>` checks must AGREE with `cormidia doctor`, so they
@@ -1635,6 +1641,7 @@ async function probeRuntimeReadinessChecks(
           runtime,
           models,
           ...definedProps({ timeoutMs: config.timeoutMs }),
+          ...definedProps({ auth: config.harnessAuth?.[runtime] }),
         };
         const result = await probe(request);
         return result.status === "ready"

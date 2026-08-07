@@ -1,0 +1,359 @@
+{
+  "schemaVersion": 1,
+  "note": "Single machine-readable source for the harness facts that DRIFT upstream: per-model pricing used for cost estimation, documented model rosters, and the official sources each fact came from. Adapters import it through harness-metadata.ts / harness-pricing.ts; scripts/harness-freshness.mjs diffs it against upstream and proposes edits in a pull request. Version BANDS are not here - they live in harness-support.ts, which the probe reads but must never write (a testedWith bump requires re-certification, docs/harness/adding-updating.md 6).",
+  "harnesses": {
+    "claude": {
+      "upstream": {
+        "references": [
+          "research/2026-08-06_adapter-upstream-references.md",
+          "research/2026-08-07_claude-sdk-0.3.224-refresh.md"
+        ],
+        "versionSources": [
+          { "id": "claude.npm", "kind": "npm", "package": "@anthropic-ai/claude-agent-sdk" },
+          { "id": "claude.github", "kind": "github_release", "repo": "anthropics/claude-agent-sdk-typescript" }
+        ],
+        "observed": {
+          "claude.npm": {
+            "version": "0.3.224",
+            "recordedAt": "2026-08-07",
+            "evidence": "research/2026-08-07_claude-sdk-0.3.224-refresh.md"
+          }
+        }
+      },
+      "pricing": null,
+      "pricingNote": "The Claude Agent SDK reports real spend on the turn result, so Cormidia asserts no price table for this harness and never estimates one.",
+      "roster": null,
+      "rosterNote": "No offline roster: the Claude catalog is only readable by launching the CLI transport with a working credential (src/runtime/model-catalog.ts)."
+    },
+    "codex": {
+      "upstream": {
+        "references": [
+          "research/2026-08-06_adapter-upstream-references.md",
+          "research/2026-08-07_codex-0.147-refresh.md"
+        ],
+        "versionSources": [
+          { "id": "codex.npm", "kind": "npm", "package": "@openai/codex" },
+          { "id": "codex.github", "kind": "github_release", "repo": "openai/codex" }
+        ],
+        "observed": {
+          "codex.npm": {
+            "version": "0.147.0",
+            "recordedAt": "2026-08-07",
+            "evidence": "research/2026-08-07_codex-0.147-refresh.md"
+          }
+        }
+      },
+      "pricing": {
+        "unit": "usd_per_million_tokens",
+        "fields": ["inputPerMTok", "outputPerMTok"],
+        "source": {
+          "kind": "doc",
+          "url": "https://developers.openai.com/api/docs/pricing",
+          "evidence": "research/2026-07-15_model-assignment-refresh.md",
+          "contentDigest": null
+        },
+        "rationale": "Documented OpenAI list prices. Two deliberate conservative choices keep the estimate fail-safe, because the same figure backs the hard per-turn budget cap: cached input tokens are charged at the FULL input rate (the cited source publishes no codex cached-input discount and Cormidia does not guess one), and output covers reasoning tokens (OpenAI bills reasoning at the output rate).",
+        "rows": [
+          {
+            "prefix": "gpt-5.6",
+            "docIds": ["gpt-5.6-sol", "gpt-5.6"],
+            "price": { "inputPerMTok": 5, "outputPerMTok": 30 }
+          },
+          { "prefix": "gpt-5.5", "docIds": ["gpt-5.5"], "price": { "inputPerMTok": 5, "outputPerMTok": 30 } },
+          {
+            "prefix": "gpt-5.4-mini",
+            "docIds": ["gpt-5.4-mini"],
+            "price": { "inputPerMTok": 0.75, "outputPerMTok": 4.5 }
+          },
+          {
+            "prefix": "gpt-5.4-nano",
+            "docIds": [],
+            "price": { "inputPerMTok": 5, "outputPerMTok": 30 },
+            "rationale": "nano list price is not published - the flagship rate is a documented upper bound, never a guessed discount"
+          },
+          { "prefix": "gpt-5.4", "docIds": ["gpt-5.4"], "price": { "inputPerMTok": 2.5, "outputPerMTok": 15 } }
+        ],
+        "fallback": {
+          "price": { "inputPerMTok": 5, "outputPerMTok": 30 },
+          "rationale": "An unrecognized or unpriced model defaults to the flagship GPT-5.6 Sol rate as a documented upper bound rather than $0 - an off-roster model must not slip the budget guard.",
+          "suffixRules": []
+        },
+        "modifiers": [
+          {
+            "kind": "long_context",
+            "prefix": "gpt-5.6",
+            "thresholdTokens": 272000,
+            "inputMultiplier": 2,
+            "outputMultiplier": 1.5
+          }
+        ]
+      },
+      "roster": null,
+      "rosterNote": "The Codex App Server protocol Cormidia speaks exposes account and thread methods only, with no model enumeration."
+    },
+    "pi": {
+      "upstream": {
+        "references": [
+          "research/2026-08-06_adapter-upstream-references.md",
+          "research/2026-08-07_pi-0.84.1-refresh.md"
+        ],
+        "versionSources": [
+          { "id": "pi.npm", "kind": "npm", "package": "@earendil-works/pi-coding-agent" },
+          { "id": "pi.github", "kind": "github_release", "repo": "earendil-works/pi" }
+        ],
+        "observed": {
+          "pi.npm": {
+            "version": "0.84.1",
+            "recordedAt": "2026-08-07",
+            "evidence": "research/2026-08-07_pi-0.84.1-refresh.md"
+          }
+        }
+      },
+      "pricing": null,
+      "pricingNote": "pi reports provider-authoritative spend through its SDK; Cormidia asserts no price table for this harness.",
+      "roster": null,
+      "rosterNote": "pi publishes its own local roster (models.json) - src/runtime/model-catalog.ts reads the install, so no documented list is committed here."
+    },
+    "cursor": {
+      "upstream": {
+        "references": [
+          "research/2026-08-06_adapter-upstream-references.md",
+          "research/2026-08-07_cursor-adapter-certification.md"
+        ],
+        "versionSources": [
+          {
+            "id": "cursor.manual",
+            "kind": "manual",
+            "url": "https://cursor.com/docs/cli/overview",
+            "reason": "cursor-agent ships via a curl installer with no public npm package or GitHub release feed, so its version cannot be probed automatically. Reported as un-automated, never as fresh."
+          }
+        ],
+        "observed": {}
+      },
+      "pricing": {
+        "unit": "usd_per_million_tokens",
+        "fields": ["inputPerMTok", "cacheWritePerMTok", "cacheReadPerMTok", "outputPerMTok"],
+        "source": {
+          "kind": "doc",
+          "url": "https://cursor.com/docs/account/pricing",
+          "evidence": "research/2026-08-07_cursor-adapter-certification.md",
+          "contentDigest": null
+        },
+        "rationale": "cursor-agent's stream-json carries token counts but no dollar cost, so Cormidia estimates spend from the vendor's OWN published rate table and flags every figure costEstimated: true. Keys match as longest id PREFIXES because the CLI's roster spells effort into the id (gpt-5.6-sol-high, claude-opus-5-thinking-xhigh).",
+        "rows": [
+          {
+            "prefix": "claude-opus-5",
+            "docIds": ["claude-opus-5", "Claude Opus 5"],
+            "price": {
+              "inputPerMTok": 5,
+              "cacheWritePerMTok": 6.25,
+              "cacheReadPerMTok": 0.5,
+              "outputPerMTok": 25
+            }
+          },
+          {
+            "prefix": "claude-opus-4-8",
+            "docIds": ["claude-opus-4-8", "Claude Opus 4.8"],
+            "price": {
+              "inputPerMTok": 5,
+              "cacheWritePerMTok": 6.25,
+              "cacheReadPerMTok": 0.5,
+              "outputPerMTok": 25
+            }
+          },
+          {
+            "prefix": "claude-sonnet-5",
+            "docIds": ["claude-sonnet-5", "Claude Sonnet 5"],
+            "price": {
+              "inputPerMTok": 3,
+              "cacheWritePerMTok": 3.75,
+              "cacheReadPerMTok": 0.3,
+              "outputPerMTok": 15
+            }
+          },
+          {
+            "prefix": "claude-fable-5",
+            "docIds": ["claude-fable-5", "Claude Fable 5"],
+            "price": {
+              "inputPerMTok": 10,
+              "cacheWritePerMTok": 12.5,
+              "cacheReadPerMTok": 1,
+              "outputPerMTok": 50
+            }
+          },
+          {
+            "prefix": "gpt-5.6-sol",
+            "docIds": ["gpt-5.6-sol", "GPT-5.6 Sol"],
+            "price": {
+              "inputPerMTok": 5,
+              "cacheWritePerMTok": 6.25,
+              "cacheReadPerMTok": 0.5,
+              "outputPerMTok": 30
+            }
+          },
+          {
+            "prefix": "gpt-5.5",
+            "docIds": ["gpt-5.5", "GPT-5.5"],
+            "price": { "inputPerMTok": 5, "cacheWritePerMTok": 5, "cacheReadPerMTok": 0.5, "outputPerMTok": 30 }
+          },
+          {
+            "prefix": "gpt-5.4",
+            "docIds": ["gpt-5.4", "GPT-5.4"],
+            "price": {
+              "inputPerMTok": 2.5,
+              "cacheWritePerMTok": 2.5,
+              "cacheReadPerMTok": 0.25,
+              "outputPerMTok": 15
+            }
+          },
+          {
+            "prefix": "gpt-5.3-codex",
+            "docIds": ["gpt-5.3-codex", "GPT-5.3 Codex"],
+            "price": {
+              "inputPerMTok": 1.75,
+              "cacheWritePerMTok": 1.75,
+              "cacheReadPerMTok": 0.175,
+              "outputPerMTok": 14
+            }
+          },
+          {
+            "prefix": "gpt-5.2",
+            "docIds": ["gpt-5.2", "GPT-5.2"],
+            "price": {
+              "inputPerMTok": 1.75,
+              "cacheWritePerMTok": 1.75,
+              "cacheReadPerMTok": 0.175,
+              "outputPerMTok": 14
+            }
+          },
+          {
+            "prefix": "kimi-k3",
+            "docIds": ["kimi-k3", "Kimi K3"],
+            "price": { "inputPerMTok": 3, "cacheWritePerMTok": 3, "cacheReadPerMTok": 0.3, "outputPerMTok": 15 }
+          }
+        ],
+        "fallback": {
+          "price": { "inputPerMTok": 10, "cacheWritePerMTok": 12.5, "cacheReadPerMTok": 1, "outputPerMTok": 50 },
+          "rationale": "Documented upper bound - not an invented number - for ids the table does not price (auto, composer-2.5, cursor-grok-4.5-*, anything newer): the dearest published NON-fast row (Claude Fable 5). Over-estimating is the fail-safe direction: unknown spend must never round toward zero when the same figure backs the budget check.",
+          "suffixRules": [
+            {
+              "suffix": "-fast",
+              "price": {
+                "inputPerMTok": 30,
+                "cacheWritePerMTok": 37.5,
+                "cacheReadPerMTok": 3,
+                "outputPerMTok": 150
+              },
+              "rationale": "The dearest published row overall, itself a fast-mode row (Claude Opus 4.7 fast mode). The table shows fast mode carrying a large surcharge and Cormidia will not extrapolate a multiplier from a single data point."
+            }
+          ]
+        },
+        "modifiers": []
+      },
+      "roster": null,
+      "rosterNote": "The Cursor roster is account-scoped and reachable only by running cursor-agent --list-models with a working credential."
+    },
+    "grok": {
+      "upstream": {
+        "references": [
+          "research/2026-08-06_adapter-upstream-references.md",
+          "research/2026-08-07_grok-build-adapter-certification.md"
+        ],
+        "versionSources": [{ "id": "grok.github", "kind": "github_release", "repo": "xai-org/grok-build" }],
+        "observed": {
+          "grok.github": {
+            "version": "1.0.0",
+            "recordedAt": "2026-08-07",
+            "evidence": "research/2026-08-07_grok-build-adapter-certification.md"
+          }
+        }
+      },
+      "pricing": null,
+      "pricingNote": "Grok's ACP stream carries a terminal costUsdTicks figure from the vendor, so Cormidia asserts no price table - the degradation is written down in docs/harness/capability-matrix.md rather than papered over with an invented price table.",
+      "roster": null,
+      "rosterNote": "The Grok Build roster is only readable by running grok models with a working credential."
+    },
+    "opencode": {
+      "upstream": {
+        "references": [
+          "research/2026-08-06_adapter-upstream-references.md",
+          "research/2026-08-07_opencode-adapter-certification.md"
+        ],
+        "versionSources": [
+          { "id": "opencode.npm", "kind": "npm", "package": "opencode-ai" },
+          { "id": "opencode.sdk.npm", "kind": "npm", "package": "@opencode-ai/sdk" },
+          { "id": "opencode.github", "kind": "github_release", "repo": "anomalyco/opencode" }
+        ],
+        "observed": {
+          "opencode.npm": {
+            "version": "1.18.15",
+            "recordedAt": "2026-08-07",
+            "evidence": "research/2026-08-07_opencode-adapter-certification.md"
+          },
+          "opencode.sdk.npm": {
+            "version": "1.18.15",
+            "recordedAt": "2026-08-07",
+            "evidence": "research/2026-08-07_opencode-adapter-certification.md"
+          }
+        }
+      },
+      "pricing": null,
+      "pricingNote": "OpenCode's session output carries the models.dev catalog's own cost figures; Cormidia asserts no price table and reports a measured-tokens/zero-dollar catalog gap honestly instead.",
+      "roster": null,
+      "rosterNote": "OpenCode publishes what THIS install can serve through opencode models - src/runtime/model-catalog.ts reads the install, so no documented list is committed here."
+    },
+    "muse": {
+      "upstream": {
+        "references": [
+          "research/2026-08-06_adapter-upstream-references.md",
+          "research/2026-08-07_muse-code-adapter-certification.md"
+        ],
+        "versionSources": [
+          {
+            "id": "muse.manual",
+            "kind": "manual",
+            "url": "https://dev.meta.ai/docs/quickstart",
+            "reason": "Muse Code ships via a curl installer with no public npm package or GitHub release feed, so its version cannot be probed automatically. Reported as un-automated, never as fresh."
+          }
+        ],
+        "observed": {}
+      },
+      "pricing": {
+        "unit": "usd_per_million_tokens",
+        "fields": ["inputPerMTok", "outputPerMTok", "cacheReadPerMTok"],
+        "source": {
+          "kind": "doc",
+          "url": "https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2",
+          "evidence": "research/2026-08-06_adapter-upstream-references.md",
+          "contentDigest": null
+        },
+        "rationale": "The vendor reports no dollar figure at all, so costUsd is a Cormidia ESTIMATE from the documented Muse Spark list prices and is flagged costEstimated: true. An estimate is evidence; a silent zero is not (INV-006). Every Muse Spark model is priced identically in the announcement, so one family row carries the rate and the fallback repeats it - an off-roster Muse id must not cost $0.",
+        "rows": [
+          {
+            "prefix": "muse-spark",
+            "docIds": ["muse-spark-1.2", "muse-spark-1.1", "Muse Spark"],
+            "price": { "inputPerMTok": 1.25, "outputPerMTok": 4.25, "cacheReadPerMTok": 0.15 }
+          }
+        ],
+        "fallback": {
+          "price": { "inputPerMTok": 1.25, "outputPerMTok": 4.25, "cacheReadPerMTok": 0.15 },
+          "rationale": "Muse Spark list prices from the vendor announcement: $1.25/M in, $4.25/M out, $0.15/M cached. These are the ONLY prices Cormidia asserts for this harness; no figure here is invented.",
+          "suffixRules": []
+        },
+        "modifiers": []
+      },
+      "roster": {
+        "source": {
+          "kind": "doc",
+          "url": "https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2",
+          "evidence": "research/2026-08-06_adapter-upstream-references.md",
+          "contentDigest": null
+        },
+        "pattern": "muse-spark-[0-9]+\\.[0-9]+",
+        "models": ["muse-spark-1.1", "muse-spark-1.2"],
+        "note": "A published DOCUMENTED list, not a probe: muse exposes no token-free enumeration command. Publishing a roster never assigns a model to a role."
+      },
+      "rosterNote": null
+    }
+  }
+}

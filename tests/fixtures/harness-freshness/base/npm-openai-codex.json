@@ -1,0 +1,6 @@
+{
+  "name": "@openai/codex",
+  "version": "0.147.0",
+  "description": "Recorded sample of the registry `latest` manifest, trimmed to the fields the probe reads.",
+  "dist": { "tarball": "https://registry.npmjs.org/@openai/codex/-/codex-0.147.0.tgz" }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "@openai/codex",
+  "version": "0.148.0",
+  "description": "Recorded sample: upstream moved one minor ahead of the version certification ran against.",
+  "dist": { "tarball": "https://registry.npmjs.org/@openai/codex/-/codex-0.148.0.tgz" }
+}

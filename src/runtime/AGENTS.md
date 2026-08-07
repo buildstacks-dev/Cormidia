@@ -39,6 +39,17 @@ OpenCode server+SDK, Grok Build ACP, Muse Code CLI).
   and its dated `research/` evidence. The record is exhaustive over
   `RuntimeKind`, so a new harness is a compile error until its bands exist;
   drift above or below `testedWith` is a doctor note, never a block.
+- **`harness-metadata.json` is the ONE place the DRIFTING facts live** (#332):
+  per-model prices used for cost estimation, documented model rosters, and the
+  official upstream source each came from. `harness-metadata.ts` validates it
+  (fail-loud, exhaustive over `RuntimeKind`) and `harness-pricing.ts` owns the
+  lookup rules — longest id PREFIX wins, an unmatched id takes the declared
+  fallback and never $0, published surcharge bands apply on top. Never restate
+  a rate inline in an adapter: the whole point is that
+  `scripts/harness-freshness.mjs` can refresh one file and open a PR.
+  The split is deliberate — a *band* is a certification claim and moves only
+  with a re-certification run, so the probe reads `harness-support.ts` and is
+  forbidden to write it (`docs/harness/adding-updating.md` §6.1).
 - Capability flow is one-way (#116). Follow
   `docs/harness/adding-updating.md` for the adapter contract, registration
   checklist, three test tiers, and update obligations.

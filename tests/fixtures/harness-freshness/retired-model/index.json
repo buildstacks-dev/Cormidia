@@ -1,0 +1,9 @@
+{
+  "note": "Retired model: muse-spark-1.1 no longer appears on the roster page. A retirement is flagged loudly because an assigned-but-retired id is discovered otherwise only inside a paid turn.",
+  "extends": "../base",
+  "responses": {
+    "https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2": {
+      "bodyFile": "doc-muse-announcement.html"
+    }
+  }
+}

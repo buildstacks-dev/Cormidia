@@ -1,0 +1,7 @@
+{
+  "note": "Version drift: codex published 0.148.0 while harness-support.ts still records testedWith 0.147.0. The probe must REPORT the drift and must not move the band - that needs a re-certification run (docs/harness/adding-updating.md 6).",
+  "extends": "../base",
+  "responses": {
+    "https://registry.npmjs.org/@openai%2Fcodex/latest": { "bodyFile": "npm-openai-codex.json" }
+  }
+}

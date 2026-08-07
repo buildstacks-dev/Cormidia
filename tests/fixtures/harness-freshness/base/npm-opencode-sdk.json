@@ -1,0 +1,6 @@
+{
+  "name": "@opencode-ai/sdk",
+  "version": "1.18.15",
+  "description": "Recorded sample of the registry `latest` manifest, trimmed to the fields the probe reads.",
+  "dist": { "tarball": "https://registry.npmjs.org/@opencode-ai/sdk/-/sdk-1.18.15.tgz" }
+}

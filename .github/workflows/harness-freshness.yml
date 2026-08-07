@@ -1,0 +1,81 @@
+name: Harness upstream freshness
+
+# Scheduled upstream-freshness probe (#332). Keeping harness support current
+# "need not be manual" (product owner, 2026-08-07): this lane fetches the
+# latest versions, model rosters and prices from the official sources recorded
+# in research/2026-08-06_adapter-upstream-references.md, diffs them against
+# src/runtime/harness-metadata.json, and opens ONE pull request for a human to
+# read and merge.
+#
+# Why a workflow rather than a standing Cormidia role turn: the deterministic
+# script needs no model, and wiring a standing role would mean editing
+# roles.yaml / pipelines.yaml — human-ratified surfaces this automation is
+# specifically forbidden to touch. Dogfooding the org loop here is a genuine
+# option, but it is a ratification, not a side effect of this change.
+#
+# What this lane may NEVER do, enforced in scripts/harness-freshness.mjs and
+# pinned by tests/unit/cf-reg-332/:
+#   - merge anything (the pull request is the whole output);
+#   - edit roles.yaml, TASTE.md, docs/PURPOSE.md, pipelines.yaml or prompts/**
+#     (model-id consequences are PROPOSALS in the PR body);
+#   - move a `testedWith` band — that needs a re-certification run
+#     (docs/harness/adding-updating.md §6); drift is reported and nothing more.
+#
+# Exit codes: 0 fresh · 3 delta (pull request opened or refreshed) · 1 the probe
+# could not read a source, which fails the job loudly. An unreadable upstream is
+# never allowed to look like freshness.
+
+on:
+  schedule:
+    # Mondays 06:17 UTC. Off the hour so the run does not queue behind the
+    # top-of-hour crowd on GitHub's shared schedulers.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: harness-freshness
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Identify the automation commit
+        run: |
+          git config user.name "cormidia-freshness[bot]"
+          git config user.email "cormidia-freshness@users.noreply.github.com"
+      - name: Probe upstream and open a pull request on a delta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          node scripts/harness-freshness.mjs --apply --open-pr --out "$RUNNER_TEMP/freshness.md"
+          status=$?
+          set -e
+          {
+            echo "## Harness upstream freshness"
+            echo
+            cat "$RUNNER_TEMP/freshness.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$status" in
+            0) echo "No upstream change." ;;
+            3) echo "Delta detected — a pull request is open for human review and merge." ;;
+            *) echo "Probe failed: an upstream source could not be read. This is NOT a freshness result."; exit 1 ;;
+          esac

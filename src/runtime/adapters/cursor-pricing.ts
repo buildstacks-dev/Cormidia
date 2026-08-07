@@ -3,71 +3,30 @@
 // rate table and flags every figure `costEstimated: true`. The estimate also
 // backs the per-turn budget check, so it is deliberately biased to over-count.
 
+// The rate table itself — every row, both documented fallbacks, and the source
+// it was transcribed from — lives in `harness-metadata.json` (#332), because a
+// vendor rate card is exactly the kind of fact that drifts. This module keeps
+// the arithmetic and the `TurnUsage` mapping.
+
+import { harnessModelPrice } from "../harness-pricing.js";
+import type { ModelPrice } from "../harness-metadata.js";
 import type { TurnUsage } from "../types.js";
 
-export interface CursorPrice {
-  inputPerMTok: number;
-  cacheWritePerMTok: number;
-  cacheReadPerMTok: number;
-  outputPerMTok: number;
+/** Cursor publishes all four token classes, so every field is present. */
+export interface CursorPrice extends ModelPrice {
+  readonly cacheWritePerMTok: number;
+  readonly cacheReadPerMTok: number;
 }
 
-// USD per million tokens, fetched 2026-08-07 from
-// <https://cursor.com/docs/account/pricing> and recorded in
-// research/2026-08-07_cursor-adapter-certification.md. These are the ONLY
-// prices Cormidia asserts for this harness; no figure here is invented.
-//
-// Keys match as longest id PREFIXES because the CLI's roster spells effort
-// into the id (`gpt-5.6-sol-high`, `claude-opus-5-thinking-xhigh`).
-const CURSOR_PRICES: ReadonlyArray<readonly [string, CursorPrice]> = [
-  ["claude-opus-5", { inputPerMTok: 5, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5, outputPerMTok: 25 }],
-  ["claude-opus-4-8", { inputPerMTok: 5, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5, outputPerMTok: 25 }],
-  ["claude-sonnet-5", { inputPerMTok: 3, cacheWritePerMTok: 3.75, cacheReadPerMTok: 0.3, outputPerMTok: 15 }],
-  ["claude-fable-5", { inputPerMTok: 10, cacheWritePerMTok: 12.5, cacheReadPerMTok: 1, outputPerMTok: 50 }],
-  ["gpt-5.6-sol", { inputPerMTok: 5, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5, outputPerMTok: 30 }],
-  ["gpt-5.5", { inputPerMTok: 5, cacheWritePerMTok: 5, cacheReadPerMTok: 0.5, outputPerMTok: 30 }],
-  ["gpt-5.4", { inputPerMTok: 2.5, cacheWritePerMTok: 2.5, cacheReadPerMTok: 0.25, outputPerMTok: 15 }],
-  ["gpt-5.3-codex", { inputPerMTok: 1.75, cacheWritePerMTok: 1.75, cacheReadPerMTok: 0.175, outputPerMTok: 14 }],
-  ["gpt-5.2", { inputPerMTok: 1.75, cacheWritePerMTok: 1.75, cacheReadPerMTok: 0.175, outputPerMTok: 14 }],
-  ["kimi-k3", { inputPerMTok: 3, cacheWritePerMTok: 3, cacheReadPerMTok: 0.3, outputPerMTok: 15 }],
-];
-
-/**
- * Documented upper bounds — not invented numbers — for ids the table does not
- * price (`auto`, `composer-2.5`, `cursor-grok-4.5-*`, anything newer):
- *  - the dearest published NON-fast row (Claude Fable 5) for ordinary ids;
- *  - the dearest published row overall, itself a fast-mode row (Claude Opus
- *    4.7 fast mode), for `-fast` ids, because the table shows fast mode
- *    carrying a large surcharge and Cormidia will not extrapolate a multiplier
- *    from a single data point.
- * Over-estimating is the fail-safe direction: unknown spend must never round
- * toward zero when the same figure backs the budget check.
- */
-const CURSOR_UNPRICED: CursorPrice = {
-  inputPerMTok: 10,
-  cacheWritePerMTok: 12.5,
-  cacheReadPerMTok: 1,
-  outputPerMTok: 50,
-};
-const CURSOR_UNPRICED_FAST: CursorPrice = {
-  inputPerMTok: 30,
-  cacheWritePerMTok: 37.5,
-  cacheReadPerMTok: 3,
-  outputPerMTok: 150,
-};
-
+/** Narrows the shared four-field metadata row. A missing cache rate is an
+ *  authoring error in `harness-metadata.json`, and it fails loudly here rather
+ *  than silently costing a cached token $0. */
 export function cursorModelPrice(model: string): CursorPrice {
-  const id = model.toLowerCase();
-  let best: CursorPrice | undefined;
-  let bestLength = -1;
-  for (const [prefix, price] of CURSOR_PRICES) {
-    if (id.startsWith(prefix) && prefix.length > bestLength) {
-      best = price;
-      bestLength = prefix.length;
-    }
+  const price = harnessModelPrice("cursor", model);
+  if (price.cacheWritePerMTok === undefined || price.cacheReadPerMTok === undefined) {
+    throw new Error(`cursor price for ${model} is missing a cache rate; every Cursor row publishes all four`);
   }
-  if (best !== undefined) return best;
-  return id.endsWith("-fast") ? CURSOR_UNPRICED_FAST : CURSOR_UNPRICED;
+  return { ...price, cacheWritePerMTok: price.cacheWritePerMTok, cacheReadPerMTok: price.cacheReadPerMTok };
 }
 
 export function estimateCursorCostUsd(

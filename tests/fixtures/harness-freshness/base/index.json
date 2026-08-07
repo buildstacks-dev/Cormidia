@@ -1,0 +1,22 @@
+{
+  "note": "Baseline recorded corpus: every upstream source the committed metadata declares, answering with the values the metadata already records. Scenarios extend this directory and override only the payloads they change, so a new harness source shows up as a missing fixture rather than a silent pass.",
+  "responses": {
+    "https://registry.npmjs.org/@anthropic-ai%2Fclaude-agent-sdk/latest": { "bodyFile": "npm-claude-agent-sdk.json" },
+    "https://registry.npmjs.org/@openai%2Fcodex/latest": { "bodyFile": "npm-openai-codex.json" },
+    "https://registry.npmjs.org/@earendil-works%2Fpi-coding-agent/latest": { "bodyFile": "npm-pi-coding-agent.json" },
+    "https://registry.npmjs.org/opencode-ai/latest": { "bodyFile": "npm-opencode-ai.json" },
+    "https://registry.npmjs.org/@opencode-ai%2Fsdk/latest": { "bodyFile": "npm-opencode-sdk.json" },
+    "https://api.github.com/repos/anthropics/claude-agent-sdk-typescript/releases/latest": {
+      "bodyFile": "gh-claude-agent-sdk.json"
+    },
+    "https://api.github.com/repos/openai/codex/releases/latest": { "bodyFile": "gh-openai-codex.json" },
+    "https://api.github.com/repos/earendil-works/pi/releases/latest": { "bodyFile": "gh-pi.json" },
+    "https://api.github.com/repos/anomalyco/opencode/releases/latest": { "bodyFile": "gh-opencode.json" },
+    "https://api.github.com/repos/xai-org/grok-build/releases/latest": { "bodyFile": "gh-grok-build.json" },
+    "https://developers.openai.com/api/docs/pricing": { "bodyFile": "doc-openai-pricing.html" },
+    "https://cursor.com/docs/account/pricing": { "bodyFile": "doc-cursor-pricing.html" },
+    "https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2": {
+      "bodyFile": "doc-muse-announcement.html"
+    }
+  }
+}

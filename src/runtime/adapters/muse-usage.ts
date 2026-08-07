@@ -2,16 +2,22 @@
 //
 // `muse exec --json` streams run and task lifecycle but NO usage: token counts
 // exist only in the durable session log
-// (`<share>/muse/sessions/<Y>/<M>/<D>/<session>/session.jsonl`). That log is
-// therefore the finest truthful observation point this harness exposes, and it
-// is what both the reported usage and the running budget guard read.
+// (`<share>/muse/sessions/<Y>/<M>/<D>/<session>/session.jsonl`) — the finest
+// truthful observation point this harness exposes, and what both the reported
+// usage and the running budget guard read.
 //
 // The vendor reports no dollar figure at all, so `costUsd` is a Cormidia
 // ESTIMATE from documented list prices and is flagged `costEstimated: true`.
 // An estimate is evidence; a silent zero is not (INV-006).
+//
+// The figures and the announcement they came from live in
+// `harness-metadata.json` (#332): Muse publishes one rate for the whole Spark
+// family, so it is that harness's declared fallback and the lookup key is the
+// family, not a per-turn id. A missing cached rate throws, never costs $0.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { harnessModelPrice } from "../harness-pricing.js";
 import type { Artifact, RoleConfig, TurnUsage, UsageQuality } from "../types.js";
 
 /** Token counts observed in the durable session log for one session. */
@@ -22,19 +28,13 @@ export interface MuseObservedUsage {
   subagentTurns: number;
 }
 
-/**
- * Documented Muse Spark list prices, USD per million tokens
- * (research/2026-08-06_adapter-upstream-references.md → Muse section:
- * $1.25/M in, $4.25/M out, $0.15/M cached). These are the ONLY prices Cormidia
- * asserts for this harness; no figure here is invented.
- */
-const MUSE_PRICE = { inputPerMTok: 1.25, outputPerMTok: 4.25, cachedPerMTok: 0.15 } as const;
-
 export function estimateMuseCostUsd(uncachedIn: number, cachedIn: number, out: number): number {
+  const price = harnessModelPrice("muse", "muse-spark");
+  if (price.cacheReadPerMTok === undefined) throw new Error("muse price is missing its cached-input rate");
   return (
-    (uncachedIn / 1_000_000) * MUSE_PRICE.inputPerMTok +
-    (cachedIn / 1_000_000) * MUSE_PRICE.cachedPerMTok +
-    (out / 1_000_000) * MUSE_PRICE.outputPerMTok
+    (uncachedIn / 1_000_000) * price.inputPerMTok +
+    (cachedIn / 1_000_000) * price.cacheReadPerMTok +
+    (out / 1_000_000) * price.outputPerMTok
   );
 }
 

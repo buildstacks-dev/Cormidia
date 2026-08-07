@@ -10,6 +10,7 @@
 
 import type { CreateModelRuntimeOptions } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
+import { harnessMetadata } from "./harness-metadata.js";
 import type { RuntimeKind } from "./types.js";
 
 type RuntimeModelCatalog =
@@ -72,13 +73,17 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
 const OPENCODE_CATALOG_TIMEOUT_MS = 15_000;
 
 /**
- * Muse Spark identifiers Muse Code accepts, from the vendor announcement
- * recorded in `research/2026-08-06_adapter-upstream-references.md`. The roster
- * is a published DOCUMENTED list, not a probe: `muse` exposes no token-free
- * enumeration command, so `source` names the record rather than a local file.
- * Publishing a roster never assigns a model to a role.
+ * The Muse Spark identifiers Muse Code accepts are a published DOCUMENTED list,
+ * not a probe: `muse` exposes no token-free enumeration command. The list and
+ * the announcement it came from live in `harness-metadata.json` (#332) with the
+ * other facts that drift upstream, so `source` names that record rather than a
+ * local file. Publishing a roster never assigns a model to a role.
  */
-const MUSE_MODELS = ["muse-spark-1.1", "muse-spark-1.2"] as const;
+function documentedRoster(runtime: RuntimeKind): { models: string[]; source: string } {
+  const roster = harnessMetadata(runtime).roster;
+  if (roster === null) throw new Error(`harness ${runtime} declares no documented roster in harness-metadata.json`);
+  return { models: [...roster.models], source: `${roster.source.evidence} (${roster.source.url})` };
+}
 
 /**
  * Read the harness roster. Never contacts a provider, never sends a model
@@ -88,12 +93,7 @@ const MUSE_MODELS = ["muse-spark-1.1", "muse-spark-1.2"] as const;
 export async function readRuntimeModelCatalog(runtime: RuntimeKind): Promise<RuntimeModelCatalog> {
   if (runtime === "opencode") return readOpencodeModelCatalog();
   if (runtime === "muse") {
-    return {
-      runtime,
-      available: true,
-      source: "research/2026-08-06_adapter-upstream-references.md (Muse Code / Muse Spark)",
-      models: [...MUSE_MODELS],
-    };
+    return { runtime, available: true, ...documentedRoster(runtime) };
   }
   if (runtime !== "pi") {
     return { runtime, available: false, reason: UNAVAILABLE_REASON[runtime]! };

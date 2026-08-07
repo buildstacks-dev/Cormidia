@@ -1,0 +1,5 @@
+{
+  "note": "NEGATIVE CONTROL. The payloads are byte-identical to the baseline - the SNAPSHOT is what is stale. Read with base/metadata.json this corpus reports fresh; read with this directory's seeded metadata.json it must fire on every seeded fact. A detector that has never fired is an assumption (tests/README.md convention 3).",
+  "extends": "../base",
+  "responses": {}
+}

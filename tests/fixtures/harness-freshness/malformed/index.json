@@ -1,0 +1,10 @@
+{
+  "note": "NEGATIVE CONTROL. Two well-formed HTTP 200 responses that carry nothing the probe can read: a registry manifest with the version under a key the probe does not accept, and a roster page whose model ids have vanished. Both must fail closed rather than degrade to a version-less pass or a wholesale retirement.",
+  "extends": "../base",
+  "responses": {
+    "https://registry.npmjs.org/@openai%2Fcodex/latest": { "bodyFile": "npm-openai-codex.json" },
+    "https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2": {
+      "bodyFile": "doc-muse-announcement.html"
+    }
+  }
+}

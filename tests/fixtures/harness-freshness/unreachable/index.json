@@ -1,0 +1,11 @@
+{
+  "note": "NEGATIVE CONTROL. The registry answers 503 and the Cursor pricing page is simply gone from the corpus. Every other source is unchanged and would otherwise report fresh, so this fixture proves an unreadable source is never laundered into 'no changes'.",
+  "extends": "../base",
+  "responses": {
+    "https://registry.npmjs.org/@openai%2Fcodex/latest": {
+      "status": 503,
+      "reason": "registry returned 503 Service Unavailable"
+    },
+    "https://cursor.com/docs/account/pricing": { "status": 404, "reason": "pricing page moved" }
+  }
+}

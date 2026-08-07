@@ -322,6 +322,39 @@ Additional obligations by blast radius:
   Adapter work that changes which models are reachable re-opens that
   ratification, it doesn't edit around it.
 
+### 6.1 Upstream freshness automation — what it does and does not do
+
+Versions, model rosters and prices drift on the vendor's schedule, not ours
+(pi shipped ~19 releases in seven weeks), and a manual refresh loses to
+schedule pressure. `scripts/harness-freshness.mjs` (#332) closes that loop
+without spending a token: it fetches each harness's declared upstream sources,
+diffs them against `src/runtime/harness-metadata.json` — the one machine-readable
+home for those drifting facts — and, on a delta, opens **one** pull request for
+a human to read and merge. A GitHub Actions schedule
+(`.github/workflows/harness-freshness.yml`) runs it weekly; `pnpm harness:freshness`
+runs it by hand.
+
+**It never moves a band.** Version drift against `testedWith` is REPORTED and
+nothing more, because moving the band is a claim that certification ran against
+that version — obligation 3 above, in full. The probe reads
+`harness-support.ts`; it never writes it. The same rule covers the ratified
+surfaces: a roster change becomes a `roles.yaml` **proposal in the pull-request
+body**, never an edit. And a source the probe could not read is a typed
+FAILURE with a non-zero exit, never a quiet "no changes" — an unreadable
+upstream must never be mistaken for a current one.
+
+So the obligations above are unchanged by the automation. What changes is who
+notices: the pull request tells you a bump exists and what moved with it; §6.3
+and §5 are still what you owe before `testedWith` follows.
+
+Prices the probe extracts from a vendor page are **proposals**, shown old → new
+per field. It reads figures positionally in the order a harness declares in
+`pricing.fields`, so a reordered vendor table yields wrong numbers rather than
+an error — which is exactly why nothing merges itself. Offline coverage,
+including the seeded stale-snapshot and unreadable-source negative controls,
+is `tests/unit/cf-reg-332/` over the recorded corpus in
+`tests/fixtures/harness-freshness/`.
+
 ## 7. What the agent inside a turn knows
 
 Every assignment-aware provider turn now carries a small **Turn execution

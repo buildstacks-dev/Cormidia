@@ -878,7 +878,7 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 1621,
+      "lines": 867,
       "newModule": false
     },
     "src/org/roadmap-delivery/active-execution-units.ts": {
@@ -906,9 +906,34 @@
       "lines": 88,
       "newModule": true
     },
+    "src/org/roadmap-delivery/delivery-episode-binding.ts": {
+      "exports": 3,
+      "lines": 158,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/delivery-episode-normalization.ts": {
+      "exports": 1,
+      "lines": 225,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/delivery-join.ts": {
+      "exports": 2,
+      "lines": 155,
+      "newModule": true
+    },
     "src/org/roadmap-delivery/delivery-readiness.ts": {
       "exports": 4,
       "lines": 185,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/delivery-unit-claims.ts": {
+      "exports": 9,
+      "lines": 181,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/direct-episode-normalization.ts": {
+      "exports": 1,
+      "lines": 148,
       "newModule": true
     },
     "src/org/roadmap-delivery/direct-execution-authority.ts": {

@@ -7,7 +7,10 @@
 #   cormidia-job run examples/jobs/dependency-audit.yaml --workdir ~/src/my-app
 
 job: monthly-dependency-audit
-app: sonnet8-buildstack-dev
+# Replace with a name from your own `cormidia apps` output. An app-scoped job
+# refuses an unregistered name rather than silently filing its evidence under
+# the unscoped slot, so this must match a real registration before it runs.
+app: billing-api
 description: >
   Monthly dependency review for an onboarded app: inventory, then risk analysis,
   then a machine-readable upgrade plan the next run can diff against.

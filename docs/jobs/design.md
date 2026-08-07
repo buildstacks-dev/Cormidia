@@ -451,6 +451,30 @@ cyclic config, a drifted config hash, an empty declared output, a nested
 invocation, a job step attempting a gated op, a ledger double-settle. A detector
 that has never fired is an assumption.
 
+### Not covered: real-token validation and outcome measurement
+
+Everything above is offline and structural. It proves the *machinery* — ordering,
+resume, refusal, settlement, handoff — and proves nothing about whether a job's
+output was any good.
+
+Outcome quality is deliberately outside these families, twice over. The
+statistical lane is excluded by design (§5 of the harness revision: the prompt is
+the operator's, so Cormidia cannot own a golden set for it), and real-token
+execution against real apps is a **separate authorized campaign** under
+`validation-policy.yaml` spend bounds — AGENTS.md is explicit that token-spending
+runs are never casual.
+
+Named here so its absence is visible rather than assumed:
+
+- **L-JOB-LIVE (not run).** Real apps, real tokens, real provider variance, with
+  outcome measurement per job shape. Needs a human-authored measurement rubric
+  before it means anything, because "did the board brief land" is not a
+  deterministic assertion. Requires explicit human authorization per campaign.
+
+Until that campaign runs and its evidence is dispositioned, jobs are
+**build-complete and offline-proven, not outcome-validated.** Do not represent
+the examples in `examples/jobs/` as evidence of outcome quality.
+
 > **Structural boundary.** J-JOB-1 and J-JOB-2 are *new journeys*, and jobs
 > introduce at least one new boundary (the job config/journal contract). Per
 > AGENTS.md → Validation harness, that is a structural change requiring re-entry

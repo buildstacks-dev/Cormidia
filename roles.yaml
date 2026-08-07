@@ -144,3 +144,32 @@ roles:
     triggers:
       - schedule: "weekly mon 07:00"
     outputs: [learning-review-verdicts, compaction-report]
+
+  # Non-product role (docs/jobs/design.md §4). Every `cormidia-job` step runs as
+  # this role, which exists to carry an authority ceiling for work that has no
+  # ticket, no PR, and no reviewer. A step config may name its own
+  # harness/model/effort; it can never widen what the turn is permitted to DO,
+  # because permission lives here and not in the assignment.
+  #
+  # Deliberately no adaptive_assignments: that machinery guards a *delegated*
+  # model choice whose quality claim a downstream consumer inherits. A job has
+  # neither — the operator writes the tuple and reads the output — and requiring a
+  # ratified candidate list would force a roles.yaml ratification for every model
+  # someone wants to try. Availability plus this ceiling are the real guards.
+  operator:
+    runtime: claude
+    model: claude-opus-4-8
+    effort: high
+    max_turn_budget_usd: 50     # matches builder: a job step doing real analysis
+                                # over a large corpus sits closer to a builder
+                                # turn than to the $5 default. Tighten-only.
+    delegation:
+      allow: []                 # no fan-out. A job author sets the per-step
+                                # ceiling but never sees subagent spend, so
+                                # delegation here would multiply cost against a
+                                # bound they did not choose.
+    triggers:
+      - manual: true            # NOT negotiable: the scheduler must never
+                                # auto-fire a job. A job runs because a human ran
+                                # the command.
+    outputs: [job-step-artifacts]

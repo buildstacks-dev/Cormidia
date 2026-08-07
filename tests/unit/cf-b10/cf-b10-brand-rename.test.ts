@@ -115,7 +115,16 @@ describe("CF-B10-* (L1) Cormidia is the sole product identity", () => {
       publishConfig?: { access?: string };
     };
     expect(manifest.name).toBe("cormidia");
-    expect(manifest.bin).toEqual({ cormidia: "./src/cormidia.cjs" });
+    // Still an EXACT map, deliberately: a new binary changes what the package
+    // *is* and is a PURPOSE-level decision, so an unreviewed third entry must
+    // fail here rather than ship. `cormidia-job` was ratified 2026-08-07
+    // (PURPOSE v2.16 — jobs); it carries explicitly weaker guarantees than
+    // `cormidia`, which is the reason it is a separate name at all
+    // (docs/jobs/design.md §12).
+    expect(manifest.bin).toEqual({
+      cormidia: "./src/cormidia.cjs",
+      "cormidia-job": "./src/cormidia-job.cjs",
+    });
     // The manifest must stay publishable and public: `private: true` blocks the
     // publish outright, and without an explicit public access the registry can
     // default to restricted. Both are silent — they surface only at publish time.
@@ -124,6 +133,7 @@ describe("CF-B10-* (L1) Cormidia is the sole product identity", () => {
     expect(manifest.files).toEqual(
       expect.arrayContaining([
         "src/cormidia.cjs",
+        "src/cormidia-job.cjs",
         "src/cormidia-local.cjs",
         "scripts/cormidia-local.mjs",
         "agent-skills/cormidia/",

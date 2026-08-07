@@ -10,7 +10,8 @@
 # a PR is a ticket, not a job (docs/jobs/design.md §3).
 
 job: weekly-hygiene
-app: sonnet8-buildstack-dev
+# See dependency-audit.yaml: replace with one of your registered apps.
+app: docs-site
 description: >
   Weekly repository hygiene: find dead code, remove it, prove the tree still
   builds and tests green. Every gate is a command, so a confident-but-wrong

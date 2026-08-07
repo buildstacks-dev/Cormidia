@@ -38,7 +38,10 @@ provider-neutral and reaches providers only through this seam. The import
 direction is one-way (`src/org` → `src/loop` → `src/runtime`; the runtime
 layer imports nothing above it), which is what keeps harnesses swappable and
 the loop extractable. Current harnesses: `claude.ts`, `codex.ts` (+
-`codex-gate-bridge.ts`, `codex-gate-hook.ts`), `pi.ts` (+ `pi-gate.ts`).
+`codex-gate-bridge.ts`, `codex-gate-hook.ts`), `pi.ts` (+ `pi-gate.ts`),
+`opencode.ts` (+ `opencode-server.ts`, `opencode-config.ts`,
+`opencode-session.ts`, `opencode-gate-bridge.ts`, `opencode-gate-plugin.ts`,
+`opencode-gate-client.ts`).
 
 ## 2. The contract a harness must honor
 

@@ -7,7 +7,12 @@ import {
 } from "./capabilities.js";
 import type { Effort, RoleConfig, RuntimeKind, TurnAssignment, TurnExecutionFacts, TurnRequest } from "./types.js";
 
-export const TURN_ASSIGNMENT_HARNESSES = ["claude", "codex", "pi"] as const satisfies readonly RuntimeKind[];
+export const TURN_ASSIGNMENT_HARNESSES = [
+  "claude",
+  "codex",
+  "opencode",
+  "pi",
+] as const satisfies readonly RuntimeKind[];
 export const TURN_ASSIGNMENT_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly Effort[];
 
 /** Reserved role-local id for the explicit fixed assignment on RoleConfig. */
@@ -67,7 +72,11 @@ export function validateTurnAssignment(value: unknown, context = "turn assignmen
   if (typeof effort !== "string" || !TURN_ASSIGNMENT_EFFORTS.includes(effort as Effort)) {
     throw new Error(`${context}.effort must be one of ${TURN_ASSIGNMENT_EFFORTS.join(" | ")}`);
   }
-  if (effort === "max" && harness !== "claude") {
+  // `max` exists on Claude natively and on OpenCode as a per-model `variant`
+  // (verified 2026-08-07: gpt-5.6-sol/luna/terra publish it, gpt-5.4* do not).
+  // Harness-level acceptance here; the OpenCode adapter still refuses the exact
+  // model/effort pair before provider construction when the model omits it.
+  if (effort === "max" && harness !== "claude" && harness !== "opencode") {
     throw new Error(`${context}.effort max is unsupported by ${harness}; no effort alias is allowed`);
   }
 

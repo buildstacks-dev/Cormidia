@@ -71,6 +71,33 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       fields: ["tokensInUncached", "cacheReadTokens"],
     },
   },
+  // Tiers certified against the operator's opencode 1.18.15 on 2026-08-07
+  // (research/2026-08-07_opencode-adapter-certification.md). `tool_gate` is
+  // adapter-built because OpenCode ships no Cormidia-gate surface: the enforcing
+  // seam is a Cormidia-authored plugin bridging `tool.execute.before` to the
+  // in-process GateFn. Everything else is a first-class server endpoint or
+  // request field, so it is claimed native and proven at that tier.
+  opencode: {
+    ref: "opencode/v1",
+    runtime: "opencode",
+    capabilities: {
+      cache_telemetry: "native",
+      cancellation: "native",
+      intra_turn_fanout: "native",
+      session_resume: "native",
+      // The server exposes a native json_schema output format, but certifying
+      // it produced a retry loop that ran past five minutes and returned no
+      // assistant message. Claiming `native` would be claiming a surface that
+      // does not work; the loop's lenient parser is the honest tier.
+      structured_verdict: "fallback",
+      tool_gate: "adapter",
+    },
+    cache: {
+      supported: true,
+      observable: true,
+      fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
+    },
+  },
   pi: {
     ref: "pi/v1",
     runtime: "pi",

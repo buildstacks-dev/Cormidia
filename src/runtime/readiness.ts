@@ -79,6 +79,7 @@ interface PiReadinessDependencies {
 const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementation> = {
   claude: probeClaude,
   codex: probeCodex,
+  opencode: probeOpencode,
   pi: probePi,
 };
 
@@ -296,6 +297,86 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
   } finally {
     request.signal.removeEventListener("abort", abort);
     await client.close();
+  }
+}
+
+/**
+ * OpenCode readiness: the operator's preinstalled binary (never installed by
+ * Cormidia, #224), its version band (#331), and — the part that actually
+ * matters — a provider roster resolved from the real auth store. `/config/providers`
+ * lists only providers whose credential resolves, so a model whose provider is
+ * absent is `unauthenticated`, and a model absent from a present provider's
+ * roster is `misconfigured`. No model turn is sent and no token is spent.
+ */
+async function probeOpencode(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
+  const { resolveOpencodeBinary, startOpencodeServer } = await import("./adapters/opencode-server.js");
+  const { execFile: execFileAsync } = await import("node:child_process");
+  const { promisify: promisifyAsync } = await import("node:util");
+  if (request.models.length === 0) {
+    return {
+      status: "misconfigured",
+      errorCode: "error_adapter_misconfigured",
+      detail: "opencode readiness requires at least one configured role model",
+    };
+  }
+  const binary = resolveOpencodeBinary(request.processEnv ?? process.env);
+  const { stdout: versionOut } = await promisifyAsync(execFileAsync)(binary, ["--version"], {
+    encoding: "utf8",
+    timeout: 15_000,
+  });
+  const version = versionOut.trim().split(/\r?\n/).pop() ?? "unknown";
+  const server = await startOpencodeServer({
+    workdir: process.cwd(),
+    inlineConfig: { $schema: "https://opencode.ai/config.json", mcp: {}, share: "disabled", autoupdate: false },
+    bridgeEnv: {},
+    ...definedProps({ extraEnv: request.processEnv }),
+    startTimeoutMs: 45_000,
+  });
+  try {
+    const response = await fetch(`${server.url}/config/providers`, { signal: request.signal });
+    const parsed: unknown = await response.json();
+    const providers = isRecord(parsed) && Array.isArray(parsed["providers"]) ? parsed["providers"] : [];
+    const roster = new Map<string, Set<string>>();
+    for (const entry of providers) {
+      if (!isRecord(entry) || typeof entry["id"] !== "string") continue;
+      roster.set(entry["id"], new Set(isRecord(entry["models"]) ? Object.keys(entry["models"]) : []));
+    }
+    const checked: string[] = [];
+    for (const model of [...new Set(request.models)].sort()) {
+      const separator = model.indexOf("/");
+      if (separator <= 0) {
+        return {
+          status: "misconfigured",
+          errorCode: "error_adapter_misconfigured",
+          detail: `opencode model ${model} is not an exact provider/model identifier`,
+        };
+      }
+      const providerId = model.slice(0, separator);
+      const models = roster.get(providerId);
+      if (models === undefined) {
+        return {
+          status: "unauthenticated",
+          errorCode: "error_adapter_unauthenticated",
+          detail:
+            `opencode provider ${providerId} has no resolvable credential ` +
+            `(reachable providers: ${[...roster.keys()].sort().join(", ") || "none"})`,
+        };
+      }
+      if (!models.has(model.slice(separator + 1))) {
+        return {
+          status: "misconfigured",
+          errorCode: "error_adapter_misconfigured",
+          detail: `opencode model ${model} is absent from provider ${providerId}'s roster`,
+        };
+      }
+      checked.push(model);
+    }
+    return {
+      status: "ready",
+      detail: `opencode ${version} at ${binary}; credentialed providers resolved for ${checked.join(", ")}; no model turn sent`,
+    };
+  } finally {
+    await server.close();
   }
 }
 

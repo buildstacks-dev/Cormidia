@@ -61,6 +61,7 @@ export function liveCampaignRequiredCaseIds(config: LiveCampaignConfigV1): strin
         ({
           claude: "CF-B02-L3",
           codex: "CF-B03-L3",
+          opencode: "CF-B23-L3",
           pi: "CF-B04-L3",
         })[target.runtime],
     ),
@@ -119,7 +120,7 @@ function validate(value: unknown): asserts value is LiveCampaignConfigV1 {
   for (const [index, unknownAdapter] of root["adapters"].entries()) {
     const adapter = object(unknownAdapter, `adapters[${index}]`);
     exact(adapter, ["runtime", "model", "effort", "max_turn_budget_usd"]);
-    oneOf(adapter["runtime"], ["claude", "codex", "pi"], `adapters[${index}].runtime`);
+    oneOf(adapter["runtime"], ["claude", "codex", "opencode", "pi"], `adapters[${index}].runtime`);
     required(adapter["model"], `adapters[${index}].model`);
     oneOf(adapter["effort"], ["low", "medium", "high", "xhigh", "max"], `adapters[${index}].effort`);
     positive(adapter["max_turn_budget_usd"], `adapters[${index}].max_turn_budget_usd`);

@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { claudeDouble } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble } from "../../fixtures/adapters/codex-double.js";
+import { opencodeDouble } from "../../fixtures/adapters/opencode-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { runAdapterConformance } from "../../fixtures/adapters/conformance.js";
 import { script } from "../../fixtures/adapters/scenario.js";
@@ -41,6 +42,11 @@ describe("shared adapter conformance suite", () => {
       make: () => claudeDouble(scenarios("claude")).runtime,
     },
     { runtime: "codex" as const, model: "gpt-5.6-sol", make: () => codexDouble(scenarios("codex")).runtime },
+    {
+      runtime: "opencode" as const,
+      model: "scripted/opencode-scripted-model",
+      make: () => opencodeDouble(scenarios("opencode")).runtime,
+    },
     { runtime: "pi" as const, model: "claude-scripted-model", make: () => piDouble(scenarios("pi")).runtime },
   ])("passes against the real $runtime adapter over its scripted transport", async ({ runtime, model, make }) => {
     repo = await makeTempGitRepo();

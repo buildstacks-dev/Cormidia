@@ -83,7 +83,9 @@ describe("authorized L3 campaign", () => {
   it("runs the selected real adapter conformance pairs within the campaign envelope", async () => {
     const errors: string[] = [];
     for (const target of config.adapters) {
-      const caseId = ({ claude: "CF-B02-L3", codex: "CF-B03-L3", pi: "CF-B04-L3" } as const)[target.runtime];
+      const caseId = ({ claude: "CF-B02-L3", codex: "CF-B03-L3", opencode: "CF-B23-L3", pi: "CF-B04-L3" } as const)[
+        target.runtime
+      ];
       try {
         await campaign.runCase(caseId, { providerTurns: 2, maxEquivUsd: target.max_turn_budget_usd * 2 }, async () => {
           const result = await runAdapterConformance(

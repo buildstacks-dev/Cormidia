@@ -211,7 +211,12 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await git(repo, ["commit", "-qm", "seed post-review golden mutation"]);
     const alteredCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
     await expect(releaseRepositorySnapshot(repo, alteredCommit)).rejects.toThrow(/content changed after human review/);
-  }, 90_000);
+    // This case takes several full candidate snapshots, each a clone plus a real
+    // offline install plus a nested Vitest run, so its wall clock scales with the
+    // dependency set and with how loaded the suite is around it. The budget is
+    // headroom for that, not tolerance for a hang: every assertion above still
+    // has to hold.
+  }, 180_000);
 
   it("negative control: machine inventory catches alternate skip syntax and refuses missing or forged skip rows", async () => {
     const repo = await mkdtemp(join(tmpdir(), "rq1-vitest-inventory-"));
@@ -272,7 +277,10 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await expect(releaseRepositorySnapshot(repo, narrowedCommit)).rejects.toThrow(
       /config differs from the pinned offline lane/,
     );
-  });
+    // Same budget as its sibling above: this case clones the candidate, runs a
+    // real offline `pnpm install`, and executes Vitest inside it, so it scales
+    // with the dependency set rather than with the assertion.
+  }, 90_000);
 
   it("admits every exact deterministic check and preserves the one ratified skip", () => {
     const manifest = fixtureManifest();
@@ -979,7 +987,9 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
         tag: "v0.1.2",
       }),
     ).rejects.toThrow(/outside evidence namespace/);
-  });
+    // Same budget as the sibling repository-snapshot cases: a real candidate
+    // clone plus an offline install plus a nested Vitest run.
+  }, 90_000);
 });
 
 function fixtureManifest(): ReleaseManifestV1 {
@@ -1472,6 +1482,29 @@ async function writeRepositoryFixture(
   );
   await writeFile(join(repo, ".gitignore"), await readFile(join(process.cwd(), ".gitignore")), "utf8");
   await writeFile(join(repo, "pnpm-lock.yaml"), await readFile(join(process.cwd(), "pnpm-lock.yaml")), "utf8");
+  // pnpm 11 reads its per-repo settings from pnpm-workspace.yaml, and the
+  // candidate is installed with `pnpm install --offline --frozen-lockfile` and
+  // then run with `pnpm exec`. Two of those settings are load-bearing for this
+  // fixture: `minimumReleaseAgeExclude` (without it the install refuses any
+  // dependency pinned recently enough to still be inside the age window) and
+  // `verifyDepsBeforeRun: false` (without it every `pnpm exec` re-verifies the
+  // dependency tree). The `packages:` selector is deliberately dropped so the
+  // fixture does not also declare itself a workspace root.
+  await writeFile(
+    join(repo, "pnpm-workspace.yaml"),
+    (await readFile(join(process.cwd(), "pnpm-workspace.yaml"), "utf8"))
+      .split(/\r?\n/)
+      .reduce<{ lines: string[]; skipping: boolean }>(
+        (state, line) => {
+          if (/^\S/.test(line)) state.skipping = line.startsWith("packages:");
+          if (!state.skipping && !line.startsWith("  - '.'")) state.lines.push(line);
+          return state;
+        },
+        { lines: [], skipping: false },
+      )
+      .lines.join("\n") + "\n",
+    "utf8",
+  );
   await writeFile(join(repo, "vitest.config.ts"), await readFile(join(process.cwd(), "vitest.config.ts")), "utf8");
   await writeFile(join(repo, "prompts", "fixture.md"), "fixture prompt\n", "utf8");
   await writeFile(

@@ -1296,6 +1296,41 @@
       "lines": 1033,
       "newModule": false
     },
+    "src/runtime/adapters/opencode-config.ts": {
+      "exports": 4,
+      "lines": 120,
+      "newModule": true
+    },
+    "src/runtime/adapters/opencode-gate-bridge.ts": {
+      "exports": 7,
+      "lines": 300,
+      "newModule": true
+    },
+    "src/runtime/adapters/opencode-gate-client.ts": {
+      "exports": 3,
+      "lines": 83,
+      "newModule": true
+    },
+    "src/runtime/adapters/opencode-gate-plugin.ts": {
+      "exports": 3,
+      "lines": 165,
+      "newModule": true
+    },
+    "src/runtime/adapters/opencode-server.ts": {
+      "exports": 7,
+      "lines": 209,
+      "newModule": true
+    },
+    "src/runtime/adapters/opencode-session.ts": {
+      "exports": 9,
+      "lines": 293,
+      "newModule": true
+    },
+    "src/runtime/adapters/opencode.ts": {
+      "exports": 3,
+      "lines": 300,
+      "newModule": true
+    },
     "src/runtime/adapters/pi-gate.ts": {
       "exports": 2,
       "lines": 90,
@@ -1308,12 +1343,12 @@
     },
     "src/runtime/assignment.ts": {
       "exports": 16,
-      "lines": 297,
+      "lines": 306,
       "newModule": false
     },
     "src/runtime/capabilities.ts": {
       "exports": 8,
-      "lines": 176,
+      "lines": 203,
       "newModule": false
     },
     "src/runtime/cost.ts": {
@@ -1358,7 +1393,7 @@
     },
     "src/runtime/model-catalog.ts": {
       "exports": 4,
-      "lines": 136,
+      "lines": 189,
       "newModule": false
     },
     "src/runtime/non-interactive-env.ts": {
@@ -1383,12 +1418,12 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 435,
+      "lines": 516,
       "newModule": false
     },
     "src/runtime/registry.ts": {
       "exports": 2,
-      "lines": 16,
+      "lines": 18,
       "newModule": false
     },
     "src/runtime/role-shaping.ts": {

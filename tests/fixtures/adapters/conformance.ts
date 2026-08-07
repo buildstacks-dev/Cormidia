@@ -25,7 +25,7 @@ export interface AdapterConformanceSeedOptions {
 }
 
 export interface AdapterConformanceReport {
-  caseId: `CF-B0${2 | 3 | 4}-L3`;
+  caseId: `CF-B0${2 | 3 | 4}-L3` | "CF-B23-L3";
   providerTurns: 2;
   equivUsd: number;
   sessionId: string;
@@ -36,6 +36,7 @@ export interface AdapterConformanceReport {
 const CASES: Record<RuntimeKind, AdapterConformanceReport["caseId"]> = {
   claude: "CF-B02-L3",
   codex: "CF-B03-L3",
+  opencode: "CF-B23-L3",
   pi: "CF-B04-L3",
 };
 

@@ -98,8 +98,12 @@ rewrite; legacy test/eval scripts removed with the archive move).
   harness exists); if the failure is not offline-reproducible, guard the
   nearest deterministic seam (provision/preflight) and say so in the PR. A fix
   without a guard is incomplete — a live run is not a regression test.
-- **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the three
-  provider SDKs. Adding one is a decision, not a convenience.
+- **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the four
+  provider SDKs (`@anthropic-ai/claude-agent-sdk`, `@openai/codex`,
+  `@earendil-works/pi-coding-agent`, `@opencode-ai/sdk` — the last added by
+  #337 for the OpenCode harness; it is the generated client for the operator's
+  own `opencode serve`, and Cormidia never installs the opencode binary itself,
+  #224). Adding one is a decision, not a convenience.
 - **Agent-authored engineering standard:**
   `research/2026-08-05_pi-forensic-analysis/pi-engineering-standards-skill.md`
   is binding for agent-authored code. The single module budget is public-symbol

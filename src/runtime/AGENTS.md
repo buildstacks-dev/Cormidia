@@ -6,7 +6,7 @@ AGENTS.md rules still apply; this file adds the local ones.
 
 ## Purpose
 `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, and
-the adapters (Claude Agent SDK, Codex App Server, pi SDK).
+the adapters (Claude Agent SDK, Codex App Server, pi SDK, OpenCode server+SDK).
 
 ## Local rules
 - This layer imports nothing from `src/loop` or `src/org` — it is the bottom

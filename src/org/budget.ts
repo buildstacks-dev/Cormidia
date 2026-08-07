@@ -19,6 +19,7 @@ import { withFileLock } from "../runtime/file-lock.js";
 import { finalizeRun, readEnvelope, type RunEnvelope } from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
 import { readSettledKeys, recordTurnOnce, settlementKey, type TurnRecord } from "../runtime/telemetry.js";
+import { billingSettlementFault, settleBilling } from "../runtime/turn-usage.js";
 import type { TurnResult } from "../runtime/types.js";
 import { ApprovalStore, type ApprovalItem } from "./approvals.js";
 import type { AppsFile } from "./apps.js";
@@ -27,8 +28,16 @@ import { definedProps } from "../runtime/optional-properties.js";
 export interface BudgetRow {
   app: string;
   budgetUsd: number;
+  /** METERED spend only. Subscription-billed turns are an authoritative $0 and
+   *  are counted separately below — summing the two would invent an invoice
+   *  the operator never receives, and hiding them would make a busy month on a
+   *  plan look like an idle one (#333). */
   spentUsd: number;
   percent: number;
+  /** Provider turns this month that ran on the operator's own subscription.
+   *  Volume, not dollars: the monthly cap is a spend cap and a plan turn
+   *  spends nothing, so these never move `percent` or `status`. */
+  subscriptionTurns: number;
   /** `unknown` = the month total could not be computed (a ledger row had a
    *  non-finite/absent `costUsd`). It is a distinct not-ok state that fails
    *  CLOSED: treated as OVER cap everywhere (`isBudgetBlocking`), never `ok`
@@ -50,7 +59,7 @@ interface BudgetOverlay {
 
 export async function rollupBudgets(orgHome: string, apps: AppsFile, now: Date = new Date()): Promise<BudgetRow[]> {
   const month = now.toISOString().slice(0, 7);
-  const { spent, unresolved } = await readMonthSpend(orgHome, month);
+  const { spent, unresolved, subscriptionTurns } = await readMonthSpend(orgHome, month);
   return apps.apps.map((app) => {
     const spentUsd = spent.get(app.name) ?? 0;
     const percent = app.budgetUsdMonth === 0 ? 0 : (spentUsd / app.budgetUsdMonth) * 100;
@@ -66,7 +75,14 @@ export async function rollupBudgets(orgHome: string, apps: AppsFile, now: Date =
           : percent >= 80
             ? "warning"
             : "ok";
-    return { app: app.name, budgetUsd: app.budgetUsdMonth, spentUsd, percent, status };
+    return {
+      app: app.name,
+      budgetUsd: app.budgetUsdMonth,
+      spentUsd,
+      percent,
+      subscriptionTurns: subscriptionTurns.get(app.name) ?? 0,
+      status,
+    };
   });
 }
 
@@ -700,6 +716,14 @@ export function turnRecordFromExecutionStep(step: ExecutionStepRecord): TurnReco
   };
   if (usage.quality === "unavailable") record.unmeasured = true;
   if (usage.costEstimated === true) record.costEstimated = true;
+  // A recovered row keeps the billing the turn actually ran under (#333). A
+  // step whose usage carries no label recovers as metered spend, which
+  // over-reports rather than inventing a plan turn — the safe direction.
+  if (usage.billing !== undefined) {
+    const settled = settleBilling(usage, usage.billing);
+    record.billing = usage.billing;
+    record.costUsd = settled.costUsd;
+  }
   if (usage.tokensInUncached !== undefined) record.tokensInUncached = usage.tokensInUncached;
   if (usage.cacheCreationTokens !== undefined) record.cacheCreationTokens = usage.cacheCreationTokens;
   if (usage.cacheReadTokens !== undefined) record.cacheReadTokens = usage.cacheReadTokens;
@@ -794,15 +818,24 @@ function recordFromEnvelope(envelope: RunEnvelope, runtimeByRole: Record<string,
  *  `unresolved`, so the caller fails closed instead of letting `+ undefined`
  *  poison the sum into NaN and read as `ok` (A-004). A torn line that fails
  *  JSON.parse is still skipped (one bad append must not wedge enforcement),
- *  but a parseable-yet-malformed row can no longer silently disable the cap. */
+ *  but a parseable-yet-malformed row can no longer silently disable the cap.
+ *
+ *  #333 adds one more distinction and one more fail-closed case. A row labeled
+ *  `billing: "subscription"` is an authoritative $0 on the operator's own plan:
+ *  it is COUNTED, never summed, so a month of plan work reports honestly as
+ *  "no metered spend, N subscription turns" instead of an indistinguishable
+ *  zero. A subscription row carrying real dollars is incoherent — either the
+ *  label or the cost is wrong — and marks the app unresolved rather than
+ *  letting the reader pick the convenient half. */
 async function readMonthSpend(
   orgHome: string,
   month: string,
-): Promise<{ spent: Map<string, number>; unresolved: Set<string> }> {
+): Promise<{ spent: Map<string, number>; unresolved: Set<string>; subscriptionTurns: Map<string, number> }> {
   const dir = join(orgHome, "telemetry");
   const spent = new Map<string, number>();
   const unresolved = new Set<string>();
-  if (!existsSync(dir)) return { spent, unresolved };
+  const subscriptionTurns = new Map<string, number>();
+  if (!existsSync(dir)) return { spent, unresolved, subscriptionTurns };
   for (const file of await readdir(dir)) {
     if (!file.startsWith(month) || !file.endsWith(".jsonl")) continue;
     const text = await readFile(join(dir, file), "utf8");
@@ -817,6 +850,15 @@ async function readMonthSpend(
         continue;
       }
       if (record.app === undefined) continue;
+      const fault = billingSettlementFault(record);
+      if (fault !== undefined) {
+        unresolved.add(record.app);
+        continue;
+      }
+      if (record.billing === "subscription") {
+        subscriptionTurns.set(record.app, (subscriptionTurns.get(record.app) ?? 0) + 1);
+        continue;
+      }
       const cost = record.costUsd;
       if (typeof cost !== "number" || !Number.isFinite(cost)) {
         // Cannot trust this app's total for the month — fail closed.
@@ -826,7 +868,7 @@ async function readMonthSpend(
       spent.set(record.app, (spent.get(record.app) ?? 0) + cost);
     }
   }
-  return { spent, unresolved };
+  return { spent, unresolved, subscriptionTurns };
 }
 
 async function readOverlay(orgHome: string): Promise<BudgetOverlay> {

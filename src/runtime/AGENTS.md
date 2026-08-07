@@ -50,6 +50,28 @@ OpenCode server+SDK, Grok Build ACP, Muse Code CLI).
   The split is deliberate — a *band* is a certification claim and moves only
   with a re-certification run, so the probe reads `harness-support.ts` and is
   forbidden to write it (`docs/harness/adding-updating.md` §6.1).
+- `auth-mode.ts` is the ONE place billing vocabulary lives: which modes each
+  harness can be reached under, the declaration shape, and the verdict.
+  **Auth binds to the (harness × provider-family) connection, never to the
+  model** — the same Opus runs on a subscription through `claude` and on an API
+  key through `opencode` in one org, and a model-keyed declaration cannot say
+  that. The record is exhaustive over `RuntimeKind`; a mode the vendor does not
+  offer must be absent from `modes` so the declaration is refused at config
+  load (muse: API key only). `auth-mode-observers.ts` holds the pure per-harness
+  classification and readiness supplies the facts it already reads.
+  **Never resolve an ambiguous credential state to a mode.** Where two
+  credentials are live and the harness documents no precedence (cursor,
+  first-party claude), report indeterminate and let the declaration fail
+  closed; where the ADAPTER has a precedence, mirror it exactly (grok selects
+  `api_key` whenever `XAI_API_KEY` is set) so the observation describes the turn
+  that would actually run. A silent fallback is a billing decision Cormidia is
+  not entitled to make in either direction.
+- `TurnUsage.billing` is a settlement label, not a cost estimate.
+  `subscription` means `costUsd` is an AUTHORITATIVE zero — no marginal charge
+  exists — which is categorically different from unknown cost
+  (`quality: "unavailable"`). `settleBilling` in `turn-usage.ts` is the one
+  place that reconciliation happens, so the label can never disagree with the
+  cost in the row it settles (INV-006).
 - Capability flow is one-way (#116). Follow
   `docs/harness/adding-updating.md` for the adapter contract, registration
   checklist, three test tiers, and update obligations.

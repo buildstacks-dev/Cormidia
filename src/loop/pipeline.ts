@@ -27,6 +27,7 @@ import {
   validateTurnAssignment,
   validateTurnExecutionFacts,
 } from "../runtime/assignment.js";
+import { declaredAuthMode, type HarnessAuthConfig } from "../runtime/auth-mode.js";
 import {
   hasRuntimeCapability,
   resolvedRuntimeCapabilities,
@@ -214,6 +215,12 @@ export interface ExecutePipelineOptions {
     experimentRef?: string;
     candidateRef?: string;
     learningActivity?: "distillation" | "review";
+    /** Org-declared billing per harness connection (#333). The settled row is
+     *  labeled from the (harness, provider family) the assignment actually
+     *  used, so a plan-backed turn settles as an authoritative $0 instead of
+     *  an equivalent-cost figure nobody is invoiced for. Absent = undeclared,
+     *  and an undeclared connection settles exactly as it did before. */
+    harnessAuth?: HarnessAuthConfig;
   };
   /** Runs after a pass completes and before the next sequential stage starts. */
   afterPass?: (record: PassRunRecord) => void | Promise<void>;
@@ -1304,6 +1311,18 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
         ...definedProps({ assignmentSource: planMetadata.assignment_source }),
         ...definedProps({ assignmentCandidateId: planMetadata.assignment_candidate_id }),
         ...definedProps({ selectionReason: planMetadata.selection_reason }),
+        // #333: bill by the connection the turn actually used — the harness
+        // AND the provider family it reached, never the model alone.
+        ...definedProps({
+          billing:
+            options.telemetry?.harnessAuth === undefined
+              ? undefined
+              : declaredAuthMode(
+                  options.telemetry.harnessAuth,
+                  assignment.harness,
+                  configuredProviderFamily(assignment),
+                ),
+        }),
         resolvedCapabilities,
         traceId,
         ...definedProps({ parentTaskId: options.parentTaskId }),

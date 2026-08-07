@@ -16,6 +16,7 @@ import { getAgentDir, ModelRegistry, ModelRuntime } from "@earendil-works/pi-cod
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
 import { StdioGrokAcpClient } from "./adapters/grok-acp-client.js";
@@ -23,6 +24,16 @@ import { createIsolatedGrokHome, grokBinaryVersion } from "./adapters/grok-isola
 import { museHandshakeArgs, resolveMuseApiKey } from "./adapters/muse-exec.js";
 import { startMuseGateBridge } from "./adapters/muse-gate-bridge.js";
 import { resolvePiModel } from "./adapters/pi.js";
+import {
+  observeClaudeAuth,
+  observeCodexAuth,
+  observeCursorAuth,
+  observeGrokAuth,
+  observeMuseAuth,
+  observeStoredCredentialAuth,
+  readAuthStore,
+} from "./auth-mode-observers.js";
+import { verifyAuthModes, type HarnessAuthDeclaration, type ObservedConnectionAuth } from "./auth-mode.js";
 import { toErrorMessage as errorMessage } from "./error-message.js";
 import { assessHarnessVersion, type HarnessVersionDetector } from "./harness-support.js";
 import type { RuntimeKind } from "./types.js";
@@ -40,6 +51,7 @@ type RuntimeReadinessStatus =
   | "unauthenticated"
   | "unsupported_version"
   | "misconfigured"
+  | "auth_mode_mismatch"
   | "timed_out";
 
 export interface RuntimeReadinessRequest {
@@ -49,6 +61,10 @@ export interface RuntimeReadinessRequest {
   timeoutMs?: number;
   /** Optional complete subprocess environment for an isolated provider probe. */
   processEnv?: NodeJS.ProcessEnv;
+  /** Org-declared billing for this harness connection (#333). Present =
+   *  the probe VERIFIES the declaration against the real credential state and
+   *  refuses a mismatch; absent = unchanged pre-#333 behaviour. */
+  auth?: HarnessAuthDeclaration;
 }
 
 export interface RuntimeReadinessResult {
@@ -60,6 +76,10 @@ export interface RuntimeReadinessResult {
   /** Probes perform no model inference and incur no token charge. */
   billable: false;
   errorCode?: string;
+  /** What the credential probe observed per provider family. Reported whether
+   *  or not a declaration exists, so `cormidia doctor` can show the operator
+   *  which billing each connection is actually on. */
+  authModes?: readonly ObservedConnectionAuth[];
 }
 
 interface RuntimeReadinessImplementationRequest extends RuntimeReadinessRequest {
@@ -68,6 +88,10 @@ interface RuntimeReadinessImplementationRequest extends RuntimeReadinessRequest 
 
 type ProbeOutcome = Pick<RuntimeReadinessResult, "status" | "detail"> & {
   errorCode?: string;
+  /** Credential state the probe read while proving usable authentication.
+   *  Populated on the `ready` path; a probe that never got that far has
+   *  nothing truthful to say about which billing a turn would use. */
+  observed?: readonly ObservedConnectionAuth[];
 };
 
 type RuntimeReadinessImplementation = (request: RuntimeReadinessImplementationRequest) => Promise<ProbeOutcome>;
@@ -151,15 +175,42 @@ export async function probeRuntimeReadiness(
   // A deliberately broken injected implementation may ignore the signal.
   // Do not let a late rejection become unhandled after the deadline wins.
   void running.catch(() => undefined);
+  const settled = verifiedOutcome(request, outcome);
   return {
     runtime: request.runtime,
     models: [...new Set(request.models)].sort(),
-    status: outcome.status,
-    detail: outcome.detail,
+    status: settled.status,
+    detail: settled.detail,
     durationMs: Date.now() - started,
     billable: false,
-    ...definedProps({ errorCode: outcome.errorCode }),
+    ...definedProps({ errorCode: settled.errorCode }),
+    ...definedProps({ authModes: outcome.observed }),
   };
+}
+
+/**
+ * Hold the org's declared billing against the credential state the probe just
+ * read (#333). This runs AFTER usable authentication is proven, because a
+ * connection with no credential has no billing mode to disagree about — that
+ * is still `unauthenticated`, unchanged.
+ *
+ * A mismatch is terminal in both directions and never a warning: declaring
+ * `subscription` while an API key is in use bills the operator for work they
+ * expected their plan to cover, and declaring `api_key` while a subscription
+ * credential is in use burns plan quota they never approved.
+ */
+function verifiedOutcome(request: RuntimeReadinessRequest, outcome: ProbeOutcome): ProbeOutcome {
+  if (request.auth === undefined || outcome.status !== "ready") return outcome;
+  const verdict = verifyAuthModes(request.runtime, request.auth, outcome.observed ?? []);
+  if (!verdict.ok) {
+    return {
+      status: "auth_mode_mismatch",
+      errorCode: verdict.errorCode,
+      detail: verdict.detail,
+      ...definedProps({ observed: outcome.observed }),
+    };
+  }
+  return { ...outcome, detail: `${outcome.detail}; auth verified — ${verdict.detail}` };
 }
 
 async function probeClaude(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
@@ -201,6 +252,15 @@ async function probeClaude(request: RuntimeReadinessImplementationRequest): Prom
     return {
       status: "ready",
       detail: `Claude SDK initialized; provider=${provider}; auth=${source}; no model turn sent`,
+      observed: [
+        observeClaudeAuth({
+          ...definedProps({ apiProvider: account.apiProvider }),
+          ...definedProps({ tokenSource: account.tokenSource }),
+          ...definedProps({ apiKeySource: account.apiKeySource }),
+          ...definedProps({ subscriptionType: account.subscriptionType }),
+          ...definedProps({ cliAuthMethod: status?.authMethod }),
+        }),
+      ],
     };
   } finally {
     request.signal.removeEventListener("abort", abort);
@@ -319,6 +379,9 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
     return {
       status: "ready",
       detail: `Codex App Server initialized; account=${accountType}${plan}; no model turn sent`,
+      observed: [
+        observeCodexAuth(accountType, typeof account?.["planType"] === "string" ? account["planType"] : undefined),
+      ],
     };
   } finally {
     request.signal.removeEventListener("abort", abort);
@@ -340,17 +403,20 @@ async function probeCursor(request: RuntimeReadinessImplementationRequest): Prom
   const version = (await runCursorAgent(["--version"], env, request.signal)).stdout.trim();
   const status = await runCursorAgent(["status"], env, request.signal);
   const output = `${status.stdout}\n${status.stderr}`.trim();
-  if (status.code === 0 && /logged in/i.test(output)) {
+  const apiKeySet = typeof env["CURSOR_API_KEY"] === "string" && env["CURSOR_API_KEY"].trim().length > 0;
+  const storedLogin = status.code === 0 && /logged in/i.test(output);
+  if (storedLogin) {
     return {
       status: "ready",
       detail: `cursor-agent ${version} reports a usable stored login (${firstLine(output)}); no model turn sent`,
+      observed: [observeCursorAuth({ storedLogin, apiKeySet })],
     };
   }
-  const apiKey = env["CURSOR_API_KEY"];
-  if (typeof apiKey === "string" && apiKey.trim().length > 0) {
+  if (apiKeySet) {
     return {
       status: "ready",
       detail: `cursor-agent ${version} has no stored login, but CURSOR_API_KEY is set; no model turn sent`,
+      observed: [observeCursorAuth({ storedLogin, apiKeySet })],
     };
   }
   return {
@@ -465,6 +531,7 @@ async function probeGrok(request: RuntimeReadinessImplementationRequest): Promis
     return {
       status: "ready",
       detail: `grok ${version} authenticated over ACP; method=${methodId}; mode=${mode}${tier}; no model turn sent`,
+      observed: [observeGrokAuth({ apiKeySet: hasApiKey, methodId })],
     };
   } finally {
     request.signal.removeEventListener("abort", abort);
@@ -515,6 +582,12 @@ async function probeOpencode(request: RuntimeReadinessImplementationRequest): Pr
       roster.set(entry["id"], new Set(isRecord(entry["models"]) ? Object.keys(entry["models"]) : []));
     }
     const checked: string[] = [];
+    const observed = new Map<string, ObservedConnectionAuth>();
+    // `opencode auth login` writes type-tagged records here (`oauth` for a
+    // plan login, `api`/`wellknown` for a key) — the same store
+    // `opencode auth list` renders. An unreadable store stays `undefined` and
+    // every observation from it is indeterminate rather than guessed.
+    const authRecords = await readAuthStore(opencodeAuthStorePath(request.processEnv ?? process.env));
     for (const model of [...new Set(request.models)].sort()) {
       const separator = model.indexOf("/");
       if (separator <= 0) {
@@ -543,14 +616,34 @@ async function probeOpencode(request: RuntimeReadinessImplementationRequest): Pr
         };
       }
       checked.push(model);
+      observed.set(
+        providerId,
+        // Every provider in the roster HAS a resolvable credential, so a
+        // provider with no stored record was credentialed from the
+        // environment — and an environment credential is always a metered key.
+        observeStoredCredentialAuth(providerId, authRecords?.[providerId], authRecords !== undefined),
+      );
     }
     return {
       status: "ready",
       detail: `opencode ${version} at ${binary}; credentialed providers resolved for ${checked.join(", ")}; no model turn sent`,
+      observed: [...observed.values()],
     };
   } finally {
     await server.close();
   }
+}
+
+/** The documented OpenCode credential store
+ *  (`research/2026-08-06_adapter-upstream-references.md`), honouring the same
+ *  XDG data home the adapter deliberately leaves in place. */
+function opencodeAuthStorePath(env: NodeJS.ProcessEnv): string {
+  const dataHome = env["XDG_DATA_HOME"];
+  const base =
+    typeof dataHome === "string" && dataHome.trim().length > 0
+      ? dataHome
+      : join(env["HOME"] ?? homedir(), ".local", "share");
+  return join(base, "opencode", "auth.json");
 }
 
 async function probePi(
@@ -566,10 +659,14 @@ async function probePi(
   }
   const agentDir = dependencies.agentDir ?? getAgentDir();
   const authPath = join(agentDir, "auth.json");
+  // pi stores one type-tagged credential per provider; the records are what
+  // says whether a family is reached on an OAuth login or a metered key (#333).
+  let authRecords: Record<string, unknown> = {};
   if (existsSync(authPath)) {
     try {
       const parsed: unknown = JSON.parse(await readFile(authPath, "utf8"));
       if (!isRecord(parsed)) throw new Error("expected a provider-to-credential mapping");
+      authRecords = parsed;
     } catch (error) {
       return {
         status: "misconfigured",
@@ -599,6 +696,7 @@ async function probePi(
   }
 
   const checked: string[] = [];
+  const observed = new Map<string, ObservedConnectionAuth>();
   for (const requestedModel of [...new Set(request.models)].sort()) {
     if (request.signal.aborted) throw new Error("pi readiness probe aborted");
     const model = resolvePiModel(registry, requestedModel);
@@ -644,10 +742,19 @@ async function probePi(
       };
     }
     checked.push(`${requestedModel} (${provider})`);
+    observed.set(
+      provider,
+      observeStoredCredentialAuth(
+        provider,
+        authRecords[provider],
+        registry.getProviderAuthStatus(provider).source === "environment",
+      ),
+    );
   }
   return {
     status: "ready",
     detail: `pi model/auth resolution succeeded: ${checked.join(", ")}; no model turn sent`,
+    observed: [...observed.values()],
   };
 }
 
@@ -675,6 +782,7 @@ async function probeMuse(request: RuntimeReadinessImplementationRequest): Promis
         `configured source (CORMIDIA_MUSE_API_KEY_FILE, CORMIDIA_MUSE_API_KEY, MUSE_API_KEY, META_API_KEY)`,
     };
   }
+  const keySource = museApiKeySource(env);
   const seam = await probeMuseGateSeam(env);
   if (!seam) {
     return {
@@ -690,7 +798,18 @@ async function probeMuse(request: RuntimeReadinessImplementationRequest): Promis
   return {
     status: "ready",
     detail: `muse ${version} is installed, authenticated, and its managed-hook gate seam is live; no model turn sent`,
+    observed: [observeMuseAuth(keySource)],
   };
+}
+
+/** Which configured source produced the Muse key. Muse exposes no subscription
+ *  login at all, so this names the key's origin rather than deciding a mode. */
+function museApiKeySource(env: NodeJS.ProcessEnv): string {
+  for (const name of ["CORMIDIA_MUSE_API_KEY_FILE", "CORMIDIA_MUSE_API_KEY", "MUSE_API_KEY", "META_API_KEY"]) {
+    const value = env[name];
+    if (typeof value === "string" && value.trim().length > 0) return name;
+  }
+  return "the configured Muse key source";
 }
 
 function museVersion(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<string> {

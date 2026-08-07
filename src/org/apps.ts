@@ -20,6 +20,7 @@ import {
   type ReleaseTriggerMode,
 } from "../loop/types.js";
 import { isAssignmentCandidateId } from "../runtime/assignment.js";
+import type { HarnessAuthConfig } from "../runtime/auth-mode.js";
 import { DEFAULT_NETWORK_ALLOWLIST } from "../runtime/gate.js";
 import type { RoleConfig, Trigger } from "../runtime/types.js";
 import {
@@ -30,6 +31,7 @@ import {
   type AppRuntimePolicy,
 } from "./app-execution-policy.js";
 import { writeFileAtomic } from "./atomic.js";
+import { parseHarnessAuthConfig } from "./harness-auth-config.js";
 import { loadRoles, resolveApprovedAssignmentCandidates } from "./roles.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
@@ -103,6 +105,12 @@ export interface AppsFile {
   org: { name: string; maxConcurrentTurns: number };
   defaults: { budgetUsdMonth: number; objectiveBudgetUsd: number; networkAllowlist?: readonly string[] };
   apps: AppEntry[];
+  /** Declared billing per harness connection (#333). Org-scoped because
+   *  credentials belong to the operator's machine and accounts, not to one
+   *  app. `loadApps` always populates it (`{}` when nothing is declared);
+   *  optional here so hand-built registries stay small — absent reads as "no
+   *  connection declared", which is exactly pre-#333 behaviour. */
+  harnesses?: HarnessAuthConfig;
 }
 
 interface FindExistingOrgOptions {
@@ -184,7 +192,8 @@ export async function loadApps(path: string): Promise<AppsFile> {
   for (const [name, specUnknown] of Object.entries(appsRaw as Record<string, unknown>)) {
     apps.push(parseApp(name, specUnknown, defaults, path));
   }
-  const file: AppsFile = { org, defaults, apps };
+  const harnesses = parseHarnessAuthConfig(raw["harnesses"], (message) => new Error(`${path}: ${message}`));
+  const file: AppsFile = { org, defaults, apps, harnesses };
   if (typeof raw["schema_version"] === "number") file.schemaVersion = raw["schema_version"];
   return file;
 }

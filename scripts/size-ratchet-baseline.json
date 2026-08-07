@@ -23,7 +23,7 @@
     },
     "src/cli/apps.ts": {
       "exports": 1,
-      "lines": 67,
+      "lines": 76,
       "newModule": false
     },
     "src/cli/bootstrap-publish.ts": {
@@ -38,7 +38,7 @@
     },
     "src/cli/budget.ts": {
       "exports": 1,
-      "lines": 159,
+      "lines": 163,
       "newModule": false
     },
     "src/cli/claim-rearm.ts": {
@@ -58,7 +58,7 @@
     },
     "src/cli/doctor.ts": {
       "exports": 1,
-      "lines": 374,
+      "lines": 385,
       "newModule": false
     },
     "src/cli/episode.ts": {
@@ -288,7 +288,7 @@
     },
     "src/loop/pipeline.ts": {
       "exports": 6,
-      "lines": 1930,
+      "lines": 1949,
       "newModule": false
     },
     "src/loop/pipelines.ts": {
@@ -443,7 +443,7 @@
     },
     "src/org/app-lifecycle.ts": {
       "exports": 8,
-      "lines": 1914,
+      "lines": 1921,
       "newModule": false
     },
     "src/org/app-reset.ts": {
@@ -473,7 +473,7 @@
     },
     "src/org/apps.ts": {
       "exports": 17,
-      "lines": 832,
+      "lines": 841,
       "newModule": false
     },
     "src/org/atomic.ts": {
@@ -498,7 +498,7 @@
     },
     "src/org/budget.ts": {
       "exports": 16,
-      "lines": 847,
+      "lines": 889,
       "newModule": false
     },
     "src/org/context.ts": {
@@ -595,6 +595,11 @@
       "exports": 2,
       "lines": 1288,
       "newModule": false
+    },
+    "src/org/harness-auth-config.ts": {
+      "exports": 3,
+      "lines": 152,
+      "newModule": true
     },
     "src/org/home.ts": {
       "exports": 23,
@@ -1198,7 +1203,7 @@
     },
     "src/org/turn-runner.ts": {
       "exports": 11,
-      "lines": 2629,
+      "lines": 2637,
       "newModule": false
     },
     "src/org/validation-campaign.ts": {
@@ -1466,6 +1471,16 @@
       "lines": 330,
       "newModule": false
     },
+    "src/runtime/auth-mode-observers.ts": {
+      "exports": 8,
+      "lines": 166,
+      "newModule": true
+    },
+    "src/runtime/auth-mode.ts": {
+      "exports": 10,
+      "lines": 227,
+      "newModule": true
+    },
     "src/runtime/capabilities.ts": {
       "exports": 8,
       "lines": 288,
@@ -1568,7 +1583,7 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 779,
+      "lines": 898,
       "newModule": false
     },
     "src/runtime/registry.ts": {
@@ -1633,7 +1648,7 @@
     },
     "src/runtime/telemetry.ts": {
       "exports": 12,
-      "lines": 498,
+      "lines": 513,
       "newModule": false
     },
     "src/runtime/testing/fakeRuntime.ts": {
@@ -1652,13 +1667,13 @@
       "newModule": false
     },
     "src/runtime/turn-usage.ts": {
-      "exports": 1,
-      "lines": 10,
+      "exports": 3,
+      "lines": 55,
       "newModule": true
     },
     "src/runtime/types.ts": {
       "exports": 27,
-      "lines": 320,
+      "lines": 329,
       "newModule": false
     },
     "src/runtime/worktree-context.ts": {

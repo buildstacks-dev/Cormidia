@@ -2,6 +2,7 @@
 
 import { join, resolve } from "node:path";
 import { loadApps } from "../org/apps.js";
+import { describeHarnessAuth } from "../org/harness-auth-config.js";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
@@ -16,7 +17,7 @@ export async function cmdApps(args: string[] = []): Promise<number> {
     else throw new Error("apps: expected at most one apps.yaml path");
   }
   const path = pathArgument ? resolve(pathArgument) : join((await resolveCormidiaHomes(common)).orgHome, "apps.yaml");
-  const { org, defaults, apps } = await loadApps(path);
+  const { org, defaults, apps, harnesses } = await loadApps(path);
   const report = {
     schema_version: 1,
     kind: "apps",
@@ -25,6 +26,9 @@ export async function cmdApps(args: string[] = []): Promise<number> {
     defaults,
     appCount: apps.length,
     apps,
+    // Org-level harness connections (#333). Machine-readable so an operator
+    // can diff what they declared against what `cormidia doctor` verified.
+    harnesses: harnesses ?? {},
   } as const;
   if (json) {
     console.log(JSON.stringify(report, null, 2));
@@ -62,6 +66,11 @@ export async function cmdApps(args: string[] = []): Promise<number> {
         `$${a.budgetUsdMonth}/mo` +
         cadence,
     );
+  }
+  const auth = describeHarnessAuth(report.harnesses);
+  if (auth.length > 0) {
+    console.log("\nHARNESS AUTH (declared; verified by `cormidia doctor`)");
+    for (const line of auth) console.log(`  ${line}`);
   }
   return 0;
 }

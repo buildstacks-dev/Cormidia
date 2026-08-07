@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 1,
   "modules": {
     "src/cli.ts": {
       "exports": 0,
@@ -1352,7 +1353,7 @@
     },
     "src/runtime/harness-support.ts": {
       "exports": 9,
-      "lines": 281,
+      "lines": 284,
       "newModule": true
     },
     "src/runtime/invocation-ledger.ts": {
@@ -1485,6 +1486,5 @@
       "lines": 107,
       "newModule": false
     }
-  },
-  "schemaVersion": 1
+  }
 }

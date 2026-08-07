@@ -57,7 +57,9 @@ import {
   type ValidationObligation,
   type ValidationWaiver,
 } from "./roadmap-delivery/validation-contract.js";
+import { RoadmapDeliveryError } from "./roadmap-delivery/failure.js";
 
+export { RoadmapDeliveryError };
 export { VALIDATION_CONTRACT_SCHEMA };
 export type { ValidationAffectedStructure, ValidationCatalog, ValidationCatalogCase };
 export type { ValidationContract, ValidationObligation, ValidationWaiver };
@@ -68,52 +70,6 @@ const RATIFIED_HARNESS_REVISION_ID = "roadmap-validation-delivery-batching-2026-
 /** Content root for the complete deterministic HB-100..108 catalog. */
 export const RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 =
   "58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880" as const;
-
-type RoadmapDeliveryFailureCode =
-  | "backlog_incomplete"
-  | "roadmap_missing"
-  | "roadmap_invalid"
-  | "issue_unaccounted"
-  | "issue_multiply_assigned"
-  | "unit_cycle"
-  | "frontier_stale"
-  | "routing_ineligible"
-  | "validation_contract_missing"
-  | "validation_contract_invalid"
-  | "validation_contract_stale"
-  | "validation_catalog_missing"
-  | "validation_catalog_stale"
-  | "validation_id_unknown"
-  | "validation_structure_mismatch"
-  | "validation_waiver_invalid"
-  | "negative_control_missing"
-  | "validation_incomplete"
-  | "batch_unit_duplicate"
-  | "batch_hard_constraint_failed"
-  | "batch_manifest_too_large"
-  | "batch_membership_active"
-  | "direct_unit_incomplete"
-  | "unit_budget_exhausted"
-  | "unit_journal_conflict"
-  | "already_claimed"
-  | "builder_evidence_missing"
-  | "evidence_head_mismatch"
-  | "evidence_unit_mismatch"
-  | "reviewer_evidence_incomplete"
-  | "reviewer_independence_invalid"
-  | "projection_contradiction"
-  | "authority_conflict"
-  | "authority_corrupt";
-
-export class RoadmapDeliveryError extends Error {
-  constructor(
-    readonly code: RoadmapDeliveryFailureCode,
-    message: string,
-  ) {
-    super(`${code}: ${message}`);
-    this.name = "RoadmapDeliveryError";
-  }
-}
 
 export interface AuthorityRef {
   kind:
@@ -4859,7 +4815,7 @@ async function requireAuthority<T>(
   app: string,
   ref: AuthorityRef,
   kind: AuthorityRef["kind"],
-  missingCode: RoadmapDeliveryFailureCode,
+  missingCode: RoadmapDeliveryError["code"],
 ): Promise<AcceptedAuthority<T>> {
   assertAuthorityRef(ref, kind);
   const path = authorityPath(root, app, kind, ref.id, ref.version);
@@ -5230,7 +5186,7 @@ function sameAssignment(left: TurnAssignment, right: TurnAssignment): boolean {
 function assertTurnAssignmentShape(
   assignment: unknown,
   label: string,
-  code: RoadmapDeliveryFailureCode,
+  code: RoadmapDeliveryError["code"],
 ): asserts assignment is TurnAssignment {
   assertExactObjectKeys(assignment, ["harness", "model", "effort"], label, code);
   const row = assignment as Record<string, unknown>;
@@ -5273,7 +5229,7 @@ function assertExactObjectKeys(
   value: unknown,
   expected: readonly string[],
   label: string,
-  code: RoadmapDeliveryFailureCode = "validation_contract_invalid",
+  code: RoadmapDeliveryError["code"] = "validation_contract_invalid",
 ): asserts value is Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new RoadmapDeliveryError(code, `${label} must be an object`);

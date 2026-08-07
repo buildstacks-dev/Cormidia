@@ -878,8 +878,13 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 5293,
+      "lines": 5249,
       "newModule": false
+    },
+    "src/org/roadmap-delivery/failure.ts": {
+      "exports": 1,
+      "lines": 45,
+      "newModule": true
     },
     "src/org/roadmap-delivery/validation-catalog.ts": {
       "exports": 8,

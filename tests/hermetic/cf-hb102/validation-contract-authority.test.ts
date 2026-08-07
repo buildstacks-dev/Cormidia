@@ -8,38 +8,50 @@ import { afterEach, describe, expect, it } from "vitest";
 import { stableHash } from "../../../src/loop/episode-plan.js";
 import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
-  VALIDATION_CONTRACT_SCHEMA,
-  RoadmapDeliveryError,
-  acceptBacklogSnapshot,
-  acceptDeliveryUnitReadiness,
-  acceptRoadmapPlan,
-  acceptValidationCatalog,
-  acceptValidationContract,
-  admitExecutionBatch,
-  assertValidationEvidenceComplete,
+  type AcceptedAuthority,
+  type AuthorityRef,
+} from "../../../src/org/roadmap-delivery/authority-core.js";
+import {
   currentValidationCatalogPointerPath,
   currentValidationContractPointerPath,
-  readCurrentValidationContract,
-  readValidationContractLifecycle,
   readinessAuthorityPath,
-  reconcileRoadmapProjections,
-  unitMembershipHash,
-  validationWaiverApprovalAction,
   validationAuthorityPath,
   validationContractLifecyclePath,
-  type AcceptedAuthority,
-  type AcceptedRoadmapPlan,
-  type AuthorityRef,
-  type BacklogSnapshot,
+} from "../../../src/org/roadmap-delivery/authority-paths.js";
+import { acceptBacklogSnapshot } from "../../../src/org/roadmap-delivery/backlog-authority.js";
+import { assertValidationEvidenceComplete } from "../../../src/org/roadmap-delivery/builder-evidence.js";
+import {
+  acceptDeliveryUnitReadiness,
   type DeliveryUnitReadiness,
-  type RoadmapPlan,
-  type RoutingSnapshotEntry,
-  type ValidationAffectedStructure,
-  type ValidationCatalog,
-  type ValidationContract,
-  type ValidationObligation,
-  type ValidationWaiver,
-} from "../../../src/org/roadmap-delivery.js";
+} from "../../../src/org/roadmap-delivery/delivery-readiness.js";
+import { admitExecutionBatch } from "../../../src/org/roadmap-delivery/execution-batch-admission.js";
+import { RoadmapDeliveryError } from "../../../src/org/roadmap-delivery/failure.js";
+import { unitMembershipHash } from "../../../src/org/roadmap-delivery/roadmap-invariants.js";
+import type {
+  AcceptedRoadmapPlan,
+  BacklogSnapshot,
+  RoadmapPlan,
+  RoutingSnapshotEntry,
+} from "../../../src/org/roadmap-delivery/roadmap-model.js";
+import { acceptRoadmapPlan } from "../../../src/org/roadmap-delivery/roadmap-plan.js";
+import { reconcileRoadmapProjections } from "../../../src/org/roadmap-delivery/roadmap-projections.js";
+import { acceptValidationCatalog } from "../../../src/org/roadmap-delivery/validation-catalog-authority.js";
+import type {
+  ValidationAffectedStructure,
+  ValidationCatalog,
+} from "../../../src/org/roadmap-delivery/validation-catalog.js";
+import {
+  acceptValidationContract,
+  readCurrentValidationContract,
+} from "../../../src/org/roadmap-delivery/validation-contract-authority.js";
+import { VALIDATION_CONTRACT_SCHEMA } from "../../../src/org/roadmap-delivery/validation-contract-schema.js";
+import type {
+  ValidationContract,
+  ValidationObligation,
+  ValidationWaiver,
+} from "../../../src/org/roadmap-delivery/validation-contract.js";
+import { readValidationContractLifecycle } from "../../../src/org/roadmap-delivery/validation-lifecycle.js";
+import { validationWaiverApprovalAction } from "../../../src/org/roadmap-delivery/validation-waivers.js";
 import { ApprovalStore } from "../../../src/org/approvals.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import {
@@ -336,7 +348,9 @@ describe("HB-102 — validation-contract authority and readiness", () => {
   });
 
   it("reads current validation authority and fails closed on corrupt pointers", async () => {
-    const { readCurrentValidationCatalog } = await import("../../../src/org/roadmap-delivery.js");
+    const { readCurrentValidationCatalog } = await import(
+      "../../../src/org/roadmap-delivery/validation-catalog-authority.js"
+    );
     const catalogState = await setup("hb102-current-catalog-pointer");
     expect((await readCurrentValidationCatalog(catalogState.home.stateHome, APP))?.ref).toEqual(
       catalogState.catalog.ref,
@@ -361,7 +375,9 @@ describe("HB-102 — validation-contract authority and readiness", () => {
   });
 
   it("reads readiness only for the current validation authority version", async () => {
-    const { readCurrentDeliveryUnitReadiness } = await import("../../../src/org/roadmap-delivery.js");
+    const { readCurrentDeliveryUnitReadiness } = await import(
+      "../../../src/org/roadmap-delivery/delivery-readiness.js"
+    );
     const state = await setup("hb102-current-readiness");
     expect(await readCurrentDeliveryUnitReadiness(state.home.stateHome, APP, UNIT)).toBeUndefined();
 

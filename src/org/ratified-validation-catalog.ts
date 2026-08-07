@@ -1,5 +1,8 @@
-import type { ValidationAffectedStructure, ValidationCatalog, ValidationCatalogCase } from "./roadmap-delivery.js";
-
+import type {
+  ValidationAffectedStructure,
+  ValidationCatalog,
+  ValidationCatalogCase,
+} from "./roadmap-delivery/validation-catalog.js";
 export const RATIFIED_VALIDATION_BASE_AFFECTED: ValidationAffectedStructure = {
   journeyIds: ["J-03"],
   boundaryIds: ["B-21"],
@@ -9,7 +12,6 @@ export const RATIFIED_VALIDATION_BASE_AFFECTED: ValidationAffectedStructure = {
   stateOwnerIds: ["planning-state"],
   controlPointIds: [],
 };
-
 export const RATIFIED_VALIDATION_EMPTY_AFFECTED: ValidationAffectedStructure = {
   journeyIds: [],
   boundaryIds: [],
@@ -19,7 +21,6 @@ export const RATIFIED_VALIDATION_EMPTY_AFFECTED: ValidationAffectedStructure = {
   stateOwnerIds: [],
   controlPointIds: [],
 };
-
 /** Complete deterministic 2026-08-03 revision catalog. Human reference review
  * and F-PT-010/011 thresholds remain outside this L1/L2 authority. */
 export function ratifiedRoadmapValidationCatalog(app: string): ValidationCatalog {
@@ -185,7 +186,6 @@ export function ratifiedRoadmapValidationCatalog(app: string): ValidationCatalog
     acceptedAt: "2026-08-03T21:55:00.000Z",
   };
 }
-
 function affected(overrides: Partial<ValidationAffectedStructure>): ValidationAffectedStructure {
   return {
     ...structuredClone(RATIFIED_VALIDATION_EMPTY_AFFECTED),

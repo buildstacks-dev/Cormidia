@@ -11,13 +11,12 @@ import { writeLoopFileOnce } from "../loop/durable.js";
 import { stableHash, type CreatorScopeProvenance, type ProposedEpisodeStep } from "../loop/episode-plan.js";
 import type { ApprovalItem } from "./approvals.js";
 import { ApprovalStore } from "./approvals.js";
+import { ROADMAP_DELIVERY_SCHEMA_VERSION, type AcceptedAuthority } from "./roadmap-delivery/authority-core.js";
 import {
-  ROADMAP_DELIVERY_SCHEMA_VERSION,
   acceptDirectExecutionUnit,
-  type AcceptedAuthority,
   type DirectExecutionUnitAuthority,
-  type ExecutionUnitBudget,
-} from "./roadmap-delivery.js";
+} from "./roadmap-delivery/direct-execution-authority.js";
+import type { ExecutionUnitBudget } from "./roadmap-delivery/execution-model.js";
 
 const DIRECT_OPERATIONAL_CAMPAIGN_SCHEMA_VERSION = 1 as const;
 const DIRECT_CAMPAIGN_CONTENT_OPERATION = "marketing/campaign-content-plan" as const;

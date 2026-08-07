@@ -1,4 +1,4 @@
-import type { ValidationCatalog } from "../../src/org/roadmap-delivery.js";
+import type { ValidationCatalog } from "../../src/org/roadmap-delivery/validation-catalog.js";
 import {
   RATIFIED_VALIDATION_BASE_AFFECTED,
   RATIFIED_VALIDATION_EMPTY_AFFECTED,

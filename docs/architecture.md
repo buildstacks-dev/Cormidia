@@ -128,7 +128,7 @@ Newer work never assumes older work finished:
 | OKF memory / scorecards / retro | `src/org/memory.ts`, `scorecards.ts`, `retro.ts` | §6 |
 | Ticket state machine | `src/loop/loop.ts` | full design in `docs/loop/design.md` |
 | EpisodePlanner boundary | `src/org/episode-planner/` | intent, creator scope, planner orchestration |
-| Roadmap/validation delivery authority | `src/org/roadmap-delivery.ts` | immutable backlog/roadmap/catalog/contract/readiness/batch joins; exact validation hash through settlement |
+| Roadmap/validation delivery authority | `src/org/roadmap-delivery/` | immutable backlog/roadmap/catalog/contract/readiness/batch joins; exact validation hash through settlement |
 | EpisodePlan + route projection | `src/loop/episode-plan.ts`, `episode-plan-executor.ts`, `episode-route.ts` | one workflow source of truth |
 | Pass transport, briefs, gates, verdicts | `src/loop/pipeline.ts`, `brief.ts`, `qgates.ts`, `verdicts.ts` | `docs/loop/design.md` |
 | Protocol templates | `prompts/`, `pipelines.yaml` (org home) | human-ratified; not a workflow planner |

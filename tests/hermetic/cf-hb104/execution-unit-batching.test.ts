@@ -5,20 +5,21 @@ import { afterEach, describe, expect, it } from "vitest";
 import { stableHash, type ProposedEpisodeStep } from "../../../src/loop/episode-plan.js";
 import type { RoleConfig } from "../../../src/runtime/types.js";
 import type { AppEntry } from "../../../src/org/apps.js";
+import { ROADMAP_DELIVERY_SCHEMA_VERSION } from "../../../src/org/roadmap-delivery/authority-core.js";
+import { batchAuthorityPath, executionUnitJournalPath } from "../../../src/org/roadmap-delivery/authority-paths.js";
+import { normalizeDirectExecutionUnitEpisode } from "../../../src/org/roadmap-delivery/direct-episode-normalization.js";
 import {
-  ROADMAP_DELIVERY_SCHEMA_VERSION,
-  RoadmapDeliveryError,
   acceptDirectExecutionUnit,
-  admitExecutionBatch,
-  batchAuthorityPath,
+  type DirectExecutionUnitAuthority,
+} from "../../../src/org/roadmap-delivery/direct-execution-authority.js";
+import { readExecutionBatch } from "../../../src/org/roadmap-delivery/active-execution-units.js";
+import { admitExecutionBatch } from "../../../src/org/roadmap-delivery/execution-batch-admission.js";
+import {
   executionBatchDispositionPath,
-  executionUnitJournalPath,
-  normalizeDirectExecutionUnitEpisode,
-  readExecutionBatch,
   readExecutionUnitJournal,
   transitionExecutionUnitJournal,
-  type DirectExecutionUnitAuthority,
-} from "../../../src/org/roadmap-delivery.js";
+} from "../../../src/org/roadmap-delivery/execution-journal.js";
+import { RoadmapDeliveryError } from "../../../src/org/roadmap-delivery/failure.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const AT = "2026-08-03T23:00:00.000Z";

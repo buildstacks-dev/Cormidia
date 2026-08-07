@@ -24,11 +24,9 @@ import {
 } from "../../../src/org/planner-publication.js";
 import { preparePlannerIssueIntake, type PlannerReadinessDecision } from "../../../src/org/planner-intake.js";
 import { persistPublishedRoadmap } from "../../../src/org/plan-auto.js";
-import {
-  readCurrentDeliveryUnitReadiness,
-  readCurrentRoadmapPlan,
-  readCurrentValidationContract,
-} from "../../../src/org/roadmap-delivery.js";
+import { readCurrentDeliveryUnitReadiness } from "../../../src/org/roadmap-delivery/delivery-readiness.js";
+import { readCurrentRoadmapPlan } from "../../../src/org/roadmap-delivery/roadmap-plan.js";
+import { readCurrentValidationContract } from "../../../src/org/roadmap-delivery/validation-contract-authority.js";
 import { createPlannerTurnWorktree, turnWorktreeIdentity } from "../../../src/org/turn-runner.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 

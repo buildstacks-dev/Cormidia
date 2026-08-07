@@ -8,21 +8,21 @@ import { afterEach, describe, expect, it } from "vitest";
 import { stableHash } from "../../../src/loop/episode-plan.js";
 import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
-  RoadmapDeliveryError,
-  acceptBacklogSnapshot,
-  acceptRoadmapPlan,
-  admitExecutionBatch,
-  backlogSnapshotAuthorityPath,
-  deriveBacklogDelta,
-  readCurrentRoadmapPlan,
-  reconcileRoadmapProjections,
   type AcceptedAuthority,
   type AuthorityRef,
+} from "../../../src/org/roadmap-delivery/authority-core.js";
+import { backlogSnapshotAuthorityPath } from "../../../src/org/roadmap-delivery/authority-paths.js";
+import { acceptBacklogSnapshot, deriveBacklogDelta } from "../../../src/org/roadmap-delivery/backlog-authority.js";
+import { admitExecutionBatch } from "../../../src/org/roadmap-delivery/execution-batch-admission.js";
+import { RoadmapDeliveryError } from "../../../src/org/roadmap-delivery/failure.js";
+import {
   type BacklogSnapshot,
   type BacklogSnapshotIssue,
   type RoadmapIssueProjection,
   type RoadmapPlan,
-} from "../../../src/org/roadmap-delivery.js";
+} from "../../../src/org/roadmap-delivery/roadmap-model.js";
+import { acceptRoadmapPlan, readCurrentRoadmapPlan } from "../../../src/org/roadmap-delivery/roadmap-plan.js";
+import { reconcileRoadmapProjections } from "../../../src/org/roadmap-delivery/roadmap-projections.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const APP = "hb101-large-backlog";
@@ -135,7 +135,7 @@ async function acceptSnapshot(
 }
 
 describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
-  it("preserves typed failure identity through the roadmap-delivery façade", async () => {
+  it("preserves typed failure identity through the split roadmap-delivery modules", async () => {
     const home = await makeTempStateHome({ name: "hb101-failure-taxonomy" });
     homes.push(home);
 

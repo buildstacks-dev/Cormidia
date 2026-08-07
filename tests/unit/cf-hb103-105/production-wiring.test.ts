@@ -4,7 +4,7 @@ import type { GhIssue, GhOps } from "../../../src/loop/github.js";
 import type { PublishedTicket, TicketPlan } from "../../../src/loop/plan-tickets.js";
 import type { AppEntry } from "../../../src/org/apps.js";
 import { persistPublishedRoadmap } from "../../../src/org/plan-auto.js";
-import { readCurrentRoadmapPlan } from "../../../src/org/roadmap-delivery.js";
+import { readCurrentRoadmapPlan } from "../../../src/org/roadmap-delivery/roadmap-plan.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const homes: TempStateHome[] = [];

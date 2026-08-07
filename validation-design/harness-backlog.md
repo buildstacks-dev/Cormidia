@@ -408,7 +408,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   *Defends:* CF-J03/J04 2026-08-03 slices, CF-J20-S, CF-INV-016, CF-B20/21/22 happy
   joins. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* accepted Phase 8 package
   and #239.
-  *Implementation:* `src/org/roadmap-delivery.ts` plus
+  *Implementation:* `src/org/roadmap-delivery/` plus
   `tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts`. The five
   executable cases prove the two-ticket provider-free join, one durable all-member
   claim under a race, persistence-before-projection, label-without-artifact refusal,
@@ -427,7 +427,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   no EpisodePlan. *Defends:* CF-J03-*, CF-SM-ROADMAP-*, CF-B20-*, CF-C-B20,
   CF-C-OPPLAN. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* HB-100.
   *Implementation:* the versioned immutable snapshot/RoadmapPlan records and current
-  pointer live under `planning/apps/<app-hash>/`; `src/org/roadmap-delivery.ts` owns
+  pointer live under `planning/apps/<app-hash>/`; `src/org/roadmap-delivery/` owns
   completeness/pagination, exact issue accounting, dependency/WIP/priority/frontier,
   current-plan CAS, stable membership IDs, append-only issue moves, bounded-delta and
   deterministic projection reconciliation. Five executable cases at
@@ -446,7 +446,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   evidence turns red. *Defends:* CF-SM-VALIDATION-*, CF-INV-016, CF-B21-*,
   CF-C-B21/OPVALIDATION, CF-S10-env. *Layer:* 1/2. *Executor:* build-agent.
   *Depends on:* HB-100/101.
-  *Implementation:* `src/org/roadmap-delivery.ts` now owns a closed v1 interchange
+  *Implementation:* `src/org/roadmap-delivery/` now owns a closed v1 interchange
   schema, versioned app-scoped accepted validation catalog, immutable contract/lifecycle/
   current-pointer store, canonical harness-ID resolution, exact affected-structure and
   cheapest-layer checks, bounded provenance-bearing waivers, shared-boundary/negative-
@@ -494,7 +494,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   claim/evidence/budget/completion to another. *Defends:* CF-J20-*, CF-SM-BATCH-*,
   CF-B22-*, CF-C-B22/OPBATCH. *Layer:* 1/2. *Executor:* build-agent.
   *Depends on:* HB-100/101/102/103.
-  *Implementation:* `src/org/roadmap-delivery.ts` owns roadmap-code/direct-operation
+  *Implementation:* `src/org/roadmap-delivery/` owns roadmap-code/direct-operation
   execution-unit authorities, deterministic hard-constraint-first admission, bounded
   manifests, lazy per-unit EpisodePlan creation, and isolated budgets/journals/terminal
   outcomes. `tests/hermetic/cf-hb104/execution-unit-batching.test.ts` proves deterministic

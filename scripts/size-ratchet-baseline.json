@@ -876,11 +876,6 @@
       "lines": 113,
       "newModule": false
     },
-    "src/org/roadmap-delivery.ts": {
-      "exports": 81,
-      "lines": 867,
-      "newModule": false
-    },
     "src/org/roadmap-delivery/active-execution-units.ts": {
       "exports": 5,
       "lines": 112,
@@ -906,6 +901,16 @@
       "lines": 88,
       "newModule": true
     },
+    "src/org/roadmap-delivery/builder-evidence-model.ts": {
+      "exports": 3,
+      "lines": 205,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/builder-evidence.ts": {
+      "exports": 4,
+      "lines": 129,
+      "newModule": true
+    },
     "src/org/roadmap-delivery/delivery-episode-binding.ts": {
       "exports": 3,
       "lines": 158,
@@ -924,6 +929,11 @@
     "src/org/roadmap-delivery/delivery-readiness.ts": {
       "exports": 4,
       "lines": 185,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/delivery-settlement.ts": {
+      "exports": 3,
+      "lines": 173,
       "newModule": true
     },
     "src/org/roadmap-delivery/delivery-unit-claims.ts": {
@@ -969,6 +979,16 @@
     "src/org/roadmap-delivery/failure.ts": {
       "exports": 1,
       "lines": 45,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/reviewer-verdict-model.ts": {
+      "exports": 3,
+      "lines": 99,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/reviewer-verdict.ts": {
+      "exports": 2,
+      "lines": 128,
       "newModule": true
     },
     "src/org/roadmap-delivery/roadmap-invariants.ts": {

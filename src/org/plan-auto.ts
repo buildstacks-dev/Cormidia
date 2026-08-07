@@ -106,17 +106,15 @@ import {
   resolvePlanningStage,
   type PlanningStageResolution,
 } from "./planning-stage.js";
+import { acceptBacklogSnapshot, readBacklogSnapshotAuthority } from "./roadmap-delivery/backlog-authority.js";
+import { ROADMAP_DELIVERY_SCHEMA_VERSION } from "./roadmap-delivery/authority-core.js";
+import { listActiveExecutionUnits } from "./roadmap-delivery/active-execution-units.js";
 import {
-  acceptBacklogSnapshot,
-  acceptRoadmapPlan,
-  listActiveExecutionUnits,
-  readBacklogSnapshotAuthority,
-  readCurrentRoadmapPlan,
-  ROADMAP_DELIVERY_SCHEMA_VERSION,
   type RoadmapDeliveryUnit,
   type RoadmapIssueMove,
   type RoadmapWorkstream,
-} from "./roadmap-delivery.js";
+} from "./roadmap-delivery/roadmap-model.js";
+import { acceptRoadmapPlan, readCurrentRoadmapPlan } from "./roadmap-delivery/roadmap-plan.js";
 import { loadRoles } from "./roles.js";
 import {
   ratifyTicketBudgetCommand,

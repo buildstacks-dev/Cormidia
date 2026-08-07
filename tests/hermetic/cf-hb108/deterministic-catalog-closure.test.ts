@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ratifiedRoadmapValidationCatalog } from "../../../src/org/ratified-validation-catalog.js";
-import { RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 } from "../../../src/org/roadmap-delivery.js";
+import { RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 } from "../../../src/org/roadmap-delivery/validation-catalog-revision.js";
 import {
   auditRevisionCatalogClosure,
   REVISION_FAMILY_EVIDENCE,

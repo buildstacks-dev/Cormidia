@@ -5,25 +5,28 @@ import type { RoleConfig, TurnAssignment } from "../../../src/runtime/types.js";
 import { stableHash, type CreatorEpisodeScope, type ProposedEpisodeStep } from "../../../src/loop/episode-plan.js";
 import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
-  acceptBacklogSnapshot,
-  acceptDeliveryUnitReadiness,
+  type AuthorityRef,
+} from "../../../src/org/roadmap-delivery/authority-core.js";
+import { currentRoadmapPointerPath } from "../../../src/org/roadmap-delivery/authority-paths.js";
+import { acceptBacklogSnapshot } from "../../../src/org/roadmap-delivery/backlog-authority.js";
+import { acceptDeliveryUnitReadiness } from "../../../src/org/roadmap-delivery/delivery-readiness.js";
+import { normalizeDeliveryUnitEpisode } from "../../../src/org/roadmap-delivery/delivery-episode-normalization.js";
+import {
   acceptDirectExecutionUnit,
-  acceptRoadmapPlan,
-  acceptValidationCatalog,
-  acceptValidationContract,
-  admitExecutionBatch,
-  currentRoadmapPointerPath,
+  type DirectExecutionUnitAuthority,
+} from "../../../src/org/roadmap-delivery/direct-execution-authority.js";
+import { admitExecutionBatch } from "../../../src/org/roadmap-delivery/execution-batch-admission.js";
+import {
   executionBatchDispositionPath,
-  normalizeDeliveryUnitEpisode,
   readExecutionUnitJournal,
   transitionExecutionUnitJournal,
-  unitMembershipHash,
-  type AcceptedRoadmapPlan,
-  type AuthorityRef,
-  type DirectExecutionUnitAuthority,
-  type RoadmapPlan,
-  type ValidationContract,
-} from "../../../src/org/roadmap-delivery.js";
+} from "../../../src/org/roadmap-delivery/execution-journal.js";
+import { unitMembershipHash } from "../../../src/org/roadmap-delivery/roadmap-invariants.js";
+import type { AcceptedRoadmapPlan, RoadmapPlan } from "../../../src/org/roadmap-delivery/roadmap-model.js";
+import { acceptRoadmapPlan } from "../../../src/org/roadmap-delivery/roadmap-plan.js";
+import { acceptValidationCatalog } from "../../../src/org/roadmap-delivery/validation-catalog-authority.js";
+import type { ValidationContract } from "../../../src/org/roadmap-delivery/validation-contract.js";
+import { acceptValidationContract } from "../../../src/org/roadmap-delivery/validation-contract-authority.js";
 import {
   createExecutionContextAffinityManifest,
   prepareExecutionAffinityTurn,

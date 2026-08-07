@@ -70,6 +70,32 @@ const homes: TempStateHome[] = [];
 afterEach(async () => Promise.all(homes.splice(0).map((home) => home.cleanup())));
 
 describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", () => {
+  it("persists direct authority before projection and preserves immutable replay", async () => {
+    const home = await stateHome();
+    const authority = direct("direct-authority-seam");
+    const projections: Array<{ kind: string; path: string }> = [];
+    const project = async (entry: { kind: string; path: string }): Promise<void> => {
+      const persisted = JSON.parse(await readFile(entry.path, "utf8"));
+      expect(persisted).toMatchObject({
+        ref: { kind: "direct_execution_unit", id: authority.unitId, version: 1 },
+        value: authority,
+      });
+      projections.push({ kind: entry.kind, path: entry.path });
+    };
+
+    const accepted = await acceptDirectExecutionUnit({ root: home.stateHome, authority, project });
+    const replay = await acceptDirectExecutionUnit({ root: home.stateHome, authority, project });
+
+    expect(replay).toEqual(accepted);
+    expect(projections).toHaveLength(2);
+    expect(projections.every((entry) => entry.kind === "direct_execution_unit")).toBe(true);
+    const conflicting = { ...structuredClone(authority), objective: "A conflicting direct objective." };
+    await expectCode(
+      () => acceptDirectExecutionUnit({ root: home.stateHome, authority: conflicting }),
+      "authority_conflict",
+    );
+  });
+
   it("admits a bounded token-free direct batch and creates plans lazily per unit", async () => {
     const home = await stateHome();
     const first = await acceptDirectExecutionUnit({ root: home.stateHome, authority: direct("direct-a") });

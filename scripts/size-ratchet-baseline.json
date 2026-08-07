@@ -878,8 +878,23 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 5603,
+      "lines": 5293,
       "newModule": false
+    },
+    "src/org/roadmap-delivery/validation-catalog.ts": {
+      "exports": 10,
+      "lines": 88,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-contract-schema.ts": {
+      "exports": 1,
+      "lines": 201,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-contract.ts": {
+      "exports": 5,
+      "lines": 66,
+      "newModule": true
     },
     "src/org/roadmap-explanation.ts": {
       "exports": 3,

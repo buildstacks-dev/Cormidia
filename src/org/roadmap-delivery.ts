@@ -41,17 +41,33 @@ import {
   type EpisodePlanningPolicyOptions,
 } from "./episode-planner/policy.js";
 import { planningAppDir, planningAuthorityPath } from "./planning-artifact-path.js";
+import {
+  VALIDATION_LAYERS,
+  type ValidationAffectedStructure,
+  type ValidationCatalog,
+  type ValidationCatalogCase,
+  type ValidationCatalogId,
+  type ValidationCatalogTemplate,
+  type ValidationWaiverClass,
+} from "./roadmap-delivery/validation-catalog.js";
+import { VALIDATION_CONTRACT_SCHEMA } from "./roadmap-delivery/validation-contract-schema.js";
+import {
+  VALIDATION_CONTRACT_SCHEMA_VERSION,
+  type ValidationContract,
+  type ValidationObligation,
+  type ValidationWaiver,
+} from "./roadmap-delivery/validation-contract.js";
+
+export { VALIDATION_CONTRACT_SCHEMA };
+export type { ValidationAffectedStructure, ValidationCatalog, ValidationCatalogCase };
+export type { ValidationContract, ValidationObligation, ValidationWaiver };
 
 export const ROADMAP_DELIVERY_SCHEMA_VERSION = 1 as const;
 const VALIDATION_CATALOG_SCHEMA_VERSION = 1 as const;
-const VALIDATION_CONTRACT_SCHEMA_VERSION = 1 as const;
 const RATIFIED_HARNESS_REVISION_ID = "roadmap-validation-delivery-batching-2026-08-03" as const;
 /** Content root for the complete deterministic HB-100..108 catalog. */
 export const RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 =
   "58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880" as const;
-
-const VALIDATION_LAYERS = ["L1", "L2", "L3", "L4", "L5"] as const;
-type ValidationLayer = (typeof VALIDATION_LAYERS)[number];
 
 type RoadmapDeliveryFailureCode =
   | "backlog_incomplete"
@@ -229,133 +245,6 @@ interface RoadmapProjectionRepair {
   reason: "missing" | "stale" | "contradictory" | "current";
 }
 
-interface ValidationCatalogId {
-  canonicalId: string;
-  aliases: string[];
-}
-
-interface ValidationCatalogBoundary extends ValidationCatalogId {
-  requiresSharedDetector: boolean;
-  sharedDetectorId: string | null;
-  routineEligible: boolean;
-}
-
-interface ValidationCatalogInvariant extends ValidationCatalogId {
-  floor: boolean;
-}
-
-export interface ValidationAffectedStructure {
-  journeyIds: string[];
-  boundaryIds: string[];
-  contractIds: string[];
-  invariantIds: string[];
-  interfaceIds: string[];
-  stateOwnerIds: string[];
-  controlPointIds: string[];
-}
-
-export interface ValidationCatalogCase extends ValidationCatalogId {
-  cheapestFalsifyingLayer: ValidationLayer;
-  affected: ValidationAffectedStructure;
-  detectorId: string;
-  negativeControlRequired: boolean;
-  routineEligible: boolean;
-}
-
-interface ValidationCatalogTemplate {
-  templateId: string;
-  aliases: string[];
-  version: number;
-  kind: "routine" | "custom";
-}
-
-interface ValidationWaiverClass {
-  classId: string;
-  aliases: string[];
-  maxDurationMs: number;
-  maxWaiversPerContract: number;
-  allowedTemplateKinds: Array<ValidationCatalogTemplate["kind"]>;
-}
-
-export interface ValidationCatalog {
-  schemaVersion: typeof VALIDATION_CATALOG_SCHEMA_VERSION;
-  catalogId: string;
-  version: number;
-  predecessor: AuthorityRef | null;
-  app: string;
-  harnessRevisionId: string;
-  journeys: ValidationCatalogId[];
-  boundaries: ValidationCatalogBoundary[];
-  contracts: ValidationCatalogId[];
-  invariants: ValidationCatalogInvariant[];
-  interfaces: ValidationCatalogId[];
-  stateOwners: ValidationCatalogId[];
-  controlPoints: ValidationCatalogId[];
-  cases: ValidationCatalogCase[];
-  templates: ValidationCatalogTemplate[];
-  waiverClasses: ValidationWaiverClass[];
-  acceptedAt: string;
-}
-
-interface ValidationTemplateRef {
-  templateId: string;
-  version: number;
-}
-
-export interface ValidationWaiver {
-  waiverId: string;
-  policyClassId: string;
-  obligationId: string;
-  unitId: string;
-  contractId: string;
-  contractVersion: number;
-  reason: string;
-  provenance: {
-    actorId: string;
-    authorityRef: string;
-    decidedAt: string;
-  };
-  expiresAt: string;
-}
-
-export interface ValidationObligation {
-  obligationId: string;
-  caseId: string;
-  covers: ValidationAffectedStructure;
-  cheapestFalsifyingLayer: ValidationLayer;
-  failureCases: string[];
-  detectorId: string;
-  negativeControlId: string;
-  expectedEvidence: string[];
-  waiver: ValidationWaiver | null;
-}
-
-export interface ValidationContract {
-  schemaVersion: typeof VALIDATION_CONTRACT_SCHEMA_VERSION;
-  contractId: string;
-  version: number;
-  predecessor: AuthorityRef | null;
-  app: string;
-  catalogRef: AuthorityRef;
-  roadmapRef: AuthorityRef;
-  unitId: string;
-  unitMembershipHash: string;
-  templateRef: ValidationTemplateRef | null;
-  affected: ValidationAffectedStructure;
-  acceptanceCriteria: string[];
-  requiresHarnessRevision: boolean;
-  harnessRevisionReason: string | null;
-  sharedBoundaryDetectorRefs: Array<{
-    boundaryId: string;
-    caseId: string;
-    detectorId: string;
-  }>;
-  obligations: ValidationObligation[];
-  requiredGates: string[];
-  proposedAt: string;
-  acceptedAt: string;
-}
-
 export function validationWaiverApprovalAction(
   contract: Pick<ValidationContract, "app" | "unitId" | "contractId" | "version">,
   obligation: ValidationObligation,
@@ -405,205 +294,6 @@ export function validationWaiverApprovalAction(
     description: `Authorize validation waiver ${waiver.waiverId} for ${contract.unitId}`,
   };
 }
-
-/**
- * Portable schema for the immutable validation-contract payload. Runtime
- * admission applies the same closed-world shape plus catalog-backed semantic
- * checks; consumers may persist this object as the v1 interchange schema.
- */
-export const VALIDATION_CONTRACT_SCHEMA = {
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://cormidia.dev/schemas/validation-contract/v1.json",
-  title: "Cormidia validation contract v1",
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "schemaVersion",
-    "contractId",
-    "version",
-    "predecessor",
-    "app",
-    "catalogRef",
-    "roadmapRef",
-    "unitId",
-    "unitMembershipHash",
-    "templateRef",
-    "affected",
-    "acceptanceCriteria",
-    "requiresHarnessRevision",
-    "harnessRevisionReason",
-    "sharedBoundaryDetectorRefs",
-    "obligations",
-    "requiredGates",
-    "proposedAt",
-    "acceptedAt",
-  ],
-  properties: {
-    schemaVersion: { const: VALIDATION_CONTRACT_SCHEMA_VERSION },
-    contractId: { type: "string", pattern: "^[a-z0-9][a-z0-9._-]{0,127}$" },
-    version: { type: "integer", minimum: 1 },
-    predecessor: { anyOf: [{ type: "null" }, { $ref: "#/$defs/validationContractRef" }] },
-    app: { type: "string", minLength: 1 },
-    catalogRef: { $ref: "#/$defs/validationCatalogRef" },
-    roadmapRef: { $ref: "#/$defs/roadmapRef" },
-    unitId: { type: "string", pattern: "^[a-z0-9][a-z0-9._-]{0,127}$" },
-    unitMembershipHash: { $ref: "#/$defs/hash" },
-    templateRef: { anyOf: [{ type: "null" }, { $ref: "#/$defs/templateRef" }] },
-    affected: { $ref: "#/$defs/affected" },
-    acceptanceCriteria: { $ref: "#/$defs/nonEmptyUniqueStrings" },
-    requiresHarnessRevision: { type: "boolean" },
-    harnessRevisionReason: { type: ["string", "null"] },
-    sharedBoundaryDetectorRefs: {
-      type: "array",
-      items: { $ref: "#/$defs/sharedDetectorRef" },
-    },
-    obligations: {
-      type: "array",
-      minItems: 1,
-      items: { $ref: "#/$defs/obligation" },
-    },
-    requiredGates: { $ref: "#/$defs/nonEmptyUniqueStrings" },
-    proposedAt: { type: "string", format: "date-time" },
-    acceptedAt: { type: "string", format: "date-time" },
-  },
-  $defs: {
-    hash: { type: "string", pattern: "^[a-f0-9]{64}$" },
-    machineId: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._*:/-]{0,255}$" },
-    nonEmptyUniqueStrings: {
-      type: "array",
-      minItems: 1,
-      uniqueItems: true,
-      items: { type: "string", minLength: 1 },
-    },
-    stringSet: {
-      type: "array",
-      uniqueItems: true,
-      items: { $ref: "#/$defs/machineId" },
-    },
-    authorityRef: {
-      type: "object",
-      additionalProperties: false,
-      required: ["kind", "id", "version", "sha256"],
-      properties: {
-        kind: { type: "string" },
-        id: { type: "string", minLength: 1 },
-        version: { type: "integer", minimum: 1 },
-        sha256: { $ref: "#/$defs/hash" },
-      },
-    },
-    validationContractRef: {
-      allOf: [{ $ref: "#/$defs/authorityRef" }, { properties: { kind: { const: "validation_contract" } } }],
-    },
-    validationCatalogRef: {
-      allOf: [{ $ref: "#/$defs/authorityRef" }, { properties: { kind: { const: "validation_catalog" } } }],
-    },
-    roadmapRef: {
-      allOf: [{ $ref: "#/$defs/authorityRef" }, { properties: { kind: { const: "roadmap_plan" } } }],
-    },
-    templateRef: {
-      type: "object",
-      additionalProperties: false,
-      required: ["templateId", "version"],
-      properties: {
-        templateId: { $ref: "#/$defs/machineId" },
-        version: { type: "integer", minimum: 1 },
-      },
-    },
-    affected: {
-      type: "object",
-      additionalProperties: false,
-      required: [
-        "journeyIds",
-        "boundaryIds",
-        "contractIds",
-        "invariantIds",
-        "interfaceIds",
-        "stateOwnerIds",
-        "controlPointIds",
-      ],
-      properties: {
-        journeyIds: { $ref: "#/$defs/stringSet" },
-        boundaryIds: { $ref: "#/$defs/stringSet" },
-        contractIds: { $ref: "#/$defs/stringSet" },
-        invariantIds: { $ref: "#/$defs/stringSet" },
-        interfaceIds: { $ref: "#/$defs/stringSet" },
-        stateOwnerIds: { $ref: "#/$defs/stringSet" },
-        controlPointIds: { $ref: "#/$defs/stringSet" },
-      },
-    },
-    waiver: {
-      type: "object",
-      additionalProperties: false,
-      required: [
-        "waiverId",
-        "policyClassId",
-        "obligationId",
-        "unitId",
-        "contractId",
-        "contractVersion",
-        "reason",
-        "provenance",
-        "expiresAt",
-      ],
-      properties: {
-        waiverId: { $ref: "#/$defs/machineId" },
-        policyClassId: { $ref: "#/$defs/machineId" },
-        obligationId: { $ref: "#/$defs/machineId" },
-        unitId: { type: "string", minLength: 1 },
-        contractId: { type: "string", minLength: 1 },
-        contractVersion: { type: "integer", minimum: 1 },
-        reason: { type: "string", minLength: 1 },
-        provenance: {
-          type: "object",
-          additionalProperties: false,
-          required: ["actorId", "authorityRef", "decidedAt"],
-          properties: {
-            actorId: { type: "string", minLength: 1 },
-            authorityRef: { type: "string", minLength: 1 },
-            decidedAt: { type: "string", format: "date-time" },
-          },
-        },
-        expiresAt: { type: "string", format: "date-time" },
-      },
-    },
-    obligation: {
-      type: "object",
-      additionalProperties: false,
-      required: [
-        "obligationId",
-        "caseId",
-        "covers",
-        "cheapestFalsifyingLayer",
-        "failureCases",
-        "detectorId",
-        "negativeControlId",
-        "expectedEvidence",
-        "waiver",
-      ],
-      properties: {
-        obligationId: { $ref: "#/$defs/machineId" },
-        caseId: { $ref: "#/$defs/machineId" },
-        covers: { $ref: "#/$defs/affected" },
-        cheapestFalsifyingLayer: { enum: VALIDATION_LAYERS },
-        failureCases: { $ref: "#/$defs/nonEmptyUniqueStrings" },
-        detectorId: { type: "string", minLength: 1 },
-        negativeControlId: { type: "string", minLength: 1 },
-        expectedEvidence: { $ref: "#/$defs/nonEmptyUniqueStrings" },
-        waiver: { anyOf: [{ type: "null" }, { $ref: "#/$defs/waiver" }] },
-      },
-    },
-    sharedDetectorRef: {
-      type: "object",
-      additionalProperties: false,
-      required: ["boundaryId", "caseId", "detectorId"],
-      properties: {
-        boundaryId: { $ref: "#/$defs/machineId" },
-        caseId: { $ref: "#/$defs/machineId" },
-        detectorId: { type: "string", minLength: 1 },
-      },
-    },
-  },
-} as const;
 
 type ValidationContractLifecycleState = "proposed" | "validated" | "accepted" | "superseded";
 

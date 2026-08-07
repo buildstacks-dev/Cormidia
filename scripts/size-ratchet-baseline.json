@@ -211,6 +211,11 @@
       "lines": 185,
       "newModule": true
     },
+    "src/jobs/cli.ts": {
+      "exports": 2,
+      "lines": 201,
+      "newModule": true
+    },
     "src/jobs/config.ts": {
       "exports": 4,
       "lines": 292,
@@ -219,6 +224,11 @@
     "src/jobs/journal.ts": {
       "exports": 10,
       "lines": 148,
+      "newModule": true
+    },
+    "src/jobs/main.ts": {
+      "exports": 1,
+      "lines": 17,
       "newModule": true
     },
     "src/jobs/progress.ts": {

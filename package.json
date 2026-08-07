@@ -9,13 +9,15 @@
   },
   "type": "module",
   "bin": {
-    "cormidia": "./src/cormidia.cjs"
+    "cormidia": "./src/cormidia.cjs",
+    "cormidia-job": "./src/cormidia-job.cjs"
   },
   "publishConfig": {
     "access": "public"
   },
   "files": [
     "src/cormidia.cjs",
+    "src/cormidia-job.cjs",
     "src/cormidia-local.cjs",
     "dist/**/*.js",
     "agent-skills/cormidia/",

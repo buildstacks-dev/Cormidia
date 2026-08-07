@@ -1,0 +1,58 @@
+# Example 3 — fan-out then fan-in, with a schema gate on the join.
+#
+# Three independent research passes feed one comparison. The join step reads all
+# three outputs verbatim, so its brief is the union of what the fan-out produced.
+# The schema check on the join is what stops a confident narrative from reaching
+# the deliverable with a missing field.
+#
+#   cormidia-job run examples/jobs/competitive-research.yaml --workdir ./research
+
+job: competitive-landscape
+description: >
+  Three independent per-competitor research passes, deliberately on different
+  harnesses so no single provider's blind spot shapes all three, then one
+  schema-gated comparison.
+
+steps:
+  - id: research-alpha
+    objective: |
+      Research competitor Alpha from inputs/alpha/. Emit outputs/alpha.json with
+      keys: name, positioning, pricing_model, strengths[], weaknesses[].
+      Where a fact is not in the inputs, use null rather than inferring it.
+    assignment: { harness: claude, model: claude-opus-4-8, effort: high }
+    outputs:
+      - path: outputs/alpha.json
+        check:
+          schema: schemas/competitor.schema.json
+
+  - id: research-beta
+    objective: |
+      Same brief as research-alpha, for competitor Beta from inputs/beta/.
+      Emit outputs/beta.json.
+    assignment: { harness: codex, model: gpt-5.6-sol, effort: high }
+    outputs:
+      - path: outputs/beta.json
+        check:
+          schema: schemas/competitor.schema.json
+
+  - id: research-gamma
+    objective: |
+      Same brief as research-alpha, for competitor Gamma from inputs/gamma/.
+      Emit outputs/gamma.json.
+    assignment: { harness: pi, model: openai-codex/gpt-5.6-sol, effort: medium }
+    outputs:
+      - path: outputs/gamma.json
+        check:
+          schema: schemas/competitor.schema.json
+
+  # Fan-in: this step's brief carries all three JSON files verbatim.
+  - id: compare
+    dependsOn: [research-alpha, research-beta, research-gamma]
+    objective: |
+      Produce outputs/comparison.md from the three competitor files. Where the
+      three passes disagree about the same fact, say so explicitly instead of
+      picking one — a disagreement between providers is a finding, not noise.
+    assignment: { harness: claude, model: claude-opus-4-8, effort: max }
+    outputs:
+      - path: outputs/comparison.md
+        check: non_empty

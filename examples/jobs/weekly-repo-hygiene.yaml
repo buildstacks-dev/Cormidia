@@ -1,0 +1,57 @@
+# Example 4 — the long-running / repeatedly-run case, gated by commands.
+#
+# Every check here is a command rather than a content check, because the question
+# is not "did the model write something" but "does the tree still build". This is
+# the shape to reach for when a job's output is a change rather than a document.
+#
+#   cormidia-job run examples/jobs/weekly-repo-hygiene.yaml --workdir ~/src/my-repo
+#
+# Note the deliberate absence of any push, PR, or release step. A job that needs
+# a PR is a ticket, not a job (docs/jobs/design.md §3).
+
+job: weekly-hygiene
+app: sonnet8-buildstack-dev
+description: >
+  Weekly repository hygiene: find dead code, remove it, prove the tree still
+  builds and tests green. Every gate is a command, so a confident-but-wrong
+  edit cannot pass.
+
+steps:
+  - id: survey
+    objective: |
+      Find unreferenced exports, unused files, and stale TODOs whose referenced
+      issue is closed. Write outputs/survey.md as a list of candidates with a
+      one-line justification each. Change no source file in this step.
+    assignment: { harness: claude, model: claude-opus-4-8, effort: high }
+    outputs:
+      - path: outputs/survey.md
+        check: non_empty
+
+  # A human reads the candidate list before anything is deleted. Deletion is
+  # cheap to redo and expensive to notice, which is exactly when a checkpoint
+  # earns its place.
+  - id: approve-removals
+    dependsOn: [survey]
+    checkpoint:
+      prompt: >
+        Read outputs/survey.md. Strike anything that is intentionally unreferenced
+        (public API, generated code, fixtures) before removals proceed.
+
+  - id: remove
+    dependsOn: [approve-removals, survey]
+    objective: |
+      Apply only the removals surviving in outputs/survey.md. Do not reformat
+      untouched code, do not upgrade dependencies, do not rename anything.
+      Write outputs/removed.md listing exactly what was deleted.
+    assignment: { harness: codex, model: gpt-5.6-sol, effort: high }
+    outputs:
+      - path: outputs/removed.md
+        check: non_empty
+      # The gates that make this trustworthy: the tree must still typecheck and
+      # the suite must still pass, in the real repo, deterministically.
+      - path: outputs/removed.md
+        check:
+          command: pnpm typecheck
+      - path: outputs/removed.md
+        check:
+          command: pnpm test

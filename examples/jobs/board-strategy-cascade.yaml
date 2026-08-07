@@ -1,0 +1,78 @@
+# Example 1 — the org-work case: a strategy exercise that belongs to no product.
+#
+# A board meeting is scheduled, framing cascades to teams, each team answers,
+# a human reads the answers, then one brief is synthesized. Nobody would create
+# an app for this, which is exactly why it is a job.
+#
+#   cormidia-job explain examples/jobs/board-strategy-cascade.yaml
+#   cormidia-job run     examples/jobs/board-strategy-cascade.yaml --workdir ./strategy-q3
+
+job: q3-board-strategy
+description: >
+  Board strategy exercise. Framing questions cascade to three teams in parallel
+  order, a human reads the answers, then one board brief is synthesized.
+
+steps:
+  - id: framing
+    objective: |
+      Read every file under inputs/ and produce the three framing questions each
+      team must answer for the Q3 board review. Be specific enough that two teams
+      answering them independently produce comparable answers.
+      Write the questions to outputs/framing.md.
+    assignment: { harness: claude, model: claude-opus-4-8, effort: xhigh }
+    outputs:
+      - path: outputs/framing.md
+        check: non_empty
+
+  # The three team steps are independent of each other and each depends only on
+  # the framing. They run one at a time in id order, not concurrently: the DAG
+  # buys ordering and resumability, not parallelism.
+  - id: team-growth
+    dependsOn: [framing]
+    objective: |
+      Answer the framing questions for the Growth team using inputs/growth/.
+      Write outputs/team-growth.md.
+    assignment: { harness: codex, model: gpt-5.6-sol, effort: high }
+    outputs:
+      - path: outputs/team-growth.md
+        check: non_empty
+
+  - id: team-platform
+    dependsOn: [framing]
+    objective: |
+      Answer the framing questions for the Platform team using inputs/platform/.
+      Write outputs/team-platform.md.
+    assignment: { harness: codex, model: gpt-5.6-sol, effort: high }
+    outputs:
+      - path: outputs/team-platform.md
+        check: non_empty
+
+  - id: team-support
+    dependsOn: [framing]
+    objective: |
+      Answer the framing questions for the Support team using inputs/support/.
+      Write outputs/team-support.md.
+    assignment: { harness: pi, model: openai-codex/gpt-5.6-sol, effort: medium }
+    outputs:
+      - path: outputs/team-support.md
+        check: non_empty
+
+  # The whole reason a week-long exercise is steerable rather than a script that
+  # ran for a week. The job parks here until a human decides.
+  - id: read-the-answers
+    dependsOn: [team-growth, team-platform, team-support]
+    checkpoint:
+      prompt: >
+        Read outputs/team-*.md before synthesis proceeds. If a team's answer is
+        off-target, fix its inputs and re-run that step rather than letting the
+        synthesis average it away.
+
+  - id: synthesize
+    dependsOn: [read-the-answers, team-growth, team-platform, team-support]
+    objective: |
+      Produce the board brief from the three team answers. Name the genuine
+      disagreements rather than averaging them. Write outputs/board-brief.md.
+    assignment: { harness: claude, model: claude-opus-4-8, effort: max }
+    outputs:
+      - path: outputs/board-brief.md
+        check: non_empty

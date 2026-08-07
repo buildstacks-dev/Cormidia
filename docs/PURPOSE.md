@@ -1,6 +1,6 @@
 # PURPOSE — Cormidia
 
-*v2.15 — 2026-08-03. Human-ratified decision log. Keep this file high-level;
+*v2.16 — 2026-08-07. Human-ratified decision log. Keep this file high-level;
 execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop/design.md.
 The operator outcome is `docs/VISION.md`; product status and known limitations
 live in README → Status.*
@@ -783,6 +783,50 @@ and agent definitions.
   authorize any later version. The candidate must still pass the complete
   offline, typecheck, build, packaging, and installed-command checks before
   publication.
+
+- **Jobs: the org runtime expresses non-product work through a second entry
+  point** (ratified 2026-08-07). An organization does work that is not a product:
+  a strategy exercise, a cross-team synthesis, a one-off analysis. Such work has
+  a goal, a dependency order, intermediate artifacts, and a human steering it,
+  and it has no repository, ticket, or PR. Cormidia admits it as **jobs** —
+  named, dependency-ordered step graphs run once or on demand, executed at most
+  one step at a time, resumable across process death, shipped as a separate
+  `cormidia-job` binary in the same package. A job may be app-scoped (evidence
+  lands under that app) or unscoped in the active or default org (evidence lands
+  under the `adhoc` slot). This amends "Cormidia is an installable
+  package/runtime, not an app" only in entry-point count, not in kind: the
+  runtime still contains no app code, and "one runtime, many apps" stands.
+  Carve-outs, tighten-only: (1) *Jobs carry no verification authority* — no
+  independent review, no typed merit verdict, no ticket state machine, and no
+  GitHub interaction of any kind. A completed step means the provider returned
+  and the step's declared deterministic checks passed; it never means the work is
+  correct, and a job can never be a release or deployment path. (2) *The gate
+  still binds* — every job step passes the critical-ops gate, so reduced
+  verification never becomes reduced containment. (3) *Spend stays truthful* —
+  every job provider turn settles into the org ledger exactly once under a
+  distinct job attribution, and `cormidia-job` invoked from inside a Cormidia
+  turn is refused. (4) *No learning input* — job output never feeds the
+  distiller or becomes a learning or calibration candidate; unreviewed prose must
+  not become a governed candidate. (5) *Authority is a role, not an assignment* —
+  job steps run as one generic non-product `operator` role that carries the
+  authority ceiling; a step may name its own harness/model/effort and can never
+  widen what the turn is permitted to do. *Rationale:* the ad-hoc need is real
+  and recurring, and the alternative is not "users run governed work instead" —
+  it is that the work happens outside Cormidia entirely, unobserved and
+  unbounded. Admitting it under an explicitly weaker, explicitly contained
+  contract keeps the evidence and the gate while being honest that verification
+  is absent. The separate binary is the honest signal: two names, two promises.
+  **Scope clarification on CORMIDIA-INV-016** (validation obligation lineage,
+  finding F-PT-025): that invariant governs *delivery units* — autonomously
+  executed work that reaches readiness through a RoadmapPlan/EpisodePlan
+  admission path and lands in a product or performs an operational effect. A job
+  step has no readiness transition, no delivery-unit membership, and no external
+  effect, so the invariant's own precondition is unsatisfiable for it; jobs are
+  outside its domain rather than waived from it. Jobs remain bound by the
+  standing no-green-by-absence rule, which is what makes their declared
+  per-step output checks mandatory. Status: **build-complete and offline-proven,
+  not outcome-validated** — real-token validation against real apps with outcome
+  measurement (L-JOB-LIVE) is a separate authorized campaign that has not run.
 
 ## Prior art (ours)
 

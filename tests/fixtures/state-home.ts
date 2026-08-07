@@ -39,6 +39,7 @@ export const STATE_HOME_DIRS: readonly string[] = [
   "planning", // src/org/roadmap-delivery/ snapshots/current roadmap/validation/batches/claims/evidence
   "learning", // src/org/learning/* state-home stores
   "tasks", // src/org/parent-task.ts
+  "jobs", // src/jobs/journal.ts job journals + config snapshots (B-23)
 ];
 
 export interface TempStateHome {

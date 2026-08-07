@@ -1,0 +1,53 @@
+# Example 2 — the app-scoped recurring case (J-21).
+#
+# Named against an onboarded app, so its evidence lands under that app's
+# observability tree alongside its product work. Run it monthly; completed steps
+# are never re-run, and a changed config refuses rather than resuming.
+#
+#   cormidia-job run examples/jobs/dependency-audit.yaml --workdir ~/src/my-app
+
+job: monthly-dependency-audit
+# Replace with a name from your own `cormidia apps` output. An app-scoped job
+# refuses an unregistered name rather than silently filing its evidence under
+# the unscoped slot, so this must match a real registration before it runs.
+app: billing-api
+description: >
+  Monthly dependency review for an onboarded app: inventory, then risk analysis,
+  then a machine-readable upgrade plan the next run can diff against.
+
+steps:
+  - id: inventory
+    objective: |
+      Read package.json and the lockfile. Emit outputs/inventory.json as an object
+      with keys "direct" and "transitive", each an array of {name, version}.
+      Do not install anything and do not modify any file outside outputs/.
+    outputs:
+      - path: outputs/inventory.json
+        check:
+          schema: schemas/inventory.schema.json
+
+  - id: risk
+    dependsOn: [inventory]
+    objective: |
+      For each direct dependency in the inventory, assess upgrade risk: is it
+      pinned, how far behind is it, does it sit on a security-relevant path.
+      Write outputs/risk.md.
+    assignment: { harness: claude, model: claude-opus-4-8, effort: high }
+    outputs:
+      - path: outputs/risk.md
+        check: non_empty
+
+  - id: plan
+    dependsOn: [risk]
+    objective: |
+      Produce outputs/upgrade-plan.json: an object with "recommended" and
+      "deferred" arrays of {name, from, to, rationale}. This is the artifact next
+      month's run diffs against, so the shape matters more than the prose.
+    outputs:
+      - path: outputs/upgrade-plan.json
+        check: json
+      # A second declared output on the same step: the deterministic gate that
+      # keeps a confident-but-wrong plan from reaching next month's diff.
+      - path: outputs/upgrade-plan.json
+        check:
+          command: node -e "const p=require('./outputs/upgrade-plan.json'); if(!Array.isArray(p.recommended)) process.exit(1)"

@@ -621,7 +621,9 @@ The operational evidence stores live under the org's *state home*
 (`~/.cormidia/<org>/` by default), with one authority per fact:
 
 ```
-runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
+runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/   # ad-hoc job steps reuse this shape as
+#                                          # <ts>-job-<job-id>-<step-id>, under the
+#                                          # named app or the `adhoc` slot
 ├── envelope.json    # ids, status, timings, token/cost rollups, verdict, replay seed (git_head) — L1
 ├── events.jsonl     # trace/span-scoped lifecycle events — L2
 ├── brief.md         # the exact prompt the pass received — L3, verbatim
@@ -631,6 +633,13 @@ runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/
 └── published-tickets.json # final planning pass only: issue numbers + the same
                            # episode/run/trace identity each ticket body's
                            # Planned-by: trailer carries (#128)
+jobs/<job-id>/
+├── journal.json     # ad-hoc job step events, config hash, terminal status — the
+│                    # RESUME AUTHORITY. Completion is read here and never inferred
+│                    # from an output file, since a half-written file and a complete
+│                    # one are indistinguishable. A config edited under a live
+│                    # journal refuses rather than resuming (docs/jobs/design.md §6)
+└── config-snapshot.yaml # the exact config the journal is bound to
 telemetry/<date>.jsonl    # the org ledger: one row per settled provider turn
 narrative/<app>/          # human-level causal timeline (#129): one captured
                           # story (.json) + rendered markdown (.md) per episode

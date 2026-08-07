@@ -18,7 +18,8 @@ action through its durable release path. Repository instructions and linked
 developer policy remain app-scoped development context. Development grants,
 raw eval state, and outer-session instructions must never be copied into the
 org home, org-global prompts, learning, or approvals. The packaged
-`agent-skills/cormidia/` skill is the separate org-operation guide.
+`agent-skills/cormidia/` skill is the separate org-operation guide, and
+`agent-skills/cormidia-job/` the separate ad-hoc-job guide.
 
 ## What this repo is
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,
@@ -40,7 +41,9 @@ tracker (`gh issue list`).
 | `src/org/` | Standing-org layer: lifecycle, bootstrap, scheduler, approvals, budget, learning (`src/org/learning/`); `src/org/home.ts` is the package/org/state boundary and owns the one-time default-state-root migration |
 | `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table — new subcommand = new file + one registry line |
+| `src/jobs/` · `docs/jobs/` | Ad-hoc dependency-ordered job graphs (`cormidia-job`, a SECOND binary) — non-product org work, deliberately outside the governed build loop: no review, verdict, ticket, or GitHub authority |
 | `agent-skills/cormidia/` | Packaged `$cormidia` Agent Skill (org operation, not development) |
+| `agent-skills/cormidia-job/` | Packaged `$cormidia-job` Agent Skill (ad-hoc job graphs; its description routes product work back to `$cormidia`) |
 | `validation-design/` | Ratified harness design (2026-07-31): `validation-policy.yaml` is the contract, `harness-backlog.md` the build plan — see "Validation harness" section below |
 | `tests/` | Implemented replacement validation harness plus explicitly authorized L3/L4/L5 campaign runners (per `validation-design/`) |
 | `archive-do-not-read/` | Frozen pre-rebuild validation corpus (old `test/`, `eval/`, `docs/testing/`, eval/CI scripts) — **never read, cite, run, or take design cues from it** |
@@ -148,6 +151,9 @@ future L5 assurance outside RQ-1 and may not be claimed as completed evidence.
 - Episode operating contract: `docs/episodes/contract.md` · qualification/release gating: `docs/qualification/` (design · benchmark-runbook) · learning loop: `docs/learning-loop/`
 - Adapters: `docs/harness/` (capability-matrix · adding-updating · qualification-evidence) · `research/2026-07-03_runtime-layer.md` · `research/2026-07-04_prompt-caching.md`
 - Org layer: `docs/org/` (context · memory · apps · onboarding)
+- Jobs (ad-hoc graphs, `cormidia-job`): `docs/jobs/design.md` — §3 is the
+  non-inherited-guarantee list; it is NOT the build loop and must not be reached
+  for when the work belongs to a product
 - Live UI / Reports / Narrative contracts: `docs/live-ui/design.md` · `docs/reporting/design.md` · `docs/narrative/design.md`
 - Predecessor orchestrator (read-only prior art; "the predecessor" in docs): `scratchpad-gitignore/claude-loop-teams/`
 

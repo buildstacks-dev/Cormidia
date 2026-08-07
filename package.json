@@ -9,17 +9,20 @@
   },
   "type": "module",
   "bin": {
-    "cormidia": "./src/cormidia.cjs"
+    "cormidia": "./src/cormidia.cjs",
+    "cormidia-job": "./src/cormidia-job.cjs"
   },
   "publishConfig": {
     "access": "public"
   },
   "files": [
     "src/cormidia.cjs",
+    "src/cormidia-job.cjs",
     "src/cormidia-local.cjs",
     "dist/**/*.js",
     "dist/**/*.json",
     "agent-skills/cormidia/",
+    "agent-skills/cormidia-job/",
     "config/launchd/",
     "docs/policy.yaml.template",
     "docs/scheduler/design.md",

@@ -628,9 +628,12 @@ function threadParams(
     ephemeral: false,
     config: {
       model_reasoning_effort: mapCodexEffort(assignment.effort),
-      // App Server 0.144.4 drops the equivalent global CLI flag. This typed
+      // App Server dispatch drops the equivalent global CLI flag. This typed
       // request override reaches ConfigOverrides and authorizes only the
       // per-turn Cormidia hook whose command is pinned in the launch args.
+      // Still required on 0.147.0, and not provably retirable: the bypass is
+      // applied at hook-execution time, so no token-free probe separates it
+      // from the CLI flag (research/2026-08-07_codex-0.147-refresh.md §a).
       bypass_hook_trust: true,
     },
   };
@@ -731,10 +734,12 @@ async function routeApproval(
   // protocol-self-edit/scorecard-tamper-second patch slip the gate.
   const actions = normalizeCodexApprovalActions(kind, message.params, req.workdir);
   let allow = true;
+  let denyReason: string | undefined;
   for (const action of actions) {
     const decision = hooks.gate(action);
     if (!decision.allow) {
       allow = false;
+      denyReason ??= decision.reason;
       if (decision.escalate) escalations.push({ action, reason: decision.reason });
     }
   }
@@ -747,9 +752,20 @@ async function routeApproval(
       return;
     case "legacyExec":
     case "legacyPatch":
-      await client.respond(message.id, { decision: allow ? "approved" : "denied" });
+      await client.respond(message.id, {
+        decision: allow ? "approved" : legacyDenial(denyReason),
+      });
       return;
   }
+}
+
+/** The legacy `execCommandApproval`/`applyPatchApproval` denial payload.
+ *  Codex 0.147.0 turned `ReviewDecision::Denied` from the bare string
+ *  `"denied"` into the struct variant `{ denied: { rejection } }`, which a bare
+ *  string no longer satisfies — a deny would stop being a deny. The modern
+ *  `item/*` decisions keep plain accept/decline strings (CF-REG-335). */
+function legacyDenial(reason: string | undefined): { denied: { rejection: string } } {
+  return { denied: { rejection: reason ?? "Cormidia gate denied the tool action" } };
 }
 
 /** All tool actions an approval covers. Only a legacyPatch can carry more

@@ -42,7 +42,8 @@ export interface HarnessSupportDeclaration {
   readonly versionSource: HarnessVersionSource;
 }
 
-const TESTED_EVIDENCE = "research/2026-08-06_adapter-upstream-references.md";
+// Each adapter now points at its own dated refresh record; the shared
+// 2026-08-06 upstream-reference constant retired with codex's last use of it.
 const CLAUDE_TESTED_EVIDENCE = "research/2026-08-07_claude-sdk-0.3.224-refresh.md";
 
 /**
@@ -50,12 +51,12 @@ const CLAUDE_TESTED_EVIDENCE = "research/2026-08-07_claude-sdk-0.3.224-refresh.m
  * bands are declared. That is deliberate — an undeclared harness has no floor,
  * and a harness with no floor has no refusal.
  *
- * Codex and pi floors still equal their `testedWith` because those harnesses
- * remain vendored at exactly those versions: no install below the pin exists
- * yet, so a conservative floor refuses nobody. Claude's floor now sits BELOW
- * its `testedWith` — the 0.3.201 → 0.3.224 bump (#335) moved the certified
- * version without changing the interface the adapter speaks, and raising the
- * floor to match the pin would refuse operators who have not upgraded, which
+ * A floor is an interface claim, not a copy of the pin: it moves only when an
+ * adapter genuinely stops speaking the older surface. After the #335 refresh
+ * wave every floor sits BELOW its `testedWith` — claude 0.3.201 → 0.3.224,
+ * codex 0.144.4 → 0.147.0, pi 0.80.7 → 0.84.1. Each bump moved the certified
+ * version without breaking the interface the adapter speaks, and raising a
+ * floor to match its pin would refuse operators who have not upgraded, which
  * is exactly what bands exist to avoid (docs/harness/adding-updating.md §6).
  * Lowering a floor further, to the oldest interface an adapter genuinely
  * speaks, is per-adapter research owed with #224, not a guess to be made here.
@@ -68,9 +69,12 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     versionSource: { kind: "vendored_npm_package", packageName: "@anthropic-ai/claude-agent-sdk" },
   },
   codex: {
+    // Unchanged by the 0.147.0 refresh: the floor is an interface claim, not a
+    // copy of the pin, and raising it would refuse operators still on 0.144.4
+    // for no proven incompatibility (#224 owes the real per-adapter floor).
     floor: "0.144.4",
-    testedWith: "0.144.4",
-    testedEvidence: TESTED_EVIDENCE,
+    testedWith: "0.147.0",
+    testedEvidence: "research/2026-08-07_codex-0.147-refresh.md",
     versionSource: { kind: "vendored_npm_package", packageName: "@openai/codex" },
   },
   pi: {

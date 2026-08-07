@@ -878,7 +878,7 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 4443,
+      "lines": 2854,
       "newModule": false
     },
     "src/org/roadmap-delivery/authority-core.ts": {
@@ -921,9 +921,34 @@
       "lines": 283,
       "newModule": true
     },
+    "src/org/roadmap-delivery/validation-catalog-authority.ts": {
+      "exports": 3,
+      "lines": 99,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-catalog-revision.ts": {
+      "exports": 2,
+      "lines": 159,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-catalog-shape.ts": {
+      "exports": 1,
+      "lines": 189,
+      "newModule": true
+    },
     "src/org/roadmap-delivery/validation-catalog.ts": {
       "exports": 7,
       "lines": 72,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-contract-authority.ts": {
+      "exports": 2,
+      "lines": 202,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-contract-policy.ts": {
+      "exports": 3,
+      "lines": 215,
       "newModule": true
     },
     "src/org/roadmap-delivery/validation-contract-schema.ts": {
@@ -931,9 +956,49 @@
       "lines": 201,
       "newModule": true
     },
+    "src/org/roadmap-delivery/validation-contract-shape.ts": {
+      "exports": 1,
+      "lines": 144,
+      "newModule": true
+    },
     "src/org/roadmap-delivery/validation-contract.ts": {
       "exports": 4,
       "lines": 63,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-coverage.ts": {
+      "exports": 6,
+      "lines": 93,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-current-pointer.ts": {
+      "exports": 1,
+      "lines": 51,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-identifiers.ts": {
+      "exports": 7,
+      "lines": 92,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-lifecycle-record.ts": {
+      "exports": 3,
+      "lines": 132,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-lifecycle.ts": {
+      "exports": 4,
+      "lines": 157,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-values.ts": {
+      "exports": 4,
+      "lines": 33,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/validation-waivers.ts": {
+      "exports": 4,
+      "lines": 204,
       "newModule": true
     },
     "src/org/roadmap-explanation.ts": {

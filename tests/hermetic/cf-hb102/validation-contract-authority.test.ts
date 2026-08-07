@@ -19,7 +19,6 @@ import {
   assertValidationEvidenceComplete,
   currentValidationCatalogPointerPath,
   currentValidationContractPointerPath,
-  readCurrentValidationCatalog,
   readCurrentValidationContract,
   readValidationContractLifecycle,
   readinessAuthorityPath,
@@ -337,6 +336,7 @@ describe("HB-102 — validation-contract authority and readiness", () => {
   });
 
   it("reads current validation authority and fails closed on corrupt pointers", async () => {
+    const { readCurrentValidationCatalog } = await import("../../../src/org/roadmap-delivery.js");
     const catalogState = await setup("hb102-current-catalog-pointer");
     expect((await readCurrentValidationCatalog(catalogState.home.stateHome, APP))?.ref).toEqual(
       catalogState.catalog.ref,

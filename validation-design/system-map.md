@@ -27,6 +27,18 @@ budget observation, exact-session binding), T-5 settlement, T-6 workspace contai
 evidence truthfulness (Cursor force-absent no-op edits). No new C3 control point is
 introduced; all four boundaries are design-only until #337–#340 land.
 
+Harness revision 2026-08-07 (outcome acceptance + jobs): adds **J-21** (outcome
+acceptance campaign — the L-ACC lane's own journey, whose actor is the campaign
+harness rather than an operator or a timer) and **J-22/J-23** (the jobs journeys
+`docs/jobs/design.md` §14 named as J-JOB-1/J-JOB-2 and left un-entered). Base tier
+C2 and the existing C3 control points are unchanged; every new slice resolves to
+existing controls — T-3 (the `operator` role ceiling; a job step's assignment never
+widens it), T-5 (job settlement into a separate envelope; the campaign's own ledger
+reading), T-6 (app-scoped vs unscoped job isolation; scenario-repo isolation), T-9
+(a "completed" job step means provider-returned **and** declared checks passed; a
+campaign score never outruns its evidence), and T-4 (the sealed answer key is a
+confidentiality surface — B-28). No new C3 control point is introduced.
+
 Provenance: rows are `[doc]` unless marked `[walk]` (stakeholder's Phase 1 elicitation,
 see elicitation-log.md), `[rambling]`, `[simulated]`, `[stated]` (direct live owner
 input), or `[PROPOSED]`.
@@ -62,6 +74,8 @@ input), or `[PROPOSED]`.
 | Company-event producers | `state/events/inbox/*.json` (closed kind registry; typed file-drop events incl. `health-alert`, `support-feedback`, `adoption-signal`, `launch-calendar`) |
 | Cormidia's own roles (Planner, loop re-arm) | published tickets, label flips — internal initiators of later work |
 | Recovery | journals/locks/plan journal read at tick start; reconciliation stimuli |
+| **Job operator (human or agent-with-authority)** | `cormidia-job run <config>` / resume — the second binary; app-scoped or unscoped (J-22/J-23) |
+| **L-ACC acceptance campaign** (harness, not product) | drives the *packaged* `cormidia` and `cormidia-job` binaries exactly as a human operator would (J-21). It is an initiating actor, never a privileged one: it holds no authority a human operator lacks, and `CORMIDIA-INV-ACC-7a` forbids it from performing product work itself |
 
 ### 1.2 Stimulus taxonomy
 
@@ -81,6 +95,8 @@ sole write exception `[doc]`):
 - Delivery: `loop --once`, `loop rearm`, `run-role`, `dispatch` (manual form)
 - Comparative execution (proposed): EpisodePlan compared provider step; standalone
   `compare` preview/execute/materialize over a local git repository
+- Jobs (second binary): `cormidia-job run <config> [--workdir …]`, resume of an
+  interrupted run, checkpoint decision — app-scoped or unscoped `[doc: docs/jobs/design.md]`
 - Approvals: `approvals`, decide, `plan ratify-ticket-budget`
 - Scheduler: `scheduler install | status | uninstall`
 - Observation: `status`, `budget [--reconcile]`, `report`, `telemetry`, `observe`,
@@ -123,6 +139,9 @@ sole write exception `[doc]`):
 | J-16 | Scheduler lifecycle | Install/uninstall preview-then-execute with identity confirm; status = joined evidence (ownership/hash/cadence/ticks/duplicates/settlement agreement) — a definition file alone is never "healthy" |
 | J-17 | Release handoff (A4) | Declared `release:` mechanism; deploy is a fresh content-bound critical op post-merge; handoff executed exactly once by later dispatch; RQ-1 qualifies only exact candidates with complete L1/L2 and candidate-bound L3/L4 evidence, then the tag workflow authenticates actor/approver/repository equality and reruns exact-tag checks |
 | J-18 | **Unattended scheduled delivery (composite; highest-hurt)** | OS due window → one durable dispatch decision → valid EpisodePlan → bounded provider turns → gate-classified actions → correct GitHub artifacts (right repo, right base branch) → exact review/merge boundary → exactly-once settlement → **truthful morning status**. Failure mode that matters: seven mornings of plausible green over wrong reality `[walk]` |
+| J-21 | **Outcome acceptance campaign (L-ACC)** `[stated: acceptance/, human-ratified rubric 2026-08-07]` | provision (scenario repos, seed corpora, campaign org, sealed answer key) → **packaged-install preflight** → plan arm → **plan gate** → build arm → grade → durable report → optional issue filing. Composite over J-01/J-02/J-03/J-04/J-07/J-15 and, for the job scenario, J-23. "Done" = a report that states, per scenario, the matrix actually used, the per-axis scores **with their evidence citations**, every `ungraded` axis and why, the completeness field, and the installed-artifact identity. The **plan gate is a new state, not an alias of J-06's approval-wait**: it resolves on a *score*, not on an approval row, and who may resolve it unattended is undecided (F-PT-030). A campaign that stops at the plan gate is a complete campaign |
+| J-22 | **Recurring app-scoped job** (alias **J-JOB-1**, `docs/jobs/design.md` §14) | Run records land under `runs/<app>/` and nowhere else and `observe` surfaces them unchanged; each provider turn settles exactly one ledger row against the **job** envelope, not the app's; a re-run with an unchanged config resumes at zero additional turns; a changed config fails closed naming the drift **before any step executes**; a step whose declared output check fails is `failed` and nothing downstream runs; a gated op raises its own item and does not proceed |
+| J-23 | **One-off unscoped job in the default org** (alias **J-JOB-2**, `docs/jobs/design.md` §14) | Runs with no app registered; records under `runs/adhoc/`; refusal messages use no ticket/episode/pipeline/app vocabulary; a dependency's declared outputs appear **verbatim** in the downstream persisted `brief.md`; a checkpoint parks the job into the approvals queue and resumes without re-executing completed steps; deleting the config afterwards leaves artifacts and records intact |
 | J-19 | **Per-turn comparative execution** `[stated+PROPOSED]` | One frozen provider-step intent → bounded exact candidate assignments/samples in isolated workspaces → operation-specific evidence → deterministic eligibility → admissible selection or explicit inconclusive outcome → exactly one content-bound winner materialized for ordinary continuation. Every candidate and judge turn settles separately; losing candidates perform no outward effect. Standalone `cormidia compare` enters the same behavior without an org and never mutates the active branch or contacts GitHub through an orchestrator-owned path. |
 
 ### 1.4 Entry and observation surfaces (adapters, not behaviors)
@@ -137,6 +156,7 @@ sole write exception `[doc]`):
 | File-drop event inbox | entry | closed kind registry; schema validation; retention semantics |
 | OS timer | stimulus source | fires the same `cormidia dispatch` the human can run — one behavior, two initiators |
 | Agent Skill (`$cormidia`) + `capabilities --json` | entry (for coding agents) | discovery accuracy |
+| `cormidia-job` CLI (second binary) + Agent Skill (`$cormidia-job`) | entry | parsing; typed refusal **before any runtime is constructed**; exit codes; jobs-only vocabulary in errors; the skill's description routes product work back to `$cormidia`. It is a second *adapter over the runtime layer*, not a second product |
 | Standalone `cormidia compare` (proposed) | entry + observation adapter over J-19 | token-free preview; exact operator-declared tuples; execute/confirm binding; no-org authority; terminal/JSON/HTML agreement; explicit local winner materialization only |
 
 ## 2. Structural view
@@ -183,6 +203,8 @@ named explicitly and the component writes under it.
 | Schedule last-fired + consumed events | `state/schedule.json`, `state/events/` | dispatcher |
 | Scheduler installation + evidence | `scheduler/` | scheduler lifecycle commands / tick evidence writer |
 | Triggered-validation campaign + soak checkpoints | `validation/campaigns/<id>/report.json`, `validation/soaks/<id>/state.json` | authorized L3/L4/L5 runners write versioned campaign/checkpoint evidence; status/Report/Observe are read-only consumers; completeness and verdict remain separate |
+| Job run journal + step records (M18) | job run records under `runs/<app>/` (app-scoped) or `runs/adhoc/` (unscoped) | the `cormidia-job` process. **The journal is the sole completion authority** — completion is never inferred from an output file's presence, because a half-written file and a complete one are indistinguishable on disk (B-30) |
+| L-ACC campaign report + sealed answer key (harness, not product state) | the campaign's own root, outside any org/state home | the L-ACC runner writes the report (B-27); the key extractor writes the sealed key **once, before any grader turn exists**, and only the mechanical scorer reads it (B-28). Neither is Cormidia state, and no product surface reads either |
 | Managed clones + worktrees | `repos/`, `worktrees/`; proposed standalone comparison worktrees under its external state root | loop/M16 worktree management (never writes the active human checkout; comparison candidates are mutually isolated) |
 | Invocation audit + journal | `invocations/`, `state/invocation-journal/` | CLI entry layer (idempotent terminal append) |
 | Self-approval HMAC key | `state/self-approval-secret` | orchestrator only (owner-only perms; fail closed) |
@@ -270,6 +292,9 @@ killed campaigns `[rambling]`).
 | J-18 | composite of J-09,03,04,05,07,08,15 | all of the above, unattended | — (formerly inherited F-PT-003/004; both ratified 2026-07-31) |
 | J-19 | M16 with M5/M4 entry in org mode or M15 entry standalone; M7/M3 per candidate and judge; M9/B-14/B-15/B-16 for workspaces and validation | provider spend; selected local branch or episode artifact (reversible before ordinary merge); candidate lanes have no outward effects | judge thresholds/sample design remain F-PT-011; automatic judge selection is inadmissible until ratified |
 | J-20 | M6 scheduler/batch admission, M5 per-unit EpisodePlanner, M7 role sessions, M3 budget/settlement, M9 durable recovery; code units additionally M17/M4, direct effects M1/M2/T-12 | provider spend; no product effect merely from grouping; operational EpisodePlans may later perform separately approved external effects | provider cache hits are measured adapter evidence, never assumed; non-GitHub live effect proof remains B-17-L3 blocked until a disposable target exists |
+| J-21 | the L-ACC runner over B-27/B-28/B-29; then the *packaged* product across M10, M17, M5, M4, M7, M3, M14 and B-01, plus M18 for the job scenario | **provider spend (the dominant one)**; issues/PRs/merges in the campaign's own sandbox repos; org and app registration in the campaign org. **Deployment is deliberately not reachable** — a campaign ends buildable with a preview command, never hosted | whether a scored lane can ever contribute to release evidence is **F-PT-029 (open)**; whether an unattended campaign may auto-continue past a scored plan gate is **F-PT-030 (open)**; every axis threshold is unratified by ratified rubric §5, so no axis yields pass/fail from run 1's data alone |
+| J-22 | M18 over M7 (per-step assignment under the `operator` ceiling), M3 (job envelope), M1 (gate), M9/B-15 (journal durability), M14 (`observe`) | provider spend; whatever a gated-and-approved step performs | none — jobs reach no GitHub and no external target of their own (`docs/jobs/design.md` §3) |
+| J-23 | M18 over M7/M3/M1/B-15; deliberately **not** M10 (no app), M17, M4 | provider spend | none |
 
 **Cross-cutting overlays** (touch nearly every journey): secret boundary (M8) at every
 provider prompt, log, export, capture; authority/context assembly (M11/M12) at every turn
@@ -346,6 +371,25 @@ Comparative execution coordination and ordinary selection quality are C2. Its
 candidate no-effect/authority slice resolves to T-2, aggregate admission and settlement
 to T-5, workspace isolation to T-6, advisory-vs-admissible reporting to T-9, and exact
 adapter enforcement per candidate to T-11. No new C3 control point is introduced.
+
+Jobs (M18) are C2 with the same treatment: the `operator` ceiling and
+assignment-never-widens-the-role slice resolves to **T-3**; exactly-once settlement
+into the separate job envelope, and the refusal of a nested `cormidia-job` inside a
+Cormidia provider turn — without which a Builder turn spawns provider turns that
+escape its episode budget entirely — resolve to **T-5**; app-scoped versus unscoped
+record placement to **T-6**; and "completed step" meaning provider-returned **and**
+declared-checks-passed to **T-9**. T-1 is inherited unchanged: `cormidia-job` joins
+the existing CLI-as-effect-surface classification through the same `defaultGate`
+rather than sitting outside it. No new C3 control point.
+
+The L-ACC lane's own concentrated risk is **evidence truth about the campaign
+itself**, and it lands on existing controls rather than a new one: the sealed answer
+key is a **T-4** confidentiality surface (committed repository content withheld from
+a specific turn), and every "the campaign measured what it says it measured" claim —
+grader independence, packaged-binary provenance, supervisor non-participation,
+`ungraded` never coerced to `0` — is **T-9**. That is why `CORMIDIA-INV-ACC-1/2/3/7a/7b`
+are E-3 in `risk-allocation.md`: a silent violation invalidates every score while the
+campaign still reports a tidy number.
 
 ### 5.4 C1 leaves
 

@@ -1,5 +1,28 @@
 # Harness revision proposal — jobs subsystem
 
+> **SUPERSEDED 2026-08-07 — historical record, not a live proposal.** This package was
+> never accepted, and its ID choices collided with the #336 adapter-expansion revision
+> that landed the same day: **B-23 is OpenCode**, **J-21 is the outcome-acceptance
+> campaign**, and **F-PT-025 is the OpenCode gate-seam finding**. Its substance was
+> carried into the ratified artifacts by the 2026-08-07 outcome-acceptance + jobs
+> revision, renumbered:
+>
+> | This file said | Landed as |
+> | --- | --- |
+> | B-23 (job config ↔ journal) | **B-30** (alias `B-JOB`), `contracts/B-30-job-config-journal.md` |
+> | J-21 / J-22 (jobs journeys) | **J-22 / J-23** (aliases J-JOB-1 / J-JOB-2) |
+> | `CORMIDIA-C-B23-*` / `C-OP-JOB` | `CORMIDIA-C-B30-001…003` / `CORMIDIA-C-OPJOB-001` |
+> | F-PT-025 (INV-016 domain) | **F-PT-031**, status `resolved-delegated`, flagged for owner confirmation |
+> | M18 — Jobs | **M18** (unchanged) |
+>
+> Two of its own open items are also closed: §0.7 (no statistical quality lane for job
+> steps) is now recorded in `llm-eval-plan.md` §1 as a deliberate exclusion, and §0.9's
+> import-direction enforcement gap was **fixed independently** — `check-import-direction.mjs`
+> now fails closed on an unranked `src/` layer (verified 2026-08-07).
+>
+> Read this file for its reasoning, especially the F-PT-025→031 argument at §0.8. Do not
+> read its IDs as current.
+
 *Status: **Phases 0–8 complete.** Authorized by the owner 2026-08-07
 (`validation-harness-design`, `harness-revision` mode), who additionally directed that the
 revision run through every phase without per-phase review; each gate below therefore

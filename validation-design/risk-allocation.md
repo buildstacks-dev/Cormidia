@@ -40,6 +40,39 @@ additionally conditional on the #339 human risk review (sandbox repos only until
 clears); B-26's swarm gate probe is the load-bearing certification case. All four are
 design-only until #337–#340 land; F-PT-025…028 keep the mechanism-level cells parked.
 
+Harness revision 2026-08-07 (outcome acceptance + jobs). Two independent additions,
+neither introducing a tier, control point, or exhaustive family:
+
+**Jobs (M18)** join **E-1** (the gate/authority slice: the `operator` ceiling, an
+assignment that never widens the role, the nested-invocation refusal) and **E-2**
+(durability and money together: journal resume, no double spend, exactly-once settlement
+including failed and cancelled turns, preserved paid work on an interrupted step).
+Everything else about jobs is **STD**, and job step output *quality* is explicitly
+**THIN — no lane at all**, because the prompt is the operator's and Cormidia cannot own a
+golden set for a prompt it never wrote (`llm-eval-plan.md` §1).
+
+**The L-ACC lane** is where the split matters most, and getting it wrong is the
+expensive mistake this section exists to prevent:
+
+- `CORMIDIA-INV-ACC-1` (sealed-key confinement), `-2` (per-axis grader disjointness),
+  `-3` (never this repository), `-7a` (the supervisor does not do the work) and `-7b`
+  (the binaries are the packaged ones) are **E-3, and they are mechanical guardrails
+  that live at L1/L2 with negative controls — not lane work.** They are E-3 for the
+  same reason merge-and-evidence truth is: a silent violation invalidates every score
+  the campaign produced *while the campaign still reports a tidy number*. They are L1/L2
+  because every one of them is falsifiable by a scan, a set comparison, an exit status,
+  or a git-authorship walk — no provider required (standing rule 2: guardrails enforce,
+  evals measure; standing rule 1: cheapest falsifying layer).
+- `CORMIDIA-INV-ACC-4` (no build arm before its plan gate), `-5` (unratified thresholds
+  never grade; `ungraded` ≠ `0`) and `-6` (unfinished ⇒ incomplete) are **STD** and also
+  L1/L2 — verdict algebra is a truth table, not a judgment.
+- **Only the rubric's scored axes are L-ACC-lane work.** The expensive lane contains
+  only what no cheaper layer can falsify: whether the org produced good work from a
+  realistic brief. Everything that merely *protects* that measurement is offline.
+- The lane's own campaign spend is §5a below. Its relationship to RQ-1 is **F-PT-029
+  (open)** — until it ratifies, L-ACC produces no release evidence and gates nothing,
+  which is the fail-closed interim, not the finding's answer.
+
 ## 1. Probability axis (where it actually breaks) `[elicited]`
 
 - **The joins, not the functions.** Provider dies after useful work; GitHub accepts
@@ -182,6 +215,28 @@ Trigger rules `[elicited]`:
 - No $40 deep route for prompt adjustments. `[rambling]` governs: offline and
   hermetic first; live and expensive only where nothing cheaper can falsify the claim.
 
+## 5a. L-ACC campaign spend (added 2026-08-07; no global ceiling is ratified)
+
+An outcome-acceptance campaign builds real software with real tokens and is therefore
+**not** bounded by the §5 adapter/release numbers — those bound conformance smokes, and
+stretching them to cover a multi-ticket build campaign would be an invented ceiling
+wearing a ratified badge.
+
+| Campaign | Scope | Bounds | On ceiling exhaustion |
+|---|---|---|---|
+| L-ACC outcome acceptance | the authorized scenario set | **per immutable human authorization for that exact campaign** — an output-token ceiling and an equivalent-USD ceiling in the config (B-27 §1.7). No global value is ratified, exactly as `l4_numeric_ceiling` records for L4 | completeness=`incomplete` for the affected scenario; verdict per §7 (never `pass`) |
+
+Three structural bounds do the work a number would otherwise have to:
+
+1. **The plan gate spends a fraction of the envelope and often ends the campaign.**
+   Plan grading costs a small fraction of a build, so "the planner mishandled the brief"
+   is the cheapest high-value result the lane can produce, and a campaign that stops
+   there is a **successful** campaign (`acceptance/rubric.md` §6).
+2. **Deployment is unreachable** — the campaign holds no deploy grant at any moment, so
+   the most expensive irreversible class is structurally absent (B-27 §5).
+3. **Trigger, not cadence.** L-ACC is not scheduled and is never casual: each run is an
+   explicit human authorization, like every other token-spending campaign in this file.
+
 ## 6. Future Layer-5 assurance outside RQ-1
 
 The obligations in this section retain their owners, collectors, triggers, and hard
@@ -254,3 +309,10 @@ Interaction rules: if collected evidence already proves a violation, the verdict
 **`fail` even when later runs are missing**; otherwise `incomplete` forces
 `inconclusive`. `incomplete` can **never** produce `pass`, and it is not a fourth
 verdict (INV-008/014).
+
+**Scored lanes add a third field, not a fourth verdict (added 2026-08-07).** L-ACC axes
+carry an `axis_score` of `0|1|2|3|ungraded` (`validation-policy.yaml` ->
+`verdict_semantics.axis_score`). `ungraded` means the evidence for that axis is missing,
+or its score arrived without the mandatory evidence citation; it is **never coerced to
+`0`**, never enters an aggregate as a number, and forces `completeness: incomplete` for
+its scenario. Completeness and verdict keep exactly their meanings above.

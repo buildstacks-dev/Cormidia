@@ -683,6 +683,92 @@ trackers for one obligation would drift. Standing constraints those PRs inherit:
 - roles.yaml stays untouched by every adapter PR — assignment is a later
   human ratification plus qualification evidence (certification ≠ qualification).
 
+## Outcome-acceptance lane + jobs (2026-08-07 harness revision) — HB-120…HB-130
+
+Registered by the outcome-acceptance + jobs harness revision. **No runner code was
+written in that session, deliberately.** The ordering below is not cosmetic: every
+campaign invariant is a mechanical guardrail that lands at L1/L2 *before* anything can
+spend a token, because a guardrail protecting a measurement must be cheaper than the
+measurement. HB-130 (the campaign itself) is parked behind human authorization and two
+open findings and must not be started early.
+
+- **HB-120 — L-ACC fixture kit + self-tests.** Fixture campaign root, fixture scenario
+  repos (greenfield, seeded-corpus, job), a scripted `install:packaged` process double
+  with settable exit status, sealed-key fixtures, and a scripted grader adapter double.
+  *Acceptance:* every fixture has a self-test; every sweep asserts a non-empty walk;
+  the grader double can emit malformed, citation-less, and fabricated-claim payloads on
+  demand. *Defends:* harness self-tests (policy `harness_self_tests`). *Layer:* 1/2.
+  *Executor:* build-agent.
+- **HB-121 — CF-INV-ACC-1 sealed-key confinement.** All three escape routes: assembly
+  scan, reachability walk over the declared read set **including `git log -p`**, and echo
+  through report drafts or prior transcripts. Plus extraction ordering, key/scenario
+  content-hash binding, and refusal of a partial key missing any of the four plant
+  categories. *Acceptance:* lands **red** against a plant deliberately leaked into grader
+  input, then green; a working-tree delete that leaves the plant in git history still
+  fires. *Defends:* CORMIDIA-INV-ACC-1, CORMIDIA-C-B28-001. *Layer:* 1/2.
+  *Executor:* build-agent.
+- **HB-122 — CF-INV-ACC-2 grader independence.** Per-axis provider disjointness computed
+  before provider construction, family (not vendor product) as the unit, applied set
+  recorded per axis, and `ungraded` when no legal grader exists. *Acceptance:* red-then-
+  green against a grader provider deliberately set equal to the graded turn's; a
+  fan-out scenario spanning both families still grades its mechanical axes and reports
+  `ungraded` rather than widening. *Defends:* CORMIDIA-INV-ACC-2, CORMIDIA-C-B29-001.
+  *Layer:* 1/2. *Executor:* build-agent.
+- **HB-123 — CF-INV-ACC-3 repository binding.** Reuse `assertCampaignRepositoryBinding`;
+  add the campaign-app slug check, the real-origin check, and the job `--workdir` check.
+  *Acceptance:* red-then-green against a scenario deliberately bound to this repository.
+  *Defends:* CORMIDIA-INV-ACC-3. *Layer:* 1/2. *Executor:* build-agent.
+- **HB-124 — CF-INV-ACC-5/6 verdict algebra.** The `axis_score` truth table as policy
+  data, not runner logic: `ungraded` never `0`, never a numeric aggregate term, graded
+  denominators named, unratified threshold ⇒ `inconclusive`, and
+  killed/ceiling-stopped/missing-grader ⇒ `incomplete` with the scenario still present.
+  *Acceptance:* red-then-green against a seeded citation-less score; a fully-`ungraded`
+  scenario must not render as a `0`. *Defends:* CORMIDIA-INV-ACC-5/6,
+  `validation-policy.yaml` `verdict_semantics.axis_score`. *Layer:* 1. *Executor:*
+  build-agent.
+- **HB-125 — CF-INV-ACC-7a supervisor non-participation.** The three-way reconciler:
+  campaign-org invocation audit × per-commit authorship in each scenario repo × the run
+  journal's turn records; non-closure ⇒ `ungraded`/`incomplete`, never a score.
+  *Acceptance:* red-then-green against a hand-authored commit deliberately pushed to a
+  scenario repo, and against a product-affecting action with no invocation-audit row.
+  *Defends:* CORMIDIA-INV-ACC-7a. *Layer:* 1/2. *Executor:* build-agent.
+- **HB-126 — CF-INV-ACC-7b packaged provenance.** Assert `install:packaged`'s **exit
+  status** and record the installed version plus tarball identity in the report.
+  **Do not reimplement its checks** — the script already resolves each declared binary,
+  refuses a checkout-internal resolution, and refuses any skill target that is not
+  `current`. *Acceptance:* red-then-green against a campaign started with `link:local`
+  links present; a bare `--dry-run` non-zero exit must not be readable as a rehearsal
+  pass. *Defends:* CORMIDIA-INV-ACC-7b, CORMIDIA-C-B27-001 §1.2. *Layer:* 1/2.
+  *Executor:* build-agent.
+- **HB-127 — B-27 campaign contract + CF-SM-ACC lifecycle.** Every preflight refusal
+  class (§1.1–1.9) pre-mutation and pre-spend; report shape incl. matrix, installed
+  identity, per-axis citations and applied disjointness sets; lifecycle transitions with
+  build-arm entry illegal without a resolved gate. *Acceptance:* each refusal class has
+  its own case; a report missing matrix or installed identity is malformed, not thin.
+  *Defends:* CORMIDIA-C-B27-001, CORMIDIA-INV-ACC-4. *Layer:* 1/2. *Executor:*
+  build-agent.
+- **HB-128 — jobs families (M18).** CF-B30-*, CF-J22-*, CF-J23-*, CF-SM-JOB-*,
+  CF-IF-JOB against the existing fixture kit. *Acceptance:* negative controls per the
+  jobs design — cyclic config, drifted config hash, a declared output that exists but is
+  empty, a lying fake provider reporting `completed` for a step whose check fails, nested
+  invocation, and a seeded double-settle. *Defends:* CORMIDIA-C-B30-001…003,
+  CORMIDIA-C-OPJOB-001, INV-008/015 jobs tightenings. *Layer:* 1/2. *Executor:*
+  build-agent.
+- **HB-129 — S-11 grader envelope + the fabrication control.** Evidence-set composition
+  per axis (self-report excluded from O-1…O-3 and the subject of O-5), result schema with
+  mandatory citation, and the **seeded fabricated claim** as the first committed case in
+  `golden-sets/acceptance-grader/`. *Acceptance:* the O-5 detector lands red against the
+  seeded claim before any grader result is trusted; no threshold is introduced.
+  *Defends:* CORMIDIA-C-B29-001 §5, llm-eval-plan S-11. *Layer:* 1/2 (+4 scaffold).
+  *Executor:* build-agent.
+- **HB-130 — PARKED — the campaign runner and run 1.** Blocked on three separate things,
+  none of which a coding agent may supply: an **exact human authorization** with its
+  output-token and USD ceilings (`risk-allocation.md` §5a); **F-PT-029** (whether a
+  scored lane can ever be release evidence); and **F-PT-030** (whether an unattended
+  campaign may auto-continue past a scored gate). Until all three exist, do not build the
+  runner, do not run a campaign, and do not represent L-ACC as an existing gate.
+  *Layer:* L-ACC. *Executor:* human authorization + campaign. *Depends on:* HB-120…129.
+
 ## Standing rules
 
 (Single source of truth for the detector-deposit obligation:

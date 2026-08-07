@@ -140,6 +140,27 @@
 # CROSS-TICKET=9,500, and STRUCTURAL=4,700; all other cases retain their baseline,
 # producing an 88,100-output-token full-corpus envelope.
 
+# changelog 2026-08-07 (outcome-acceptance + jobs harness revision): the
+# validation-harness-design skill re-entered in harness-revision mode (existing artifacts
+# as baseline; attributable human instruction = the owner's task opening this revision;
+# elicitation input = the human-ratified acceptance/rubric.md (2026-08-07, tighten-only),
+# acceptance/README.md, acceptance/revision-input.md and the three scenario files).
+# Registered: journey J-21 (outcome acceptance campaign) and J-22/J-23 (the jobs
+# journeys docs/jobs/design.md §14 named J-JOB-1/J-JOB-2 and left un-entered); module
+# M18 (Jobs); boundaries B-27 (campaign authorization <-> durable report), B-28 (sealed
+# answer key <-> grader input — a confidentiality seam with no prior analogue), B-29
+# (graded evidence set <-> grader turn) and B-30 (job config authority <-> journal-bound
+# execution, alias B-JOB); contracts CORMIDIA-C-B27..B30-001 plus CORMIDIA-C-OPJOB-001;
+# campaign invariants CORMIDIA-INV-ACC-1..7b (harness-scoped, fenced separately from the
+# product invariant registry); LLM site S-11 (acceptance grader) with an UNPOPULATED
+# golden-set scaffold; the l_acc_lane block below; and verdict_semantics.axis_score.
+# THE SPLIT IS THE SUBSTANCE: every campaign invariant is a mechanical guardrail at
+# L1/L2 with a negative control, and only the rubric's scored axes are lane work.
+# Nothing is implemented — no runner, no campaign, no evidence. Findings F-PT-029 and
+# F-PT-030 opened (neither guessed); F-PT-031 records the INV-016 domain decision whose
+# original numbering collided with #336's F-PT-025. No existing gate, tier, lane, spend
+# bound, threshold or golden set changed (tighten-only preserved).
+
 schema_version: 1
 scope: product
 product: cormidia
@@ -223,6 +244,11 @@ artifacts:                       # design root now; moves with the harness to te
   threat_model_template: ./threat-model-template.md
   threat_model_status: ./threat-model-status.yaml
   comparative_execution_design: ../docs/comparative-execution/design.md
+  jobs_design: ../docs/jobs/design.md                       # M18 product contract (§3 is the non-inherited-guarantee list)
+  acceptance_rubric: ../acceptance/rubric.md                # HUMAN-RATIFIED 2026-08-07, TIGHTEN-ONLY; declares no threshold
+  acceptance_readme: ../acceptance/README.md
+  acceptance_scenarios: ../acceptance/scenarios/            # scenario briefs; their `## Plants` sections are B-28 sealed content
+  acceptance_revision_input: ../acceptance/revision-input.md
 
 implementation_root: tests/          # per docs/PURPOSE.md v2.9
 protected_paths:
@@ -240,6 +266,32 @@ invariants:                                  # registry; statements in invariant
         CORMIDIA-INV-016]
   non_discretionary_floors: [CORMIDIA-INV-001, CORMIDIA-INV-011, CORMIDIA-INV-015]
   enforcement: "see invariants.md per item (guardrail+test for all; INV-013 reader-side guardrail)"
+  scope_clarifications:
+    CORMIDIA-INV-016: >
+      Delivery-scoped (F-PT-031, 2026-08-07). Its precondition "before it becomes ready"
+      names the delivery-unit readiness state B-20 owns; work with no readiness
+      transition, no delivery-unit membership and no external effect — a job step — is
+      outside its domain and is governed by CORMIDIA-C-B30-001..003 plus the standing
+      no-green-by-absence rule. This narrows nothing that was ever enforceable.
+
+campaign_invariants:                         # HARNESS-scoped; deliberately NOT product invariants
+  # Statements in invariants.md's fenced final section. They constrain an L-ACC campaign,
+  # not Cormidia: violating one does not break the product, it voids the measurement while
+  # the campaign still emits a plausible score. Kept in a separate registry so a future
+  # audit can never read a harness promise as a product promise.
+  ids: [CORMIDIA-INV-ACC-1, CORMIDIA-INV-ACC-2, CORMIDIA-INV-ACC-3, CORMIDIA-INV-ACC-4,
+        CORMIDIA-INV-ACC-5, CORMIDIA-INV-ACC-6, CORMIDIA-INV-ACC-7a, CORMIDIA-INV-ACC-7b]
+  e3: [CORMIDIA-INV-ACC-1, CORMIDIA-INV-ACC-2, CORMIDIA-INV-ACC-3,
+       CORMIDIA-INV-ACC-7a, CORMIDIA-INV-ACC-7b]
+  layer: "L1/L2 — every one is falsifiable by a scan, a set comparison, an exit status, or a git-authorship walk; none is lane work"
+  negative_controls_required: [CORMIDIA-INV-ACC-1, CORMIDIA-INV-ACC-2, CORMIDIA-INV-ACC-3,
+                               CORMIDIA-INV-ACC-5, CORMIDIA-INV-ACC-7a, CORMIDIA-INV-ACC-7b]
+  enforcement: >
+    Guardrail + test throughout, with one deliberate exception recorded honestly:
+    CORMIDIA-INV-ACC-7a has no runtime guardrail that could prevent a supervising agent
+    from running git itself. Its mechanism is detection (invocation audit x per-commit
+    authorship x run-journal turn records) plus refusal to score — a scenario whose
+    reconciliation does not close reports ungraded/incomplete, never a number.
 
 layers:                                      # the audit's diff surface
   L1_invariant_contract:
@@ -336,6 +388,7 @@ layers:                                      # the audit's diff surface
       inconclusive for every threshold-dependent outcome. Judge scores (S-3, S-7, S-8)
       are inadmissible until their calibration sets exist AND thresholds ratify.
     cadence: "per-site prompt/model/instruction change; release qualification; nightly rotating shards (when scheduled validation exists); output-token ceiling declared per campaign; partial evidence preserved"
+    acceptance_lane_ref: l_acc_lane          # 2026-08-07: S-11 belongs to the separately registered L-ACC lane below
   L5_ops:
     status: "future assurance: batch-aware contention rig + extended soak collector implemented; real seven-day evidence pending and was not started; human threat model pending; abuse lane blocked; none is inside the RQ-1 release denominator"
     obligations:
@@ -380,6 +433,63 @@ verdict_semantics:                           # owner-ratified
     - "proven violation => fail even with missing runs"
     - "otherwise incomplete => inconclusive"
     - "incomplete never produces pass; not a fourth verdict"
+  # Added 2026-08-07 for scored lanes (L-ACC). This is a THIRD FIELD, not a fourth
+  # verdict: completeness and verdict keep exactly the meanings above. It lives here
+  # rather than in a runner so `ungraded` semantics are policy, not discretion
+  # (CORMIDIA-INV-ACC-5, ratified rubric §5).
+  axis_score:
+    values: [0, 1, 2, 3, ungraded]
+    rules:
+      - "0/1/2/3 = absent / attempted / adequate / strong, per acceptance/rubric.md §5"
+      - "every numeric score carries a mandatory one-sentence justification citing specific evidence; a score without its citation is DISCARDED and the axis reports ungraded"
+      - "ungraded means the evidence for this axis is missing or unusable; it is NOT 0 and is never coerced to 0"
+      - "ungraded never enters an aggregate as a numeric value; every aggregate names its graded denominator explicitly"
+      - "an axis with no legal disjoint grader reports ungraded; it is never graded by a correlated provider (CORMIDIA-INV-ACC-2)"
+      - "any ungraded axis, killed scenario, ceiling exhaustion, or missing grader run => completeness: incomplete for that scenario"
+      - "while a threshold is unratified, every threshold-dependent axis verdict is inconclusive — never pass, never fail"
+    thresholds: "NONE. acceptance/rubric.md §5 (human-ratified 2026-08-07) declares no threshold in v0; they are ratified separately from run 1's observed distribution. A RATIFIED DEFERRAL, not an open finding — no F-PT id is owed and none may be minted for it, and no threshold may be introduced anywhere else."
+
+l_acc_lane:                                  # outcome acceptance — registered 2026-08-07, DESIGNED, NEVER RUN
+  status: "design-only: no runner exists, no campaign has run, no L-ACC evidence exists"
+  question: "did the org produce good work from realistic input — the gap tests/live/ (boundary conformance) and the unbuilt L-JOB-LIVE leave open"
+  why_not_L3: "L3's verdict algebra is deterministic pass/fail against boundary clauses; L-ACC's is multi-axis scored with inconclusive as the default state. Folding them would force either weakening L3's pass semantics or reporting a score as a clause."
+  rubric: "../acceptance/rubric.md — HUMAN-RATIFIED 2026-08-07, TIGHTEN-ONLY. Narrow an axis or a rule if you must; never loosen one, and never introduce a threshold."
+  journeys: [J-21, J-23]
+  boundaries: [B-27, B-28, B-29]
+  contracts: [CORMIDIA-C-B27-001, CORMIDIA-C-B28-001, CORMIDIA-C-B29-001]
+  llm_sites: [S-11]
+  case_families: [CF-ACC-S1, CF-ACC-S2, CF-ACC-S3, CF-ACC-GATE]
+  scenarios:
+    - {id: S-ACC-1, kind: app, arm: "plan + build", closes: "greenfield baseline"}
+    - {id: S-ACC-2, kind: app, arm: "plan + build", closes: "brownfield corpus refresh — the highest-value app scenario"}
+    - {id: S-ACC-3, kind: job, arm: "single (jobs have no Planner)", closes: "L-JOB-LIVE debt, docs/jobs/design.md §14"}
+  guardrails_are_not_lane_work: >
+    CORMIDIA-INV-ACC-1..7b are mechanical and land at L1/L2 with negative controls
+    (case-catalog §3.1). Only the rubric's scored axes are lane rows (case-catalog §8b).
+    The expensive lane contains only what no cheaper layer can falsify.
+  spend:
+    bound: "per immutable human authorization for that exact campaign (output-token ceiling + equivalent-USD ceiling in the campaign config, B-27 §1.7)"
+    global_ceiling: "none ratified — deliberately, exactly as l4_numeric_ceiling records for L4; the §5 adapter/release numbers bound conformance smokes and must not be stretched to cover a build campaign"
+    structural_bounds: ["the plan gate spends a fraction of the envelope and often ends the campaign",
+                        "deployment is unreachable — the campaign holds no deploy grant at any moment",
+                        "triggered by explicit human authorization only; never scheduled, never casual"]
+    on_ceiling_exhaustion: "completeness=incomplete for the affected scenario; verdict per verdict_semantics (never pass)"
+  preflight_refusals:                        # B-27 §1 — all pre-mutation, pre-spend
+    - "pnpm install:packaged --replace-source-links unrun, skipped, stale vs the commit pin, or non-zero (CORMIDIA-INV-ACC-7b; assert its exit status, do not reimplement its checks)"
+    - "effort: max on any harness but claude/opencode (src/runtime/assignment.ts:82)"
+    - "an app arm whose planner, builder and reviewer are one provider family (the builder != reviewer collapse AGENTS.md forbids)"
+    - "an adaptive_assignments candidate with neither a real qualification_ref nor an explicit uncertified disclosure"
+    - "commit pin != checked-out HEAD, untracked canonical policy blob, or a scenario repository resolving to this repository (CORMIDIA-INV-ACC-3)"
+    - "unattended execution with no declared plan-gate policy, or any auto-continue policy while F-PT-030 is open"
+  hard_boundaries:
+    - "no deployment: a campaign ends buildable with a preview command in the report; hosting is a separate human approval afterwards"
+    - "never Cormidia itself as a sandbox app: Cormidia feature work is a campaign OUTPUT (filed issues), never a step inside it"
+    - "no green by absence: ceiling exhaustion, skipped scenario, missing grader run, or unratified threshold => incomplete/inconclusive"
+    - "grader != builder, enforced in code per axis, not by convention"
+    - "real human approvals only; unattended runs use exactly the ratified sandbox test-mode profile"
+    - "all campaign work runs through the PACKAGED cormidia and cormidia-job binaries"
+  rq1_relationship: "F-PT-029 (OPEN). Interim posture is fail-closed: L-ACC produces no release evidence and gates nothing. That interim is NOT the finding's answer."
+  plan_gate_authority: "F-PT-030 (OPEN). Interim posture: human-only. Do not implement auto-continue before ratification."
 
 unattended_test_mode_profile:                # canonical definition (B-09b cross-ref)
   status: "human-ratified and implemented in Cormidia; live CF-J18-A campaign evidence pending human initiation"
@@ -548,6 +658,18 @@ open_findings:
   - {id: F-PT-028, status: resolved-by-evidence, resolved: 2026-08-07,
      subject: "Muse Code swarm gate seam (B-26): whether the 0.1.x beta exposes any hook/permission seam covering swarm-spawned agents' tool actions is unknown; the owner-decided fallback is already contract truth (no seam => tool_gate unsupported for swarm mode, fan-out disabled in the capability profile — never an ungated swarm), so only the mechanism-level swarm-gate cases park; resolution is field verification during #340 certification",
      resolution: "Field-verified during #340 certification against Muse Code 0.1.0-R708.1 (research/2026-08-07_muse-code-adapter-certification.md): NO hook/permission seam fires at all — not for swarm members and not for the parent. `muse exec` auto-approves headlessly (a bash call executed exit 0 under the default --approval-mode on-request with no round trip), and no managed hook of any event reached the per-turn socket across twenty installation configurations, including the TBH_MANAGED_HOOKS_PATH lane the #340 probe comment reported as working. The probe's raw artifacts are real and internally consistent, and its exact working manifest was recovered from disk (top-level `hooks` object, PascalCase events, no `matcher`, no `timeoutMs`) and adopted by the adapter; replaying it verbatim together with the probe's own HOME and XDG_CONFIG_HOME still does not fire, and the decisive test is in-band (a hook that writes nothing and opens nothing, so sandboxing cannot mask it) with bash executing outcome=success. Same binary, same bytes, same environment. The unexplained non-determinism is itself the finding and the disagreement remains open for a human. The owner-decided fallback therefore applies at its widest: tool_gate AND intra_turn_fanout are declared `unsupported`, subagent_spawn is refused at the bridge, and MuseRuntime fails closed with error_gate_seam_unavailable before provider construction on every turn whose seam is unproven — never an ungated turn, never an ungated swarm. The mechanism-level swarm-gate legs stay unproven against the real product and are covered offline only (CF-B26-SUBGATE mechanism case, explicitly labelled scripted evidence). CF-B26-L3 reports incomplete, never pass; roles.yaml untouched. Re-certification is mandatory on every version bump (#331/#332), and a human must resolve the probe disagreement before any role is assigned."}
+  # Opened 2026-08-07 at the outcome-acceptance + jobs harness revision (procedure:
+  # agents-md-contribution.md). Neither is guessed; dependent cells carry the fail-closed
+  # interim explicitly labelled as an interim, never as the answer.
+  - {id: F-PT-029, status: open,
+     subject: "L-ACC's relationship to RQ-1: this policy is explicit that triggered lanes gate their own layer's claims and never gate merge, but says nothing about whether a SCORED lane can ever contribute to release evidence, or sits permanently outside RQ-1 as disclosed future assurance (where the seven-day soak and the threat model sit). Load-bearing: it decides whether a bad L-ACC result can ever block a release. Owner's decision. Interim (fail-closed, NOT the answer): L-ACC produces no release evidence and gates nothing"}
+  - {id: F-PT-030, status: open,
+     subject: "plan-gate authority under unattended execution: rubric §6 lets the gate resolve either by human decision or by a declared plan_gate policy in the campaign config, and whether an unattended campaign may auto-continue past a SCORED gate at all is undecided. Adjacent to but NOT covered by the ratified sandbox test-mode profile (src/org/validation-test-mode.ts), whose only permitted auto-grant category is campaign_budget. Interim (conservative, NOT the answer): the gate is human-only; auto-continue must not be implemented before ratification"}
+  - {id: F-PT-031, status: resolved-delegated, resolved: 2026-08-07,
+     subject: "INV-016's domain: does 'every autonomously executed unit' include a job step? docs/jobs/design.md §3 deliberately withholds independent review, typed verdicts and independent closure, so on the invariant's plain text a shipped subsystem ignores it",
+     resolution: "Delivery-scoped. The decisive argument is the invariant's own precondition: 'before it becomes ready' names the delivery-unit readiness state B-20 owns, and INV-008's ready-frontier clause enumerates what a ready entry binds (RoadmapPlan version, delivery-unit membership, routing eligibility, dependency state, validation contract). A job step has no frontier, no admission, no membership and no plan version, so the precondition is UNSATISFIABLE for it — the universal reading was never checkable, and the scope clause therefore narrows nothing enforceable. The rejected alternative was a standing subsystem-wide waiver class, which misuses a mechanism INV-016 defines as per-unit and policy-bounded, and reads at a future audit as 'this rule applies and we are ignoring it'. Jobs are not thereby unverified: the declared output checks of docs/jobs/design.md §7 are mandatory, a step with no declared outputs reports completed (unverified), and a step whose check fails is failed regardless of provider status (CORMIDIA-C-B30-003, INV-008/INV-015 jobs tightenings)",
+     provenance: "the owner delegated this decision explicitly during the jobs revision (jobs-harness-revision-proposal.md §0.8), asking for a call on implementation cost and UX impact; that proposal's package was never accepted and its own numbering (F-PT-025) COLLIDED with the #336 OpenCode finding, so the question is re-registered here under a free id",
+     confirm_at: "next owner review of this revision — the delegation predates this pass and the scope clause touches a ratified invariant, so it is flagged rather than assumed settled"}
   - {id: F-PT-001, status: resolved-by-docs, subject: "redaction scope"}
   - {id: F-PT-005, status: resolved-ratified, resolved: 2026-07-31, subject: "subscriber-set cutoff",
      resolution: "simulated-seat derivation human-ratified by adoption 2026-07-31: added subscribers inherit pending events; removed subscribers cease blocking retirement"}
@@ -572,3 +694,13 @@ modules:
     contracts: [CORMIDIA-C-B20-001, CORMIDIA-C-B21-001,
       CORMIDIA-C-B22-001, CORMIDIA-C-OPBATCH-001,
       CORMIDIA-C-OPVALIDATION-001]
+  - id: M18
+    status: "product shipped #359; harness families registered 2026-08-07 and design-only (they clear the docs/jobs/design.md §14 structural debt)"
+    subject: "jobs — ad-hoc dependency-ordered step graphs behind the second binary cormidia-job"
+    journeys: [J-22, J-23]
+    boundaries: [B-30]
+    contracts: [CORMIDIA-C-B30-001, CORMIDIA-C-B30-002, CORMIDIA-C-B30-003, CORMIDIA-C-OPJOB-001]
+    llm_sites: []                            # deliberate: the prompt is the operator's, so Cormidia cannot own a golden set for it
+    quality_lane: "NONE by design (llm-eval-plan.md §1 exclusion note) — the only outcome measurement is CF-ACC-S3, a campaign rather than a gate"
+    live_seam: "none new — provider behavior stays B-02/03/04, and every B-30 failure mode is offline-falsifiable"
+    non_inherited_guarantees: "docs/jobs/design.md §3 — no independent review, no typed merit verdicts, no ticket machine, no GitHub, no learning-loop input, no release authority. Inherited and non-negotiable: the critical-ops gate, normalized usage/cost/cancellation, per-turn ceilings and ledger settlement, the org's authority context"

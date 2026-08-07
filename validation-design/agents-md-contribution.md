@@ -144,3 +144,50 @@ and must not be represented as landed policy until its exact diff is approved.
 > `validation-harness-design` in `harness-revision` mode. Changes to TASTE.md,
 > roles.yaml, pipelines.yaml, prompts/** or PURPOSE.md remain proposal-only until a
 > human explicitly ratifies the exact diff.
+
+---
+
+## Proposed 2026-08-07 routing addendum — outcome acceptance (L-ACC) + jobs
+
+AGENTS.md is a human-ratified surface, so this is a **proposal with rationale**, not a
+landed edit. It is deliberately short: the ratified section above already carries the
+standing rules, and this only routes an agent to the two things that are new.
+
+> **Jobs (M18).** Work on `src/jobs/` or the `cormidia-job` binary starts at J-22/J-23,
+> `CORMIDIA-C-B30-001…003` and `CORMIDIA-C-OPJOB-001`. `docs/jobs/design.md` §3 is the
+> non-inherited-guarantee list and is never softened: a job has no reviewer, no typed
+> verdicts, no ticket machine and no GitHub. "Completed" for a job step means the
+> provider returned **and** every declared output check passed; a step with no declared
+> outputs is `completed (unverified)`, never bare `completed`. The journal is the sole
+> completion authority — never infer completion from an output file's presence. A config
+> that changed under a live journal refuses; it never resumes. INV-016 is
+> **delivery-scoped** and does not reach a job step (F-PT-031); that is the invariant's
+> domain being written down, not an exemption, and it is not a licence to skip the
+> declared checks.
+>
+> **The outcome-acceptance lane (L-ACC).** It is **designed and not built**: no runner,
+> no campaign, no evidence. Do not cite it as a gate, and do not start HB-130 — the
+> runner is parked behind an exact human authorization plus F-PT-029 and F-PT-030.
+> `acceptance/rubric.md` is human-ratified and **tighten-only**: you may narrow an axis or
+> a rule, never loosen one, and **you may not introduce a threshold anywhere** — every
+> threshold stays unratified until run 1's observed distribution exists. If a change
+> seems to require loosening the rubric, stop and escalate rather than editing it.
+>
+> Two rules carry the whole lane and are easy to get wrong. **All campaign work runs
+> through the PACKAGED `cormidia` and `cormidia-job` binaries** (`pnpm install:packaged
+> --replace-source-links`; assert its exit status, never reimplement its checks) — a
+> `link:local` binary is source-backed and measures the working tree, not the product.
+> **And the supervisor never does the work**: an agent that runs `git`/`gh` itself, edits
+> a scenario repo, or calls a provider SDK is simulating the org, and every score then
+> measures the supervisor. Both are `CORMIDIA-INV-ACC-7a/7b`.
+>
+> Campaign invariants live in their own fenced registry (`CORMIDIA-INV-ACC-*`,
+> `validation-policy.yaml` → `campaign_invariants`). They constrain the harness, never
+> the product — never cite one as a product promise. All eight are mechanical guardrails
+> at L1/L2 with negative controls; only the rubric's scored axes are lane work.
+> `ungraded` is policy, not runner discretion (`verdict_semantics.axis_score`): it is
+> never coerced to `0` and never enters an aggregate as a number.
+
+**Rationale for landing it.** Without this addendum a coding agent reaching `src/jobs/`
+has no route to B-30, and an agent reading `acceptance/` could reasonably conclude the
+lane exists. Both are exactly the failure the routing deliverable exists to prevent.

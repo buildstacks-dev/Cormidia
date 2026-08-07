@@ -19,6 +19,13 @@ validation-design pass required before readiness. Complete creator scopes/templa
 deterministic normalization paths, not LLM sites. Batch construction is likewise
 deterministic; model-generated affinity is advisory Planner output, never admission.
 
+Harness revision 2026-08-07 (outcome acceptance + jobs): adds **S-11**, the L-ACC
+acceptance grader — a judge site, so it inherits the §3 calibration rule. Its rubric is
+`acceptance/rubric.md`, **human-ratified 2026-08-07 and tighten-only**, and it declares
+**no thresholds at all** in v0 by that rubric's own §5; thresholds are ratified later
+from run 1's observed distribution. That is a ratified deferral, not an open finding, and
+no F-PT id is minted for it. **Jobs add no site** — see §1's exclusion note.
+
 ## 0. Standing rules (apply to every site)
 
 1. **Two layers, never collapsed.** Contract layer: deterministic, mocked provider,
@@ -62,6 +69,17 @@ Family map corrected per elicitation: same role ≠ same output contract or rubr
 | S-8 Selection Judge | S-8a Builder change · later operation-specific policies for Planner/Reviewer/SRE/Audience | judge |
 | S-9 Format-repair retry | (single; same-session structure repair) | **contract-only** — valid structure is the whole job; no elegance rubric `[elicited]` |
 | S-10 Validation Designer | validation obligations for one or more compatible delivery units before readiness; capability/pass, not a free-running org role | planner or separately configured validation-design assignment |
+| S-11 Acceptance grader (L-ACC) | S-11a plan axes (P-1…P-6) · S-11b outcome axes (O-1…O-7) · S-11c job deliverable axis (J-3) | judge |
+
+**Not a call site — job steps (M18).** A job step is a provider turn, so it mechanically
+resembles a twelfth site, but **the prompt is authored by the user, per job**, and its
+quality rubric is whatever that user's exercise needs. Cormidia cannot own a golden set
+for a prompt it never wrote, so job steps get **contract-layer coverage only** (schema,
+limits, retry, budget accounting against a mocked provider) and explicitly **no quality
+lane**. The handoff assertion — that a dependency's declared outputs reach the downstream
+`brief.md` **verbatim** — is a deterministic assertion over committed bytes
+(`CORMIDIA-C-B30-003`), not an eval. Recorded here so a later reader sees a deliberate
+exclusion rather than an omission.
 
 **Not a call site — conditioning surface:** brief/context assembly. Broken = wrong app,
 wrong authority, missing required source, undisclosed truncation, runtime constructed
@@ -246,9 +264,41 @@ becomes merged reality"; PR #182 the emotional center]`
   session and stable context prefix, but each emits a separately addressable contract
   bound to its unit/version. Shared session does not permit copied obligations.
 
+### S-11 Acceptance grader — the L-ACC lane's judge `[stated: acceptance/rubric.md, ratified 2026-08-07]`
+- **Contract (L1/2), and it is most of the site:** the grader receives the evidence set
+  the campaign assembled — repository state, diff, run journal, ledger, original ramble —
+  and **not** the org's own self-report as input to O-1…O-3 (PR bodies and verdicts are
+  the *subject* of O-5, never evidence for it), and **not** the sealed answer key, in
+  assembly or by reachability (B-28 §2). Per-axis provider disjointness is checked before
+  provider construction and fails closed (B-29 §2). Output is one structured result per
+  axis: `0|1|2|3` **plus a mandatory one-sentence justification citing specific
+  evidence**; a citation-less score is discarded and the axis reports `ungraded`, which
+  is never `0`. Every one of these is a deterministic guardrail — the site's envelope is
+  far larger than its rubric.
+- **Mechanically graded, deliberately not model-graded:** P-2/P-3/P-4 coverage against
+  the sealed key, and the job axes **J-1** (every declared output exists and passes its
+  declared check) and **J-2** (handoff fidelity — downstream steps consumed upstream
+  artifacts verbatim). These are set comparisons and file checks. Asking a model to score
+  them would be strictly worse *and* would leave S-ACC-3 ungradeable, because its
+  fan-out spans both provider families and a whole-scenario disjointness rule would admit
+  no legal grader (rubric §4, §7 rule 1).
+- **Quality (L4) — a judge, so the quality layer IS a meta-eval:** seeded sets per axis
+  family, with the load-bearing one being **O-5 claim honesty**: an artifact set plus a
+  PR body asserting something the artifacts do not support. The detector lands **red**
+  against that seeded fabricated claim before it is trusted (rubric §7 rule 4).
+- **Thresholds: none, by ratified rubric §5.** v0 runs in data-collection mode; every
+  threshold-dependent axis reports `inconclusive` and the campaign report is a
+  distribution plus a gap list, not a grade. The human ratifies thresholds from run 1's
+  observed data, and only then do later runs emit pass/fail. This is a **ratified
+  deferral**, not an F-PT finding — do not mint one, and do not introduce a number into
+  the rubric.
+- **Cadence:** per authorized campaign only. L-ACC is never scheduled and never casual.
+- **Scaffold:** `golden-sets/acceptance-grader/` (seeded-fabrication control set and the
+  per-axis case schema). Populated status and admissibility per that README.
+
 ## 3. Judge calibration rule
 
-Any judge site (S-3, S-7, S-8 — and any judge the qualification replacement introduces,
+Any judge site (S-3, S-7, S-8, **S-11** — and any judge the qualification replacement introduces,
 which thereby becomes a call site with its own calibration obligation `[elicited]`)
 must have its meta-eval (seeded catch rate + clean FP rate) run and admitted **before**
 its scores are admissible as evidence anywhere downstream.
@@ -297,11 +347,16 @@ discarded, never rendered green (INV-008/014).
 
 ## 7. Golden-set scaffolds
 
-`golden-sets/` holds **thirteen** directories: eleven statistical golden sets (reviewer,
+`golden-sets/` holds **fourteen** directories: twelve statistical golden sets (reviewer,
 planner, **builder-quality**, sre, support, marketing-content, marketing-analysis,
-distiller, learning-reviewer, **selection-judge**, **validation-designer**), one deterministic suite (builder-trajectory — exempt
+distiller, learning-reviewer, **selection-judge**, **validation-designer**,
+**acceptance-grader**), one deterministic suite (builder-trajectory — exempt
 from rubric/threshold fields, marked N/A), and `brief-conditioning/` (the §1
 conditioning-surface study — NOT a model golden set; threshold N/A, never gates).
+<!-- changelog 2026-08-07: +acceptance-grader/ (S-11), SCAFFOLD/UNPOPULATED. Its
+threshold field reads "none in v0 by ratified rubric §5" rather than OPEN-with-a-finding:
+the deferral is ratified, so no F-PT id is owed. -->
+
 Every **statistical** scaffold carries: rubric axes; threshold and sample-size status
 (OPEN with its owning finding where unknown); cadence; qualifying tuple dimensions;
 case schema + provenance requirements; and an explicit population/admissibility

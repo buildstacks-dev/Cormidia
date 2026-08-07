@@ -71,6 +71,37 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       fields: ["tokensInUncached", "cacheReadTokens"],
     },
   },
+  // Every tier below was certified live against cursor-agent
+  // 2026.08.04-aaa8809 on 2026-08-07
+  // (research/2026-08-07_cursor-adapter-certification.md). Nothing here is
+  // claimed from documentation alone.
+  cursor: {
+    ref: "cursor/v1",
+    runtime: "cursor",
+    capabilities: {
+      // Terminal-boundary usage only (see the matrix) but the cache split is
+      // real and reported.
+      cache_telemetry: "adapter",
+      cancellation: "adapter",
+      // `Task` fan-out is real AND gate-covered: a subagent's own tool calls
+      // reach the same preToolUse hook from the subagent's conversation, and a
+      // denial there produced no side effect. The parent stream does not
+      // itemize the subagent's inner calls, which the matrix records.
+      intra_turn_fanout: "native",
+      session_resume: "native",
+      // No output-schema knob on the CLI surface; the loop's lenient parser is
+      // the fallback.
+      structured_verdict: "fallback",
+      // `.cursor/hooks.json` preToolUse → per-turn Unix socket → the
+      // in-process GateFn, fail-closed, proven pre-spend each turn.
+      tool_gate: "adapter",
+    },
+    cache: {
+      supported: true,
+      observable: true,
+      fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
+    },
+  },
   pi: {
     ref: "pi/v1",
     runtime: "pi",

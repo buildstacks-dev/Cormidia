@@ -8,6 +8,7 @@
 // rewritten. Where it does not, this module says so explicitly and names why —
 // an unverifiable id must be visible to the operator, never silent.
 
+import type { CreateModelRuntimeOptions } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import type { RuntimeKind } from "./types.js";
 
@@ -31,6 +32,18 @@ type RuntimeModelCatalog =
 export type RuntimeModelCatalogReader = (runtime: RuntimeKind) => Promise<RuntimeModelCatalog>;
 
 /**
+ * Reads as empty, refuses to write. Roster enumeration is credential-free by
+ * construction, so a store that cannot persist is the honest one: no auth.json
+ * is created, locked, or mutated by a config-time read.
+ */
+const EMPTY_CREDENTIAL_STORE: NonNullable<CreateModelRuntimeOptions["credentials"]> = {
+  read: async () => undefined,
+  list: async () => [],
+  modify: async () => undefined,
+  delete: async () => {},
+};
+
+/**
  * Why `claude` and `codex` have no offline roster. Both are reachable
  * token-free, but only by launching the provider's own transport with a
  * working credential — which `cormidia roles set` must not require: editing the
@@ -44,6 +57,9 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
   codex:
     "the Codex App Server protocol Cormidia speaks exposes account and thread methods only, " +
     "with no model enumeration; the id is proven when a turn starts",
+  cursor:
+    "the Cursor roster is account-scoped and reachable only by running `cursor-agent --list-models` " +
+    "with a working credential, which a config edit must not require; the id is proven when a turn starts",
   pi: undefined,
   grok: "the Grok Build roster is only readable by running `grok models` with a working credential, which a config edit must not require; the id is proven by `cormidia doctor` and then inside a live turn",
 };
@@ -58,13 +74,15 @@ export async function readRuntimeModelCatalog(runtime: RuntimeKind): Promise<Run
     return { runtime, available: false, reason: UNAVAILABLE_REASON[runtime]! };
   }
   try {
-    const { AuthStorage, InMemoryAuthStorageBackend, ModelRegistry, getAgentDir } = await import(
-      "@earendil-works/pi-coding-agent"
-    );
+    const { ModelRegistry, ModelRuntime, getAgentDir } = await import("@earendil-works/pi-coding-agent");
     const modelsPath = join(getAgentDir(), "models.json");
-    // An in-memory credential store: enumerating the roster needs no
+    // A credential store that holds nothing: enumerating the roster needs no
     // credential, and the file-backed store would create and lock auth.json.
-    const registry = ModelRegistry.create(AuthStorage.fromStorage(new InMemoryAuthStorageBackend()), modelsPath);
+    // pi 0.84 stopped exporting its auth-storage classes, so the empty store is
+    // supplied directly. `allowModelNetwork` stays default-false — reading the
+    // roster must never reach a provider.
+    const modelRuntime = await ModelRuntime.create({ modelsPath, credentials: EMPTY_CREDENTIAL_STORE });
+    const registry = new ModelRegistry(modelRuntime);
     const error = registry.getError();
     if (error !== undefined) {
       return { runtime, available: false, reason: `the pi model registry is invalid: ${error}` };

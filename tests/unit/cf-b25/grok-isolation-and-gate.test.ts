@@ -8,6 +8,7 @@
 // permission rules and instruction files from ~/.grok, ~/.claude and ~/.cursor,
 // and this operator's real config carries `permission_mode = "always-approve"`.
 
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,6 +24,9 @@ import {
   isBypassPermissionMode,
 } from "../../../src/runtime/adapters/grok-isolation.js";
 import { normalizeGrokHookActions } from "../../../src/runtime/adapters/grok-tool-actions.js";
+import { HARNESS_SUPPORT, bandForVersion } from "../../../src/runtime/harness-support.js";
+import { readBinaryVersion } from "../../../src/runtime/harness-version-detect.js";
+import { costEnforcementFor } from "../../../src/runtime/turn-budget.js";
 import { grokUsage } from "../../../src/runtime/adapters/grok-turn.js";
 import { runtimeCapabilityProfile } from "../../../src/runtime/capabilities.js";
 import { grokDouble } from "../../fixtures/adapters/grok-double.js";
@@ -267,3 +271,63 @@ describe("CF-B25 capability profile — declared tiers match what the adapter pr
     expect(profile.cache.fields).toContain("cacheReadTokens");
   });
 });
+
+describe("CF-B25 version bands — grok's decorated --version line is read, not guessed at", () => {
+  // Regression guard for the #351 integration: `readBinaryVersion` was written
+  // against cursor-agent, which prints a bare version. grok prints
+  // `grok 1.0.0 (3cd0d0cbcebe) [stable]`, and taking the whole line made the
+  // band `unknown` on a machine where grok was installed AT the tested version
+  // — an undetectable-looking result for a perfectly detectable harness.
+  it("extracts the version token from a name/sha/channel-decorated line", () => {
+    const detection = readBinaryVersion(fakeVersionCommand("grok 1.0.0 (3cd0d0cbcebe) [stable]"), []);
+    expect(detection).toEqual({ detected: true, version: "1.0.0" });
+    expect(bandForVersion(HARNESS_SUPPORT.grok, "1.0.0")).toBe("at_tested");
+  });
+
+  it("still reads a bare version and a calendar version", () => {
+    expect(readBinaryVersion(fakeVersionCommand("1.2.3"), [])).toEqual({ detected: true, version: "1.2.3" });
+    expect(readBinaryVersion(fakeVersionCommand("2026.08.04-aaa8809"), [])).toEqual({
+      detected: true,
+      version: "2026.8.4",
+    });
+  });
+
+  it("negative control: a line with no version token is never guessed into one", () => {
+    // The sha and the channel word must not be mistaken for a version, and an
+    // unreadable line must stay unreadable so banding says `unknown`.
+    const detection = readBinaryVersion(fakeVersionCommand("grok (3cd0d0cbcebe) [stable]"), []);
+    expect(detection).toEqual({ detected: true, version: "grok (3cd0d0cbcebe) [stable]" });
+    expect(bandForVersion(HARNESS_SUPPORT.grok, "grok (3cd0d0cbcebe) [stable]")).toBe("unknown");
+  });
+
+  it("declares grok's bands against the certification record", () => {
+    // floor === testedWith is deliberate: the gate rests on hook-ordering
+    // behaviour observed against exactly this build, so an unproven older
+    // build is refused rather than assumed to fire hooks first.
+    expect(HARNESS_SUPPORT.grok.floor).toBe("1.0.0");
+    expect(HARNESS_SUPPORT.grok.testedWith).toBe("1.0.0");
+    expect(HARNESS_SUPPORT.grok.testedEvidence).toBe("research/2026-08-07_grok-build-adapter-certification.md");
+    expect(HARNESS_SUPPORT.grok.versionSource).toEqual({
+      kind: "installed_binary",
+      command: "grok",
+      args: ["--version"],
+    });
+  });
+
+  it("reports grok's terminal-only cap honestly instead of inheriting pi's progress claim", () => {
+    // grok exposes a dollar figure only in its terminal result, so claiming a
+    // running progress guard would be the over-claim INV-008 forbids.
+    expect(costEnforcementFor("grok")).toBe("estimated_terminal_only_no_progress");
+  });
+});
+
+const versionCommandDir = mkdtempSync(join(tmpdir(), "cormidia-grok-version-"));
+let versionCommandSeq = 0;
+
+/** A tiny executable that prints `line` — the honest way to exercise the real
+ *  `execFileSync` path rather than a stub of it. */
+function fakeVersionCommand(line: string): string {
+  const script = join(versionCommandDir, `v${(versionCommandSeq += 1)}.sh`);
+  writeFileSync(script, `#!/bin/sh\nprintf '%s\\n' ${JSON.stringify(line)}\n`, { mode: 0o755 });
+  return script;
+}

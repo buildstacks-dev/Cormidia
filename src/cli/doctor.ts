@@ -24,6 +24,7 @@ import {
   type RuntimeReadinessProbe,
   type RuntimeReadinessRequest,
 } from "../runtime/readiness.js";
+import { assessHarnessVersion, type HarnessVersionAssessment } from "../runtime/harness-support.js";
 import { RUNTIME_KINDS } from "../runtime/registry.js";
 import type { RuntimeKind } from "../runtime/types.js";
 import { extractHomeFlags } from "./home-flags.js";
@@ -94,7 +95,10 @@ async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
     config.push({ name: "active org", status: "FAIL", detail: errorMessage(error) });
   }
 
-  const adapters = await adapterChecks(roles?.roles, options);
+  // Version bands are token-free and independent of the readiness probe, so
+  // they are reported even under --config-only (#331).
+  const harnessVersions = RUNTIME_KINDS.map((kind) => assessHarnessVersion(kind));
+  const adapters = await adapterChecks(roles?.roles, options, harnessVersions);
 
   const platform = options.platform ?? process.platform;
   const backend = platform === "darwin" ? "launchd" : "systemd";
@@ -193,6 +197,7 @@ async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
               }
             : null,
           adapters,
+          harnessVersions,
           readinessMode: options.configOnly === true ? "config_only" : "live_nonbillable",
           config,
           state,
@@ -276,58 +281,80 @@ function schedulerCheck(status: SchedulerOperationalStatus, configOnly: boolean)
 async function adapterChecks(
   roles: Array<{ runtime: RuntimeKind; model: string }> | undefined,
   options: DoctorOptions,
+  harnessVersions: readonly HarnessVersionAssessment[],
 ): Promise<CheckRow[]> {
   const probe = options.readinessProbe ?? probeRuntimeReadiness;
   return Promise.all(
     RUNTIME_KINDS.map(async (kind): Promise<CheckRow> => {
-      if (roles === undefined) {
-        return {
-          name: kind,
-          status: "WARN",
-          detail: "not probed because roles.yaml is unavailable",
-        };
-      }
-      const models = [...new Set(roles.filter((role) => role.runtime === kind).map((role) => role.model))].sort();
-      if (models.length === 0) {
-        return {
-          name: kind,
-          status: "WARN",
-          detail: "not configured by any role; probe skipped",
-        };
-      }
-      if (options.configOnly === true) {
-        return {
-          name: kind,
-          status: "WARN",
-          detail:
-            `configured for ${models.join(", ")}; readiness probe skipped (--config-only); ` +
-            "configuration validity is not runtime readiness",
-        };
-      }
-      try {
-        const request: RuntimeReadinessRequest = {
-          runtime: kind,
-          models,
-          ...definedProps({ timeoutMs: options.readinessTimeoutMs }),
-        };
-        const result = await probe(request);
-        return {
-          name: kind,
-          status: result.status === "ready" ? "OK" : "FAIL",
-          detail:
-            `${result.status}` +
-            (result.errorCode !== undefined ? ` (${result.errorCode})` : "") +
-            ` — ${result.detail} [${result.durationMs}ms, non-billable]`,
-        };
-      } catch (error) {
-        return {
-          name: kind,
-          status: "FAIL",
-          detail: `readiness probe crashed: ${errorMessage(error)}`,
-        };
-      }
+      const row = await adapterRow(kind, roles, options, probe);
+      return withVersionBand(
+        row,
+        harnessVersions.find((assessment) => assessment.runtime === kind),
+      );
     }),
   );
+}
+
+/** Drift in either direction is reported, never blocked; an undetermined
+ *  version downgrades an otherwise-clean row rather than passing silently. */
+function withVersionBand(row: CheckRow, version: HarnessVersionAssessment | undefined): CheckRow {
+  if (version === undefined) return row;
+  const status = row.status === "OK" && version.band === "unknown" ? "WARN" : row.status;
+  return { ...row, status, detail: `${row.detail} | ${version.band}: ${version.detail}` };
+}
+
+async function adapterRow(
+  kind: RuntimeKind,
+  roles: Array<{ runtime: RuntimeKind; model: string }> | undefined,
+  options: DoctorOptions,
+  probe: RuntimeReadinessProbe,
+): Promise<CheckRow> {
+  if (roles === undefined) {
+    return {
+      name: kind,
+      status: "WARN",
+      detail: "not probed because roles.yaml is unavailable",
+    };
+  }
+  const models = [...new Set(roles.filter((role) => role.runtime === kind).map((role) => role.model))].sort();
+  if (models.length === 0) {
+    return {
+      name: kind,
+      status: "WARN",
+      detail: "not configured by any role; probe skipped",
+    };
+  }
+  if (options.configOnly === true) {
+    return {
+      name: kind,
+      status: "WARN",
+      detail:
+        `configured for ${models.join(", ")}; readiness probe skipped (--config-only); ` +
+        "configuration validity is not runtime readiness",
+    };
+  }
+  try {
+    const request: RuntimeReadinessRequest = {
+      runtime: kind,
+      models,
+      ...definedProps({ timeoutMs: options.readinessTimeoutMs }),
+    };
+    const result = await probe(request);
+    return {
+      name: kind,
+      status: result.status === "ready" ? "OK" : "FAIL",
+      detail:
+        `${result.status}` +
+        (result.errorCode !== undefined ? ` (${result.errorCode})` : "") +
+        ` — ${result.detail} [${result.durationMs}ms, non-billable]`,
+    };
+  } catch (error) {
+    return {
+      name: kind,
+      status: "FAIL",
+      detail: `readiness probe crashed: ${errorMessage(error)}`,
+    };
+  }
 }
 
 async function checked<T>(rows: CheckRow[], name: string, load: () => Promise<T>): Promise<T | undefined> {

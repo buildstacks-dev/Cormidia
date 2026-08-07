@@ -12,7 +12,7 @@ import {
   type Query as ClaudeQuery,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -22,6 +22,7 @@ import { StdioGrokAcpClient } from "./adapters/grok-acp-client.js";
 import { createIsolatedGrokHome, grokBinaryVersion } from "./adapters/grok-isolation.js";
 import { resolvePiModel } from "./adapters/pi.js";
 import { toErrorMessage as errorMessage } from "./error-message.js";
+import { assessHarnessVersion, type HarnessVersionDetector } from "./harness-support.js";
 import type { RuntimeKind } from "./types.js";
 import { definedProps } from "./optional-properties.js";
 
@@ -35,6 +36,7 @@ type RuntimeReadinessStatus =
   | "missing_binary"
   | "transport_unavailable"
   | "unauthenticated"
+  | "unsupported_version"
   | "misconfigured"
   | "timed_out";
 
@@ -74,13 +76,13 @@ export type RuntimeReadinessProbe = (request: RuntimeReadinessRequest) => Promis
 
 interface PiReadinessDependencies {
   agentDir?: string;
-  createAuthStorage?: (authPath: string) => AuthStorage;
-  createModelRegistry?: (authStorage: AuthStorage, modelsPath: string) => ModelRegistry;
+  createModelRuntime?: (authPath: string, modelsPath: string) => Promise<ModelRuntime>;
 }
 
 const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementation> = {
   claude: probeClaude,
   codex: probeCodex,
+  cursor: probeCursor,
   pi: probePi,
   grok: probeGrok,
 };
@@ -88,11 +90,29 @@ const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementatio
 export async function probeRuntimeReadiness(
   request: RuntimeReadinessRequest,
   implementations: RuntimeReadinessImplementations = {},
+  detectVersion?: HarnessVersionDetector,
 ): Promise<RuntimeReadinessResult> {
   const started = Date.now();
   const timeoutMs = request.timeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error(`runtime readiness timeout must be positive; received ${timeoutMs}`);
+  }
+
+  // A harness below its declared floor cannot speak the interface this adapter
+  // targets (#331). Refuse here, before any provider is constructed: a probe
+  // that launches an unsupported harness fails later, more expensively, and in
+  // a shape that reads as an auth or transport fault.
+  const version = assessHarnessVersion(request.runtime, detectVersion);
+  if (version.band === "below_floor") {
+    return {
+      runtime: request.runtime,
+      models: [...new Set(request.models)].sort(),
+      status: "unsupported_version",
+      detail: version.detail,
+      durationMs: Date.now() - started,
+      billable: false,
+      errorCode: "error_adapter_version_below_floor",
+    };
   }
 
   const controller = new AbortController();
@@ -303,6 +323,70 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
 }
 
 /**
+ * Cursor ships via a curl installer, so the binary is a REQUIRED PREINSTALLED
+ * artifact — Cormidia never installs a provider (#224). Readiness is therefore
+ * two things and no fewer: the `cursor-agent` binary is resolvable (never the
+ * short alias `agent`, which is Grok Build on real operator machines), and the
+ * stored login is usable or an explicit `CURSOR_API_KEY` is present.
+ * `cursor-agent status` reads the stored credential without sending a model
+ * request, so the probe stays non-billable.
+ */
+async function probeCursor(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
+  const env = request.processEnv ?? process.env;
+  const version = (await runCursorAgent(["--version"], env, request.signal)).stdout.trim();
+  const status = await runCursorAgent(["status"], env, request.signal);
+  const output = `${status.stdout}\n${status.stderr}`.trim();
+  if (status.code === 0 && /logged in/i.test(output)) {
+    return {
+      status: "ready",
+      detail: `cursor-agent ${version} reports a usable stored login (${firstLine(output)}); no model turn sent`,
+    };
+  }
+  const apiKey = env["CURSOR_API_KEY"];
+  if (typeof apiKey === "string" && apiKey.trim().length > 0) {
+    return {
+      status: "ready",
+      detail: `cursor-agent ${version} has no stored login, but CURSOR_API_KEY is set; no model turn sent`,
+    };
+  }
+  return {
+    status: "unauthenticated",
+    errorCode: "error_adapter_unauthenticated",
+    detail:
+      `cursor-agent ${version} reports no usable credential ` +
+      `(${firstLine(output) || `status exited ${status.code}`}); run \`cursor-agent login\` or set CURSOR_API_KEY`,
+  };
+}
+
+function runCursorAgent(
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  signal: AbortSignal,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile("cursor-agent", args, { env, signal, encoding: "utf8" }, (error, stdout, stderr) => {
+      const code = (error as (Error & { code?: unknown }) | null)?.code;
+      if (error !== null && typeof code !== "number") {
+        // ENOENT and friends carry a string code — classifyProbeError turns
+        // those into missing_binary rather than a misconfiguration.
+        reject(error);
+        return;
+      }
+      resolve({ code: typeof code === "number" ? code : 0, stdout, stderr });
+    });
+  });
+}
+
+function firstLine(value: string): string {
+  return (
+    value
+      .split(/\r?\n/)
+      .find((line) => line.trim().length > 0)
+      ?.trim() ?? ""
+  );
+}
+
+/**
  * Grok Build readiness.
  *
  * Grok ships via an installer, never npm, so the binary is a *required
@@ -413,12 +497,14 @@ async function probePi(
   // OAuth resolution may rotate a refresh token. Readiness must use the same
   // file-backed store as PiRuntime so a successful refresh is persisted for
   // the subsequent turn; the old in-memory copy consumed the rotation and
-  // then discarded it, making a green probe break the live runtime.
-  const authStorage = (dependencies.createAuthStorage ?? AuthStorage.create)(authPath);
-  const registry = (dependencies.createModelRegistry ?? ModelRegistry.create)(
-    authStorage,
+  // then discarded it, making a green probe break the live runtime. pi 0.84
+  // builds that store inside ModelRuntime from `authPath`; `allowModelNetwork`
+  // stays default-false so the probe remains offline and non-billable.
+  const modelRuntime = await (dependencies.createModelRuntime ?? createPiModelRuntime)(
+    authPath,
     join(agentDir, "models.json"),
   );
+  const registry = new ModelRegistry(modelRuntime);
   const registryError = registry.getError();
   if (registryError !== undefined) {
     return {
@@ -479,6 +565,10 @@ async function probePi(
     status: "ready",
     detail: `pi model/auth resolution succeeded: ${checked.join(", ")}; no model turn sent`,
   };
+}
+
+function createPiModelRuntime(authPath: string, modelsPath: string): Promise<ModelRuntime> {
+  return ModelRuntime.create({ authPath, modelsPath });
 }
 
 function classifyProbeError(error: unknown): ProbeOutcome {

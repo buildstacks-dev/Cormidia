@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { ClaudeRuntime } from "../../src/runtime/adapters/claude.js";
 import { CodexRuntime } from "../../src/runtime/adapters/codex.js";
+import { CursorRuntime } from "../../src/runtime/adapters/cursor.js";
 import { GrokRuntime } from "../../src/runtime/adapters/grok.js";
 import { PiRuntime } from "../../src/runtime/adapters/pi.js";
 import { toErrorMessage as errorMessage } from "../../src/runtime/error-message.js";
@@ -22,7 +23,7 @@ import { installScheduler, schedulerDefinitionStatus, uninstallScheduler } from 
 import { PlatformSchedulerManager } from "../../src/org/scheduler/manager.js";
 import { assertCompletedCampaignPass, DurableCampaignRunner } from "../campaign/campaign-runner.js";
 import { assertCampaignRepositoryBinding } from "../campaign/repository-binding.js";
-import { runAdapterConformance } from "../fixtures/adapters/conformance.js";
+import { ADAPTER_CONFORMANCE_CASES, runAdapterConformance } from "../fixtures/adapters/conformance.js";
 import { GITHUB_CONFORMANCE_CLAUSE_COUNT, runGithubConformance } from "../fixtures/github-double/conformance/suite.js";
 import { liveCampaignRequiredCaseIds, loadLiveCampaignConfig, type LiveCampaignConfigV1 } from "./config.js";
 import { releaseGithubConformanceOptions } from "./github-conformance-policy.js";
@@ -84,9 +85,7 @@ describe("authorized L3 campaign", () => {
   it("runs the selected real adapter conformance pairs within the campaign envelope", async () => {
     const errors: string[] = [];
     for (const target of config.adapters) {
-      const caseId = ({ claude: "CF-B02-L3", codex: "CF-B03-L3", pi: "CF-B04-L3", grok: "CF-B25-L3" } as const)[
-        target.runtime
-      ];
+      const caseId = ADAPTER_CONFORMANCE_CASES[target.runtime];
       try {
         await campaign.runCase(caseId, { providerTurns: 2, maxEquivUsd: target.max_turn_budget_usd * 2 }, async () => {
           const result = await runAdapterConformance(
@@ -235,11 +234,15 @@ describe("authorized L3 campaign", () => {
   });
 });
 
+/** Never a silent fall-through: an unwired kind in the token-spending lane
+ *  must fail loudly, not quietly run a different provider's adapter. */
 function runtime(kind: RuntimeKind): Runtime {
   if (kind === "claude") return new ClaudeRuntime();
   if (kind === "codex") return new CodexRuntime();
+  if (kind === "cursor") return new CursorRuntime();
   if (kind === "grok") return new GrokRuntime();
-  return new PiRuntime();
+  if (kind === "pi") return new PiRuntime();
+  throw new Error(`live campaign: no real adapter wired for runtime ${JSON.stringify(kind)}`);
 }
 async function waitForFile(path: string): Promise<void> {
   for (let attempt = 0; attempt < 20; attempt += 1) {

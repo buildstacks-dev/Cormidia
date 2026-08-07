@@ -5,7 +5,9 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { RELEASE_L3_REQUIRED_CASES } from "../../src/org/release-evidence.js";
+import { TURN_ASSIGNMENT_HARNESSES } from "../../src/runtime/assignment.js";
 import type { Effort, RuntimeKind } from "../../src/runtime/types.js";
+import { ADAPTER_CONFORMANCE_CASES } from "../fixtures/adapters/conformance.js";
 
 export interface LiveAdapterTarget {
   runtime: RuntimeKind;
@@ -56,15 +58,7 @@ export async function loadLiveCampaignConfig(
 export function liveCampaignRequiredCaseIds(config: LiveCampaignConfigV1): string[] {
   if (config.campaign_kind === "release") return [...RELEASE_L3_REQUIRED_CASES];
   return [
-    ...config.adapters.map(
-      (target) =>
-        ({
-          claude: "CF-B02-L3",
-          codex: "CF-B03-L3",
-          pi: "CF-B04-L3",
-          grok: "CF-B25-L3",
-        })[target.runtime],
-    ),
+    ...config.adapters.map((target) => ADAPTER_CONFORMANCE_CASES[target.runtime]),
     ...(config.github.enabled ? ["CF-B01-L3"] : []),
     ...(config.launchd.enabled ? ["CF-J16-A"] : []),
     ...(config.unattended.enabled ? ["CF-J18-A"] : []),
@@ -120,7 +114,7 @@ function validate(value: unknown): asserts value is LiveCampaignConfigV1 {
   for (const [index, unknownAdapter] of root["adapters"].entries()) {
     const adapter = object(unknownAdapter, `adapters[${index}]`);
     exact(adapter, ["runtime", "model", "effort", "max_turn_budget_usd"]);
-    oneOf(adapter["runtime"], ["claude", "codex", "pi", "grok"], `adapters[${index}].runtime`);
+    oneOf(adapter["runtime"], [...TURN_ASSIGNMENT_HARNESSES], `adapters[${index}].runtime`);
     required(adapter["model"], `adapters[${index}].model`);
     oneOf(adapter["effort"], ["low", "medium", "high", "xhigh", "max"], `adapters[${index}].effort`);
     positive(adapter["max_turn_budget_usd"], `adapters[${index}].max_turn_budget_usd`);

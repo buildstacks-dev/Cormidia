@@ -1,7 +1,8 @@
-// CF-B02-PAYLOAD / CF-B03-PAYLOAD / CF-B04-PAYLOAD (#334): a ~300 KB task
-// brief transports BYTE-IDENTICAL through every adapter's payload channel —
-// Claude's SDK prompt, Codex's turn/start JSON-RPC input, pi's in-process
-// session.prompt() — never an argv-style bounded channel (the ARG_MAX lesson,
+// CF-B02-PAYLOAD / CF-B03-PAYLOAD / CF-B04-PAYLOAD / CF-B24-PAYLOAD (#334,
+// #338): a ~300 KB task brief transports BYTE-IDENTICAL through every
+// adapter's payload channel — Claude's SDK prompt, Codex's turn/start
+// JSON-RPC input, pi's in-process session.prompt(), cursor-agent's stdin —
+// never an argv-style bounded channel (the ARG_MAX lesson,
 // docs/loop/design.md §2: "Adapters must accept multi-hundred-KB task
 // payloads via a robust channel. This becomes a gate-conformance-suite case,
 // not an implementation hope").
@@ -16,6 +17,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble, type CodexRecordedTurn } from "../../fixtures/adapters/codex-double.js";
+import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
 import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import {
@@ -136,6 +138,47 @@ describe("CF-B03-PAYLOAD — 300 KB brief transports intact through the Codex ad
     await liar.runTurn(doubleTurnRequest({ workdir: repo.dir, role: codexRole(), task: PAYLOAD }), allowAll);
     const transported = codexTransportedTask(dbl.recorder.turns[0]!);
     expect(transported?.length).toBe(SEEDED_ARGV_TRUNCATION_BYTES);
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(AdapterContractViolation);
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(/first divergence at byte 131072/);
+  });
+});
+
+describe("CF-B24-PAYLOAD — 300 KB brief transports intact through the Cursor adapter (cursor-agent stdin payload)", () => {
+  const cursorRole = () => doubleRole({ runtime: "cursor", model: "claude-opus-5-thinking-high" });
+
+  it("cursor-agent's stdin receives the exact brief, and argv never carries it", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = cursorDouble([
+      script.turn({
+        sessionId: "chat-payload",
+        outcome: script.success("done", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+    ]);
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: cursorRole(), task: PAYLOAD }),
+      allowAll,
+    );
+    expect(result.status).toBe("completed");
+    const transported = dbl.recorder.turns[0]!.stdinTask;
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).not.toThrow();
+    expect(transported).toBe(PAYLOAD);
+    // The whole point of the stdin channel: argv stays bounded and clean.
+    expect(dbl.recorder.turns[0]!.args.join(" ")).not.toContain(PAYLOAD_HEAD);
+  });
+
+  it("negative control: an ARG_MAX-truncating transport is caught by the payload detector", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = cursorDouble([
+      script.turn({
+        sessionId: "chat-payload-trunc",
+        outcome: script.success("done", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+    ]);
+    const liar = new SeededPayloadTruncationRuntime(dbl.runtime);
+    await liar.runTurn(doubleTurnRequest({ workdir: repo.dir, role: cursorRole(), task: PAYLOAD }), allowAll);
+    const transported = dbl.recorder.turns[0]!.stdinTask;
+    expect(transported?.length).toBe(SEEDED_ARGV_TRUNCATION_BYTES);
+    expect(transported?.endsWith(PAYLOAD_TAIL)).toBe(false);
     expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(AdapterContractViolation);
     expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(/first divergence at byte 131072/);
   });

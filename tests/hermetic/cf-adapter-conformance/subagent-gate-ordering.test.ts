@@ -1,11 +1,12 @@
-// CF-B02-SUBGATE / CF-B03-SUBGATE / CF-B04-DEGRADE (#334): a critical op
-// issued by an INTRA-TURN SUBAGENT reaches the Cormidia gate identically to a
-// top-level op — same normalized action, same event → gate → escalation
-// ordering, same blocked_on_gate settlement. The case runs against every
-// harness whose capability profile claims intra_turn_fanout (claude, codex —
-// src/runtime/capabilities.ts); pi claims `unsupported`, so its case is the
-// degradation path instead: delegation configured → degradation-note
-// artifact, zero fan-out, never a silently hidden or fabricated surface.
+// CF-B02-SUBGATE / CF-B03-SUBGATE / CF-B24-SUBGATE / CF-B04-DEGRADE (#334,
+// #338): a critical op issued by an INTRA-TURN SUBAGENT reaches the Cormidia
+// gate identically to a top-level op — same normalized action, same event →
+// gate → escalation ordering, same blocked_on_gate settlement. The case runs
+// against every harness whose capability profile claims intra_turn_fanout
+// (claude, codex, cursor — src/runtime/capabilities.ts); pi claims
+// `unsupported`, so its case is the degradation path instead: delegation
+// configured → degradation-note artifact, zero fan-out, never a silently
+// hidden or fabricated surface.
 //
 // Re-deposits the archived-suite subagent-gate claim offline (the load-bearing
 // certification probe for swarm-capable harnesses). Negative controls follow
@@ -18,6 +19,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Runtime, ToolAction, TurnEvent, TurnHooks, TurnResult } from "../../../src/runtime/types.js";
 import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble } from "../../fixtures/adapters/codex-double.js";
+import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
 import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { AdapterContractViolation, checkEveryExecutedToolConsulted, script } from "../../fixtures/adapters/scenario.js";
@@ -232,6 +234,93 @@ describe("CF-B03-SUBGATE — subagent critical op reaches the gate identically (
     expect(result.status).toBe("completed");
     expect(result.escalations).toEqual([]);
     expect(events).toContainEqual(expect.objectContaining({ type: "tool_use", detail: `bash: ${CRITICAL_COMMAND}` }));
+    const turn = dbl.recorder.turns[0]!;
+    expect(turn.toolPlays[1]?.executed).toBe(true);
+    expect(turn.toolPlays[1]?.consultations).toEqual([]);
+    expect(() => checkEveryExecutedToolConsulted(turn)).toThrow(AdapterContractViolation);
+    expect(() => checkEveryExecutedToolConsulted(turn)).toThrow(/ungated/);
+  });
+});
+
+describe("CF-B24-SUBGATE — subagent critical op reaches the gate identically (cursor, fan-out native)", () => {
+  const role = () => doubleRole({ runtime: "cursor", model: "claude-opus-5-thinking-high" });
+
+  it("event → gate → escalation ordering matches a top-level critical op exactly", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = cursorDouble([
+      script.turn({
+        sessionId: "chat-top",
+        steps: [script.tool("Bash", { command: CRITICAL_COMMAND })],
+        outcome: script.success("recovered without the tool", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+      script.turn({
+        sessionId: "chat-sub",
+        steps: [
+          script.subagentStarted("generalPurpose", "critical helper"),
+          script.tool("Bash", { command: CRITICAL_COMMAND }, { fromSubagent: true }),
+        ],
+        outcome: script.success("recovered without the tool", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+    ]);
+
+    const topLevel = criticalDenyingHooks();
+    const topResult = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: repo.dir, role: role() }), topLevel.hooks);
+
+    const subagent = criticalDenyingHooks(() => dbl.recorder.turns.at(-1)?.sequence);
+    const subResult = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: repo.dir, role: role() }), subagent.hooks);
+
+    // The subagent's call arrives from its OWN conversation id, yet lands on
+    // the same per-turn preToolUse socket as a main-thread call and is
+    // normalized identically — certified live 2026-08-07.
+    expect(topResult.status).toBe("blocked_on_gate");
+    expect(subResult.status).toBe("blocked_on_gate");
+    expect(subagent.gateActions).toEqual(topLevel.gateActions);
+    expect(subResult.escalations).toEqual(topResult.escalations);
+    expect(subagent.gateActions).toEqual([{ tool: "bash", input: { command: CRITICAL_COMMAND } }]);
+
+    const sequence = dbl.recorder.turns[1]!.sequence;
+    const spawnAt = sequence.indexOf("emit:subagent:generalPurpose");
+    const attributionAt = sequence.indexOf("event:subagent");
+    const consultAt = sequence.indexOf("consult:hook:Bash");
+    const gateAt = sequence.indexOf("org-gate:bash");
+    const deniedAt = sequence.indexOf("denied:Bash");
+    expect(spawnAt).toBeGreaterThanOrEqual(0);
+    expect(attributionAt).toBeGreaterThan(spawnAt);
+    expect(consultAt).toBeGreaterThan(attributionAt);
+    expect(gateAt).toBeGreaterThan(consultAt);
+    expect(deniedAt).toBeGreaterThan(gateAt);
+    expect(sequence).not.toContain("execute:Bash");
+    expect(subagent.events.filter((event) => event.type === "tool_use")).toHaveLength(0);
+    expect(subResult.usage.subagentTurns).toBe(1); // fan-out visible, never silent
+    expect(() => checkEveryExecutedToolConsulted(dbl.recorder.turns[1]!)).not.toThrow();
+  });
+
+  it("negative control: a CLI whose hook stops firing inside subagents is caught, and the turn never reports completed", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = cursorDouble(
+      [
+        script.turn({
+          sessionId: "chat-sub-bypass",
+          steps: [
+            script.tool("Bash", { command: "echo main-ok" }),
+            script.subagentStarted("generalPurpose", "critical helper"),
+            script.tool("Bash", { command: CRITICAL_COMMAND }, { fromSubagent: true }),
+          ],
+          outcome: script.success("looks clean", { usage: { inputTokens: 10, outputTokens: 2 } }),
+        }),
+      ],
+      { violations: ["bypass_subagent_gate"] },
+    );
+    const { hooks, gateActions } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: repo.dir, role: role() }), hooks);
+
+    // The hole: the subagent's critical op executed and the org gate never
+    // heard of it. The shared detector fires — AND the adapter's own
+    // executed-versus-allowed cross-check refuses to call this completed.
+    expect(gateActions).toEqual([{ tool: "bash", input: { command: "echo main-ok" } }]);
+    expect(result.status).toBe("failed");
+    expect(result.errorCode).toBe("error_gate_not_observed");
+    expect(result.escalations).toEqual([]);
     const turn = dbl.recorder.turns[0]!;
     expect(turn.toolPlays[1]?.executed).toBe(true);
     expect(turn.toolPlays[1]?.consultations).toEqual([]);

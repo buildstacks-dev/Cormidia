@@ -120,7 +120,11 @@ export async function cmdBudget(args: string[]): Promise<number> {
   console.log("APP                  SPENT      BUDGET     STATUS");
   for (const row of report.apps) {
     console.log(
-      `${row.app.padEnd(20)} ${money(row.spentUsd).padStart(10)} ${money(row.budgetUsd).padStart(10)} ${row.status.toUpperCase()}${row.paused ? " PAUSED" : ""}`,
+      `${row.app.padEnd(20)} ${money(row.spentUsd).padStart(10)} ${money(row.budgetUsd).padStart(10)} ${row.status.toUpperCase()}${row.paused ? " PAUSED" : ""}` +
+        // Volume, never dollars: a plan-backed turn costs nothing marginal, so
+        // reporting it as spend would invent an invoice — and reporting
+        // nothing at all would make a busy month look idle (#333).
+        (row.subscriptionTurns > 0 ? ` (+${row.subscriptionTurns} subscription turn(s), $0 marginal)` : ""),
     );
   }
   if (report.learningPolicyWarning !== null) console.error(`note: ${report.learningPolicyWarning}`);

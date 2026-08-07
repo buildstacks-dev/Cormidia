@@ -168,7 +168,23 @@ review blocker if skipped:
    means **usable request authentication**, never configuration or account
    presence (`cormidia doctor` runs this; an expired credential must fail here,
    not inside a paid model turn).
-6. **`src/runtime/harness-support.ts`** — declare the version bands (#331):
+6. **`src/runtime/auth-mode.ts`** — declare the harness's auth support (#333):
+   which of `subscription` / `api_key` it can be reached under, whether it is a
+   multi-provider backbone (a per-provider-family declaration is accepted only
+   there), its canonical provider family, and the **token-free** method that
+   reads the real credential state. `HARNESS_AUTH_SUPPORT` is exhaustive over
+   `RuntimeKind`, so a new kind is a compile error until it is declared. A mode
+   the vendor does not offer must be ABSENT from `modes` — that is what makes
+   the declaration refusable at config load rather than at a probe (muse is the
+   worked example: API key only). Then classify the credential state in
+   `src/runtime/auth-mode-observers.ts` and return the observation from the
+   readiness implementation. **Return NO mode when the facts do not determine
+   one** — an indeterminate observation refuses a declaration; a guess about
+   which account pays is the failure the whole path exists to prevent. Where
+   the harness accepts two credentials at once, mirror the ADAPTER's own
+   precedence if it has one (grok: `XAI_API_KEY` wins) and report
+   indeterminate if it does not (cursor, first-party claude).
+7. **`src/runtime/harness-support.ts`** — declare the version bands (#331):
    `floor` (oldest version whose external interface the adapter actually
    speaks — below it readiness refuses before the provider is constructed),
    `testedWith` (the exact version certification ran against, §5), and
@@ -179,17 +195,24 @@ review blocker if skipped:
    day-one adapters use stable, widely-available surfaces, so the floor
    usually sits at or below `testedWith`, never above it. Version detection
    is token-free and belongs in the declaration's `versionSource`.
-7. **Tests** — all three tiers plus the budget pin (§4).
-8. **`docs/harness/capability-matrix.md`** — add the adapter's column with honest
-   native/adapter-built/degraded labels per row. The matrix is the contract
+8. **Tests** — all three tiers plus the budget pin (§4), and the auth-mode
+   cases: each declared mode matching its credential is ready, each mismatch
+   direction is a typed refusal, and an impossible mode is refused by
+   construction (`tests/unit/cf-auth-mode/`).
+9. **`docs/harness/capability-matrix.md`** — add the adapter's column with honest
+   native/adapter-built/degraded labels per row, and its row in the auth-mode
+   table (which modes it supports, whether per-provider-family declarations
+   apply, and the exact token-free verification). The matrix is the contract
    for what an org loses when a role moves; "degraded" written down is fine,
    "native" claimed loosely is not.
-9. **`roles.yaml`** — assigning any role to the new runtime is a
-   human-ratified change: propose with rationale, never silently rewrite.
-   The builder ≠ reviewer cross-provider pairing in `test/roles.test.ts` is
-   a design decision — if it fails, the roles change is wrong, not the test.
-10. **`research/`** — record the dated live-conformance result (see §6).
-11. **AGENTS.md** — update `src/runtime/AGENTS.md` (the local rules file)
+10. **`roles.yaml`** — assigning any role to the new runtime is a
+    human-ratified change: propose with rationale, never silently rewrite.
+    The builder ≠ reviewer cross-provider pairing in `test/roles.test.ts` is
+    a design decision — if it fails, the roles change is wrong, not the test.
+    Auth mode is NOT a role field: it is org configuration keyed by connection
+    (`apps.yaml` → `harnesses:`), so nothing about #333 touches this file.
+11. **`research/`** — record the dated live-conformance result (see §6).
+12. **AGENTS.md** — update `src/runtime/AGENTS.md` (the local rules file)
     and the root AGENTS.md dependency list if a new package was added (a new
     dependency is a decision, not a convenience — TASTE.md §3).
 

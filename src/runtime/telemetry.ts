@@ -11,7 +11,9 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import type { AuthMode } from "./auth-mode.js";
 import { scrubSecrets } from "./runlog/redact.js";
+import { settleBilling } from "./turn-usage.js";
 import type { Effort, RoleConfig, Trigger, TurnAssignmentSource, TurnResult, UsageQuality } from "./types.js";
 export {
   recordInvocation,
@@ -75,6 +77,11 @@ export interface TurnRecord {
   /** True when costUsd is a Cormidia-computed equivalent-cost estimate for a
    *  subscription-backed provider, not a provider-invoiced charge. */
   costEstimated?: boolean;
+  /** Billing of the (harness × provider-family) connection that ran this turn
+   *  (#333). `subscription` rows carry an authoritative `costUsd: 0` and are
+   *  rolled up by VOLUME, never summed into API spend; `api_key` rows are
+   *  metered spend. Absent on undeclared connections and every legacy row. */
+  billing?: AuthMode;
   /** Legacy/historical marker for sessions whose usage was unobservable (the
    *  retired native interactive planner produced these). costUsd stays 0 —
    *  the honest reading is "unknown", never "free"; readers surface the count
@@ -117,6 +124,10 @@ interface TurnAttribution {
   experimentRef?: string;
   candidateRef?: string;
   learningActivity?: "distillation" | "review";
+  /** Declared billing for the connection this turn ran on (#333). Supplied by
+   *  the settlement site from org config, because the adapter layer cannot see
+   *  org configuration. An adapter that observed its own billing wins. */
+  billing?: AuthMode;
 }
 
 export function toRecord(
@@ -125,26 +136,30 @@ export function toRecord(
   at: Date,
   attribution: TurnAttribution = {},
 ): TurnRecord {
+  // #333: the adapter reports what the provider said; the org declares which
+  // connection paid. `settleBilling` reconciles the two ONCE, here, so every
+  // settlement site inherits the same authoritative-zero rule rather than each
+  // one reimplementing it (and so the label can never disagree with the cost
+  // in the row it settles). An adapter-supplied label wins over attribution:
+  // it observed the turn.
+  const usage = settleBilling(result.usage, result.usage.billing ?? attribution.billing);
   const record: TurnRecord = {
     at: at.toISOString(),
     role: role.name,
     runtime: role.runtime,
     model: role.model,
     status: result.status,
-    tokensIn: result.usage.tokensIn,
-    tokensOut: result.usage.tokensOut,
-    costUsd: result.usage.costUsd,
+    tokensIn: usage.tokensIn,
+    tokensOut: usage.tokensOut,
+    costUsd: usage.costUsd,
     usageQuality:
-      result.usage.quality ??
-      (attribution.unmeasured === true
-        ? "unavailable"
-        : result.usage.costEstimated === true
-          ? "estimated"
-          : "complete"),
-    subagentTurns: result.usage.subagentTurns,
-    wallClockMs: result.usage.wallClockMs,
+      usage.quality ??
+      (attribution.unmeasured === true ? "unavailable" : usage.costEstimated === true ? "estimated" : "complete"),
+    subagentTurns: usage.subagentTurns,
+    wallClockMs: usage.wallClockMs,
     escalations: result.escalations.length,
   };
+  if (usage.billing !== undefined) record.billing = usage.billing;
   // Assign conditionally so absent attribution leaves the keys off the
   // record entirely — JSON.stringify then omits them from the JSONL line.
   if (attribution.app !== undefined) record.app = attribution.app;
@@ -174,15 +189,15 @@ export function toRecord(
   if (attribution.experimentRef !== undefined) record.experimentRef = attribution.experimentRef;
   if (attribution.candidateRef !== undefined) record.candidateRef = attribution.candidateRef;
   if (attribution.learningActivity !== undefined) record.learningActivity = attribution.learningActivity;
-  if (result.usage.costEstimated === true) record.costEstimated = true;
-  if (result.usage.tokensInUncached !== undefined) {
-    record.tokensInUncached = result.usage.tokensInUncached;
+  if (usage.costEstimated === true) record.costEstimated = true;
+  if (usage.tokensInUncached !== undefined) {
+    record.tokensInUncached = usage.tokensInUncached;
   }
-  if (result.usage.cacheCreationTokens !== undefined) {
-    record.cacheCreationTokens = result.usage.cacheCreationTokens;
+  if (usage.cacheCreationTokens !== undefined) {
+    record.cacheCreationTokens = usage.cacheCreationTokens;
   }
-  if (result.usage.cacheReadTokens !== undefined) {
-    record.cacheReadTokens = result.usage.cacheReadTokens;
+  if (usage.cacheReadTokens !== undefined) {
+    record.cacheReadTokens = usage.cacheReadTokens;
   }
   return record;
 }

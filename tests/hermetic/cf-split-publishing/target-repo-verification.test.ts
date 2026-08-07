@@ -55,7 +55,12 @@ describe("CF-SPLIT-PUBLISHING — target verification at the composed gate (L2)"
     const home = await makeTempStateHome({ name: "cf-split-publishing" });
     cleanups.push(() => home.cleanup());
     const clock = makeTestClock("2026-08-06T14:00:00.000Z");
-    const approvals = new ApprovalStore(home.stateHome);
+    // Same pinned clock as the gate (B-06 §1): a store left on host wall time
+    // judges these fixture-instant items for TTL expiry against real time, so
+    // the foreign-slug refusal below rots into an expiry error once real time
+    // passes the fixture (#356 / CF-REG-356 — the sibling of the CF-SPLIT-NETWORK
+    // failure, armed for 2026-08-07T14:00Z).
+    const approvals = new ApprovalStore(home.stateHome, { now: clock.dateFn });
     const objectives = new ObjectiveGrantStore(home.stateHome);
     const gate = composeGate(defaultGate, approvals, {
       app: APP,

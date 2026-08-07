@@ -319,6 +319,12 @@ export interface DecideApprovalInput {
 export interface ApprovalStoreOptions {
   idSource?: (now: Date) => string;
   policy?: ApprovalPolicyConfig;
+  /** B-06 §1: the store's single time source, backing every `now` default
+   * below — so a caller pinned to a fixed instant has TTL expiry, grant
+   * lifetime, and execution transitions judged at THAT instant rather than host
+   * wall time (#356). Production omits it and reads the wall clock; injecting
+   * one changes the time source, never approval semantics. */
+  now?: () => Date;
   /** Deterministic kill points for crash-recovery detectors. Production never
    * supplies this hook. */
   decisionFault?: (boundary: "after_grant" | "after_decision_log" | "after_item_move") => void | Promise<void>;
@@ -388,17 +394,21 @@ export class ApprovalStore {
   readonly root: string;
   private readonly idSource: (now: Date) => string;
   private readonly policy: ApprovalPolicy;
+  /** The store's one wall-clock read; no other site here may construct an
+   * argument-less current-time Date (CF-REG-356 pins that structurally). */
+  private readonly clock: () => Date;
   private readonly decisionFault?: ApprovalStoreOptions["decisionFault"];
 
   constructor(root: string, options: ApprovalStoreOptions = {}) {
     this.root = root;
     this.idSource = options.idSource ?? defaultId;
     this.policy = resolveApprovalPolicy(options.policy);
+    this.clock = options.now ?? (() => new Date());
     this.decisionFault = options.decisionFault;
   }
 
   async raise(input: RaiseApprovalInput): Promise<ApprovalItem> {
-    const now = input.now ?? new Date();
+    const now = input.now ?? this.clock();
     await this.ensureDirs();
     const existing = this.findPendingEquivalentSync(input);
     if (existing !== undefined) {
@@ -418,7 +428,7 @@ export class ApprovalStore {
   }
 
   raiseSync(input: RaiseApprovalInput): ApprovalItem {
-    const now = input.now ?? new Date();
+    const now = input.now ?? this.clock();
     this.ensureDirsSync();
     const existing = this.findPendingEquivalentSync(input);
     if (existing !== undefined) {
@@ -487,7 +497,7 @@ export class ApprovalStore {
   }
 
   async decide(id: string, input: DecideApprovalInput): Promise<ApprovalItem> {
-    const now = input.now ?? new Date();
+    const now = input.now ?? this.clock();
     await this.ensureDirs();
     const decidedBy = input.decidedBy ?? { kind: "human", identity: "human/operator" };
     const reason = decisionReason(input, decidedBy);
@@ -579,7 +589,7 @@ export class ApprovalStore {
     });
   }
 
-  async reconcile(now: Date = new Date()): Promise<ApprovalItem[]> {
+  async reconcile(now: Date = this.clock()): Promise<ApprovalItem[]> {
     await this.ensureDirs();
     const log = await this.readLog();
     const ids = new Set<string>([
@@ -600,7 +610,7 @@ export class ApprovalStore {
    * items are only those transitioned by this call; callers use them to
    * release the associated suspended claim without coupling this store to the
    * loop layer. */
-  async expirePending(now: Date = new Date()): Promise<ApprovalItem[]> {
+  async expirePending(now: Date = this.clock()): Promise<ApprovalItem[]> {
     await this.ensureDirs();
     const log = await this.readLog();
     const expired: ApprovalItem[] = [];
@@ -617,7 +627,7 @@ export class ApprovalStore {
   }
 
   /** Expire one known approval at the observation seam (ticket episode). */
-  async expirePendingItem(id: string, now: Date = new Date()): Promise<ApprovalItem | undefined> {
+  async expirePendingItem(id: string, now: Date = this.clock()): Promise<ApprovalItem | undefined> {
     await this.ensureDirs();
     return this.withDecisionLock(id, async () => {
       await this.reconcileDecisionLocked(id, await this.readLog(), now);
@@ -814,7 +824,7 @@ export class ApprovalStore {
     now?: Date;
   }): ApprovalGrant | undefined {
     this.ensureDirsSync();
-    const now = input.now ?? new Date();
+    const now = input.now ?? this.clock();
     for (const file of readdirSync(this.grantsDir())) {
       if (!file.endsWith(".json")) continue;
       const grant = readJsonSync<ApprovalGrant>(join(this.grantsDir(), file));
@@ -877,7 +887,7 @@ export class ApprovalStore {
    *  records the act. Revoking an unused grant also terminalizes its approved
    *  execution record. A consumed single-use grant cannot be retroactively
    *  revoked: its outcome must be reconciled explicitly instead. */
-  revokeGrantSync(grantId: string, now: Date = new Date()): ApprovalGrant {
+  revokeGrantSync(grantId: string, now: Date = this.clock()): ApprovalGrant {
     this.ensureDirsSync();
     const path = this.grantPath(grantId);
     const initial = readJsonSync<ApprovalGrant>(path);
@@ -931,7 +941,7 @@ export class ApprovalStore {
     });
   }
 
-  consumeGrantSync(grantId: string, now: Date = new Date()): ApprovalGrant {
+  consumeGrantSync(grantId: string, now: Date = this.clock()): ApprovalGrant {
     this.ensureDirsSync();
     const path = this.grantPath(grantId);
     const grant = readJsonSync<ApprovalGrant>(path);
@@ -960,7 +970,7 @@ export class ApprovalStore {
    * a crash can strand only a visible/reconcilable attempt — never a consumed
    * grant whose durable execution still claims TRY 0. The per-item O_EXCL lock
    * is shared with async delivery transitions through the same lock path. */
-  claimActorRetryGrantSync(grantId: string, actor: string, now: Date = new Date()): ActorRetryGrantClaim {
+  claimActorRetryGrantSync(grantId: string, actor: string, now: Date = this.clock()): ActorRetryGrantClaim {
     this.ensureDirsSync();
     const initialGrant = readJsonSync<ApprovalGrant>(this.grantPath(grantId));
     return this.withExecutionLockSync(initialGrant.approvalId, () => {
@@ -1011,7 +1021,7 @@ export class ApprovalStore {
     events: readonly TurnEvent[];
     now?: Date;
   }): Promise<ApprovalItem[]> {
-    const now = input.now ?? new Date();
+    const now = input.now ?? this.clock();
     const items = (await this.listDecided()).filter(
       (item) =>
         isActorClaimable(item.execution?.executor) &&
@@ -1050,7 +1060,7 @@ export class ApprovalStore {
    * item is the source of truth and the per-item lock prevents two dispatch
    * processes from starting the same action. A pre-existing `executing`
    * state is never retried by this method. */
-  async beginExecution(id: string, actor: string, now: Date = new Date()): Promise<ApprovalItem | undefined> {
+  async beginExecution(id: string, actor: string, now: Date = this.clock()): Promise<ApprovalItem | undefined> {
     return this.withExecutionLock(id, async () => {
       const item = await this.readItem(id);
       if (item.execution?.state !== "approved") return undefined;
@@ -1090,7 +1100,7 @@ export class ApprovalStore {
     remoteRef?: string;
     failureCause?: string;
   }): Promise<ApprovalItem> {
-    const now = input.now ?? new Date();
+    const now = input.now ?? this.clock();
     return this.withExecutionLock(input.id, async () => {
       const item = await this.readItem(input.id);
       const execution = item.execution;
@@ -1131,7 +1141,7 @@ export class ApprovalStore {
     actor: string;
     now?: Date;
   }): Promise<ApprovalItem> {
-    const now = input.now ?? new Date();
+    const now = input.now ?? this.clock();
     if (input.reason.trim() === "") throw new Error("approval execution disposition requires a reason");
     return this.withExecutionLock(input.id, async () => {
       const item = await this.readItem(input.id);

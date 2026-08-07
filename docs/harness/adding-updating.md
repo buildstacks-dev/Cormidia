@@ -132,17 +132,28 @@ review blocker if skipped:
    means **usable request authentication**, never configuration or account
    presence (`cormidia doctor` runs this; an expired credential must fail here,
    not inside a paid model turn).
-6. **Tests** — all three tiers plus the budget pin (§4).
-7. **`docs/harness/capability-matrix.md`** — add the adapter's column with honest
+6. **`src/runtime/harness-support.ts`** — declare the version bands (#331):
+   `floor` (oldest version whose external interface the adapter actually
+   speaks — below it readiness refuses before the provider is constructed),
+   `testedWith` (the exact version certification ran against, §5), and
+   `testedEvidence` (its dated `research/` record). `HARNESS_SUPPORT` is an
+   exhaustive `Record<RuntimeKind, …>`, so a new kind is a compile error
+   until its bands exist — deliberately: a harness with no floor has no
+   refusal. The floor is a real interface claim, not a copy of the pin;
+   day-one adapters use stable, widely-available surfaces, so the floor
+   usually sits at or below `testedWith`, never above it. Version detection
+   is token-free and belongs in the declaration's `versionSource`.
+7. **Tests** — all three tiers plus the budget pin (§4).
+8. **`docs/harness/capability-matrix.md`** — add the adapter's column with honest
    native/adapter-built/degraded labels per row. The matrix is the contract
    for what an org loses when a role moves; "degraded" written down is fine,
    "native" claimed loosely is not.
-8. **`roles.yaml`** — assigning any role to the new runtime is a
+9. **`roles.yaml`** — assigning any role to the new runtime is a
    human-ratified change: propose with rationale, never silently rewrite.
    The builder ≠ reviewer cross-provider pairing in `test/roles.test.ts` is
    a design decision — if it fails, the roles change is wrong, not the test.
-9. **`research/`** — record the dated live-conformance result (see §6).
-10. **AGENTS.md** — update `src/runtime/AGENTS.md` (the local rules file)
+10. **`research/`** — record the dated live-conformance result (see §6).
+11. **AGENTS.md** — update `src/runtime/AGENTS.md` (the local rules file)
     and the root AGENTS.md dependency list if a new package was added (a new
     dependency is a decision, not a convenience — TASTE.md §3).
 
@@ -230,8 +241,15 @@ Minimum bar for **any** `src/runtime/adapters/**` change:
    docs before touching code (fast-moving uploads break SDK/RPC surfaces —
    pi warns about this explicitly), re-run certification (§5), and re-check
    every capability tier the bump could move (e.g. an effort level or
-   fan-out surface appearing upstream).
-3. If a capability's tier or behavior changed, update the matching
+   fan-out surface appearing upstream). **Move `testedWith` in
+   `src/runtime/harness-support.ts` to the exact version certification just
+   ran against, and point `testedEvidence` at its dated `research/` record**
+   — the declaration is what `cormidia doctor` reports and what the drift
+   note is measured from, so a bump that leaves it behind makes the tool lie.
+   Raise `floor` only when the adapter genuinely stopped speaking the older
+   interface; a floor raised to match the pin refuses operators who have not
+   upgraded, which is exactly what bands exist to avoid.
+4. If a capability's tier or behavior changed, update the matching
    `docs/harness/capability-matrix.md` row **in the same change**, and the
    `RuntimeCapabilityProfile` if the machine-readable tier moved.
 

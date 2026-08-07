@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
 import { resolvePiModel } from "./adapters/pi.js";
 import { toErrorMessage as errorMessage } from "./error-message.js";
+import { assessHarnessVersion, type HarnessVersionDetector } from "./harness-support.js";
 import type { RuntimeKind } from "./types.js";
 import { definedProps } from "./optional-properties.js";
 
@@ -33,6 +34,7 @@ type RuntimeReadinessStatus =
   | "missing_binary"
   | "transport_unavailable"
   | "unauthenticated"
+  | "unsupported_version"
   | "misconfigured"
   | "timed_out";
 
@@ -85,11 +87,29 @@ const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementatio
 export async function probeRuntimeReadiness(
   request: RuntimeReadinessRequest,
   implementations: RuntimeReadinessImplementations = {},
+  detectVersion?: HarnessVersionDetector,
 ): Promise<RuntimeReadinessResult> {
   const started = Date.now();
   const timeoutMs = request.timeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error(`runtime readiness timeout must be positive; received ${timeoutMs}`);
+  }
+
+  // A harness below its declared floor cannot speak the interface this adapter
+  // targets (#331). Refuse here, before any provider is constructed: a probe
+  // that launches an unsupported harness fails later, more expensively, and in
+  // a shape that reads as an auth or transport fault.
+  const version = assessHarnessVersion(request.runtime, detectVersion);
+  if (version.band === "below_floor") {
+    return {
+      runtime: request.runtime,
+      models: [...new Set(request.models)].sort(),
+      status: "unsupported_version",
+      detail: version.detail,
+      durationMs: Date.now() - started,
+      billable: false,
+      errorCode: "error_adapter_version_below_floor",
+    };
   }
 
   const controller = new AbortController();

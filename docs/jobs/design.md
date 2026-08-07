@@ -378,9 +378,13 @@ that the ungoverned path is easier and therefore more tempting. The skill also
 tells an agent to stop and confirm before authoring a job against a directory
 registered as a Cormidia app.
 
-Mechanically: a launcher shim beside `src/cormidia.cjs` pointing at
-`dist/job-cli.js`, one `bin` entry, one `files` entry. The shared `src/runtime/`
-dependency is already in the tree.
+Mechanically: a launcher shim beside `src/cormidia.cjs` (`src/cormidia-job.cjs`)
+pointing at `dist/jobs/main.js`, one `bin` entry, one `files` entry. The shared
+`src/runtime/` dependency is already in the tree. As shipped there is also a
+source-backed counterpart, `src/cormidia-job-local.cjs` →
+`scripts/cormidia-job-local.mjs`, so `pnpm link:local` exposes the job runner
+on the same terms as `cormidia`; `scripts/lib/link-artifacts.mjs`
+(`PACKAGED_BINARIES`) is the single table both install paths read.
 
 **Import direction needs one script change, and there is a trap.**
 `scripts/check-import-direction.mjs` ranks only `runtime`=0, `loop`=1, `org`=2,

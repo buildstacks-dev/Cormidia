@@ -73,11 +73,37 @@ Cormidia requires **Node.js >= 26**. Install the published command globally:
 
 ```bash
 npm install -g cormidia
+node "$(npm root -g)/cormidia/scripts/link-skills.mjs"
 cormidia --version
+cormidia-job --help
 ```
 
-This exposes the packaged `cormidia` executable through npm's global bin
-directory.
+The package installs **two binaries** through npm's global bin directory:
+`cormidia` (the governed org runtime) and `cormidia-job` (ad-hoc
+dependency-ordered job graphs — see `docs/jobs/design.md`).
+
+npm installs binaries only. The second command installs the **two packaged
+Agent Skills** that teach a coding agent to drive those binaries, linking
+`$cormidia` and `$cormidia-job` into each provider's user-global skill home:
+
+| Provider | Skill home | Override |
+| --- | --- | --- |
+| Codex | `~/.codex/skills/` | `$CODEX_HOME` |
+| Claude | `~/.claude/skills/` | `$CLAUDE_CONFIG_DIR` |
+| pi | `~/.pi/agent/skills/` | `$PI_CODING_AGENT_DIR` |
+
+**User-global, not per-project, and not an agent instruction file.** A skill is
+routed by its frontmatter `name`/`description`; its body loads only when the
+agent triggers it, so installing both globally costs nothing per prompt and
+makes Cormidia available in every repository. `$cormidia-job`'s description
+deliberately routes product work — tickets, PRs, releases, anything reaching
+GitHub — back to `$cormidia`, so installing one without the other removes that
+guardrail. Skill install is an **install-time** step, not an org-onboarding or
+app-onboarding step: `cormidia org init` and `cormidia bootstrap` neither
+install nor require skills.
+
+Re-run `link-skills.mjs` after upgrading. It is idempotent and refuses —
+untouched — any file or link at a target path the package does not own.
 
 ### Install locally from source
 
@@ -92,20 +118,46 @@ pnpm install
 pnpm link:local
 ```
 
-`pnpm link:local` exposes `cormidia` at `~/.local/bin/cormidia` (or
-`$CORMIDIA_BIN_DIR/cormidia`) and links the `$cormidia` skill into Codex
-(`$CODEX_HOME/skills/cormidia`), Claude (`$CLAUDE_CONFIG_DIR/skills/cormidia`),
-and pi (`$PI_CODING_AGENT_DIR/skills/cormidia`), using each provider's default
-home when its override is unset. Add `~/.local/bin` to `PATH` if necessary. The
-local command is source-backed: the next invocation reads the latest source
-changes, so no `cormidia update`, relink, or rebuild is needed. A packed or
-published installation uses the packaged `src/cormidia.cjs` preflight launcher and
-then runs the compiled `dist/cli.js` binary. Both launchers report a removed
-working directory before ESM resolution with one actionable Cormidia error.
-Rerunning `pnpm link:local` is idempotent and upgrades the former
-`scripts/cormidia-local.mjs` link only when it belongs to that same checkout;
-files, directories, and links owned by another checkout remain untouched and
-are refused.
+`pnpm link:local` exposes **both** binaries at `~/.local/bin/` (or
+`$CORMIDIA_BIN_DIR`) and links **both** skills into the same three provider
+skill homes the published install uses, using each provider's default home when
+its override is unset. Add `~/.local/bin` to `PATH` if necessary. Rerunning it
+is idempotent and upgrades the former `scripts/cormidia-local.mjs` link only
+when it belongs to that same checkout; files, directories, and links owned by
+another checkout remain untouched and are refused.
+
+The local command is **source-backed**: `~/.local/bin/cormidia` symlinks into
+the checkout and runs `src/cli.ts` through `tsx`, so the next invocation reads
+the latest source changes and no `cormidia update`, relink, or rebuild is
+needed. That also means the installed command *is* whatever the checkout
+currently says — the working tree, on its current branch.
+
+A packed or published installation takes a different path entirely: the
+packaged `src/cormidia.cjs` and `src/cormidia-job.cjs` preflight launchers run
+the compiled `dist/cli.js` and `dist/jobs/main.js`. All four launchers report a
+removed working directory before ESM resolution with one actionable Cormidia
+error.
+
+### Testing the packaged install
+
+Because the dev loop is source-backed, it never exercises the `dist/` code a
+real install runs. To verify this checkout the way a user receives it:
+
+```bash
+pnpm install:packaged --dry-run
+```
+
+Without `--dry-run` it builds, packs, installs the tarball into npm's global
+prefix, links both skills from the *installed* package root, then resolves each
+binary through `PATH` and **fails if either still resolves inside the
+checkout**. A source-backed link earlier in `PATH` would silently defeat the
+test, so the script refuses to proceed until it is gone: pass
+`--replace-source-links` to remove links this checkout owns (foreign-owned
+paths are always refused). `pnpm link:local` restores the dev loop afterwards.
+
+`pnpm smoke:package -- <absolute-tarball-path>` is the narrower CI check — it
+installs a tarball into a temp directory, asserts every declared `bin` entry
+runs, and deletes the directory. It verifies a tarball; it does not install one.
 
 These four locations are intentionally different:
 

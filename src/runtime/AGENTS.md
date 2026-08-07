@@ -27,7 +27,10 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
   live — proven against `src/runtime/testing/fakeRuntime.ts`. Extend cases;
   never weaken one to make an adapter pass. (The conformance suite is archived
   with the legacy harness; the replacement harness must restore this proof
-  before any new adapter ships.)
+  before any new adapter ships. Restored offline so far at
+  `tests/hermetic/cf-adapter-conformance/` + `tests/fixtures/adapters/`: the
+  gate-denial/resume pair walk, the subagent gate-ordering probe with the pi
+  fan-out degradation path, and the 300 KB payload-transport pin — #334.)
 - Capability flow is one-way (#116). Follow
   `docs/harness/adding-updating.md` for the adapter contract, registration
   checklist, three test tiers, and update obligations.

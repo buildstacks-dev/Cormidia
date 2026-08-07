@@ -7,9 +7,7 @@
 // other episode without constructing a runtime.
 
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { writeLoopFileAtomic, writeLoopFileOnce } from "../loop/durable.js";
 import {
   episodePlanHash,
   readCurrentEpisodePlan,
@@ -117,8 +115,20 @@ import {
   type DirectExecutionUnitAuthority,
 } from "./roadmap-delivery/direct-execution-authority.js";
 import {
+  assertNoActiveExecutionUnitOverlap,
+  findActiveExecutionUnit,
+  listActiveExecutionUnits,
+  readExecutionBatch,
+} from "./roadmap-delivery/active-execution-units.js";
+import {
+  ensureExecutionUnitJournal,
+  executionBatchDispositionPath,
+  readExecutionUnitJournal,
+  transitionExecutionUnitJournal,
+} from "./roadmap-delivery/execution-journal.js";
+import type { ExecutionUnitJournal } from "./roadmap-delivery/execution-journal-model.js";
+import {
   assertExecutionBatchShape,
-  assertExecutionUnitBudget,
   normalizeExecutionUnitBudget,
   type ExecutionBatch,
   type ExecutionUnit,
@@ -183,6 +193,16 @@ export { acceptDeliveryUnitReadiness, readCurrentDeliveryUnitReadiness, reconcil
 export type { DeliveryUnitReadiness };
 export { acceptDirectExecutionUnit };
 export type { DirectExecutionUnitAuthority, ExecutionBatch, ExecutionUnit, ExecutionUnitBudget };
+export {
+  executionBatchDispositionPath,
+  findActiveExecutionUnit,
+  listActiveExecutionUnits,
+  readExecutionBatch,
+  readExecutionUnitJournal,
+  transitionExecutionUnitJournal,
+};
+export type { ActiveExecutionUnit } from "./roadmap-delivery/active-execution-units.js";
+export type { ExecutionBatchDisposition } from "./roadmap-delivery/execution-journal-model.js";
 export type {
   AcceptedRoadmapPlan,
   BacklogSnapshot,
@@ -194,53 +214,6 @@ export type {
   RoadmapWorkstream,
   RoutingSnapshotEntry,
 };
-
-type ExecutionUnitJournalState =
-  | "admitted"
-  | "planning"
-  | "claimed"
-  | "running"
-  | "reviewing"
-  | "approved"
-  | "returned"
-  | "failed"
-  | "completed";
-
-interface ExecutionUnitJournal {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  app: string;
-  batchRef: AuthorityRef;
-  unitId: string;
-  unitIdentityHash: string;
-  state: ExecutionUnitJournalState;
-  budget: ExecutionUnitBudget;
-  usage: {
-    providerTurns: number;
-    equivalentCostUsd: number;
-    mechanicalOverheadUsd: number;
-    activeTimeMs: number;
-    humanDecisions: number;
-  };
-  episodeBindingRef: AuthorityRef | null;
-  claimSettlementId: string | null;
-  evidenceRefs: AuthorityRef[];
-  candidateHead: string | null;
-  pullRequestNumber: number | null;
-  outcome: "completed" | "returned" | "failed" | null;
-  updatedAt: string;
-}
-
-export interface ExecutionBatchDisposition {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  app: string;
-  batchRef: AuthorityRef;
-  units: Array<{
-    unitId: string;
-    outcome: "completed" | "returned" | "failed";
-    journalHash: string;
-  }>;
-  completedAt: string;
-}
 
 export interface DeliveryEpisodeBinding {
   schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
@@ -361,7 +334,6 @@ type DeliveryEpisodeFacts = Omit<EpisodeIntentFacts, "episodeId" | "app" | "role
 const CLAIM_NAMESPACE = "planning/delivery-unit-claims";
 const DEFAULT_EXECUTION_BATCH_MAX_UNITS = 8;
 const DEFAULT_EXECUTION_BATCH_MAX_MANIFEST_BYTES = 64 * 1024;
-const HASH = /^[a-f0-9]{64}$/;
 const CANDIDATE_HEAD = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/;
 
 /** Token-free admission. This function neither builds an EpisodeIntent nor calls EpisodePlanner. */
@@ -1395,156 +1367,6 @@ export async function settleDeliveryUnitRefusal(input: {
   });
 }
 
-export async function readExecutionUnitJournal(
-  root: string,
-  app: string,
-  batchId: string,
-  unitId: string,
-): Promise<ExecutionUnitJournal | undefined> {
-  const path = executionUnitJournalPath(root, app, batchId, unitId);
-  if (!existsSync(path)) return undefined;
-  const value = JSON.parse(await readFile(path, "utf8")) as ExecutionUnitJournal;
-  assertExecutionUnitJournal(value);
-  return value;
-}
-
-export async function transitionExecutionUnitJournal(input: {
-  root: string;
-  app: string;
-  batchRef: AuthorityRef;
-  unitId: string;
-  expectedStates: ExecutionUnitJournalState[];
-  nextState: ExecutionUnitJournalState;
-  usageDelta?: Partial<ExecutionUnitJournal["usage"]>;
-  episodeBindingRef?: AuthorityRef;
-  claimSettlementId?: string;
-  evidenceRefs?: AuthorityRef[];
-  candidateHead?: string;
-  pullRequestNumber?: number;
-  outcome?: "completed" | "returned" | "failed";
-  now: Date;
-}): Promise<ExecutionUnitJournal> {
-  return withFileLock(
-    executionUnitJournalLockPath(input.root, input.app, input.batchRef.id, input.unitId),
-    ROADMAP_MUTATION_LOCK,
-    async () => {
-      const batch = await requireAuthority<ExecutionBatch>(
-        input.root,
-        input.app,
-        input.batchRef,
-        "execution_batch",
-        "batch_hard_constraint_failed",
-      );
-      assertExecutionBatchShape(batch.value);
-      const unit = batch.value.units.find((candidate) => candidate.unitId === input.unitId);
-      if (unit === undefined) {
-        throw new RoadmapDeliveryError("unit_journal_conflict", `${input.unitId} is not in the batch`);
-      }
-      const current =
-        (await readExecutionUnitJournal(input.root, input.app, batch.ref.id, input.unitId)) ??
-        initialExecutionUnitJournal(batch, unit);
-      if (!input.expectedStates.includes(current.state)) {
-        if (current.state === input.nextState && input.outcome === current.outcome) {
-          if (isTerminalJournalState(current.state)) {
-            await writeBatchDispositionIfComplete(input.root, batch, input.now);
-          }
-          return current;
-        }
-        throw new RoadmapDeliveryError(
-          "unit_journal_conflict",
-          `${input.unitId} is ${current.state}, expected ${input.expectedStates.join("|")}`,
-        );
-      }
-      const usage = addExecutionUnitUsage(current.usage, input.usageDelta ?? {});
-      assertUsageWithinBudget(usage, current.budget);
-      const next: ExecutionUnitJournal = {
-        ...current,
-        state: input.nextState,
-        usage,
-        ...(input.episodeBindingRef === undefined ? {} : { episodeBindingRef: input.episodeBindingRef }),
-        ...(input.claimSettlementId === undefined ? {} : { claimSettlementId: input.claimSettlementId }),
-        ...(input.evidenceRefs === undefined ? {} : { evidenceRefs: [...input.evidenceRefs] }),
-        ...(input.candidateHead === undefined ? {} : { candidateHead: input.candidateHead }),
-        ...(input.pullRequestNumber === undefined ? {} : { pullRequestNumber: input.pullRequestNumber }),
-        ...(input.outcome === undefined ? {} : { outcome: input.outcome }),
-        updatedAt: input.now.toISOString(),
-      };
-      assertExecutionUnitJournal(next);
-      await writeLoopFileAtomic(
-        executionUnitJournalPath(input.root, input.app, batch.ref.id, input.unitId),
-        `${JSON.stringify(next, null, 2)}\n`,
-      );
-      if (isTerminalJournalState(next.state)) {
-        await writeBatchDispositionIfComplete(input.root, batch, input.now);
-      }
-      return next;
-    },
-  );
-}
-
-export async function readExecutionBatch(
-  root: string,
-  app: string,
-  ref: AuthorityRef,
-): Promise<AcceptedAuthority<ExecutionBatch>> {
-  const batch = await requireAuthority<ExecutionBatch>(
-    root,
-    app,
-    ref,
-    "execution_batch",
-    "batch_hard_constraint_failed",
-  );
-  assertExecutionBatchShape(batch.value);
-  return batch;
-}
-
-export async function findActiveExecutionUnit(
-  root: string,
-  app: string,
-  unitId: string,
-): Promise<ActiveExecutionUnit | undefined> {
-  return (await listActiveExecutionUnits(root, app)).find((entry) => entry.unit.unitId === unitId);
-}
-
-export interface ActiveExecutionUnit {
-  batch: AcceptedAuthority<ExecutionBatch>;
-  unit: ExecutionUnit;
-  journal: ExecutionUnitJournal;
-}
-
-export async function listActiveExecutionUnits(root: string, app: string): Promise<ActiveExecutionUnit[]> {
-  const directory = join(planningAppDir(root, app), "execution_batchs");
-  if (!existsSync(directory)) return [];
-  const found = new Map<string, ActiveExecutionUnit>();
-  for (const batchId of (await readdir(directory)).sort()) {
-    const batchDir = join(directory, batchId);
-    let versions: string[];
-    try {
-      versions = await readdir(batchDir);
-    } catch {
-      continue;
-    }
-    for (const version of versions.filter((name) => /^v\d+\.json$/.test(name)).sort()) {
-      const batch = await readAuthorityFile<ExecutionBatch>(join(batchDir, version));
-      assertExecutionBatchShape(batch.value);
-      for (const unit of batch.value.units) {
-        const journal =
-          (await readExecutionUnitJournal(root, app, batch.ref.id, unit.unitId)) ??
-          (await ensureExecutionUnitJournal(root, batch, unit));
-        if (isTerminalJournalState(journal.state)) continue;
-        if (found.has(unit.unitId)) {
-          throw new RoadmapDeliveryError(
-            "batch_membership_active",
-            `${unit.unitId} appears in multiple active batches`,
-          );
-        }
-        found.set(unit.unitId, { batch, unit, journal });
-      }
-    }
-  }
-  return [...found.values()].sort((a, b) => a.unit.unitId.localeCompare(b.unit.unitId));
-}
-
 export function deliveryClaimRecordPath(root: string, identity: string): string {
   const settlementId = durableClaimSettlementId(identity);
   return join(resolve(root), CLAIM_NAMESPACE, "records", `${settlementId}.json`);
@@ -2008,208 +1830,8 @@ function assertReviewerVerdictShape(verdict: ReviewerVerdict): void {
   requireDateTime(verdict.recordedAt, "Reviewer verdict recordedAt");
 }
 
-function executionUnitIdentityHash(unit: ExecutionUnit): string {
-  return unit.kind === "direct_operation"
-    ? stableHash({ kind: unit.kind, dedupeKey: unit.dedupeKey })
-    : stableHash({ kind: "roadmap_code", membershipHash: unit.membershipHash });
-}
-
-function initialExecutionUnitJournal(
-  batch: AcceptedAuthority<ExecutionBatch>,
-  unit: ExecutionUnit,
-): ExecutionUnitJournal {
-  return {
-    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-    app: batch.value.app,
-    batchRef: batch.ref,
-    unitId: unit.unitId,
-    unitIdentityHash: executionUnitIdentityHash(unit),
-    state: "admitted",
-    budget: normalizeExecutionUnitBudget(unit.budget),
-    usage: {
-      providerTurns: 0,
-      equivalentCostUsd: 0,
-      mechanicalOverheadUsd: 0,
-      activeTimeMs: 0,
-      humanDecisions: 0,
-    },
-    episodeBindingRef: null,
-    claimSettlementId: null,
-    evidenceRefs: [],
-    candidateHead: null,
-    pullRequestNumber: null,
-    outcome: null,
-    updatedAt: batch.value.admittedAt,
-  };
-}
-
-async function ensureExecutionUnitJournal(
-  root: string,
-  batch: AcceptedAuthority<ExecutionBatch>,
-  unit: ExecutionUnit,
-): Promise<ExecutionUnitJournal> {
-  const path = executionUnitJournalPath(root, batch.value.app, batch.ref.id, unit.unitId);
-  const initial = initialExecutionUnitJournal(batch, unit);
-  const won = await writeLoopFileOnce(path, `${JSON.stringify(initial, null, 2)}\n`);
-  const current = won ? initial : await readExecutionUnitJournal(root, batch.value.app, batch.ref.id, unit.unitId);
-  if (
-    current === undefined ||
-    current.unitIdentityHash !== initial.unitIdentityHash ||
-    !sameAuthorityRef(current.batchRef, batch.ref)
-  ) {
-    throw new RoadmapDeliveryError("unit_journal_conflict", `${unit.unitId} journal differs from batch authority`);
-  }
-  return current;
-}
-
-function addExecutionUnitUsage(
-  current: ExecutionUnitJournal["usage"],
-  delta: Partial<ExecutionUnitJournal["usage"]>,
-): ExecutionUnitJournal["usage"] {
-  const next = {
-    providerTurns: current.providerTurns + (delta.providerTurns ?? 0),
-    equivalentCostUsd: current.equivalentCostUsd + (delta.equivalentCostUsd ?? 0),
-    mechanicalOverheadUsd: current.mechanicalOverheadUsd + (delta.mechanicalOverheadUsd ?? 0),
-    activeTimeMs: current.activeTimeMs + (delta.activeTimeMs ?? 0),
-    humanDecisions: current.humanDecisions + (delta.humanDecisions ?? 0),
-  };
-  if (Object.values(next).some((value) => !Number.isFinite(value) || value < 0)) {
-    throw new RoadmapDeliveryError("unit_journal_conflict", "unit usage delta is invalid");
-  }
-  return next;
-}
-
-function assertUsageWithinBudget(usage: ExecutionUnitJournal["usage"], budget: ExecutionUnitBudget): void {
-  if (
-    usage.providerTurns > budget.maxProviderTurns ||
-    usage.equivalentCostUsd > budget.maxEquivalentCostUsd ||
-    usage.mechanicalOverheadUsd > budget.maxMechanicalOverheadUsd ||
-    usage.activeTimeMs > budget.maxActiveTimeMs ||
-    usage.humanDecisions > budget.maxHumanDecisions
-  ) {
-    throw new RoadmapDeliveryError("unit_budget_exhausted", "unit usage exceeds its own admitted budget");
-  }
-}
-
-function assertExecutionUnitJournal(journal: ExecutionUnitJournal): void {
-  if (
-    journal.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION ||
-    journal.app.trim().length === 0 ||
-    !HASH.test(journal.unitIdentityHash) ||
-    ![
-      "admitted",
-      "planning",
-      "claimed",
-      "running",
-      "reviewing",
-      "approved",
-      "returned",
-      "failed",
-      "completed",
-    ].includes(journal.state)
-  ) {
-    throw new RoadmapDeliveryError("unit_journal_conflict", "execution-unit journal is invalid");
-  }
-  assertAuthorityRef(journal.batchRef, "execution_batch");
-  assertExecutionUnitBudget(journal.budget);
-  assertUsageWithinBudget(journal.usage, journal.budget);
-  requireDateTime(journal.updatedAt, "execution-unit journal updatedAt");
-  if (isTerminalJournalState(journal.state) !== (journal.outcome !== null)) {
-    throw new RoadmapDeliveryError("unit_journal_conflict", "terminal journal outcome is partial");
-  }
-}
-
-function isTerminalJournalState(state: ExecutionUnitJournalState): boolean {
-  return state === "completed" || state === "returned" || state === "failed";
-}
-
-async function writeBatchDispositionIfComplete(
-  root: string,
-  batch: AcceptedAuthority<ExecutionBatch>,
-  now: Date,
-): Promise<void> {
-  const journals = await Promise.all(
-    batch.value.units.map((unit) => readExecutionUnitJournal(root, batch.value.app, batch.ref.id, unit.unitId)),
-  );
-  if (journals.some((journal) => journal === undefined || !isTerminalJournalState(journal.state))) return;
-  const value: ExecutionBatchDisposition = {
-    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-    app: batch.value.app,
-    batchRef: batch.ref,
-    units: journals.map((journal) => ({
-      unitId: journal!.unitId,
-      outcome: journal!.outcome!,
-      journalHash: stableHash(journal),
-    })),
-    completedAt:
-      journals
-        .map((journal) => journal!.updatedAt)
-        .sort()
-        .at(-1) ?? now.toISOString(),
-  };
-  const path = executionBatchDispositionPath(root, batch.value.app, batch.ref.id);
-  const won = await writeLoopFileOnce(path, `${JSON.stringify(value, null, 2)}\n`);
-  if (!won) {
-    const existing = JSON.parse(await readFile(path, "utf8")) as ExecutionBatchDisposition;
-    if (stableHash(existing) !== stableHash(value)) {
-      throw new RoadmapDeliveryError(
-        "unit_journal_conflict",
-        "execution-batch disposition differs from terminal journals",
-      );
-    }
-  }
-}
-
-export function executionBatchDispositionPath(root: string, app: string, batchId: string): string {
-  assertId(batchId, "execution batch disposition id");
-  return join(planningAppDir(root, app), "execution-batch-dispositions", `${batchId}.json`);
-}
-
-async function assertNoActiveExecutionUnitOverlap(
-  root: string,
-  app: string,
-  candidates: readonly ExecutionUnit[],
-): Promise<void> {
-  const candidateKeys = new Set(candidates.flatMap(executionUnitExclusiveKeys));
-  const directory = join(planningAppDir(root, app), "execution_batchs");
-  if (!existsSync(directory)) return;
-  for (const batchId of await readdir(directory)) {
-    const batchDir = join(directory, batchId);
-    let versions: string[];
-    try {
-      versions = await readdir(batchDir);
-    } catch {
-      continue;
-    }
-    for (const version of versions.filter((name) => /^v\d+\.json$/.test(name))) {
-      const batch = await readAuthorityFile<ExecutionBatch>(join(batchDir, version));
-      assertExecutionBatchShape(batch.value);
-      for (const unit of batch.value.units) {
-        const journal = await readExecutionUnitJournal(root, app, batch.ref.id, unit.unitId);
-        if (journal !== undefined && isTerminalJournalState(journal.state)) continue;
-        if (executionUnitExclusiveKeys(unit).some((key) => candidateKeys.has(key))) {
-          throw new RoadmapDeliveryError(
-            "batch_membership_active",
-            `${unit.unitId} overlaps an active execution unit in batch ${batch.ref.id}`,
-          );
-        }
-      }
-    }
-  }
-}
-
-function executionUnitExclusiveKeys(unit: ExecutionUnit): string[] {
-  return unit.kind === "direct_operation"
-    ? [`direct:${unit.dedupeKey}`]
-    : [`code-membership:${unit.membershipHash}`, ...(unit.issueNumbers ?? []).map((number) => `issue:${number}`)];
-}
-
 function batchMutationLockPath(root: string, app: string): string {
   return join(planningAppDir(root, app), "execution-batch.lock");
-}
-
-function executionUnitJournalLockPath(root: string, app: string, batchId: string, unitId: string): string {
-  return join(planningAppDir(root, app), "execution-unit-journals", batchId, `${unitId}.lock`);
 }
 
 function claimRecordPath(root: string, settlementId: string): string {

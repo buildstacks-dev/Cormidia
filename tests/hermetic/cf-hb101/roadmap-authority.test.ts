@@ -134,6 +134,23 @@ async function acceptSnapshot(
 }
 
 describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
+  it("preserves typed failure identity through the roadmap-delivery façade", async () => {
+    const home = await makeTempStateHome({ name: "hb101-failure-taxonomy" });
+    homes.push(home);
+
+    try {
+      await acceptSnapshot(home, snapshot({ completeness: "partial", hasNextPage: true }));
+      throw new Error("expected typed backlog refusal");
+    } catch (error) {
+      expect(error).toBeInstanceOf(RoadmapDeliveryError);
+      expect(error).toMatchObject({
+        name: "RoadmapDeliveryError",
+        code: "backlog_incomplete",
+        message: "backlog_incomplete: snapshot github-open-issues@1 is partial with 0 unavailable page(s)",
+      });
+    }
+  });
+
   it("accounts for 125 issues once, bounds the frontier, and reconciles projections deterministically", async () => {
     const home = await makeTempStateHome({ name: "hb101-large" });
     homes.push(home);

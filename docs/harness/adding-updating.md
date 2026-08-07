@@ -1,18 +1,17 @@
 # Adding and updating runtime harnesses
 
-> **Status 2026-07-31:** the three-tier proof suite this procedure references
-> (offline conformance, budget units, `pnpm test:live`) is frozen under
-> `archive-do-not-read/` during the validation rebuild (docs/PURPOSE.md →
-> Decided, v2.9). The contract and obligations below remain canonical; the
-> replacement harness (`tests/`) must restore equivalent proof before
-> a new or updated adapter ships.
->
-> **Update 2026-08-07 (#334):** the two conformance claims that were still
-> archive-only are re-deposited offline in the replacement harness at
-> `tests/hermetic/cf-adapter-conformance/`: the subagent gate-ordering probe
-> (CF-B02/B03-SUBGATE for the fan-out-claiming harnesses plus the pi
-> CF-B04-DEGRADE degradation path) and the 300 KB payload-transport pin
-> (CF-B02/B03/B04-PAYLOAD), each with permanent seeded negative controls.
+> **Status 2026-08-07:** the replacement validation harness carries the full
+> adapter proof: per-adapter transport doubles with self-tests
+> (`tests/fixtures/adapters/`), the hermetic drift-guard pair
+> (`tests/hermetic/cf-adapter-conformance/`), and the same two-turn walk
+> against real adapters inside the human-triggered live campaign
+> (`tests/live/campaign-live.test.ts`, cases CF-B02/03/04-L3). The two claims
+> that were briefly archive-only are re-deposited offline (#334): the
+> subagent gate-ordering probe (CF-B02/B03-SUBGATE for the fan-out-claiming
+> harnesses plus the pi CF-B04-DEGRADE degradation path) and the 300 KB
+> payload-transport pin (CF-B02/B03/B04-PAYLOAD), each with permanent seeded
+> negative controls. The archived legacy suite stays archived and is never
+> read.
 
 *For agents and humans working on this repo. A **harness** (interchangeably:
 runtime adapter) is what turns one provider's agent product — Claude Agent
@@ -43,8 +42,11 @@ the loop extractable. Current harnesses: `claude.ts`, `codex.ts` (+
 
 ## 2. The contract a harness must honor
 
-`src/runtime/types.ts` is authoritative; these are the parts adapters get
-wrong first:
+`src/runtime/types.ts` is authoritative, and its ratified validation mirror
+is `validation-design/contracts/provider-adapter-core.md`
+(**CORMIDIA-C-CORE-001**), shared by the per-adapter boundaries (B-02
+Anthropic, B-03 Codex, B-04 pi) whose files carry only deltas. These are the
+parts adapters get wrong first:
 
 - **Gate every tool action — including subagents.** `TurnHooks.gate` MUST be
   consulted for every tool action the provider attempts, including actions
@@ -71,8 +73,8 @@ wrong first:
   non-success result and its usage; never fabricate successful zero-token
   work. Classify auth-like failures (`error_auth`) distinctly.
 - **Transport the task as a payload, not argv.** Briefs reach 300 KB; the
-  conformance suite pins intact transport (the ARG_MAX lesson,
-  `docs/loop/design.md` §2).
+  CF-B02/B03/B04-PAYLOAD pin in the replacement harness proves intact
+  transport per adapter (the ARG_MAX lesson, `docs/loop/design.md` §2).
 - **Redact with the shared list.** Secret patterns come only from
   `src/runtime/secret-patterns.ts` — redaction and quality gates import the
   same list.
@@ -90,8 +92,27 @@ wrong first:
 
 ## 3. Adding a new harness — registration checklist
 
-Work through these in order; each is a compile error, test failure, or review
-blocker if skipped:
+**Before any code, two obligations:**
+
+- **Pick the integration surface from the vendor's canonical docs, on
+  record.** A dated `research/` reference states the chosen surface (SDK vs
+  CLI-headless vs server protocol), the pinned version, auth model, and risk
+  flags, with fetch-verified sources — the current survey is
+  `research/2026-08-06_adapter-upstream-references.md`. Vendors that ship via
+  installer scripts (Cursor, Grok Build, Muse Code) are *required
+  preinstalled binaries*: the adapter never installs a provider (#224) and
+  readiness means usable auth, not binary presence alone.
+- **A new harness is a new validation boundary** — a structural addition to
+  the ratified design, not a case-level change. Re-enter the
+  `validation-harness-design` skill in `harness-revision` mode with the
+  existing artifacts as baseline to land the boundary contract
+  (`contracts/B-*.md` referencing CORMIDIA-C-CORE-001), catalog rows, and
+  lane tags first. If the skill is unavailable, stop and escalate — do not
+  improvise the boundary (root AGENTS.md → Validation harness → Structural
+  additions).
+
+Then work through these in order; each is a compile error, test failure, or
+review blocker if skipped:
 
 1. **`src/runtime/types.ts`** — extend the `RuntimeKind` union.
 2. **`src/runtime/adapters/<name>.ts`** — implement `Runtime`. Study the
@@ -120,7 +141,7 @@ blocker if skipped:
    human-ratified change: propose with rationale, never silently rewrite.
    The builder ≠ reviewer cross-provider pairing in `test/roles.test.ts` is
    a design decision — if it fails, the roles change is wrong, not the test.
-9. **`research/`** — record the dated live-conformance result (see §5).
+9. **`research/`** — record the dated live-conformance result (see §6).
 10. **AGENTS.md** — update `src/runtime/AGENTS.md` (the local rules file)
     and the root AGENTS.md dependency list if a new package was added (a new
     dependency is a decision, not a convenience — TASTE.md §3).
@@ -129,35 +150,87 @@ blocker if skipped:
 
 | Tier | Where | Runs in | Proves |
 | --- | --- | --- | --- |
-| Per-adapter unit tests | `test/adapters/<name>.test.ts` | `pnpm test` | Adapter-specific mechanics: event mapping, gate bridging, session handling, error classification |
-| Budget-guard pin | `test/runtime/<name>-budget.unit.test.ts` | `pnpm test` | Under/over-budget split, the single incident note, spend still attributed (mocked SDK) |
-| Conformance suite | `runConformanceSuite(name, makeRuntime, opts)` from `test/conformance/harness.ts` | `pnpm test` (mocked) | The adapter-generic contract: critical ops escalate with the tripped rule named, routine ops pass, a **subagent** critical op is caught identically (event → gate → escalation ordering), 300 KB payload transports intact |
-| Live conformance | `test/runtime/<name>.live.test.ts` | `pnpm test:live` (opt-in, spends tokens) | The same claims against the real provider — the only proof the subagent-gate claim holds outside a mock |
+| L1 — transport double + self-test | `tests/fixtures/adapters/<name>-double.ts` + `<name>-double.test.ts` | `pnpm test` | The scripted transport speaks the provider's real wire shapes; the scenario DSL (`tests/fixtures/adapters/scenario.ts`) expresses tool calls, **subagent attribution**, session identity, usage, and failure outcomes |
+| L2 — hermetic conformance walk | `tests/hermetic/cf-adapter-conformance/` | `pnpm test` | The exact two-turn walk (`tests/fixtures/adapters/conformance.ts`) against the scripted transport: gate denial is terminal and observed, exact native-session resume, usage never marked mechanical — with a **seeded liar** proving each detector fires |
+| L3 — live certification walk | `runAdapterConformance()` (CF-B02/03/04-L3) inside `tests/live/campaign-live.test.ts` | `pnpm test:live` (human-triggered, spends tokens) | The same walk against the real provider in exactly two turns — the only proof the gate claim holds outside a double |
 
 Rules that keep the tiers meaningful:
 
-- `test/gate.test.ts` is the seed of the conformance cases. **Extend cases;
-  never weaken one to make an adapter pass.** Every new gate rule gets both
-  a critical case and a routine near-miss.
-- The conformance suite is driven by `ScriptedTurn`
-  (`src/runtime/testing/fakeRuntime.ts`) and proven against `FakeRuntime` in
-  `test/conformance/conformance.test.ts`; a new adapter supplies its own
-  `makeRuntime` over a mocked SDK and reuses every case, so a failure
-  isolates to the adapter, never the contract.
-- No role goes live on an adapter before it passes the conformance suite
-  end-to-end, including the subagent case (AGENTS.md working rule).
-- Codex and pi live smokes are opt-in (`CORMIDIA_CODEX_LIVE=1`,
-  `CORMIDIA_PI_LIVE=1`) because they spend provider quota and need local auth;
-  `pnpm test` never runs any `*.live.test.ts`.
+- **The walk is shared.** A new adapter contributes its transport double and
+  target wiring; the walk itself is reused verbatim, so a failure isolates to
+  the adapter, never the contract.
+- **Extend cases; never weaken one to make an adapter pass.** Every new gate
+  rule gets both a critical case and a routine near-miss (the
+  `tests/unit/cf-split-*` suites are the pattern).
+- **Negative controls are mandatory.** A detector that has never fired is an
+  assumption; the seeded-liar pattern in the pair test is the template.
+- **No role goes live** on an adapter before the L3 walk passes and its dated
+  `research/` record lands.
+- **Live lanes obey policy spend bounds**
+  (`validation-design/validation-policy.yaml`: pre-merge changed-adapter ≤2
+  turns/$5). Ceiling exhaustion reports incomplete — never green.
 
-## 5. Updating an existing harness
+## 5. Certification without the product — the fast lane
+
+Adapter integration must never wait on the whole org/app/loop pipeline. An
+adapter is **certified standalone**: a temp git workdir, usable auth, and a
+bounded number of provider turns — no org home, no app onboarding, no
+scheduler, no tickets. Composition risk (orchestrator + gate + settlement
+around the adapter) dies in L2 where it costs nothing; the product's own
+journeys are *qualification's* concern, not certification's.
+
+The certification ladder, cheapest first:
+
+1. **Readiness** (`src/runtime/readiness.ts`, surfaced by `cormidia doctor`)
+   — usable request authentication, and for installer-shipped vendors the
+   preinstalled binary. Configuration presence is never readiness.
+2. **Provision + one real call** — the L3 walk's first turn already proves
+   launch, payload-safe task transport, a real model response, and honest
+   usage settlement.
+3. **Per-capability probes** — every tier declared in
+   `src/runtime/capabilities.ts` is proven at the declared tier, and only at
+   the declared tier (no green by absence; `unsupported` proves its
+   degradation artifact instead):
+
+   | Capability | Probe |
+   | --- | --- |
+   | `tool_gate` | denied tool action → `blocked_on_gate` + escalation, gate observed (the walk) |
+   | `session_resume` | second turn resumes the exact prior session id (the walk) |
+   | `structured_verdict` | schema round-trip (native/adapter) or lenient-parse fallback exercised |
+   | `cancellation` | abort mid-turn → `cancelled`/`timed_out`, partial usage preserved |
+   | `cache_telemetry` | declared cache fields present and plausible on a warm second turn |
+   | `intra_turn_fanout` | **the load-bearing probe**: a spawned subagent's critical op reaches the gate identically (event → gate → escalation ordering); `unsupported` proves the serial-degradation note instead |
+
+   The budget guard (`error_max_budget_usd`, exactly one incident note, spend
+   still attributed) is pinned offline against the double — never live.
+4. **Representative-model smokes** — for multi-model backbones (pi,
+   OpenCode), certify one or two models per provider family and publish the
+   full roster through the harness's own catalog
+   (`src/runtime/model-catalog.ts`). Certification is per harness surface,
+   not per model.
+
+**Certification ≠ qualification.** Certification proves the adapter works and
+its declared capability tiers are honest — standalone, spend-bounded,
+repeated on every version bump. Qualification proves a specific
+harness/model/effort tuple does a *role's job well* — that is the L4
+campaign machinery: per-candidate, human-authorized, and unchanged by this
+section. Publishing a model in a roster never assigns it to a role;
+`roles.yaml` ratification plus qualification evidence remain the only path to
+live work.
+
+## 6. Updating an existing harness
 
 Minimum bar for **any** `src/runtime/adapters/**` change:
 
 1. `pnpm test && pnpm typecheck` (seconds).
 2. `pnpm test:live` — and record the dated result in `research/`. The live
-   run is the only proof the subagent-gate claim still holds; the research
-   record is what makes that proof citable later.
+   run is the only proof the gate claim still holds outside a double; the
+   research record is what makes that proof citable later.
+3. On a **version bump** of a provider package, re-read the vendor's current
+   docs before touching code (fast-moving uploads break SDK/RPC surfaces —
+   pi warns about this explicitly), re-run certification (§5), and re-check
+   every capability tier the bump could move (e.g. an effort level or
+   fan-out surface appearing upstream).
 3. If a capability's tier or behavior changed, update the matching
    `docs/harness/capability-matrix.md` row **in the same change**, and the
    `RuntimeCapabilityProfile` if the machine-readable tier moved.
@@ -181,7 +254,7 @@ Additional obligations by blast radius:
   Adapter work that changes which models are reachable re-opens that
   ratification, it doesn't edit around it.
 
-## 6. What the agent inside a turn knows
+## 7. What the agent inside a turn knows
 
 Every assignment-aware provider turn now carries a small **Turn execution
 facts** section through the ordinary `ContextBundle` native channel. It names
@@ -219,12 +292,13 @@ This mechanism implements the repository side of
 [#116](https://github.com/cormidia/Cormidia/issues/116); publication is
 still required before the issue can be called completed.
 
-## 7. Command reference
+## 8. Command reference
 
 | Purpose | Command |
 | --- | --- |
-| Offline suite (all three tiers, mocked) | `pnpm test` |
+| Offline lanes (L1 doubles + L2 hermetic walk) | `pnpm test` |
 | Typecheck | `pnpm typecheck` |
-| Live conformance (spends tokens; Codex/pi opt-in) | `pnpm test:live` |
+| Live certification walk (human-triggered; spends tokens) | `pnpm test:live` |
 | Adapter readiness without a model turn | `cormidia doctor` / `pnpm dev doctor` |
 | Capability profiles as the org sees them | `cormidia capabilities` |
+| Upstream surface survey (dated) | `research/2026-08-06_adapter-upstream-references.md` |

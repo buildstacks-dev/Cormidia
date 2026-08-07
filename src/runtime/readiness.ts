@@ -80,6 +80,7 @@ interface PiReadinessDependencies {
 const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementation> = {
   claude: probeClaude,
   codex: probeCodex,
+  cursor: probeCursor,
   pi: probePi,
 };
 
@@ -316,6 +317,70 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
     request.signal.removeEventListener("abort", abort);
     await client.close();
   }
+}
+
+/**
+ * Cursor ships via a curl installer, so the binary is a REQUIRED PREINSTALLED
+ * artifact — Cormidia never installs a provider (#224). Readiness is therefore
+ * two things and no fewer: the `cursor-agent` binary is resolvable (never the
+ * short alias `agent`, which is Grok Build on real operator machines), and the
+ * stored login is usable or an explicit `CURSOR_API_KEY` is present.
+ * `cursor-agent status` reads the stored credential without sending a model
+ * request, so the probe stays non-billable.
+ */
+async function probeCursor(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
+  const env = request.processEnv ?? process.env;
+  const version = (await runCursorAgent(["--version"], env, request.signal)).stdout.trim();
+  const status = await runCursorAgent(["status"], env, request.signal);
+  const output = `${status.stdout}\n${status.stderr}`.trim();
+  if (status.code === 0 && /logged in/i.test(output)) {
+    return {
+      status: "ready",
+      detail: `cursor-agent ${version} reports a usable stored login (${firstLine(output)}); no model turn sent`,
+    };
+  }
+  const apiKey = env["CURSOR_API_KEY"];
+  if (typeof apiKey === "string" && apiKey.trim().length > 0) {
+    return {
+      status: "ready",
+      detail: `cursor-agent ${version} has no stored login, but CURSOR_API_KEY is set; no model turn sent`,
+    };
+  }
+  return {
+    status: "unauthenticated",
+    errorCode: "error_adapter_unauthenticated",
+    detail:
+      `cursor-agent ${version} reports no usable credential ` +
+      `(${firstLine(output) || `status exited ${status.code}`}); run \`cursor-agent login\` or set CURSOR_API_KEY`,
+  };
+}
+
+function runCursorAgent(
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  signal: AbortSignal,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile("cursor-agent", args, { env, signal, encoding: "utf8" }, (error, stdout, stderr) => {
+      const code = (error as (Error & { code?: unknown }) | null)?.code;
+      if (error !== null && typeof code !== "number") {
+        // ENOENT and friends carry a string code — classifyProbeError turns
+        // those into missing_binary rather than a misconfiguration.
+        reject(error);
+        return;
+      }
+      resolve({ code: typeof code === "number" ? code : 0, stdout, stderr });
+    });
+  });
+}
+
+function firstLine(value: string): string {
+  return (
+    value
+      .split(/\r?\n/)
+      .find((line) => line.trim().length > 0)
+      ?.trim() ?? ""
+  );
 }
 
 async function probePi(

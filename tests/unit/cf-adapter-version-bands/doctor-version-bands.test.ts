@@ -50,8 +50,17 @@ describe("CF-B02/03/04-BANDS — doctor renders the version bands", () => {
       expect(entry.floor).toBe(declaration.floor);
       expect(entry.testedWith).toBe(declaration.testedWith);
       expect(entry.testedEvidence).toBe(declaration.testedEvidence);
-      expect(entry.band).toBe("at_tested");
-      expect(entry.version).toBe(declaration.testedWith);
+      if (declaration.versionSource.kind === "vendored_npm_package") {
+        expect(entry.band).toBe("at_tested");
+        expect(entry.version).toBe(declaration.testedWith);
+        continue;
+      }
+      // Installer-shipped harnesses (#224) are the operator's own binary and
+      // are legitimately absent here. Doctor must still render the bands, and
+      // must never invent a version it did not read.
+      expect(["at_tested", "unknown"]).toContain(entry.band);
+      if (entry.band === "unknown") expect(entry.version).toBeUndefined();
+      else expect(entry.version).toBe(declaration.testedWith);
     }
   });
 
@@ -60,10 +69,12 @@ describe("CF-B02/03/04-BANDS — doctor renders the version bands", () => {
     for (const kind of RUNTIME_KINDS) {
       const row = report.adapters.find((adapter) => adapter.name === kind);
       expect(row, `no doctor row for ${kind}`).toBeDefined();
-      expect(row?.detail).toContain("at_tested");
+      const band = report.harnessVersions.find((entry) => entry.runtime === kind)?.band;
+      expect(row?.detail).toContain(band === "unknown" ? "undetermined" : "at_tested");
       expect(row?.detail).toContain(`floor ${HARNESS_SUPPORT[kind].floor}`);
       expect(row?.detail).toContain(`tested-with ${HARNESS_SUPPORT[kind].testedWith}`);
-      // Drift and band reporting never turn a row into a hard failure.
+      // Drift, band reporting, and an absent operator-installed binary never
+      // turn a row into a hard failure.
       expect(row?.status).not.toBe("FAIL");
     }
   });

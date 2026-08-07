@@ -148,15 +148,26 @@ describe("CF-B02/03/04-BANDS — strict semver comparison", () => {
   });
 });
 
+// Vendored packages are installed by `pnpm install`, so CI and a developer
+// machine both resolve them. Installer-shipped harnesses (#224) are the
+// OPERATOR's binary and are legitimately absent in CI — asserting they resolve
+// everywhere would assert that Cormidia installs providers, which it must not.
+const VENDORED_KINDS = RUNTIME_KINDS.filter(
+  (kind) => HARNESS_SUPPORT[kind].versionSource.kind === "vendored_npm_package",
+);
+const INSTALLED_BINARY_KINDS = RUNTIME_KINDS.filter(
+  (kind) => HARNESS_SUPPORT[kind].versionSource.kind === "installed_binary",
+);
+
 describe("CF-B02/03/04-BANDS — token-free detection of the installed harness", () => {
-  it.each(RUNTIME_KINDS)("%s resolves the installed package version without a provider call", (kind) => {
+  it.each(VENDORED_KINDS)("%s resolves the vendored package version without a provider call", (kind) => {
+    const source = HARNESS_SUPPORT[kind].versionSource;
+    const named = source.kind === "vendored_npm_package" ? source.packageName : kind;
     const detection = detectHarnessVersion(kind);
-    expect(detection, `no installed version for ${HARNESS_SUPPORT[kind].versionSource.packageName}`).toMatchObject({
-      detected: true,
-    });
+    expect(detection, `no installed version for ${named}`).toMatchObject({ detected: true });
   });
 
-  it.each(RUNTIME_KINDS)("%s is installed at its declared tested-with version", (kind) => {
+  it.each(VENDORED_KINDS)("%s is installed at its declared tested-with version", (kind) => {
     // A dependency bump that does not also move testedWith would leave the
     // declaration lying about what certification ran against
     // (docs/harness/adding-updating.md §6).
@@ -164,6 +175,29 @@ describe("CF-B02/03/04-BANDS — token-free detection of the installed harness",
       "at_tested",
     );
   });
+
+  it.each(INSTALLED_BINARY_KINDS)(
+    "%s reports its operator-installed binary honestly — resolved, or an undetermined band, never a claimed pass",
+    (kind) => {
+      // The binary may or may not be present on the machine running this suite.
+      // Both outcomes are correct; the one thing that must never happen is a
+      // band claiming a version certification ran against when none was read.
+      const assessment = assessHarnessVersion(kind);
+      const detection = detectHarnessVersion(kind);
+      if (detection.detected) {
+        expect(assessment.band, `re-certify ${kind} and bump testedWith`).toBe("at_tested");
+        expect(assessment.version).toBe(HARNESS_SUPPORT[kind].testedWith);
+        return;
+      }
+      expect(assessment.band).toBe("unknown");
+      expect(assessment.version).toBeUndefined();
+      expect(assessment.detail).toContain("undetermined");
+      // Absence is a readiness fact, never a version verdict: Cormidia does not
+      // install providers (#224), so a missing binary must not read as
+      // below_floor and must not block.
+      expect(assessment.band).not.toBe("below_floor");
+    },
+  );
 
   it("reports an unresolvable package honestly rather than guessing", () => {
     const assessment = assessHarnessVersion("claude", () => ({

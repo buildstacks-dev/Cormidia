@@ -24,8 +24,10 @@ export interface AdapterConformanceSeedOptions {
   seededLegacyForbiddenResumeProbe?: boolean;
 }
 
+export type AdapterConformanceCaseId = `CF-B0${2 | 3 | 4}-L3` | "CF-B24-L3";
+
 export interface AdapterConformanceReport {
-  caseId: `CF-B0${2 | 3 | 4}-L3`;
+  caseId: AdapterConformanceCaseId;
   providerTurns: 2;
   equivUsd: number;
   sessionId: string;
@@ -33,9 +35,10 @@ export interface AdapterConformanceReport {
   violationIds: string[];
 }
 
-const CASES: Record<RuntimeKind, AdapterConformanceReport["caseId"]> = {
+export const ADAPTER_CONFORMANCE_CASES: Record<RuntimeKind, AdapterConformanceCaseId> = {
   claude: "CF-B02-L3",
   codex: "CF-B03-L3",
+  cursor: "CF-B24-L3",
   pi: "CF-B04-L3",
 };
 
@@ -83,7 +86,7 @@ export async function runAdapterConformance(
   if (first.usage.quality === "none" || second.usage.quality === "none")
     violations.push("CORMIDIA-INV-006:provider-turn-marked-mechanical");
   return {
-    caseId: CASES[target.runtime],
+    caseId: ADAPTER_CONFORMANCE_CASES[target.runtime],
     providerTurns: 2,
     equivUsd: round(first.usage.costUsd + second.usage.costUsd),
     sessionId: first.session.id,

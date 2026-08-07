@@ -1707,6 +1707,14 @@ function sessionEvidence(session: TurnResult["session"]): SessionEvidence {
       transcript_note: "Provider session reference recorded; session.log is activity only.",
     };
   }
+  if (session.runtime === "cursor") {
+    return {
+      ...session,
+      native_ref: session.id,
+      transcript: "provider_session",
+      transcript_note: "Resume the chat with `cursor-agent --resume <id>`; session.log is activity only.",
+    };
+  }
   return {
     ...session,
     transcript: "unavailable",

@@ -5,12 +5,14 @@
 // direction), and adapters that expose a toolset-shaping surface make the
 // attempt UNREPRESENTABLE so it never reaches a gate at all.
 //
-// Only the Claude adapter has such a surface today (inline `settings`
-// permissions.deny — full permission-rule syntax, evaluated by the CLI's
-// own permission layer). Codex routes every command through its approval
-// callback with no per-command deny list, and pi exposes only a coarse
-// read/bash/edit/write toolset — for both, the composed gate's flat deny IS
-// the enforcement (docs/harness/capability-matrix.md records the degradation).
+// Claude and Cursor have such a surface (Claude: inline `settings`
+// permissions.deny — full permission-rule syntax, evaluated by the CLI's own
+// permission layer; Cursor: `.cursor/cli.json` `permissions.deny` with
+// `Shell()/Read()/Write()/WebFetch()/Mcp()` patterns, deny-wins). Codex routes
+// every command through its approval callback with no per-command deny list,
+// and pi exposes only a coarse read/bash/edit/write toolset — for both, the
+// composed gate's flat deny IS the enforcement
+// (docs/harness/capability-matrix.md records the degradation).
 
 /** Acts these roles must never even attempt. Keys are roles.yaml role
  *  names; values are the gate rule names (src/runtime/gate.ts). */
@@ -50,6 +52,25 @@ const CLAUDE_PATTERNS_BY_RULE: Record<string, readonly string[]> = {
     "Edit(~/.config/claude/**)",
     "Write(~/.config/codex/**)",
     "Edit(~/.config/codex/**)",
+    "Write(~/.cursor/**)",
+    "Edit(~/.cursor/**)",
+  ],
+};
+
+/** Cursor `.cursor/cli.json` deny patterns. Same acts, Cursor's own token
+ *  syntax (`Shell(base)` matches on the command base, `Write(glob)` on the
+ *  path), so a forbidden act is unrepresentable in the CLI's permission layer
+ *  as well as denied by the composed gate. Cursor has no `Edit()` token — its
+ *  edit tool is covered by `Write()`. */
+const CURSOR_PATTERNS_BY_RULE: Record<string, readonly string[]> = {
+  "self-merge-or-approve": ["Shell(gh pr merge:*)", "Shell(gh pr review:*)"],
+  "production-deploy": ["Shell(kubectl:*)", "Shell(doctl:*)"],
+  "provider-global-memory": [
+    "Write(~/.claude/**)",
+    "Write(~/.codex/**)",
+    "Write(~/.cursor/**)",
+    "Write(~/.config/claude/**)",
+    "Write(~/.config/codex/**)",
   ],
 };
 
@@ -58,4 +79,11 @@ const CLAUDE_PATTERNS_BY_RULE: Record<string, readonly string[]> = {
 export function claudeDenyRulesForRole(roleName: string): string[] {
   const rules = FORBIDDEN_BY_ROLE[roleName] ?? [];
   return rules.flatMap((rule) => CLAUDE_PATTERNS_BY_RULE[rule] ?? []);
+}
+
+/** The Cursor permission deny rules for a role — empty for roles with no
+ *  forbidden acts, so shaping never widens. */
+export function cursorDenyRulesForRole(roleName: string): string[] {
+  const rules = FORBIDDEN_BY_ROLE[roleName] ?? [];
+  return rules.flatMap((rule) => CURSOR_PATTERNS_BY_RULE[rule] ?? []);
 }

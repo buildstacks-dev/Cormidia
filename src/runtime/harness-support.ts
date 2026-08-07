@@ -11,23 +11,30 @@
 // refusal, `cormidia doctor`, and upstream-freshness automation all read it.
 // Detection is token-free: no model turn, no provider request.
 
-import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readBinaryVersion, readPackageVersion, type HarnessVersionDetection } from "./harness-version-detect.js";
 import { definedProps } from "./optional-properties.js";
 import type { RuntimeKind } from "./types.js";
 
 /**
- * Where the installed harness version is read from. Today every harness ships
- * as a vendored npm package, so one member suffices. #224 turns harnesses into
- * user-installed products; adding an installed-binary member here replaces the
- * *source* — `assessHarnessVersion()` and its consumers do not change.
+ * Where the installed harness version is read from. Vendored npm packages read
+ * their manifest; installer-shipped products (#224) are the operator's own
+ * binary and are asked directly. `assessHarnessVersion()` and its consumers do
+ * not change either way — only the source does.
  */
-type HarnessVersionSource = {
-  readonly kind: "vendored_npm_package";
-  readonly packageName: string;
-};
+type HarnessVersionSource =
+  | {
+      readonly kind: "vendored_npm_package";
+      readonly packageName: string;
+    }
+  | {
+      /**
+       * A required preinstalled binary (#224). Cormidia never installs it, so
+       * absence is a detection failure, not a floor violation.
+       */
+      readonly kind: "installed_binary";
+      readonly command: string;
+      readonly args: readonly string[];
+    };
 
 export interface HarnessSupportDeclaration {
   /**
@@ -86,11 +93,24 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     testedEvidence: "research/2026-08-07_pi-0.84.1-refresh.md",
     versionSource: { kind: "vendored_npm_package", packageName: "@earendil-works/pi-coding-agent" },
   },
+  cursor: {
+    // cursor-agent versions calendar-style (`2026.08.04-aaa8809`), which is not
+    // strict semver. `normalizeCalendarVersion` drops the build sha and the
+    // zero-padding so the SAME banding machinery applies — the sha is build
+    // metadata, exactly the `+build` component semver §10 says to ignore.
+    // Floor equals testedWith because this harness has been certified against
+    // exactly one build and its gate claim is version-banded: the hook-firing
+    // behaviour the adapter depends on was observed, not documented, so
+    // refusing an unproven older build is the honest default rather than a
+    // guess about which older interface still fires hooks.
+    floor: "2026.8.4",
+    testedWith: "2026.8.4",
+    testedEvidence: "research/2026-08-07_cursor-adapter-certification.md",
+    versionSource: { kind: "installed_binary", command: "cursor-agent", args: ["--version"] },
+  },
 };
 
-export type HarnessVersionDetection =
-  | { readonly detected: true; readonly version: string }
-  | { readonly detected: false; readonly reason: string };
+export type { HarnessVersionDetection };
 
 /** Injection seam: tests and future version sources supply their own. */
 export type HarnessVersionDetector = (runtime: RuntimeKind) => HarnessVersionDetection;
@@ -111,7 +131,10 @@ export interface HarnessVersionAssessment {
 
 /** Token-free installed-version detection. Never sends a provider request. */
 export function detectHarnessVersion(runtime: RuntimeKind): HarnessVersionDetection {
-  return readPackageVersion(HARNESS_SUPPORT[runtime].versionSource.packageName);
+  const source = HARNESS_SUPPORT[runtime].versionSource;
+  return source.kind === "vendored_npm_package"
+    ? readPackageVersion(source.packageName)
+    : readBinaryVersion(source.command, source.args);
 }
 
 /**
@@ -193,45 +216,6 @@ function assessment(
   };
 }
 
-const requireFromHere = createRequire(import.meta.url);
-const MODULE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
-
-function readPackageVersion(packageName: string): HarnessVersionDetection {
-  for (const manifestPath of candidateManifestPaths(packageName)) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(readFileSync(manifestPath, "utf8"));
-    } catch {
-      continue;
-    }
-    if (!isRecord(parsed) || parsed["name"] !== packageName) continue;
-    const version = parsed["version"];
-    if (typeof version !== "string" || version.trim() === "") {
-      return { detected: false, reason: `${packageName} manifest declares no version: ${manifestPath}` };
-    }
-    return { detected: true, version: version.trim() };
-  }
-  return { detected: false, reason: `${packageName} is not installed where ${MODULE_DIRECTORY} can resolve it` };
-}
-
-function candidateManifestPaths(packageName: string): string[] {
-  const candidates: string[] = [];
-  try {
-    // Canonical when the package exports "./package.json" (Codex does).
-    candidates.push(requireFromHere.resolve(`${packageName}/package.json`));
-  } catch {
-    // The others hide it behind an exports map; the node_modules walk finds it.
-  }
-  const segments = packageName.split("/");
-  let directory = MODULE_DIRECTORY;
-  for (;;) {
-    candidates.push(join(directory, "node_modules", ...segments, "package.json"));
-    const parent = dirname(directory);
-    if (parent === directory) return candidates;
-    directory = parent;
-  }
-}
-
 interface SemanticVersion {
   readonly release: readonly [number, number, number];
   readonly prerelease: readonly string[];
@@ -281,8 +265,4 @@ function comparePrerelease(left: readonly string[], right: readonly string[]): n
     return leftPart < rightPart ? -1 : 1;
   }
   return 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

@@ -27,6 +27,8 @@ its header):
 | B-09a | CORMIDIA-C-B09A-001 | | C-OP-PLAN | CORMIDIA-C-OPPLAN-001 |
 | B-09b | CORMIDIA-C-B09B-001 | | C-OP-LOOP | CORMIDIA-C-OPLOOP-001 |
 | C-OP-VALIDATION | CORMIDIA-C-OPVALIDATION-001 | | | |
+| B-23 | CORMIDIA-C-B23-001 | | B-24 | CORMIDIA-C-B24-001 |
+| B-25 | CORMIDIA-C-B25-001 | | B-26 | CORMIDIA-C-B26-001 |
 | INV-NNN | CORMIDIA-INV-NNN | | T-NN | system-map §5.2 control point (not a contract ID) |
 
 **Journey aliases** (`J-04/05/07/08` in J-18's composite trace) are not contract IDs:

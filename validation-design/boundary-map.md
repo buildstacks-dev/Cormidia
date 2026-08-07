@@ -20,6 +20,17 @@ and execution batch to independently authoritative delivery episodes. GitHub/pro
 filesystem transport still reuses B-01/B-02..04/B-15; these rows exist because their
 state owners and asynchronous failure domains differ, not to duplicate transport tests.
 
+Harness revision 2026-08-07 (#330/#336): B-23…B-26 add the four planned adapter
+harnesses — OpenCode (server+SDK), Cursor (`cursor-agent` CLI headless), Grok Build
+(ACP stdio), Muse Code (`muse exec` headless swarm) — as provider boundaries of the
+B-02/03/04 class. Each extends CORMIDIA-C-CORE-001 with per-adapter deltas only
+(contracts/B-23…B-26) and is **design-only until its adapter lands** (#337–#340);
+their live cells follow the certification lane (docs/harness/adding-updating.md §5),
+Grok Build's additionally gated on the #339 human risk review. Findings
+F-PT-025…028 park the mechanism-level gate-bridge cells (§4). Facts `[doc]`-derived
+from `research/2026-08-06_adapter-upstream-references.md`; `[stated]` = owner text in
+issues #330/#337–#340 and their field-verification comments.
+
 Boundaries fall out of the structural view (state ownership, consistency, failure
 domains) — never testing convenience. Interfaces (CLI/JSON/UI) are adapters, not
 boundaries; the `org → loop → runtime` import layering is code organization, not failure
@@ -474,6 +485,108 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   measured cache economics are observational until enough evidence exists.
 - **Layer:** 1/2 dominant; existing adapter L3; no new L5 solely for sequential batches.
 
+### B-23 — OpenCode server (`opencode serve` + SDK) `[doc]` (design-only, #337)
+- **Boundary test:** the OpenCode server/process can be down while every other
+  subsystem — and every other harness — runs. PASS.
+- **Failure modes:** the B-02 core shapes (timeout; rate limit; auth expiry mid-turn;
+  malformed/truncated output; usage absent — unknown ≠ zero, INV-006; resume that
+  authenticates but does not restore the exact session), plus: server process death
+  mid-turn; **SSE event-stream gap/disconnect while the server-side turn continues**
+  (lost-response class — execution ambiguity, dangerous retry pressure); OpenAPI/SDK
+  version skew with the running server (post-1.0 near-daily releases); **stale or
+  foreign server instance answering on the expected port** (wrong session universe —
+  an identity failure, not a transport failure); gating plugin hook not loaded =
+  gate hole (B-04's extension lesson: "hook registered" proves very little);
+  **permission `ask` in pure headless mode — behavior unspecified upstream
+  (F-PT-025)**; per-provider credential expiry inside one multi-provider install
+  (provider X usable while provider Y expired — must surface per connection,
+  INV-008); models.dev catalog drift / retired `provider/model` id (typed refusal,
+  never substitution); published-roster vs actually-reachable divergence.
+- **Honest fake:** YES — scripted HTTP/SSE double speaking the published OpenAPI
+  shapes: scriptable outcomes, event gaps, hook presence/absence, permission-ask
+  emission, per-provider auth states, catalog/roster responses.
+- **Unproven real (L3):** the §5 certification walk against the real server+SDK —
+  real auth store; real hook-seam denial of a forbidden attempt (mechanism
+  post-F-PT-025); real session resume; representative-model smokes (one
+  Anthropic-family, one OpenAI-family) `[stated]`. Spend-bounded per policy.
+- **Layer:** 2 + L3 certification (design-only until the adapter lands).
+
+### B-24 — Cursor CLI (`cursor-agent` headless) `[doc]` (design-only, #338)
+- **Boundary test:** PASS (subprocess dies/hangs independently).
+- **Failure modes:** the B-02 core shapes, plus: **directory-trust refusal** from an
+  untrusted workdir (typed, pre-spend — field-verified `[stated]`); **edits silently
+  not applied when `--force` is absent** (a success-looking turn with zero effect —
+  the evidence-lie class, INV-008); trust + `--force` mis-scoped (the pair is what
+  lets the agent act — a deliberate, gated adapter decision, never a default
+  `[stated]`); binary-name collision (`agent` resolves to another product on the
+  verified host — resolve `cursor-agent`, never `agent` `[stated]`); stream-json
+  protocol drift on the fast-moving CLI; native permissions config missing/malformed/
+  wider-than-role (refuse — Cormidia narrows onto Cursor's deny-wins surface, never
+  widens through it); **no documented dynamic per-action hook seam — `tool_gate`
+  tier undecidable from docs (F-PT-026)**; native `AGENTS.md`/`CLAUDE.md` ingestion
+  pulling operator-personal config into org turns (hermeticity); thread resume that
+  authenticates but does not restore the thread.
+- **Honest fake:** YES — scripted `cursor-agent` subprocess double speaking
+  stream-json: trust refusals, force-absent no-op edits, permission-config
+  interactions, thread-resume mismatch, protocol drift.
+- **Unproven real (L3):** the §5 certification walk — real auth, real trust/force
+  behavior in an org-managed worktree, a real denied forbidden attempt through
+  whatever enforcement F-PT-026 ratifies, version bands from `cursor-agent
+  --version`. Spend-bounded per policy.
+- **Layer:** 2 + L3 certification (design-only until the adapter lands).
+
+### B-25 — Grok Build ACP (`grok agent stdio`) `[doc]` (design-only; #339 risk-review-gated)
+- **Boundary test:** PASS (subprocess dies/hangs independently) — a B-03 cousin.
+- **Failure modes:** B-03's subprocess shapes (death mid-RPC preserving journal/
+  checkpoint; protocol-version skew as typed terminal config error; hang), plus:
+  ACP version-negotiation failure; **permission-request coverage gaps — a tool
+  action executed without the ACP permission round-trip is an INV-002 gate hole,
+  not a degradation (F-PT-027)**; headless auto-approve analog bypassing the request
+  path (unspecified upstream — same finding); auto-update mutating the binary
+  mid-campaign when `--no-auto-update` is omitted (config drift); auth expiry —
+  readiness probes usable request authentication (`XAI_API_KEY` or stored login),
+  never account presence; operator
+  `~/.grok/config.toml` substituting for the exact assigned model (refuse — core
+  §1); **vendor-transport exfiltration risk** — the recorded unverified 2026-07
+  secrets-upload report plus closed-contribution upstream make live use
+  human-risk-review-gated and sandbox-repo-only until cleared `[stated]` (INV-011
+  treats the transport as untrusted).
+- **Honest fake:** YES — fake ACP peer speaking JSON-RPC over stdio: scriptable
+  permission requests and omissions, denials, protocol skew, deaths, delays,
+  auto-approve analogs.
+- **Unproven real (L3):** the §5 certification walk over ACP — **conditional on the
+  recorded #339 human risk-review decision; throwaway sandbox repos only until it
+  clears real-repo use** `[stated]`. Spend-bounded per policy.
+- **Layer:** 2 + L3 certification (risk-review-gated).
+
+### B-26 — Muse Code (`muse exec` headless, swarm) `[doc]` (design-only, #340)
+- **Boundary test:** PASS.
+- **Failure modes:** the B-02 core shapes, plus: **a swarm-spawned agent's tool
+  action escaping the gate** — an INV-002 gate hole, never a degradation `[stated]`;
+  swarm-member attribution loss (events without paired subagent lifecycle/spanId);
+  **no gate/hook seam covering swarm members in the beta — existence unknown
+  (F-PT-028)**, with the owner-decided fallback already contract truth (no seam ⇒
+  `tool_gate: unsupported` for swarm mode, fan-out disabled — never an ungated
+  swarm `[stated]`); **ambient-config ingestion** — default runs pull the operator's
+  personal Claude/Codex rules + skills into org turns (field-verified `[stated]`;
+  disable path must be found, pinned, and proven, else documented degradation);
+  `--workspace` containment escape (tool effect outside the declared root — T-6);
+  JSONL event-schema drift on the 0.1.x beta (typed failure, never silent re-parse);
+  effort-ladder mismatch (`ultra` above `xhigh`; Cormidia `max` unmapped and throws
+  until a human ratifies the mapping `[stated]`); usage fields absent (unknown ≠
+  zero).
+- **Honest fake:** YES — scripted `muse exec` JSONL double (failure-mode substrate);
+  additionally the vendor's free `--provider echo` offline mode as a real-binary
+  hermetic **transport** lane `[stated]` — transport evidence only, never gate-seam,
+  swarm, or model-behavior evidence.
+- **Unproven real (L3):** the §5 certification walk with the **swarm gate probe as
+  the load-bearing case** (`intra_turn_fanout`: spawned agent's critical op reaches
+  the gate identically, event → gate → escalation ordering) — no role goes live
+  before it passes live, or fan-out is disabled with the documented degradation
+  `[stated]`; plus the hermeticity disable-path proof. Spend-bounded per policy;
+  re-certification on every version bump.
+- **Layer:** 2 (+ echo-mode hermetic transport lane) + L3 certification.
+
 ## 2. Not boundaries (named, so nobody re-litigates)
 
 - `org → loop → runtime` module layering — import discipline inside one process.
@@ -488,6 +601,9 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   S-8 layer-4 obligations, not a new provider boundary.
 - Delivery unit ↔ its member ticket/one-PR GitHub projections — the transaction is
   C-OP-LOOP behavior over B-01/B-15, not another independently deployable dependency.
+- A shared ACP transport core (if adopted per the B-25 `[PROPOSED]` note) — an
+  implementation detail behind per-harness boundaries; each ACP harness keeps its own
+  boundary, capability profile, and certification evidence.
 
 ## 3. Diagram
 
@@ -498,6 +614,10 @@ flowchart LR
         ANT[Anthropic SDK]
         CDX[Codex App Server]
         PI[pi SDK]
+        OC[OpenCode server]
+        CUR[Cursor CLI]
+        GRK[Grok Build ACP]
+        MUSE[Muse Code]
         OS[OS scheduler host]
         CLK[Clock]
         PROC[Process lifecycle]
@@ -529,6 +649,10 @@ flowchart LR
     TURN -- B-02 --> ANT
     TURN -- B-03 --> CDX
     TURN -- B-04 --> PI
+    TURN -. B-23 planned .-> OC
+    TURN -. B-24 planned .-> CUR
+    TURN -. B-25 planned .-> GRK
+    TURN -. B-26 planned .-> MUSE
     TURN -- B-01 --> GH
     TICK -- B-01 --> GH
     OBS -- B-12 local --> CORMIDIA
@@ -561,3 +685,24 @@ flowchart LR
   temp-file+rename required of producers, or dispatcher-tolerated partial files with
   retry? Docs silent (checked scheduler/design.md + event-schemas.md). The fake must not
   make this policy by fixture convenience.
+
+### Findings raised at the 2026-08-07 harness revision (#336)
+
+Canonical entries: `validation-policy.yaml` → `open_findings`; mirrored in
+harness-design-state.md; dependent cells parked in case-catalog.md.
+
+- **F-PT-025 (open, B-23):** OpenCode headless permission-`ask` semantics unspecified
+  upstream; the ratified gate-bridge mechanism (deny-by-default + hook seam as sole
+  approver, vs `--auto` + gate-only) is an owner decision.
+- **F-PT-026 (open, B-24):** Cursor exposes static deny-wins permissions but no
+  documented dynamic per-action hook seam; whether that honors INV-002 at an
+  acceptable `tool_gate` tier, or the profile records a degraded/unsupported tier
+  with narrowed role eligibility, is an owner decision.
+- **F-PT-027 (open, B-25):** Grok Build ACP permission-request coverage (every
+  tool-action class? denial semantics? headless auto-approve bypass?) unspecified
+  upstream; the gate-bridge contract cannot be authored from a guess. Live
+  certification separately human-risk-review-gated (#339).
+- **F-PT-028 (open, B-26):** whether the Muse Code beta exposes any hook/permission
+  seam covering swarm-spawned agents is unknown; the owner-decided fallback (no seam
+  ⇒ `tool_gate: unsupported` for swarm mode, fan-out disabled) is already contract
+  truth — only the mechanism-level cases park.

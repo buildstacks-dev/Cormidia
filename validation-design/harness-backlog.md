@@ -664,6 +664,25 @@ prepares the proposal and a human separately ratifies any such surface. -->
   work remains outside RQ-1; separately authorized L3/L4 campaigns qualify each later
   candidate rather than activating the gate.
 
+## Adapter-expansion boundary revision (2026-08-07, #336) — tracked in GitHub, no new HB ids
+
+The B-23…B-26 boundary registration (OpenCode, Cursor, Grok Build, Muse Code) is a
+design-only structural addition; its executable authoring is deliberately tracked by
+GitHub issues **#337–#340** (one adapter PR each, standalone certification per
+docs/harness/adding-updating.md §5) rather than duplicated into HB tickets — two
+trackers for one obligation would drift. Standing constraints those PRs inherit:
+
+- Each adapter PR lands its transport double + self-test (L1), wires the shared
+  hermetic conformance walk (L2, seeded-liar controls), and adds its CF-B2N-L3
+  certification case — implementing the CF-B23…26-* families in case-catalog.md §4.
+- Mechanism-level legs stay parked until their finding ratifies: F-PT-025 (B-23
+  headless-`ask` bridge), F-PT-026 (B-24 `tool_gate` tier), F-PT-027 (B-25
+  permission coverage), F-PT-028 (B-26 swarm seam). Never encode a guess.
+- CF-B25-L3 runs only after the recorded #339 human risk-review decision, sandbox
+  repos only until it clears real-repo use.
+- roles.yaml stays untouched by every adapter PR — assignment is a later
+  human ratification plus qualification evidence (certification ≠ qualification).
+
 ## Standing rules
 
 (Single source of truth for the detector-deposit obligation:

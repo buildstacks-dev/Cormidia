@@ -3,7 +3,8 @@
 Status: derived to matrix closure (Phase 6, agent-alone per Division of labor §6) over
 the ratified baseline plus the owner-confirmed 2026-08-01 revision and the 2026-08-03
 revision confirmed through Phase 7: system-map (J-01…J-20), invariants
-(INV-001…016), boundary-map (B-01…B-22), contracts (29 canonical IDs),
+(INV-001…016), boundary-map (B-01…B-26 <!-- changelog 2026-08-07 (#336): B-23…B-26
+added, design-only -->), contracts (33 canonical IDs),
 llm-eval-plan (S-1…S-10), risk-allocation
 (E-1/E-2/E-3, floors, §5/§6 obligations). **This remains the design-derived
 catalog, while executable authoring is tracked by `harness-backlog.md`.** As of
@@ -213,10 +214,14 @@ re-deposited archived-suite claims — subagent gate ordering (fan-out claimants
 pi degradation path) and the ≥300 KB payload-transport pin. Case-level additions
 against existing boundaries; each landed red-then-green with seeded controls at
 `tests/hermetic/cf-adapter-conformance/`. -->
+<!-- changelog 2026-08-07 (#336 harness revision): CF-B23…CF-B26 families and their
+-L3 certification rows added for the four planned adapter boundaries (design-only
+until #337–#340 land); mechanism-level gate-bridge legs parked on F-PT-025…028;
+CF-B25-L3 additionally gated on the #339 human risk review. -->
 **Row-collapsing convention (same as §5):** one family row per boundary stands for
 its seven nominal failure-mode columns — the family text enumerates the modes;
 separately-risky dimensions (the `-L3` live obligations) get their own rows. The §9
-closure statement reconciles the 161 semantic cells against these families.
+closure statement reconciles the 189 semantic cells against these families.
 Failure-mode lists are ratified per boundary in boundary-map.md; each cell's family =
 those modes under the honest fake, plus the fake/real conformance pair where an L3
 obligation exists.
@@ -249,6 +254,14 @@ obligation exists.
 | CF-B20-* | 100+ issue and delta fixtures across success/timeout/partial projection/retry/duplicate/stale/version-skew: complete accounting, stable IDs, exact frontier hash, current routing/dependency/validation/WIP reread, no per-issue provider turn/eager EpisodePlan, labels never authority | 1/2 | state+evid+refusal | E1/E2/E3 (HB-101/HB-105; HB-108 deterministic closure complete) |
 | CF-B21-* | validation-contract fixtures across success/provider timeout/partial evidence/retry/duplicate/stale HEAD/version skew: ID resolution, bounded waivers, shared-boundary coverage, detector+negative control, exact unit/plan/HEAD binding and Reviewer independence | 1/2 | state+evid+refusal+det | E1/E3 (HB-102/HB-108 complete; human S-10 references validated; F-PT-011 remains open) |
 | CF-B22-* | batch/unit-set permutations across success/timeout/partial unit failure/retry/duplicate/stale frontier/version skew: token-free admission, lazy plans, atomic claims, budget conservation, session-role isolation, per-unit terminals and cache unknown/hit/miss evidence | 1/2 | state+evid+refusal | E1/E2/E3 (HB-103/HB-104/HB-107 plus HB-109 contention machinery complete; seven-day evidence pending) |
+| CF-B23-* | adapter core against scripted OpenCode server/SSE double: B-02 set + SSE gap while server-side turn continues (lost-response ambiguity), OpenAPI/SDK skew typed-terminal, stale/foreign server instance = identity refusal, gating hook absent → terminal pre-tool failure (forbidden attempt reaches and is denied by the gate), per-provider auth expiry surfaced per connection, retired `provider/model` id typed refusal (no substitution), roster-vs-reachable honesty; **gate-bridge mechanism legs (headless `ask` semantics) BLOCKED:F-PT-025** | 2 | state+refusal | E1/E2 (T-11; design-only pending #337) |
+| CF-B23-L3 | **OpenCode real certification walk** (adding-updating §5): real auth store, real hook-seam denial (post-F-PT-025 mechanism), exact session resume, representative-model smokes one-per-provider-family (roster published, never per-model certified) | 3 | live | E1/E2 (design-only pending #337) |
+| CF-B24-* | adapter core against scripted `cursor-agent` stream-json double: B-02 set + untrusted-dir refusal typed pre-spend, force-absent no-op-edit surfaced honestly (never success-with-zero-effect), explicit trust+`--force` pair recorded as deliberate gated decision (broader bypass spellings unrepresentable), `cursor-agent`-only binary resolution (never `agent`), permissions-config missing/malformed/wider-than-role refusal, thread-resume mismatch typed, stream-json drift typed; **`tool_gate` tier + dynamic-seam legs BLOCKED:F-PT-026** | 2 | state+refusal | E1/E2 (T-11; design-only pending #338) |
+| CF-B24-L3 | **Cursor real certification walk**: real auth, real trust/force behavior in an org-managed worktree, real denied forbidden attempt via the F-PT-026-ratified enforcement, exact thread resume, version bands recorded | 3 | live | E1/E2 (design-only pending #338) |
+| CF-B25-* | adapter core against fake ACP peer (JSON-RPC/stdio): B-03 subprocess set (death mid-RPC checkpoint-preserving, protocol/version skew typed-terminal, hang) + permission-request omission = gate-hole detector (never degradation), scripted denial semantics, auto-approve-analog bypass control, `--no-auto-update` posture pinned, exact assigned model over `~/.grok/config.toml` (no operator-config substitution), readiness = usable request auth (key or stored login, never account presence); **permission-request coverage legs BLOCKED:F-PT-027** | 2 | state+refusal+det | E1/E2 (T-11; design-only pending #339) |
+| CF-B25-L3 | **Grok Build real certification walk over ACP** — conditional on the recorded #339 human risk-review decision; **throwaway sandbox repos only** until it clears real-repo use; real auth, real denied forbidden attempt via the F-PT-027-ratified request-path bridge, exact session resume | 3 | live | E1/E2 (risk-review-gated; design-only pending #339) |
+| CF-B26-* | adapter core against scripted `muse exec` JSONL double (+ vendor `--provider echo` real-binary hermetic transport lane — transport evidence only, never gate/swarm/model evidence): B-02 set + swarm-member action escaping gate = gate-hole detector, swarm attribution (paired lifecycle events + spanId), fail-closed fallback cases authorable now (no proven seam ⇒ `tool_gate: unsupported` for swarm mode + fan-out disabled + degradation note, seeded fanout-fabrication control per CF-B04-DEGRADE pattern), ambient-config ingestion pinned off via the proven disable path (else documented-degradation artifact — never silent), `--workspace` containment escape detector (T-6), `--prompt-file` ≥300 KB payload pin, JSONL schema drift typed, effort ladder honest (`max` unmapped throws until human-ratified mapping), `--api-key-stdin` key never in argv/env; **swarm-gate mechanism legs BLOCKED:F-PT-028** | 2 | state+refusal+det | E1/E2 (T-11; design-only pending #340) |
+| CF-B26-L3 | **Muse Code real certification walk** with the swarm gate probe as the load-bearing case (`intra_turn_fanout`: spawned agent's critical op reaches the gate identically, event → gate → escalation ordering) — no role live before it passes live or fan-out is disabled with the documented degradation; plus hermeticity disable-path proof, exact session resume; re-run on every version bump | 3 | live | E1/E2 (design-only pending #340) |
 
 ## 5. Contract matrix (C × valid/invalid inputs / outputs / typed errors / idempotency / ordering / freshness+latency)
 
@@ -259,7 +272,8 @@ spanning the six rows) except where a dimension is separately risky.
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
 | CF-C-CORE | CORMIDIA-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause BLOCKED:F-PT-017**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
-Twenty-three boundary-contract families (B-09a and B-09b are separate contracts), one per
+Twenty-seven boundary-contract families (B-09a and B-09b are separate contracts;
+B-23…B-26 added 2026-08-07, design-only), one per
 canonical `CORMIDIA-C-B*-001` ID, each clause-complete (valid/invalid inputs, outputs,
 typed errors, idempotency, ordering, freshness/latency). HB-007 items 1–8 and 13 are
 asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain provisional.
@@ -290,6 +304,10 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-C-B20 | 1/2 | E1/E2/E3 | — | — (HB-101/HB-105 implementation plus HB-108 catalog/detector closure complete) |
 | CF-C-B21 | 1/2 | E1/E3 | — | — (HB-102/HB-105 implementation plus HB-108 catalog/detector closure complete; S-10 human references validated; F-PT-011 remains open) |
 | CF-C-B22 | 1/2 + 5 repeat trigger | E1/E2/E3 | dup: CF-OPS-CONT/CF-OPS-SOAK when trigger applies | — (HB-103/HB-104/HB-107 implementation plus HB-109 contention machinery complete; seven-day evidence pending) |
+| CF-C-B23 | 1/2 + 3 | E1/E2 | dup: CF-B23-L3 | BLOCKED:F-PT-025 (headless-`ask` gate-bridge mechanism clause); design-only pending #337 |
+| CF-C-B24 | 1/2 + 3 | E1/E2 | dup: CF-B24-L3 | BLOCKED:F-PT-026 (`tool_gate` tier clause); design-only pending #338 |
+| CF-C-B25 | 1/2 + 3 | E1/E2 | dup: CF-B25-L3 | BLOCKED:F-PT-027 (permission-request coverage clause); live cell risk-review-gated (#339); design-only pending #339 |
+| CF-C-B26 | 1/2 + 3 | E1/E2 | dup: CF-B26-L3 | BLOCKED:F-PT-028 (swarm-gate mechanism clause; fail-closed fallback clause is contract truth, not parked); design-only pending #340 |
 | CF-C-OPLIFE | C-OP-LIFE §§1–6 + error split (precondition-refusal vs journaled-intermediate) | 2 | state+refusal | E1 (T-8 slices) |
 | CF-C-OPPLAN | C-OP-PLAN §§1–5 (bypass conditions, plan production, previews, boot boundary, sources fail-closed) | 1/2 | refusal+state | STD (HB-107 shared-façade wiring slice; validator depth per risk-allocation §3) |
 | CF-C-OPLOOP | C-OP-LOOP §§1–5 (vocabulary, claims, 3-cycle bound + fourth-cycle return, review/merge, parallelism) | 2 | state | E3 (HB-107 shared delivery-façade wiring slice) |
@@ -385,6 +403,7 @@ not change matrix allocation or unblock any finding.
 | CF-OPS-ABUSE | Gate only; future blocked | `tests/ops/threat-model-gate.ts` refuses the checked-in `awaiting_human_author` status. No abuse cases before HB-072; neither row is inside RQ-1. |
 | CF-HARNESS-REPORT | Complete | Durable reports debit unknown failed-case spend conservatively, keep exact-ceiling coverage incomplete, bind canonical policy/golden inputs to authorized HEAD, and surface corrupt/inconclusive evidence without green. |
 | CF-J19-* / CF-SM-COMP-* / CF-B18-* / CF-B19-* / CF-C-B18 / CF-C-B19 / CF-IF-COMPARE | Design only | Implementation is tracked by the comparative-execution backlog and GitHub epic; no executable coverage or evidence claim exists yet. |
+| CF-B23/24/25/26-* / CF-B23/24/25/26-L3 / CF-C-B23/24/25/26 | Design only (2026-08-07, #336) | Implementation is tracked by GitHub issues #337–#340, one adapter per PR with standalone certification per docs/harness/adding-updating.md §5; mechanism legs parked on F-PT-025…028; CF-B25-L3 additionally conditional on the #339 human risk review. No executable coverage or evidence claim exists yet. |
 | CF-S8-env / CF-S8-qual+judge | Design/scaffold only | Empty truthful scaffold at `golden-sets/selection-judge/`; F-PT-011 keeps scores inadmissible for automatic selection and any threshold-dependent outcome inconclusive. |
 | CF-J03/J04 2026-08-03 slices; CF-J20-*; CF-SM-ROADMAP/VALIDATION/BATCH-*; CF-INV-016; CF-B20/21/22-*; CF-C-B20/21/22; CF-C-OPVALIDATION/OPBATCH | Complete deterministic families; external soak/human evidence separately pending | HB-100…107 provide the provider-free authority, atomic delivery, batching, direct-effect, and context/session/cache implementation. HB-108 expands the production validation catalog and content pin and walks all 30 deterministic family rows (including CF-IF-XSURF) to real seeded controls, with empty-walk and detector-never-fired harness controls. HB-109 adds overlapping-batch, duplicate-stimulus, all-or-none multi-ticket claim, per-unit settlement, sibling-isolation and stale-frontier contention machinery plus the extended soak collector; no seven-day campaign was run. HB-110 projects one shared explanation through Status/JSON/Report/Observe and tests exact cross-surface equality. No live-evidence claim follows. |
 | CF-S1 2026-08-03 slice; CF-S10-env/qual | Deterministic envelopes and pre-tuning corpora integrated; human references validated | HB-102/HB-108 implement the provider-free C-OP-VALIDATION/B-21 envelope and integrate Planner plus Validation Designer corpora. Every current row is human-validated; F-PT-010/011 keep threshold-dependent outcomes inconclusive. |
@@ -406,12 +425,16 @@ not change matrix allocation or unblock any finding.
   complete deterministic families and no external-evidence claim.
 - **Invariants:** 16 × 2 rows → 16 families (violation+guardrail folded; every family
   carries its negative control).
-- **Boundaries:** 22 numbered boundaries become **23 matrix entries** (B-09 splits into
-  B-09a and B-09b) × 7 rows = **161 semantic cells** → traced via the §4 families
-  (B-08, B-11 dup-pruned to their journey/state owners; finding-blocks named in-cell).
-- **Contracts:** 29 canonical IDs = 23 boundary contracts (incl. B-09A/B-09B
-  separately) + CORE + 5 OP → 29 clause-complete families; acceptance criteria
-  dup-pruned to their §1 cells.
+- **Boundaries:** 26 numbered boundaries become **27 matrix entries** (B-09 splits into
+  B-09a and B-09b) × 7 rows = **189 semantic cells** → traced via the §4 families
+  (B-08, B-11 dup-pruned to their journey/state owners; finding-blocks named in-cell;
+  B-23…B-26 design-only pending #337–#340). <!-- changelog 2026-08-07 (#336): was
+  22 boundaries / 23 entries / 161 cells. -->
+- **Contracts:** 33 canonical IDs = 27 boundary contracts (incl. B-09A/B-09B
+  separately) + CORE + 5 OP → 33 clause-complete families; acceptance criteria
+  dup-pruned to their §1 cells. <!-- changelog 2026-08-07 (#336): was 29 = 23 + CORE
+  + 5 OP. -->
+
 - **Interfaces:** 7 families incl. standalone comparison and the cross-surface agreement check.
 - **LLM sites:** **10 site families (S-1…S-10) × 4 rows = 40 cells** → every cell
   now explicitly a family, PRUNE-na, PRUNE-dup, or finding-parked; no quality cell may
@@ -434,7 +457,11 @@ not change matrix allocation or unblock any finding.
   #296 (one decision, recorded in the issue's ratification record), the harness
   revision registered the revised INV-003 and the B-09b objective-grant clauses, and
   the CF-SPLIT-* families un-parked into §10.1 — they land red-then-green with their
-  implementation PRs (destructive, secrets, network, publishing-last).
+  implementation PRs (destructive, secrets, network, publishing-last). Opened at the
+  2026-08-07 #336 harness revision: F-PT-025 (CF-B23-* gate-bridge mechanism legs;
+  contract-matrix remainder CF-C-B23), F-PT-026 (CF-B24-* `tool_gate`-tier legs;
+  remainder CF-C-B24), F-PT-027 (CF-B25-* permission-coverage legs; remainder
+  CF-C-B25), F-PT-028 (CF-B26-* swarm-gate mechanism legs; remainder CF-C-B26).
   <!-- changelog 2026-07-31 (audit AUD-106): §5 per-ID resolver's five blocked
   contract-matrix remainders added to this roll-up so it is the complete register. -->
   <!-- ratification 2026-07-31: F-PT-003 (CF-J07-I), F-PT-004 (CF-J04-I/CF-B15-*

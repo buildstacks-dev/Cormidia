@@ -1,6 +1,36 @@
 # Harness design state — Cormidia validation campaign
 
-Updated: 2026-08-04 (2026-07-31 design campaign CLOSED and RATIFIED; implementation Waves
+Updated: 2026-08-07 (adapter-expansion harness revision below; prior state retained)
+
+## Harness revision — adapter-expansion boundaries B-23…B-26 (2026-08-07, #336)
+
+Scope: the `validation-harness-design` skill re-entered in `harness-revision` mode
+with the ratified artifacts as baseline, per root AGENTS.md → Structural additions.
+Attributable human instruction: issue #336 (epic #330). Elicitation input for this
+pass: the product owner's own issue text in #330/#337/#338/#339/#340 and the two
+2026-08-07 field-verification comments (#338: `cursor-agent` binary + `--trust`;
+#340: Muse `--reasoning-effort …|ultra`, `--provider echo`, `--api-key-stdin`,
+ambient Claude/Codex rules ingestion) — tagged `[stated]`; the fetch-verified survey
+`research/2026-08-06_adapter-upstream-references.md` (ships in PR #341) — tagged
+`[doc]`; designer-originated items tagged `[PROPOSED]` (notably the B-25 shared-ACP
+transport-core stance). Confirmation gate: the owner's review of the registering PR —
+nothing here is binding until that review lands.
+
+Registered additions (all **design-only until the adapters land**, #337–#340):
+boundaries B-23 (OpenCode serve+SDK), B-24 (Cursor `cursor-agent` headless), B-25
+(Grok Build ACP stdio; live use human-risk-review-gated per #339), B-26 (Muse Code
+`muse exec`; swarm gate probe load-bearing); contracts CORMIDIA-C-B23-001…
+CORMIDIA-C-B26-001 extending CORMIDIA-C-CORE-001 with deltas only; case families
+CF-B23…26-* plus CF-B23…26-L3 certification obligations aligned with
+docs/harness/adding-updating.md §5 (certification ≠ qualification; L4Q unchanged);
+alias-table, boundary-map, risk-allocation, and system-map registrations. No new
+module, journey, invariant, tier, control point, tool, or spend bound; no existing
+gate loosened. Findings F-PT-025…028 opened (one per boundary's gate-seam ambiguity);
+their one-liners are mirrored in Open findings below and canonical in
+`validation-policy.yaml` → `open_findings`; dependent mechanism cells parked
+BLOCKED:<finding> in case-catalog.md.
+
+Prior update: 2026-08-04 (2026-07-31 design campaign CLOSED and RATIFIED; implementation Waves
 0–4 plus L3/L4 runner surfaces, L5 contention/soak collectors, and HB-080/081
 complete in the replacement harness worktree; audit loop CLOSED verdict
 "clean" — AUD-101…109 all fixed, audit record in ratification-package.md §7;
@@ -240,6 +270,10 @@ process-identity probe.
 - F-PT-024 (RESOLVED-ratified 2026-08-06 — owner decision on #296: grantless budgeted actions are deliberately outside dollar accumulation; the per-action audit row is the complete record; objective grants remain the opt-in bound; pinned by tests/hermetic/cf-inv-003/f-pt-024-grantless-budgeted.test.ts). Original subject: grantless budgeted-tier accounting — budgeted actions proceed at the composed gate with per-action audit rows (ratified "free until it isn't"), and a covering objective grant bounds them by uses/ledger; but with NO covering grant the debit quantum and any hard bound are undecided. Interim: audit-only visibility; bare defaultGate keeps denying budgeted actions. Dependent ceiling-trip cases parked BLOCKED:F-PT-024 in case-catalog §10.1.
 - F-PT-023 (RESOLVED-ratified 2026-08-06 — the owner answered the Stage 4 decision request with an unqualified YES on #296, one decision covering all four §5.1–5.4 splits; harness revision same day registered the revised CORMIDIA-INV-003 (disposition form, third grant shape), B-09b objective-grant/disposition clauses, and the un-parked CF-SPLIT-* families in case-catalog §10.1; implementation authorized one rule per PR, tightening-first, external-publishing last, with ACTION_IDENTITY_VERSION bumps cancelling in-flight grants at each landing). Original subject (raised 2026-08-06 at #296 Stage 4): the §5.1–5.4 consequence splits (destructive-or-irreversible by target, secrets-or-auth read/mutate, external-publishing by target repo, outbound-network by destination allowlist) are a structural change — they replace INV "critical operations require human approval" with "operations require the disposition their consequence class specifies", and three of the four make the gate permit something it currently refuses. Requires re-entering `validation-harness-design` in `harness-revision` mode with the existing artifacts as baseline, plus ONE owner decision covering all four splits together (the 019fd272 failure was four scattered approvals for one piece of work). Compensating controls and designed-not-implemented seeded negative controls: `docs/approvals/consequence-split-ratification.md`. Dependent split families parked BLOCKED:F-PT-023 in case-catalog.md.
 - F-PT-019 (open; raised 2026-08-01 during the #202-#213 fix campaign): `secrets-or-auth` is operation-blind. It is a pure text rule over the projected effect fields, so a metadata-only query that never opens the file (`git check-ignore .env`, `git status --ignored -- .env.example`) matches exactly as a genuine contents read (`cat .env`) does. #204 shows the false-positive cost — a blocked promotion at 16/17 green, and an approval queue the human learns to rubber-stamp — while narrowing the rule would also loosen it for real exfiltration reads. Owner must decide whether the rule becomes operation-aware and, if so, which git subcommands count as contents reads. Pinned (not endorsed) in the CF-REG-204 spec.
+- F-PT-025 (open; raised 2026-08-07 #336 harness revision): OpenCode headless permission-`ask` semantics (B-23) — what a configured `ask` does under `opencode serve` with no interactive client is unspecified upstream, and which gate-bridge mechanism is Cormidia's contract (deny-by-default + hook seam as sole approver, vs `--auto` + gate-only) is an owner decision; mechanism legs parked in CF-B23-*/CF-C-B23.
+- F-PT-026 (open; raised 2026-08-07 #336): Cursor gate-seam sufficiency (B-24) — static deny-wins permissions but no documented dynamic per-action hook seam; whether that honors INV-002 at an acceptable `tool_gate` tier or the profile records a degraded/unsupported tier with narrowed role eligibility is an owner decision; parked in CF-B24-*/CF-C-B24.
+- F-PT-027 (open; raised 2026-08-07 #336): Grok Build ACP permission-request coverage (B-25) — whether every tool-action class produces an ACP permission request, denial semantics, and headless auto-approve bypass are unspecified upstream; parked in CF-B25-*/CF-C-B25. Live certification separately conditional on the #339 human risk review (sandbox repos only until cleared).
+- F-PT-028 (open; raised 2026-08-07 #336): Muse Code swarm gate seam (B-26) — beta seam existence unknown; the owner-decided fallback is contract truth (no seam ⇒ `tool_gate: unsupported` for swarm mode, fan-out disabled — never an ungated swarm), so only mechanism-level swarm-gate cases park in CF-B26-*/CF-C-B26; resolution is field verification during #340 certification.
 - F-PT-020 (open; raised 2026-08-01 during the #202-#213 fix campaign): undecided approval ITEMS have no documented lifetime. `docs/approvals/design.md` specifies TTL, use-count and revocation for *grants* (post-decision) and is silent on a pending item whose raising turn has ended. In the august-org run all seven items outlived their turns, and because `app verify` treats any pending item as a promotion blocker, the queue grows monotonically under the scheduler until promotion is permanently blocked — and the human is forced to record meaningless denials purely as queue hygiene, which corrupts the decision ledger the approvals exist to produce. Resolving it means adding a terminal non-blocking state to the ratified approval state machine (CF-SM-APPR) and changing what `app verify` counts; adjacent to F-PT-008. Not implemented (#205 parked).
 
 ## Decisions on record

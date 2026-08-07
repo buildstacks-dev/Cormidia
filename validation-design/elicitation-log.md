@@ -1221,3 +1221,62 @@ and HB-100 may begin. The same statement retains separate approval for protocol-
 changes, merges, publication/deployment and live/token-spending campaigns. The request
 body was otherwise blank; the exact selected statement is the attributable acceptance
 record. No implementation or evidence claim follows from acceptance alone.
+
+## Harness revision — adapter-expansion boundaries B-23…B-26 (2026-08-07, #336)
+
+### Provenance and gate mapping
+
+This revision executed an attributable human instruction (issue #336, epic #330)
+in `harness-revision` mode over the ratified baseline. There was no live beat-3
+session; the owner's recorded thinking in the issues IS the elicitation input, and
+the registering PR's human review is the confirmation gate — nothing in this
+revision is binding until the owner reviews and merges it.
+
+### Owner input adopted as `[stated]` (near-verbatim)
+
+- #330: vendor-native harnesses "to capture harness advantages"; generic backbones
+  "certify representative models per provider family and publish their full
+  rosters"; "Certification ≠ qualification"; installed-harness contract — "Cormidia
+  never installs a harness"; "Version pins become tested-with declarations".
+- #337: OpenCode surface `opencode serve` + SDK, `opencode run --format json`
+  fallback; "Open empirical question … permission `ask` behavior in pure
+  headless/server mode — resolve during certification; mitigations exist".
+- #338 + 2026-08-07 field comment: "on this host `agent` resolves to Grok Build —
+  the Cursor binary is `cursor-agent`"; headless from an untrusted directory
+  refuses; "`cursor-agent -p --trust <prompt>` succeeds"; "the adapter must resolve
+  `cursor-agent` (never `agent` …) and pass an explicit trust flag … record this as
+  a deliberate, gated decision … since trust + `--force` together are what let the
+  agent act"; no effort knob — "the Effort mapping documents that honestly".
+- #339: ACP `grok agent stdio` is the seam; "`--no-auto-update` always"; community
+  grok-cli "explicitly unaffiliated — do not build against it"; the shared-ACP-core
+  question was explicitly routed to this pass ("Decide there, not ad hoc"); the risk
+  review is "blocking, human", "throwaway sandbox repos until the review clears
+  real-repo use".
+- #340 + 2026-08-07 field comment: swarm coordination "is THE probe here"; "every
+  spawned agent's critical op MUST reach the Cormidia gate identically"; "If the
+  beta exposes no gate/hook seam … the honest outcome is `tool_gate: unsupported`
+  for swarm mode … never an ungated swarm"; `--reasoning-effort
+  none|minimal|low|medium|high|xhigh|ultra` — "`ultra` sits above xhigh — the
+  Effort mapping decision (does Cormidia `max` → `ultra`?) belongs in this
+  adapter's capability work"; "`--provider echo` is a free offline test provider";
+  Muse "ingests the operator's personal Claude/Codex rules and skills by default …
+  if none [disable path] exists in the beta, that is a documented degradation, not
+  an acceptable default".
+
+### Synthesis notes (what was derived, what was originated)
+
+- `[doc]` facts trace to `research/2026-08-06_adapter-upstream-references.md`
+  (fetch-verified survey; ships in PR #341 — a textual dependency of this revision).
+- Designer-originated (`[PROPOSED]`, owner review requested in the PR): B-23's
+  stale/foreign-server identity refusal (B-10a analogy); B-24's
+  narrowest-ingestion-posture hermeticity clause (claude `settingSources: []`
+  analogy); B-25's shared-ACP-transport-core stance (permitted only behind
+  per-harness boundaries; transport reuse never shares certification evidence).
+- Deliberately NOT encoded as behavior: the four gate-seam mechanisms (F-PT-025…028
+  opened instead); the Muse `max`→`ultra` effort mapping (owner deferred it to the
+  adapter's capability work — until ratified, `max` throws per the existing
+  cross-adapter rule, which is the ratified fail-closed default, not a new
+  decision).
+- Dropped: nothing from the owner's input was dropped; the research record's
+  "no effort knob" line for Muse Code is superseded by the owner's field
+  verification and marked so in B-26.

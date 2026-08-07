@@ -18,6 +18,15 @@ batching. One delivery EpisodePlan owns exactly one delivery unit/PR; a batch gr
 such plans for efficiency but never replaces their authority. Base C2 and the existing
 C3 control points remain unchanged.
 
+Harness revision 2026-08-07 (#330/#336): the adapter-expansion pass adds boundaries
+B-23…B-26 (OpenCode, Cursor, Grok Build ACP, Muse Code) inside the existing M7
+runtime-adapter module. Journeys, tiering, and control points are unchanged; every new
+slice resolves to existing controls — T-11 adapter enforcement (gate hook totality,
+budget observation, exact-session binding), T-5 settlement, T-6 workspace containment
+(Muse `--workspace`), T-4 secret containment (Grok vendor-transport posture), and T-9
+evidence truthfulness (Cursor force-absent no-op edits). No new C3 control point is
+introduced; all four boundaries are design-only until #337–#340 land.
+
 Provenance: rows are `[doc]` unless marked `[walk]` (stakeholder's Phase 1 elicitation,
 see elicitation-log.md), `[rambling]`, `[simulated]`, `[stated]` (direct live owner
 input), or `[PROPOSED]`.

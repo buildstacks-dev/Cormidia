@@ -40,7 +40,40 @@ import {
   type EpisodeIntentFacts,
   type EpisodePlanningPolicyOptions,
 } from "./episode-planner/policy.js";
-import { planningAppDir, planningAuthorityPath } from "./planning-artifact-path.js";
+import { planningAppDir } from "./planning-artifact-path.js";
+import {
+  ROADMAP_DELIVERY_SCHEMA_VERSION,
+  assertAuthorityRef,
+  assertExactObjectKeys,
+  assertHash,
+  assertId,
+  assertVersion,
+  type AcceptedAuthority,
+  type AuthorityRef,
+  type RoadmapDeliveryProjection,
+  type RoadmapDeliveryProjector,
+} from "./roadmap-delivery/authority-core.js";
+import {
+  backlogSnapshotAuthorityPath,
+  batchAuthorityPath,
+  currentRoadmapPointerPath,
+  currentValidationCatalogPointerPath,
+  currentValidationContractPointerPath,
+  executionUnitJournalPath,
+  readinessAuthorityPath,
+  roadmapAuthorityPath,
+  validationAuthorityPath,
+  validationContractLifecyclePath,
+} from "./roadmap-delivery/authority-paths.js";
+import {
+  persistAuthority,
+  projectAccepted,
+  readAuthorityFile,
+  renderAuthorityRef,
+  requireAuthority,
+  sameAuthorityRef,
+  sameNullableAuthorityRef,
+} from "./roadmap-delivery/authority-store.js";
 import {
   VALIDATION_LAYERS,
   type ValidationAffectedStructure,
@@ -60,50 +93,29 @@ import {
 import { RoadmapDeliveryError } from "./roadmap-delivery/failure.js";
 
 export { RoadmapDeliveryError };
+export { ROADMAP_DELIVERY_SCHEMA_VERSION };
+export type { AcceptedAuthority, AuthorityRef, RoadmapDeliveryProjection };
+export {
+  backlogSnapshotAuthorityPath,
+  batchAuthorityPath,
+  currentRoadmapPointerPath,
+  currentValidationCatalogPointerPath,
+  currentValidationContractPointerPath,
+  executionUnitJournalPath,
+  readinessAuthorityPath,
+  roadmapAuthorityPath,
+  validationAuthorityPath,
+  validationContractLifecyclePath,
+};
 export { VALIDATION_CONTRACT_SCHEMA };
 export type { ValidationAffectedStructure, ValidationCatalog, ValidationCatalogCase };
 export type { ValidationContract, ValidationObligation, ValidationWaiver };
 
-export const ROADMAP_DELIVERY_SCHEMA_VERSION = 1 as const;
 const VALIDATION_CATALOG_SCHEMA_VERSION = 1 as const;
 const RATIFIED_HARNESS_REVISION_ID = "roadmap-validation-delivery-batching-2026-08-03" as const;
 /** Content root for the complete deterministic HB-100..108 catalog. */
 export const RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 =
   "58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880" as const;
-
-export interface AuthorityRef {
-  kind:
-    | "backlog_snapshot"
-    | "roadmap_plan"
-    | "validation_catalog"
-    | "validation_contract"
-    | "delivery_unit_readiness"
-    | "direct_execution_unit"
-    | "direct_episode_binding"
-    | "execution_batch"
-    | "delivery_episode_binding"
-    | "builder_evidence"
-    | "reviewer_verdict";
-  id: string;
-  version: number;
-  sha256: string;
-}
-
-export interface AcceptedAuthority<T> {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  ref: AuthorityRef;
-  value: T;
-}
-
-export interface RoadmapDeliveryProjection {
-  kind: AuthorityRef["kind"] | "delivery_unit_claimed" | "delivery_unit_claim_committed" | "delivery_unit_settled";
-  app: string;
-  path: string;
-  authorityRef?: AuthorityRef;
-  settlementId?: string;
-}
-
-type RoadmapDeliveryProjector = (projection: Readonly<RoadmapDeliveryProjection>) => void | Promise<void>;
 
 export interface RoadmapWorkstream {
   workstreamId: string;
@@ -2282,58 +2294,6 @@ export async function settleDeliveryUnitRefusal(input: {
     outcome: "returned",
     now: input.now,
   });
-}
-
-export function roadmapAuthorityPath(root: string, app: string, id: string, version: number): string {
-  return authorityPath(root, app, "roadmap_plan", id, version);
-}
-
-export function backlogSnapshotAuthorityPath(root: string, app: string, id: string, version: number): string {
-  return authorityPath(root, app, "backlog_snapshot", id, version);
-}
-
-export function currentRoadmapPointerPath(root: string, app: string): string {
-  return join(planningAppDir(root, app), "roadmap-current.json");
-}
-
-export function validationAuthorityPath(root: string, app: string, id: string, version: number): string {
-  return authorityPath(root, app, "validation_contract", id, version);
-}
-
-export function currentValidationCatalogPointerPath(root: string, app: string): string {
-  return join(planningAppDir(root, app), "validation-catalog-current.json");
-}
-
-export function currentValidationContractPointerPath(root: string, app: string, unitId: string): string {
-  assertId(unitId, "validation unit id");
-  return join(planningAppDir(root, app), "validation-current", `${unitId}.json`);
-}
-
-export function validationContractLifecyclePath(
-  root: string,
-  app: string,
-  unitId: string,
-  contractId: string,
-  version: number,
-): string {
-  assertId(unitId, "validation unit id");
-  assertId(contractId, "validation contract id");
-  assertVersion(version, "validation contract version");
-  return join(planningAppDir(root, app), "validation-lifecycle", unitId, contractId, `v${version}.json`);
-}
-
-export function readinessAuthorityPath(root: string, app: string, unitId: string, version: number): string {
-  return authorityPath(root, app, "delivery_unit_readiness", unitId, version);
-}
-
-export function batchAuthorityPath(root: string, app: string, id: string, version: number): string {
-  return authorityPath(root, app, "execution_batch", id, version);
-}
-
-export function executionUnitJournalPath(root: string, app: string, batchId: string, unitId: string): string {
-  assertId(batchId, "execution batch id");
-  assertId(unitId, "execution unit id");
-  return join(planningAppDir(root, app), "execution-unit-journals", batchId, `${unitId}.json`);
 }
 
 export async function readExecutionUnitJournal(
@@ -4524,10 +4484,6 @@ function isValidationContractLifecycleRecord(value: unknown): value is Validatio
   );
 }
 
-function sameNullableAuthorityRef(left: AuthorityRef | null, right: AuthorityRef | null): boolean {
-  return left === null ? right === null : right !== null && sameAuthorityRef(left, right);
-}
-
 function assertBuilderEvidenceShape(manifest: BuilderEvidenceManifest): void {
   assertExactObjectKeys(
     manifest,
@@ -4779,93 +4735,6 @@ function assertAcyclic(units: readonly RoadmapDeliveryUnit[]): void {
   for (const unit of units) visit(unit.unitId);
 }
 
-async function persistAuthority<T>(
-  root: string,
-  app: string,
-  kind: AuthorityRef["kind"],
-  id: string,
-  version: number,
-  value: T,
-): Promise<AcceptedAuthority<T>> {
-  assertId(id, `${kind} id`);
-  assertVersion(version, `${kind} version`);
-  const ref: AuthorityRef = { kind, id, version, sha256: stableHash(value) };
-  const accepted: AcceptedAuthority<T> = {
-    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-    ref,
-    value: structuredClone(value),
-  };
-  const path = authorityPath(root, app, kind, id, version);
-  const won = await writeLoopFileOnce(path, `${JSON.stringify(accepted, null, 2)}\n`);
-  if (!won) {
-    const existing = await readAuthorityFile<T>(path);
-    if (!sameAuthorityRef(existing.ref, ref) || stableHash(existing.value) !== ref.sha256) {
-      throw new RoadmapDeliveryError("authority_conflict", `${kind} ${id}@${version} already differs`);
-    }
-  }
-  const persisted = await readAuthorityFile<T>(path);
-  if (!sameAuthorityRef(persisted.ref, ref) || stableHash(persisted.value) !== ref.sha256) {
-    throw new RoadmapDeliveryError("authority_corrupt", `${kind} ${id}@${version} failed readback`);
-  }
-  return persisted;
-}
-
-async function requireAuthority<T>(
-  root: string,
-  app: string,
-  ref: AuthorityRef,
-  kind: AuthorityRef["kind"],
-  missingCode: RoadmapDeliveryError["code"],
-): Promise<AcceptedAuthority<T>> {
-  assertAuthorityRef(ref, kind);
-  const path = authorityPath(root, app, kind, ref.id, ref.version);
-  if (!existsSync(path)) {
-    throw new RoadmapDeliveryError(missingCode, `${renderAuthorityRef(ref)} is missing`);
-  }
-  const accepted = await readAuthorityFile<T>(path);
-  if (!sameAuthorityRef(accepted.ref, ref) || stableHash(accepted.value) !== ref.sha256) {
-    throw new RoadmapDeliveryError("authority_corrupt", `${renderAuthorityRef(ref)} failed content binding`);
-  }
-  return accepted;
-}
-
-async function readAuthorityFile<T>(path: string): Promise<AcceptedAuthority<T>> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
-  } catch (error) {
-    throw new RoadmapDeliveryError(
-      "authority_corrupt",
-      `${path} is unreadable: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (!isAcceptedAuthority(parsed)) {
-    throw new RoadmapDeliveryError("authority_corrupt", `${path} is not an accepted authority envelope`);
-  }
-  return parsed as AcceptedAuthority<T>;
-}
-
-function isAcceptedAuthority(value: unknown): value is AcceptedAuthority<unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const row = value as Record<string, unknown>;
-  if (row["schemaVersion"] !== ROADMAP_DELIVERY_SCHEMA_VERSION || !("value" in row)) return false;
-  const ref = row["ref"];
-  if (ref === null || typeof ref !== "object" || Array.isArray(ref)) return false;
-  const candidate = ref as Record<string, unknown>;
-  return (
-    typeof candidate["kind"] === "string" &&
-    typeof candidate["id"] === "string" &&
-    Number.isInteger(candidate["version"]) &&
-    typeof candidate["sha256"] === "string"
-  );
-}
-
-function authorityPath(root: string, app: string, kind: AuthorityRef["kind"], id: string, version: number): string {
-  assertId(id, `${kind} id`);
-  assertVersion(version, `${kind} version`);
-  return planningAuthorityPath(root, app, kind, id, version);
-}
-
 function executionUnitIdentityHash(unit: ExecutionUnit): string {
   return unit.kind === "direct_operation"
     ? stableHash({ kind: unit.kind, dedupeKey: unit.dedupeKey })
@@ -5082,20 +4951,6 @@ function claimRecordPath(root: string, settlementId: string): string {
   return join(resolve(root), CLAIM_NAMESPACE, "records", `${settlementId}.json`);
 }
 
-async function projectAccepted<T>(
-  root: string,
-  app: string,
-  accepted: AcceptedAuthority<T>,
-  project?: RoadmapDeliveryProjector,
-): Promise<void> {
-  if (project === undefined) return;
-  const path = authorityPath(root, app, accepted.ref.kind, accepted.ref.id, accepted.ref.version);
-  if (!existsSync(path)) {
-    throw new RoadmapDeliveryError("authority_corrupt", `projection preceded persistence: ${path}`);
-  }
-  await project({ kind: accepted.ref.kind, app, path, authorityRef: accepted.ref });
-}
-
 async function projectClaim(
   root: string,
   app: string,
@@ -5112,16 +4967,6 @@ async function projectClaim(
     throw new RoadmapDeliveryError("authority_corrupt", `claim projection preceded persistence: ${path}`);
   }
   await project({ kind, app, path, settlementId });
-}
-
-function renderAuthorityRef(ref: AuthorityRef): string {
-  return `${ref.kind}:${ref.id}@${ref.version}#${ref.sha256}`;
-}
-
-function sameAuthorityRef(left: AuthorityRef, right: AuthorityRef): boolean {
-  return (
-    left.kind === right.kind && left.id === right.id && left.version === right.version && left.sha256 === right.sha256
-  );
 }
 
 function authorityRefForSnapshot(snapshot: BacklogSnapshot): AuthorityRef {
@@ -5165,20 +5010,6 @@ function numeric(left: number, right: number): number {
   return left - right;
 }
 
-function assertAuthorityRef(ref: unknown, kind: AuthorityRef["kind"]): asserts ref is AuthorityRef {
-  if (ref === null || typeof ref !== "object" || Array.isArray(ref)) {
-    throw new RoadmapDeliveryError("authority_corrupt", `expected ${kind} authority ref`);
-  }
-  assertExactObjectKeys(ref, ["kind", "id", "version", "sha256"], `${kind} authority ref`, "authority_corrupt");
-  const row = ref as Record<string, unknown>;
-  if (row["kind"] !== kind) {
-    throw new RoadmapDeliveryError("authority_corrupt", `expected ${kind}, got ${String(row["kind"])}`);
-  }
-  assertId(row["id"], `${kind} ref id`);
-  assertVersion(row["version"], `${kind} ref version`);
-  assertHash(row["sha256"], `${kind} ref hash`);
-}
-
 function sameAssignment(left: TurnAssignment, right: TurnAssignment): boolean {
   return left.harness === right.harness && left.model === right.model && left.effort === right.effort;
 }
@@ -5200,50 +5031,9 @@ function assertTurnAssignmentShape(
   }
 }
 
-function assertId(value: unknown, label: string): asserts value is string {
-  if (typeof value !== "string" || !ID.test(value)) {
-    throw new RoadmapDeliveryError("roadmap_invalid", `${label} is invalid: ${String(value)}`);
-  }
-}
-
-function assertVersion(value: unknown, label: string): asserts value is number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
-    throw new RoadmapDeliveryError("roadmap_invalid", `${label} must be a positive integer`);
-  }
-}
-
-function assertHash(value: unknown, label: string): asserts value is string {
-  if (typeof value !== "string" || !HASH.test(value)) {
-    throw new RoadmapDeliveryError("authority_corrupt", `${label} is not sha256`);
-  }
-}
-
 function requireDateTime(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim().length === 0 || Number.isNaN(Date.parse(value))) {
     throw new RoadmapDeliveryError("roadmap_invalid", `${label} is not a date-time`);
   }
   return value;
-}
-
-function assertExactObjectKeys(
-  value: unknown,
-  expected: readonly string[],
-  label: string,
-  code: RoadmapDeliveryError["code"] = "validation_contract_invalid",
-): asserts value is Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new RoadmapDeliveryError(code, `${label} must be an object`);
-  }
-  const keys = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (stableHash(keys) !== stableHash(wanted)) {
-    const expectedSet = new Set(wanted);
-    const actualSet = new Set(keys);
-    const missing = wanted.filter((key) => !actualSet.has(key));
-    const unexpected = keys.filter((key) => !expectedSet.has(key));
-    throw new RoadmapDeliveryError(
-      code,
-      `${label} keys differ; missing [${missing.join(",")}], unexpected [${unexpected.join(",")}]`,
-    );
-  }
 }

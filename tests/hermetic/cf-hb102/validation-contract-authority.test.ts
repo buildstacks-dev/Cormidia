@@ -360,6 +360,31 @@ describe("HB-102 — validation-contract authority and readiness", () => {
     await expectCode(() => readCurrentValidationContract(contractState.home.stateHome, APP, UNIT), "authority_corrupt");
   });
 
+  it("reads readiness only for the current validation authority version", async () => {
+    const { readCurrentDeliveryUnitReadiness } = await import("../../../src/org/roadmap-delivery.js");
+    const state = await setup("hb102-current-readiness");
+    expect(await readCurrentDeliveryUnitReadiness(state.home.stateHome, APP, UNIT)).toBeUndefined();
+
+    const firstValidation = await acceptValidationContract({
+      root: state.home.stateHome,
+      contract: contractFixture(state),
+    });
+    const firstReadiness = await acceptReadiness(state, firstValidation);
+    expect(await readCurrentDeliveryUnitReadiness(state.home.stateHome, APP, UNIT)).toEqual(firstReadiness);
+
+    await acceptValidationContract({
+      root: state.home.stateHome,
+      contract: {
+        ...structuredClone(firstValidation.value),
+        version: 2,
+        predecessor: firstValidation.ref,
+        proposedAt: "2026-08-03T23:32:00.000Z",
+        acceptedAt: "2026-08-03T23:33:00.000Z",
+      },
+    });
+    expect(await readCurrentDeliveryUnitReadiness(state.home.stateHome, APP, UNIT)).toBeUndefined();
+  });
+
   it("canonicalizes IDs, persists lifecycle, and advances current authority forward-only", async () => {
     const state = await setup("hb102-lifecycle");
     expect(VALIDATION_CONTRACT_SCHEMA).toMatchObject({

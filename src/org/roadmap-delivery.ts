@@ -18,7 +18,6 @@ import {
   type EpisodePlan,
   type ProposedEpisodeStep,
 } from "../loop/episode-plan.js";
-import { autonomousExecutionExclusionLabel } from "../loop/plan-tickets.js";
 import {
   durableClaimSettlementId,
   DurableClaimStore,
@@ -108,6 +107,12 @@ import {
 } from "./roadmap-delivery/backlog-authority.js";
 import { RoadmapDeliveryError } from "./roadmap-delivery/failure.js";
 import {
+  acceptDeliveryUnitReadiness,
+  assertDeliveryUnitReadinessShape,
+  readCurrentDeliveryUnitReadiness,
+  type DeliveryUnitReadiness,
+} from "./roadmap-delivery/delivery-readiness.js";
+import {
   assertRoadmapPlan,
   assertRoutingEligible,
   requireUnit,
@@ -131,6 +136,7 @@ import {
   assertCurrentRoadmapRef,
   readCurrentRoadmapPlan,
 } from "./roadmap-delivery/roadmap-plan.js";
+import { reconcileRoadmapProjections } from "./roadmap-delivery/roadmap-projections.js";
 
 export { RoadmapDeliveryError };
 export { ROADMAP_DELIVERY_SCHEMA_VERSION };
@@ -161,6 +167,8 @@ export {
 };
 export { acceptBacklogSnapshot, acceptRoadmapPlan, deriveBacklogDelta, readBacklogSnapshotAuthority };
 export { readCurrentRoadmapPlan, unitMembershipHash };
+export { acceptDeliveryUnitReadiness, readCurrentDeliveryUnitReadiness, reconcileRoadmapProjections };
+export type { DeliveryUnitReadiness };
 export type {
   AcceptedRoadmapPlan,
   BacklogSnapshot,
@@ -172,15 +180,6 @@ export type {
   RoadmapWorkstream,
   RoutingSnapshotEntry,
 };
-
-interface RoadmapProjectionRepair {
-  issueNumber: number;
-  labels: string[];
-  authorityRef: AuthorityRef;
-  unitId: string;
-  membershipHash: string;
-  reason: "missing" | "stale" | "contradictory" | "current";
-}
 
 interface ExecutionBatchUnit {
   kind?: "roadmap_code";
@@ -236,19 +235,6 @@ export interface ExecutionUnitBudget {
   maxMechanicalOverheadUsd: number;
   maxActiveTimeMs: number;
   maxHumanDecisions: number;
-}
-
-export interface DeliveryUnitReadiness {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  app: string;
-  unitId: string;
-  membershipHash: string;
-  roadmapRef: AuthorityRef;
-  frontierHash: string;
-  validationRef: AuthorityRef;
-  validationContractHash: string;
-  routingSnapshotHash: string;
-  readyAt: string;
 }
 
 export interface ExecutionBatch {
@@ -441,246 +427,6 @@ const DEFAULT_EXECUTION_UNIT_BUDGET: ExecutionUnitBudget = {
 };
 const HASH = /^[a-f0-9]{64}$/;
 const CANDIDATE_HEAD = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/;
-
-export async function reconcileRoadmapProjections(input: {
-  root: string;
-  roadmap: AcceptedRoadmapPlan;
-  snapshot: AcceptedAuthority<BacklogSnapshot>;
-  readiness: readonly AcceptedAuthority<DeliveryUnitReadiness>[];
-  current: readonly RoadmapIssueProjection[];
-  now: Date;
-}): Promise<RoadmapProjectionRepair[]> {
-  const [persistedRoadmap, persistedSnapshot] = await Promise.all([
-    requireAuthority<RoadmapPlan>(
-      input.root,
-      input.roadmap.value.app,
-      input.roadmap.ref,
-      "roadmap_plan",
-      "roadmap_missing",
-    ),
-    requireAuthority<BacklogSnapshot>(
-      input.root,
-      input.roadmap.value.app,
-      input.snapshot.ref,
-      "backlog_snapshot",
-      "backlog_incomplete",
-    ),
-  ]);
-  const currentRoadmap = await readCurrentRoadmapPlan(input.root, input.roadmap.value.app);
-  if (
-    currentRoadmap === undefined ||
-    !sameAuthorityRef(currentRoadmap.ref, input.roadmap.ref) ||
-    stableHash(persistedRoadmap.value) !== stableHash(input.roadmap.value) ||
-    stableHash(persistedSnapshot.value) !== stableHash(input.snapshot.value)
-  ) {
-    throw new RoadmapDeliveryError("projection_contradiction", "projection inputs are not current durable authority");
-  }
-  if (!sameAuthorityRef(input.roadmap.value.backlogSnapshotRef, input.snapshot.ref)) {
-    throw new RoadmapDeliveryError("projection_contradiction", "projection snapshot does not belong to RoadmapPlan");
-  }
-  const currentByIssue = new Map(input.current.map((projection) => [projection.issueNumber, projection]));
-  const unitByIssue = new Map<number, RoadmapDeliveryUnit>();
-  for (const unit of input.roadmap.value.deliveryUnits) {
-    for (const issueNumber of unit.issueNumbers) unitByIssue.set(issueNumber, unit);
-  }
-  const ready = new Set<string>();
-  for (const supplied of input.readiness) {
-    const entry = await requireAuthority<DeliveryUnitReadiness>(
-      input.root,
-      input.roadmap.value.app,
-      supplied.ref,
-      "delivery_unit_readiness",
-      "validation_incomplete",
-    );
-    if (stableHash(entry.value) !== stableHash(supplied.value)) {
-      throw new RoadmapDeliveryError(
-        "projection_contradiction",
-        "readiness projection input differs from durable authority",
-      );
-    }
-    assertAuthorityRef(entry.ref, "delivery_unit_readiness");
-    assertDeliveryUnitReadinessShape(entry.value);
-    if (stableHash(entry.value) !== entry.ref.sha256) {
-      throw new RoadmapDeliveryError("authority_corrupt", "readiness projection input is not content-bound");
-    }
-    if (
-      sameAuthorityRef(entry.value.roadmapRef, input.roadmap.ref) &&
-      entry.value.frontierHash === input.roadmap.frontierHash &&
-      entry.value.validationContractHash === entry.value.validationRef.sha256
-    ) {
-      const unit = requireUnit(input.roadmap.value, entry.value.unitId);
-      const validation = await requireAuthority<ValidationContract>(
-        input.root,
-        input.roadmap.value.app,
-        entry.value.validationRef,
-        "validation_contract",
-        "validation_contract_missing",
-      );
-      const currentValidation = await readCurrentValidationContract(
-        input.root,
-        input.roadmap.value.app,
-        entry.value.unitId,
-      );
-      await assertCurrentValidationCatalogRef(input.root, input.roadmap.value.app, validation.value.catalogRef);
-      await assertValidationWaiverAuthorities(input.root, validation.value);
-      assertValidationWaiversCurrent(validation.value, input.now);
-      if (
-        currentValidation === undefined ||
-        !sameAuthorityRef(currentValidation.ref, validation.ref) ||
-        entry.value.membershipHash !== unitMembershipHash(unit.issueNumbers)
-      ) {
-        throw new RoadmapDeliveryError("projection_contradiction", "readiness projection lineage is stale");
-      }
-      if (ready.has(entry.value.unitId)) {
-        throw new RoadmapDeliveryError(
-          "projection_contradiction",
-          `multiple readiness authorities name ${entry.value.unitId}`,
-        );
-      }
-      ready.add(entry.value.unitId);
-    }
-  }
-  const excludedUnits = new Set<string>();
-  for (const unit of input.roadmap.value.deliveryUnits) {
-    const snapshotExcluded = unit.issueNumbers.some((issueNumber) => {
-      const issue = input.snapshot.value.issues.find((candidate) => candidate.issueNumber === issueNumber);
-      return (
-        issue === undefined ||
-        issue.routing !== "automated" ||
-        autonomousExecutionExclusionLabel(issue.observedLabels) !== undefined
-      );
-    });
-    const currentExcluded = unit.issueNumbers.some((issueNumber) => {
-      const current = currentByIssue.get(issueNumber);
-      return current !== undefined && autonomousExecutionExclusionLabel(current.labels) !== undefined;
-    });
-    if (snapshotExcluded || currentExcluded) excludedUnits.add(unit.unitId);
-  }
-  return input.snapshot.value.issues
-    .map((issue): RoadmapProjectionRepair => {
-      const unit = unitByIssue.get(issue.issueNumber);
-      if (unit === undefined) {
-        throw new RoadmapDeliveryError("issue_unaccounted", `projection has no unit for #${issue.issueNumber}`);
-      }
-      const membershipHash = unitMembershipHash(unit.issueNumbers);
-      const prior = currentByIssue.get(issue.issueNumber);
-      const desired = new Set(
-        (prior?.labels ?? []).filter((label) => label !== "planning:preplanned" && label !== "op:ready"),
-      );
-      desired.add("planning:preplanned");
-      if (ready.has(unit.unitId) && !excludedUnits.has(unit.unitId)) {
-        desired.add("op:ready");
-      }
-      const labels = [...desired].sort();
-      const authorityMatches =
-        prior !== undefined &&
-        prior.authorityRef !== null &&
-        sameAuthorityRef(prior.authorityRef, input.roadmap.ref) &&
-        prior.unitId === unit.unitId &&
-        prior.membershipHash === membershipHash;
-      const labelsMatch = prior !== undefined && stableHash([...prior.labels].sort()) === stableHash(labels);
-      const reason: RoadmapProjectionRepair["reason"] =
-        prior === undefined
-          ? "missing"
-          : authorityMatches && labelsMatch
-            ? "current"
-            : prior.authorityRef === null
-              ? "contradictory"
-              : "stale";
-      return {
-        issueNumber: issue.issueNumber,
-        labels,
-        authorityRef: input.roadmap.ref,
-        unitId: unit.unitId,
-        membershipHash,
-        reason,
-      };
-    })
-    .sort((left, right) => left.issueNumber - right.issueNumber);
-}
-
-export async function acceptDeliveryUnitReadiness(input: {
-  root: string;
-  app: string;
-  roadmapRef: AuthorityRef;
-  expectedFrontierHash: string;
-  validationRef: AuthorityRef;
-  unitId: string;
-  routing: RoutingSnapshotEntry[];
-  readyAt: string;
-  project?: RoadmapDeliveryProjector;
-}): Promise<AcceptedAuthority<DeliveryUnitReadiness>> {
-  const roadmap = await requireAuthority<RoadmapPlan>(
-    input.root,
-    input.app,
-    input.roadmapRef,
-    "roadmap_plan",
-    "roadmap_missing",
-  );
-  assertRoadmapPlan(roadmap.value);
-  const currentRoadmap = await readCurrentRoadmapPlan(input.root, input.app);
-  const frontierHash = stableHash(roadmap.value.readyFrontier);
-  if (
-    currentRoadmap === undefined ||
-    !sameAuthorityRef(currentRoadmap.ref, roadmap.ref) ||
-    frontierHash !== input.expectedFrontierHash
-  ) {
-    throw new RoadmapDeliveryError("frontier_stale", "readiness does not bind the current frontier");
-  }
-  if (!roadmap.value.readyFrontier.includes(input.unitId)) {
-    throw new RoadmapDeliveryError(
-      "validation_incomplete",
-      `${input.unitId} is not in the accepted validation-candidate frontier`,
-    );
-  }
-  const unit = requireUnit(roadmap.value, input.unitId);
-  assertRoutingEligible(unit, input.routing);
-  const validation = await requireAuthority<ValidationContract>(
-    input.root,
-    input.app,
-    input.validationRef,
-    "validation_contract",
-    "validation_contract_missing",
-  );
-  assertValidationContractBaseShape(validation.value);
-  await assertValidationWaiverAuthorities(input.root, validation.value);
-  assertValidationWaiversCurrent(validation.value, input.readyAt);
-  await assertCurrentValidationCatalogRef(input.root, input.app, validation.value.catalogRef);
-  const currentValidation = await readCurrentValidationContract(input.root, input.app, input.unitId);
-  if (
-    currentValidation === undefined ||
-    !sameAuthorityRef(currentValidation.ref, validation.ref) ||
-    !sameAuthorityRef(validation.value.roadmapRef, roadmap.ref) ||
-    validation.value.unitMembershipHash !== unitMembershipHash(unit.issueNumbers)
-  ) {
-    throw new RoadmapDeliveryError(
-      "validation_contract_stale",
-      "readiness does not bind the current accepted validation contract",
-    );
-  }
-  const readiness: DeliveryUnitReadiness = {
-    schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
-    app: input.app,
-    unitId: input.unitId,
-    membershipHash: validation.value.unitMembershipHash,
-    roadmapRef: roadmap.ref,
-    frontierHash,
-    validationRef: validation.ref,
-    validationContractHash: validation.ref.sha256,
-    routingSnapshotHash: routingSnapshotHash(unit, input.routing),
-    readyAt: requireDateTime(input.readyAt, "delivery readiness readyAt"),
-  };
-  const accepted = await persistAuthority(
-    input.root,
-    input.app,
-    "delivery_unit_readiness",
-    input.unitId,
-    validation.ref.version,
-    readiness,
-  );
-  await projectAccepted(input.root, input.app, accepted, input.project);
-  return accepted;
-}
 
 /** Complete direct-work authority. Ordinary prose and labels cannot create it. */
 export async function acceptDirectExecutionUnit(input: {
@@ -1882,20 +1628,6 @@ export async function listActiveExecutionUnits(root: string, app: string): Promi
   return [...found.values()].sort((a, b) => a.unit.unitId.localeCompare(b.unit.unitId));
 }
 
-export async function readCurrentDeliveryUnitReadiness(
-  root: string,
-  app: string,
-  unitId: string,
-): Promise<AcceptedAuthority<DeliveryUnitReadiness> | undefined> {
-  const validation = await readCurrentValidationContract(root, app, unitId);
-  if (validation === undefined) return undefined;
-  const path = readinessAuthorityPath(root, app, unitId, validation.ref.version);
-  if (!existsSync(path)) return undefined;
-  const readiness = await readAuthorityFile<DeliveryUnitReadiness>(path);
-  assertDeliveryUnitReadinessShape(readiness.value);
-  return readiness;
-}
-
 export function deliveryClaimRecordPath(root: string, identity: string): string {
   const settlementId = durableClaimSettlementId(identity);
   return join(resolve(root), CLAIM_NAMESPACE, "records", `${settlementId}.json`);
@@ -2127,44 +1859,6 @@ function uniqueInputRefs(refs: Array<{ ref: string; required: boolean }>): Array
     byRef.set(ref.ref, { ref: ref.ref, required: ref.required || existing?.required === true });
   }
   return [...byRef.values()].sort((left, right) => left.ref.localeCompare(right.ref));
-}
-
-function assertDeliveryUnitReadinessShape(readiness: DeliveryUnitReadiness): void {
-  assertExactObjectKeys(
-    readiness,
-    [
-      "schemaVersion",
-      "app",
-      "unitId",
-      "membershipHash",
-      "roadmapRef",
-      "frontierHash",
-      "validationRef",
-      "validationContractHash",
-      "routingSnapshotHash",
-      "readyAt",
-    ],
-    "delivery-unit readiness",
-    "validation_incomplete",
-  );
-  if (readiness.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
-    throw new RoadmapDeliveryError("validation_incomplete", "unsupported readiness schema");
-  }
-  assertId(readiness.unitId, "readiness unit id");
-  assertHash(readiness.membershipHash, "readiness membership hash");
-  assertHash(readiness.frontierHash, "readiness frontier hash");
-  assertHash(readiness.validationContractHash, "readiness validation-contract hash");
-  assertHash(readiness.routingSnapshotHash, "readiness routing hash");
-  assertAuthorityRef(readiness.roadmapRef, "roadmap_plan");
-  assertAuthorityRef(readiness.validationRef, "validation_contract");
-  requireDateTime(readiness.readyAt, "readiness readyAt");
-  if (
-    typeof readiness.app !== "string" ||
-    readiness.app.trim().length === 0 ||
-    readiness.validationContractHash !== readiness.validationRef.sha256
-  ) {
-    throw new RoadmapDeliveryError("validation_incomplete", "readiness lineage is incomplete");
-  }
 }
 
 function assertDirectExecutionUnit(authority: DirectExecutionUnitAuthority): void {

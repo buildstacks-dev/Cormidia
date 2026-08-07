@@ -63,6 +63,7 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
   opencode: undefined,
   pi: undefined,
   grok: "the Grok Build roster is only readable by running `grok models` with a working credential, which a config edit must not require; the id is proven by `cormidia doctor` and then inside a live turn",
+  muse: undefined,
 };
 
 /** How long the OpenCode roster listing may take before it is reported as
@@ -71,12 +72,29 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
 const OPENCODE_CATALOG_TIMEOUT_MS = 15_000;
 
 /**
+ * Muse Spark identifiers Muse Code accepts, from the vendor announcement
+ * recorded in `research/2026-08-06_adapter-upstream-references.md`. The roster
+ * is a published DOCUMENTED list, not a probe: `muse` exposes no token-free
+ * enumeration command, so `source` names the record rather than a local file.
+ * Publishing a roster never assigns a model to a role.
+ */
+const MUSE_MODELS = ["muse-spark-1.1", "muse-spark-1.2"] as const;
+
+/**
  * Read the harness roster. Never contacts a provider, never sends a model
  * request, and never writes: the pi roster is the local model registry, and
  * the other two harnesses report unavailability rather than guessing.
  */
 export async function readRuntimeModelCatalog(runtime: RuntimeKind): Promise<RuntimeModelCatalog> {
   if (runtime === "opencode") return readOpencodeModelCatalog();
+  if (runtime === "muse") {
+    return {
+      runtime,
+      available: true,
+      source: "research/2026-08-06_adapter-upstream-references.md (Muse Code / Muse Spark)",
+      models: [...MUSE_MODELS],
+    };
+  }
   if (runtime !== "pi") {
     return { runtime, available: false, reason: UNAVAILABLE_REASON[runtime]! };
   }

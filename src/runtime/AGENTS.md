@@ -7,7 +7,7 @@ AGENTS.md rules still apply; this file adds the local ones.
 ## Purpose
 `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, and
 the adapters (Claude Agent SDK, Codex App Server, pi SDK, `cursor-agent` CLI,
-OpenCode server+SDK, Grok Build ACP).
+OpenCode server+SDK, Grok Build ACP, Muse Code CLI).
 
 ## Local rules
 - This layer imports nothing from `src/loop` or `src/org` — it is the bottom
@@ -28,10 +28,11 @@ OpenCode server+SDK, Grok Build ACP).
   live — the shared two-turn walk in `tests/fixtures/adapters/conformance.ts`,
   run hermetically against the transport doubles
   (`tests/hermetic/cf-adapter-conformance/`, including the subagent
-  gate-ordering probe, the pi and grok fan-out degradation paths, and the
-  300 KB payload pin — #334) and live through the campaign runner
-  (CF-B02/03/04-L3, plus CF-B23-L3 for OpenCode, CF-B24-L3 for Cursor and
-  CF-B25-L3 for Grok Build).
+  gate-ordering probe, the pi, grok and muse fan-out degradation paths, and
+  the 300 KB payload pin — #334) and live through the campaign runner
+  (CF-B02/03/04-L3, plus CF-B23-L3 for OpenCode, CF-B24-L3 for Cursor,
+  CF-B25-L3 for Grok Build, and CF-B26-L3 for Muse Code — the last reporting
+  `incomplete`, which is its certified final state).
   Extend cases; never weaken one to make an adapter pass.
 - `harness-support.ts` is the ONE place version bands live: per kind, `floor`
   (below it readiness refuses before the provider is constructed), `testedWith`,
@@ -78,6 +79,23 @@ OpenCode server+SDK, Grok Build ACP).
   and their `~/.claude/settings.json` both reach grok otherwise. Carry only
   `auth.json` across, and keep the isolated home stable per workdir — grok
   stores session transcripts inside it and a per-turn home breaks exact resume.
+- **An adapter with no proven gate seam refuses; it does not degrade.**
+  `adapters/muse*.ts` is the worked example: Muse Code auto-approves tool calls
+  headlessly and its managed-hook seam did not fire on the certified build, so
+  every turn proves the seam first (token-free `--provider echo` handshake) and
+  refuses with `error_gate_seam_unavailable` when it cannot. The capability
+  profile says `tool_gate: unsupported` and `intra_turn_fanout: unsupported` to
+  match. Never soften this into "gate on a best-effort basis" — an unproven gate
+  is an ungated turn (`research/2026-08-07_muse-code-adapter-certification.md`).
+- **`subagentTurns` comes from records, never from prose.** Muse narrated
+  parallel subagents it had not spawned; the offline suite carries a seeded liar
+  for exactly that. Fan-out accounting reads the hook join table and the durable
+  session log only.
+- The Muse adapter is deliberately split by concern so each module stays inside
+  the public-symbol budget: `muse.ts` (turn orchestration), `muse-exec.ts`
+  (argv + subprocess + auth resolution), `muse-usage.ts` (durable-log spend),
+  `muse-events.ts` (stream folding), `muse-gate-bridge.ts` +
+  `muse-hook-router.ts` + `muse-managed-hooks.ts` + `muse-gate-hook.ts` (gate).
 
 ## Testing
 Interim during the validation rebuild (root AGENTS.md → Testing expectations):

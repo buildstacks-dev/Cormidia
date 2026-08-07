@@ -15,21 +15,28 @@
 // that fabricates fan-out on the unsupported harness must each make a
 // detector fire.
 
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Runtime, ToolAction, TurnEvent, TurnHooks, TurnResult } from "../../../src/runtime/types.js";
 import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble } from "../../fixtures/adapters/codex-double.js";
 import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
 import { grokDouble } from "../../fixtures/adapters/grok-double.js";
+import { museDouble } from "../../fixtures/adapters/muse-double.js";
 import { opencodeDouble, opencodeDoubleRequest } from "../../fixtures/adapters/opencode-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { AdapterContractViolation, checkEveryExecutedToolConsulted, script } from "../../fixtures/adapters/scenario.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
 
 let repo: TempGitRepo | undefined;
+let museLogRoot: string | undefined;
 afterEach(async () => {
   await repo?.cleanup();
   repo = undefined;
+  if (museLogRoot !== undefined) await rm(museLogRoot, { recursive: true, force: true });
+  museLogRoot = undefined;
 });
 
 const CRITICAL_COMMAND = "gh pr merge 42 --squash";
@@ -432,6 +439,143 @@ describe("CF-B04-DEGRADE — pi fan-out unsupported: delegation degrades visibly
 });
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// CF-B26-SUBGATE — Muse Code claims a native swarm, but 0.1.0-R708.1 exposes no
+// hook seam covering swarm members (F-PT-028, field-verified 2026-08-07). The
+// capability profile therefore records `intra_turn_fanout: unsupported` and the
+// adapter DENIES the spawn: an ungated swarm is never an acceptable
+// degradation (contracts/B-26-muse-code.md). These cases pin the fail-closed
+// fallback, prove `subagentTurns` is never taken from prose, and keep the
+// gate-hole detector armed for the day a real seam ships.
+// ---------------------------------------------------------------------------
+
+describe("CF-B26-SUBGATE — muse fan-out unsupported: the spawn is denied, never silently allowed", () => {
+  const museRole = (allow: string[]) => doubleRole({ runtime: "muse", model: "muse-spark-1.2", delegation: { allow } });
+
+  async function double(
+    scenarios: Parameters<typeof museDouble>[0],
+    violations?: Parameters<typeof museDouble>[1]["violations"],
+  ) {
+    museLogRoot = await mkdtemp(join(tmpdir(), "cormidia-muse-subgate-"));
+    return museDouble(scenarios, {
+      sessionLogRoot: museLogRoot,
+      ...(violations === undefined ? {} : { violations }),
+    });
+  }
+
+  it("a subagent_spawn attempt is denied and escalated before any child exists", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = await double([
+      script.turn({
+        sessionId: "muse-spawn",
+        steps: [script.tool("subagent_spawn", { agent_type: "reviewer", prompt: "review this" })],
+        outcome: script.success("worked serially", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+    ]);
+    const { hooks, gateActions, events } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: museRole(["reviewer"]) }),
+      hooks,
+    );
+
+    expect(result.status).toBe("blocked_on_gate");
+    expect(result.escalations[0]?.reason).toContain("intra-turn fan-out has no proven gate seam");
+    expect(result.usage.subagentTurns).toBe(0); // never a fabricated surface
+    expect(gateActions).toEqual([]); // the org gate is never asked to allow a hole
+    expect(events.filter((event) => event.type === "subagent")).toHaveLength(0);
+    const turn = dbl.recorder.turns.find((entry) => !entry.handshake)!;
+    expect(turn.sequence).not.toContain("execute:subagent_spawn");
+    expect(() => checkEveryExecutedToolConsulted(turn)).not.toThrow();
+  });
+
+  it("negative control: prose claiming parallel subagents never becomes subagentTurns", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = await double(
+      [
+        script.turn({
+          sessionId: "muse-narrated",
+          outcome: script.success("split the work across parallel agents", {
+            usage: { inputTokens: 10, outputTokens: 2 },
+          }),
+        }),
+      ],
+      ["narrate_fanout"],
+    );
+    const { hooks } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: museRole(["reviewer"]) }),
+      hooks,
+    );
+
+    // The model SAYS it fanned out; no subagent record exists anywhere.
+    expect(result.summary).toContain("subagents in parallel");
+    expect(result.usage.subagentTurns).toBe(0);
+  });
+
+  it("negative control: a swarm child's tool call that skips the hook is caught by the shared detector", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = await double(
+      [
+        script.turn({
+          sessionId: "muse-child-bypass",
+          steps: [
+            script.tool("bash", { command: "echo main-ok" }),
+            script.subagentStarted("reviewer", "critical helper"),
+            script.tool("bash", { command: CRITICAL_COMMAND }, { fromSubagent: true }),
+          ],
+          outcome: script.success("looks clean", { usage: { inputTokens: 10, outputTokens: 2 } }),
+        }),
+      ],
+      ["bypass_subagent_gate"],
+    );
+    const { hooks, gateActions } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: museRole(["reviewer"]) }),
+      hooks,
+    );
+
+    expect(gateActions).toEqual([{ tool: "bash", input: { command: "echo main-ok" } }]);
+    expect(result.escalations).toEqual([]);
+    const turn = dbl.recorder.turns.find((entry) => !entry.handshake)!;
+    expect(turn.toolPlays[1]?.executed).toBe(true);
+    expect(turn.toolPlays[1]?.consultations).toEqual([]);
+    expect(() => checkEveryExecutedToolConsulted(turn)).toThrow(AdapterContractViolation);
+    expect(() => checkEveryExecutedToolConsulted(turn)).toThrow(/ungated/);
+  });
+
+  it("mechanism evidence: with a live seam a child's critical op reaches the gate identically", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = await double([
+      script.turn({
+        sessionId: "muse-child-gated",
+        steps: [
+          script.subagentStarted("reviewer", "critical helper"),
+          script.tool("bash", { command: CRITICAL_COMMAND }, { fromSubagent: true }),
+        ],
+        outcome: script.success("recovered without the tool", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+    ]);
+    const { hooks, gateActions, events } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: museRole(["reviewer"]) }),
+      hooks,
+    );
+
+    // The child's action is normalized and classified exactly like a top-level
+    // one, and the paired subagent lifecycle event carries the join spanId.
+    expect(gateActions).toEqual([{ tool: "bash", input: { command: CRITICAL_COMMAND } }]);
+    expect(result.status).toBe("blocked_on_gate");
+    expect(events).toContainEqual(expect.objectContaining({ type: "subagent", phase: "started", spanId: "reviewer" }));
+    const turn = dbl.recorder.turns.find((entry) => !entry.handshake)!;
+    expect(turn.sequence).not.toContain("execute:bash");
+    expect(() => checkEveryExecutedToolConsulted(turn)).not.toThrow();
+    // Scripted evidence only. The live binary fired no hook at all, so this
+    // mechanism remains UNPROVEN against the real product and the profile
+    // keeps `intra_turn_fanout: unsupported`.
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CF-B25-DEGRADE — grok claims intra_turn_fanout "unsupported", and unlike pi
 // it has a fan-out tool it could otherwise reach. Declaring the surface absent
 // is therefore not enough: the gate bridge must DENY spawn_subagent, so the
@@ -562,9 +706,6 @@ describe("CF-B25-DEGRADE — grok fan-out uncertified: the spawn tool is denied,
     await dbl.runtime.runTurn(doubleTurnRequest({ workdir: repo.dir, role: grokRole(["scout"]) }), hooks);
     expect(gateActions).toEqual([]);
     expect(() => checkEveryExecutedToolConsulted(dbl.recorder.turns[0]!)).toThrow(/INV-002 gate-before-execution/);
-  });
-});
-
   });
 });
 

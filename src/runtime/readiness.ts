@@ -20,6 +20,8 @@ import { join } from "node:path";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
 import { StdioGrokAcpClient } from "./adapters/grok-acp-client.js";
 import { createIsolatedGrokHome, grokBinaryVersion } from "./adapters/grok-isolation.js";
+import { museHandshakeArgs, resolveMuseApiKey } from "./adapters/muse-exec.js";
+import { startMuseGateBridge } from "./adapters/muse-gate-bridge.js";
 import { resolvePiModel } from "./adapters/pi.js";
 import { toErrorMessage as errorMessage } from "./error-message.js";
 import { assessHarnessVersion, type HarnessVersionDetector } from "./harness-support.js";
@@ -86,6 +88,7 @@ const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementatio
   opencode: probeOpencode,
   pi: probePi,
   grok: probeGrok,
+  muse: probeMuse,
 };
 
 export async function probeRuntimeReadiness(
@@ -650,6 +653,81 @@ async function probePi(
 
 function createPiModelRuntime(authPath: string, modelsPath: string): Promise<ModelRuntime> {
   return ModelRuntime.create({ authPath, modelsPath });
+}
+
+/**
+ * Muse Code readiness: the preinstalled binary (Cormidia never installs a
+ * provider, #224), a usable API key, and — because `muse exec` auto-approves
+ * headlessly — proof that the managed-hook gate seam is live. A harness whose
+ * gate cannot be proven is not ready: every turn would refuse, and discovering
+ * that inside a paid turn is exactly what this probe exists to prevent.
+ */
+async function probeMuse(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
+  const env = request.processEnv ?? process.env;
+  const version = await museVersion(env, request.signal);
+  const key = await resolveMuseApiKey(env);
+  if (key === undefined) {
+    return {
+      status: "unauthenticated",
+      errorCode: "error_adapter_unauthenticated",
+      detail:
+        `muse ${version} is installed, but no API key is resolvable from the operator's ` +
+        `configured source (CORMIDIA_MUSE_API_KEY_FILE, CORMIDIA_MUSE_API_KEY, MUSE_API_KEY, META_API_KEY)`,
+    };
+  }
+  const seam = await probeMuseGateSeam(env);
+  if (!seam) {
+    return {
+      status: "misconfigured",
+      errorCode: "error_adapter_gate_seam_unavailable",
+      detail:
+        `muse ${version} is installed and authenticated, but no managed hook reached the Cormidia ` +
+        `gate socket, so no tool action could be classified before execution. MuseRuntime refuses ` +
+        `every turn in this state rather than running one ungated ` +
+        `(docs/harness/capability-matrix.md, contracts/B-26-muse-code.md).`,
+    };
+  }
+  return {
+    status: "ready",
+    detail: `muse ${version} is installed, authenticated, and its managed-hook gate seam is live; no model turn sent`,
+  };
+}
+
+function museVersion(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "muse",
+      ["--version"],
+      { env: { ...env, MUSE_NO_AUTO_UPDATE: "1" }, signal, encoding: "utf8" },
+      (error, stdout) => {
+        if (error !== null) reject(error);
+        else resolve(stdout.trim());
+      },
+    );
+  });
+}
+
+/** Token-free: an echo-provider run with the managed hook root installed. */
+async function probeMuseGateSeam(env: NodeJS.ProcessEnv): Promise<boolean> {
+  const gate = (): { allow: false; reason: string; escalate: boolean } => ({
+    allow: false,
+    reason: "cormidia readiness probe denies every action",
+    escalate: false,
+  });
+  const bridge = await startMuseGateBridge(process.cwd(), { gate }, []);
+  try {
+    await new Promise<void>((resolve) => {
+      execFile(
+        "muse",
+        museHandshakeArgs(process.cwd()),
+        { env: { ...env, ...bridge.env }, encoding: "utf8", timeout: 20_000 },
+        () => resolve(),
+      );
+    });
+    return bridge.handshakeObserved();
+  } finally {
+    await bridge.close();
+  }
 }
 
 function classifyProbeError(error: unknown): ProbeOutcome {

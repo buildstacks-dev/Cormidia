@@ -13,6 +13,7 @@ export const TURN_ASSIGNMENT_HARNESSES = [
   "cursor",
   "pi",
   "grok",
+  "muse",
   "opencode",
 ] as const satisfies readonly RuntimeKind[];
 export const TURN_ASSIGNMENT_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly Effort[];
@@ -282,13 +283,23 @@ export function configuredProviderFamily(assignment: TurnAssignment): string {
   // CLI. Falling through would label it `pi/...` and let it be counted as an
   // independent turn against a pi-hosted xAI model, which is the same vendor.
   if (validated.harness === "grok") return "xai";
+  // Muse Code runs Meta models through Meta's own key (`--provider meta`,
+  // META_API_KEY). Falling through would namespace it `pi/...` and let a Meta
+  // turn be counted as independent of a pi-hosted Meta model — the same vendor.
+  if (validated.harness === "muse") return "meta";
 
   const separator = validated.model.indexOf("/");
   const namespace = (separator === -1 ? validated.model : validated.model.slice(0, separator)).toLowerCase();
   if (namespace === "openai" || namespace === "openai-codex") return "openai";
   if (namespace === "anthropic") return "anthropic";
-  if (isAssignmentCandidateId(namespace)) return `pi/${namespace}`;
-  return "pi/unknown";
+  // OpenCode is multi-provider like pi and reaches the real vendor with the
+  // operator's OWN credential, so a recognized namespace is the honest family
+  // for either harness. The unrecognized tail must stay harness-namespaced:
+  // labelling an opencode turn `pi/...` would collide two different harnesses'
+  // unknown models into one family and read as the same vendor.
+  const routed = validated.harness === "opencode" ? "opencode" : "pi";
+  if (isAssignmentCandidateId(namespace)) return `${routed}/${namespace}`;
+  return `${routed}/unknown`;
 }
 
 /**

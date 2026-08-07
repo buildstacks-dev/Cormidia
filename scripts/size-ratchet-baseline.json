@@ -288,7 +288,7 @@
     },
     "src/loop/pipeline.ts": {
       "exports": 6,
-      "lines": 1906,
+      "lines": 1930,
       "newModule": false
     },
     "src/loop/pipelines.ts": {
@@ -558,7 +558,7 @@
     },
     "src/org/episode-planner/runtime.ts": {
       "exports": 3,
-      "lines": 1741,
+      "lines": 1765,
       "newModule": false
     },
     "src/org/episode-safety-facts.ts": {
@@ -1376,6 +1376,46 @@
       "lines": 254,
       "newModule": true
     },
+    "src/runtime/adapters/muse-events.ts": {
+      "exports": 4,
+      "lines": 79,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-exec.ts": {
+      "exports": 10,
+      "lines": 173,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-gate-bridge.ts": {
+      "exports": 2,
+      "lines": 153,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-gate-hook.ts": {
+      "exports": 0,
+      "lines": 98,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-hook-router.ts": {
+      "exports": 5,
+      "lines": 147,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-managed-hooks.ts": {
+      "exports": 3,
+      "lines": 80,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse-usage.ts": {
+      "exports": 7,
+      "lines": 170,
+      "newModule": true
+    },
+    "src/runtime/adapters/muse.ts": {
+      "exports": 5,
+      "lines": 300,
+      "newModule": true
+    },
     "src/runtime/adapters/opencode-config.ts": {
       "exports": 4,
       "lines": 120,
@@ -1392,8 +1432,8 @@
       "newModule": true
     },
     "src/runtime/adapters/opencode-gate-plugin.ts": {
-      "exports": 3,
-      "lines": 165,
+      "exports": 2,
+      "lines": 133,
       "newModule": true
     },
     "src/runtime/adapters/opencode-server.ts": {
@@ -1423,12 +1463,12 @@
     },
     "src/runtime/assignment.ts": {
       "exports": 16,
-      "lines": 314,
+      "lines": 330,
       "newModule": false
     },
     "src/runtime/capabilities.ts": {
       "exports": 8,
-      "lines": 232,
+      "lines": 288,
       "newModule": false
     },
     "src/runtime/cost.ts": {
@@ -1468,12 +1508,17 @@
     },
     "src/runtime/harness-support.ts": {
       "exports": 9,
-      "lines": 288,
+      "lines": 264,
       "newModule": true
     },
     "src/runtime/harness-version-detect.ts": {
       "exports": 4,
-      "lines": 110,
+      "lines": 128,
+      "newModule": true
+    },
+    "src/runtime/harness-version-math.ts": {
+      "exports": 3,
+      "lines": 55,
       "newModule": true
     },
     "src/runtime/invocation-ledger.ts": {
@@ -1483,7 +1528,7 @@
     },
     "src/runtime/model-catalog.ts": {
       "exports": 4,
-      "lines": 189,
+      "lines": 226,
       "newModule": false
     },
     "src/runtime/non-interactive-env.ts": {
@@ -1508,17 +1553,17 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 620,
+      "lines": 779,
       "newModule": false
     },
     "src/runtime/registry.ts": {
       "exports": 2,
-      "lines": 23,
+      "lines": 27,
       "newModule": false
     },
     "src/runtime/role-shaping.ts": {
-      "exports": 3,
-      "lines": 89,
+      "exports": 4,
+      "lines": 111,
       "newModule": false
     },
     "src/runtime/runlog/anomalies.ts": {
@@ -1588,7 +1633,7 @@
     },
     "src/runtime/turn-budget.ts": {
       "exports": 7,
-      "lines": 313,
+      "lines": 324,
       "newModule": false
     },
     "src/runtime/turn-usage.ts": {

@@ -98,6 +98,17 @@ export function costEnforcementFor(runtime: RuntimeKind): EffectiveTurnBounds["c
   // claimed a running progress guard this harness does not have, which is the
   // exact over-claim INV-008 forbids.
   if (runtime === "grok") return "estimated_terminal_only_no_progress";
+  // Muse streams no usage and the vendor reports no dollars at all, so cost is
+  // a Cormidia ESTIMATE from list prices — but the adapter re-reads the durable
+  // session log at every model-step boundary, so the guard really is running.
+  // Falling through to pi's answer would have called that estimate "measured".
+  if (runtime === "muse") return "estimated_progress_no_strict_provider_cap";
+  // OpenCode derives dollars from the models.dev catalog rather than a provider
+  // billing response, so the figure is an estimate — but the observer checks it
+  // as the stream advances, so the guard runs. On an auth tier the catalog
+  // prices at zero the guard cannot fire at all, which is why this must never
+  // be reported as pi's "measured".
+  if (runtime === "opencode") return "estimated_progress_no_strict_provider_cap";
   return "measured_progress_no_strict_provider_cap";
 }
 

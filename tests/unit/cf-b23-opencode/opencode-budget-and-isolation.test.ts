@@ -6,11 +6,18 @@
 // rule. Isolation is pinned here as the env contract; the certification lane
 // proves the same env actually keeps an operator sentinel out of a real turn.
 
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { normalizeOpencodeToolActions, OPENCODE_TOOLS } from "../../../src/runtime/adapters/opencode-gate-bridge.js";
 import { buildOpencodeInlineConfig, opencodePermissionConfig } from "../../../src/runtime/adapters/opencode-config.js";
 import { opencodeHermeticEnv } from "../../../src/runtime/adapters/opencode-server.js";
 import { runtimeCapabilityProfile } from "../../../src/runtime/capabilities.js";
+import { HARNESS_SUPPORT, bandForVersion } from "../../../src/runtime/harness-support.js";
+import { readBinaryVersion } from "../../../src/runtime/harness-version-detect.js";
+import { configuredProviderFamily } from "../../../src/runtime/assignment.js";
+import { costEnforcementFor } from "../../../src/runtime/turn-budget.js";
 import { RUNTIME_KINDS, getRuntime } from "../../../src/runtime/registry.js";
 import { opencodeDouble, opencodeDoubleRequest } from "../../fixtures/adapters/opencode-double.js";
 import { script } from "../../fixtures/adapters/scenario.js";
@@ -229,3 +236,71 @@ describe("CF-B23-REGISTER — the harness is registered everywhere the compiler 
     ]);
   });
 });
+
+describe("CF-B23 version bands — opencode's version is read from a banner, never guessed", () => {
+  it("finds the version on a later line when a banner precedes it", () => {
+    // opencode's readiness probe reads the LAST line for this reason; banding
+    // scans lines in order and only accepts an already-version-shaped token.
+    const detection = readBinaryVersion(fakeVersionCommand("opencode\n1.18.15"), []);
+    expect(detection).toEqual({ detected: true, version: "1.18.15" });
+    expect(bandForVersion(HARNESS_SUPPORT.opencode, "1.18.15")).toBe("at_tested");
+  });
+
+  it("accepts a leading `v` the way the certification record writes it", () => {
+    expect(readBinaryVersion(fakeVersionCommand("v1.18.15"), [])).toEqual({ detected: true, version: "1.18.15" });
+  });
+
+  it("negative control: banner-only output is never guessed into a version", () => {
+    const detection = readBinaryVersion(fakeVersionCommand("opencode\nthe AI coding agent"), []);
+    expect(detection).toEqual({ detected: true, version: "opencode" });
+    expect(bandForVersion(HARNESS_SUPPORT.opencode, "opencode")).toBe("unknown");
+  });
+
+  it("declares opencode's bands against the certification record", () => {
+    // floor === testedWith: certification proved the gate PLUGIN wires its
+    // hooks on this build, and a plugin whose factory runs is not a plugin
+    // whose hooks are wired.
+    expect(HARNESS_SUPPORT.opencode.floor).toBe("1.18.15");
+    expect(HARNESS_SUPPORT.opencode.testedWith).toBe("1.18.15");
+    expect(HARNESS_SUPPORT.opencode.testedEvidence).toBe("research/2026-08-07_opencode-adapter-certification.md");
+    expect(HARNESS_SUPPORT.opencode.versionSource).toEqual({
+      kind: "installed_binary",
+      command: "opencode",
+      args: ["--version"],
+    });
+  });
+});
+
+describe("CF-B23 registration — opencode never inherits another harness's answer", () => {
+  it("reports the routed provider family, and namespaces an unknown one to opencode", () => {
+    // opencode reaches the real vendor with the OPERATOR'S OWN credential, so a
+    // recognized namespace is the honest family. An unrecognized one must not
+    // borrow pi's namespace or two harnesses' unknown models would collide.
+    expect(configuredProviderFamily({ harness: "opencode", model: "openai/gpt-5.6", effort: "medium" })).toBe("openai");
+    expect(configuredProviderFamily({ harness: "opencode", model: "anthropic/claude-opus-5", effort: "medium" })).toBe(
+      "anthropic",
+    );
+    expect(configuredProviderFamily({ harness: "opencode", model: "scripted/x", effort: "medium" })).toBe(
+      "opencode/scripted",
+    );
+    // A namespace that is not even a well-formed id still stays opencode's.
+    expect(configuredProviderFamily({ harness: "opencode", model: "Not An Id/x", effort: "medium" })).toBe(
+      "opencode/unknown",
+    );
+  });
+
+  it("reports an estimated running guard, not pi's measured one", () => {
+    // Dollars come from the models.dev catalog, not a billing response.
+    expect(costEnforcementFor("opencode")).toBe("estimated_progress_no_strict_provider_cap");
+  });
+});
+
+const versionCommandDir = mkdtempSync(join(tmpdir(), "cormidia-opencode-version-"));
+let versionCommandSeq = 0;
+
+/** A tiny executable printing `text`, so the real `execFileSync` path runs. */
+function fakeVersionCommand(text: string): string {
+  const script = join(versionCommandDir, `v${(versionCommandSeq += 1)}.sh`);
+  writeFileSync(script, `#!/bin/sh\nprintf '%b\\n' ${JSON.stringify(text)}\n`, { mode: 0o755 });
+  return script;
+}

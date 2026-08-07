@@ -41,6 +41,7 @@ import {
   recordReviewerVerdict,
   roadmapAuthorityPath,
   settleDeliveryUnitClaim,
+  settleDeliveryUnitRefusal,
   transitionExecutionUnitJournal,
   unitMembershipHash,
   validationAuthorityPath,
@@ -827,6 +828,68 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
 });
 
 describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
+  it("validates a direct refusal before settling its claim and journal", async () => {
+    const home = await makeTempStateHome({ name: "hb103-direct-refusal" });
+    homes.push(home);
+    const authorities = await acceptedEpisode({ home });
+    const claim = await claimDeliveryUnit({
+      root: home.stateHome,
+      app: APP.name,
+      episodeBindingRef: authorities.binding.ref,
+      readCurrentRouting: async () => AUTOMATED_ROUTING,
+      now: new Date(AT),
+    });
+    await commitDeliveryUnitClaim({
+      root: home.stateHome,
+      app: APP.name,
+      claim,
+      runId: "direct-refusal-run",
+      now: new Date(AT),
+    });
+
+    await expectRoadmapError(
+      () =>
+        settleDeliveryUnitRefusal({
+          root: home.stateHome,
+          app: APP.name,
+          claimSettlementId: claim.record.settlement_id,
+          claimAttempt: claim.record.attempt,
+          runId: "direct-refusal-run",
+          batchRef: authorities.batch.ref,
+          unitId: "unit-roadmap-validation",
+          reason: "  ",
+          now: new Date("2026-08-03T22:03:00.000Z"),
+        }),
+      "validation_contract_invalid",
+    );
+    expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
+      status: "committed",
+      outcome: null,
+    });
+    expect(
+      await readExecutionUnitJournal(home.stateHome, APP.name, authorities.batch.ref.id, "unit-roadmap-validation"),
+    ).toMatchObject({ state: "claimed", outcome: null });
+
+    await settleDeliveryUnitRefusal({
+      root: home.stateHome,
+      app: APP.name,
+      claimSettlementId: claim.record.settlement_id,
+      claimAttempt: claim.record.attempt,
+      runId: "direct-refusal-run",
+      batchRef: authorities.batch.ref,
+      unitId: "unit-roadmap-validation",
+      reason: "deterministic gate refusal",
+      now: new Date("2026-08-03T22:03:01.000Z"),
+    });
+    expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
+      status: "settled",
+      outcome: "returned",
+    });
+    expect(
+      await readExecutionUnitJournal(home.stateHome, APP.name, authorities.batch.ref.id, "unit-roadmap-validation"),
+    ).toMatchObject({ state: "returned", outcome: "returned" });
+  });
+
   it("turns accepted routine roadmap/validation authority into the real governed zero-turn path", async () => {
     const home = await makeTempStateHome({ name: "hb105-roadmap-fast-path" });
     homes.push(home);

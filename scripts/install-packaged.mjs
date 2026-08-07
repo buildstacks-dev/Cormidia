@@ -14,22 +14,29 @@
 // The verification step is the point: it resolves each binary through PATH and
 // fails if either one still resolves inside this checkout.
 //
+// EVERY interfering path is classified BEFORE anything is mutated. An earlier
+// version checked binaries up front but left skills to the shipped linker,
+// which refuses what it does not own — so a checkout-owned skill link aborted
+// the run *after* the binary link had been removed and the global install had
+// landed, stranding the operator half-migrated. Detection is complete first;
+// mutation happens only once the whole plan is known to be executable.
+//
 // Dev-only; deliberately NOT in package.json `files`. The shipped counterpart
 // a user runs after `npm install -g cormidia` is scripts/link-skills.mjs.
 //
 //   node scripts/install-packaged.mjs [--dry-run] [--replace-source-links]
 
 import { execFile as execFileCallback } from "node:child_process";
-import { lstat, mkdtemp, readlink, rm, unlink } from "node:fs/promises";
+import { mkdtemp, rm, unlink } from "node:fs/promises";
 import { delimiter, join, resolve, sep } from "node:path";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { PACKAGED_BINARIES, classifyInstallTarget, packagedSkillTargets } from "./lib/link-artifacts.mjs";
 
 const execFile = promisify(execFileCallback);
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
-const BINARIES = ["cormidia", "cormidia-job"];
 
 const flags = new Set(process.argv.slice(2).filter((arg) => arg !== "--"));
 const dryRun = flags.has("--dry-run");
@@ -40,51 +47,109 @@ for (const flag of flags) {
   }
 }
 
-const globalBin = join((await run("npm", ["prefix", "-g"])).trim(), "bin");
-const globalRoot = (await run("npm", ["root", "-g"])).trim();
-const installedRoot = join(globalRoot, "cormidia");
+const globalBin = resolve(join((await run("npm", ["prefix", "-g"])).trim(), "bin"));
+const installedRoot = join((await run("npm", ["root", "-g"])).trim(), "cormidia");
 
-console.log(`checkout:      ${packageRoot}`);
+console.log(`checkout:       ${packageRoot}`);
 console.log(`npm global bin: ${globalBin}`);
 console.log(`install target: ${installedRoot}`);
 
 // ---------------------------------------------------------------------------
-// Preflight: a source-backed link earlier in PATH silently defeats the whole
-// exercise — the packaged binaries install fine and never get invoked. Fail
-// closed rather than reporting a pass that measured the checkout.
+// Plan. Nothing below this block mutates anything.
 // ---------------------------------------------------------------------------
+
+/**
+ * What this script may replace, by kind. The asymmetry is deliberate.
+ *
+ * A skill target is a POINTER this package wrote; re-pointing it at the current
+ * install is repair, and a stale one is the normal consequence of changing node
+ * version (the npm prefix moves and every link strands).
+ *
+ * A binary under another prefix's global bin is a REAL INSTALL belonging to
+ * another node. Deleting it would silently break whichever node the operator
+ * actually uses, so it is reported, never removed.
+ */
+const REPLACEABLE = { binary: new Set(["checkout"]), skill: new Set(["checkout", "prior-install"]) };
+const OWNER = {
+  checkout: "owned by this checkout",
+  "prior-install": "left by a Cormidia install under a different npm prefix",
+  foreign: "owned by something else",
+};
+
+const interfering = [];
+
+// Binaries: a link earlier in PATH silently defeats the whole exercise — the
+// packaged binaries install fine and are never the ones invoked.
 const pathDirs = (process.env.PATH ?? "")
   .split(delimiter)
   .filter(Boolean)
   .map((dir) => resolve(dir));
-const shadowing = [];
-for (const name of BINARIES) {
+for (const binary of PACKAGED_BINARIES) {
   for (const dir of pathDirs) {
-    const candidate = join(dir, name);
+    const candidate = join(dir, binary.name);
     if (!existsSync(candidate)) continue;
-    if (dir === resolve(globalBin)) break; // npm's own entry wins — nothing shadows it
-    shadowing.push({ name, path: candidate, ownedByCheckout: await pointsIntoCheckout(candidate) });
+    if (dir === globalBin) break; // npm's own entry wins — nothing shadows it
+    interfering.push({
+      kind: "binary",
+      label: binary.name,
+      path: candidate,
+      // A shadowing binary is never "current": whatever it points at, it is
+      // not the npm-global entry, so it must go.
+      state: await classifyInstallTarget(candidate, { packageRoot }),
+    });
     break;
   }
 }
 
-if (shadowing.length > 0) {
+// Skills: the shipped linker refuses anything it does not own, so a link left
+// by `pnpm link:local` must be cleared here or the install cannot complete.
+for (const skill of packagedSkillTargets(installedRoot)) {
+  const state = await classifyInstallTarget(skill.target, {
+    intendedSource: skill.source,
+    packageRoot,
+  });
+  if (state === "absent" || state === "current") continue;
+  interfering.push({
+    kind: "skill",
+    label: `$${skill.skill} (${skill.provider})`,
+    path: skill.target,
+    state,
+  });
+}
+
+if (interfering.length > 0) {
   console.log("");
-  for (const entry of shadowing) {
-    const owner = entry.ownedByCheckout ? "this checkout" : "something else";
-    console.log(`shadowing ${entry.name}: ${entry.path} (owned by ${owner})`);
+  for (const entry of interfering) {
+    console.log(`interferes: ${entry.label} at ${entry.path} (${OWNER[entry.state] ?? entry.state})`);
   }
-  const foreign = shadowing.filter((entry) => !entry.ownedByCheckout);
+
+  // A Cormidia install under a different npm prefix is the single most
+  // confusing failure here: everything looks installed, but a `node`/`nvm`
+  // switch means this run resolves a different prefix than the one holding the
+  // binaries on PATH. Name both prefixes instead of calling it "foreign".
+  const otherPrefix = interfering.filter((entry) => entry.kind === "binary" && entry.state === "prior-install");
+  if (otherPrefix.length > 0) {
+    fail(
+      `a Cormidia install under a different npm prefix owns ${otherPrefix.map((entry) => entry.path).join(", ")}, ` +
+        `but this run resolves ${globalBin}.\n` +
+        `You are running node ${process.version} from ${process.execPath}.\n` +
+        "Re-run this script with the node whose prefix already holds Cormidia, " +
+        "or uninstall the other copy first (npm uninstall -g cormidia) — this script will not delete another node's install.",
+    );
+  }
+
+  const foreign = interfering.filter((entry) => !REPLACEABLE[entry.kind].has(entry.state));
   if (foreign.length > 0) {
     fail(
-      `refusing to replace paths this checkout does not own: ${foreign.map((entry) => entry.path).join(", ")} — ` +
-        "remove them yourself, or put the npm global bin earlier in PATH",
+      `refusing to replace paths this checkout does not own:\n  ${foreign.map((entry) => entry.path).join("\n  ")}\n` +
+        "Inspect each one and remove it yourself if it is stale — a link from another checkout, " +
+        "or from a previous install under a different node prefix.",
     );
   }
   if (!replaceSourceLinks) {
     fail(
-      `${shadowing.map((entry) => entry.path).join(", ")} would shadow the packaged install — ` +
-        "re-run with --replace-source-links to remove these source-backed links (pnpm link:local restores them)",
+      `${interfering.length} source-backed link(s) would block the packaged install — ` +
+        "re-run with --replace-source-links to remove them (pnpm link:local restores them).",
     );
   }
 }
@@ -92,20 +157,18 @@ if (shadowing.length > 0) {
 if (dryRun) {
   console.log("");
   console.log("--dry-run: would build, pack, install the tarball globally, link both skills, and verify.");
-  if (shadowing.length > 0) {
-    console.log(`--dry-run: would remove ${shadowing.length} source-backed link(s) first.`);
-  }
+  console.log(`--dry-run: would remove ${interfering.length} source-backed link(s) first.`);
   process.exit(0);
 }
 
-for (const entry of shadowing) {
+// ---------------------------------------------------------------------------
+// Execute. The plan above is now known to be completable.
+// ---------------------------------------------------------------------------
+for (const entry of interfering) {
   await unlink(entry.path);
   console.log(`removed source-backed link: ${entry.path}`);
 }
 
-// ---------------------------------------------------------------------------
-// Build, pack, install.
-// ---------------------------------------------------------------------------
 const staging = await mkdtemp(join(tmpdir(), "cormidia-packaged-install-"));
 try {
   console.log("\nbuilding…");
@@ -123,7 +186,8 @@ try {
   await run("npm", ["install", "-g", "--no-audit", "--no-fund", tarball]);
 
   console.log("linking skills from the installed package root…");
-  await run(process.execPath, [join(installedRoot, "scripts", "link-skills.mjs")]);
+  const linked = await run(process.execPath, [join(installedRoot, "scripts", "link-skills.mjs")]);
+  process.stdout.write(linked);
 } finally {
   await rm(staging, { recursive: true, force: true });
 }
@@ -132,19 +196,25 @@ try {
 // Verify independence. This is the assertion the whole script exists for.
 // ---------------------------------------------------------------------------
 console.log("");
-for (const name of BINARIES) {
+for (const binary of PACKAGED_BINARIES) {
   const resolved = (
     await run("node", [
       "-e",
       `process.stdout.write(require("node:fs").realpathSync(process.argv[1]))`,
-      join(globalBin, name),
+      join(globalBin, binary.name),
     ])
   ).trim();
   if (resolved.startsWith(resolve(packageRoot) + sep)) {
-    fail(`${name} still resolves into the checkout: ${resolved}`);
+    fail(`${binary.name} still resolves into the checkout: ${resolved}`);
   }
-  console.log(`${name} -> ${resolved}`);
+  console.log(`${binary.name} -> ${resolved}`);
 }
+
+for (const skill of packagedSkillTargets(installedRoot)) {
+  const state = await classifyInstallTarget(skill.target, { intendedSource: skill.source, packageRoot });
+  if (state !== "current") fail(`${skill.target} did not end up pointing at the installed package (${state})`);
+}
+console.log(`all ${packagedSkillTargets(installedRoot).length} skill links resolve into ${installedRoot}`);
 
 const version = (await run(join(globalBin, "cormidia"), ["--version"])).trim();
 await run(join(globalBin, "cormidia-job"), ["--help"]);
@@ -160,17 +230,6 @@ function parsePackJson(stdout) {
   const start = stdout.indexOf("[");
   if (start === -1) throw new Error(`npm pack --json produced no JSON array:\n${stdout}`);
   return JSON.parse(stdout.slice(start));
-}
-
-async function pointsIntoCheckout(path) {
-  try {
-    const info = await lstat(path);
-    if (!info.isSymbolicLink()) return false;
-    const target = resolve(join(path, ".."), await readlink(path));
-    return target === resolve(packageRoot) || target.startsWith(resolve(packageRoot) + sep);
-  } catch {
-    return false;
-  }
 }
 
 async function run(command, args, options = {}) {

@@ -35,7 +35,23 @@ export declare function linkExact(
   source: string,
   target: string,
   kind: "file" | "dir",
-  options?: { migrateFrom?: readonly string[] },
+  options?: { migrateFrom?: readonly string[]; adoptPriorInstall?: boolean },
 ): Promise<"created" | "current" | "migrated">;
 
 export declare function refusal(target: string): Error;
+
+export type InstallTargetState = "absent" | "current" | "checkout" | "prior-install" | "foreign";
+
+export declare function classifyInstallTarget(
+  target: string,
+  options: { intendedSource?: string; packageRoot: string },
+): Promise<InstallTargetState>;
+
+export interface PackagedSkillTarget {
+  readonly skill: string;
+  readonly provider: string;
+  readonly source: string;
+  readonly target: string;
+}
+
+export declare function packagedSkillTargets(packageRoot: string, env?: NodeJS.ProcessEnv): PackagedSkillTarget[];

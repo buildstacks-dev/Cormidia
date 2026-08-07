@@ -303,6 +303,38 @@ async function authorizeValidationWaiver(
 }
 
 describe("HB-102 — validation-contract authority and readiness", () => {
+  it("round-trips the validation catalog and contract model through public authority surfaces", async () => {
+    const state = await setup("hb102-validation-model-seam");
+    const proposal = JSON.parse(JSON.stringify(contractFixture(state))) as ValidationContract;
+    const accepted = await acceptValidationContract({
+      root: state.home.stateHome,
+      contract: proposal,
+    });
+
+    expect(Object.keys(accepted.value)).toEqual([...VALIDATION_CONTRACT_SCHEMA.required]);
+    expect(accepted.value).toEqual({
+      ...proposal,
+      templateRef: { templateId: "routine-v1", version: 1 },
+      affected: VALIDATION_BASE_AFFECTED,
+      sharedBoundaryDetectorRefs: [
+        {
+          boundaryId: "B-21",
+          caseId: "CF-B21-SHARED",
+          detectorId: "shared-boundary-lineage",
+        },
+      ],
+      obligations: [
+        {
+          ...proposal.obligations[0],
+          caseId: "CF-B21-SHARED",
+          covers: VALIDATION_BASE_AFFECTED,
+        },
+      ],
+    });
+    expect(JSON.parse(JSON.stringify(state.catalog.value))).toEqual(state.catalog.value);
+    expect(JSON.parse(JSON.stringify(accepted.value))).toEqual(accepted.value);
+  });
+
   it("canonicalizes IDs, persists lifecycle, and advances current authority forward-only", async () => {
     const state = await setup("hb102-lifecycle");
     expect(VALIDATION_CONTRACT_SCHEMA).toMatchObject({

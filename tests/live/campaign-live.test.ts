@@ -9,6 +9,7 @@ import { resolve, join } from "node:path";
 import { ClaudeRuntime } from "../../src/runtime/adapters/claude.js";
 import { CodexRuntime } from "../../src/runtime/adapters/codex.js";
 import { CursorRuntime } from "../../src/runtime/adapters/cursor.js";
+import { GrokRuntime } from "../../src/runtime/adapters/grok.js";
 import { PiRuntime } from "../../src/runtime/adapters/pi.js";
 import { toErrorMessage as errorMessage } from "../../src/runtime/error-message.js";
 import type { Runtime, RuntimeKind } from "../../src/runtime/types.js";
@@ -239,6 +240,7 @@ function runtime(kind: RuntimeKind): Runtime {
   if (kind === "claude") return new ClaudeRuntime();
   if (kind === "codex") return new CodexRuntime();
   if (kind === "cursor") return new CursorRuntime();
+  if (kind === "grok") return new GrokRuntime();
   if (kind === "pi") return new PiRuntime();
   throw new Error(`live campaign: no real adapter wired for runtime ${JSON.stringify(kind)}`);
 }

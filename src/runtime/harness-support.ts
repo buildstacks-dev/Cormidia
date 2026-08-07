@@ -108,6 +108,22 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     testedEvidence: "research/2026-08-07_cursor-adapter-certification.md",
     versionSource: { kind: "installed_binary", command: "cursor-agent", args: ["--version"] },
   },
+  grok: {
+    // Grok Build ships via an installer, never npm, so the binary is the
+    // operator's own and absence is a detection failure rather than a floor
+    // violation. Floor equals testedWith for the same reason it does for
+    // cursor: the adapter's gate rests on a version-banded *observed*
+    // behaviour, not a documented interface. Grok's hook runner fails OPEN, so
+    // the whole fail-closed posture depends on `PreToolUse` firing ahead of
+    // every other authorization check — that ordering was proven against
+    // exactly this build (F-PT-027). Refusing an unproven older build is the
+    // honest default; guessing which older version still fires hooks first
+    // would silently downgrade the gate to no gate at all.
+    floor: "1.0.0",
+    testedWith: "1.0.0",
+    testedEvidence: "research/2026-08-07_grok-build-adapter-certification.md",
+    versionSource: { kind: "installed_binary", command: "grok", args: ["--version"] },
+  },
 };
 
 export type { HarnessVersionDetection };

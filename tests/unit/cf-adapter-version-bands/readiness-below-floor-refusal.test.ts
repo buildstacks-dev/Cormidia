@@ -32,13 +32,35 @@ function shiftPatch(version: string, by: number): string {
   return `${major}.${minor}.${Number(patch) + by}`;
 }
 
+/**
+ * The largest strict-semver version strictly BELOW `version`. Decrementing the
+ * patch is not enough: a floor like grok's `1.0.0` would become `1.0.-1`, which
+ * is not semver at all, so banding returns `unknown` and readiness proceeds —
+ * the test would then assert nothing while still looking green. Borrow from the
+ * lowest non-zero component instead, so every declared floor gets a real
+ * below-floor probe. A `0.0.0` floor has nothing below it and is refused loudly
+ * rather than silently skipped.
+ */
+function belowFloor(version: string): string {
+  const parts = version.split(".").map(Number);
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const value = parts[index];
+    if (value !== undefined && value > 0) {
+      parts[index] = value - 1;
+      for (let lower = index + 1; lower < parts.length; lower += 1) parts[lower] = 999;
+      return parts.join(".");
+    }
+  }
+  throw new Error(`no version exists below ${version}; a 0.0.0 floor cannot be probed`);
+}
+
 describe("CF-B02/03/04-BANDS — below-floor readiness refusal", () => {
   it.each(RUNTIME_KINDS)("%s below its floor is a typed refusal, not a probe", async (kind) => {
     const constructed: RuntimeKind[] = [];
     const result = await probeRuntimeReadiness(
       { runtime: kind, models: ["fixture-model"] },
       spyImplementations(constructed),
-      detector(shiftPatch(HARNESS_SUPPORT[kind].floor, -1)),
+      detector(belowFloor(HARNESS_SUPPORT[kind].floor)),
     );
     expect(result.status).toBe("unsupported_version");
     expect(result.errorCode).toBe("error_adapter_version_below_floor");
@@ -90,7 +112,7 @@ describe("CF-B02/03/04-BANDS — below-floor readiness refusal", () => {
     // actually below the floor. Swapping in the truthful reading must flip the
     // verdict; if it does not, the refusal is not wired to detection at all.
     const kind: RuntimeKind = "codex";
-    const belowFloor = shiftPatch(HARNESS_SUPPORT[kind].floor, -1);
+    const below = belowFloor(HARNESS_SUPPORT[kind].floor);
     const liar: HarnessVersionDetector = () => ({ detected: true, version: HARNESS_SUPPORT[kind].testedWith });
 
     const constructed: RuntimeKind[] = [];
@@ -101,7 +123,7 @@ describe("CF-B02/03/04-BANDS — below-floor readiness refusal", () => {
     const truthful = await probeRuntimeReadiness(
       { runtime: kind, models: ["m"] },
       spyImplementations(constructed),
-      detector(belowFloor),
+      detector(below),
     );
     expect(truthful.status).toBe("unsupported_version");
     expect(constructed).toEqual([kind]);

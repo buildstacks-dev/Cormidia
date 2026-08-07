@@ -26,6 +26,26 @@ function bumpPatch(version: string, by: number): string {
   return `${major}.${minor}.${Number(patch) + by}`;
 }
 
+/**
+ * The largest strict-semver version strictly BELOW `version`. Decrementing the
+ * patch is not enough: a floor like grok's `1.0.0` becomes `1.0.-1`, which is
+ * not semver, so banding answers `unknown` and the below_floor assertion tests
+ * nothing while still looking green. Borrow from the lowest non-zero component
+ * instead, so every declared floor gets a real below-floor probe.
+ */
+function belowFloor(version: string): string {
+  const parts = version.split(".").map(Number);
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const value = parts[index];
+    if (value !== undefined && value > 0) {
+      parts[index] = value - 1;
+      for (let lower = index + 1; lower < parts.length; lower += 1) parts[lower] = 999;
+      return parts.join(".");
+    }
+  }
+  throw new Error(`no version exists below ${version}; a 0.0.0 floor cannot be probed`);
+}
+
 const SPREAD_DECLARATION: HarnessSupportDeclaration = {
   floor: "1.2.3",
   testedWith: "1.5.0",
@@ -56,7 +76,7 @@ describe("CF-B02/03/04-BANDS — declared bands", () => {
 describe("CF-B02/03/04-BANDS — per-adapter banding", () => {
   it.each(RUNTIME_KINDS)("%s: a version below the floor is banded below_floor", (kind) => {
     const declaration = HARNESS_SUPPORT[kind];
-    const below = bumpPatch(declaration.floor, -1);
+    const below = belowFloor(declaration.floor);
     const assessment = assessHarnessVersion(kind, fixedDetector(below));
     expect(assessment.band).toBe("below_floor");
     expect(assessment.version).toBe(below);

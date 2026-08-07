@@ -288,7 +288,7 @@
     },
     "src/loop/pipeline.ts": {
       "exports": 6,
-      "lines": 1892,
+      "lines": 1906,
       "newModule": false
     },
     "src/loop/pipelines.ts": {
@@ -558,7 +558,7 @@
     },
     "src/org/episode-planner/runtime.ts": {
       "exports": 3,
-      "lines": 1727,
+      "lines": 1741,
       "newModule": false
     },
     "src/org/episode-safety-facts.ts": {
@@ -1336,6 +1336,46 @@
       "lines": 271,
       "newModule": true
     },
+    "src/runtime/adapters/grok-acp-client.ts": {
+      "exports": 6,
+      "lines": 191,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-gate-bridge.ts": {
+      "exports": 5,
+      "lines": 273,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-gate-hook.ts": {
+      "exports": 0,
+      "lines": 122,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-isolation.ts": {
+      "exports": 9,
+      "lines": 191,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-session.ts": {
+      "exports": 5,
+      "lines": 137,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-tool-actions.ts": {
+      "exports": 1,
+      "lines": 78,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-turn.ts": {
+      "exports": 9,
+      "lines": 155,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok.ts": {
+      "exports": 2,
+      "lines": 254,
+      "newModule": true
+    },
     "src/runtime/adapters/pi-gate.ts": {
       "exports": 2,
       "lines": 90,
@@ -1348,12 +1388,12 @@
     },
     "src/runtime/assignment.ts": {
       "exports": 16,
-      "lines": 304,
+      "lines": 314,
       "newModule": false
     },
     "src/runtime/capabilities.ts": {
       "exports": 8,
-      "lines": 207,
+      "lines": 232,
       "newModule": false
     },
     "src/runtime/cost.ts": {
@@ -1398,7 +1438,7 @@
     },
     "src/runtime/harness-version-detect.ts": {
       "exports": 4,
-      "lines": 96,
+      "lines": 110,
       "newModule": true
     },
     "src/runtime/invocation-ledger.ts": {
@@ -1408,7 +1448,7 @@
     },
     "src/runtime/model-catalog.ts": {
       "exports": 4,
-      "lines": 154,
+      "lines": 155,
       "newModule": false
     },
     "src/runtime/non-interactive-env.ts": {
@@ -1433,12 +1473,12 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 525,
+      "lines": 620,
       "newModule": false
     },
     "src/runtime/registry.ts": {
       "exports": 2,
-      "lines": 21,
+      "lines": 23,
       "newModule": false
     },
     "src/runtime/role-shaping.ts": {
@@ -1513,7 +1553,7 @@
     },
     "src/runtime/turn-budget.ts": {
       "exports": 7,
-      "lines": 307,
+      "lines": 313,
       "newModule": false
     },
     "src/runtime/turn-usage.ts": {

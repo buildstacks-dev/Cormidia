@@ -92,6 +92,12 @@ export function costEnforcementFor(runtime: RuntimeKind): EffectiveTurnBounds["c
   if (runtime === "claude") return "native_cap_and_progress";
   if (runtime === "codex") return "estimated_progress_no_strict_provider_cap";
   if (runtime === "cursor") return "estimated_terminal_only_no_progress";
+  // Grok reports a dollar figure only in its terminal result (`costUsdTicks`);
+  // the ACP stream carries no mid-turn cost, so `GrokRuntime` can only check
+  // the cap at the turn boundary. Falling through to the pi answer would have
+  // claimed a running progress guard this harness does not have, which is the
+  // exact over-claim INV-008 forbids.
+  if (runtime === "grok") return "estimated_terminal_only_no_progress";
   return "measured_progress_no_strict_provider_cap";
 }
 

@@ -24,7 +24,7 @@ export interface AdapterConformanceSeedOptions {
   seededLegacyForbiddenResumeProbe?: boolean;
 }
 
-export type AdapterConformanceCaseId = `CF-B0${2 | 3 | 4}-L3` | "CF-B24-L3";
+export type AdapterConformanceCaseId = `CF-B0${2 | 3 | 4}-L3` | "CF-B24-L3" | "CF-B25-L3";
 
 export interface AdapterConformanceReport {
   caseId: AdapterConformanceCaseId;
@@ -40,6 +40,7 @@ export const ADAPTER_CONFORMANCE_CASES: Record<RuntimeKind, AdapterConformanceCa
   codex: "CF-B03-L3",
   cursor: "CF-B24-L3",
   pi: "CF-B04-L3",
+  grok: "CF-B25-L3",
 };
 
 export async function runAdapterConformance(

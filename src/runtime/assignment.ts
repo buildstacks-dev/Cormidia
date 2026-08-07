@@ -7,7 +7,13 @@ import {
 } from "./capabilities.js";
 import type { Effort, RoleConfig, RuntimeKind, TurnAssignment, TurnExecutionFacts, TurnRequest } from "./types.js";
 
-export const TURN_ASSIGNMENT_HARNESSES = ["claude", "codex", "cursor", "pi"] as const satisfies readonly RuntimeKind[];
+export const TURN_ASSIGNMENT_HARNESSES = [
+  "claude",
+  "codex",
+  "cursor",
+  "pi",
+  "grok",
+] as const satisfies readonly RuntimeKind[];
 export const TURN_ASSIGNMENT_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly Effort[];
 
 /** Reserved role-local id for the explicit fixed assignment on RoleConfig. */
@@ -267,6 +273,10 @@ export function configuredProviderFamily(assignment: TurnAssignment): string {
   // Anysphere's, so the family stays cursor-namespaced and never claims to be
   // an independent Anthropic or OpenAI turn.
   if (validated.harness === "cursor") return "cursor";
+  // Grok Build is a native single-vendor harness: xAI models over xAI's own
+  // CLI. Falling through would label it `pi/...` and let it be counted as an
+  // independent turn against a pi-hosted xAI model, which is the same vendor.
+  if (validated.harness === "grok") return "xai";
 
   const separator = validated.model.indexOf("/");
   const namespace = (separator === -1 ? validated.model : validated.model.slice(0, separator)).toLowerCase();

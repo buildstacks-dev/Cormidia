@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { claudeDouble } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble } from "../../fixtures/adapters/codex-double.js";
 import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
+import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { runAdapterConformance } from "../../fixtures/adapters/conformance.js";
 import { script } from "../../fixtures/adapters/scenario.js";
@@ -48,6 +49,7 @@ describe("shared adapter conformance suite", () => {
       make: () => cursorDouble(scenarios("cursor")).runtime,
     },
     { runtime: "pi" as const, model: "claude-scripted-model", make: () => piDouble(scenarios("pi")).runtime },
+    { runtime: "grok" as const, model: "grok-4.5", make: () => grokDouble(scenarios("grok")).runtime },
   ])("passes against the real $runtime adapter over its scripted transport", async ({ runtime, model, make }) => {
     repo = await makeTempGitRepo();
     const report = await runAdapterConformance(
@@ -79,6 +81,20 @@ describe("shared adapter conformance suite", () => {
       repo.dir,
     );
     expect(report.violationIds).toContain("CORMIDIA-INV-002:gate-path-not-observed");
+  });
+
+  it("negative control: a grok transport whose gate hook never fires refuses the walk", async () => {
+    repo = await makeTempGitRepo();
+    const runtime = grokDouble(scenarios("grok"), { violations: ["suppress_hook_handshake"] }).runtime;
+    // The refusal is a typed throw before any prompt, so the walk cannot even
+    // reach a verdict — which is the point: an ungated grok turn never runs.
+    await expect(
+      runAdapterConformance(
+        runtime,
+        { runtime: "grok", model: "grok-4.5", effort: "medium", maxTurnBudgetUsd: 1 },
+        repo.dir,
+      ),
+    ).rejects.toMatchObject({ code: "error_gate_unproven" });
   });
 
   it.each(["claude", "cursor", "pi"] as const)(

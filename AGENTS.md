@@ -65,12 +65,19 @@ rewrite; legacy test/eval scripts removed with the archive move).
   `pnpm test:live` · `pnpm test:eval` · `pnpm test:soak -- <start|checkpoint|finish>`;
   see `docs/qualification/design.md` and never run these casually.
   (tsc → `dist/`).
-- Local product install: `pnpm link:local` (source-backed `cormidia` bin + skill
-  links; later source edits need no relink).
+- Local product install: `pnpm link:local` (source-backed `cormidia` and
+  `cormidia-job` bins + both skill links; later source edits need no relink).
+  It never exercises `dist/`; `pnpm install:packaged` does the real packaged
+  install and fails if either binary still resolves inside the checkout.
+  `scripts/lib/link-artifacts.mjs` is the single install table — a new binary
+  or skill is added there, not in each installer (pinned by
+  `tests/unit/cf-reg-359/`).
 - CLI: `pnpm dev <cmd>` in source mode; the full catalog with flags and
   caveats is README → Commands (substitute `pnpm dev` for `cormidia`), plus
   `cormidia <cmd> --help`.
-- Packaging checks: `pnpm smoke:onboarding` · `npm pack --dry-run`.
+- Packaging checks: `pnpm smoke:onboarding` · `npm pack --dry-run` ·
+  `pnpm smoke:package -- <absolute-tarball>` (installs a tarball to a temp dir,
+  runs every declared `bin`, then deletes it).
 - Worktrees: `pnpm worktree -- reconcile` is read-only; use `create`, `remove`, or dry-run `clean --merged|--gone`, with `--apply` required for deletion.
 - Token-spending — never run casually: live `dispatch`/`loop`/`plan` against
   a real org spend provider tokens and can open PRs/approvals.

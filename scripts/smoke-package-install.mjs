@@ -32,14 +32,45 @@ async function main() {
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
-    const result = await execFile(join(root, "node_modules", ".bin", "cormidia"), ["--version"], {
+
+    // Every declared `bin` entry must be installed AND runnable. Asserting only
+    // the first one let #359 ship a second binary whose packaged launcher was
+    // never executed by any check.
+    for (const binary of Object.keys(packageJson.bin ?? {})) {
+      await access(join(root, "node_modules", ".bin", binary));
+    }
+
+    const version = await execFile(join(root, "node_modules", ".bin", "cormidia"), ["--version"], {
       cwd: root,
       encoding: "utf8",
       maxBuffer: 10 * 1024 * 1024,
     });
-    if (result.stdout.trim() !== packageJson.version)
+    if (version.stdout.trim() !== packageJson.version)
       throw new Error("installed cormidia --version does not match packed package.json");
-    process.stdout.write(`installed package smoke passed: cormidia@${packageJson.version}\n`);
+
+    // Drives the packaged src/cormidia-job.cjs -> dist/jobs/main.js launcher,
+    // the path a source-backed dev install never touches.
+    const job = await execFile(join(root, "node_modules", ".bin", "cormidia-job"), ["--help"], {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    if (!job.stdout.includes("cormidia-job"))
+      throw new Error("installed cormidia-job --help did not render its own usage");
+
+    // The skills ship in the tarball, and scripts/link-skills.mjs is the only
+    // path an npm user has to install them. All three must be present or a
+    // published install cannot produce a working agent setup.
+    for (const skill of ["cormidia", "cormidia-job"]) {
+      await access(join(installedRoot, "agent-skills", skill, "SKILL.md"));
+    }
+    await access(join(installedRoot, "scripts", "link-skills.mjs"));
+    await access(join(installedRoot, "scripts", "lib", "link-artifacts.mjs"));
+
+    process.stdout.write(
+      `installed package smoke passed: cormidia@${packageJson.version} ` +
+        `(bins: ${Object.keys(packageJson.bin ?? {}).join(", ")})\n`,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

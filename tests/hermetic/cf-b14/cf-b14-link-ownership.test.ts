@@ -21,6 +21,13 @@ import { assertHumanBytesPreserved } from "./helpers.js";
 const SCRIPT = fileURLToPath(new URL("../../../scripts/link-local.mjs", import.meta.url));
 const BINARY_SOURCE = fileURLToPath(new URL("../../../src/cormidia-local.cjs", import.meta.url));
 const SKILL_SOURCE = fileURLToPath(new URL("../../../agent-skills/cormidia", import.meta.url));
+const JOB_BINARY_SOURCE = fileURLToPath(new URL("../../../src/cormidia-job-local.cjs", import.meta.url));
+const JOB_SKILL_SOURCE = fileURLToPath(new URL("../../../agent-skills/cormidia-job", import.meta.url));
+
+/** The provider skill homes link:local owns, in the order the script links
+ *  them. Kept as one list so a newly packaged skill cannot be added to
+ *  `agent-skills/` without a link target being asserted here too. */
+const PROVIDERS = ["codex", "claude", "pi"] as const;
 
 interface Sandbox {
   root: string;
@@ -28,6 +35,8 @@ interface Sandbox {
   claudeSkill: string;
   codexSkill: string;
   piSkill: string;
+  /** `<provider>/skills/<skill>` for every provider home × packaged skill. */
+  skillTargets(skill: "cormidia" | "cormidia-job"): string[];
   run(): { status: number; output: string };
 }
 
@@ -46,12 +55,18 @@ describe("CF-B14-* — link ownership: link:local-class operations refuse foreig
     const codexHome = join(root, "codex");
     const claudeHome = join(root, "claude");
     const piHome = join(root, "pi");
+    const providerHomes: Record<(typeof PROVIDERS)[number], string> = {
+      codex: codexHome,
+      claude: claudeHome,
+      pi: piHome,
+    };
     return {
       root,
       binDir,
       claudeSkill: join(claudeHome, "skills", "cormidia"),
       codexSkill: join(codexHome, "skills", "cormidia"),
       piSkill: join(piHome, "skills", "cormidia"),
+      skillTargets: (skill) => PROVIDERS.map((provider) => join(providerHomes[provider], "skills", skill)),
       run: () => {
         try {
           const output = execFileSync(process.execPath, [SCRIPT], {
@@ -94,6 +109,48 @@ describe("CF-B14-* — link ownership: link:local-class operations refuse foreig
     expect(second.status).toBe(0);
     expect(readlinkSync(join(sandbox.binDir, "cormidia"))).toBe(BINARY_SOURCE);
     expect(readlinkSync(sandbox.claudeSkill)).toBe(SKILL_SOURCE);
+  });
+
+  // #359 shipped a SECOND binary (`cormidia-job`) and a second packaged skill
+  // (`agent-skills/cormidia-job/`) but left link:local linking only the first
+  // of each, so the job runner was unreachable from PATH after a source
+  // install. Every packaged bin entry and every packaged skill must land.
+  it("§2 links BOTH packaged binaries and BOTH packaged skills — no bin entry or skill is left unreachable", async () => {
+    const sandbox = await makeSandbox();
+
+    const result = sandbox.run();
+    expect(result.status).toBe(0);
+
+    expect(readlinkSync(join(sandbox.binDir, "cormidia"))).toBe(BINARY_SOURCE);
+    expect(readlinkSync(join(sandbox.binDir, "cormidia-job"))).toBe(JOB_BINARY_SOURCE);
+
+    for (const target of sandbox.skillTargets("cormidia")) {
+      expect(readlinkSync(target)).toBe(SKILL_SOURCE);
+    }
+    for (const target of sandbox.skillTargets("cormidia-job")) {
+      expect(readlinkSync(target)).toBe(JOB_SKILL_SOURCE);
+    }
+
+    // Each linked skill resolves to a real SKILL.md through the link, so a
+    // provider can actually route to it — not merely a dangling symlink.
+    for (const target of [...sandbox.skillTargets("cormidia"), ...sandbox.skillTargets("cormidia-job")]) {
+      expect(existsSync(join(target, "SKILL.md"))).toBe(true);
+    }
+  });
+
+  it("§2 refuses a foreign-owned link at the cormidia-job SKILL target — the second skill carries the same ownership guard as the first", async () => {
+    const sandbox = await makeSandbox();
+    // SEEDED VIOLATION at the job skill specifically: the guard must cover
+    // every target the script writes, not just the ones that predate #359.
+    const foreignTarget = join(sandbox.root, "some-other-checkout", "cormidia-job-skill");
+    mkdirSync(foreignTarget, { recursive: true });
+    mkdirSync(join(sandbox.root, "codex", "skills"), { recursive: true });
+    symlinkSync(foreignTarget, join(sandbox.root, "codex", "skills", "cormidia-job"));
+
+    const result = sandbox.run();
+    expect(result.status).not.toBe(0);
+    expect(result.output).toMatch(/refusing to replace existing path: .*codex\/skills\/cormidia-job/);
+    expect(readlinkSync(join(sandbox.root, "codex", "skills", "cormidia-job"))).toBe(foreignTarget);
   });
 
   it("§2 refuses a foreign REGULAR FILE at the binary target — refused untouched, and no partial linking proceeds past the refusal", async () => {

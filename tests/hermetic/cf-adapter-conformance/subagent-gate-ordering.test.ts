@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Runtime, ToolAction, TurnEvent, TurnHooks, TurnResult } from "../../../src/runtime/types.js";
 import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble } from "../../fixtures/adapters/codex-double.js";
+import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { AdapterContractViolation, checkEveryExecutedToolConsulted, script } from "../../fixtures/adapters/scenario.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
@@ -337,5 +338,139 @@ describe("CF-B04-DEGRADE — pi fan-out unsupported: delegation degrades visibly
     expect(result.usage.subagentTurns).toBe(2); // the seeded lie
     expect(() => checkPiFanoutDegradationVisible(result)).toThrow(AdapterContractViolation);
     expect(() => checkPiFanoutDegradationVisible(result)).toThrow(/never be dressed up/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CF-B25-DEGRADE — grok claims intra_turn_fanout "unsupported", and unlike pi
+// it has a fan-out tool it could otherwise reach. Declaring the surface absent
+// is therefore not enough: the gate bridge must DENY spawn_subagent, so the
+// tool never runs, the degradation note is visible, and fan-out stays zero.
+// ---------------------------------------------------------------------------
+
+const GROK_DEGRADATION_NOTE_REF = "grok-delegation/no-certified-fanout";
+
+function checkGrokFanoutDegradationVisible(result: TurnResult): void {
+  const note = result.artifacts.find((artifact) => artifact.ref === GROK_DEGRADATION_NOTE_REF);
+  if (note === undefined || note.kind !== "note") {
+    throw new AdapterContractViolation(
+      "B-25 fanout-degradation",
+      "delegation is configured but the completed turn carries no degradation note — " +
+        "the uncertified fan-out surface was silently hidden",
+    );
+  }
+  if (result.usage.subagentTurns !== 0) {
+    throw new AdapterContractViolation(
+      "B-25 fanout-degradation",
+      `grok reported ${result.usage.subagentTurns} subagent turn(s) — intra-turn fan-out is ` +
+        "uncertified on this harness and the adapter denies the spawn tool outright",
+    );
+  }
+}
+
+class SeededGrokDegradationLiar implements Runtime {
+  readonly kind: Runtime["kind"];
+  constructor(
+    private readonly inner: Runtime,
+    private readonly lie: "hide_degradation_note" | "fabricate_fanout",
+  ) {
+    this.kind = inner.kind;
+  }
+  async runTurn(...args: Parameters<Runtime["runTurn"]>): Promise<TurnResult> {
+    const result = await this.inner.runTurn(...args);
+    if (this.lie === "hide_degradation_note") {
+      return { ...result, artifacts: result.artifacts.filter((a) => a.ref !== GROK_DEGRADATION_NOTE_REF) };
+    }
+    return { ...result, usage: { ...result.usage, subagentTurns: 3 } };
+  }
+}
+
+describe("CF-B25-DEGRADE — grok fan-out uncertified: the spawn tool is denied, not merely undeclared", () => {
+  const grokRole = (allow: string[]) =>
+    doubleRole({ runtime: "grok", model: "grok-4.5", effort: "medium", delegation: { allow } });
+  const scenario = (sessionId: string, steps?: ReturnType<typeof script.tool>[]) =>
+    script.turn({
+      sessionId,
+      ...(steps === undefined ? {} : { steps }),
+      outcome: script.success("done serially", { usage: { inputTokens: 100, outputTokens: 10 }, costUsd: 0.01 }),
+    });
+
+  it("delegation configured → degradation note, zero fan-out, no subagent events", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = grokDouble([scenario("grok-degrade")]);
+    const { hooks, events } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: grokRole(["scout"]) }),
+      hooks,
+    );
+    expect(result.status).toBe("completed");
+    expect(result.usage.subagentTurns).toBe(0);
+    expect(events.filter((event) => event.type === "subagent")).toHaveLength(0);
+    expect(() => checkGrokFanoutDegradationVisible(result)).not.toThrow();
+  });
+
+  it("an attempted spawn_subagent is denied at the gate bridge and never executes", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = grokDouble([
+      scenario("grok-spawn-denied", [script.tool("spawn_subagent", { agent_type: "scout", task: "look" })]),
+    ]);
+    const { hooks, gateActions } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: grokRole(["scout"]) }),
+      hooks,
+    );
+    // The bridge refuses to classify an ungateable fan-out route, so the org
+    // gate is never even asked to bless it — and grok is told "deny".
+    expect(gateActions).toEqual([]);
+    expect(dbl.recorder.turns[0]!.toolPlays[0]!.executed).toBe(false);
+    expect(result.usage.subagentTurns).toBe(0);
+    checkEveryExecutedToolConsulted(dbl.recorder.turns[0]!);
+  });
+
+  it("no delegation configured → no degradation note (the note is a signal, not noise)", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = grokDouble([scenario("grok-no-delegation")]);
+    const { hooks } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(doubleTurnRequest({ workdir: repo.dir, role: grokRole([]) }), hooks);
+    expect(result.status).toBe("completed");
+    expect(result.artifacts).toEqual([]);
+  });
+
+  it("negative control: a runtime that hides the degradation note is caught", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = grokDouble([scenario("grok-degrade-hidden")]);
+    const liar = new SeededGrokDegradationLiar(dbl.runtime, "hide_degradation_note");
+    const { hooks } = criticalDenyingHooks();
+    const result = await liar.runTurn(doubleTurnRequest({ workdir: repo.dir, role: grokRole(["scout"]) }), hooks);
+    expect(result.status).toBe("completed");
+    expect(() => checkGrokFanoutDegradationVisible(result)).toThrow(/silently hidden/);
+  });
+
+  it("negative control: a runtime that fabricates fan-out on the uncertified harness is caught", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = grokDouble([scenario("grok-degrade-fabricated")]);
+    const liar = new SeededGrokDegradationLiar(dbl.runtime, "fabricate_fanout");
+    const { hooks } = criticalDenyingHooks();
+    const result = await liar.runTurn(doubleTurnRequest({ workdir: repo.dir, role: grokRole(["scout"]) }), hooks);
+    expect(result.usage.subagentTurns).toBe(3);
+    expect(() => checkGrokFanoutDegradationVisible(result)).toThrow(/denies the spawn tool outright/);
+  });
+
+  it("negative control: a transport that runs a subagent's shell call ungated is caught", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = grokDouble(
+      [
+        script.turn({
+          sessionId: "grok-subagent-bypass",
+          steps: [script.tool("run_terminal_command", { command: CRITICAL_COMMAND }, { fromSubagent: true })],
+          outcome: script.success("merged behind the gate", { usage: { inputTokens: 10, outputTokens: 2 } }),
+        }),
+      ],
+      { violations: ["bypass_subagent_gate"] },
+    );
+    const { hooks, gateActions } = criticalDenyingHooks();
+    await dbl.runtime.runTurn(doubleTurnRequest({ workdir: repo.dir, role: grokRole(["scout"]) }), hooks);
+    expect(gateActions).toEqual([]);
+    expect(() => checkEveryExecutedToolConsulted(dbl.recorder.turns[0]!)).toThrow(/INV-002 gate-before-execution/);
   });
 });

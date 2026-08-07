@@ -99,7 +99,15 @@ rewrite; legacy test/eval scripts removed with the archive move).
   nearest deterministic seam (provision/preflight) and say so in the PR. A fix
   without a guard is incomplete — a live run is not a regression test.
 - **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the three
-  provider SDKs. Adding one is a decision, not a convenience.
+  provider SDKs. Adding one is a decision, not a convenience. Grok Build adds
+  no dependency — it is a *required preinstalled binary* driven over ACP (#224:
+  Cormidia never installs a provider).
+- **Grok Build is sandbox-only.** The adapter (`src/runtime/adapters/grok*.ts`)
+  is implemented and certified, but #339's human risk review of the vendor is
+  OPEN. Certification proves the adapter, never the vendor. Never point a grok
+  turn at a real repository and never assign a role to it in `roles.yaml` until
+  that review is recorded
+  (`research/2026-08-07_grok-build-adapter-certification.md`).
 - **Agent-authored engineering standard:**
   `research/2026-08-05_pi-forensic-analysis/pi-engineering-standards-skill.md`
   is binding for agent-authored code. The single module budget is public-symbol

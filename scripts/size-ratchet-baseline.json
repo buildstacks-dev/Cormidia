@@ -1296,6 +1296,46 @@
       "lines": 1033,
       "newModule": false
     },
+    "src/runtime/adapters/grok-acp-client.ts": {
+      "exports": 6,
+      "lines": 191,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-gate-bridge.ts": {
+      "exports": 5,
+      "lines": 273,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-gate-hook.ts": {
+      "exports": 0,
+      "lines": 122,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-isolation.ts": {
+      "exports": 9,
+      "lines": 191,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-session.ts": {
+      "exports": 5,
+      "lines": 137,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-tool-actions.ts": {
+      "exports": 1,
+      "lines": 78,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok-turn.ts": {
+      "exports": 9,
+      "lines": 155,
+      "newModule": true
+    },
+    "src/runtime/adapters/grok.ts": {
+      "exports": 2,
+      "lines": 254,
+      "newModule": true
+    },
     "src/runtime/adapters/pi-gate.ts": {
       "exports": 2,
       "lines": 90,
@@ -1308,12 +1348,12 @@
     },
     "src/runtime/assignment.ts": {
       "exports": 16,
-      "lines": 297,
+      "lines": 298,
       "newModule": false
     },
     "src/runtime/capabilities.ts": {
       "exports": 8,
-      "lines": 176,
+      "lines": 201,
       "newModule": false
     },
     "src/runtime/cost.ts": {
@@ -1358,7 +1398,7 @@
     },
     "src/runtime/model-catalog.ts": {
       "exports": 4,
-      "lines": 136,
+      "lines": 137,
       "newModule": false
     },
     "src/runtime/non-interactive-env.ts": {
@@ -1383,12 +1423,12 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 435,
+      "lines": 530,
       "newModule": false
     },
     "src/runtime/registry.ts": {
       "exports": 2,
-      "lines": 16,
+      "lines": 18,
       "newModule": false
     },
     "src/runtime/role-shaping.ts": {

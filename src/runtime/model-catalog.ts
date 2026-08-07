@@ -45,6 +45,7 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
     "the Codex App Server protocol Cormidia speaks exposes account and thread methods only, " +
     "with no model enumeration; the id is proven when a turn starts",
   pi: undefined,
+  grok: "the Grok Build roster is only readable by running `grok models` with a working credential, which a config edit must not require; the id is proven by `cormidia doctor` and then inside a live turn",
 };
 
 /**

@@ -7,7 +7,7 @@ import {
 } from "./capabilities.js";
 import type { Effort, RoleConfig, RuntimeKind, TurnAssignment, TurnExecutionFacts, TurnRequest } from "./types.js";
 
-export const TURN_ASSIGNMENT_HARNESSES = ["claude", "codex", "pi"] as const satisfies readonly RuntimeKind[];
+export const TURN_ASSIGNMENT_HARNESSES = ["claude", "codex", "pi", "grok"] as const satisfies readonly RuntimeKind[];
 export const TURN_ASSIGNMENT_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly Effort[];
 
 /** Reserved role-local id for the explicit fixed assignment on RoleConfig. */
@@ -260,6 +260,7 @@ export function configuredProviderFamily(assignment: TurnAssignment): string {
   const validated = validateTurnAssignment(assignment);
   if (validated.harness === "claude") return "anthropic";
   if (validated.harness === "codex") return "openai";
+  if (validated.harness === "grok") return "xai";
 
   const separator = validated.model.indexOf("/");
   const namespace = (separator === -1 ? validated.model : validated.model.slice(0, separator)).toLowerCase();

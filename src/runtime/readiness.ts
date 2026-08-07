@@ -18,6 +18,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { StdioCodexAppServerClient } from "./adapters/codex.js";
+import { StdioGrokAcpClient } from "./adapters/grok-acp-client.js";
+import { createIsolatedGrokHome, grokBinaryVersion } from "./adapters/grok-isolation.js";
 import { resolvePiModel } from "./adapters/pi.js";
 import { toErrorMessage as errorMessage } from "./error-message.js";
 import type { RuntimeKind } from "./types.js";
@@ -80,6 +82,7 @@ const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementatio
   claude: probeClaude,
   codex: probeCodex,
   pi: probePi,
+  grok: probeGrok,
 };
 
 export async function probeRuntimeReadiness(
@@ -299,6 +302,89 @@ async function probeCodex(request: RuntimeReadinessImplementationRequest): Promi
   }
 }
 
+/**
+ * Grok Build readiness.
+ *
+ * Grok ships via an installer, never npm, so the binary is a *required
+ * preinstalled* dependency (#224) and its absence is `missing_binary`, not a
+ * Cormidia bug to work around. Readiness then means usable request
+ * authentication, proved through ACP `authenticate`, which resolves the stored
+ * credential (or `XAI_API_KEY`) against the vendor and returns account
+ * metadata without sending a model request.
+ *
+ * The credential-source check before that call is load-bearing, not a
+ * shortcut: with no credential at all, `authenticate` starts an interactive
+ * login flow that a headless probe can never complete, so it would hang until
+ * the deadline instead of reporting the honest answer. The probe runs in the
+ * same per-turn isolated provider home the adapter uses, so a green result
+ * describes the environment a turn will actually get.
+ */
+async function probeGrok(request: RuntimeReadinessImplementationRequest): Promise<ProbeOutcome> {
+  const version = await grokBinaryVersion(request.processEnv ?? process.env);
+  const isolated = await createIsolatedGrokHome();
+  const apiKey = (request.processEnv ?? process.env)["XAI_API_KEY"];
+  const hasApiKey = typeof apiKey === "string" && apiKey.trim().length > 0;
+  if (!isolated.credentialCopied && !hasApiKey) {
+    await isolated.close();
+    return {
+      status: "unauthenticated",
+      errorCode: "error_adapter_unauthenticated",
+      detail: `grok ${version} is installed, but no stored login (auth.json) and no XAI_API_KEY were found`,
+    };
+  }
+  const client = new StdioGrokAcpClient({
+    args: ["agent", "stdio"],
+    env: { ...(request.processEnv ?? process.env), ...isolated.env },
+  });
+  const abort = (): void => {
+    void client.close();
+  };
+  if (request.signal.aborted) abort();
+  else request.signal.addEventListener("abort", abort, { once: true });
+  try {
+    const initialize = await client.request("initialize", {
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+      clientInfo: { name: "cormidia-readiness", title: "Cormidia readiness", version: "0.1.0" },
+    });
+    const result = isRecord(initialize) ? initialize : {};
+    if (result["protocolVersion"] !== 1) {
+      return {
+        status: "misconfigured",
+        errorCode: "error_adapter_misconfigured",
+        detail: `grok ${version} negotiated ACP protocolVersion ${JSON.stringify(result["protocolVersion"])}; Cormidia speaks 1`,
+      };
+    }
+    const meta = isRecord(result["_meta"]) ? result["_meta"] : {};
+    const defaultMethod = typeof meta["defaultAuthMethodId"] === "string" ? meta["defaultAuthMethodId"] : undefined;
+    // grok answers `initialize` with `defaultAuthMethodId: null` and drops
+    // `cached_token` from `authMethods` when it found no usable credential.
+    // Probed 2026-08-07: calling `authenticate` in that state starts a browser
+    // login and fails ten minutes later, so classify it here instead.
+    if (!hasApiKey && defaultMethod === undefined) {
+      return {
+        status: "unauthenticated",
+        errorCode: "error_adapter_unauthenticated",
+        detail: `grok ${version} offered no usable auth method; the stored login is missing or expired (run \`grok login\`)`,
+      };
+    }
+    const methodId = hasApiKey ? "api_key" : (defaultMethod ?? "cached_token");
+    const account = await client.request("authenticate", { methodId });
+    const accountMeta = isRecord(account) && isRecord(account["_meta"]) ? account["_meta"] : {};
+    const mode = typeof accountMeta["auth_mode"] === "string" ? accountMeta["auth_mode"] : methodId;
+    const tier =
+      typeof accountMeta["subscription_tier"] === "string" ? `; tier=${accountMeta["subscription_tier"]}` : "";
+    return {
+      status: "ready",
+      detail: `grok ${version} authenticated over ACP; method=${methodId}; mode=${mode}${tier}; no model turn sent`,
+    };
+  } finally {
+    request.signal.removeEventListener("abort", abort);
+    await client.close();
+    await isolated.close();
+  }
+}
+
 async function probePi(
   request: RuntimeReadinessImplementationRequest,
   dependencies: PiReadinessDependencies = {},
@@ -409,6 +495,15 @@ function classifyProbeError(error: unknown): ProbeOutcome {
     return {
       status: "missing_binary",
       errorCode: "error_adapter_binary_missing",
+      detail: message,
+    };
+  }
+  if (
+    /not logged in|no cached auth|session expired|re-?authentication|unauthorized|no credentials found/i.test(message)
+  ) {
+    return {
+      status: "unauthenticated",
+      errorCode: "error_adapter_unauthenticated",
       detail: message,
     };
   }

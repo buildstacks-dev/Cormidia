@@ -90,6 +90,31 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
     },
   },
+  grok: {
+    ref: "grok/v1",
+    runtime: "grok",
+    capabilities: {
+      cache_telemetry: "adapter",
+      cancellation: "adapter",
+      // Grok CAN spawn subagents, but no probe has proven that a subagent's
+      // tool calls traverse the PreToolUse gate. Rather than claim an
+      // uncertified surface, the adapter's gate bridge denies spawn_subagent
+      // outright and the turn is told to work serially (B-25, #339).
+      intra_turn_fanout: "unsupported",
+      session_resume: "native",
+      // ACP exposes no client-settable output schema on this surface, so the
+      // loop's lenient parser is the fallback.
+      structured_verdict: "fallback",
+      // The gate is Cormidia's PreToolUse hook bridge plus a fail-closed
+      // per-turn handshake, not a native provider approval contract.
+      tool_gate: "adapter",
+    },
+    cache: {
+      supported: true,
+      observable: true,
+      fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
+    },
+  },
 };
 
 const CAPABILITY_LABELS: Record<RuntimeCapability, string> = {

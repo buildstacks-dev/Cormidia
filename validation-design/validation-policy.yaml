@@ -112,6 +112,20 @@
 # package with compensating controls and designed-not-implemented seeded negative
 # controls is docs/approvals/consequence-split-ratification.md. No gate, tier,
 # spend bound, or threshold changed by opening this finding.
+# changelog 2026-08-07 (#336 harness revision, adapter-expansion boundaries): the
+# validation-harness-design skill re-entered in harness-revision mode (existing
+# artifacts as baseline; attributable human instruction = issue #336; elicitation
+# input = owner text in #330/#337-#340 and their field-verification comments)
+# registered B-23 OpenCode, B-24 Cursor, B-25 Grok Build (ACP), and B-26 Muse Code
+# as provider boundaries of the B-02/03/04 class: contracts CORMIDIA-C-B23-001..
+# CORMIDIA-C-B26-001 (deltas over CORMIDIA-C-CORE-001), CF-B23..26-* families plus
+# CF-B23..26-L3 certification obligations (docs/harness/adding-updating.md section 5;
+# certification never equals qualification, L4Q unchanged). All four are DESIGN-ONLY
+# until their adapters land (#337-#340); CF-B25-L3 is additionally conditional on the
+# #339 human risk review and sandbox-repo-only until it clears. Findings
+# F-PT-025..028 opened for the four gate-seam ambiguities; mechanism-level cells
+# parked BLOCKED:<finding>. No existing gate, tier, lane, spend bound, threshold, or
+# golden set changed (tighten-only preserved).
 # changelog 2026-08-05 (owner-ratified F-PT-022 resolution): L4 per-case
 # token_reservation, campaign max_tokens, and observed_tokens count output tokens only,
 # consistent with PURPOSE's 2026-07-20 retirement of input-token admission ceilings.
@@ -265,6 +279,34 @@ layers:                                      # the audit's diff surface
         reason: "no disposable real non-GitHub deploy/publication target exists"
         unblock: "a sandbox app declares a real, disposable release: target"
         note: "no green L3 claim follows from this status"
+      # 2026-08-07 (#336): certification obligations for the four planned adapter
+      # boundaries (docs/harness/adding-updating.md section 5). Each is PENDING-ADAPTER:
+      # the obligation exists by design but cannot run until its adapter lands; no
+      # green L3 claim follows from this status. Once active, the trigger shape and
+      # spend bounds are the existing adapter rules (pre-merge changed-adapter
+      # <=2 turns/$5), unchanged.
+      - id: CF-B23-L3
+        status: PENDING-ADAPTER
+        target: "real OpenCode server + SDK (representative-model smokes, one per provider family)"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; release (once #337 lands)"
+        unblock: "the OpenCode adapter lands (#337)"
+      - id: CF-B24-L3
+        status: PENDING-ADAPTER
+        target: "real cursor-agent CLI headless in an org-managed worktree"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; release (once #338 lands)"
+        unblock: "the Cursor adapter lands (#338)"
+      - id: CF-B25-L3
+        status: PENDING-ADAPTER
+        target: "real grok agent stdio (ACP) - THROWAWAY SANDBOX REPOS ONLY until the #339 human risk review clears real-repo use"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; release (once #339 lands)"
+        unblock: "the Grok Build adapter lands AND the recorded #339 human risk-review decision exists"
+        note: "the human risk-review record is a precondition, never evidence"
+      - id: CF-B26-L3
+        status: PENDING-ADAPTER
+        target: "real muse exec headless; the swarm gate probe (intra_turn_fanout) is the load-bearing case"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; every version bump (beta churn); release (once #340 lands)"
+        unblock: "the Muse Code adapter lands (#340)"
+        note: "no role goes live before the swarm gate probe passes live, or fan-out is disabled in the capability profile with a documented degradation"
     spend_policy:                            # human-ratified 2026-07-31 (release ceiling amended at ratification)
       pre_merge_adapter_campaign:
         scope: "changed adapter only"
@@ -482,6 +524,14 @@ open_findings:
   # Opened 2026-08-06 at #296 Stage 4; resolved the same day by the owner's YES.
   - {id: F-PT-023, status: resolved-ratified, resolved: 2026-08-06, subject: "consequence-split ratification: the §5.1–5.4 splits replace 'critical operations require human approval' with 'operations require the disposition their consequence class specifies'",
      resolution: "owner ratified all four splits in one decision (#296 ratification record, 2026-08-06; package docs/approvals/consequence-split-ratification.md §2). Harness revision registered the revised CORMIDIA-INV-003, the B-09b objective-grant/disposition clauses, and un-parked the CF-SPLIT-* families (case-catalog §10.1). Authorized: one rule per PR with red-then-green seeded controls, tightening-first, external-publishing last; ACTION_IDENTITY_VERSION bump cancelling in-flight grants at each split landing; compensating controls are part of each split and land with it or the split does not land"}
+  # Opened 2026-08-07 at the #336 adapter-expansion harness revision (procedure:
+  # agents-md-contribution.md). Each is a genuine gate-seam ambiguity the upstream
+  # docs do not answer; dependent mechanism-level cases are parked BLOCKED:<finding>
+  # in case-catalog.md. None changes any existing gate or bound.
+  - {id: F-PT-025, status: open, subject: "OpenCode headless permission-ask semantics (B-23): upstream docs do not specify what a configured permission `ask` does under `opencode serve` with no interactive client (block? deny? hang?), and which mitigation is Cormidia's ratified gate-bridge mechanism — deny-by-default config with the Cormidia gate as sole approver via the plugin hook seam (tool.execute.before / permission.asked), or `--auto` plus gate-only enforcement — is an owner decision; the fake must not make this policy by fixture convenience"}
+  - {id: F-PT-026, status: open, subject: "Cursor gate-seam sufficiency (B-24): cursor-agent headless requires an explicit trust flag plus --force to apply edits and exposes a static deny-wins permissions config, but no documented dynamic per-action hook/approval seam; whether static native deny plus adapter-side enforcement honors INV-002's pre-execution gate classification at an acceptable tool_gate tier, or the capability profile must record a degraded/unsupported tier with narrowed role eligibility, is an owner decision"}
+  - {id: F-PT-027, status: open, subject: "Grok Build ACP permission-request coverage (B-25): whether grok agent stdio emits an ACP permission request for every tool-action class, what denial semantics apply, and whether any headless auto-approve analog can bypass the request path are unspecified upstream; the gate-bridge contract cannot be authored from a guess. Separately, live certification remains conditional on the recorded #339 human risk-review decision (sandbox repos only until it clears)"}
+  - {id: F-PT-028, status: open, subject: "Muse Code swarm gate seam (B-26): whether the 0.1.x beta exposes any hook/permission seam covering swarm-spawned agents' tool actions is unknown; the owner-decided fallback is already contract truth (no seam => tool_gate unsupported for swarm mode, fan-out disabled in the capability profile — never an ungated swarm), so only the mechanism-level swarm-gate cases park; resolution is field verification during #340 certification"}
   - {id: F-PT-001, status: resolved-by-docs, subject: "redaction scope"}
   - {id: F-PT-005, status: resolved-ratified, resolved: 2026-07-31, subject: "subscriber-set cutoff",
      resolution: "simulated-seat derivation human-ratified by adoption 2026-07-31: added subscribers inherit pending events; removed subscribers cease blocking retirement"}

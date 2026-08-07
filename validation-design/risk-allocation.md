@@ -25,6 +25,21 @@ scheduler/locking/session changes trigger the existing contention exercise and s
 day sandbox soak with the new unit/batch cases. Cache-hit rate is measured, never a
 correctness gate; parallel or automatically learned batching must re-enter Phase 6.
 
+Harness revision 2026-08-07 (#330/#336): the four planned adapter boundaries
+(B-23 OpenCode, B-24 Cursor, B-25 Grok Build, B-26 Muse Code) inherit this confirmed
+allocation unchanged. The T-11 adapter-enforcement slices (gate hook coverage,
+budget-observation timing, exact-session binding) extend to them as exhaustive
+E-1/E-2 members exactly as for B-02/03/04 — equal treatment: absence of a lived
+incident for a new vendor is not evidence it is safer (§1). Their live cells are the
+**certification lane** (docs/harness/adding-updating.md §5): standalone, per-adapter,
+spend-bounded by the existing §5 pre-merge changed-adapter rule (≤2 turns/$5), with
+representative-model smokes for backbones; **certification ≠ qualification** — L4Q
+remains qualification's lane and no roster publication assigns a role. No new tier,
+control point, campaign type, or spend bound is introduced. B-25's live cell is
+additionally conditional on the #339 human risk review (sandbox repos only until it
+clears); B-26's swarm gate probe is the load-bearing certification case. All four are
+design-only until #337–#340 land; F-PT-025…028 keep the mechanism-level cells parked.
+
 ## 1. Probability axis (where it actually breaks) `[elicited]`
 
 - **The joins, not the functions.** Provider dies after useful work; GitHub accepts

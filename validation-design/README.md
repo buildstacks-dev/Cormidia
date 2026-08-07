@@ -29,7 +29,7 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 1. `scope-and-module-map.md` — what's in scope, module map M1–M17.
 2. `system-map.md` — journeys J-01…J-20, state ownership, criticality tier (§5).
 3. `invariants.md` — CORMIDIA-INV-001…016 (what must never break).
-4. `boundary-map.md` — B-01…B-22, failure modes, honest-fake verdicts.
+4. `boundary-map.md` — B-01…B-26, failure modes, honest-fake verdicts.
 5. `contracts/` — per-boundary + operation contracts, journey acceptance criteria.
 6. `risk-allocation.md` — E-1/E-2/E-3 exhaustive families, thin lanes, spend/soak.
 7. `llm-eval-plan.md` + `golden-sets/` — the statistical lane.
@@ -79,8 +79,11 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   by `bikramgupta` on 2026-08-04 without replacing agent authorship. Unrun required
   per-candidate L3/L4 evidence is reported incomplete/inconclusive, never green; future
   L5 absence is visible but outside the RQ-1 denominator.
-- **Twenty product-truth findings are tracked; nine still park exact cells**
-  (F-PT-006/008/012…018). If an incident touches one of those seams, the named cell
+- **Twenty-eight product-truth findings are tracked; thirteen still park exact cells**
+  (F-PT-006/008/012…018, and F-PT-025…028 parking the four design-only adapter
+  boundaries' gate-seam mechanism cells — B-23…B-26, added 2026-08-07 #336).
+  <!-- changelog 2026-08-07 (#336): was "Twenty … nine". -->
+  If an incident touches one of those seams, the named cell
   deliberately encodes **no expected behavior**. That is honesty, not coverage:
   escalate to the human, don't infer. F-PT-009/010/011 do not prevent data collection
   but keep quality thresholds inconclusive. F-PT-003/004/007 were ratified 2026-07-31
@@ -100,10 +103,10 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 | `J-01…J-20` | journeys | system-map.md §1.3 |
 | `T-1…T-12` | C3 control points (function-scoped risk) | system-map.md §5.2 |
 | `CORMIDIA-INV-001…016` (alias INV-NNN) | invariants | invariants.md |
-| `B-01…B-22` (B-09a/b split) | boundaries | boundary-map.md |
+| `B-01…B-26` (B-09a/b split; B-23…B-26 design-only, 2026-08-07) | boundaries | boundary-map.md |
 | `CORMIDIA-C-…-001` (aliases B-NN, C-OP-*) | contracts | contracts/ headers + journey-acceptance.md alias table |
 | `S-1…S-10` | LLM call sites (S-8 comparative selection; S-10 validation design) | llm-eval-plan.md §1 |
 | `E-1/E-2/E-3, STD, THIN, FLOOR, L4Q` | risk allocation vocabulary | risk-allocation.md §2, case-catalog.md header |
 | `CF-*` | case families | case-catalog.md |
 | `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31, HB-P3/P5 still parked) | harness-backlog.md |
-| `F-PT-001…020` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |
+| `F-PT-001…028` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |

@@ -19,9 +19,11 @@ the refusal is the degradation artifact those tiers owe.
 
 This **contradicts the F-PT-028 probe recorded on #340 (2026-08-07)**, which
 reported that hooks installed through `TBH_MANAGED_HOOKS_PATH` fire every event
-and that a `PreToolUse` deny is fail-closed proven at the parent. That claim did
-not reproduce here on the same advertised version. The disagreement is recorded,
-not resolved: see §6.
+and that a `PreToolUse` deny is fail-closed proven at the parent. The probe's raw
+artifacts are real and internally consistent, and its exact working manifest was
+recovered from disk and replayed — along with its own `HOME`, `XDG_CONFIG_HOME`,
+and hook files — and still does not fire. §6 records that replication in full.
+The disagreement is documented, not resolved.
 
 ## 2. What was proven
 
@@ -142,7 +144,67 @@ which proves the adapter honours the contract the day a seam exists.
 | `cancellation` | adapter | Cormidia terminates the child process group; no native abort surface. |
 | `cache_telemetry` | adapter | `cached_tokens`/`cache_read_tokens` are present in the durable log and mapped by the adapter; nothing is native on the stream. |
 
-## 6. Obligations
+## 6. Exact replication of the #340 probe — attempted, and it does not fire
+
+The #340 probe comment is not a guess: its raw artifacts are on disk and are
+internally consistent. `hook-log.jsonl` holds 46 hook payloads across
+`SessionStart, UserPromptSubmit, PreLLMCall, PreToolUse, PermissionRequest,
+PostToolUse, PostLLMCall, SubagentStart, SubagentStop, Stop`, with real
+`session_id`s, `permission_mode`, and subagent lifecycle. That evidence is
+credible, so the disagreement was chased to the end of the budget.
+
+**The probe's own working manifest was recovered** at
+`probes/muse/xdg-real/hooks.json`. It is a top-level `hooks` object, PascalCase
+event names, `{"type":"command","command":"<string>"}` entries, and — the part
+this adapter originally got wrong — **no `matcher` and no `timeoutMs`**. The
+adapter now writes exactly that shape and pins it offline
+(`tests/unit/cf-b26`). Alongside it, `xdg-real/muse/settings.json` carried the
+same hooks under muse's own settings key; only the managed lane's `M-*`-tagged
+entries appear in the log, so the settings lane really is inert, as the probe
+reported.
+
+What was then run, each as a real bounded turn:
+
+| Replication | Result |
+| --- | --- |
+| The probe's exact manifest shape (no `matcher`, no `timeoutMs`) | no fire |
+| Same + `timeoutMs` / + `matcher` / + both (what this adapter first wrote) | no fire |
+| **The probe's own files and environment verbatim** — `HOME=probes/muse/fakehome`, `XDG_CONFIG_HOME=probes/muse/xdg-real`, `TBH_MANAGED_HOOKS_PATH=probes/muse/xdg-real` | no fire |
+| Real HOME with/without `XDG_CONFIG_HOME` | no fire |
+| With and without `--no-foreign-personal-context` (the hermeticity flag was a prime suspect: muse imports *foreign* Claude-format hooks, and the probe's fakehome contained a `.claude/settings.json`) | no fire, both ways |
+| `--preset native-basic` | no fire |
+| `--approval-mode untrusted` | **not available on `muse exec`** — rejected as an unknown option; passing it as a root option makes muse parse the rest as TUI arguments. Headless exec exposes no approval-mode control at all, which is consistent with the observed auto-approval. |
+
+**The measurement is in-band and cannot be masked.** The earlier probes all
+inferred "did the hook fire?" from a side effect (a log append, a socket
+connect), either of which muse's sandbox could suppress. The final tests use a
+hook that **writes nothing and opens nothing**: it only prints a `deny` on
+stdout. The observable is the turn's own event stream. Every run ends with
+`tool.result` → `correlation_facts: {tool_name: bash, outcome: success}`, and
+no `blocked by hook` record anywhere. The command ran. The deny had no effect.
+
+**The binary is not the variable.** `~/.local/bin/` holds a single
+`muse-bin-0.1.0-R708.1` with mtime `00:23`, predating the probe's `02:09–02:16`
+window; `.muse-version` is unchanged, and every run here pins
+`MUSE_NO_AUTO_UPDATE=1`.
+
+So: same binary, same manifest bytes, same environment, same working directory
+— and the seam fires for the probe's captured run and not for any run here. The
+delta is **not** any of manifest shape, event-name casing, env-var target,
+config isolation, hermeticity flag, preset, or approval mode. It is something
+not captured in the artifacts left on disk (the probe's driver script is gone),
+or a non-deterministic condition in the build. **That unexplained
+non-determinism is itself the finding**, and it is the strongest possible
+argument for the fail-closed design: a gate that works only sometimes, for
+reasons nobody can name, must never be *claimed* — it must be proven per turn.
+
+The adapter is built so this resolves itself cheaply. The tier follows the
+proof: if a seam is live, the per-turn handshake passes and the turn runs
+gated; if it is not, the turn refuses. Re-tiering `tool_gate` (and
+`intra_turn_fanout`, once a child deny is demonstrated) needs no adapter change
+— only a re-run of this record that observes the seam.
+
+## 7. Obligations
 
 1. **Re-certification is mandatory on every version bump** (#331 bands, #332
    freshness). This record binds to `0.1.0-R708.1` exactly.

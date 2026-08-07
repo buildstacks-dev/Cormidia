@@ -1322,8 +1322,8 @@
       "newModule": true
     },
     "src/runtime/adapters/muse-managed-hooks.ts": {
-      "exports": 2,
-      "lines": 76,
+      "exports": 3,
+      "lines": 80,
       "newModule": true
     },
     "src/runtime/adapters/muse-usage.ts": {

@@ -11,6 +11,7 @@ import { RUNTIME_KINDS, getRuntime } from "../../../src/runtime/registry.js";
 import { describeModelCatalogCheck, readRuntimeModelCatalog } from "../../../src/runtime/model-catalog.js";
 import { invokesNestedHarness } from "../../../src/runtime/role-shaping.js";
 import { museExecArgs } from "../../../src/runtime/adapters/muse-exec.js";
+import { museManagedHookManifest } from "../../../src/runtime/adapters/muse-managed-hooks.js";
 import { doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { museDouble } from "../../fixtures/adapters/muse-double.js";
 import { script } from "../../fixtures/adapters/scenario.js";
@@ -70,6 +71,34 @@ describe("CF-B26 registration — muse is a first-class harness with an HONEST p
     expect(argv).toContain("--prompt-file");
     expect(argv).toContain("--no-foreign-personal-context");
     expect(argv.join(" ")).not.toMatch(/--api-key[ =][^-]/);
+  });
+
+  it("writes the ONLY manifest shape ever observed to load, with no invented fields", () => {
+    // Byte-shape of the F-PT-028 probe's captured `xdg-real/hooks.json`
+    // (research/2026-08-07_muse-code-adapter-certification.md §7). Muse rejects
+    // an unparseable hook group silently, so an extra `matcher` or `timeoutMs`
+    // is a silent-failure risk with nothing to gain.
+    const manifest = museManagedHookManifest("/bin/sh probe.sh") as {
+      hooks: Record<string, Array<Record<string, unknown>>>;
+    };
+    expect(Object.keys(manifest)).toEqual(["hooks"]);
+    expect(Object.keys(manifest.hooks).sort()).toEqual([
+      "PermissionRequest",
+      "PreToolUse",
+      "SessionStart",
+      "SubagentStart",
+      "SubagentStop",
+      "UserPromptSubmit",
+    ]);
+    for (const [event, groups] of Object.entries(manifest.hooks)) {
+      expect(groups, event).toHaveLength(1);
+      // No `matcher`: the captured manifest carries none, on any event.
+      expect(Object.keys(groups[0]!), event).toEqual(["hooks"]);
+      const entries = groups[0]!["hooks"] as Array<Record<string, unknown>>;
+      // No `timeoutMs`: the hook child bounds itself on the socket instead.
+      expect(Object.keys(entries[0]!).sort(), event).toEqual(["command", "type"]);
+      expect(entries[0]!["type"], event).toBe("command");
+    }
   });
 
   it("recognizes a nested harness launch at every command position, and only there", () => {

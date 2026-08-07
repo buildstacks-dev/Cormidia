@@ -43,23 +43,28 @@ export interface HarnessSupportDeclaration {
 }
 
 const TESTED_EVIDENCE = "research/2026-08-06_adapter-upstream-references.md";
+const CLAUDE_TESTED_EVIDENCE = "research/2026-08-07_claude-sdk-0.3.224-refresh.md";
 
 /**
  * Exhaustive by construction: a new `RuntimeKind` is a compile error until its
  * bands are declared. That is deliberate — an undeclared harness has no floor,
  * and a harness with no floor has no refusal.
  *
- * Every floor currently equals its `testedWith` because the harnesses are still
- * vendored at exactly those versions: no install below the pin exists yet, so a
- * conservative floor refuses nobody. Lowering a floor to the oldest interface an
- * adapter genuinely speaks is per-adapter research owed with #224, not a guess
- * to be made here.
+ * Codex and pi floors still equal their `testedWith` because those harnesses
+ * remain vendored at exactly those versions: no install below the pin exists
+ * yet, so a conservative floor refuses nobody. Claude's floor now sits BELOW
+ * its `testedWith` — the 0.3.201 → 0.3.224 bump (#335) moved the certified
+ * version without changing the interface the adapter speaks, and raising the
+ * floor to match the pin would refuse operators who have not upgraded, which
+ * is exactly what bands exist to avoid (docs/harness/adding-updating.md §6).
+ * Lowering a floor further, to the oldest interface an adapter genuinely
+ * speaks, is per-adapter research owed with #224, not a guess to be made here.
  */
 export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
   claude: {
     floor: "0.3.201",
-    testedWith: "0.3.201",
-    testedEvidence: TESTED_EVIDENCE,
+    testedWith: "0.3.224",
+    testedEvidence: CLAUDE_TESTED_EVIDENCE,
     versionSource: { kind: "vendored_npm_package", packageName: "@anthropic-ai/claude-agent-sdk" },
   },
   codex: {

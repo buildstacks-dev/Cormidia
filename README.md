@@ -862,6 +862,19 @@ the validation rebuild — see Testing above.)
   bounded interval and may show an explicitly degraded last-known projection
   while local run evidence remains live.
 
+- **The Muse Code harness is registered but cannot run a turn.** Certification
+  on 2026-08-07 (`research/2026-08-07_muse-code-adapter-certification.md`,
+  Muse Code `0.1.0-R708.1`) found no working pre-execution gate seam: `muse exec`
+  auto-approves tool calls headlessly, and no managed hook fired across twenty
+  installation configurations. Rather than degrade, the adapter proves the seam
+  at the start of every turn and refuses (`error_gate_seam_unavailable`) when the
+  proof does not arrive, so `tool_gate` and `intra_turn_fanout` are declared
+  `unsupported`, the L3 conformance walk reports **incomplete** rather than pass,
+  and no role is assigned to it. `cormidia doctor` reports the same state. What
+  is certified: hermeticity (personal Claude/Codex rules and skills pinned out,
+  proven by the skills-count delta), the durable-session-log spend path, and the
+  refusal itself. This stays a known limitation until a seam is proven live and
+  the record is re-run.
 - **Tool-event outcomes are partial on Claude and pi.** All three adapters
   emit `tool_use` turn events (issue #27, live-verified 2026-07-11 —
   `research/2026-07-11_adapter-tool-events.md`), so `envelope.tool_counts`

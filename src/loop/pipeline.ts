@@ -1884,6 +1884,19 @@ function sessionEvidence(session: TurnResult["session"]): SessionEvidence {
       transcript_note: "Resume the chat with `cursor-agent --resume <id>`; session.log is activity only.",
     };
   }
+  if (session.runtime === "muse") {
+    // `--session-id <uuid>` is muse's own session identity and the durable
+    // session log is the real transcript. Falling through to the final branch
+    // would have blamed the Claude SDK for a muse turn having no transcript.
+    return {
+      ...session,
+      native_ref: session.id,
+      transcript: "provider_session",
+      transcript_note:
+        "Provider session reference recorded; the durable muse session log is the transcript " +
+        "and session.log is activity only.",
+    };
+  }
   if (session.runtime === "grok") {
     // Grok resumes the exact id over ACP `session/load` and keeps the real
     // transcript under the turn's isolated `$GROK_HOME/sessions`. Falling

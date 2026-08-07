@@ -34,6 +34,13 @@ type HarnessVersionSource =
       readonly kind: "installed_binary";
       readonly command: string;
       readonly args: readonly string[];
+      /**
+       * Environment overlaid on the detection call. Detection must not have
+       * side effects on the operator's install: muse's launcher self-updates
+       * on invocation unless `MUSE_NO_AUTO_UPDATE=1` is set, and a `doctor`
+       * run that silently upgrades a provider is exactly what #224 forbids.
+       */
+      readonly env?: Readonly<Record<string, string>>;
     };
 
 export interface HarnessSupportDeclaration {
@@ -60,13 +67,18 @@ const CLAUDE_TESTED_EVIDENCE = "research/2026-08-07_claude-sdk-0.3.224-refresh.m
  *
  * A floor is an interface claim, not a copy of the pin: it moves only when an
  * adapter genuinely stops speaking the older surface. After the #335 refresh
- * wave every floor sits BELOW its `testedWith` — claude 0.3.201 → 0.3.224,
- * codex 0.144.4 → 0.147.0, pi 0.80.7 → 0.84.1. Each bump moved the certified
- * version without breaking the interface the adapter speaks, and raising a
- * floor to match its pin would refuse operators who have not upgraded, which
- * is exactly what bands exist to avoid (docs/harness/adding-updating.md §6).
- * Lowering a floor further, to the oldest interface an adapter genuinely
- * speaks, is per-adapter research owed with #224, not a guess to be made here.
+ * wave every VENDORED floor sits BELOW its `testedWith` — claude 0.3.201 →
+ * 0.3.224, codex 0.144.4 → 0.147.0, pi 0.80.7 → 0.84.1. Each bump moved the
+ * certified version without breaking the interface the adapter speaks, and
+ * raising a floor to match its pin would refuse operators who have not
+ * upgraded — exactly what bands exist to avoid (adding-updating.md §6).
+ * Lowering one further is per-adapter research owed with #224, not a guess.
+ *
+ * The installer-shipped harnesses (cursor, grok, muse) invert that: floor
+ * EQUALS testedWith. Each one's gate claim rests on behaviour OBSERVED on one
+ * build, not documented, so an older build carries no evidence about its gate —
+ * and here an unknown gate posture means an ungated turn. Guessing which older
+ * version still behaves would silently downgrade the gate.
  */
 export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
   claude: {
@@ -94,35 +106,39 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     versionSource: { kind: "vendored_npm_package", packageName: "@earendil-works/pi-coding-agent" },
   },
   cursor: {
-    // cursor-agent versions calendar-style (`2026.08.04-aaa8809`), which is not
-    // strict semver. `normalizeCalendarVersion` drops the build sha and the
-    // zero-padding so the SAME banding machinery applies — the sha is build
-    // metadata, exactly the `+build` component semver §10 says to ignore.
-    // Floor equals testedWith because this harness has been certified against
-    // exactly one build and its gate claim is version-banded: the hook-firing
-    // behaviour the adapter depends on was observed, not documented, so
-    // refusing an unproven older build is the honest default rather than a
-    // guess about which older interface still fires hooks.
+    // cursor-agent versions calendar-style (`2026.08.04-aaa8809`), not strict
+    // semver. `normalizeCalendarVersion` drops the build sha and zero-padding so
+    // the SAME banding machinery applies — the sha is build metadata, exactly
+    // the `+build` component semver §10 says to ignore.
     floor: "2026.8.4",
     testedWith: "2026.8.4",
     testedEvidence: "research/2026-08-07_cursor-adapter-certification.md",
     versionSource: { kind: "installed_binary", command: "cursor-agent", args: ["--version"] },
   },
   grok: {
-    // Grok Build ships via an installer, never npm, so the binary is the
-    // operator's own and absence is a detection failure rather than a floor
-    // violation. Floor equals testedWith for the same reason it does for
-    // cursor: the adapter's gate rests on a version-banded *observed*
-    // behaviour, not a documented interface. Grok's hook runner fails OPEN, so
-    // the whole fail-closed posture depends on `PreToolUse` firing ahead of
-    // every other authorization check — that ordering was proven against
-    // exactly this build (F-PT-027). Refusing an unproven older build is the
-    // honest default; guessing which older version still fires hooks first
-    // would silently downgrade the gate to no gate at all.
+    // Grok's hook runner fails OPEN, so the whole fail-closed posture rests on
+    // `PreToolUse` firing ahead of every other authorization check — an ordering
+    // proven against exactly this build (F-PT-027).
     floor: "1.0.0",
     testedWith: "1.0.0",
     testedEvidence: "research/2026-08-07_grok-build-adapter-certification.md",
     versionSource: { kind: "installed_binary", command: "grok", args: ["--version"] },
+  },
+  muse: {
+    // muse's launcher self-updates hourly, so detection pins
+    // `MUSE_NO_AUTO_UPDATE=1` — the flag the adapter and readiness also use;
+    // reading a version must never upgrade the operator's provider (#224). The
+    // certified claim here is a NEGATIVE one: 0.1.0-R708.1 fired no managed
+    // hook across twenty configurations, so every turn refuses an unproven seam.
+    floor: "0.1.0",
+    testedWith: "0.1.0",
+    testedEvidence: "research/2026-08-07_muse-code-adapter-certification.md",
+    versionSource: {
+      kind: "installed_binary",
+      command: "muse",
+      args: ["--version"],
+      env: { MUSE_NO_AUTO_UPDATE: "1" },
+    },
   },
 };
 
@@ -150,7 +166,7 @@ export function detectHarnessVersion(runtime: RuntimeKind): HarnessVersionDetect
   const source = HARNESS_SUPPORT[runtime].versionSource;
   return source.kind === "vendored_npm_package"
     ? readPackageVersion(source.packageName)
-    : readBinaryVersion(source.command, source.args);
+    : readBinaryVersion(source.command, source.args, source.env);
 }
 
 /**

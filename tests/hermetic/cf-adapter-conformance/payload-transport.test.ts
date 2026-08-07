@@ -14,11 +14,15 @@
 // the brief through an ARG_MAX-bounded channel — the shared
 // checkTaskPayloadIntact detector must fire on the silently truncated brief.
 
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble, type CodexRecordedTurn } from "../../fixtures/adapters/codex-double.js";
 import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
 import { grokDouble } from "../../fixtures/adapters/grok-double.js";
+import { museDouble } from "../../fixtures/adapters/muse-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import {
   AdapterContractViolation,
@@ -30,9 +34,12 @@ import {
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
 
 let repo: TempGitRepo | undefined;
+let museLogRoot: string | undefined;
 afterEach(async () => {
   await repo?.cleanup();
   repo = undefined;
+  if (museLogRoot !== undefined) await rm(museLogRoot, { recursive: true, force: true });
+  museLogRoot = undefined;
 });
 
 /** ≥ 300 KB brief with sentinels and position-varying lines: any dropped,
@@ -179,6 +186,46 @@ describe("CF-B24-PAYLOAD — 300 KB brief transports intact through the Cursor a
     const transported = dbl.recorder.turns[0]!.stdinTask;
     expect(transported?.length).toBe(SEEDED_ARGV_TRUNCATION_BYTES);
     expect(transported?.endsWith(PAYLOAD_TAIL)).toBe(false);
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(AdapterContractViolation);
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(/first divergence at byte 131072/);
+  });
+});
+
+describe("CF-B26-PAYLOAD — 300 KB brief transports intact through the muse adapter (`--prompt-file` payload)", () => {
+  const museRole = () => doubleRole({ runtime: "muse", model: "muse-spark-1.2" });
+
+  async function double(sessionId: string, violations?: never[]) {
+    museLogRoot = await mkdtemp(join(tmpdir(), "cormidia-muse-payload-"));
+    return museDouble(
+      [script.turn({ sessionId, outcome: script.success("done", { usage: { inputTokens: 10, outputTokens: 2 } }) })],
+      { sessionLogRoot: museLogRoot, ...(violations === undefined ? {} : { violations }) },
+    );
+  }
+
+  it("the prompt file muse reads is byte-identical to the brief the orchestrator sent", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = await double("muse-payload");
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: museRole(), task: PAYLOAD }),
+      allowAll,
+    );
+    expect(result.status).toBe("completed");
+    const transported = dbl.recorder.turns.find((turn) => !turn.handshake)?.promptText;
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).not.toThrow();
+    expect(transported).toBe(PAYLOAD);
+    // The brief must never ride argv: muse's `--prompt-file` is the carrier.
+    const argv = dbl.recorder.turns.find((turn) => !turn.handshake)!.argv;
+    expect(argv).toContain("--prompt-file");
+    expect(argv.join(" ")).not.toContain(PAYLOAD_HEAD);
+  });
+
+  it("negative control: an ARG_MAX-truncating transport is caught by the payload detector", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = await double("muse-payload-trunc");
+    const liar = new SeededPayloadTruncationRuntime(dbl.runtime);
+    await liar.runTurn(doubleTurnRequest({ workdir: repo.dir, role: museRole(), task: PAYLOAD }), allowAll);
+    const transported = dbl.recorder.turns.find((turn) => !turn.handshake)?.promptText;
+    expect(transported?.length).toBe(SEEDED_ARGV_TRUNCATION_BYTES);
     expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(AdapterContractViolation);
     expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(/first divergence at byte 131072/);
   });

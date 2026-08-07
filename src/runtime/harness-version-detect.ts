@@ -53,13 +53,21 @@ function extractVersionToken(line: string): string {
  * (`unknown` band), never `below_floor` — Cormidia does not install providers
  * (#224), so "not present" is a readiness fact, not a version verdict.
  */
-export function readBinaryVersion(command: string, args: readonly string[]): HarnessVersionDetection {
+export function readBinaryVersion(
+  command: string,
+  args: readonly string[],
+  env?: Readonly<Record<string, string>>,
+): HarnessVersionDetection {
   let stdout: string;
   try {
     stdout = execFileSync(command, [...args], {
       encoding: "utf8",
       timeout: 10_000,
       stdio: ["ignore", "pipe", "ignore"],
+      // Detection is read-only by contract: a harness that self-updates on
+      // invocation is pinned quiet here rather than upgraded behind the
+      // operator's back (#224).
+      ...(env === undefined ? {} : { env: { ...process.env, ...env } }),
     });
   } catch (error) {
     return { detected: false, reason: `${command} ${args.join(" ")} failed: ${errorMessage(error)}` };

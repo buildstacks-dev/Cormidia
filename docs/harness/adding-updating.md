@@ -39,11 +39,14 @@ provider-neutral and reaches providers only through this seam. The import
 direction is one-way (`src/org` → `src/loop` → `src/runtime`; the runtime
 layer imports nothing above it), which is what keeps harnesses swappable and
 the loop extractable. Current harnesses: `claude.ts`, `codex.ts` (+
-`codex-gate-bridge.ts`, `codex-gate-hook.ts`), `pi.ts` (+ `pi-gate.ts`), and
+`codex-gate-bridge.ts`, `codex-gate-hook.ts`), `pi.ts` (+ `pi-gate.ts`),
 `cursor.ts` (+ `cursor-process.ts`, `cursor-stream.ts`, `cursor-pricing.ts`,
 `cursor-config.ts`, `cursor-gate-bridge.ts`, `cursor-gate-handshake.ts`,
 `cursor-gate-hook.ts` — a CLI-headless harness splits wider than an SDK one, and
-the size/export ratchet caps a new module at 10 exports / 300 lines), and
+the size/export ratchet caps a new module at 10 exports / 300 lines),
+`opencode.ts` (+ `opencode-server.ts`, `opencode-config.ts`,
+`opencode-session.ts`, `opencode-gate-bridge.ts`, `opencode-gate-plugin.ts`,
+`opencode-gate-client.ts`), and
 `grok.ts` (+ `grok-acp-client.ts`, `grok-session.ts`, `grok-gate-bridge.ts`,
 `grok-gate-hook.ts`, `grok-isolation.ts`, `grok-tool-actions.ts`,
 `grok-turn.ts`) — **sandbox-only while #339's human risk review is open** — and

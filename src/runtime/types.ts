@@ -4,7 +4,7 @@
 import type { RuntimeCapability } from "./capabilities.js";
 import type { ProviderPermissionModes } from "./permission-mode.js";
 
-export type RuntimeKind = "claude" | "codex" | "pi" | "cursor" | "grok" | "muse";
+export type RuntimeKind = "claude" | "codex" | "pi" | "cursor" | "grok" | "muse" | "opencode";
 
 // Generic across providers; each adapter maps to its native knob
 // (Anthropic effort, OpenAI reasoning effort, pi thinking level).

@@ -1884,6 +1884,17 @@ function sessionEvidence(session: TurnResult["session"]): SessionEvidence {
       transcript_note: "Resume the chat with `cursor-agent --resume <id>`; session.log is activity only.",
     };
   }
+  if (session.runtime === "opencode") {
+    // OpenCode sessions are first-class server objects the operator can reopen,
+    // so the id is a real transcript reference. Falling through would have
+    // recorded an opencode turn as transcript-less AND blamed the Claude SDK.
+    return {
+      ...session,
+      native_ref: session.id,
+      transcript: "provider_session",
+      transcript_note: "Provider session reference recorded; session.log is activity only.",
+    };
+  }
   if (session.runtime === "muse") {
     // `--session-id <uuid>` is muse's own session identity and the durable
     // session log is the real transcript. Falling through to the final branch

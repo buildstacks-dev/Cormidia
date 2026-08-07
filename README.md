@@ -862,6 +862,22 @@ the validation rebuild — see Testing above.)
   bounded interval and may show an explicitly degraded last-known projection
   while local run evidence remains live.
 
+- **OpenCode: no structured verdict, and the budget cap is not a spend
+  ceiling.** The OpenCode harness (#337) is certified against the operator's
+  own opencode 1.18.15
+  (`research/2026-08-07_opencode-adapter-certification.md`), with two honest
+  limits. Its native `json_schema` output format is published but not usable:
+  requesting it put a one-step review into a retry loop that ran past five
+  minutes and returned no assistant message, so `structured_verdict` is
+  declared `fallback` and the loop's lenient parser is the mechanism. And
+  because OpenCode derives dollars from the models.dev catalog rather than a
+  provider billing response, every OpenCode turn is flagged `costEstimated`;
+  on an auth tier the catalog prices at zero, cost is `0` with real tokens and
+  the running per-turn budget guard cannot fire. Representative-model
+  certification covered the OpenAI family only — the machine has no
+  Anthropic-family OpenCode credential, so that leg is recorded incomplete,
+  never passed.
+
 - **The Muse Code harness is registered but cannot run a turn.** Certification
   on 2026-08-07 (`research/2026-08-07_muse-code-adapter-certification.md`,
   Muse Code `0.1.0-R708.1`) found no working pre-execution gate seam: `muse exec`

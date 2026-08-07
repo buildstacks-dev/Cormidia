@@ -11,6 +11,7 @@ import { codexDouble } from "../../fixtures/adapters/codex-double.js";
 import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
 import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { museDouble } from "../../fixtures/adapters/muse-double.js";
+import { opencodeDouble } from "../../fixtures/adapters/opencode-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { runAdapterConformance } from "../../fixtures/adapters/conformance.js";
 import { script } from "../../fixtures/adapters/scenario.js";
@@ -61,6 +62,11 @@ describe("shared adapter conformance suite", () => {
       runtime: "cursor" as const,
       model: "claude-opus-5-thinking-medium",
       make: async () => cursorDouble(scenarios("cursor")).runtime,
+    },
+    {
+      runtime: "opencode" as const,
+      model: "scripted/opencode-scripted-model",
+      make: async () => opencodeDouble(scenarios("opencode")).runtime,
     },
     { runtime: "pi" as const, model: "claude-scripted-model", make: async () => piDouble(scenarios("pi")).runtime },
     { runtime: "grok" as const, model: "grok-4.5", make: async () => grokDouble(scenarios("grok")).runtime },

@@ -103,6 +103,12 @@ export function costEnforcementFor(runtime: RuntimeKind): EffectiveTurnBounds["c
   // session log at every model-step boundary, so the guard really is running.
   // Falling through to pi's answer would have called that estimate "measured".
   if (runtime === "muse") return "estimated_progress_no_strict_provider_cap";
+  // OpenCode derives dollars from the models.dev catalog rather than a provider
+  // billing response, so the figure is an estimate — but the observer checks it
+  // as the stream advances, so the guard runs. On an auth tier the catalog
+  // prices at zero the guard cannot fire at all, which is why this must never
+  // be reported as pi's "measured".
+  if (runtime === "opencode") return "estimated_progress_no_strict_provider_cap";
   return "measured_progress_no_strict_provider_cap";
 }
 

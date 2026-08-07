@@ -7,7 +7,7 @@ AGENTS.md rules still apply; this file adds the local ones.
 ## Purpose
 `Runtime` interface, critical-ops gate, telemetry, L1–L3 runlog writers, and
 the adapters (Claude Agent SDK, Codex App Server, pi SDK, `cursor-agent` CLI,
-Grok Build ACP, Muse Code CLI).
+OpenCode server+SDK, Grok Build ACP, Muse Code CLI).
 
 ## Local rules
 - This layer imports nothing from `src/loop` or `src/org` — it is the bottom
@@ -30,9 +30,9 @@ Grok Build ACP, Muse Code CLI).
   (`tests/hermetic/cf-adapter-conformance/`, including the subagent
   gate-ordering probe, the pi, grok and muse fan-out degradation paths, and
   the 300 KB payload pin — #334) and live through the campaign runner
-  (CF-B02/03/04-L3, plus CF-B24-L3 for Cursor, CF-B25-L3 for Grok Build, and
-  CF-B26-L3 for Muse Code — the last reporting `incomplete`, which is its
-  certified final state).
+  (CF-B02/03/04-L3, plus CF-B23-L3 for OpenCode, CF-B24-L3 for Cursor,
+  CF-B25-L3 for Grok Build, and CF-B26-L3 for Muse Code — the last reporting
+  `incomplete`, which is its certified final state).
   Extend cases; never weaken one to make an adapter pass.
 - `harness-support.ts` is the ONE place version bands live: per kind, `floor`
   (below it readiness refuses before the provider is constructed), `testedWith`,

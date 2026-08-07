@@ -23,6 +23,7 @@ import { codexDouble, type CodexRecordedTurn } from "../../fixtures/adapters/cod
 import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
 import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { museDouble } from "../../fixtures/adapters/muse-double.js";
+import { opencodeDouble, opencodeDoubleRequest } from "../../fixtures/adapters/opencode-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import {
   AdapterContractViolation,
@@ -302,6 +303,39 @@ describe("CF-B25-PAYLOAD — 300 KB brief transports intact through the Grok ada
     ]);
     const liar = new SeededPayloadTruncationRuntime(dbl.runtime);
     await liar.runTurn(doubleTurnRequest({ workdir: repo.dir, role: grokRole(), task: PAYLOAD }), allowAll);
+    const transported = dbl.recorder.turns[0]!.promptText;
+    expect(transported?.length).toBe(SEEDED_ARGV_TRUNCATION_BYTES);
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(AdapterContractViolation);
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(/first divergence at byte 131072/);
+  });
+});
+
+describe("CF-B23-PAYLOAD — 300 KB brief transports intact through the OpenCode adapter (HTTP message body)", () => {
+  it("the server observes the exact brief in the prompt request's text part", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = opencodeDouble([
+      script.turn({
+        sessionId: "ses_payload",
+        outcome: script.success("done", { usage: { inputTokens: 10, outputTokens: 2 }, costUsd: 0.01 }),
+      }),
+    ]);
+    const result = await dbl.runtime.runTurn(opencodeDoubleRequest({ workdir: repo.dir, task: PAYLOAD }), allowAll);
+    expect(result.status).toBe("completed");
+    const transported = dbl.recorder.turns[0]!.promptText;
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).not.toThrow();
+    expect(transported).toBe(PAYLOAD);
+  });
+
+  it("negative control: an ARG_MAX-truncating transport is caught by the payload detector", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = opencodeDouble([
+      script.turn({
+        sessionId: "ses_payload_trunc",
+        outcome: script.success("done", { usage: { inputTokens: 10, outputTokens: 2 }, costUsd: 0.01 }),
+      }),
+    ]);
+    const liar = new SeededPayloadTruncationRuntime(dbl.runtime);
+    await liar.runTurn(opencodeDoubleRequest({ workdir: repo.dir, task: PAYLOAD }), allowAll);
     const transported = dbl.recorder.turns[0]!.promptText;
     expect(transported?.length).toBe(SEEDED_ARGV_TRUNCATION_BYTES);
     expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(AdapterContractViolation);

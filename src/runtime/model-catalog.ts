@@ -60,10 +60,16 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
   cursor:
     "the Cursor roster is account-scoped and reachable only by running `cursor-agent --list-models` " +
     "with a working credential, which a config edit must not require; the id is proven when a turn starts",
+  opencode: undefined,
   pi: undefined,
   grok: "the Grok Build roster is only readable by running `grok models` with a working credential, which a config edit must not require; the id is proven by `cormidia doctor` and then inside a live turn",
   muse: undefined,
 };
+
+/** How long the OpenCode roster listing may take before it is reported as
+ *  unavailable. The command is local (it reads the install's own catalog with
+ *  network refresh disabled) and completed in well under a second on 1.18.15. */
+const OPENCODE_CATALOG_TIMEOUT_MS = 15_000;
 
 /**
  * Muse Spark identifiers Muse Code accepts, from the vendor announcement
@@ -80,6 +86,7 @@ const MUSE_MODELS = ["muse-spark-1.1", "muse-spark-1.2"] as const;
  * the other two harnesses report unavailability rather than guessing.
  */
 export async function readRuntimeModelCatalog(runtime: RuntimeKind): Promise<RuntimeModelCatalog> {
+  if (runtime === "opencode") return readOpencodeModelCatalog();
   if (runtime === "muse") {
     return {
       runtime,
@@ -115,6 +122,52 @@ export async function readRuntimeModelCatalog(runtime: RuntimeKind): Promise<Run
       runtime,
       available: false,
       reason: `the pi model registry could not be read: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * The OpenCode roster is what THIS install can actually serve — `opencode
+ * models` prints the credential-resolved `provider/model` ids, not the whole
+ * models.dev catalog, so an id for an unauthenticated provider is correctly
+ * reported as not served. Run with catalog refresh disabled and the config root
+ * redirected at an empty directory, so listing sends no provider request and
+ * cannot pick up operator-global configuration.
+ */
+async function readOpencodeModelCatalog(): Promise<RuntimeModelCatalog> {
+  const runtime = "opencode" as const;
+  try {
+    const [{ execFile }, { mkdtemp, rm }, { tmpdir }, { join: joinPath }, { promisify }] = await Promise.all([
+      import("node:child_process"),
+      import("node:fs/promises"),
+      import("node:os"),
+      import("node:path"),
+      import("node:util"),
+    ]);
+    const { resolveOpencodeBinary, opencodeHermeticEnv } = await import("./adapters/opencode-server.js");
+    const binary = resolveOpencodeBinary();
+    const configHome = await mkdtemp(joinPath(tmpdir(), "cormidia-oc-cat-"));
+    try {
+      const { stdout } = await promisify(execFile)(binary, ["models"], {
+        env: opencodeHermeticEnv(configHome),
+        encoding: "utf8",
+        timeout: OPENCODE_CATALOG_TIMEOUT_MS,
+      });
+      const models = [...new Set(stdout.split(/\r?\n/).map((line) => line.trim()))]
+        .filter((line) => /^[^\s/]+\/\S+$/.test(line))
+        .sort();
+      if (models.length === 0) {
+        return { runtime, available: false, reason: "the opencode install reports no reachable models" };
+      }
+      return { runtime, available: true, source: `${binary} models`, models };
+    } finally {
+      await rm(configHome, { recursive: true, force: true });
+    }
+  } catch (error) {
+    return {
+      runtime,
+      available: false,
+      reason: `the opencode model roster could not be read: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

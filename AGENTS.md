@@ -98,10 +98,14 @@ rewrite; legacy test/eval scripts removed with the archive move).
   harness exists); if the failure is not offline-reproducible, guard the
   nearest deterministic seam (provision/preflight) and say so in the PR. A fix
   without a guard is incomplete — a live run is not a regression test.
-- **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the three
-  provider SDKs. Adding one is a decision, not a convenience. Grok Build adds
-  no dependency — it is a *required preinstalled binary* driven over ACP (#224:
-  Cormidia never installs a provider).
+- **Dependencies minimal and boring** (TASTE.md §3): `yaml` plus the four
+  provider SDKs (`@anthropic-ai/claude-agent-sdk`, `@openai/codex`,
+  `@earendil-works/pi-coding-agent`, `@opencode-ai/sdk` — the last added by
+  #337 for the OpenCode harness; it is the generated client for the operator's
+  own `opencode serve`, and Cormidia never installs the opencode binary itself,
+  #224). Adding one is a decision, not a convenience. Cursor, Grok Build and
+  Muse Code add no dependency at all — each is a *required preinstalled binary*
+  (#224: Cormidia never installs a provider).
 - **Grok Build is sandbox-only.** The adapter (`src/runtime/adapters/grok*.ts`)
   is implemented and certified, but #339's human risk review of the vendor is
   OPEN. Certification proves the adapter, never the vendor. Never point a grok

@@ -211,12 +211,14 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await git(repo, ["commit", "-qm", "seed post-review golden mutation"]);
     const alteredCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
     await expect(releaseRepositorySnapshot(repo, alteredCommit)).rejects.toThrow(/content changed after human review/);
-    // Budget, not an assertion: this case drives several real
-    // `pnpm install --verify-store-integrity` runs, so its wall clock tracks
-    // the size of the vendored harness binaries. The 0.3.224 bump (#335) grew
-    // the Claude platform package 221 MB → 265 MB and pushed the old 90s
-    // budget into flaky territory (~83s observed). Nothing about what this
-    // case proves changed; only how long the I/O takes.
+    // Budget, not an assertion: this case takes several full candidate
+    // snapshots, each a clone plus a real offline install plus a nested Vitest
+    // run, so its wall clock tracks the size of the vendored harness binaries
+    // and how loaded the suite is around it. The 0.3.224 bump (#335) grew the
+    // Claude platform package 221 MB → 265 MB and pushed the old 90s budget
+    // into flaky territory (~83s observed); the adapter wave adds more
+    // dependencies still. Nothing about what this case proves changed — every
+    // assertion above still has to hold — only how long the I/O takes.
   }, 240_000);
 
   it("negative control: machine inventory catches alternate skip syntax and refuses missing or forged skip rows", async () => {
@@ -1486,9 +1488,23 @@ async function writeRepositoryFixture(
   // declaration. Omitting it made the lockfile and the policy disagree, so any
   // dependency published inside the minimumReleaseAge window failed the fixture
   // install rather than the candidate (surfaced by the 0.3.224 bump, #335).
+  // Two settings are load-bearing here: `minimumReleaseAgeExclude` and
+  // `verifyDepsBeforeRun: false` (without it every `pnpm exec` re-verifies the
+  // tree). The `packages:` selector is deliberately dropped so the fixture does
+  // not also declare itself a workspace root.
   await writeFile(
     join(repo, "pnpm-workspace.yaml"),
-    await readFile(join(process.cwd(), "pnpm-workspace.yaml")),
+    (await readFile(join(process.cwd(), "pnpm-workspace.yaml"), "utf8"))
+      .split(/\r?\n/)
+      .reduce<{ lines: string[]; skipping: boolean }>(
+        (state, line) => {
+          if (/^\S/.test(line)) state.skipping = line.startsWith("packages:");
+          if (!state.skipping && !line.startsWith("  - '.'")) state.lines.push(line);
+          return state;
+        },
+        { lines: [], skipping: false },
+      )
+      .lines.join("\n") + "\n",
     "utf8",
   );
   await writeFile(join(repo, "vitest.config.ts"), await readFile(join(process.cwd(), "vitest.config.ts")), "utf8");

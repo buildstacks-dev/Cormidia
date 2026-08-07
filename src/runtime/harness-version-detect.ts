@@ -34,18 +34,24 @@ export function normalizeCalendarVersion(raw: string): string {
   return `${Number(match[1])}.${Number(match[2])}.${Number(match[3])}`;
 }
 
+const VERSION_TOKEN = /^v?\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$/;
+
 /**
  * `grok 1.0.0 (3cd0d0cbcebe) [stable]` → `1.0.0`. Not every harness prints a
  * bare version: some decorate the line with their own name, a build sha and a
- * release channel. Only a token that is ALREADY a version shape is accepted, and
- * only the first one, so a sha or a channel word can never be mistaken for the
- * version. A line with no such token is returned untouched — banding then says
- * `unknown`, which is the honest answer rather than a guess (#339).
+ * release channel (grok, muse), and some print a banner before it (opencode,
+ * whose readiness probe reads the LAST line for that reason). Lines are scanned
+ * in order and only a token that is ALREADY a version shape is accepted, so a
+ * sha, a channel word or a banner word can never be mistaken for the version.
+ * Output with no such token anywhere is returned as its first line — banding
+ * then says `unknown`, which is the honest answer rather than a guess (#339).
  */
-function extractVersionToken(line: string): string {
-  const tokens = line.split(/\s+/).filter((token) => token !== "");
-  const versionish = tokens.find((token) => /^\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$/.test(token));
-  return versionish ?? line;
+function extractVersionToken(lines: readonly string[]): string {
+  for (const line of lines) {
+    const token = line.split(/\s+/).find((candidate) => VERSION_TOKEN.test(candidate));
+    if (token !== undefined) return token.startsWith("v") ? token.slice(1) : token;
+  }
+  return lines[0] ?? "";
 }
 
 /**
@@ -72,9 +78,13 @@ export function readBinaryVersion(
   } catch (error) {
     return { detected: false, reason: `${command} ${args.join(" ")} failed: ${errorMessage(error)}` };
   }
-  const raw = stdout.trim().split(/\r?\n/)[0]?.trim() ?? "";
-  if (raw === "") return { detected: false, reason: `${command} ${args.join(" ")} printed no version` };
-  return { detected: true, version: normalizeCalendarVersion(extractVersionToken(raw)) };
+  const lines = stdout
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  if (lines.length === 0) return { detected: false, reason: `${command} ${args.join(" ")} printed no version` };
+  return { detected: true, version: normalizeCalendarVersion(extractVersionToken(lines)) };
 }
 
 export function readPackageVersion(packageName: string): HarnessVersionDetection {

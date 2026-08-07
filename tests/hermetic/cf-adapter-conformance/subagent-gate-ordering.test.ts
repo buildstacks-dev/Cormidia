@@ -25,6 +25,7 @@ import { codexDouble } from "../../fixtures/adapters/codex-double.js";
 import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
 import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { museDouble } from "../../fixtures/adapters/muse-double.js";
+import { opencodeDouble, opencodeDoubleRequest } from "../../fixtures/adapters/opencode-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { AdapterContractViolation, checkEveryExecutedToolConsulted, script } from "../../fixtures/adapters/scenario.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
@@ -705,5 +706,97 @@ describe("CF-B25-DEGRADE — grok fan-out uncertified: the spawn tool is denied,
     await dbl.runtime.runTurn(doubleTurnRequest({ workdir: repo.dir, role: grokRole(["scout"]) }), hooks);
     expect(gateActions).toEqual([]);
     expect(() => checkEveryExecutedToolConsulted(dbl.recorder.turns[0]!)).toThrow(/INV-002 gate-before-execution/);
+  });
+});
+
+describe("CF-B23-SUBGATE — subagent critical op reaches the gate identically (opencode, fan-out native)", () => {
+  it("event → gate → escalation ordering matches a top-level critical op exactly", async () => {
+    repo = await makeTempGitRepo();
+    const topDouble = opencodeDouble([
+      script.turn({
+        sessionId: "ses_top",
+        steps: [script.tool("bash", { command: CRITICAL_COMMAND })],
+        outcome: script.success("recovered without the tool", {
+          usage: { inputTokens: 10, outputTokens: 2 },
+          costUsd: 0.01,
+        }),
+      }),
+    ]);
+    const subDouble = opencodeDouble([
+      script.turn({
+        sessionId: "ses_sub",
+        steps: [
+          script.tool("task", { description: "critical helper", subagent_type: "general", prompt: "go" }),
+          script.tool("bash", { command: CRITICAL_COMMAND }, { fromSubagent: true }),
+        ],
+        outcome: script.success("recovered without the tool", {
+          usage: { inputTokens: 10, outputTokens: 2 },
+          costUsd: 0.01,
+        }),
+      }),
+    ]);
+
+    const topLevel = criticalDenyingHooks();
+    const topResult = await topDouble.runtime.runTurn(opencodeDoubleRequest({ workdir: repo.dir }), topLevel.hooks);
+
+    const subagent = criticalDenyingHooks(() => subDouble.recorder.turns.at(-1)?.sequence);
+    const subResult = await subDouble.runtime.runTurn(opencodeDoubleRequest({ workdir: repo.dir }), subagent.hooks);
+
+    // Identical settlement: the child session's call normalizes to the same
+    // action, escalates identically, and never executes.
+    expect(topResult.status).toBe("blocked_on_gate");
+    expect(subResult.status).toBe("blocked_on_gate");
+    expect(subagent.gateActions).toEqual(topLevel.gateActions);
+    expect(subResult.escalations).toEqual(topResult.escalations);
+    expect(subResult.escalations).toEqual([
+      { action: { tool: "bash", input: { command: CRITICAL_COMMAND } }, reason: "critical op: merge (scripted)" },
+    ]);
+
+    const sequence = subDouble.recorder.turns[0]!.sequence;
+    const spawnAt = sequence.indexOf("consult:hook:task");
+    const consultAt = sequence.indexOf("consult:hook:bash");
+    const gateAt = sequence.indexOf("org-gate:bash");
+    const deniedAt = sequence.indexOf("denied:bash");
+    expect(spawnAt).toBeGreaterThanOrEqual(0);
+    expect(consultAt).toBeGreaterThan(spawnAt);
+    expect(gateAt).toBeGreaterThan(consultAt);
+    expect(deniedAt).toBeGreaterThan(gateAt);
+    expect(sequence).not.toContain("execute:bash");
+    expect(subagent.events.filter((event) => event.type === "tool_use")).toHaveLength(0);
+    expect(subagent.events.filter((event) => event.type === "subagent")).toHaveLength(1);
+    // Fan-out is never silent: the spawn is allowed at the bridge, so the
+    // bridge is the only place it can be counted (INV-006).
+    expect(subResult.usage.subagentTurns).toBe(1);
+    expect(topResult.usage.subagentTurns).toBe(0);
+    expect(() => checkEveryExecutedToolConsulted(subDouble.recorder.turns[0]!)).not.toThrow();
+  });
+
+  it("negative control: a plugin hook that stops firing inside child sessions is caught by the shared detector", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = opencodeDouble(
+      [
+        script.turn({
+          sessionId: "ses_sub_bypass",
+          steps: [
+            script.tool("bash", { command: "echo main-ok" }),
+            script.tool("task", { description: "critical helper", subagent_type: "general", prompt: "go" }),
+            script.tool("bash", { command: CRITICAL_COMMAND }, { fromSubagent: true }),
+          ],
+          outcome: script.success("looks clean", { usage: { inputTokens: 10, outputTokens: 2 }, costUsd: 0.01 }),
+        }),
+      ],
+      { violations: ["bypass_subagent_gate"] },
+    );
+    const { hooks, gateActions } = criticalDenyingHooks();
+    const result = await dbl.runtime.runTurn(opencodeDoubleRequest({ workdir: repo.dir }), hooks);
+
+    expect(gateActions).toEqual([{ tool: "bash", input: { command: "echo main-ok" } }]);
+    expect(result.status).toBe("completed");
+    expect(result.escalations).toEqual([]);
+    const turn = dbl.recorder.turns[0]!;
+    expect(turn.toolPlays[2]?.executed).toBe(true);
+    expect(turn.toolPlays[2]?.consultations).toEqual([]);
+    expect(() => checkEveryExecutedToolConsulted(turn)).toThrow(AdapterContractViolation);
+    expect(() => checkEveryExecutedToolConsulted(turn)).toThrow(/ungated/);
   });
 });

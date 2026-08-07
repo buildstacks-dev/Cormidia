@@ -14,6 +14,7 @@ export const TURN_ASSIGNMENT_HARNESSES = [
   "pi",
   "grok",
   "muse",
+  "opencode",
 ] as const satisfies readonly RuntimeKind[];
 export const TURN_ASSIGNMENT_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly Effort[];
 
@@ -74,7 +75,11 @@ export function validateTurnAssignment(value: unknown, context = "turn assignmen
   if (typeof effort !== "string" || !TURN_ASSIGNMENT_EFFORTS.includes(effort as Effort)) {
     throw new Error(`${context}.effort must be one of ${TURN_ASSIGNMENT_EFFORTS.join(" | ")}`);
   }
-  if (effort === "max" && harness !== "claude") {
+  // `max` exists on Claude natively and on OpenCode as a per-model `variant`
+  // (verified 2026-08-07: gpt-5.6-sol/luna/terra publish it, gpt-5.4* do not).
+  // Harness-level acceptance here; the OpenCode adapter still refuses the exact
+  // model/effort pair before provider construction when the model omits it.
+  if (effort === "max" && harness !== "claude" && harness !== "opencode") {
     throw new Error(`${context}.effort max is unsupported by ${harness}; no effort alias is allowed`);
   }
 
@@ -287,8 +292,14 @@ export function configuredProviderFamily(assignment: TurnAssignment): string {
   const namespace = (separator === -1 ? validated.model : validated.model.slice(0, separator)).toLowerCase();
   if (namespace === "openai" || namespace === "openai-codex") return "openai";
   if (namespace === "anthropic") return "anthropic";
-  if (isAssignmentCandidateId(namespace)) return `pi/${namespace}`;
-  return "pi/unknown";
+  // OpenCode is multi-provider like pi and reaches the real vendor with the
+  // operator's OWN credential, so a recognized namespace is the honest family
+  // for either harness. The unrecognized tail must stay harness-namespaced:
+  // labelling an opencode turn `pi/...` would collide two different harnesses'
+  // unknown models into one family and read as the same vendor.
+  const routed = validated.harness === "opencode" ? "opencode" : "pi";
+  if (isAssignmentCandidateId(namespace)) return `${routed}/${namespace}`;
+  return `${routed}/unknown`;
 }
 
 /**

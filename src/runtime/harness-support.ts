@@ -12,6 +12,7 @@
 // Detection is token-free: no model turn, no provider request.
 
 import { readBinaryVersion, readPackageVersion, type HarnessVersionDetection } from "./harness-version-detect.js";
+import { compareSemanticVersions, parseSemanticVersion } from "./harness-version-math.js";
 import { definedProps } from "./optional-properties.js";
 import type { RuntimeKind } from "./types.js";
 
@@ -123,6 +124,20 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     testedWith: "1.0.0",
     testedEvidence: "research/2026-08-07_grok-build-adapter-certification.md",
     versionSource: { kind: "installed_binary", command: "grok", args: ["--version"] },
+  },
+  opencode: {
+    // The operator's own install (often `~/.opencode/bin/opencode`, so PATH
+    // absence is a detection failure, never a floor violation). `--version` may
+    // print a banner before the number, which `extractVersionToken` handles by
+    // scanning lines for a version-shaped token rather than trusting position.
+    // Floor equals testedWith: certification proved the gate PLUGIN wires its
+    // hooks on this build, and a plugin whose factory runs is not a plugin
+    // whose hooks are wired — an unproven build could serve happily and run
+    // every tool ungated.
+    floor: "1.18.15",
+    testedWith: "1.18.15",
+    testedEvidence: "research/2026-08-07_opencode-adapter-certification.md",
+    versionSource: { kind: "installed_binary", command: "opencode", args: ["--version"] },
   },
   muse: {
     // muse's launcher self-updates hourly, so detection pins
@@ -246,55 +261,4 @@ function assessment(
     detail,
     ...definedProps({ version }),
   };
-}
-
-interface SemanticVersion {
-  readonly release: readonly [number, number, number];
-  readonly prerelease: readonly string[];
-}
-
-// Deliberately strict and dependency-free (TASTE.md §3): no `v` prefix, no
-// leading zeros, no missing patch. Build metadata is ignored per semver §10.
-const SEMANTIC_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
-const NUMERIC_IDENTIFIER = /^(?:0|[1-9]\d*)$/;
-
-function parseSemanticVersion(raw: string): SemanticVersion | undefined {
-  const match = SEMANTIC_VERSION.exec(raw);
-  if (match === null) return undefined;
-  const [major, minor, patch] = [match[1], match[2], match[3]].map((part) => Number(part));
-  if (major === undefined || minor === undefined || patch === undefined) return undefined;
-  const prerelease = match[4] === undefined ? [] : match[4].split(".");
-  // An empty identifier, or a numeric one with a leading zero, is not semver.
-  if (prerelease.some((part) => part === "" || (/^\d+$/.test(part) && !NUMERIC_IDENTIFIER.test(part))))
-    return undefined;
-  return { release: [major, minor, patch], prerelease };
-}
-
-function compareSemanticVersions(left: SemanticVersion, right: SemanticVersion): number {
-  for (let index = 0; index < 3; index += 1) {
-    const difference = (left.release[index] ?? 0) - (right.release[index] ?? 0);
-    if (difference !== 0) return difference < 0 ? -1 : 1;
-  }
-  return comparePrerelease(left.prerelease, right.prerelease);
-}
-
-// Semver §11: a prerelease has lower precedence than the release it precedes.
-function comparePrerelease(left: readonly string[], right: readonly string[]): number {
-  if (left.length === 0 || right.length === 0) {
-    if (left.length === right.length) return 0;
-    return left.length === 0 ? 1 : -1;
-  }
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    const leftPart = left[index];
-    const rightPart = right[index];
-    if (leftPart === undefined) return -1;
-    if (rightPart === undefined) return 1;
-    if (leftPart === rightPart) continue;
-    const leftNumeric = NUMERIC_IDENTIFIER.test(leftPart);
-    const rightNumeric = NUMERIC_IDENTIFIER.test(rightPart);
-    if (leftNumeric && rightNumeric) return Number(leftPart) < Number(rightPart) ? -1 : 1;
-    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
-    return leftPart < rightPart ? -1 : 1;
-  }
-  return 0;
 }

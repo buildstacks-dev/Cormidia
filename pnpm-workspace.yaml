@@ -18,6 +18,7 @@ allowBuilds:
 # silently. pi 0.84 split pi-client/pi-protocol/pi-telemetry out of the
 # coding-agent package — new names, same single pinned version.
 minimumReleaseAgeExclude:
+
   # pi 0.84.1 (#335) — the 0.80.7 entries retired with the pin they excluded.
   - '@earendil-works/pi-agent-core@0.84.1'
   - '@earendil-works/pi-ai@0.84.1'
@@ -46,3 +47,7 @@ minimumReleaseAgeExclude:
   - '@openai/codex@0.147.0-linux-x64'
   - '@openai/codex@0.147.0-win32-arm64'
   - '@openai/codex@0.147.0-win32-x64'
+  # @opencode-ai/sdk 1.18.15 (#337) — the generated v2 client for the exact
+  # opencode build the adapter certified against; pinned newer than the age
+  # window, and exact-version by design like every entry above.
+  - '@opencode-ai/sdk@1.18.15'

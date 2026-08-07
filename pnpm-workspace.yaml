@@ -17,3 +17,14 @@ minimumReleaseAgeExclude:
   - '@earendil-works/pi-ai@0.80.7'
   - '@earendil-works/pi-coding-agent@0.80.7'
   - '@earendil-works/pi-tui@0.80.7'
+  # @openai/codex 0.147.0 was published the same day it was pinned (#335), so it
+  # is younger than the configured minimum release age. The refresh certified
+  # this exact version — see research/2026-08-07_codex-0.147-refresh.md — and the
+  # platform-tagged entries are the optional per-arch payloads of that one pin.
+  - '@openai/codex@0.147.0'
+  - '@openai/codex@0.147.0-darwin-arm64'
+  - '@openai/codex@0.147.0-darwin-x64'
+  - '@openai/codex@0.147.0-linux-arm64'
+  - '@openai/codex@0.147.0-linux-x64'
+  - '@openai/codex@0.147.0-win32-arm64'
+  - '@openai/codex@0.147.0-win32-x64'

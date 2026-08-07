@@ -126,9 +126,11 @@ export async function startCodexGateBridge(
 
 /**
  * Codex model metadata currently has higher precedence than feature flags.
- * In @openai/codex 0.144.4, gpt-5.6-sol's `tool_mode=code_mode_only`
- * therefore overrides `features.code_mode*=false` and exposes a custom
- * `exec` tool whose nested effects are not reliably covered by PreToolUse.
+ * gpt-5.6-sol's `tool_mode=code_mode_only` therefore overrides
+ * `features.code_mode*=false` and exposes a custom `exec` tool whose nested
+ * effects are not reliably covered by PreToolUse. Still true on 0.147.0:
+ * `debug models --bundled` ships the same `tool_mode`/`use_responses_lite`
+ * values as 0.144.4 (research/2026-08-07_codex-0.147-refresh.md §b).
  *
  * Codex's package-local `debug models --bundled` command exposes the exact
  * catalog compiled into the pinned binary without network or provider use.
@@ -244,10 +246,12 @@ export function codexAppServerArgs(
   return [
     "--ask-for-approval",
     permissionMode,
-    // Codex CLI parses this global bypass flag but 0.144.4's app-server
-    // dispatch does not forward it into ConfigOverrides. Keep the public flag
-    // for forward compatibility; codex.ts also sets the equivalent typed
-    // thread request override so the exact ephemeral hook is runnable now.
+    // Codex CLI parses this global bypass flag but the app-server dispatch
+    // does not forward it into ConfigOverrides. Keep the public flag for
+    // forward compatibility; codex.ts also sets the equivalent typed thread
+    // request override so the exact ephemeral hook is runnable now. On 0.147.0
+    // the flag is still a documented top-level option and still absent from
+    // `app-server --help`, so both halves stay.
     "--dangerously-bypass-hook-trust",
     "-c",
     "features.hooks=true",

@@ -1283,7 +1283,7 @@
     },
     "src/runtime/adapters/codex-gate-bridge.ts": {
       "exports": 4,
-      "lines": 313,
+      "lines": 317,
       "newModule": false
     },
     "src/runtime/adapters/codex-gate-hook.ts": {
@@ -1293,7 +1293,7 @@
     },
     "src/runtime/adapters/codex.ts": {
       "exports": 7,
-      "lines": 1033,
+      "lines": 1049,
       "newModule": false
     },
     "src/runtime/adapters/pi-gate.ts": {
@@ -1353,7 +1353,7 @@
     },
     "src/runtime/harness-support.ts": {
       "exports": 9,
-      "lines": 276,
+      "lines": 282,
       "newModule": true
     },
     "src/runtime/invocation-ledger.ts": {

@@ -49,11 +49,14 @@ const TESTED_EVIDENCE = "research/2026-08-06_adapter-upstream-references.md";
  * bands are declared. That is deliberate — an undeclared harness has no floor,
  * and a harness with no floor has no refusal.
  *
- * Every floor currently equals its `testedWith` because the harnesses are still
- * vendored at exactly those versions: no install below the pin exists yet, so a
- * conservative floor refuses nobody. Lowering a floor to the oldest interface an
- * adapter genuinely speaks is per-adapter research owed with #224, not a guess
- * to be made here.
+ * A floor is an interface claim, not a copy of the pin: it moves only when an
+ * adapter genuinely stops speaking the older surface. Claude and pi still have
+ * floor == `testedWith` because they are vendored at exactly those versions.
+ * Codex deliberately does not: the 0.147.0 refresh re-certified the adapter
+ * without breaking 0.144.4's interface, so raising the floor would refuse
+ * operators for no proven incompatibility. Lowering a floor to the oldest
+ * interface an adapter genuinely speaks is per-adapter research owed with #224,
+ * not a guess to be made here.
  */
 export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
   claude: {
@@ -63,9 +66,12 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     versionSource: { kind: "vendored_npm_package", packageName: "@anthropic-ai/claude-agent-sdk" },
   },
   codex: {
+    // Unchanged by the 0.147.0 refresh: the floor is an interface claim, not a
+    // copy of the pin, and raising it would refuse operators still on 0.144.4
+    // for no proven incompatibility (#224 owes the real per-adapter floor).
     floor: "0.144.4",
-    testedWith: "0.144.4",
-    testedEvidence: TESTED_EVIDENCE,
+    testedWith: "0.147.0",
+    testedEvidence: "research/2026-08-07_codex-0.147-refresh.md",
     versionSource: { kind: "vendored_npm_package", packageName: "@openai/codex" },
   },
   pi: {

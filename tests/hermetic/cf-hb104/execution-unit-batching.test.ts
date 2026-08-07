@@ -177,6 +177,57 @@ describe("HB-104/HB-105 — ExecutionUnit batching and structured fast paths", (
     );
   });
 
+  it("projects only after the batch and every initial journal are durable", async () => {
+    const home = await stateHome();
+    const first = await acceptDirectExecutionUnit({ root: home.stateHome, authority: direct("project-first") });
+    const second = await acceptDirectExecutionUnit({ root: home.stateHome, authority: direct("project-second") });
+    const observedBatchIds: string[] = [];
+
+    await expect(
+      admitExecutionBatch({
+        root: home.stateHome,
+        app: APP.name,
+        batchId: "projection-ordering",
+        directUnitRefs: [second.ref, first.ref],
+        routing: [],
+        admittedAt: AT,
+        project: async (entry) => {
+          const persisted = JSON.parse(await readFile(entry.path, "utf8"));
+          expect(persisted.value.units.map((unit: { unitId: string }) => unit.unitId)).toEqual([
+            "project-first",
+            "project-second",
+          ]);
+          const journals = await Promise.all(
+            persisted.value.units.map((unit: { unitId: string }) =>
+              readExecutionUnitJournal(home.stateHome, APP.name, persisted.ref.id, unit.unitId),
+            ),
+          );
+          expect(journals.map((journal) => journal?.state)).toEqual(["admitted", "admitted"]);
+          observedBatchIds.push(persisted.ref.id);
+          throw new Error("seeded projection interruption");
+        },
+      }),
+    ).rejects.toThrow("seeded projection interruption");
+
+    const replay = await admitExecutionBatch({
+      root: home.stateHome,
+      app: APP.name,
+      batchId: "projection-ordering",
+      directUnitRefs: [second.ref, first.ref],
+      routing: [],
+      admittedAt: "2026-08-04T00:00:00.000Z",
+    });
+    expect(observedBatchIds).toEqual([replay.ref.id]);
+    expect(replay.value.admittedAt).toBe(AT);
+    expect(
+      await Promise.all(
+        replay.value.units.map((unit) =>
+          readExecutionUnitJournal(home.stateHome, APP.name, replay.ref.id, unit.unitId),
+        ),
+      ),
+    ).toMatchObject([{ state: "admitted" }, { state: "admitted" }]);
+  });
+
   it("keeps active membership and budgets isolated, with a seeded lending detector", async () => {
     const home = await stateHome();
     const first = await acceptDirectExecutionUnit({ root: home.stateHome, authority: direct("direct-a") });

@@ -79,6 +79,7 @@ export interface RecordedProviderOptions {
   maxBudgetUsd: number | undefined;
   permissionMode: string | undefined;
   settingSources: readonly string[] | undefined;
+  strictMcpConfig: boolean | undefined;
   systemPromptAppend: string | undefined;
   hasOutputFormatSchema: boolean;
   permissionDenyRules: string[];
@@ -506,6 +507,7 @@ function recordProviderOptions(options: SdkOptions | undefined): RecordedProvide
     maxBudgetUsd: options?.maxBudgetUsd,
     permissionMode: options?.permissionMode,
     settingSources: options?.settingSources,
+    strictMcpConfig: options?.strictMcpConfig,
     systemPromptAppend,
     hasOutputFormatSchema: options?.outputFormat !== undefined,
     permissionDenyRules,

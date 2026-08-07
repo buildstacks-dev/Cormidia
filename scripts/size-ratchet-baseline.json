@@ -1,5 +1,4 @@
 {
-  "schemaVersion": 1,
   "modules": {
     "src/cli.ts": {
       "exports": 0,
@@ -1278,7 +1277,7 @@
     },
     "src/runtime/adapters/claude.ts": {
       "exports": 4,
-      "lines": 573,
+      "lines": 590,
       "newModule": false
     },
     "src/runtime/adapters/codex-gate-bridge.ts": {
@@ -1353,7 +1352,7 @@
     },
     "src/runtime/harness-support.ts": {
       "exports": 9,
-      "lines": 279,
+      "lines": 281,
       "newModule": true
     },
     "src/runtime/invocation-ledger.ts": {
@@ -1486,5 +1485,6 @@
       "lines": 107,
       "newModule": false
     }
-  }
+  },
+  "schemaVersion": 1
 }

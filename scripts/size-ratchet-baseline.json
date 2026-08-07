@@ -878,7 +878,7 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 1878,
+      "lines": 1621,
       "newModule": false
     },
     "src/org/roadmap-delivery/active-execution-units.ts": {
@@ -914,6 +914,16 @@
     "src/org/roadmap-delivery/direct-execution-authority.ts": {
       "exports": 3,
       "lines": 135,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/execution-batch-admission.ts": {
+      "exports": 1,
+      "lines": 100,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/execution-batch-members.ts": {
+      "exports": 1,
+      "lines": 210,
       "newModule": true
     },
     "src/org/roadmap-delivery/execution-journal-model.ts": {

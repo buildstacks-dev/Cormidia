@@ -3,6 +3,7 @@
 // and no EpisodePlan: planning state is one bounded artifact graph, not N cold turns.
 
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { stableHash } from "../../../src/loop/episode-plan.js";
 import {
@@ -149,6 +150,49 @@ describe("HB-101 — RoadmapPlan whole-backlog authority", () => {
         message: "backlog_incomplete: snapshot github-open-issues@1 is partial with 0 unavailable page(s)",
       });
     }
+  });
+
+  it("persists a content-bound authority envelope before projecting it and rejects conflicting replay", async () => {
+    const home = await makeTempStateHome({ name: "hb101-authority-envelope" });
+    homes.push(home);
+    const value = snapshot({ count: 3 });
+    const projections: unknown[] = [];
+    let persistedDuringProjection: unknown;
+
+    const accepted = await acceptBacklogSnapshot({
+      root: home.stateHome,
+      snapshot: value,
+      project: async (projection) => {
+        persistedDuringProjection = JSON.parse(await readFile(projection.path, "utf8")) as unknown;
+        projections.push(projection);
+      },
+    });
+    const expectedRef: AuthorityRef = {
+      kind: "backlog_snapshot",
+      id: value.snapshotId,
+      version: value.version,
+      sha256: stableHash(value),
+    };
+    expect(accepted).toEqual({
+      schemaVersion: ROADMAP_DELIVERY_SCHEMA_VERSION,
+      ref: expectedRef,
+      value,
+    });
+    expect(persistedDuringProjection).toEqual(accepted);
+    expect(projections).toEqual([
+      {
+        kind: "backlog_snapshot",
+        app: APP,
+        path: backlogSnapshotAuthorityPath(home.stateHome, APP, value.snapshotId, value.version),
+        authorityRef: expectedRef,
+      },
+    ]);
+    expect(await acceptSnapshot(home, value)).toEqual(accepted);
+
+    await expectCode(
+      () => acceptSnapshot(home, { ...value, capturedAt: "2026-08-03T23:59:00.000Z" }),
+      "authority_conflict",
+    );
   });
 
   it("accounts for 125 issues once, bounds the frontier, and reconciles projections deterministically", async () => {

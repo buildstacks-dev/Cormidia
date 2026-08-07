@@ -878,8 +878,13 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 2256,
+      "lines": 1878,
       "newModule": false
+    },
+    "src/org/roadmap-delivery/active-execution-units.ts": {
+      "exports": 5,
+      "lines": 112,
+      "newModule": true
     },
     "src/org/roadmap-delivery/authority-core.ts": {
       "exports": 10,
@@ -909,6 +914,16 @@
     "src/org/roadmap-delivery/direct-execution-authority.ts": {
       "exports": 3,
       "lines": 135,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/execution-journal-model.ts": {
+      "exports": 8,
+      "lines": 161,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/execution-journal.ts": {
+      "exports": 4,
+      "lines": 180,
       "newModule": true
     },
     "src/org/roadmap-delivery/execution-model.ts": {

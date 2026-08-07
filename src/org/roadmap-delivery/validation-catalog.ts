@@ -1,23 +1,7 @@
+import type { AuthorityRef } from "./authority-core.js";
+
 export const VALIDATION_LAYERS = ["L1", "L2", "L3", "L4", "L5"] as const;
 type ValidationLayer = (typeof VALIDATION_LAYERS)[number];
-
-export type ValidationAuthorityRef = {
-  kind:
-    | "backlog_snapshot"
-    | "roadmap_plan"
-    | "validation_catalog"
-    | "validation_contract"
-    | "delivery_unit_readiness"
-    | "direct_execution_unit"
-    | "direct_episode_binding"
-    | "execution_batch"
-    | "delivery_episode_binding"
-    | "builder_evidence"
-    | "reviewer_verdict";
-  id: string;
-  version: number;
-  sha256: string;
-};
 
 export interface ValidationCatalogId {
   canonicalId: string;
@@ -71,7 +55,7 @@ export interface ValidationCatalog {
   schemaVersion: 1;
   catalogId: string;
   version: number;
-  predecessor: ValidationAuthorityRef | null;
+  predecessor: AuthorityRef | null;
   app: string;
   harnessRevisionId: string;
   journeys: ValidationCatalogId[];

@@ -878,8 +878,23 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 5249,
+      "lines": 5039,
       "newModule": false
+    },
+    "src/org/roadmap-delivery/authority-core.ts": {
+      "exports": 10,
+      "lines": 96,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/authority-paths.ts": {
+      "exports": 10,
+      "lines": 56,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/authority-store.ts": {
+      "exports": 8,
+      "lines": 136,
+      "newModule": true
     },
     "src/org/roadmap-delivery/failure.ts": {
       "exports": 1,
@@ -887,8 +902,8 @@
       "newModule": true
     },
     "src/org/roadmap-delivery/validation-catalog.ts": {
-      "exports": 8,
-      "lines": 88,
+      "exports": 7,
+      "lines": 72,
       "newModule": true
     },
     "src/org/roadmap-delivery/validation-contract-schema.ts": {
@@ -898,7 +913,7 @@
     },
     "src/org/roadmap-delivery/validation-contract.ts": {
       "exports": 4,
-      "lines": 66,
+      "lines": 63,
       "newModule": true
     },
     "src/org/roadmap-explanation.ts": {

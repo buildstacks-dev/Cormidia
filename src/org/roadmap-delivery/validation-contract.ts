@@ -1,8 +1,5 @@
-import {
-  VALIDATION_LAYERS,
-  type ValidationAffectedStructure,
-  type ValidationAuthorityRef,
-} from "./validation-catalog.js";
+import type { AuthorityRef } from "./authority-core.js";
+import { VALIDATION_LAYERS, type ValidationAffectedStructure } from "./validation-catalog.js";
 
 export const VALIDATION_CONTRACT_SCHEMA_VERSION = 1 as const;
 
@@ -43,10 +40,10 @@ export interface ValidationContract {
   schemaVersion: typeof VALIDATION_CONTRACT_SCHEMA_VERSION;
   contractId: string;
   version: number;
-  predecessor: ValidationAuthorityRef | null;
+  predecessor: AuthorityRef | null;
   app: string;
-  catalogRef: ValidationAuthorityRef;
-  roadmapRef: ValidationAuthorityRef;
+  catalogRef: AuthorityRef;
+  roadmapRef: AuthorityRef;
   unitId: string;
   unitMembershipHash: string;
   templateRef: ValidationTemplateRef | null;

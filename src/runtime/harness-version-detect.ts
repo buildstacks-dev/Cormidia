@@ -35,24 +35,46 @@ export function normalizeCalendarVersion(raw: string): string {
 }
 
 /**
+ * `grok 1.0.0 (3cd0d0cbcebe) [stable]` → `1.0.0`. Not every harness prints a
+ * bare version: some decorate the line with their own name, a build sha and a
+ * release channel. Only a token that is ALREADY a version shape is accepted, and
+ * only the first one, so a sha or a channel word can never be mistaken for the
+ * version. A line with no such token is returned untouched — banding then says
+ * `unknown`, which is the honest answer rather than a guess (#339).
+ */
+function extractVersionToken(line: string): string {
+  const tokens = line.split(/\s+/).filter((token) => token !== "");
+  const versionish = tokens.find((token) => /^\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$/.test(token));
+  return versionish ?? line;
+}
+
+/**
  * Ask the operator's own binary. A missing binary is a detection FAILURE
  * (`unknown` band), never `below_floor` — Cormidia does not install providers
  * (#224), so "not present" is a readiness fact, not a version verdict.
  */
-export function readBinaryVersion(command: string, args: readonly string[]): HarnessVersionDetection {
+export function readBinaryVersion(
+  command: string,
+  args: readonly string[],
+  env?: Readonly<Record<string, string>>,
+): HarnessVersionDetection {
   let stdout: string;
   try {
     stdout = execFileSync(command, [...args], {
       encoding: "utf8",
       timeout: 10_000,
       stdio: ["ignore", "pipe", "ignore"],
+      // Detection is read-only by contract: a harness that self-updates on
+      // invocation is pinned quiet here rather than upgraded behind the
+      // operator's back (#224).
+      ...(env === undefined ? {} : { env: { ...process.env, ...env } }),
     });
   } catch (error) {
     return { detected: false, reason: `${command} ${args.join(" ")} failed: ${errorMessage(error)}` };
   }
   const raw = stdout.trim().split(/\r?\n/)[0]?.trim() ?? "";
   if (raw === "") return { detected: false, reason: `${command} ${args.join(" ")} printed no version` };
-  return { detected: true, version: normalizeCalendarVersion(raw) };
+  return { detected: true, version: normalizeCalendarVersion(extractVersionToken(raw)) };
 }
 
 export function readPackageVersion(packageName: string): HarnessVersionDetection {

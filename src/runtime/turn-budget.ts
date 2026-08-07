@@ -92,6 +92,17 @@ export function costEnforcementFor(runtime: RuntimeKind): EffectiveTurnBounds["c
   if (runtime === "claude") return "native_cap_and_progress";
   if (runtime === "codex") return "estimated_progress_no_strict_provider_cap";
   if (runtime === "cursor") return "estimated_terminal_only_no_progress";
+  // Grok reports a dollar figure only in its terminal result (`costUsdTicks`);
+  // the ACP stream carries no mid-turn cost, so `GrokRuntime` can only check
+  // the cap at the turn boundary. Falling through to the pi answer would have
+  // claimed a running progress guard this harness does not have, which is the
+  // exact over-claim INV-008 forbids.
+  if (runtime === "grok") return "estimated_terminal_only_no_progress";
+  // Muse streams no usage and the vendor reports no dollars at all, so cost is
+  // a Cormidia ESTIMATE from list prices — but the adapter re-reads the durable
+  // session log at every model-step boundary, so the guard really is running.
+  // Falling through to pi's answer would have called that estimate "measured".
+  if (runtime === "muse") return "estimated_progress_no_strict_provider_cap";
   return "measured_progress_no_strict_provider_cap";
 }
 

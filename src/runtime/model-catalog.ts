@@ -61,6 +61,7 @@ const UNAVAILABLE_REASON: Record<RuntimeKind, string | undefined> = {
     "the Cursor roster is account-scoped and reachable only by running `cursor-agent --list-models` " +
     "with a working credential, which a config edit must not require; the id is proven when a turn starts",
   pi: undefined,
+  grok: "the Grok Build roster is only readable by running `grok models` with a working credential, which a config edit must not require; the id is proven by `cormidia doctor` and then inside a live turn",
   muse: undefined,
 };
 

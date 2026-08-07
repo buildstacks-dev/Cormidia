@@ -44,6 +44,9 @@ the loop extractable. Current harnesses: `claude.ts`, `codex.ts` (+
 `cursor-config.ts`, `cursor-gate-bridge.ts`, `cursor-gate-handshake.ts`,
 `cursor-gate-hook.ts` — a CLI-headless harness splits wider than an SDK one, and
 the size/export ratchet caps a new module at 10 exports / 300 lines), and
+`grok.ts` (+ `grok-acp-client.ts`, `grok-session.ts`, `grok-gate-bridge.ts`,
+`grok-gate-hook.ts`, `grok-isolation.ts`, `grok-tool-actions.ts`,
+`grok-turn.ts`) — **sandbox-only while #339's human risk review is open** — and
 `muse.ts` (+ `muse-exec.ts`, `muse-usage.ts`, `muse-events.ts`,
 `muse-gate-bridge.ts`, `muse-hook-router.ts`, `muse-managed-hooks.ts`,
 `muse-gate-hook.ts`).
@@ -254,7 +257,7 @@ The certification ladder, cheapest first:
    | `structured_verdict` | schema round-trip (native/adapter) or lenient-parse fallback exercised |
    | `cancellation` | abort mid-turn → `cancelled`/`timed_out`, partial usage preserved |
    | `cache_telemetry` | declared cache fields present and plausible on a warm second turn |
-   | `intra_turn_fanout` | **the load-bearing probe**: a spawned subagent's critical op reaches the gate identically (event → gate → escalation ordering); `unsupported` proves the serial-degradation note instead |
+   | `intra_turn_fanout` | **the load-bearing probe**: a spawned subagent's critical op reaches the gate identically (event → gate → escalation ordering); `unsupported` proves the serial-degradation note instead — and, where the harness *has* a reachable spawn tool, proves the adapter DENIES it (grok, B-25) rather than leaving an ungated route open |
 
    The budget guard (`error_max_budget_usd`, exactly one incident note, spend
    still attributed) is pinned offline against the double — never live.
@@ -365,3 +368,4 @@ still required before the issue can be called completed.
 | Capability profiles as the org sees them | `cormidia capabilities` |
 | Upstream surface survey (dated) | `research/2026-08-06_adapter-upstream-references.md` |
 | Cursor certification record (dated) | `research/2026-08-07_cursor-adapter-certification.md` |
+| Grok Build certification + F-PT-027 disposition | `research/2026-08-07_grok-build-adapter-certification.md` |

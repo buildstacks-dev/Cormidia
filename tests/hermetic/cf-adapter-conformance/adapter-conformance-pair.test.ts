@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { claudeDouble } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble } from "../../fixtures/adapters/codex-double.js";
 import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
+import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { museDouble } from "../../fixtures/adapters/muse-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { runAdapterConformance } from "../../fixtures/adapters/conformance.js";
@@ -62,6 +63,7 @@ describe("shared adapter conformance suite", () => {
       make: async () => cursorDouble(scenarios("cursor")).runtime,
     },
     { runtime: "pi" as const, model: "claude-scripted-model", make: async () => piDouble(scenarios("pi")).runtime },
+    { runtime: "grok" as const, model: "grok-4.5", make: async () => grokDouble(scenarios("grok")).runtime },
     // B-26: the walk is reused verbatim, so a muse failure isolates to the
     // adapter. The scripted transport carries a LIVE hook seam; the real 0.1.0
     // binary does not, which is why the live cell reports its refusal instead.
@@ -97,6 +99,20 @@ describe("shared adapter conformance suite", () => {
       repo.dir,
     );
     expect(report.violationIds).toContain("CORMIDIA-INV-002:gate-path-not-observed");
+  });
+
+  it("negative control: a grok transport whose gate hook never fires refuses the walk", async () => {
+    repo = await makeTempGitRepo();
+    const runtime = grokDouble(scenarios("grok"), { violations: ["suppress_hook_handshake"] }).runtime;
+    // The refusal is a typed throw before any prompt, so the walk cannot even
+    // reach a verdict — which is the point: an ungated grok turn never runs.
+    await expect(
+      runAdapterConformance(
+        runtime,
+        { runtime: "grok", model: "grok-4.5", effort: "medium", maxTurnBudgetUsd: 1 },
+        repo.dir,
+      ),
+    ).rejects.toMatchObject({ code: "error_gate_unproven" });
   });
 
   it.each(["claude", "cursor", "pi"] as const)(

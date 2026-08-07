@@ -12,6 +12,7 @@ export const TURN_ASSIGNMENT_HARNESSES = [
   "codex",
   "cursor",
   "pi",
+  "grok",
   "muse",
 ] as const satisfies readonly RuntimeKind[];
 export const TURN_ASSIGNMENT_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly Effort[];
@@ -273,6 +274,14 @@ export function configuredProviderFamily(assignment: TurnAssignment): string {
   // Anysphere's, so the family stays cursor-namespaced and never claims to be
   // an independent Anthropic or OpenAI turn.
   if (validated.harness === "cursor") return "cursor";
+  // Grok Build is a native single-vendor harness: xAI models over xAI's own
+  // CLI. Falling through would label it `pi/...` and let it be counted as an
+  // independent turn against a pi-hosted xAI model, which is the same vendor.
+  if (validated.harness === "grok") return "xai";
+  // Muse Code runs Meta models through Meta's own key (`--provider meta`,
+  // META_API_KEY). Falling through would namespace it `pi/...` and let a Meta
+  // turn be counted as independent of a pi-hosted Meta model — the same vendor.
+  if (validated.harness === "muse") return "meta";
 
   const separator = validated.model.indexOf("/");
   const namespace = (separator === -1 ? validated.model : validated.model.slice(0, separator)).toLowerCase();

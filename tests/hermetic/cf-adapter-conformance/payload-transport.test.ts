@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { claudeDouble, doubleRole, doubleTurnRequest } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble, type CodexRecordedTurn } from "../../fixtures/adapters/codex-double.js";
 import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
+import { grokDouble } from "../../fixtures/adapters/grok-double.js";
 import { museDouble } from "../../fixtures/adapters/muse-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import {
@@ -265,5 +266,45 @@ describe("CF-B04-PAYLOAD — 300 KB brief transports intact through the pi adapt
     expect(transported?.length).toBe(SEEDED_ARGV_TRUNCATION_BYTES);
     expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(AdapterContractViolation);
     expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(/payload-transport/);
+  });
+});
+
+describe("CF-B25-PAYLOAD — 300 KB brief transports intact through the Grok adapter (ACP session/prompt payload)", () => {
+  const grokRole = () => doubleRole({ runtime: "grok", model: "grok-4.5", effort: "medium" });
+
+  it("grok observes the exact brief in the session/prompt content blocks", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = grokDouble([
+      script.turn({
+        sessionId: "grok-payload",
+        outcome: script.success("done", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+    ]);
+    const result = await dbl.runtime.runTurn(
+      doubleTurnRequest({ workdir: repo.dir, role: grokRole(), task: PAYLOAD }),
+      allowAll,
+    );
+    expect(result.status).toBe("completed");
+    const transported = dbl.recorder.turns[0]!.promptText;
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).not.toThrow();
+    expect(transported).toBe(PAYLOAD);
+    // The brief never touches argv: the launch line names only the model.
+    expect(dbl.recorder.turns[0]!.args).toEqual(["agent", "--model", "grok-4.5", "stdio"]);
+  });
+
+  it("negative control: an ARG_MAX-truncating transport is caught by the payload detector", async () => {
+    repo = await makeTempGitRepo();
+    const dbl = grokDouble([
+      script.turn({
+        sessionId: "grok-payload-trunc",
+        outcome: script.success("done", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+    ]);
+    const liar = new SeededPayloadTruncationRuntime(dbl.runtime);
+    await liar.runTurn(doubleTurnRequest({ workdir: repo.dir, role: grokRole(), task: PAYLOAD }), allowAll);
+    const transported = dbl.recorder.turns[0]!.promptText;
+    expect(transported?.length).toBe(SEEDED_ARGV_TRUNCATION_BYTES);
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(AdapterContractViolation);
+    expect(() => checkTaskPayloadIntact(PAYLOAD, transported)).toThrow(/first divergence at byte 131072/);
   });
 });

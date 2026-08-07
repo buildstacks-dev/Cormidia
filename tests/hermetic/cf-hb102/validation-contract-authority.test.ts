@@ -19,6 +19,7 @@ import {
   assertValidationEvidenceComplete,
   currentValidationCatalogPointerPath,
   currentValidationContractPointerPath,
+  readCurrentValidationCatalog,
   readCurrentValidationContract,
   readValidationContractLifecycle,
   readinessAuthorityPath,
@@ -333,6 +334,30 @@ describe("HB-102 — validation-contract authority and readiness", () => {
     });
     expect(JSON.parse(JSON.stringify(state.catalog.value))).toEqual(state.catalog.value);
     expect(JSON.parse(JSON.stringify(accepted.value))).toEqual(accepted.value);
+  });
+
+  it("reads current validation authority and fails closed on corrupt pointers", async () => {
+    const catalogState = await setup("hb102-current-catalog-pointer");
+    expect((await readCurrentValidationCatalog(catalogState.home.stateHome, APP))?.ref).toEqual(
+      catalogState.catalog.ref,
+    );
+    const catalogPointerPath = currentValidationCatalogPointerPath(catalogState.home.stateHome, APP);
+    const catalogPointer = JSON.parse(await readFile(catalogPointerPath, "utf8")) as Record<string, unknown>;
+    catalogPointer["unexpected"] = true;
+    await writeFile(catalogPointerPath, `${JSON.stringify(catalogPointer, null, 2)}\n`, "utf8");
+    await expectCode(() => readCurrentValidationCatalog(catalogState.home.stateHome, APP), "authority_corrupt");
+
+    const contractState = await setup("hb102-current-contract-pointer");
+    const contract = await acceptValidationContract({
+      root: contractState.home.stateHome,
+      contract: contractFixture(contractState),
+    });
+    expect((await readCurrentValidationContract(contractState.home.stateHome, APP, UNIT))?.ref).toEqual(contract.ref);
+    const contractPointerPath = currentValidationContractPointerPath(contractState.home.stateHome, APP, UNIT);
+    const contractPointer = JSON.parse(await readFile(contractPointerPath, "utf8")) as Record<string, unknown>;
+    contractPointer["unitId"] = "another-unit";
+    await writeFile(contractPointerPath, `${JSON.stringify(contractPointer, null, 2)}\n`, "utf8");
+    await expectCode(() => readCurrentValidationContract(contractState.home.stateHome, APP, UNIT), "authority_corrupt");
   });
 
   it("canonicalizes IDs, persists lifecycle, and advances current authority forward-only", async () => {

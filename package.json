@@ -21,6 +21,7 @@
     "src/cormidia-local.cjs",
     "dist/**/*.js",
     "agent-skills/cormidia/",
+    "agent-skills/cormidia-job/",
     "config/launchd/",
     "docs/policy.yaml.template",
     "docs/scheduler/design.md",

@@ -2,14 +2,19 @@
 
 *The authoritative contract for Cormidia **jobs**: named, dependency-ordered,
 long-running work that an organization runs once or on demand, outside the
-ticket/PR/GitHub product lifecycle. **Status: PROPOSED, not ratified.** This
-document is the design record for review; the `docs/PURPOSE.md` → Decided entry
-that admits a second Cormidia entry point, and the `roles.yaml` `operator` role
-this contract depends on, are proposal-only surfaces (TASTE.md §11) awaiting
-human ratification. Until both ratify, do not represent jobs as a shipped
-capability, and do not describe `cormidia-job` in README → Commands. The system
-map is [`../architecture.md`](../architecture.md); the build loop this
-deliberately is not is [`../loop/design.md`](../loop/design.md).*
+ticket/PR/GitHub product lifecycle. **Ratified 2026-08-07** (`docs/PURPOSE.md`
+v2.16 → Decided; `operator` role values and the F-PT-025 scope resolution decided
+in session the same day). `roles.yaml` and `docs/PURPOSE.md` keep human merge
+under the self-hosting carve-out, so the entry lands by human merge rather than
+by agent commit.*
+
+***Status: build-complete and offline-proven, NOT outcome-validated.*** *Real-token
+validation against real apps with outcome measurement (L-JOB-LIVE, §14) has not
+run and requires its own authorization. Nothing here may be represented as
+evidence that a job's output is good — only that its declared checks passed.*
+
+*The system map is [`../architecture.md`](../architecture.md); the build loop
+this deliberately is not is [`../loop/design.md`](../loop/design.md).*
 
 ## 1. Why this exists
 
@@ -111,9 +116,13 @@ role. See §5 for why this deliberately does not route through
 auto-fire it — a job starts because a human or a delegated harness ran the
 command, never because a schedule elapsed.
 
-> **Ratification required.** Adding `operator` to `roles.yaml` is a proposal,
-> not an autonomous change. The role's default assignment, budget cap, and
-> delegation policy need Bikram's decision before implementation binds to them.
+> **Ratified 2026-08-07.** `claude/claude-opus-4-8@high`,
+> `max_turn_budget_usd: 50` (matching builder — a job step doing real analysis
+> over a large corpus sits closer to a builder turn than to the $5 default),
+> `delegation.allow: []` (a job author sets the per-step ceiling but never sees
+> subagent spend, so fan-out would multiply cost against a bound they did not
+> choose), manual-only trigger. All tighten-only from here. `roles.yaml` keeps
+> human merge, so the role lands by human merge, not by agent commit.
 
 ## 5. The job config
 
@@ -360,6 +369,14 @@ different name.
 Not a separate npm package. That would duplicate the runtime layer or require a
 workspace (the repo is deliberately not one), and open a second release lane to
 govern. Not until demand is proven.
+
+The packaged skill is `agent-skills/cormidia-job/`, separate from
+`agent-skills/cormidia/`. Its description carries **negative scope** — product
+development, tickets, PRs, releases, and anything reaching GitHub route back to
+`$cormidia` — because the hazard is not that an agent cannot find jobs, it is
+that the ungoverned path is easier and therefore more tempting. The skill also
+tells an agent to stop and confirm before authoring a job against a directory
+registered as a Cormidia app.
 
 Mechanically: a launcher shim beside `src/cormidia.cjs` pointing at
 `dist/job-cli.js`, one `bin` entry, one `files` entry. The shared `src/runtime/`

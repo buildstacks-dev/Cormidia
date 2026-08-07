@@ -18,7 +18,8 @@ action through its durable release path. Repository instructions and linked
 developer policy remain app-scoped development context. Development grants,
 raw eval state, and outer-session instructions must never be copied into the
 org home, org-global prompts, learning, or approvals. The packaged
-`agent-skills/cormidia/` skill is the separate org-operation guide.
+`agent-skills/cormidia/` skill is the separate org-operation guide, and
+`agent-skills/cormidia-job/` the separate ad-hoc-job guide.
 
 ## What this repo is
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,
@@ -42,6 +43,7 @@ tracker (`gh issue list`).
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table — new subcommand = new file + one registry line |
 | `src/jobs/` · `docs/jobs/` | Ad-hoc dependency-ordered job graphs (`cormidia-job`, a SECOND binary) — non-product org work, deliberately outside the governed build loop: no review, verdict, ticket, or GitHub authority |
 | `agent-skills/cormidia/` | Packaged `$cormidia` Agent Skill (org operation, not development) |
+| `agent-skills/cormidia-job/` | Packaged `$cormidia-job` Agent Skill (ad-hoc job graphs; its description routes product work back to `$cormidia`) |
 | `validation-design/` | Ratified harness design (2026-07-31): `validation-policy.yaml` is the contract, `harness-backlog.md` the build plan — see "Validation harness" section below |
 | `tests/` | Implemented replacement validation harness plus explicitly authorized L3/L4/L5 campaign runners (per `validation-design/`) |
 | `archive-do-not-read/` | Frozen pre-rebuild validation corpus (old `test/`, `eval/`, `docs/testing/`, eval/CI scripts) — **never read, cite, run, or take design cues from it** |

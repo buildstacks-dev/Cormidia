@@ -100,16 +100,83 @@ to a guessed value.
 builder's `$50`. Both are tighten-only later; loosening after the fact requires
 a fresh decision, which is the right asymmetry.
 
-**Question for you.** Should `operator` declare `adaptive_assignments` so a job
-config can select among approved harness/model tuples per step? Per-step model
-heterogeneity is the feature's main draw, and without approved candidates every
-step runs the one configured tuple. If yes, the candidate list needs the same
-`capability_ref`/`qualification_ref`/`pricing` provenance every other adaptive
-candidate carries — which means it cannot be assembled without your ratification
-of which tuples are approved for non-product work.
+### Adaptive assignment — answered 2026-08-07
 
-This is the single most load-bearing open item. §4 and §5 of the design both
-depend on it, and I would rather stop here than guess it.
+Bikram: support it if it does not cost meaningfully more work; users should be
+able to name harness and model per step, and get a sensible default otherwise.
+
+**The code is cheap; the provenance is the real cost.** Threading a per-step
+tuple through is a handful of lines — `TurnRequest.assignment` already exists in
+the runtime contract, and `getRuntime(assignment.harness)` already selects the
+harness. Jobs do not go through `materializeEpisodePlanAssignments`, so there is
+no episode-plan validation to satisfy either.
+
+What is *not* free is the candidate list. `capability_ref` turns out to be
+mechanical — `src/org/roles.ts:202` derives it as `<harness>/v1` for the
+configured tuple, and the three valid values are `claude/v1`, `codex/v1`,
+`pi/v1`. But `qualification_ref` is a genuine gate: AGENTS.md requires adapter
+calibration to prove a tuple before it becomes a candidate, and the entire
+ratified adaptive inventory in `roles.yaml` today is **one** tuple —
+`pi / openai-codex/gpt-5.6-sol @ medium`, shared by `support` and `marketing`
+under `campaign:candidate-qualification-v1-20260718-eb658f6309c9`.
+
+So a full three-harness spread cannot be assembled from existing evidence.
+
+**Proposed resolution — reuse ratifications that already exist.** `operator`'s
+approved set is the union of tuples already human-ratified elsewhere in
+`roles.yaml` (the configured tuples per `research/2026-07-15_model-assignment-
+refresh.md`, plus the one qualified adaptive candidate). That creates no new
+qualification evidence and no new pricing research, while still giving job
+authors all three harnesses:
+
+```yaml
+    adaptive_assignments:
+      # Each entry mirrors a tuple already ratified for another role; no new
+      # calibration evidence is created here. Widen only with evidence.
+      - id: claude-opus-4-8-xhigh-from-planner
+        harness: claude
+        model: claude-opus-4-8
+        efforts: [high, xhigh]
+        provider_family: anthropic
+        capability_ref: claude/v1
+        qualification_ref: DECIDE   # planner's ratification ref
+        conservative_estimate: { max_turn_cost_usd: DECIDE, source: DECIDE }
+      - id: codex-gpt-5.6-sol-high-from-builder
+        harness: codex
+        model: gpt-5.6-sol
+        efforts: [medium, high]
+        provider_family: openai
+        capability_ref: codex/v1
+        qualification_ref: DECIDE   # builder's ratification ref
+        conservative_estimate: { max_turn_cost_usd: DECIDE, source: DECIDE }
+      - id: pi-openai-gpt-5.6-sol-medium-qualified-20260718
+        harness: pi
+        model: openai-codex/gpt-5.6-sol
+        efforts: [medium]
+        provider_family: openai
+        capability_ref: pi/v1
+        qualification_ref: campaign:candidate-qualification-v1-20260718-eb658f6309c9
+        conservative_estimate:
+          max_turn_cost_usd: 5
+          source: https://developers.openai.com/api/docs/pricing
+```
+
+Only the third entry is copied verbatim from an existing ratified block. The
+first two need you to name the ratification reference and a pricing basis — that
+is the residual human cost, and it is two lookups rather than two campaigns.
+
+**Behavior for an unapproved tuple: reject loudly, never substitute.** A step
+naming a tuple outside the approved set fails at config load, before any
+provider turn, with an error listing what is approved. Silent downgrade to the
+default would make the config lie about what ran, and the repo's house style is
+to fail loudly rather than best-effort.
+
+**Behavior when a step omits the assignment:** it runs the `operator` role's
+configured tuple. That is the "we choose for them" path.
+
+Availability is checked separately from approval at turn time —
+`modelServedByCatalog` (`src/runtime/model-catalog.ts`) answers "does this
+harness actually serve this model," which approval does not.
 
 ## 3. Proposed README → Observability addition
 
@@ -155,9 +222,10 @@ re-entry into the `validation-harness-design` skill in `harness-revision` mode
 with the existing `validation-design/` artifacts as baseline — and that
 improvising a redesign or piling cases onto a wrong shape is forbidden.
 
-The skill is available in this environment. I need your go-ahead to run it,
-because it will propose edits to `validation-policy.yaml` (tighten-only),
-`case-catalog.md`, `boundary-map.md`, and `system-map.md` — ratified artifacts.
+**Authorized by Bikram 2026-08-07.** The revision will propose edits to
+`validation-policy.yaml` (tighten-only), `case-catalog.md`, `boundary-map.md`,
+and `system-map.md` — ratified artifacts, so its output is itself a proposal for
+review, not a landed change.
 
 Until that revision lands, §14's acceptance criteria are **design input only**.
 They are not catalog rows and must not be represented as harness coverage.
@@ -179,14 +247,15 @@ review and implementation proceeds normally.
 
 ## What I need from you
 
+~~1. **Item 5 authorization**~~ — **granted 2026-08-07.** Harness revision is
+   authorized and in progress.
+
 Blocking (I stop without these):
 
-1. **Item 5 authorization** — one "go ahead" to run
-   `validation-harness-design` in `harness-revision` mode. Cheapest to give,
-   and it gates all implementation for the reason above. Start here.
-2. **Item 2** — the `operator` role's four `DECIDE` values, and the
-   `adaptive_assignments` question. Implementation binds to these and I will
-   not guess a budget ceiling or a delegation policy.
+2. **Item 2** — the `operator` role's remaining `DECIDE` values: the four
+   base-role fields, plus the two `qualification_ref` lookups and pricing bases
+   in the adaptive block above. Implementation binds to these and I will not
+   guess a budget ceiling, a delegation policy, or a qualification reference.
 3. **Item 1** — the PURPOSE entry, accepted, amended, or rejected. Nothing
    user-facing ships without it, though the deterministic core can be built
    while it is pending.

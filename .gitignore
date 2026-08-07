@@ -23,5 +23,11 @@ TODO.md
 # tracked; these siblings are per-machine and were once committed by accident.)
 .claude/commands/
 .claude/skills/
+# Per-machine permission allowlist. Previously ignored only via a developer's
+# global gitignore, which scripts/test.sh deliberately neutralizes
+# (GIT_CONFIG_GLOBAL=/dev/null) — so an untracked local settings file was
+# scanned by the repo-surface detectors and could turn the suite red for
+# reasons unrelated to the change under test.
+.claude/settings.local.json
 .codex/
 .cursor/

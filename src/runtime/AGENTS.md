@@ -24,13 +24,12 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
   decision lock (#199) may adopt this seam, but runtime code must remain free of
   schedule, ticket, and approval vocabulary.
 - Every `Runtime` must prove adapter-generic conformance before its role goes
-  live — proven against `src/runtime/testing/fakeRuntime.ts`. Extend cases;
-  never weaken one to make an adapter pass. (The conformance suite is archived
-  with the legacy harness; the replacement harness must restore this proof
-  before any new adapter ships. Restored offline so far at
-  `tests/hermetic/cf-adapter-conformance/` + `tests/fixtures/adapters/`: the
-  gate-denial/resume pair walk, the subagent gate-ordering probe with the pi
-  fan-out degradation path, and the 300 KB payload-transport pin — #334.)
+  live — the shared two-turn walk in `tests/fixtures/adapters/conformance.ts`,
+  run hermetically against the transport doubles
+  (`tests/hermetic/cf-adapter-conformance/`, including the subagent
+  gate-ordering probe, the pi fan-out degradation path, and the 300 KB
+  payload pin — #334) and live through the campaign runner (CF-B02/03/04-L3).
+  Extend cases; never weaken one to make an adapter pass.
 - Capability flow is one-way (#116). Follow
   `docs/harness/adding-updating.md` for the adapter contract, registration
   checklist, three test tiers, and update obligations.
@@ -39,9 +38,10 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
 Interim during the validation rebuild (root AGENTS.md → Testing expectations):
 - Adapter changes (`adapters/**`) still require live proof against the real
   provider plus a dated `research/` record — the live conformance run is the
-  only proof the subagent-gate claim holds. The legacy live suite is archived;
-  until the replacement harness restores live conformance, obtain that proof
-  through deliberate sandbox-app runs and say so in the record.
+  only proof the gate claim holds outside a double. The replacement harness
+  carries that walk: `runAdapterConformance()` under `pnpm test:live`
+  (human-triggered, policy spend-bounded); certification is standalone and
+  never requires an org/app run (docs/harness/adding-updating.md §5).
 - `gate.ts` changes: deposit critical-side and routine-near-miss cases in the
   replacement harness (`tests/`) once it exists.
 

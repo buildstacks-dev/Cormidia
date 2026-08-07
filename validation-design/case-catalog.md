@@ -208,6 +208,11 @@ plus the guardrail's negative control (skill rule 16 — the detector proves it 
 
 <!-- changelog 2026-07-31 (reader test, new-engineer finding 4): collapsing
 convention stated here, matching §5's. -->
+<!-- changelog 2026-08-07 (#334): CF-B02/03/04 family texts extended with the two
+re-deposited archived-suite claims — subagent gate ordering (fan-out claimants +
+pi degradation path) and the ≥300 KB payload-transport pin. Case-level additions
+against existing boundaries; each landed red-then-green with seeded controls at
+`tests/hermetic/cf-adapter-conformance/`. -->
 **Row-collapsing convention (same as §5):** one family row per boundary stands for
 its seven nominal failure-mode columns — the family text enumerates the modes;
 separately-risky dimensions (the `-L3` live obligations) get their own rows. The §9
@@ -220,10 +225,10 @@ obligation exists.
 |---|---|---|---|---|
 | CF-B01-{ok,to,ps,rt,dup,stale,skew} | scripted GitHub double: success ops; timeouts/rate limits; partial success (issue-no-label, merge-no-branch-delete); ratified 3-total-attempt jittered exponential retry (injected clock) for reads/idempotent exact-input operations, while ambiguous writes remain single-shot for marker reconciliation; duplicate-create detection; stale-read-after-write re-read; default-branch-moved + force-push skew. Lost-response mode in `ps`+`rt` | 2 | state+evid | E3 |
 | CF-B01-L3 | **the GitHub live smoke** (risk-allocation §5 trigger: merge/review/branch/auth changes): real auth, squash-merge + branch-protection semantics, HMAC review submission, poll truth — on sandbox repos, spend-bounded | 3 | live | E3 |
-| CF-B02-* | adapter core against scripted Anthropic: outcomes, tool-events w/o terminal, malformed verdicts, usage absent/partial, resume-mismatch typed, partial stream; app-resolved safe permissionMode reaches SDK options and cannot be overwritten by base options | 2 | state | E1/E2 (T-11 exhaustive) |
-| CF-B03-* | B-02 set + subprocess death mid-RPC, protocol skew, rotation events (checkpoint preserved; resume-exact-or-honest-stop), stale capabilities; forbidden-read + forbidden-write denial (hook bridge); app-resolved safe mode agrees across CLI args and App Server thread/turn requests | 2 | state | E1/E2 |
+| CF-B02-* | adapter core against scripted Anthropic: outcomes, tool-events w/o terminal, malformed verdicts, usage absent/partial, resume-mismatch typed, partial stream; app-resolved safe permissionMode reaches SDK options and cannot be overwritten by base options; subagent-issued critical op reaches the gate identically to top-level — event→gate→escalation ordering (CF-B02-SUBGATE, seeded subagent-scoped hook-bypass control); ≥300 KB brief transports byte-identical through the SDK prompt payload, never argv (CF-B02-PAYLOAD, seeded ARG_MAX-truncation control) — #334 re-deposit at `tests/hermetic/cf-adapter-conformance/` | 2 | state | E1/E2 (T-11 exhaustive) |
+| CF-B03-* | B-02 set + subprocess death mid-RPC, protocol skew, rotation events (checkpoint preserved; resume-exact-or-honest-stop), stale capabilities; forbidden-read + forbidden-write denial (hook bridge); app-resolved safe mode agrees across CLI args and App Server thread/turn requests; subagent-issued critical op reaches the gate identically to top-level (CF-B03-SUBGATE, seeded subagent-thread approval-skip control); ≥300 KB brief transports byte-identical through the turn/start JSON-RPC input payload (CF-B03-PAYLOAD, seeded ARG_MAX-truncation control) — #334 re-deposit at `tests/hermetic/cf-adapter-conformance/` | 2 | state | E1/E2 |
 | CF-B03-L3 | **Codex real-adapter conformance run** incl. real forbidden-read + forbidden-write denial (§5 trigger + bounds) | 3 | live | E1/E2 |
-| CF-B04-* | B-02 set + extension absent → terminal pre-tool failure; injected forbidden attempt reaches gate and is denied | 2 | refusal | E1 |
+| CF-B04-* | B-02 set + extension absent → terminal pre-tool failure; injected forbidden attempt reaches gate and is denied; fan-out-unsupported degradation path: delegation configured → degradation-note artifact + zero fan-out, note absent when delegation is empty (CF-B04-DEGRADE, seeded note-hiding and fanout-fabrication controls); ≥300 KB brief transports byte-identical through the in-process session.prompt payload (CF-B04-PAYLOAD, seeded ARG_MAX-truncation control) — #334 re-deposit at `tests/hermetic/cf-adapter-conformance/` | 2 | refusal | E1 |
 | CF-B04-L3 | **pi real-adapter conformance run**: real extension installation + real denied forbidden attempt (§5 trigger + bounds) | 3 | live | E1 |
 | CF-B05-* | faked host surface: install/uninstall idempotency + refusals, status joins; unfakeable load-and-fire = CF-J16-A (L3) | 2 | evid | STD |
 | CF-B06-* | fake-clock sweep: TTL, heartbeat 30s/2min/10min semantics, UTC windows vs host-time scheduling, missed-window (app,role,trigger,window) reconciliation, rollback/NTP/DST/timezone anomalies fail closed | 2 | state | E2 |

@@ -56,6 +56,10 @@ export type SeededViolation =
   /** Execute scripted tools without consulting any gate channel (an SDK
    *  that stopped firing PreToolUse and never asked permission). */
   | "bypass_gate"
+  /** Execute only SUBAGENT-attributed tool steps ungated while main-thread
+   *  steps stay honestly gated (an SDK whose hook stopped firing inside
+   *  subagents — the exact hole the subagent gate-ordering cases exist for). */
+  | "bypass_subagent_gate"
   /** Consult BOTH the hook and the permission channel for each tool step
    *  (the dormant canUseTool backstop waking up alongside the hook). */
   | "consult_both_channels";
@@ -278,7 +282,7 @@ async function playToolStep(
   turn.toolPlays.push(play);
   const toolUseId = `toolu_scripted_${stepIndex}`;
 
-  if (violations.has("bypass_gate")) {
+  if (violations.has("bypass_gate") || (violations.has("bypass_subagent_gate") && step.fromSubagent === true)) {
     // Seeded violation: execute without consulting any channel.
     play.executed = true;
     turn.sequence.push(`bypass:${step.tool}`, `execute:${step.tool}`);

@@ -432,6 +432,56 @@ export class SeededEnvelopeViolationRuntime implements Runtime {
 }
 
 /**
+ * C-CORE §1 payload transport (the ARG_MAX lesson, docs/loop/design.md §2):
+ * the brief the orchestrator sent must reach the provider byte-identical
+ * through the adapter's payload channel (SDK prompt / JSON-RPC input /
+ * in-process prompt call) — never a bounded argv-style channel that can
+ * silently truncate a multi-hundred-KB brief. Fires on a missing, truncated,
+ * or corrupted payload, naming the first divergent byte.
+ */
+export function checkTaskPayloadIntact(sentTask: string, transportedPayload: string | undefined): void {
+  if (transportedPayload === undefined) {
+    throw new AdapterContractViolation(
+      "C-CORE §1 payload-transport",
+      `the ${sentTask.length}-char brief never reached the provider payload channel — nothing was transported`,
+    );
+  }
+  if (transportedPayload === sentTask) return;
+  let divergesAt = 0;
+  const shorter = Math.min(sentTask.length, transportedPayload.length);
+  while (divergesAt < shorter && sentTask[divergesAt] === transportedPayload[divergesAt]) divergesAt += 1;
+  throw new AdapterContractViolation(
+    "C-CORE §1 payload-transport",
+    `brief did not transport intact: sent ${sentTask.length} chars but the provider observed ` +
+      `${transportedPayload.length} (first divergence at byte ${divergesAt}) — ` +
+      `an ARG_MAX-style bounded channel truncates or corrupts multi-hundred-KB briefs`,
+  );
+}
+
+/** Classic Linux ARG_MAX ballpark: the bound an argv-transporting adapter
+ *  would silently impose on a brief. Negative controls truncate to this. */
+export const SEEDED_ARGV_TRUNCATION_BYTES = 131_072;
+
+/** Deliberately lying wrapper used ONLY for negative controls: simulates an
+ *  adapter that pushed the brief through a bounded argv-style channel, so the
+ *  provider observes a silently truncated task. The real adapter runs
+ *  underneath; the TurnRequest is tampered on the way in. */
+export class SeededPayloadTruncationRuntime implements Runtime {
+  readonly kind: Runtime["kind"];
+
+  constructor(
+    private readonly inner: Runtime,
+    private readonly maxTaskBytes: number = SEEDED_ARGV_TRUNCATION_BYTES,
+  ) {
+    this.kind = inner.kind;
+  }
+
+  async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
+    return this.inner.runTurn({ ...req, task: req.task.slice(0, this.maxTaskBytes) }, hooks);
+  }
+}
+
+/**
  * INV-002 / core §5: every tool action the provider EXECUTED must have been
  * classified through exactly one gate consultation. Zero consultations =
  * gate bypass (the SDK stopped firing its pre-tool channel); more than one =

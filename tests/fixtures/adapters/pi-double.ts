@@ -20,6 +20,9 @@ import type {
 
 export interface PiRecordedTurn extends ScriptedTurnObservation {
   promptCalled: boolean;
+  /** The exact task payload the adapter handed to session.prompt() — the
+   *  provider-side ground truth for the C-CORE §1 payload-transport pin. */
+  promptText: string | undefined;
   disposed: boolean;
 }
 
@@ -49,6 +52,7 @@ export function piDouble(scenarios: AdapterScenario[], opts: { omitGateExtension
       sequence: [],
       endedBy: "no_result",
       promptCalled: false,
+      promptText: undefined,
       disposed: false,
     };
     recorder.turns.push(turn);
@@ -107,8 +111,8 @@ function fakeSession(active: {
       return () => subscribers.delete(handler);
     },
     async prompt(task: string) {
-      void task;
       active.turn.promptCalled = true;
+      active.turn.promptText = task;
       for (const step of active.scenario.steps ?? []) {
         if (step.step === "usage") {
           stats = statsFor(step.usage, 0);

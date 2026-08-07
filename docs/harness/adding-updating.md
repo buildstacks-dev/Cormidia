@@ -6,6 +6,13 @@
 > Decided, v2.9). The contract and obligations below remain canonical; the
 > replacement harness (`tests/`) must restore equivalent proof before
 > a new or updated adapter ships.
+>
+> **Update 2026-08-07 (#334):** the two conformance claims that were still
+> archive-only are re-deposited offline in the replacement harness at
+> `tests/hermetic/cf-adapter-conformance/`: the subagent gate-ordering probe
+> (CF-B02/B03-SUBGATE for the fan-out-claiming harnesses plus the pi
+> CF-B04-DEGRADE degradation path) and the 300 KB payload-transport pin
+> (CF-B02/B03/B04-PAYLOAD), each with permanent seeded negative controls.
 
 *For agents and humans working on this repo. A **harness** (interchangeably:
 runtime adapter) is what turns one provider's agent product — Claude Agent

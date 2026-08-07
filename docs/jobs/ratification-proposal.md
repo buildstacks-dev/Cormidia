@@ -122,7 +122,53 @@ under `campaign:candidate-qualification-v1-20260718-eb658f6309c9`.
 
 So a full three-harness spread cannot be assembled from existing evidence.
 
-**Proposed resolution — reuse ratifications that already exist.** `operator`'s
+### Superseded 2026-08-07 — jobs do not use `adaptive_assignments`
+
+Bikram asked whether enforcing `qualification_ref` is generally necessary in
+Cormidia. Checking the code answered it, and the answer changes this section.
+
+**What the machinery actually enforces.** For a declared `adaptive_assignments`
+entry, `src/org/roles.ts:359` makes `qualification_ref` **mandatory** and it must
+match `campaign:<id>` or `qualification:<id>`; `capability_ref` must equal the
+registered profile (`:354`); and a `conservative_estimate` may not exceed the
+role's `max_turn_budget_usd` (`:365`). The `configured-role-assignment:<role>`
+fallback at `src/org/episode-planner/policy.ts:102` applies only to the
+configured fixed tuple, which has no candidate entry — not to declared
+candidates.
+
+**What that gate is protecting.** Adaptive assignment exists so an *agent or
+planner* can choose a model at runtime. `qualification_ref` is what stops a
+delegated chooser from silently picking a cheaper or unproven model for a role
+whose output feeds merges, releases, and the learning loop. It protects a
+**delegated** choice whose quality claim is inherited by a downstream consumer.
+
+**Jobs make neither.** The human writes the tuple in the config file and reads
+the output. There is no planner choosing, and no downstream consumer inheriting a
+quality claim — the same structural reason F-PT-025 resolved to INV-016 being
+delivery-scoped. Requiring a pre-ratified candidate list would also mean every
+new model a user wants to try needs a `roles.yaml` ratification, which kills the
+feature's main draw.
+
+**Resolution: job step assignment is its own concept, not an
+`adaptive_assignments` candidate.** `operator` declares no adaptive block. A job
+step's assignment is validated against the two things that actually protect
+something:
+
+1. **Availability** — the harness genuinely serves the model
+   (`modelServedByCatalog`, `src/runtime/model-catalog.ts`). Without this a
+   week-long job dies mid-run on a typo.
+2. **The role's per-turn ceiling** — `operator.max_turn_budget_usd` binds every
+   step. Where a model has no pricing basis, the step is charged conservatively
+   against the full ceiling rather than assumed cheap, so the cap stays honest.
+
+Containment for jobs is the **budget plus the gate**, not the qualification list.
+That is a deliberate, narrower grant: the user names the model and owns the
+result, instead of the org pre-approving a set.
+
+This removes the two `DECIDE` lookups below. The block is retained struck
+through as the record of what was considered.
+
+~~**Superseded proposal — reuse ratifications that already exist.**~~ `operator`'s
 approved set is the union of tuples already human-ratified elsewhere in
 `roles.yaml` (the configured tuples per `research/2026-07-15_model-assignment-
 refresh.md`, plus the one qualified adaptive candidate). That creates no new
@@ -252,10 +298,12 @@ review and implementation proceeds normally.
 
 Blocking (I stop without these):
 
-2. **Item 2** — the `operator` role's remaining `DECIDE` values: the four
-   base-role fields, plus the two `qualification_ref` lookups and pricing bases
-   in the adaptive block above. Implementation binds to these and I will not
-   guess a budget ceiling, a delegation policy, or a qualification reference.
+2. **Item 2, reduced** — the `operator` role's four base fields only
+   (`runtime`/`model`/`effort` for the default tuple, and
+   `max_turn_budget_usd`), plus `delegation.allow`. The `qualification_ref` and
+   pricing lookups are **gone** — jobs no longer declare adaptive candidates
+   (see the 2026-08-07 supersession above). Recommended: `delegation.allow: []`
+   and a ceiling at or below builder's $50, both tighten-only later.
 3. **Item 1** — the PURPOSE entry, accepted, amended, or rejected. Nothing
    user-facing ships without it, though the deterministic core can be built
    while it is pending.

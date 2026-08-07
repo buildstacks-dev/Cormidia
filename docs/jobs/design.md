@@ -97,9 +97,15 @@ non-product vocabulary.
 `operator`, defined once in `roles.yaml`. The role carries the authority
 ceiling: `delegation.allow`, `maxTurnBudgetUsd`, `permissionModes`,
 `turnExecutionLimits`. A step config may select an **assignment** (harness,
-model, effort) from the role's approved candidates; it may never widen the
-role's authority. This is exactly the existing separation, applied to a role
-whose responsibility is "carry out one bounded step of an operator-defined job."
+model, effort); it may never widen the role's authority. This is exactly the
+existing separation, applied to a role whose responsibility is "carry out one
+bounded step of an operator-defined job."
+
+Note the asymmetry that makes this safe: **the assignment is free, the authority
+is not.** A step may name any model its harness serves, because choosing a model
+cannot widen what the turn is permitted to do — permission lives entirely in the
+role. See §5 for why this deliberately does not route through
+`adaptive_assignments`.
 
 `operator` declares `triggers: [{ manual: true }]`. The scheduler must never
 auto-fire it — a job starts because a human or a delegated harness ran the
@@ -162,7 +168,15 @@ Field contract:
 - `dependsOn` — step ids. Absent means the step is a root. Cycles are a load
   error, not a runtime failure.
 - `assignment` — optional; defaults to the `operator` role's configured tuple.
-  Must resolve to one of the role's approved candidates.
+  **Not** an `adaptive_assignments` candidate (decided 2026-08-07): that
+  machinery guards a *delegated* model choice whose quality claim a downstream
+  consumer inherits, and a job has neither — the human writes the tuple and reads
+  the output. A step's assignment is validated against two things instead:
+  the harness genuinely serves the model (`modelServedByCatalog`), and the
+  `operator` role's per-turn ceiling. A model with no pricing basis is charged
+  conservatively against the full ceiling rather than assumed cheap, so the cap
+  stays honest. Containment for jobs is the budget plus the gate, not a
+  pre-ratified candidate list.
 - `outputs` — declared artifacts with mechanical checks (§7).
 - `checkpoint` — makes this a human checkpoint step (§8). Mutually exclusive
   with `objective` and `assignment`.

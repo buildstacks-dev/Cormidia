@@ -169,13 +169,59 @@ provenance, and the declared output checks of `design.md` §7 become its minimum
 a durable, deterministic, pre-declared obligation per step. Not independent closure, but
 not model goodwill either.
 
-**My read, offered as input and not as a resolution:** Reading B with the explicit waiver
-class is the stronger outcome, because it forces the exemption to be *written down and
-bounded* rather than inferred from vocabulary. Reading A gets to the same practical place
-but leaves the boundary of INV-016 implicit, and an implicit exemption is the thing that
-rots. Either way the owner decides; I have not encoded either as truth anywhere.
+### F-PT-025 — RESOLVED: Reading A (owner delegated the decision 2026-08-07)
 
-Dependent cases are parked `BLOCKED:F-PT-025` until this ratifies.
+The owner delegated this decision explicitly, asking for a call on implementation cost
+and UX impact. **Resolution: Reading A — INV-016 is delivery-scoped, and its statement
+gains an explicit scope clause.** I had leaned B; on close reading of the invariant's own
+text, B is wrong.
+
+**The decisive argument is INV-016's own precondition.** It reads "every autonomously
+executed unit has one durable validation/evidence contract *before it becomes ready*."
+"Ready" is not a general English word here — it is a delivery-unit state owned by the
+roadmap ready-frontier machinery (B-20; INV-008's ready-frontier clause enumerates exactly
+what a ready entry must bind: RoadmapPlan version, delivery-unit membership, routing
+eligibility, dependency state, validation contract). A job step has no readiness
+transition at all: no frontier, no admission, no membership, no plan version. The
+invariant's precondition is **unsatisfiable** for a job step.
+
+So this is not an exemption being carved. It is the invariant's actual domain, which was
+always delivery, being written down. That is why A costs one clause.
+
+**Why Reading B is worse, concretely:**
+
+| | Reading A (scope clause) | Reading B (waiver class) |
+| --- | --- | --- |
+| Implementation | One sentence in INV-016's statement | New waiver class in `validation-policy.yaml`; provenance fields; every job case family references it |
+| New detector obligation | None | Yes — INV-016's own adversarial seed (b) is "a waiver outside its policy class," so the waiver machinery itself needs a negative control |
+| Mechanism fit | States the domain | **Misuses the mechanism.** INV-016's waivers are per-unit and policy-bounded; a standing subsystem-wide waiver is a different construct wearing the same name |
+| Reads at a future audit | "This rule is about delivery" | "There is a permanent waiver on an entire subsystem" — invites the question every time |
+| UX impact | None | None |
+
+B's apparent virtue was that it writes the exemption down. But a scope clause is also
+written down, and it is the more honest sentence: B says "this rule applies and we are
+ignoring it," A says "this rule was never about this."
+
+**Proposed INV-016 scope clause** (surgical, tighten-only — it narrows nothing that was
+enforceable before, because the universal reading was never checkable for work with no
+readiness transition):
+
+> *Scope.* This invariant governs **delivery units** — autonomously executed work that
+> reaches readiness through a RoadmapPlan/EpisodePlan admission path and lands in a
+> product or performs an operational effect. Work with no readiness transition, no
+> delivery-unit membership, and no external effect is outside its domain; such work is
+> governed instead by its own boundary contract and by the standing no-green-by-absence
+> rule. (Scope made explicit 2026-08-07 on the M18/jobs revision, F-PT-025.)
+
+**Reading A is not a free pass, and this must not be misread as one.** "No green by
+absence" is a standing harness rule independent of INV-016 (`AGENTS.md` → Validation
+harness, standing rule 7). Jobs therefore still carry a pre-declared, durable,
+deterministic obligation per step: the declared output checks of `docs/jobs/design.md`
+§7 are **mandatory**, a step with no declared outputs is reported as unverified, and a
+step whose check fails is `failed` regardless of what the provider said. Those become
+`CF-B23-*` case families, not waived cells.
+
+Cases previously parked `BLOCKED:F-PT-025` are unblocked and derive against B-23.
 
 ### 0.9 Disposition question — the import-direction enforcement gap
 

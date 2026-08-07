@@ -125,7 +125,7 @@ describe("CF-REG-278 — repository enforcement gate", () => {
     const checker = join(repoRoot, "scripts", "check-import-direction.mjs");
     const green = await run(process.execPath, [checker, root]);
     expect(green).toMatchObject({ exitCode: 0, stderr: "" });
-    expect(green.stdout).toContain("Import-direction check passed (4 relative imports)");
+    expect(green.stdout).toContain("Import-direction check passed (4 relative imports");
 
     await writeSource(root, "src/runtime/to-loop.ts", 'import "../loop/allowed.js";\n');
     await writeSource(root, "src/runtime/to-org.ts", 'export * from "../org/allowed.js";\n');
@@ -135,6 +135,64 @@ describe("CF-REG-278 — repository enforcement gate", () => {
     expect(red.stderr).toContain("src/runtime may not import src/loop");
     expect(red.stderr).toContain("src/runtime may not import src/org");
     expect(red.stderr).toContain("src/loop may not import src/org");
+  });
+
+  // The rule the checker exists to enforce covers every source layer, but the
+  // rank map used to hold only runtime/loop/org and an unranked directory was
+  // silently skipped — so src/cli, src/observe, src/report and src/narrative
+  // were exempt with the check still green. These are the negative controls for
+  // that fail-open path: each seeds the violation and asserts the check FIRES.
+  it("negative control: an unranked top-level src/ directory fails the check instead of being skipped", async () => {
+    const root = await tempRoot("cormidia-import-unranked-");
+    await writeSource(root, "src/runtime/base.ts", "export interface RuntimeValue { value: string }\n");
+    // A brand-new subsystem that reaches upward into org. Under the old skip
+    // behavior this exited 0 and reported "check passed".
+    await writeSource(root, "src/org/allowed.ts", "export const org = 1;\n");
+    await writeSource(root, "src/brandnew/reaches-up.ts", 'export { org } from "../org/allowed.js";\n');
+
+    const checker = join(repoRoot, "scripts", "check-import-direction.mjs");
+    const red = await run(process.execPath, [checker, root]);
+    expect(red.exitCode).toBe(1);
+    expect(red.stderr).toContain("src/brandnew: unranked, so its imports were never checked");
+    expect(red.stderr).toContain("layerRank");
+  });
+
+  it("negative control: an unexempted top-level src/ entry file fails the check", async () => {
+    const root = await tempRoot("cormidia-import-entryfile-");
+    await writeSource(root, "src/runtime/base.ts", "export const base = 1;\n");
+    await writeSource(root, "src/rogue-entry.ts", 'export { base } from "./runtime/base.js";\n');
+
+    const checker = join(repoRoot, "scripts", "check-import-direction.mjs");
+    const red = await run(process.execPath, [checker, root]);
+    expect(red.exitCode).toBe(1);
+    expect(red.stderr).toContain("rogue-entry.ts");
+    expect(red.stderr).toContain("not exempted");
+  });
+
+  it("enforces the presentation leaves and jobs, which the rank map previously exempted", async () => {
+    const root = await tempRoot("cormidia-import-leaves-");
+    await writeSource(root, "src/runtime/base.ts", "export const base = 1;\n");
+    await writeSource(root, "src/org/allowed.ts", 'export { base } from "../runtime/base.js";\n');
+    // Legal: leaves and jobs consume org; observe consumes report; cli consumes all.
+    await writeSource(root, "src/report/ok.ts", 'export { allowed } from "../org/allowed.js";\n');
+    await writeSource(root, "src/narrative/ok.ts", 'export { base } from "../runtime/base.js";\n');
+    await writeSource(root, "src/jobs/ok.ts", 'export { allowed } from "../org/allowed.js";\n');
+    await writeSource(root, "src/observe/ok.ts", 'export { ok } from "../report/ok.js";\n');
+    await writeSource(root, "src/cli/ok.ts", 'export { ok } from "../observe/ok.js";\n');
+
+    const checker = join(repoRoot, "scripts", "check-import-direction.mjs");
+    const green = await run(process.execPath, [checker, root]);
+    expect(green).toMatchObject({ exitCode: 0, stderr: "" });
+
+    // Forbidden: the governed loop must never depend on a leaf or on jobs.
+    await writeSource(root, "src/org/to-report.ts", 'export { ok } from "../report/ok.js";\n');
+    await writeSource(root, "src/loop/to-jobs.ts", 'export { ok } from "../jobs/ok.js";\n');
+    await writeSource(root, "src/report/to-observe.ts", 'export { ok } from "../observe/ok.js";\n');
+    const red = await run(process.execPath, [checker, root]);
+    expect(red.exitCode).toBe(1);
+    expect(red.stderr).toContain("src/org may not import src/report");
+    expect(red.stderr).toContain("src/loop may not import src/jobs");
+    expect(red.stderr).toContain("src/report may not import src/observe");
   });
 
   it("scrubs provider credentials, moves HOME, preserves PATH, and fixes UTC", async () => {

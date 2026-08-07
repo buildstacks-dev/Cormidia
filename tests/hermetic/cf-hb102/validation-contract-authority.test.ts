@@ -19,7 +19,6 @@ import {
   assertValidationEvidenceComplete,
   currentValidationCatalogPointerPath,
   currentValidationContractPointerPath,
-  readCurrentDeliveryUnitReadiness,
   readCurrentValidationContract,
   readValidationContractLifecycle,
   readinessAuthorityPath,
@@ -362,6 +361,7 @@ describe("HB-102 — validation-contract authority and readiness", () => {
   });
 
   it("reads readiness only for the current validation authority version", async () => {
+    const { readCurrentDeliveryUnitReadiness } = await import("../../../src/org/roadmap-delivery.js");
     const state = await setup("hb102-current-readiness");
     expect(await readCurrentDeliveryUnitReadiness(state.home.stateHome, APP, UNIT)).toBeUndefined();
 

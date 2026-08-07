@@ -48,6 +48,19 @@ until that review lands, and three items are flagged for it explicitly — F-PT-
 F-PT-030, and F-PT-031's scope clause (a delegated decision that predates this pass and
 touches a ratified invariant).
 
+**Recorded so nobody re-derives it: `acceptance/rubric.md`'s ratification digest does not
+reproduce from the committed file.** Its §8 block records
+`sha256: 0486996d…f167` over "the exact bytes the human read and ratified, computed
+BEFORE this block was appended". Five plausible reconstructions were tried (prefix to the
+YAML fence, to the §8 heading, to the RATIFIED line, to the ledger sentence, and the file
+minus the fenced block, each with and without trailing-newline normalization) and none
+matches. The rubric was **not** modified by this revision — it is byte-identical to the
+state it was committed in — but the digest is not independently checkable from the file
+alone, so it anchors the ratification *event* rather than serving as a verifiable
+integrity seal. If the owner wants a checkable anchor, the cheap fix is a second
+ratification block recording the digest of the whole file as committed; that is a
+tighten-only addition and must not be an edit to the existing block.
+
 ## Harness revision — adapter-expansion boundaries B-23…B-26 (2026-08-07, #336)
 
 Scope: the `validation-harness-design` skill re-entered in `harness-revision` mode

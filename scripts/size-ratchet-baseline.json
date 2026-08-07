@@ -878,7 +878,7 @@
     },
     "src/org/roadmap-delivery.ts": {
       "exports": 81,
-      "lines": 2548,
+      "lines": 2256,
       "newModule": false
     },
     "src/org/roadmap-delivery/authority-core.ts": {
@@ -904,6 +904,16 @@
     "src/org/roadmap-delivery/delivery-readiness.ts": {
       "exports": 4,
       "lines": 185,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/direct-execution-authority.ts": {
+      "exports": 3,
+      "lines": 135,
+      "newModule": true
+    },
+    "src/org/roadmap-delivery/execution-model.ts": {
+      "exports": 6,
+      "lines": 196,
       "newModule": true
     },
     "src/org/roadmap-delivery/failure.ts": {

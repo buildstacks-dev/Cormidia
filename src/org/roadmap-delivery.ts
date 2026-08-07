@@ -16,7 +16,6 @@ import {
   stableHash,
   type CreatorEpisodeScope,
   type EpisodePlan,
-  type ProposedEpisodeStep,
 } from "../loop/episode-plan.js";
 import {
   durableClaimSettlementId,
@@ -113,6 +112,19 @@ import {
   type DeliveryUnitReadiness,
 } from "./roadmap-delivery/delivery-readiness.js";
 import {
+  acceptDirectExecutionUnit,
+  assertDirectExecutionUnit,
+  type DirectExecutionUnitAuthority,
+} from "./roadmap-delivery/direct-execution-authority.js";
+import {
+  assertExecutionBatchShape,
+  assertExecutionUnitBudget,
+  normalizeExecutionUnitBudget,
+  type ExecutionBatch,
+  type ExecutionUnit,
+  type ExecutionUnitBudget,
+} from "./roadmap-delivery/execution-model.js";
+import {
   assertRoadmapPlan,
   assertRoutingEligible,
   requireUnit,
@@ -169,6 +181,8 @@ export { acceptBacklogSnapshot, acceptRoadmapPlan, deriveBacklogDelta, readBackl
 export { readCurrentRoadmapPlan, unitMembershipHash };
 export { acceptDeliveryUnitReadiness, readCurrentDeliveryUnitReadiness, reconcileRoadmapProjections };
 export type { DeliveryUnitReadiness };
+export { acceptDirectExecutionUnit };
+export type { DirectExecutionUnitAuthority, ExecutionBatch, ExecutionUnit, ExecutionUnitBudget };
 export type {
   AcceptedRoadmapPlan,
   BacklogSnapshot,
@@ -180,77 +194,6 @@ export type {
   RoadmapWorkstream,
   RoutingSnapshotEntry,
 };
-
-interface ExecutionBatchUnit {
-  kind?: "roadmap_code";
-  unitId: string;
-  issueNumbers?: number[];
-  membershipHash: string;
-  readinessRef: AuthorityRef;
-  validationRef: AuthorityRef;
-  validationContractHash: string;
-  priority?: number;
-  budget?: ExecutionUnitBudget;
-}
-
-export interface DirectExecutionUnitAuthority {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  kind: "direct_operation";
-  unitId: string;
-  app: string;
-  objective: string;
-  inScope: string[];
-  outOfScope: string[];
-  acceptanceCriteria: string[];
-  expectedArtifacts: CreatorEpisodeScope["expectedArtifacts"];
-  declaredConstraints: CreatorEpisodeScope["declaredConstraints"];
-  safetyFacts: CreatorEpisodeScope["safetyFacts"];
-  /** Generic repeatable work may name a governed template. A content-bound
-   * operational campaign instead carries its exact instantiated steps so the
-   * seven destination approvals cannot be widened by template lookup. Exactly
-   * one workflow representation is required. */
-  workflowTemplate?: NonNullable<CreatorEpisodeScope["workflowTemplate"]>;
-  steps?: ProposedEpisodeStep[];
-  provenance: CreatorEpisodeScope["provenance"];
-  dedupeKey: string;
-  admittedBudget: ExecutionUnitBudget;
-  createdAt: string;
-}
-
-interface DirectExecutionBatchUnit {
-  kind: "direct_operation";
-  unitId: string;
-  authorityRef: AuthorityRef;
-  authorityHash: string;
-  dedupeKey: string;
-  priority: number;
-  budget: ExecutionUnitBudget;
-}
-
-export type ExecutionUnit = ExecutionBatchUnit | DirectExecutionBatchUnit;
-
-export interface ExecutionUnitBudget {
-  maxProviderTurns: number;
-  maxEquivalentCostUsd: number;
-  maxMechanicalOverheadUsd: number;
-  maxActiveTimeMs: number;
-  maxHumanDecisions: number;
-}
-
-export interface ExecutionBatch {
-  schemaVersion: typeof ROADMAP_DELIVERY_SCHEMA_VERSION;
-  batchId: string;
-  version: number;
-  app: string;
-  roadmapRef: AuthorityRef | null;
-  frontierHash: string | null;
-  units: ExecutionUnit[];
-  manifestLimits?: {
-    maxUnits: number;
-    maxManifestBytes: number;
-  };
-  admittedAt: string;
-}
 
 type ExecutionUnitJournalState =
   | "admitted"
@@ -418,34 +361,8 @@ type DeliveryEpisodeFacts = Omit<EpisodeIntentFacts, "episodeId" | "app" | "role
 const CLAIM_NAMESPACE = "planning/delivery-unit-claims";
 const DEFAULT_EXECUTION_BATCH_MAX_UNITS = 8;
 const DEFAULT_EXECUTION_BATCH_MAX_MANIFEST_BYTES = 64 * 1024;
-const DEFAULT_EXECUTION_UNIT_BUDGET: ExecutionUnitBudget = {
-  maxProviderTurns: 24,
-  maxEquivalentCostUsd: 100,
-  maxMechanicalOverheadUsd: 10,
-  maxActiveTimeMs: 2 * 60 * 60_000,
-  maxHumanDecisions: 2,
-};
 const HASH = /^[a-f0-9]{64}$/;
 const CANDIDATE_HEAD = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/;
-
-/** Complete direct-work authority. Ordinary prose and labels cannot create it. */
-export async function acceptDirectExecutionUnit(input: {
-  root: string;
-  authority: DirectExecutionUnitAuthority;
-  project?: RoadmapDeliveryProjector;
-}): Promise<AcceptedAuthority<DirectExecutionUnitAuthority>> {
-  assertDirectExecutionUnit(input.authority);
-  const accepted = await persistAuthority(
-    input.root,
-    input.authority.app,
-    "direct_execution_unit",
-    input.authority.unitId,
-    1,
-    input.authority,
-  );
-  await projectAccepted(input.root, input.authority.app, accepted, input.project);
-  return accepted;
-}
 
 /** Token-free admission. This function neither builds an EpisodeIntent nor calls EpisodePlanner. */
 export async function admitExecutionBatch(input: {
@@ -544,7 +461,7 @@ export async function admitExecutionBatch(input: {
     validationByUnit.set(validation.value.unitId, validation);
   }
   const codeUnits = await Promise.all(
-    orderedUnitIds.map(async (unitId): Promise<ExecutionBatchUnit> => {
+    orderedUnitIds.map(async (unitId): Promise<Exclude<ExecutionUnit, { kind: "direct_operation" }>> => {
       if (roadmap === undefined || frontierHash === null) {
         throw new RoadmapDeliveryError("roadmap_missing", `${unitId} has no RoadmapPlan`);
       }
@@ -604,7 +521,7 @@ export async function admitExecutionBatch(input: {
       };
     }),
   );
-  const directUnits: DirectExecutionBatchUnit[] = [];
+  const directUnits: Array<Extract<ExecutionUnit, { kind: "direct_operation" }>> = [];
   for (const ref of input.directUnitRefs ?? []) {
     const direct = await requireAuthority<DirectExecutionUnitAuthority>(
       input.root,
@@ -1859,215 +1776,6 @@ function uniqueInputRefs(refs: Array<{ ref: string; required: boolean }>): Array
     byRef.set(ref.ref, { ref: ref.ref, required: ref.required || existing?.required === true });
   }
   return [...byRef.values()].sort((left, right) => left.ref.localeCompare(right.ref));
-}
-
-function assertDirectExecutionUnit(authority: DirectExecutionUnitAuthority): void {
-  const workflowKeys = authority.workflowTemplate === undefined ? ["steps"] : ["workflowTemplate"];
-  assertExactObjectKeys(
-    authority,
-    [
-      "schemaVersion",
-      "kind",
-      "unitId",
-      "app",
-      "objective",
-      "inScope",
-      "outOfScope",
-      "acceptanceCriteria",
-      "expectedArtifacts",
-      "declaredConstraints",
-      "safetyFacts",
-      ...workflowKeys,
-      "provenance",
-      "dedupeKey",
-      "admittedBudget",
-      "createdAt",
-    ],
-    "direct execution unit",
-    "direct_unit_incomplete",
-  );
-  if (authority.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION || authority.kind !== "direct_operation") {
-    throw new RoadmapDeliveryError("direct_unit_incomplete", "unsupported direct-unit schema");
-  }
-  assertId(authority.unitId, "direct unit id");
-  assertNonEmpty(authority.app, "direct unit app");
-  assertNonEmpty(authority.objective, "direct unit objective");
-  assertNonEmpty(authority.dedupeKey, "direct unit dedupe key");
-  requireDateTime(authority.createdAt, "direct unit createdAt");
-  for (const [name, values] of [
-    ["inScope", authority.inScope],
-    ["outOfScope", authority.outOfScope],
-    ["acceptanceCriteria", authority.acceptanceCriteria],
-    ["expectedArtifacts", authority.expectedArtifacts],
-  ] as const) {
-    if (!Array.isArray(values) || values.length === 0) {
-      throw new RoadmapDeliveryError("direct_unit_incomplete", `direct unit ${name} is empty`);
-    }
-  }
-  if (!Array.isArray(authority.safetyFacts)) {
-    throw new RoadmapDeliveryError("direct_unit_incomplete", "direct unit safetyFacts must be explicit");
-  }
-  if (
-    authority.provenance === undefined ||
-    !["human", "agent"].includes(authority.provenance.source) ||
-    authority.provenance.creatorId.trim().length === 0 ||
-    Number.isNaN(Date.parse(authority.provenance.createdAt)) ||
-    authority.provenance.evidenceRefs.length === 0 ||
-    authority.provenance.evidenceRefs.some((ref) => ref.trim().length === 0) ||
-    Object.keys(authority.declaredConstraints).length === 0
-  ) {
-    throw new RoadmapDeliveryError(
-      "direct_unit_incomplete",
-      "direct unit requires provenance, governed template, and declared constraints",
-    );
-  }
-  const hasTemplate = authority.workflowTemplate !== undefined;
-  const hasSteps = authority.steps !== undefined;
-  if (hasTemplate === hasSteps) {
-    throw new RoadmapDeliveryError(
-      "direct_unit_incomplete",
-      "direct unit requires exactly one governed template or exact step graph",
-    );
-  }
-  if (
-    hasTemplate &&
-    (authority.workflowTemplate!.id.trim().length === 0 || authority.workflowTemplate!.version.trim().length === 0)
-  ) {
-    throw new RoadmapDeliveryError("direct_unit_incomplete", "direct-unit workflow template is invalid");
-  }
-  if (hasSteps && (!Array.isArray(authority.steps) || authority.steps.length === 0)) {
-    throw new RoadmapDeliveryError("direct_unit_incomplete", "direct-unit step graph is empty");
-  }
-  assertExecutionUnitBudget(authority.admittedBudget);
-}
-
-function normalizeExecutionUnitBudget(value: ExecutionUnitBudget | undefined): ExecutionUnitBudget {
-  const budget = structuredClone(value ?? DEFAULT_EXECUTION_UNIT_BUDGET);
-  assertExecutionUnitBudget(budget);
-  return budget;
-}
-
-function assertExecutionUnitBudget(budget: ExecutionUnitBudget): void {
-  if (
-    !Number.isInteger(budget.maxProviderTurns) ||
-    budget.maxProviderTurns < 0 ||
-    !Number.isFinite(budget.maxEquivalentCostUsd) ||
-    budget.maxEquivalentCostUsd < 0 ||
-    !Number.isFinite(budget.maxMechanicalOverheadUsd) ||
-    budget.maxMechanicalOverheadUsd < 0 ||
-    !Number.isInteger(budget.maxActiveTimeMs) ||
-    budget.maxActiveTimeMs < 0 ||
-    !Number.isInteger(budget.maxHumanDecisions) ||
-    budget.maxHumanDecisions < 0
-  ) {
-    throw new RoadmapDeliveryError("batch_hard_constraint_failed", "execution-unit budget is invalid");
-  }
-}
-
-function assertExecutionBatchShape(batch: ExecutionBatch): void {
-  assertExactObjectKeys(
-    batch,
-    batch.manifestLimits === undefined
-      ? ["schemaVersion", "batchId", "version", "app", "roadmapRef", "frontierHash", "units", "admittedAt"]
-      : [
-          "schemaVersion",
-          "batchId",
-          "version",
-          "app",
-          "roadmapRef",
-          "frontierHash",
-          "units",
-          "manifestLimits",
-          "admittedAt",
-        ],
-    "execution batch",
-    "batch_hard_constraint_failed",
-  );
-  if (batch.schemaVersion !== ROADMAP_DELIVERY_SCHEMA_VERSION) {
-    throw new RoadmapDeliveryError("batch_hard_constraint_failed", "unsupported execution-batch schema");
-  }
-  assertId(batch.batchId, "execution batch id");
-  assertVersion(batch.version, "execution batch version");
-  assertNonEmpty(batch.app, "execution batch app");
-  if ((batch.roadmapRef === null) !== (batch.frontierHash === null)) {
-    throw new RoadmapDeliveryError("batch_hard_constraint_failed", "batch roadmap/frontier lineage is partial");
-  }
-  if (batch.roadmapRef !== null) assertAuthorityRef(batch.roadmapRef, "roadmap_plan");
-  if (batch.frontierHash !== null) assertHash(batch.frontierHash, "execution batch frontier hash");
-  requireDateTime(batch.admittedAt, "execution batch admittedAt");
-  if (
-    batch.manifestLimits !== undefined &&
-    (!Number.isInteger(batch.manifestLimits.maxUnits) ||
-      batch.manifestLimits.maxUnits <= 0 ||
-      !Number.isInteger(batch.manifestLimits.maxManifestBytes) ||
-      batch.manifestLimits.maxManifestBytes <= 0)
-  ) {
-    throw new RoadmapDeliveryError("batch_hard_constraint_failed", "execution batch limits are invalid");
-  }
-  if (!Array.isArray(batch.units) || batch.units.length === 0) {
-    throw new RoadmapDeliveryError("batch_hard_constraint_failed", "execution batch has no units");
-  }
-  const unitIds = new Set<string>();
-  for (const unit of batch.units) {
-    if (unit.kind === "direct_operation") {
-      assertExactObjectKeys(
-        unit,
-        ["kind", "unitId", "authorityRef", "authorityHash", "dedupeKey", "priority", "budget"],
-        "direct execution batch unit",
-        "batch_hard_constraint_failed",
-      );
-      assertId(unit.unitId, "direct execution batch unit id");
-      assertAuthorityRef(unit.authorityRef, "direct_execution_unit");
-      assertHash(unit.authorityHash, "direct execution authority hash");
-      assertNonEmpty(unit.dedupeKey, "direct execution dedupe key");
-      assertExecutionUnitBudget(unit.budget);
-      if (unit.authorityHash !== unit.authorityRef.sha256) {
-        throw new RoadmapDeliveryError("batch_hard_constraint_failed", "direct unit loses authority lineage");
-      }
-      if (unitIds.has(unit.unitId)) {
-        throw new RoadmapDeliveryError("batch_hard_constraint_failed", `duplicate unit ${unit.unitId}`);
-      }
-      unitIds.add(unit.unitId);
-      continue;
-    }
-    assertExactObjectKeys(
-      unit,
-      unit.kind === undefined
-        ? ["unitId", "membershipHash", "readinessRef", "validationRef", "validationContractHash"]
-        : [
-            "kind",
-            "unitId",
-            "membershipHash",
-            "readinessRef",
-            "validationRef",
-            "validationContractHash",
-            "priority",
-            "budget",
-            "issueNumbers",
-          ],
-      "execution batch unit",
-      "batch_hard_constraint_failed",
-    );
-    assertId(unit.unitId, "execution batch unit id");
-    if (
-      unit.issueNumbers !== undefined &&
-      (unit.issueNumbers.length === 0 || unitMembershipHash(unit.issueNumbers) !== unit.membershipHash)
-    ) {
-      throw new RoadmapDeliveryError("batch_hard_constraint_failed", "batch unit membership is incomplete");
-    }
-    assertHash(unit.membershipHash, "execution batch membership hash");
-    assertAuthorityRef(unit.readinessRef, "delivery_unit_readiness");
-    assertAuthorityRef(unit.validationRef, "validation_contract");
-    assertHash(unit.validationContractHash, "execution batch validation-contract hash");
-    assertExecutionUnitBudget(unit.budget ?? DEFAULT_EXECUTION_UNIT_BUDGET);
-    if (unitIds.has(unit.unitId) || unit.validationContractHash !== unit.validationRef.sha256) {
-      throw new RoadmapDeliveryError(
-        "batch_hard_constraint_failed",
-        `execution batch unit ${unit.unitId} is duplicated or loses validation lineage`,
-      );
-    }
-    unitIds.add(unit.unitId);
-  }
 }
 
 function assertDeliveryEpisodeBindingShape(binding: DeliveryEpisodeBinding): void {

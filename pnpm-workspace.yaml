@@ -12,8 +12,16 @@ allowBuilds:
   '@google/genai': false
   esbuild: true
   protobufjs: false
+# pi ships ~3 releases/week, so the pinned version is always younger than the
+# default minimum release age. The allowance is exact-version by design: it
+# names what we certified, never a range, so a later upload is not admitted
+# silently. pi 0.84 split pi-client/pi-protocol/pi-telemetry out of the
+# coding-agent package — new names, same single pinned version.
 minimumReleaseAgeExclude:
-  - '@earendil-works/pi-agent-core@0.80.7'
-  - '@earendil-works/pi-ai@0.80.7'
-  - '@earendil-works/pi-coding-agent@0.80.7'
-  - '@earendil-works/pi-tui@0.80.7'
+  - '@earendil-works/pi-agent-core@0.84.1'
+  - '@earendil-works/pi-ai@0.84.1'
+  - '@earendil-works/pi-client@0.84.1'
+  - '@earendil-works/pi-coding-agent@0.84.1'
+  - '@earendil-works/pi-protocol@0.84.1'
+  - '@earendil-works/pi-telemetry@0.84.1'
+  - '@earendil-works/pi-tui@0.84.1'

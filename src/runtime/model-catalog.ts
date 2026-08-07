@@ -8,6 +8,7 @@
 // rewritten. Where it does not, this module says so explicitly and names why —
 // an unverifiable id must be visible to the operator, never silent.
 
+import type { CreateModelRuntimeOptions } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import type { RuntimeKind } from "./types.js";
 
@@ -29,6 +30,18 @@ type RuntimeModelCatalog =
 
 /** Injection point: tests and callers supply a deterministic roster. */
 export type RuntimeModelCatalogReader = (runtime: RuntimeKind) => Promise<RuntimeModelCatalog>;
+
+/**
+ * Reads as empty, refuses to write. Roster enumeration is credential-free by
+ * construction, so a store that cannot persist is the honest one: no auth.json
+ * is created, locked, or mutated by a config-time read.
+ */
+const EMPTY_CREDENTIAL_STORE: NonNullable<CreateModelRuntimeOptions["credentials"]> = {
+  read: async () => undefined,
+  list: async () => [],
+  modify: async () => undefined,
+  delete: async () => {},
+};
 
 /**
  * Why `claude` and `codex` have no offline roster. Both are reachable
@@ -57,13 +70,15 @@ export async function readRuntimeModelCatalog(runtime: RuntimeKind): Promise<Run
     return { runtime, available: false, reason: UNAVAILABLE_REASON[runtime]! };
   }
   try {
-    const { AuthStorage, InMemoryAuthStorageBackend, ModelRegistry, getAgentDir } = await import(
-      "@earendil-works/pi-coding-agent"
-    );
+    const { ModelRegistry, ModelRuntime, getAgentDir } = await import("@earendil-works/pi-coding-agent");
     const modelsPath = join(getAgentDir(), "models.json");
-    // An in-memory credential store: enumerating the roster needs no
+    // A credential store that holds nothing: enumerating the roster needs no
     // credential, and the file-backed store would create and lock auth.json.
-    const registry = ModelRegistry.create(AuthStorage.fromStorage(new InMemoryAuthStorageBackend()), modelsPath);
+    // pi 0.84 stopped exporting its auth-storage classes, so the empty store is
+    // supplied directly. `allowModelNetwork` stays default-false — reading the
+    // roster must never reach a provider.
+    const modelRuntime = await ModelRuntime.create({ modelsPath, credentials: EMPTY_CREDENTIAL_STORE });
+    const registry = new ModelRegistry(modelRuntime);
     const error = registry.getError();
     if (error !== undefined) {
       return { runtime, available: false, reason: `the pi model registry is invalid: ${error}` };

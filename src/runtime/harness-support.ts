@@ -69,9 +69,12 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     versionSource: { kind: "vendored_npm_package", packageName: "@openai/codex" },
   },
   pi: {
+    // Floor stays at 0.80.7 deliberately (#224 owes the real interface claim):
+    // raising it to match the pin would refuse operators who have not upgraded,
+    // which is exactly what bands exist to avoid.
     floor: "0.80.7",
-    testedWith: "0.80.7",
-    testedEvidence: TESTED_EVIDENCE,
+    testedWith: "0.84.1",
+    testedEvidence: "research/2026-08-07_pi-0.84.1-refresh.md",
     versionSource: { kind: "vendored_npm_package", packageName: "@earendil-works/pi-coding-agent" },
   },
 };

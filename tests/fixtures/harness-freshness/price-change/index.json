@@ -1,0 +1,7 @@
+{
+  "note": "Price change: the OpenAI pricing page reprices gpt-5.4. The probe must report the exact old-to-new figures and propose the metadata edit, never apply it silently to a ratified surface.",
+  "extends": "../base",
+  "responses": {
+    "https://developers.openai.com/api/docs/pricing": { "bodyFile": "doc-openai-pricing.html" }
+  }
+}

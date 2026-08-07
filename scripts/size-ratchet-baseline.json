@@ -1521,6 +1521,21 @@
       "lines": 56,
       "newModule": false
     },
+    "src/runtime/harness-metadata-parse.ts": {
+      "exports": 3,
+      "lines": 259,
+      "newModule": true
+    },
+    "src/runtime/harness-metadata.ts": {
+      "exports": 5,
+      "lines": 48,
+      "newModule": true
+    },
+    "src/runtime/harness-pricing.ts": {
+      "exports": 3,
+      "lines": 67,
+      "newModule": true
+    },
     "src/runtime/harness-support.ts": {
       "exports": 9,
       "lines": 264,

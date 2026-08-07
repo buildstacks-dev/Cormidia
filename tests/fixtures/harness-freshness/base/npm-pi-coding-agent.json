@@ -1,0 +1,6 @@
+{
+  "name": "@earendil-works/pi-coding-agent",
+  "version": "0.84.1",
+  "description": "Recorded sample of the registry `latest` manifest, trimmed to the fields the probe reads.",
+  "dist": { "tarball": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.84.1.tgz" }
+}

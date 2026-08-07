@@ -12,6 +12,7 @@ import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
 import { resolveTurnRequestAssignment } from "../assignment.js";
 import { gitWorktreeWritableRoots } from "../git-worktree-sandbox.js";
+import { harnessModelPrice, harnessPriceMultipliers } from "../harness-pricing.js";
 import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { permissionModeFor, type CodexPermissionMode } from "../permission-mode.js";
 import { toolUseEvent } from "../tool-events.js";
@@ -920,48 +921,24 @@ function usageFromTokenNotification(
   };
 }
 
-interface CodexPrice {
-  inputPerMTok: number;
-  outputPerMTok: number;
-}
-
-// Documented OpenAI list prices, USD per million tokens (input / output),
-// from research/2026-07-05_model-id-verification.md and
-// research/2026-07-15_model-assignment-refresh.md. These are the ONLY prices
-// Cormidia asserts; no figure here is invented.
-//
-// Two deliberate conservative choices keep the estimate fail-safe (it may
-// over- but must never silently under-count spend, because it also backs the
-// hard budget cap):
+// Codex publishes no dollar figure on the App Server stream, so spend is a
+// Cormidia estimate from documented OpenAI list prices. Every number — the
+// per-model rows, the fallback, and the GPT-5.6 long-context surcharge band —
+// lives in `harness-metadata.json` (#332), because those are the facts that
+// drift upstream. What stays here is the arithmetic, and the two deliberate
+// conservative choices that keep the estimate fail-safe (it may over- but must
+// never silently under-count spend, because it also backs the hard budget cap):
 //  - Cached input tokens are priced at the FULL input rate. The cited source
 //    does not publish codex's cached-input discount, so Cormidia does not guess
 //    one; charging cached tokens at full rate over-estimates slightly.
 //  - Output covers reasoning tokens (OpenAI bills reasoning at the output
 //    rate), which is why tokensOut already folds reasoningOutputTokens in.
-// An unrecognized/unpriced model defaults to the flagship GPT-5.6 Sol rate as a
-// documented upper bound rather than $0 — an off-roster model must not slip
-// the guard.
-const CODEX_FLAGSHIP_PRICE: CodexPrice = { inputPerMTok: 5, outputPerMTok: 30 };
-const GPT_5_6_LONG_CONTEXT_THRESHOLD = 272_000;
-
-function codexModelPrice(model: string): CodexPrice {
-  const m = model.toLowerCase();
-  if (m.startsWith("gpt-5.6")) return CODEX_FLAGSHIP_PRICE;
-  if (m.startsWith("gpt-5.5")) return { inputPerMTok: 5, outputPerMTok: 30 };
-  if (m.startsWith("gpt-5.4-mini")) return { inputPerMTok: 0.75, outputPerMTok: 4.5 };
-  if (m.startsWith("gpt-5.4-nano")) return CODEX_FLAGSHIP_PRICE; // nano list price not published — conservative default
-  if (m.startsWith("gpt-5.4")) return { inputPerMTok: 2.5, outputPerMTok: 15 };
-  return CODEX_FLAGSHIP_PRICE;
-}
-
 function estimateCodexCostUsd(tokensIn: number, tokensOut: number, model: string): number {
-  const price = codexModelPrice(model);
-  const longContext = model.toLowerCase().startsWith("gpt-5.6") && tokensIn > GPT_5_6_LONG_CONTEXT_THRESHOLD;
-  const inputMultiplier = longContext ? 2 : 1;
-  const outputMultiplier = longContext ? 1.5 : 1;
+  const price = harnessModelPrice("codex", model);
+  const multipliers = harnessPriceMultipliers("codex", model, tokensIn);
   return (
-    (tokensIn / 1_000_000) * price.inputPerMTok * inputMultiplier +
-    (tokensOut / 1_000_000) * price.outputPerMTok * outputMultiplier
+    (tokensIn / 1_000_000) * price.inputPerMTok * multipliers.input +
+    (tokensOut / 1_000_000) * price.outputPerMTok * multipliers.output
   );
 }
 

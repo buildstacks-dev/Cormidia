@@ -1278,7 +1278,7 @@
     },
     "src/runtime/adapters/claude.ts": {
       "exports": 4,
-      "lines": 573,
+      "lines": 590,
       "newModule": false
     },
     "src/runtime/adapters/codex-gate-bridge.ts": {
@@ -1303,7 +1303,7 @@
     },
     "src/runtime/adapters/pi.ts": {
       "exports": 4,
-      "lines": 368,
+      "lines": 380,
       "newModule": false
     },
     "src/runtime/assignment.ts": {
@@ -1353,7 +1353,7 @@
     },
     "src/runtime/harness-support.ts": {
       "exports": 9,
-      "lines": 282,
+      "lines": 288,
       "newModule": true
     },
     "src/runtime/invocation-ledger.ts": {
@@ -1363,7 +1363,7 @@
     },
     "src/runtime/model-catalog.ts": {
       "exports": 4,
-      "lines": 136,
+      "lines": 151,
       "newModule": false
     },
     "src/runtime/non-interactive-env.ts": {
@@ -1388,7 +1388,7 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 455,
+      "lines": 460,
       "newModule": false
     },
     "src/runtime/registry.ts": {

@@ -42,7 +42,9 @@ export interface HarnessSupportDeclaration {
   readonly versionSource: HarnessVersionSource;
 }
 
-const TESTED_EVIDENCE = "research/2026-08-06_adapter-upstream-references.md";
+// Each adapter now points at its own dated refresh record; the shared
+// 2026-08-06 upstream-reference constant retired with codex's last use of it.
+const CLAUDE_TESTED_EVIDENCE = "research/2026-08-07_claude-sdk-0.3.224-refresh.md";
 
 /**
  * Exhaustive by construction: a new `RuntimeKind` is a compile error until its
@@ -50,19 +52,20 @@ const TESTED_EVIDENCE = "research/2026-08-06_adapter-upstream-references.md";
  * and a harness with no floor has no refusal.
  *
  * A floor is an interface claim, not a copy of the pin: it moves only when an
- * adapter genuinely stops speaking the older surface. Claude and pi still have
- * floor == `testedWith` because they are vendored at exactly those versions.
- * Codex deliberately does not: the 0.147.0 refresh re-certified the adapter
- * without breaking 0.144.4's interface, so raising the floor would refuse
- * operators for no proven incompatibility. Lowering a floor to the oldest
- * interface an adapter genuinely speaks is per-adapter research owed with #224,
- * not a guess to be made here.
+ * adapter genuinely stops speaking the older surface. After the #335 refresh
+ * wave every floor sits BELOW its `testedWith` — claude 0.3.201 → 0.3.224,
+ * codex 0.144.4 → 0.147.0, pi 0.80.7 → 0.84.1. Each bump moved the certified
+ * version without breaking the interface the adapter speaks, and raising a
+ * floor to match its pin would refuse operators who have not upgraded, which
+ * is exactly what bands exist to avoid (docs/harness/adding-updating.md §6).
+ * Lowering a floor further, to the oldest interface an adapter genuinely
+ * speaks, is per-adapter research owed with #224, not a guess to be made here.
  */
 export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
   claude: {
     floor: "0.3.201",
-    testedWith: "0.3.201",
-    testedEvidence: TESTED_EVIDENCE,
+    testedWith: "0.3.224",
+    testedEvidence: CLAUDE_TESTED_EVIDENCE,
     versionSource: { kind: "vendored_npm_package", packageName: "@anthropic-ai/claude-agent-sdk" },
   },
   codex: {
@@ -75,9 +78,12 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     versionSource: { kind: "vendored_npm_package", packageName: "@openai/codex" },
   },
   pi: {
+    // Floor stays at 0.80.7 deliberately (#224 owes the real interface claim):
+    // raising it to match the pin would refuse operators who have not upgraded,
+    // which is exactly what bands exist to avoid.
     floor: "0.80.7",
-    testedWith: "0.80.7",
-    testedEvidence: TESTED_EVIDENCE,
+    testedWith: "0.84.1",
+    testedEvidence: "research/2026-08-07_pi-0.84.1-refresh.md",
     versionSource: { kind: "vendored_npm_package", packageName: "@earendil-works/pi-coding-agent" },
   },
 };

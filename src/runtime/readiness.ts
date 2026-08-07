@@ -12,7 +12,7 @@ import {
   type Query as ClaudeQuery,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -74,8 +74,7 @@ export type RuntimeReadinessProbe = (request: RuntimeReadinessRequest) => Promis
 
 interface PiReadinessDependencies {
   agentDir?: string;
-  createAuthStorage?: (authPath: string) => AuthStorage;
-  createModelRegistry?: (authStorage: AuthStorage, modelsPath: string) => ModelRegistry;
+  createModelRuntime?: (authPath: string, modelsPath: string) => Promise<ModelRuntime>;
 }
 
 const DEFAULT_IMPLEMENTATIONS: Record<RuntimeKind, RuntimeReadinessImplementation> = {
@@ -347,12 +346,14 @@ async function probePi(
   // OAuth resolution may rotate a refresh token. Readiness must use the same
   // file-backed store as PiRuntime so a successful refresh is persisted for
   // the subsequent turn; the old in-memory copy consumed the rotation and
-  // then discarded it, making a green probe break the live runtime.
-  const authStorage = (dependencies.createAuthStorage ?? AuthStorage.create)(authPath);
-  const registry = (dependencies.createModelRegistry ?? ModelRegistry.create)(
-    authStorage,
+  // then discarded it, making a green probe break the live runtime. pi 0.84
+  // builds that store inside ModelRuntime from `authPath`; `allowModelNetwork`
+  // stays default-false so the probe remains offline and non-billable.
+  const modelRuntime = await (dependencies.createModelRuntime ?? createPiModelRuntime)(
+    authPath,
     join(agentDir, "models.json"),
   );
+  const registry = new ModelRegistry(modelRuntime);
   const registryError = registry.getError();
   if (registryError !== undefined) {
     return {
@@ -413,6 +414,10 @@ async function probePi(
     status: "ready",
     detail: `pi model/auth resolution succeeded: ${checked.join(", ")}; no model turn sent`,
   };
+}
+
+function createPiModelRuntime(authPath: string, modelsPath: string): Promise<ModelRuntime> {
+  return ModelRuntime.create({ authPath, modelsPath });
 }
 
 function classifyProbeError(error: unknown): ProbeOutcome {

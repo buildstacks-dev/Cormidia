@@ -522,18 +522,24 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   verified host — resolve `cursor-agent`, never `agent` `[stated]`); stream-json
   protocol drift on the fast-moving CLI; native permissions config missing/malformed/
   wider-than-role (refuse — Cormidia narrows onto Cursor's deny-wins surface, never
-  widens through it); **no documented dynamic per-action hook seam — `tool_gate`
-  tier undecidable from docs (F-PT-026)**; native `AGENTS.md`/`CLAUDE.md` ingestion
-  pulling operator-personal config into org turns (hermeticity); thread resume that
+  widens through it); **a dynamic per-action hook seam that stops firing** (the
+  `.cursor/hooks.json` `preToolUse` channel was certified live 2026-08-07,
+  F-PT-026 resolved; the residual risk is a future build silently dropping it, which
+  the post-turn executed-versus-allowed cross-check surfaces as
+  `error_gate_not_observed`); native `AGENTS.md`/`CLAUDE.md` and
+  `~/.cursor/skills-cursor/**` ingestion pulling operator-personal config into org
+  turns (hermeticity — partial, gate-visible, documented); thread resume that
   authenticates but does not restore the thread.
 - **Honest fake:** YES — scripted `cursor-agent` subprocess double speaking
   stream-json: trust refusals, force-absent no-op edits, permission-config
   interactions, thread-resume mismatch, protocol drift.
-- **Unproven real (L3):** the §5 certification walk — real auth, real trust/force
-  behavior in an org-managed worktree, a real denied forbidden attempt through
-  whatever enforcement F-PT-026 ratifies, version bands from `cursor-agent
-  --version`. Spend-bounded per policy.
-- **Layer:** 2 + L3 certification (design-only until the adapter lands).
+- **Proven real (L3), 2026-08-07:** the §5 certification walk ran — real auth, real
+  trust/force behavior in an org-managed worktree, a real denied forbidden attempt
+  (and a real denied **subagent** attempt) through the certified `preToolUse` bridge
+  with no side effect, exact chat resume, version band `cursor-agent
+  2026.08.04-aaa8809`. Spend-bounded per policy.
+  Evidence: `research/2026-08-07_cursor-adapter-certification.md`.
+- **Layer:** 2 + L3 certification (adapter landed #338).
 
 ### B-25 — Grok Build ACP (`grok agent stdio`) `[doc]` (design-only; #339 risk-review-gated)
 - **Boundary test:** PASS (subprocess dies/hangs independently) — a B-03 cousin.
@@ -698,10 +704,13 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
 - **F-PT-025 (open, B-23):** OpenCode headless permission-`ask` semantics unspecified
   upstream; the ratified gate-bridge mechanism (deny-by-default + hook seam as sole
   approver, vs `--auto` + gate-only) is an owner decision.
-- **F-PT-026 (open, B-24):** Cursor exposes static deny-wins permissions but no
-  documented dynamic per-action hook seam; whether that honors INV-002 at an
-  acceptable `tool_gate` tier, or the profile records a degraded/unsupported tier
-  with narrowed role eligibility, is an owner decision.
+- **F-PT-026 (RESOLVED-by-certification 2026-08-07, B-24):** the premise was
+  falsified in the field — a project `.cursor/hooks.json` `preToolUse` hook DOES fire
+  under `-p --force` and enforces pre-execution, so the question was empirical and no
+  degraded-tier/role-narrowing decision was needed. Ratified rung: `preToolUse` as the
+  sole gate channel over a per-turn Unix socket, `failClosed: true`; tiers
+  `tool_gate: adapter`, `intra_turn_fanout: native`. Evidence:
+  `research/2026-08-07_cursor-adapter-certification.md` (#338).
 - **F-PT-027 (open, B-25):** Grok Build ACP permission-request coverage (every
   tool-action class? denial semantics? headless auto-approve bypass?) unspecified
   upstream; the gate-bridge contract cannot be authored from a guess. Live

@@ -124,9 +124,33 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
     expect(turn.options.resume).toBe("sess-1");
     expect(turn.options.maxTurns).toBe(7);
     expect(turn.options.settingSources).toEqual([]); // operator settings never leak in
+    expect(turn.options.strictMcpConfig).toBe(true); // ambient .mcp.json/plugin MCP never loads
     expect(turn.options.systemPromptAppend).toContain("ORG TASTE MARKER");
     expect(turn.options.permissionDenyRules).toEqual([]); // planner: no shaping
     expect(result.session).toEqual({ runtime: "claude", id: "sess-1" });
+  });
+
+  // Negative control for the hermeticity pair (#335): baseOptions is merged
+  // UNDER the adapter's own keys, so an org-level or harness-level caller
+  // cannot re-open a discovery path the adapter closed. Seeding the exact
+  // weakening a careless caller would write is what makes the assertion above
+  // a detector rather than an assumption — it fails if the spread order is
+  // ever inverted.
+  it("§1 a caller cannot weaken hermeticity through baseOptions (settings sources and MCP discovery stay closed)", async () => {
+    const dbl = claudeDouble(
+      [script.turn({ sessionId: "sess-hermetic", outcome: script.success("done", { usage: "absent" }) })],
+      {
+        baseOptions: {
+          settingSources: ["user", "project", "local"],
+          strictMcpConfig: false,
+        },
+      },
+    );
+    const { hooks } = recordingHooks();
+    await dbl.runtime.runTurn(doubleTurnRequest({ workdir: WORKDIR }), hooks);
+    const turn = onlyTurn(dbl);
+    expect(turn.options.settingSources).toEqual([]);
+    expect(turn.options.strictMcpConfig).toBe(true);
   });
 
   it("§1 typed refusal before provider construction: harness mismatch (fail closed pre-spend)", async () => {

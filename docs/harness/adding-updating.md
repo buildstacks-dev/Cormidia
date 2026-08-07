@@ -5,17 +5,18 @@
 > (`tests/fixtures/adapters/`), the hermetic drift-guard pair
 > (`tests/hermetic/cf-adapter-conformance/`), and the same two-turn walk
 > against real adapters inside the human-triggered live campaign
-> (`tests/live/campaign-live.test.ts`, cases CF-B02/03/04-L3). The two claims
+> (`tests/live/campaign-live.test.ts`, cases CF-B02/03/04-L3 and CF-B24-L3).
+> The two claims
 > that were briefly archive-only are re-deposited offline (#334): the
-> subagent gate-ordering probe (CF-B02/B03-SUBGATE for the fan-out-claiming
+> subagent gate-ordering probe (CF-B02/B03/B24-SUBGATE for the fan-out-claiming
 > harnesses plus the pi CF-B04-DEGRADE degradation path) and the 300 KB
-> payload-transport pin (CF-B02/B03/B04-PAYLOAD), each with permanent seeded
+> payload-transport pin (CF-B02/B03/B04/B24-PAYLOAD), each with permanent seeded
 > negative controls. The archived legacy suite stays archived and is never
 > read.
 
 *For agents and humans working on this repo. A **harness** (interchangeably:
 runtime adapter) is what turns one provider's agent product — Claude Agent
-SDK, Codex App Server, pi SDK — into a Cormidia `Runtime`. This doc is the
+SDK, Codex App Server, pi SDK, `cursor-agent` CLI — into a Cormidia `Runtime`. This doc is the
 procedure: what a harness must implement, where it registers, what proves it,
 and what an update obligates. The per-capability contract itself lives in
 [`capability-matrix.md`](capability-matrix.md); accounting rules live in
@@ -39,6 +40,10 @@ direction is one-way (`src/org` → `src/loop` → `src/runtime`; the runtime
 layer imports nothing above it), which is what keeps harnesses swappable and
 the loop extractable. Current harnesses: `claude.ts`, `codex.ts` (+
 `codex-gate-bridge.ts`, `codex-gate-hook.ts`), `pi.ts` (+ `pi-gate.ts`), and
+`cursor.ts` (+ `cursor-process.ts`, `cursor-stream.ts`, `cursor-pricing.ts`,
+`cursor-config.ts`, `cursor-gate-bridge.ts`, `cursor-gate-handshake.ts`,
+`cursor-gate-hook.ts` — a CLI-headless harness splits wider than an SDK one, and
+the size/export ratchet caps a new module at 10 exports / 300 lines), and
 `muse.ts` (+ `muse-exec.ts`, `muse-usage.ts`, `muse-events.ts`,
 `muse-gate-bridge.ts`, `muse-hook-router.ts`, `muse-managed-hooks.ts`,
 `muse-gate-hook.ts`).
@@ -79,15 +84,19 @@ parts adapters get wrong first:
   flagged `costEstimated: true`; unknown spend is never silently zero;
   `unavailable` keeps its typed cause and is never coerced or retried as a
   merit miss (`docs/episodes/contract.md`).
-- **Enforce the per-turn budget cap as a running guard.** `maxTurnBudgetUsd`
-  stops the turn mid-run → `failed` + `errorCode: "error_max_budget_usd"` +
-  exactly one incident note. Budget exhaustion never masquerades as a generic
-  failure or an auth escalation.
+- **Enforce the per-turn budget cap at the finest truthful observation point
+  the provider exposes.** `maxTurnBudgetUsd` → `failed` +
+  `errorCode: "error_max_budget_usd"` + exactly one incident note, with spend
+  still attributed. Budget exhaustion never masquerades as a generic failure or
+  an auth escalation. Where the provider streams usage this is a running guard
+  that stops the turn mid-run; where it reports usage only in the terminal
+  result (Cursor) it is a turn-boundary check, `costEnforcementFor` says so, and
+  no surface may imply a hard mid-run ceiling (INV-008).
 - **Terminal provider failures are evidence, not completions.** Preserve the
   non-success result and its usage; never fabricate successful zero-token
   work. Classify auth-like failures (`error_auth`) distinctly.
 - **Transport the task as a payload, not argv.** Briefs reach 300 KB; the
-  CF-B02/B03/B04-PAYLOAD pin in the replacement harness proves intact
+  CF-B02/B03/B04/B24-PAYLOAD pin in the replacement harness proves intact
   transport per adapter (the ARG_MAX lesson, `docs/loop/design.md` §2).
 - **Redact with the shared list.** Secret patterns come only from
   `src/runtime/secret-patterns.ts` — redaction and quality gates import the
@@ -131,9 +140,16 @@ review blocker if skipped:
 1. **`src/runtime/types.ts`** — extend the `RuntimeKind` union.
 2. **`src/runtime/adapters/<name>.ts`** — implement `Runtime`. Study the
    nearest-shaped existing adapter first (in-process SDK → `pi.ts`;
-   subprocess JSON-RPC → `codex.ts`; owned-CLI SDK → `claude.ts`).
-3. **`src/runtime/registry.ts`** — add the construction entry and extend
-   `RUNTIME_KINDS`.
+   subprocess JSON-RPC → `codex.ts`; owned-CLI SDK → `claude.ts`; headless CLI
+   over stdio streams → `cursor.ts`).
+3. **`src/runtime/registry.ts`** — add the construction entry. `RUNTIME_KINDS`
+   is derived from that exhaustive record, so it cannot drift; the enum that
+   still needs a hand edit is `TURN_ASSIGNMENT_HARNESSES` in
+   `src/runtime/assignment.ts`, which every schema and validator reads. Then
+   sweep the branches a new kind falls through silently rather than failing to
+   compile: `costEnforcementFor`, `permissionModeFor`,
+   `configuredProviderFamily`, and the `sessionEvidence` builders in
+   `src/loop/pipeline.ts` and `src/org/episode-planner/runtime.ts`.
 4. **`src/runtime/capabilities.ts`** — declare the
    `RuntimeCapabilityProfile`: per-capability
    `native | adapter | fallback | unsupported` (including
@@ -146,27 +162,52 @@ review blocker if skipped:
    means **usable request authentication**, never configuration or account
    presence (`cormidia doctor` runs this; an expired credential must fail here,
    not inside a paid model turn).
-6. **Tests** — all three tiers plus the budget pin (§4).
-7. **`docs/harness/capability-matrix.md`** — add the adapter's column with honest
+6. **`src/runtime/harness-support.ts`** — declare the version bands (#331):
+   `floor` (oldest version whose external interface the adapter actually
+   speaks — below it readiness refuses before the provider is constructed),
+   `testedWith` (the exact version certification ran against, §5), and
+   `testedEvidence` (its dated `research/` record). `HARNESS_SUPPORT` is an
+   exhaustive `Record<RuntimeKind, …>`, so a new kind is a compile error
+   until its bands exist — deliberately: a harness with no floor has no
+   refusal. The floor is a real interface claim, not a copy of the pin;
+   day-one adapters use stable, widely-available surfaces, so the floor
+   usually sits at or below `testedWith`, never above it. Version detection
+   is token-free and belongs in the declaration's `versionSource`.
+7. **Tests** — all three tiers plus the budget pin (§4).
+8. **`docs/harness/capability-matrix.md`** — add the adapter's column with honest
    native/adapter-built/degraded labels per row. The matrix is the contract
    for what an org loses when a role moves; "degraded" written down is fine,
    "native" claimed loosely is not.
-8. **`roles.yaml`** — assigning any role to the new runtime is a
+9. **`roles.yaml`** — assigning any role to the new runtime is a
    human-ratified change: propose with rationale, never silently rewrite.
    The builder ≠ reviewer cross-provider pairing in `test/roles.test.ts` is
    a design decision — if it fails, the roles change is wrong, not the test.
-9. **`research/`** — record the dated live-conformance result (see §6).
-10. **AGENTS.md** — update `src/runtime/AGENTS.md` (the local rules file)
+10. **`research/`** — record the dated live-conformance result (see §6).
+11. **AGENTS.md** — update `src/runtime/AGENTS.md` (the local rules file)
     and the root AGENTS.md dependency list if a new package was added (a new
     dependency is a decision, not a convenience — TASTE.md §3).
 
 ## 4. What proves a harness — the three test tiers
 
+> **Worked example (2026-08-07, #338):** the Cursor harness is the first adapter
+> to go through this checklist end to end after the replacement harness landed.
+> Two lessons generalize. First, a new `RuntimeKind` slides silently into
+> `if claude … else if codex … else` branches that compile fine and answer for
+> the wrong provider — `costEnforcementFor`, `permissionModeFor`,
+> `configuredProviderFamily`, and the `sessionEvidence` builders all needed an
+> explicit arm, and the two literal harness enums are now derived from
+> `TURN_ASSIGNMENT_HARNESSES` instead of restated. Second, live certification
+> earned its keep: it caught a config-schema refusal that exited the CLI before
+> any turn, and a stdout-close race that swallowed the resulting diagnostic and
+> reported a bare `failed` turn with no reason. Neither was reachable against a
+> double, and both now have offline detectors
+> (`research/2026-08-07_cursor-adapter-certification.md`).
+
 | Tier | Where | Runs in | Proves |
 | --- | --- | --- | --- |
 | L1 — transport double + self-test | `tests/fixtures/adapters/<name>-double.ts` + `<name>-double.test.ts` | `pnpm test` | The scripted transport speaks the provider's real wire shapes; the scenario DSL (`tests/fixtures/adapters/scenario.ts`) expresses tool calls, **subagent attribution**, session identity, usage, and failure outcomes |
 | L2 — hermetic conformance walk | `tests/hermetic/cf-adapter-conformance/` | `pnpm test` | The exact two-turn walk (`tests/fixtures/adapters/conformance.ts`) against the scripted transport: gate denial is terminal and observed, exact native-session resume, usage never marked mechanical — with a **seeded liar** proving each detector fires |
-| L3 — live certification walk | `runAdapterConformance()` (CF-B02/03/04-L3) inside `tests/live/campaign-live.test.ts` | `pnpm test:live` (human-triggered, spends tokens) | The same walk against the real provider in exactly two turns — the only proof the gate claim holds outside a double |
+| L3 — live certification walk | `runAdapterConformance()` (CF-B02/03/04-L3, CF-B24-L3) inside `tests/live/campaign-live.test.ts` | `pnpm test:live` (human-triggered, spends tokens) | The same walk against the real provider in exactly two turns — the only proof the gate claim holds outside a double |
 
 Rules that keep the tiers meaningful:
 
@@ -244,8 +285,15 @@ Minimum bar for **any** `src/runtime/adapters/**` change:
    docs before touching code (fast-moving uploads break SDK/RPC surfaces —
    pi warns about this explicitly), re-run certification (§5), and re-check
    every capability tier the bump could move (e.g. an effort level or
-   fan-out surface appearing upstream).
-3. If a capability's tier or behavior changed, update the matching
+   fan-out surface appearing upstream). **Move `testedWith` in
+   `src/runtime/harness-support.ts` to the exact version certification just
+   ran against, and point `testedEvidence` at its dated `research/` record**
+   — the declaration is what `cormidia doctor` reports and what the drift
+   note is measured from, so a bump that leaves it behind makes the tool lie.
+   Raise `floor` only when the adapter genuinely stopped speaking the older
+   interface; a floor raised to match the pin refuses operators who have not
+   upgraded, which is exactly what bands exist to avoid.
+4. If a capability's tier or behavior changed, update the matching
    `docs/harness/capability-matrix.md` row **in the same change**, and the
    `RuntimeCapabilityProfile` if the machine-readable tier moved.
 
@@ -316,3 +364,4 @@ still required before the issue can be called completed.
 | Adapter readiness without a model turn | `cormidia doctor` / `pnpm dev doctor` |
 | Capability profiles as the org sees them | `cormidia capabilities` |
 | Upstream surface survey (dated) | `research/2026-08-06_adapter-upstream-references.md` |
+| Cursor certification record (dated) | `research/2026-08-07_cursor-adapter-certification.md` |

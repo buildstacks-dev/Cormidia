@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { claudeDouble } from "../../fixtures/adapters/claude-double.js";
 import { codexDouble } from "../../fixtures/adapters/codex-double.js";
+import { cursorDouble } from "../../fixtures/adapters/cursor-double.js";
 import { museDouble } from "../../fixtures/adapters/muse-double.js";
 import { piDouble } from "../../fixtures/adapters/pi-double.js";
 import { runAdapterConformance } from "../../fixtures/adapters/conformance.js";
@@ -55,6 +56,11 @@ describe("shared adapter conformance suite", () => {
       make: async () => claudeDouble(scenarios("claude")).runtime,
     },
     { runtime: "codex" as const, model: "gpt-5.6-sol", make: async () => codexDouble(scenarios("codex")).runtime },
+    {
+      runtime: "cursor" as const,
+      model: "claude-opus-5-thinking-medium",
+      make: async () => cursorDouble(scenarios("cursor")).runtime,
+    },
     { runtime: "pi" as const, model: "claude-scripted-model", make: async () => piDouble(scenarios("pi")).runtime },
     // B-26: the walk is reused verbatim, so a muse failure isolates to the
     // adapter. The scripted transport carries a LIVE hook seam; the real 0.1.0
@@ -93,7 +99,7 @@ describe("shared adapter conformance suite", () => {
     expect(report.violationIds).toContain("CORMIDIA-INV-002:gate-path-not-observed");
   });
 
-  it.each(["claude", "pi"] as const)(
+  it.each(["claude", "cursor", "pi"] as const)(
     "uses a provider-safe resumed tool probe for %s while retaining two gate denials",
     async (runtime) => {
       repo = await makeTempGitRepo();

@@ -12,7 +12,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { isTurnAssignment } from "../runtime/assignment.js";
+import { isTurnAssignment, TURN_ASSIGNMENT_HARNESSES } from "../runtime/assignment.js";
 import type { GhOps } from "./github.js";
 import type { LoopContinuation, LoopItem, SuppressedOperation } from "./types.js";
 import { parseVerdict, type Finding, type FindingResolution } from "./verdicts.js";
@@ -357,7 +357,7 @@ function validContinuation(value: unknown): value is NonNullable<TicketClaimStat
     (continuation.assignment === undefined || isTurnAssignment(continuation.assignment)) &&
     planIdentityValid &&
     typeof continuation.session.id === "string" &&
-    ["claude", "codex", "pi"].includes(continuation.session.runtime) &&
+    TURN_ASSIGNMENT_HARNESSES.includes(continuation.session.runtime) &&
     Array.isArray(continuation.completedPasses) &&
     typeof continuation.contextFingerprint === "string" &&
     typeof continuation.runId === "string" &&

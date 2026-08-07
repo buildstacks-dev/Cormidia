@@ -10,12 +10,12 @@
 //   is a supported first-class profile (docs/PURPOSE.md)
 // - degradation to document: no native intra-turn subagent fan-out
 import {
-  AuthStorage,
   createAgentSession,
   createBashTool,
   DefaultResourceLoader,
   getAgentDir,
   ModelRegistry,
+  ModelRuntime,
   SessionManager,
   type CreateAgentSessionOptions,
   type CreateAgentSessionResult,
@@ -43,8 +43,9 @@ interface PiRuntimeOptions {
   createAgentSessionFn?: CreatePiAgentSessionFn;
   resourceLoaderFactory?: PiResourceLoaderFactory;
   sessionManagerFactory?: (req: TurnRequest) => CreateAgentSessionOptions["sessionManager"];
-  authStorage?: AuthStorage;
-  modelRegistry?: ModelRegistry;
+  /** pi 0.84 folded `AuthStorage` + `ModelRegistry` into one *async*
+   *  `ModelRuntime`, so the seam is a factory: a constructor cannot await. */
+  modelRuntimeFactory?: () => Promise<ModelRuntime>;
   agentDir?: string;
   tools?: string[];
 }
@@ -80,16 +81,20 @@ export class PiRuntime implements Runtime {
   private readonly createAgentSessionFn: CreatePiAgentSessionFn;
   private readonly resourceLoaderFactory: PiResourceLoaderFactory;
   private readonly sessionManagerFactory?: PiRuntimeOptions["sessionManagerFactory"];
-  private readonly authStorage: AuthStorage;
-  private readonly modelRegistry: ModelRegistry;
+  private readonly modelRuntimeFactory: () => Promise<ModelRuntime>;
+  private modelRuntimePromise?: Promise<ModelRuntime>;
   private readonly agentDir: string;
   private readonly tools: string[];
 
   constructor(opts: PiRuntimeOptions = {}) {
     this.agentDir = opts.agentDir ?? getAgentDir();
-    this.authStorage = opts.authStorage ?? AuthStorage.create(path.join(this.agentDir, "auth.json"));
-    this.modelRegistry =
-      opts.modelRegistry ?? ModelRegistry.create(this.authStorage, path.join(this.agentDir, "models.json"));
+    // `authPath` keeps credentials file-backed as before 0.84 — an OAuth refresh
+    // must persist for the next turn. `allowModelNetwork` stays default-false,
+    // so building the runtime stays offline and token-free.
+    const agentFile = (name: string): string => path.join(this.agentDir, name);
+    this.modelRuntimeFactory =
+      opts.modelRuntimeFactory ??
+      (() => ModelRuntime.create({ authPath: agentFile("auth.json"), modelsPath: agentFile("models.json") }));
     this.createAgentSessionFn = opts.createAgentSessionFn ?? createAgentSession;
     this.sessionManagerFactory = opts.sessionManagerFactory;
     this.tools = opts.tools ?? ["read", "bash", "edit", "write"];
@@ -104,6 +109,13 @@ export class PiRuntime implements Runtime {
         await loader.reload();
         return loader;
       });
+  }
+
+  /** Built once per adapter instance and reused across turns, as the eagerly
+   *  constructed store and registry were before 0.84. */
+  private modelRuntime(): Promise<ModelRuntime> {
+    this.modelRuntimePromise ??= this.modelRuntimeFactory();
+    return this.modelRuntimePromise;
   }
 
   async runTurn(req: TurnRequest, hooks: TurnHooks): Promise<TurnResult> {
@@ -132,7 +144,8 @@ export class PiRuntime implements Runtime {
       (req.session === undefined
         ? SessionManager.create(req.workdir)
         : SessionManager.open(req.session.id, undefined, req.workdir));
-    const model = resolvePiModel(this.modelRegistry, assignment.model);
+    const modelRuntime = await this.modelRuntime();
+    const model = resolvePiModel(new ModelRegistry(modelRuntime), assignment.model);
     if (model === undefined) {
       throw new Error(`PiRuntime: model not found in pi registry: ${assignment.model}`);
     }
@@ -140,8 +153,7 @@ export class PiRuntime implements Runtime {
     const { session } = await this.createAgentSessionFn({
       cwd: req.workdir,
       agentDir: this.agentDir,
-      authStorage: this.authStorage,
-      modelRegistry: this.modelRegistry,
+      modelRuntime,
       model,
       thinkingLevel: mapPiThinkingLevel(assignment.effort),
       resourceLoader,

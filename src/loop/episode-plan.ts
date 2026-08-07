@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  TURN_ASSIGNMENT_EFFORTS,
+  TURN_ASSIGNMENT_HARNESSES,
   turnAssignmentsEqual,
   validateAssignmentProviderFamily,
   validateTurnAssignment,
@@ -147,9 +149,11 @@ export const EPISODE_PLAN_PROPOSAL_SCHEMA = {
                 additionalProperties: false,
                 required: ["harness", "model", "effort"],
                 properties: {
-                  harness: { enum: ["claude", "codex", "pi"] },
+                  // Derived, never restated: a hand-copied enum silently kept
+                  // a newly registered harness unplannable.
+                  harness: { enum: [...TURN_ASSIGNMENT_HARNESSES] },
                   model: { type: "string", minLength: 1 },
-                  effort: { enum: ["low", "medium", "high", "xhigh", "max"] },
+                  effort: { enum: [...TURN_ASSIGNMENT_EFFORTS] },
                 },
               },
               maxTurnBudgetUsd: { type: "number", exclusiveMinimum: 0 },

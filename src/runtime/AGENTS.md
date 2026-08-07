@@ -30,6 +30,11 @@ the adapters (Claude Agent SDK, Codex App Server, pi SDK).
   gate-ordering probe, the pi fan-out degradation path, and the 300 KB
   payload pin — #334) and live through the campaign runner (CF-B02/03/04-L3).
   Extend cases; never weaken one to make an adapter pass.
+- `harness-support.ts` is the ONE place version bands live: per kind, `floor`
+  (below it readiness refuses before the provider is constructed), `testedWith`,
+  and its dated `research/` evidence. The record is exhaustive over
+  `RuntimeKind`, so a new harness is a compile error until its bands exist;
+  drift above or below `testedWith` is a doctor note, never a block.
 - Capability flow is one-way (#116). Follow
   `docs/harness/adding-updating.md` for the adapter contract, registration
   checklist, three test tiers, and update obligations.

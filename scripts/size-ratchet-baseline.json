@@ -58,7 +58,7 @@
     },
     "src/cli/doctor.ts": {
       "exports": 1,
-      "lines": 347,
+      "lines": 374,
       "newModule": false
     },
     "src/cli/episode.ts": {
@@ -1351,6 +1351,11 @@
       "lines": 56,
       "newModule": false
     },
+    "src/runtime/harness-support.ts": {
+      "exports": 9,
+      "lines": 276,
+      "newModule": true
+    },
     "src/runtime/invocation-ledger.ts": {
       "exports": 5,
       "lines": 260,
@@ -1383,7 +1388,7 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 435,
+      "lines": 455,
       "newModule": false
     },
     "src/runtime/registry.ts": {

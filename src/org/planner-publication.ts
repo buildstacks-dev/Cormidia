@@ -26,23 +26,22 @@ import {
   type PlannerReadinessDecision,
 } from "./planner-intake.js";
 import { ratifiedRoadmapValidationCatalog } from "./ratified-validation-catalog.js";
+import { type AcceptedAuthority, type AuthorityRef } from "./roadmap-delivery/authority-core.js";
+import { readBacklogSnapshotAuthority } from "./roadmap-delivery/backlog-authority.js";
+import { acceptDeliveryUnitReadiness, type DeliveryUnitReadiness } from "./roadmap-delivery/delivery-readiness.js";
+import { unitMembershipHash } from "./roadmap-delivery/roadmap-invariants.js";
+import type { RoadmapPlan, RoutingSnapshotEntry } from "./roadmap-delivery/roadmap-model.js";
+import { readCurrentRoadmapPlan } from "./roadmap-delivery/roadmap-plan.js";
 import {
-  acceptDeliveryUnitReadiness,
   acceptValidationCatalog,
-  acceptValidationContract,
-  readBacklogSnapshotAuthority,
-  readCurrentRoadmapPlan,
   readCurrentValidationCatalog,
+} from "./roadmap-delivery/validation-catalog-authority.js";
+import { type ValidationAffectedStructure, type ValidationCatalog } from "./roadmap-delivery/validation-catalog.js";
+import {
+  acceptValidationContract,
   readCurrentValidationContract,
-  unitMembershipHash,
-  type AcceptedAuthority,
-  type AuthorityRef,
-  type DeliveryUnitReadiness,
-  type RoutingSnapshotEntry,
-  type ValidationAffectedStructure,
-  type ValidationCatalog,
-  type ValidationContract,
-} from "./roadmap-delivery.js";
+} from "./roadmap-delivery/validation-contract-authority.js";
+import { type ValidationContract } from "./roadmap-delivery/validation-contract.js";
 import { canonicalJson as schedulerCanonicalJson, sha256 as schedulerSha256 } from "./scheduler/model.js";
 
 const PLANNER_PUBLICATION_SCHEMA_VERSION = 1 as const;
@@ -1303,7 +1302,7 @@ function plannerPublicationRoadmapEffect(transaction: PlannerPublicationTransact
 async function roadmapHasSource(
   stateHome: string,
   app: string,
-  roadmap: AcceptedAuthority<import("./roadmap-delivery.js").RoadmapPlan>,
+  roadmap: AcceptedAuthority<RoadmapPlan>,
   source: string,
 ): Promise<boolean> {
   const snapshot = await readBacklogSnapshotAuthority(stateHome, app, roadmap.value.backlogSnapshotRef);

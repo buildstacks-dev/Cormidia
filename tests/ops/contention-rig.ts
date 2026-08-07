@@ -18,20 +18,21 @@ import { stableHash } from "../../src/loop/episode-plan.js";
 import { issueContentHash } from "../../src/loop/issue-snapshot.js";
 import { claimDeliveryUnitIssues } from "../../src/loop/loop.js";
 import type { LoopDeliveryUnit } from "../../src/loop/types.js";
+import { ROADMAP_DELIVERY_SCHEMA_VERSION, type AuthorityRef } from "../../src/org/roadmap-delivery/authority-core.js";
+import { acceptBacklogSnapshot } from "../../src/org/roadmap-delivery/backlog-authority.js";
 import {
-  ROADMAP_DELIVERY_SCHEMA_VERSION,
-  RoadmapDeliveryError,
-  acceptBacklogSnapshot,
   acceptDirectExecutionUnit,
-  acceptRoadmapPlan,
-  admitExecutionBatch,
+  type DirectExecutionUnitAuthority,
+} from "../../src/org/roadmap-delivery/direct-execution-authority.js";
+import { admitExecutionBatch } from "../../src/org/roadmap-delivery/execution-batch-admission.js";
+import {
   executionBatchDispositionPath,
   readExecutionUnitJournal,
   transitionExecutionUnitJournal,
-  type AuthorityRef,
-  type DirectExecutionUnitAuthority,
-  type RoadmapPlan,
-} from "../../src/org/roadmap-delivery.js";
+} from "../../src/org/roadmap-delivery/execution-journal.js";
+import { RoadmapDeliveryError } from "../../src/org/roadmap-delivery/failure.js";
+import type { RoadmapPlan } from "../../src/org/roadmap-delivery/roadmap-model.js";
+import { acceptRoadmapPlan } from "../../src/org/roadmap-delivery/roadmap-plan.js";
 import { makeTempGitRepo } from "../fixtures/git-repo.js";
 import { makeTempOrgHome } from "../fixtures/org-home.js";
 

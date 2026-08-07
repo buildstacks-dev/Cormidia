@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 } from "../../src/org/roadmap-delivery.js";
+import { RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 } from "../../src/org/roadmap-delivery/validation-catalog-revision.js";
 
 export interface RevisionFamilyEvidence {
   case_ids: readonly string[];

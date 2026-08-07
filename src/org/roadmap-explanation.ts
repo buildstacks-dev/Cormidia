@@ -13,19 +13,15 @@ import {
   type ExecutionAffinityRecord,
 } from "./execution-affinity.js";
 import { planningAppDir, planningAuthorityPath } from "./planning-artifact-path.js";
-import {
-  readBacklogSnapshotAuthority,
-  readCurrentRoadmapPlan,
-  readCurrentValidationContract,
-  readExecutionBatch,
-  readExecutionUnitJournal,
-  type AcceptedAuthority,
-  type AuthorityRef,
-  type BacklogSnapshot,
-  type ExecutionBatch,
-  type ExecutionBatchDisposition,
-  type ExecutionUnit,
-} from "./roadmap-delivery.js";
+import { type AcceptedAuthority, type AuthorityRef } from "./roadmap-delivery/authority-core.js";
+import { readBacklogSnapshotAuthority } from "./roadmap-delivery/backlog-authority.js";
+import { readExecutionBatch } from "./roadmap-delivery/active-execution-units.js";
+import { readExecutionUnitJournal } from "./roadmap-delivery/execution-journal.js";
+import type { ExecutionBatchDisposition } from "./roadmap-delivery/execution-journal-model.js";
+import type { ExecutionBatch, ExecutionUnit } from "./roadmap-delivery/execution-model.js";
+import type { BacklogSnapshot } from "./roadmap-delivery/roadmap-model.js";
+import { readCurrentRoadmapPlan } from "./roadmap-delivery/roadmap-plan.js";
+import { readCurrentValidationContract } from "./roadmap-delivery/validation-contract-authority.js";
 
 const ROADMAP_EXPLANATION_SCHEMA_VERSION = 1 as const;
 

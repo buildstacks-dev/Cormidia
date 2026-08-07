@@ -20,45 +20,60 @@ import type { RoleConfig, TurnAssignment } from "../../../src/runtime/types.js";
 import type { AppEntry } from "../../../src/org/apps.js";
 import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
-  RoadmapDeliveryError,
-  acceptBacklogSnapshot,
-  acceptDeliveryUnitReadiness,
-  acceptRoadmapPlan,
-  acceptValidationCatalog,
-  acceptValidationContract,
-  admitExecutionBatch,
-  assertReviewerVerdictAdmissible,
+  type AcceptedAuthority,
+  type AuthorityRef,
+  type RoadmapDeliveryProjection,
+} from "../../../src/org/roadmap-delivery/authority-core.js";
+import {
   batchAuthorityPath,
-  bindDeliveryUnitEpisodePlan,
+  roadmapAuthorityPath,
+  validationAuthorityPath,
+} from "../../../src/org/roadmap-delivery/authority-paths.js";
+import { acceptBacklogSnapshot } from "../../../src/org/roadmap-delivery/backlog-authority.js";
+import type { BuilderEvidenceManifest } from "../../../src/org/roadmap-delivery/builder-evidence-model.js";
+import { recordBuilderEvidence } from "../../../src/org/roadmap-delivery/builder-evidence.js";
+import {
+  settleDeliveryUnitClaim,
+  settleDeliveryUnitRefusal,
+} from "../../../src/org/roadmap-delivery/delivery-settlement.js";
+import {
+  acceptDeliveryUnitReadiness,
+  type DeliveryUnitReadiness,
+} from "../../../src/org/roadmap-delivery/delivery-readiness.js";
+import { admitExecutionBatch } from "../../../src/org/roadmap-delivery/execution-batch-admission.js";
+import { bindDeliveryUnitEpisodePlan } from "../../../src/org/roadmap-delivery/delivery-episode-binding.js";
+import { normalizeDeliveryUnitEpisode } from "../../../src/org/roadmap-delivery/delivery-episode-normalization.js";
+import type { DeliveryEpisodeBinding } from "../../../src/org/roadmap-delivery/delivery-join.js";
+import {
   claimDeliveryUnit,
   commitDeliveryUnitClaim,
   deliveryClaimIdentity,
   deliveryClaimRecordPath,
-  normalizeDeliveryUnitEpisode,
   readDeliveryUnitClaim,
-  readExecutionUnitJournal,
-  recordBuilderEvidence,
-  recordReviewerVerdict,
-  roadmapAuthorityPath,
-  settleDeliveryUnitClaim,
-  transitionExecutionUnitJournal,
-  unitMembershipHash,
-  validationAuthorityPath,
-  type AcceptedAuthority,
-  type AcceptedRoadmapPlan,
-  type AuthorityRef,
-  type BacklogSnapshot,
-  type BuilderEvidenceManifest,
-  type DeliveryEpisodeBinding,
-  type DeliveryUnitReadiness,
   type DeliveryUnitClaim,
-  type ExecutionBatch,
-  type RoadmapDeliveryProjection,
-  type RoadmapPlan,
-  type ReviewerVerdict,
-  type RoutingSnapshotEntry,
-  type ValidationContract,
-} from "../../../src/org/roadmap-delivery.js";
+} from "../../../src/org/roadmap-delivery/delivery-unit-claims.js";
+import {
+  readExecutionUnitJournal,
+  transitionExecutionUnitJournal,
+} from "../../../src/org/roadmap-delivery/execution-journal.js";
+import type { ExecutionBatch } from "../../../src/org/roadmap-delivery/execution-model.js";
+import { RoadmapDeliveryError } from "../../../src/org/roadmap-delivery/failure.js";
+import type { ReviewerVerdict } from "../../../src/org/roadmap-delivery/reviewer-verdict-model.js";
+import {
+  assertReviewerVerdictAdmissible,
+  recordReviewerVerdict,
+} from "../../../src/org/roadmap-delivery/reviewer-verdict.js";
+import { unitMembershipHash } from "../../../src/org/roadmap-delivery/roadmap-invariants.js";
+import type {
+  AcceptedRoadmapPlan,
+  BacklogSnapshot,
+  RoadmapPlan,
+  RoutingSnapshotEntry,
+} from "../../../src/org/roadmap-delivery/roadmap-model.js";
+import { acceptRoadmapPlan } from "../../../src/org/roadmap-delivery/roadmap-plan.js";
+import { acceptValidationCatalog } from "../../../src/org/roadmap-delivery/validation-catalog-authority.js";
+import type { ValidationContract } from "../../../src/org/roadmap-delivery/validation-contract.js";
+import { acceptValidationContract } from "../../../src/org/roadmap-delivery/validation-contract-authority.js";
 import { createRoadmapLoopRuntime } from "../../../src/org/roadmap-loop-runtime.js";
 import { previewEpisode } from "../../../src/org/episode-planner/orchestrator.js";
 import { prepareEpisodePlan } from "../../../src/org/episode-planner/coordinator.js";
@@ -827,6 +842,68 @@ describe("HB-100 — roadmap → validation → unit → batch → EpisodePlan �
 });
 
 describe("HB-103/HB-104 — durable delivery-unit crash recovery", () => {
+  it("validates a direct refusal before settling its claim and journal", async () => {
+    const home = await makeTempStateHome({ name: "hb103-direct-refusal" });
+    homes.push(home);
+    const authorities = await acceptedEpisode({ home });
+    const claim = await claimDeliveryUnit({
+      root: home.stateHome,
+      app: APP.name,
+      episodeBindingRef: authorities.binding.ref,
+      readCurrentRouting: async () => AUTOMATED_ROUTING,
+      now: new Date(AT),
+    });
+    await commitDeliveryUnitClaim({
+      root: home.stateHome,
+      app: APP.name,
+      claim,
+      runId: "direct-refusal-run",
+      now: new Date(AT),
+    });
+
+    await expectRoadmapError(
+      () =>
+        settleDeliveryUnitRefusal({
+          root: home.stateHome,
+          app: APP.name,
+          claimSettlementId: claim.record.settlement_id,
+          claimAttempt: claim.record.attempt,
+          runId: "direct-refusal-run",
+          batchRef: authorities.batch.ref,
+          unitId: "unit-roadmap-validation",
+          reason: "  ",
+          now: new Date("2026-08-03T22:03:00.000Z"),
+        }),
+      "validation_contract_invalid",
+    );
+    expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
+      status: "committed",
+      outcome: null,
+    });
+    expect(
+      await readExecutionUnitJournal(home.stateHome, APP.name, authorities.batch.ref.id, "unit-roadmap-validation"),
+    ).toMatchObject({ state: "claimed", outcome: null });
+
+    await settleDeliveryUnitRefusal({
+      root: home.stateHome,
+      app: APP.name,
+      claimSettlementId: claim.record.settlement_id,
+      claimAttempt: claim.record.attempt,
+      runId: "direct-refusal-run",
+      batchRef: authorities.batch.ref,
+      unitId: "unit-roadmap-validation",
+      reason: "deterministic gate refusal",
+      now: new Date("2026-08-03T22:03:01.000Z"),
+    });
+    expect(await readDeliveryUnitClaim(home.stateHome, claim.record.settlement_id)).toMatchObject({
+      status: "settled",
+      outcome: "returned",
+    });
+    expect(
+      await readExecutionUnitJournal(home.stateHome, APP.name, authorities.batch.ref.id, "unit-roadmap-validation"),
+    ).toMatchObject({ state: "returned", outcome: "returned" });
+  });
+
   it("turns accepted routine roadmap/validation authority into the real governed zero-turn path", async () => {
     const home = await makeTempStateHome({ name: "hb105-roadmap-fast-path" });
     homes.push(home);

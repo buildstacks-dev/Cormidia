@@ -20,11 +20,9 @@ import {
   type CampaignDestination,
   type DirectOperationalCampaignInput,
 } from "../../../src/org/direct-operational-campaign.js";
-import {
-  acceptDirectExecutionUnit,
-  admitExecutionBatch,
-  normalizeDirectExecutionUnitEpisode,
-} from "../../../src/org/roadmap-delivery.js";
+import { acceptDirectExecutionUnit } from "../../../src/org/roadmap-delivery/direct-execution-authority.js";
+import { admitExecutionBatch } from "../../../src/org/roadmap-delivery/execution-batch-admission.js";
+import { normalizeDirectExecutionUnitEpisode } from "../../../src/org/roadmap-delivery/direct-episode-normalization.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 const AT = "2026-08-04T09:00:00.000Z";

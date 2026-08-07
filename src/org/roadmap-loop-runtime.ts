@@ -16,42 +16,44 @@ import type { LoopDeliveryUnit, LoopItem } from "../loop/types.js";
 import { processIdentityStatus } from "../runtime/process-identity.js";
 import type { AppEntry } from "./apps.js";
 import {
-  admitExecutionBatch,
-  bindDeliveryUnitEpisodePlan,
-  claimDeliveryUnit,
-  commitDeliveryUnitClaim,
-  completeDeliveryUnitMerge,
   findActiveExecutionUnit,
   listActiveExecutionUnits,
-  readBacklogSnapshotAuthority,
-  readCurrentDeliveryUnitReadiness,
-  readCurrentRoadmapPlan,
-  readCurrentValidationCatalog,
-  readCurrentValidationContract,
-  readDeliveryUnitClaim,
-  readExecutionUnitJournal,
-  recordBuilderEvidence,
-  recordReviewerVerdict,
+  type ActiveExecutionUnit,
+} from "./roadmap-delivery/active-execution-units.js";
+import {
   ROADMAP_DELIVERY_SCHEMA_VERSION,
+  type AcceptedAuthority,
+  type AuthorityRef,
+} from "./roadmap-delivery/authority-core.js";
+import { readBacklogSnapshotAuthority } from "./roadmap-delivery/backlog-authority.js";
+import type { BuilderEvidenceManifest } from "./roadmap-delivery/builder-evidence-model.js";
+import { recordBuilderEvidence } from "./roadmap-delivery/builder-evidence.js";
+import {
+  completeDeliveryUnitMerge,
   settleDeliveryUnitClaim,
   settleDeliveryUnitRefusal,
-  transitionExecutionUnitJournal,
-  unitMembershipHash,
-  type AcceptedAuthority,
-  type ActiveExecutionUnit,
-  type AuthorityRef,
-  type BuilderEvidenceManifest,
-  type DeliveryEpisodeBinding,
+} from "./roadmap-delivery/delivery-settlement.js";
+import { readCurrentDeliveryUnitReadiness, type DeliveryUnitReadiness } from "./roadmap-delivery/delivery-readiness.js";
+import { admitExecutionBatch } from "./roadmap-delivery/execution-batch-admission.js";
+import { bindDeliveryUnitEpisodePlan } from "./roadmap-delivery/delivery-episode-binding.js";
+import type { DeliveryEpisodeBinding } from "./roadmap-delivery/delivery-join.js";
+import {
+  claimDeliveryUnit,
+  commitDeliveryUnitClaim,
+  readDeliveryUnitClaim,
   type DeliveryUnitClaim,
-  type DeliveryUnitReadiness,
-  type ExecutionBatch,
-  type ReviewerVerdict,
-  type RoadmapDeliveryUnit,
-  type RoutingSnapshotEntry,
-  type ValidationCatalog,
-  type ValidationContract,
-} from "./roadmap-delivery.js";
-
+} from "./roadmap-delivery/delivery-unit-claims.js";
+import { readExecutionUnitJournal, transitionExecutionUnitJournal } from "./roadmap-delivery/execution-journal.js";
+import type { ExecutionBatch } from "./roadmap-delivery/execution-model.js";
+import type { ReviewerVerdict } from "./roadmap-delivery/reviewer-verdict-model.js";
+import { recordReviewerVerdict } from "./roadmap-delivery/reviewer-verdict.js";
+import { unitMembershipHash } from "./roadmap-delivery/roadmap-invariants.js";
+import type { RoadmapDeliveryUnit, RoutingSnapshotEntry } from "./roadmap-delivery/roadmap-model.js";
+import { readCurrentRoadmapPlan } from "./roadmap-delivery/roadmap-plan.js";
+import { readCurrentValidationCatalog } from "./roadmap-delivery/validation-catalog-authority.js";
+import type { ValidationCatalog } from "./roadmap-delivery/validation-catalog.js";
+import { readCurrentValidationContract } from "./roadmap-delivery/validation-contract-authority.js";
+import type { ValidationContract } from "./roadmap-delivery/validation-contract.js";
 interface AdmissionState {
   batch: AcceptedAuthority<ExecutionBatch>;
   roadmapUnit: RoadmapDeliveryUnit;
@@ -59,13 +61,11 @@ interface AdmissionState {
   validation: AcceptedAuthority<ValidationContract>;
   issues: GhIssue[];
 }
-
 interface BindingState extends AdmissionState {
   binding: AcceptedAuthority<DeliveryEpisodeBinding>;
   request: Parameters<DeliveryUnitRuntime["bindAcceptedPlan"]>[0]["request"];
   accepted: Parameters<DeliveryUnitRuntime["bindAcceptedPlan"]>[0]["accepted"];
 }
-
 const HUMAN_ONLY_LABEL = "routing:human-only";
 
 /** Production bridge from accepted roadmap/validation authority into the

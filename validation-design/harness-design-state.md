@@ -58,7 +58,7 @@ isolation and the subsequent full rerun was green; it was recorded rather than i
 **Current state:** Phase 8 is closed and the revision is the binding implementation
 contract. HB-100's local provider-free walking skeleton, HB-101's whole-backlog
 roadmap authority and HB-102's validation-contract/readiness authority are complete in
-`src/org/roadmap-delivery.ts` with its L1/L2 detector at
+`src/org/roadmap-delivery/` with its L1/L2 detector at
 `tests/hermetic/cf-hb100/roadmap-delivery-walking-skeleton.test.ts` and five
 HB-101 cases at `tests/hermetic/cf-hb101/roadmap-authority.test.ts`, plus six
 HB-102 cases at `tests/hermetic/cf-hb102/validation-contract-authority.test.ts`.

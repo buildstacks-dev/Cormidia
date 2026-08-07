@@ -36,7 +36,7 @@ export const STATE_HOME_DIRS: readonly string[] = [
   "state/events/inbox", // src/org/events.ts file-drop inbox
   "state/invocation-journal", // src/runtime/invocation-ledger.ts
   "scheduler/evidence", // src/org/scheduler/evidence.ts
-  "planning", // src/org/roadmap-delivery.ts snapshots/current roadmap/validation/batches/claims/evidence
+  "planning", // src/org/roadmap-delivery/ snapshots/current roadmap/validation/batches/claims/evidence
   "learning", // src/org/learning/* state-home stores
   "tasks", // src/org/parent-task.ts
 ];

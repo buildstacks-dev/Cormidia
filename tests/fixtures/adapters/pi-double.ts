@@ -83,8 +83,10 @@ export function piDouble(scenarios: AdapterScenario[], opts: { omitGateExtension
   const runtime = new PiRuntime({
     resourceLoaderFactory: resourceLoaderFactory as never,
     createAgentSessionFn,
-    modelRegistry: { getAll: () => [fakeModel] } as never,
-    authStorage: {} as never,
+    // pi 0.84 folded AuthStorage + ModelRegistry into one async ModelRuntime.
+    // The double fakes the SDK object the adapter actually consumes; the
+    // registry facade the adapter builds over it reads `getModels()`.
+    modelRuntimeFactory: async () => ({ getModels: () => [fakeModel] }) as never,
     sessionManagerFactory: () => ({}) as never,
     agentDir: "/tmp/cormidia-pi-double-agent",
   });
@@ -211,7 +213,12 @@ function fakeResourceLoader(): ResourceLoader {
     getThemes: () => ({ themes: [], diagnostics: [] }),
     getAgentsFiles: () => ({ agentsFiles: [] }),
     getSystemPrompt: () => undefined,
+    // pi 0.84 added provenance accessors alongside the prompt getters. The
+    // adapter writes .pi/APPEND_SYSTEM.md and never reads them back, so the
+    // double reports "no source" rather than inventing a path.
+    getSystemPromptSource: () => undefined,
     getAppendSystemPrompt: () => [],
+    getAppendSystemPromptSources: () => [],
     extendResources: () => {},
     reload: async () => {},
   };

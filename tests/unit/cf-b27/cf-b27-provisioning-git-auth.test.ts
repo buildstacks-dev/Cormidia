@@ -3,8 +3,13 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { CANONICAL_LABELS } from "../../../src/loop/plan-tickets.js";
 import { campaignGitEnvironment } from "../../campaign/acceptance/campaign-git.js";
-import { reusePreparedGreenfieldRepository } from "../../campaign/acceptance/campaign-scenario-setup.js";
+import {
+  canonicalLabelCommands,
+  installCanonicalLabels,
+  reusePreparedGreenfieldRepository,
+} from "../../campaign/acceptance/campaign-scenario-setup.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
@@ -35,5 +40,14 @@ describe("CF-B27-PROVISION — authenticated, resumable pre-baseline push", () =
     expect(reusePreparedGreenfieldRepository(root, "S-ACC-1", "cormidia/example")).toBe(true);
     await writeFile(join(root, "README.md"), "supervisor edit\n", "utf8");
     expect(() => reusePreparedGreenfieldRepository(root, "S-ACC-1", "cormidia/example")).toThrow(/is dirty/);
+  });
+
+  it("installs every exact canonical label idempotently in the bounded GitHub provisioning step", () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    installCanonicalLabels("cormidia/example", (command, args) => calls.push({ command, args }));
+    expect(calls).toHaveLength(CANONICAL_LABELS.length);
+    expect(calls.map((call) => call.args[2])).toEqual(CANONICAL_LABELS.map((label) => label.name));
+    expect(calls.every((call) => call.command === "gh" && call.args.includes("--force"))).toBe(true);
+    expect(canonicalLabelCommands("cormidia/example").every((args) => args.at(-1) === "cormidia/example")).toBe(true);
   });
 });

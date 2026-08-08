@@ -9,6 +9,7 @@ import {
   bootstrapScenarioApp,
   finalizeScenarioProvision,
   initializeGreenfieldRepository,
+  installCanonicalLabels,
   reusePreparedGreenfieldRepository,
   verifyScenarioApp,
 } from "./campaign-scenario-setup.js";
@@ -81,6 +82,7 @@ export async function provisionCampaignScenarios(
     if (setup === "bootstrap") await bootstrapScenarioApp(deps.driver, spec);
     provision = await finalizeScenarioProvision(provision, scenario.worktree);
     if (scenario.kind === "app") {
+      installCanonicalLabels(scenario.appSlug);
       const verify = await verifyScenarioApp(deps.driver, scenario.id, appName);
       if (verify.verifyExitCode !== 0) throw new Error(`campaign refused: app verify failed for ${appName}`);
     }

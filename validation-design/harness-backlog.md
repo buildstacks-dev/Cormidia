@@ -847,8 +847,9 @@ and provider credentials.
   preview command or spend total. The repair adds exact role activation, conservative
   per-invocation admission, equivalent-cost telemetry, job command audit, final
   three-record reconciliation, terminal real-installer tarball proof, authenticated
-  non-interactive baseline pushes with exact pre-spend resume, and fail-closed report
-  validation. Ceiling exhaustion is
+  non-interactive baseline pushes with exact pre-spend resume, canonical-label
+  provisioning before packaged app verification, and fail-closed report validation.
+  Ceiling exhaustion is
   caught as an incomplete scenario and never truncates into a pass. Product issues and
   run observations are kept in `acceptance/run-1-todo.md`.
   *Detectors:* `tests/unit/cf-b27/`, `tests/hermetic/cf-j21/`,

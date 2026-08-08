@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { CANONICAL_LABELS } from "../../../src/loop/plan-tickets.js";
 import type { CliDriver } from "./cli-driver.js";
 import { campaignGitEnvironment } from "./campaign-git.js";
 import {
@@ -63,6 +64,31 @@ export async function finalizeScenarioProvision(
     baselineCommit,
     provisionedShas: git(worktree, ["log", "--format=%H", baselineCommit]).split("\n").filter(Boolean),
   };
+}
+
+export function canonicalLabelCommands(appSlug: string): string[][] {
+  return CANONICAL_LABELS.map((label) => [
+    "label",
+    "create",
+    label.name,
+    "--color",
+    label.color,
+    "--description",
+    label.description,
+    "--force",
+    "--repo",
+    appSlug,
+  ]);
+}
+
+/** GitHub label creation is part of the bounded provisioning exception and is
+ * required before packaged app verification can admit the scenario. */
+export function installCanonicalLabels(
+  appSlug: string,
+  run: (command: string, args: string[]) => unknown = (command, args) =>
+    execFileSync(command, args, { env: campaignGitEnvironment(), stdio: ["ignore", "pipe", "pipe"] }),
+): void {
+  for (const args of canonicalLabelCommands(appSlug)) run("gh", args);
 }
 
 export async function bootstrapScenarioApp(driver: CliDriver, spec: ScenarioProvisionSpec): Promise<void> {

@@ -21,7 +21,12 @@ import { execFileSync } from "node:child_process";
 import { realpath } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
 
-export type ScenarioBindingCode = "app-slug" | "worktree-inside-checkout" | "worktree-origin" | "job-workdir";
+export type ScenarioBindingCode =
+  | "app-slug"
+  | "outside-campaign-org"
+  | "worktree-inside-checkout"
+  | "worktree-origin"
+  | "job-workdir";
 
 export class ScenarioBindingError extends Error {
   constructor(
@@ -45,6 +50,12 @@ export interface ScenarioBindingInput {
   scenarioId: string;
   /** The campaign app's configured repository slug. */
   appSlug: string;
+  /** The owner every scenario repository must belong to — the campaign org's
+   *  own disposable namespace. B-27 §1.3 requires "not this repository AND not
+   *  any repository outside the campaign org", and the second half is the one
+   *  that stops a campaign pointing at some unrelated real repository that
+   *  merely is not Cormidia. */
+  campaignOrg: string;
   /** The worktree the org will operate in for this scenario. */
   worktree: string;
   /** For a job scenario: the `--workdir` `cormidia-job` is invoked with. */
@@ -55,6 +66,7 @@ export interface ScenarioBindingInput {
 export interface ScenarioBindingProof {
   scenarioId: string;
   appSlug: string;
+  campaignOrg: string;
   worktree: string;
   /** Normalized origin of the scenario worktree, or `null` when it has none. */
   worktreeOrigin: string | null;
@@ -136,6 +148,20 @@ export async function assertScenarioNotThisRepository(input: ScenarioBindingInpu
     );
   }
 
+  // "Not Cormidia" is not enough: a slug that is neither Cormidia nor the
+  // campaign org is some third party's real repository, and a campaign is only
+  // ever authorized over its own disposable ones.
+  const campaignOrg = input.campaignOrg.trim().toLowerCase();
+  const owner = appSlug.split("/").filter(Boolean).slice(-2)[0];
+  if (campaignOrg.length === 0 || owner === undefined || owner !== campaignOrg) {
+    throw new ScenarioBindingError(
+      "outside-campaign-org",
+      input.scenarioId,
+      `campaign app slug ${JSON.stringify(input.appSlug)} does not belong to the campaign org ` +
+        `${JSON.stringify(input.campaignOrg)}; a campaign is authorized only over its own disposable repositories`,
+    );
+  }
+
   const worktree = await realpath(input.worktree);
   if (isInside(cormidiaRoot, worktree)) {
     throw new ScenarioBindingError(
@@ -172,5 +198,5 @@ export async function assertScenarioNotThisRepository(input: ScenarioBindingInpu
     }
   }
 
-  return { scenarioId: input.scenarioId, appSlug, worktree, worktreeOrigin, jobWorkdir };
+  return { scenarioId: input.scenarioId, appSlug, campaignOrg, worktree, worktreeOrigin, jobWorkdir };
 }

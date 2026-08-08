@@ -43,6 +43,7 @@ describe("CF-INV-ACC-3 the campaign-app slug check", () => {
     const proof = await assertScenarioNotThisRepository({
       scenarioId: "S-ACC-1",
       appSlug: "cormidia-sandbox/acc-1-timetracker",
+      campaignOrg: "cormidia-sandbox",
       worktree: scenario.repo.dir,
       cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },
     });
@@ -59,11 +60,49 @@ describe("CF-INV-ACC-3 the campaign-app slug check", () => {
       assertScenarioNotThisRepository({
         scenarioId: "S-ACC-1",
         appSlug: "https://github.com/cormidia/cormidia.git",
+        campaignOrg: "cormidia-sandbox",
         worktree: scenario.repo.dir,
         cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },
       }),
     );
     expect(error.code).toBe("app-slug");
+  });
+
+  it("negative control: a real repository that is simply NOT Cormidia is still refused", async () => {
+    // The half a "not this repository" check alone would miss: `acme/website`
+    // is not Cormidia, is a perfectly real repository, and a campaign has no
+    // authorization over it. B-27 §1.3 requires BOTH halves.
+    const scenario = await makeFixtureScenarioRepo({ kind: "greenfield" });
+    const cormidia = await makeTempGitRepo();
+    cleanups.push(scenario.cleanup, cormidia.cleanup);
+
+    const error = await refusal(async () =>
+      assertScenarioNotThisRepository({
+        scenarioId: "S-ACC-1",
+        appSlug: "acme/website",
+        campaignOrg: "cormidia-sandbox",
+        worktree: scenario.repo.dir,
+        cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },
+      }),
+    );
+    expect(error.code).toBe("outside-campaign-org");
+  });
+
+  it("negative control: a blank campaign org refuses rather than admitting everything", async () => {
+    const scenario = await makeFixtureScenarioRepo({ kind: "greenfield" });
+    const cormidia = await makeTempGitRepo();
+    cleanups.push(scenario.cleanup, cormidia.cleanup);
+
+    const error = await refusal(async () =>
+      assertScenarioNotThisRepository({
+        scenarioId: "S-ACC-1",
+        appSlug: "cormidia-sandbox/acc-1",
+        campaignOrg: "   ",
+        worktree: scenario.repo.dir,
+        cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },
+      }),
+    );
+    expect(error.code).toBe("outside-campaign-org");
   });
 
   it("normalizes ssh, https and bare slugs to the same identity", () => {
@@ -86,6 +125,7 @@ describe("CF-INV-ACC-3 the real-origin and workdir checks", () => {
       assertScenarioNotThisRepository({
         scenarioId: "S-ACC-2",
         appSlug: "cormidia-sandbox/acc-2-docs",
+        campaignOrg: "cormidia-sandbox",
         worktree: scenarioRoot.dir,
         cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },
       }),
@@ -101,6 +141,7 @@ describe("CF-INV-ACC-3 the real-origin and workdir checks", () => {
     const proof = await assertScenarioNotThisRepository({
       scenarioId: "S-ACC-2",
       appSlug: "cormidia-sandbox/acc-2-docs",
+      campaignOrg: "cormidia-sandbox",
       worktree: scenario.repo.dir,
       cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },
     });
@@ -117,6 +158,7 @@ describe("CF-INV-ACC-3 the real-origin and workdir checks", () => {
       assertScenarioNotThisRepository({
         scenarioId: "S-ACC-1",
         appSlug: "cormidia-sandbox/acc-1",
+        campaignOrg: "cormidia-sandbox",
         worktree: inside,
         cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },
       }),
@@ -135,6 +177,7 @@ describe("CF-INV-ACC-3 the real-origin and workdir checks", () => {
       assertScenarioNotThisRepository({
         scenarioId: "S-ACC-3",
         appSlug: "cormidia-sandbox/acc-3-research",
+        campaignOrg: "cormidia-sandbox",
         worktree: scenario.repo.dir,
         jobWorkdir: insideWorkdir,
         cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },
@@ -151,6 +194,7 @@ describe("CF-INV-ACC-3 the real-origin and workdir checks", () => {
     const proof = await assertScenarioNotThisRepository({
       scenarioId: "S-ACC-3",
       appSlug: "cormidia-sandbox/acc-3-research",
+      campaignOrg: "cormidia-sandbox",
       worktree: scenario.repo.dir,
       jobWorkdir: scenario.repo.dir,
       cormidia: { slug: "cormidia/cormidia", root: cormidia.dir },

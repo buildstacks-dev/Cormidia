@@ -24,6 +24,7 @@ function config(overrides: Partial<AcceptanceCampaignConfig> = {}): AcceptanceCa
     campaignId: "l-acc-run-1",
     commit: "0".repeat(40),
     policyPath: "/repo/validation-design/validation-policy.yaml",
+    campaignOrg: "cormidia-sandbox",
     scenarios: [
       {
         id: "S-ACC-1",
@@ -86,6 +87,7 @@ describe("CF-J21-R (L1) the valid envelope", () => {
   it("accepts a complete config and records the exact matrix for the report", () => {
     const validated = validateCampaignConfig(config());
     expect(validated.scenarioIds).toEqual(["S-ACC-1"]);
+    expect(validated.campaignOrg).toBe("cormidia-sandbox");
     expect(validated.matrices["S-ACC-1"]).toEqual({
       planner: claudeOpus,
       builder: claudeSonnet,
@@ -114,6 +116,10 @@ describe("CF-J21-R (L1) the valid envelope", () => {
 });
 
 describe("CF-J21-R (L1) each refusal class, pre-mutation and pre-spend", () => {
+  it("negative control: no declared campaign org", () => {
+    expect(refusal({ campaignOrg: "  " })).toBe("campaign-org-undeclared");
+  });
+
   it("negative control: no scenarios", () => {
     expect(refusal({ scenarios: [] })).toBe("no-scenarios");
   });

@@ -18,6 +18,7 @@ import type { TurnAssignment } from "../../../src/runtime/types.js";
 
 export type CampaignConfigCode =
   | "no-scenarios"
+  | "campaign-org-undeclared"
   | "duplicate-scenario"
   | "matrix-incomplete"
   | "matrix-single-family"
@@ -92,6 +93,10 @@ export interface AcceptanceCampaignConfig {
   campaignId: string;
   commit: string;
   policyPath: string;
+  /** The org whose disposable repositories every scenario must belong to
+   *  (B-27 §1.3). Declared once for the campaign, never per scenario, so a
+   *  single scenario cannot quietly widen the authorized namespace. */
+  campaignOrg: string;
   scenarios: ScenarioConfig[];
   adaptiveAssignments: AssignmentCandidate[];
   envelope?: CampaignEnvelope;
@@ -101,6 +106,7 @@ export interface AcceptanceCampaignConfig {
 
 export interface ValidatedCampaignConfig {
   campaignId: string;
+  campaignOrg: string;
   scenarioIds: string[];
   /** Per scenario, the exact matrix, ready to be recorded in the report. */
   matrices: Record<string, Record<string, TurnAssignment>>;
@@ -113,6 +119,13 @@ const APP_ROLES = ["planner", "builder", "reviewer"] as const;
 
 /** Every §1 clause that is decidable without touching the world. */
 export function validateCampaignConfig(config: AcceptanceCampaignConfig): ValidatedCampaignConfig {
+  if (config.campaignOrg.trim().length === 0) {
+    throw new CampaignConfigError(
+      "campaign-org-undeclared",
+      `${config.campaignId} declares no campaign org; without one, "not this repository" is the only binding ` +
+        `check and a scenario could name any third party's real repository`,
+    );
+  }
   if (config.scenarios.length === 0) {
     throw new CampaignConfigError("no-scenarios", `${config.campaignId} declares no scenario`);
   }
@@ -206,6 +219,7 @@ export function validateCampaignConfig(config: AcceptanceCampaignConfig): Valida
 
   return {
     campaignId: config.campaignId,
+    campaignOrg: config.campaignOrg.trim().toLowerCase(),
     scenarioIds: ids,
     matrices,
     planGate: config.planGate,

@@ -118,6 +118,7 @@ async function rig(options: { planScores?: Record<string, 0 | 1 | 2 | 3>; autoCo
       campaignId: "l-acc-run-1",
       commit: authorized.commit,
       policyPath: authorized.policyPath,
+      campaignOrg: "cormidia-sandbox",
       scenarios: [
         {
           id: "S-ACC-1",

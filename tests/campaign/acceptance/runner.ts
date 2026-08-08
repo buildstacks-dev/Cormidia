@@ -95,6 +95,7 @@ export async function runAcceptanceCampaign(input: RunAcceptanceCampaignInput): 
     await assertScenarioNotThisRepository({
       scenarioId: scenario.id,
       appSlug: scenario.appSlug,
+      campaignOrg: validated.campaignOrg,
       worktree: scenario.worktree,
       ...(scenario.jobWorkdir === undefined ? {} : { jobWorkdir: scenario.jobWorkdir }),
       cormidia: input.cormidia,

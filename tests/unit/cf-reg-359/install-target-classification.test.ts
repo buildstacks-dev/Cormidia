@@ -125,6 +125,24 @@ describe("CF-REG-359-B — install-target classification precedes mutation", () 
     expect(await classifyInstallTarget(target, { intendedSource, packageRoot: checkout })).toBe("foreign");
   });
 
+  it("the two self-owned states are distinguishable, because they carry different consent", async () => {
+    // `--replace-source-links` means "dismantle my live dev loop", so only a
+    // CHECKOUT link may demand it. A `prior-install` link is a dead pointer
+    // from an install that no longer exists; link-skills.mjs re-points those
+    // unprompted, and install-packaged must not be stricter than the shipped
+    // path about the same artifact.
+    const { root, checkout, installed, target } = await sandbox();
+    const intendedSource = join(installed, "agent-skills", "cormidia");
+
+    await symlink(join(checkout, "agent-skills", "cormidia"), target, "dir");
+    expect(await classifyInstallTarget(target, { intendedSource, packageRoot: checkout })).toBe("checkout");
+
+    await rm(target, { force: true });
+    const gone = join(root, "deleted-prefix", "lib", "node_modules", "cormidia", "agent-skills", "cormidia");
+    await symlink(gone, target, "dir");
+    expect(await classifyInstallTarget(target, { intendedSource, packageRoot: checkout })).toBe("prior-install");
+  });
+
   it("the planner enumerates every provider home x packaged skill, so none is discovered mid-install", async () => {
     const { installed } = await sandbox();
     const env = {

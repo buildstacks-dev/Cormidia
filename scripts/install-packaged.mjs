@@ -101,20 +101,37 @@ for (const binary of PACKAGED_BINARIES) {
   }
 }
 
-// Skills: the shipped linker refuses anything it does not own, so a link left
-// by `pnpm link:local` must be cleared here or the install cannot complete.
+// Skills. Only a CHECKOUT link blocks: it is the operator's live dev loop, and
+// dismantling that is what --replace-source-links opts into.
+//
+// A `prior-install` link is a stale pointer from an install that is gone —
+// `link-skills.mjs` adopts and re-points those on its own, so demanding a flag
+// here would make this script stricter than the shipped path for no reason.
+// Report it, do not block on it.
+const adopting = [];
 for (const skill of packagedSkillTargets(installedRoot)) {
   const state = await classifyInstallTarget(skill.target, {
     intendedSource: skill.source,
     packageRoot,
   });
   if (state === "absent" || state === "current") continue;
+  if (state === "prior-install") {
+    adopting.push({ label: `$${skill.skill} (${skill.provider})`, path: skill.target });
+    continue;
+  }
   interfering.push({
     kind: "skill",
     label: `$${skill.skill} (${skill.provider})`,
     path: skill.target,
     state,
   });
+}
+
+if (adopting.length > 0) {
+  console.log("");
+  for (const entry of adopting) {
+    console.log(`re-pointing: ${entry.label} at ${entry.path} (stale link from an install that is gone)`);
+  }
 }
 
 if (interfering.length > 0) {
@@ -148,7 +165,7 @@ if (interfering.length > 0) {
   }
   if (!replaceSourceLinks) {
     fail(
-      `${interfering.length} source-backed link(s) would block the packaged install — ` +
+      `${interfering.length} link(s) into this checkout would block the packaged install — ` +
         "re-run with --replace-source-links to remove them (pnpm link:local restores them).",
     );
   }
@@ -157,7 +174,9 @@ if (interfering.length > 0) {
 if (dryRun) {
   console.log("");
   console.log("--dry-run: would build, pack, install the tarball globally, link both skills, and verify.");
-  console.log(`--dry-run: would remove ${interfering.length} source-backed link(s) first.`);
+  console.log(
+    `--dry-run: would remove ${interfering.length} checkout link(s) and re-point ${adopting.length} stale link(s).`,
+  );
   process.exit(0);
 }
 

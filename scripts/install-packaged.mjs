@@ -33,6 +33,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { packagedInstallProof, tarballIdentity } from "./lib/install-proof.mjs";
 import { PACKAGED_BINARIES, classifyInstallTarget, packagedSkillTargets } from "./lib/link-artifacts.mjs";
 
 const execFile = promisify(execFileCallback);
@@ -189,6 +190,7 @@ for (const entry of interfering) {
 }
 
 const staging = await mkdtemp(join(tmpdir(), "cormidia-packaged-install-"));
+let installedTarball;
 try {
   console.log("\nbuilding…");
   await run("pnpm", ["build"], { cwd: packageRoot });
@@ -200,6 +202,7 @@ try {
     cwd: packageRoot,
   });
   const tarball = join(staging, parsePackJson(packed)[0].filename);
+  installedTarball = await tarballIdentity(tarball);
 
   console.log(`installing ${tarball} globally…`);
   await run("npm", ["install", "-g", "--no-audit", "--no-fund", tarball]);
@@ -240,6 +243,16 @@ await run(join(globalBin, "cormidia-job"), ["--help"]);
 console.log(`\ncormidia@${version} installed independently of ${packageRoot}`);
 console.log(
   "Both binaries and both skills now come from the packaged install. `pnpm link:local` returns to the dev loop.",
+);
+if (installedTarball === undefined) fail("the installed tarball identity was not captured");
+console.log(
+  JSON.stringify(
+    packagedInstallProof({
+      argv: process.argv.slice(2).filter((arg) => arg !== "--"),
+      installedVersion: version,
+      tarball: installedTarball,
+    }),
+  ),
 );
 
 /** `npm pack --json` prints its array after any lifecycle-script chatter that

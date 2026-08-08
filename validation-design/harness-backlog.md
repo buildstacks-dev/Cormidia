@@ -846,12 +846,14 @@ and provider credentials.
   authorized outer ceiling; and the report did not synthesize every required axis, gap,
   preview command or spend total. The repair adds exact role activation, conservative
   per-invocation admission, equivalent-cost telemetry, job command audit, final
-  three-record reconciliation, and fail-closed report validation. Ceiling exhaustion is
+  three-record reconciliation, terminal real-installer tarball proof, and fail-closed
+  report validation. Ceiling exhaustion is
   caught as an incomplete scenario and never truncates into a pass. Product issues and
   run observations are kept in `acceptance/run-1-todo.md`.
   *Detectors:* `tests/unit/cf-b27/`, `tests/hermetic/cf-j21/`,
   `tests/hermetic/cf-s11-env/`, `tests/hermetic/cf-inv-acc-7a/`,
-  `tests/unit/cf-b30/`, `tests/unit/cf-auth-mode/`, `tests/unit/cf-s11-mech/`.
+  `tests/unit/cf-b30/`, `tests/unit/cf-auth-mode/`, `tests/unit/cf-s11-mech/`,
+  `tests/unit/cf-reg-360/`.
   *No contract loosening:* rubric bytes, axes, plan-gate criterion, golden set,
   thresholds (`NONE`), `release_signal: null` and no-deployment boundary are unchanged.
 

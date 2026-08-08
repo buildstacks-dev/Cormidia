@@ -1,7 +1,8 @@
 # Outcome acceptance (L-ACC) — design input, NOT a lane
 
-***Status: rubric RATIFIED 2026-08-07. Guardrails and runner BUILT 2026-08-08
-(HB-120…HB-130). NO CAMPAIGN HAS RUN and no L-ACC evidence exists.***
+***Status: rubric RATIFIED 2026-08-07. Guardrails, runner and execution layer
+BUILT 2026-08-08 (HB-120…HB-131). NO CAMPAIGN HAS RUN and no L-ACC evidence
+exists.***
 
 *The measurement rubric ([`rubric.md`](rubric.md) §8) is ratified and tighten-only
 — its thresholds deliberately are not. Everything else here was design input to a
@@ -17,13 +18,21 @@ plus J-22/J-23, M18 and B-30 clearing the jobs debt. Read*
 *§11 for what the owner still has to decide (F-PT-029, F-PT-030, F-PT-031).*
 
 ***The lane has still NEVER RUN.*** *The campaign invariants landed at L1/L2 with
-negative controls and the runner exists (`tests/campaign/acceptance/`), but no
-campaign has run and no L-ACC evidence exists. Until an exact human
-authorization naming this campaign's output-token and equivalent-USD ceilings
-exists, do not represent L-ACC as an existing gate, do not cite it in a release
-claim, and do not run anything from this directory. A ratified rubric measures
-nothing until something runs against it — and per F-PT-029, even then it gates
-nothing.*
+negative controls, and the full path from a config to a report now exists in
+`tests/campaign/acceptance/` — driver, provisioning, arms, scorers, grader turn,
+durable report. No campaign has run and no L-ACC evidence exists.*
+
+*Run 1 needs **two** things, and an earlier version of this file named only the
+first: (1) an exact human authorization naming this campaign's output-token and
+equivalent-USD ceilings, and (2) the operating preconditions the entry point
+will not invent — a recorded packaged-install proof, the campaign org, its three
+disposable scenario repositories, and provider credentials. Until both exist, do
+not represent L-ACC as an existing gate and do not cite it in a release claim. A
+ratified rubric measures nothing until something runs against it — and per
+F-PT-029, even then it gates nothing.*
+
+*Rehearse first:* `pnpm test:acceptance -- --config <path> --dry-run` *runs every
+preflight, provisions nothing, and spawns no binary.*
 
 ## What problem this addresses
 

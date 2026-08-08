@@ -775,7 +775,7 @@ guessed, and S-ACC-3 needed no edit. **No L-ACC cell is blocked.**
   seeded claim before any grader result is trusted; no threshold is introduced.
   *Defends:* CORMIDIA-C-B29-001 §5, llm-eval-plan S-11. *Layer:* 1/2 (+4 scaffold).
   *Executor:* build-agent.
-- **HB-130 — the campaign runner and run 1. RUNNER DONE 2026-08-08; RUN 1 NOT STARTED** (`tests/campaign/acceptance/runner.ts`, `tests/hermetic/cf-j21/`). The one remaining blocker is unchanged: an exact human authorization naming this campaign's ceilings. F-PT-029 and F-PT-030 were both answered
+- **HB-130 — the campaign runner and run 1. ORCHESTRATOR DONE 2026-08-08; RUN 1 NOT STARTED** (`tests/campaign/acceptance/runner.ts`, `tests/hermetic/cf-j21/`). **CORRECTION:** this entry previously said the spend authorization was the one remaining blocker. It was not. The runner takes both arms as callbacks and only a test supplied them, so nothing provisioned repos, ran the arms, or called a grader — see HB-131, which built that layer. F-PT-029 and F-PT-030 were both answered
   by the owner on 2026-08-07, so **one blocker remains: an exact human authorization**
   naming this campaign's output-token and equivalent-USD ceilings
   (`risk-allocation.md` §5a). Build the runner to the resolved shape: a declared
@@ -787,6 +787,52 @@ guessed, and S-ACC-3 needed no edit. **No L-ACC cell is blocked.**
   every threshold-dependent axis `inconclusive`, and the report answers "which bytes did
   this exercise" from the installed version and tarball identity alone.
   *Layer:* L-ACC. *Executor:* human authorization + campaign. *Depends on:* HB-120…129.
+
+## Execution layer (2026-08-08) — HB-131
+
+Opened after a review caught that HB-130 delivered an orchestrator, not a runnable
+campaign: `runAcceptanceCampaign` took `planArm`/`buildArm` as callbacks and the only
+implementation in the repository was a test using fakes. The status lines that called the
+spend authorization "the one remaining blocker" were wrong, and are corrected in place.
+
+- **HB-131 — the L-ACC execution layer. DONE 2026-08-08.** Everything between a config
+  and a report:
+  - `cli-driver.ts` — the only path from campaign to product. Spawns the PACKAGED
+    binaries, refuses one that realpaths inside this checkout, records every invocation.
+  - `report-store.ts` — B-27 §3's four durability clauses, which were contract text with
+    no implementation: atomic writes, torn-report refusal, resume binding the config
+    hash, one report identity per campaign.
+  - `seed-corpus.ts` + `acceptance/seeds/` — S-ACC-2's ten staled tutorials and S-ACC-3's
+    three research notes, generated from committed manifests so the fixtures are
+    deterministic and run 2 stays comparable to run 1. The manifest's `sealed` block is
+    answer-key material and is never materialized into a scenario repository.
+  - `provision.ts` — seeds each scenario and records a **baseline commit**, which is what
+    lets CORMIDIA-INV-ACC-7a exempt the seed without exempting a supervisor commit made
+    after onboarding. The reconciler gained that baseline; with no baseline declared,
+    nothing is exempt.
+  - `arms.ts` — plan/build/job arms through `cormidia plan --auto`, `cormidia loop
+    --once` (hard pass bound) and `cormidia-job run`, plus B-29 §1 evidence collection.
+    The org's self-report is collected and tagged separately: subject of O-5, evidence
+    for nothing.
+  - `mechanical-scoring.ts` — the sealed-key comparisons that did not exist: P-1…P-4
+    coverage, J-1 declared outputs, J-2 verbatim handoff.
+  - `grader-turn.ts` — grading through `cormidia run-role`, so grading is a
+    Cormidia-invoked turn rather than a provider SDK call inside the campaign process
+    (INV-ACC-7a adversarial seed (d)). Confinement is proven BEFORE construction.
+  - `campaign-cli.ts` / `campaign-main.ts` + `acceptance/campaigns/run-1.example.yaml` —
+    the entry point and a template that deliberately cannot run: it ships with no
+    `authorization:` block and zeroed ceilings, because there is no global L-ACC ceiling
+    and a template with plausible numbers would be a ceiling nobody set.
+
+  *Acceptance:* every module lands red against its seeded violation first; the shipped
+  template refuses; `pnpm test:acceptance -- --config <path> --dry-run` performs every
+  preflight and spawns nothing. *Layer:* 1/2. *Executor:* build-agent.
+
+**What run 1 still needs, stated exactly.** An exact human authorization naming the
+output-token and equivalent-USD ceilings, AND the operating preconditions the entry point
+will not invent: a recorded `pnpm install:packaged --replace-source-links` proof, the
+campaign org, its three disposable scenario repositories under the declared campaign org,
+and provider credentials.
 
 ## Standing rules
 

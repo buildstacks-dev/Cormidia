@@ -34,6 +34,20 @@ export interface ScenarioCommit {
   turnId?: string;
 }
 
+/**
+ * Commits at or before the provisioning baseline are the state the scenario
+ * STARTED from, not work the org did — S-ACC-2's corpus is "built by the
+ * campaign's provision phase, committed before onboarding". Without this the
+ * reconciliation would flag the seed itself and no scenario could ever close.
+ * With it, a supervisor commit sneaked in mid-run still fails, because it is
+ * not among the provisioned shas.
+ */
+export interface ProvisioningBaseline {
+  baselineCommit: string;
+  /** Every sha at or before the baseline, from the provisioning phase. */
+  provisionedShas: readonly string[];
+}
+
 export interface JournalTurnRecord {
   turnId: string;
   /** The invocation that launched this turn. */
@@ -67,6 +81,9 @@ export interface SupervisorReconciliationInput {
   /** Provider SDK calls observed inside the campaign's own process. Grading is
    *  itself a Cormidia-invoked turn, so this must always be empty. */
   providerCallsInCampaignProcess?: number;
+  /** Absent means NOTHING is exempt — the strictest reading, and the right
+   *  default for a scenario with no seed. */
+  provisioning?: ProvisioningBaseline;
 }
 
 export interface ReconciliationViolation {
@@ -81,7 +98,7 @@ export interface SupervisorReconciliation {
   violations: ReconciliationViolation[];
   /** What a non-closing reconciliation forces. Never a score. */
   forcedOutcome: "score-permitted" | "ungraded-and-incomplete";
-  checked: { commits: number; turns: number; invocations: number; actions: number };
+  checked: { commits: number; turns: number; invocations: number; actions: number; provisionedCommitsExempt: number };
 }
 
 export function reconcileSupervisorNonParticipation(input: SupervisorReconciliationInput): SupervisorReconciliation {
@@ -89,7 +106,9 @@ export function reconcileSupervisorNonParticipation(input: SupervisorReconciliat
   const identities = new Set(input.turnIdentities);
   const invocationIds = new Set(input.invocationAudit.map((row) => row.invocationId));
 
+  const provisioned = new Set(input.provisioning?.provisionedShas ?? []);
   for (const commit of input.commits) {
+    if (provisioned.has(commit.sha)) continue;
     if (!identities.has(commit.author)) {
       violations.push({
         code: "commit-outside-turn-identity",
@@ -135,6 +154,7 @@ export function reconcileSupervisorNonParticipation(input: SupervisorReconciliat
     violations,
     forcedOutcome: closed ? "score-permitted" : "ungraded-and-incomplete",
     checked: {
+      provisionedCommitsExempt: provisioned.size,
       commits: input.commits.length,
       turns: input.journalTurns.length,
       invocations: input.invocationAudit.length,

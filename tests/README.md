@@ -74,15 +74,24 @@ truth:
 
 ## The L-ACC lane (outcome acceptance)
 
-`campaign/acceptance/` holds the campaign machinery — sealed-key extraction and
+`campaign/acceptance/` holds the campaign machinery: sealed-key extraction and
 confinement, per-axis grader disjointness, scenario repository binding, the
 `axis_score` verdict algebra, supervisor reconciliation, packaged provenance,
-the B-27 config/report contract, the CF-SM-ACC lifecycle, the plan gate, and the
-runner. **The runner exists; no campaign has run and no L-ACC evidence exists.**
-It spends nothing on its own: both arms and every grader turn are injected
-callbacks. Run 1 needs a separate exact human authorization naming its
-output-token and equivalent-USD ceilings (`risk-allocation.md` §5a). L-ACC gates
-nothing and never emits a release signal (F-PT-029).
+the B-27 config/report contract, the CF-SM-ACC lifecycle, the plan gate, the
+orchestrator — and since HB-131 the execution layer that actually drives a run:
+`cli-driver.ts` (the only path to the packaged binaries), `provision.ts`,
+`arms.ts`, `mechanical-scoring.ts`, `grader-turn.ts`, `report-store.ts` and
+`campaign-main.ts`.
+
+**No campaign has run and no L-ACC evidence exists.** Nothing here spends a
+token in the offline lane: every test drives a scripted binary double. Run 1
+needs an exact human authorization naming its output-token and equivalent-USD
+ceilings (`risk-allocation.md` §5a) *and* the operating preconditions the entry
+point will not invent — packaged-install proof, campaign org, three disposable
+scenario repositories, provider credentials. L-ACC gates nothing and never emits
+a release signal (F-PT-029).
+
+Rehearse with `pnpm test:acceptance -- --config <path> --dry-run`.
 
 ## Spend
 

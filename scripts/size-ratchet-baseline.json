@@ -1351,6 +1351,11 @@
       "lines": 116,
       "newModule": false
     },
+    "src/runtime/adapters/codex-schema.ts": {
+      "exports": 1,
+      "lines": 84,
+      "newModule": true
+    },
     "src/runtime/adapters/codex.ts": {
       "exports": 7,
       "lines": 1049,

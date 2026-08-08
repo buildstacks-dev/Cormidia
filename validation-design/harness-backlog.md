@@ -691,16 +691,18 @@ campaign invariant is a mechanical guardrail that lands at L1/L2 *before* anythi
 spend a token, because a guardrail protecting a measurement must be cheaper than the
 measurement.
 
-**STATUS 2026-08-08 — HB-120…HB-129 COMPLETE, HB-130's RUNNER COMPLETE, RUN 1 NOT
-STARTED.** The wave was implemented in the stated order, every detector landing red
+**STATUS 2026-08-08 — HB-120…HB-132 COMPLETE; RUN 1 TERMINAL AT THE PLAN GATE.**
+The wave was implemented in the stated order, every detector landing red
 against its seeded violation before it went green, and no gate, rubric axis or threshold
 was weakened; no numeric threshold was introduced anywhere. HB-130's *runner* exists —
 both arms and every grader turn are injected callbacks, so it has spent nothing — and it
 is built to the resolved shape: it emits a report and **never** a release signal
 (F-PT-029), and a declared `plan_gate` policy resolves the gate unattended under the
 unchanged rubric §6 criteria while an undeclared one refuses at preflight (F-PT-030).
-**Run 1 itself remains blocked on an exact human authorization naming this campaign's
-output-token and equivalent-USD ceilings, and must not be started without it.** One new finding
+Run 1 later satisfied its exact authorization and operating preconditions, exercised
+the packaged path, and stopped under the unchanged rubric §6 gate. Its report is
+entirely ungraded/inconclusive and all scenarios incomplete
+(`acceptance/run-1-result.md`). One new finding
 opened **and ratified the same day**: **F-PT-032** — B-28 §1's four plant categories are
 plan-axis instrumentation and a job scenario has no plan arm, so §2 is now scoped to app
 scenarios and job scenarios carry their own four (rubric §9). It was escalated rather than
@@ -775,10 +777,8 @@ guessed, and S-ACC-3 needed no edit. **No L-ACC cell is blocked.**
   seeded claim before any grader result is trusted; no threshold is introduced.
   *Defends:* CORMIDIA-C-B29-001 §5, llm-eval-plan S-11. *Layer:* 1/2 (+4 scaffold).
   *Executor:* build-agent.
-- **HB-130 — the campaign runner and run 1. ORCHESTRATOR DONE 2026-08-08; RUN 1 NOT STARTED** (`tests/campaign/acceptance/runner.ts`, `tests/hermetic/cf-j21/`). **CORRECTION:** this entry previously said the spend authorization was the one remaining blocker. It was not. The runner takes both arms as callbacks and only a test supplied them, so nothing provisioned repos, ran the arms, or called a grader — see HB-131, which built that layer. F-PT-029 and F-PT-030 were both answered
-  by the owner on 2026-08-07, so **one blocker remains: an exact human authorization**
-  naming this campaign's output-token and equivalent-USD ceilings
-  (`risk-allocation.md` §5a). Build the runner to the resolved shape: a declared
+- **HB-130 — the campaign runner and run 1. DONE 2026-08-08; RUN 1 TERMINAL AT PLAN GATE** (`tests/campaign/acceptance/runner.ts`, `tests/hermetic/cf-j21/`, `acceptance/run-1-result.md`). **CORRECTION:** this entry previously said the spend authorization was the one remaining blocker. It was not. The runner takes both arms as callbacks and only a test supplied them, so nothing provisioned repos, ran the arms, or called a grader until HB-131 built that layer. F-PT-029 and F-PT-030 were both answered
+  by the owner on 2026-08-07. A declared
   `plan_gate` policy may resolve the gate unattended so a campaign runs end to end,
   applying the ratified rubric §6 criteria and recording the resolution with the scores
   it acted on; a config with no declared policy refuses. The runner emits a report and
@@ -829,16 +829,14 @@ spend authorization "the one remaining blocker" were wrong, and are corrected in
   config/authorization/identity preflight and spawns nothing, while `runCampaign`
   repeats the install/world proof before mutation. *Layer:* 1/2. *Executor:* build-agent.
 
-**What run 1 still needs, stated exactly.** An exact human authorization naming the
-output-token and equivalent-USD ceilings, AND the operating preconditions the entry point
-will not invent: a recorded `pnpm install:packaged --replace-source-links` proof, the
-campaign org, its three disposable scenario repositories under the declared campaign org,
-and provider credentials.
+**Run-1 preconditions — satisfied 2026-08-08.** The exact authorization, recorded
+`pnpm install:packaged --replace-source-links` proof, campaign org, three disposable
+scenario repositories under that org, and both provider credentials were present.
 
 ## Run-1 conformance repair (2026-08-07) — HB-132
 
-- **HB-132 — make HB-131 honest against the real packaged path. DONE 2026-08-07; LIVE
-  RUN PENDING AT COMMIT.** The first execution review found defects an all-scripted path
+- **HB-132 — make HB-131 honest against the real packaged path. DONE 2026-08-08;
+  LIVE RUN TERMINAL AT PLAN GATE.** The first execution review found defects an all-scripted path
   could not expose: provisioning preceded world preflight; app/job arms and grading were
   not composed with durable checkpoints; the mirror matrix had no scenario-scoped legal
   grader; fixed-mode `run-role` was passed an illegal adaptive flag; `cormidia-job` had
@@ -853,6 +851,10 @@ and provider credentials.
   support files with safe-path enforcement, body-only sealed-key fingerprints,
   restart-durable unavailable-usage debits, exact fixed-grader reservations,
   failed-arm non-grading, and fail-closed report validation.
+  Run 1 then exposed three more real-path gaps, fixed after its immutable terminal
+  report without retrying the gate: recursive Codex strict-schema translation, parsing
+  the exact `run-role` terminal summary wrapper, and reconciliation scoped to the
+  current driver's scenario-attempt window rather than historical pre-report turns.
   Ceiling exhaustion is
   caught as an incomplete scenario and never truncates into a pass. Product issues and
   run observations are kept in `acceptance/run-1-todo.md`.

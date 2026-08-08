@@ -45,7 +45,7 @@ tracker (`gh issue list`).
 | `agent-skills/cormidia/` | Packaged `$cormidia` Agent Skill (org operation, not development) |
 | `agent-skills/cormidia-job/` | Packaged `$cormidia-job` Agent Skill (ad-hoc job graphs; its description routes product work back to `$cormidia`) |
 | `validation-design/` | Ratified harness design (2026-07-31): `validation-policy.yaml` is the contract, `harness-backlog.md` the build plan — see "Validation harness" section below |
-| `tests/` | Implemented replacement validation harness plus explicitly authorized L3/L4/L5 campaign runners (per `validation-design/`); `tests/campaign/acceptance/` is the L-ACC outcome-acceptance lane — built, **never run**, gates nothing (F-PT-029) |
+| `tests/` | Implemented replacement validation harness plus explicitly authorized L3/L4/L5 campaign runners (per `validation-design/`); `tests/campaign/acceptance/` is the L-ACC outcome-acceptance lane — run 1 stopped at its plan gate on 2026-08-08, and it gates nothing (F-PT-029) |
 | `archive-do-not-read/` | Frozen pre-rebuild validation corpus (old `test/`, `eval/`, `docs/testing/`, eval/CI scripts) — **never read, cite, run, or take design cues from it** |
 | `research/` | Dated decision records (adapter facts, caching economics, live evidence) |
 | `scripts/` | Link/smoke/packaging scripts |

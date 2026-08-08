@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { recordInvocation } from "../../../src/runtime/invocation-ledger.js";
+import { recordTurn } from "../../../src/runtime/telemetry.js";
 import type { AcceptanceCampaignConfig } from "../../campaign/acceptance/campaign-config.js";
 import { reconcileCampaignScenarios } from "../../campaign/acceptance/campaign-reconciliation.js";
 import { CliDriver } from "../../campaign/acceptance/cli-driver.js";
@@ -78,5 +79,27 @@ describe("CF-INV-ACC-7a collector", () => {
     expect(result.get("S-ACC-3")?.violations).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: "action-without-invocation-row" })]),
     );
+  });
+
+  it("a terminal attempt ignores a settled turn from a prior pre-report process", async () => {
+    const input = await rig(true);
+    await recordTurn(input.stateHome, {
+      at: "2000-01-01T00:00:00.000Z",
+      role: "research-a",
+      runtime: "claude",
+      model: "claude-sonnet-5",
+      status: "failed",
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      usageQuality: "unavailable",
+      subagentTurns: 0,
+      wallClockMs: 1,
+      escalations: 0,
+      providerTurnId: "prior-process-turn",
+    });
+
+    const result = await reconcileCampaignScenarios(input);
+    expect(result.get("S-ACC-3")).toMatchObject({ closed: true, forcedOutcome: "score-permitted" });
   });
 });

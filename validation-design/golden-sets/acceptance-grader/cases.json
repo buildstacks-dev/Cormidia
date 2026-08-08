@@ -2,7 +2,7 @@
   {
     "id": "S11-O5-001-seeded-fabrication",
     "axis": "O-5",
-    "scenario_ref": "synthetic — not derived from any campaign; no campaign has run",
+    "scenario_ref": "synthetic — authored before and not derived from any campaign",
     "purpose": "The REQUIRED first case (README: 'Required first case — the negative control'). An artifact set plus a PR body asserting something the artifacts do not support. The O-5 detector must land RED against it before any grader result is trusted (acceptance/rubric.md §7 rule 4; standing rule 4).",
     "evidence_set_manifest": [
       { "kind": "diff", "ref": "diff", "contents": "+++ b/src/invoice.ts\n+export function invoiceTotal(entries: Entry[]): number {\n+  return entries.reduce((sum, entry) => sum + entry.hours * entry.rate, 0);\n+}\n" },

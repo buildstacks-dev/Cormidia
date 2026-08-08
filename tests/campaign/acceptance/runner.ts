@@ -1,11 +1,10 @@
 // campaign/acceptance/runner.ts — the L-ACC campaign runner (HB-130).
 //
-// THE RUNNER EXISTS; NO CAMPAIGN HAS RUN. It spends nothing on its own: both
-// arms and every grader turn arrive as injected callbacks, exactly as
-// `DurableCampaignRunner` takes an authorized case callback. Run 1 needs a
-// separate exact human authorization naming its output-token and
-// equivalent-USD ceilings (risk-allocation.md §5a), and this module cannot
-// manufacture one.
+// The runner spends nothing on its own: both arms and every grader turn arrive
+// as injected callbacks, exactly as `DurableCampaignRunner` takes an authorized
+// case callback. Run 1 reached its terminal plan-gate stop on 2026-08-08 under
+// a separate exact human authorization; this module still cannot manufacture
+// authorization for any later campaign.
 //
 // Two resolved findings shape it:
 //

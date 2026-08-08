@@ -61,6 +61,14 @@ function containsTurn(audit: ProductAuditRecord, at: string): boolean {
   return time >= start - 1000 && time <= finish + 1000;
 }
 
+function insideScenarioAttempt(invocations: readonly RecordedInvocation[], at: string): boolean {
+  if (invocations.length === 0) return false;
+  const time = new Date(at).getTime();
+  const starts = invocations.map((row) => new Date(row.startedAt).getTime());
+  const finishes = invocations.map((row) => new Date(row.finishedAt).getTime());
+  return time >= Math.min(...starts) - 1000 && time <= Math.max(...finishes) + 1000;
+}
+
 export async function reconcileCampaignScenarios(input: {
   config: AcceptanceCampaignConfig;
   driver: CliDriver;
@@ -94,8 +102,17 @@ export async function reconcileCampaignScenarios(input: {
         ? []
         : [{ invocationId: product.invocationId, command: product.command ?? "unknown" }];
     });
+    // State homes intentionally survive process restarts. Reconcile the
+    // scenario attempt represented by THIS driver's records, not every old
+    // provider turn ever settled for the app. Otherwise a pre-report crash
+    // followed by a new fail-closed attempt permanently poisons the next final
+    // report with a turn whose outer in-memory driver row no longer exists.
+    // The whole first-to-last window remains in scope, so an unrecorded turn
+    // interleaved by an outside process still fires the detector.
     const relevantTurns = turns.filter(
-      (turn) => turn.app === appName || (scenario.kind === "job" && turn.app === undefined),
+      (turn) =>
+        (turn.app === appName || (scenario.kind === "job" && turn.app === undefined)) &&
+        insideScenarioAttempt(invocations, turn.at),
     );
     const journalTurns = relevantTurns.map((turn) => {
       const product = [...matched.values()].find(

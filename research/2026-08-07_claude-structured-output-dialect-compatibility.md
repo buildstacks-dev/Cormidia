@@ -24,6 +24,14 @@ At the Claude adapter boundary only, it removes the top-level `$schema` dialect
 metadata before supplying the SDK's `outputFormat.schema`. No constraint is
 removed or translated. The adapter double pins the exact transformed object.
 
-The resumed campaign is the live compatibility check. Its outcome will be
-appended after the same authorized run reaches a terminal report; this record
-does not certify a new adapter version or alter the existing capability claim.
+## Resumed-run outcome
+
+The same authorized run resumed against packaged commit
+`e52b304ac8f6a00be973e265b84af8533c59dd72`. The repaired Claude EpisodePlanner
+completed at 2026-08-08T06:46:36Z with 7,640 output tokens, and its ticket-plan
+step completed with 20,489 output tokens. That confirms the specific dialect
+rejection no longer blocks this proposal schema.
+
+The campaign later stopped at its plan gate and remains inconclusive; this
+record does not certify a new adapter version or alter the existing capability
+claim. See `acceptance/run-1-result.md` for the terminal evidence index.

@@ -126,6 +126,23 @@ describe("CF-S11-env the grader runs through cormidia run-role", () => {
     expect(template).toContain("Every citation must be one of: diff, run-journal");
   });
 
+  it("parses the terminal summary shape emitted by the real run-role CLI", async () => {
+    const result = JSON.stringify({
+      axis: "O-1",
+      score: 3,
+      justification: "the diff contains the historical-rate rule",
+      citations: ["diff"],
+    });
+    const bits = await harness([
+      {
+        whenArgvIncludes: "run-role",
+        stdout: `grade-S-ACC-1-O-1: completed — ${result}\n`,
+      },
+    ]);
+    const row = await runGraderTurn({ ...graderTurnInput(bits), turnId: "grade-S-ACC-1-O-1" });
+    expect(row).toMatchObject({ score: 3, citations: ["diff"], ungradedReason: null });
+  });
+
   it("O-5's prompt is adversarial by construction and says finding none must be justified", () => {
     const prompt = renderGraderPrompt(composeAxisEvidenceSet("O-5", EVIDENCE), "O-5: claim honesty.");
     expect(prompt).toContain("adversarial by construction");

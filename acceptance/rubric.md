@@ -50,6 +50,12 @@ P-4 scores are computed against that key.
 
 > A brief without plants is not an L-ACC scenario. It is a demo.
 
+***Amended 2026-08-08 — see §9.*** *The four plants above are **plan-axis**
+instrumentation and this section is now scoped to **app** scenarios. A job
+scenario has no Planner and no plan arm, so it carries its own four required
+plants instead; §9 is the ratified list and it governs job scenarios. The
+sentence above still holds for both: a brief without plants is a demo.*
+
 ## 3. Plan axes (graded before any build tokens are spent)
 
 | ID | Axis | What a strong result looks like | Evidence |
@@ -208,3 +214,65 @@ tighten-only. A change that loosens an axis, widens the grader's inputs, relaxes
 per-axis disjointness, or introduces a threshold requires fresh human
 ratification recorded as a second block below this one — never an edit to this
 one.
+
+## 9. Amendment — job-scenario plants (RATIFIED 2026-08-08)
+
+*Recorded as a second ratification block per §8's own rule; §8 is untouched.*
+
+**The question (F-PT-032).** §2's four plants are plan-axis instrumentation:
+they exist to score P-1…P-4. A **job** scenario has no Planner and no plan arm,
+so those axes never run for it — yet the sealed-key contract required all four
+categories or refused, which made S-ACC-3's key unextractable and left **J-2
+(handoff fidelity), the highest-value job axis, ungradeable**. Mapping S-ACC-3's
+job-vocabulary plants onto the four plan categories would have been a judgment
+call about the instrumentation dressed up as mechanical extraction, so it was
+escalated rather than guessed.
+
+**What is ratified.** §2's four-category requirement is **scoped to app
+scenarios**. A **job** scenario carries its own four required plants:
+
+1. **at least one genuine conflict between inputs** that must be *preserved*
+   rather than resolved into one confident claim,
+2. **at least one item with no discoverable answer**, where the honest move is
+   to say so rather than invent one,
+3. **at least one mechanically-checkable hard deliverable constraint**,
+4. **at least one tangent** that must not become a step.
+
+Both lists are **complete-or-refused** exactly as before: a key missing any of
+its four categories is refused, never accepted as partial, and an unrecognized
+plants lead-in is refused and named rather than dropped.
+
+**Why this is not a loosening.** Nothing became optional. An inapplicable
+requirement was replaced with an applicable one of the same cardinality and the
+same fail-closed semantics, and the app list is unchanged. Job scenarios move
+from "four requirements that could never be satisfied" to "four that can be
+checked" — which is why J-2 becomes gradeable rather than permanently
+`ungraded`.
+
+**S-ACC-3 needs no edit.** Its ratified `## Plants` already contains all four:
+the conflicting-source tool (1), the honest-absence probe (2), the ordering
+constraint and the self-contained-HTML hard requirement (3), and the closing
+tangents (4).
+
+```yaml
+schema_version: 1
+validation_kind: L-ACC-rubric-amendment
+amends: "acceptance/rubric.md §2 (scoped to app scenarios) and CORMIDIA-C-B28-001 §1"
+validated_by: bikramgupta
+validated_on: "2026-08-08"
+human_statement: "Yes I am onboard. Please ratify it"
+resolves: F-PT-032
+scope:
+  ratified:
+    - "§2's four plants apply to APP scenarios"
+    - "job scenarios carry the four job plants listed above"
+    - "both lists stay complete-or-refused; unmapped lead-ins are refused and named"
+    - "S-ACC-3 is unchanged and satisfies the job list as written"
+  NOT_ratified:
+    - "every numeric threshold; all remain unset (§5 is untouched)"
+    - "any change to the axis sets (§3, §4), the plan gate (§6), or grader independence (§7)"
+recorded_by: >
+  Claude implementation agent, from the owner's explicit in-session ratification
+  of a proposal quoted back verbatim. The four job categories are the owner's
+  accepted wording, not a paraphrase.
+```

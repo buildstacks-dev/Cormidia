@@ -107,7 +107,7 @@ export async function runAcceptanceCampaign(input: RunAcceptanceCampaignInput): 
   for (const scenario of input.config.scenarios) {
     const markdown = input.scenarioMarkdown[scenario.id];
     if (markdown === undefined) throw new Error(`campaign refused: no scenario file recorded for ${scenario.id}`);
-    keys.seal({ scenarioId: scenario.id, scenarioMarkdown: markdown });
+    keys.seal({ scenarioId: scenario.id, scenarioKind: scenario.kind, scenarioMarkdown: markdown });
   }
 
   const configHash = validated.campaignId;

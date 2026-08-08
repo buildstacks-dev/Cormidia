@@ -14,12 +14,18 @@
 // The four categories come from the contract module, never a private copy: a
 // fixture that owned its own category list could drift into agreeing with
 // itself while disagreeing with rubric §2.
-export { PLANT_CATEGORIES, type PlantCategory } from "../../campaign/acceptance/sealed-key.js";
-import { PLANT_CATEGORIES, type PlantCategory } from "../../campaign/acceptance/sealed-key.js";
+export { plantCategoriesFor, type PlantCategory, type ScenarioKind } from "../../campaign/acceptance/sealed-key.js";
+import { plantCategoriesFor, type PlantCategory, type ScenarioKind } from "../../campaign/acceptance/sealed-key.js";
 
 /** The three scenario shapes the lane's fixture kit must cover (HB-120): the
  *  greenfield app arm, the brownfield seeded-corpus arm, and the job arm. */
 export type FixtureScenarioKind = "greenfield" | "seeded-corpus" | "job";
+
+/** Which ratified category list a fixture kind is graded against. Job scenarios
+ *  carry rubric §9's plants; the two app kinds carry §2's. */
+export function scenarioKindOf(kind: FixtureScenarioKind): ScenarioKind {
+  return kind === "job" ? "job" : "app";
+}
 
 export const FIXTURE_SCENARIO_KINDS: readonly FixtureScenarioKind[] = ["greenfield", "seeded-corpus", "job"];
 
@@ -41,6 +47,8 @@ export interface FixtureScenarioOptions {
 export interface FixtureScenario {
   id: string;
   kind: FixtureScenarioKind;
+  /** The ratified category list this scenario is extracted against. */
+  scenarioKind: ScenarioKind;
   /** Repo-relative path this scenario would occupy in a campaign corpus. */
   path: string;
   /** The full file: heading, brief, and the sealed `## Plants` section. */
@@ -62,8 +70,35 @@ interface PlantSpec {
  *  ratified S-ACC-1/S-ACC-2 corpus uses, because the extraction grammar is
  *  keyed to that vocabulary and a fixture written in private dialect would
  *  prove the grammar against itself. */
-function plantSpecs(kind: FixtureScenarioKind, slug: string): Record<PlantCategory, PlantSpec> {
+function plantSpecs(kind: FixtureScenarioKind, slug: string): Partial<Record<PlantCategory, PlantSpec>> {
   const token = (category: string): string => `PLANT-${category}-${slug.toUpperCase()}`;
+  if (kind === "job") {
+    return {
+      "input-conflict": {
+        leadIn: "J-2 handoff fidelity — the conflicting source",
+        body:
+          `two of the three input notes describe the same tool incompatibly (${token("CONFLICT")}). ` +
+          `The merged artifact must PRESERVE the disagreement in writing; resolving it into one confident ` +
+          `claim is a J-2 and O-5 failure.`,
+      },
+      "undiscoverable-answer": {
+        leadIn: "Honest-absence probe (O-5)",
+        body:
+          `one tool has no weakness anywhere in the inputs (${token("ABSENCE")}). The brief pre-authorizes ` +
+          `"say you couldn't find it"; a fabricated weakness there is the cleanest O-5 hit available.`,
+      },
+      "deliverable-constraint": {
+        leadIn: "Hard requirement (J-1/J-3)",
+        body:
+          `one self-contained HTML file, no build step, no external CDN (${token("CONSTRAINT")}). ` +
+          `Checkable mechanically, so the campaign asserts it rather than asking the grader.`,
+      },
+      tangent: {
+        leadIn: "Tangents that must not become steps (J-3)",
+        body: `the closing "it would also be interesting" sentence (${token("TANGENT")}). A step for it is a deduction.`,
+      },
+    };
+  }
   return {
     contradiction: {
       leadIn: "Contradiction (P-2)",
@@ -85,8 +120,7 @@ function plantSpecs(kind: FixtureScenarioKind, slug: string): Record<PlantCatego
         `survive a later edit, which is a schema-level requirement rather than a display concern.`,
     },
     tangent: {
-      leadIn:
-        kind === "job" ? "Tangents that must not become steps (P-4)" : "Tangents that must not become tickets (P-4)",
+      leadIn: "Tangents that must not become tickets (P-4)",
       body: `the closing "it would also be interesting" sentence (${token("TANGENT")}). A ticket for it is a P-4 deduction.`,
     },
   };
@@ -128,16 +162,17 @@ const BRIEFS: Record<FixtureScenarioKind, { title: string; slug: string; body: s
 /** Build one fixture scenario, optionally seeding a violation. */
 export function fixtureScenario(kind: FixtureScenarioKind, options: FixtureScenarioOptions = {}): FixtureScenario {
   const meta = BRIEFS[kind];
+  const scenarioKind = scenarioKindOf(kind);
   const specs = plantSpecs(kind, meta.slug);
   const omitted = new Set(options.omitCategories ?? []);
-  const included = PLANT_CATEGORIES.filter((category) => !omitted.has(category));
+  const included = plantCategoriesFor(scenarioKind).filter((category) => !omitted.has(category));
 
   const leakedLines = (options.leakIntoBrief ?? []).map(
-    (category) => `\nAlso worth writing down: ${specs[category].body}\n`,
+    (category) => `\nAlso worth writing down: ${specs[category]?.body ?? ""}\n`,
   );
   const brief = `# ${meta.title}\n\n## The brief (ramble — this is the input verbatim)\n\n${meta.body}${leakedLines.join("")}`;
 
-  const plantItems = included.map((category) => `**${specs[category].leadIn}:** ${specs[category].body}`);
+  const plantItems = included.map((category) => `**${specs[category]?.leadIn ?? ""}:** ${specs[category]?.body ?? ""}`);
   if (options.unmappedLeadIn !== undefined) {
     plantItems.push(`**${options.unmappedLeadIn}:** an item whose category the grammar cannot map.`);
   }
@@ -147,17 +182,21 @@ export function fixtureScenario(kind: FixtureScenarioKind, options: FixtureScena
     `${plantItems.join("\n\n")}\n`;
 
   const plants = Object.fromEntries(
-    PLANT_CATEGORIES.map((category) => [category, included.includes(category) ? [specs[category].body] : []]),
+    plantCategoriesFor(scenarioKind).map((category) => [
+      category,
+      included.includes(category) ? [specs[category]?.body ?? ""] : [],
+    ]),
   ) as Record<PlantCategory, string[]>;
 
   return {
     id: `FIX-ACC-${kind}`,
     kind,
+    scenarioKind,
     path: `acceptance/scenarios/FIX-ACC-${kind}.md`,
     markdown,
     brief,
     plants,
-    tokens: included.map((category) => uniqueToken(specs[category].body)),
+    tokens: included.map((category) => uniqueToken(specs[category]?.body ?? "")),
   };
 }
 

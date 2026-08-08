@@ -8,29 +8,70 @@
 // does not read as a defect downstream, it reads as generosity, because the
 // axis then scores against fewer expectations than the rubric requires.
 //
-// The category vocabulary below is derived from the ratified corpus
-// (acceptance/rubric.md §2; acceptance/scenarios/S-ACC-1, S-ACC-2). It is
-// tighten-only like the rubric: narrow a marker, never widen one to make a
-// scenario parse.
+// THE REQUIRED CATEGORIES DEPEND ON THE SCENARIO KIND (rubric §2 for app, §9 for
+// job — amendment ratified 2026-08-08, resolving F-PT-032). The app list is
+// plan-axis instrumentation, and a job scenario has no Planner and no plan arm,
+// so requiring it there demanded instrumentation for a measurement that never
+// happens — and left J-2, the highest-value job axis, permanently ungradeable.
+// Four categories either way; complete-or-refused either way.
+//
+// The vocabularies below are derived from the ratified corpus
+// (acceptance/scenarios/S-ACC-1, S-ACC-2, S-ACC-3). They are tighten-only like
+// the rubric: narrow a marker, never widen one to make a scenario parse.
 
 import { createHash } from "node:crypto";
 
-export type PlantCategory = "contradiction" | "under-specification" | "buried-requirement" | "tangent";
+/** App-scenario categories — rubric §2. */
+export type AppPlantCategory = "contradiction" | "under-specification" | "buried-requirement" | "tangent";
+/** Job-scenario categories — rubric §9. `tangent` is shared: it is the same
+ *  concept, and a step is as wrong a place for a tangent as a ticket is. */
+export type JobPlantCategory = "input-conflict" | "undiscoverable-answer" | "deliverable-constraint" | "tangent";
+export type PlantCategory = AppPlantCategory | JobPlantCategory;
 
-export const PLANT_CATEGORIES: readonly PlantCategory[] = [
+export type ScenarioKind = "app" | "job";
+
+export const APP_PLANT_CATEGORIES: readonly AppPlantCategory[] = [
   "contradiction",
   "under-specification",
   "buried-requirement",
   "tangent",
 ];
 
+export const JOB_PLANT_CATEGORIES: readonly JobPlantCategory[] = [
+  "input-conflict",
+  "undiscoverable-answer",
+  "deliverable-constraint",
+  "tangent",
+];
+
+export function plantCategoriesFor(kind: ScenarioKind): readonly PlantCategory[] {
+  return kind === "job" ? JOB_PLANT_CATEGORIES : APP_PLANT_CATEGORIES;
+}
+
 /** Lead-in markers, lowercased, matched as substrings. Ordered most specific
  *  first so "buried hard requirement" never falls through to a looser row. */
-const CATEGORY_MARKERS: ReadonlyArray<{ category: PlantCategory; marker: string }> = [
+const APP_MARKERS: ReadonlyArray<{ category: PlantCategory; marker: string }> = [
   { category: "buried-requirement", marker: "buried hard requirement" },
   { category: "under-specification", marker: "under-specification" },
   { category: "under-specification", marker: "under-specified" },
   { category: "contradiction", marker: "contradiction" },
+  { category: "tangent", marker: "tangent" },
+];
+
+// S-ACC-3 heads its conflict plant "J-2 handoff fidelity" because the conflict
+// IS the handoff instrumentation — the failure it catches is a fan-in step that
+// resolves two disagreeing sources into one confident claim instead of
+// preserving the disagreement. Both spellings map, so the ratified brief parses
+// as written and a future scenario may say "conflict" outright.
+const JOB_MARKERS: ReadonlyArray<{ category: PlantCategory; marker: string }> = [
+  { category: "input-conflict", marker: "handoff fidelity" },
+  { category: "input-conflict", marker: "conflict" },
+  { category: "undiscoverable-answer", marker: "honest-absence" },
+  { category: "undiscoverable-answer", marker: "honest absence" },
+  { category: "undiscoverable-answer", marker: "no discoverable answer" },
+  { category: "deliverable-constraint", marker: "hard requirement" },
+  { category: "deliverable-constraint", marker: "ordering constraint" },
+  { category: "deliverable-constraint", marker: "deliverable constraint" },
   { category: "tangent", marker: "tangent" },
 ];
 
@@ -55,6 +96,8 @@ export class SealedKeyError extends Error {
 
 export interface SealedKey {
   scenarioId: string;
+  /** Which ratified category list this key was extracted against. */
+  scenarioKind: ScenarioKind;
   /** Content hash of the exact scenario bytes the key was extracted from. */
   scenarioSha256: string;
   plants: Record<PlantCategory, string[]>;
@@ -84,9 +127,10 @@ function splitScenario(markdown: string): { brief: string; plants: string } {
   return { brief: markdown.slice(0, match.index), plants: markdown.slice(match.index) };
 }
 
-function categoryOf(leadIn: string): PlantCategory | undefined {
+function categoryOf(leadIn: string, kind: ScenarioKind): PlantCategory | undefined {
   const lowered = leadIn.toLowerCase();
-  return CATEGORY_MARKERS.find((row) => lowered.includes(row.marker))?.category;
+  const markers = kind === "job" ? JOB_MARKERS : APP_MARKERS;
+  return markers.find((row) => lowered.includes(row.marker))?.category;
 }
 
 /** Items are paragraphs whose FIRST line opens with a bold lead-in. Nested
@@ -141,43 +185,51 @@ function computeFingerprints(plantsSection: string, brief: string): string[] {
 
 export interface ExtractSealedKeyInput {
   scenarioId: string;
+  /** Required, never defaulted: the kind decides which four categories are
+   *  mandatory, so guessing it would guess the completeness rule. */
+  scenarioKind: ScenarioKind;
   scenarioMarkdown: string;
 }
 
 /** Extract a complete key, or refuse. There is no partial result. */
 export function extractSealedKey(input: ExtractSealedKeyInput): SealedKey {
   const { brief, plants: plantsSection } = splitScenario(input.scenarioMarkdown);
+  const categories = plantCategoriesFor(input.scenarioKind);
   const items = plantItems(plantsSection);
-  const unmapped = items.filter((item) => categoryOf(item.leadIn) === undefined).map((item) => item.leadIn);
+  const unmapped = items
+    .filter((item) => categoryOf(item.leadIn, input.scenarioKind) === undefined)
+    .map((item) => item.leadIn);
   if (unmapped.length > 0) {
     throw new SealedKeyError(
       "plants-item-unmapped",
-      `${input.scenarioId}: plants item(s) whose category the ratified vocabulary cannot map: ` +
-        `${unmapped.map((leadIn) => JSON.stringify(leadIn)).join(", ")}. ` +
+      `${input.scenarioId} (${input.scenarioKind} scenario): plants item(s) whose category the ratified ` +
+        `vocabulary cannot map: ${unmapped.map((leadIn) => JSON.stringify(leadIn)).join(", ")}. ` +
         `Extraction refuses rather than guessing a category or dropping the item.`,
     );
   }
 
-  const plants = Object.fromEntries(PLANT_CATEGORIES.map((category) => [category, [] as string[]])) as Record<
+  const plants = Object.fromEntries(categories.map((category) => [category, [] as string[]])) as Record<
     PlantCategory,
     string[]
   >;
   for (const item of items) {
-    const category = categoryOf(item.leadIn);
-    if (category !== undefined && item.body.length > 0) plants[category].push(item.body);
+    const category = categoryOf(item.leadIn, input.scenarioKind);
+    if (category !== undefined && item.body.length > 0) plants[category]?.push(item.body);
   }
 
-  const missing = PLANT_CATEGORIES.filter((category) => plants[category].length === 0);
+  const missing = categories.filter((category) => (plants[category] ?? []).length === 0);
   if (missing.length > 0) {
     throw new SealedKeyError(
       "plants-category-missing",
-      `${input.scenarioId}: key is partial — missing plant categor(ies) ${missing.join(", ")}. ` +
+      `${input.scenarioId} (${input.scenarioKind} scenario): key is partial — missing plant categor(ies) ` +
+        `${missing.join(", ")}. ` +
         `A partial key scores the scenario against fewer expectations than the rubric requires.`,
     );
   }
 
   return {
     scenarioId: input.scenarioId,
+    scenarioKind: input.scenarioKind,
     scenarioSha256: sha256(input.scenarioMarkdown),
     plants,
     fingerprints: computeFingerprints(plantsSection, brief),

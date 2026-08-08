@@ -700,9 +700,11 @@ is built to the resolved shape: it emits a report and **never** a release signal
 (F-PT-029), and a declared `plan_gate` policy resolves the gate unattended under the
 unchanged rubric §6 criteria while an undeclared one refuses at preflight (F-PT-030).
 **Run 1 itself remains blocked on an exact human authorization naming this campaign's
-output-token and equivalent-USD ceilings, and must not be started without it.** One new
-finding opened: **F-PT-032** (do B-28 §1's four plant categories apply to a job scenario,
-which has no plan arm?) — parked, never guessed.
+output-token and equivalent-USD ceilings, and must not be started without it.** One new finding
+opened **and ratified the same day**: **F-PT-032** — B-28 §1's four plant categories are
+plan-axis instrumentation and a job scenario has no plan arm, so §2 is now scoped to app
+scenarios and job scenarios carry their own four (rubric §9). It was escalated rather than
+guessed, and S-ACC-3 needed no edit. **No L-ACC cell is blocked.**
 
 - **HB-120 — L-ACC fixture kit + self-tests. DONE 2026-08-08** (`tests/fixtures/acceptance/`; register row CF-HARNESS-ACCFIX). Fixture campaign root, fixture scenario
   repos (greenfield, seeded-corpus, job), a scripted `install:packaged` process double
@@ -711,7 +713,7 @@ which has no plan arm?) — parked, never guessed.
   the grader double can emit malformed, citation-less, and fabricated-claim payloads on
   demand. *Defends:* harness self-tests (policy `harness_self_tests`). *Layer:* 1/2.
   *Executor:* build-agent.
-- **HB-121 — CF-INV-ACC-1 sealed-key confinement. DONE 2026-08-08** (`tests/unit/cf-inv-acc-1/`, `tests/hermetic/cf-inv-acc-1/`; job-scenario extraction leg `BLOCKED:F-PT-032`). All three escape routes: assembly
+- **HB-121 — CF-INV-ACC-1 sealed-key confinement. DONE 2026-08-08** (`tests/unit/cf-inv-acc-1/`, `tests/hermetic/cf-inv-acc-1/`; the job-scenario extraction leg opened F-PT-032 and was unparked the same day when the owner ratified per-kind plant lists — rubric §9). All three escape routes: assembly
   scan, reachability walk over the declared read set **including `git log -p`**, and echo
   through report drafts or prior transcripts. Plus extraction ordering, key/scenario
   content-hash binding, and refusal of a partial key missing any of the four plant

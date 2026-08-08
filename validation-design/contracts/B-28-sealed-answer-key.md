@@ -14,18 +14,31 @@ at a seam.
 ## §1 Valid input — what the key is and when it exists
 
 - The sealed key for a scenario is the mechanical extraction of that scenario's
-  `## Plants` section: the planted contradiction(s), the under-specified requirement(s),
-  the buried hard requirement(s), and the tangents that must not become tickets
-  (`acceptance/rubric.md` §2 — four required categories).
+  `## Plants` section. **The required category set depends on the scenario kind**
+  (`acceptance/rubric.md` §2 for app scenarios, §9 for job scenarios — amendment
+  ratified 2026-08-08, F-PT-032):
+  - **app scenario** — the planted contradiction(s), the under-specified
+    requirement(s), the buried hard requirement(s), and the tangents that must not
+    become tickets;
+  - **job scenario** — the genuine input conflict(s) that must be preserved rather
+    than resolved, the item(s) with no discoverable answer, the mechanically-checkable
+    hard deliverable constraint(s), and the tangents that must not become steps.
+
+  Four categories either way. The app list is plan-axis instrumentation and a job has
+  no plan arm, so requiring it of a job scenario demanded instrumentation for a
+  measurement that never happens — and left J-2, the highest-value job axis,
+  permanently ungradeable.
 - Extraction happens **exactly once, before the first grader turn for that campaign is
   constructed.** A key extracted afterwards is invalid; there is no late path.
 - The key is bound to the scenario file by **content hash**. If the scenario file and
   the key disagree, both are invalid and the campaign refuses — silent drift would score
   a run against instrumentation that no longer describes the brief.
-- Extraction is **complete or refused**. A key missing one of the four plant categories
+- Extraction is **complete or refused**. A key missing one of its four plant categories
   is refused rather than accepted as partial: a partial key does not read as an error
   downstream, it reads as generosity, because the axis then scores against fewer
-  expectations than the rubric requires.
+  expectations than the rubric requires. A plants lead-in the ratified vocabulary
+  cannot map is likewise **refused and named**, never silently dropped — dropping it
+  is how a partial key is manufactured without anyone deciding to.
 
 ## §2 Guaranteed output — the confinement guarantee, in three parts
 

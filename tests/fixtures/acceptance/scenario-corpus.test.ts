@@ -3,7 +3,13 @@
 // of the fixture rather than of the campaign.
 
 import { describe, expect, it } from "vitest";
-import { fixtureScenario, FIXTURE_SCENARIO_KINDS, PLANT_CATEGORIES, type PlantCategory } from "./scenario-corpus.js";
+import {
+  fixtureScenario,
+  FIXTURE_SCENARIO_KINDS,
+  plantCategoriesFor,
+  scenarioKindOf,
+  type PlantCategory,
+} from "./scenario-corpus.js";
 
 describe("fixtures/acceptance/scenario-corpus self-test", () => {
   it("walks a non-empty set of scenario kinds", () => {
@@ -11,14 +17,16 @@ describe("fixtures/acceptance/scenario-corpus self-test", () => {
     expect(new Set(FIXTURE_SCENARIO_KINDS).size).toBe(FIXTURE_SCENARIO_KINDS.length);
   });
 
-  it("gives every kind all four plant categories, each with a unique token", () => {
+  it("gives every kind all four of ITS plant categories, each with a unique token", () => {
     const seen = new Set<string>();
     for (const kind of FIXTURE_SCENARIO_KINDS) {
       const scenario = fixtureScenario(kind);
-      for (const category of PLANT_CATEGORIES) {
-        expect(scenario.plants[category]).toHaveLength(1);
+      const categories = plantCategoriesFor(scenarioKindOf(kind));
+      expect(categories).toHaveLength(4);
+      for (const category of categories) {
+        expect(scenario.plants[category], `${kind} ${category}`).toHaveLength(1);
       }
-      expect(scenario.tokens).toHaveLength(PLANT_CATEGORIES.length);
+      expect(scenario.tokens).toHaveLength(categories.length);
       for (const token of scenario.tokens) {
         expect(seen.has(token)).toBe(false);
         seen.add(token);
@@ -48,7 +56,20 @@ describe("fixtures/acceptance/scenario-corpus self-test", () => {
     const scenario = fixtureScenario("greenfield", { omitCategories: [omitted] });
     expect(scenario.plants[omitted]).toEqual([]);
     expect(scenario.markdown).not.toContain("PLANT-TANGENT-GREENFIELD");
-    expect(scenario.tokens).toHaveLength(PLANT_CATEGORIES.length - 1);
+    expect(scenario.tokens).toHaveLength(plantCategoriesFor("app").length - 1);
+  });
+
+  it("gives job scenarios the JOB category list, not the plan-axis one (rubric §9)", () => {
+    const job = fixtureScenario("job");
+    expect(job.scenarioKind).toBe("job");
+    expect(Object.keys(job.plants).sort()).toEqual([
+      "deliverable-constraint",
+      "input-conflict",
+      "tangent",
+      "undiscoverable-answer",
+    ]);
+    expect(job.markdown).toContain("handoff fidelity");
+    expect(job.markdown).not.toContain("(P-4)");
   });
 
   it("seeds unmapped plant vocabulary on demand", () => {

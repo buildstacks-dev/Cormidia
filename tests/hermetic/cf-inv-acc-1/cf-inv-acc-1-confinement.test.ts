@@ -24,7 +24,11 @@ afterEach(async () => {
 
 function sealedKeyFor(kind: FixtureScenarioKind): SealedKey {
   const scenario = fixtureScenario(kind);
-  return extractSealedKey({ scenarioId: scenario.id, scenarioMarkdown: scenario.markdown });
+  return extractSealedKey({
+    scenarioId: scenario.id,
+    scenarioKind: scenario.scenarioKind,
+    scenarioMarkdown: scenario.markdown,
+  });
 }
 
 async function leak(run: () => Promise<unknown>): Promise<KeyConfinementError> {
@@ -105,7 +109,11 @@ describe("CF-INV-ACC-1 (L2) route 2 — reachability, including git history", ()
     const fixture = await makeAcceptanceCampaignFixture({ kinds: ["greenfield"], vaultInsideCampaignRoot: true });
     cleanups.push(fixture.cleanup);
     const scenario = fixture.scenario("greenfield");
-    const key = extractSealedKey({ scenarioId: scenario.id, scenarioMarkdown: scenario.markdown });
+    const key = extractSealedKey({
+      scenarioId: scenario.id,
+      scenarioKind: scenario.scenarioKind,
+      scenarioMarkdown: scenario.markdown,
+    });
     const vaultPath = join(fixture.vaultDir, `${scenario.id}.key.json`);
     await writeFile(vaultPath, JSON.stringify(key), "utf8");
     await fixture.writeEvidence("diff.patch", "no plants here\n");
@@ -124,7 +132,11 @@ describe("CF-INV-ACC-1 (L2) route 2 — reachability, including git history", ()
     const fixture = await makeAcceptanceCampaignFixture({ kinds: ["greenfield"] });
     cleanups.push(fixture.cleanup);
     const scenario = fixture.scenario("greenfield");
-    const key = extractSealedKey({ scenarioId: scenario.id, scenarioMarkdown: scenario.markdown });
+    const key = extractSealedKey({
+      scenarioId: scenario.id,
+      scenarioKind: scenario.scenarioKind,
+      scenarioMarkdown: scenario.markdown,
+    });
     const vaultPath = join(fixture.vaultDir, `${scenario.id}.key.json`);
     await writeFile(vaultPath, JSON.stringify(key), "utf8");
     await fixture.writeEvidence("diff.patch", "no plants here\n");

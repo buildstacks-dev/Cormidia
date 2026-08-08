@@ -761,12 +761,17 @@ open findings and must not be started early.
   seeded claim before any grader result is trusted; no threshold is introduced.
   *Defends:* CORMIDIA-C-B29-001 §5, llm-eval-plan S-11. *Layer:* 1/2 (+4 scaffold).
   *Executor:* build-agent.
-- **HB-130 — PARKED — the campaign runner and run 1.** Blocked on three separate things,
-  none of which a coding agent may supply: an **exact human authorization** with its
-  output-token and USD ceilings (`risk-allocation.md` §5a); **F-PT-029** (whether a
-  scored lane can ever be release evidence); and **F-PT-030** (whether an unattended
-  campaign may auto-continue past a scored gate). Until all three exist, do not build the
-  runner, do not run a campaign, and do not represent L-ACC as an existing gate.
+- **HB-130 — the campaign runner and run 1.** F-PT-029 and F-PT-030 were both answered
+  by the owner on 2026-08-07, so **one blocker remains: an exact human authorization**
+  naming this campaign's output-token and equivalent-USD ceilings
+  (`risk-allocation.md` §5a). Build the runner to the resolved shape: a declared
+  `plan_gate` policy may resolve the gate unattended so a campaign runs end to end,
+  applying the ratified rubric §6 criteria and recording the resolution with the scores
+  it acted on; a config with no declared policy refuses. The runner emits a report and
+  **never** a release signal — L-ACC gates nothing.
+  *Acceptance:* HB-120…129 green first; run 1 produces a distribution plus a gap list,
+  every threshold-dependent axis `inconclusive`, and the report answers "which bytes did
+  this exercise" from the installed version and tarball identity alone.
   *Layer:* L-ACC. *Executor:* human authorization + campaign. *Depends on:* HB-120…129.
 
 ## Standing rules

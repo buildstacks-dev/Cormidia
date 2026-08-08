@@ -69,9 +69,11 @@ expensive mistake this section exists to prevent:
 - **Only the rubric's scored axes are L-ACC-lane work.** The expensive lane contains
   only what no cheaper layer can falsify: whether the org produced good work from a
   realistic brief. Everything that merely *protects* that measurement is offline.
-- The lane's own campaign spend is §5a below. Its relationship to RQ-1 is **F-PT-029
-  (open)** — until it ratifies, L-ACC produces no release evidence and gates nothing,
-  which is the fail-closed interim, not the finding's answer.
+- The lane's own campaign spend is §5a below. Its relationship to RQ-1 was settled
+  2026-08-07 (**F-PT-029**): **L-ACC never gates a release** and never enters RQ-1
+  completeness, verdict, or qualification. It is disclosed assurance outside RQ-1,
+  beside the soak and the threat model — its absence is visible and never a pass, and a
+  bad result is information the human acts on.
 
 ## 1. Probability axis (where it actually breaks) `[elicited]`
 

@@ -40,8 +40,11 @@ scenario repository is mutated.
 7. **Envelope.** An output-token ceiling and an equivalent-USD ceiling, both from an
    exact human authorization for this campaign. There is no global L-ACC ceiling and
    none is invented here (`risk-allocation.md` §5a).
-8. **Plan-gate policy.** Declared. While **F-PT-030** is open the only legal value is
-   human resolution; an auto-continue policy is refused at preflight.
+8. **Plan-gate policy.** Declared — and declaration is the requirement, not human
+   resolution. Since **F-PT-030** resolved (2026-08-07) an `auto-continue` policy is
+   legal, so an unattended campaign runs end to end; it must still apply the ratified
+   rubric §6 criteria and record its resolution durably before any build-arm spend. A
+   config with **no** declared policy refuses: silence is not consent.
 9. **Grader plan.** For each axis that is model-graded, the grader tuple and the read
    set it is disjoint from (B-29 admits it; this contract only requires it be declared).
 
@@ -84,8 +87,13 @@ scenario repository is mutated.
   threshold-dependent axis is `inconclusive` and the campaign verdict is `inconclusive`.
 - Ordering per scenario: preflight → provision → plan arm → **plan gate resolution** →
   build arm → grade → report. No build-arm spend occurs before the gate resolves
-  (`CORMIDIA-INV-ACC-4`). A campaign that stops at the gate is complete for the plan arm
-  and `incomplete` for the build arm — never a failure.
+  (`CORMIDIA-INV-ACC-4`); the resolution may be authored by a human or by the declared
+  `plan_gate` policy, and either way it is recorded with the scores it acted on. A
+  campaign that stops at the gate is complete for the plan arm and `incomplete` for the
+  build arm — never a failure.
+- **The campaign never gates a release** (F-PT-029, 2026-08-07). No L-ACC result enters
+  RQ-1 completeness, verdict, or qualification. A bad result is information the human
+  acts on; it is not a mechanical block, and no surface may present it as one.
 
 ## §5 Freshness and bounds
 

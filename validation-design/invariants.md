@@ -471,15 +471,20 @@ this checkout. **Negative control:** a scenario deliberately bound to this repos
 `[stated: rubric §6]`
 **Statement.** A scenario's build arm does not begin until that scenario's plan gate has
 resolved. The gate resolves on a **score**, not on an approval row — it is not an alias
-of the J-06 approval-wait — and who may resolve it under unattended execution is
-undecided (**F-PT-030**). Until that finding ratifies, an unattended campaign has no
-auto-continue path and stops at the gate.
+of the J-06 approval-wait. **Who may author that resolution was decided 2026-08-07
+(F-PT-030): a campaign config's declared `plan_gate` policy may resolve it unattended,
+so a campaign runs end to end.** What did *not* change is this invariant: a durable
+resolution must exist before any build-arm spend, it must apply the ratified rubric §6
+criteria (at least `attempted` on P-1 and P-5 for every scenario), and a campaign with
+no declared policy still refuses at preflight — silence is not consent.
 **Enforcement.** Both. **Falsifying test shape.** Build-arm provider spend recorded for
 a scenario whose gate has no resolution record; a gate resolution written after the
 first build turn.
 **Adversarial seeds.** (a) resume after interruption re-entering at the build arm;
 (b) a scenario whose plan arm failed treated as "gate passed by absence"; (c) an
-auto-continue implemented ahead of F-PT-030.
+auto-continue that skips recording its resolution, or that proceeds with a scenario
+below the rubric §6 criteria; (d) a campaign with no declared `plan_gate` policy
+continuing anyway.
 
 ## CORMIDIA-INV-ACC-5 — unratified thresholds cannot produce a grade, and `ungraded` is not zero
 `[stated: rubric §5, ratified]`

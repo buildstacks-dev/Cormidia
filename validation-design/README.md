@@ -99,9 +99,11 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   not cite it in a release claim or represent it as an existing gate. Its rubric
   (`../acceptance/rubric.md`) **is** human-ratified and tighten-only, and it deliberately
   declares **no thresholds**; a ratified rubric measures nothing until something runs
-  against it. Its two open questions are F-PT-029 (can a scored lane ever be release
-  evidence) and F-PT-030 (may an unattended campaign auto-continue past a scored plan
-  gate); both carry a fail-closed interim that is an interim, not an answer.
+  against it. Its two questions were answered by the owner on 2026-08-07: **F-PT-029 —
+  L-ACC never gates a release** (permanently outside RQ-1, information only), and
+  **F-PT-030 — an unattended campaign may auto-continue past the plan gate** through a
+  declared policy, under the unchanged rubric §6 criteria and envelope. What remains
+  before run 1 is the guardrail wave (HB-120…129) and an exact campaign authorization.
 - **Jobs (M18) are offline-provable and not outcome-validated.** The B-30/J-22/J-23
   families clear the `docs/jobs/design.md` §14 structural debt, but they prove the
   machinery — ordering, resume, refusal, settlement, handoff — and nothing about whether

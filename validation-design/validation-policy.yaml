@@ -157,8 +157,12 @@
 # THE SPLIT IS THE SUBSTANCE: every campaign invariant is a mechanical guardrail at
 # L1/L2 with a negative control, and only the rubric's scored axes are lane work.
 # Nothing is implemented — no runner, no campaign, no evidence. Findings F-PT-029 and
-# F-PT-030 opened (neither guessed); F-PT-031 records the INV-016 domain decision whose
-# original numbering collided with #336's F-PT-025. No existing gate, tier, lane, spend
+# F-PT-030 opened (neither guessed) and BOTH ANSWERED BY THE OWNER THE SAME DAY:
+# F-PT-029 = no blocker (L-ACC never gates a release, permanently outside RQ-1),
+# F-PT-030 = an unattended campaign may auto-continue past the plan gate through a
+# declared plan_gate policy, under the unchanged rubric §6 criteria and envelope.
+# F-PT-031 records the INV-016 domain decision whose original numbering collided with
+# #336's F-PT-025; owner-confirmed the same day. No existing gate, tier, lane, spend
 # bound, threshold or golden set changed (tighten-only preserved).
 
 schema_version: 1
@@ -480,7 +484,7 @@ l_acc_lane:                                  # outcome acceptance — registered
     - "an app arm whose planner, builder and reviewer are one provider family (the builder != reviewer collapse AGENTS.md forbids)"
     - "an adaptive_assignments candidate with neither a real qualification_ref nor an explicit uncertified disclosure"
     - "commit pin != checked-out HEAD, untracked canonical policy blob, or a scenario repository resolving to this repository (CORMIDIA-INV-ACC-3)"
-    - "unattended execution with no declared plan-gate policy, or any auto-continue policy while F-PT-030 is open"
+    - "unattended execution with no declared plan-gate policy (silence is not consent; an auto-continue policy is legal since F-PT-030 resolved 2026-08-07, an undeclared one never is)"
   hard_boundaries:
     - "no deployment: a campaign ends buildable with a preview command in the report; hosting is a separate human approval afterwards"
     - "never Cormidia itself as a sandbox app: Cormidia feature work is a campaign OUTPUT (filed issues), never a step inside it"
@@ -488,8 +492,8 @@ l_acc_lane:                                  # outcome acceptance — registered
     - "grader != builder, enforced in code per axis, not by convention"
     - "real human approvals only; unattended runs use exactly the ratified sandbox test-mode profile"
     - "all campaign work runs through the PACKAGED cormidia and cormidia-job binaries"
-  rq1_relationship: "F-PT-029 (OPEN). Interim posture is fail-closed: L-ACC produces no release evidence and gates nothing. That interim is NOT the finding's answer."
-  plan_gate_authority: "F-PT-030 (OPEN). Interim posture: human-only. Do not implement auto-continue before ratification."
+  rq1_relationship: "F-PT-029 RESOLVED-RATIFIED 2026-08-07 — NO BLOCKER. L-ACC never gates a release and never enters RQ-1 completeness, verdict, or qualification; it is disclosed assurance outside RQ-1, like the soak and the threat model. A bad result is information for the human, never a mechanical block."
+  plan_gate_authority: "F-PT-030 RESOLVED-RATIFIED 2026-08-07 — an unattended campaign MAY auto-continue past the plan gate via the campaign config's declared plan_gate policy, so a campaign runs end to end. Unchanged: the ratified rubric §6 criteria still decide (build arm proceeds only when every scenario reached at least `attempted` on P-1 and P-5), the resolution is still recorded durably before any build-arm spend, the envelope still bounds spend, and approvals still run under the sandbox test-mode profile. A config with no declared plan_gate policy still refuses — silence is not consent."
 
 unattended_test_mode_profile:                # canonical definition (B-09b cross-ref)
   status: "human-ratified and implemented in Cormidia; live CF-J18-A campaign evidence pending human initiation"
@@ -661,11 +665,14 @@ open_findings:
   # Opened 2026-08-07 at the outcome-acceptance + jobs harness revision (procedure:
   # agents-md-contribution.md). Neither is guessed; dependent cells carry the fail-closed
   # interim explicitly labelled as an interim, never as the answer.
-  - {id: F-PT-029, status: open,
+  - {id: F-PT-029, status: resolved-ratified, resolved: 2026-08-07,
+     resolution: "OWNER DECISION: NO BLOCKER. L-ACC never gates a release and never contributes to RQ-1 completeness, verdict, or qualification. It sits permanently outside RQ-1 as disclosed assurance beside the seven-day soak and the threat model: its absence is visible and never a pass, and a bad L-ACC result is information the human acts on, not a mechanical block. This is a narrowing of what the lane may ever claim, so it is tighten-only. The lane still obeys no-green-by-absence internally — incomplete/inconclusive/ungraded remain the honest outcomes.",
      subject: "L-ACC's relationship to RQ-1: this policy is explicit that triggered lanes gate their own layer's claims and never gate merge, but says nothing about whether a SCORED lane can ever contribute to release evidence, or sits permanently outside RQ-1 as disclosed future assurance (where the seven-day soak and the threat model sit). Load-bearing: it decides whether a bad L-ACC result can ever block a release. Owner's decision. Interim (fail-closed, NOT the answer): L-ACC produces no release evidence and gates nothing"}
-  - {id: F-PT-030, status: open,
+  - {id: F-PT-030, status: resolved-ratified, resolved: 2026-08-07,
+     resolution: "OWNER DECISION: an unattended campaign MAY auto-continue past the plan gate, because the point of a campaign is an end-to-end run — plan, build, grade, report — without a human in the middle. Authority to resolve the gate therefore comes from the campaign config's declared plan_gate policy. Four bounds are unchanged and are what make this safe rather than open-ended: (1) the ratified rubric §6 criteria still decide — the build arm proceeds only when every scenario's plan reached at least `attempted` on P-1 and P-5, and a campaign that stops below that is a successful campaign, not a failed one; (2) the resolution is still recorded durably before any build-arm spend (CORMIDIA-INV-ACC-4 keeps its ordering requirement — what changed is who may author the resolution, not whether one must exist); (3) the per-campaign envelope still bounds every token; (4) approvals still run under the ratified sandbox test-mode profile and human decisions are never forged. A campaign config with NO declared plan_gate policy still refuses at preflight — silence is not consent.",
      subject: "plan-gate authority under unattended execution: rubric §6 lets the gate resolve either by human decision or by a declared plan_gate policy in the campaign config, and whether an unattended campaign may auto-continue past a SCORED gate at all is undecided. Adjacent to but NOT covered by the ratified sandbox test-mode profile (src/org/validation-test-mode.ts), whose only permitted auto-grant category is campaign_budget. Interim (conservative, NOT the answer): the gate is human-only; auto-continue must not be implemented before ratification"}
-  - {id: F-PT-031, status: resolved-delegated, resolved: 2026-08-07,
+  - {id: F-PT-031, status: resolved-ratified, resolved: 2026-08-07,
+     owner_confirmation: "CONFIRMED by the owner 2026-08-07, with a nuance recorded rather than inferred: a job may be recurring and app-scoped or org-scoped (J-22), and may be ASSOCIATED with a ticket, but a ticket is never mandatory for a job and such an association does not pull a job step into INV-016's domain. The invariant's precondition is a readiness transition, which no job step has, associated ticket or not.",
      subject: "INV-016's domain: does 'every autonomously executed unit' include a job step? docs/jobs/design.md §3 deliberately withholds independent review, typed verdicts and independent closure, so on the invariant's plain text a shipped subsystem ignores it",
      resolution: "Delivery-scoped. The decisive argument is the invariant's own precondition: 'before it becomes ready' names the delivery-unit readiness state B-20 owns, and INV-008's ready-frontier clause enumerates what a ready entry binds (RoadmapPlan version, delivery-unit membership, routing eligibility, dependency state, validation contract). A job step has no frontier, no admission, no membership and no plan version, so the precondition is UNSATISFIABLE for it — the universal reading was never checkable, and the scope clause therefore narrows nothing enforceable. The rejected alternative was a standing subsystem-wide waiver class, which misuses a mechanism INV-016 defines as per-unit and policy-bounded, and reads at a future audit as 'this rule applies and we are ignoring it'. Jobs are not thereby unverified: the declared output checks of docs/jobs/design.md §7 are mandatory, a step with no declared outputs reports completed (unverified), and a step whose check fails is failed regardless of provider status (CORMIDIA-C-B30-003, INV-008/INV-015 jobs tightenings)",
      provenance: "the owner delegated this decision explicitly during the jobs revision (jobs-harness-revision-proposal.md §0.8), asking for a call on implementation cost and UX impact; that proposal's package was never accepted and its own numbering (F-PT-025) COLLIDED with the #336 OpenCode finding, so the question is re-registered here under a free id",

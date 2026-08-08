@@ -286,9 +286,15 @@ threshold. -->
   exists for that axis, it reports `ungraded` rather than being graded by a correlated
   provider. [B-29 §2, INV-ACC-2]
 - Given the plan arm has completed, then no build-arm token is spent until that
-  scenario's plan gate resolves on a score; given an unattended campaign, the gate does
-  not auto-continue while F-PT-030 is open, and a campaign that stops at the gate is
-  reported complete-for-the-plan-arm, never failed. [B-27 §4, INV-ACC-4]
+  scenario's plan gate resolves on a score and that resolution is recorded with the
+  scores it acted on; given an unattended campaign with a declared `plan_gate` policy,
+  the policy may author that resolution (F-PT-030, 2026-08-07) provided the ratified
+  rubric §6 criteria are met, and given no declared policy the campaign refuses. A
+  campaign that stops at the gate is reported complete-for-the-plan-arm, never failed.
+  [B-27 §1.8/§4, INV-ACC-4]
+- Given any campaign result, then no release path consumes it: L-ACC never enters RQ-1
+  completeness, verdict, or qualification, and no surface presents a score as a block.
+  [B-27 §4, F-PT-029]
 - Given any axis whose evidence is missing, or whose score arrived without its mandatory
   evidence citation, then it reports `ungraded`; `ungraded` never becomes `0`, never
   enters an aggregate as a number, and every aggregate names its graded denominator.

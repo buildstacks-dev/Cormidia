@@ -929,20 +929,26 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
 Canonical entries: `validation-policy.yaml` → `open_findings`; mirrored in
 harness-design-state.md; dependent cells parked in case-catalog.md.
 
-- **F-PT-029 (open, B-27 / lane policy):** whether a *scored* lane can ever contribute
-  to release evidence, or sits permanently outside RQ-1 as disclosed future assurance
-  (where the seven-day soak and the threat model sit). The policy is explicit that
-  triggered lanes gate their own layer's claims and never gate merge; it says nothing
-  about a lane whose verdicts are scores. Load-bearing: it decides whether a bad L-ACC
-  result can ever block a release. **Owner's decision.** Interim posture is fail-closed
-  and is *not* the answer: L-ACC produces no release evidence and gates nothing.
-- **F-PT-030 (open, B-27 / J-21 plan gate):** whether an unattended campaign may
-  auto-continue past a **scored** plan gate at all. Adjacent to but **not** covered by
-  the ratified sandbox test-mode profile
-  ([`src/org/validation-test-mode.ts`](../src/org/validation-test-mode.ts)), whose only
-  permitted auto-grant category is `campaign_budget`. Conservative reading — the gate is
-  human-only until decided — is the interim; auto-continue must not be implemented before
-  ratification.
-- **F-PT-031 (resolved-delegated 2026-08-07, INV-016 domain):** see
-  `validation-policy.yaml`. The jobs revision's original numbering for this question
-  collided with #336's F-PT-025 and is superseded here.
+All three were **answered by the owner on 2026-08-07**, the day they were opened. Full
+resolutions in `validation-policy.yaml` → `open_findings`.
+
+- **F-PT-029 (RESOLVED-ratified, B-27 / lane policy) — NO BLOCKER.** L-ACC never gates a
+  release and never enters RQ-1 completeness, verdict, or qualification; it sits
+  permanently outside RQ-1 as disclosed assurance, beside the seven-day soak and the
+  threat model. A bad campaign result is information the human acts on, never a
+  mechanical block, and no surface may present it as one. Recorded in B-27 §4.
+- **F-PT-030 (RESOLVED-ratified, B-27 / J-21 plan gate) — auto-continue permitted.** An
+  unattended campaign **may** resolve the plan gate through the campaign config's
+  declared `plan_gate` policy, because an end-to-end run is the point of a campaign. Four
+  bounds are unchanged and are what keep this from being open-ended: the ratified rubric
+  §6 criteria still decide (at least `attempted` on P-1 and P-5 for every scenario); the
+  resolution is still recorded durably before any build-arm spend; the per-campaign
+  envelope still bounds every token; and approvals still run under the ratified sandbox
+  test-mode profile, with human decisions never forged. A config with **no** declared
+  policy still refuses — silence is not consent. Recorded in B-27 §1.8/§4 and
+  `CORMIDIA-INV-ACC-4`.
+- **F-PT-031 (RESOLVED-ratified, INV-016 domain) — confirmed delivery-scoped**, with the
+  owner's nuance recorded: a job may be recurring and app- or org-scoped, and may be
+  *associated* with a ticket, but a ticket is never mandatory for a job and such an
+  association does not pull a job step into INV-016's domain — the precondition is a
+  readiness transition, which no job step has either way.

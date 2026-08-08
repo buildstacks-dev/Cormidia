@@ -2,6 +2,7 @@
 // remain independently active; this guard owns the exact outer authorization.
 
 import { readTurnRecords } from "../../../src/runtime/telemetry.js";
+import type { TurnRecord } from "../../../src/runtime/telemetry.js";
 import { scenarioAppName, type AcceptanceCampaignConfig } from "./campaign-config.js";
 import type { InvocationAdmission, InvocationRequest } from "./cli-admission.js";
 import type { CampaignBinary, RecordedInvocation } from "./cli-driver.js";
@@ -37,6 +38,27 @@ function candidateCost(config: AcceptanceCampaignConfig, assignment: unknown): n
   );
 }
 
+function fixedGraderAssignment(
+  config: AcceptanceCampaignConfig,
+  argv: readonly string[],
+): AcceptanceCampaignConfig["graderPlan"][number]["grader"] {
+  const turnFlag = argv.indexOf("--turn");
+  const turnId = turnFlag === -1 ? undefined : argv[turnFlag + 1];
+  if (turnId === undefined) return undefined;
+  for (const scenario of config.scenarios) {
+    const prefix = `grade-${scenario.id}-`;
+    if (!turnId.startsWith(prefix)) continue;
+    const axis = turnId.slice(prefix.length);
+    return config.graderPlan.find(
+      (entry) =>
+        entry.axis === axis &&
+        (entry.scenarioIds === undefined || entry.scenarioIds.includes(scenario.id)) &&
+        (entry.scenarioKinds === undefined || entry.scenarioKinds.includes(scenario.kind)),
+    )?.grader;
+  }
+  return undefined;
+}
+
 /** Conservative per-command reservation. Unused allowance is released after
  * settlement; an unobservable failed command is debited in full. */
 export function campaignReservation(
@@ -58,10 +80,7 @@ export function campaignReservation(
     return { outputTokens: 120_000, equivUsd: candidateCost(config, scenario?.matrix["planner"]) };
   }
   if (binary === "cormidia" && argv[0] === "run-role") {
-    const assignmentFlag = argv.indexOf("--assignment");
-    const candidateId = assignmentFlag === -1 ? undefined : argv[assignmentFlag + 1]?.split("@")[0];
-    const candidate = config.adaptiveAssignments.find((item) => item.id === candidateId);
-    return { outputTokens: 120_000, equivUsd: candidate?.conservativeEstimate ?? 50 };
+    return { outputTokens: 120_000, equivUsd: candidateCost(config, fixedGraderAssignment(config, argv)) };
   }
   if (binary === "cormidia" && argv[0] === "loop") {
     const appFlag = argv.indexOf("--app");
@@ -90,12 +109,14 @@ export class CampaignSpendGuard implements InvocationAdmission {
   async before(request: InvocationRequest): Promise<void> {
     const reservation = campaignReservation(this.options.config, request.binary, request.argv);
     const rows = await readTurnRecords(this.options.stateHome);
-    const observed = this.totals(rows);
+    const accounted = this.accounted(rows);
     const envelope = this.options.config.envelope;
     if (envelope === undefined) throw new CampaignSpendRefusal("campaign envelope is absent");
     if (
-      observed.outputTokens + this.debitedTokens + reservation.outputTokens > envelope.maxOutputTokens ||
-      observed.equivUsd + this.debitedUsd + reservation.equivUsd > envelope.maxEquivUsd
+      accounted.observed.outputTokens + accounted.unknown.outputTokens + this.debitedTokens + reservation.outputTokens >
+        envelope.maxOutputTokens ||
+      accounted.observed.equivUsd + accounted.unknown.equivUsd + this.debitedUsd + reservation.equivUsd >
+        envelope.maxEquivUsd
     ) {
       const reason =
         `${request.binary} ${request.argv.join(" ")} reservation ` +
@@ -118,27 +139,49 @@ export class CampaignSpendGuard implements InvocationAdmission {
 
   async snapshot(): Promise<CampaignSpendSnapshot> {
     const rows = await readTurnRecords(this.options.stateHome);
-    const totals = this.totals(rows);
+    const accounted = this.accounted(rows);
+    const debitedUnknownOutputTokens = this.debitedTokens + accounted.unknown.outputTokens;
+    const debitedUnknownEquivUsd = this.debitedUsd + accounted.unknown.equivUsd;
     const envelope = this.options.config.envelope;
     if (envelope === undefined) throw new CampaignSpendRefusal("campaign envelope is absent");
     return {
       maxOutputTokens: envelope.maxOutputTokens,
       maxEquivUsd: envelope.maxEquivUsd,
-      observedOutputTokens: totals.outputTokens,
-      observedEquivUsd: totals.equivUsd,
-      debitedUnknownOutputTokens: this.debitedTokens,
-      debitedUnknownEquivUsd: this.debitedUsd,
+      observedOutputTokens: accounted.observed.outputTokens,
+      observedEquivUsd: accounted.observed.equivUsd,
+      debitedUnknownOutputTokens,
+      debitedUnknownEquivUsd,
       ceilingExhausted:
-        totals.outputTokens + this.debitedTokens >= envelope.maxOutputTokens ||
-        totals.equivUsd + this.debitedUsd >= envelope.maxEquivUsd,
+        accounted.observed.outputTokens + debitedUnknownOutputTokens >= envelope.maxOutputTokens ||
+        accounted.observed.equivUsd + debitedUnknownEquivUsd >= envelope.maxEquivUsd,
       reservationRefusals: [...this.refusals],
     };
   }
 
-  private totals(rows: Awaited<ReturnType<typeof readTurnRecords>>): { outputTokens: number; equivUsd: number } {
+  private accounted(rows: TurnRecord[]): {
+    observed: { outputTokens: number; equivUsd: number };
+    unknown: { outputTokens: number; equivUsd: number };
+  } {
+    const known = rows.filter((row) => row.usageQuality !== "unavailable");
+    const unknown = rows.filter((row) => row.usageQuality === "unavailable");
     return {
-      outputTokens: rows.reduce((sum, row) => sum + row.tokensOut, 0),
-      equivUsd: rows.reduce((sum, row) => sum + (row.equivalentCostUsd ?? row.costUsd), 0),
+      observed: {
+        outputTokens: known.reduce((sum, row) => sum + row.tokensOut, 0),
+        equivUsd: known.reduce((sum, row) => sum + (row.equivalentCostUsd ?? row.costUsd), 0),
+      },
+      unknown: {
+        outputTokens: unknown.length * 120_000,
+        equivUsd: unknown.reduce(
+          (sum, row) =>
+            sum +
+            candidateCost(this.options.config, {
+              harness: row.runtime,
+              model: row.model,
+              ...(row.effort === undefined ? {} : { effort: row.effort }),
+            }),
+          0,
+        ),
+      },
     };
   }
 }

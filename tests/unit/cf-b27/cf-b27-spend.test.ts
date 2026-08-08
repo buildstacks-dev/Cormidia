@@ -1,8 +1,13 @@
 // CF-B27-SPEND (L1) — the exact outer authorization is a pre-admission bound.
 
 import { afterEach, describe, expect, it } from "vitest";
+import { recordTurn } from "../../../src/runtime/telemetry.js";
 import type { AcceptanceCampaignConfig } from "../../campaign/acceptance/campaign-config.js";
-import { CampaignSpendGuard, CampaignSpendRefusal } from "../../campaign/acceptance/campaign-spend.js";
+import {
+  campaignReservation,
+  CampaignSpendGuard,
+  CampaignSpendRefusal,
+} from "../../campaign/acceptance/campaign-spend.js";
 import type { InvocationRequest } from "../../campaign/acceptance/cli-admission.js";
 import type { RecordedInvocation } from "../../campaign/acceptance/cli-driver.js";
 import { makeTempStateHome } from "../../fixtures/state-home.js";
@@ -41,10 +46,18 @@ function config(maxOutputTokens = 4_000_000): AcceptanceCampaignConfig {
         conservativeEstimate: 25,
         uncertified: "fixture",
       },
+      {
+        id: "sol",
+        assignment: reviewer,
+        providerFamily: "openai",
+        capabilityRef: "codex",
+        conservativeEstimate: 20,
+        uncertified: "fixture",
+      },
     ],
     envelope: { maxOutputTokens, maxEquivUsd: 520, authorization: "exact" },
     planGate: { kind: "auto-continue", criteria: "rubric-6-attempted-on-P-1-and-P-5" },
-    graderPlan: [],
+    graderPlan: [{ axis: "P-5", scenarioIds: ["S-ACC-1"], grader: reviewer, readTurnIds: ["plan"] }],
   };
 }
 
@@ -90,5 +103,47 @@ describe("CF-B27-SPEND", () => {
     const snapshot = await spend.snapshot();
     expect(snapshot.debitedUnknownOutputTokens).toBe(120_000);
     expect(snapshot.debitedUnknownEquivUsd).toBe(25);
+  });
+
+  it("regression: an unavailable ledger row remains conservatively debited after process restart", async () => {
+    const state = await makeTempStateHome({ name: "acceptance-unavailable-spend" });
+    cleanups.push(state.cleanup);
+    await recordTurn(state.stateHome, {
+      at: "2026-08-08T00:00:00.000Z",
+      role: "planner",
+      runtime: planner.harness,
+      model: planner.model,
+      effort: planner.effort,
+      status: "failed",
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      usageQuality: "unavailable",
+      subagentTurns: 0,
+      wallClockMs: 0,
+      escalations: 0,
+      app: "acc-1",
+      unmeasured: true,
+    });
+
+    const restarted = new CampaignSpendGuard({ stateHome: state.stateHome, config: config(239_999) });
+    const snapshot = await restarted.snapshot();
+    expect(snapshot.observedOutputTokens).toBe(0);
+    expect(snapshot.debitedUnknownOutputTokens).toBe(120_000);
+    expect(snapshot.debitedUnknownEquivUsd).toBe(25);
+    await expect(restarted.before(request())).rejects.toBeInstanceOf(CampaignSpendRefusal);
+  });
+
+  it("reserves the declared fixed-mode grader tuple without an illegal --assignment flag", () => {
+    expect(
+      campaignReservation(config(), "cormidia", [
+        "run-role",
+        "acceptance-grader",
+        "--app",
+        "acc-1",
+        "--turn",
+        "grade-S-ACC-1-P-5",
+      ]),
+    ).toEqual({ outputTokens: 120_000, equivUsd: 20 });
   });
 });

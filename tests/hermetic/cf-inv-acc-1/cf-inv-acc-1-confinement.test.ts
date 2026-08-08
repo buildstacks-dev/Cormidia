@@ -58,6 +58,22 @@ describe("CF-INV-ACC-1 (L2) route 1 — assembly", () => {
     expect(proof.claim).toContain("semantic inference is not claimed");
   });
 
+  it("regression: public rubric axis labels are not fingerprints of sealed answer bodies", async () => {
+    const key = sealedKeyFor("greenfield");
+    const scenario = fixtureScenario("greenfield");
+    const repo = await makeFixtureScenarioRepo({ kind: "greenfield" });
+    cleanups.push(repo.cleanup);
+
+    await expect(
+      proveKeyConfinement([key], {
+        assembledInput: `${scenario.brief}\nRubric axes: P-1 P-2 P-3 P-4 P-5 P-6`,
+        reachableRoots: [repo.repo.dir],
+      }),
+    ).resolves.toMatchObject({ scenarioIds: [scenario.id] });
+    expect(key.fingerprints).not.toContain("P-2");
+    expect(key.fingerprints).not.toContain("P-4");
+  });
+
   it("negative control: a plant leaked into the grader's assembled input fires", async () => {
     const key = sealedKeyFor("greenfield");
     const leaked = fixtureScenario("greenfield", { leakIntoBrief: ["contradiction"] });

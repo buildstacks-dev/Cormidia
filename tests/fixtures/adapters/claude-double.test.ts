@@ -376,6 +376,33 @@ describe("CF-C-CORE — CORMIDIA-C-CORE-001 clauses against the scripted Anthrop
     expect(result.summary).toBe('{"verdict":"approve","confidence":0.9}');
   });
 
+  it("regression: removes the unsupported 2020-12 dialect marker before Claude Code validates the schema", async () => {
+    const dbl = claudeDouble([
+      script.turn({
+        sessionId: "sess-schema-dialect",
+        outcome: script.success("ok", { usage: { inputTokens: 10, outputTokens: 2 } }),
+      }),
+    ]);
+    await dbl.runtime.runTurn(
+      doubleTurnRequest({
+        workdir: WORKDIR,
+        verdictSchema: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+          required: ["answer"],
+          properties: { answer: { type: "string" } },
+        },
+      }),
+      recordingHooks().hooks,
+    );
+
+    expect(onlyTurn(dbl).options.outputFormatSchema).toEqual({
+      type: "object",
+      required: ["answer"],
+      properties: { answer: { type: "string" } },
+    });
+  });
+
   it("§3 typed provider failure: status failed, stable errorCode, usage still settled", async () => {
     const dbl = claudeDouble([
       script.turn({

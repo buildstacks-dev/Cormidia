@@ -82,6 +82,7 @@ export interface RecordedProviderOptions {
   strictMcpConfig: boolean | undefined;
   systemPromptAppend: string | undefined;
   hasOutputFormatSchema: boolean;
+  outputFormatSchema: unknown;
   permissionDenyRules: string[];
 }
 
@@ -510,6 +511,7 @@ function recordProviderOptions(options: SdkOptions | undefined): RecordedProvide
     strictMcpConfig: options?.strictMcpConfig,
     systemPromptAppend,
     hasOutputFormatSchema: options?.outputFormat !== undefined,
+    outputFormatSchema: options?.outputFormat?.schema,
     permissionDenyRules,
   };
 }

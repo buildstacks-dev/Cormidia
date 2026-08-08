@@ -27,6 +27,7 @@ export type UngradedReason =
   | "malformed-result"
   | "artifact-not-in-read-set"
   | "key-leaked"
+  | "arm-command-failed"
   | "reconciliation-open"
   | "threshold-unratified";
 

@@ -111,6 +111,7 @@ export interface SealedKey {
 const PLANTS_HEADING = /^##\s+Plants\b/m;
 const ITEM_LEAD_IN = /^\*\*(.+?)\*\*/;
 const SCREAMING_TOKEN = /\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\b/g;
+const PUBLIC_AXIS_TOKEN = /^(?:P|O|J)-\d+$/;
 const FINGERPRINT_WORDS = 8;
 
 export function sha256(text: string): string {
@@ -196,12 +197,18 @@ function ngrams(words: string[], size: number): string[] {
 
 function computeFingerprints(plantsSection: string, brief: string): string[] {
   const briefText = normalizeWords(brief).join(" ");
+  // Category lead-ins carry public rubric vocabulary such as `P-2`. Only the
+  // plant bodies are answer material; fingerprinting headings makes a clean
+  // rubric excerpt look like a key leak.
+  const answerMaterial = plantItems(plantsSection)
+    .map((item) => item.body)
+    .join("\n");
   const candidates = new Set<string>();
-  for (const gram of ngrams(normalizeWords(plantsSection), FINGERPRINT_WORDS)) {
+  for (const gram of ngrams(normalizeWords(answerMaterial), FINGERPRINT_WORDS)) {
     if (!briefText.includes(gram)) candidates.add(gram);
   }
-  for (const token of plantsSection.match(SCREAMING_TOKEN) ?? []) {
-    if (!brief.includes(token)) candidates.add(token);
+  for (const token of answerMaterial.match(SCREAMING_TOKEN) ?? []) {
+    if (!PUBLIC_AXIS_TOKEN.test(token) && !brief.includes(token)) candidates.add(token);
   }
   return [...candidates].sort();
 }

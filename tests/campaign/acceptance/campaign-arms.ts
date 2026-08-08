@@ -11,7 +11,7 @@ import type { AxisReportRow } from "./campaign-report.js";
 import type { CampaignRuntimeDeps } from "./campaign-runtime.js";
 import { activateAcceptanceGrader, activateScenarioRoleMatrix } from "./campaign-org-roles.js";
 import { composeAxisEvidenceSet } from "./grader-envelope.js";
-import { resolveAxisGraders, type GradedTurnRef } from "./grader-independence.js";
+import { resolveAxisGraders, type AxisGraderResolution, type GradedTurnRef } from "./grader-independence.js";
 import { runGraderTurn } from "./grader-turn.js";
 import { scoreMechanicalAxes } from "./mechanical-axis-results.js";
 import type { ScenarioProvision } from "./provision.js";
@@ -20,6 +20,21 @@ import { scenarioRamble, type SealedKey } from "./sealed-key.js";
 
 const PLAN_AXES = ["P-1", "P-2", "P-3", "P-4", "P-5", "P-6"];
 const OUTCOME_AXES = ["O-1", "O-2", "O-3", "O-4", "O-5", "O-6", "O-7", "J-1", "J-2", "J-3"];
+
+export function failedArmRows(resolutions: readonly AxisGraderResolution[]): AxisReportRow[] {
+  return resolutions.map((resolution) => ({
+    axis: resolution.axis,
+    verdict: "inconclusive",
+    score: "ungraded",
+    justification: null,
+    citations: [],
+    ungradedReason: "arm-command-failed",
+    grader: resolution.status === "assigned" ? resolution.grader.assignment : null,
+    mechanical: resolution.status === "mechanical",
+    appliedDisjointnessFamilies: resolution.status === "mechanical" ? [] : resolution.appliedDisjointnessFamilies,
+    appliedReadTurnIds: resolution.status === "mechanical" ? [] : resolution.appliedReadTurnIds,
+  }));
+}
 
 async function gradeArm(
   deps: CampaignRuntimeDeps,
@@ -66,6 +81,7 @@ async function gradeArm(
       assignment: candidate.assignment,
     })),
   });
+  if (output.exitCode !== 0) return failedArmRows(resolutions);
 
   const rows: AxisReportRow[] = [];
   const mechanicalAxes: string[] = [];

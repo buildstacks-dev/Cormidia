@@ -1,7 +1,9 @@
 # Boundary contract — B-28 (sealed answer key ↔ grader turn input)
 Canonical ID: **CORMIDIA-C-B28-001 (alias: B-28)**
 
-Status: DESIGN-ONLY, added at the 2026-08-07 outcome-acceptance harness revision.
+Status: IMPLEMENTED, with the live composition repaired 2026-08-07. The key is held in
+process memory, plants are never materialized in a scenario repository, and every
+grader reachable-root proof runs before the packaged `run-role` invocation.
 Defends `CORMIDIA-INV-ACC-1`. Journey J-21. Control point T-4 (confidentiality).
 
 **This is a confidentiality contract with no existing analogue in the corpus.** INV-011

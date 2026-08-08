@@ -83,7 +83,7 @@ function graderTurnInput(bits: Awaited<ReturnType<typeof harness>>, axis = "O-1"
 }
 
 describe("CF-S11-env the grader runs through cormidia run-role", () => {
-  it("spawns run-role with the admitted tuple and records a scored row", async () => {
+  it("spawns fixed-mode run-role and records the independently admitted tuple", async () => {
     const bits = await harness([
       {
         whenArgvIncludes: "run-role",
@@ -108,8 +108,7 @@ describe("CF-S11-env the grader runs through cormidia run-role", () => {
     const argv = (await bits.double.invocations())[0]?.argv ?? [];
     expect(argv[0]).toBe("run-role");
     expect(argv).toContain("acceptance-grader");
-    expect(argv).toContain("--assignment");
-    expect(argv).toContain("gpt-5.6-sol-xhigh@xhigh");
+    expect(argv).not.toContain("--assignment");
   });
 
   it("writes the rendered template and hands run-role its path", async () => {
@@ -125,6 +124,23 @@ describe("CF-S11-env the grader runs through cormidia run-role", () => {
     const template = await readFile(templatePath, "utf8");
     expect(template).toContain("Acceptance grading — axis O-1");
     expect(template).toContain("Every citation must be one of: diff, run-journal");
+  });
+
+  it("parses the terminal summary shape emitted by the real run-role CLI", async () => {
+    const result = JSON.stringify({
+      axis: "O-1",
+      score: 3,
+      justification: "the diff contains the historical-rate rule",
+      citations: ["diff"],
+    });
+    const bits = await harness([
+      {
+        whenArgvIncludes: "run-role",
+        stdout: `grade-S-ACC-1-O-1: completed — ${result}\n`,
+      },
+    ]);
+    const row = await runGraderTurn({ ...graderTurnInput(bits), turnId: "grade-S-ACC-1-O-1" });
+    expect(row).toMatchObject({ score: 3, citations: ["diff"], ungradedReason: null });
   });
 
   it("O-5's prompt is adversarial by construction and says finding none must be justified", () => {

@@ -221,6 +221,11 @@
       "lines": 292,
       "newModule": true
     },
+    "src/jobs/invocation-audit.ts": {
+      "exports": 1,
+      "lines": 50,
+      "newModule": true
+    },
     "src/jobs/journal.ts": {
       "exports": 10,
       "lines": 148,
@@ -1345,6 +1350,11 @@
       "exports": 0,
       "lines": 116,
       "newModule": false
+    },
+    "src/runtime/adapters/codex-schema.ts": {
+      "exports": 1,
+      "lines": 84,
+      "newModule": true
     },
     "src/runtime/adapters/codex.ts": {
       "exports": 7,

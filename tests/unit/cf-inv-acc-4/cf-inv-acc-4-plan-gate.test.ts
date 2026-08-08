@@ -70,14 +70,23 @@ describe("CF-INV-ACC-4 (L1) rubric §6 decides eligibility", () => {
     expect(resolvePlanGate(AUTO, [{ scenarioId: "S-ACC-1", scores: partial }]).shortfalls).toEqual(["S-ACC-1/P-1"]);
   });
 
-  it("one scenario below the bar stops the build arm for the campaign — rubric §6 says EVERY scenario", () => {
+  it("one app scenario below the bar stops every paid arm for the campaign", () => {
     const outcome = resolvePlanGate(AUTO, [
       { scenarioId: "S-ACC-1", scores: scores() },
       { scenarioId: "S-ACC-2", scores: scores() },
-      { scenarioId: "S-ACC-3", scores: scores({ "P-5": 0 }) },
+      { scenarioId: "S-ACC-4", scores: scores({ "P-5": 0 }) },
     ]);
     expect(outcome.decision).toBe("stop");
     expect(outcome.resolutions.map((resolution) => resolution.decision)).toEqual(["stop", "stop", "stop"]);
+  });
+
+  it("the job scenario is omitted from plan scores because rubric §9 gives it no Planner", () => {
+    const outcome = resolvePlanGate(AUTO, [
+      { scenarioId: "S-ACC-1", scores: scores() },
+      { scenarioId: "S-ACC-2", scores: scores() },
+    ]);
+    expect(outcome.decision).toBe("continue");
+    expect(outcome.resolutions.map((resolution) => resolution.scenarioId)).not.toContain("S-ACC-3");
   });
 
   it("a stop names the shortfall as the actionable finding it is, never as a failure", () => {

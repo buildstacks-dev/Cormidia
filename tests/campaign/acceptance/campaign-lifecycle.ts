@@ -45,7 +45,9 @@ export class CampaignLifecycleError extends Error {
 
 const LEGAL: Record<CampaignState, readonly CampaignState[]> = {
   authorized: ["provisioned", "incomplete"],
-  provisioned: ["plan-arm", "incomplete"],
+  // Jobs have no Planner. They wait in `provisioned` while app plans are
+  // graded, then enter `plan-gated` under the campaign decision.
+  provisioned: ["plan-arm", "plan-gated", "incomplete"],
   "plan-arm": ["plan-gated", "incomplete"],
   "plan-gated": ["build-arm", "stopped-at-gate", "incomplete"],
   "build-arm": ["graded", "incomplete"],
@@ -58,6 +60,9 @@ const LEGAL: Record<CampaignState, readonly CampaignState[]> = {
 /** A durable record of how the gate resolved and what it acted on. */
 export interface PlanGateResolution {
   scenarioId: string;
+  /** False for a job: it has no plan arm but is still held behind the
+   * campaign-level app gate before its paid arm may begin. */
+  applicable: boolean;
   resolvedBy: "human" | "declared-policy";
   decision: "continue" | "stop";
   /** The plan scores the resolution acted on — recorded, never re-derived. */

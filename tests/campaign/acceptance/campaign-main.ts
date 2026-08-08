@@ -14,9 +14,7 @@
 // (CORMIDIA-INV-ACC-6).
 
 import { join } from "node:path";
-import type { ArmOutput } from "./arms.js";
-import { runBuildArm, runJobArm, runPlanArm } from "./arms.js";
-import type { ScenarioConfig } from "./campaign-config.js";
+import { scenarioArmsFor } from "./campaign-arms.js";
 import {
   preflightCampaign,
   readCampaignFile,
@@ -24,165 +22,68 @@ import {
   type AcceptanceCampaignFile,
   type PreflightSummary,
 } from "./campaign-cli.js";
-import type { AxisReportRow } from "./campaign-report.js";
-import type { CliDriver } from "./cli-driver.js";
-import { composeAxisEvidenceSet } from "./grader-envelope.js";
-import { resolveAxisGraders, type GradedTurnRef } from "./grader-independence.js";
-import { runGraderTurn } from "./grader-turn.js";
-import { provisionScenarioRepository, type ScenarioProvision } from "./provision.js";
+import { provisionCampaignScenarios } from "./campaign-provisioning.js";
+import { reconcileCampaignScenarios } from "./campaign-reconciliation.js";
+import { assertReportWellFormed, type AcceptanceCampaignReport } from "./campaign-report.js";
+import type { CampaignRuntimeDeps } from "./campaign-runtime.js";
+import type { ScenarioProvision } from "./provision.js";
 import { persistReport } from "./report-store.js";
-import { runAcceptanceCampaign, type ScenarioArms } from "./runner.js";
-import { SealedKeyRegistry, type SealedKey } from "./sealed-key.js";
+import { preflightAcceptanceCampaign, runAcceptanceCampaign } from "./runner.js";
+import { SealedKeyRegistry } from "./sealed-key.js";
 
-export interface CampaignRuntimeDeps {
-  driver: CliDriver;
-  /** Where reports and grader templates are written. Outside every root a
-   *  grader can read (B-28 §2). */
-  campaignRoot: string;
-  stateHome: string;
-  repoRoot: string;
-  cormidia: { slug: string; root: string };
-  commitPinAt: Date;
-  /** scenarioId → the scenario file's exact bytes. */
-  scenarioMarkdown: Record<string, string>;
-  /** scenarioId → the ramble brief, verbatim. */
-  rambles: Record<string, string>;
-  /** scenarioId → absolute path to the seed manifest, when it has one. */
-  seedManifests?: Record<string, string>;
-  /** Hard bound on build-arm passes per scenario. */
-  maxBuildPasses: number;
-  rubricExcerpts: Record<string, string>;
-}
-
-/** Grade one arm's axes: mechanical ones stay out of a model's hands, and the
- *  rest run as Cormidia turns with confinement proven before construction. */
-async function gradeArm(
-  deps: CampaignRuntimeDeps,
-  file: AcceptanceCampaignFile,
-  scenario: ScenarioConfig,
-  provision: ScenarioProvision,
-  output: ArmOutput,
-  keys: readonly SealedKey[],
-  axes: readonly string[],
-): Promise<AxisReportRow[]> {
-  const turns: GradedTurnRef[] = Object.entries(scenario.matrix)
-    .filter(([, assignment]) => assignment !== undefined)
-    .map(([role, assignment]) => ({
-      turnId: role === "planner" ? "plan" : role === "builder" ? "build" : role,
-      assignment: assignment!,
-    }));
-
-  const plan = file.campaign.graderPlan.filter((entry) => axes.includes(entry.axis));
-  const resolutions = resolveAxisGraders({
-    axes: plan.map((entry) => ({
-      axis: entry.axis,
-      readTurnIds: entry.readTurnIds ?? [],
-      ...(entry.mechanical === true ? { mechanical: true } : {}),
-    })),
-    turns,
-    candidates: file.campaign.adaptiveAssignments.map((candidate) => ({
-      id: candidate.id,
-      assignment: candidate.assignment,
-    })),
-  });
-
-  const rows: AxisReportRow[] = [];
-  for (const resolution of resolutions) {
-    if (resolution.status === "mechanical") {
-      // Mechanical axes are scored by `mechanical-scoring.ts` against the
-      // sealed key and `provision.sealedMaterial`; they never reach a model.
-      // Left explicit rather than silently skipped so a reader sees the split.
-      rows.push({
-        axis: resolution.axis,
-        score: "ungraded",
-        justification: null,
-        citations: [],
-        ungradedReason: "evidence-missing",
-        grader: null,
-        mechanical: true,
-        appliedDisjointnessFamilies: [],
-        appliedReadTurnIds: [],
-      });
-      continue;
-    }
-    if (resolution.status === "ungraded") {
-      rows.push({
-        axis: resolution.axis,
-        score: "ungraded",
-        justification: null,
-        citations: [],
-        ungradedReason: "no-legal-grader",
-        grader: null,
-        mechanical: false,
-        appliedDisjointnessFamilies: resolution.appliedDisjointnessFamilies,
-        appliedReadTurnIds: resolution.appliedReadTurnIds,
-      });
-      continue;
-    }
-    rows.push(
-      await runGraderTurn({
-        driver: deps.driver,
-        scenarioId: scenario.id,
-        appName: scenario.appSlug.split("/").at(-1) ?? scenario.id,
-        turnId: `grade-${scenario.id}-${resolution.axis}`,
-        resolution,
-        evidence: composeAxisEvidenceSet(resolution.axis, [...output.evidence, ...output.selfReport]),
-        rubricExcerpt: deps.rubricExcerpts[resolution.axis] ?? resolution.axis,
-        keys,
-        reachableRoots: [provision.seededPaths.length > 0 ? scenario.worktree : scenario.worktree],
-        templateDir: join(deps.campaignRoot, "grader-templates"),
-      }),
-    );
-  }
-  return rows;
-}
-
-const PLAN_AXES = ["P-1", "P-2", "P-3", "P-4", "P-5", "P-6"];
-const OUTCOME_AXES = ["O-1", "O-2", "O-3", "O-4", "O-5", "O-6", "O-7", "J-1", "J-2", "J-3"];
-
-/**
- * Build the real `ScenarioArms` for one scenario. This is the function whose
- * absence the review caught: the runner took arms as callbacks and only a test
- * supplied them.
- */
-export function scenarioArmsFor(
-  deps: CampaignRuntimeDeps,
-  file: AcceptanceCampaignFile,
-  scenario: ScenarioConfig,
-  provision: ScenarioProvision,
-  keys: readonly SealedKey[],
-): ScenarioArms {
-  const armDeps = {
-    driver: deps.driver,
-    scenarioId: scenario.id,
-    appName: scenario.appSlug.split("/").at(-1) ?? scenario.id,
-    worktree: scenario.worktree,
-    baselineCommit: provision.baselineCommit,
-    stateHome: deps.stateHome,
-    ramble: deps.rambles[scenario.id] ?? "",
-  };
-  return {
-    scenarioId: scenario.id,
-    async planArm() {
-      if (scenario.kind === "job") return [];
-      const output = await runPlanArm({ ...armDeps, rambleSourcePath: join(scenario.worktree, "BRIEF.md") });
-      return gradeArm(deps, file, scenario, provision, output, keys, PLAN_AXES);
-    },
-    async buildArm() {
-      const output =
-        scenario.kind === "job"
-          ? await runJobArm({ ...armDeps, jobConfigPath: join(scenario.worktree, "job.yaml") })
-          : await runBuildArm({ ...armDeps, maxPasses: deps.maxBuildPasses });
-      return gradeArm(deps, file, scenario, provision, output, keys, OUTCOME_AXES);
-    },
-  };
-}
+export type { CampaignRuntimeDeps } from "./campaign-runtime.js";
 
 export interface CampaignRunOutcome {
   summary: PreflightSummary;
   stoppedAtGate: boolean;
   gateShortfalls: string[];
   reportPath: string;
+}
+
+async function settleSpend(report: AcceptanceCampaignReport, deps: CampaignRuntimeDeps): Promise<void> {
+  report.spend = await deps.spendGuard.snapshot();
+  if (report.spend.ceilingExhausted || report.spend.reservationRefusals.length > 0) {
+    for (const scenario of report.scenarios) {
+      scenario.completeness = "incomplete";
+      scenario.completenessReasons = [
+        ...new Set([
+          ...scenario.completenessReasons,
+          ...(report.spend.ceilingExhausted ? ["ceiling_exhausted"] : []),
+          ...(report.spend.reservationRefusals.length > 0 ? ["spend_reservation_refused"] : []),
+        ]),
+      ].sort();
+    }
+  }
+}
+
+function applyReconciliation(
+  report: AcceptanceCampaignReport,
+  reconciliations: Awaited<ReturnType<typeof reconcileCampaignScenarios>>,
+): void {
+  for (const scenario of report.scenarios) {
+    const result = reconciliations.get(scenario.scenarioId);
+    scenario.supervisorReconciliationClosed = result?.closed === true;
+    if (result?.closed === true) continue;
+    scenario.completeness = "incomplete";
+    scenario.completenessReasons = [
+      ...new Set([
+        ...scenario.completenessReasons,
+        ...(result?.violations ?? []).map((violation) => `reconciliation:${violation.code}:${violation.subject}`),
+      ]),
+    ].sort();
+    scenario.axes = scenario.axes.map((axis) => ({
+      ...axis,
+      score: "ungraded",
+      justification: null,
+      citations: [],
+      ungradedReason: "reconciliation-open",
+    }));
+  }
+  report.gaps = report.scenarios.flatMap((scenario) =>
+    scenario.axes
+      .filter((axis) => axis.score === "ungraded")
+      .map((axis) => ({ scenarioId: scenario.scenarioId, axis: axis.axis, reason: axis.ungradedReason ?? "unknown" })),
+  );
 }
 
 /** Provision, run, grade, persist. Spends real tokens — the caller must have
@@ -193,22 +94,16 @@ export async function runCampaign(
   installProof: Parameters<typeof runAcceptanceCampaign>[0]["installProof"],
 ): Promise<CampaignRunOutcome> {
   const summary = await preflightCampaign(file, deps.campaignRoot);
-
-  const provisions = new Map<string, ScenarioProvision>();
-  for (const scenario of file.campaign.scenarios) {
-    provisions.set(
-      scenario.id,
-      await provisionScenarioRepository({
-        scenarioId: scenario.id,
-        kind: scenario.kind,
-        appSlug: scenario.appSlug,
-        worktree: scenario.worktree,
-        ...(deps.seedManifests?.[scenario.id] === undefined
-          ? {}
-          : { seedManifestPath: deps.seedManifests[scenario.id] as string }),
-      }),
-    );
-  }
+  // B-27 §1 world preflight is deliberately repeated here before the first
+  // new-app/bootstrap/seed mutation. The runner repeats it at arm entry so a
+  // long provisioning phase cannot make the proof stale silently.
+  await preflightAcceptanceCampaign({
+    config: file.campaign,
+    cormidia: deps.cormidia,
+    commitPinAt: deps.commitPinAt,
+    ...(installProof === undefined ? {} : { installProof }),
+    turnCommands: deps.driver.recorded().map((invocation) => `${invocation.binary} ${invocation.argv.join(" ")}`),
+  });
 
   const registry = new SealedKeyRegistry();
   const keys = file.campaign.scenarios.map((scenario) =>
@@ -218,6 +113,13 @@ export async function runCampaign(
       scenarioMarkdown: deps.scenarioMarkdown[scenario.id] ?? "",
     }),
   );
+
+  const provisions = await provisionCampaignScenarios(file, deps);
+  const checkpoint = async (report: AcceptanceCampaignReport, status: "running" | "final"): Promise<void> => {
+    await settleSpend(report, deps);
+    assertReportWellFormed(report);
+    await persistReport({ root: deps.campaignRoot, configSha256: summary.configSha256, report, status });
+  };
 
   const run = await runAcceptanceCampaign({
     config: file.campaign,
@@ -230,14 +132,19 @@ export async function runCampaign(
       scenarioArmsFor(deps, file, scenario, provisions.get(scenario.id) as ScenarioProvision, keys),
     ),
     turnCommands: deps.driver.recorded().map((invocation) => `${invocation.binary} ${invocation.argv.join(" ")}`),
+    onProgress: async (report) => checkpoint(report, "running"),
   });
 
-  await persistReport({
-    root: deps.campaignRoot,
-    configSha256: summary.configSha256,
-    report: run.report,
-    status: "final",
-  });
+  applyReconciliation(
+    run.report,
+    await reconcileCampaignScenarios({
+      config: file.campaign,
+      driver: deps.driver,
+      stateHome: deps.stateHome,
+      provisions,
+    }),
+  );
+  await checkpoint(run.report, "final");
 
   return {
     summary,
@@ -247,8 +154,9 @@ export async function runCampaign(
   };
 }
 
-/** Process entry. `--dry-run` is the honest rehearsal: every preflight runs,
- *  nothing is provisioned, no binary is spawned. */
+/** Process entry. `--dry-run` is the honest structural rehearsal: every
+ *  config/authorization/identity preflight runs, nothing is provisioned, and
+ *  no binary is spawned. `runCampaign` owns the runtime-only world proof. */
 export async function main(argv: string[]): Promise<number> {
   const configIndex = argv.indexOf("--config");
   if (configIndex === -1 || argv[configIndex + 1] === undefined) {

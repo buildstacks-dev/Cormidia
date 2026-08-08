@@ -76,6 +76,7 @@ export interface GraderTurnInput {
 function ungraded(axis: string, resolution: AssignedAxisGrader, reason: UngradedReason): AxisReportRow {
   return {
     axis,
+    verdict: "inconclusive",
     score: "ungraded",
     justification: null,
     citations: [],
@@ -110,18 +111,7 @@ export async function runGraderTurn(input: GraderTurnInput): Promise<AxisReportR
   const assignment = input.resolution.grader.assignment;
   const invocation = await input.driver.run(
     "cormidia",
-    [
-      "run-role",
-      "acceptance-grader",
-      "--app",
-      input.appName,
-      "--turn",
-      input.turnId,
-      "--template",
-      templatePath,
-      "--assignment",
-      `${input.resolution.grader.id}@${assignment.effort}`,
-    ],
+    ["run-role", "acceptance-grader", "--app", input.appName, "--turn", input.turnId, "--template", templatePath],
     { scenarioId: input.scenarioId },
   );
 
@@ -129,7 +119,11 @@ export async function runGraderTurn(input: GraderTurnInput): Promise<AxisReportR
     return ungraded(input.evidence.axis, input.resolution, "malformed-result");
   }
 
-  const parsed = parseGraderResult(lastJsonLine(invocation.stdout), input.evidence.axis, input.evidence.readSet);
+  const parsed = parseGraderResult(
+    terminalGraderResult(invocation.stdout, input.turnId),
+    input.evidence.axis,
+    input.evidence.readSet,
+  );
   if (!parsed.ok) {
     const reason: UngradedReason =
       parsed.rejection === "artifact-not-in-read-set"
@@ -142,6 +136,7 @@ export async function runGraderTurn(input: GraderTurnInput): Promise<AxisReportR
 
   return {
     axis: parsed.axis,
+    verdict: "inconclusive",
     score: parsed.score,
     justification: parsed.justification,
     citations: parsed.citations,
@@ -157,10 +152,20 @@ export async function runGraderTurn(input: GraderTurnInput): Promise<AxisReportR
  *  around the result, and B-29 §4 refuses a MULTI-marker payload — so this
  *  narrows to the terminal line and lets the parser judge it, rather than
  *  scanning for the most agreeable-looking JSON anywhere in the stream. */
-function lastJsonLine(stdout: string): string {
+function terminalGraderResult(stdout: string, turnId: string): string {
   const lines = stdout
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line.startsWith("{") && line.endsWith("}"));
-  return lines.at(-1) ?? stdout.trim();
+    .filter(Boolean);
+  const direct = lines.filter((line) => line.startsWith("{") && line.endsWith("}")).at(-1);
+  if (direct !== undefined) return direct;
+
+  // Live `cormidia run-role` owns the provider output in output.md and prints
+  // its terminal summary as `<turn>: completed — <summary>`. The binary double
+  // historically printed the JSON directly, so tests never exercised this
+  // wrapper. Accept only the exact, caller-bound terminal prefix rather than
+  // searching arbitrary progress text for an agreeable-looking JSON object.
+  const prefix = `${turnId}: completed — `;
+  const wrapped = lines.filter((line) => line.startsWith(prefix)).at(-1);
+  return wrapped?.slice(prefix.length).trim() ?? stdout.trim();
 }

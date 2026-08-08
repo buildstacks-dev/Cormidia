@@ -90,6 +90,9 @@ describe("CF-AUTH-MODE-SETTLE — a subscription turn settles as an authoritativ
     expect(record.costUsd).toBe(0);
     // An estimate of a charge that does not exist is not an estimate.
     expect(record.costEstimated).toBeUndefined();
+    // The explicitly non-invoice comparison survives for bounded campaigns.
+    expect(record.equivalentCostUsd).toBe(3.25);
+    expect(record.equivalentCostEstimated).toBe(true);
     // Tokens and quality describe the OBSERVATION and keep their meaning.
     expect(record.tokensIn).toBe(120_000);
     expect(record.cacheReadTokens).toBe(100_000);
@@ -139,7 +142,7 @@ describe("CF-AUTH-MODE-SETTLE — a subscription turn settles as an authoritativ
 
   it("settleBilling itself is total: undefined passes through untouched", () => {
     expect(settleBilling(USAGE, undefined)).toBe(USAGE);
-    expect(settleBilling(USAGE, "subscription").costUsd).toBe(0);
+    expect(settleBilling(USAGE, "subscription")).toMatchObject({ costUsd: 0, equivalentCostUsd: 3.25 });
     expect(settleBilling(USAGE, "api_key").costUsd).toBe(3.25);
   });
 

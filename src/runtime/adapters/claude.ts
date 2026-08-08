@@ -279,6 +279,8 @@ export class ClaudeRuntime implements Runtime {
         permissions: { ...basePermissions, deny: [...baseDeny, ...denyRules] },
       } as SdkOptions["settings"];
     }
+    const outputSchema = req.verdictSchema === undefined ? undefined : { ...req.verdictSchema };
+    if (outputSchema !== undefined) delete outputSchema["$schema"];
     const options: SdkOptions = {
       ...this.baseOptions,
       ...definedProps({ settings }),
@@ -314,9 +316,7 @@ export class ClaudeRuntime implements Runtime {
       // text (→ summary) is the JSON itself. Absent verdictSchema, the key
       // is left untouched (docs/loop/design.md §10: adapters without support
       // ignore it; here "no schema" must not clobber a baseOptions value).
-      ...(req.verdictSchema !== undefined
-        ? { outputFormat: { type: "json_schema" as const, schema: req.verdictSchema } }
-        : {}),
+      ...(outputSchema === undefined ? {} : { outputFormat: { type: "json_schema" as const, schema: outputSchema } }),
       abortController,
     };
 

@@ -8,11 +8,10 @@
 // with no declared policy still refuses at preflight (that refusal lives in
 // `campaign-config.ts`; silence is not consent).
 //
-// The criteria are read straight off rubric §6: "every scenario's plan reached
-// at least `attempted` on P-1 and P-5". Note the scope — EVERY scenario. One
-// scenario below the bar stops the build arm for the campaign, not just for
-// itself. That is the stricter reading of the ratified text, and the rubric is
-// tighten-only.
+// The criteria are read straight off rubric §6 and the job amendment in §9:
+// every APP scenario's plan reached at least `attempted` on P-1 and P-5. Jobs
+// have no Planner and therefore no plan axes. They remain held behind the
+// campaign decision, but are never made to fabricate plan scores.
 //
 // `ungraded` is not `attempted`. An axis nobody could measure has not cleared a
 // bar; treating it as if it had is the INV-ACC-5 coercion wearing a different
@@ -81,7 +80,7 @@ export function resolvePlanGate(
       `the most actionable finding available.`;
   } else if (policy.kind === "auto-continue") {
     decision = "continue";
-    reason = `rubric §6 met on every scenario; continuation authorized by the declared ${policy.kind} policy (${policy.criteria})`;
+    reason = `rubric §6 met on every app scenario; continuation authorized by the declared ${policy.kind} policy (${policy.criteria})`;
   } else if (humanDecision === undefined) {
     decision = "stop";
     awaitingHuman = true;
@@ -97,6 +96,7 @@ export function resolvePlanGate(
     awaitingHuman,
     resolutions: scenarios.map((scenario) => ({
       scenarioId: scenario.scenarioId,
+      applicable: true,
       resolvedBy: policy.kind === "auto-continue" ? "declared-policy" : "human",
       decision,
       // The scores the resolution ACTED ON, recorded rather than re-derived —

@@ -83,13 +83,12 @@ orchestrator — and since HB-131 the execution layer that actually drives a run
 `arms.ts`, `mechanical-scoring.ts`, `grader-turn.ts`, `report-store.ts` and
 `campaign-main.ts`.
 
-**No campaign has run and no L-ACC evidence exists.** Nothing here spends a
-token in the offline lane: every test drives a scripted binary double. Run 1
-needs an exact human authorization naming its output-token and equivalent-USD
-ceilings (`risk-allocation.md` §5a) *and* the operating preconditions the entry
-point will not invent — packaged-install proof, campaign org, three disposable
-scenario repositories, provider credentials. L-ACC gates nothing and never emits
-a release signal (F-PT-029).
+Run 1 reached a terminal plan-gate stop on 2026-08-08; its evidence index is
+`../acceptance/run-1-result.md`. Nothing in the offline lane spends a token:
+every test still drives a scripted binary double. Any later campaign needs its
+own exact human authorization and the operating preconditions the entry point
+will not invent. L-ACC gates nothing and never emits a release signal
+(F-PT-029).
 
 Rehearse with `pnpm test:acceptance -- --config <path> --dry-run`.
 

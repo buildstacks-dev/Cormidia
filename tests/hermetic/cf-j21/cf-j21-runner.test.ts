@@ -18,6 +18,7 @@ import type { TurnAssignment } from "../../../src/runtime/types.js";
 import type { AcceptanceCampaignConfig } from "../../campaign/acceptance/campaign-config.js";
 import type { AxisReportRow } from "../../campaign/acceptance/campaign-report.js";
 import { parseInstallProof } from "../../campaign/acceptance/packaged-provenance.js";
+import { CampaignSpendRefusal } from "../../campaign/acceptance/campaign-spend.js";
 import { runAcceptanceCampaign, type ScenarioArms } from "../../campaign/acceptance/runner.js";
 import { makePackagedInstallDouble } from "../../fixtures/acceptance/packaged-install-double.js";
 import { fixtureScenario } from "../../fixtures/acceptance/scenario-corpus.js";
@@ -53,6 +54,7 @@ async function authorizedRepo(): Promise<{ repo: TempGitRepo; commit: string; po
 function planRow(axis: string, score: 0 | 1 | 2 | 3): AxisReportRow {
   return {
     axis,
+    verdict: "inconclusive",
     score,
     justification: `${axis} judged against the sealed key`,
     citations: ["ticket-set"],
@@ -67,6 +69,7 @@ function planRow(axis: string, score: 0 | 1 | 2 | 3): AxisReportRow {
 function outcomeRow(axis: string): AxisReportRow {
   return {
     axis,
+    verdict: "inconclusive",
     score: 2,
     justification: `${axis} judged against the artifacts`,
     citations: ["diff"],
@@ -104,6 +107,7 @@ async function rig(options: { planScores?: Record<string, 0 | 1 | 2 | 3>; autoCo
     arms: [
       {
         scenarioId: "S-ACC-1",
+        kind: "app",
         async planArm() {
           calls.push("plan");
           return Object.entries(planScores).map(([axis, score]) => planRow(axis, score));
@@ -125,6 +129,7 @@ async function rig(options: { planScores?: Record<string, 0 | 1 | 2 | 3>; autoCo
           kind: "app",
           appSlug: "cormidia-sandbox/acc-1-timetracker",
           worktree: scenarioRepo.repo.dir,
+          previewCommand: "pnpm dev",
           matrix: { planner: claudeOpus, builder: claudeSonnet, reviewer: codexSol },
         },
       ],
@@ -136,6 +141,14 @@ async function rig(options: { planScores?: Record<string, 0 | 1 | 2 | 3>; autoCo
           capabilityRef: "docs/harness/capability-matrix.md#claude",
           conservativeEstimate: 12,
           uncertified: "no ratified qualification reference exists for this tuple yet",
+        },
+        {
+          id: "gpt-5.6-sol-xhigh",
+          assignment: codexSol,
+          providerFamily: "openai",
+          capabilityRef: "docs/harness/capability-matrix.md#codex",
+          conservativeEstimate: 20,
+          uncertified: "fixture",
         },
       ],
       envelope: { maxOutputTokens: 400_000, maxEquivUsd: 120, authorization: "exact human authorization pending" },
@@ -173,7 +186,21 @@ describe("CF-J21-S (L2) the happy walk", () => {
       builder: claudeSonnet,
       reviewer: codexSol,
     });
-    expect(run.report.scenarios[0]?.axes.map((row) => row.axis)).toEqual(["P-1", "P-5", "O-1", "O-5"]);
+    expect(run.report.scenarios[0]?.axes.map((row) => row.axis)).toEqual([
+      "P-1",
+      "P-2",
+      "P-3",
+      "P-4",
+      "P-5",
+      "P-6",
+      "O-1",
+      "O-2",
+      "O-3",
+      "O-4",
+      "O-5",
+      "O-6",
+      "O-7",
+    ]);
     expect(run.report.scenarios[0]?.planGate?.resolvedBy).toBe("declared-policy");
     expect(run.report.scenarios[0]?.planGate?.scores).toEqual({ "P-1": 2, "P-5": 2 });
   });
@@ -194,6 +221,25 @@ describe("CF-J21-S (L2) the happy walk", () => {
 });
 
 describe("CF-J21-RC (L2) stopping at the gate is a successful campaign", () => {
+  it("a spend admission refusal persists an incomplete report instead of escaping as truncation", async () => {
+    const fixture = await rig();
+    fixture.arms[0]!.planArm = async () => {
+      fixture.calls.push("plan-refused");
+      throw new CampaignSpendRefusal("reservation does not fit");
+    };
+    const run = await runAcceptanceCampaign({
+      ...fixture,
+      repoRoot,
+      commitPinAt: COMMIT_PIN_AT,
+      installProof: await installProof(),
+    });
+    expect(fixture.calls).toEqual(["plan-refused"]);
+    expect(run.stoppedAtGate).toBe(true);
+    expect(run.gateShortfalls).toContain("campaign spend admission stopped further arms");
+    expect(run.report.scenarios[0]?.completeness).toBe("incomplete");
+    expect(run.report.scenarios[0]?.axes.every((axis) => axis.score === "ungraded")).toBe(true);
+  });
+
   it("negative control: a scenario below rubric §6 never reaches the build arm", async () => {
     const fixture = await rig({ planScores: { "P-1": 0, "P-5": 2 } });
     const run = await runAcceptanceCampaign({

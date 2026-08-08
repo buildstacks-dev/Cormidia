@@ -39,24 +39,20 @@ export interface TurnRecord {
   cacheReadTokens?: number;
   tokensOut: number;
   costUsd: number;
+  equivalentCostUsd?: number;
+  equivalentCostEstimated?: boolean;
   /** Complete, partial, estimated, or unavailable provider usage. */
   usageQuality: UsageQuality;
   subagentTurns: number;
   wallClockMs: number;
   escalations: number;
-  /** apps.yaml key of the target app, so cost rolls up per app
-   *  (architecture.md §7). Omitted — not null — when unknown, so pre-M3.2
-   *  JSONL lines and new unattributed ones stay byte-shape identical. */
+  /** apps.yaml key; omitted when unknown so historical rows stay compatible. */
   app?: string;
   /** Trigger kind that fired the turn. Omitted when unknown (back-compat). */
   trigger?: TriggerKind;
-  /** Run-log correlation (telemetry doc §6): joins this ledger row to
-   *  `runs/<app>/<runId>/` and makes settlement idempotent. Present on every
-   *  pass-settled row; absent on legacy and turn-lifecycle rows. */
+  /** Joins to `runs/<app>/<runId>/`; present on new pass settlements. */
   runId?: string;
-  /** Stable identity for one Runtime.runTurn invocation. A pass may invoke
-   * the provider more than once (for example, a structured-output repair),
-   * so new settlements key on this value rather than the parent runId. */
+  /** Stable Runtime.runTurn identity; finer than a possibly multi-turn pass. */
   providerTurnId?: string;
   /** Durable provider/mechanical execution record that produced this row. */
   executionStepId?: string;
@@ -190,6 +186,8 @@ export function toRecord(
   if (attribution.candidateRef !== undefined) record.candidateRef = attribution.candidateRef;
   if (attribution.learningActivity !== undefined) record.learningActivity = attribution.learningActivity;
   if (usage.costEstimated === true) record.costEstimated = true;
+  if (usage.equivalentCostUsd !== undefined) record.equivalentCostUsd = usage.equivalentCostUsd;
+  if (usage.equivalentCostEstimated === true) record.equivalentCostEstimated = true;
   if (usage.tokensInUncached !== undefined) {
     record.tokensInUncached = usage.tokensInUncached;
   }

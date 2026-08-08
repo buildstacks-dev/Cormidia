@@ -1,8 +1,9 @@
-# Outcome acceptance (L-ACC) — design input, NOT a lane
+# Outcome acceptance (L-ACC) — ratified lane and run record
 
 ***Status: rubric RATIFIED 2026-08-07. Guardrails, runner and execution layer
-BUILT 2026-08-08 (HB-120…HB-131). NO CAMPAIGN HAS RUN and no L-ACC evidence
-exists.***
+BUILT (HB-120…HB-131), real-path conformance repaired 2026-08-07 (HB-132).
+Run 1 reached a terminal plan-gate stop on 2026-08-08; its official distribution
+is entirely ungraded/inconclusive and all scenarios are incomplete.***
 
 *The measurement rubric ([`rubric.md`](rubric.md) §8) is ratified and tighten-only
 — its thresholds deliberately are not. Everything else here was design input to a
@@ -17,22 +18,20 @@ plus J-22/J-23, M18 and B-30 clearing the jobs debt. Read*
 *for the record and* [`../validation-design/ratification-package.md`](../validation-design/ratification-package.md)
 *§11 for what the owner still has to decide (F-PT-029, F-PT-030, F-PT-031).*
 
-***The lane has still NEVER RUN.*** *The campaign invariants landed at L1/L2 with
-negative controls, and the full path from a config to a report now exists in
-`tests/campaign/acceptance/` — driver, provisioning, arms, scorers, grader turn,
-durable report. No campaign has run and no L-ACC evidence exists.*
+***The lane has run once.*** *The durable evidence index is
+[`run-1-result.md`](run-1-result.md). Run 1 stopped at the unchanged rubric §6
+plan gate, emitted no release signal, and was not rerun to improve the result.*
 
-*Run 1 needs **two** things, and an earlier version of this file named only the
-first: (1) an exact human authorization naming this campaign's output-token and
-equivalent-USD ceilings, and (2) the operating preconditions the entry point
-will not invent — a recorded packaged-install proof, the campaign org, its three
-disposable scenario repositories, and provider credentials. Until both exist, do
-not represent L-ACC as an existing gate and do not cite it in a release claim. A
-ratified rubric measures nothing until something runs against it — and per
-F-PT-029, even then it gates nothing.*
+*Run 1 satisfied its exact authorization and operating preconditions. That does
+not make L-ACC a release gate: per F-PT-029, the resulting incomplete,
+inconclusive evidence remains outside RQ-1 and must not be cited in a release
+claim.*
 
 *Rehearse first:* `pnpm test:acceptance -- --config <path> --dry-run` *runs every
-preflight, provisions nothing, and spawns no binary.*
+config/authorization/identity preflight, provisions nothing, and spawns no binary.
+The runtime-only install/world proof is repeated by `runCampaign` before the first
+scenario mutation; the bare entry point cannot invent those dependencies (HB-132,
+`run-1-todo.md` LACC-R1-H06).*
 
 ## What problem this addresses
 

@@ -111,6 +111,7 @@ export interface SealedKey {
 const PLANTS_HEADING = /^##\s+Plants\b/m;
 const ITEM_LEAD_IN = /^\*\*(.+?)\*\*/;
 const SCREAMING_TOKEN = /\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\b/g;
+const PUBLIC_AXIS_TOKEN = /^(?:P|O|J)-\d+$/;
 const FINGERPRINT_WORDS = 8;
 
 export function sha256(text: string): string {
@@ -125,6 +126,29 @@ function splitScenario(markdown: string): { brief: string; plants: string } {
     throw new SealedKeyError("plants-section-missing", "the scenario has no `## Plants` section");
   }
   return { brief: markdown.slice(0, match.index), plants: markdown.slice(match.index) };
+}
+
+/** The only scenario bytes permitted to cross into a scenario repository. */
+export function visibleScenarioBrief(markdown: string): string {
+  return splitScenario(markdown).brief.trimEnd() + "\n";
+}
+
+/** Extract only the human's verbatim ramble, excluding scenario rationale,
+ * matrix notes, expectations and the sealed Plants section. */
+export function scenarioRamble(markdown: string): string {
+  const visible = visibleScenarioBrief(markdown);
+  const heading = /^##\s+The brief\b.*$/m.exec(visible);
+  if (heading?.index === undefined)
+    throw new SealedKeyError("plants-section-missing", "the scenario has no brief heading");
+  const after = visible.slice(heading.index + heading[0].length);
+  const nextHeading = /^##\s+/m.exec(after);
+  const section = nextHeading?.index === undefined ? after : after.slice(0, nextHeading.index);
+  const lines = section
+    .split("\n")
+    .filter((line) => /^>/.test(line))
+    .map((line) => line.replace(/^> ?/, ""));
+  if (lines.length === 0) throw new SealedKeyError("plants-section-missing", "the scenario brief has no quoted ramble");
+  return `${lines.join("\n").trim()}\n`;
 }
 
 function categoryOf(leadIn: string, kind: ScenarioKind): PlantCategory | undefined {
@@ -173,12 +197,18 @@ function ngrams(words: string[], size: number): string[] {
 
 function computeFingerprints(plantsSection: string, brief: string): string[] {
   const briefText = normalizeWords(brief).join(" ");
+  // Category lead-ins carry public rubric vocabulary such as `P-2`. Only the
+  // plant bodies are answer material; fingerprinting headings makes a clean
+  // rubric excerpt look like a key leak.
+  const answerMaterial = plantItems(plantsSection)
+    .map((item) => item.body)
+    .join("\n");
   const candidates = new Set<string>();
-  for (const gram of ngrams(normalizeWords(plantsSection), FINGERPRINT_WORDS)) {
+  for (const gram of ngrams(normalizeWords(answerMaterial), FINGERPRINT_WORDS)) {
     if (!briefText.includes(gram)) candidates.add(gram);
   }
-  for (const token of plantsSection.match(SCREAMING_TOKEN) ?? []) {
-    if (!brief.includes(token)) candidates.add(token);
+  for (const token of answerMaterial.match(SCREAMING_TOKEN) ?? []) {
+    if (!PUBLIC_AXIS_TOKEN.test(token) && !brief.includes(token)) candidates.add(token);
   }
   return [...candidates].sort();
 }

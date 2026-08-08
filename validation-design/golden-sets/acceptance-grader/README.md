@@ -1,8 +1,9 @@
 # S-11 Acceptance grader (L-ACC) meta-eval — STATUS: SEEDED CONTROL ONLY
-Added at the 2026-08-07 outcome-acceptance harness revision. **No campaign has run**, so
-nothing here may support a model-swap, qualification, or release claim. This directory
-exists before the first campaign on purpose: standing rule 3 — golden sets are committed
-before tuning, or the grader is tuned to its own result.
+Added at the 2026-08-07 outcome-acceptance harness revision, before run 1. Run 1 has now
+stopped at its plan gate, but nothing here may support a model-swap, qualification, or
+release claim. This directory existed before the first campaign on purpose: standing
+rule 3 — golden sets are committed before tuning, or the grader is tuned to its own
+result.
 
 `cases.json` currently holds exactly the **required first case** described below: the
 seeded fabricated claim, plus a supported control and an uncited control in the same PR
@@ -17,11 +18,10 @@ source of the axes (P-1…P-6 plan, O-1…O-7 outcome, J-1…J-3 job) and of the
 procedure. This scaffold never restates an axis — it points at the ratified file, so the
 two cannot drift.
 
-Threshold + N + sample design: **NONE IN v0, by ratified rubric §5** — there is no
-observed distribution yet, so any number would be invented. This is a **ratified
+Threshold + N + sample design: **NONE IN v0, by ratified rubric §5**. Run 1 retained
+no numeric score, so it supplies no basis for inventing one. This remains a **ratified
 deferral, not an open finding**: no F-PT id is minted for it, and no threshold may be
-introduced here. Run 1 executes in data-collection mode, every threshold-dependent axis
-reports `inconclusive`, and the human ratifies thresholds from run 1's observed data.
+introduced here. Every threshold-dependent axis remains `inconclusive`.
 
 Cadence: per authorized L-ACC campaign only; also on grader prompt/model/rubric change.
 L-ACC is never scheduled and never casual (`risk-allocation.md` §5a).

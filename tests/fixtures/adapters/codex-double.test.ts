@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { CodexSessionResumeMismatchError } from "../../../src/runtime/adapters/codex.js";
+import { EPISODE_PLAN_PROPOSAL_SCHEMA } from "../../../src/loop/episode-plan.js";
 import type { TurnEvent, TurnRequest } from "../../../src/runtime/types.js";
 import { doubleRole, doubleTurnRequest } from "./claude-double.js";
 import { codexDouble } from "./codex-double.js";
@@ -35,6 +36,38 @@ describe("Codex adapter double — core/T-11 conformance (HB-024)", () => {
     const result = await dbl.runtime.runTurn(await request(), { gate: () => ({ allow: true }) });
     expect(result).toMatchObject({ status: "completed", session: { runtime: "codex", id: "thread-codex-1" } });
     expect(result.usage).toMatchObject({ tokensIn: 1000, tokensOut: 100, quality: "estimated", costEstimated: true });
+  });
+
+  it("translates the canonical episode-plan schema into Codex's strict dialect at the provider boundary", async () => {
+    const dbl = codexDouble([
+      script.turn({
+        sessionId: "thread-codex-schema",
+        outcome: script.success("{}", { usage: { inputTokens: 10, outputTokens: 1 } }),
+      }),
+    ]);
+    await dbl.runtime.runTurn(
+      await request({ verdictSchema: EPISODE_PLAN_PROPOSAL_SCHEMA as unknown as Record<string, unknown> }),
+      { gate: () => ({ allow: true }) },
+    );
+
+    const turnStart = dbl.recorder.turns[0]!.requests.find((entry) => entry.method === "turn/start");
+    expect(turnStart).toBeDefined();
+    const schema = (turnStart!.params as { outputSchema: Record<string, unknown> }).outputSchema;
+    const properties = schema["properties"] as Record<string, Record<string, unknown>>;
+    expect(schema["$schema"]).toBeUndefined();
+    expect(properties["schemaVersion"]).toEqual({ enum: [1], type: "integer" });
+    expect(properties["planningSource"]).toMatchObject({ type: "string" });
+    expect(properties["creatorProvenance"]?.["type"]).toEqual(["object", "null"]);
+
+    const stepItems = properties["steps"]?.["items"] as Record<string, unknown>;
+    expect(stepItems["oneOf"]).toBeUndefined();
+    const alternatives = stepItems["anyOf"] as Array<Record<string, unknown>>;
+    expect(alternatives.length).toBeGreaterThan(1);
+    for (const alternative of alternatives) {
+      const stepProperties = alternative["properties"] as Record<string, Record<string, unknown>>;
+      expect(alternative["required"]).toEqual(Object.keys(stepProperties));
+      expect(stepProperties["kind"]?.["type"]).toBe("string");
+    }
   });
 
   it("usage absence is unavailable, never authoritative zero; its seeded envelope lie is detected", async () => {

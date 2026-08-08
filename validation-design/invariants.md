@@ -526,7 +526,8 @@ edits a scenario repo directly, or calls a provider SDK is *simulating* the org,
 every score then measures the supervisor.
 **Enforcement.** Test + a **report-time fail-closed guardrail**: the campaign
 reconciles three independent records — the campaign org's invocation audit
-(`src/cli/invocation-audit.ts`, one row per CLI dispatch), per-commit authorship in each
+(`src/cli/invocation-audit.ts` and `src/jobs/invocation-audit.ts`, one row per CLI
+dispatch), per-commit authorship in each
 scenario repository, and the run journal's turn records — and a scenario whose
 reconciliation does not close reports `ungraded`/`incomplete` rather than a score.
 (There is deliberately no runtime guardrail that could *prevent* a supervisor from

@@ -94,16 +94,14 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 - **`inconclusive` is currently the only possible verdict for every quality
   threshold** (F-PT-009/010/011; eval-plan §9). Reading `inconclusive` as "probably
   fine" is wrong: it means *no gate exists here yet, by design*.
-- **The outcome-acceptance lane (L-ACC) is designed and NOT built** (registered
-  2026-08-07). No runner exists, no campaign has run, and no L-ACC evidence exists — do
-  not cite it in a release claim or represent it as an existing gate. Its rubric
-  (`../acceptance/rubric.md`) **is** human-ratified and tighten-only, and it deliberately
-  declares **no thresholds**; a ratified rubric measures nothing until something runs
-  against it. Its two questions were answered by the owner on 2026-08-07: **F-PT-029 —
-  L-ACC never gates a release** (permanently outside RQ-1, information only), and
-  **F-PT-030 — an unattended campaign may auto-continue past the plan gate** through a
-  declared policy, under the unchanged rubric §6 criteria and envelope. What remains
-  before run 1 is the guardrail wave (HB-120…129) and an exact campaign authorization.
+- **The outcome-acceptance lane (L-ACC) is built and has run once** (registered
+  2026-08-07; run 1 terminal 2026-08-08). Run 1 stopped at the unchanged rubric §6
+  plan gate with an entirely ungraded/inconclusive official distribution and incomplete
+  scenarios (`../acceptance/run-1-result.md`). Do not cite it in a release claim or
+  represent it as a release gate. Its rubric (`../acceptance/rubric.md`) is
+  human-ratified, tighten-only and still declares **no thresholds**. F-PT-029 keeps
+  L-ACC permanently outside RQ-1; F-PT-030 permits unattended gate resolution only
+  through a declared policy under the unchanged criteria and envelope.
 - **Jobs (M18) are offline-provable and not outcome-validated.** The B-30/J-22/J-23
   families clear the `docs/jobs/design.md` §14 structural debt, but they prove the
   machinery — ordering, resume, refusal, settlement, handoff — and nothing about whether

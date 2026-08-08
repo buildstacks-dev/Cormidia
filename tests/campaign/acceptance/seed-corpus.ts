@@ -13,7 +13,7 @@
 // repository a grader can read (CORMIDIA-C-B28-001 §2).
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 
 export class SeedCorpusError extends Error {
   constructor(
@@ -34,12 +34,21 @@ export interface SeedItem {
   n?: number;
 }
 
+export interface SeedSupportFile {
+  /** Repo-relative path. Support files are fixture plumbing, never answer-key material. */
+  path: string;
+  /** Exact lines written with one terminal newline. */
+  body: string[];
+}
+
 export interface SeedManifest {
   schema_version: 1;
   corpus: string;
   /** Directory inside the scenario repo the items are written under. */
   root: string;
   items: SeedItem[];
+  /** Deterministic non-corpus files needed to make the seeded repository operable. */
+  support_files?: SeedSupportFile[];
   /** Answer-key material. Never written into the scenario repository. */
   sealed?: Record<string, unknown>;
 }
@@ -73,8 +82,40 @@ export async function readSeedManifest(path: string): Promise<SeedManifest> {
     if (typeof entry["slug"] !== "string" || typeof entry["title"] !== "string" || !Array.isArray(entry["body"])) {
       throw new SeedCorpusError("manifest-malformed", `${path}: items[${index}] needs slug, title and body`);
     }
+    assertSafeRelativePath(`${record["root"]}/${entry["slug"]}.md`, `${path}: items[${index}]`);
+    if (!(entry["body"] as unknown[]).every((line) => typeof line === "string")) {
+      throw new SeedCorpusError("manifest-malformed", `${path}: items[${index}].body must contain only strings`);
+    }
+  }
+  const supportFiles = record["support_files"];
+  if (supportFiles !== undefined && !Array.isArray(supportFiles)) {
+    throw new SeedCorpusError("manifest-malformed", `${path}: support_files must be an array`);
+  }
+  for (const [index, file] of (supportFiles ?? []).entries()) {
+    const entry = file as Record<string, unknown>;
+    if (typeof entry["path"] !== "string" || !Array.isArray(entry["body"])) {
+      throw new SeedCorpusError("manifest-malformed", `${path}: support_files[${index}] needs path and body`);
+    }
+    assertSafeRelativePath(entry["path"], `${path}: support_files[${index}]`);
+    if (!(entry["body"] as unknown[]).every((line) => typeof line === "string")) {
+      throw new SeedCorpusError(
+        "manifest-malformed",
+        `${path}: support_files[${index}].body must contain only strings`,
+      );
+    }
   }
   return parsed as SeedManifest;
+}
+
+function assertSafeRelativePath(path: string, context: string): void {
+  if (
+    path.length === 0 ||
+    isAbsolute(path) ||
+    path.includes("\\") ||
+    path.split("/").some((part) => part.length === 0 || part === "." || part === "..")
+  ) {
+    throw new SeedCorpusError("manifest-malformed", `${context} has unsafe repo-relative path ${JSON.stringify(path)}`);
+  }
 }
 
 /** Deterministic file content for one item — same manifest, same bytes. */
@@ -95,11 +136,24 @@ export interface MaterializedSeed {
  */
 export async function materializeSeedCorpus(manifest: SeedManifest, repoDir: string): Promise<MaterializedSeed> {
   const paths: string[] = [];
-  for (const item of manifest.items) {
-    const relative = `${manifest.root}/${item.slug}.md`;
+  const outputs = [
+    ...manifest.items.map((item) => ({ relative: `${manifest.root}/${item.slug}.md`, contents: renderSeedItem(item) })),
+    ...(manifest.support_files ?? []).map((file) => ({ relative: file.path, contents: `${file.body.join("\n")}\n` })),
+  ];
+  const duplicates = outputs.filter(
+    ({ relative }, index) => outputs.findIndex((entry) => entry.relative === relative) !== index,
+  );
+  if (duplicates.length > 0) {
+    throw new SeedCorpusError(
+      "manifest-malformed",
+      `duplicate output path(s): ${[...new Set(duplicates.map(({ relative }) => relative))].join(", ")}`,
+    );
+  }
+  for (const { relative, contents } of outputs) {
+    assertSafeRelativePath(relative, manifest.corpus);
     const absolute = join(repoDir, relative);
     await mkdir(dirname(absolute), { recursive: true });
-    await writeFile(absolute, renderSeedItem(item), "utf8");
+    await writeFile(absolute, contents, "utf8");
     paths.push(relative);
   }
   return { corpus: manifest.corpus, paths: paths.sort() };

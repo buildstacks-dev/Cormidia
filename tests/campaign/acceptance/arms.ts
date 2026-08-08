@@ -12,26 +12,9 @@
 // step narration) is collected separately and tagged as such, because it is the
 // SUBJECT of O-5 and must never be evidence for O-1…O-3.
 
-import { execFileSync } from "node:child_process";
-import { devNull } from "node:os";
-import { readTurnRecords } from "../../../src/runtime/telemetry.js";
 import type { CliDriver, RecordedInvocation } from "./cli-driver.js";
 import type { EvidenceItem } from "./grader-envelope.js";
-
-const GIT_ENV: NodeJS.ProcessEnv = {
-  ...process.env,
-  GIT_TERMINAL_PROMPT: "0",
-  GIT_CONFIG_NOSYSTEM: "1",
-  GIT_CONFIG_GLOBAL: devNull,
-};
-
-function git(cwd: string, args: string[]): string {
-  try {
-    return execFileSync("git", args, { cwd, env: GIT_ENV, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-  } catch {
-    return "";
-  }
-}
+import { assembleEvidence, collectJobEvidence, planTicketEvidence } from "./arm-evidence.js";
 
 export type ArmKind = "plan" | "build" | "job";
 
@@ -62,56 +45,6 @@ export interface ArmDeps {
   ramble: string;
 }
 
-/** Repo state + diff since the provisioning baseline. Deliberately a file
- *  manifest plus the patch rather than every byte: a grader that must read the
- *  whole tree to find the change is being tested on patience. */
-async function collectRepositoryEvidence(deps: ArmDeps): Promise<EvidenceItem[]> {
-  const tracked = git(deps.worktree, ["ls-files"]);
-  const diff = git(deps.worktree, ["diff", "--no-color", `${deps.baselineCommit}..HEAD`]);
-  const log = git(deps.worktree, ["log", "--no-color", "--format=%H %an <%ae> %s", `${deps.baselineCommit}..HEAD`]);
-  return [
-    { kind: "repo-state", ref: "repo-state", contents: tracked },
-    { kind: "diff", ref: "diff", contents: diff },
-    { kind: "run-journal", ref: "commit-log", contents: log },
-  ];
-}
-
-/** Ledger rows for this app, as the org settled them. O-6 reads this. */
-async function collectLedgerEvidence(deps: ArmDeps): Promise<EvidenceItem> {
-  const rows = await readTurnRecords(deps.stateHome);
-  const forApp = rows.filter((row) => row.app === deps.appName);
-  const total = forApp.reduce((sum, row) => sum + row.costUsd, 0);
-  return {
-    kind: "ledger",
-    ref: "ledger",
-    contents: `turns=${forApp.length} cost_usd=${total.toFixed(4)}\n${forApp
-      .map((row) => `${row.providerTurnId ?? "?"} ${row.role} ${row.status} ${row.costUsd}`)
-      .join("\n")}`,
-  };
-}
-
-async function assembleEvidence(
-  deps: ArmDeps,
-  invocations: RecordedInvocation[],
-): Promise<Pick<ArmOutput, "evidence" | "selfReport">> {
-  const evidence: EvidenceItem[] = [
-    ...(await collectRepositoryEvidence(deps)),
-    await collectLedgerEvidence(deps),
-    { kind: "ramble-brief", ref: "ramble-brief", contents: deps.ramble },
-  ];
-  // The product's own narration of what it did. Tagged, never mixed in.
-  const selfReport: EvidenceItem[] = [
-    {
-      kind: "step-narration",
-      ref: "step-narration",
-      contents: invocations
-        .map((invocation) => `$ ${invocation.binary} ${invocation.argv.join(" ")}\n${invocation.stdout}`)
-        .join("\n"),
-    },
-  ];
-  return { evidence, selfReport };
-}
-
 /** Plan arm — `cormidia plan --auto`, content-bound to the ramble. */
 export async function runPlanArm(deps: ArmDeps & { rambleSourcePath: string }): Promise<ArmOutput> {
   const invocation = await deps.driver.run(
@@ -119,12 +52,15 @@ export async function runPlanArm(deps: ArmDeps & { rambleSourcePath: string }): 
     ["plan", deps.appName, "--auto", "--goal", deps.ramble, "--source", deps.rambleSourcePath, "--json"],
     { scenarioId: deps.scenarioId },
   );
+  const assembled = await assembleEvidence(deps, [invocation]);
+  const tickets = planTicketEvidence(invocation.stdout);
   return {
     arm: "plan",
     scenarioId: deps.scenarioId,
     invocations: [invocation],
     exitCode: invocation.exitCode,
-    ...(await assembleEvidence(deps, [invocation])),
+    evidence: [...assembled.evidence, ...(tickets === null ? [] : [tickets])],
+    selfReport: assembled.selfReport,
   };
 }
 
@@ -134,7 +70,7 @@ export async function runPlanArm(deps: ArmDeps & { rambleSourcePath: string }): 
 export async function runBuildArm(deps: ArmDeps & { maxPasses: number }): Promise<ArmOutput> {
   const invocations: RecordedInvocation[] = [];
   for (let pass = 0; pass < deps.maxPasses; pass += 1) {
-    const invocation = await deps.driver.run("cormidia", ["loop", "--app", deps.appName, "--once", "--json"], {
+    const invocation = await deps.driver.run("cormidia", ["loop", "--app", deps.appName, "--once"], {
       scenarioId: deps.scenarioId,
     });
     invocations.push(invocation);
@@ -158,11 +94,14 @@ export async function runJobArm(deps: ArmDeps & { jobConfigPath: string }): Prom
     ["run", deps.jobConfigPath, "--workdir", deps.worktree, "--json"],
     { scenarioId: deps.scenarioId },
   );
+  const assembled = await assembleEvidence(deps, [invocation]);
+  const jobEvidence = await collectJobEvidence(deps, deps.jobConfigPath);
   return {
     arm: "job",
     scenarioId: deps.scenarioId,
     invocations: [invocation],
     exitCode: invocation.exitCode,
-    ...(await assembleEvidence(deps, [invocation])),
+    evidence: [...assembled.evidence, ...jobEvidence],
+    selfReport: assembled.selfReport,
   };
 }

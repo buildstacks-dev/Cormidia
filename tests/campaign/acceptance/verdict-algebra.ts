@@ -27,7 +27,9 @@ export type UngradedReason =
   | "malformed-result"
   | "artifact-not-in-read-set"
   | "key-leaked"
-  | "reconciliation-open";
+  | "arm-command-failed"
+  | "reconciliation-open"
+  | "threshold-unratified";
 
 export interface AxisScorePolicy {
   values: readonly AxisScoreValue[];

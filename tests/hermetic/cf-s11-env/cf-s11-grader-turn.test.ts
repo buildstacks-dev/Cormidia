@@ -5,7 +5,8 @@
 // through `cormidia run-role` like any other turn — spawned, audited, settled.
 // The scripted binary double gives real spawn semantics with no tokens.
 
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TurnAssignment } from "../../../src/runtime/types.js";
@@ -19,7 +20,6 @@ import {
   type ScriptedCliResponse,
 } from "../../fixtures/acceptance/cormidia-binary-double.js";
 import { makeAcceptanceCampaignFixture } from "../../fixtures/acceptance/campaign-fixture.js";
-import { makeTempGitRepo } from "../../fixtures/git-repo.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 const codexSol: TurnAssignment = { harness: "codex", model: "gpt-5.6-sol", effort: "xhigh" };
@@ -44,14 +44,19 @@ const RESOLUTION: AssignedAxisGrader = {
 
 async function harness(responses: ScriptedCliResponse[]) {
   const double = await makeCormidiaBinaryDouble(responses);
-  const checkout = await makeTempGitRepo();
   const fixture = await makeAcceptanceCampaignFixture({ kinds: ["greenfield"] });
-  cleanups.push(double.cleanup, checkout.cleanup, fixture.cleanup);
+  cleanups.push(double.cleanup, fixture.cleanup);
+  // A plain temp dir: the driver only needs a realpath-able checkout root, and
+  // a temp git repo per test is needless CI contention.
+  const checkout = await mkdtemp(join(tmpdir(), "cormidia-checkout-"));
+  cleanups.push(async () => {
+    await rm(checkout, { recursive: true, force: true });
+  });
   await fixture.writeEvidence("diff.patch", "no plants here\n");
   const driver = await createCliDriver({
     cormidiaPath: double.cormidiaPath,
     cormidiaJobPath: double.cormidiaJobPath,
-    checkoutRoot: checkout.dir,
+    checkoutRoot: checkout,
   });
   const scenario = fixture.scenario("greenfield");
   const key = extractSealedKey({

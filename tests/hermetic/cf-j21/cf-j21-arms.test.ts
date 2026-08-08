@@ -5,7 +5,8 @@
 // guarding hardest is that the org's SELF-REPORT never lands in the evidence
 // set — an arm that mixed them would hand O-1 the PR body claiming O-1 passed.
 
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runBuildArm, runJobArm, runPlanArm, type ArmDeps } from "../../campaign/acceptance/arms.js";
@@ -28,10 +29,14 @@ async function harness(
   responses: ScriptedCliResponse[],
 ): Promise<{ deps: ArmDeps; double: Awaited<ReturnType<typeof makeCormidiaBinaryDouble>> }> {
   const double = await makeCormidiaBinaryDouble(responses);
-  const checkout = await makeTempGitRepo();
   const scenario = await makeTempGitRepo({ seedFiles: [{ path: "README.md", contents: "# scenario\n" }] });
   const state = await makeTempStateHome({ name: "arms" });
-  cleanups.push(double.cleanup, checkout.cleanup, scenario.cleanup, state.cleanup);
+  cleanups.push(double.cleanup, scenario.cleanup, state.cleanup);
+  // Plain temp dir — the driver only needs a realpath-able checkout root.
+  const checkout = await mkdtemp(join(tmpdir(), "cormidia-checkout-"));
+  cleanups.push(async () => {
+    await rm(checkout, { recursive: true, force: true });
+  });
 
   const baselineCommit = scenario.git(["rev-parse", "HEAD"]);
   // The org then does work, as a real run would.
@@ -40,7 +45,7 @@ async function harness(
   const driver = await createCliDriver({
     cormidiaPath: double.cormidiaPath,
     cormidiaJobPath: double.cormidiaJobPath,
-    checkoutRoot: checkout.dir,
+    checkoutRoot: checkout,
   });
   return {
     double,

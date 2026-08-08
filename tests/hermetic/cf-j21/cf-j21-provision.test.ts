@@ -50,7 +50,11 @@ describe("CF-J21-S provisioning seeds deterministically and records a baseline",
     });
 
     expect(provision.baselineCommit).toBe(repo.git(["rev-parse", "HEAD"]));
-    expect(provision.seededPaths).toHaveLength(10);
+    expect(provision.seededPaths.filter((path) => path.startsWith("tutorials/"))).toHaveLength(10);
+    expect(provision.seededPaths.filter((path) => !path.startsWith("tutorials/"))).toEqual([
+      "package.json",
+      "scripts/validate-corpus.mjs",
+    ]);
     expect(await readFile(join(repo.dir, "tutorials/01-getting-started-cli.md"), "utf8")).toContain(
       "Getting started with the CLI",
     );

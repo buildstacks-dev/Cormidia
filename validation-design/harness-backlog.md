@@ -849,7 +849,8 @@ and provider credentials.
   three-record reconciliation, terminal real-installer tarball proof, authenticated
   non-interactive baseline pushes with exact pre-spend resume, canonical-label
   provisioning before packaged app verification, setup-mechanism-consistent app
-  identities with exact registration resume, and fail-closed report validation.
+  identities with exact registration resume, deterministic non-secret S-ACC-2 baseline
+  support files with safe-path enforcement, and fail-closed report validation.
   Ceiling exhaustion is
   caught as an incomplete scenario and never truncates into a pass. Product issues and
   run observations are kept in `acceptance/run-1-todo.md`.

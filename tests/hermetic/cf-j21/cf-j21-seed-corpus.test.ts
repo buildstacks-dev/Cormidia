@@ -6,9 +6,11 @@
 // can read). Both are asserted against the COMMITTED manifests, not fixtures —
 // a manifest that drifted would silently make run 2 incomparable to run 1.
 
-import { readdir, readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   materializeSeedCorpus,
@@ -23,6 +25,7 @@ import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const seedsDir = join(repoRoot, "acceptance", "seeds");
 const cleanups: Array<() => Promise<void>> = [];
+const execFileAsync = promisify(execFile);
 
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup();
@@ -42,6 +45,10 @@ describe("CF-J21-S the committed seed manifests", () => {
     // Every item carries a declared staleness, including the control.
     expect(manifest.items.every((item) => typeof item.staleness === "string")).toBe(true);
     expect(manifest.items[0]?.staleness).toBe("none");
+    expect(manifest.support_files?.map((file) => file.path).sort()).toEqual([
+      "package.json",
+      "scripts/validate-corpus.mjs",
+    ]);
   });
 
   it("S-ACC-2's overlap plant is real material, discoverable only by reading", async () => {
@@ -102,6 +109,17 @@ describe("CF-J21-S materialization is deterministic and key-separated", () => {
     }
   });
 
+  it("S-ACC-2's baseline declares and passes an honest corpus-integrity test", async () => {
+    const manifest = await readSeedManifest(join(seedsDir, "s-acc-2-tutorials.json"));
+    const repo = await makeTempGitRepo({ seedFiles: [] });
+    cleanups.push(repo.cleanup);
+    const materialized = await materializeSeedCorpus(manifest, repo.dir);
+
+    expect(materialized.paths).toContain("package.json");
+    const result = await execFileAsync(process.execPath, ["scripts/validate-corpus.mjs"], { cwd: repo.dir });
+    expect(result.stdout).toContain("validated 10 seeded tutorials");
+  });
+
   it("negative control: the sealed block is NEVER written into the scenario repository", async () => {
     const manifest = await readSeedManifest(join(seedsDir, "s-acc-3-notes.json"));
     const repo = await makeTempGitRepo({ seedFiles: [] });
@@ -133,8 +151,6 @@ describe("CF-J21-S materialization is deterministic and key-separated", () => {
     const repo = await makeTempGitRepo({ seedFiles: [] });
     cleanups.push(repo.cleanup);
     const bad = join(repo.dir, "bad.json");
-    const { writeFile } = await import("node:fs/promises");
-
     await writeFile(bad, JSON.stringify({ schema_version: 1, corpus: "x", root: "y", items: [] }), "utf8");
     await expect(readSeedManifest(bad)).rejects.toThrow(/empty-corpus/);
 
@@ -142,5 +158,28 @@ describe("CF-J21-S materialization is deterministic and key-separated", () => {
     await expect(readSeedManifest(bad)).rejects.toThrow(/manifest-malformed/);
 
     await expect(readSeedManifest(join(repo.dir, "absent.json"))).rejects.toBeInstanceOf(SeedCorpusError);
+  });
+
+  it("negative control: support files cannot escape or collide inside the scenario repository", async () => {
+    const repo = await makeTempGitRepo({ seedFiles: [] });
+    cleanups.push(repo.cleanup);
+    const bad = join(repo.dir, "bad.json");
+    const base = {
+      schema_version: 1,
+      corpus: "x",
+      root: "items",
+      items: [{ slug: "one", title: "One", body: ["body"] }],
+    };
+
+    await writeFile(bad, JSON.stringify({ ...base, support_files: [{ path: "../outside", body: ["no"] }] }), "utf8");
+    await expect(readSeedManifest(bad)).rejects.toThrow(/unsafe repo-relative path/);
+
+    await writeFile(
+      bad,
+      JSON.stringify({ ...base, support_files: [{ path: "items/one.md", body: ["collision"] }] }),
+      "utf8",
+    );
+    const manifest = await readSeedManifest(bad);
+    await expect(materializeSeedCorpus(manifest, repo.dir)).rejects.toThrow(/duplicate output path/);
   });
 });

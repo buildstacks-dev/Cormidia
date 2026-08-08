@@ -3,6 +3,36 @@
   "corpus": "s-acc-2-tutorials",
   "root": "tutorials",
   "note": "Staleness per acceptance/scenarios/S-ACC-2-corpus-refresh.md. The manifest produces the material; which item is a trap is recorded only in that scenario's sealed Plants section.",
+  "support_files": [
+    {
+      "path": "package.json",
+      "body": [
+        "{",
+        "  \"name\": \"widgetkit-tutorial-estate\",",
+        "  \"private\": true,",
+        "  \"type\": \"module\",",
+        "  \"scripts\": {",
+        "    \"test\": \"node scripts/validate-corpus.mjs\"",
+        "  }",
+        "}"
+      ]
+    },
+    {
+      "path": "scripts/validate-corpus.mjs",
+      "body": [
+        "import { readdir, readFile } from \"node:fs/promises\";",
+        "",
+        "const tutorialRoot = new URL(\"../tutorials/\", import.meta.url);",
+        "const files = (await readdir(tutorialRoot)).filter((path) => path.endsWith(\".md\")).sort();",
+        "if (files.length !== 10) throw new Error(`expected 10 tutorial files, found ${files.length}`);",
+        "for (const path of files) {",
+        "  const text = await readFile(new URL(path, tutorialRoot), \"utf8\");",
+        "  if (!/^# [^\\n]+\\n\\n/.test(text)) throw new Error(`${path}: missing non-empty H1`);",
+        "}",
+        "console.log(`validated ${files.length} seeded tutorials`);"
+      ]
+    }
+  ],
   "items": [
     {
       "n": 1,

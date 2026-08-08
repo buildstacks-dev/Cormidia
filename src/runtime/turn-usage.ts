@@ -16,11 +16,9 @@ export const ZERO_USAGE: Readonly<TurnUsage> = Object.freeze({
  * A `subscription` turn ran on the operator's own plan, so its marginal dollar
  * cost is zero — an AUTHORITATIVE zero, carried with the label that says why.
  * Any equivalent-cost figure the provider reported describes what the same
- * tokens would have cost on a metered key; keeping it as `costUsd` would
- * invoice the operator twice over in every rollup, so it is dropped here and
- * the turn is counted by volume instead (`BudgetRow.subscriptionTurns`).
- * `costEstimated` goes with it: an estimate of a charge that does not exist is
- * not an estimate.
+ * tokens would have cost on a metered key. It is retained under the explicitly
+ * non-invoice `equivalentCostUsd` field for bounded comparisons such as L-ACC,
+ * while `costUsd` remains zero for ordinary spend rollups.
  *
  * Token counts and `quality` are untouched. Quality describes the completeness
  * of the usage OBSERVATION and keeps its meaning exactly
@@ -35,7 +33,9 @@ export function settleBilling(usage: TurnUsage, billing: AuthMode | undefined): 
   if (billing === undefined) return usage;
   if (billing === "api_key") return { ...usage, billing };
   const { costEstimated: _dropped, ...rest } = usage;
-  return { ...rest, billing, costUsd: 0 };
+  const equivalentCostUsd = usage.equivalentCostUsd ?? usage.costUsd;
+  const estimated = usage.costEstimated === true ? { equivalentCostEstimated: true as const } : {};
+  return { ...rest, billing, costUsd: 0, equivalentCostUsd, ...estimated };
 }
 
 /**

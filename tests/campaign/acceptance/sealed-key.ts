@@ -127,6 +127,29 @@ function splitScenario(markdown: string): { brief: string; plants: string } {
   return { brief: markdown.slice(0, match.index), plants: markdown.slice(match.index) };
 }
 
+/** The only scenario bytes permitted to cross into a scenario repository. */
+export function visibleScenarioBrief(markdown: string): string {
+  return splitScenario(markdown).brief.trimEnd() + "\n";
+}
+
+/** Extract only the human's verbatim ramble, excluding scenario rationale,
+ * matrix notes, expectations and the sealed Plants section. */
+export function scenarioRamble(markdown: string): string {
+  const visible = visibleScenarioBrief(markdown);
+  const heading = /^##\s+The brief\b.*$/m.exec(visible);
+  if (heading?.index === undefined)
+    throw new SealedKeyError("plants-section-missing", "the scenario has no brief heading");
+  const after = visible.slice(heading.index + heading[0].length);
+  const nextHeading = /^##\s+/m.exec(after);
+  const section = nextHeading?.index === undefined ? after : after.slice(0, nextHeading.index);
+  const lines = section
+    .split("\n")
+    .filter((line) => /^>/.test(line))
+    .map((line) => line.replace(/^> ?/, ""));
+  if (lines.length === 0) throw new SealedKeyError("plants-section-missing", "the scenario brief has no quoted ramble");
+  return `${lines.join("\n").trim()}\n`;
+}
+
 function categoryOf(leadIn: string, kind: ScenarioKind): PlantCategory | undefined {
   const lowered = leadIn.toLowerCase();
   const markers = kind === "job" ? JOB_MARKERS : APP_MARKERS;

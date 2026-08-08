@@ -51,6 +51,17 @@ function report(overrides: Partial<AcceptanceCampaignReport> = {}): AcceptanceCa
     release_signal: null,
     rq1_relationship: "outside RQ-1; produces no release evidence",
     authorized_scenario_ids: [],
+    spend: {
+      maxOutputTokens: 4_000_000,
+      maxEquivUsd: 520,
+      observedOutputTokens: 0,
+      observedEquivUsd: 0,
+      debitedUnknownOutputTokens: 0,
+      debitedUnknownEquivUsd: 0,
+      ceilingExhausted: false,
+      reservationRefusals: [],
+    },
+    gaps: [],
     ...overrides,
   };
 }

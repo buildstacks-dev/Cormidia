@@ -204,8 +204,7 @@ export interface TurnUsage {
   /** Total prompt/input tokens. Equals uncached + cache creation + cache read
    *  when the adapter reports the split. */
   tokensIn: number;
-  /** Uncached input tokens. Optional for adapters that cannot report the
-   *  split yet; consumers must tolerate old records without it. */
+  /** Uncached input tokens; optional when the adapter cannot report the split. */
   tokensInUncached?: number;
   /** Cache-write input tokens (provider naming varies). */
   cacheCreationTokens?: number;
@@ -213,12 +212,13 @@ export interface TurnUsage {
   cacheReadTokens?: number;
   tokensOut: number;
   costUsd: number;
+  equivalentCostUsd?: number;
+  equivalentCostEstimated?: boolean;
   /** True when `costUsd` is a Cormidia-computed estimate from documented
    *  per-token list prices rather than a provider-reported figure. Codex's
    *  App Server does not report dollar cost, so its `costUsd` is estimated
    *  from token counts (src/runtime/adapters/codex.ts). Consumers that need
-   *  provider-authoritative spend must tolerate/annotate this; budget
-   *  rollups (src/org/budget.ts) deliberately still count estimated spend —
+   *  provider-authoritative spend must annotate this; budget rollups count it —
    *  an estimate is far better than the previous silent $0. Absent/false
    *  means the cost is provider-reported (Claude, pi). */
   costEstimated?: boolean;

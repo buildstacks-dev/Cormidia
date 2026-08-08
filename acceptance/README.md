@@ -1,7 +1,8 @@
 # Outcome acceptance (L-ACC) — design input, NOT a lane
 
 ***Status: rubric RATIFIED 2026-08-07. Guardrails, runner and execution layer
-BUILT 2026-08-08 (HB-120…HB-131). NO CAMPAIGN HAS RUN and no L-ACC evidence
+BUILT (HB-120…HB-131), real-path conformance repaired 2026-08-07 (HB-132).
+NO CAMPAIGN HAS RUN and no L-ACC evidence
 exists.***
 
 *The measurement rubric ([`rubric.md`](rubric.md) §8) is ratified and tighten-only
@@ -32,7 +33,10 @@ ratified rubric measures nothing until something runs against it — and per
 F-PT-029, even then it gates nothing.*
 
 *Rehearse first:* `pnpm test:acceptance -- --config <path> --dry-run` *runs every
-preflight, provisions nothing, and spawns no binary.*
+config/authorization/identity preflight, provisions nothing, and spawns no binary.
+The runtime-only install/world proof is repeated by `runCampaign` before the first
+scenario mutation; the bare entry point cannot invent those dependencies (HB-132,
+`run-1-todo.md` LACC-R1-H06).*
 
 ## What problem this addresses
 

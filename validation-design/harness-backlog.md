@@ -826,13 +826,34 @@ spend authorization "the one remaining blocker" were wrong, and are corrected in
 
   *Acceptance:* every module lands red against its seeded violation first; the shipped
   template refuses; `pnpm test:acceptance -- --config <path> --dry-run` performs every
-  preflight and spawns nothing. *Layer:* 1/2. *Executor:* build-agent.
+  config/authorization/identity preflight and spawns nothing, while `runCampaign`
+  repeats the install/world proof before mutation. *Layer:* 1/2. *Executor:* build-agent.
 
 **What run 1 still needs, stated exactly.** An exact human authorization naming the
 output-token and equivalent-USD ceilings, AND the operating preconditions the entry point
 will not invent: a recorded `pnpm install:packaged --replace-source-links` proof, the
 campaign org, its three disposable scenario repositories under the declared campaign org,
 and provider credentials.
+
+## Run-1 conformance repair (2026-08-07) — HB-132
+
+- **HB-132 — make HB-131 honest against the real packaged path. DONE 2026-08-07; LIVE
+  RUN PENDING AT COMMIT.** The first execution review found defects an all-scripted path
+  could not expose: provisioning preceded world preflight; app/job arms and grading were
+  not composed with durable checkpoints; the mirror matrix had no scenario-scoped legal
+  grader; fixed-mode `run-role` was passed an illegal adaptive flag; `cormidia-job` had
+  no command audit; subscription accounting discarded the equivalent cost needed by the
+  authorized outer ceiling; and the report did not synthesize every required axis, gap,
+  preview command or spend total. The repair adds exact role activation, conservative
+  per-invocation admission, equivalent-cost telemetry, job command audit, final
+  three-record reconciliation, and fail-closed report validation. Ceiling exhaustion is
+  caught as an incomplete scenario and never truncates into a pass. Product issues and
+  run observations are kept in `acceptance/run-1-todo.md`.
+  *Detectors:* `tests/unit/cf-b27/`, `tests/hermetic/cf-j21/`,
+  `tests/hermetic/cf-s11-env/`, `tests/hermetic/cf-inv-acc-7a/`,
+  `tests/unit/cf-b30/`, `tests/unit/cf-auth-mode/`, `tests/unit/cf-s11-mech/`.
+  *No contract loosening:* rubric bytes, axes, plan-gate criterion, golden set,
+  thresholds (`NONE`), `release_signal: null` and no-deployment boundary are unchanged.
 
 ## Standing rules
 

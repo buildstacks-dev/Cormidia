@@ -2,6 +2,24 @@
 
 Updated: 2026-08-07 (outcome-acceptance + jobs harness revision below; prior state retained)
 
+## Harness conformance repair — L-ACC run 1 (2026-08-07)
+
+The owner explicitly directed an end-to-end run and authorized ordinary harness and
+product repairs needed to continue. This re-entered the existing harness revision as a
+conformance repair, not a structural redesign: no journey, boundary, invariant, rubric
+axis, golden case, threshold, release relationship or deployment authority changed.
+
+The repair closed the config-to-real-binaries path that HB-131 had not yet exercised:
+world preflight now precedes provisioning; app and job arms, graders, sealed-key
+ordering, atomic checkpoints, hard outer spend admission, exact gap synthesis and
+report-time supervisor reconciliation are composed in `campaign-main.ts`. Mirror app
+matrices now carry scenario-scoped, exact graders and atomically activate the fixed role
+tuple per turn; correlated O-4/O-5 rows remain `ungraded` rather than receiving a
+substitute. Product telemetry retains subscription-mode equivalent cost separately from
+marginal billed cost, and `cormidia-job run` now writes the same crash-durable invocation
+audit class the supervisor reconciler requires. The detectors are registered by HB-132
+and the run observations live in `acceptance/run-1-todo.md`.
+
 ## Harness revision — outcome acceptance (L-ACC) + jobs (2026-08-07)
 
 Scope: the `validation-harness-design` skill re-entered in `harness-revision` mode with
@@ -31,13 +49,12 @@ guardrails landing at **L1/L2 with negative controls** (case-catalog §3.1); onl
 rubric's scored axes are lane work (§8b). The expensive lane contains only what no
 cheaper layer can falsify.
 
-**Nothing is implemented.** No runner exists, no campaign has run, and no L-ACC evidence
-exists. HB-120…HB-129 are the offline guardrail wave; **HB-130 (the runner and run 1)
-now waits on one thing only** — an exact human authorization naming this campaign's
-ceilings. F-PT-029 and F-PT-030 were both answered by the owner on 2026-08-07, the day
-they were opened: L-ACC never gates a release, and an unattended campaign may
-auto-continue past the plan gate through a declared policy under the unchanged rubric §6
-criteria.
+**Historical design-time state.** At this revision point nothing was implemented and no
+L-ACC evidence existed. HB-120…HB-131 subsequently built the offline guardrails,
+orchestrator and execution layer; the conformance repair above records the final
+pre-run closure. F-PT-029 and F-PT-030 were both answered by the owner on 2026-08-07:
+L-ACC never gates a release, and an unattended campaign may auto-continue past the plan
+gate through a declared policy under the unchanged rubric §6 criteria.
 
 **Two ID reconciliations, recorded so nobody re-derives them.** (1) The earlier
 `jobs-harness-revision-proposal.md` claimed B-23/J-21/J-22 and an "F-PT-025" that the

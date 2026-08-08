@@ -21,9 +21,13 @@ export type CampaignConfigCode =
   | "campaign-org-undeclared"
   | "duplicate-scenario"
   | "matrix-incomplete"
+  | "job-matrix-empty"
   | "matrix-single-family"
   | "illegal-effort"
   | "candidate-provenance"
+  | "candidate-duplicate"
+  | "candidate-family-mismatch"
+  | "grader-candidate-missing"
   | "envelope-missing"
   | "plan-gate-undeclared"
   | "grader-plan-missing";
@@ -45,8 +49,13 @@ export interface ScenarioConfig {
   appSlug: string;
   worktree: string;
   jobWorkdir?: string;
-  /** Every role's exact assignment tuple. App scenarios need all three. */
-  matrix: Partial<Record<"planner" | "builder" | "reviewer", TurnAssignment>>;
+  /** How the disposable checkout is prepared before the bounded baseline. */
+  setup?: "new-app" | "bootstrap" | "job";
+  /** Local-only command handed to the human. Never a deployment command. */
+  previewCommand?: string;
+  /** Every role/step's exact assignment tuple. App scenarios use
+   * planner/builder/reviewer; job scenarios use their provider step ids. */
+  matrix: Record<string, TurnAssignment | undefined>;
 }
 
 export interface AssignmentCandidate {
@@ -74,6 +83,12 @@ export type PlanGatePolicy =
 
 export interface GraderPlanEntry {
   axis: string;
+  /** Which scenario kinds this row applies to. Omission means both. */
+  scenarioKinds?: Array<"app" | "job">;
+  /** Which exact scenarios this row applies to. Omission means every scenario
+   *  of the selected kind. Mirror matrices need this because their legal
+   *  grader families are intentionally opposite. */
+  scenarioIds?: string[];
   /** Mechanical axes declare no grader and no read set. */
   mechanical?: boolean;
   grader?: TurnAssignment;
@@ -164,12 +179,30 @@ export function validateCampaignConfig(config: AcceptanceCampaignConfig): Valida
             `(${[...familySet][0] ?? "unknown"}); that collapses the builder != reviewer cross-provider pairing`,
         );
       }
+    } else if (Object.keys(matrix).length === 0) {
+      throw new CampaignConfigError(
+        "job-matrix-empty",
+        `job scenario ${scenario.id} records no provider-step assignments; the report could not answer which models ran`,
+      );
     }
     matrices[scenario.id] = matrix;
   }
 
   const uncertifiedCandidateIds: string[] = [];
+  const candidateIds = new Set<string>();
   for (const candidate of config.adaptiveAssignments) {
+    if (candidateIds.has(candidate.id)) {
+      throw new CampaignConfigError("candidate-duplicate", `candidate id ${candidate.id} is declared twice`);
+    }
+    candidateIds.add(candidate.id);
+    const assignment = validateTurnAssignment(candidate.assignment, `adaptiveAssignments.${candidate.id}`);
+    const actualFamily = configuredProviderFamily(assignment);
+    if (candidate.providerFamily !== actualFamily) {
+      throw new CampaignConfigError(
+        "candidate-family-mismatch",
+        `candidate ${candidate.id} declares ${candidate.providerFamily} but ${assignment.harness}/${assignment.model} resolves to ${actualFamily}`,
+      );
+    }
     const hasRef = typeof candidate.qualificationRef === "string" && candidate.qualificationRef.trim().length > 0;
     const hasDisclosure = typeof candidate.uncertified === "string" && candidate.uncertified.trim().length > 0;
     if (!hasRef && !hasDisclosure) {
@@ -207,6 +240,13 @@ export function validateCampaignConfig(config: AcceptanceCampaignConfig): Valida
   }
 
   for (const entry of config.graderPlan) {
+    const unknownScenario = entry.scenarioIds?.find((id) => !ids.includes(id));
+    if (unknownScenario !== undefined) {
+      throw new CampaignConfigError(
+        "grader-plan-missing",
+        `axis ${entry.axis} names unknown scenario ${unknownScenario}`,
+      );
+    }
     if (entry.mechanical === true) continue;
     if (entry.grader === undefined || entry.readTurnIds === undefined) {
       throw new CampaignConfigError(
@@ -215,6 +255,16 @@ export function validateCampaignConfig(config: AcceptanceCampaignConfig): Valida
       );
     }
     validateTurnAssignment(entry.grader, `graderPlan.${entry.axis}.grader`);
+    if (
+      !config.adaptiveAssignments.some(
+        (candidate) => JSON.stringify(candidate.assignment) === JSON.stringify(entry.grader),
+      )
+    ) {
+      throw new CampaignConfigError(
+        "grader-candidate-missing",
+        `model-graded axis ${entry.axis} names a grader tuple outside adaptiveAssignments`,
+      );
+    }
   }
 
   return {

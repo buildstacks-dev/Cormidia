@@ -1,7 +1,7 @@
 # Boundary contract — B-29 (graded evidence set ↔ grader turn)
 Canonical ID: **CORMIDIA-C-B29-001 (alias: B-29)**
 
-Status: DESIGN-ONLY, added at the 2026-08-07 outcome-acceptance harness revision.
+Status: IMPLEMENTED, with exact scenario-scoped grader activation repaired 2026-08-07.
 Defends `CORMIDIA-INV-ACC-2` and `CORMIDIA-INV-ACC-5`. Journey J-21. Grader **quality**
 is S-11 at layer 4 under the judge-calibration rule (`llm-eval-plan.md` §3) and is
 deliberately not this contract's subject. Grader **transport** reuses
@@ -31,6 +31,10 @@ CORMIDIA-C-B02/B03/B04-001 — no new provider contract is minted.
 - The unit is the **provider family**, not the vendor product: two harnesses sharing one
   upstream family (the pi/Anthropic correlation recorded at B-04) are not disjoint.
 - The check runs **before provider construction** and fails closed.
+- The sealed plan selects one exact candidate; the resolver may reject it as correlated
+  but may not fall back to another candidate. For mirror app matrices, grader rows are
+  scoped to exact scenario ids and the fixed `acceptance-grader` role is atomically
+  activated and verified immediately before its packaged `run-role` turn.
 - If no legal grader exists for an axis, that axis reports `ungraded`. It is never graded
   by a correlated provider, and never silently dropped.
 - The campaign records **the disjointness set actually applied, per axis**, in the

@@ -44,6 +44,9 @@ export interface AxisReadSet {
    *  and file checks. They are never routed to a model, so disjointness does
    *  not apply and no grader is constructed for them. */
   mechanical?: boolean;
+  /** The exact configured grader candidate for this axis. The resolver may
+   * reject it as correlated; it may never silently substitute another one. */
+  graderCandidateId?: string;
 }
 
 export interface GraderCandidate {
@@ -113,7 +116,11 @@ export function resolveAxisGraders(input: ResolveAxisGradersInput): AxisGraderRe
     }
     const appliedDisjointnessFamilies = [...excluded].sort();
 
-    const legal = input.candidates.find(
+    const declared =
+      axis.graderCandidateId === undefined
+        ? input.candidates
+        : input.candidates.filter((candidate) => candidate.id === axis.graderCandidateId);
+    const legal = declared.find(
       (candidate) => !excluded.has(configuredProviderFamily(validateTurnAssignment(candidate.assignment))),
     );
     if (legal === undefined) {

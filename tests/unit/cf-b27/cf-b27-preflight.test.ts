@@ -43,6 +43,14 @@ function config(overrides: Partial<AcceptanceCampaignConfig> = {}): AcceptanceCa
         conservativeEstimate: 12,
         qualificationRef: "research/2026-07-15_model-assignment-refresh.md",
       },
+      {
+        id: "gpt-5.6-sol-xhigh",
+        assignment: codexSol,
+        providerFamily: "openai",
+        capabilityRef: "docs/harness/capability-matrix.md#codex",
+        conservativeEstimate: 20,
+        qualificationRef: "campaign:fixture",
+      },
     ],
     envelope: { maxOutputTokens: 400_000, maxEquivUsd: 120, authorization: "bikramgupta 2026-08-08, exact" },
     planGate: { kind: "human" },
@@ -145,6 +153,39 @@ describe("CF-J21-R (L1) each refusal class, pre-mutation and pre-spend", () => {
     ).toBe("matrix-incomplete");
   });
 
+  it("negative control: a job with no step matrix cannot identify which models ran", () => {
+    expect(
+      refusal({
+        scenarios: [
+          {
+            id: "S-ACC-3",
+            kind: "job",
+            appSlug: "cormidia-sandbox/acc-3",
+            worktree: "/sandbox/acc-3",
+            matrix: {},
+          },
+        ],
+      }),
+    ).toBe("job-matrix-empty");
+  });
+
+  it("records a job's exact provider-step matrix", () => {
+    const validated = validateCampaignConfig(
+      config({
+        scenarios: [
+          {
+            id: "S-ACC-3",
+            kind: "job",
+            appSlug: "cormidia-sandbox/acc-3",
+            worktree: "/sandbox/acc-3",
+            matrix: { "research-a": claudeSonnet, synthesize: claudeOpus },
+          },
+        ],
+      }),
+    );
+    expect(validated.matrices["S-ACC-3"]).toEqual({ "research-a": claudeSonnet, synthesize: claudeOpus });
+  });
+
   it("negative control: planner, builder and reviewer on one provider family", () => {
     expect(
       refusal({
@@ -219,6 +260,18 @@ describe("CF-J21-R (L1) each refusal class, pre-mutation and pre-spend", () => {
     ).toBe("candidate-provenance");
   });
 
+  it("negative control: candidate ids and provider families cannot lie", () => {
+    const candidates = config().adaptiveAssignments;
+    expect(refusal({ adaptiveAssignments: [candidates[0]!, candidates[0]!] })).toBe("candidate-duplicate");
+    expect(refusal({ adaptiveAssignments: [{ ...candidates[0]!, providerFamily: "openai" }, candidates[1]!] })).toBe(
+      "candidate-family-mismatch",
+    );
+  });
+
+  it("negative control: a grader tuple must be one of the sealed candidates", () => {
+    expect(refusal({ adaptiveAssignments: [config().adaptiveAssignments[0]!] })).toBe("grader-candidate-missing");
+  });
+
   it("negative control: a missing envelope, and each half of a partial one", () => {
     expect(refusalFor(omitting("envelope"))).toBe("envelope-missing");
     expect(refusal({ envelope: { maxOutputTokens: 0, maxEquivUsd: 120, authorization: "human" } })).toBe(
@@ -246,6 +299,14 @@ describe("CF-J21-R (L1) each refusal class, pre-mutation and pre-spend", () => {
   it("negative control: a model-graded axis that declares no grader or no read set", () => {
     expect(refusal({ graderPlan: [{ axis: "O-1", readTurnIds: ["build"] }] })).toBe("grader-plan-missing");
     expect(refusal({ graderPlan: [{ axis: "O-1", grader: codexSol }] })).toBe("grader-plan-missing");
+  });
+
+  it("negative control: a scenario-scoped grader row cannot name an unknown scenario", () => {
+    expect(
+      refusal({
+        graderPlan: [{ axis: "O-1", scenarioIds: ["S-ACC-404"], grader: codexSol, readTurnIds: ["build"] }],
+      }),
+    ).toBe("grader-plan-missing");
   });
 
   it("lets a mechanical axis declare no grader at all", () => {

@@ -83,7 +83,7 @@ function graderTurnInput(bits: Awaited<ReturnType<typeof harness>>, axis = "O-1"
 }
 
 describe("CF-S11-env the grader runs through cormidia run-role", () => {
-  it("spawns run-role with the admitted tuple and records a scored row", async () => {
+  it("spawns fixed-mode run-role and records the independently admitted tuple", async () => {
     const bits = await harness([
       {
         whenArgvIncludes: "run-role",
@@ -108,8 +108,7 @@ describe("CF-S11-env the grader runs through cormidia run-role", () => {
     const argv = (await bits.double.invocations())[0]?.argv ?? [];
     expect(argv[0]).toBe("run-role");
     expect(argv).toContain("acceptance-grader");
-    expect(argv).toContain("--assignment");
-    expect(argv).toContain("gpt-5.6-sol-xhigh@xhigh");
+    expect(argv).not.toContain("--assignment");
   });
 
   it("writes the rendered template and hands run-role its path", async () => {

@@ -1,12 +1,5 @@
-// campaign/acceptance/cli-driver.ts — the ONLY path from a campaign to the
-// product (CORMIDIA-INV-ACC-7a, CORMIDIA-INV-ACC-7b).
-//
-// Everything a campaign does to a scenario goes through the packaged `cormidia`
-// and `cormidia-job` binaries, spawned as real processes. That is not a style
-// choice: a supervising agent that runs `git`/`gh` itself, edits a scenario repo
-// directly, or calls a provider SDK is *simulating* the org, and every score
-// then measures the supervisor rather than the product.
-//
+// The ONLY campaign-to-product path (CORMIDIA-INV-ACC-7a/7b). Everything a
+// campaign does to a scenario goes through packaged `cormidia` binaries.
 // Two guarantees this module owns:
 //
 //   1. **Packaged, not source-backed.** The resolved binary must realpath
@@ -17,14 +10,11 @@
 //   2. **Every invocation is recorded.** The campaign's own account of what it
 //      ran is one of the three records INV-ACC-7a reconciles; a driver that
 //      forgot a call would make the reconciliation close over a lie.
-//
-// It deliberately does NOT parse product output beyond capturing it. Callers own
-// interpretation, so a CLI shape change surfaces in one caller rather than here.
-
 import { execFile } from "node:child_process";
 import { realpath } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
 import { promisify } from "node:util";
+import type { InvocationAdmission, InvocationRequest } from "./cli-admission.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -68,6 +58,7 @@ export interface CliDriverOptions {
   /** Per-invocation timeout. A hung campaign turn is a stopped campaign, not a
    *  forever one — `incomplete` is an honest outcome and a hang is not. */
   timeoutMs?: number;
+  admission?: InvocationAdmission;
 }
 
 const SOURCE_BACKED = [/\bpnpm\s+dev\b/, /\btsx\s+src\//, /\/src\/cli\.ts\b/, /\/src\/jobs\/main\.ts\b/];
@@ -112,6 +103,13 @@ export class CliDriver {
     argv: readonly string[],
     context: { scenarioId?: string; cwd?: string } = {},
   ): Promise<RecordedInvocation> {
+    const request: InvocationRequest = {
+      id: `${this.invocations.length + 1}:${this.clock().toISOString()}`,
+      binary,
+      argv,
+      ...(context.scenarioId === undefined ? {} : { scenarioId: context.scenarioId }),
+    };
+    await this.options.admission?.before(request);
     const command = this.binaryPath(binary);
     for (const pattern of SOURCE_BACKED) {
       if (pattern.test([command, ...argv].join(" "))) {
@@ -152,6 +150,7 @@ export class CliDriver {
       ...(context.scenarioId === undefined ? {} : { scenarioId: context.scenarioId }),
     };
     this.invocations.push(invocation);
+    await this.options.admission?.after(request, invocation);
     return structuredClone(invocation);
   }
 

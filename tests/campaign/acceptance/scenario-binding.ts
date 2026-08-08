@@ -19,7 +19,7 @@
 
 import { execFileSync } from "node:child_process";
 import { realpath } from "node:fs/promises";
-import { isAbsolute, relative } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 
 export type ScenarioBindingCode =
   | "app-slug"
@@ -116,6 +116,14 @@ async function resolvedPath(candidate: string): Promise<string | null> {
   }
 }
 
+async function realOrResolved(candidate: string): Promise<string> {
+  try {
+    return await realpath(candidate);
+  } catch {
+    return resolve(candidate);
+  }
+}
+
 function isInside(parent: string, child: string): boolean {
   const rel = relative(parent, child);
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
@@ -162,7 +170,7 @@ export async function assertScenarioNotThisRepository(input: ScenarioBindingInpu
     );
   }
 
-  const worktree = await realpath(input.worktree);
+  const worktree = await realOrResolved(input.worktree);
   if (isInside(cormidiaRoot, worktree)) {
     throw new ScenarioBindingError(
       "worktree-inside-checkout",
@@ -188,7 +196,7 @@ export async function assertScenarioNotThisRepository(input: ScenarioBindingInpu
 
   let jobWorkdir: string | null = null;
   if (input.jobWorkdir !== undefined) {
-    jobWorkdir = await realpath(input.jobWorkdir);
+    jobWorkdir = await realOrResolved(input.jobWorkdir);
     if (isInside(cormidiaRoot, jobWorkdir)) {
       throw new ScenarioBindingError(
         "job-workdir",

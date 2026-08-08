@@ -1,8 +1,8 @@
 # Boundary contract — B-27 (L-ACC campaign authorization ↔ durable report)
 Canonical ID: **CORMIDIA-C-B27-001 (alias: B-27)**
 
-Status: DESIGN-ONLY, added at the 2026-08-07 outcome-acceptance harness revision. No
-runner exists and no campaign has run. Defends `CORMIDIA-INV-ACC-3/4/5/6/7b`,
+Status: IMPLEMENTED, with the run-1 conformance repair completed 2026-08-07. No
+campaign had run when this implementation record was written. Defends `CORMIDIA-INV-ACC-3/4/5/6/7b`,
 INV-008/015 (by inheritance — the campaign is an evidence producer). Journey J-21.
 Structurally parallel to the L3 campaign config (`tests/live/config.ts`) — that shape is
 reused deliberately, not re-invented.
@@ -47,6 +47,8 @@ scenario repository is mutated.
    config with **no** declared policy refuses: silence is not consent.
 9. **Grader plan.** For each axis that is model-graded, the grader tuple and the read
    set it is disjoint from (B-29 admits it; this contract only requires it be declared).
+   Mirror matrices scope those declarations to exact scenario ids; a grader tuple is
+   never substituted at runtime.
 
 ## §2 Guaranteed output — refusals and the report
 
@@ -57,7 +59,9 @@ scenario repository is mutated.
   scenario: the scenario id; the **exact matrix used**; the installed `cormidia` version
   and tarball identity; the commit pin; each axis with its score **and its evidence
   citation**, or `ungraded` with the reason; the per-axis grader-disjointness set
-  actually applied; `completeness`; and the campaign-level verdict per §4.
+  actually applied; `completeness`; and the campaign-level verdict per §4. It also
+  contains the observed output-token/equivalent-USD exposure against both ceilings, the
+  exact gap list, a local preview command, and `release_signal: null`.
 - **Answerability:** "which bytes did this campaign exercise" and "which model produced
   this score" are answerable **from the report alone**. A report that cannot answer both
   is malformed, not merely thin.
@@ -103,5 +107,9 @@ scenario repository is mutated.
   preview command in the report. Hosting remains a separate critical operation with its
   own human approval, requested after the report is read; the campaign holds no deploy
   grant at any moment.
+- The runner checkpoints atomically after every paid arm and at the gate. Report-time
+  reconciliation joins binary invocation audit, turn telemetry and commit authorship;
+  non-closure voids every affected numeric score to `ungraded` and makes the scenario
+  incomplete.
 - Unattended execution uses exactly the ratified sandbox test-mode profile
   (`src/org/validation-test-mode.ts`). Human approval decisions are never forged.

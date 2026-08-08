@@ -18,10 +18,12 @@ import {
 
 const codexSol: TurnAssignment = { harness: "codex", model: "gpt-5.6-sol", effort: "xhigh" };
 const claudeSonnet: TurnAssignment = { harness: "claude", model: "claude-sonnet-5", effort: "xhigh" };
+const APP_AXES = ["P-1", "P-2", "P-3", "P-4", "P-5", "P-6", "O-1", "O-2", "O-3", "O-4", "O-5", "O-6", "O-7"];
 
 function axis(overrides: Partial<AxisReportRow> = {}): AxisReportRow {
   return {
     axis: "O-1",
+    verdict: "inconclusive",
     score: 3,
     justification: "the app builds and starts from a clean clone",
     citations: ["clean-clone-build.log"],
@@ -52,18 +54,31 @@ function report(overrides: Partial<AcceptanceCampaignReport> = {}): AcceptanceCa
     scenarios: [
       {
         scenarioId: "S-ACC-1",
+        scenarioKind: "app",
         matrix: { builder: claudeSonnet, reviewer: codexSol },
-        axes: [axis()],
+        axes: APP_AXES.map((axisId) => axis({ axis: axisId })),
         completeness: "complete",
         completenessReasons: [],
         planGate: null,
         supervisorReconciliationClosed: true,
+        previewCommand: "pnpm dev",
       },
     ],
     verdict: "inconclusive",
     release_signal: null,
     rq1_relationship: "outside RQ-1; produces no release evidence",
     authorized_scenario_ids: ["S-ACC-1"],
+    spend: {
+      maxOutputTokens: 4_000_000,
+      maxEquivUsd: 520,
+      observedOutputTokens: 0,
+      observedEquivUsd: 0,
+      debitedUnknownOutputTokens: 0,
+      debitedUnknownEquivUsd: 0,
+      ceilingExhausted: false,
+      reservationRefusals: [],
+    },
+    gaps: [],
     ...overrides,
   };
 }
@@ -137,15 +152,17 @@ describe("CF-B27-* (L1) malformed, not thin", () => {
         scenarios: [
           {
             ...base,
-            axes: [
-              axis({
-                axis: "J-1",
-                mechanical: true,
-                grader: null,
-                appliedDisjointnessFamilies: [],
-                appliedReadTurnIds: [],
-              }),
-            ],
+            axes: APP_AXES.map((axisId) =>
+              axisId === "O-1"
+                ? axis({
+                    axis: axisId,
+                    mechanical: true,
+                    grader: null,
+                    appliedDisjointnessFamilies: [],
+                    appliedReadTurnIds: [],
+                  })
+                : axis({ axis: axisId }),
+            ),
           },
         ],
       }),

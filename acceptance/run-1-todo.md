@@ -1,0 +1,31 @@
+# L-ACC run 1 — issue and follow-up ledger
+
+This is the durable ledger requested by the owner for issues found while taking the
+first L-ACC campaign through the real packaged path. A row marked fixed names its
+detector. Run-result observations are appended after the one authorized live attempt.
+None of these rows is release evidence: L-ACC remains outside RQ-1 and
+`release_signal` remains `null`.
+
+## Product issues
+
+| ID | Finding | Disposition | Detector |
+| --- | --- | --- | --- |
+| LACC-R1-P01 | Subscription turns correctly record marginal billed cost as zero, but settlement discarded the metered equivalent cost. The outer equivalent-USD ceiling therefore could not measure subscription exposure. | **Fixed.** `TurnUsage` and telemetry now retain `equivalentCostUsd` separately from `costUsd`; the campaign sums the former when present. | `tests/unit/cf-auth-mode/subscription-accounting.test.ts` |
+| LACC-R1-P02 | `cormidia-job run` produced turn telemetry but no command invocation-audit row, so CORMIDIA-INV-ACC-7a could not reconcile job work to a packaged CLI dispatch. | **Fixed.** Job runs now write crash-durable begin/finish records through `src/jobs/invocation-audit.ts`. | `tests/unit/cf-b30/cf-b30-invocation-audit.test.ts` |
+
+## Harness issues
+
+| ID | Finding | Disposition | Detector / evidence |
+| --- | --- | --- | --- |
+| LACC-R1-H01 | The runner callback path was offline-green but the real provisioning/arm/grader composition was incomplete and world preflight did not precede mutation. | **Fixed.** `campaign-main.ts` now preflights, seals, provisions, checkpoints every paid arm, settles spend, reconciles and persists the terminal report. | `tests/hermetic/cf-j21/`, `tests/unit/cf-b27/` |
+| LACC-R1-H02 | Run 1 has mirror app matrices, but grader rows were only kind-scoped. A Codex grader assigned to S-ACC-2's Codex Planner guaranteed a harness-created `ungraded` P-5 and gate stop. | **Fixed.** Grader rows are exact-scenario scoped; the admitted fixed role tuple is atomically activated and verified immediately before each grader turn. No fallback is allowed. | `tests/unit/cf-b27/cf-b27-org-roles.test.ts`, `tests/unit/cf-b27/cf-b27-preflight.test.ts` |
+| LACC-R1-H03 | The grader used `--assignment` while the disposable apps are in fixed assignment mode; the packaged CLI rejects that flag. | **Fixed.** The exact tuple is selected by verified role activation and `run-role` is invoked with fixed-mode syntax. | `tests/hermetic/cf-s11-env/cf-s11-grader-turn.test.ts` |
+| LACC-R1-H04 | The report could omit authorized axes, spend, gaps or preview commands and could retain numeric scores even when supervisor reconciliation stayed open. | **Fixed.** Every required axis is synthesized, `ungraded` stays nonnumeric, exact gaps and both spend dimensions are validated, deployment-like preview commands refuse, and reconciliation non-closure voids scores fail-closed. | `tests/unit/cf-b27/cf-b27-report-shape.test.ts`, `tests/hermetic/cf-inv-acc-7a/cf-inv-acc-7a-collector.test.ts`, `tests/unit/cf-s11-mech/cf-s11-axis-projection.test.ts` |
+| LACC-R1-H05 | O-4/O-5 app evidence spans Builder and Reviewer, and the job audit spans both provider families. With only Anthropic and OpenAI in run 1, no third disjoint grader exists. | **Expected gap, not bypassed.** Exact read sets name both families; these axes report `ungraded: no-legal-grader`. No provider is substituted and no score is coerced to zero. | `acceptance/campaigns/run-1.example.yaml`, CORMIDIA-INV-ACC-2 |
+| LACC-R1-H06 | The documented bare `pnpm test:acceptance -- --dry-run` can run every config/identity preflight but cannot invent the runtime-only install proof, org/state homes, binary paths, repository world or credentials. | **Disclosed limitation.** The same world preflight is separately repeated by `runCampaign` before the first mutation, and credential readiness is checked explicitly before live execution. The dry run remains token-free and mutation-free. | `tests/campaign/acceptance/campaign-main.ts`, `tests/campaign/acceptance/campaign-world-preflight.ts` |
+| LACC-R1-H07 | The eight-pass build bound is explicit in the live composition but is not serialized in the campaign config or durable report. | **Open, non-safety follow-up.** The hard token/USD admissions still bound every invocation, but run-to-run reproduction should move this bound into the immutable config and report before run 2. | `tests/campaign/acceptance/run-1-live.ts` |
+
+## Live-run observations
+
+Pending the single authorized run. Findings are appended here; a plan-gate stop is a
+successful terminal campaign and is not rerun to improve the result.

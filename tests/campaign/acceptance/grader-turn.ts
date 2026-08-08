@@ -76,6 +76,7 @@ export interface GraderTurnInput {
 function ungraded(axis: string, resolution: AssignedAxisGrader, reason: UngradedReason): AxisReportRow {
   return {
     axis,
+    verdict: "inconclusive",
     score: "ungraded",
     justification: null,
     citations: [],
@@ -110,18 +111,7 @@ export async function runGraderTurn(input: GraderTurnInput): Promise<AxisReportR
   const assignment = input.resolution.grader.assignment;
   const invocation = await input.driver.run(
     "cormidia",
-    [
-      "run-role",
-      "acceptance-grader",
-      "--app",
-      input.appName,
-      "--turn",
-      input.turnId,
-      "--template",
-      templatePath,
-      "--assignment",
-      `${input.resolution.grader.id}@${assignment.effort}`,
-    ],
+    ["run-role", "acceptance-grader", "--app", input.appName, "--turn", input.turnId, "--template", templatePath],
     { scenarioId: input.scenarioId },
   );
 
@@ -142,6 +132,7 @@ export async function runGraderTurn(input: GraderTurnInput): Promise<AxisReportR
 
   return {
     axis: parsed.axis,
+    verdict: "inconclusive",
     score: parsed.score,
     justification: parsed.justification,
     citations: parsed.citations,

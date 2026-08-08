@@ -23,6 +23,7 @@ function lifecycle(): CampaignLifecycle {
 function resolution(overrides: Partial<PlanGateResolution> = {}): PlanGateResolution {
   return {
     scenarioId: "S-ACC-1",
+    applicable: true,
     resolvedBy: "declared-policy",
     decision: "continue",
     scores: { "P-1": 2, "P-5": 2 },

@@ -8,9 +8,11 @@
 // from an exact human authorization for that exact campaign. So the entry point
 // treats a missing or unconfirmed authorization as a refusal, not a prompt.
 //
-// `--dry-run` runs every preflight, provisions nothing, spawns no binary, and
-// prints what a real run would do. It is the honest rehearsal: the campaign's
-// own `--dry-run`, not the packaged installer's.
+// `--dry-run` runs every preflight decidable from the config and report
+// identity, provisions nothing, spawns no binary, and prints what a real run
+// would do. Runtime-only install/world dependencies are checked by
+// `runCampaign` before mutation; this entry point deliberately cannot invent
+// them.
 
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";

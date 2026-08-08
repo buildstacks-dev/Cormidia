@@ -123,7 +123,13 @@ describe("CF-J21-S the build arm is bounded", () => {
 describe("CF-J21-S the job arm and the self-report boundary", () => {
   it("drives cormidia-job with the scenario workdir", async () => {
     const { deps, double } = await harness([{ whenArgvIncludes: "run", stdout: "job completed\n" }]);
-    const output = await runJobArm({ ...deps, jobConfigPath: "/tmp/job.yaml" });
+    const jobConfigPath = join(deps.worktree, "job.yaml");
+    await writeFile(
+      jobConfigPath,
+      "job: acceptance-job\nsteps:\n  - id: research\n    objective: research\n    outputs: []\n",
+      "utf8",
+    );
+    const output = await runJobArm({ ...deps, jobConfigPath });
     expect(output.arm).toBe("job");
     const entry = (await double.invocations())[0];
     expect(entry?.binary).toBe("cormidia-job");

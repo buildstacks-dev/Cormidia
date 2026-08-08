@@ -45,6 +45,8 @@ campaign:
   scenarios:
     - id: S-ACC-1
       kind: app
+      setup: new-app
+      previewCommand: pnpm dev
       appSlug: cormidia-sandbox/acc-1-timetracker
       worktree: /absolute/path/to/disposable/acc-1
       matrix:
@@ -54,6 +56,8 @@ campaign:
 
     - id: S-ACC-2
       kind: app
+      setup: bootstrap
+      previewCommand: pnpm test
       appSlug: cormidia-sandbox/acc-2-docs
       worktree: /absolute/path/to/disposable/acc-2
       matrix:
@@ -63,10 +67,19 @@ campaign:
 
     - id: S-ACC-3
       kind: job
+      setup: job
+      previewCommand: open outputs/index.html
       appSlug: cormidia-sandbox/acc-3-research
       worktree: /absolute/path/to/disposable/acc-3
       jobWorkdir: /absolute/path/to/disposable/acc-3
-      matrix: {} # jobs have no Planner and no Reviewer
+      # Jobs have no Planner or Reviewer, but every provider step still records
+      # the exact tuple that ran so the report is answerable from itself.
+      matrix:
+        research-a: { harness: claude, model: claude-sonnet-5, effort: xhigh }
+        research-b: { harness: claude, model: claude-opus-4-8, effort: xhigh }
+        research-c: { harness: codex, model: gpt-5.6-terra, effort: xhigh }
+        synthesize: { harness: claude, model: claude-opus-4-8, effort: xhigh }
+        visualize: { harness: claude, model: claude-sonnet-5, effort: xhigh }
 
   # Every tuple any scenario uses. A candidate with neither a real
   # qualification_ref nor an explicit `uncertified` disclosure refuses.
@@ -105,17 +118,34 @@ campaign:
   # Mechanical axes declare no grader. Model-graded axes must declare both the
   # grader tuple and the read set disjointness is computed against.
   graderPlan:
-    - { axis: P-1, mechanical: true }
-    - { axis: P-2, mechanical: true }
-    - { axis: P-3, mechanical: true }
-    - { axis: P-4, mechanical: true }
-    - { axis: P-5, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [plan] }
-    - { axis: P-6, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [plan] }
-    - { axis: O-1, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
-    - { axis: O-2, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
-    - { axis: O-3, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
-    - { axis: O-4, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
-    - { axis: O-5, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
-    - { axis: J-1, mechanical: true }
-    - { axis: J-2, mechanical: true }
-    - { axis: J-3, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [synthesize, visualize] }
+    - { axis: P-1, scenarioKinds: [app], mechanical: true }
+    - { axis: P-2, scenarioKinds: [app], mechanical: true }
+    - { axis: P-3, scenarioKinds: [app], mechanical: true }
+    - { axis: P-4, scenarioKinds: [app], mechanical: true }
+    # The app matrices are mirrors, so their legal grader families are mirrors
+    # too. Scenario scoping is part of the sealed plan, never runtime fallback.
+    - { axis: P-5, scenarioIds: [S-ACC-1], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [plan] }
+    - { axis: P-6, scenarioIds: [S-ACC-1], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [plan] }
+    - { axis: P-5, scenarioIds: [S-ACC-2], grader: { harness: claude, model: claude-opus-4-8, effort: xhigh }, readTurnIds: [plan] }
+    - { axis: P-6, scenarioIds: [S-ACC-2], grader: { harness: claude, model: claude-opus-4-8, effort: xhigh }, readTurnIds: [plan] }
+    - { axis: O-1, scenarioIds: [S-ACC-1], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-2, scenarioIds: [S-ACC-1], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-3, scenarioIds: [S-ACC-1], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-1, scenarioIds: [S-ACC-2], grader: { harness: claude, model: claude-opus-4-8, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-2, scenarioIds: [S-ACC-2], grader: { harness: claude, model: claude-opus-4-8, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-3, scenarioIds: [S-ACC-2], grader: { harness: claude, model: claude-opus-4-8, effort: xhigh }, readTurnIds: [build] }
+    # O-4/O-5 read both builder and reviewer output. With only the two provider
+    # families in run 1, independence correctly makes these ungraded.
+    - { axis: O-4, scenarioIds: [S-ACC-1], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build, reviewer] }
+    - { axis: O-5, scenarioIds: [S-ACC-1], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build, reviewer] }
+    - { axis: O-4, scenarioIds: [S-ACC-2], grader: { harness: claude, model: claude-opus-4-8, effort: xhigh }, readTurnIds: [build, reviewer] }
+    - { axis: O-5, scenarioIds: [S-ACC-2], grader: { harness: claude, model: claude-opus-4-8, effort: xhigh }, readTurnIds: [build, reviewer] }
+    # The job audit/journal spans every step and therefore both provider
+    # families. These rows remain declared and report no-legal-grader.
+    - { axis: O-4, scenarioKinds: [job], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [research-a, research-b, research-c, synthesize, visualize] }
+    - { axis: O-5, scenarioKinds: [job], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [research-a, research-b, research-c, synthesize, visualize] }
+    - { axis: O-6, mechanical: true }
+    - { axis: O-7, mechanical: true }
+    - { axis: J-1, scenarioKinds: [job], mechanical: true }
+    - { axis: J-2, scenarioKinds: [job], mechanical: true }
+    - { axis: J-3, scenarioKinds: [job], grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [synthesize, visualize] }

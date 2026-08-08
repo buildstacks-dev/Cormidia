@@ -1,4 +1,4 @@
-// CF-B23-CHK / CF-B23-HND / CF-B23-SET (L2) — job step execution composition.
+// CF-B30-CHK / CF-B30-HND / CF-B30-SET (L2) — job step execution composition.
 //
 // These are the three properties that make a job trustworthy without a reviewer:
 // declared checks decide completion rather than the provider's self-report,
@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseJobConfig } from "../../../src/jobs/config.js";
 import { runJob } from "../../../src/jobs/runner.js";
-import { readTurnRecords } from "../../../src/runtime/telemetry.js";
+import { readTurnRecords, recordTurnOnce } from "../../../src/runtime/telemetry.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 import {
   type JobWorkspace,
@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 async function scaffold(): Promise<{ state: TempStateHome; work: JobWorkspace }> {
-  const state = await makeTempStateHome({ name: "cf-b23" });
+  const state = await makeTempStateHome({ name: "cf-b30" });
   const work = await makeJobWorkdir();
   cleanups.push(state.cleanup, work.cleanup);
   return { state, work };
@@ -72,7 +72,7 @@ steps:
         check: non_empty
 `;
 
-describe("CF-B23-CHK (L2) declared checks decide completion", () => {
+describe("CF-B30-CHK (L2) declared checks decide completion", () => {
   it("completes a step whose declared output passes its check", async () => {
     const { state, work } = await scaffold();
     const result = await run({
@@ -183,7 +183,7 @@ steps:
   });
 });
 
-describe("CF-B23-HND (L2) dependency outputs reach the downstream brief", () => {
+describe("CF-B30-HND (L2) dependency outputs reach the downstream brief", () => {
   it("splices a dependency's declared output verbatim into the next step's prompt", async () => {
     const { state, work } = await scaffold();
     const framing = "## Framing\n\nQ1: what changed?\nQ2: what did it cost?";
@@ -321,7 +321,7 @@ steps:
   });
 });
 
-describe("CF-B23-SET (L2) exactly-once settlement", () => {
+describe("CF-B30-SET (L2) exactly-once settlement", () => {
   it("settles one ledger row per provider turn, attributed to the job", async () => {
     const { state, work } = await scaffold();
     await run({
@@ -367,6 +367,31 @@ describe("CF-B23-SET (L2) exactly-once settlement", () => {
     const rows = await readTurnRecords(state.stateHome);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.costUsd).toBe(0.4);
+  });
+
+  it("negative control: a SEEDED double-settle under the same identity is deduped, not double-charged", async () => {
+    const { state, work } = await scaffold();
+    await run({
+      yaml: "job: doubled\nsteps:\n  - id: only\n    objective: x\n",
+      turns: [{ costUsd: 0.6 }],
+      state,
+      work,
+    });
+    const settled = await readTurnRecords(state.stateHome);
+    expect(settled).toHaveLength(1);
+    const original = settled[0];
+    if (original === undefined) throw new Error("the first settlement did not happen");
+
+    // Replay the EXACT ledger row the step already settled — the shape a retry
+    // loop or a crash-resume produces if it forgets the turn was already paid
+    // for. `recordTurnOnce` must return false and leave the ledger alone;
+    // otherwise the org's budget view silently OVERSTATES spend and a ceiling
+    // trips early on money nobody spent.
+    const accepted = await recordTurnOnce(state.stateHome, original);
+    expect(accepted).toBe(false);
+    const after = await readTurnRecords(state.stateHome);
+    expect(after).toHaveLength(1);
+    expect(after.reduce((total, row) => total + row.costUsd, 0)).toBeCloseTo(0.6);
   });
 
   it("negative control: resuming a completed job re-settles nothing", async () => {

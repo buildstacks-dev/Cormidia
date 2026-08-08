@@ -29,7 +29,11 @@ its header):
 | C-OP-VALIDATION | CORMIDIA-C-OPVALIDATION-001 | | | |
 | B-23 | CORMIDIA-C-B23-001 | | B-24 | CORMIDIA-C-B24-001 |
 | B-25 | CORMIDIA-C-B25-001 | | B-26 | CORMIDIA-C-B26-001 |
+| B-27 | CORMIDIA-C-B27-001 | | B-28 | CORMIDIA-C-B28-001 |
+| B-29 | CORMIDIA-C-B29-001 | | B-30 (alias B-JOB) | CORMIDIA-C-B30-001…003 |
+| C-OP-JOB | CORMIDIA-C-OPJOB-001 | | | |
 | INV-NNN | CORMIDIA-INV-NNN | | T-NN | system-map §5.2 control point (not a contract ID) |
+| INV-ACC-n | CORMIDIA-INV-ACC-n (campaign invariants — harness-scoped, invariants.md's fenced final section) | | | |
 
 **Journey aliases** (`J-04/05/07/08` in J-18's composite trace) are not contract IDs:
 they are **intra-document references** to this file's own journey sections, whose
@@ -257,3 +261,87 @@ Phase 3 boundary owns them.
   a batch review UI cannot widen those grants. Follow-up observation may be scheduled,
   but unknown future replies require new units/plans. [C-OP-BATCH §3a, INV-003/008,
   B-17/T-12]
+
+## J-21 Outcome acceptance campaign (L-ACC)
+
+<!-- added 2026-08-07 (outcome-acceptance harness revision). The rubric these
+criteria serve is human-ratified and tighten-only; none of them introduces a
+threshold. -->
+
+- Given a campaign config with any preflight defect — an unrun or failed
+  `pnpm install:packaged --replace-source-links`, `effort: max` on a harness other than
+  `claude`/`opencode`, an app arm whose planner, builder and reviewer are one provider
+  family, an `adaptive_assignments` candidate with neither a real `qualification_ref`
+  nor an uncertified disclosure, a commit pin ≠ HEAD, or a scenario repository resolving
+  to this repository — then the campaign refuses at **preflight**, before any runtime is
+  constructed, repository mutated, or token spent, naming the exact defect.
+  [B-27 §1/§2, INV-ACC-3/7b, INV-001/015]
+- Given any grader turn, then no byte of the sealed answer key is present in its
+  assembled input **or** reachable from any surface it can read with its own tools —
+  including the scenario repository's git history — and the key is applied mechanically
+  only after every grader turn for that scenario has terminated. [B-28 §2/§4, INV-ACC-1]
+- Given a model-graded axis, then the grading turn's provider family is disjoint from
+  every turn that axis reads, the check ran before provider construction, and the
+  disjointness set actually applied is recorded in the report; given no legal grader
+  exists for that axis, it reports `ungraded` rather than being graded by a correlated
+  provider. [B-29 §2, INV-ACC-2]
+- Given the plan arm has completed, then no build-arm token is spent until that
+  scenario's plan gate resolves on a score and that resolution is recorded with the
+  scores it acted on; given an unattended campaign with a declared `plan_gate` policy,
+  the policy may author that resolution (F-PT-030, 2026-08-07) provided the ratified
+  rubric §6 criteria are met, and given no declared policy the campaign refuses. A
+  campaign that stops at the gate is reported complete-for-the-plan-arm, never failed.
+  [B-27 §1.8/§4, INV-ACC-4]
+- Given any campaign result, then no release path consumes it: L-ACC never enters RQ-1
+  completeness, verdict, or qualification, and no surface presents a score as a block.
+  [B-27 §4, F-PT-029]
+- Given any axis whose evidence is missing, or whose score arrived without its mandatory
+  evidence citation, then it reports `ungraded`; `ungraded` never becomes `0`, never
+  enters an aggregate as a number, and every aggregate names its graded denominator.
+  Given any unratified threshold, the verdict is `inconclusive` — never pass/fail.
+  [B-27 §4, B-29 §3, INV-ACC-5, `validation-policy.yaml` verdict_semantics.axis_score]
+- Given a ceiling exhaustion, a killed scenario, or a missing grader run, then that
+  scenario reports `completeness: incomplete` with partial evidence preserved and
+  remains present in the report. [B-27 §3, INV-ACC-6]
+- Given the whole campaign, then every product-affecting action traces to the
+  **packaged** `cormidia`/`cormidia-job` binaries: no scenario-repo commit, branch, PR,
+  issue or file write carries the supervising agent's identity, no provider SDK is
+  called outside a Cormidia turn, and the report answers "which bytes did this exercise"
+  from the installed version and tarball identity alone. A scenario whose invocation
+  audit, commit authorship and run journal do not reconcile reports `ungraded` /
+  `incomplete` rather than a score. [B-27 §2, INV-ACC-7a/7b]
+- Given a completed campaign, then no app was deployed and no deploy grant was held; the
+  deliverable is a buildable app plus a preview command in the report. [B-27 §5, T-12]
+
+## J-22 Recurring app-scoped job  *(alias J-JOB-1)*
+
+<!-- added 2026-08-07; source: docs/jobs/design.md §14, un-entered until now. -->
+
+- Given an app-scoped job, then run records land under `runs/<app>/` and nowhere else,
+  `cormidia observe` surfaces them with no code change, and each provider turn settles
+  exactly one ledger row against the **job** envelope — never the app's.
+  [C-OP-JOB §4, INV-004/006]
+- Given a second run of the same job id with an unchanged config, then completed steps
+  are not re-executed and cost zero additional provider turns; given a changed config,
+  the run fails closed naming the drift **before any step executes**. [B-30 §2, INV-015]
+- Given a step whose declared output check fails, then the step is recorded `failed`
+  regardless of provider status and no downstream step executes; given a step with no
+  declared outputs, it renders `completed (unverified)`, never bare `completed`.
+  [B-30 §3, INV-008]
+- Given a step that trips the critical-ops gate, then it raises its own gated item
+  through the ordinary gate and does not proceed. [C-OP-JOB §4, INV-002]
+
+## J-23 One-off unscoped job in the default org  *(alias J-JOB-2)*
+
+- Given no app registered and no `apps.yaml` entry, then the job runs, records land
+  under `runs/adhoc/`, and no app state is touched. [B-30 §2, INV-004]
+- Given any failure, then the message is actionable without ticket, episode, pipeline or
+  app vocabulary. [C-OP-JOB §4]
+- Given a dependency's declared outputs, then they appear **verbatim** in the downstream
+  step's persisted `brief.md` — asserted over committed bytes, never graded. [B-30 §3]
+- Given a checkpoint step, then the job parks into the approvals queue and resumes on
+  decision without re-executing completed steps. [C-OP-JOB §4, INV-003/005]
+- Given the config is deleted after completion, then artifacts and run records remain
+  intact and readable. [B-30 §2, INV-014]
+- Given an invocation inside a Cormidia provider turn, then `cormidia-job` refuses —
+  nested provider turns must never escape the outer episode's budget. [C-OP-JOB §4, T-5]

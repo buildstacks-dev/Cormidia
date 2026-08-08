@@ -7,7 +7,7 @@
 //
 // Settlement happens BEFORE the checks are judged. A failed or cancelled turn
 // consumed budget just as a successful one did, and a step failing its declared
-// check must never make its spend invisible (INV-006, CF-B23-SET).
+// check must never make its spend invisible (INV-006, CF-B30-SET).
 
 import { defaultGate } from "../runtime/gate.js";
 import { recordTurnOnce } from "../runtime/telemetry.js";

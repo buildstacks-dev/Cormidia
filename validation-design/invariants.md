@@ -21,6 +21,17 @@ INV-004/010; candidate and judge accounting by INV-006; selection/report truth b
 INV-008/012/015; durable recovery by INV-013/014. Operation-specific promises remain
 contracts B-18/B-19 and J-19 acceptance criteria rather than masquerading as INV-016.
 
+Harness revision 2026-08-07 (outcome acceptance + jobs), Phase 2:
+**Jobs add no product invariant** — every falsifiable claim jobs make is already made by
+INV-001/002/004/006/008/011/013/015, and two of those *tighten* for jobs (recorded at
+their entries). INV-016's domain gains an explicit scope clause (F-PT-031). The
+outcome-acceptance lane adds a separate, clearly-fenced family —
+`CORMIDIA-INV-ACC-1…7b` at the end of this file — which constrains **the campaign**,
+not the product. They are stated as invariants because a campaign that violates one
+still emits a plausible score, which is the same failure class INV-008 exists for;
+they are fenced because a future audit must never read a harness promise as a product
+promise.
+
 Harness revision 2026-08-03 (#184/#233/#234/#240), owner-confirmed through Phase 2:
 roadmap, delivery-unit, and execution-batch identities extend INV-001/004/005/006/008/
 009/014/015. New INV-016 is the one genuinely global addition: validation obligation
@@ -201,6 +212,11 @@ observable state is unknown/degraded/ambiguous/needs-attention — never green b
 Reconciliation never erases contradictions or compresses multi-source state into a more
 advanced claim than the evidence supports (there is deliberately no single ticket-status
 field — see system-map §2.3).
+**Jobs tightening (2026-08-07, M18).** For a job step, "completed" means the provider
+returned **and** every declared output check passed. No surface may render a step
+`completed` when its check failed, and a step with **no** declared outputs renders
+`completed (unverified)` — never bare `completed`. The absence of a check is a visible
+property, never silence. `[doc: docs/jobs/design.md §7]`
 A ready-frontier entry requires the exact RoadmapPlan version, delivery-unit membership,
 routing eligibility, dependency state, and validation contract it claims. Any
 `planning:preplanned`-style label is only a projection of a valid creator-scope artifact;
@@ -320,6 +336,10 @@ outcome, unavailable dependency, unknown usage, torn write — Cormidia may do l
 never becomes permitted to do more, and never claims more has happened than the evidence
 supports. Fail-closed accepts availability damage to protect authority, containment,
 money, and irreversible effects; it does not mean every error blocks everything forever.
+**Jobs tightening (2026-08-07, M18).** A job config that changed under a live journal
+**refuses rather than resuming**, and a step's completion is read from the journal
+only — never inferred from an output file's presence, because a half-written file and a
+complete one are indistinguishable on disk. `[doc: docs/jobs/design.md §6]`
 **Enforcement.** Both — this is the design direction every guardrail's failure branch is
 tested against. **Falsifying test shape.** Any code path where an error/absence branch
 grants a wider outcome than the success branch would have (e.g., missing AUTHORITY.md →
@@ -338,6 +358,21 @@ contract version and execution-unit identity remain bound through EpisodePlan ad
 and terminal evidence. Code delivery additionally binds Builder artifacts, exact-HEAD
 gate evidence, and an independent Reviewer verdict; operational effects bind their exact
 payload/action, required approval and acknowledgement evidence.
+**Scope (made explicit 2026-08-07 on the M18/jobs revision; F-PT-031).** This invariant
+governs **delivery units** — autonomously executed work that reaches readiness through a
+RoadmapPlan/EpisodePlan admission path and lands in a product or performs an operational
+effect. Work with no readiness transition, no delivery-unit membership, and no external
+effect is outside its domain; such work is governed instead by its own boundary contract
+and by the standing no-green-by-absence rule. The clause **narrows nothing that was ever
+enforceable**: the invariant's own precondition is "before it becomes ready", and
+"ready" is the delivery-unit state B-20 owns (INV-008's ready-frontier clause enumerates
+exactly what a ready entry binds). A job step has no frontier, no admission, no
+membership and no plan version, so the precondition is unsatisfiable for it and the
+universal reading was never checkable. Jobs are **not** thereby unverified: the declared
+output checks of `docs/jobs/design.md` §7 are a mandatory, pre-declared, durable,
+deterministic obligation per step, carried by `CORMIDIA-C-B30-001`/`-003` and the
+INV-008/INV-015 tightenings above.
+
 Neither Planner, Validation Designer, Builder, Reviewer, a label, nor model prose can
 silently waive, rewrite, satisfy, and approve the obligation alone.
 **Enforcement.** Both — deterministic readiness/admission/review guardrails plus tests
@@ -348,6 +383,190 @@ no policy/provenance; a contract or member changes after review without invalida
 low-risk waiver outside its policy class; (c) evidence copied from another unit/HEAD;
 (d) cross-ticket boundary touched without its shared contract detector; (e) Reviewer
 resumed from Builder's private session and self-confirms the same unsupported claim.
+
+---
+
+# Campaign invariants — the L-ACC outcome-acceptance lane (added 2026-08-07)
+
+**Read the fence first.** `CORMIDIA-INV-ACC-1…7b` (alias `INV-ACC-n`) constrain the
+**acceptance campaign**, not Cormidia. Violating one does not break the product; it
+breaks the *measurement*, which is worse in exactly one way — the campaign still emits
+a tidy score, and a human reads it. That is the INV-008 failure class pointed at the
+harness, which is why five of the eight are E-3 in `risk-allocation.md`.
+
+They are invariants rather than contract clauses by the standard sorting test: each must
+hold over **every** scenario, arm, axis and turn of a campaign, not over one named
+operation. Operation-specific promises stayed in `CORMIDIA-C-B27/28/29-001`.
+
+Provenance: `[stated]` = the product owner's `acceptance/` corpus (rubric human-ratified
+2026-08-07, tighten-only) and the task instruction opening this revision;
+`[PROPOSED]` = designer-originated sharpening, marked per item. Enforcement classes are
+as above; where the campaign cannot *prove* a property it must refuse or report
+`incomplete`, never proceed and score.
+
+## CORMIDIA-INV-ACC-1 — the sealed answer key never reaches a grader
+`[stated: rubric §7 rule 3]` `[PROPOSED: the reachability half]`
+**Statement.** No grader turn may reach the sealed content — the scenario's `## Plants`
+section and anything derived from it. "Reach" covers **both** the turn's assembled input
+(brief, prompt, context bundle, tool results, prior transcript) **and** any surface the
+turn can read with its own tools: the scenario repository tree, the campaign root, the
+report under construction. The key is extracted exactly once, before the first grader
+turn is constructed, and its plaintext lives outside every path a grader may read. If
+confinement cannot be proven, no grader turn is constructed.
+<!-- tightening 2026-08-07: `acceptance/revision-input.md` §4 states this as "no
+grader turn's assembled input contains any byte". That is too narrow to be true: the
+grader is an agentic turn holding file-read tools pointed at a repository that also
+contains the scenario markdown. Narrowed-to-stronger per the tighten-only rule; the
+assembled-input clause is retained as its first half. -->
+**Enforcement.** Both — a fail-closed pre-construction guardrail (assembly scan +
+reachable-surface check) plus tests that attack it.
+**Falsifying test shape.** A grader turn constructed while any plants byte is present in
+its assembled input or in a tree it can read; a grader transcript reproducing a planted
+item before the key was mechanically applied.
+**Adversarial seeds.** (a) plants left in the committed scenario file inside the
+scenario repo the grader is handed; (b) plants echoed into the report before scoring and
+the report then handed back as grader context; (c) a paraphrased plant in a step
+objective; (d) the key file placed under the campaign root while the grader's workdir is
+the campaign root. **Negative control (mandatory):** a plant deliberately leaked into
+grader input — the detector must fire red before it is trusted.
+
+## CORMIDIA-INV-ACC-2 — the grader is never correlated with what it grades
+`[stated: rubric §7 rule 1]`
+**Statement.** For **every graded axis**, the grading turn's provider family is disjoint
+from the provider families of every turn whose output that axis reads. Disjointness is
+**per axis**, against the turns that axis actually reads — not against every turn in the
+scenario — and the campaign records the disjointness set it actually applied for each
+axis, so the scoping is auditable rather than assumed. The check runs **before provider
+construction** and fails closed. If no legal grader exists for an axis, that axis reports
+`ungraded` (INV-ACC-5); it is never graded by a correlated provider and never silently
+dropped.
+**Enforcement.** Both. **Falsifying test shape.** A grader constructed whose provider
+family intersects the read set; a report whose recorded disjointness set does not match
+the turns the axis actually read; an axis silently graded after the disjointness check
+found no legal grader.
+**Adversarial seeds.** (a) a scenario whose fan-out spans both families (S-ACC-3), where
+a whole-scenario rule leaves no legal grader — must resolve per axis or report
+`ungraded`, never widen; (b) an axis whose read set grows after the check;
+(c) two harnesses sharing one upstream provider family (the pi/Anthropic correlation
+noted at B-04) treated as disjoint — family, not vendor product, is the unit.
+**Negative control:** a grader provider deliberately set equal to the graded turn's.
+
+## CORMIDIA-INV-ACC-3 — a campaign never points an app at this repository
+`[stated: acceptance/README.md boundary 2]`
+**Statement.** No L-ACC campaign resolves a sandbox app to the Cormidia repository, and
+no scenario repository is any repository other than the campaign's own disposable ones.
+Cormidia feature work is a campaign **output** — filed issues feeding a normal
+development cycle — never a step inside it.
+**Enforcement.** Both — the campaign asserts `assertCampaignRepositoryBinding`
+(`tests/campaign/repository-binding.ts`), which already pins checked-out HEAD and the
+canonical tracked policy blob to the authorized commit; an app that edits this repo
+mid-campaign voids the campaign's own identity.
+**Falsifying test shape.** A campaign app whose configured repository, or whose worktree
+git origin, resolves to this repository; a campaign that completes while HEAD moved.
+**Adversarial seeds.** (a) app config naming the Cormidia slug; (b) a scenario repo
+whose origin is re-pointed mid-campaign; (c) a job scenario given a `--workdir` inside
+this checkout. **Negative control:** a scenario deliberately bound to this repository.
+
+## CORMIDIA-INV-ACC-4 — no build arm precedes its plan gate
+`[stated: rubric §6]`
+**Statement.** A scenario's build arm does not begin until that scenario's plan gate has
+resolved. The gate resolves on a **score**, not on an approval row — it is not an alias
+of the J-06 approval-wait. **Who may author that resolution was decided 2026-08-07
+(F-PT-030): a campaign config's declared `plan_gate` policy may resolve it unattended,
+so a campaign runs end to end.** What did *not* change is this invariant: a durable
+resolution must exist before any build-arm spend, it must apply the ratified rubric §6
+criteria (at least `attempted` on P-1 and P-5 for every scenario), and a campaign with
+no declared policy still refuses at preflight — silence is not consent.
+**Enforcement.** Both. **Falsifying test shape.** Build-arm provider spend recorded for
+a scenario whose gate has no resolution record; a gate resolution written after the
+first build turn.
+**Adversarial seeds.** (a) resume after interruption re-entering at the build arm;
+(b) a scenario whose plan arm failed treated as "gate passed by absence"; (c) an
+auto-continue that skips recording its resolution, or that proceeds with a scenario
+below the rubric §6 criteria; (d) a campaign with no declared `plan_gate` policy
+continuing anyway.
+
+## CORMIDIA-INV-ACC-5 — unratified thresholds cannot produce a grade, and `ungraded` is not zero
+`[stated: rubric §5, ratified]`
+**Statement.** While a threshold is unratified, no L-ACC verdict is `pass` or `fail`;
+every threshold-dependent axis reports `inconclusive`. An axis whose evidence is missing
+— or whose score arrived without the mandatory one-sentence evidence citation — reports
+`ungraded`. **`ungraded` is never coerced to `0`**, never enters an aggregate as a
+numeric value, and any aggregate names its graded denominator explicitly. Conflating "we
+did not measure it" with "it was absent" is how a suite starts lying.
+**Enforcement.** Both — expressed in `validation-policy.yaml` →
+`verdict_semantics.axis_score` so it is policy, not runner discretion.
+**Falsifying test shape.** Any surface rendering a threshold-dependent axis as pass/fail
+while its threshold is unratified; any mean, total or percentage into which an
+`ungraded` axis entered as `0`; a citation-less score retained as a number.
+**Adversarial seeds.** (a) a scenario where every axis is `ungraded` rendering as a
+0-score "failure"; (b) a report averaging axes across scenarios with different graded
+denominators; (c) a threshold introduced by a runner constant rather than a ratified
+rubric edit. **Negative control:** a seeded citation-less score.
+
+## CORMIDIA-INV-ACC-6 — an unfinished campaign is never complete
+`[stated: rubric §5; standing rule 7]`
+**Statement.** Ceiling exhaustion, a killed scenario, or a missing grader run yields
+`completeness: incomplete` for that scenario, with partial evidence preserved. Never
+green, never silently dropped from the report.
+**Enforcement.** Both. **Falsifying test shape.** A scenario reported complete while any
+authorized-envelope ceiling stopped it, a scenario was killed, or a grader run is absent;
+a report omitting a scenario that was attempted.
+**Adversarial seeds.** (a) envelope exhausted between the plan and build arms;
+(b) a grader turn that failed transport and was retried into silence; (c) a scenario
+whose repo provisioning failed being dropped rather than reported.
+
+## CORMIDIA-INV-ACC-7a — the org does the work, not the supervisor
+`[stated: acceptance/README.md boundary 6; revision-input §4]`
+**Statement.** Every product-affecting action in a campaign is performed by the
+`cormidia` or `cormidia-job` binary. No commit, branch, pull request, issue or file
+write inside a scenario repository traces to the supervising agent's identity, and no
+provider SDK is called outside a Cormidia turn. An agent that runs `git`/`gh` itself,
+edits a scenario repo directly, or calls a provider SDK is *simulating* the org, and
+every score then measures the supervisor.
+**Enforcement.** Test + a **report-time fail-closed guardrail**: the campaign
+reconciles three independent records — the campaign org's invocation audit
+(`src/cli/invocation-audit.ts`, one row per CLI dispatch), per-commit authorship in each
+scenario repository, and the run journal's turn records — and a scenario whose
+reconciliation does not close reports `ungraded`/`incomplete` rather than a score.
+(There is deliberately no runtime guardrail that could *prevent* a supervisor from
+running `git`: the honest mechanism is detection plus refusal to score.)
+**Falsifying test shape.** A scenario-repo commit whose author is not a Cormidia turn
+identity; a product-affecting action with no corresponding invocation-audit row; a
+provider call in the campaign's own process.
+**Adversarial seeds.** (a) a hand-authored commit pushed to a scenario repo "to fix the
+build"; (b) `gh issue create` run by the supervisor to seed a backlog; (c) a supervisor
+patching a generated file between turns; (d) a provider SDK imported by the campaign
+runner for "just the grading" — grading is itself a Cormidia-invoked turn.
+**Negative control:** a hand-authored commit deliberately pushed to a scenario repo.
+
+## CORMIDIA-INV-ACC-7b — the binaries are the packaged ones
+`[stated: acceptance/README.md boundary 6]`
+**Statement.** The `cormidia` and `cormidia-job` the campaign invokes are the **packaged**
+binaries. Neither resolves through `PATH` into this checkout, no campaign turn runs
+`pnpm dev`, `tsx src/…`, or a `link:local` symlink, and every packaged skill link
+resolves into the installed package root. `pnpm link:local` produces a *source-backed*
+install — symlinks into `src/`, run through tsx
+([`scripts/install-packaged.mjs:6`](../scripts/install-packaged.mjs:6)) — which executes
+TypeScript `npm install -g cormidia` never ships; a campaign run against it measures the
+working tree, not the product.
+**Enforcement.** Both — and **the guardrail already exists; do not rebuild it.**
+`pnpm install:packaged --replace-source-links` performs build → `npm pack` → global
+tarball install → skill links from the installed root, then refuses if any binary still
+resolves inside the checkout
+([`install-packaged.mjs:208`](../scripts/install-packaged.mjs:208)) or any skill target
+is not `current` ([`:215`](../scripts/install-packaged.mjs:215)). **The campaign's B-27
+preflight asserts that script's exit status** and records the installed version and
+tarball identity in the report; it does not reimplement the check.
+**Falsifying test shape.** A campaign that proceeds while the preflight exited non-zero,
+was skipped, or was run before the campaign's own commit pin; a report that cannot
+answer "which bytes did this exercise".
+**Adversarial seeds.** (a) a campaign started while `link:local` symlinks are still in
+place; (b) a shadowing binary earlier on `PATH`; (c) an install under a different npm
+prefix so the resolved binary is not the one on `PATH`; (d) a preflight run with
+`--dry-run` alone and its non-zero exit read as "nothing to do".
+**Negative control:** a campaign started with `link:local` links present — the preflight
+must be red.
 
 ---
 

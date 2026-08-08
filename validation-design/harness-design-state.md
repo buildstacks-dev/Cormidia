@@ -1,6 +1,70 @@
 # Harness design state — Cormidia validation campaign
 
-Updated: 2026-08-07 (adapter-expansion harness revision below; prior state retained)
+Updated: 2026-08-07 (outcome-acceptance + jobs harness revision below; prior state retained)
+
+## Harness revision — outcome acceptance (L-ACC) + jobs (2026-08-07)
+
+Scope: the `validation-harness-design` skill re-entered in `harness-revision` mode with
+the ratified `validation-design/` artifacts as baseline, per root AGENTS.md → Structural
+additions. **Attributable human instruction:** the product owner's task opening this
+revision. **Elicitation input:** `acceptance/rubric.md` (**human-ratified 2026-08-07,
+tighten-only** — its §8 carries the ratification block and digest),
+`acceptance/README.md`, `acceptance/revision-input.md`, and the three scenario briefs;
+plus `docs/jobs/design.md` §14, which recorded the jobs structural debt when
+`cormidia-job` shipped (#359). Tagged `[stated]`. Designer-originated sharpenings are
+tagged `[PROPOSED]` at their items — notably INV-ACC-1's reachability half and the
+framing of B-29 as an evidence-set seam rather than a bare rule.
+
+**Registered additions.** Journeys J-21 (outcome acceptance campaign) and J-22/J-23 (the
+jobs journeys, aliases J-JOB-1/J-JOB-2); module M18 (Jobs); boundaries B-27 (campaign
+authorization ↔ durable report), B-28 (**sealed answer key ↔ grader input** — a
+confidentiality seam with no prior analogue in the corpus), B-29 (graded evidence set ↔
+grader turn) and B-30 (job config authority ↔ journal-bound execution, alias B-JOB);
+contracts `CORMIDIA-C-B27-001`…`CORMIDIA-C-B30-001…003` plus `CORMIDIA-C-OPJOB-001`;
+campaign invariants `CORMIDIA-INV-ACC-1…7b` in a fenced registry of their own; LLM site
+S-11 with an UNPOPULATED `golden-sets/acceptance-grader/` scaffold; the `l_acc_lane`
+policy block; and `verdict_semantics.axis_score`, which makes `ungraded` policy rather
+than runner discretion.
+
+**The split is the substance of the pass.** All eight campaign invariants are mechanical
+guardrails landing at **L1/L2 with negative controls** (case-catalog §3.1); only the
+rubric's scored axes are lane work (§8b). The expensive lane contains only what no
+cheaper layer can falsify.
+
+**Nothing is implemented.** No runner exists, no campaign has run, and no L-ACC evidence
+exists. HB-120…HB-129 are the offline guardrail wave; **HB-130 (the runner and run 1)
+now waits on one thing only** — an exact human authorization naming this campaign's
+ceilings. F-PT-029 and F-PT-030 were both answered by the owner on 2026-08-07, the day
+they were opened: L-ACC never gates a release, and an unattended campaign may
+auto-continue past the plan gate through a declared policy under the unchanged rubric §6
+criteria.
+
+**Two ID reconciliations, recorded so nobody re-derives them.** (1) The earlier
+`jobs-harness-revision-proposal.md` claimed B-23/J-21/J-22 and an "F-PT-025" that the
+#336 adapter revision had already taken; that package was never accepted, and its
+substance is carried here under B-30/J-22/J-23/F-PT-031 (its header now says so).
+(2) `acceptance/revision-input.md` proposed the non-numeric `B-JOB`; it is registered as
+**B-30** with `B-JOB` retained as an alias, so the boundary namespace stays numeric and
+`docs/jobs/design.md` §14's naming still resolves.
+
+**Owner confirmation gate:** the review of the registering PR. Nothing here is binding
+until that review lands. The three items flagged for it — F-PT-029, F-PT-030 and
+F-PT-031's scope clause — were **all answered on 2026-08-07** and are recorded as
+resolved-ratified in `validation-policy.yaml` → `open_findings`; the PR review remains
+the confirmation of the surrounding structure.
+
+**Recorded so nobody re-derives it: `acceptance/rubric.md`'s ratification digest does not
+reproduce from the committed file.** Its §8 block records
+`sha256: 0486996d…f167` over "the exact bytes the human read and ratified, computed
+BEFORE this block was appended". Five plausible reconstructions were tried (prefix to the
+YAML fence, to the §8 heading, to the RATIFIED line, to the ledger sentence, and the file
+minus the fenced block, each with and without trailing-newline normalization) and none
+matches. The rubric was **not** modified by this revision — it is byte-identical to the
+state it was committed in — but the digest is not independently checkable from the file
+alone, so it anchors the ratification *event* rather than serving as a verifiable
+integrity seal. If the owner wants a checkable anchor, the cheap fix is a second
+ratification block recording the digest of the whole file as committed; that is a
+tighten-only addition and must not be an edit to the existing block.
 
 ## Harness revision — adapter-expansion boundaries B-23…B-26 (2026-08-07, #336)
 
@@ -274,6 +338,10 @@ process-identity probe.
 - F-PT-026 (RESOLVED-by-certification 2026-08-07 — the premise was falsified by field evidence, so the question was empirical, not an owner value call, and no degraded-tier/role-narrowing decision was required. A per-turn project `.cursor/hooks.json` `preToolUse` hook DOES fire under `-p --force` and its `{permission:deny}` reply stops the action pre-execution, proven by side-effect absence on shell, file-write and subagent-shell probes; a spawned subagent's own calls reach the same per-turn socket. Ratified rung: `preToolUse` as the SOLE gate channel bridged to the in-process `GateFn` over a per-turn Unix socket with `failClosed: true`; tiers recorded `tool_gate: adapter`, `intra_turn_fanout: native` in `cursor/v1`; static `.cursor/cli.json` deny retained as defense in depth only. `--force` is unreachable until a pre-spend handshake proves the hook command end to end, and a post-turn executed-versus-allowed cross-check reports `error_gate_not_observed` rather than `completed`. Residual, not claimed as proven: the handshake cannot prove a future build still calls the hook, so the claim is version-banded (`cursor-agent 2026.08.04-aaa8809`) and re-certification on bump is required; `cursor-agent acp` remains the un-implemented fallback rung. Evidence: `research/2026-08-07_cursor-adapter-certification.md`, #338; CF-B24-*/CF-C-B24 un-parked). Original subject: Cursor gate-seam sufficiency (B-24) — static deny-wins permissions but no documented dynamic per-action hook seam; whether that honors INV-002 at an acceptable `tool_gate` tier or the profile records a degraded/unsupported tier with narrowed role eligibility is an owner decision.
 - F-PT-027 (**resolved-by-evidence 2026-08-07, #339**; raised 2026-08-07 #336): Grok Build ACP permission-request coverage (B-25). Answered empirically against grok 1.0.0: ACP permission coverage is incomplete by design (read-only tools never reach `session/request_permission`), denial semantics differ per channel, and headless auto-approve bypasses the request path silently. Ratified mechanism: the `PreToolUse` hook is the gate — grok evaluates hooks ahead of every other authorization check in every permission mode — bridged over a per-turn Unix socket, with the ACP request as a backstop. Because grok's hook runner fails open, the adapter must PROVE the gate per turn (SessionStart handshake) and refuse with typed `error_gate_unproven` otherwise. CF-B25-* mechanism legs unparked; certified live (CF-B25-L3, violations empty). See `validation-policy.yaml` → `open_findings:` for the full resolution and `research/2026-08-07_grok-build-adapter-certification.md` for the evidence. The #339 human risk review remains OPEN and independently gates real-repo use.
 - F-PT-028 (RESOLVED-by-evidence 2026-08-07 during #340 certification against Muse Code 0.1.0-R708.1, `research/2026-08-07_muse-code-adapter-certification.md`): NO hook/permission seam fires at all — not for swarm members and not for the parent. `muse exec` auto-approves headlessly, and no managed hook of any event reached the per-turn socket across twenty installation configurations, including the `TBH_MANAGED_HOOKS_PATH` lane the #340 probe comment reported as working. The probe's artifacts are real; its exact working manifest was recovered and adopted, and replaying it verbatim with the probe's own HOME/XDG_CONFIG_HOME still does not fire under an in-band deny test that sandboxing cannot mask. Same binary, same bytes, same environment — the unexplained non-determinism is itself the finding, and a human must settle the disagreement before any role is assigned. The owner-decided fallback therefore applies at its widest: `tool_gate` AND `intra_turn_fanout` are `unsupported`, `subagent_spawn` is refused at the bridge, and MuseRuntime fails closed (`error_gate_seam_unavailable`) before provider construction on any turn whose seam is unproven. Mechanism-level swarm-gate legs remain unproven against the real product and are covered offline only (CF-B26-SUBGATE, labelled scripted evidence); CF-B26-L3 reports incomplete, never pass. Original subject: beta seam existence unknown; the owner-decided fallback is contract truth (no seam ⇒ `tool_gate: unsupported` for swarm mode, fan-out disabled — never an ungated swarm), so only mechanism-level swarm-gate cases park in CF-B26-*/CF-C-B26.
+- F-PT-029 (**RESOLVED-ratified 2026-08-07** — owner decision: **NO BLOCKER**. L-ACC never gates a release and never enters RQ-1 completeness, verdict or qualification; it is disclosed assurance outside RQ-1, beside the soak and the threat model. A bad result is information the human acts on, and no surface may present it as a block). Original subject: **L-ACC's relationship to RQ-1.** The policy says triggered lanes gate their own layer's claims and never gate merge; it says nothing about whether a *scored* lane can ever contribute to release evidence, or sits permanently outside RQ-1 as disclosed future assurance beside the seven-day soak and the threat model. It decides whether a bad L-ACC result can ever block a release, so it is the owner's. Interim posture — no release evidence, gates nothing — is fail-closed and is **not** the answer.
+- F-PT-030 (**RESOLVED-ratified 2026-08-07** — owner decision: an unattended campaign **may** auto-continue past the plan gate via the config's declared `plan_gate` policy, because an end-to-end run is the point of a campaign. Unchanged: the ratified rubric §6 criteria still decide, the resolution is still recorded durably before any build-arm spend, the envelope still bounds spend, approvals still run under the sandbox test-mode profile, and a config with no declared policy still refuses — silence is not consent). Original subject: **plan-gate authority under unattended execution.** Rubric §6 allows the gate to resolve by human decision or by a declared `plan_gate` policy; whether an unattended campaign may auto-continue past a *scored* gate at all is undecided. Adjacent to but not covered by the ratified sandbox test-mode profile, whose only permitted auto-grant category is `campaign_budget`. Interim: human-only; do not implement auto-continue before ratification.
+- F-PT-031 (**RESOLVED-ratified 2026-08-07; owner-confirmed**, with a nuance recorded rather than inferred: a job may be recurring and app- or org-scoped and may be *associated* with a ticket, but a ticket is never mandatory for a job, and such an association does not pull a job step into INV-016's domain — the precondition is a readiness transition, which no job step has either way): **INV-016's domain.** Resolved delivery-scoped — the invariant's own precondition ("before it becomes ready") names a delivery-unit state a job step can never reach, so the universal reading was never checkable and the scope clause narrows nothing enforceable. Rejected alternative: a standing subsystem-wide waiver class, which misuses a per-unit mechanism and reads at a future audit as "this rule applies and we are ignoring it". Provenance is an explicit owner delegation recorded in `jobs-harness-revision-proposal.md` §0.8, whose package was never accepted and whose original id collided with #336's F-PT-025. Because the delegation predates this pass and the clause touches a ratified invariant, it is flagged rather than treated as settled.
+- F-PT-032 (**RESOLVED-ratified 2026-08-08**; raised the same day during the HB-120…130 wave): **do B-28 §1's four plant categories apply to a JOB scenario?** They are plan-axis instrumentation and a job has no plan arm, so requiring them of S-ACC-3 demanded instrumentation for a measurement that never happens — and because **J-2 is scored against the sealed key**, an unextractable key left the highest-value job axis permanently `ungraded`. **Owner decision:** §2 is scoped to app scenarios; job scenarios carry their own four (preserved input conflict · undiscoverable answer · mechanically-checkable deliverable constraint · tangent), both lists complete-or-refused, unmapped lead-ins still refused and named. Not a loosening — an inapplicable requirement of cardinality four was replaced by an applicable one of the same cardinality and semantics. **S-ACC-3 was not edited**; it already satisfies the job list. Recorded as a second ratification block at `acceptance/rubric.md` §9, per that file's own never-edit-§8 rule.
 - F-PT-020 (open; raised 2026-08-01 during the #202-#213 fix campaign): undecided approval ITEMS have no documented lifetime. `docs/approvals/design.md` specifies TTL, use-count and revocation for *grants* (post-decision) and is silent on a pending item whose raising turn has ended. In the august-org run all seven items outlived their turns, and because `app verify` treats any pending item as a promotion blocker, the queue grows monotonically under the scheduler until promotion is permanently blocked — and the human is forced to record meaningless denials purely as queue hygiene, which corrupts the decision ledger the approvals exist to produce. Resolving it means adding a terminal non-blocking state to the ratified approval state machine (CF-SM-APPR) and changing what `app verify` counts; adjacent to F-PT-008. Not implemented (#205 parked).
 
 ## Decisions on record

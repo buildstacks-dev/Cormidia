@@ -1,10 +1,10 @@
-// CF-J21-APP / CF-J22-ADHOC (L2) — the two job journeys.
+// CF-J22-APP / CF-J23-ADHOC (L2) — the two job journeys.
 //
-// J-21: a recurring APP-SCOPED job. Its evidence belongs to that app, in exactly
+// J-22: a recurring APP-SCOPED job. Its evidence belongs to that app, in exactly
 // one place, so the operator reading the app's history sees it alongside product
 // work — and spend is attributed to the app rather than vanishing.
 //
-// J-22: a one-off UNSCOPED job in the active or default org. This is the
+// J-23: a one-off UNSCOPED job in the active or default org. This is the
 // convenience path, and its acceptance criteria are mostly about what is NOT
 // required: no app, no registration, and no ticket/episode vocabulary in anything
 // the operator has to read to act.
@@ -22,7 +22,7 @@ import {
   operatorRole,
   ScriptedJobRuntime,
   tickingClock,
-} from "../cf-b23/job-harness.js";
+} from "../cf-b30/job-harness.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -54,7 +54,7 @@ steps:
         check: non_empty
 `;
 
-describe("CF-J21-APP (L2) recurring app-scoped job", () => {
+describe("CF-J22-APP (L2) recurring app-scoped job", () => {
   it("attributes every provider turn to the named app, never to the adhoc slot", async () => {
     const { state, work } = await scaffold("cf-j21");
     const runtime = new ScriptedJobRuntime(
@@ -134,7 +134,7 @@ describe("CF-J21-APP (L2) recurring app-scoped job", () => {
   });
 });
 
-describe("CF-J22-ADHOC (L2) one-off unscoped job in the default org", () => {
+describe("CF-J23-ADHOC (L2) one-off unscoped job in the default org", () => {
   const ONE_OFF = `
 job: q3-strategy
 steps:

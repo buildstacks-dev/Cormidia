@@ -5,6 +5,14 @@ execution direction confirmed by the owner 2026-08-01, and roadmap/validation/de
 batching confirmed through Phase 7 on 2026-08-03. Existing module judgments stay
 unchanged; M16 and M17 are the additions. The 2026-08-03 revision passed Phase 8
 acceptance and is not an implementation claim.
+
+Harness revision 2026-08-07 (outcome acceptance + jobs): **M18 — Jobs** is the only
+module addition; it clears the structural debt `docs/jobs/design.md` §14 recorded when
+`cormidia-job` shipped (#359). The outcome-acceptance lane (L-ACC) adds **no module**
+by mapping judgment 1 below. Design input: `acceptance/` (rubric human-ratified
+2026-08-07, tighten-only) and the superseded `jobs-harness-revision-proposal.md`,
+whose internal ID choices (M18 kept; B-23/J-21/J-22/F-PT-025 **collided** with the
+2026-08-07 #336 adapter revision and are renumbered here — see that file's header).
 Provenance labels: `[doc]` = derivable from ./docs/ · `[rambling]` = ./rambling.txt (cited) ·
 `[simulated]` = stakeholder judgment beyond docs/rambling · `[PROPOSED]` = designer-originated.
 `[stated]` = direct live owner input; absent from the closed 2026-07-31 campaign and
@@ -67,12 +75,17 @@ campaign with this skill. All rows `[doc]` unless noted.
 | M15 | **CLI surface** | subcommand dispatch; `--json` error contract (`ok:false`, stable `error.code`); dry-run token-free/write-free claims (audit row sole exception); exit codes | No — adapter-conformance coverage at product level |
 | M16 | **Comparative execution** `[stated+PROPOSED]` | Per-provider-turn candidate-set planning; frozen-input identity; isolated candidate workspaces; operation-specific evidence; blinded selection; durable winner materialization; the shared core behind EpisodePlan comparison and standalone `cormidia compare` (`docs/comparative-execution/design.md`) | Yes — new state machine, selection judge, workspace and continuation seams |
 | M17 | **Roadmap and validation planning** `[stated]` | bounded whole-backlog snapshot; stable workstreams; delivery-unit membership; dependencies/priority/WIP; bounded ready frontier; validation-contract authoring and explicit waivers; deterministic label/trailer projections; incremental replanning without full-backlog rediscovery | Yes — new durable planning state and the admission seam for M5/M6 |
+| M18 | **Jobs** `[doc: docs/jobs/design.md]` (added 2026-08-07) | ad-hoc dependency-ordered step graphs behind the second binary `cormidia-job`; job config authority and the run journal; per-step assignment under the `operator` role ceiling; declared output checks; human checkpoints; app-scoped and unscoped modes; the separate job budget envelope. Deliberately **outside** the governed build loop: no Reviewer, no typed verdicts, no ticket machine, no GitHub (`docs/jobs/design.md` §3) | No — product-level coverage; small surface, one new durable store (the journal), no new state machine beyond it |
 
 Mapping judgments (ratified with this map):
 
 1. **The harness itself is a system-under-design, not a Cormidia module.** Its self-tests,
    negative controls, and unattended-runnability requirement come from the skill's rules and
-   land in the backlog and policy file.
+   land in the backlog and policy file. **The 2026-08-07 outcome-acceptance lane (L-ACC)
+   is therefore not a module row either** — it is harness machinery that drives the
+   product through its shipped binaries. Its journey (J-21), boundaries (B-27/B-28/B-29)
+   and campaign invariants (`CORMIDIA-INV-ACC-*`) exist so the lane is designed rather
+   than improvised, not because Cormidia grew a subsystem.
 2. **GitHub is substrate, not a module** — an external boundary in Phase 3, alongside the
    three model providers and the OS timer.
 3. **Release-gating replacement** — campaign/policy obligation (see §1), not a module row.

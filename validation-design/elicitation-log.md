@@ -1280,3 +1280,89 @@ revision is binding until the owner reviews and merges it.
 - Dropped: nothing from the owner's input was dropped; the research record's
   "no effort knob" line for Muse Code is superseded by the owner's field
   verification and marked so in B-26.
+
+---
+
+## Harness revision — outcome acceptance (L-ACC) + jobs (2026-08-07)
+
+Mode: `harness-revision`, existing `validation-design/` artifacts as baseline. This
+entry is the provenance trail for every `[stated]` item in the revision and the record
+of what was considered and dropped.
+
+### Input, close to verbatim
+
+The product owner's `acceptance/` corpus is the elicitation, and it arrived already
+structured, so beats 1–2 (frame, ground) were unnecessary and beat 3 (elicit) had
+already happened on paper:
+
+- **`rubric.md` — RATIFIED 2026-08-07, tighten-only.** "Tighten-only from here: narrow an
+  axis or a rule if you must, never loosen one, and never weaken this file to make a
+  campaign pass." Its §5 is the load-bearing one: "**v0 declares no thresholds.** There
+  is no observed distribution yet, so any number would be invented… An axis that cannot
+  be graded because its evidence is missing reports `ungraded`, which is **not** a 0 —
+  conflating 'we didn't measure it' with 'it was absent' is how a suite starts lying."
+- **`README.md` boundary 6, on the two ways to get the lane wrong:** "A supervising agent
+  that runs `git`/`gh` directly, edits a sandbox repo itself, or calls a provider SDK is
+  *simulating* the org, not exercising it," and "a `cormidia` on PATH from
+  `pnpm link:local` is **source-backed**… It executes TypeScript that
+  `npm install -g cormidia` never ships. Testing against it is not testing what a user
+  gets."
+- **`revision-input.md` §5, the placement instruction:** "`INV-ACC-1`..`INV-ACC-3` are
+  **mechanical and belong at L1/L2** — they are guardrails… Only the rubric axes
+  themselves are L-ACC-lane work. Getting this split right is most of the value of the
+  revision pass: **the expensive lane should contain only what no cheaper layer can
+  falsify.**"
+- **On B-28:** "A genuine *confidentiality* boundary… Novel — no existing boundary
+  governs 'this committed repository content is withheld from a specific turn.' This is
+  the most interesting thing the revision has to place."
+- **`docs/jobs/design.md` §14, the debt:** "J-JOB-1 and J-JOB-2 are *new journeys*, and
+  jobs introduce at least one new boundary… The criteria above are the *design* input to
+  that revision. They are not yet catalog rows, and this section must not be read as
+  claiming harness coverage exists."
+
+### Synthesis notes (what was derived, what was originated, what was dropped)
+
+- **`[stated]`** — the axis sets, the four required plants and the sealed-key mechanism,
+  the plan gate, data-collection-only verdict semantics, per-axis grader disjointness,
+  the L1/L2-vs-lane split, the two halves of INV-ACC-7, the mirrored model matrix and its
+  three preflight constraints, and the jobs journeys' acceptance criteria.
+- **`[PROPOSED]`, owner review requested in the PR:**
+  1. **INV-ACC-1's reachability half.** The input states confinement as "no grader turn's
+     *assembled input* contains any byte". That is too narrow to be true — the grader is
+     an agentic turn holding file-read tools pointed at a repository whose history
+     contains the scenario, and a working-tree delete does not remove a plant from
+     `git log -p`. Narrowed-to-stronger under the tighten-only rule, with the assembled-
+     input clause retained as its first half.
+  2. **B-29 framed as a seam, not a rule.** "Grader independence" as stated is a
+     constraint, and a constraint is not a boundary. It passes the boundary test when
+     framed as *graded evidence set ↔ grader turn*: the grader can fail while the
+     evidence stays intact, and vice versa. Disjointness then becomes its admission
+     precondition, and transport stays B-02/03/04 exactly as the selection judge does.
+  3. **B-JOB → B-30, J-JOB-1/2 → J-22/J-23.** Numeric ids in the ratified namespace, with
+     the spoken names kept as aliases so `docs/jobs/design.md` §14 still resolves.
+  4. **INV-ACC-7a's enforcement honesty.** There is no runtime guardrail that can stop a
+     supervising agent from running `git`. Recorded as detection plus **refusal to
+     score**, rather than pretending to a guardrail that cannot exist.
+  5. **B-28's semantic-confinement limit.** Byte-confinement is provable; whether a real
+     grader *infers* a plant from evidence it legitimately reads is not, is not a
+     confinement failure, and is named as a rubric-validity question the human owns.
+- **Deliberately NOT encoded as behavior:** F-PT-029 (can a scored lane be release
+  evidence) and F-PT-030 (unattended plan-gate authority). Both carry a fail-closed
+  interim that is labelled an interim at every site it appears.
+- **Carried forward with a renumbering:** the jobs revision's INV-016 domain decision
+  (F-PT-031). Its argument was verified against INV-016's own text rather than accepted
+  on authority — the precondition "before it becomes ready" is unsatisfiable for a job
+  step, which is why the scope clause removes nothing enforceable. Flagged for owner
+  confirmation because the delegation predates this pass.
+- **Dropped:** the earlier jobs proposal's Reading B (a standing `jobs` waiver class in
+  the policy). It misuses a per-unit mechanism as a subsystem-wide one and reads at a
+  future audit as "there is a permanent waiver on an entire subsystem".
+  Also dropped: no L-ACC spend *number* was invented. The lane's bound is per-campaign
+  human authorization, exactly as `l4_numeric_ceiling` already records for L4; the
+  §5 adapter/release numbers bound conformance smokes and stretching them over a build
+  campaign would have been an invented ceiling wearing a ratified badge.
+- **Checked and already closed:** the `scripts/check-import-direction.mjs` rank-map gap
+  the jobs proposal raised at its §0.9 (an unranked `src/` directory was silently
+  skipped, exempting `cli`, `observe`, `report` and `narrative`). Verified 2026-08-07:
+  the script now fails closed on any unranked layer and names it, so the disposition (b)
+  ticket that proposal asked for has already landed. Nothing is owed here.

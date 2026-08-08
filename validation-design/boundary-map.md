@@ -31,6 +31,16 @@ F-PT-025…028 park the mechanism-level gate-bridge cells (§4). Facts `[doc]`-d
 from `research/2026-08-06_adapter-upstream-references.md`; `[stated]` = owner text in
 issues #330/#337–#340 and their field-verification comments.
 
+Harness revision 2026-08-07 (outcome acceptance + jobs): four additions.
+**B-27/B-28/B-29** are the L-ACC lane's own seams — campaign authorization ↔ durable
+report, the sealed answer key ↔ grader input, and the graded evidence set ↔ the grader
+turn. They govern the *harness*, and they are in this map for one reason: a campaign
+that fails at any of the three still produces a plausible score, so they need the same
+failure-mode discipline as a product seam. **B-30** clears the jobs debt
+(`docs/jobs/design.md` §14) — job config authority ↔ journal-bound execution. Provider
+transport for the grader is **not** a new boundary: it reuses B-02/B-03/B-04 exactly as
+the selection judge does (§2). Findings F-PT-029/030 are recorded in §4.
+
 Boundaries fall out of the structural view (state ownership, consistency, failure
 domains) — never testing convenience. Interfaces (CLI/JSON/UI) are adapters, not
 boundaries; the `org → loop → runtime` import layering is code organization, not failure
@@ -597,6 +607,172 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   path. Spend-bounded per policy; re-certification on every version bump.
 - **Layer:** 2 (+ echo-mode hermetic transport lane) + L3 certification.
 
+### B-27 — L-ACC campaign authorization ↔ durable campaign report `[stated]` (harness seam)
+- **Why it is a boundary:** the campaign config is the frozen **authorization envelope**
+  — authorized commit, scenario set, per-scenario model matrix, spend envelope, plan-gate
+  policy — authored and reviewed before the run and owned outside it. The report is the
+  campaign's durable **account** of what actually happened. Ownership and failure domain
+  both change at that line. Structurally parallel to the L3 campaign config
+  (`tests/live/config.ts`): **reuse that shape, do not invent a second one.**
+- **Boundary test:** a valid authorization can exist with nothing run, and a partially
+  written report must survive and refuse an authorization that changed underneath it.
+  PASS.
+- **Journeys / tier:** J-21; C2 with T-9 evidence-truth and T-5 envelope slices.
+- **Preflight failure modes — these refuse BEFORE the campaign starts, never mid-run.**
+  Discovering any of them at the first turn wastes the envelope, and three of them
+  invalidate every score the campaign would have produced:
+  - `pnpm install:packaged --replace-source-links` unrun, skipped, stale relative to the
+    campaign's commit pin, or exited non-zero (`CORMIDIA-INV-ACC-7b`). The campaign
+    **asserts that script's exit status**; it does not reimplement the check.
+  - `effort: max` on any harness but `claude` or `opencode`
+    ([`src/runtime/assignment.ts:82`](../src/runtime/assignment.ts:82) admits it
+    nowhere else), which otherwise throws at the first turn.
+  - an app arm whose planner, builder **and** reviewer are one provider family —
+    the builder ≠ reviewer cross-provider collapse AGENTS.md → Working rules forbids
+    outright ([`roles.yaml:52`](../roles.yaml:52) calls it "the single most important
+    pairing in this file").
+  - an `adaptive_assignments` candidate with no real ratified `qualification_ref` and
+    no **uncertified disclosure** field. Configuration loading validates the reference's
+    *type* without dereferencing it
+    ([`docs/org/apps.md:104`](../docs/org/apps.md:104)), so a plausible-looking string
+    passes — the disclosure field exists to make the omission structurally impossible
+    rather than a matter of diligence.
+  - the authorized commit ≠ checked-out HEAD, or the canonical policy blob untracked
+    (`assertCampaignRepositoryBinding`); a scenario repository resolving to this
+    repository (`CORMIDIA-INV-ACC-3`).
+  - unattended execution declared with no plan-gate policy — refuse, and refuse an
+    auto-continue policy outright while **F-PT-030** is open.
+- **Run/report failure modes:** ceiling exhausted mid-scenario (→ `incomplete`, partial
+  evidence preserved); torn report write; a report claiming `complete` while a scenario
+  was killed or a grader run is missing; a scenario silently absent from the report; the
+  matrix actually used missing from a score (a poor outcome then cannot be attributed
+  between "Cormidia is broken" and "that builder was wrong for this"); installed version
+  or tarball identity absent, so "which bytes did this exercise" is unanswerable;
+  resumption under a changed config; two campaigns writing one report identity.
+- **Honest fake:** YES, and completely — real config loader and report writer over temp
+  roots, with the preflight's exit status scripted at L2 (a process double) and every
+  illegal config seeded. The real `install:packaged` run is the campaign's own
+  preflight, not a fixture.
+- **Unproven real:** the packaged install against a real host toolchain — the same host
+  seam class as B-05/B-14, and **not a new disposable target**. It is a campaign-time
+  obligation, recorded once in the report.
+- **Layer:** 1/2 dominant; the campaign run itself is the L-ACC lane (policy
+  `l_acc_lane`).
+
+### B-28 — Sealed answer key ↔ grader turn input `[stated]` (confidentiality seam; novel)
+- **Why it is a boundary, and why it is not a B-27 variant:** B-27 owns *authorization
+  and account*. B-28 owns a different fact entirely — **which committed repository bytes
+  may cross into which turn**. The key extractor owns the sealed artifact; the mechanical
+  scorer is its only consumer; every grader turn is a deliberate **non**-consumer, and
+  the party that owns "the grader has not seen the plants" is the campaign's
+  input-assembly path. Those fail independently in both directions: the key artifact can
+  be valid and complete while assembly leaks, and assembly can be perfectly confined
+  while the key is stale or partial. PASS.
+- **Novelty (this is the thing to get right):** no existing boundary governs *withheld*
+  content. INV-011 governs secrets crossing **outward** to lower-sensitivity surfaces;
+  this is the mirror — ordinary, non-secret, **committed** content withheld **inward**
+  from one specific consumer. The nearest analogue in the corpus, S-8's blinded candidate
+  IDs, is a call-site contract that hides *identity*, not a boundary that withholds
+  *content*.
+- **Boundary test:** the key can exist and be valid with no grader running; a grader turn
+  can be constructed and run while the key stays sealed and unread. PASS.
+- **Journeys / tier:** J-21; C2 with a **T-4** confidentiality slice (the control point
+  is the same one secret containment uses, pointed at a different content class).
+- **Three escape routes, each needing its own detector — a byte-scan of the prompt
+  catches only the first:**
+  1. **Assembly** — plants text in the brief, prompt, context bundle, tool results, or a
+     prior transcript the grader is handed.
+  2. **Reachability** — plants readable from the tree the grader is given. The grader is
+     an **agentic turn holding file-read tools**, so a scenario markdown committed in
+     the campaign repo is reachable even when it is not in the prompt — and deleting it
+     from the working tree does not remove it from `git log -p`. The mitigation is
+     structural: the grader receives an **evidence set the campaign assembled**, never
+     the scenario-authoring repository.
+  3. **Echo** — plants leaking back through an intermediate artifact later handed to a
+     grader: a report draft, the scorer's own output, a previous axis's grader
+     transcript.
+- **Failure modes:** key extracted after a grader turn already exists; **key drift** —
+  the scenario file edited after extraction, so the key and the file disagree (bind them
+  by content hash); key applied to the wrong scenario; **partial extraction** — one plant
+  category missing, which does not read as an error but as generosity, because the axis
+  then scores against an incomplete key; the key surviving into the report before scoring
+  completes; the grader's tool sandbox widened mid-campaign; git-history exposure; the
+  key's plaintext written under the campaign root while a grader's workdir *is* the
+  campaign root.
+- **Honest fake:** YES, **entirely** — assemble grader input in-process and scan it;
+  walk the grader's declared reachable set including `git log -p` for the key's byte
+  patterns; script an extractor that under-extracts; replay an echo through a report
+  draft. No provider is needed to falsify any mode above, which is the strongest
+  argument that this boundary is cheap to hold.
+- **Unproven real, and deliberately not claimed:** whether a real grader model *infers* a
+  planted contradiction from context it legitimately reads. That is **not** a confinement
+  failure and is not evidence of one; it is a rubric-validity question the human owns
+  (rubric §2's plants are instrumentation, and an inferable plant is a weak plant). Named
+  here so a later reader cannot mistake byte-confinement for semantic confinement.
+- **Layer:** 1/2 entirely. **No new L3 seam.**
+
+### B-29 — Graded evidence set ↔ grader turn `[stated]` (independence seam)
+- **Why it is a boundary:** the grader is a **separate provider execution** over an
+  immutable evidence set the campaign owns. Either side fails while the other is healthy:
+  the grader can time out, return malformed or citation-less scores, or be refused at the
+  disjointness check while the evidence set stays intact; the evidence set can be
+  incomplete while the grader is perfectly healthy.
+- **Not a new provider boundary.** Transport, auth, usage, resume and gate conformance
+  reuse B-02/B-03/B-04 (and the B-23…B-26 class where those adapters are assigned) —
+  exactly as the selection judge does (§2). What is new here is the **admission
+  precondition** and the **evidence-set composition rule**.
+- **Boundary test:** PASS (either side down, the other unaffected).
+- **Journeys / tier:** J-21; C2 with T-9 evidence-truth slices; the quality of the
+  grader's judgment is S-11's layer-4 obligation, never this seam's.
+- **Failure modes:** per-axis provider disjointness computed against the wrong read set,
+  or after provider construction (`CORMIDIA-INV-ACC-2`); an axis silently graded when the
+  disjointness check found no legal grader, instead of reporting `ungraded`; the evidence
+  set including the org's **own self-report** where the axis forbids it — PR bodies and
+  verdicts are the *subject* of O-5, never evidence for O-1…O-3 (rubric §7 rule 2);
+  missing evidence rendered as a low score instead of `ungraded`
+  (`CORMIDIA-INV-ACC-5`); a score without its mandatory evidence citation retained as a
+  number; a grader turn retried after partial output and the two halves merged; grader
+  output citing an artifact it never read; per-axis results attributed to the wrong axis;
+  the grader turn settling into the wrong envelope; **the O-5 fabrication detector never
+  firing** — a detector that has never seen the defect it exists to catch is an
+  assumption (standing rule 4).
+- **Honest fake:** YES — mocked adapters returning scripted grader payloads: malformed,
+  citation-less, over-long, contradictory, and one containing a **seeded fabricated
+  claim** for the O-5 negative control; scripted evidence sets with deliberate omissions.
+- **Unproven real:** grader *quality* — an S-11 layer-4 question under the judge
+  calibration rule, deliberately outside this boundary.
+- **Layer:** 1/2 + the existing adapter L3 obligations. No new live seam.
+
+### B-30 — Job config authority ↔ journal-bound execution `[doc: docs/jobs/design.md]` (alias **B-JOB**)
+- **Why it is a boundary:** the job config is authored and owned **outside** Cormidia —
+  a file in the user's own repository, editable at any moment — while the journal is
+  Cormidia's durable account of what has actually executed. Ownership of state and
+  failure domain both change at that line. One boundary, not two: the config→journal and
+  journal→execution seams share a failure domain (the journal is the only thing that
+  survives), so splitting them would create two contracts over one truth.
+- **Boundary test:** a valid config can exist with no journal and nothing running; a
+  journal must survive and refuse a config that changed underneath it. PASS.
+- **Journeys / tier:** J-22/J-23; C2 with T-3 assignment-authority, T-5 settlement,
+  T-6 isolation and T-9 evidence slices.
+- **Failure modes:** dependency cycle; unknown `dependsOn` id; duplicate step id; config
+  edited between runs while the journal claims completed steps; journal present but
+  config absent; torn journal write; a completed step's declared output deleted or
+  emptied afterwards; a step marked completed whose check never ran; resume re-executing
+  a completed step (**double spend**); resume skipping an *interrupted* step whose
+  provider turn was already paid; unapproved assignment tuple accepted, or an assignment
+  that widens the `operator` role; completion inferred from an output file's existence
+  rather than the journal; app-scoped and unscoped records both written for one job;
+  **a nested `cormidia-job` invoked inside a Cormidia provider turn** — without the
+  refusal, a Builder turn spawns provider turns that escape its episode budget entirely;
+  a checkpoint resumed with no decision.
+- **Honest fake:** YES — real config loader, journal, check evaluator and brief assembly
+  against B-15 temp state, the B-02/03/04 scripted adapter doubles, an injected clock,
+  and the B-07 kill-point harness. No provider is needed to falsify any mode above.
+- **Unproven real:** nothing new. Provider behavior stays B-02/03/04; job step **output
+  quality** is deliberately out of scope (`llm-eval-plan.md` §1 records the exclusion).
+- **Layer:** 1/2 dominant. **No new L3 seam** — the strongest argument that this
+  subsystem is cheap to validate.
+
 ## 2. Not boundaries (named, so nobody re-litigates)
 
 - `org → loop → runtime` module layering — import discipline inside one process.
@@ -614,6 +790,17 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - A shared ACP transport core (if adopted per the B-25 `[PROPOSED]` note) — an
   implementation detail behind per-harness boundaries; each ACP harness keeps its own
   boundary, capability profile, and certification evidence.
+- **Grader provider transport** — reuses B-02/B-03/B-04 (and the B-23…B-26 class where
+  assigned). B-29 owns only the independence precondition and the evidence-set
+  composition rule; grader *quality* is S-11 at layer 4. Added 2026-08-07.
+- **The `cormidia-job` process itself** — it joins B-15 (local persistence and git
+  substrate) and the existing CLI-as-effect-surface classification, and passes the same
+  `defaultGate`. A second binary is a second adapter over one runtime, not a second
+  failure domain. Added 2026-08-07.
+- **The L-ACC scenario repositories as a class** — they are ordinary GitHub repositories
+  reached through B-01. What is new is *which* repository a campaign may bind
+  (`CORMIDIA-INV-ACC-3`) and how it is provisioned (B-27), not how git or GitHub behave.
+  Added 2026-08-07.
 
 ## 3. Diagram
 
@@ -687,6 +874,20 @@ flowchart LR
     BATCH -- B-22 --> EP
     ROAD -- B-01 projection --> GH
     EP -- B-01 delivery --> GH
+    JOBCFG[Job config - user-owned file] -- B-30 --> JOBJRN[Job journal + step records]
+    JOBJRN -- B-02/03/04 --> ANT
+    subgraph LACC[L-ACC campaign harness - not the product]
+        ACFG[Campaign authorization]
+        AREP[Durable campaign report]
+        KEY[Sealed answer key]
+        EVID[Assembled evidence set]
+        GRD[Grader turn]
+    end
+    ACFG -- B-27 --> AREP
+    KEY -. B-28 withheld from .-> GRD
+    EVID -- B-29 --> GRD
+    GRD -- B-02/03/04 transport --> ANT
+    LACC -- drives packaged binaries only, INV-ACC-7a/7b --> CORMIDIA
 ```
 
 ## 4. Findings raised at Phase 3
@@ -722,3 +923,32 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
   refuses any turn whose seam is unproven. The mechanism-level cases stay
   scripted-only; CF-B26-L3 reports incomplete
   (`research/2026-08-07_muse-code-adapter-certification.md`).
+
+### Findings raised at the 2026-08-07 outcome-acceptance + jobs revision
+
+Canonical entries: `validation-policy.yaml` → `open_findings`; mirrored in
+harness-design-state.md; dependent cells parked in case-catalog.md.
+
+All three were **answered by the owner on 2026-08-07**, the day they were opened. Full
+resolutions in `validation-policy.yaml` → `open_findings`.
+
+- **F-PT-029 (RESOLVED-ratified, B-27 / lane policy) — NO BLOCKER.** L-ACC never gates a
+  release and never enters RQ-1 completeness, verdict, or qualification; it sits
+  permanently outside RQ-1 as disclosed assurance, beside the seven-day soak and the
+  threat model. A bad campaign result is information the human acts on, never a
+  mechanical block, and no surface may present it as one. Recorded in B-27 §4.
+- **F-PT-030 (RESOLVED-ratified, B-27 / J-21 plan gate) — auto-continue permitted.** An
+  unattended campaign **may** resolve the plan gate through the campaign config's
+  declared `plan_gate` policy, because an end-to-end run is the point of a campaign. Four
+  bounds are unchanged and are what keep this from being open-ended: the ratified rubric
+  §6 criteria still decide (at least `attempted` on P-1 and P-5 for every scenario); the
+  resolution is still recorded durably before any build-arm spend; the per-campaign
+  envelope still bounds every token; and approvals still run under the ratified sandbox
+  test-mode profile, with human decisions never forged. A config with **no** declared
+  policy still refuses — silence is not consent. Recorded in B-27 §1.8/§4 and
+  `CORMIDIA-INV-ACC-4`.
+- **F-PT-031 (RESOLVED-ratified, INV-016 domain) — confirmed delivery-scoped**, with the
+  owner's nuance recorded: a job may be recurring and app- or org-scoped, and may be
+  *associated* with a ticket, but a ticket is never mandatory for a job and such an
+  association does not pull a job step into INV-016's domain — the precondition is a
+  readiness transition, which no job step has either way.

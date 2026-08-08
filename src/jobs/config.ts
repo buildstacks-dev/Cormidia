@@ -1,4 +1,4 @@
-// Job config loader and validator — CORMIDIA-C-B23-001 (docs/jobs/design.md §5).
+// Job config loader and validator — CORMIDIA-C-B30-001 (docs/jobs/design.md §5).
 //
 // The whole point of this module is that every structural defect is caught HERE,
 // before any runtime is constructed and before a single token is spent. A config

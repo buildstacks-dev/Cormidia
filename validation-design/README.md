@@ -94,19 +94,36 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 - **`inconclusive` is currently the only possible verdict for every quality
   threshold** (F-PT-009/010/011; eval-plan §9). Reading `inconclusive` as "probably
   fine" is wrong: it means *no gate exists here yet, by design*.
+- **The outcome-acceptance lane (L-ACC) is designed and NOT built** (registered
+  2026-08-07). No runner exists, no campaign has run, and no L-ACC evidence exists — do
+  not cite it in a release claim or represent it as an existing gate. Its rubric
+  (`../acceptance/rubric.md`) **is** human-ratified and tighten-only, and it deliberately
+  declares **no thresholds**; a ratified rubric measures nothing until something runs
+  against it. Its two questions were answered by the owner on 2026-08-07: **F-PT-029 —
+  L-ACC never gates a release** (permanently outside RQ-1, information only), and
+  **F-PT-030 — an unattended campaign may auto-continue past the plan gate** through a
+  declared policy, under the unchanged rubric §6 criteria and envelope. What remains
+  before run 1 is the guardrail wave (HB-120…129) and an exact campaign authorization.
+- **Jobs (M18) are offline-provable and not outcome-validated.** The B-30/J-22/J-23
+  families clear the `docs/jobs/design.md` §14 structural debt, but they prove the
+  machinery — ordering, resume, refusal, settlement, handoff — and nothing about whether
+  a job's output was any good. Job step quality has **no** statistical lane by design.
 
 ## ID glossary (one page, all namespaces)
 
 | Prefix | Meaning | Defined in |
 |---|---|---|
-| `M1…M17` | modules | scope-and-module-map.md §2 |
-| `J-01…J-20` | journeys | system-map.md §1.3 |
+| `M1…M18` | modules (M18 Jobs, 2026-08-07) | scope-and-module-map.md §2 |
+| `J-01…J-23` | journeys (J-21 outcome-acceptance campaign; J-22/J-23 jobs, aliases J-JOB-1/2) | system-map.md §1.3 |
 | `T-1…T-12` | C3 control points (function-scoped risk) | system-map.md §5.2 |
-| `CORMIDIA-INV-001…016` (alias INV-NNN) | invariants | invariants.md |
-| `B-01…B-26` (B-09a/b split; B-23…B-26 design-only, 2026-08-07) | boundaries | boundary-map.md |
+| `CORMIDIA-INV-001…016` (alias INV-NNN) | **product** invariants | invariants.md |
+| `CORMIDIA-INV-ACC-1…7b` (alias INV-ACC-n) | **campaign** invariants — harness-scoped, deliberately fenced from the product set | invariants.md, final section |
+| `B-01…B-30` (B-09a/b split; B-23…B-26 adapter, 2026-08-07; B-27/28/29 L-ACC and B-30 jobs — alias `B-JOB` — 2026-08-07) | boundaries | boundary-map.md |
 | `CORMIDIA-C-…-001` (aliases B-NN, C-OP-*) | contracts | contracts/ headers + journey-acceptance.md alias table |
-| `S-1…S-10` | LLM call sites (S-8 comparative selection; S-10 validation design) | llm-eval-plan.md §1 |
+| `S-1…S-11` | LLM call sites (S-8 comparative selection; S-10 validation design; S-11 acceptance grader) | llm-eval-plan.md §1 |
 | `E-1/E-2/E-3, STD, THIN, FLOOR, L4Q` | risk allocation vocabulary | risk-allocation.md §2, case-catalog.md header |
+| `L-ACC` | the outcome-acceptance lane (layer key on case-catalog §8b rows) | validation-policy.yaml `l_acc_lane` |
+| `S-ACC-1…3` | acceptance scenarios | ../acceptance/scenarios/ |
 | `CF-*` | case families | case-catalog.md |
-| `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31, HB-P3/P5 still parked) | harness-backlog.md |
-| `F-PT-001…028` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |
+| `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31, HB-P3/P5 still parked; HB-130 parked on human authorization + F-PT-029/030) | harness-backlog.md |
+| `F-PT-001…031` | product-truth findings | harness-design-state.md + validation-policy.yaml `open_findings` |

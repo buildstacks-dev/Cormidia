@@ -68,6 +68,21 @@ truth:
 - `fixtures/synthetic-secret.ts` — runtime-generated synthetic secrets
 - `fixtures/github-double/` — scripted GitHub double (B-01 failure modes)
 - `fixtures/adapters/` — scripted provider adapter doubles (B-02/03/04)
+- `fixtures/acceptance/` — the L-ACC kit (HB-120): fixture scenario corpus with
+  seedable plants, fixture scenario repos, a spawned `install:packaged` double,
+  the campaign root, and the scripted grader double
+
+## The L-ACC lane (outcome acceptance)
+
+`campaign/acceptance/` holds the campaign machinery — sealed-key extraction and
+confinement, per-axis grader disjointness, scenario repository binding, the
+`axis_score` verdict algebra, supervisor reconciliation, packaged provenance,
+the B-27 config/report contract, the CF-SM-ACC lifecycle, the plan gate, and the
+runner. **The runner exists; no campaign has run and no L-ACC evidence exists.**
+It spends nothing on its own: both arms and every grader turn are injected
+callbacks. Run 1 needs a separate exact human authorization naming its
+output-token and equivalent-USD ceilings (`risk-allocation.md` §5a). L-ACC gates
+nothing and never emits a release signal (F-PT-029).
 
 ## Spend
 

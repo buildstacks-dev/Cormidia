@@ -1,4 +1,4 @@
-// Job journal — CORMIDIA-C-B23-002 (docs/jobs/design.md §6).
+// Job journal — CORMIDIA-C-B30-002 (docs/jobs/design.md §6).
 //
 // The journal is the SOLE completion authority. Nothing is ever inferred from
 // the presence of an output file, because a half-written file is

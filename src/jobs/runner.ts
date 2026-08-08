@@ -6,11 +6,11 @@
 // budget ceiling gets crossed.
 //
 // Three fail-closed properties live here and each has its own detector family:
-//   - nested invocation is refused (CF-B23-NEST), or a Builder turn could spawn
+//   - nested invocation is refused (CF-B30-NEST), or a Builder turn could spawn
 //     provider turns that escape its episode budget entirely;
 //   - a step's declared checks decide completion, not the provider's own report
-//     (CF-B23-CHK), which is the INV-008 tightening;
-//   - every provider turn settles exactly one ledger row (CF-B23-SET), failed and
+//     (CF-B30-CHK), which is the INV-008 tightening;
+//   - every provider turn settles exactly one ledger row (CF-B30-SET), failed and
 //     cancelled included, or the org's budget view silently understates spend.
 
 import type { GateFn, RoleConfig, Runtime } from "../runtime/types.js";

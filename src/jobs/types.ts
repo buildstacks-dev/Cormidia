@@ -1,4 +1,4 @@
-// The job contract as data — docs/jobs/design.md §5, CORMIDIA-C-B23-001.
+// The job contract as data — docs/jobs/design.md §5, CORMIDIA-C-B30-001.
 // Types only, so the loader, journal, checks, and runner share one shape
 // without importing each other.
 

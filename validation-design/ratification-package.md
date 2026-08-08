@@ -460,3 +460,53 @@ HB-100. It does **not** authorize changes to `TASTE.md`, `roles.yaml`, `pipeline
 does not authorize merge, publication/deployment, external effects, or live/eval/soak
 campaigns. Acceptance makes the revision the implementation contract; it is not itself
 executable coverage or operational evidence.
+
+---
+
+## 11. Harness-revision package — outcome acceptance (L-ACC) + jobs, 2026-08-07
+
+### 11.1 Status
+
+`validation-harness-design`, `harness-revision` mode, ratified artifacts as baseline.
+Registered directly into the artifacts (the #336 precedent) rather than held as a
+separate proposal file, with the **owner's review of the registering PR as the
+confirmation gate**. Nothing here is binding until that review lands.
+
+Full record: `harness-design-state.md` → "Harness revision — outcome acceptance (L-ACC)
++ jobs (2026-08-07)"; provenance in `elicitation-log.md`'s entry of the same name.
+
+### 11.2 What changed, in one paragraph
+
+Journeys J-21 (outcome-acceptance campaign) and J-22/J-23 (the jobs journeys
+`docs/jobs/design.md` §14 named and left un-entered); module M18 (Jobs); boundaries
+B-27/B-28/B-29 (the lane's own seams) and B-30 (jobs, alias `B-JOB`); their contracts;
+campaign invariants `CORMIDIA-INV-ACC-1…7b` in a fenced registry; LLM site S-11 with an
+unpopulated scaffold; the `l_acc_lane` policy block; and
+`verdict_semantics.axis_score`, which makes `ungraded` policy rather than runner
+discretion. **No existing gate, tier, control point, spend bound, threshold, or golden
+set changed.** No runner was written and no campaign has run.
+
+### 11.3 Decisions on the owner's desk
+
+**Items 1–3 were answered by the owner on 2026-08-07, the day they were opened.** They
+are recorded below as decisions taken, with their consequences, rather than as questions.
+Items 4–5 remain for the PR review.
+
+| # | Decision | Answer, and what it commits us to |
+|---|---|---|
+| 1 | **F-PT-029 — can a scored lane ever be release evidence?** | **NO BLOCKER.** L-ACC never gates a release and never enters RQ-1 completeness, verdict, or qualification; it sits permanently outside RQ-1 as disclosed assurance beside the soak and the threat model. Consequence: a bad campaign result is information you act on, and no surface may present it as a mechanical block. RQ-1 stays deterministic-first with no scored input. |
+| 2 | **F-PT-030 — may an unattended campaign auto-continue past a scored plan gate?** | **YES**, through the campaign config's declared `plan_gate` policy — an end-to-end run is the point of a campaign. Four bounds are unchanged and are what keep this from being open-ended: the ratified rubric §6 criteria still decide (at least `attempted` on P-1 and P-5 for every scenario); the resolution is still recorded durably before any build-arm spend; the per-campaign envelope still bounds every token; approvals still run under the ratified sandbox test-mode profile, with human decisions never forged. A config with no declared policy still refuses — silence is not consent. |
+| 3 | **F-PT-031 — INV-016's scope clause** | **CONFIRMED delivery-scoped**, with a nuance recorded rather than inferred: a job may be recurring and app- or org-scoped, and may be *associated* with a ticket, but a ticket is never mandatory for a job and such an association does not pull a job step into INV-016's domain — the precondition is a readiness transition, which no job step has either way. |
+| 4 | **The registered structure itself** — J-21/J-22/J-23, M18, B-27…B-30, `CORMIDIA-INV-ACC-1…7b`, S-11, `l_acc_lane`, `axis_score` | That this is the right shape to build against. In particular: that the campaign invariants belong at L1/L2 as guardrails rather than in the expensive lane, and that they are fenced from the product invariant set so no future audit reads a harness promise as a product promise. |
+| 5 | **The L-ACC spend posture** — per-campaign human authorization, no global ceiling | That an outcome-acceptance campaign is bounded the way L4 already is (`l4_numeric_ceiling`: "per immutable human authorization; no global value ratified") rather than by a number invented here. The §5 adapter/release bounds are deliberately **not** stretched to cover a build campaign. |
+
+### 11.4 What ratification here does NOT make true
+
+- It does not create a lane. HB-120…HB-129 are unwritten; HB-130 is parked behind
+  item 1, item 2, and an exact campaign authorization.
+- It does not qualify anything, gate any release, or authorize any token spend.
+- It does not ratify a threshold. `acceptance/rubric.md` §5 declares none in v0, and
+  this package introduces none — thresholds are ratified separately from run 1's
+  observed distribution.
+- It does not claim jobs are outcome-validated. The B-30 families prove the machinery;
+  the only outcome measurement for jobs is CF-ACC-S3, a campaign rather than a gate.

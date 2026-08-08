@@ -1,4 +1,8 @@
-// Shared scaffolding for the CF-B23 / CF-J21 / CF-J22 families.
+// Shared scaffolding for the CF-B30 / CF-J22 / CF-J23 jobs families (M18).
+//
+// Renumbered at the 2026-08-07 harness revision: the jobs boundary is B-30
+// and the jobs journeys are J-22/J-23. B-23 is now the OpenCode adapter and
+// J-21 the L-ACC campaign, so the old ids named the wrong things.
 //
 // The double sits at the ratified adapter boundary (B-02/03/04): it is a real
 // `Runtime` implementation whose scripted turns may write files, because a job

@@ -1,13 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { CANONICAL_LABELS } from "../../../src/loop/plan-tickets.js";
 import { campaignGitEnvironment } from "../../campaign/acceptance/campaign-git.js";
+import { scenarioAppName } from "../../campaign/acceptance/campaign-config.js";
 import {
   canonicalLabelCommands,
   installCanonicalLabels,
+  registeredCampaignApp,
   reusePreparedGreenfieldRepository,
 } from "../../campaign/acceptance/campaign-scenario-setup.js";
 
@@ -49,5 +51,28 @@ describe("CF-B27-PROVISION — authenticated, resumable pre-baseline push", () =
     expect(calls.map((call) => call.args[2])).toEqual(CANONICAL_LABELS.map((label) => label.name));
     expect(calls.every((call) => call.command === "gh" && call.args.includes("--force"))).toBe(true);
     expect(canonicalLabelCommands("cormidia/example").every((args) => args.at(-1) === "cormidia/example")).toBe(true);
+  });
+
+  it("uses bootstrap's checkout identity and resumes only its exact registration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "l-acc-bootstrap-resume-"));
+    roots.push(root);
+    const orgHome = join(root, "org");
+    await mkdir(orgHome);
+    await writeFile(
+      join(orgHome, "apps.yaml"),
+      "schema_version: 1\norg: {name: campaign, max_concurrent_turns: 2}\ndefaults: {budget_usd_month: 520}\napps:\n  s2-docs:\n    repo: cormidia/l-acc-run-1-s2-docs\n    status: onboarding\n    budget_usd_month: 520\n",
+      "utf8",
+    );
+    const scenario = {
+      id: "S-ACC-2",
+      kind: "app" as const,
+      setup: "bootstrap" as const,
+      appSlug: "cormidia/l-acc-run-1-s2-docs",
+      worktree: "/campaign/scenarios/s2-docs",
+      matrix: {},
+    };
+    expect(scenarioAppName(scenario)).toBe("s2-docs");
+    await expect(registeredCampaignApp(orgHome, "s2-docs", scenario.appSlug)).resolves.toBe(true);
+    await expect(registeredCampaignApp(orgHome, "s2-docs", "cormidia/other")).rejects.toThrow(/belongs to/);
   });
 });

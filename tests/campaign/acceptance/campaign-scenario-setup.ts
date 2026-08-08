@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { CANONICAL_LABELS } from "../../../src/loop/plan-tickets.js";
+import { loadApps } from "../../../src/org/apps.js";
 import type { CliDriver } from "./cli-driver.js";
 import { campaignGitEnvironment } from "./campaign-git.js";
 import {
@@ -97,6 +98,17 @@ export async function bootstrapScenarioApp(driver: CliDriver, spec: ScenarioProv
     ["bootstrap", spec.worktree, "--answers", `${spec.worktree}/.cormidia-answers.json`, "--json"],
     { scenarioId: spec.scenarioId },
   );
+}
+
+/** A pre-spend resume may reuse only the exact app registration bootstrap
+ * already wrote. A name collision against another repository refuses. */
+export async function registeredCampaignApp(orgHome: string, appName: string, appSlug: string): Promise<boolean> {
+  const app = (await loadApps(join(orgHome, "apps.yaml"))).apps.find((candidate) => candidate.name === appName);
+  if (app === undefined) return false;
+  if (app.repo.toLowerCase() !== appSlug.toLowerCase()) {
+    throw new Error(`campaign refused: registered app ${appName} belongs to ${app.repo}, not ${appSlug}`);
+  }
+  return true;
 }
 
 export async function verifyScenarioApp(

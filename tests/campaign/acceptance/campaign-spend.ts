@@ -2,7 +2,7 @@
 // remain independently active; this guard owns the exact outer authorization.
 
 import { readTurnRecords } from "../../../src/runtime/telemetry.js";
-import type { AcceptanceCampaignConfig } from "./campaign-config.js";
+import { scenarioAppName, type AcceptanceCampaignConfig } from "./campaign-config.js";
 import type { InvocationAdmission, InvocationRequest } from "./cli-admission.js";
 import type { CampaignBinary, RecordedInvocation } from "./cli-driver.js";
 
@@ -54,7 +54,7 @@ export function campaignReservation(
   }
   if (binary === "cormidia" && argv[0] === "plan" && argv.includes("--auto")) {
     const appName = argv[1];
-    const scenario = config.scenarios.find((candidate) => candidate.appSlug.endsWith(`/${appName}`));
+    const scenario = config.scenarios.find((candidate) => scenarioAppName(candidate) === appName);
     return { outputTokens: 120_000, equivUsd: candidateCost(config, scenario?.matrix["planner"]) };
   }
   if (binary === "cormidia" && argv[0] === "run-role") {
@@ -66,7 +66,7 @@ export function campaignReservation(
   if (binary === "cormidia" && argv[0] === "loop") {
     const appFlag = argv.indexOf("--app");
     const appName = appFlag === -1 ? undefined : argv[appFlag + 1];
-    const scenario = config.scenarios.find((candidate) => candidate.appSlug.endsWith(`/${appName}`));
+    const scenario = config.scenarios.find((candidate) => scenarioAppName(candidate) === appName);
     const producer = candidateCost(config, scenario?.matrix["builder"]);
     const reviewer = candidateCost(config, scenario?.matrix["reviewer"]);
     return { outputTokens: 600_000, equivUsd: 2 * (producer + reviewer) };

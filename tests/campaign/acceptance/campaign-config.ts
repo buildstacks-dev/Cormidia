@@ -15,6 +15,7 @@
 
 import { configuredProviderFamily, validateTurnAssignment } from "../../../src/runtime/assignment.js";
 import type { TurnAssignment } from "../../../src/runtime/types.js";
+import { basename } from "node:path";
 
 export type CampaignConfigCode =
   | "no-scenarios"
@@ -131,6 +132,13 @@ export interface ValidatedCampaignConfig {
 }
 
 const APP_ROLES = ["planner", "builder", "reviewer"] as const;
+
+/** Match the packaged lifecycle command that creates the app identity. New-app
+ * receives an explicit name; bootstrap derives it from the checkout basename. */
+export function scenarioAppName(scenario: ScenarioConfig): string {
+  if (scenario.setup === "bootstrap") return basename(scenario.worktree);
+  return scenario.appSlug.split("/").at(-1) ?? scenario.id;
+}
 
 /** Every §1 clause that is decidable without touching the world. */
 export function validateCampaignConfig(config: AcceptanceCampaignConfig): ValidatedCampaignConfig {

@@ -3,6 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { readTurnRecords } from "../../../src/runtime/telemetry.js";
 import type { AcceptanceCampaignConfig } from "./campaign-config.js";
+import { scenarioAppName } from "./campaign-config.js";
 import type { CliDriver, RecordedInvocation } from "./cli-driver.js";
 import type { ScenarioProvision } from "./provision.js";
 import {
@@ -85,7 +86,7 @@ export async function reconcileCampaignScenarios(input: {
   const turns = await readTurnRecords(input.stateHome);
   const results = new Map<string, SupervisorReconciliation>();
   for (const scenario of input.config.scenarios) {
-    const appName = scenario.appSlug.split("/").at(-1) ?? scenario.id;
+    const appName = scenarioAppName(scenario);
     const invocations = recorded.filter((row) => row.scenarioId === scenario.id);
     const audit = invocations.flatMap((row): InvocationAuditRow[] => {
       const product = matched.get(row);

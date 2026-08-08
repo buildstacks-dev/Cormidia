@@ -3,6 +3,7 @@
 
 import type { TurnAssignment } from "../../../src/runtime/types.js";
 import type { AcceptanceCampaignFile } from "./campaign-cli.js";
+import { scenarioAppName } from "./campaign-config.js";
 import type { CampaignRuntimeDeps } from "./campaign-runtime.js";
 import { prepareCampaignOrgRoles } from "./campaign-org-roles.js";
 import {
@@ -10,6 +11,7 @@ import {
   finalizeScenarioProvision,
   initializeGreenfieldRepository,
   installCanonicalLabels,
+  registeredCampaignApp,
   reusePreparedGreenfieldRepository,
   verifyScenarioApp,
 } from "./campaign-scenario-setup.js";
@@ -23,7 +25,7 @@ export async function provisionCampaignScenarios(
   await prepareCampaignOrgRoles(deps.orgHome, file.campaign);
   const provisions = new Map<string, ScenarioProvision>();
   for (const scenario of file.campaign.scenarios) {
-    const appName = scenario.appSlug.split("/").at(-1) ?? scenario.id;
+    const appName = scenarioAppName(scenario);
     const ramble = scenarioRamble(deps.scenarioMarkdown[scenario.id] ?? "");
     if (deps.rambles[scenario.id] !== undefined && deps.rambles[scenario.id] !== ramble) {
       throw new Error(`campaign refused: configured ramble for ${scenario.id} is not the verbatim scenario ramble`);
@@ -79,7 +81,9 @@ export async function provisionCampaignScenarios(
         : { seedManifestPath: deps.seedManifests[scenario.id] as string }),
     };
     let provision = await provisionScenarioRepository(spec);
-    if (setup === "bootstrap") await bootstrapScenarioApp(deps.driver, spec);
+    if (setup === "bootstrap" && !(await registeredCampaignApp(deps.orgHome, appName, scenario.appSlug))) {
+      await bootstrapScenarioApp(deps.driver, spec);
+    }
     provision = await finalizeScenarioProvision(provision, scenario.worktree);
     if (scenario.kind === "app") {
       installCanonicalLabels(scenario.appSlug);

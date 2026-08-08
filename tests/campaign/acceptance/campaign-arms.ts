@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { ArmOutput } from "./arms.js";
 import { runBuildArm, runJobArm, runPlanArm } from "./arms.js";
 import type { ScenarioConfig } from "./campaign-config.js";
+import { scenarioAppName } from "./campaign-config.js";
 import type { AcceptanceCampaignFile } from "./campaign-cli.js";
 import type { AxisReportRow } from "./campaign-report.js";
 import type { CampaignRuntimeDeps } from "./campaign-runtime.js";
@@ -90,7 +91,7 @@ async function gradeArm(
         await runGraderTurn({
           driver: deps.driver,
           scenarioId: scenario.id,
-          appName: scenario.appSlug.split("/").at(-1) ?? scenario.id,
+          appName: scenarioAppName(scenario),
           turnId: `grade-${scenario.id}-${resolution.axis}`,
           resolution,
           evidence: composeAxisEvidenceSet(resolution.axis, [...output.evidence, ...output.selfReport]),
@@ -136,7 +137,7 @@ export function scenarioArmsFor(
   const armDeps = {
     driver: deps.driver,
     scenarioId: scenario.id,
-    appName: scenario.appSlug.split("/").at(-1) ?? scenario.id,
+    appName: scenarioAppName(scenario),
     worktree: scenario.worktree,
     baselineCommit: provision.baselineCommit,
     stateHome: deps.stateHome,

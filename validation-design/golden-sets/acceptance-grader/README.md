@@ -1,8 +1,16 @@
-# S-11 Acceptance grader (L-ACC) meta-eval — STATUS: SCAFFOLD / UNPOPULATED
-Added at the 2026-08-07 outcome-acceptance harness revision. **No cases exist and no
-campaign has run**, so nothing here may support a model-swap, qualification, or release
-claim. This directory exists before the first campaign on purpose: standing rule 3 —
-golden sets are committed before tuning, or the grader is tuned to its own result.
+# S-11 Acceptance grader (L-ACC) meta-eval — STATUS: SEEDED CONTROL ONLY
+Added at the 2026-08-07 outcome-acceptance harness revision. **No campaign has run**, so
+nothing here may support a model-swap, qualification, or release claim. This directory
+exists before the first campaign on purpose: standing rule 3 — golden sets are committed
+before tuning, or the grader is tuned to its own result.
+
+`cases.json` currently holds exactly the **required first case** described below: the
+seeded fabricated claim, plus a supported control and an uncited control in the same PR
+body. It was authored at HB-129, before any campaign and before any grader prompt
+tuning. The deterministic half of the O-5 detector is exercised against it by
+[`tests/hermetic/cf-s11-env/`](../../../tests/hermetic/cf-s11-env/cf-s11-env-grader-envelope.test.ts),
+red-then-green. The quality (L4) meta-eval over real grader output remains **unbuilt**,
+and the adjacent controls listed at the end of this file remain **unauthored**.
 
 Rubric: **`acceptance/rubric.md`, human-ratified 2026-08-07, tighten-only.** It is the
 source of the axes (P-1…P-6 plan, O-1…O-7 outcome, J-1…J-3 job) and of the scoring

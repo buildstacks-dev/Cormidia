@@ -1,4 +1,4 @@
-// Declared output checks — CORMIDIA-C-B23-003 (docs/jobs/design.md §7).
+// Declared output checks — CORMIDIA-C-B30-003 (docs/jobs/design.md §7).
 //
 // These are the substitute for a reviewer. A long job will produce a step that
 // does NOT fail — it returns confident prose the next step cannot use — and

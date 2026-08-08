@@ -1,6 +1,7 @@
 # Outcome acceptance (L-ACC) — design input, NOT a lane
 
-***Status: rubric RATIFIED 2026-08-07. Lane NOT built. No L-ACC evidence exists.***
+***Status: rubric RATIFIED 2026-08-07. Guardrails and runner BUILT 2026-08-08
+(HB-120…HB-130). NO CAMPAIGN HAS RUN and no L-ACC evidence exists.***
 
 *The measurement rubric ([`rubric.md`](rubric.md) §8) is ratified and tighten-only
 — its thresholds deliberately are not. Everything else here was design input to a
@@ -15,11 +16,14 @@ plus J-22/J-23, M18 and B-30 clearing the jobs debt. Read*
 *for the record and* [`../validation-design/ratification-package.md`](../validation-design/ratification-package.md)
 *§11 for what the owner still has to decide (F-PT-029, F-PT-030, F-PT-031).*
 
-***The lane itself is still NOT built.*** *No runner exists, no campaign has run,
-and no L-ACC evidence exists. Until a runner lands and an exact human
-authorization exists, do not represent L-ACC as an existing gate, do not cite it
-in a release claim, and do not run anything from this directory. A ratified
-rubric measures nothing until something runs against it.*
+***The lane has still NEVER RUN.*** *The campaign invariants landed at L1/L2 with
+negative controls and the runner exists (`tests/campaign/acceptance/`), but no
+campaign has run and no L-ACC evidence exists. Until an exact human
+authorization naming this campaign's output-token and equivalent-USD ceilings
+exists, do not represent L-ACC as an existing gate, do not cite it in a release
+claim, and do not run anything from this directory. A ratified rubric measures
+nothing until something runs against it — and per F-PT-029, even then it gates
+nothing.*
 
 ## What problem this addresses
 

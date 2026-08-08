@@ -1,4 +1,4 @@
-// Journal interpretation — the read side of CORMIDIA-C-B23-002.
+// Journal interpretation — the read side of CORMIDIA-C-B30-002.
 //
 // Split from journal.ts because that module owns durable shape and IO while this
 // one owns "what does the journal mean". Keeping them together pushed a single

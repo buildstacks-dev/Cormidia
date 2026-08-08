@@ -689,17 +689,29 @@ Registered by the outcome-acceptance + jobs harness revision. **No runner code w
 written in that session, deliberately.** The ordering below is not cosmetic: every
 campaign invariant is a mechanical guardrail that lands at L1/L2 *before* anything can
 spend a token, because a guardrail protecting a measurement must be cheaper than the
-measurement. HB-130 (the campaign itself) is parked behind human authorization and two
-open findings and must not be started early.
+measurement.
 
-- **HB-120 — L-ACC fixture kit + self-tests.** Fixture campaign root, fixture scenario
+**STATUS 2026-08-08 — HB-120…HB-129 COMPLETE, HB-130's RUNNER COMPLETE, RUN 1 NOT
+STARTED.** The wave was implemented in the stated order, every detector landing red
+against its seeded violation before it went green, and no gate, rubric axis or threshold
+was weakened; no numeric threshold was introduced anywhere. HB-130's *runner* exists —
+both arms and every grader turn are injected callbacks, so it has spent nothing — and it
+is built to the resolved shape: it emits a report and **never** a release signal
+(F-PT-029), and a declared `plan_gate` policy resolves the gate unattended under the
+unchanged rubric §6 criteria while an undeclared one refuses at preflight (F-PT-030).
+**Run 1 itself remains blocked on an exact human authorization naming this campaign's
+output-token and equivalent-USD ceilings, and must not be started without it.** One new
+finding opened: **F-PT-032** (do B-28 §1's four plant categories apply to a job scenario,
+which has no plan arm?) — parked, never guessed.
+
+- **HB-120 — L-ACC fixture kit + self-tests. DONE 2026-08-08** (`tests/fixtures/acceptance/`; register row CF-HARNESS-ACCFIX). Fixture campaign root, fixture scenario
   repos (greenfield, seeded-corpus, job), a scripted `install:packaged` process double
   with settable exit status, sealed-key fixtures, and a scripted grader adapter double.
   *Acceptance:* every fixture has a self-test; every sweep asserts a non-empty walk;
   the grader double can emit malformed, citation-less, and fabricated-claim payloads on
   demand. *Defends:* harness self-tests (policy `harness_self_tests`). *Layer:* 1/2.
   *Executor:* build-agent.
-- **HB-121 — CF-INV-ACC-1 sealed-key confinement.** All three escape routes: assembly
+- **HB-121 — CF-INV-ACC-1 sealed-key confinement. DONE 2026-08-08** (`tests/unit/cf-inv-acc-1/`, `tests/hermetic/cf-inv-acc-1/`; job-scenario extraction leg `BLOCKED:F-PT-032`). All three escape routes: assembly
   scan, reachability walk over the declared read set **including `git log -p`**, and echo
   through report drafts or prior transcripts. Plus extraction ordering, key/scenario
   content-hash binding, and refusal of a partial key missing any of the four plant
@@ -707,18 +719,18 @@ open findings and must not be started early.
   input, then green; a working-tree delete that leaves the plant in git history still
   fires. *Defends:* CORMIDIA-INV-ACC-1, CORMIDIA-C-B28-001. *Layer:* 1/2.
   *Executor:* build-agent.
-- **HB-122 — CF-INV-ACC-2 grader independence.** Per-axis provider disjointness computed
+- **HB-122 — CF-INV-ACC-2 grader independence. DONE 2026-08-08** (`tests/unit/cf-inv-acc-2/`, `tests/hermetic/cf-inv-acc-2/`). Per-axis provider disjointness computed
   before provider construction, family (not vendor product) as the unit, applied set
   recorded per axis, and `ungraded` when no legal grader exists. *Acceptance:* red-then-
   green against a grader provider deliberately set equal to the graded turn's; a
   fan-out scenario spanning both families still grades its mechanical axes and reports
   `ungraded` rather than widening. *Defends:* CORMIDIA-INV-ACC-2, CORMIDIA-C-B29-001.
   *Layer:* 1/2. *Executor:* build-agent.
-- **HB-123 — CF-INV-ACC-3 repository binding.** Reuse `assertCampaignRepositoryBinding`;
+- **HB-123 — CF-INV-ACC-3 repository binding. DONE 2026-08-08** (`tests/hermetic/cf-inv-acc-3/`; the two seeded controls each found a real detector gap — a case-folded origin path and a host-qualified slug — before going green). Reuse `assertCampaignRepositoryBinding`;
   add the campaign-app slug check, the real-origin check, and the job `--workdir` check.
   *Acceptance:* red-then-green against a scenario deliberately bound to this repository.
   *Defends:* CORMIDIA-INV-ACC-3. *Layer:* 1/2. *Executor:* build-agent.
-- **HB-124 — CF-INV-ACC-5/6 verdict algebra.** The `axis_score` truth table as policy
+- **HB-124 — CF-INV-ACC-5/6 verdict algebra. DONE 2026-08-08** (`tests/unit/cf-inv-acc-5/`; the table is read from `verdict_semantics.axis_score`, never restated). The `axis_score` truth table as policy
   data, not runner logic: `ungraded` never `0`, never a numeric aggregate term, graded
   denominators named, unratified threshold ⇒ `inconclusive`, and
   killed/ceiling-stopped/missing-grader ⇒ `incomplete` with the scenario still present.
@@ -726,13 +738,13 @@ open findings and must not be started early.
   scenario must not render as a `0`. *Defends:* CORMIDIA-INV-ACC-5/6,
   `validation-policy.yaml` `verdict_semantics.axis_score`. *Layer:* 1. *Executor:*
   build-agent.
-- **HB-125 — CF-INV-ACC-7a supervisor non-participation.** The three-way reconciler:
+- **HB-125 — CF-INV-ACC-7a supervisor non-participation. DONE 2026-08-08** (`tests/hermetic/cf-inv-acc-7a/`). The three-way reconciler:
   campaign-org invocation audit × per-commit authorship in each scenario repo × the run
   journal's turn records; non-closure ⇒ `ungraded`/`incomplete`, never a score.
   *Acceptance:* red-then-green against a hand-authored commit deliberately pushed to a
   scenario repo, and against a product-affecting action with no invocation-audit row.
   *Defends:* CORMIDIA-INV-ACC-7a. *Layer:* 1/2. *Executor:* build-agent.
-- **HB-126 — CF-INV-ACC-7b packaged provenance.** Assert `install:packaged`'s **exit
+- **HB-126 — CF-INV-ACC-7b packaged provenance. DONE 2026-08-08** (`tests/hermetic/cf-inv-acc-7b/`; the double is spawned, so every exit status is observed). Assert `install:packaged`'s **exit
   status** and record the installed version plus tarball identity in the report.
   **Do not reimplement its checks** — the script already resolves each declared binary,
   refuses a checkout-internal resolution, and refuses any skill target that is not
@@ -740,28 +752,28 @@ open findings and must not be started early.
   links present; a bare `--dry-run` non-zero exit must not be readable as a rehearsal
   pass. *Defends:* CORMIDIA-INV-ACC-7b, CORMIDIA-C-B27-001 §1.2. *Layer:* 1/2.
   *Executor:* build-agent.
-- **HB-127 — B-27 campaign contract + CF-SM-ACC lifecycle.** Every preflight refusal
+- **HB-127 — B-27 campaign contract + CF-SM-ACC lifecycle. DONE 2026-08-08** (`tests/unit/cf-b27/`, `tests/unit/cf-sm-acc/`). Every preflight refusal
   class (§1.1–1.9) pre-mutation and pre-spend; report shape incl. matrix, installed
   identity, per-axis citations and applied disjointness sets; lifecycle transitions with
   build-arm entry illegal without a resolved gate. *Acceptance:* each refusal class has
   its own case; a report missing matrix or installed identity is malformed, not thin.
   *Defends:* CORMIDIA-C-B27-001, CORMIDIA-INV-ACC-4. *Layer:* 1/2. *Executor:*
   build-agent.
-- **HB-128 — jobs families (M18).** CF-B30-*, CF-J22-*, CF-J23-*, CF-SM-JOB-*,
+- **HB-128 — jobs families (M18). DONE 2026-08-08** — the pre-existing suite was re-registered from CF-B23-*/CF-J21-*/CF-J22-* onto CF-B30-*/CF-J22-*/CF-J23-* (B-23 is now OpenCode, J-21 the L-ACC campaign), and CF-SM-JOB-*, CF-IF-JOB and the seeded double-settle control are new (`tests/unit/cf-b30-cfg/`, `tests/hermetic/cf-b30/`, `tests/hermetic/cf-j22-j23/`, `tests/hermetic/cf-sm-job/`, `tests/unit/cf-if-job/`). CF-B30-*, CF-J22-*, CF-J23-*, CF-SM-JOB-*,
   CF-IF-JOB against the existing fixture kit. *Acceptance:* negative controls per the
   jobs design — cyclic config, drifted config hash, a declared output that exists but is
   empty, a lying fake provider reporting `completed` for a step whose check fails, nested
   invocation, and a seeded double-settle. *Defends:* CORMIDIA-C-B30-001…003,
   CORMIDIA-C-OPJOB-001, INV-008/015 jobs tightenings. *Layer:* 1/2. *Executor:*
   build-agent.
-- **HB-129 — S-11 grader envelope + the fabrication control.** Evidence-set composition
+- **HB-129 — S-11 grader envelope + the fabrication control. DONE 2026-08-08** (`tests/hermetic/cf-s11-env/`; the required first case is committed at `golden-sets/acceptance-grader/cases.json` and the O-5 detector was verified red against it). Evidence-set composition
   per axis (self-report excluded from O-1…O-3 and the subject of O-5), result schema with
   mandatory citation, and the **seeded fabricated claim** as the first committed case in
   `golden-sets/acceptance-grader/`. *Acceptance:* the O-5 detector lands red against the
   seeded claim before any grader result is trusted; no threshold is introduced.
   *Defends:* CORMIDIA-C-B29-001 §5, llm-eval-plan S-11. *Layer:* 1/2 (+4 scaffold).
   *Executor:* build-agent.
-- **HB-130 — the campaign runner and run 1.** F-PT-029 and F-PT-030 were both answered
+- **HB-130 — the campaign runner and run 1. RUNNER DONE 2026-08-08; RUN 1 NOT STARTED** (`tests/campaign/acceptance/runner.ts`, `tests/hermetic/cf-j21/`). The one remaining blocker is unchanged: an exact human authorization naming this campaign's ceilings. F-PT-029 and F-PT-030 were both answered
   by the owner on 2026-08-07, so **one blocker remains: an exact human authorization**
   naming this campaign's output-token and equivalent-USD ceilings
   (`risk-allocation.md` §5a). Build the runner to the resolved shape: a declared

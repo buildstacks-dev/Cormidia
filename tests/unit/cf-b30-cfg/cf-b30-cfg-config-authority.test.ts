@@ -1,4 +1,4 @@
-// CF-B23-CFG (L1) — job config authority (CORMIDIA-C-B23-001).
+// CF-B30-CFG (L1) — job config authority (CORMIDIA-C-B30-001 §1).
 //
 // Every structural defect must be caught before any runtime is constructed, so
 // each case here asserts a typed refusal rather than a downstream failure. The
@@ -31,7 +31,7 @@ steps:
     objective: do the thing
 `;
 
-describe("CF-B23-CFG (L1) job config authority", () => {
+describe("CF-B30-CFG (L1) job config authority", () => {
   it("accepts a minimal single-step config and defaults app to unscoped", () => {
     const config = parse(MINIMAL);
     expect(config.job).toBe("demo");

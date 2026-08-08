@@ -1,4 +1,4 @@
-// Output handoff — CORMIDIA-C-B23-001 §7 / CF-B23-HND (docs/jobs/design.md §7).
+// Output handoff — CORMIDIA-C-B30-003 handoff clause / CF-B30-HND (docs/jobs/design.md §7).
 //
 // A step's brief is its objective plus the resolved CONTENT of every dependency's
 // declared outputs. Files are read at step start, so a step sees what is actually

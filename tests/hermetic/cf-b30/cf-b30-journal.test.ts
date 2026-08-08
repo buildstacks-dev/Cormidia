@@ -1,4 +1,4 @@
-// CF-B23-JRN / CF-B23-DRIFT / CF-B23-NEST (L2) — the journal is the completion
+// CF-B30-JRN / CF-B30-DRIFT / CF-B30-NEST (L2) — the journal is the completion
 // authority, and the two refusals that protect it.
 //
 // The expensive failures for a long-running job all live between state
@@ -22,7 +22,7 @@ afterEach(async () => {
 });
 
 async function scaffold(): Promise<{ state: TempStateHome; work: JobWorkspace }> {
-  const state = await makeTempStateHome({ name: "cf-b23-jrn" });
+  const state = await makeTempStateHome({ name: "cf-b30-jrn" });
   const work = await makeJobWorkdir();
   cleanups.push(state.cleanup, work.cleanup);
   return { state, work };
@@ -50,7 +50,7 @@ steps:
         check: non_empty
 `;
 
-describe("CF-B23-JRN (L2) the journal is the completion authority", () => {
+describe("CF-B30-JRN (L2) the journal is the completion authority", () => {
   it("resumes after a mid-graph failure without re-executing completed steps", async () => {
     const { state, work } = await scaffold();
     const config = parseJobConfig(THREE_STEP, "job.yaml");
@@ -178,7 +178,7 @@ steps:
   });
 });
 
-describe("CF-B23-DRIFT (L2) a changed config refuses rather than resuming", () => {
+describe("CF-B30-DRIFT (L2) a changed config refuses rather than resuming", () => {
   it("negative control: editing a step objective between runs refuses and names the drift", async () => {
     const { state, work } = await scaffold();
     const base = {
@@ -259,7 +259,7 @@ describe("CF-B23-DRIFT (L2) a changed config refuses rather than resuming", () =
   });
 });
 
-describe("CF-B23-NEST (L2) nested invocation is refused", () => {
+describe("CF-B30-NEST (L2) nested invocation is refused", () => {
   const config = () => parseJobConfig("job: nested\nsteps:\n  - id: only\n    objective: x\n", "job.yaml");
 
   it.each([["CORMIDIA_PARENT_TASK_ID"], ["CORMIDIA_CODEX_GATE_SOCKET"]])(

@@ -9,6 +9,7 @@ import {
   bootstrapScenarioApp,
   finalizeScenarioProvision,
   initializeGreenfieldRepository,
+  reusePreparedGreenfieldRepository,
   verifyScenarioApp,
 } from "./campaign-scenario-setup.js";
 import { provisionScenarioRepository, type ScenarioProvision } from "./provision.js";
@@ -28,28 +29,31 @@ export async function provisionCampaignScenarios(
     }
     const setup = scenario.setup ?? (scenario.kind === "job" ? "job" : "bootstrap");
     if (setup === "new-app") {
-      await deps.driver.runOrThrow(
-        "cormidia",
-        [
-          "new-app",
-          appName,
-          "--name",
-          appName,
-          "--target-dir",
-          scenario.worktree,
-          "--repo",
-          scenario.appSlug,
-          "--goal",
-          ramble,
-          "--template",
-          "typescript-node",
-          "--org-home",
-          deps.orgHome,
-          "--json",
-        ],
-        { scenarioId: scenario.id },
-      );
-      initializeGreenfieldRepository(scenario.worktree, scenario.appSlug);
+      const resumed = reusePreparedGreenfieldRepository(scenario.worktree, scenario.id, scenario.appSlug);
+      if (!resumed) {
+        await deps.driver.runOrThrow(
+          "cormidia",
+          [
+            "new-app",
+            appName,
+            "--name",
+            appName,
+            "--target-dir",
+            scenario.worktree,
+            "--repo",
+            scenario.appSlug,
+            "--goal",
+            ramble,
+            "--template",
+            "typescript-node",
+            "--org-home",
+            deps.orgHome,
+            "--json",
+          ],
+          { scenarioId: scenario.id },
+        );
+        initializeGreenfieldRepository(scenario.worktree, scenario.appSlug);
+      }
     }
     const spec = {
       scenarioId: scenario.id,

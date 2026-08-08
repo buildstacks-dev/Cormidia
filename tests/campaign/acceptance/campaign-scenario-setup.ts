@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { devNull } from "node:os";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { CliDriver } from "./cli-driver.js";
+import { campaignGitEnvironment } from "./campaign-git.js";
 import {
   PROVISION_IDENTITY,
   type OnboardResult,
@@ -8,11 +10,10 @@ import {
   type ScenarioProvisionSpec,
 } from "./provision.js";
 
-const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: devNull };
 const git = (cwd: string, args: string[]): string =>
   execFileSync("git", args, {
     cwd,
-    env: GIT_ENV,
+    env: campaignGitEnvironment(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
@@ -20,6 +21,29 @@ const git = (cwd: string, args: string[]): string =>
 export function initializeGreenfieldRepository(worktree: string, appSlug: string): void {
   git(worktree, ["init", "--initial-branch", "campaign-baseline"]);
   git(worktree, ["remote", "add", "origin", `https://github.com/${appSlug}.git`]);
+}
+
+/** Resume only the harness's own clean, pre-baseline greenfield repository.
+ * This exists for a provisioning interruption before any provider turn; it is
+ * not a general permission to adopt pre-existing work. */
+export function reusePreparedGreenfieldRepository(worktree: string, scenarioId: string, appSlug: string): boolean {
+  if (!existsSync(worktree)) return false;
+  if (!existsSync(join(worktree, ".git"))) {
+    throw new Error(`campaign refused: existing greenfield target ${worktree} is not the prepared repository`);
+  }
+  const expected = `https://github.com/${appSlug}.git`.toLowerCase();
+  if (git(worktree, ["remote", "get-url", "origin"]).toLowerCase() !== expected) {
+    throw new Error(`campaign refused: existing greenfield target ${worktree} has the wrong origin`);
+  }
+  if (git(worktree, ["status", "--porcelain"]).length > 0) {
+    throw new Error(`campaign refused: existing greenfield target ${worktree} is dirty`);
+  }
+  const commits = git(worktree, ["log", "--format=%ae%x00%s"]).split("\n").filter(Boolean);
+  const expectedSubject = `provision: baseline ${scenarioId}`;
+  if (commits.length === 0 || commits.some((line) => line !== `${PROVISION_IDENTITY.email}\u0000${expectedSubject}`)) {
+    throw new Error(`campaign refused: existing greenfield target ${worktree} is not a clean campaign baseline`);
+  }
+  return true;
 }
 
 export async function finalizeScenarioProvision(

@@ -1,0 +1,121 @@
+# L-ACC run 1 — TEMPLATE. Copy, fill, and keep your copy OUT of git.
+#
+# This file cannot run as-is, deliberately: the `authorization:` block is absent
+# and the entry point refuses without it. There is NO global L-ACC ceiling
+# (risk-allocation.md §5a) — the bound comes from an exact human authorization
+# for this exact campaign, and a template that shipped with plausible numbers
+# already in it would be a ceiling nobody set.
+#
+# To run:
+#   1. cp acceptance/campaigns/run-1.example.yaml /somewhere/outside/the/repo/run-1.yaml
+#   2. fill `authorization:` with a real identity, date, statement and ceilings
+#   3. make `campaign.envelope` agree with those ceilings
+#   4. point `campaign.scenarios[].worktree` at real disposable checkouts
+#   5. pnpm test:acceptance -- --config /…/run-1.yaml --dry-run   (rehearse)
+#   6. pnpm test:acceptance -- --config /…/run-1.yaml             (spend)
+
+schema_version: 1
+
+# authorization:
+#   authorized_by: <your github identity — a person, not "the operator">
+#   authorized_on: "YYYY-MM-DD"
+#   statement: "<the exact sentence you said when you authorized this spend>"
+#   max_output_tokens: 0     # <- set me
+#   max_equiv_usd: 0         # <- set me
+
+campaign:
+  campaignId: l-acc-run-1
+  # Must equal checked-out HEAD when the campaign starts.
+  commit: "0000000000000000000000000000000000000000"
+  policyPath: /absolute/path/to/Cormidia/validation-design/validation-policy.yaml
+  # Every scenario repository must belong to this org and to nothing else.
+  campaignOrg: cormidia-sandbox
+
+  envelope:
+    maxOutputTokens: 0 # <- must equal authorization.max_output_tokens
+    maxEquivUsd: 0 # <- must equal authorization.max_equiv_usd
+    authorization: "<same statement as the authorization block>"
+
+  # F-PT-030: a declared policy may resolve the gate unattended. `human` waits
+  # for a decision. Silence is not consent — omitting this block refuses.
+  planGate:
+    kind: auto-continue
+    criteria: rubric-6-attempted-on-P-1-and-P-5
+
+  scenarios:
+    - id: S-ACC-1
+      kind: app
+      appSlug: cormidia-sandbox/acc-1-timetracker
+      worktree: /absolute/path/to/disposable/acc-1
+      matrix:
+        planner: { harness: claude, model: claude-opus-4-8, effort: xhigh }
+        builder: { harness: claude, model: claude-sonnet-5, effort: xhigh }
+        reviewer: { harness: codex, model: gpt-5.6-sol, effort: xhigh }
+
+    - id: S-ACC-2
+      kind: app
+      appSlug: cormidia-sandbox/acc-2-docs
+      worktree: /absolute/path/to/disposable/acc-2
+      matrix:
+        planner: { harness: codex, model: gpt-5.6-sol, effort: xhigh }
+        builder: { harness: codex, model: gpt-5.6-luna, effort: xhigh }
+        reviewer: { harness: claude, model: claude-opus-4-8, effort: xhigh }
+
+    - id: S-ACC-3
+      kind: job
+      appSlug: cormidia-sandbox/acc-3-research
+      worktree: /absolute/path/to/disposable/acc-3
+      jobWorkdir: /absolute/path/to/disposable/acc-3
+      matrix: {} # jobs have no Planner and no Reviewer
+
+  # Every tuple any scenario uses. A candidate with neither a real
+  # qualification_ref nor an explicit `uncertified` disclosure refuses.
+  adaptiveAssignments:
+    - id: claude-opus-4-8-xhigh
+      assignment: { harness: claude, model: claude-opus-4-8, effort: xhigh }
+      providerFamily: anthropic
+      capabilityRef: docs/harness/capability-matrix.md#claude
+      conservativeEstimate: 25
+      qualificationRef: research/2026-07-15_model-assignment-refresh.md
+    - id: claude-sonnet-5-xhigh
+      assignment: { harness: claude, model: claude-sonnet-5, effort: xhigh }
+      providerFamily: anthropic
+      capabilityRef: docs/harness/capability-matrix.md#claude
+      conservativeEstimate: 12
+      qualificationRef: research/2026-07-15_model-assignment-refresh.md
+    - id: gpt-5.6-sol-xhigh
+      assignment: { harness: codex, model: gpt-5.6-sol, effort: xhigh }
+      providerFamily: openai
+      capabilityRef: docs/harness/capability-matrix.md#codex
+      conservativeEstimate: 20
+      uncertified: "gpt-5.6-sol availability is proved by adapter calibration, not by a ratified qualification reference"
+    - id: gpt-5.6-luna-xhigh
+      assignment: { harness: codex, model: gpt-5.6-luna, effort: xhigh }
+      providerFamily: openai
+      capabilityRef: docs/harness/capability-matrix.md#codex
+      conservativeEstimate: 8
+      uncertified: "the cheap-model-plus-effort hypothesis is what S-ACC-2's builder arm is testing; no qualification exists yet"
+    - id: gpt-5.6-terra-xhigh
+      assignment: { harness: codex, model: gpt-5.6-terra, effort: xhigh }
+      providerFamily: openai
+      capabilityRef: docs/harness/capability-matrix.md#codex
+      conservativeEstimate: 10
+      uncertified: "S-ACC-3 fan-out only; no ratified qualification reference for this tuple"
+
+  # Mechanical axes declare no grader. Model-graded axes must declare both the
+  # grader tuple and the read set disjointness is computed against.
+  graderPlan:
+    - { axis: P-1, mechanical: true }
+    - { axis: P-2, mechanical: true }
+    - { axis: P-3, mechanical: true }
+    - { axis: P-4, mechanical: true }
+    - { axis: P-5, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [plan] }
+    - { axis: P-6, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [plan] }
+    - { axis: O-1, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-2, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-3, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-4, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
+    - { axis: O-5, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [build] }
+    - { axis: J-1, mechanical: true }
+    - { axis: J-2, mechanical: true }
+    - { axis: J-3, grader: { harness: codex, model: gpt-5.6-sol, effort: xhigh }, readTurnIds: [synthesize, visualize] }

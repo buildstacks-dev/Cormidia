@@ -5,13 +5,12 @@
 // TicketPlan, and publication remains deterministic orchestrator work.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { writeLoopFileOnce } from "../loop/durable.js";
 import {
   efficiencyEpisodeDir,
-  finalizeEpisode,
   fingerprint,
   readExecutionSteps,
   readRouteRecord,
@@ -33,18 +32,15 @@ import {
   stableHash,
 } from "../loop/episode-plan.js";
 import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../loop/episode-route.js";
-import { GhCliOps, type GhIssue, type GhOps } from "../loop/github.js";
+import type { GhIssue, GhOps } from "../loop/github.js";
 import { issueContentHash } from "../loop/issue-snapshot.js";
 import { executePipeline } from "../loop/pipeline.js";
 import { loadPipelines, type PipelineConfig, type PipelinesFile } from "../loop/pipelines.js";
-import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import {
   finalizePlanForPublication,
   PLAN_SCHEMA,
-  publishPlanProjection,
+  validatePlan,
   type FinalPlanProjection,
-  type PlanningSourceTicketEvidence,
-  type PlanProvenance,
   type ProjectStage,
   type PublishedTicket,
   type TicketPlan,
@@ -74,7 +70,7 @@ import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } fr
 import { resolveAppRoles } from "./app-execution-policy.js";
 import { ApprovalStore } from "./approvals.js";
 import { normalizeAppExecution, runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
-import { isBudgetBlocking, rollupBudgets, type BudgetRow } from "./budget.js";
+import { isBudgetBlocking, rollupBudgets } from "./budget.js";
 import { assembleContext } from "./context.js";
 import { probeApprovedAssignmentReadiness } from "./episode-planner/assignment-readiness.js";
 import { readPersistedEpisodeIntent } from "./episode-planner/coordinator.js";
@@ -90,6 +86,17 @@ import { composeGate } from "./gate-compose.js";
 import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
 import type { PlanningDepthInput } from "./planning-depth.js";
 import {
+  coverageResult,
+  decompositionRefusal,
+  type PlanningCoverageResult,
+  type PlanningRefusal,
+} from "./planning-coverage-request.js";
+import {
+  renderPlanningSectionCatalog,
+  validatePlanningDecomposition,
+  type PlanningSourceSection,
+} from "./planning-decomposition.js";
+import {
   consumedPlanningSourceManifest,
   planningSourceManifestJson,
   renderPlanningSourceBrief,
@@ -98,6 +105,15 @@ import {
   type PlanningSourceRequest,
   type ResolvedPlanningSources,
 } from "./planning-inputs.js";
+import { prepareAutoPlanningCoverage, recoverPreparedAutoPlanningCoverage } from "./planning-auto-coverage.js";
+import {
+  decompositionRequestForBrief,
+  publishAutoPlanningCoverage,
+  recordAutoPlanningDecomposition,
+  type PlanningCoverageRoadmapPersistence,
+} from "./planning-auto-coverage-operations.js";
+import { renderPriorPlanningCoverage } from "./planning-publication.js";
+import { planningRepositoryFacts, productPlanningBrief, type PlanningSnapshot } from "./planning-provider-brief.js";
 import {
   discoverPlanningStageCheckout,
   persistedPlanningStageResolution,
@@ -105,12 +121,9 @@ import {
   type PlanningStageResolution,
 } from "./planning-stage.js";
 import {
-  isProductDocTicketBudgetOnlyRefusal,
-  parseAndValidateProductDocTicketPlan,
-} from "./product-doc-plan-validation.js";
-import {
   assertCurrentProductDocTicketPlan,
   prepareProductDocPlanning,
+  productDocPlanProblems,
   renderProductDocPlanningBrief,
   type ProductDocPlanningState,
 } from "./product-doc-planning.js";
@@ -124,11 +137,6 @@ import {
 } from "./roadmap-delivery/roadmap-model.js";
 import { acceptRoadmapPlan, readCurrentRoadmapPlan } from "./roadmap-delivery/roadmap-plan.js";
 import { loadRoles } from "./roles.js";
-import {
-  ratifyTicketBudgetCommand,
-  recordRefusedDecomposition,
-  refusedDecompositionPath,
-} from "./ticket-budget-ratification.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
 const PRODUCT_PLANNING_EPISODE_POLICY_VERSION = "product-planning/episode-planner-v1" as const;
@@ -184,6 +192,10 @@ interface AutoPlanOptions {
   parentTaskId?: string;
   /** Compatibility/request facts only. They no longer select workflow shape. */
   planning?: Omit<PlanningDepthInput, "goal" | "stage">;
+  /** Publish the next bounded batch, or plan only still-remaining source coverage. */
+  resume?: boolean;
+  /** Explicitly replace still-unpublished coverage with a new decomposition revision. */
+  revise?: boolean;
   sources?: readonly PlanningSourceRequest[];
   /** The only explicit zero-planner path. No scope is inferred from goal text. */
   creatorScope?: CreatorEpisodeScope;
@@ -220,29 +232,11 @@ interface AutoPlanResult {
   planningExecution?: AutoPlanningExecutionResult;
   /** Exact explicit/inferred/persisted stage decision used by this episode. */
   stageResolution?: PlanningStageResolution;
-  /** Present when the ONLY refusal was the stage ticket budget. The
-   * decomposition the planner already paid for is preserved verbatim, so
-   * ratification resumes from it instead of buying a different plan
-   * (ENH-011). */
-  refusedDecomposition?: RefusedDecompositionSummary;
+  coverage?: PlanningCoverageResult;
+  refusal?: PlanningRefusal;
 }
 
-type AutoPlanningExecutionResult =
-  | EpisodePlanExecutionResult
-  | (Omit<EpisodePlanExecutionResult, "status" | "reasonCode"> & {
-      status: "refused_ticket_budget";
-      reasonCode: "refused_ticket_budget";
-    });
-
-interface RefusedDecompositionSummary {
-  decompositionId: string;
-  stage: ProjectStage;
-  stageTicketBudget: number;
-  ticketCount: number;
-  path: string;
-  /** The exact ratification command — the remedy the refusal names. */
-  ratifyCommand: string;
-}
+type AutoPlanningExecutionResult = EpisodePlanExecutionResult;
 
 export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanResult> {
   const clock = options.now ?? (() => new Date());
@@ -305,6 +299,17 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
           stored: existingIntent.repositoryFacts["planningStageResolution"],
         });
   const stage = stageResolution.stage;
+  const persistCoverageRoadmap: PlanningCoverageRoadmapPersistence = ({ gh, plan, published, now }) =>
+    persistPublishedRoadmap({ stateHome: options.stateHome, app: options.app, gh, plan, published, now });
+  const preparedRecovery = await recoverPreparedAutoPlanningCoverage({
+    options,
+    stageResolution,
+    stageEvidenceCheckout: stageCheckout.checkout,
+    stageEvidenceSource: stageCheckout.source,
+    clock,
+    persistRoadmap: persistCoverageRoadmap,
+  });
+  if (preparedRecovery !== undefined) return preparedRecovery;
   const snapshot = await withAppGitLock(options.stateHome, options.app.name, async () => {
     const source =
       options.workdir !== undefined
@@ -323,6 +328,23 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     ...(consumedSources === undefined ? {} : { sources: consumedSources }),
   };
   const productDocs = await prepareProductDocPlanning(productDocPlanningInput);
+  const assertCurrentProductDocPlan = async (plan: TicketPlan) => {
+    await assertCurrentProductDocTicketPlan(productDocPlanningInput, productDocs, plan);
+  };
+  const coveragePreparation = await prepareAutoPlanningCoverage({
+    options,
+    stage,
+    stageResolution,
+    stageEvidenceCheckout: stageCheckout.checkout,
+    stageEvidenceSource: stageCheckout.source,
+    resolvedSources,
+    clock,
+    persistRoadmap: persistCoverageRoadmap,
+    beforePublish: assertCurrentProductDocPlan,
+  });
+  if ("result" in coveragePreparation) return coveragePreparation.result;
+  const coverageContext = coveragePreparation.context;
+  const { publicationLimit, decompositionRequest, priorCoverage, planningSections, priorTicketCount } = coverageContext;
   const priorAdmission = await readPlannerAdmission(options.stateHome, episodeId);
   const limits =
     options.plannerLimits ??
@@ -408,7 +430,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     goal: options.goal,
     lifecycle: options.planning?.workLifecycle ?? "bounded-goal",
     appStage: stage,
-    repositoryFacts: repositoryFacts(snapshot, stageResolution, stageCheckout.checkout),
+    repositoryFacts: planningRepositoryFacts(snapshot, stageResolution, stageCheckout.checkout),
     requestedConstraints: {
       workflowAuthority: "accepted_episode_plan_only",
       publicationAuthority: "deterministic_orchestrator",
@@ -514,17 +536,25 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       ? ""
       : await readEpisodePlannerPrompt(options.orgHome));
   const runtimeForAssignment = assignmentRuntimeFactory(options);
-  const baseBrief = await productPlanningBrief({
-    options,
+  const baseBrief = productPlanningBrief({
+    appName: options.app.name,
+    goal: options.goal,
+    creatorScope: options.creatorScope,
     snapshot,
     stage,
     stageResolution,
     stageEvidenceCheckout: stageCheckout.checkout,
     budget,
+    publicationCap: publicationLimit.cap,
+    decompositionRequest: decompositionRequestForBrief(decompositionRequest, priorTicketCount),
+    coverageMode:
+      priorCoverage === undefined ? "initial" : options.revise === true ? "revision" : "remaining-only resume",
   });
   const sourceBrief = [
     renderProductDocPlanningBrief(productDocs),
     resolvedSources === undefined ? "" : renderPlanningSourceBrief(resolvedSources.manifest, resolvedSources.documents),
+    renderPriorPlanningCoverage(priorCoverage, options.revise === true),
+    renderPlanningSectionCatalog(planningSections),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -602,6 +632,9 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
             productDocs,
             ...(resolvedSources === undefined ? {} : { resolvedSources }),
             ...(consumedSources === undefined ? {} : { consumedSources }),
+            planningSections,
+            decompositionRequest,
+            priorTicketCount,
             stage,
             clock,
           });
@@ -663,39 +696,21 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     const terminal = terminalProviderStep(executedPlan);
     const output =
       terminal === undefined ? undefined : await readPlanningStepOutput(options.stateHome, executedPlan, terminal.id);
-    // A budget-only refusal used to throw away the decomposition the planner
-    // was already paid for, so ratifying meant buying a different plan. Keep
-    // it, and hand the operator the exact command that admits it (ENH-011).
-    const refusedDecomposition = await preserveRefusedDecomposition({
-      options,
-      stage,
-      output,
-      traceId,
-      episodeId,
-      consumedSources,
-      productDocs,
-      now: clock,
-    });
-    const refusedTicketBudget =
-      output?.ticketPlan !== undefined && isProductDocTicketBudgetOnlyRefusal(output.ticketPlan, productDocs);
-    if (refusedTicketBudget) {
-      const reason = output.problems.join("; ");
-      planningExecution = {
-        ...execution,
-        status: "refused_ticket_budget",
-        nextStepId: null,
-        reasonCode: "refused_ticket_budget",
-        summary: reason,
-      };
-      resultBase.planningExecution = planningExecution;
-      await finalizeEpisode({
-        root: options.stateHome,
-        episodeId,
-        status: "failed",
-        reason: `refused_ticket_budget: ${reason}`,
-        now: clock(),
-      });
-    }
+    const preserved =
+      output?.ticketPlan === undefined
+        ? undefined
+        : (
+            await recordAutoPlanningDecomposition({
+              options,
+              context: coverageContext,
+              disposition: "refused",
+              refusalProblems: output.problems,
+              plan: output.ticketPlan,
+              provenance: { episodeId, runId: output.runId, traceId },
+              consumedSources,
+              now: clock(),
+            })
+          ).record;
     return {
       status:
         output?.providerStatus === "cancelled"
@@ -707,7 +722,12 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         planningExecution.summary ??
         `accepted product-planning workflow stopped at ${execution.nextStepId ?? "an unknown step"}`,
       ...(output?.problems.length ? { problems: output.problems } : {}),
-      ...(refusedDecomposition === undefined ? {} : { refusedDecomposition }),
+      ...(preserved === undefined
+        ? {}
+        : {
+            coverage: coverageResult(preserved),
+            refusal: decompositionRefusal(preserved, publicationLimit.cap),
+          }),
       ...resultBase,
     };
   }
@@ -729,7 +749,20 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       ...resultBase,
     };
   }
-  const planProjection = finalizePlanForPublication(output.ticketPlan);
+  const stored = await recordAutoPlanningDecomposition({
+    options,
+    context: coverageContext,
+    disposition: "accepted",
+    refusalProblems: [],
+    plan: output.ticketPlan,
+    provenance: { episodeId, runId: output.runId, traceId },
+    consumedSources,
+    now: clock(),
+  });
+  const planProjection = finalizePlanForPublication(stored.record.plan, undefined, {
+    indexes: [],
+    publicationCap: stored.record.publication_cap,
+  });
 
   if (options.publish === false) {
     return {
@@ -739,72 +772,27 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         "planned provider step(s); TicketPlan validated; publication skipped (--no-publish)",
       plan: planProjection.plan,
       planProjection,
+      coverage: coverageResult(stored.record),
       ...resultBase,
     };
   }
-
-  const provenance: PlanProvenance = {
-    episodeId,
-    runId: output.runId,
-    traceId,
-  };
-  const priorPublication = await readPublishedTicketsRecord(options.stateHome, options.app.name, output.runId);
-  let published: PublishedTicket[];
-  let recordNote = "";
-  const publicationGh = options.gh ?? new GhCliOps(options.app.repo);
-  if (priorPublication !== undefined) {
-    if (
-      priorPublication.episode_id !== provenance.episodeId ||
-      priorPublication.trace_id !== provenance.traceId ||
-      priorPublication.run_id !== provenance.runId
-    ) {
-      throw new Error("published TicketPlan provenance differs from the resumed planning episode");
-    }
-    published = priorPublication.published.map((ticket) => ({
-      index: ticket.index,
-      issueNumber: ticket.issue_number,
-      title: ticket.title,
-      ready: ticket.ready,
-      labels: [...ticket.labels],
-    }));
-  } else {
-    try {
-      await assertCurrentProductDocTicketPlan(productDocPlanningInput, productDocs, output.ticketPlan);
-    } catch (error) {
-      return failedResult(error, resultBase);
-    }
-    ({ published } = await publishPlanProjection(
-      publicationGh,
-      planProjection,
-      consumedSources === undefined ? undefined : planningSourceTicketEvidence(consumedSources),
-      provenance,
-    ));
-    // Ticket bodies remain the permanent half of provenance. A local record
-    // failure must not report remote publication as failed and invite a blind
-    // duplicate retry.
-    try {
-      await writePublishedTicketsRecord(options.stateHome, options.app.name, provenance, published, clock());
-    } catch (error) {
-      recordNote = `; published-tickets record write failed: ${(error as Error).message}`;
-    }
-  }
-  await persistPublishedRoadmap({
-    stateHome: options.stateHome,
-    app: options.app,
-    gh: publicationGh,
-    plan: planProjection.plan,
-    published,
-    now: clock(),
+  const publication = await publishAutoPlanningCoverage({
+    options,
+    coverage: stored.record,
+    resume: options.resume === true,
+    clock,
+    persistRoadmap: persistCoverageRoadmap,
+    beforePublish: assertCurrentProductDocPlan,
   });
   return {
     status: "completed",
     summary:
-      `EpisodePlan v${executedPlan.version} published ${published.length} ticket(s): ` +
-      published.map((ticket) => `#${ticket.issueNumber}${ticket.ready ? " (ready)" : ""}`).join(", ") +
-      recordNote,
-    plan: planProjection.plan,
-    planProjection,
-    published,
+      `EpisodePlan v${executedPlan.version} preserved ${stored.record.plan.tickets.length} ticket(s); ` +
+      publication.summary,
+    plan: publication.projection.plan,
+    planProjection: publication.projection,
+    published: publication.published,
+    coverage: coverageResult(publication.coverage),
     ...resultBase,
   };
 }
@@ -840,11 +828,11 @@ export async function persistPublishedRoadmap(input: {
   }
   const indexes = input.published.map((ticket) => ticket.index).sort((a, b) => a - b);
   if (
-    input.published.length !== input.plan.tickets.length ||
-    indexes.some((index, expected) => index !== expected) ||
+    indexes.some((index) => !Number.isInteger(index) || index < 0 || index >= input.plan.tickets.length) ||
+    new Set(indexes).size !== indexes.length ||
     new Set(input.published.map((ticket) => ticket.issueNumber)).size !== input.published.length
   ) {
-    throw new Error("published ticket projection does not exactly account for the Planner TicketPlan");
+    throw new Error("published ticket projection is not a unique in-range subset of the preserved TicketPlan");
   }
   const limit = 10_001;
   const issues =
@@ -1085,62 +1073,6 @@ export async function persistPublishedRoadmap(input: {
   });
 }
 
-/** Persist the refused decomposition when — and only when — the stage ticket
- * budget is the sole reason it cannot be published. Everything else stays a
- * plain failure: a structurally invalid plan is not something a human should
- * be invited to ratify, and preservation must never look like acceptance.
- * Preservation is best-effort evidence: it never converts a planning failure
- * into a different failure. */
-async function preserveRefusedDecomposition(input: {
-  options: AutoPlanOptions;
-  stage: ProjectStage;
-  output: PlanningStepOutputRecord | undefined;
-  traceId: string;
-  episodeId: string;
-  consumedSources: PlanningSourceManifest | undefined;
-  productDocs: ProductDocPlanningState;
-  now: () => Date;
-}): Promise<RefusedDecompositionSummary | undefined> {
-  const plan = input.output?.ticketPlan;
-  if (plan === undefined || input.output === undefined) return undefined;
-  if (plan.stage !== input.stage) return undefined;
-  if (!isProductDocTicketBudgetOnlyRefusal(plan, input.productDocs)) return undefined;
-  try {
-    const record = await recordRefusedDecomposition({
-      stateHome: input.options.stateHome,
-      app: input.options.app.name,
-      goal: input.options.goal,
-      stage: input.stage,
-      plan,
-      problems: input.output.problems,
-      provenance: {
-        episode_id: input.episodeId,
-        run_id: input.output.runId,
-        trace_id: input.traceId,
-      },
-      ...(input.consumedSources === undefined
-        ? {}
-        : { planningSources: planningSourceTicketEvidence(input.consumedSources) }),
-      now: input.now(),
-    });
-    return {
-      decompositionId: record.decomposition_id,
-      stage: record.stage,
-      stageTicketBudget: record.stage_ticket_budget,
-      ticketCount: record.ticket_count,
-      path: refusedDecompositionPath(input.options.stateHome, input.options.app.name, record.decomposition_id),
-      ratifyCommand: ratifyTicketBudgetCommand({
-        app: input.options.app.name,
-        decompositionId: record.decomposition_id,
-        stageBudget: record.stage_ticket_budget,
-        ticketCount: record.ticket_count,
-      }),
-    };
-  } catch {
-    return undefined;
-  }
-}
-
 interface PlanningProviderExecutionInput {
   options: AutoPlanOptions;
   plan: EpisodePlan;
@@ -1157,6 +1089,9 @@ interface PlanningProviderExecutionInput {
   productDocs: ProductDocPlanningState;
   resolvedSources?: ResolvedPlanningSources;
   consumedSources?: PlanningSourceManifest;
+  planningSections: readonly PlanningSourceSection[];
+  decompositionRequest: PlanningDepthInput["expectedTickets"];
+  priorTicketCount: number;
   stage: ProjectStage;
   clock: () => Date;
 }
@@ -1252,7 +1187,14 @@ async function executePlanningProviderStep(
   let ticketPlan: TicketPlan | undefined;
   let problems: string[] = [];
   if (definition.output === "ticket_plan") {
-    const parsed = parseAndValidateProductDocTicketPlan(evidence.output, input.stage, input.productDocs);
+    const parsed = parseAndValidateTicketPlan(
+      evidence.output,
+      input.stage,
+      input.decompositionRequest,
+      input.planningSections,
+      input.priorTicketCount,
+      input.productDocs,
+    );
     ticketPlan = parsed.plan;
     problems = parsed.problems;
   }
@@ -1265,14 +1207,10 @@ async function executePlanningProviderStep(
     ...(ticketPlan === undefined ? {} : { ticketPlan }),
   });
   if (status === "failed") {
-    const refusedTicketBudget =
-      ticketPlan !== undefined && isProductDocTicketBudgetOnlyRefusal(ticketPlan, input.productDocs);
     return {
       status: "failed",
-      reasonCode: refusedTicketBudget ? "refused_ticket_budget" : "error_ticket_plan_invalid",
-      summary: refusedTicketBudget
-        ? `terminal TicketPlan exceeds the stage ticket budget (${problems.join("; ")})`
-        : `terminal TicketPlan failed validation (${problems.length} problem(s))`,
+      reasonCode: "error_ticket_plan_invalid",
+      summary: `terminal TicketPlan failed decomposition validation (${problems.length} problem(s)); output preserved`,
       artifact: persisted.artifact,
     };
   }
@@ -1573,6 +1511,29 @@ function terminalProviderStep(plan: EpisodePlan): ProviderTurnStep | undefined {
   return terminals.length === 1 && terminals[0]?.kind === "provider_turn" ? terminals[0] : undefined;
 }
 
+function parseAndValidateTicketPlan(
+  output: string,
+  stage: ProjectStage,
+  request: PlanningDepthInput["expectedTickets"],
+  sections: readonly PlanningSourceSection[],
+  priorTicketCount: number,
+  productDocs: ProductDocPlanningState,
+): { plan?: TicketPlan; problems: string[] } {
+  const plan = parsePlanJson(output);
+  if (plan === undefined) {
+    return { problems: ["planner output is not a parseable TicketPlan JSON object"] };
+  }
+  const validation = validatePlan(plan, undefined, false);
+  validation.problems.push(...validatePlanningDecomposition(plan, request, sections, priorTicketCount));
+  validation.problems.push(...productDocPlanProblems(plan, productDocs));
+  validation.ok = validation.problems.length === 0;
+  if (plan.stage !== stage) {
+    validation.problems.push(`planner returned stage "${plan.stage}" but the requested stage is "${stage}"`);
+    validation.ok = false;
+  }
+  return validation.ok ? { plan, problems: [] } : { plan, problems: validation.problems };
+}
+
 function assignmentRuntimeFactory(options: AutoPlanOptions): (assignment: TurnAssignment, role: RoleConfig) => Runtime {
   return (assignment, role) =>
     options.runtimeFor?.({
@@ -1637,80 +1598,6 @@ function planningCatalogForIntent(): JsonValue {
     .sort((left, right) => left.operation.localeCompare(right.operation));
 }
 
-function repositoryFacts(
-  snapshot: PlanningSnapshot,
-  stageResolution: PlanningStageResolution,
-  stageEvidenceCheckout: string,
-): Record<string, JsonValue> {
-  const entries = readdirSync(snapshot.path)
-    .filter((name) => name !== ".git")
-    .sort()
-    .slice(0, 40);
-  let recentCommits: string[] = [];
-  try {
-    recentCommits = execFileSync("git", ["log", "--oneline", "-5"], {
-      cwd: snapshot.path,
-      encoding: "utf8",
-    })
-      .trim()
-      .split("\n")
-      .filter(Boolean);
-  } catch {
-    // Empty repositories have no readable commit log.
-  }
-  return {
-    sourceCheckout: snapshot.sourcePath,
-    sourceBranch: snapshot.sourceBranch,
-    sourceHead: snapshot.sourceHead,
-    planningSnapshot: snapshot.path,
-    stageEvidenceCheckout,
-    planningStageResolution: jsonValue(stageResolution, "planning stage resolution"),
-    topLevelEntries: entries,
-    docsPresent: ["README.md", "docs"].filter((path) => existsSync(join(snapshot.path, path))),
-    recentCommits,
-  };
-}
-
-async function productPlanningBrief(input: {
-  options: AutoPlanOptions;
-  snapshot: PlanningSnapshot;
-  stage: ProjectStage;
-  stageResolution: PlanningStageResolution;
-  stageEvidenceCheckout: string;
-  budget: BudgetRow;
-}): Promise<string> {
-  const facts = repositoryFacts(input.snapshot, input.stageResolution, input.stageEvidenceCheckout);
-  return [
-    `# ${input.stage} product plan request: ${input.options.app.name}`,
-    "",
-    "## Product goal",
-    input.options.goal,
-    ...(input.options.creatorScope === undefined
-      ? []
-      : [
-          "",
-          "## Authoritative execution-ready creator scope",
-          "Preserve these creator-authored boundaries, criteria, constraints, safety facts, and provenance exactly. " +
-            "Do not redesign or widen them.",
-          JSON.stringify(input.options.creatorScope, null, 2),
-        ]),
-    "",
-    "## Accepted workflow boundary",
-    "Execute only the current EpisodePlan step and its governed prompt. " +
-      "Do not launch another provider planning pass implicitly.",
-    `Available code-owned operations: ${Object.keys(PLANNING_PROVIDER_OPERATION_CATALOG).sort().join(", ")}`,
-    "",
-    "## Repository snapshot",
-    JSON.stringify(facts, null, 2),
-    "",
-    "## App budget at episode creation",
-    `Month-to-date spend $${input.budget.spentUsd.toFixed(2)} of ` +
-      `$${input.budget.budgetUsd.toFixed(2)} (${input.budget.status}).`,
-    "",
-    "Plan the smallest shippable milestone supported by the accepted step.",
-  ].join("\n");
-}
-
 function resolveAutoPlanSources(
   options: AutoPlanOptions,
   snapshot: PlanningSnapshot,
@@ -1725,29 +1612,6 @@ function resolveAutoPlanSources(
     requests: options.sources ?? [],
     budgetBytes: AUTO_PLAN_SOURCE_BUDGET_BYTES,
   });
-}
-
-function planningSourceTicketEvidence(manifest: PlanningSourceManifest): PlanningSourceTicketEvidence {
-  return {
-    manifestSha256: manifest.manifest_sha256,
-    sources: manifest.sources
-      .filter((source) => source.selection === "selected" && source.consumption === "consumed")
-      .map((source) => ({
-        canonicalRef: source.canonical_ref,
-        sourceSha256: source.source_sha256,
-        sourceBytes: source.source_bytes,
-        includedBytes: source.included_bytes,
-        inclusion: source.inclusion === "truncated" ? ("truncated" as const) : ("full" as const),
-        trust: source.trust,
-      })),
-  };
-}
-
-interface PlanningSnapshot {
-  path: string;
-  sourcePath: string;
-  sourceHead: string;
-  sourceBranch: string;
 }
 
 function validateSourceCheckout(input: string): string {
@@ -1815,4 +1679,25 @@ function jsonValue(value: unknown, name: string): JsonValue {
 
 function isProjectStage(value: unknown): value is ProjectStage {
   return value === "bootstrap" || value === "growth" || value === "mature";
+}
+
+/** Native structured output returns bare JSON; a degraded adapter may wrap it
+ * in prose or a code fence. Extract the first complete top-level object. */
+function parsePlanJson(text: string): TicketPlan | undefined {
+  const start = text.indexOf("{");
+  if (start < 0) return undefined;
+  for (let end = text.length; end > start; end -= 1) {
+    const candidate = text.slice(start, end).trim();
+    if (!candidate.endsWith("}")) continue;
+    try {
+      const parsed = JSON.parse(candidate) as TicketPlan;
+      if (typeof parsed === "object" && parsed !== null && Array.isArray(parsed.tickets)) {
+        return parsed;
+      }
+      return undefined;
+    } catch {
+      // Trailing prose after the JSON; shrink and retry.
+    }
+  }
+  return undefined;
 }

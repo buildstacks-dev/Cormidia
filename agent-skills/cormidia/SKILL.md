@@ -247,12 +247,19 @@ inputs and `--optional-source <file-or-dir>` only when deterministic
 truncation or exclusion is acceptable. Required source failures stop before a
 provider turn; successful tickets publish hashes/refs rather than source bytes.
 
-Each stage caps how many tickets one plan may publish (bootstrap 3, growth 5,
-mature 7). The token-free `plan --dry-run` and `plan --explain-route` previews
-report that cap and whether a requested `--expected-tickets` band can fit it,
-before anything is spent. When a decomposition is refused for that cap alone it
-is preserved verbatim, and the remedy is the human-gated verb — never
-`--stage`, which asserts repository maturity and must stay honest:
+`--expected-tickets` scopes the complete decomposition: exact count (`10`),
+inclusive range (`4-12`), open range (`7+`), or `complete`. It does not raise
+publication admission. The token-free preview reports decomposition intent
+separately from the per-invocation cap (bootstrap 3, growth 5, mature 7), and
+repository evidence can only lower that cap when `--stage` is asserted. The
+complete plan is durable before bounded publication. An identical rerun is
+idempotent; `--resume` publishes the next admissible batch or plans remaining
+coverage, and `--revise` explicitly replaces still-unpublished coverage.
+Source changes supersede affected section versions and expose replacements as
+remaining. Refusals name syntax, cap, preserved decomposition, and next action.
+
+The legacy human-gated verb remains only for older refused-decomposition
+records:
 
 ```bash
 cormidia plan ratify-ticket-budget --app <app> --decomposition <id> \
@@ -260,11 +267,8 @@ cormidia plan ratify-ticket-budget --app <app> --decomposition <id> \
 cormidia plan ratify-ticket-budget --app <app> --decomposition <id> ... --execute --confirm <app>@<id>
 ```
 
-It previews by default, `--to-budget` must equal that decomposition's own
-ticket count, and executing publishes exactly those preserved tickets with no
-provider turn. A ratification applies to one decomposition digest only; it is
-never a standing budget override. Ask the user before executing one — it is
-their decision to record, not yours.
+It previews by default, applies to one legacy decomposition digest only, and is
+never a standing admission override. Ask the user before executing it.
 
 Creator-scope JSON/YAML must match the strict `CreatorEpisodeScope` contract,
 including `planningDisposition: execution_ready`, creator provenance,

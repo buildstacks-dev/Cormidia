@@ -14,7 +14,7 @@ import {
   type JsonValue,
 } from "../loop/episode-plan.js";
 import type { FinalTicketProjection, PlanTicket } from "../loop/plan-tickets.js";
-import { TICKET_BUDGETS, type ProjectStage } from "../loop/plan-tickets.js";
+import type { ProjectStage } from "../loop/plan-tickets.js";
 import { assertPlanningEpisodePlanValid, PLANNING_PROVIDER_OPERATION_CATALOG } from "../loop/planning-episode-plan.js";
 import { loadApps } from "../org/apps.js";
 import { isBudgetBlocking, rollupBudgets } from "../org/budget.js";
@@ -25,15 +25,15 @@ import { resolveParentTaskId } from "../org/parent-task.js";
 import { runAutoPlan } from "../org/plan-auto.js";
 import { cleanupPlanningWorktree, preparePlanSession } from "../org/plan.js";
 import {
-  expectedTicketBandRange,
-  type ExpectedTicketBand,
   type ExternalConsequence,
   type PlanningDepth,
   type PlanningLevel,
   type PlanningReversibility,
   type PlanningWorkLifecycle,
 } from "../org/planning-depth.js";
+import { parsePlanningDecompositionRequest, type PlanningDecompositionRequest } from "../org/planning-decomposition.js";
 import type { PlanningSourceRequest } from "../org/planning-inputs.js";
+import { resolvePlanningPublicationLimit, type PlanningPublicationLimit } from "../org/planning-publication.js";
 import {
   discoverPlanningStageCheckout,
   formatPlanningStage,
@@ -42,7 +42,6 @@ import {
   type PlanningStageResolution,
 } from "../org/planning-stage.js";
 import { loadRoles } from "../org/roles.js";
-import { listRefusedDecompositions, ratifyTicketBudgetCommand } from "../org/ticket-budget-ratification.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { cmdPlanRatifyTicketBudget } from "./plan-ratify.js";
 import { installProcessCancellation } from "./process-signal.js";
@@ -210,6 +209,8 @@ export async function cmdPlan(args: string[]): Promise<number> {
       signal: cancellation.signal,
       ...definedProps({ parentTaskId }),
       planning: planningOptions(parsed),
+      resume: parsed.resume,
+      revise: parsed.revise,
       ...(parsed.sources.length > 0 ? { sources: parsed.sources } : {}),
       ...(creatorScope === undefined ? {} : { creatorScope, requireExecutionReadyCreatorScope: true }),
     }).finally(() => cancellation.dispose());
@@ -230,20 +231,23 @@ export async function cmdPlan(args: string[]): Promise<number> {
       console.log(`why this many tickets: ${result.plan.ticketCountRationale}`);
       console.log(`release disposition: ${result.plan.releaseDisposition}`);
       console.log(`release kind: ${result.plan.releaseKind}`);
-      const projected = result.planProjection?.tickets;
+      const projected = new Map(result.planProjection?.tickets.map((ticket) => [ticket.index, ticket]));
       result.plan.tickets.forEach((ticket, index) => {
-        console.log(formatPlanTicketSummary(index, ticket, projected?.[index]));
+        console.log(formatPlanTicketSummary(index, ticket, projected.get(index)));
       });
     }
     for (const problem of result.problems ?? []) console.log(`problem: ${problem}`);
-    if (result.refusedDecomposition !== undefined) {
-      const refused = result.refusedDecomposition;
+    if (result.coverage !== undefined) {
       console.log(
-        `refused decomposition preserved: ${refused.decompositionId} ` +
-          `(${refused.ticketCount} ticket(s) against the ${refused.stage} budget of ${refused.stageTicketBudget})`,
+        `coverage: revision ${result.coverage.revision}; decomposition ${result.coverage.decompositionId}; ` +
+          `publication cap ${result.coverage.publicationCap}`,
       );
-      console.log(`refused decomposition record: ${refused.path}`);
-      console.log(`ratify exactly this decomposition with:\n  ${refused.ratifyCommand}`);
+      console.log(`coverage states: ${JSON.stringify(result.coverage.states)}`);
+    }
+    if (result.refusal !== undefined) {
+      console.log(`refusal (${result.refusal.code}): ${result.refusal.syntax}`);
+      console.log(`preserved decomposition: ${result.refusal.preservedDecomposition ?? "none"}`);
+      console.log(`next action: ${result.refusal.nextAction}`);
     }
     if (result.planningSources !== undefined) {
       console.log(`planning-source manifest: ${result.planningSources.manifest_sha256}`);
@@ -291,16 +295,12 @@ export async function cmdPlan(args: string[]): Promise<number> {
 
 /** Text rendering of the token-free ticket-budget preview. */
 function formatTicketBudgetPreview(preview: TicketBudgetPreview): string[] {
-  const lines = [`ticket budget: ${preview.budget} (${preview.stage})`];
-  lines.push(`ticket budget fit: ${preview.fit} — ${preview.detail}`);
-  for (const pending of preview.pendingRatifications) {
-    lines.push(
-      `refused decomposition awaiting ratification: ${pending.decompositionId} ` +
-        `(${pending.ticketCount} ticket(s), refused ${pending.refusedAt})`,
-    );
-    lines.push(`  ${pending.ratifyCommand}`);
-  }
-  return lines;
+  return [
+    `decomposition intent: ${preview.decompositionRequest?.syntax ?? "planner-selected exact scope"}`,
+    `publication admission: at most ${preview.publication.cap} ticket(s) this invocation ` +
+      `(requested stage ${preview.publication.requestedStage}; evidence stage ${preview.publication.evidenceStage})`,
+    preview.detail,
+  ];
 }
 
 function formatPlanTicketSummary(index: number, ticket: PlanTicket, projection?: FinalTicketProjection): string {
@@ -328,7 +328,9 @@ interface ParsedPlanArgs {
   coupling?: PlanningLevel;
   reversibility?: PlanningReversibility;
   externalConsequence?: ExternalConsequence;
-  expectedTickets?: ExpectedTicketBand;
+  expectedTickets?: PlanningDecompositionRequest;
+  resume: boolean;
+  revise: boolean;
   sensitiveDomains?: string[];
   workLifecycle?: PlanningWorkLifecycle;
   explainRoute: boolean;
@@ -363,7 +365,9 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
   let coupling: PlanningLevel | undefined;
   let reversibility: PlanningReversibility | undefined;
   let externalConsequence: ExternalConsequence | undefined;
-  let expectedTickets: ExpectedTicketBand | undefined;
+  let expectedTickets: PlanningDecompositionRequest | undefined;
+  let resume = false;
+  let revise = false;
   let sensitiveDomains: string[] | undefined;
   let workLifecycle: PlanningWorkLifecycle | undefined;
   let explainRoute = false;
@@ -383,6 +387,10 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
       auto = true;
     } else if (arg === "--no-publish") {
       noPublish = true;
+    } else if (arg === "--resume") {
+      resume = true;
+    } else if (arg === "--revise") {
+      revise = true;
     } else if (arg === "--creator-scope") {
       const next = args[i + 1];
       if (!next || next.startsWith("--")) {
@@ -442,7 +450,7 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
         "customer-public-production",
       ]);
     } else if (arg === "--expected-tickets") {
-      expectedTickets = enumFlag(args, ++i, "--expected-tickets", ["1-2", "3-6", "7+"]);
+      expectedTickets = parsePlanningDecompositionRequest(args[++i]);
     } else if (arg === "--sensitive-domains") {
       const next = args[i + 1];
       if (!next || next.startsWith("--")) throw new Error("plan: --sensitive-domains requires a comma-separated value");
@@ -483,6 +491,10 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
   if (creatorScopePath !== undefined && topic !== undefined) {
     throw new Error("plan: --topic applies only to the manual context preview, not --creator-scope");
   }
+  if (resume && revise) throw new Error("plan: --resume and --revise are mutually exclusive");
+  if ((resume || revise) && !auto && creatorScopePath === undefined) {
+    throw new Error("plan: --resume/--revise apply only to automated planning");
+  }
 
   return {
     app,
@@ -492,6 +504,8 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
     explainRoute,
     json,
     sources,
+    resume,
+    revise,
     ...definedProps({ goal }),
     ...definedProps({ stage }),
     ...definedProps({ topic }),
@@ -532,21 +546,9 @@ function planningOptions(parsed: ParsedPlanArgs) {
  * from local files and pure constants — no provider is constructed. */
 interface TicketBudgetPreview {
   stage: ProjectStage;
-  /** Maximum tickets one plan may publish at this stage. */
-  budget: number;
-  /** The operator's requested decomposition size, when they declared one. */
-  requestedBand: ExpectedTicketBand | null;
-  /** Whether the requested band can fit the budget at all. */
-  fit: "within" | "at-risk" | "exceeds" | "undeclared";
+  publication: PlanningPublicationLimit;
+  decompositionRequest: PlanningDecompositionRequest | null;
   detail: string;
-  /** Decompositions already refused for this budget and awaiting a human
-   *  decision — the ratification the refusal message names. */
-  pendingRatifications: Array<{
-    decompositionId: string;
-    ticketCount: number;
-    refusedAt: string;
-    ratifyCommand: string;
-  }>;
 }
 
 interface AutoPlanningPreviewResult {
@@ -569,55 +571,19 @@ interface AutoPlanningPreviewResult {
   episode: EpisodePlanningPreview;
 }
 
-/** Pure projection of the stage ticket budget against a requested band. */
+/** Pure projection that keeps corpus decomposition separate from publication admission. */
 function projectTicketBudget(input: {
   stage: ProjectStage;
-  requestedBand: ExpectedTicketBand | undefined;
-  pending: Array<{ decompositionId: string; ticketCount: number; refusedAt: string; ratifyCommand: string }>;
+  request: PlanningDecompositionRequest | undefined;
+  publication: PlanningPublicationLimit;
 }): TicketBudgetPreview {
-  const budget = TICKET_BUDGETS[input.stage];
-  const base = `${input.stage} publishes at most ${budget} ticket(s) per plan`;
-  if (input.requestedBand === undefined) {
-    return {
-      stage: input.stage,
-      budget,
-      requestedBand: null,
-      fit: "undeclared",
-      detail: `${base}; no --expected-tickets band was declared, so fit cannot be checked before planning`,
-      pendingRatifications: input.pending,
-    };
-  }
-  const range = expectedTicketBandRange(input.requestedBand);
-  const remedy =
-    "plan a smaller milestone, or ratify the exact refused decomposition with " +
-    "`cormidia plan ratify-ticket-budget` — do not raise --stage, which falsifies repository maturity";
-  if (range.max !== null && range.max <= budget) {
-    return {
-      stage: input.stage,
-      budget,
-      requestedBand: input.requestedBand,
-      fit: "within",
-      detail: `${base}; the requested ${input.requestedBand} band fits`,
-      pendingRatifications: input.pending,
-    };
-  }
-  if (range.min > budget) {
-    return {
-      stage: input.stage,
-      budget,
-      requestedBand: input.requestedBand,
-      fit: "exceeds",
-      detail: `${base}; the requested ${input.requestedBand} band cannot fit — ${remedy}`,
-      pendingRatifications: input.pending,
-    };
-  }
   return {
     stage: input.stage,
-    budget,
-    requestedBand: input.requestedBand,
-    fit: "at-risk",
-    detail: `${base}; the requested ${input.requestedBand} band may exceed it — ${remedy}`,
-    pendingRatifications: input.pending,
+    publication: input.publication,
+    decompositionRequest: input.request ?? null,
+    detail:
+      "The complete decomposition is stored independently. Publication is bounded per invocation; " +
+      "use --resume for the next admissible batch or --revise for an explicit replacement of remaining coverage.",
   };
 }
 
@@ -647,6 +613,11 @@ async function previewAutoPlanningRequest(input: {
     checkoutSource: stageCheckout.source,
   });
   const stage = stageResolution.stage;
+  const publication = resolvePlanningPublicationLimit({
+    stageResolution,
+    checkout: stageCheckout.checkout,
+    checkoutSource: stageCheckout.source,
+  });
   const roles = (await loadRoles(join(input.orgHome, "roles.yaml"))).roles;
   const planner = roles.find((role) => role.name === "planner");
   if (planner === undefined) throw new Error("plan: roles.yaml has no planner role");
@@ -681,22 +652,8 @@ async function previewAutoPlanningRequest(input: {
   const planningSources = input.parsed.sources.map((source) => ({ ...source }));
   const ticketBudget = projectTicketBudget({
     stage,
-    ...(input.parsed.expectedTickets === undefined
-      ? { requestedBand: undefined }
-      : { requestedBand: input.parsed.expectedTickets }),
-    pending: (await listRefusedDecompositions(input.stateHome, input.app.name))
-      .filter((record) => record.stage === stage)
-      .map((record) => ({
-        decompositionId: record.decomposition_id,
-        ticketCount: record.ticket_count,
-        refusedAt: record.refused_at,
-        ratifyCommand: ratifyTicketBudgetCommand({
-          app: input.app.name,
-          decompositionId: record.decomposition_id,
-          stageBudget: record.stage_ticket_budget,
-          ticketCount: record.ticket_count,
-        }),
-      })),
+    request: input.parsed.expectedTickets,
+    publication,
   });
   const requestIdentity = {
     app: input.app.name,

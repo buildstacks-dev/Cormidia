@@ -1,7 +1,7 @@
 import { OrgIdentityError, OrgLifecycleError } from "../org/home.js";
 import { reportCliInvocationFailure } from "./invocation-audit.js";
 import { definedProps } from "../runtime/optional-properties.js";
-
+import { isTypedCliError } from "./typed-cli-error.js";
 interface JsonCliFailureEnvelope {
   schema_version: 1;
   ok: false;
@@ -16,7 +16,7 @@ interface JsonCliFailureEnvelope {
  * one top-level JSON failure contract. Unknown errors keep their existing
  * diagnostic as the message but never escape as bare text in JSON mode. */
 export function jsonCliFailure(error: unknown, command: string): JsonCliFailureEnvelope {
-  if (error instanceof OrgLifecycleError || error instanceof OrgIdentityError) {
+  if (error instanceof OrgLifecycleError || error instanceof OrgIdentityError || isTypedCliError(error)) {
     return {
       schema_version: 1,
       ok: false,

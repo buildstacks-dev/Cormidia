@@ -476,6 +476,8 @@ Live forms can spend tokens and touch GitHub:
 
 ```bash
 cormidia plan <app> --auto --goal "<bounded goal>"
+cormidia plan <app> --auto --goal "<corpus goal>" --source docs/specs --expected-tickets complete
+cormidia plan <app> --auto --goal "<corpus goal>" --source docs/specs --expected-tickets complete --resume
 cormidia plan <app> --creator-scope ./scope.yaml --execution-ready --no-publish
 cormidia loop --app <app> --once
 cormidia dispatch
@@ -489,6 +491,22 @@ file. JSON and YAML are transport formats for the existing strict
 supplies `--goal` when it is omitted. A mismatched disposition, incomplete
 scope, unknown operation/role, or unapproved adaptive assignment fails before
 provider construction instead of silently falling back to EpisodePlanner.
+
+`--expected-tickets` scopes the durable decomposition and accepts an exact
+count (`10`), inclusive range (`4-12`), open range (`7+`), or `complete`.
+It does not raise publication admission: each invocation remains bounded to
+bootstrap 3, growth 5, or mature 7 tickets, further constrained by repository
+evidence even when `--stage` is asserted. Cormidia stores the full decomposition
+before publishing a batch. An identical rerun reuses it; `--resume` publishes
+the next admissible batch or plans only remaining source sections, while
+`--revise` explicitly replaces still-unpublished coverage. Source content
+changes supersede affected section versions and leave their replacements
+remaining rather than silently treating old coverage as current. Remaining-only
+and revision turns receive a bounded metadata ledger of preserved ticket
+indexes, lifecycle states, issue numbers, dependency indexes, and source
+coverage IDs, never source bytes. Dependency indexes in a new delta are local
+to that delta; preserved indexes are context only, because cross-episode
+dependency edges are not supported.
 
 ```yaml
 planningDisposition: execution_ready
@@ -772,6 +790,9 @@ planning/apps/<hash>/      # immutable backlog snapshots/RoadmapPlan revisions,
                            # contract lifecycle/current-unit pointers, readiness,
                            # batches, per-unit EpisodePlan binding, Builder evidence,
                            # independent Reviewer verdict
+                           # plus per-scope corpus coverage current/revision chain:
+                           # planned/published/in_progress/delivered/deferred/
+                           # superseded/remaining and bounded publication batches
 planning/publications/<hash>/ # durable scheduled-Planner publication transactions;
                            # exact branch/commit/effects/evidence and recovery command
 planning/delivery-unit-claims/ # atomic all-member delivery-unit claim records

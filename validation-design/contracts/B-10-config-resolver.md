@@ -31,6 +31,11 @@ Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; head
   identity** before use; a pairing mismatch (state home from another org; pointer to
   moved/deleted org; symlinked org home) is a typed stop — "correct config from the
   wrong org" is an identity failure, not a parse failure `[elicited]` (INV-004).
+- `context`, `org show`, and `doctor` classify the selection lifecycle identically:
+  no selectable org → `no_active_org`; selected nonexistent path (named exactly) →
+  `active_org_missing`; existing home missing required configuration →
+  `org_home_incomplete`. JSON preserves the specific code. Resolution never mutates
+  the pointer or guesses another org as recovery.
 - Every dispatched command with an explicit or safely resolved state home writes its
   invocation audit row with the resolved org/app `[doc]`.
 - `cormidia apps --json` explains the full effective app policy. Paid run envelopes

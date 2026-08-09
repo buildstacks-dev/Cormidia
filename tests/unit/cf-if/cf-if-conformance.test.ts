@@ -4,9 +4,9 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { cmdApp, parseAppVerifyArgs } from "../../../src/cli/app.js";
 import { cmdCapabilities } from "../../../src/cli/context-info.js";
-import { runJsonCliCommand } from "../../../src/cli/json-failure.js";
+import { jsonCliFailure, runJsonCliCommand } from "../../../src/cli/json-failure.js";
 import { parseReportArgs } from "../../../src/cli/report.js";
-import { NoActiveOrgError } from "../../../src/org/home.js";
+import { OrgLifecycleError } from "../../../src/org/home.js";
 import { canonicalValue, stableJson } from "../../../src/org/lifecycle.js";
 
 async function captured<T>(run: () => Promise<T>): Promise<{ value: T; out: string[]; err: string[] }> {
@@ -32,7 +32,7 @@ describe("CF-IF-CLI / CF-IF-JSON — parsing, failures, confirmation, and canoni
       runJsonCliCommand("status", async () => {
         console.log("partial prose that must be discarded");
         console.error("partial stderr that must be discarded");
-        throw new NoActiveOrgError();
+        throw new OrgLifecycleError({ code: "no_active_org" });
       }),
     );
     expect(result.value).toBe(1);
@@ -48,6 +48,21 @@ describe("CF-IF-CLI / CF-IF-JSON — parsing, failures, confirmation, and canoni
       },
     });
     expect(result.out[0]).not.toContain("partial prose");
+  });
+
+  it("JSON mode preserves every typed org lifecycle code", () => {
+    const failures = [
+      new OrgLifecycleError({ code: "no_active_org" }),
+      new OrgLifecycleError({ code: "active_org_missing", orgHome: "/missing/org" }),
+      new OrgLifecycleError({ code: "org_home_incomplete", orgHome: "/incomplete/org", missing: "TASTE.md" }),
+    ].map((error) => jsonCliFailure(error, "context").error);
+    expect(failures.map((failure) => failure.code)).toEqual([
+      "no_active_org",
+      "active_org_missing",
+      "org_home_incomplete",
+    ]);
+    expect(failures[1]).toMatchObject({ message: expect.stringContaining("/missing/org") });
+    expect(failures.every((failure) => failure.code !== "command_failed")).toBe(true);
   });
 
   it("subcommand parsers reject unknown/missing values and destructive execution requires exact confirmation before home resolution", async () => {

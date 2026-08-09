@@ -20,7 +20,12 @@ const execFileAsync = promisify(execFile);
 
 export type CampaignBinary = "cormidia" | "cormidia-job";
 
-export type CliDriverCode = "binary-unresolved" | "binary-inside-checkout" | "source-backed-invocation";
+export type CliDriverCode =
+  | "active-pointer-mutation"
+  | "binary-unresolved"
+  | "binary-inside-checkout"
+  | "org-selection-not-isolated"
+  | "source-backed-invocation";
 
 export class CliDriverError extends Error {
   constructor(
@@ -54,6 +59,8 @@ export interface CliDriverOptions {
   checkoutRoot: string;
   /** Extra env for every spawn (state home, org home, credentials). */
   env?: Record<string, string | undefined>;
+  /** Pin campaign org selection without consulting the operator's pointer. */
+  activeOrg?: { orgHome: string; stateHome: string };
   clock?: () => Date;
   /** Per-invocation timeout. A hung campaign turn is a stopped campaign, not a
    *  forever one — `incomplete` is an honest outcome and a hang is not. */
@@ -103,6 +110,14 @@ export class CliDriver {
     argv: readonly string[],
     context: { scenarioId?: string; cwd?: string } = {},
   ): Promise<RecordedInvocation> {
+    const orgVerb = binary === "cormidia" && argv[0] === "org" ? argv[1] : undefined;
+    const mutatesPointer =
+      orgVerb === "use" ||
+      (orgVerb === "init" && !argv.includes("--dry-run")) ||
+      (orgVerb === "archive" && argv.includes("--execute"));
+    if (this.options.activeOrg !== undefined && mutatesPointer) {
+      throw new CliDriverError("active-pointer-mutation", `cormidia ${argv.join(" ")} could mutate the active pointer`);
+    }
     const request: InvocationRequest = {
       id: `${this.invocations.length + 1}:${this.clock().toISOString()}`,
       binary,
@@ -129,7 +144,16 @@ export class CliDriver {
         maxBuffer: 32 * 1024 * 1024,
         ...(context.cwd === undefined ? {} : { cwd: context.cwd }),
         ...(this.options.timeoutMs === undefined ? {} : { timeout: this.options.timeoutMs }),
-        env: { ...process.env, ...this.options.env } as NodeJS.ProcessEnv,
+        env: {
+          ...process.env,
+          ...this.options.env,
+          ...(this.options.activeOrg === undefined
+            ? {}
+            : {
+                CORMIDIA_ORG_HOME: this.options.activeOrg.orgHome,
+                CORMIDIA_STATE_HOME: this.options.activeOrg.stateHome,
+              }),
+        } as NodeJS.ProcessEnv,
       });
       stdout = result.stdout;
       stderr = result.stderr;
@@ -177,6 +201,12 @@ export class CliDriver {
  * rather than at the first turn.
  */
 export async function createCliDriver(options: CliDriverOptions): Promise<CliDriver> {
+  if (
+    options.activeOrg !== undefined &&
+    (!isAbsolute(options.activeOrg.orgHome) || !isAbsolute(options.activeOrg.stateHome))
+  ) {
+    throw new CliDriverError("org-selection-not-isolated", "campaign org and state homes must be absolute paths");
+  }
   const checkoutRoot = await realpath(options.checkoutRoot);
   for (const [binary, path] of [
     ["cormidia", options.cormidiaPath],

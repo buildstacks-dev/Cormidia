@@ -1,22 +1,22 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { authorityEvidence, resolveAuthority } from "../org/authority.js";
-import { ORG_HOME_DEFINITION, PACKAGE_ROOT, resolveCormidiaHomes, STATE_HOME_DEFINITION } from "../org/home.js";
+import * as home from "../org/home.js";
 import { extractHomeFlags } from "./home-flags.js";
 
-export async function cmdContext(args: string[]): Promise<number> {
+export async function cmdContext(args: string[], options: home.CormidiaHomeOptions = {}): Promise<number> {
   const common = extractHomeFlags(args, "context");
   const json = consumeJsonOnly(common.rest, "context");
-  const homes = await resolveCormidiaHomes(common);
+  const homes = await home.resolveCormidiaHomes({ ...options, ...common });
   const authority = await resolveAuthority({ orgHome: homes.orgHome });
   const data = {
     version: await packageVersion(),
     packageRoot: homes.packageRoot,
     org: homes.appsFile.org.name,
     orgHome: homes.orgHome,
-    orgHomeMeaning: ORG_HOME_DEFINITION,
+    orgHomeMeaning: home.ORG_HOME_DEFINITION,
     stateHome: homes.stateHome,
-    stateHomeMeaning: STATE_HOME_DEFINITION,
+    stateHomeMeaning: home.STATE_HOME_DEFINITION,
     pointerPath: homes.pointerPath,
     appsPath: join(homes.orgHome, "apps.yaml"),
     rolesPath: join(homes.orgHome, "roles.yaml"),
@@ -29,8 +29,8 @@ export async function cmdContext(args: string[]): Promise<number> {
   else {
     console.log(`Cormidia ${data.version}`);
     console.log(`Package:    ${data.packageRoot}`);
-    console.log(`Org home:   ${data.orgHome} — ${ORG_HOME_DEFINITION}.`);
-    console.log(`State home: ${data.stateHome} — ${STATE_HOME_DEFINITION}.`);
+    console.log(`Org home:   ${data.orgHome} — ${home.ORG_HOME_DEFINITION}.`);
+    console.log(`State home: ${data.stateHome} — ${home.STATE_HOME_DEFINITION}.`);
     console.log(`Authority:  ${data.authority.version} (sha256:${data.authority.sha256})`);
     console.log(`Apps:       ${data.apps.length}`);
   }
@@ -277,7 +277,7 @@ export async function cmdCapabilities(args: string[]): Promise<number> {
 }
 
 export async function packageVersion(): Promise<string> {
-  const raw = JSON.parse(await readFile(join(PACKAGE_ROOT, "package.json"), "utf8")) as { version?: unknown };
+  const raw = JSON.parse(await readFile(join(home.PACKAGE_ROOT, "package.json"), "utf8")) as { version?: unknown };
   return typeof raw.version === "string" ? raw.version : "unknown";
 }
 

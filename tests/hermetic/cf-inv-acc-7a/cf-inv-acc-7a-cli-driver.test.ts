@@ -99,6 +99,37 @@ describe("CF-INV-ACC-7b the driver refuses anything but the packaged binaries", 
 });
 
 describe("CF-INV-ACC-7a every invocation is recorded", () => {
+  it("pins campaign org selection and refuses commands that could mutate the operator pointer", async () => {
+    const double = await makeCormidiaBinaryDouble([{ whenArgvIncludes: "context", stdout: "{}\n" }]);
+    cleanups.push(double.cleanup);
+    const checkout = await checkoutRoot();
+    await expect(
+      createCliDriver({
+        cormidiaPath: double.cormidiaPath,
+        cormidiaJobPath: double.cormidiaJobPath,
+        checkoutRoot: checkout,
+        activeOrg: { orgHome: "relative/org", stateHome: "/campaign/state" },
+      }),
+    ).rejects.toMatchObject({ code: "org-selection-not-isolated" });
+    const driver = await createCliDriver({
+      cormidiaPath: double.cormidiaPath,
+      cormidiaJobPath: double.cormidiaJobPath,
+      checkoutRoot: checkout,
+      env: { CORMIDIA_ORG_HOME: "/ambient/org", CORMIDIA_STATE_HOME: "/ambient/state" },
+      activeOrg: { orgHome: "/campaign/org", stateHome: "/campaign/state" },
+    });
+
+    await driver.run("cormidia", ["context", "--json"]);
+    expect((await double.invocations())[0]).toMatchObject({
+      orgHome: "/campaign/org",
+      stateHome: "/campaign/state",
+    });
+    await expect(driver.run("cormidia", ["org", "use", "/another/org"])).rejects.toMatchObject({
+      code: "active-pointer-mutation",
+    });
+    expect(driver.recorded()).toHaveLength(1);
+  });
+
   it("records argv, exit status and output for each call, in order", async () => {
     const double = await makeCormidiaBinaryDouble([
       { whenArgvIncludes: "plan", stdout: '{"tickets":3}\n' },

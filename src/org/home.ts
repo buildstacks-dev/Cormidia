@@ -618,36 +618,38 @@ function relocateLegacyPath(value: string | undefined, legacyRoot: string, curre
   return join(currentRoot, rel);
 }
 
-/**
- * Stable machine-readable identity for the expected first-run state where no
- * org has been selected yet. The full Error message remains the human CLI
- * diagnostic; JSON-aware callers use these fields without matching prose.
- */
-export class NoActiveOrgError extends Error {
-  readonly code = "no_active_org" as const;
-  readonly publicMessage = "no active org home";
-  readonly remediation =
-    "Run `cormidia org init <path> --name <name>` or set CORMIDIA_ORG_HOME to a complete org home.";
+type OrgLifecycleState =
+  | { code: "no_active_org" }
+  | { code: "active_org_missing"; orgHome: string }
+  | { code: "org_home_incomplete"; orgHome: string; missing: string };
+export class OrgLifecycleError extends Error {
+  readonly code: OrgLifecycleState["code"];
+  readonly publicMessage: string;
+  readonly remediation: string;
 
-  constructor() {
-    super(
-      "cormidia: no active org home — create one with `cormidia org init <path> --name <name>` " +
-        "or select one with CORMIDIA_ORG_HOME",
-    );
-    this.name = "NoActiveOrgError";
+  constructor(state: OrgLifecycleState) {
+    const init = "`cormidia org init <path> --name <name>`";
+    if (state.code === "no_active_org") {
+      super(`cormidia: no active org home — create one with ${init}`);
+      this.publicMessage = "no active org home";
+      this.remediation = `Run ${init} to create and select an org home.`;
+    } else if (state.code === "active_org_missing") {
+      super(`cormidia: active org home does not exist: ${state.orgHome}`);
+      this.publicMessage = `active org home does not exist: ${state.orgHome}`;
+      this.remediation = `Run \`cormidia org use <path>\` to select an existing org home, or ${init} to create one.`;
+    } else {
+      super(`cormidia: ${state.orgHome} is not a complete org home — missing ${state.missing}`);
+      this.publicMessage = `org home is incomplete: ${state.orgHome} (missing ${state.missing})`;
+      this.remediation = `Restore ${state.missing} in ${state.orgHome}, select a complete home with \`cormidia org use <path>\`, or create one with ${init}.`;
+    }
+    this.code = state.code;
+    this.name = "OrgLifecycleError";
   }
 }
 
-/** Typed identity stops shared with the org-home selection in apps.ts
- * (symlinked org home) and thrown here for state-home pairing failures. */
 export { OrgIdentityError, type OrgIdentityStopCode } from "./apps.js";
 
-/**
- * Identity marker `cormidia org init` records inside the state home so every
- * later resolve can validate the (org home, state home, org id) pairing
- * (contracts/B-10-config-resolver.md §2). See ensureStateHomeIdentity for
- * the validation and legacy-adoption rules.
- */
+/** Org/state identity marker recorded by init and validated per B-10 §2. */
 const STATE_HOME_IDENTITY_FILE = "org-identity.json";
 
 interface StateHomeIdentity {
@@ -782,8 +784,9 @@ export async function resolveCormidiaHomes(options: CormidiaHomeOptions = {}): P
     homeDir,
     pointerPath,
   });
-  if (orgHome === undefined) {
-    throw new NoActiveOrgError();
+  if (orgHome === undefined) throw new OrgLifecycleError({ code: "no_active_org" });
+  if ((await lstatMaybe(orgHome)) === undefined) {
+    throw new OrgLifecycleError({ code: "active_org_missing", orgHome: resolve(orgHome) });
   }
   await validateOrgHome(orgHome);
   const appsFile = await loadApps(join(orgHome, "apps.yaml"));
@@ -805,14 +808,11 @@ export async function validateOrgHome(orgHomeIn: string): Promise<void> {
   const orgHome = resolve(orgHomeIn);
   for (const rel of ORG_REQUIRED_FILES) {
     if (!existsSync(join(orgHome, rel))) {
-      throw new Error(
-        `cormidia: ${orgHome} is not a complete org home — missing ${rel}; ` +
-          "create a new one with `cormidia org init <path> --name <name>`",
-      );
+      throw new OrgLifecycleError({ code: "org_home_incomplete", orgHome, missing: rel });
     }
   }
   if (!existsSync(join(orgHome, "prompts"))) {
-    throw new Error(`cormidia: ${orgHome} is not a complete org home — missing prompts/`);
+    throw new OrgLifecycleError({ code: "org_home_incomplete", orgHome, missing: "prompts/" });
   }
   const roles = await loadRoles(join(orgHome, "roles.yaml"));
   const apps = await loadApps(join(orgHome, "apps.yaml"));

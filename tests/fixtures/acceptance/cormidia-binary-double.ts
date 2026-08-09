@@ -33,7 +33,7 @@ export interface CormidiaBinaryDouble {
   /** Root the doubles live in — outside any checkout. */
   root: string;
   /** Every argv the doubles were actually spawned with, in order. */
-  invocations(): Promise<Array<{ binary: string; argv: string[] }>>;
+  invocations(): Promise<Array<{ binary: string; argv: string[]; orgHome?: string; stateHome?: string }>>;
   cleanup(): Promise<void>;
 }
 
@@ -42,7 +42,7 @@ function script(binary: string, responses: readonly ScriptedCliResponse[], logPa
     "#!/usr/bin/env node",
     `const fs = require("node:fs");`,
     `const argv = process.argv.slice(2);`,
-    `fs.appendFileSync(${JSON.stringify(logPath)}, JSON.stringify({ binary: ${JSON.stringify(binary)}, argv }) + "\\n");`,
+    `fs.appendFileSync(${JSON.stringify(logPath)}, JSON.stringify({ binary: ${JSON.stringify(binary)}, argv, orgHome: process.env.CORMIDIA_ORG_HOME, stateHome: process.env.CORMIDIA_STATE_HOME }) + "\\n");`,
     `const responses = ${JSON.stringify(responses)};`,
     `const hit = responses.find((r) => argv.includes(r.whenArgvIncludes));`,
     `if (hit === undefined) {`,
@@ -78,7 +78,7 @@ export async function makeCormidiaBinaryDouble(
       return text
         .split("\n")
         .filter((line) => line.trim().length > 0)
-        .map((line) => JSON.parse(line) as { binary: string; argv: string[] });
+        .map((line) => JSON.parse(line) as { binary: string; argv: string[]; orgHome?: string; stateHome?: string });
     },
     cleanup: async () => {
       await rm(root, { recursive: true, force: true });

@@ -19,6 +19,7 @@ import {
   writeActiveOrgPointer,
   type InitOrgHomePlanPreview,
   type InitOrgHomeResult,
+  type CormidiaHomeOptions,
 } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
 import {
@@ -39,9 +40,7 @@ import {
 } from "./invocation-audit.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
-interface OrgCommandOptions {
-  homeDir?: string;
-  pointerPath?: string;
+interface OrgCommandOptions extends Pick<CormidiaHomeOptions, "env" | "homeDir" | "pointerPath"> {
   templateRoot?: string;
 }
 
@@ -389,6 +388,7 @@ async function show(args: string[], options: OrgCommandOptions): Promise<number>
     else throw new Error(`org show: unknown argument "${arg}"`);
   }
   const homes = await resolveCormidiaHomes({
+    ...definedProps({ env: options.env }),
     ...definedProps({ homeDir: options.homeDir }),
     ...definedProps({ pointerPath: options.pointerPath }),
   });

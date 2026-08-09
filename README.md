@@ -265,6 +265,15 @@ prints one document to stdout with `schema_version`, `ok: false`, and a stable
 `error.code`, `error.message`, and `error.remediation`; it does not prepend a
 plaintext stderr diagnostic. For example, discovery before an org is selected
 reports `error.code: "no_active_org"`, so callers never need to match prose.
+`context`, `org show`, and `doctor` share the same lifecycle classification:
+
+| Condition | Stable code | Recovery |
+| --- | --- | --- |
+| No pointer or explicit selectable org | `no_active_org` | Run `cormidia org init <path> --name <name>`. |
+| Selected path does not exist | `active_org_missing` | The error names the exact path; select an existing home with `cormidia org use <path>` or initialize one. |
+| Selected path exists but required configuration is missing | `org_home_incomplete` | Restore the named entry, select a complete home, or initialize one. |
+
+These reads never repair, rewrite, or guess the active pointer.
 
 By default `doctor` runs bounded, non-billable readiness probes only for the
 runtimes and models referenced by the active `roles.yaml`: Claude performs an

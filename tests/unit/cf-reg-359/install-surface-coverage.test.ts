@@ -72,7 +72,12 @@ describe("CF-REG-359 — declared install surface is fully installable", () => {
     // scripts/link-skills.mjs is the ONLY skill-install path available to a
     // user who ran `npm install -g cormidia`; shipping it without the lib it
     // imports would make an npm install's skill setup fail at require time.
-    for (const relative of ["scripts/link-skills.mjs", "scripts/lib/link-artifacts.mjs"]) {
+    for (const relative of [
+      "scripts/link-skills.mjs",
+      "scripts/lib/install-ownership.mjs",
+      "scripts/lib/install-transaction.mjs",
+      "scripts/lib/link-artifacts.mjs",
+    ]) {
       expect(existsSync(join(repoRoot, relative))).toBe(true);
       expect(packagedBy(pkg.files, relative)).toBe(true);
     }

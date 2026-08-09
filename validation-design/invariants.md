@@ -548,15 +548,15 @@ binaries. Neither resolves through `PATH` into this checkout, no campaign turn r
 `pnpm dev`, `tsx src/…`, or a `link:local` symlink, and every packaged skill link
 resolves into the installed package root. `pnpm link:local` produces a *source-backed*
 install — symlinks into `src/`, run through tsx
-([`scripts/install-packaged.mjs:6`](../scripts/install-packaged.mjs:6)) — which executes
+([`scripts/install-packaged.mjs`](../scripts/install-packaged.mjs)) — which executes
 TypeScript `npm install -g cormidia` never ships; a campaign run against it measures the
 working tree, not the product.
 **Enforcement.** Both — and **the guardrail already exists; do not rebuild it.**
-`pnpm install:packaged --replace-source-links` performs build → `npm pack` → global
-tarball install → skill links from the installed root, then refuses if any binary still
-resolves inside the checkout
-([`install-packaged.mjs:208`](../scripts/install-packaged.mjs:208)) or any skill target
-is not `current` ([`:215`](../scripts/install-packaged.mjs:215)). **The campaign's B-27
+`pnpm install:packaged --replace-source-links` performs build → `npm pack` → real npm
+global install in a disposable prefix → ownership-checked transaction of the package,
+declared bins, and skills. It verifies the staged and promoted binaries and refuses
+source/foreign or mixed-generation evidence
+([`install-packaged.mjs`](../scripts/install-packaged.mjs)). **The campaign's B-27
 preflight asserts that script's exit status** and records the installed version and
 tarball identity in the report; it does not reimplement the check.
 **Falsifying test shape.** A campaign that proceeds while the preflight exited non-zero,

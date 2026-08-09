@@ -44,8 +44,9 @@ describe("CF-REG-360 — real packaged-install proof", () => {
 
   it("pins the real script to print that proof after verification", async () => {
     const source = await readFile(join(repoRoot, "scripts", "install-packaged.mjs"), "utf8");
-    expect(source).toContain("installedTarball = await tarballIdentity(tarball)");
+    expect(source).toContain("const identity = await tarballIdentity(tarball)");
+    expect(source).toContain("await transactionalReplace(");
     expect(source).toContain("packagedInstallProof({");
-    expect(source.indexOf("packagedInstallProof({")).toBeGreaterThan(source.indexOf("Verify independence"));
+    expect(source.indexOf("packagedInstallProof({")).toBeGreaterThan(source.indexOf("await transactionalReplace("));
   });
 });

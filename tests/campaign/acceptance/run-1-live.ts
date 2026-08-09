@@ -85,7 +85,7 @@ async function main(argv: string[]): Promise<void> {
     cormidiaPath: args.cormidia,
     cormidiaJobPath: args.cormidiaJob,
     checkoutRoot: args.repoRoot,
-    env: { CORMIDIA_ORG_HOME: args.orgHome, CORMIDIA_STATE_HOME: args.stateHome },
+    activeOrg: { orgHome: args.orgHome, stateHome: args.stateHome },
     timeoutMs: 90 * 60 * 1000,
     admission: spendGuard,
   });

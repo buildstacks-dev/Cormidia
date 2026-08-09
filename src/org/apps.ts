@@ -532,7 +532,7 @@ export type OrgIdentityStopCode = "symlinked_org_home" | "state_home_org_mismatc
  * different org, or an unreadable pairing record. "Correct config from the
  * wrong org" is an identity failure: resolution stops with remediation
  * instead of proceeding (INV-004; fail-closed per INV-015). Mirrors
- * NoActiveOrgError's shape (src/org/home.ts) so JSON-aware callers branch on
+ * OrgLifecycleError's shape (src/org/home.ts) so JSON-aware callers branch on
  * `code` without matching prose.
  */
 export class OrgIdentityError extends Error {

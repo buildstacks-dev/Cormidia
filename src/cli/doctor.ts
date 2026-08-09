@@ -8,12 +8,7 @@ import { loadPipelines } from "../loop/pipelines.js";
 import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
 import { loadApps } from "../org/apps.js";
 import { resolveAuthority } from "../org/authority.js";
-import {
-  ORG_HOME_DEFINITION,
-  resolveCormidiaHomes,
-  STATE_HOME_DEFINITION,
-  type CormidiaHomeOptions,
-} from "../org/home.js";
+import * as home from "../org/home.js";
 import { describeManagedClone, inspectManagedClones, type ManagedCloneHealth } from "../org/managed-clone-health.js";
 import { listOrgs } from "../org/org-archive.js";
 import { loadRoles } from "../org/roles.js";
@@ -31,7 +26,7 @@ import type { RuntimeKind } from "../runtime/types.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
-interface DoctorOptions extends CormidiaHomeOptions {
+interface DoctorOptions extends home.CormidiaHomeOptions {
   launchAgentsDir?: string;
   json?: boolean;
   /** Validate files without starting non-billable adapter probes. Intended
@@ -51,7 +46,7 @@ interface CheckRow {
   detail: string;
 }
 
-export async function cmdDoctorArgs(args: string[]): Promise<number> {
+export async function cmdDoctorArgs(args: string[], options: home.CormidiaHomeOptions = {}): Promise<number> {
   const common = extractHomeFlags(args, "doctor");
   let json = false;
   let configOnly = false;
@@ -60,19 +55,19 @@ export async function cmdDoctorArgs(args: string[]): Promise<number> {
     else if (arg === "--config-only") configOnly = true;
     else throw new Error(`doctor: unknown argument "${arg}"`);
   }
-  return cmdDoctor({ ...common, json, configOnly });
+  return cmdDoctor({ ...options, ...common, json, configOnly });
 }
 
 async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   const config: CheckRow[] = [];
-  let homes: Awaited<ReturnType<typeof resolveCormidiaHomes>> | undefined;
+  let homes: Awaited<ReturnType<typeof home.resolveCormidiaHomes>> | undefined;
   let roles: Awaited<ReturnType<typeof loadRoles>> | undefined;
   // Declared billing per harness connection (#333). An unreadable registry
   // leaves it undefined, and undefined verifies nothing — doctor never invents
   // a declaration it could not read.
   let harnessAuth: HarnessAuthConfig | undefined;
   try {
-    homes = await resolveCormidiaHomes(options);
+    homes = await home.resolveCormidiaHomes(options);
     const rolesPath = join(homes.orgHome, "roles.yaml");
     const appsPath = join(homes.orgHome, "apps.yaml");
     const pipelinesPath = join(homes.orgHome, "pipelines.yaml");
@@ -97,6 +92,7 @@ async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
       );
     }
   } catch (error) {
+    if (error instanceof home.OrgLifecycleError || error instanceof home.OrgIdentityError) throw error;
     config.push({ name: "active org", status: "FAIL", detail: errorMessage(error) });
   }
 
@@ -195,9 +191,9 @@ async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
             ? {
                 packageRoot: homes.packageRoot,
                 orgHome: homes.orgHome,
-                orgHomeMeaning: ORG_HOME_DEFINITION,
+                orgHomeMeaning: home.ORG_HOME_DEFINITION,
                 stateHome: homes.stateHome,
-                stateHomeMeaning: STATE_HOME_DEFINITION,
+                stateHomeMeaning: home.STATE_HOME_DEFINITION,
                 pointerPath: homes.pointerPath,
               }
             : null,
@@ -221,8 +217,8 @@ async function cmdDoctor(options: DoctorOptions = {}): Promise<number> {
   printRows("runtime adapters", adapters);
   if (homes) {
     console.log("homes:");
-    console.log(`  org     ${homes.orgHome} — ${ORG_HOME_DEFINITION}`);
-    console.log(`  state   ${homes.stateHome} — ${STATE_HOME_DEFINITION}`);
+    console.log(`  org     ${homes.orgHome} — ${home.ORG_HOME_DEFINITION}`);
+    console.log(`  state   ${homes.stateHome} — ${home.STATE_HOME_DEFINITION}`);
     console.log(`  package ${homes.packageRoot}`);
   }
   printRows("config", config);

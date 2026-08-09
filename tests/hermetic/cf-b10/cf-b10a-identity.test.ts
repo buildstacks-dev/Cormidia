@@ -23,7 +23,7 @@ import { mkdtemp, rename, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { NoActiveOrgError, resolveCormidiaHomes, writeActiveOrgPointer } from "../../../src/org/home.js";
+import { OrgLifecycleError, resolveCormidiaHomes, writeActiveOrgPointer } from "../../../src/org/home.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 
@@ -84,7 +84,7 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
         homeDir: emptyHome,
         pointerPath: join(emptyHome, ".cormidia", "config"),
       });
-      await expect(attempt).rejects.toThrow(NoActiveOrgError);
+      await expect(attempt).rejects.toThrow(OrgLifecycleError);
       await expect(attempt).rejects.toMatchObject({ code: "no_active_org" });
     } finally {
       process.chdir(previousCwd);
@@ -104,13 +104,16 @@ describe("CF-B10-* B-10a (L2) identity resolution — coherent triple or stop", 
         homeDir: a.homeDir,
         pointerPath: a.pointerPath,
       }),
-    ).rejects.toThrow(/not a complete org home/);
+    ).rejects.toMatchObject({ code: "active_org_missing", publicMessage: expect.stringContaining(a.orgHome) });
   });
 
   it("a pointer to a deleted org stops with the identity named, not a fallback", async () => {
     const a = await orgHomeFixture("org-a");
     await rm(a.orgHome, { recursive: true, force: true });
-    await expect(resolveCormidiaHomes(a.resolveOptions)).rejects.toThrow(/not a complete org home/);
+    await expect(resolveCormidiaHomes(a.resolveOptions)).rejects.toMatchObject({
+      code: "active_org_missing",
+      publicMessage: expect.stringContaining(a.orgHome),
+    });
   });
 
   it("override disagreement: resolving org B never adopts org A's pointer-recorded state home", async () => {

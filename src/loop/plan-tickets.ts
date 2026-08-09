@@ -9,9 +9,15 @@
 // decomposition for its own sake (P1/P2).
 
 import { createHash } from "node:crypto";
-import { SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import type { GhOps } from "./github.js";
+import {
+  assertPublishableContentCarriesNoSecret,
+  type PlanningSourceTicketEvidence,
+} from "./plan-publication-guard.js";
 import { RELEASE_KINDS, type ReleaseConfig, type ReleaseKind } from "./types.js";
+
+export { TicketPublicationSecretError } from "./plan-publication-guard.js";
+export type { PlanningSourceTicketEvidence } from "./plan-publication-guard.js";
 
 // ---------------------------------------------------------------------------
 // The label contract — the ONE list the Planner prompt, publication, setup
@@ -260,6 +266,8 @@ export interface PlanTicket {
   acceptanceCriteria: string[];
   outOfScope: string;
   notesForBuilder: string;
+  /** Content-versioned section ids from the durable planning-source catalog. */
+  sourceSections?: string[];
 }
 
 export interface TicketPlan {
@@ -280,22 +288,9 @@ export interface TicketPlan {
    *  mechanisms ignore it. Optional: the ship gate (P7) enforces its presence
    *  only where the app's mechanism actually needs it. */
   releaseVersion?: string;
+  /** Sections intentionally left out of this decomposition, with an honest reason. */
+  deferredSourceSections?: Array<{ sectionId: string; reason: string }>;
   tickets: PlanTicket[];
-}
-
-/** Orchestrator-owned provenance appended to every emitted ticket. Source
- * content never enters GitHub; only the content-bound ref/hash and exact
- * inclusion disposition cross the publication boundary. */
-export interface PlanningSourceTicketEvidence {
-  manifestSha256: string;
-  sources: Array<{
-    canonicalRef: string;
-    sourceSha256: string;
-    sourceBytes: number;
-    includedBytes: number;
-    inclusion: "full" | "truncated";
-    trust: string;
-  }>;
 }
 
 /** Stage-based ticket budgets (P1/P2): the smallest independently shippable
@@ -416,6 +411,15 @@ export const PLAN_SCHEMA: Record<string, unknown> = {
     releaseDisposition: { type: "string" },
     releaseKind: { type: "string", enum: [...RELEASE_KINDS] },
     releaseVersion: { type: "string", pattern: "^v?\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$" },
+    deferredSourceSections: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["sectionId", "reason"],
+        additionalProperties: false,
+        properties: { sectionId: { type: "string" }, reason: { type: "string" } },
+      },
+    },
     tickets: {
       type: "array",
       minItems: 1,
@@ -447,6 +451,7 @@ export const PLAN_SCHEMA: Record<string, unknown> = {
           acceptanceCriteria: { type: "array", minItems: 1, items: { type: "string" } },
           outOfScope: { type: "string" },
           notesForBuilder: { type: "string" },
+          sourceSections: { type: "array", items: { type: "string" }, uniqueItems: true },
         },
       },
     },
@@ -466,9 +471,13 @@ interface PlanValidation {
  *  ratification of THIS decomposition when one is supplied. A supplied-but-
  *  inapplicable ratification is itself a problem: it must never silently
  *  degrade into "no ratification". */
-export function validatePlan(plan: TicketPlan, ratification?: TicketBudgetRatification): PlanValidation {
+export function validatePlan(
+  plan: TicketPlan,
+  ratification?: TicketBudgetRatification,
+  enforceTicketBudget = true,
+): PlanValidation {
   const decision = decideTicketBudget(plan, ratification);
-  const problems = planProblems(plan, decision.budget);
+  const problems = planProblems(plan, enforceTicketBudget ? decision.budget : null);
   if (decision.ratificationProblem !== undefined) {
     problems.unshift(`ticket-budget ratification does not apply: ${decision.ratificationProblem}`);
   }
@@ -485,10 +494,10 @@ export function isTicketBudgetOnlyRefusal(plan: TicketPlan): boolean {
   return planProblems(plan, stageBudget).length > 0 && planProblems(plan, plan.tickets.length).length === 0;
 }
 
-function planProblems(plan: TicketPlan, budget: number): string[] {
+function planProblems(plan: TicketPlan, budget: number | null): string[] {
   const problems: string[] = [];
   if (plan.tickets.length === 0) problems.push("plan has no tickets");
-  if (plan.tickets.length > budget) {
+  if (budget !== null && plan.tickets.length > budget) {
     problems.push(
       `${plan.tickets.length} tickets exceed the ${plan.stage} budget of ${budget} — ` +
         "decompose less, not more (P1); more requires explicit human ratification of this exact " +
@@ -629,6 +638,9 @@ function renderTicketBody(
     "## Scope",
     ...ticket.fileScope.map((path) => `- ${path}`),
     "",
+    ...(ticket.sourceSections === undefined || ticket.sourceSections.length === 0
+      ? []
+      : ["## Planning source sections", ...ticket.sourceSections.map((section) => `- ${section}`), ""]),
     "## Out of scope",
     ticket.outOfScope,
     "",
@@ -830,6 +842,12 @@ export interface FinalPlanProjection {
   tickets: FinalTicketProjection[];
 }
 
+interface BoundedPublicationSelection {
+  indexes: readonly number[];
+  publicationCap: number;
+  deliveredIndexes?: ReadonlySet<number>;
+}
+
 /** Apply the historical sensitive-domain tier projection to published tickets.
  *
  *  A ticket whose own content names a sensitive domain gets descriptive
@@ -858,32 +876,46 @@ function applySensitiveDomainFloor(plan: TicketPlan): TicketPublication[] {
 export function finalizePlanForPublication(
   plan: TicketPlan,
   ratification?: TicketBudgetRatification,
+  selection?: BoundedPublicationSelection,
 ): FinalPlanProjection {
-  const validation = validatePlan(plan, ratification);
+  const validation = validatePlan(plan, ratification, selection === undefined);
   if (!validation.ok) {
     throw new Error(`finalizePlanForPublication: plan failed validation:\n- ${validation.problems.join("\n- ")}`);
   }
+  const selected = selection === undefined ? undefined : new Set(selection.indexes);
+  if (
+    selection !== undefined &&
+    (selection.publicationCap < 1 ||
+      selected!.size !== selection.indexes.length ||
+      selection.indexes.length > selection.publicationCap ||
+      selection.indexes.some((index) => !Number.isInteger(index) || index < 0 || index >= plan.tickets.length))
+  ) {
+    throw new Error(`finalizePlanForPublication: invalid bounded selection (cap ${selection.publicationCap})`);
+  }
   const floored = applySensitiveDomainFloor(plan);
-  const tickets = floored.map(({ ticket, domainLabels }, index): FinalTicketProjection => {
+  const tickets = floored.flatMap(({ ticket, domainLabels }, index): FinalTicketProjection[] => {
+    if (selected !== undefined && !selected.has(index)) return [];
     const requestedTier = plan.tickets[index]!.tier;
-    const ready = ticket.dependsOn.length === 0;
-    return {
-      index,
-      ticket,
-      requestedTier,
-      finalTier: ticket.tier,
-      ...(requestedTier !== ticket.tier
-        ? {
-            escalationReason: `sensitive-domain floor: ${domainLabels.map((label) => label.replace("domain:", "")).join(", ")}`,
-          }
-        : {}),
-      domainLabels,
-      labels: [ticket.tier, ticket.priority, ...domainLabels, ...(ready ? ["op:ready"] : [])],
-      ready,
-    };
+    const ready = ticket.dependsOn.every((dependency) => selection?.deliveredIndexes?.has(dependency) ?? false);
+    return [
+      {
+        index,
+        ticket,
+        requestedTier,
+        finalTier: ticket.tier,
+        ...(requestedTier !== ticket.tier
+          ? {
+              escalationReason: `sensitive-domain floor: ${domainLabels.map((label) => label.replace("domain:", "")).join(", ")}`,
+            }
+          : {}),
+        domainLabels,
+        labels: [ticket.tier, ticket.priority, ...domainLabels, ...(ready ? ["op:ready"] : [])],
+        ready,
+      },
+    ];
   });
   return {
-    plan: { ...plan, tickets: tickets.map(({ ticket }) => ticket) },
+    plan: { ...plan, tickets: floored.map(({ ticket }) => ticket) },
     tickets,
   };
 }
@@ -891,69 +923,6 @@ export function finalizePlanForPublication(
 // ---------------------------------------------------------------------------
 // Publication — orchestrator-owned, validate-all-then-create
 // ---------------------------------------------------------------------------
-
-/** Typed INV-011 refusal at the publication egress: a to-be-published title
- *  or body matched the canonical secret-pattern list. Findings name the
- *  ticket index, the surface, and the matched pattern KIND only — never the
- *  matched text, and never an excerpt of the ticket (the excerpt could BE the
- *  secret; validatePlan's title-slice convention is deliberately not followed
- *  here). */
-export class TicketPublicationSecretError extends Error {
-  readonly code = "error_ticket_publication_secret" as const;
-  constructor(readonly findings: readonly string[]) {
-    super(
-      "publishTickets: refusing to publish — suspected secret material in planner-authored " +
-        `ticket content (${findings.join("; ")}). No issue was created; remove the credential ` +
-        "and re-plan. Publication refuses rather than scrubs: a silent scrub would publish " +
-        "content nobody wrote (INV-011).",
-    );
-    this.name = "TicketPublicationSecretError";
-  }
-}
-
-/** INV-011 guardrail (HB-016): scan EVERY to-be-published surface — each
- *  ticket's title and its exact rendered body — against the ONE canonical
- *  pattern list (src/runtime/secret-patterns.ts; never fork a second list)
- *  and refuse the WHOLE plan on any match, before the first GitHub mutation.
- *  Mirrors the episode-planner brief's refusal
- *  (src/org/episode-planner/brief.ts): planner-authored prose is untrusted
- *  input, and a published issue is the lower-sensitivity surface
- *  secret-bearing content must never cross into. All-or-nothing by
- *  construction: the scan completes over the full plan before anything is
- *  created, so a secret in the LAST ticket vetoes the FIRST — no partial
- *  publication to reconcile. Bodies are scanned exactly as they will render
- *  (minus `Depends-on: #<n>` back-references, which are orchestrator-derived
- *  issue numbers, not planner prose). */
-function assertPublishableContentCarriesNoSecret(
-  projection: FinalPlanProjection,
-  planningSources?: PlanningSourceTicketEvidence,
-  provenance?: PlanProvenance,
-): void {
-  const unnumbered: (number | undefined)[] = projection.tickets.map(() => undefined);
-  const findings: string[] = [];
-  for (const { index, ticket } of projection.tickets) {
-    const surfaces = [
-      ["title", ticket.title],
-      [
-        "body",
-        renderTicketBody(
-          ticket,
-          unnumbered,
-          projection.plan.releaseKind,
-          projection.plan.releaseVersion,
-          planningSources,
-          provenance,
-        ),
-      ],
-    ] as const;
-    for (const [surface, text] of surfaces) {
-      for (const { name, pattern } of SECRET_PATTERNS) {
-        if (pattern.test(text)) findings.push(`ticket ${index} ${surface}: ${name}`);
-      }
-    }
-  }
-  if (findings.length > 0) throw new TicketPublicationSecretError(findings);
-}
 
 export interface PublishedTicket {
   index: number;
@@ -990,31 +959,59 @@ export async function publishPlanProjection(
   projection: FinalPlanProjection,
   planningSources?: PlanningSourceTicketEvidence,
   provenance?: PlanProvenance,
+  knownIssueNumbers: ReadonlyMap<number, number> = new Map(),
+  activeTicketIndexes?: ReadonlySet<number>,
 ): Promise<PublishResult> {
   // INV-011: the WHOLE plan is proven secret-free before ANY GitHub mutation
   // (label ensures included) — a refusal must leave nothing behind, never a
   // partially published secret-bearing plan.
-  assertPublishableContentCarriesNoSecret(projection, planningSources, provenance);
+  const unnumbered: (number | undefined)[] = projection.plan.tickets.map(() => undefined);
+  assertPublishableContentCarriesNoSecret({
+    tickets: projection.plan.tickets,
+    selectedIndexes: projection.tickets.map((ticket) => ticket.index),
+    ...(activeTicketIndexes === undefined ? {} : { activeTicketIndexes }),
+    renderBody: (ticket) =>
+      renderTicketBody(
+        ticket,
+        unnumbered,
+        projection.plan.releaseKind,
+        projection.plan.releaseVersion,
+        planningSources,
+        provenance,
+      ),
+  });
 
-  const issueNumbers: (number | undefined)[] = projection.tickets.map(() => undefined);
+  const issueNumbers: (number | undefined)[] = projection.plan.tickets.map(() => undefined);
+  for (const [index, issueNumber] of knownIssueNumbers) {
+    if (!Number.isInteger(index) || index < 0 || index >= issueNumbers.length || !Number.isInteger(issueNumber)) {
+      throw new Error("publishTickets: known issue-number mapping is outside the preserved decomposition");
+    }
+    issueNumbers[index] = issueNumber;
+  }
   const published: PublishedTicket[] = [];
   const recoveredIssues = new Map<number, { state: string; labels: Set<string> }>();
+  const selected = new Map(projection.tickets.map((ticket) => [ticket.index, ticket]));
   if (provenance !== undefined) {
     const existing = await gh.listIssues({ state: "all", limit: 1_000 });
     for (const issue of existing) {
       const owner = parsePlannedBy(issue.body);
       if (owner === undefined || !sameProvenance(owner, provenance)) continue;
       const index = parsePlanTicketIndex(issue.body);
-      if (index === undefined || index < 0 || index >= projection.tickets.length) {
+      if (index === undefined || index < 0 || index >= projection.plan.tickets.length) {
         throw new Error(`publishTickets: existing Planned-by issue #${issue.number} has no valid Plan-ticket-index`);
       }
-      const expected = projection.tickets[index]!;
-      if (issueNumbers[index] !== undefined || issue.title !== expected.ticket.title) {
+      const expectedPlanTicket = projection.plan.tickets[index]!;
+      if (
+        (issueNumbers[index] !== undefined && issueNumbers[index] !== issue.number) ||
+        issue.title !== expectedPlanTicket.title
+      ) {
         throw new Error(
           `publishTickets: existing Planned-by issue #${issue.number} conflicts at ticket index ${index}`,
         );
       }
       issueNumbers[index] = issue.number;
+      const expected = selected.get(index);
+      if (expected === undefined) continue;
       recoveredIssues.set(index, { state: issue.state, labels: new Set(issue.labels) });
       published.push({
         index,
@@ -1033,7 +1030,7 @@ export async function publishPlanProjection(
     // missing immutable classification labels, and restore op:ready only when
     // no later state label proves that the ticket has already advanced.
     for (const [index, issue] of recoveredIssues) {
-      const expected = projection.tickets[index]!;
+      const expected = selected.get(index)!;
       const hasCurrentState = [...issue.labels].some((label) =>
         STATE_LABELS.includes(label as (typeof STATE_LABELS)[number]),
       );

@@ -29,6 +29,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { GhCliOps } from "../../../src/loop/github.js";
 import {
+  finalizePlanForPublication,
+  publishPlanProjection,
   publishTickets,
   TicketPublicationSecretError,
   type PlanTicket,
@@ -218,6 +220,52 @@ describe("CF-INV-011 — published issue bodies carry no secret (L2 on gh double
       expect(Object.values(handle.readState().issues).length).toBe(0);
       expect(handle.callLog().length).toBe(0);
     }
+  });
+
+  it("a secret in an unselected final ticket vetoes the first bounded batch before any GitHub mutation", async () => {
+    handle = await installGithubDouble({});
+    const gh = new GhCliOps(handle.repo, handle.exec);
+    const seed = makeSyntheticSecret("github-token");
+    const plan: TicketPlan = {
+      ...cleanPlan(),
+      stage: "mature",
+      ticketCountRationale: "Eight active decomposition tickets published in bounded batches.",
+      tickets: Array.from({ length: 8 }, (_, index) =>
+        ticket({
+          title: `Corpus ticket ${index + 1}`,
+          executionGroup: `corpus-${index + 1}`,
+          notesForBuilder: index === 7 ? `Remove ${seed.value} before implementation.` : "No credentials.",
+        }),
+      ),
+    };
+    const projection = finalizePlanForPublication(plan, undefined, {
+      indexes: [0, 1, 2],
+      publicationCap: 3,
+    });
+
+    await expect(publishPlanProjection(gh, projection)).rejects.toBeInstanceOf(TicketPublicationSecretError);
+    expect(Object.values(handle.readState().issues)).toHaveLength(0);
+    expect(handle.callLog()).toHaveLength(0);
+  });
+
+  it("a corrected revision excludes explicitly superseded historical ticket prose from the active scan", async () => {
+    handle = await installGithubDouble({});
+    const gh = new GhCliOps(handle.repo, handle.exec);
+    const seed = makeSyntheticSecret("github-token");
+    const plan: TicketPlan = {
+      ...cleanPlan(),
+      stage: "mature",
+      ticketCountRationale: "One superseded historical ticket and one corrected active replacement.",
+      tickets: [
+        ticket({ notesForBuilder: `Superseded credential ${seed.value}.` }),
+        ticket({ title: "Corrected replacement", executionGroup: "corrected", notesForBuilder: "No credentials." }),
+      ],
+    };
+    const projection = finalizePlanForPublication(plan, undefined, { indexes: [1], publicationCap: 3 });
+
+    const result = await publishPlanProjection(gh, projection, undefined, undefined, new Map(), new Set([1]));
+    expect(result.published.map((ticket) => ticket.index)).toEqual([1]);
+    expect(Object.values(handle.readState().issues)).toHaveLength(1);
   });
 
   it("evidence pin: publication crosses the real B-01 seam (gh issue create) for a clean plan; a refused plan makes ZERO gh calls", async () => {

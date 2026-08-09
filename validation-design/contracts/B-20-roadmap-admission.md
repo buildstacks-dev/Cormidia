@@ -11,6 +11,8 @@ soak evidence remains pending.
 - For scaffolded initial work, one current content-bound product-document disposition.
 - Content-hashed backlog snapshot manifest with completeness/pagination evidence.
 - Current dependency, routing, validation, lifecycle, claim and WIP facts.
+- A complete durable TicketPlan decomposition plus one bounded publication
+  selection in the original decomposition index space.
 
 ## Guarantees
 - Reconcile materializes one documentation delivery unit through normal Builder and
@@ -29,6 +31,20 @@ soak evidence remains pending.
   and projections never remove either label; no `manual-*` wildcard exists.
 - Unchanged regions and prior summaries may be referenced; the consumer never requires
   a provider turn per issue or an EpisodePlan for a non-admitted unit.
+- Publication never truncates or renumbers the underlying decomposition.
+  Prepared batches preserve their own provenance and cap; recovery can bind
+  dependencies to previously delivered issues in a later sparse batch of that
+  same decomposition without treating their older publication identity as
+  conflicting. Remaining-only delta dependencies are local to the delta;
+  preserved indexes are metadata context, not supported cross-episode edges.
+- A prepared batch remains recoverable until issue projection, auxiliary
+  publication evidence, and the RoadmapPlan are durable; coverage completion
+  is the final commit barrier. Pre-publication secret refusal scans the entire
+  active decomposition, not merely the bounded selection.
+- Future admission can tighten but never auto-loosen from fresh repository
+  evidence. A prepared batch retains its immutable authorization and stored
+  hash-only source evidence, and is recovered before current source resolution,
+  invalidation, or revision.
 
 ## Failure vocabulary
 `roadmap_missing | roadmap_invalid | backlog_incomplete | issue_unaccounted |

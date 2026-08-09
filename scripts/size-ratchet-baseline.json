@@ -211,6 +211,11 @@
       "lines": 1193,
       "newModule": false
     },
+    "src/cli/typed-cli-error.ts": {
+      "exports": 2,
+      "lines": 15,
+      "newModule": true
+    },
     "src/jobs/brief.ts": {
       "exports": 3,
       "lines": 144,
@@ -361,6 +366,11 @@
       "lines": 383,
       "newModule": false
     },
+    "src/loop/plan-publication-guard.ts": {
+      "exports": 3,
+      "lines": 62,
+      "newModule": true
+    },
     "src/loop/plan-publication-record.ts": {
       "exports": 3,
       "lines": 127,
@@ -368,7 +378,7 @@
     },
     "src/loop/plan-tickets.ts": {
       "exports": 30,
-      "lines": 1095,
+      "lines": 1092,
       "newModule": false
     },
     "src/loop/planner-admission.ts": {
@@ -878,7 +888,7 @@
     },
     "src/org/plan-auto.ts": {
       "exports": 2,
-      "lines": 1818,
+      "lines": 1703,
       "newModule": false
     },
     "src/org/plan.ts": {
@@ -901,6 +911,46 @@
       "lines": 12,
       "newModule": true
     },
+    "src/org/planning-auto-coverage-operations.ts": {
+      "exports": 9,
+      "lines": 176,
+      "newModule": true
+    },
+    "src/org/planning-auto-coverage.ts": {
+      "exports": 4,
+      "lines": 295,
+      "newModule": true
+    },
+    "src/org/planning-coverage-model.ts": {
+      "exports": 10,
+      "lines": 259,
+      "newModule": true
+    },
+    "src/org/planning-coverage-publication.ts": {
+      "exports": 2,
+      "lines": 167,
+      "newModule": true
+    },
+    "src/org/planning-coverage-request.ts": {
+      "exports": 10,
+      "lines": 123,
+      "newModule": true
+    },
+    "src/org/planning-coverage-store.ts": {
+      "exports": 3,
+      "lines": 167,
+      "newModule": true
+    },
+    "src/org/planning-coverage.ts": {
+      "exports": 10,
+      "lines": 300,
+      "newModule": true
+    },
+    "src/org/planning-decomposition.ts": {
+      "exports": 9,
+      "lines": 205,
+      "newModule": true
+    },
     "src/org/planning-depth.ts": {
       "exports": 8,
       "lines": 39,
@@ -910,6 +960,16 @@
       "exports": 8,
       "lines": 522,
       "newModule": false
+    },
+    "src/org/planning-provider-brief.ts": {
+      "exports": 3,
+      "lines": 95,
+      "newModule": true
+    },
+    "src/org/planning-publication.ts": {
+      "exports": 6,
+      "lines": 113,
+      "newModule": true
     },
     "src/org/planning-stage.ts": {
       "exports": 6,

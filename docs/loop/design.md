@@ -454,6 +454,33 @@ classification is separate from episode planning. A ready existing ticket
 still runs EpisodePlanner unless its creator supplied an execution-ready scope
 with provenance. The loop never builds an untriaged issue.
 
+Large source-corpus planning separates two authorities. Decomposition intent
+is an exact count, an inclusive/open range, or explicit complete-corpus scope;
+publication admission remains a per-invocation cap of 3/5/7 for
+bootstrap/growth/mature and is further bounded by repository evidence. The
+full decomposition and content-versioned source-section catalog are persisted
+before any issue write. Coverage moves through `planned`, `published`,
+`in_progress`, `delivered`, `deferred`, `superseded`, and `remaining`.
+Identical reruns reuse the durable decomposition; `--resume` admits the next
+batch or plans only remaining sections; `--revise` is the explicit replacement
+path. A changed section supersedes its prior content version without changing
+unaffected heading-occurrence identities. Delivery requires correlated merged
+PR evidence: a merely closed issue is not reported as delivered. Before any
+bounded batch mutates GitHub, the secret-egress gate scans every active ticket,
+including unselected later batches; explicitly superseded historical tickets
+alone are excluded. Coverage completion is the final commit barrier after issue
+recovery, auxiliary publication evidence, and idempotent RoadmapPlan persistence.
+Every invocation can durably tighten the future publication cap from current
+repository evidence, but never auto-loosens it; an already-prepared batch keeps
+its immutable admission cap because it may have partial GitHub effects. That
+prepared transaction is recovered first with its stored, hash-only source
+evidence before current source resolution, invalidation, or revision is considered. Remaining-only
+and revision provider turns receive a bounded metadata ledger of preserved
+ticket indexes, identities, lifecycle states, issue numbers, dependencies, and
+source coverage IDs. New TicketPlan dependency indexes remain local to the new
+delta; preserved indexes are conflict-avoidance context only, and cross-episode
+dependency edges are not supported.
+
 Scheduled `groom` receives a bounded, hash-bearing snapshot of open GitHub
 issues without an `op:ready` filter; Builder's claim query remains
 `op:ready`-only. Missing `gh`, unavailable GitHub, an empty repository, and an

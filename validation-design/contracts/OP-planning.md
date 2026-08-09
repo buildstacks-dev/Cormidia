@@ -45,6 +45,29 @@ J-03. Interfaces with B-01/B-02..04/B-10/B-20/B-21.
   reconcile creates exactly one ordinary Builder/Reviewer documentation unit covering
   all three product documents and makes every implementation unit depend on it. A bare
   template first creates one dependency-free stack-and-gates unit `[doc]`.
+- Corpus decomposition scope is independent from issue-publication admission.
+  Exact counts, ranges, and explicit complete-corpus intent may produce a plan
+  larger than the evidence-bounded 3/5/7 per-invocation publication cap. The
+  full source-section-accounted decomposition is persisted before any batch;
+  an asserted stage cannot widen evidence-derived admission `[doc+stated]`.
+- A planning coverage scope has immutable chained revisions and stable
+  content-versioned section identities. Its states are `planned`, `published`,
+  `in_progress`, `delivered`, `deferred`, `superseded`, and `remaining`.
+  Identical reruns are idempotent, remaining-only deltas retain per-ticket and
+  per-batch publication provenance, and source changes supersede only affected
+  content versions. Closed-without-correlated-merge is never delivered
+  `[doc+stated]`.
+- A bounded publication scans every non-superseded active ticket for secret
+  egress before its first GitHub effect. Its prepared batch stays durable until
+  issue recovery, publication evidence, and idempotent RoadmapPlan persistence
+  succeed; only then may coverage record completion `[doc+stated]`.
+- Fresh evidence may tighten future publication admission but cannot auto-loosen
+  it or rewrite an already-prepared transaction. Prepared recovery uses its
+  immutable admission cap, provenance, and hash-only source evidence before
+  current source resolution/invalidation/revision. Delta/revision prompts receive a bounded prior
+  ticket ledger; their dependency indexes remain local to the new output, so
+  preserved indexes are context rather than unsupported cross-episode edges
+  `[doc+stated]`.
 - A RoadmapPlan accounts for every considered issue exactly once: one stable workstream
   and delivery unit, or a typed unassigned disposition. Workstreams carry outcome,
   priority, dependencies, blockers, sequencing and WIP. Delivery units carry one-or-

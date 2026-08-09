@@ -12,25 +12,39 @@ describe("CF-REG-369 — product-doc planning policy", () => {
   it("wires the disposition guard before both provider construction and publication", async () => {
     const source = await readFile(new URL("../../../src/org/plan-auto.ts", import.meta.url), "utf8");
     const policy = await readFile(new URL("../../../src/org/product-doc-planning.ts", import.meta.url), "utf8");
-    expect(publicationGuardProblems(source, policy)).toEqual([]);
+    const publication = await readFile(
+      new URL("../../../src/org/planning-coverage-publication.ts", import.meta.url),
+      "utf8",
+    );
+    expect(publicationGuardProblems(source, policy, publication)).toEqual([]);
 
     const seededBypass = source.replace(
       "const productDocs = await prepareProductDocPlanning(productDocPlanningInput);",
       "const productDocs = await Promise.resolve({ kind: 'unscaffolded' as const }); // removed guard",
     );
-    expect(publicationGuardProblems(seededBypass, policy)).toEqual(["product-doc guard missing"]);
+    expect(publicationGuardProblems(seededBypass, policy, publication)).toEqual(["product-doc guard missing"]);
 
     const seededStaleResume = source.replace(
-      "await assertCurrentProductDocTicketPlan(productDocPlanningInput, productDocs, output.ticketPlan);",
+      "await assertCurrentProductDocTicketPlan(productDocPlanningInput, productDocs, plan);",
       "await Promise.resolve(); // removed publication disposition and plan reread",
     );
-    expect(publicationGuardProblems(seededStaleResume, policy)).toEqual(["publication recheck missing"]);
+    expect(publicationGuardProblems(seededStaleResume, policy, publication)).toEqual(["publication recheck missing"]);
+
+    const seededCentralBypass = publication.replace(
+      "await input.beforePublish?.(coverage.plan);",
+      "await Promise.resolve(); // removed centralized pre-publication callback",
+    );
+    expect(publicationGuardProblems(source, policy, seededCentralBypass)).toEqual([
+      "publication guard callback missing",
+    ]);
 
     const seededInMemoryOnly = policy.replace(
       "const current = await prepareProductDocPlanning(input);",
       "const current = expected; // removed persisted disposition reread",
     );
-    expect(publicationGuardProblems(source, seededInMemoryOnly)).toEqual(["publication disposition reread missing"]);
+    expect(publicationGuardProblems(source, seededInMemoryOnly, publication)).toEqual([
+      "publication disposition reread missing",
+    ]);
   });
 
   it("reconcile orders TypeScript implementation after exactly one documentation unit", () => {
@@ -127,24 +141,27 @@ function ticket(executionGroup: string, dependsOn: number[], fileScope: string[]
   };
 }
 
-function publicationGuardProblems(source: string, policy: string): string[] {
+function publicationGuardProblems(source: string, policy: string, publicationSource: string): string[] {
   const guard = source.indexOf("const productDocs = await prepareProductDocPlanning({");
   const boundGuard = source.indexOf("const productDocs = await prepareProductDocPlanning(productDocPlanningInput);");
   const provider = source.indexOf("const orchestrated = await orchestrateEpisode({");
   const publicationRecheck = source.indexOf("await assertCurrentProductDocTicketPlan(");
-  const publication = source.indexOf("await publishPlanProjection(");
+  const publicationCall = source.indexOf("const publication = await publishAutoPlanningCoverage(");
+  const callback = publicationSource.indexOf("await input.beforePublish?.(coverage.plan);");
+  const publication = publicationSource.indexOf("await publishPlanProjection(");
   if (guard < 0 && boundGuard < 0) return ["product-doc guard missing"];
   return [
     ...(provider < 0 || Math.max(guard, boundGuard) > provider
       ? ["product-doc guard follows provider construction"]
       : []),
     ...(publicationRecheck < 0 ? ["publication recheck missing"] : []),
+    ...(callback < 0 ? ["publication guard callback missing"] : []),
     ...(!policy.includes("const current = await prepareProductDocPlanning(input);")
       ? ["publication disposition reread missing"]
       : []),
-    ...(publication < 0 || Math.max(guard, boundGuard) > publication
+    ...(publicationCall < 0 || Math.max(guard, boundGuard) > publicationCall
       ? ["product-doc guard follows issue publication"]
       : []),
-    ...(publicationRecheck > publication ? ["publication recheck follows issue publication"] : []),
+    ...(callback > publication ? ["publication recheck follows issue publication"] : []),
   ];
 }

@@ -66,6 +66,11 @@
       "lines": 99,
       "newModule": false
     },
+    "src/cli/help.ts": {
+      "exports": 3,
+      "lines": 69,
+      "newModule": true
+    },
     "src/cli/home-flags.ts": {
       "exports": 1,
       "lines": 32,

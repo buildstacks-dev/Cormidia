@@ -1,10 +1,6 @@
 #!/usr/bin/env node
-// Cormidia CLI. `loop` carries claude-loop's standalone UX forward as a
-// subcommand (docs/PURPOSE.md → Repo shape).
-//
-// This file is a thin dispatch table over one module per subcommand
-// (src/cli/roles.ts, src/cli/doctor.ts, ...). Adding a subcommand is a new
-// file + one registry line here — never a growing shared switch (M0.1).
+// Thin dispatch table: one module per subcommand; `loop` preserves the standalone UX.
+// Adding a subcommand means one module and one registry line, never a shared switch (M0.1).
 
 import { cmdAnalyze } from "./cli/analyze.js";
 import { cmdApp } from "./cli/app.js";
@@ -17,6 +13,7 @@ import { cmdCapabilities, cmdContext, packageVersion } from "./cli/context-info.
 import { cmdDispatch } from "./cli/dispatch.js";
 import { cmdDoctorArgs } from "./cli/doctor.js";
 import { cmdEpisode } from "./cli/episode.js";
+import { type HelpGroup, renderIntentHelp, renderTopLevelHelp } from "./cli/help.js";
 import { reportCliInvocation, reportCliInvocationFailure, runAuditedCliInvocation } from "./cli/invocation-audit.js";
 import { jsonCliFailure, runJsonCliCommand } from "./cli/json-failure.js";
 import { cmdLearn } from "./cli/learn.js";
@@ -40,133 +37,15 @@ import { cmdStatus } from "./cli/status.js";
 import { cmdTask } from "./cli/task.js";
 import { cmdTelemetry } from "./cli/telemetry.js";
 
-const USAGE = `cormidia — org runtime for a team of AI agents
-
-Usage:
-  cormidia org init <local-path> --name <name> [--state-home <path>] [--authority delegated-operator|conservative|custom] [--authority-file <path>] [--authority-by <identity>] [--dry-run] [--json]
-                           preview or create and select a complete org home
-  cormidia org show [--json] show the active org and state homes
-  cormidia org use <local-path> [--state-home <path>]
-                           select an existing complete org home
-  cormidia org list [--json] enumerate every discoverable org, its state home,
-                           footprint, app count, and last activity
-  cormidia org archive <org> [--archive-root <path>] [--execute --confirm <org>] [--json]
-                           preview or archive-then-retire one org's local state;
-                           never touches the org home or any GitHub repository
-  cormidia org upgrade [--authority preserve|delegated-operator|conservative|custom] [--execute] [--json]
-                           preview/apply an additive, archived org migration
-  cormidia context [--json]  show resolved paths and registered apps
-  cormidia capabilities [--json]
-                           show the installed command/capability surface
-  cormidia roles [path] [--json]
-                           validate roles.yaml and print the org chart with effective turn budgets
-  cormidia roles set <role> [--runtime claude|codex|cursor|pi] [--model <id>] [--effort low|medium|high|xhigh|max] [--turn-budget <usd>] [--reason <text>] [--by <identity>] [--execute] [--json]
-                           preview a role assignment change; execution requires
-                           an attributable identity and is journaled
-  cormidia apps [path] [--json]
-                           validate apps.yaml and print the app registry
-  cormidia app reset <app> [--execute --confirm <app>] [--force] [--archive-root <path>]
-                           archive and clean one app's Cormidia-managed state;
-                           default is a non-mutating plan
-  cormidia app verify <app> [--json]
-                           prove refs, canonical GitHub labels, clone,
-                           authority, checks, locks, approvals, and token-free
-                           runtime readiness
-  cormidia app promote <app> --to live [--execute] [--json]
-                           preview/apply verified transactional promotion
-  cormidia pipelines [path] [--json]
-                           validate pipelines.yaml and print the pass table
-  cormidia bootstrap [path] [--scan-only] [--answers <file>|--answers-from <archive|app>] [--org-home <path>] [--state-home <path>] [--json]
-                           scan a target repo, walk the alignment
-                           questionnaire (interactive, or --answers
-                           answers.json), and emit the .cormidia/ tree
-                           (--scan-only: report only)
-  cormidia bootstrap publish <app> [--app-dir <path>] [--execute] [--json]
-                           open coordinated DRAFT pull requests for the
-                           bootstrap-owned app and org changes (preview by
-                           default; never merges)
-  cormidia new-app <name-or-goal> --target-dir <path> --repo <owner/repo>
-                           [--goal <string>] [--name <app>]
-                           [--template typescript-node|bare] [--dry-run] [--json]
-                           scaffold a new product repo, emit starter product
-                           docs/tickets, bootstrap .cormidia/, and register it
-  cormidia plan <app> --dry-run [--topic <string>] [--workdir <path>]
-                           preview Planner context and a current disposable
-                           worktree without constructing a provider
-  cormidia plan <app> --auto --goal <text> [--source <file-or-dir>]...
-                           run content-bound automated planning
-  cormidia plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready
-                           validate explicit creator scope, skip the dedicated
-                           EpisodePlanner, and execute its governed plan
-  cormidia plan ratify-ticket-budget --app <app> --decomposition <id> --actor <identity>
-                           --reason <text> --from-budget N --to-budget N
-                           [--no-publish] [--json] [--execute --confirm <app>@<id>]
-                           record an attributable human decision to admit ONE
-                           preserved oversized decomposition, then publish it
-                           token-free (preview by default)
-  cormidia doctor [--json] [--config-only]
-                           validate installation, active org, state, adapters,
-                           managed-clone working trees, and scheduler status
-  cormidia scheduler <install|status|uninstall> [--backend launchd|systemd] [--json]
-                           preview org-scoped scheduler lifecycle by default;
-                           mutation requires --execute --confirm <exact-id>
-  cormidia approvals [review|show <id>] [--state-home <path>] [--json]
-                           inspect or decide the critical-op approval queue
-  cormidia objective <grant|grant-critical|list|revoke> [--json]
-                           create, inspect, or revoke human-created objective
-                           grants (standing authority with a spend ceiling)
-  cormidia budget [--state-home <path>] [--apps <path>] [--json]
-                           summarize monthly app spend and budget pauses
-  cormidia status [--state-home <path>] [--app <app>] [--limit N] [--json]
-                           show recent L1/L2 run status
-  cormidia publication <list|resume> [--app <app>] [--id <publication-id>] [--json]
-                           inspect or resume prepared Planner publication
-  cormidia release <package-manifest|snapshot|prepare|assess|attest|tag-message|verify> ...
-                           build or verify an offline RQ-1 evidence packet;
-                           never runs a campaign, tags, or publishes
-  cormidia analyze [--state-home <path>] [--app <app>] [--json]
-                           report L1/L2 anomaly flags and recommendations
-  cormidia telemetry [--app <app>] [--date YYYY-MM-DD] [--json] [--html <path>]
-                           historical pass/trace/cost view over run records
-  cormidia report [--app <app>] [--period 7d|30d|90d|1y|all] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--bucket auto|day|week|month] [--json] [--html <path>] [--open] [--summary-only]
-                           ledger-first org/app usage and management report
-  cormidia narrative [--app <app>] [--episode <id>] [--json]
-                           human-level causal timeline: one markdown story
-                           per episode + per-app INDEX.md (token-free)
-  cormidia observe [--app <app>] [--parent-task <id>] [--ticket <number>] [--port <number>] [--open]
-                           start the loopback-only, read-only Live + Reports UI
-  cormidia task <begin|fallback|finish|show> ...
-                           durable parent delegated-task ledger
-  cormidia dispatch [--state-home <path>] [--dry-run]
-                           run one autonomous scheduler tick
-  cormidia episode explain <episode-id> [--json]
-                           explain a durable EpisodePlan and every exact turn
-                           assignment without constructing a runtime
-  cormidia prune-runs [root] [--retention-days N | --sweep]
-                           delete finalized run dirs past retention; --sweep
-                           runs the full state-home retention sweep
-  cormidia retro [--date YYYY-MM-DD] [--state-home <path>] [--apps <path>] [--roles <path>]
-                           write a weekly evidence retro report
-  cormidia learn <inspect|emit|show|report|fixture|review|publish|resolve|disable|rollback|provisional|experiment|canary> [...]
-                           learning loop: capture window (inspect, emit,
-                           show, report), eval fixtures (fixture), M4 governed
-                           activation (review, publish, resolve, disable,
-                           rollback, provisional), M5 offline evaluation
-                           (experiment declare|run|list) and live canary
-                           (canary start|status|promote|stop)
-  cormidia loop --app <app> [--once|--follow] [--dry-run]
-  cormidia loop --explain-context <episode-id>
-  cormidia loop --resume-episode <episode-id>
-  cormidia loop rearm --app <app> --ticket <number> --reason <text> --actor <identity> --from-allowance N --to-allowance N [--execute --confirm <app#number>]
-                           run the build loop over ready tickets
-  cormidia run-role <role> --app <app> --turn <invocation-id> --template <path> [--assignment <candidate-id>@<effort>] [--allow-network] [--dry-run]
-                           one role turn as a one-pass pipeline (--dry-run
-                           validates the same scope and assignment, token-free)
-`;
-
 interface CliCommand {
   run(args: string[]): number | Promise<number>;
   help: string;
+  group: HelpGroup;
+  summary: string;
+}
+
+function cliCommand(group: HelpGroup, summary: string, run: CliCommand["run"], help: string): CliCommand {
+  return { run, help, group, summary };
 }
 
 const HOME_HELP = `\n\nLocation flags:\n  --org-home <path>    committed org configuration; defaults to the active pointer\n  --state-home <path>  local high-churn runtime state; defaults to ~/.cormidia/<org>\n\nAudit note: every dispatched command whose state home can be resolved writes exactly one terminal row under invocations/. Preview/read-only/no-write claims exclude this observability record. Help, version, no-command usage, and commands with no resolvable state home are not journaled. A command that removes the state home it is journaling to redirects its terminal row to a ledger outside that tree rather than skipping it or writing it back into the removed path.`;
@@ -225,43 +104,150 @@ const LEARN_HELP = HELP.learn.replace(
 );
 
 const COMMANDS: Record<string, CliCommand> = {
-  org: { run: (args) => cmdOrg(args), help: HELP.org },
-  roles: { run: (args) => cmdRoles(args), help: HELP.roles },
-  apps: { run: (args) => cmdApps(args), help: HELP.apps },
-  app: { run: (args) => cmdApp(args), help: HELP.app },
-  approvals: { run: (args) => cmdApprovals(args), help: HELP.approvals },
-  objective: { run: (args) => cmdObjective(args), help: HELP.objective },
-  analyze: { run: (args) => cmdAnalyze(args), help: HELP.analyze },
+  org: cliCommand("setup", "Create, select, inspect, archive, or upgrade an org.", (args) => cmdOrg(args), HELP.org),
+  roles: cliCommand("setup", "Inspect or propose changes to role assignments.", (args) => cmdRoles(args), HELP.roles),
+  apps: cliCommand("onboarding", "Inspect the registered app catalog.", (args) => cmdApps(args), HELP.apps),
+  app: cliCommand("onboarding", "Verify, promote, or reset one registered app.", (args) => cmdApp(args), HELP.app),
+  approvals: cliCommand(
+    "governance",
+    "Inspect or decide critical-operation requests.",
+    (args) => cmdApprovals(args),
+    HELP.approvals,
+  ),
+  objective: cliCommand(
+    "governance",
+    "Create, inspect, or revoke human objective grants.",
+    (args) => cmdObjective(args),
+    HELP.objective,
+  ),
+  analyze: cliCommand(
+    "inspection",
+    "Report anomaly signals and recommendations.",
+    (args) => cmdAnalyze(args),
+    HELP.analyze,
+  ),
   // `publish` is a subcommand rather than a flag: it is a different operation
   // with outward-facing effects, and `cormidia bootstrap --publish` would read
   // as a modifier on a scan/emit run (#61).
-  bootstrap: {
-    run: (args) => (args[0] === "publish" ? cmdBootstrapPublish(args.slice(1)) : cmdBootstrap(args)),
-    help: HELP.bootstrap,
-  },
-  budget: { run: (args) => cmdBudget(args), help: HELP.budget },
-  capabilities: { run: (args) => cmdCapabilities(args), help: HELP.capabilities },
-  context: { run: (args) => cmdContext(args), help: HELP.context },
-  dispatch: { run: (args) => cmdDispatch(args), help: HELP.dispatch },
-  episode: { run: (args) => cmdEpisode(args), help: HELP.episode },
-  plan: { run: (args) => cmdPlan(args), help: HELP.plan },
-  pipelines: { run: (args) => cmdPipelines(args), help: HELP.pipelines },
-  doctor: { run: (args) => cmdDoctorArgs(args), help: HELP.doctor },
-  scheduler: { run: (args) => cmdScheduler(args), help: HELP.scheduler },
-  "prune-runs": { run: (args) => cmdPruneRuns(args), help: HELP["prune-runs"] },
-  learn: { run: (args) => cmdLearn(args), help: LEARN_HELP },
-  retro: { run: (args) => cmdRetro(args), help: HELP.retro },
-  loop: { run: (args) => cmdLoop(args), help: HELP.loop },
-  "new-app": { run: (args) => cmdNewApp(args), help: HELP["new-app"] },
-  "run-role": { run: (args) => cmdRunRole(args), help: HELP["run-role"] },
-  status: { run: (args) => cmdStatus(args), help: HELP.status },
-  publication: { run: (args) => cmdPublication(args), help: HELP.publication },
-  release: { run: (args) => cmdRelease(args), help: HELP.release },
-  telemetry: { run: (args) => cmdTelemetry(args), help: HELP.telemetry },
-  report: { run: (args) => cmdReport(args), help: HELP.report },
-  narrative: { run: (args) => cmdNarrative(args), help: HELP.narrative },
-  observe: { run: (args) => cmdObserve(args), help: HELP.observe },
-  task: { run: (args) => cmdTask(args), help: HELP.task },
+  bootstrap: cliCommand(
+    "onboarding",
+    "Onboard an existing app or prepare its draft bootstrap pull requests.",
+    (args) => (args[0] === "publish" ? cmdBootstrapPublish(args.slice(1)) : cmdBootstrap(args)),
+    HELP.bootstrap,
+  ),
+  budget: cliCommand(
+    "operations",
+    "Inspect or reconcile spend and budget pauses.",
+    (args) => cmdBudget(args),
+    HELP.budget,
+  ),
+  capabilities: cliCommand(
+    "inspection",
+    "Discover exhaustive machine-readable command metadata.",
+    (args) => cmdCapabilities(args),
+    HELP.capabilities,
+  ),
+  context: cliCommand(
+    "inspection",
+    "Show resolved homes, authority, and registered apps.",
+    (args) => cmdContext(args),
+    HELP.context,
+  ),
+  dispatch: cliCommand(
+    "operations",
+    "Run one scheduler tick; --dry-run is token-free.",
+    (args) => cmdDispatch(args),
+    HELP.dispatch,
+  ),
+  episode: cliCommand(
+    "delivery",
+    "Explain a durable episode and its exact assignments.",
+    (args) => cmdEpisode(args),
+    HELP.episode,
+  ),
+  plan: cliCommand("delivery", "Plan product work; --dry-run is token-free.", (args) => cmdPlan(args), HELP.plan),
+  pipelines: cliCommand("setup", "Inspect configured pass pipelines.", (args) => cmdPipelines(args), HELP.pipelines),
+  doctor: cliCommand(
+    "inspection",
+    "Validate installation and runtime readiness.",
+    (args) => cmdDoctorArgs(args),
+    HELP.doctor,
+  ),
+  scheduler: cliCommand(
+    "operations",
+    "Preview or manage the host scheduler lifecycle.",
+    (args) => cmdScheduler(args),
+    HELP.scheduler,
+  ),
+  "prune-runs": cliCommand(
+    "operations",
+    "Remove finalized run data beyond retention.",
+    (args) => cmdPruneRuns(args),
+    HELP["prune-runs"],
+  ),
+  learn: cliCommand(
+    "operations",
+    "Inspect or operate the governed learning loop.",
+    (args) => cmdLearn(args),
+    LEARN_HELP,
+  ),
+  retro: cliCommand("operations", "Write an evidence-based org retro.", (args) => cmdRetro(args), HELP.retro),
+  loop: cliCommand(
+    "delivery",
+    "Advance ready delivery work; --dry-run is token-free.",
+    (args) => cmdLoop(args),
+    HELP.loop,
+  ),
+  "new-app": cliCommand(
+    "onboarding",
+    "Create and onboard a greenfield app.",
+    (args) => cmdNewApp(args),
+    HELP["new-app"],
+  ),
+  "run-role": cliCommand(
+    "delivery",
+    "Run one governed role turn; --dry-run is token-free.",
+    (args) => cmdRunRole(args),
+    HELP["run-role"],
+  ),
+  status: cliCommand("inspection", "Show recent run status.", (args) => cmdStatus(args), HELP.status),
+  publication: cliCommand(
+    "delivery",
+    "Inspect or resume Planner publication transactions.",
+    (args) => cmdPublication(args),
+    HELP.publication,
+  ),
+  release: cliCommand(
+    "governance",
+    "Build or verify RQ-1 evidence; never tag or publish.",
+    (args) => cmdRelease(args),
+    HELP.release,
+  ),
+  telemetry: cliCommand(
+    "inspection",
+    "Inspect historical pass, trace, and cost evidence.",
+    (args) => cmdTelemetry(args),
+    HELP.telemetry,
+  ),
+  report: cliCommand("inspection", "Render ledger-first org and app reports.", (args) => cmdReport(args), HELP.report),
+  narrative: cliCommand(
+    "inspection",
+    "Render a causal episode timeline.",
+    (args) => cmdNarrative(args),
+    HELP.narrative,
+  ),
+  observe: cliCommand(
+    "inspection",
+    "Start the loopback-only read-only Live and Reports UI.",
+    (args) => cmdObserve(args),
+    HELP.observe,
+  ),
+  task: cliCommand(
+    "operations",
+    "Record a delegated parent task and its terminal outcome.",
+    (args) => cmdTask(args),
+    HELP.task,
+  ),
 };
 
 async function main(): Promise<number> {
@@ -270,7 +256,7 @@ async function main(): Promise<number> {
   // Help/version/no-command do not dispatch a command and may not have an org
   // state home. Their explicit no-audit policy is documented with the ledger.
   if (cmd === undefined || cmd === "--help" || cmd === "-h") {
-    console.log(USAGE);
+    console.log(renderTopLevelHelp());
     return 0;
   }
   if (cmd === "--version" || cmd === "-v") {
@@ -278,6 +264,20 @@ async function main(): Promise<number> {
     return 0;
   }
   const command = COMMANDS[cmd];
+  if (command === undefined && rest.length === 1 && (rest[0] === "--help" || rest[0] === "-h")) {
+    const intentHelp = renderIntentHelp(
+      cmd,
+      Object.entries(COMMANDS).map(([name, candidate]) => ({
+        command: name,
+        group: candidate.group,
+        summary: candidate.summary,
+      })),
+    );
+    if (intentHelp !== undefined) {
+      console.log(intentHelp);
+      return 0;
+    }
+  }
   if (command !== undefined && (rest.includes("--help") || rest.includes("-h"))) {
     console.log(command.help);
     return 0;

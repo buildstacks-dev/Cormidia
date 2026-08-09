@@ -36,6 +36,8 @@
     "README.md",
     "scripts/link-local.mjs",
     "scripts/link-skills.mjs",
+    "scripts/lib/install-ownership.mjs",
+    "scripts/lib/install-transaction.mjs",
     "scripts/lib/link-artifacts.mjs",
     "scripts/cormidia-local.mjs",
     "scripts/cormidia-job-local.mjs",

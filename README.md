@@ -72,7 +72,8 @@ owns qualification and release gating.
 Cormidia requires **Node.js >= 26**. Install the published command globally:
 
 ```bash
-npm install -g cormidia
+npm install -g --ignore-scripts cormidia
+node "$(npm root -g)/cormidia/scripts/link-skills.mjs" --dry-run
 node "$(npm root -g)/cormidia/scripts/link-skills.mjs"
 cormidia --version
 cormidia-job --help
@@ -102,8 +103,11 @@ guardrail. Skill install is an **install-time** step, not an org-onboarding or
 app-onboarding step: `cormidia org init` and `cormidia bootstrap` neither
 install nor require skills.
 
-Re-run `link-skills.mjs` after upgrading. It is idempotent and refuses —
-untouched — any file or link at a target path the package does not own.
+Re-run the dry-run and `link-skills.mjs` after upgrading. The linker classifies
+all six targets first, reports every collision with the observed link/file
+evidence and an exact move-aside command, and changes none when any path is
+foreign. A clean run replaces the complete skill set transactionally; rerunning
+the same version is an idempotent no-op.
 
 ### Install locally from source
 
@@ -147,17 +151,33 @@ real install runs. To verify this checkout the way a user receives it:
 pnpm install:packaged --dry-run
 ```
 
-Without `--dry-run` it builds, packs, installs the tarball into npm's global
-prefix, links both skills from the *installed* package root, then resolves each
-binary through `PATH` and **fails if either still resolves inside the
-checkout**. A source-backed link earlier in `PATH` would silently defeat the
-test, so the script refuses to proceed until it is gone: pass
-`--replace-source-links` to remove links this checkout owns (foreign-owned
-paths are always refused). `pnpm link:local` restores the dev loop afterwards.
+Without `--dry-run` it builds with the exact pnpm version pinned in
+`packageManager`, packs, and runs npm's real global-install path in a disposable
+same-filesystem prefix. Only after that staged generation passes both binary
+checks does it transactionally promote the Cormidia-owned package root, both declared
+binaries, and all six skill links. Same-version reinstall and packaged upgrade
+converge in place; any ordinary failure restores the prior complete generation.
+
+Every package, binary, PATH shadow, and skill target is classified before the
+first install-target mutation from its exact directory-entry evidence plus the
+owning `package.json` name/version/bin identity. Foreign collisions are all
+reported with evidence and exact move-aside commands and remain untouched. A
+source-backed generation requires explicit `--replace-source-links`; this is
+the safe source-to-package path, and `pnpm link:local` restores the dev loop.
+`--tarball <absolute-path>` applies the same checks and transaction to an exact
+already-packed candidate without rebuilding it.
+
+That consent is intentionally scoped to links into the checkout running the
+command. A link into another identity-verified Cormidia checkout remains a
+foreign collision because it may be a separate active dev loop; even
+`--replace-source-links` leaves it untouched. The refusal names that checkout,
+shows the exact symlink evidence, and supplies one move-aside command per path
+so the operator can inspect and explicitly retire the other loop before retrying.
 
 `pnpm smoke:package -- <absolute-tarball-path>` is the narrower CI check — it
-installs a tarball into a temp directory, asserts every declared `bin` entry
-runs, and deletes the directory. It verifies a tarball; it does not install one.
+performs two real `npm install -g --prefix <temporary-prefix>` passes, runs every
+declared binary, and links both skills into three temporary provider homes. It
+never reads or changes the host's actual global installation.
 
 These four locations are intentionally different:
 
@@ -199,6 +219,14 @@ choose `--authority conservative` or `--authority custom --authority-file
 human grant explicitly.
 
 ### Upgrading an existing installation
+
+For a published package upgrade, rerun the three install/link commands above.
+npm replaces its same-prefix `cormidia` package and binary links; the skill
+preflight then proves every existing target is absent or Cormidia-owned before
+converging all six. Do not use bare `npm install -g` to convert an active
+source-backed development link: run `pnpm install:packaged
+--replace-source-links` from that checkout so binaries and skills change as one
+rollback-safe generation.
 
 The first invocation that uses the default home atomically moves
 `~/.operon` to `~/.cormidia`, rewrites the active pointer and lifecycle clone

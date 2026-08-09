@@ -40,10 +40,8 @@ import { loadPipelines, type PipelineConfig, type PipelinesFile } from "../loop/
 import { readPublishedTicketsRecord, writePublishedTicketsRecord } from "../loop/plan-publication-record.js";
 import {
   finalizePlanForPublication,
-  isTicketBudgetOnlyRefusal,
   PLAN_SCHEMA,
   publishPlanProjection,
-  validatePlan,
   type FinalPlanProjection,
   type PlanningSourceTicketEvidence,
   type PlanProvenance,
@@ -106,6 +104,16 @@ import {
   resolvePlanningStage,
   type PlanningStageResolution,
 } from "./planning-stage.js";
+import {
+  isProductDocTicketBudgetOnlyRefusal,
+  parseAndValidateProductDocTicketPlan,
+} from "./product-doc-plan-validation.js";
+import {
+  assertCurrentProductDocTicketPlan,
+  prepareProductDocPlanning,
+  renderProductDocPlanningBrief,
+  type ProductDocPlanningState,
+} from "./product-doc-planning.js";
 import { acceptBacklogSnapshot, readBacklogSnapshotAuthority } from "./roadmap-delivery/backlog-authority.js";
 import { ROADMAP_DELIVERY_SCHEMA_VERSION } from "./roadmap-delivery/authority-core.js";
 import { listActiveExecutionUnits } from "./roadmap-delivery/active-execution-units.js";
@@ -308,6 +316,13 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   const resolvedSources = resolveAutoPlanSources(options, snapshot, traceId);
   const consumedSources =
     resolvedSources === undefined ? undefined : consumedPlanningSourceManifest(resolvedSources.manifest);
+  const productDocPlanningInput = {
+    workdir: localRepo,
+    app: options.app.name,
+    repository: options.app.repo,
+    ...(consumedSources === undefined ? {} : { sources: consumedSources }),
+  };
+  const productDocs = await prepareProductDocPlanning(productDocPlanningInput);
   const priorAdmission = await readPlannerAdmission(options.stateHome, episodeId);
   const limits =
     options.plannerLimits ??
@@ -344,6 +359,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
   const legacyTriggerPayloadHash = stableHash(legacyTriggerIdentity);
   const triggerPayloadHash = stableHash({
     ...legacyTriggerIdentity,
+    productDocs,
     stageResolution,
   });
   if (
@@ -396,6 +412,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     requestedConstraints: {
       workflowAuthority: "accepted_episode_plan_only",
       publicationAuthority: "deterministic_orchestrator",
+      productDocs: jsonValue(productDocs, "product-document disposition"),
       ticketPlanStage: stage,
       ticketPlanOutput: { id: "ticket-plan", kind: "TicketPlan", required: true },
       planningOperationCatalog: planningCatalogForIntent(),
@@ -505,8 +522,12 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     stageEvidenceCheckout: stageCheckout.checkout,
     budget,
   });
-  const sourceBrief =
-    resolvedSources === undefined ? "" : renderPlanningSourceBrief(resolvedSources.manifest, resolvedSources.documents);
+  const sourceBrief = [
+    renderProductDocPlanningBrief(productDocs),
+    resolvedSources === undefined ? "" : renderPlanningSourceBrief(resolvedSources.manifest, resolvedSources.documents),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   let prepared: Awaited<ReturnType<typeof orchestrateEpisode>>["prepared"];
   let execution: EpisodePlanExecutionResult;
@@ -578,6 +599,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
             runtimeForAssignment,
             baseBrief,
             sourceBrief,
+            productDocs,
             ...(resolvedSources === undefined ? {} : { resolvedSources }),
             ...(consumedSources === undefined ? {} : { consumedSources }),
             stage,
@@ -651,9 +673,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       traceId,
       episodeId,
       consumedSources,
+      productDocs,
       now: clock,
     });
-    const refusedTicketBudget = output?.ticketPlan !== undefined && isTicketBudgetOnlyRefusal(output.ticketPlan);
+    const refusedTicketBudget =
+      output?.ticketPlan !== undefined && isProductDocTicketBudgetOnlyRefusal(output.ticketPlan, productDocs);
     if (refusedTicketBudget) {
       const reason = output.problems.join("; ");
       planningExecution = {
@@ -744,6 +768,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       labels: [...ticket.labels],
     }));
   } else {
+    try {
+      await assertCurrentProductDocTicketPlan(productDocPlanningInput, productDocs, output.ticketPlan);
+    } catch (error) {
+      return failedResult(error, resultBase);
+    }
     ({ published } = await publishPlanProjection(
       publicationGh,
       planProjection,
@@ -1069,12 +1098,13 @@ async function preserveRefusedDecomposition(input: {
   traceId: string;
   episodeId: string;
   consumedSources: PlanningSourceManifest | undefined;
+  productDocs: ProductDocPlanningState;
   now: () => Date;
 }): Promise<RefusedDecompositionSummary | undefined> {
   const plan = input.output?.ticketPlan;
   if (plan === undefined || input.output === undefined) return undefined;
   if (plan.stage !== input.stage) return undefined;
-  if (!isTicketBudgetOnlyRefusal(plan)) return undefined;
+  if (!isProductDocTicketBudgetOnlyRefusal(plan, input.productDocs)) return undefined;
   try {
     const record = await recordRefusedDecomposition({
       stateHome: input.options.stateHome,
@@ -1124,6 +1154,7 @@ interface PlanningProviderExecutionInput {
   runtimeForAssignment: (assignment: TurnAssignment, role: RoleConfig) => Runtime;
   baseBrief: string;
   sourceBrief: string;
+  productDocs: ProductDocPlanningState;
   resolvedSources?: ResolvedPlanningSources;
   consumedSources?: PlanningSourceManifest;
   stage: ProjectStage;
@@ -1221,7 +1252,7 @@ async function executePlanningProviderStep(
   let ticketPlan: TicketPlan | undefined;
   let problems: string[] = [];
   if (definition.output === "ticket_plan") {
-    const parsed = parseAndValidateTicketPlan(evidence.output, input.stage);
+    const parsed = parseAndValidateProductDocTicketPlan(evidence.output, input.stage, input.productDocs);
     ticketPlan = parsed.plan;
     problems = parsed.problems;
   }
@@ -1234,7 +1265,8 @@ async function executePlanningProviderStep(
     ...(ticketPlan === undefined ? {} : { ticketPlan }),
   });
   if (status === "failed") {
-    const refusedTicketBudget = ticketPlan !== undefined && isTicketBudgetOnlyRefusal(ticketPlan);
+    const refusedTicketBudget =
+      ticketPlan !== undefined && isProductDocTicketBudgetOnlyRefusal(ticketPlan, input.productDocs);
     return {
       status: "failed",
       reasonCode: refusedTicketBudget ? "refused_ticket_budget" : "error_ticket_plan_invalid",
@@ -1541,19 +1573,6 @@ function terminalProviderStep(plan: EpisodePlan): ProviderTurnStep | undefined {
   return terminals.length === 1 && terminals[0]?.kind === "provider_turn" ? terminals[0] : undefined;
 }
 
-function parseAndValidateTicketPlan(output: string, stage: ProjectStage): { plan?: TicketPlan; problems: string[] } {
-  const plan = parsePlanJson(output);
-  if (plan === undefined) {
-    return { problems: ["planner output is not a parseable TicketPlan JSON object"] };
-  }
-  const validation = validatePlan(plan);
-  if (plan.stage !== stage) {
-    validation.problems.push(`planner returned stage "${plan.stage}" but the requested stage is "${stage}"`);
-    validation.ok = false;
-  }
-  return validation.ok ? { plan, problems: [] } : { plan, problems: validation.problems };
-}
-
 function assignmentRuntimeFactory(options: AutoPlanOptions): (assignment: TurnAssignment, role: RoleConfig) => Runtime {
   return (assignment, role) =>
     options.runtimeFor?.({
@@ -1796,25 +1815,4 @@ function jsonValue(value: unknown, name: string): JsonValue {
 
 function isProjectStage(value: unknown): value is ProjectStage {
   return value === "bootstrap" || value === "growth" || value === "mature";
-}
-
-/** Native structured output returns bare JSON; a degraded adapter may wrap it
- * in prose or a code fence. Extract the first complete top-level object. */
-function parsePlanJson(text: string): TicketPlan | undefined {
-  const start = text.indexOf("{");
-  if (start < 0) return undefined;
-  for (let end = text.length; end > start; end -= 1) {
-    const candidate = text.slice(start, end).trim();
-    if (!candidate.endsWith("}")) continue;
-    try {
-      const parsed = JSON.parse(candidate) as TicketPlan;
-      if (typeof parsed === "object" && parsed !== null && Array.isArray(parsed.tickets)) {
-        return parsed;
-      }
-      return undefined;
-    } catch {
-      // Trailing prose after the JSON; shrink and retry.
-    }
-  }
-  return undefined;
 }

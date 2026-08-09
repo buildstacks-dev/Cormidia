@@ -18,12 +18,34 @@ live → autonomously scheduled); registry states remain `onboarding | live |
 paused`.
 
 `new-app` is deterministic and local: target skeleton, starter product truth
-(`docs/VISION.md`, `docs/REQUIREMENTS.md`), `.cormidia/` contract, optional
-template (`typescript-node` or `bare`), then the same register path as
-bootstrap. It does not create a GitHub repo, push, or run the Planner —
-follow-ups live in `.cormidia/bootstrap/next-commands.md`. After push,
+(`docs/VISION.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`), `.cormidia/`
+contract, optional template (`typescript-node` or `bare`), then the same register
+path as bootstrap. It records the exact generated product-document hashes with no
+initial disposition and emits an app-specific, checkpointed repository-to-operation
+guide at `.cormidia/bootstrap/next-commands.md`. It does not create a GitHub repo,
+push, run the Planner, or publish an issue. After push,
 `cormidia app verify` synthesizes the lifecycle record; `cormidia app promote
 --to live --execute` flips status without a manual `apps.yaml` edit.
+
+Before automated planning, the operator previews and records exactly one disposition
+with `cormidia app product-docs <app> --workdir <checkout> --disposition
+keep|reconcile|remove`. Classification is byte-exact against the generated hashes:
+untouched placeholders, user replacements, and absent documents are distinct. `keep`
+requires all three reviewed documents and creates no disposition-only work. `remove`
+uses a recoverable staging transaction, deletes exact placeholders only, refuses or
+preserves replacements that arrive after preview, and never records a mixed partial
+result. Planning then keeps the optional documents absent. `reconcile` requires an authoritative `--source` outside
+the scaffold documents; planning creates one Builder/Reviewer documentation unit and
+orders all implementation after it. Bare templates additionally order that unit after
+the single stack-and-gates unit. Missing or drifted disposition refuses before a
+provider is constructed or an implementation issue is published.
+
+Checkouts created before the scaffold manifest existed are not exempt. The command
+recognizes their exact generated planning seed, reconstructs the template-specific
+document hashes, reports the pending migration in preview, and writes the v1 manifest
+only with the confirmed disposition. A changed, missing, or symlinked legacy seed with
+remaining legacy bootstrap evidence refuses as unresolved instead of treating the app
+as unscaffolded.
 
 `bootstrap` (run inside the product repo) scans manifests/docs without agents,
 runs the operator questionnaire, emits app-owned `.cormidia/` artifacts plus

@@ -12,6 +12,16 @@ Status: DRAFT (Phase 4). Defends INV-004/010, T-6/T-8. Journeys J-02/J-14.
   set (INV-010).
 
 ## 2. Output guarantees
+- `new-app` owns its newly created target and emits a fixed-path scaffold manifest. A
+  later `app product-docs` command reads only the three named product-document paths;
+  its preview is non-mutating, keep preserves bytes, and remove stages and deletes only
+  content that still exactly matches the recorded generated hash. A failure rolls every
+  staged placeholder back; an arriving replacement is preserved, and an incomplete
+  transaction remains explicit and recoverable rather than becoming a mixed result
+  (INV-010).
+- A pre-manifest `new-app` checkout is recognized only from its byte-exact generated
+  planning seed. Preview reports migration and confirmed execution persists the v1
+  manifest; ambiguous legacy evidence refuses rather than bypassing disposition.
 - Bootstrap writes only `.cormidia/**` plus one marked, idempotent authority pointer
   block in root `AGENTS.md`/`CLAUDE.md`; existing content preserved byte-for-byte
   outside the marker `[doc]` (containment invariant).
@@ -37,6 +47,11 @@ Status: DRAFT (Phase 4). Defends INV-004/010, T-6/T-8. Journeys J-02/J-14.
   unresolved paths are outside the replacement set.
 
 ## 3. Error behavior
+- A malformed/tampered scaffold manifest, unresolved legacy scaffold, symlinked
+  document or scaffold-metadata ancestor, absent keep target, replacement selected for remove, or hash change during
+  removal refuses. User-authored replacement bytes remain untouched and must be removed
+  explicitly by the operator; staging is rolled back or exposed for deterministic
+  recovery before another disposition can proceed.
 - Symlinked paths, wrong remote, path overlap with generated artifacts: typed refusals
   before mutation.
 - Install ownership drift after preflight is a refusal before promotion. Rollback

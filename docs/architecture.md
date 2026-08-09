@@ -250,7 +250,8 @@ Token-free lifecycle commands for repeatable onboarding and readiness —
   policy.yaml            app-owned quality-gate policy emitted by bootstrap
   memory/<role>/         per-(role, app) domain bundles
   onboarding-report.md   deterministic setup/documentation inventory
-  bootstrap/             initial issue and operator next steps for new apps
+  bootstrap/             product-doc hash/disposition record and app-specific
+                         checkpointed lifecycle guide for new apps
 AGENTS.md                existing content + one marked Cormidia authority block
 CLAUDE.md                existing content + one marked Cormidia authority block
 ```
@@ -550,14 +551,19 @@ and phased delivery contract live in
 ## 9. Greenfield creation and Bootstrap
 
 An app enters the org one of two ways. `cormidia new-app` builds a fresh
-product from a deterministic local skeleton plus starter product truth;
+product from a deterministic local skeleton plus starter product truth and records
+the generated product-document hashes with no default disposition;
 `cormidia bootstrap` onboards an existing repo with an agent-free scan and an
 operator questionnaire. Both require a complete active org, both register
 the app as `onboarding`, and neither spends a token. From there the
 token-free `app reset` / `verify` / `promote` commands own the path to
 `live`. Readiness claims follow the evidence ladder in
 `docs/episodes/contract.md`, and no state on that ladder is ever implied by
-an earlier one.
+an earlier one. For a new app, token-free `app product-docs` must first bind
+keep/reconcile/remove to current bytes. Automated planning rejects a missing or stale
+binding before provider construction/publication; reconcile inserts governed
+documentation ahead of implementation, while remove keeps optional docs absent and
+keep adds no disposition-only work.
 [`docs/org/onboarding.md`](org/onboarding.md) is the full contract; the
 operator-facing walk-through is README → Install locally.
 

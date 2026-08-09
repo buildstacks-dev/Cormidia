@@ -57,10 +57,7 @@ export async function cmdNewApp(args: string[]): Promise<number> {
   if (result.dryRun) {
     console.log("\n(dry-run: no app/org artifacts written; invocation audit only)");
   } else {
-    console.log(
-      "\nnext: review the scaffold, create/push the private GitHub repo, then " +
-        "create the initial op:ready issue from .cormidia/bootstrap/initial-issue.md.",
-    );
+    console.log("\nnext: follow .cormidia/bootstrap/next-commands.md; record keep/reconcile/remove before planning.");
   }
   return 0;
 }

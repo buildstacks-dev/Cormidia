@@ -326,6 +326,7 @@ cormidia app verify <app> --json
 cormidia app promote <app> --to live --json         # non-mutating plan
 cormidia new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
 cormidia new-app docs-site --target-dir ../docs-site --repo owner/docs-site --goal "Publish product documentation" --template bare --dry-run --json
+cormidia app product-docs <app> --workdir <checkout> --disposition keep # preview; execute requires <app>:keep
 cormidia plan <app> --dry-run
 cormidia plan ratify-ticket-budget --app <app> --decomposition <id> --actor <identity> --reason "<why>" --from-budget N --to-budget N # preview; human-gated
 cormidia loop --app <app> --once --dry-run
@@ -381,17 +382,21 @@ Required test/lint gates remain explicitly pending and fail closed until the
 first implementation configures meaningful stack-specific commands. Dry-run
 text and JSON report the selected template, exact paths (including the
 generated `.cormidia/LABELS.md` reference), and gate state. The generated next
-steps install the canonical state/tier/priority/domain labels idempotently
-before creating the first issue, then preview the supported
-`plan --auto --goal ... --source docs/VISION.md --source
-docs/REQUIREMENTS.md` form token-free before its live form.
-For `bare`, run only the generated stack-and-gates establishment issue through
-the loop first; its generated command grants network access for that one
-stack-selection/dependency-manifest invocation, and the loop reloads commands
-from the Builder worktree before gates. Omit the grant from later invocations
-unless their accepted work requires egress.
-Verify and preview promotion only after that issue merges with real checks.
-Neither command creates or publishes a GitHub repo.
+steps are app-specific and checkpoint repository creation/push, canonical labels,
+planning sources and preview/live pairs, Builder/Reviewer delivery, approvals and
+human merge, verification/promotion, and operation. Before the first plan, the
+operator records `keep`, `reconcile`, or `remove` against exact generated document
+hashes with `app product-docs`; automated planning fails before a provider or GitHub
+write when that decision is missing or stale. Exact legacy scaffolds are migrated by
+that same confirmed command. Keep creates no unnecessary docs work, remove uses
+recoverable staging to delete only still-exact placeholders and keeps them absent, and reconcile creates a
+governed documentation unit ahead of implementation from an external authoritative
+source. For `bare`, planning also creates the stack-and-gates unit first; only its
+generated loop command grants network access for stack/dependency setup. Omit the grant
+from later invocations unless their accepted work requires egress. Verify and preview
+promotion only after the required units merge with real checks.
+`new-app` and ordinary `bootstrap` themselves create neither a GitHub repo nor an
+issue; the generated guide marks the later outward commands explicitly.
 
 Onboarding claims follow an evidence ladder:
 

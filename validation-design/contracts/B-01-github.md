@@ -13,6 +13,10 @@ Status: DRAFT (Phase 4). Defends INV-008/009/014, T-7/T-9. Journeys J-02/03/04/0
   refusal before any write.
 
 ## 2. Output guarantees
+- Initial implementation issue creation for a scaffolded app is preceded by a valid,
+  current product-document disposition. Missing/stale disposition refuses before the
+  first create; reconcile publishes its documentation unit first and preserves the
+  declared implementation dependencies in issue state (INV-008/016).
 - Writes return the created artifact identity (issue #, PR #, review id, merge SHA);
   Cormidia persists that identity before flipping any announcing label
   (artifact-before-label, INV-008).

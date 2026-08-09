@@ -39,6 +39,12 @@ J-03. Interfaces with B-01/B-02..04/B-10/B-20/B-21.
   model) creates issues; published tickets carry `Planned-by` lineage and a local
   mirror. For existing-backlog grooming, it versions the roadmap and applies only
   validated projections/deltas — it never recreates issues `[doc+stated]`.
+- For a `new-app` scaffold, `plan --auto` requires a current content-bound
+  keep/reconcile/remove decision before provider construction or publication. Keep adds
+  no disposition-only work; remove forbids regeneration of the optional documents;
+  reconcile creates exactly one ordinary Builder/Reviewer documentation unit covering
+  all three product documents and makes every implementation unit depend on it. A bare
+  template first creates one dependency-free stack-and-gates unit `[doc]`.
 - A RoadmapPlan accounts for every considered issue exactly once: one stable workstream
   and delivery unit, or a typed unassigned disposition. Workstreams carry outcome,
   priority, dependencies, blockers, sequencing and WIP. Delivery units carry one-or-
@@ -116,5 +122,8 @@ J-03. Interfaces with B-01/B-02..04/B-10/B-20/B-21.
   recorded refs/bytes/trust/selection/truncation before runtime construction; a
   missing/unreadable/rejected/over-budget required source fails closed; emitted tickets
   carry refs + hashes, never source bytes `[doc]`.
+- Reconcile requires at least one selected, consumed authoritative `--source` outside
+  `docs/VISION.md`, `docs/REQUIREMENTS.md`, and `docs/ARCHITECTURE.md`; the generated
+  placeholders cannot authorize their own reconciliation `[doc]`.
 - Scheduled GitHub intake distinguishes empty repository, unavailable GitHub, missing
   required executable, and accidental ready-only filtering before provider construction.

@@ -11,6 +11,11 @@
       "lines": 55,
       "newModule": false
     },
+    "src/cli/app-product-docs.ts": {
+      "exports": 1,
+      "lines": 87,
+      "newModule": true
+    },
     "src/cli/app.ts": {
       "exports": 2,
       "lines": 271,
@@ -836,9 +841,14 @@
       "lines": 379,
       "newModule": false
     },
+    "src/org/new-app-guide.ts": {
+      "exports": 1,
+      "lines": 267,
+      "newModule": true
+    },
     "src/org/new-app.ts": {
       "exports": 4,
-      "lines": 1337,
+      "lines": 1026,
       "newModule": false
     },
     "src/org/objective-grants.ts": {
@@ -868,7 +878,7 @@
     },
     "src/org/plan-auto.ts": {
       "exports": 2,
-      "lines": 1822,
+      "lines": 1818,
       "newModule": false
     },
     "src/org/plan.ts": {
@@ -905,6 +915,36 @@
       "exports": 6,
       "lines": 338,
       "newModule": false
+    },
+    "src/org/product-doc-disposition.ts": {
+      "exports": 4,
+      "lines": 152,
+      "newModule": true
+    },
+    "src/org/product-doc-plan-validation.ts": {
+      "exports": 2,
+      "lines": 44,
+      "newModule": true
+    },
+    "src/org/product-doc-planning.ts": {
+      "exports": 5,
+      "lines": 185,
+      "newModule": true
+    },
+    "src/org/product-doc-record.ts": {
+      "exports": 8,
+      "lines": 203,
+      "newModule": true
+    },
+    "src/org/product-doc-removal.ts": {
+      "exports": 6,
+      "lines": 165,
+      "newModule": true
+    },
+    "src/org/product-doc-scaffold.ts": {
+      "exports": 4,
+      "lines": 264,
+      "newModule": true
     },
     "src/org/ratified-validation-catalog.ts": {
       "exports": 3,

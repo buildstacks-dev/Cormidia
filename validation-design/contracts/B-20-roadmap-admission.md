@@ -8,10 +8,15 @@ soak evidence remains pending.
 
 ## Inputs
 - One schema/versioned RoadmapPlan with content hash and predecessor reference.
+- For scaffolded initial work, one current content-bound product-document disposition.
 - Content-hashed backlog snapshot manifest with completeness/pagination evidence.
 - Current dependency, routing, validation, lifecycle, claim and WIP facts.
 
 ## Guarantees
+- Reconcile materializes one documentation delivery unit through normal Builder and
+  Reviewer governance and keeps dependent implementation outside the ready frontier
+  until that unit completes. Bare scaffolds additionally keep it behind the single
+  stack-and-gates unit. Keep/remove create no disposition-only documentation unit.
 - Every considered issue is accounted for exactly once; workstream and delivery-unit
   identities are stable across revisions and moves are append-only evidence.
 - A ready entry binds one exact unit membership, plan/frontier version and validation

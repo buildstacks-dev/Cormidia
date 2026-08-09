@@ -1,6 +1,5 @@
-// Explicit app lifecycle commands. `reset` is deliberately plan-first: it
-// reads the current GitHub work surface and changes nothing until the operator
-// repeats the app name in --confirm alongside --execute.
+// Explicit app lifecycle commands. Reset remains plan-first and requires the
+// operator to repeat the app name in --confirm before mutation.
 
 import { dirname, join, resolve } from "node:path";
 import type { GhOps } from "../loop/github.js";
@@ -11,27 +10,27 @@ import { resolveCormidiaHomes } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
 import { latestResetArchiveForApp } from "../org/onboarding-answers.js";
 import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
+import { cmdAppProductDocs } from "./app-product-docs.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
 interface AppCommandOptions {
   ghFactory?: (repo: string) => GhOps;
-  /** Test seam for the non-billable runtime-readiness probe used by `verify`
-   * and `promote`. Unset in production so verify runs the real
-   * `probeRuntimeReadiness` (agreeing with `cormidia doctor`); tests inject a
-   * deterministic fake so they never contact a real adapter. */
+  /** Non-billable readiness seam: production probes the adapter; tests inject
+   * a deterministic fake and never contact one. */
   readinessProbe?: RuntimeReadinessProbe;
 }
 
 export async function cmdApp(args: string[], options: AppCommandOptions = {}): Promise<number> {
   const common = extractHomeFlags(args, "app");
   const [verb, appName, ...rest] = common.rest;
-  if (verb !== "reset" && verb !== "verify" && verb !== "promote") {
-    throw new Error(`app: unknown subcommand "${verb ?? ""}" (expected reset, verify, or promote)`);
+  if (verb !== "reset" && verb !== "verify" && verb !== "promote" && verb !== "product-docs") {
+    throw new Error(`app: unknown subcommand "${verb ?? ""}" (expected reset, verify, promote, or product-docs)`);
   }
   if (appName === undefined || appName.startsWith("--")) {
     throw new Error(`app ${verb}: <app-name> is required`);
   }
+  if (verb === "product-docs") return cmdAppProductDocs(appName, rest, common);
 
   if (verb === "verify") return verify(appName, rest, common, options);
   if (verb === "promote") return promote(appName, rest, common, options);

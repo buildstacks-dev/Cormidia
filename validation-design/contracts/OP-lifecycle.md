@@ -3,7 +3,7 @@ Canonical ID: **CORMIDIA-C-OPLIFE-001 (alias: C-OP-LIFE)**
 
 Status: DRAFT (Phase 4). Added on stakeholder trace audit: journeys need stable
 operation-contract IDs where no Phase 3 boundary owns the promise. Covers `org init`,
-`org upgrade`, `org use`, `app verify`, `app promote`, `app reset`. Defends
+`org upgrade`, `org use`, `new-app`, `app product-docs`, `app verify`, `app promote`, `app reset`. Defends
 INV-008/010/013/015, T-8. Journeys J-01/J-02/J-14. Interfaces with B-10/B-14/B-15.
 
 ## §1 org init
@@ -24,6 +24,26 @@ INV-008/010/013/015, T-8. Journeys J-01/J-02/J-14. Interfaces with B-10/B-14/B-1
   ratified surfaces never replaced; checksummed archive outside the state home before
   changes; validation after; interrupted migration safe to rerun (dead-process-aware
   lock + deterministic staging); thrown failure restores exact archived bytes `[doc]`.
+
+## §3a new-app / app product-docs
+- `new-app` emits deterministic template-specific app artifacts, a product-document
+  record containing exact generated hashes, and an app-specific checkpointed
+  `next-commands.md`; it creates no remote, issue, provider turn, promotion, release,
+  or scheduler effect `[doc]`.
+- `app product-docs` previews `keep | reconcile | remove` by default. Execution requires
+  exact `<app>:<disposition>` confirmation and records current document hashes. Exact
+  scaffold bytes are placeholders, any other bytes are replacements, and absence is
+  intentional state. Remove uses recoverable staging, rechecks each moved byte stream,
+  deletes placeholders only, preserves a concurrent replacement, and rolls back on a
+  pre-commit failure; committed removal with leftover staging recovers as cleanup
+  rather than changing the disposition `[doc]`.
+- A checkout generated before the v1 scaffold record is recognized from the exact
+  legacy planning seed, previewed as a migration, and gets a manifest only when the
+  operator confirms a disposition. Ambiguous legacy evidence refuses fail-closed
+  rather than passing as an ordinary unscaffolded checkout `[doc]`.
+- A recorded decision remains valid only while its bound document hashes remain exact.
+  Keep requires all three documents present; remove requires all three absent;
+  reconcile requires an authoritative planning source outside them `[doc]`.
 
 ## §4 app verify
 - Deterministic; proves refs/ancestry, canonical labels (N/A for local/file remotes),

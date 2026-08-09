@@ -391,7 +391,7 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-IF-CLI | per-subcommand adapter conformance: parsing, exit codes, `--json` failure document (ok:false, stable error.code/message/remediation, no stderr prose prepend), dry-run token/write claims (audit-row exception), `--confirm` semantics | 2 | refusal+evid | E3 (claims) / THIN (help text) |
+| CF-IF-CLI | per-subcommand adapter conformance: parsing, exit codes, `--json` failure document (ok:false, stable error.code/message/remediation, no stderr prose prepend), dry-run token/write claims (audit-row exception), `--confirm` semantics; progressive human-help hierarchy (concise task groups → exhaustive command safety help) with the exact 39-row `capabilities --json` catalog pinned unchanged. Issue #371 adds structural/inline-snapshot coverage plus a seeded flat-help negative control under `tests/unit/cf-if/` | 2 | refusal+evid+det | E3 (claims) / THIN (help text) |
 | CF-IF-JSON | schema stability + canonical key-sorting where claimed; no-active-org → `no_active_org` | 2 | evid | STD |
 | CF-IF-UI | Live UI shell conformance: PRUNE-thin for pixels; confidentiality/truth slices covered CF-J15-* (not thin) | 2 | evid | THIN/E3 |
 | CF-IF-HTML | portable report conformance: self-contained, CSP, no external requests, no L3 | 2 | evid | E3 |

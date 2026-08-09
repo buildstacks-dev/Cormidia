@@ -231,8 +231,24 @@ journaled.
 
 ## Commands
 
-Run `cormidia --help` or `cormidia <command> --help` for current syntax. The
-read-only discovery surfaces are also machine-readable for coding agents:
+`cormidia --help` is intentionally concise: it shows common starting actions and
+the operator-intent help groups, not the entire command catalog. Use the next help
+layer for the area you are working in, then ask the individual command for complete
+syntax, constraints, and safety notes:
+
+```bash
+cormidia setup --help
+cormidia onboarding --help
+cormidia delivery --help
+cormidia operations --help
+cormidia governance --help
+cormidia inspection --help
+cormidia <command> --help
+```
+
+These help groups are navigation only; they do not replace, rename, or wrap any
+command. The read-only discovery surfaces remain exhaustive and machine-readable for
+coding agents and automation:
 
 ```bash
 cormidia capabilities --json

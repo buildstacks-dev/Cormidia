@@ -1,8 +1,8 @@
 {
-    "schema": "validation-architect/source-provenance/v1",
-    "runId": "manual-baseline-ratification-2026-07-31",
-    "baseCommit": "ca6d03564f54cb53ff644f485f4a993eec8d6553",
-    "sourceTree": "806b1888b4c7e47c44f15d7ca6aa2123c8b13f25",
-    "docsTree": "2944312452936a5c9f37ee0817647e8ec3cfa141",
-    "capturedAt": "2026-07-31T10:08:43-07:00"
-  }
+  "schema": "validation-architect/source-provenance/v1",
+  "runId": "manual-baseline-ratification-2026-07-31",
+  "baseCommit": "ca6d03564f54cb53ff644f485f4a993eec8d6553",
+  "sourceTree": "806b1888b4c7e47c44f15d7ca6aa2123c8b13f25",
+  "docsTree": "2944312452936a5c9f37ee0817647e8ec3cfa141",
+  "capturedAt": "2026-07-31T10:08:43-07:00"
+}

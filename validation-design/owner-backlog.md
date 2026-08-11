@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-148)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -43,10 +43,12 @@ what done bought you.
   content-bound plan authority. The failure it catches: backward or in-place edits,
   non-idempotent replay, and torn persistence accepted as terminal. Done buys you direct
   legal/illegal/replay/crash coverage for all four state-machine families.
-- **HB-148 — store-class crash/truncation/quarantine invariant (PENDING).** Defends every
+- **HB-148 — store-class crash/truncation/quarantine invariant (LANDED).** Defends every
   durable store class, not just the journey-specific kill points already present. The
   failure it catches: truncated JSON or quarantined bytes becoming valid state after an
-  append, rename, or journal interruption. Done buys you the missing invariant sweep.
+  append, rename, or journal interruption. The landed nine-case L2 sweep covers the
+  append-only/keyed, atomic-replace, and multi-step-journal store classes with real
+  SIGKILL boundaries plus truncated and quarantined negative controls.
 - **HB-149 — admission/bookkeeping evidence invariant (PENDING).** Defends the distinct
   reasons at the scheduler/sweep boundary. The failure it catches: WIP, missing marks,
   spawn failure, and post-spawn bookkeeping failure collapsing into one greener or

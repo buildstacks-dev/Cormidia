@@ -1151,13 +1151,16 @@ retroactive changes to the assertions in any existing spec.
   honest implementation is green. *Defends:* CF-J09-S, CF-J09-R, CF-J09-I, CF-J09-A,
   CF-C-B08. *Families:* CF-J09-S, CF-J09-R, CF-J09-I, CF-J09-A, CF-C-B08. *Layer:* 2.
   *Executor:* build-agent.
-- **HB-148 — store-class crash/truncation/quarantine invariant. PENDING.** Sweep kill
+- **HB-148 — store-class crash/truncation/quarantine invariant. LANDED.** Sweep kill
   points at append, rename, and journal boundaries for every durable store class; reject
   truncated JSON and prove quarantined bytes are never accepted as state. Existing
   journey-specific kill tests remain evidence only for their own journeys.
   *Acceptance:* each store class has a crash leg and a seeded truncated/quarantined-state
   negative control that turns red before the invariant is green. *Defends:* CF-INV-013.
   *Families:* CF-INV-013. *Layer:* 2. *Executor:* build-agent.
+  <!-- implementation status 2026-08-11: HB-148 LANDED in
+  tests/hermetic/cf-inv-013/cf-inv-013-store-integrity.test.ts; all three ratified
+  store classes carry SIGKILL, truncated-state, and quarantined-state legs. -->
 
 ## Wave 3 — status-honesty reclassification (2026-08-11)
 
@@ -1276,7 +1279,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-141 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
+HB-120..HB-132 LANDED. HB-141 LANDED. HB-148 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
 
 ## Standing rules
 

@@ -5,7 +5,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { execFile as execFileCallback } from "node:child_process";
-import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -1519,6 +1519,11 @@ async function writeRepositoryFixture(
   await writeFile(join(repo, "pipelines.yaml"), "pipelines: {}\n", "utf8");
   await writeFile(join(repo, "TASTE.md"), "# Fixture taste\n", "utf8");
   await writeFile(join(repo, "package.json"), await readFile(join(process.cwd(), "package.json")), "utf8");
+  // A frozen offline install reads local file dependencies from package.json
+  // and the lockfile. Copy the repository's vendored inputs as part of the
+  // candidate fixture; omitting them makes the fixture fail before it can
+  // evaluate the candidate (regression introduced by e265d66).
+  await cp(join(process.cwd(), "vendor"), join(repo, "vendor"), { recursive: true });
   for (const [packagePath, version] of [
     ["typescript", "5.9.3"],
     ["@anthropic-ai/claude-agent-sdk", "0.3.201"],

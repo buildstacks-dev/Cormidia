@@ -1,10 +1,42 @@
 # Harness backlog — Cormidia replacement harness (ticket-shaped)
 
+> **STATUS FIRST (added 2026-08-10, Phase 8 reader test — new-engineer finding 1):
+> most tickets below are ALREADY LANDED.** Before implementing anything, read the
+> "Ticket status register" near the bottom of this file and
+> `harness-design-state.md`; the machine truth is `case-catalog.yaml`'s tickets
+> list. The open work as of 2026-08-10 is: HB-055/072/073/090…094/112 (parked or
+> proposed), HB-062's later scaffolds, HB-133…136 and HB-140 (rev-2026-08-10),
+> plus the P-tickets still parked on findings. Everything else is a record.
+> Naming note: "walking skeleton" names TWO landed things in this file — Wave 0's
+> harness skeleton (HB-001…007) and HB-100's provider-free product-slice vertical
+> skeleton; neither is open work. <!-- changelog 2026-08-10 (reader test 3,
+> new-engineer finding 2) -->
+
 Status: Phase 8 deliverable. Implementation root: `tests/` (docs v2.9). Every
 ticket carries acceptance criteria, the invariant/contract it defends, its layer, and a
 named executor. Per skill rule: **expansion gates are scoped per layer** — a missing
 live target, an unpassed eval threshold, or unauthorized CI parks only its own layer's
-tickets, never L1/L2 implementation. Catalog derivation is already complete
+tickets, never L1/L2 implementation — **except where a ticket names a cross-layer
+dependency inline** (HB-054's product-surface prerequisite, HB-081's and HB-135's
+product-repo halves); an unnamed cross-layer gate remains a design defect.
+<!-- changelog 2026-08-10 (reader test 9, new-engineer finding 3): the rule read as
+absolute; its three named exceptions are now acknowledged at the rule itself. -->
+This exception list is a hand-maintained sentence with no enforcing lint: **any
+new ticket that introduces a cross-layer dependency MUST add itself to this
+sentence in the same change, and omitting that is itself the named design
+defect** — auditable via the routing doc's case-insensitive blocked-work grep,
+which surfaces every `Gate:` marker for comparison against this list. One
+ticket sits outside this rule's vocabulary entirely <!-- changelog 2026-08-10
+(reader test 30, new-engineer finding 5): HB-134 is not cross-layer-gated — it
+has NO fixed layer until an external trigger fires, a different shape than the
+three exceptions, and the Gate: grep would not surface it -->: HB-134
+(triggered, no-layer-until-fired, disclosed at the ticket; kept non-bold here
+because the machine catalog assigns ticket ownership by first bold mention) —
+it is named here
+so the exception audit sees it, not because it gates across layers.
+<!-- changelog 2026-08-10 (reader test 19, new-engineer finding 8): the rule was
+accurate but unenforced; now self-defending with the audit path named. -->
+Catalog derivation is already complete
 (case-catalog.md); these tickets implement it.
 
 <!-- acceptance 2026-08-03: the product owner accepted the revision as the binding
@@ -24,12 +56,25 @@ resolved-ratified — see ratification-package.md §9); HB-P3/HB-P5 stay parked
 (F-PT-006/008 still open); +HB-080 operator triage runbook; +HB-081 product-side
 inconclusive-semantics surface (product change, not harness). -->
 
-**Convention (Waves 1–4):** tickets in these waves inherit *Layer* and risk from
-their wave heading and *defend* the invariants/contracts named by their case-family
-IDs (resolve via case-catalog.md); only Wave 0 and the L3/L4/L5 waves state Layer
-inline because their tickets cross layers.
+**Convention (Waves 1–4) — easy to miss on a fast read, so stated in bold:**
+tickets in these waves **inherit *Layer* and risk from their wave heading** (each
+Wave 1–4 heading names its layer, e.g. "exhaustive; L1/L2") and *defend* the
+invariants/contracts named by their case-family IDs (resolve via case-catalog.md).
+Wave 0 states Layer inline (its tickets cross layers); the L3/L4/L5 wave tickets
+carry `*Gate:*`/`*Executor:*` fields and inherit their layer from the wave heading,
+same as Waves 1–4. <!-- changelog 2026-08-10 (reader test 4, new-engineer
+finding 5): emphasis added; reader test 5 (new-engineer finding 1) corrected this
+sentence itself — it previously claimed L3/L4/L5 tickets state Layer inline, which
+the file's own formatting contradicts. -->
 
 ## Wave 0 — Walking skeleton (before mass case implementation)
+
+> **LANDED — historical spec.** Everything in this wave shipped 2026-07-31
+> (see the STATUS-FIRST banner and the Ticket status register). Do NOT
+> implement from this section; it is retained as the record of what was built
+> and why. <!-- changelog 2026-08-10 (reader test 22, new-engineer finding 1):
+> the banner warning was prose-only; a reader opening straight to this heading
+> had no structural stop. -->
 
 <!-- implementation status 2026-07-31: HB-001..HB-006 LANDED (tests/
 walking skeleton; 134 specs green; CI lane wired with pinned fail-closed
@@ -52,32 +97,54 @@ tests/unit/s3-verdict-marker.test.ts). -->
 - **HB-002 — Fixture kit v1 + self-tests.** Temp org home, temp state home, temp git
   repo/worktree factory, injected clock, kill-point subprocess harness. Each fixture
   ships a self-test; every sweep asserts a non-empty walk. *Acceptance:* fixture
-  self-tests green; empty-walk fails. *Defends:* rule 17. *Layer:* 2. *Executor:*
-  build-agent.
+  self-tests green; empty-walk fails. *Defends:* rule 17 (= the harness-is-itself-tested rule; text at validation-policy.yaml → harness_self_tests). *Families:* CF-B06-*,
+  CF-C-B06 (the injected-clock fixture is where the clock-boundary families landed).
+  *Layer:* 2. *Executor:* build-agent.
 - **HB-003 — GitHub double v1 + conformance-pair scaffold.** Scripted fake per
   boundary-map B-01 (state machine, per-call failure scripts, lost-response mode,
   configurable default branch). Conformance suite structured to run against fake now
   and real later (CF-B01-L3). *Acceptance:* fake passes its own contract suite; one
   scripted failure mode (lost response) demonstrably reproducible; negative control:
   a deliberately lying fake variant fails the suite. *Defends:* B-01, INV-008/009.
+  *Families:* also CF-C-B01 (the contract family the double asserts).
   *Layer:* 2. *Executor:* build-agent.
 - **HB-004 — Adapter double v1 (one adapter first: Claude).** Mocked runtime per
   provider-adapter-core + B-02 scripts. *Acceptance:* core contract clauses assert
-  against it; usage-absent renders unknown (INV-006 seed red-then-green). *Layer:*
-  1–2. *Executor:* build-agent.
+  against it; usage-absent renders unknown (INV-006 seed red-then-green).
+  *Families:* also CF-C-B02. *Layer:* 1–2. *Executor:* build-agent.
 - **HB-005 — Skeleton test per layer (one each, with negative controls).**
   (a) L1: CORMIDIA-INV-006 exactly-once settlement guardrail test + seeded
   double-settle violation (red-then-green). (b) L2: one composition test — dispatch
   tick → claim → scripted adapter turn → settlement on the fixture kit, including one
   boundary failure mode (kill between provider return and ledger append). (c) journey
   test: CF-J04-S reduced walk (ready→PR on fake GitHub). (d) LLM contract test: S-3
-  verdict-marker parser refusal (zero/two markers). *Acceptance:* each test paired
+  verdict-marker parser refusal (zero markers, or two DISTINCT conflicting
+  markers — duplicate identical markers deliberately parse in production;
+  refusal scope now tracked by **F-PT-033**. The landed test records that
+  implementation behavior — duplicate-identical parse, keyword precedence — as
+  pinned regression facts conferring no ratification; no NEW test may encode
+  either reading as contract truth until F-PT-033 ratifies <!-- changelog
+  2026-08-10 (final-gate follow-up 10): "zero/two" here did not match the
+  parser's documented duplicate-identical tolerance; corrected same day
+  (follow-up 11): the landed test DOES pin the lenient behavior, so
+  "asserts only both-readings-valid refusals" was literally false -->. **Net,
+  in one sentence** <!-- changelog 2026-08-10 (reader test 42, new-engineer
+  finding 3): after two corrections this clause was still hard to execute from
+  the ticket alone -->: assert zero-marker refusal and distinct-conflict
+  refusal as contract truth; assert NOTHING about duplicate-identical markers —
+  the landed test's duplicate-identical assertions are pinned regression facts
+  you must not extend or imitate until F-PT-033 ratifies) — the
+  falsifying-test shape is
+  invariants.md INV-012's "APPROVE-prose without marker" seeds; the catalog's S-3
+  envelope cell (§7) dup-prunes into the INV-009/012 clause families, which is why
+  no separate catalog row exists (co-location pointer added 2026-08-10, reader-test
+  new-engineer finding 4). *Acceptance:* each test paired
   with its seeded-violation negative control; all green in the HB-001 lane.
   *Defends:* INV-005/006/008/012; C-OP-LOOP. *Layer:* 1–2. *Executor:* build-agent.
 - **HB-006 — Policy loader + artifact-location pin.** Test that validation-policy.yaml
   parses, artifact paths resolve, and the layer/trigger blocks match CI config
   (drift = red). *Acceptance:* moving an artifact without updating policy fails.
-  *Defends:* rule 17; policy-as-data. *Layer:* 1. *Executor:* build-agent.
+  *Defends:* rule 17 (harness self-tests — validation-policy.yaml → harness_self_tests); policy-as-data. *Layer:* 1. *Executor:* build-agent.
 - **HB-007 — PROPOSED-register review tripwire.** Before Wave 0 completes, present
   every PROPOSED-register item whose expiry is "first harness build review" (register
   items 1–8, 13) to the human for ratify/strike/adjust; record outcomes in
@@ -99,21 +166,25 @@ open_findings). -->
 
 
 - **HB-010** Gate classifier adversarial suite (CF-INV-002 seeds incl. obfuscation,
-  unknown-tool fail-closed). Executor: build-agent.
+  unknown-tool fail-closed; gate-runner toolchain families CF-B16-*, CF-C-B16;
+  publication-gate refusal CF-J11-R). Executor: build-agent.
 - **HB-011** Approval store + grant lifecycle state machines (CF-SM-APPR-*,
-  CF-SM-GRANT-*, both grant shapes; orphan-grant intermediate). Executor: build-agent.
-- **HB-012** Continuation/resume fingerprint suite (CF-J06-*, B-09a; F-PT-008 clause
-  parked). Executor: build-agent.
-- **HB-013** Typed executor + marker typing (CF-B17-*, CF-J05-*, CF-J17-*; B-17 live
-  remainder stays BLOCKED). Executor: build-agent.
-- **HB-014** Authority resolution + org-identity suite (CF-B10-*, CF-INV-001 seeds,
+  CF-SM-GRANT-*, both grant shapes; orphan-grant intermediate; CF-INV-003,
+  CF-B09b-*, CF-C-B09B decision-entry families). Executor: build-agent.
+- **HB-012** Continuation/resume fingerprint suite (CF-J06-*, CF-B09a-*, CF-C-B09A;
+  F-PT-008 clause parked). Executor: build-agent.
+- **HB-013** Typed executor + marker typing (CF-B17-*, CF-C-B17, CF-J05-*, CF-J17-*;
+  B-17 live remainder stays BLOCKED). Executor: build-agent.
+- **HB-014** Authority resolution + org-identity suite (CF-B10-*, CF-C-B10,
+  CF-INV-001 seeds, CF-INV-004 app-isolation facets, CF-INV-015 error-branch sweep,
   B-10a identity classes). Executor: build-agent.
-- **HB-015** Destructive lifecycle containment (CF-J01-*, CF-J14-*, C-OP-LIFE;
-  sibling-diff oracle; temp-FS/git fault injection only). Executor: build-agent.
+- **HB-015** Destructive lifecycle containment (CF-J01-*, CF-J14-*, CF-C-OPLIFE,
+  CF-INV-010; sibling-diff oracle; temp-FS/git fault injection only). Executor:
+  build-agent.
 - **HB-016** Secret confinement egress suite (CF-INV-011 seeds; single-policy
   structural check). Executor: build-agent.
-- **HB-017** Learning activation boundary (CF-J12-*, CF-SM-LEARN-*, B-11 publisher
-  forward-completion). Executor: build-agent.
+- **HB-017** Learning activation boundary (CF-J12-*, CF-SM-LEARN-*, CF-C-B11, B-11
+  publisher forward-completion). Executor: build-agent.
 
 ## Wave 2 — E-2 durability + money (exhaustive; L1/L2)
 
@@ -128,14 +199,16 @@ land with every discovered defect. Full per-commit L1/L2 gate: 95 files,
 provider conformance remains the separately gated HB-051 L3 obligation. -->
 
 - **HB-020** Settlement conservation + reconcile (CF-J08-*, CF-INV-006 property tests
-  via fast-check). **HB-021** Claim uniqueness/races (CF-INV-005, CF-J09-RC).
-  **HB-022** Admission/pause (CF-J07-*; the former F-PT-003 block lifted 2026-07-31 —
-  convergence cases land via HB-P1, unparked below). **HB-023** Crash-point
-  sweeps (CF-J04-I, CF-SM-TURN-C, B-07 harness; F-PT-004 line ratified 2026-07-31:
+  via fast-check). **HB-021** Claim uniqueness/races (CF-INV-005, CF-J09-*, CF-C-B08
+  tick↔turn families). **HB-022** Admission/pause (CF-J07-*, CF-INV-007; the former
+  F-PT-003 block lifted 2026-07-31 — convergence cases land via HB-P1, unparked
+  below). **HB-023** Crash-point sweeps (CF-J04-I, CF-SM-TURN-*, CF-INV-013,
+  CF-B07-*, CF-C-B07 harness; F-PT-004 line ratified 2026-07-31:
   preserve-and-inspect — ambiguous-byte cases land via HB-P2, unparked below).
   **HB-024** Adapter enforcement slices T-11 (budget observation per capability
   matrix; session binding; remaining adapter doubles Codex + pi incl. rotation
-  scripts and extension-absence). **HB-025** FS/git substrate faults (CF-B15-*).
+  scripts and extension-absence; CF-C-B03, CF-C-B04 contract families).
+  **HB-025** FS/git substrate faults (CF-B15-*).
   Executor: build-agent (all).
 
 ## Wave 3 — E-3 merge + evidence truth (exhaustive; L1/L2)
@@ -152,10 +225,12 @@ per-commit L1/L2 gate: 108 files, 699 passed + 1 intentionally parked skip;
 typecheck and build green. This status is L1/L2 only and does not imply any
 separately gated L3/L4/L5 evidence. -->
 
-- **HB-030** Merge boundary suite (CF-INV-009; HEAD equality; resolved default).
-  **HB-031** Loop state machine + labels-after-artifacts (CF-SM-LOOP-*, CF-J04-S/R).
-  **HB-032** Evidence truthfulness sweep across readers (CF-INV-008, CF-J15-*,
-  CF-J07-A/J08-A/J02-A, B-12 incl. capability/traversal). **HB-033** Cross-surface
+- **HB-030** Merge boundary suite (CF-INV-009, CF-INV-012; HEAD equality; resolved
+  default). **HB-031** Loop state machine + labels-after-artifacts (CF-SM-LOOP-*,
+  CF-J04-S, CF-J04-R). **HB-032** Evidence truthfulness sweep across readers (CF-INV-008,
+  CF-INV-014, CF-J15-*, the J-07/J-08/J-02 agreement legs (owned at their home
+  tickets HB-022/HB-020/HB-042), CF-J11-S, CF-J11-I, CF-J11-RC,
+  CF-J11-A, CF-B12-*, CF-C-B12 incl. capability/traversal). **HB-033** Cross-surface
   agreement (CF-IF-XSURF + CF-IF-* conformance). Executor: build-agent (all).
 
 ## Wave 4 — standard + thin remainder (L1/L2)
@@ -173,11 +248,13 @@ land with every discovered defect. Full per-commit L1/L2 gate: 116 files,
 This status is L1/L2 only and does not imply separately gated L3/L4/L5
 evidence. -->
 
-- **HB-040** Event inbox (CF-B13-*, CF-J10-*, CF-SM-EVENT-*; F-PT-006 clauses
-  parked). **HB-041** Planner validator + planning ops (CF-J03-*, C-OP-PLAN).
-  **HB-042** Onboarding ladder + lifecycle records (CF-J02-*). **HB-043** Scheduler
-  lifecycle hermetic (CF-J16-S/R/I). **HB-044** Retention GROW suite (CF-OPS-GROW,
-  seeded aged state). **HB-045** Presentation smokes (thin, per risk-allocation §4).
+- **HB-040** Event inbox (CF-B13-*, CF-C-B13, CF-J10-*, CF-SM-EVENT-*; F-PT-006
+  clauses parked). **HB-041** Planner validator + planning ops (CF-J03-*,
+  CF-SM-PLAN-*, C-OP-PLAN). **HB-042** Onboarding ladder + lifecycle records
+  (CF-J02-*, CF-SM-LADDER-L, CF-SM-LADDER-I). **HB-043** Scheduler lifecycle
+  hermetic (CF-J16-S, CF-J16-R, CF-J16-I, CF-B05-*, CF-C-B05). **HB-044** Retention GROW suite
+  (CF-OPS-GROW, seeded aged state). **HB-045** Presentation smokes (thin, per
+  risk-allocation §4).
   **HB-046** Trajectory assertions (CF-S2-traj ratified grounds + observed metrics).
   **HB-047** S-9 format-repair contract suite (CF-S9-env: exactly-one repaired
   structure, same session, bounded attempts, settles per turn — contract-only, no
@@ -197,7 +274,8 @@ was authorized or run in this change; absence is incomplete, never pass. HB-055 
 blocked exactly as designed. -->
 
 - **HB-050** Live config + campaign runner with spend accounting (enforces §5 bounds;
-  completeness/verdict split). *Gate: none beyond CI merge of L1/L2 skeleton.*
+  completeness/verdict split; the durable-report family CF-HARNESS-REPORT).
+  *Gate: none beyond CI merge of L1/L2 skeleton.*
 - **HB-051** CF-B02-L3/CF-B03-L3/CF-B04-L3 adapter conformance runs. *Gate: provider
   auth on the operator machine; spend authorization per policy triggers.* Executor:
   campaign (human-initiated per trigger). **Probe hardening 2026-08-05 (#297):** every
@@ -218,7 +296,9 @@ blocked exactly as designed. -->
   authorized L3 evidence.
 - **HB-053** CF-J16-A launchd proof. *Gate: operator machine session.* Executor:
   human + build-agent script.
-- **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile.
+- **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile, with
+  its hermetic composite halves CF-J18-S, CF-J18-R, CF-J18-I, CF-J18-RC preceding
+  the live run on the fake-timer rig.
   *Gate: the profile surface must first be ratified + implemented in Cormidia (policy
   `unattended_test_mode_profile`) — a product change, tracked as its own product
   ticket, not a harness ticket.* Executor: campaign. **Implementation dependency
@@ -251,10 +331,21 @@ items 9..12 remain PROPOSED, so threshold-dependent campaigns remain inconclusiv
   provider-turn ceiling at or below the full declared case-attempt cardinality;
   strict headroom is required because equality is terminal ceiling exhaustion.*
 - **HB-061** Author reviewer/ seeded-defect + clean sets (first-funded; provenance
-  rules per scaffold). Executor: human + build-agent. *Note: threshold verdicts stay
-  inconclusive until F-PT-009 ratifies — authoring is NOT gated on ratification.*
-- **HB-062** Author planner/ sets; **HB-063** builder-trajectory scenario fixtures;
-  later scaffolds per elicited priority. Executor: human + build-agent.
+  rules per scaffold; CF-S3-qual, CF-S3-judge). Executor: human + build-agent.
+  *Note: threshold verdicts stay inconclusive until F-PT-009 ratifies — authoring is
+  NOT gated on ratification.*
+- **HB-062** Author planner/ sets (CF-S1-qual) and the later scaffolds per elicited
+  priority — CF-S2-qual, CF-S4-qual, CF-S5-qual, CF-S6-qual, CF-S7-judge,
+  CF-S7-qual, the S-11 meta-eval halves CF-S11-qual, CF-S11-judge (timing governed
+  by the ratified rubric §5 deferral), and the CF-COND sampling design (open under
+  F-PT-011); **HB-063** builder-trajectory scenario fixtures.
+  Executor: human + build-agent.
+  <!-- changelog 2026-08-10 (rev-2026-08-10 status honesty): HB-062 is recorded
+  NOT-LANDED (status pending in case-catalog.yaml) — its planner-sets half is
+  complete (see the wave status comment above), but the "later scaffolds" half
+  (SRE, learning-reviewer, support, marketing, distiller) remains open, and the
+  S-11 grader meta-eval also rides HB-062 for traceability with its TIMING governed
+  by the ratified rubric §5 deferral, not by this ticket. HB-063 is complete. -->
 
 ## Wave L5 — future assurance outside RQ-1 (gated per obligation)
 
@@ -271,8 +362,18 @@ release obligations. Missing evidence remains visible and never pass. -->
 - **HB-070** Contention rig (CF-OPS-CONT; hermetic implementation, L5 question).
   Executor: build-agent. **HB-071** Soak protocol runner + evidence collector
   (CF-OPS-SOAK incl. CF-OPS-ROT sub-evidence). *Gate: human schedules the 7-day
-  window.* Executor: human + campaign. **HB-072** Threat model document. *Owner:
-  human; due per policy.* **HB-073** Abuse lane cases. *Gate: HB-072.*
+  window.* Executor: human + campaign. **HB-072** Threat model document. *Executor:*
+  human (author + reviewer); due per policy. *Acceptance:* the ten-surface scope,
+  timing triggers and review rule in risk-allocation.md §6, authored over
+  threat-model-template.md; admission is hash-bound via threat-model-status.yaml
+  (the gate refuses the checked-in awaiting_human_author status). *Defends:* the L5
+  abuse-lane precondition and the T-1/T-2/T-4/T-12 adversarial assurance the interim
+  floor invariants only partially cover. <!-- changelog 2026-08-10 (reader test 3,
+  new-engineer finding 4): normalized from "*Owner:*" to the uniform Executor field;
+  reader test 5 (new-engineer finding 3): Acceptance/Defends pointers added — the
+  scope existed but was only reachable by cross-reading three files. -->
+  **HB-073** Abuse lane cases (CF-OPS-ABUSE). *Gate: HB-072.* *Executor:* build-agent,
+  after HB-072.
 
 ## Unparked at ratification (2026-07-31) — formerly parked, now implementable
 
@@ -298,17 +399,33 @@ release obligations. Missing evidence remains visible and never pass. -->
 
 ## Parked (blocked candidate contracts — never implemented before ratification)
 
-- **HB-P3** F-PT-006 producer-protocol + duplicate-identity cases. **HB-P5**
-  F-PT-008 expiry-disposition cases. Executor: build-agent, after human ratifies each
-  finding.
+<!-- changelog 2026-08-10 (reader test 6, new-engineer finding 3): the four parked
+tickets below previously named only executors, breaking the every-ticket-carries-
+Layer/Acceptance/Defends rule for exactly the tickets most likely to be picked up
+cold; fields added. Family ids stay in prose (B-NN/F-PT form) because these cells
+are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
+- **HB-P3** F-PT-006 producer-protocol + duplicate-identity cases. *Layer:* 2.
+  *Defends:* the B-13 inbox contract's producer-visibility and duplicate-identity
+  clauses (parked cells in the J-10/SM-EVENT/B-13 families). *Acceptance:* the
+  ratified protocol encoded red-then-green, whichever way the owner decides —
+  never both readings. *Executor:* build-agent, after human ratifies the finding.
+  **HB-P5** F-PT-008 expiry-disposition cases. *Layer:* 2. *Defends:* the B-09a
+  continuation contract's TTL-expiry item-disposition clause. *Acceptance:* the
+  ratified disposition (fresh item / reopen / explicit operation) encoded with a
+  seeded wrong-disposition control. *Executor:* build-agent, after human ratifies.
 - **HB-P6** F-PT-017 provider terminal-status enum decision and migration cases
-  (CF-C-CORE). Executor: human + build-agent after the owner chooses the canonical
-  vocabulary and compatibility path; no test may derive truth from the current code.
+  (CF-C-CORE). *Layer:* 1/2. *Defends:* the core contract's terminal-status enum
+  clause. *Acceptance:* the chosen vocabulary asserted across every adapter plus a
+  migration-compatibility case; no test may derive truth from the current code.
+  *Executor:* human + build-agent after the owner chooses.
 - **HB-P7** F-PT-018 mechanical merge-blocking enforcement (CF-HARNESS-CI), retained
-  as a known limitation/future improvement. Executor: human + build-agent after GitHub
-  required-check controls become available. The PR workflow remains active and
-  fail-closed internally; RQ-1 uses protected human merge plus release-blocking
-  exact-tag rerun and does not claim mechanical merge blocking.
+  as a known limitation/future improvement. *Layer:* 1 + CI. *Defends:* the
+  per-commit gate's merge-blocking claim (currently bounded by protected human
+  merge + release-blocking exact-tag rerun, honestly disclaimed). *Acceptance:*
+  a required-check configuration proven blocking by a seeded red PR. *Executor:*
+  human + build-agent after GitHub required-check controls become available. The PR
+  workflow remains active and fail-closed internally; RQ-1 does not claim
+  mechanical merge blocking.
 
 ## Post-ratification additions (2026-07-31)
 
@@ -351,8 +468,8 @@ GitHub epic [#219](https://github.com/cormidia/Cormidia/issues/219). -->
   execution, isolated namespaces/worktrees, exact tuple preservation, per-turn
   settlement, aggregate admission ceilings, evidence hashes, deterministic
   eligibility, durable selection, and crash-safe materialization acknowledgement.
-  Land CF-J19-S/R/I/RC, CF-SM-COMP-*, CF-B18-*, CF-B19-*, CF-C-B18/19, and detector
-  negative controls. *Acceptance:* no candidate outward effect; no sibling leakage;
+  Land CF-J19-S, CF-J19-R, CF-J19-I, CF-J19-RC, CF-SM-COMP-*, CF-B18-*, CF-B19-*, CF-C-B18, CF-C-B19, and
+  detector negative controls. *Acceptance:* no candidate outward effect; no sibling leakage;
   no double spend for a settled turn; no deterministic failure can be outweighed by a
   judge; exactly one content-bound eligible artifact, or none, may cross B-19.
   *Layer:* 1/2. *Executor:* build-agent.
@@ -376,7 +493,7 @@ GitHub epic [#219](https://github.com/cormidia/Cormidia/issues/219). -->
 - **HB-093 — S-8 selection-judge corpus and calibration.** Author seeded eligibility
   traps, clean controls, human pairwise/ranking references, order swaps, ties, and
   abstentions per operation; implement the blinded structured envelope and L4 runner
-  integration. Authoring/data collection may proceed, but **automatic judge selection
+  integration (CF-S8-env, CF-S8-qual, CF-S8-judge). Authoring/data collection may proceed, but **automatic judge selection
   remains BLOCKED:F-PT-011** and all threshold-dependent outcomes remain inconclusive
   until the owner ratifies S-8 calibration thresholds and sampling design. A unique
   mechanically eligible candidate and declared non-judge fallbacks remain separately
@@ -385,7 +502,12 @@ GitHub epic [#219](https://github.com/cormidia/Cormidia/issues/219). -->
   allow planner-proposed comparisons inside app policy; then separately design sticky
   Cormidia-owned sampling and governed aggregate learning. Parallel candidates are last.
   *Gate:* sampling or parallelism re-enters risk allocation and may activate
-  CF-OPS-COMP at L5; no single comparison mutates routing/qualification policy.
+  CF-OPS-COMP at L5 — **a forward CONSEQUENCE of doing this work, not a
+  cross-layer precondition on starting it** (this ticket does not belong on the
+  cross-layer exception sentence <!-- changelog 2026-08-10 (reader test 40,
+  new-engineer finding 4): the Gate phrasing read ambiguously as a possible
+  unlisted cross-layer gate -->); no single comparison mutates
+  routing/qualification policy.
   *Executor:* human + build-agent.
 
 ## Proposed roadmap/validation/delivery/batching implementation (2026-08-03)
@@ -405,7 +527,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   projection; seed one wrong-contract/HEAD lineage violation and prove the detector turns
   red. *Acceptance:* the path can be walked end-to-end without a provider, a label cannot
   substitute for an artifact, and no prior green suite is represented as covering it.
-  *Defends:* CF-J03/J04 2026-08-03 slices, CF-J20-S, CF-INV-016, CF-B20/21/22 happy
+  *Defends:* CF-J03/J04 2026-08-03 slices, CF-J20-S, CF-INV-016, the B-20/B-21/B-22 happy
   joins. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* accepted Phase 8 package
   and #239.
   *Implementation:* `src/org/roadmap-delivery/` plus
@@ -414,8 +536,9 @@ prepares the proposal and a human separately ratifies any such surface. -->
   claim under a race, persistence-before-projection, label-without-artifact refusal,
   whole-unit human-only exclusion at admission and claim, exact unit/contract/HEAD
   negative controls, and verdict-bound settlement. This is walking-skeleton coverage
-  only; HB-108/HB-110 and HB-109 machinery are complete below, while the HB-109
-  seven-day evidence and HB-111 remain required before autonomous-loop readiness.
+  only; HB-108/HB-110 and HB-109 machinery are complete below and HB-111 was applied
+  2026-08-04 (#266) <!-- changelog 2026-08-10: was "HB-111 remain required" — stale -->,
+  while the HB-109 seven-day evidence remains required before autonomous-loop readiness.
 - **HB-101 — COMPLETE 2026-08-03 — RoadmapPlan schema, store, snapshot and bounded-delta replanning.** Add
   versioned/hash-bound RoadmapPlan and backlog-snapshot schemas; stable workstream/unit
   IDs; exact issue accounting; graph/WIP/priority/frontier validation; predecessor/move
@@ -444,7 +567,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   verdict. *Acceptance:* omissions/unknown IDs/stale versions never become waivers or
   ready; C3/floor obligations cannot take the routine template; swapped unit/HEAD
   evidence turns red. *Defends:* CF-SM-VALIDATION-*, CF-INV-016, CF-B21-*,
-  CF-C-B21/OPVALIDATION, CF-S10-env. *Layer:* 1/2. *Executor:* build-agent.
+  CF-C-B21, CF-C-OPVALIDATION, CF-S10-env. *Layer:* 1/2. *Executor:* build-agent.
   *Depends on:* HB-100/101.
   *Implementation:* `src/org/roadmap-delivery/` now owns a closed v1 interchange
   schema, versioned app-scoped accepted validation catalog, immutable contract/lifecycle/
@@ -466,15 +589,16 @@ prepares the proposal and a human separately ratifies any such surface. -->
   settlement, lifecycle ingestion is strict, and projections prove durable current
   readiness.
   HB-108 closes the deterministic matrix and HB-110 closes the operator surfaces below;
-  S-10 references are human-validated; its thresholds, HB-109 live evidence and the
-  separately governed HB-111 application state remain pending.
+  S-10 references are human-validated; the HB-111 application state landed 2026-08-04
+  (#266) <!-- changelog 2026-08-10: was "…HB-111 application state remain pending" —
+  stale -->; its thresholds and HB-109 live evidence remain pending.
 - **HB-103 — COMPLETE 2026-08-03 — Multi-ticket delivery units and one-PR atomicity.** Replace ticket-scoped
   claim/review/merge assumptions with a stable delivery-unit authority containing one or
   more members. Make claim/revalidation all-or-none; bind branch, gates, evidence,
   review, repair allowance, merge and every member projection to one PR/HEAD/outcome;
   preserve the single-ticket case. *Acceptance:* a changed/human-only/already-claimed
   member refuses the whole unit; crashes cannot leave subset claims or closures; one
-  ticket cannot appear in two active units. *Defends:* CF-J04-*, CF-INV-005/009/016,
+  ticket cannot appear in two active units. *Defends:* CF-J04-*, CF-INV-005, CF-INV-009, CF-INV-016,
   CF-C-OPLOOP and B-20/B-21 joins. *Layer:* 1/2. *Executor:* build-agent.
   *Depends on:* HB-100/101/102.
   *Implementation:* `src/loop/loop.ts` and `src/loop/driver.ts` now bind the whole
@@ -492,7 +616,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   dispositions; sibling-isolation recovery. *Acceptance:* grouping constructs no runtime
   or plan, never changes membership/priority/authority, and one failed unit cannot lend
   claim/evidence/budget/completion to another. *Defends:* CF-J20-*, CF-SM-BATCH-*,
-  CF-B22-*, CF-C-B22/OPBATCH. *Layer:* 1/2. *Executor:* build-agent.
+  CF-B22-*, CF-C-B22, CF-C-OPBATCH. *Layer:* 1/2. *Executor:* build-agent.
   *Depends on:* HB-100/101/102/103.
   *Implementation:* `src/org/roadmap-delivery/` owns roadmap-code/direct-operation
   execution-unit authorities, deterministic hard-constraint-first admission, bounded
@@ -510,7 +634,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   construct zero provider runtimes; detailed prose, label-only state, C3/boundary/schema/
   migration changes and incomplete scopes take the bounded planning/design path or
   refuse—never the shortcut. A future Jira adapter is not implied by this work.
-  *Defends:* CF-J03-A/R, CF-S1-env, CF-C-OPPLAN/OPVALIDATION. *Layer:* 1/2.
+  *Defends:* CF-J03-A, CF-J03-R, CF-S1-env, CF-C-OPPLAN, CF-C-OPVALIDATION. *Layer:* 1/2.
   *Executor:* build-agent. *Depends on:* HB-101/102.
   *Implementation:* `src/org/roadmap-loop-runtime.ts`, `src/org/ticket-episode-runtime.ts`,
   `src/org/plan-auto.ts`, and the CLI/dispatcher seams consume accepted RoadmapPlan,
@@ -548,7 +672,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   compatibility, per-unit settlement and cache-hit/miss/unknown telemetry. *Acceptance:*
   no schema/authority collapse between RoadmapPlan and delivery EpisodePlan; Reviewer
   never resumes Builder state; cache evidence changes cost telemetry only, never
-  correctness/admission. *Defends:* CF-J20-S/I/RC, CF-B22-*, INV-004/006/016.
+  correctness/admission. *Defends:* CF-J20-S, CF-J20-I, CF-J20-RC, CF-B22-*, INV-004/006/016.
   *Layer:* 1/2; existing L3 adapter trigger only if invocation semantics change.
   *Executor:* build-agent. *Depends on:* HB-101/104.
   *Implementation:* product planning and ticket planning/delivery now enter
@@ -567,6 +691,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   Planner large-backlog/delta/cache-lure cases and Validation Designer cases in the L4
   runner. Obtain human reference validation separately; never tune prompts before the
   committed corpus and never turn F-PT-010/011 hypotheses into pass/fail thresholds.
+  *Families:* CF-S10-qual rides here (the pre-tuning Validation Designer corpus).
   *Acceptance:* policy/registry/catalog closure tests resolve M17/J-20/INV-016/B-20…22/
   C-OP-BATCH/C-OP-VALIDATION/S-10; empty walks and detector-never-fired states fail.
   *Defends:* all revision CF families. *Layer:* 1/2 + 4 data collection.
@@ -583,7 +708,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   the existing soak collector's inspection schema for batch progress, stale frontiers,
   session reuse and cache-evidence quality. *Acceptance:* no new campaign type; the rig
   proves its seeded violation; the real seven-day repeat remains human-started and
-  incomplete until run. *Defends:* CF-OPS-CONT/SOAK revision clauses, B-22.
+  incomplete until run. *Defends:* CF-OPS-CONT and CF-OPS-SOAK revision clauses, B-22.
   *Layer:* 5 (contention rig may remain hermetic; soak is live evidence). *Executor:*
   build-agent for machinery; human + campaign for the seven-day run. *Depends on:*
   HB-103/104/107.
@@ -627,11 +752,22 @@ prepares the proposal and a human separately ratifies any such surface. -->
   propose keep/rename/retire cleanup without assigning autonomous-scheduling semantics.
   It is not an alias of `manual-review`, does not justify a `manual-*` wildcard, and any
   future scheduling meaning requires a separate product-owner decision plus detectors.
-  *Layer:* process/read-only audit. *Executor:* build-agent + human taxonomy decision.
+  *Acceptance:* a written inventory covering every occurrence of the exact label,
+  each with owner and lifecycle; one keep/rename/retire proposal per occurrence
+  presented to the human; zero scheduling-semantics changes made by this ticket.
+  <!-- changelog 2026-08-10 (reader test 12, new-engineer finding 4): the one
+  ticket without an Acceptance field now carries one. -->
+  *Layer:* process/read-only audit. *Defends:* the backlog taxonomy itself —
+  corpus hygiene, no product invariant or contract (an audit-only ticket; its
+  output is a proposal to the human, never a semantics change) <!-- changelog
+  2026-08-10 (reader test 25, new-engineer finding 4): the Defends field was
+  missing; stated honestly as corpus-integrity rather than inventing a product
+  surface -->. *Executor:* build-agent + human taxonomy decision.
 - **HB-113 — COMPLETE 2026-08-04 — RQ-1 manifest, currency, and attestation schemas.** Implement
   closed canonical schemas for candidate/package identity, subject and producer currency,
   evidence-only descendant equivalence, sanitized packets, and release attestations.
-  *Layer:* 1/2. *Executor:* build-agent. *Depends on:* RQ-1 ratification.
+  *Families:* CF-HARNESS-RQ, CF-HARNESS-CURRENCY. *Layer:* 1/2. *Executor:*
+  build-agent. *Depends on:* RQ-1 ratification.
 - **HB-114 — COMPLETE 2026-08-04 — RQ-1 deterministic detector families.** Deposit seeded
   negative controls for forged completeness, stale inputs, changed package bytes,
   path escape, tamper, unlisted skips, missing CI, pending references, uncalibrated
@@ -639,16 +775,18 @@ prepares the proposal and a human separately ratifies any such surface. -->
   *Depends on:* HB-113.
 - **HB-115 — COMPLETE 2026-08-04 — Paired L4 evidence and human review packet.** Preserve exact
   site/operation/producer/evaluator/rubric pairings, composite grading identity, bootstrap
-  versus candidate/baseline arms, and advisory-only uncalibrated results. *Layer:* 1/2 +
-  L4 machinery. *Executor:* build-agent; campaigns remain human-authorized. *Depends on:*
-  human reference validation and HB-113.
+  versus candidate/baseline arms, and advisory-only uncalibrated results. *Families:*
+  CF-HARNESS-JUDGE. *Layer:* 1/2 + L4 machinery. *Executor:* build-agent; campaigns
+  remain human-authorized. *Depends on:* human reference validation and HB-113.
 - **HB-116 — COMPLETE 2026-08-04 — Packet sanitizer and operator surfaces.** Add deterministic
   prepare/assess/attest/verify commands and concise disagreement/debt reports without
-  raw provider content. *Layer:* 1/2. *Executor:* build-agent. *Depends on:* HB-113…115.
+  raw provider content. *Families:* CF-HARNESS-ATTEST. *Layer:* 1/2. *Executor:*
+  build-agent. *Depends on:* HB-113…115.
 - **HB-117 — COMPLETE 2026-08-04 — Release workflow, prepublish refusal, and B-17 tag path.** Add
   exact-tag offline verification and keep approval, tag, npm publication, and
   acknowledgement as separate facts. F-PT-018 remains an open known limitation;
-  F-PT-021 is resolved by authenticated actor/approver/repository equality. *Layer:* 1/2 + CI.
+  F-PT-021 is resolved by authenticated actor/approver/repository equality.
+  *Families:* CF-HARNESS-RELEASE. *Layer:* 1/2 + CI.
   *Executor:* build-agent + protected human merge. *Depends on:* HB-116.
 - **HB-118 — COMPLETE 2026-08-05 — RQ-1 implementation audit and holdout.** Fresh-agent
   I2 review of exact implementation commit `58596de4f03a1bf9ed3c102c904d0a0f6026e2d7`
@@ -675,11 +813,20 @@ trackers for one obligation would drift. Standing constraints those PRs inherit:
 - Each adapter PR lands its transport double + self-test (L1), wires the shared
   hermetic conformance walk (L2, seeded-liar controls), and adds its CF-B2N-L3
   certification case — implementing the CF-B23…26-* families in case-catalog.md §4.
-- Mechanism-level legs stay parked until their finding ratifies: F-PT-025 (B-23
-  headless-`ask` bridge), F-PT-026 (B-24 `tool_gate` tier), F-PT-027 (B-25
-  permission coverage), F-PT-028 (B-26 swarm seam). Never encode a guess.
-- CF-B25-L3 runs only after the recorded #339 human risk-review decision, sandbox
-  repos only until it clears real-repo use.
+- ~~Mechanism-level legs stay parked until their finding ratifies~~ **RESOLVED
+  2026-08-07, all four** <!-- changelog 2026-08-10 (consistency sweep): the parking
+  sentence was stale — every one of F-PT-025…028 resolved the same day the adapters
+  landed -->: F-PT-025 (B-23) resolved-ratified — deny-by-default shaping +
+  `tool.execute.before` sole enforcement, legs unparked in #337; F-PT-026 (B-24)
+  resolved-by-certification — `preToolUse` fires headless and enforces, legs unparked
+  in #338; F-PT-027 (B-25) resolved-by-evidence — PreToolUse hook is the gate, ACP a
+  backstop, certified live in sandbox repos; F-PT-028 (B-26) resolved-by-evidence —
+  no seam exists on 0.1.0-R708.1, fail-closed fallback is the implemented behaviour,
+  swarm-gate legs remain scripted-only evidence and CF-B26-L3 reports incomplete,
+  never pass.
+- CF-B25-L3 executed 2026-08-07 in throwaway sandbox repos (violations empty).
+  **Real-repo use stays blocked on #339's OPEN human risk review** — certification
+  proves the adapter, never the vendor.
 - roles.yaml stays untouched by every adapter PR — assignment is a later
   human ratification plus qualification evidence (certification ≠ qualification).
 
@@ -721,62 +868,65 @@ guessed, and S-ACC-3 needed no edit. **No L-ACC cell is blocked.**
   content-hash binding, and refusal of a partial key missing any of the four plant
   categories. *Acceptance:* lands **red** against a plant deliberately leaked into grader
   input, then green; a working-tree delete that leaves the plant in git history still
-  fires. *Defends:* CORMIDIA-INV-ACC-1, CORMIDIA-C-B28-001. *Layer:* 1/2.
-  *Executor:* build-agent.
+  fires. *Defends:* CORMIDIA-INV-ACC-1, CORMIDIA-C-B28-001. *Families:*
+  CF-INV-ACC-1, CF-B28-*, CF-C-B28. *Layer:* 1/2. *Executor:* build-agent.
 - **HB-122 — CF-INV-ACC-2 grader independence. DONE 2026-08-08** (`tests/unit/cf-inv-acc-2/`, `tests/hermetic/cf-inv-acc-2/`). Per-axis provider disjointness computed
   before provider construction, family (not vendor product) as the unit, applied set
   recorded per axis, and `ungraded` when no legal grader exists. *Acceptance:* red-then-
   green against a grader provider deliberately set equal to the graded turn's; a
   fan-out scenario spanning both families still grades its mechanical axes and reports
   `ungraded` rather than widening. *Defends:* CORMIDIA-INV-ACC-2, CORMIDIA-C-B29-001.
-  *Layer:* 1/2. *Executor:* build-agent.
+  *Families:* CF-INV-ACC-2, CF-B29-*, CF-C-B29. *Layer:* 1/2. *Executor:* build-agent.
 - **HB-123 — CF-INV-ACC-3 repository binding. DONE 2026-08-08** (`tests/hermetic/cf-inv-acc-3/`; the two seeded controls each found a real detector gap — a case-folded origin path and a host-qualified slug — before going green). Reuse `assertCampaignRepositoryBinding`;
   add the campaign-app slug check, the real-origin check, and the job `--workdir` check.
   *Acceptance:* red-then-green against a scenario deliberately bound to this repository.
-  *Defends:* CORMIDIA-INV-ACC-3. *Layer:* 1/2. *Executor:* build-agent.
+  *Defends:* CORMIDIA-INV-ACC-3. *Families:* CF-INV-ACC-3. *Layer:* 1/2.
+  *Executor:* build-agent.
 - **HB-124 — CF-INV-ACC-5/6 verdict algebra. DONE 2026-08-08** (`tests/unit/cf-inv-acc-5/`; the table is read from `verdict_semantics.axis_score`, never restated). The `axis_score` truth table as policy
   data, not runner logic: `ungraded` never `0`, never a numeric aggregate term, graded
   denominators named, unratified threshold ⇒ `inconclusive`, and
   killed/ceiling-stopped/missing-grader ⇒ `incomplete` with the scenario still present.
   *Acceptance:* red-then-green against a seeded citation-less score; a fully-`ungraded`
   scenario must not render as a `0`. *Defends:* CORMIDIA-INV-ACC-5/6,
-  `validation-policy.yaml` `verdict_semantics.axis_score`. *Layer:* 1. *Executor:*
-  build-agent.
+  `validation-policy.yaml` `verdict_semantics.axis_score`. *Families:* CF-INV-ACC-5,
+  CF-INV-ACC-6. *Layer:* 1. *Executor:* build-agent.
 - **HB-125 — CF-INV-ACC-7a supervisor non-participation. DONE 2026-08-08** (`tests/hermetic/cf-inv-acc-7a/`). The three-way reconciler:
   campaign-org invocation audit × per-commit authorship in each scenario repo × the run
   journal's turn records; non-closure ⇒ `ungraded`/`incomplete`, never a score.
   *Acceptance:* red-then-green against a hand-authored commit deliberately pushed to a
   scenario repo, and against a product-affecting action with no invocation-audit row.
-  *Defends:* CORMIDIA-INV-ACC-7a. *Layer:* 1/2. *Executor:* build-agent.
+  *Defends:* CORMIDIA-INV-ACC-7a. *Families:* CF-INV-ACC-7a. *Layer:* 1/2.
+  *Executor:* build-agent.
 - **HB-126 — CF-INV-ACC-7b packaged provenance. DONE 2026-08-08** (`tests/hermetic/cf-inv-acc-7b/`; the double is spawned, so every exit status is observed). Assert `install:packaged`'s **exit
   status** and record the installed version plus tarball identity in the report.
   **Do not reimplement its checks** — the script already resolves each declared binary,
   refuses a checkout-internal resolution, and refuses any skill target that is not
   `current`. *Acceptance:* red-then-green against a campaign started with `link:local`
   links present; a bare `--dry-run` non-zero exit must not be readable as a rehearsal
-  pass. *Defends:* CORMIDIA-INV-ACC-7b, CORMIDIA-C-B27-001 §1.2. *Layer:* 1/2.
-  *Executor:* build-agent.
+  pass. *Defends:* CORMIDIA-INV-ACC-7b, CORMIDIA-C-B27-001 §1.2. *Families:*
+  CF-INV-ACC-7b. *Layer:* 1/2. *Executor:* build-agent.
 - **HB-127 — B-27 campaign contract + CF-SM-ACC lifecycle. DONE 2026-08-08** (`tests/unit/cf-b27/`, `tests/unit/cf-sm-acc/`). Every preflight refusal
   class (§1.1–1.9) pre-mutation and pre-spend; report shape incl. matrix, installed
   identity, per-axis citations and applied disjointness sets; lifecycle transitions with
   build-arm entry illegal without a resolved gate. *Acceptance:* each refusal class has
   its own case; a report missing matrix or installed identity is malformed, not thin.
-  *Defends:* CORMIDIA-C-B27-001, CORMIDIA-INV-ACC-4. *Layer:* 1/2. *Executor:*
-  build-agent.
-- **HB-128 — jobs families (M18). DONE 2026-08-08** — the pre-existing suite was re-registered from CF-B23-*/CF-J21-*/CF-J22-* onto CF-B30-*/CF-J22-*/CF-J23-* (B-23 is now OpenCode, J-21 the L-ACC campaign), and CF-SM-JOB-*, CF-IF-JOB and the seeded double-settle control are new (`tests/unit/cf-b30-cfg/`, `tests/hermetic/cf-b30/`, `tests/hermetic/cf-j22-j23/`, `tests/hermetic/cf-sm-job/`, `tests/unit/cf-if-job/`). CF-B30-*, CF-J22-*, CF-J23-*, CF-SM-JOB-*,
+  *Defends:* CORMIDIA-C-B27-001, CORMIDIA-INV-ACC-4. *Families:* CF-SM-ACC-*,
+  CF-B27-*, CF-C-B27, CF-J21-R (the preflight-refusal journey leg). *Layer:* 1/2.
+  *Executor:* build-agent.
+- **HB-128 — jobs families (M18). DONE 2026-08-08** — the pre-existing suite was re-registered from the pre-revision numbering (the ids then called B-23/J-21/J-22 <!-- changelog 2026-08-10 (machine-parse): the old ids are named in prose, not as family tokens, so this history cannot claim ownership of the families those numbers denote today (OpenCode adapter; L-ACC campaign journey) -->) onto CF-B30-*/CF-J22-*/CF-J23-* (B-23 is now OpenCode, J-21 the L-ACC campaign), and CF-SM-JOB-*, CF-IF-JOB and the seeded double-settle control are new (`tests/unit/cf-b30-cfg/`, `tests/hermetic/cf-b30/`, `tests/hermetic/cf-j22-j23/`, `tests/hermetic/cf-sm-job/`, `tests/unit/cf-if-job/`). CF-B30-*, CF-J22-*, CF-J23-*, CF-SM-JOB-*,
   CF-IF-JOB against the existing fixture kit. *Acceptance:* negative controls per the
   jobs design — cyclic config, drifted config hash, a declared output that exists but is
   empty, a lying fake provider reporting `completed` for a step whose check fails, nested
   invocation, and a seeded double-settle. *Defends:* CORMIDIA-C-B30-001…003,
-  CORMIDIA-C-OPJOB-001, INV-008/015 jobs tightenings. *Layer:* 1/2. *Executor:*
-  build-agent.
+  CORMIDIA-C-OPJOB-001, INV-008/015 jobs tightenings. *Families:* also CF-C-B30,
+  CF-C-OPJOB. *Layer:* 1/2. *Executor:* build-agent.
 - **HB-129 — S-11 grader envelope + the fabrication control. DONE 2026-08-08** (`tests/hermetic/cf-s11-env/`; the required first case is committed at `golden-sets/acceptance-grader/cases.json` and the O-5 detector was verified red against it). Evidence-set composition
   per axis (self-report excluded from O-1…O-3 and the subject of O-5), result schema with
   mandatory citation, and the **seeded fabricated claim** as the first committed case in
   `golden-sets/acceptance-grader/`. *Acceptance:* the O-5 detector lands red against the
   seeded claim before any grader result is trusted; no threshold is introduced.
-  *Defends:* CORMIDIA-C-B29-001 §5, llm-eval-plan S-11. *Layer:* 1/2 (+4 scaffold).
-  *Executor:* build-agent.
+  *Defends:* CORMIDIA-C-B29-001 §5, llm-eval-plan S-11. *Families:* CF-S11-env.
+  *Layer:* 1/2 (+4 scaffold). *Executor:* build-agent.
 - **HB-130 — the campaign runner and run 1. DONE 2026-08-08; RUN 1 TERMINAL AT PLAN GATE** (`tests/campaign/acceptance/runner.ts`, `tests/hermetic/cf-j21/`, `acceptance/run-1-result.md`). **CORRECTION:** this entry previously said the spend authorization was the one remaining blocker. It was not. The runner takes both arms as callbacks and only a test supplied them, so nothing provisioned repos, ran the arms, or called a grader until HB-131 built that layer. F-PT-029 and F-PT-030 were both answered
   by the owner on 2026-08-07. A declared
   `plan_gate` policy may resolve the gate unattended so a campaign runs end to end,
@@ -786,6 +936,7 @@ guessed, and S-ACC-3 needed no edit. **No L-ACC cell is blocked.**
   *Acceptance:* HB-120…129 green first; run 1 produces a distribution plus a gap list,
   every threshold-dependent axis `inconclusive`, and the report answers "which bytes did
   this exercise" from the installed version and tarball identity alone.
+  *Families:* CF-J21-S, CF-J21-RC, CF-INV-ACC-4's gate-ordering journey half.
   *Layer:* L-ACC. *Executor:* human authorization + campaign. *Depends on:* HB-120…129.
 
 ## Execution layer (2026-08-08) — HB-131
@@ -827,7 +978,9 @@ spend authorization "the one remaining blocker" were wrong, and are corrected in
   *Acceptance:* every module lands red against its seeded violation first; the shipped
   template refuses; `pnpm test:acceptance -- --config <path> --dry-run` performs every
   config/authorization/identity preflight and spawns nothing, while `runCampaign`
-  repeats the install/world proof before mutation. *Layer:* 1/2. *Executor:* build-agent.
+  repeats the install/world proof before mutation. *Families:* the lane rows
+  CF-ACC-S1, CF-ACC-S2, CF-ACC-S3, CF-ACC-GATE (their machinery; run evidence stays
+  per-campaign). *Layer:* 1/2. *Executor:* build-agent.
 
 **Run-1 preconditions — satisfied 2026-08-08.** The exact authorization, recorded
 `pnpm install:packaged --replace-source-links` proof, campaign org, three disposable
@@ -864,6 +1017,155 @@ scenario repositories under that org, and both provider credentials were present
   `tests/unit/cf-reg-360/`.
   *No contract loosening:* rubric bytes, axes, plan-gate criterion, golden set,
   thresholds (`NONE`), `release_signal: null` and no-deployment boundary are unchanged.
+
+## Steady-state revision (2026-08-10, campaign rev-2026-08-10) — HB-133…HB-136, HB-140
+
+Registered at the rev-2026-08-10 Phase 0 gate (harness-design-state.md carries the
+revision record; elicitation-log.md the gate history). No existing ticket, gate, bound,
+or golden set changed.
+
+- **HB-133 — CF-REVIEW-PROVIDER: Builder/Reviewer provider-family disjointness pin.
+  TODO (implementation-ready — under the flagged provenance caveat below: the
+  FAMILY unit is a pending-ratification seat ruling, so "ready" means buildable
+  as specified with the unit swappable, not semantically settled <!-- changelog
+  2026-08-10 (reader test 15, new-engineer finding 5) -->).** Deterministic refusal before provider construction
+  when an autonomous code-delivery route resolves Builder and Reviewer to one provider
+  family — including distinct adapters over one upstream family (the pi/Anthropic-style
+  correlation) — and fail-closed on a missing/unresolvable family; different families
+  pass (the non-vacuous positive); no Reviewer imposed on jobs (M18) or manual-only
+  routes. Owner ruling rev-2026-08-10: the docs/loop/design.md "Review identity"
+  decision controls; "different provider" means provider **family**. **Provenance
+  caveat a builder must see here, not only in the package** <!-- changelog
+  2026-08-10 (reader test 12, new-engineer finding 1): the caveat lived in
+  catalog §10.2's preamble and ratification-package.md §12.3, but not at this
+  ticket -->: the provider-FAMILY interpretation is a `[simulated]` AI-seat
+  ruling pending real-human ratification (ratification-package.md §12.3 item 1).
+  Implementing this ticket is authorized as specified; if the human later
+  overturns the unit (e.g. to vendor product or account), the detector's
+  disjointness unit changes with it — build the family resolution as an
+  explicit, swappable input, not an inlined assumption. The L-ACC
+  preflight already enforces this for campaign app arms — this ticket pins the
+  production loop. *Acceptance:* red-then-green against a seeded same-family collapse
+  (config-level, not roles.yaml default); each of the five legs has its own case; lands
+  in the per-commit blocking lane. *Family:* CF-REVIEW-PROVIDER (catalog §10.2).
+  *Defends:* INV-012/INV-016 · B-10 (config authority) · C-OP-LOOP. *Layer:* 1/2.
+  *Executor:* build-agent.
+- **HB-134 — GTM pre-launch triggered obligations. TRIGGERED (not scheduled; no work
+  now).** Source: `docs/gtm-wip.md` (WIP/non-normative, owner-aligned 2026-08-09).
+  Three trigger-children, each blocking its own trigger event and nothing else:
+  1. **Before offering customer source bundles:** define the customer-verifiable RQ-1
+     evidence subset and the boundary excluding private operations (gtm-wip §3).
+  2. **Before changing public-package licensing/metadata:** prove
+     LICENSE/package-metadata/README/homepage/CLI-notice coherence (gtm-wip §8.6) —
+     a deterministic release-evidence check, not prose review.
+  3. **Before — not "at" — the first external-user launch or onboarding:** re-enter
+     `validation-harness-design` in `harness-revision` mode to reopen deployment
+     shape and tier allocation (the current C2/T-1…T-12 calibration assumes a
+     single-operator self-hosted deployment).
+  *Acceptance:* none until a trigger fires; a trigger firing without its child
+  complete is a blocking finding. *Layer:* triggered — none until a trigger
+  fires; child 2 is a deterministic release-evidence check (L1-shaped), children
+  1 and 3 set their layer at trigger time per the cheapest-falsifying rule.
+  *Defends:* no ratified invariant or contract yet — the source
+  (`docs/gtm-wip.md`) is WIP/non-normative, so each child MUST name its
+  Defends when its trigger fires, and a child that cannot name one is not
+  implementable. <!-- changelog 2026-08-10 (reader test 25, new-engineer
+  finding 3): the ticket broke the file's own every-ticket-carries-fields rule;
+  fields added honestly rather than invented — the layer and defended surface
+  are genuinely undetermined until triggered. --> *Executor:* human (trigger recognition) +
+  build-agent (children 1–2), harness-revision campaign (child 3).
+- **HB-135 — F-PT-019 operation-aware `secrets-or-auth` classifier + deposited
+  detector. TODO (implementation-ready — product change).** Implements the contract
+  truth ratified in PURPOSE v2.15 §4 (F-PT-019 resolved-ratified 2026-08-03;
+  `src/runtime/gate.ts` §5.2 comment records the pending state). **The ratified
+  classification rule is reproduced in full at `validation-policy.yaml` →
+  `open_findings` → F-PT-019 → `resolution`, so this ticket is implementable from
+  the design corpus alone.** <!-- changelog 2026-08-10 (reader test 12,
+  new-engineer finding 2): the rule previously lived only in out-of-corpus files
+  (PURPOSE, gate.ts). --> Owns: metadata-only
+  access (`git check-ignore .env`, `git status --ignored`) classified by actual
+  effect, not text; actual content emission (`git show HEAD:.env`, `cat .env`)
+  classified as a contents read; unparseable effect fails closed to critical; and the
+  #20 direction — coverage reaching effects that bypass the classifier entirely, not
+  merely pattern evasion. *Acceptance:* detector deposited in the same PR
+  (evidence-deposit rule), red-then-green in both directions (a false-positive
+  metadata query and a true-positive content emission); CF-SPLIT-SECRETS and
+  CF-REG-204 PENDING annotations flip to landed in the same change. If a product-repo
+  issue is opened for this work, record the cross-reference here in the same change.
+  *Defends:* INV-002/INV-003 · CF-SPLIT-SECRETS · CF-REG-204. *Layer:* 1/2 + product.
+  *Executor:* build-agent.
+- **HB-136 — CF-J21-I campaign kill-boundary sweep. TODO.** Opened by the
+  rev-2026-08-10 status-honesty check: CF-J21-I has no citing spec (verified against
+  `tests/hermetic/cf-j21/`); its torn-report, resume-drift and gate-ordering halves
+  are already owned at CF-B27-* and CF-INV-ACC-4 and are not re-owed. Owed: the
+  kill-at-each-campaign-boundary sweep (post-provision, mid-plan-arm, at the gate,
+  mid-build-arm, mid-grade, mid-report) over the hermetic campaign rig, each boundary
+  with partial-evidence preservation asserted. *Acceptance:* red-then-green with a
+  seeded resume-past-the-gate violation; directory named `cf-j21-i`. *Defends:*
+  CORMIDIA-C-B27-001 §3 · CORMIDIA-INV-ACC-4/6. *Layer:* 2. *Executor:* build-agent.
+
+- **HB-140 — case-catalog.yaml regeneration drift gate. TODO (opened at the Phase 8
+  reader test, new-engineer finding 2).** The policy says the two catalog surfaces
+  MUST agree; today agreement holds by construction (the YAML is generated) but no
+  check enforces it, so a future hand-edit to `case-catalog.md` without rerunning
+  `case-catalog-generator.awk` would silently desync them. Owed: a CI/local check
+  that regenerating the YAML from `case-catalog.md` + `harness-backlog.md` is
+  byte-identical to the committed file — drift is red (the HB-006 artifact-pin
+  discipline applied to the machine catalog). *Acceptance:* red-then-green against
+  a seeded hand-edit to the committed YAML; runs in the per-commit lane.
+  *Families:* CF-HARNESS-CI (harness self-test register). *Layer:* 1 + CI.
+  *Executor:* build-agent.
+
+## Retrospective ownership records (2026-08-10, rev-2026-08-10)
+
+Added by the rev-2026-08-10 machine-traceability pass so every implementable family
+has a named owning ticket in this backlog. These three tickets are **records of
+already-landed work**, not new work: the GitHub issues and fix PRs named inside them
+remain the primary work records, and nothing here re-opens or re-authorizes anything.
+HB-137..HB-139 LANDED (retrospective records).
+
+- **HB-137 — Adapter-expansion implementation record (#337–#340, landed 2026-08-07).**
+  Owns the adapter families the GitHub-tracked certification PRs landed:
+  CF-B24, CF-B24-L3, CF-B24-SUBGATE, CF-B24-PAYLOAD, CF-C-B24 (Cursor, #338);
+  CF-B25, CF-B25-L3, CF-C-B25 (Grok Build, #339 — real-repo use stays blocked on the
+  OPEN #339 human risk review); CF-B26, CF-B26-L3, CF-C-B26 (Muse Code, #340 —
+  CF-B26-L3's certified final state is incomplete, never pass); CF-B23, CF-B23-L3,
+  CF-C-B23 (OpenCode, #337). *Executor:* landed by the adapter PRs' build agents.
+- **HB-138 — Consequence-split implementation record (#313–#316, landed 2026-08-06).**
+  Owns CF-SPLIT-DESTRUCTIVE, CF-SPLIT-NETWORK, CF-SPLIT-PUBLISHING — each landed
+  red-then-green in its own PR per the F-PT-023 ratification. (CF-SPLIT-SECRETS'
+  pending operation-aware leg is owned by HB-135 above.) *Executor:* landed by the
+  split PRs' build agents.
+- **HB-139 — Regression-deposit record (sourcing channel 3; landed with each fix PR).**
+  Owns the §10.3 defect families whose detectors landed with their fixes:
+  CF-REG-154, CF-REG-181, CF-REG-202, CF-REG-203, CF-REG-203-G, CF-REG-205,
+  CF-REG-206, CF-REG-209, CF-REG-211, CF-REG-228, CF-REG-229, CF-REG-230,
+  CF-REG-231, CF-REG-232, CF-REG-236-BUDGET, CF-REG-239, CF-REG-244, CF-REG-251,
+  CF-REG-268, CF-REG-269, CF-REG-271, CF-REG-272, CF-REG-274, CF-REG-278,
+  CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-293,
+  CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335,
+  CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374,
+  CF-REG-375, and CF-HB102-MANUAL-REVIEW. (CF-REG-273 and CF-REG-291 are owned by
+  HB-052, whose live-lane hardening deposited them; CF-REG-204 is owned by HB-135.)
+  *Executor:* landed by each defect's fix PR.
+
+### Ticket status register (machine-readable; rev-2026-08-10)
+
+Explicit landed markers for the tickets whose completion previously lived only in
+prose ("COMPLETE"/"DONE") that machine parsing does not credit. This register adds
+no new facts — each marker restates the wave/bullet records above.
+**LANDED marks the ticket's implemented scope, not total closure of every clause
+it touches** <!-- changelog 2026-08-10 (reader test 14, new-engineer finding 3) -->:
+embedded parked clauses survive a LANDED marker (e.g. HB-040 is landed with its
+F-PT-006 producer-visibility legs still parked; HB-012 with the F-PT-008 clause).
+The wave-body text and the catalog's `BLOCKED:<finding>` cells carry that nuance —
+read the ticket body, not only this register, before claiming a family closed.
+
+HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LANDED.
+HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
+HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
+HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
+HB-120..HB-132 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
 
 ## Standing rules
 

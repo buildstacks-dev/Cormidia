@@ -38,4 +38,6 @@ Status: DRAFT (Phase 4). Defends INV-005/007/014, T-5/T-6. Journeys J-09/J-13/J-
   most one spawns per (role, app); the loser records a named reason.
 
 ## 5. Timing
-- **Configured** cadence ~5 min (not guaranteed firing — B-05); org WIP limit 2 `[doc]`; a turn may run for hours across many ticks.
+- **Configured** cadence ~5 min `[doc]` <!-- changelog 2026-08-10 (reader test 17,
+  new-engineer finding 3): figure was untagged while WIP=2 was tagged; provenance
+  verified — docs/architecture.md "fires every ~5 min" --> (not guaranteed firing — B-05); org WIP limit 2 `[doc]`; a turn may run for hours across many ticks.

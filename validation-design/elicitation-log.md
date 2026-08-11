@@ -1366,3 +1366,72 @@ already happened on paper:
   skipped, exempting `cli`, `observe`, `report` and `narrative`). Verified 2026-08-07:
   the script now fails closed on any unranked layer and names it, so the disposition (b)
   ticket that proposal asked for has already landed. Nothing is owed here.
+
+## Harness revision rev-2026-08-10 — steady-state reconciliation (2026-08-10)
+
+Stakeholder seat: AI agent grounded in ./docs/ and ./rambling.txt; `[stated]` unused.
+Steady-state re-entry: no concept re-taught, no settled decision re-elicited. Diff base
+`ca6d0356` → `15708a7e` (TARGET-DIFF). The elicitation surface this round was the
+Phase 0 gate exchange itself — three rounds, two refusals, rulings below.
+
+### Gate history (Phase 0)
+
+- **Round 1 REFUSED.** Designer proposed finding F-PT-033 for the GTM direction and a
+  narrow "exact" repair list. Owner rulings: (1) F-PT-033 would misuse the
+  product-truth registry — `docs/gtm-wip.md` is WIP/non-normative and the policy has
+  no "watch" status; an open finding means unresolved product truth with
+  blocked/conservative dependent behavior. Replaced by a **triggered backlog item
+  with three children** (→ HB-134). (2) Builder/Reviewer provider-disjointness is a
+  **case-level pin, not an invariant-clause question**; the direct review-identity
+  decision (docs/loop/design.md) controls over the episodes contract's looser
+  "independent or cross-provider" wording; five legs specified verbatim (→
+  CF-REVIEW-PROVIDER/HB-133; episodes-contract wording tighten stays proposal-only).
+  (3) The repair set must widen to a **current-state consistency sweep** of the named
+  mirrors — "historical records may remain historical; current summaries may not
+  remain false" — and the machine catalog must be generated only after the sweep.
+- **Round 2 REFUSED.** Owner confirmed the F-PT-019 three-part disposition
+  (resolved-ratified / implementation owed / detector not landed — never "blocked",
+  never "covered") and HB-134's source-of-truth placement in harness-backlog.md with
+  a derived owner rendering (no companion-only override). Two defects: `roles.yaml`
+  is **not** `[doc]` provenance (ratified ./docs/ only) — it is corroborating
+  configuration evidence; and "product implementation owed" without a tracker is
+  "the expensive should in a new costume" → HB-135 minted, implementation-ready,
+  owning the operation-aware classifier + deposited detector (metadata-only access,
+  content emission, unparseable fail-closed, #20 bypass direction). README range
+  written exactly `F-PT-001…032`.
+- **Round 3 CONFIRMED**, with one correction to the designer's label reasoning: the
+  designer wrongly claimed `[elicited]` was undefined (ratification-package.md §2
+  defines `[elicited]/[walk]`); the right ground is that "different provider means
+  provider family" **resolves ambiguity beyond docs and rambling**, so `[simulated]`
+  is correct and enters the human-confirmation list.
+
+### rambling.txt diff (2026-08-10 commit — new elicitation input)
+
+Traced line-by-line against the corpus: re-affirms INV-002 (fail-closed
+classification), INV-003/B-09 (approve ≠ execute; approval vs execution split),
+atomic harness/model/effort assignment, learning/memory isolation, Grok
+sandbox-only pending the OPEN #339 risk review, archive-do-not-read, and
+ceiling-exhaustion ⇒ incomplete-never-green. **No docs contradiction found.** The one
+passage with no enforced counterpart — "must not collapse Builder and Reviewer onto
+the same provider just because that is convenient" — became CF-REVIEW-PROVIDER.
+The "must get cheaper and more reliable on comparable work over time" passage remains
+covered by the existing efficiency/learning data-collection posture whose thresholds
+stay inconclusive under F-PT-009/010/011; no new lane was invented for it.
+
+**Supersession record (added 2026-08-10 at the independent audit, AUD-101):** the
+2026-08-10 commit did not extend the elicitation-era ramble — it **replaced** it.
+The pre-2026-08-10 rambling.txt (PR #182, default-branch scar, rotation-race scar,
+"safe, boring operation", coin-flip gate, "trust AND afford", "not a bank") left the
+workspace with that sync, which this revision failed to record at the time. All
+pre-2026-08-10 `[rambling]` citations now resolve via `rambling-archive.md`; the
+quotations in this log (Phase 2 default-branch scar, Phase 3/5 PR #182 passages)
+are part of that archive's retention register.
+
+### Dropped/considered this round
+
+- **Dropped:** minting any F-PT id for GTM (owner ruling, round 1).
+- **Dropped:** `[elicited]` as the label for the provider-family ruling (round 3 —
+  right label `[simulated]`, wrong initial reasoning corrected by the owner).
+- **Considered and kept as-is:** the §10 defect register's F-PT-019 leg is PENDING,
+  not re-derived — the ratified contract truth (PURPOSE v2.15 §4) is the source, and
+  the gate.ts §5.2 comment is the implementation-state evidence.

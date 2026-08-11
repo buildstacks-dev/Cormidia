@@ -1,8 +1,8 @@
 {
   "schema": "validation-architect/source-provenance/v1",
-  "runId": "manual-baseline-ratification-2026-07-31",
-  "baseCommit": "ca6d03564f54cb53ff644f485f4a993eec8d6553",
-  "sourceTree": "806b1888b4c7e47c44f15d7ca6aa2123c8b13f25",
-  "docsTree": "2944312452936a5c9f37ee0817647e8ec3cfa141",
-  "capturedAt": "2026-07-31T10:08:43-07:00"
+  "runId": "cormidia-rev1-20260810",
+  "baseCommit": "15708a7ed7ebfd2e24477262daf809c67734d15d",
+  "sourceTree": "73a4f4c3ce0242d8b7645139152f9f428f3f4b15",
+  "docsTree": "0edbd807def1734713378e993008b6572a10378e",
+  "capturedAt": "2026-08-10T18:32:12.707Z"
 }

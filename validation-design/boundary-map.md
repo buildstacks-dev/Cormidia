@@ -8,7 +8,24 @@ rev 3 refused — B-17 L3 status corrected to BLOCKED with future-policy reason/
 condition; see elicitation-log.md). Rows `[doc]`-derived unless marked `[PROPOSED]`
 or `[stated]` (direct live owner input); operational failure
 modes contributed by the stakeholder are marked `[elicited]`, with `[rambling]` citations
-where they trace to lived incidents.
+where they trace to lived incidents. All `[rambling]` tags in this file predate
+2026-08-10 and cite the superseded 2026-07-31 operator ramble, not the current
+./rambling.txt; they resolve via `rambling-archive.md`. <!-- AUD-101 (audit
+rev-2026-08-10): historical scope added — the 2026-08-10 evidence sync replaced
+the ramble file these tags cite. -->
+
+**At-a-glance L3/certification roll-up** <!-- changelog 2026-08-10 (reader
+test 17, operator finding 7): the per-boundary prose has no single sorted status
+table; the roll-up exists but readers had to discover it -->: this file is prose
+per boundary by design; the single status table
+across all live-seam obligations lives at
+`validation-policy.yaml → layers → L3_live_sandbox → obligations`, where **every
+entry carries an explicit status** (`ACTIVE`/`BLOCKED`, with certification and
+restriction fields where they apply <!-- changelog 2026-08-10 (final-gate
+follow-up 6): six entries had no status field and three carried stale
+PENDING-ADAPTER labels contradicting the recorded 2026-08-07 certifications;
+the policy block was reconciled rather than this pointer weakened -->) — read
+that block first when you need status rather than semantics.
 
 Harness revision 2026-08-01: B-18/B-19 are the only new boundaries introduced by the
 owner-confirmed comparative-execution direction. Existing B-02/03/04, B-14/15/16 and
@@ -24,10 +41,15 @@ Harness revision 2026-08-07 (#330/#336): B-23…B-26 add the four planned adapte
 harnesses — OpenCode (server+SDK), Cursor (`cursor-agent` CLI headless), Grok Build
 (ACP stdio), Muse Code (`muse exec` headless swarm) — as provider boundaries of the
 B-02/03/04 class. Each extends CORMIDIA-C-CORE-001 with per-adapter deltas only
-(contracts/B-23…B-26) and is **design-only until its adapter lands** (#337–#340);
-their live cells follow the certification lane (docs/harness/adding-updating.md §5),
-Grok Build's additionally gated on the #339 human risk review. Findings
-F-PT-025…028 park the mechanism-level gate-bridge cells (§4). Facts `[doc]`-derived
+(contracts/B-23…B-26); all four adapters LANDED and were certified 2026-08-07
+(#337–#340) under the certification lane (docs/harness/adding-updating.md §5) —
+Grok Build's real-repo use stays gated on the OPEN #339 human risk review, and
+Muse Code's live walk is certified-incomplete (fail-closed off). Findings
+F-PT-025…028 all resolved 2026-08-07 (ratified/certification/evidence — §4);
+their formerly parked mechanism cells are unparked. <!-- changelog 2026-08-10
+(reader test 5, operator finding 6): was "design-only until its adapter lands …
+F-PT-025…028 park the cells" — stale against the policy registry. -->
+Facts `[doc]`-derived
 from `research/2026-08-06_adapter-upstream-references.md`; `[stated]` = owner text in
 issues #330/#337–#340 and their field-verification comments.
 
@@ -44,7 +66,19 @@ the selection judge does (§2). Findings F-PT-029/030 are recorded in §4.
 Boundaries fall out of the structural view (state ownership, consistency, failure
 domains) — never testing convenience. Interfaces (CLI/JSON/UI) are adapters, not
 boundaries; the `org → loop → runtime` import layering is code organization, not failure
-domains.
+domains. **Terminology note — "adapter" carries two distinct senses in this
+corpus** <!-- changelog 2026-08-10 (reader test 25, operator finding 4): the
+same word named a non-boundary category here and real boundaries at
+B-23…B-26 -->: *interface adapters* (CLI/JSON/UI surfaces over one behavior —
+NOT boundaries, this rule) vs *provider adapters* (the B-02/B-03/B-04 class and
+B-23…B-26 — real external-system boundaries, each with its own failure domain).
+The word alone never decides the category; the state-ownership test does. (A
+third, informal use also appears — e.g. `cormidia-job` as "a second adapter
+over the runtime layer," or harnesses "driving packaged binaries" <!--
+changelog 2026-08-10 (reader test 42, operator finding 4): the two-sense rule
+didn't anticipate this framing -->: these are figurative uses of the word and
+still resolve by the same test — none of them creates a boundary or a
+category of its own.)
 
 Honest-fake column semantics (skill rule 15): a fake must reproduce the seam's failure
 modes as first-class scriptable behavior, not only success; every real behavior the fake
@@ -373,7 +407,7 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   <!-- changelog 2026-07-31: pointed to the existing draft policy (final-gate fix). -->
 - **Layer:** 2 + BLOCKED L3 obligation (recorded in the draft policy file).
 
-### B-18 — Comparison coordinator ↔ isolated candidate lanes `[stated+PROPOSED]`
+### B-18 — Comparison coordinator ↔ isolated candidate lanes `[stated+PROPOSED]` (DESIGN-ONLY — nothing built; HB-090…094 open) <!-- changelog 2026-08-10 (reader test 10, operator finding 3): built-vs-design status now explicit in the heading, not only in the provenance tag -->
 - **Why it is a boundary:** the coordinator owns frozen comparison intent, candidate
   identities, aggregate admission, and the journal; each candidate owns an isolated
   provider execution and artifact namespace and can fail while the coordinator and
@@ -397,7 +431,7 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   sequential V1.
 - **Layer:** 1/2; existing conditional L3 adapters; future L5 when parallelism exists.
 
-### B-19 — Durable selection ↔ winner materialization/episode continuation `[stated+PROPOSED]`
+### B-19 — Durable selection ↔ winner materialization/episode continuation `[stated+PROPOSED]` (DESIGN-ONLY — nothing built; HB-090…094 open) <!-- changelog 2026-08-10 (reader test 10, operator finding 3) -->
 - **Why it is a boundary:** selection owns one immutable, evidence-bound decision;
   materialization owns copying that exact artifact into an episode output or a new
   standalone local winner branch. Either side can fail while the other remains valid.
@@ -497,7 +531,7 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   measured cache economics are observational until enough evidence exists.
 - **Layer:** 1/2 dominant; existing adapter L3; no new L5 solely for sequential batches.
 
-### B-23 — OpenCode server (`opencode serve` + SDK) `[doc]` (design-only, #337)
+### B-23 — OpenCode server (`opencode serve` + SDK) `[doc]` (adapter landed #337, certified 2026-08-07) <!-- changelog 2026-08-10 (stakeholder gate finding): heading was "design-only, #337" — stale -->
 - **Boundary test:** the OpenCode server/process can be down while every other
   subsystem — and every other harness — runs. PASS.
 - **Failure modes:** the B-02 core shapes (timeout; rate limit; auth expiry mid-turn;
@@ -509,21 +543,27 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   foreign server instance answering on the expected port** (wrong session universe —
   an identity failure, not a transport failure); gating plugin hook not loaded =
   gate hole (B-04's extension lesson: "hook registered" proves very little);
-  **permission `ask` in pure headless mode — behavior unspecified upstream
-  (F-PT-025)**; per-provider credential expiry inside one multi-provider install
+  **permission `ask` in pure headless mode — auto-REJECTS (F-PT-025
+  resolved-ratified 2026-08-07: `ask` is never used; the `tool.execute.before`
+  hook is the sole enforcing gate)**; per-provider credential expiry inside one
+  multi-provider install
   (provider X usable while provider Y expired — must surface per connection,
   INV-008); models.dev catalog drift / retired `provider/model` id (typed refusal,
   never substitution); published-roster vs actually-reachable divergence.
 - **Honest fake:** YES — scripted HTTP/SSE double speaking the published OpenAPI
   shapes: scriptable outcomes, event gaps, hook presence/absence, permission-ask
   emission, per-provider auth states, catalog/roster responses.
-- **Unproven real (L3):** the §5 certification walk against the real server+SDK —
-  real auth store; real hook-seam denial of a forbidden attempt (mechanism
-  post-F-PT-025); real session resume; representative-model smokes (one
-  Anthropic-family, one OpenAI-family) `[stated]`. Spend-bounded per policy.
-- **Layer:** 2 + L3 certification (design-only until the adapter lands).
+- **Proven real (L3), 2026-08-07:** the §5 certification walk ran against the real
+  server+SDK — real auth store; real hook-seam denial of a forbidden attempt (the
+  ratified post-F-PT-025 mechanism); real session resume; representative-model
+  smokes (roster published, never per-model certified). Spend-bounded per policy.
+  Evidence: `research/2026-08-07_opencode-adapter-certification.md`.
+  <!-- changelog 2026-08-10 (stakeholder gate finding): was "Unproven real (L3)" —
+  stale against the #337 certification record already cited by case-catalog CF-B23-L3. -->
+- **Layer:** 2 + L3 certification (adapter landed #337). <!-- changelog 2026-08-10:
+  was "(design-only until the adapter lands)" — stale -->
 
-### B-24 — Cursor CLI (`cursor-agent` headless) `[doc]` (design-only, #338)
+### B-24 — Cursor CLI (`cursor-agent` headless) `[doc]` (adapter landed #338, certified 2026-08-07) <!-- changelog 2026-08-10 (stakeholder gate finding): heading was "design-only, #338", contradicting this section's own "Proven real (L3), 2026-08-07" body -->
 - **Boundary test:** PASS (subprocess dies/hangs independently).
 - **Failure modes:** the B-02 core shapes, plus: **directory-trust refusal** from an
   untrusted workdir (typed, pre-spend — field-verified `[stated]`); **edits silently
@@ -553,14 +593,17 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   Evidence: `research/2026-08-07_cursor-adapter-certification.md`.
 - **Layer:** 2 + L3 certification (adapter landed #338).
 
-### B-25 — Grok Build ACP (`grok agent stdio`) `[doc]` (design-only; #339 risk-review-gated)
+### B-25 — Grok Build ACP (`grok agent stdio`) `[doc]` (adapter landed #339, certified 2026-08-07 in sandbox; real-repo use stays #339 risk-review-gated) <!-- changelog 2026-08-10 (stakeholder gate finding): heading was "design-only; #339 risk-review-gated" — the adapter and its sandbox certification are landed; ONLY real-repo use remains gated -->
 - **Boundary test:** PASS (subprocess dies/hangs independently) — a B-03 cousin.
 - **Failure modes:** B-03's subprocess shapes (death mid-RPC preserving journal/
   checkpoint; protocol-version skew as typed terminal config error; hang), plus:
   ACP version-negotiation failure; **permission-request coverage gaps — a tool
   action executed without the ACP permission round-trip is an INV-002 gate hole,
-  not a degradation (F-PT-027)**; headless auto-approve analog bypassing the request
-  path (unspecified upstream — same finding); auto-update mutating the binary
+  not a degradation (F-PT-027 resolved-by-evidence 2026-08-07: coverage IS
+  incomplete by design, so the `PreToolUse` hook is the ratified gate with a
+  per-turn proof handshake — `error_gate_unproven` on failure)**; headless
+  auto-approve analog bypassing the request path (confirmed real — same finding,
+  closed by the hook-first mechanism); auto-update mutating the binary
   mid-campaign when `--no-auto-update` is omitted (config drift); auth expiry —
   readiness probes usable request authentication (`XAI_API_KEY` or stored login),
   never account presence; operator
@@ -572,10 +615,18 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - **Honest fake:** YES — fake ACP peer speaking JSON-RPC over stdio: scriptable
   permission requests and omissions, denials, protocol skew, deaths, delays,
   auto-approve analogs.
-- **Unproven real (L3):** the §5 certification walk over ACP — **conditional on the
-  recorded #339 human risk-review decision; throwaway sandbox repos only until it
-  clears real-repo use** `[stated]`. Spend-bounded per policy.
-- **Layer:** 2 + L3 certification (risk-review-gated).
+- **Proven real (L3), 2026-08-07 — sandbox only:** the §5 certification walk ran
+  over ACP in throwaway sandbox repos (2 provider turns / $0.058, violations empty:
+  real auth, real denied shell+read attempts through the ratified PreToolUse hook
+  bridge, exact session resume, isolation sentinel). Evidence:
+  `research/2026-08-07_grok-build-adapter-certification.md`. **Real-repository use
+  remains gated on the OPEN #339 human risk-review decision — certification proves
+  the adapter, never the vendor; sandbox-repo-only until it clears** `[stated]`.
+  <!-- changelog 2026-08-10 (stakeholder gate finding): was "Unproven real (L3)" —
+  the sandbox certification is complete; only the #339 restriction remains, and it
+  is preserved verbatim here. -->
+- **Layer:** 2 + L3 certification (sandbox certified; real-repo use #339
+  risk-review-gated). <!-- changelog 2026-08-10: was "(risk-review-gated)" alone -->
 
 ### B-26 — Muse Code (`muse exec` headless, swarm) `[doc]` (adapter landed #340, certified 2026-08-07)
 - **Boundary test:** PASS.
@@ -848,10 +899,14 @@ flowchart LR
     TURN -- B-02 --> ANT
     TURN -- B-03 --> CDX
     TURN -- B-04 --> PI
-    TURN -. B-23 planned .-> OC
-    TURN -. B-24 planned .-> CUR
-    TURN -. B-25 planned .-> GRK
-    TURN -. B-26 planned .-> MUSE
+    %% edges made solid 2026-08-10 (reader test 37, operator finding 1): the
+    %% dotted "planned" links contradicted this file's own landed/certified
+    %% prose for B-23..B-26 (adapters landed #337-#340, certified 2026-08-07;
+    %% B-25 sandbox-scope; B-26 L3 outcome INCOMPLETE)
+    TURN -- B-23 landed --> OC
+    TURN -- B-24 landed --> CUR
+    TURN -- B-25 landed sandbox-only --> GRK
+    TURN -- B-26 landed no-live-role --> MUSE
     TURN -- B-01 --> GH
     TICK -- B-01 --> GH
     OBS -- B-12 local --> CORMIDIA
@@ -904,9 +959,16 @@ flowchart LR
 Canonical entries: `validation-policy.yaml` → `open_findings`; mirrored in
 harness-design-state.md; dependent cells parked in case-catalog.md.
 
-- **F-PT-025 (open, B-23):** OpenCode headless permission-`ask` semantics unspecified
-  upstream; the ratified gate-bridge mechanism (deny-by-default + hook seam as sole
-  approver, vs `--auto` + gate-only) is an owner decision.
+- **F-PT-025 (RESOLVED-ratified 2026-08-07, B-23):** answered by the owner's own
+  bounded probe of opencode 1.18.15 headless and re-proved by the #337
+  certification — headless `ask` auto-REJECTS (never blocks/hangs), so `ask` is
+  never used; the ratified mechanism is deny-by-default config as shaping plus the
+  in-process `tool.execute.before` plugin hook as the SOLE enforcing gate, covering
+  every effectful tool and subagent child sessions, with `--auto` never passed.
+  Mechanism legs unparked and implemented in #337. <!-- changelog 2026-08-10
+  (reader test 5, operator finding 6): this entry had gone stale against the
+  canonical validation-policy.yaml → open_findings; the policy always wins on such
+  drift. -->
 - **F-PT-026 (RESOLVED-by-certification 2026-08-07, B-24):** the premise was
   falsified in the field — a project `.cursor/hooks.json` `preToolUse` hook DOES fire
   under `-p --force` and enforces pre-execution, so the question was empirical and no
@@ -914,10 +976,18 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
   sole gate channel over a per-turn Unix socket, `failClosed: true`; tiers
   `tool_gate: adapter`, `intra_turn_fanout: native`. Evidence:
   `research/2026-08-07_cursor-adapter-certification.md` (#338).
-- **F-PT-027 (open, B-25):** Grok Build ACP permission-request coverage (every
-  tool-action class? denial semantics? headless auto-approve bypass?) unspecified
-  upstream; the gate-bridge contract cannot be authored from a guess. Live
-  certification separately human-risk-review-gated (#339).
+- **F-PT-027 (resolved-by-evidence 2026-08-07, B-25):** answered empirically against
+  grok 1.0.0 — ACP permission coverage is incomplete BY DESIGN (read-only tools
+  never reach `session/request_permission`), denial semantics differ per channel,
+  and headless auto-approve bypasses the request path silently. Ratified mechanism:
+  the `PreToolUse` hook is the gate (evaluated ahead of every other authorization
+  check), bridged over a per-turn Unix socket, with the ACP request as backstop;
+  because grok's hook runner fails open, the adapter must PROVE the gate per turn
+  (SessionStart handshake) and refuse with typed `error_gate_unproven` otherwise.
+  Certified live in throwaway sandbox repos; **the #339 human risk review remains
+  OPEN and independently gates real-repo use.** <!-- changelog 2026-08-10 (reader
+  test 5, operator finding 6): stale "open" corrected against the canonical
+  policy registry. -->
 - **F-PT-028 (RESOLVED-by-evidence 2026-08-07, B-26):** #340 certification against
   Muse Code 0.1.0-R708.1 found no hook/permission seam firing at all — not for swarm
   members and not for the parent — so the owner-decided fallback applies at its

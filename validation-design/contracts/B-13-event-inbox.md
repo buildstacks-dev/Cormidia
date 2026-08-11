@@ -11,6 +11,11 @@ Status: DRAFT (Phase 4). Defends INV-013/014, F-PT-005 (resolved). Journey J-10.
   `unknown_company_event_kind` (error, kept for repair).
 
 ## 2. Output guarantees
+> **Read §OPEN before authoring against this section** <!-- changelog 2026-08-10
+> (reader test 23, new-engineer finding 5): the OPEN block sat below the main
+> clauses and a fast reader could stop early -->: F-PT-006 leaves
+> producer-atomicity/partial-file and duplicate-identity semantics undecided —
+> §OPEN scopes what these guarantees may be tested against.
 - Valid + ≥1 current subscriber: one turn per eligible subscriber; per-(event, role)
   marks; retirement only when every *current* subscriber holds a mark, marks pruned in
   the same atomic write `[doc]`.

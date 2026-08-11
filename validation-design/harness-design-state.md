@@ -1,6 +1,104 @@
 # Harness design state — Cormidia validation campaign
 
-Updated: 2026-08-07 (outcome-acceptance + jobs harness revision below; prior state retained)
+Updated: 2026-08-10 (steady-state harness revision below; prior state retained)
+
+## Independent audit — rev-2026-08-10 corpus, iteration 1 (2026-08-10)
+
+A fresh auditor returned four findings (AUD-101 blocking … AUD-104 minor; its
+own id series — distinct from the 2026-07-31 campaign's AUD-101…109). All four
+**ultimately fixed** (none disputed, none deferred) — but not in one pass:
+disposition-gate round 1 confirmed AUD-102/104 and refused AUD-101/103 on
+upheld stakeholder objections; those two were corrected and confirmed at
+round 2. <!-- corrected 2026-08-10, disposition gate round 2: previously "All
+four dispositioned fixed, no disputes, no deferrals" before the gate history —
+a contradiction. --> Canonical record and fix
+table: ratification-package.md §13; report: audit/audit-report-1.md. Headline:
+the 2026-08-10 evidence sync had REPLACED ./rambling.txt and the revision never
+rescoped the `[rambling]` tag class — now rescoped historically via the new
+`rambling-archive.md` (registered in policy `artifacts:`). Also: F-PT-018's
+KNOWN-LIMITATION marker is now machine-visible in case-catalog.yaml
+(README's nine-parked claim split 8+1 accordingly); #376's disposition is
+named in harness-state.yaml — absorbed by CF-IF-CLI's existing progressive-help
+coverage (#371 tests), THIN/C1, no new row owed; the README glossary's
+contradictory …032 comment corrected.
+Disposition-gate history: round 1 GATE-REFUSED — AUD-102/104 confirmed;
+stakeholder objections on AUD-101 (archive omitted scope-and-module-map.md's
+four anchors; byte-recovery over-claim — no pre-15708a7e preimage exists in the
+bundled history) and AUD-103 (wrong SHA fd3bb814, misleading "no case row owed")
+upheld and corrected; full corrections in §13's rows. Round 3 (2026-08-10):
+window CONFIRMED closed — all four rulings CONFIRMED; persisted per-finding
+ruling record (round-2 auditor's verification surface):
+audit/audit-1-dispositions.md, rewritten for this window at the conventional
+path (July table preserved at audit-1-dispositions-2026-07-31-campaign.md;
+extended narrative at audit-1-dispositions-rev-2026-08-10.md). <!-- changelog
+2026-08-10: section added at the audit window; corrected same day at
+disposition-gate round 1 per the stakeholder's upheld objections; round-3
+close and disposition-record pointer added at window close. -->
+
+## Harness revision — steady-state reconciliation + provider-disjoint review pin (2026-08-10, campaign rev-2026-08-10)
+
+Scope: the `validation-harness-design` skill re-entered in `harness-revision` mode
+(steady-state — no concept re-taught, no settled decision re-elicited) against the
+ratified corpus, diffing prior design base `ca6d0356` → current `15708a7e`. The
+product-owner seat is an AI stakeholder agent (provenance labels per this campaign:
+`[doc]`/`[rambling]`/`[simulated]`/`[PROPOSED]`; `[stated]` unused). Phase 0 was
+confirmed by the stakeholder after two refused rounds (gate history in
+elicitation-log.md).
+
+**Diff verdict.** The interim in-repo revision passes and the four sourcing channels
+had already absorbed nearly the whole delta (CF-REG rows and citing specs verified
+through the 2026-08-09 fixes #369/#370/#373/#374/#375). No module, journey, boundary,
+invariant, tier, lane, spend bound, or golden set was reopened; M1–M18 unchanged.
+
+**Registered by this revision:**
+- **CF-REVIEW-PROVIDER** (case-catalog §10.2) + **HB-133** — deterministic
+  Builder/Reviewer provider-family disjointness pin for autonomous code delivery,
+  under INV-012/INV-016 · B-10/C-OP-LOOP (T-3 enforcement, T-7 consequence).
+  Provenance: `[doc]` (docs/loop/design.md "Review identity") + `[rambling]`
+  ("must not collapse Builder and Reviewer onto the same provider") +
+  `[simulated]` (in-session stakeholder ruling: the review-identity decision
+  controls; "different provider" means provider family; the episodes contract's
+  looser "independent or cross-provider" wording does not admit same-family review —
+  requires eventual human confirmation; the episodes-contract wording tighten is
+  proposal-only). `roles.yaml` is corroborating configuration evidence, not provenance.
+- **HB-134** — triggered (not scheduled) GTM pre-launch obligations from
+  `docs/gtm-wip.md` (2026-08-08/09, WIP/non-normative `[doc]`): customer-verifiable
+  RQ-1 evidence subset before source bundles; license/metadata coherence proof before
+  public-package licensing changes; deployment-shape + tier reopen BEFORE first
+  external-user launch or onboarding. Owner decision: a triggered backlog item, not a
+  product-truth finding (no F-PT id minted).
+- **HB-135** — the F-PT-019 implementation tracker (implementation-ready): the
+  operation-aware `secrets-or-auth` classifier ratified in PURPOSE v2.15 §4, plus its
+  deposited detector. F-PT-019 is **resolved-ratified, implementation owed** — never
+  "blocked", never "covered" (src/runtime/gate.ts §5.2 comment is the source evidence).
+- **HB-136** — CF-J21-I kill-boundary sweep (opened during this revision's
+  status-honesty check: CF-J21-I has no citing spec; its torn-report/resume-drift
+  halves are covered under CF-B27-* and are now recorded as a dup there).
+- New machine-readable/owner deliverables: `case-catalog.yaml`
+  (validation-architect/case-catalog/v1), `harness-state.yaml` (machine run state,
+  never ratified), `owner-briefing.md`, `owner-backlog.md`; normative traceability
+  conventions added verbatim to `agents-md-contribution.md`; artifact registry
+  additions in `validation-policy.yaml` (tighten-only).
+- **Machine-traceability pass (same day, after corpus-gate iteration):** the manifest
+  is now GENERATED from the two markdowns by `case-catalog-generator.awk` (rules and
+  gate history: ratification-package.md §12.6). Markdown made machine-parseable with
+  inline changelogs (§5 resolver + §10 tables reshaped to 5 columns; §9.1 ledger
+  prefixed; CF-C-B30 id fixed; CF-J21-A prune-token moved; pipe characters in three
+  SM cells). `harness-backlog.md` gained explicit family-ownership mentions, a
+  ticket-status register, and retrospective record tickets **HB-137/HB-138/HB-139**
+  (adapters #337–#340, splits #313–#316, regression deposits) — records of landed
+  work only. Derived counts: 396 families (357 implementable / 38 pruned / 1
+  blocked); 100 tickets (82 landed / 18 pending).
+
+**Consistency sweep (owner-directed, gate round 2):** current-state claims reconciled
+in README.md, this file, case-catalog.md, harness-backlog.md, validation-policy.yaml,
+agents-md-contribution.md, and ratification-package.md — each edit carries an inline
+changelog. Historical records were left historical; only current summaries changed.
+Rambling.txt (committed 2026-08-10) was diffed against the corpus: it re-affirms the
+ratified set; no docs-contradiction found; the one untraced item became CF-REVIEW-PROVIDER.
+`docs/gtm-wip.md` produced HB-134 and no structural reopen. The corpus's "PURPOSE
+v2.17" citations were corrected to v2.16 (the current header; RQ-1 is its 2026-08-04
+entry).
 
 ## Harness conformance repair — L-ACC run 1 (2026-08-07)
 
@@ -350,7 +448,7 @@ process-identity probe.
 - F-PT-022 (RESOLVED-ratified 2026-08-05; calibrated #300): L4 reservations, campaign `max_tokens`, and `observed_tokens` count output tokens only. Golden `token_reservation` values remain human-reviewed baselines; an exact human-approved release config may raise effective reservations but must cover every selected case once, never lower a baseline, and bind `max_tokens` to their sum. The #300 two-times-observed-rounded-to-100 calibration raises seven effective reservations to 5,700/6,600/8,700/12,100/8,000/9,500/4,700 and the full-corpus envelope to 88,100. Input/cache usage remains telemetry and equivalent-USD input. Unknown use debits the effective reservation; known overruns preserve evidence and remain incomplete/inconclusive. CF-REG-287 and CF-REG-300 provide the seeded controls.
 - F-PT-024 (RESOLVED-ratified 2026-08-06 — owner decision on #296: grantless budgeted actions are deliberately outside dollar accumulation; the per-action audit row is the complete record; objective grants remain the opt-in bound; pinned by tests/hermetic/cf-inv-003/f-pt-024-grantless-budgeted.test.ts). Original subject: grantless budgeted-tier accounting — budgeted actions proceed at the composed gate with per-action audit rows (ratified "free until it isn't"), and a covering objective grant bounds them by uses/ledger; but with NO covering grant the debit quantum and any hard bound are undecided. Interim: audit-only visibility; bare defaultGate keeps denying budgeted actions. Dependent ceiling-trip cases parked BLOCKED:F-PT-024 in case-catalog §10.1.
 - F-PT-023 (RESOLVED-ratified 2026-08-06 — the owner answered the Stage 4 decision request with an unqualified YES on #296, one decision covering all four §5.1–5.4 splits; harness revision same day registered the revised CORMIDIA-INV-003 (disposition form, third grant shape), B-09b objective-grant/disposition clauses, and the un-parked CF-SPLIT-* families in case-catalog §10.1; implementation authorized one rule per PR, tightening-first, external-publishing last, with ACTION_IDENTITY_VERSION bumps cancelling in-flight grants at each landing). Original subject (raised 2026-08-06 at #296 Stage 4): the §5.1–5.4 consequence splits (destructive-or-irreversible by target, secrets-or-auth read/mutate, external-publishing by target repo, outbound-network by destination allowlist) are a structural change — they replace INV "critical operations require human approval" with "operations require the disposition their consequence class specifies", and three of the four make the gate permit something it currently refuses. Requires re-entering `validation-harness-design` in `harness-revision` mode with the existing artifacts as baseline, plus ONE owner decision covering all four splits together (the 019fd272 failure was four scattered approvals for one piece of work). Compensating controls and designed-not-implemented seeded negative controls: `docs/approvals/consequence-split-ratification.md`. Dependent split families parked BLOCKED:F-PT-023 in case-catalog.md.
-- F-PT-019 (open; raised 2026-08-01 during the #202-#213 fix campaign): `secrets-or-auth` is operation-blind. It is a pure text rule over the projected effect fields, so a metadata-only query that never opens the file (`git check-ignore .env`, `git status --ignored -- .env.example`) matches exactly as a genuine contents read (`cat .env`) does. #204 shows the false-positive cost — a blocked promotion at 16/17 green, and an approval queue the human learns to rubber-stamp — while narrowing the rule would also loosen it for real exfiltration reads. Owner must decide whether the rule becomes operation-aware and, if so, which git subcommands count as contents reads. Pinned (not endorsed) in the CF-REG-204 spec.
+- F-PT-019 (RESOLVED-ratified 2026-08-03, PURPOSE v2.15 §4; **implementation owed — HB-135**; mirror corrected 2026-08-10, was stale "open"): `secrets-or-auth` becomes operation-aware and fails closed — classification on whether an action actually emits file contents, unparseable effects treated critical, coverage reaching classifier-bypassing effects (#20). The contract truth is ratified; the classifier is still the pre-split text rule (src/runtime/gate.ts §5.2 comment records the pending state). The CF-REG-204 rule-level leg and the CF-SPLIT-SECRETS note are relabeled PENDING:HB-135 — never blocked, never covered. Detector lands with the implementing PR (evidence-deposit rule).
 - F-PT-025 (RESOLVED-ratified 2026-08-07 — answered by the owner's own bounded probe of opencode 1.18.15 headless recorded on #337 under the same-day capability-follows-evidence directive, and re-proved by the #337 adapter certification: headless `ask` auto-REJECTS rather than blocking or hanging, so `ask` is never used; the ratified mechanism is deny-by-default config as shaping plus the in-process `tool.execute.before` plugin hook as the sole enforcing gate, covering every effectful tool and subagent child sessions, with `--auto` never passed; canonical text in validation-policy.yaml → open_findings). Original subject (raised 2026-08-07 #336 harness revision): OpenCode headless permission-`ask` semantics (B-23) — what a configured `ask` does under `opencode serve` with no interactive client is unspecified upstream, and which gate-bridge mechanism is Cormidia's contract is an owner decision; mechanism legs were parked in CF-B23-*/CF-C-B23 and are now unparked.
 - F-PT-026 (RESOLVED-by-certification 2026-08-07 — the premise was falsified by field evidence, so the question was empirical, not an owner value call, and no degraded-tier/role-narrowing decision was required. A per-turn project `.cursor/hooks.json` `preToolUse` hook DOES fire under `-p --force` and its `{permission:deny}` reply stops the action pre-execution, proven by side-effect absence on shell, file-write and subagent-shell probes; a spawned subagent's own calls reach the same per-turn socket. Ratified rung: `preToolUse` as the SOLE gate channel bridged to the in-process `GateFn` over a per-turn Unix socket with `failClosed: true`; tiers recorded `tool_gate: adapter`, `intra_turn_fanout: native` in `cursor/v1`; static `.cursor/cli.json` deny retained as defense in depth only. `--force` is unreachable until a pre-spend handshake proves the hook command end to end, and a post-turn executed-versus-allowed cross-check reports `error_gate_not_observed` rather than `completed`. Residual, not claimed as proven: the handshake cannot prove a future build still calls the hook, so the claim is version-banded (`cursor-agent 2026.08.04-aaa8809`) and re-certification on bump is required; `cursor-agent acp` remains the un-implemented fallback rung. Evidence: `research/2026-08-07_cursor-adapter-certification.md`, #338; CF-B24-*/CF-C-B24 un-parked). Original subject: Cursor gate-seam sufficiency (B-24) — static deny-wins permissions but no documented dynamic per-action hook seam; whether that honors INV-002 at an acceptable `tool_gate` tier or the profile records a degraded/unsupported tier with narrowed role eligibility is an owner decision.
 - F-PT-027 (**resolved-by-evidence 2026-08-07, #339**; raised 2026-08-07 #336): Grok Build ACP permission-request coverage (B-25). Answered empirically against grok 1.0.0: ACP permission coverage is incomplete by design (read-only tools never reach `session/request_permission`), denial semantics differ per channel, and headless auto-approve bypasses the request path silently. Ratified mechanism: the `PreToolUse` hook is the gate — grok evaluates hooks ahead of every other authorization check in every permission mode — bridged over a per-turn Unix socket, with the ACP request as a backstop. Because grok's hook runner fails open, the adapter must PROVE the gate per turn (SessionStart handshake) and refuse with typed `error_gate_unproven` otherwise. CF-B25-* mechanism legs unparked; certified live (CF-B25-L3, violations empty). See `validation-policy.yaml` → `open_findings:` for the full resolution and `research/2026-08-07_grok-build-adapter-certification.md` for the evidence. The #339 human risk review remains OPEN and independently gates real-repo use.
@@ -358,8 +456,30 @@ process-identity probe.
 - F-PT-029 (**RESOLVED-ratified 2026-08-07** — owner decision: **NO BLOCKER**. L-ACC never gates a release and never enters RQ-1 completeness, verdict or qualification; it is disclosed assurance outside RQ-1, beside the soak and the threat model. A bad result is information the human acts on, and no surface may present it as a block). Original subject: **L-ACC's relationship to RQ-1.** The policy says triggered lanes gate their own layer's claims and never gate merge; it says nothing about whether a *scored* lane can ever contribute to release evidence, or sits permanently outside RQ-1 as disclosed future assurance beside the seven-day soak and the threat model. It decides whether a bad L-ACC result can ever block a release, so it is the owner's. Interim posture — no release evidence, gates nothing — is fail-closed and is **not** the answer.
 - F-PT-030 (**RESOLVED-ratified 2026-08-07** — owner decision: an unattended campaign **may** auto-continue past the plan gate via the config's declared `plan_gate` policy, because an end-to-end run is the point of a campaign. Unchanged: the ratified rubric §6 criteria still decide, the resolution is still recorded durably before any build-arm spend, the envelope still bounds spend, approvals still run under the sandbox test-mode profile, and a config with no declared policy still refuses — silence is not consent). Original subject: **plan-gate authority under unattended execution.** Rubric §6 allows the gate to resolve by human decision or by a declared `plan_gate` policy; whether an unattended campaign may auto-continue past a *scored* gate at all is undecided. Adjacent to but not covered by the ratified sandbox test-mode profile, whose only permitted auto-grant category is `campaign_budget`. Interim: human-only; do not implement auto-continue before ratification.
 - F-PT-031 (**RESOLVED-ratified 2026-08-07; owner-confirmed**, with a nuance recorded rather than inferred: a job may be recurring and app- or org-scoped and may be *associated* with a ticket, but a ticket is never mandatory for a job, and such an association does not pull a job step into INV-016's domain — the precondition is a readiness transition, which no job step has either way): **INV-016's domain.** Resolved delivery-scoped — the invariant's own precondition ("before it becomes ready") names a delivery-unit state a job step can never reach, so the universal reading was never checkable and the scope clause narrows nothing enforceable. Rejected alternative: a standing subsystem-wide waiver class, which misuses a per-unit mechanism and reads at a future audit as "this rule applies and we are ignoring it". Provenance is an explicit owner delegation recorded in `jobs-harness-revision-proposal.md` §0.8, whose package was never accepted and whose original id collided with #336's F-PT-025. Because the delegation predates this pass and the clause touches a ratified invariant, it is flagged rather than treated as settled.
+- F-PT-033 (**OPEN-blocked-contract, minted 2026-08-10**, final-gate follow-up 10 —
+  next-id procedure; the 2026-08-10 Phase 0 refusal of "F-PT-033 for GTM" was a
+  subject veto, not a number reservation): **S-3 verdict-marker refusal
+  semantics + vocabulary.** The corpus clause said "exactly one structured
+  `VERDICT: APPROVE|REJECT` marker; parser refuses zero/two"; the running parser
+  (`extractKeywordValueStrict`, which cites that clause) deliberately parses
+  duplicate IDENTICAL markers, refuses only DISTINCT conflicting values, applies
+  keyword precedence (Verdict before Status), uses vocabulary
+  `approve|findings`, and accepts a fourth bare-line form that is a
+  code+template addition beyond design.md §6's three status formats. Undecided:
+  ratify the code's duplicate-identical tolerance or tighten the parser. The
+  landed tests record the lenient behavior as pinned regression facts conferring
+  no ratification (follow-up-11 correction: they DO pin duplicate-identical
+  parse and keyword precedence — "assert only both-readings-valid refusals" was
+  false); no NEW test may encode either answer as contract truth; the strict
+  reading would require changing parser AND tests (follow-up-12: the last two
+  live mirrors — llm-eval-plan §2 S-3 and §12.4's entry — aligned to the same
+  record-but-don't-ratify wording; remaining old-posture strings are quoted
+  history only). Mirrors corrected in the
+  same change: `contracts/OP-loop.md` §4
+  (grammar with precise per-form provenance), `llm-eval-plan.md` §2 S-3,
+  HB-005(d), README count/range, runbook §1.5.
 - F-PT-032 (**RESOLVED-ratified 2026-08-08**; raised the same day during the HB-120…130 wave): **do B-28 §1's four plant categories apply to a JOB scenario?** They are plan-axis instrumentation and a job has no plan arm, so requiring them of S-ACC-3 demanded instrumentation for a measurement that never happens — and because **J-2 is scored against the sealed key**, an unextractable key left the highest-value job axis permanently `ungraded`. **Owner decision:** §2 is scoped to app scenarios; job scenarios carry their own four (preserved input conflict · undiscoverable answer · mechanically-checkable deliverable constraint · tangent), both lists complete-or-refused, unmapped lead-ins still refused and named. Not a loosening — an inapplicable requirement of cardinality four was replaced by an applicable one of the same cardinality and semantics. **S-ACC-3 was not edited**; it already satisfies the job list. Recorded as a second ratification block at `acceptance/rubric.md` §9, per that file's own never-edit-§8 rule.
-- F-PT-020 (open; raised 2026-08-01 during the #202-#213 fix campaign): undecided approval ITEMS have no documented lifetime. `docs/approvals/design.md` specifies TTL, use-count and revocation for *grants* (post-decision) and is silent on a pending item whose raising turn has ended. In the august-org run all seven items outlived their turns, and because `app verify` treats any pending item as a promotion blocker, the queue grows monotonically under the scheduler until promotion is permanently blocked — and the human is forced to record meaningless denials purely as queue hygiene, which corrupts the decision ledger the approvals exist to produce. Resolving it means adding a terminal non-blocking state to the ratified approval state machine (CF-SM-APPR) and changing what `app verify` counts; adjacent to F-PT-008. Not implemented (#205 parked).
+- F-PT-020 (RESOLVED-ratified 2026-08-03, PURPOSE v2.15 §2; **implemented** — mirror corrected 2026-08-10, was stale "open"): an undecided approval expires. CF-SM-APPR gained the terminal, non-blocking `expired` state (24h default TTL, policy-resolvable); on expiry the raising turn's artifacts/worktree are preserved, its claim released without consuming a failure claim, and `app verify` counts only approvals whose raising turn is still live. Encoded in the CF-SM-APPR family text and pinned by `tests/hermetic/cf-reg-205/cf-reg-205-expiry.test.ts`. F-PT-008 (grant expiry post-decision) remains open and distinct.
 
 ## Decisions on record
 - Criticality/tiering was elicited teach-first at Phase 1 (no prior anchor); synthesis in system-map.md §5: base C2, function-scoped C3 control points T-1…T-12, C1 leaves, recovery as tier multiplier, compound worst case §5.5.
@@ -426,11 +546,405 @@ its §9). Summary of the event:
   ratified/adjusted-ratified on 2026-07-31; only register items 9–12 remain PROPOSED.
 
 ## Pending confirmations
-- **Active 2026-08-03 revision:** Phase 8 was accepted on 2026-08-03 as recorded at
+
+**How to read this section** <!-- changelog 2026-08-10 (reader test 20,
+new-engineer finding 3): 19+ round records accrete in append order, some
+superseding earlier ones, and readers were reading defensively -->: entries
+append in the order events happened, NOT in narrative or numeric order; a later
+entry can supersede or refine an earlier one, and round numbers may appear
+out of sequence in file order. When two entries touch the same fact, **the
+later-appended entry wins**; for dispositions the canonical record is
+`ratification-package.md` §12.7–§12.8+, not this summary.
+
+- **Active rev-2026-08-10 revision:** Phase 0 CONFIRMED (round 3); consistency sweep,
+  registrations (CF-REVIEW-PROVIDER, HB-133…136, HB-140, retrospective records
+  HB-137…139), machine/owner deliverables, and the machine-parse corpus-gate
+  iteration are complete. **Phase 8 reader test COMPLETE 2026-08-10** — all
+  operator/new-engineer/coding-agent findings dispositioned
+  (ratification-package.md §12.7: triage runbook rewritten self-contained;
+  STATUS-FIRST backlog banner; HB-140 drift gate; routing-doc status semantics,
+  bug-fix catalog obligation, and skill fallback fixed). **Reader test round 2
+  COMPLETE 2026-08-10** — no blocking routing gaps; F-PT-008/F-PT-013 runbook rows,
+  solo-operator escalation semantics, paired-artifact tiebreak, layer-taxonomy
+  glossary, threshold-asymmetry rationale, and routing-doc imperatives added
+  (dispositions: ratification-package.md §12.8); manifest verified byte-identical
+  after the edits. **Reader test round 3 COMPLETE 2026-08-10** (post-gate corpus
+  edits staled round 2; dispositions in ratification-package.md §12.8b: four new
+  runbook symptom rows incl. dead-child-fresh-heartbeat and jobs, the §1.5
+  known-enforcement-gaps block surfacing F-PT-014/017/018, README F-PT-014
+  warning, banner naming note, HB-072/073 executor normalization, and routing-doc
+  precision on §10.3/regeneration/golden-case rules; manifest still
+  byte-identical). **Reader test round 4 COMPLETE 2026-08-10** (dispositions:
+  ratification-package.md §12.8c — four more runbook rows incl. FS/git substrate,
+  preserve-and-inspect, app-reset/T-8 with F-PT-012, and exit-0-lying; §1.5
+  reframed complete; golden-sets README counts fixed; wave-convention emphasis;
+  ops/OP-* disambiguation; cheapest-layer worked example; manifest still
+  byte-identical). **Reader test round 5 COMPLETE 2026-08-10** (dispositions:
+  ratification-package.md §12.8d — the boundary-map F-PT-025/027 staleness drift
+  repaired at all four sites; the B-23…B-26 adapter symptom row; the general
+  policy-wins finding-status tiebreak; the L3/L4/L5 convention sentence corrected;
+  HB-072 Acceptance/Defends pointers; the L-ACC `l_acc_lane:` pointer and the
+  §1–§8 grammar pointer in the routing doc; manifest still byte-identical; plus
+  the stakeholder-gate follow-up repairing six further stale B-23/B-24/B-25
+  design-only/unproven-real labels toward landed/certified, #339 restriction
+  preserved — §12.8d follow-up note).
+  **Reader test round 6 COMPLETE 2026-08-10** (dispositions:
+  ratification-package.md §12.8e — F-PT-014 surfaced at INV-003's Enforcement
+  line; the decision-maker framing and two-shapes-of-`inconclusive` distinction in
+  the runbook; the DRAFT-header binding warning in README; Layer/Defends/
+  Acceptance added to HB-P3/P5/P6/P7; routing-doc provenance link, path anchor,
+  precedent-pointer alignment, and generator-command cross-reference; manifest
+  still byte-identical). **Reader test round 7 COMPLETE 2026-08-10**
+  (dispositions: ratification-package.md §12.8f — p1–p3 gloss in OP-loop;
+  T-1…T-12 simultaneous-fire sequencing note restating existing rationale; the
+  policy-wins banner atop the runbook; the seven-tag vocabulary gloss in
+  risk-allocation; the §9.1 ledger rule for feature-derived triggered-lane rows;
+  a citation accuracy fix; manifest still byte-identical). **Reader test round 8
+  COMPLETE 2026-08-10** (dispositions: ratification-package.md §12.8g — four
+  runbook rows: B-10 identity, B-18/B-19 design-only honesty, B-20/21/22 silent
+  wrongness, B-11/T-10 learning; the paged-reader jump line and the enumerated
+  nine parked IDs in README; policy §10.3 precision; routing-doc mid-change
+  disposition, new-call-site rule, and structural-artifact list; manifest still
+  byte-identical). **Reader test round 9 COMPLETE 2026-08-10** (dispositions:
+  ratification-package.md §12.8h — T-3 tampering and B-17/T-12 external-effect
+  runbook rows; the quality-fail-impossible corollary; §2 declared the canonical
+  tiebreak; the own-layer gating rule's named exceptions acknowledged; the
+  path-resolution convention scoped correctly; the owner-backlog regeneration
+  procedure; the graded-distribution threshold trigger; manifest still
+  byte-identical). **Reader test round 10 COMPLETE 2026-08-10** (all seats
+  sufficient, no blocking findings; dispositions: ratification-package.md §12.8i —
+  the in-list paged-reader jump note, B-18/B-19 DESIGN-ONLY heading annotations,
+  and the bare-by-design threshold rationale at the golden-sets entry; manifest
+  still byte-identical). **Reader test round 11 COMPLETE 2026-08-10** (all seats
+  sufficient, no blocking findings — third consecutive clean round; convergence
+  noted in ratification-package.md §12.8j; single edit: the section-status
+  at-a-glance table in the routing doc; manifest still byte-identical).
+  **Reader test round 14 COMPLETE 2026-08-10** (four SIG findings fixed — the
+  runbook's own provenance disclosure, the CF-REVIEW-PROVIDER symptom row, the
+  non-exhaustive blocked-work paragraph with scan instruction, the layer-6 gloss
+  landing rule — plus the register LANDED-scope caveat, the invariants read-first
+  pointer, and the closed path rule; dispositions ratification-package.md §12.8m;
+  manifest still byte-identical).
+  **Reader test round 15 COMPLETE 2026-08-10** (two SIG procedural gaps closed —
+  the unplanned-fix ticket-citation rule (cite the family + HB-139, the
+  retrospective-record pattern made normative) and the HB-id minting/placement
+  procedure — plus the §7 golden-case citation, HB-133's hoisted readiness hedge,
+  the OPEN→proposed_register co-location pointer, and the two-grain tiebreak
+  unification note; dispositions ratification-package.md §12.8n; manifest still
+  byte-identical). Gate follow-up to round 15: the stale owner-backlog HB-133
+  prose regenerated with the hoisted hedge, and the canonical-source sentence in
+  the routing doc scoped so the policy is not claimed canonical for the two new
+  procedures it does not contain (recorded at §12.8n's follow-up); the residual
+  "appear in no other artifact" claim restated as canonical-vs-mirror (routing
+  doc wins on disagreement).
+  **Reader test round 16 COMPLETE 2026-08-10** (fifth convergent round — all
+  seats sufficient; coding-agent zero new gaps with every routed path verified;
+  two runbook refinements: the row-by-row ratified-fact-vs-DRAFT-overlay rule,
+  and the one-command drift check at the pair tiebreak; dispositions
+  ratification-package.md §12.8o; manifest still byte-identical). Gate follow-up
+  to round 16: both fixes corrected at face value — citations retain their
+  source's own status (nothing is ratified by citation), and the
+  finding-drift check now uses a verified 32-entry id/status extraction from the
+  policy registry instead of pointing at a nonexistent `findings:` block
+  (recorded at §12.8o's follow-up). Second follow-up: the "independently
+  ratified structures" claim rephrased to varying source statuses; the "one
+  command" promise scoped to the catalog pair only, with the registry grep
+  honestly labeled a reference printout requiring manual audit and the
+  policy↔state framing changed from paired-artifact to summary-mirror.
+  **Reader test round 17 COMPLETE 2026-08-10** (sixth convergent round — all
+  seats sufficient; five new minors fixed: the provenance-tag glossary row, the
+  boundary-map roll-up pointer, the B-08 cadence `[doc]` tag (provenance
+  verified against the product docs), the provider-adapter-core glob warning,
+  and the repo-root path for AGENTS.md/CLAUDE.md; dispositions
+  ratification-package.md §12.8p; manifest still byte-identical). Gate follow-up
+  to round 17: the README tag row rewritten against canonical §2 (which itself
+  gained historical scope on the "[stated] never used" claim), and the policy's
+  L3 obligations block made a genuinely complete status table — explicit ACTIVE
+  on six standing entries, CF-B23/B25/B26 reconciled to their recorded
+  2026-08-07 certifications (B-25 sandbox-scope, #339 real-repo restriction
+  preserved verbatim) — instead of weakening the new boundary-map pointer
+  (recorded at §12.8p's follow-up). Second follow-up: canonical §2's [PROPOSED]
+  definition widened to "values or structures"; the L3 obligation count
+  corrected to 11 (strict block-scoped re-count); CF-B26-L3's bare certified:
+  relabeled adapter_certification with current_l3_outcome INCOMPLETE preserved
+  from boundary-map B-26 (ACTIVE = runnable-on-trigger, never pass).
+  **Reader test round 18 COMPLETE 2026-08-10** (seventh convergent round — all
+  seats sufficient; four fixes: the bug-fix path's explicit stop-and-escalate
+  fallback, the mechanized blocked-work grep (patterns hit-count-verified), the
+  B-07 grace-period no-figure test-authoring rule, and the §5 B-*/OP-* scope
+  note; dispositions ratification-package.md §12.8q; manifest still
+  byte-identical). Gate follow-up to round 18: the blocked-work grep made
+  case-insensitive (the case-sensitive version missed 29 lowercase lines incl.
+  the live #339 restriction; catalog tokens verified uppercase-by-grammar), and
+  the §5 scope note widened to all three contract shapes (B-*/core five
+  headings; OP-* per-operation prose; journey-acceptance Given/When/Then →
+  CF-C-ACCEPT PRUNE-dup) — recorded at §12.8q's follow-up.
+  **Reader test round 19 COMPLETE 2026-08-10** (eighth convergent round — all
+  seats sufficient, coding-agent zero coverage gaps; four fixes: the runbook
+  companion note routing to owner-briefing §2 and the README ID glossary, the
+  self-defending cross-layer-exception sentence with its audit path, and the
+  invariant clause-vs-shape rule with the F-PT-014 precedent; dispositions
+  ratification-package.md §12.8r; manifest still byte-identical). Gate follow-up
+  to round 19: the companion note relocated to immediately before the symptom
+  table and its prefix list corrected to the namespaces the table actually uses
+  (dropped unused S-/M-; added C-OP-, CORMIDIA-C-, L-ACC; M1…M18 form), each
+  verified against the README glossary (recorded at §12.8r's follow-up).
+  **Reader test round 20 COMPLETE 2026-08-10** (ninth convergent round — no
+  blocking findings at any seat; the undocumented `REG` risk tag defined in the
+  catalog legend, risk-allocation.md, and the routing doc's vocabulary; the
+  §10.3 tag-inheritance rule stated on the bug-fix path; this section's own
+  how-to-read note added; dispositions ratification-package.md §12.8s;
+  manifest still byte-identical).
+  **Reader test round 21 COMPLETE 2026-08-10** (tenth convergent round — no
+  blocking findings; four fixes: the boundary-map/invariants write-back
+  obligation (append-in-same-change, additive = tighten-only, contradiction =
+  clause-vs-shape), the S-3 verdict-marker grammar reproduced at OP-loop §4
+  with [doc] provenance verified, the single L-ACC routing sentence, and the
+  F-PT-017 practical grep rule; dispositions ratification-package.md §12.8t;
+  manifest still byte-identical). Gate follow-up to round 21: the grammar
+  reproduction's S-3 contradiction handled per the clause-vs-shape rule —
+  **F-PT-033 minted** (duplicate-identical marker tolerance vs "refuses
+  zero/two"; approve|findings vs APPROVE|REJECT; fourth form is code+template,
+  not design.md §6) with OP-loop §4, llm-eval-plan §2, HB-005(d), README,
+  runbook §1.5, §12.4, this file's mirror, and harness-state.yaml all corrected
+  in the same change; no catalog cell added or parked, counts unchanged
+  (recorded at §12.8t's follow-up).
+  **Reader test round 22 COMPLETE 2026-08-10** (eleventh convergent round — no
+  blocking/significant coverage gaps; three fixes: the Wave 0 LANDED blockquote
+  stop, the symptom-table catch-all row routing unmatched symptoms to §1.5 +
+  the registry grep, and the failure-mode heading-variance note; dispositions
+  ratification-package.md §12.8u; manifest still byte-identical). Gate follow-up
+  to round 22: §12.4 made exhaustive against the policy registry (F-PT-012…018
+  one-liners incl. F-PT-014's unenforced-promise flag; B-17-L3 with unblock
+  condition; all 13 open findings verified present) so §12.8u's routing claim
+  is true (recorded at §12.8u's follow-up); second follow-up: the
+  slash-compressed F-PT-009/010/011 spelled out so literal extraction finds all
+  13 open IDs — set equality now mechanical.
+  **Reader test round 23 COMPLETE 2026-08-10** (twelfth convergent round — no
+  blocking documentation gaps; five fixes: the B-08 duplicate/orphaned-turn
+  symptom row (follow-up-15 precision: failure shape verified in
+  boundary-map.md, reason code verified in invariants.md — not both in both), the B-12
+  scope-exposure row, B-13's read-§OPEN-first pointer, the archive-path
+  resolution note, and the mixed-posture change rule; dispositions
+  ratification-package.md §12.8v; manifest still byte-identical).
+  **Reader test round 24 COMPLETE 2026-08-10** (thirteenth convergent round —
+  no blocking findings; two fixes: the numbered one-entry-per-line quick-scan
+  index ahead of the symptom table — 32 actual bullets after the follow-up-16
+  reformat (the first version was an inline paragraph, so "one line per row"
+  was false) — with full-row-wins-on-divergence, and the posture-table
+  grep hint; dispositions ratification-package.md §12.8w; manifest still
+  byte-identical).
+  **Reader test round 25 COMPLETE 2026-08-10** (fourteenth convergent round —
+  no blocking findings; six fixes: the two-files-§7 collision disambiguated,
+  HB-134's Layer/Defends and HB-112's Defends added honestly (undetermined
+  stated as undetermined, corpus-hygiene stated as such), the finding-minting
+  scan rule with the number-not-reserved precedent, the §9.1 same-change
+  trigger pin, and the adapter-terminology two-senses note; dispositions
+  ratification-package.md §12.8x; manifest still byte-identical). Gate follow-up
+  to round 25: the skipped companion procedure executed — HB-134's owner entry
+  regenerated with the new constraints (no layer until triggered, no ratified
+  Defends, unnameable-Defends child not implementable), HB-112's owner prose
+  reviewed and recorded as aligned (recorded at §12.8x's follow-up).
+  **Reader test round 26 COMPLETE 2026-08-10** (fifteenth convergent round —
+  all seats sufficient; four routing-doc fixes: read-first sources completed
+  for all eight derivation rows (each verified before citing), the Oracle
+  column added to the tag-sourcing sentence, the L2-irreproducible residual
+  deposit path, and the mixed-posture worked example; dispositions
+  ratification-package.md §12.8y; manifest still byte-identical). Gate follow-up
+  to round 26: the Oracle vocabulary claim expanded to the actual grammar —
+  seven atoms plus `+` composition, the `contract` macro, `stat-envelope`,
+  `mixed`, and parenthetical annotations — at the catalog legend, the routing
+  sentence, and §12.8y's record (legend-expansion chosen over normalizing 35
+  live rows; recorded at §12.8y's follow-up).
+  **Reader test round 27 COMPLETE 2026-08-10** (sixteenth convergent round —
+  one blocking contradiction fixed: the golden-case paragraph's new-call-site
+  branch now routes through harness-revision per the structural rule (which
+  wins), with only the envelope-defect branch autonomous; the bug-fix
+  structural trigger list regains "or LLM call site" (one rule, unintentional
+  drop); dispositions ratification-package.md §12.8z; manifest still
+  byte-identical). Gate follow-up to round 27: a third live trigger-list mirror
+  (the 2026-08-03 addendum sentence) corrected with the exhaustive list + a
+  one-rule pointer, and the sweep it prompted found and fixed a fourth
+  (case-catalog §10 preamble); the HB-111 variant's "other structural truth"
+  catch-all needs nothing (recorded at §12.8z's follow-up). Second follow-up: a
+  slash-phrased FIFTH mirror (OP-validation-lifecycle's
+  requires_harness_revision clause) missed by the comma-based sweep — fourth
+  trigger added AND made explicitly non-exhaustive with the canonical pointer;
+  a slash-and-loose-pattern re-sweep verified no sixth live mirror; follow-up
+  19's "all live mirrors" claim corrected to sweep-scope.
+  **Reader test round 28 COMPLETE 2026-08-10** (seventeenth round — six fixes:
+  the structural-defect landing rule reconciled with the deposit obligation
+  (park-the-detector as the sanctioned exception), the harness-revision mode's
+  output shape + availability test stated in-corpus, risk-allocation's stale
+  design-only/parked sentence superseded (the file the consistency sweep
+  missed), the runbook's DRAFT-header trap note, the L3-side-obligation folds
+  rule, and the change-description definition; dispositions
+  ratification-package.md §12.8aa; manifest still byte-identical). Gate
+  follow-up to round 28: the DRAFT-header warning scoped from a false universal
+  to the 18/38 files literally carrying the Phase-4 label (grep-verified) at
+  the runbook, README, and §12.8aa record — declared postures govern the other
+  20; B-18/B-19 stay proposed (recorded at §12.8aa's follow-up).
+  **Reader test round 29 COMPLETE 2026-08-10** (eighteenth round — four fixes:
+  the CF-* minting procedure (semantic derivation + collision scan + never
+  reuse), the blocked-area bug-fix reconciliation (un-contested part only;
+  contested behavior = ratification evidence), the solo-operator escalation
+  mechanics, and the L3 obligation status/evidence table pointer at the triage
+  row (follow-up-22 relabel: "proven-adapter checklist" overstated it —
+  ACTIVE = runnable-when-triggered, never has-run; proof needs an explicit
+  certification field plus non-withholding outcome/restriction fields);
+  dispositions ratification-package.md §12.8ab; manifest still
+  byte-identical).
+  **Reader test round 30 COMPLETE 2026-08-10** (nineteenth round — seven fixes:
+  the landing marker defined — follow-up-23 correction: the marker is the exact
+  existing suffixed heading "## Validation harness (replacement, designed
+  2026-07-31)"; landing replaces the section body with the normalized payload
+  minus its duplicate heading line; append-whole only if no such heading
+  exists — the
+  verbatim-strips-comments rule, core-adapter gate-proof routing (T-1),
+  the F-PT-019/HB-135 citation at the secrets row, M1–M18 staleness at two
+  sites, the thresholds pointer target, and HB-134 named non-bold at the
+  exception sentence — the bold first draft was caught by the byte-identical
+  check reassigning its wave, a live demo of HB-140's purpose; dispositions
+  ratification-package.md §12.8ac; manifest still byte-identical).
+  **Reader test round 31 COMPLETE 2026-08-10** (twentieth round — eight fixes:
+  the false artifacts:-resolver claim corrected to precise registry scope, the
+  mechanized three-outcome marker check, the always-deterministic-fail
+  corollary indexed at the gate-red row + quick-scan, the adapter two-senses
+  glossary row, the not-the-owner operator path, the two-state-files
+  disambiguation, the same-change definition + combined bugfix/feature
+  both-procedures rule, and the F-PT-009 numbers co-located at eval-plan §8;
+  dispositions ratification-package.md §12.8ad; manifest still
+  byte-identical). Gate follow-ups 24–25: the fail-corollary scoped to
+  campaign/quality-lane VERDICTS (not "any fail anywhere" — statuses/log
+  strings route by their own rows), and the displaced "as pending-the-revision"
+  phrase reattached to structure-dependent cases/specs with the definitions
+  and combined-PR rule stated separately (recorded at §12.8ad's follow-up).
+  **Reader test round 32 COMPLETE 2026-08-10** (twenty-first round — no
+  blocking findings; six fixes: the audit-command count 32→33 with the
+  never-hard-trust-counts lesson, the future-state statistical-fail DO line,
+  the jobs-2026-08-07 shape-branch precedent, three digest bullets mirroring
+  embedded rules — follow-up-26 correction: the first render was one semicolon
+  paragraph missing the parked-area split; now three actual bullets (REG; two
+  deposit exceptions; parked-area split) with grammar closure stated
+  separately (unmappable = structural) — and the jump-target greps +
+  permissive-vs-forbidden fallback contrast; dispositions
+  ratification-package.md §12.8ae; manifest still byte-identical).
+  **Reader test round 33 COMPLETE 2026-08-10** (twenty-second round — three
+  routing-doc navigation fixes: the audience signpost (ordinary work skips the
+  landing meta-block — follow-up-27 rescope: the status table and
+  mixed-posture rule stay required reading; only the landing procedure is
+  skipped), the step-zero lookup (follow-up-27 correction: honest chain =
+  module from §2 descriptions → journey by reverse-reading system-map §3 →
+  boundary/contract via journey-acceptance.md; unresolved mapping = corpus gap,
+  finding + escalate, never intuition), and the golden-set directory rule's
+  explicit cross-application to feature-derived S-* cases; dispositions
+  ratification-package.md §12.8af; manifest still byte-identical).
+  **Reader test round 34 COMPLETE 2026-08-10** (twenty-third round — five
+  fixes: the same-PR feature ticket-acquisition path (mint in-change; the
+  citation obligation binds every citing/implementing SPEC per follow-up-28 —
+  pending families instead require their non-LANDED owning ticket) with the
+  derivation-first sequencing default,
+  the runbook's top jump note past the provenance meta, the pruned/wave
+  definition pointers, the new-module = shape-sense convergence rule, and
+  three more verified grep anchors (follow-up-28: the minting anchor made
+  case-insensitive + line-anchored so it reaches BOTH the HB and lowercase CF
+  procedures); dispositions ratification-package.md
+  §12.8ag; manifest still byte-identical).
+  **Reader test round 35 COMPLETE 2026-08-10** (twenty-fourth round — three
+  routing-doc usability fixes: the step-zero worked example — follow-up-29
+  correction: GitHub is SUBSTRATE, so the chain gained an explicit substrate
+  branch (follow-up-30: branches ADDITIVE — ownerless seam code resolves
+  directly to B-01 and narrows its nine-journey list by call sites/ticket
+  scope, J-04 only when the ticket scopes the delivery loop; module-owned
+  seam-adjacent code (M6/M9/M10 et al.) also runs the module→journey chain;
+  affected set = the union) — the self-grep
+  CWD convention, and the Feature-changes entry-point anchor; dispositions
+  ratification-package.md §12.8ah; manifest still byte-identical).
+  **Reader test round 36 COMPLETE 2026-08-10** (twenty-fifth round — four
+  readability fixes: the signpost skip-boundary made explicit (down to the H2,
+  covering the below-blockquote Status paragraph; follow-up-31: the exemption
+  list corrected to THREE items — the how-to-treat-each-section meta-rule,
+  which governs new work, joins the status table and mixed-posture rule), the
+  availability test's
+  skill name stated inline, the digest's self-contained framing scoped, and
+  two sub-obligation anchors added (verified); dispositions
+  ratification-package.md §12.8ai; manifest still byte-identical).
+  **Reader test round 37 COMPLETE 2026-08-10** (twenty-sixth round — five
+  fixes: the boundary-map mermaid B-23…26 edges made solid/honest (were dotted
+  "planned" against the file's own certified prose), README's read-order
+  B-01…B-30, the catalog header's design-only note superseded (byte-identical
+  re-verified), the you-ARE-the-human reframe hoisted to a pre-table companion
+  note, and the S-id scan-first minting discipline; dispositions
+  ratification-package.md §12.8aj; manifest still byte-identical). Gate
+  follow-up 32: three adjacent residues fixed — README's J-01…J-23, the
+  catalog header's three remaining stale ranges (23 journeys / 38 contracts /
+  S-1…S-11, per its own rollup), and the S-id grep corrected to
+  `-oE 'S-[0-9]+'` (the `*` form emitted a bare `S-`); all verified,
+  byte-identical re-checked.
+  **Reader test round 38 COMPLETE 2026-08-10** (twenty-seventh round — the
+  campaign's cleanest: zero new significant findings at any seat; one minor
+  fix: over-broad module→journey resolution narrows by call sites/ticket scope,
+  residual ambiguity routes to the finding escape hatch; dispositions
+  ratification-package.md §12.8ak; manifest still byte-identical).
+  **Reader test round 39 COMPLETE 2026-08-10** (twenty-eighth round — second
+  consecutive zero-new-significant round; two minors: the F-PT-017-grounded
+  worked example at the land-before-revision fork, and B-14 hints at
+  quick-scan entries 18/19; dispositions ratification-package.md §12.8al;
+  manifest still byte-identical).
+  **Reader test round 40 COMPLETE 2026-08-10** (twenty-ninth round — three
+  fixes: the layer/T-tag terminology collision flagged at the tagging sentence
+  (T-tags ride inside Risk parentheses, never a field), HB-094's Gate
+  disambiguated as consequence-not-precondition (byte-identical re-verified),
+  and the state/turns/ path inlined at the alive-but-stuck row; dispositions
+  ratification-package.md §12.8am; manifest still byte-identical).
+  **Reader test round 41 COMPLETE 2026-08-10** (thirtieth round — two fixes:
+  the state-machine inventory pointer resolved honestly (catalog §2's row keys
+  ARE the inventory, deliberately self-referential; owners read from
+  system-map §2.2), and the signpost now names the addenda as required
+  reading per the posture table; dispositions ratification-package.md
+  §12.8an; manifest still byte-identical). Gate follow-up 33: system-map's
+  2026-08-07 "design-only until #337–#340 land" sentence scoped
+  historical-as-written and superseded with the certified facts (B-25
+  sandbox/#339 gate preserved; B-26 INCOMPLETE preserved; policy L3 block
+  canonical).
+  **Reader test round 42 COMPLETE 2026-08-10** (thirty-first round — six
+  fixes: the protocol-surface edit mechanic (draft-and-park, never merge),
+  the touching-a-section definition (complying ≠ touching; spec work owes no
+  posture label; follow-up-34: the adjacent worked example — itself a
+  compliance case — replaced with a genuine two-section-edit example), HB-005(d)'s one-sentence net (byte-identical re-verified),
+  the escalation-mechanics anchor, the deliberate no-op case for
+  refactor/tooling changes, and the third-informal-adapter-use clause;
+  dispositions ratification-package.md §12.8ao; manifest still
+  byte-identical).
+  **Reader test round 13 COMPLETE 2026-08-10** (fourth convergent round — all
+  seats sufficient, zero blockers; three navigation fixes: the leading README
+  banner, §1.5's B-14 naming, the rule-17 pointers; dispositions
+  ratification-package.md §12.8l; manifest still byte-identical).
+  **Reader test round 12 COMPLETE 2026-08-10** (three new significant findings
+  fixed — HB-133's in-ticket provenance caveat, F-PT-019's ratified rule
+  reproduced at the policy resolution field so HB-135 is corpus-implementable,
+  the contradicted-docs finding gloss + contract clause-vs-shape routing rule —
+  plus the severity-vocabulary relabel, HB-112 acceptance, and the layer-6
+  gloss; dispositions: ratification-package.md §12.8k; manifest still
+  byte-identical). **FINAL STAKEHOLDER GATE CONFIRMED 2026-08-10, RE-CONFIRMED
+  after rounds 3 through 11 (incl. the boundary-map status and threshold-mirror
+  follow-ups)** — ratification-package.md §12.9; regeneration SHA-256
+  7c306e88…6ae3e verified at each — **re-presented after round 12 for
+  re-confirmation on the current corpus.** Every `[simulated]` seat decision
+  still awaits eventual human ratification via ratification-package.md §12,
+  which remains DRAFT for that purpose and grants no broader implementation,
+  spending, or release authority.
+<!-- changelog 2026-08-10 (consistency sweep): HB-111 status corrected — the approved
+protected-surface package was APPLIED 2026-08-04 (#266); release-gating summary
+corrected — RQ-1 has been active_fail_closed since 2026-08-04 (the 2026-07-31
+"SUSPENDED until threat model" framing was superseded by the ratified RQ-1 revision,
+which moved the threat model to disclosed future assurance outside RQ-1). Historical
+sections above retain their original wording as records. -->
+- **2026-08-03 revision:** Phase 8 was accepted on 2026-08-03 as recorded at
   `ratification-package.md` §10.7. HB-100…HB-110 local offline machinery is complete;
+  HB-111's approved protected-surface package was applied on 2026-08-04 (#266).
   HB-109's human-started seven-day evidence, human golden references, thresholds and
-  external evidence remain pending. The proposed protocol-surface package remains
-  separately approval-gated under HB-111.
+  external evidence remain pending.
 - **Closed 2026-07-31 campaign:** none in-campaign. Audit iteration 2 CONFIRMED:
   verification pass clean,
   no new blocking findings; two residues fixed, compound-tag convention accepted
@@ -438,8 +952,11 @@ its §9). Summary of the event:
   trace preservation per stakeholder ruling, not unresolved residue. AUD-101…109
   remain closed.
 - Human ratification COMPLETE (2026-07-31, section above). Current scope: design
-  RATIFIED; Wave 0 implementation authorized; release gating remains SUSPENDED until
-  the replacement qualification and the human-authored threat model exist.
+  RATIFIED; implementation Waves 0–4 and the triggered-lane machinery are complete at
+  L1/L2; **release gating is ACTIVE under RQ-1 since 2026-08-04**
+  (`release_gating.status: active_fail_closed`) — deterministic-first, with the
+  human-authored threat model, seven-day soak, and B-17 generic live target as
+  disclosed future assurance outside RQ-1, never pass by absence.
 - Remaining human decision points: F-PT-006 and F-PT-008 (undecided findings);
   F-PT-009/010/011 (eval thresholds, inconclusive-only until ratified);
   PROPOSED-register items 9–12 at first eval-campaign design review. HB-007 items

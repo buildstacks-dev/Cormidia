@@ -30,7 +30,16 @@ Status: DRAFT (Phase 4). Defends INV-005/013/014, T-6. Journeys J-09/J-13.
 - Orphaned descendants — **semantic contract: terminate the owned descendant tree**;
   **human-ratified at HB-007 review 2026-07-31:** use an owned process group/session;
   TERM, wait a bounded grace period, then KILL; completion evidence proves no owned
-  descendants remain. Signalling is authorized only when journal and current lock
+  descendants remain. **The grace-period DURATION deliberately carries no figure**
+  <!-- changelog 2026-08-10 (reader test 18, new-engineer finding 2): this is
+  the one ratified timing clause without a number; stating the test-authoring
+  rule here prevents the silent invention the rest of the corpus avoids -->:
+  the ratification fixed the ORDER (TERM → bounded wait → KILL), not the wait
+  length. Tests assert the sequence and that the wait is bounded (terminates),
+  treating the duration as configuration — never assert a specific length. A
+  concrete figure is owner-owned: it must enter
+  `validation-policy.yaml → proposed_register` (then ratification) before any
+  timing assertion is written against it. Signalling is authorized only when journal and current lock
   agree on the complete PID + process-start + nonce ownership token and the OS probe
   confirms the PID/start match. Missing/mismatched/unknown ownership defers without
   signalling or recovery; PID reuse is never treated as authority to kill.

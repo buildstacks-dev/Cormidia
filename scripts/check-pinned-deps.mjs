@@ -1,8 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 const dependencySections = ["dependencies", "devDependencies", "optionalDependencies"];
 const exactVersionPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+/** Local release tarballs must embed the exact version in the filename. */
+const fileTarballVersionPattern =
+  /-(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?\.tgz$/;
 const ignoredDirectories = new Set([".git", "archive-do-not-read", "dist", "node_modules"]);
 
 function collectPackageJsonFiles(directory, files = []) {
@@ -22,10 +25,17 @@ function collectPackageJsonFiles(directory, files = []) {
 }
 
 function versionSpecifier(specifier) {
-  if (!specifier.startsWith("npm:")) return specifier;
-  const aliasTarget = specifier.slice("npm:".length);
-  const versionSeparator = aliasTarget.lastIndexOf("@");
-  return versionSeparator > 0 ? aliasTarget.slice(versionSeparator + 1) : specifier;
+  if (specifier.startsWith("npm:")) {
+    const aliasTarget = specifier.slice("npm:".length);
+    const versionSeparator = aliasTarget.lastIndexOf("@");
+    return versionSeparator > 0 ? aliasTarget.slice(versionSeparator + 1) : specifier;
+  }
+  if (specifier.startsWith("file:")) {
+    const tarball = basename(specifier.slice("file:".length));
+    const match = fileTarballVersionPattern.exec(tarball);
+    return match === null ? specifier : match[0].slice(1, -".tgz".length);
+  }
+  return specifier;
 }
 
 const root = resolve(process.argv[2] ?? ".");

@@ -31,3 +31,7 @@ TODO.md
 .claude/settings.local.json
 .codex/
 .cursor/
+
+# Private Cormidia manual-run guide. It contains local paths and operator
+# observations; never commit it. The generic recorder now lives in ~/Build.
+CORMIDIA-MANUAL-E2E-RUNBOOK.md

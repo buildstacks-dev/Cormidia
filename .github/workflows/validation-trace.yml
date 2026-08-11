@@ -1,0 +1,42 @@
+name: validation-trace
+
+# Design-to-implementation closure gate from the validation-architect enablement
+# bundle (validation-design/enablement/ci/validation-trace.yml). Reviewed against
+# Cormidia CI conventions: Node from .nvmrc (26), pnpm via action-setup matching
+# packageManager, and --tests tests for this repo's offline harness root.
+# Proves deterministic catalog↔spec closure only — not fidelity, and never an
+# L-ACC campaign authorization.
+#
+# Gate enablement: INSTALL.md step 4 requires proving the command locally before
+# enabling the gate. First local run (2026-08-11) is RED on forward/backward/
+# status-honesty/spec-structure (incremental header/directory conventions still
+# owed per agents-md-contribution adoption notes). Keep triggers as
+# workflow_dispatch until `pnpm exec validation-trace . --manifest
+# validation-design/case-catalog.yaml --tests tests` exits 0; then restore the
+# template's pull_request + push-to-main triggers.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  traceability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check design-to-implementation closure
+        run: >
+          pnpm exec validation-trace .
+          --manifest validation-design/case-catalog.yaml
+          --tests tests

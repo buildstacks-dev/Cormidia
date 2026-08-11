@@ -105,6 +105,23 @@ describe("CF-REG-278 — repository enforcement gate", () => {
     const red = await run(process.execPath, [checker, root]);
     expect(red.exitCode).toBe(1);
     expect(red.stderr).toContain("dependencies.seeded-floating must be pinned, found ^1.2.3");
+
+    // Negative control + green: vendored file: tarballs are pins only when the
+    // basename embeds an exact version (validation-architect enablement path).
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify({ devDependencies: { local: "file:vendor/tool-0.1.0.tgz" } }, null, 2)}\n`,
+    );
+    const fileGreen = await run(process.execPath, [checker, root]);
+    expect(fileGreen).toMatchObject({ exitCode: 0, stderr: "" });
+
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify({ devDependencies: { local: "file:vendor/tool.tgz" } }, null, 2)}\n`,
+    );
+    const fileRed = await run(process.execPath, [checker, root]);
+    expect(fileRed.exitCode).toBe(1);
+    expect(fileRed.stderr).toContain("devDependencies.local must be pinned, found file:vendor/tool.tgz");
   });
 
   it("rejects all three forbidden import directions while accepting the allowed graph", async () => {

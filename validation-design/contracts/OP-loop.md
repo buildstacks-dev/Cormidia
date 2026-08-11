@@ -10,7 +10,11 @@ Journey J-04. Interfaces with B-01/B-15/B-16/B-20/B-21/B-22 and the provider ada
 - One stable delivery unit contains one or more member tickets and owns exactly one
   delivery EpisodePlan, branch/worktree, PR and terminal review/merge outcome.
 - `ready → building → gates → reviewing → shipping → merged`, plus
-  `returned | blocked | incident` and `p1–p3` priorities; every state derives from
+  `returned | blocked | incident` and `p1–p3` priorities (ordinal urgency: p1
+  highest, scheduled ahead of p2/p3 at equal readiness — a projection of
+  RoadmapPlan priority, per INV-008 never routing/effect authority in itself
+  <!-- changelog 2026-08-10 (reader test 7, operator finding 3): the labels were
+  used corpus-wide but glossed nowhere -->); every state derives from
   durable unit/member records plus GitHub artifacts so any tick can advance any unit.
 - A label flips only after the artifact it announces exists (INV-008).
 - Member issue labels are projections. A unit cannot be represented as merged while any
@@ -40,6 +44,36 @@ Journey J-04. Interfaces with B-01/B-15/B-16/B-20/B-21/B-22 and the provider ada
   becomes an authorized GitHub review bound to the exact HEAD (INV-012/009); merge
   preconditions per INV-009 and C-OP-VALIDATION; the orchestrator squash-merges, deletes
   the branch, and closes every member through the one PR only after merge evidence.
+- **Verdict-marker grammar** (reproduced here so the positive-parse case is
+  buildable from this corpus <!-- changelog 2026-08-10 (reader test 21,
+  new-engineer finding 3); corrected same day (final-gate follow-up 10): the
+  first reproduction over-attributed the fourth form to design.md §6 and stated
+  a conflict-strictness the parser does not have — the discrepancy is now
+  finding F-PT-033, not a silently rewritten clause -->): **three** status
+  forms are `[doc]` (design.md §6's "three status formats"): `## Status` with
+  the value on the next line (blank lines tolerated), `## Status: <value>`
+  inline, `**Status:** <value>` bold. A **fourth** bare-line form —
+  `Status: <value>` / `Verdict: <value>`, backticks tolerated — is a
+  code+template addition (src/loop/verdicts.ts port note: "our ratified
+  templates phrase the output exactly that way"), NOT design.md §6. Review
+  verdict values: `approve` | `findings`; build status: `done` | `blocked`
+  (`[doc]` design.md §6). Finding lines:
+  `- category/severity file:line -- description -> action` with unicode (`—`/`→`)
+  or ASCII (`--`/`->`) delimiters, category/severity case-normalized `[doc]`.
+  **Refusal semantics are OPEN — F-PT-033**: the corpus clause said "refuses
+  zero/two"; the running parser refuses zero markers and DISTINCT conflicting
+  values but deliberately parses duplicate identical markers, with keyword
+  precedence (Verdict consulted before Status). The landed tests
+  (tests/unit/s3-verdict-marker.test.ts) **record current implementation
+  behavior — duplicate-identical parses, Verdict-before-Status precedence — as
+  pinned regression facts, but confer NO ratification** <!-- changelog
+  2026-08-10 (final-gate follow-up 11): the first wording claimed tests assert
+  only both-readings-valid refusals, which the landed test literally
+  contradicts -->; no NEW test may encode either answer as contract truth, and
+  choosing the strict reading would require changing the parser AND those tests
+  (red-then-green whichever way the owner decides).
+  Parse failure triggers exactly one session-resuming reformat turn, then fails
+  loud as infra `[doc]`.
 - If one member obligation fails, the delivery unit returns/replans as one reviewable
   change. Cormidia does not partially merge, split the PR after review, or claim that a
   subset delivered.

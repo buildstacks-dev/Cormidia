@@ -156,7 +156,11 @@
 # golden-set scaffold; the l_acc_lane block below; and verdict_semantics.axis_score.
 # THE SPLIT IS THE SUBSTANCE: every campaign invariant is a mechanical guardrail at
 # L1/L2 with a negative control, and only the rubric's scored axes are lane work.
-# Nothing is implemented — no runner, no campaign, no evidence. Findings F-PT-029 and
+# Nothing is implemented — no runner, no campaign, no evidence. [HISTORICAL as of the
+# 2026-08-07 registration only — superseded 2026-08-08: HB-120..HB-132 implemented the
+# guardrails, runner and execution layer, and run 1 reached a terminal plan-gate stop;
+# current state lives in l_acc_lane.status below. Annotated 2026-08-10, consistency
+# sweep, so this dated changelog cannot be read as current truth.] Findings F-PT-029 and
 # F-PT-030 opened (neither guessed) and BOTH ANSWERED BY THE OWNER THE SAME DAY:
 # F-PT-029 = no blocker (L-ACC never gates a release, permanently outside RQ-1),
 # F-PT-030 = an unattended campaign may auto-continue past the plan gate through a
@@ -164,6 +168,24 @@
 # F-PT-031 records the INV-016 domain decision whose original numbering collided with
 # #336's F-PT-025; owner-confirmed the same day. No existing gate, tier, lane, spend
 # bound, threshold or golden set changed (tighten-only preserved).
+
+# changelog 2026-08-10 (steady-state harness revision, campaign rev-2026-08-10): the
+# validation-harness-design skill re-entered in harness-revision mode (steady-state;
+# AI stakeholder seat — [stated] unused; provenance [doc]/[rambling]/[simulated]/
+# [PROPOSED]). Diff base ca6d0356 -> 15708a7e: nearly the whole delta was already
+# absorbed by the interim revisions and sourcing channels. Registered: case family
+# CF-REVIEW-PROVIDER (catalog §10.2 — Builder/Reviewer provider-FAMILY disjointness
+# for autonomous code delivery; owner ruling [simulated], pending human confirmation,
+# ratification-package.md §12) with ticket HB-133; triggered ticket HB-134 (GTM
+# pre-launch obligations from docs/gtm-wip.md — deliberately NOT a finding); ticket
+# HB-135 (F-PT-019 operation-aware classifier implementation — the finding is
+# resolved-ratified 2026-08-03, implementation owed); ticket HB-136 (CF-J21-I
+# kill-boundary sweep — no citing spec existed). Consistency sweep reconciled stale
+# current-state claims across README/state/catalog/backlog/policy/agents-md/package
+# (inline changelogs at each edit). New artifacts registered above: case-catalog.yaml,
+# harness-state.yaml, owner-briefing.md, owner-backlog.md. No gate, tier, lane, spend
+# bound, threshold, golden set, invariant, boundary, or module changed (tighten-only
+# preserved; M1-M18 unchanged).
 
 schema_version: 1
 scope: product
@@ -182,15 +204,19 @@ active_revision:
   accepted_by: "product owner (human), in session; exact selected statement recorded in ratification-package.md section 10.7"
   scope: "combined #184/#233/#234/#240 Planner -> Validation Designer -> EpisodePlanner -> Builder -> Reviewer lifecycle"
   design_only: false
-  implementation_status: hb_100_through_hb_110_offline_machinery_complete_hb_109_live_evidence_and_hb_111_pending
+  # changelog 2026-08-10 (consistency sweep): was …hb_111_pending — stale: the
+  # approved HB-111 protected-surface package was APPLIED 2026-08-04 (#266).
+  implementation_status: hb_100_through_hb_111_complete_hb_109_live_evidence_pending
   implementation_or_evidence_claim: >
     HB-100 through HB-110 have named local L1/L2 slices: provider-free authority joins,
     whole-backlog roadmap and validation readiness, atomic delivery units, bounded lazy
     batches, structured fast paths, complete direct campaign authority, the shared
     orchestration facade, exact role/session/cache evidence, deterministic catalog
     closure, batch-aware contention/soak collection machinery, and shared operator
-    explanations. The seven-day campaign, human golden-reference review, thresholds,
-    HB-111 and external evidence remain pending; this is not autonomous-loop readiness.
+    explanations. HB-111's approved protected-surface package was applied 2026-08-04
+    (#266). The seven-day campaign, human golden-reference review, thresholds and
+    external evidence remain pending; this is not autonomous-loop readiness.
+    # changelog 2026-08-10 (consistency sweep): HB-111 moved from pending to applied.
   unchanged_baseline: "2026-07-31 ratified policy, gates, spend bounds, findings and evidence ledger"
   registry:
     modules: [M17]
@@ -237,11 +263,17 @@ artifacts:                       # design root now; moves with the harness to te
   contracts: ./contracts/
   risk_allocation: ./risk-allocation.md
   case_catalog: ./case-catalog.md
+  case_catalog_yaml: ./case-catalog.yaml    # machine-readable companion (validation-architect/case-catalog/v1); MUST agree with the markdown — disagreement is a corpus bug (added 2026-08-10)
+  case_catalog_generator: ./case-catalog-generator.awk  # derives the YAML from case-catalog.md + harness-backlog.md; regenerate on change, never hand-edit the YAML (added 2026-08-10)
+  harness_state: ./harness-state.yaml       # machine-written run state; never human-ratified, never tighten-only (added 2026-08-10)
+  owner_briefing: ./owner-briefing.md       # non-normative consequence-language briefing (added 2026-08-10)
+  owner_backlog: ./owner-backlog.md         # non-normative living companion; regenerate whenever harness-backlog.md changes (added 2026-08-10)
   llm_eval_plan: ./llm-eval-plan.md
   golden_sets: ./golden-sets/
   harness_backlog: ./harness-backlog.md
   agents_md_contribution: ./agents-md-contribution.md
   elicitation_log: ./elicitation-log.md
+  rambling_archive: ./rambling-archive.md   # AUD-101 (audit rev-2026-08-10): resolution target for pre-2026-08-10 [rambling] tags — the 2026-08-10 evidence sync replaced ./rambling.txt (added 2026-08-10)
   design_state: ./harness-design-state.md
   ratification_package: ./ratification-package.md
   operator_triage: ./operator-triage-runbook.md
@@ -312,22 +344,32 @@ layers:                                      # the audit's diff surface
     status: "runner/profile implemented; no authorized live campaign executed in this change"
     runner: "separate opt-in vitest live config; CORMIDIA_LIVE=1 + absolute reviewed authorization file; checked-out HEAD and canonical tracked policy blob must match the authorized commit"
     obligations:
+      # 2026-08-10 (final-gate follow-up 6): every entry now carries an explicit
+      # status so this block is a complete status table, not an inventory with
+      # implicit defaults. ACTIVE = the obligation can run when its trigger fires;
+      # it is never a green claim that it HAS run.
       - id: CF-B01-L3            # GitHub smoke
+        status: ACTIVE
         target: "sandbox repos (apps.yaml sandbox class)"
         trigger: "merge/review/branch/auth code changes; release"
       - id: CF-B02-L3
+        status: ACTIVE
         target: "real Anthropic adapter"
         trigger: "adapter/gate-hook/session/usage/auth code changes; release"
       - id: CF-B03-L3
+        status: ACTIVE
         target: "real Codex App Server"
         trigger: "adapter/gate-hook/session/usage/auth code changes; release"
       - id: CF-B04-L3
+        status: ACTIVE
         target: "real pi session (real denied forbidden attempt required)"
         trigger: "adapter/gate-hook/session/usage/auth code changes; release"
       - id: CF-J16-A             # launchd lifecycle proof (launchd only; systemd when droplet supported)
+        status: ACTIVE
         target: "uniquely identifiable test definition on the real host"
         trigger: "install/upgrade; release when definition/identity/loading changes; material host/macOS change"
       - id: CF-J18-A             # unattended sandbox campaign
+        status: ACTIVE
         target: "sandbox org + sandbox repos under the test-mode profile (below)"
         trigger: "release qualification"
       - id: B-17-L3
@@ -336,16 +378,18 @@ layers:                                      # the audit's diff surface
         unblock: "a sandbox app declares a real, disposable release: target"
         note: "no green L3 claim follows from this status"
       # 2026-08-07 (#336): certification obligations for the four planned adapter
-      # boundaries (docs/harness/adding-updating.md section 5). Each is PENDING-ADAPTER:
-      # the obligation exists by design but cannot run until its adapter lands; no
-      # green L3 claim follows from this status. Once active, the trigger shape and
-      # spend bounds are the existing adapter rules (pre-merge changed-adapter
-      # <=2 turns/$5), unchanged.
+      # boundaries (docs/harness/adding-updating.md section 5). HISTORICAL NOTE
+      # (scoped 2026-08-10, final-gate follow-up 6): "Each is PENDING-ADAPTER"
+      # described the block as authored on 2026-08-07, BEFORE the adapters landed
+      # and were certified later that day; statuses below now reflect the recorded
+      # certifications (boundary-map B-23/B-24/B-25/B-26 headings; certification
+      # records cited per entry). Trigger shape and spend bounds are the existing
+      # adapter rules (pre-merge changed-adapter <=2 turns/$5), unchanged.
       - id: CF-B23-L3
-        status: PENDING-ADAPTER
+        status: ACTIVE
         target: "real OpenCode server + SDK (representative-model smokes, one per provider family)"
-        trigger: "adapter/gate-hook/session/usage/auth code changes; release (once #337 lands)"
-        unblock: "the OpenCode adapter lands (#337)"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; release"
+        certified: "2026-08-07 (adapter landed #337)"   # status reconciled 2026-08-10, final-gate follow-up 6
       - id: CF-B24-L3
         status: ACTIVE
         target: "real cursor-agent CLI headless in an org-managed worktree"
@@ -357,16 +401,18 @@ layers:                                      # the audit's diff surface
         # set and no role is assigned to this harness.
         certified: "2026-08-07 cursor-agent 2026.08.04-aaa8809"
       - id: CF-B25-L3
-        status: PENDING-ADAPTER
+        status: ACTIVE             # sandbox scope only; status reconciled 2026-08-10, final-gate follow-up 6
         target: "real grok agent stdio (ACP) - THROWAWAY SANDBOX REPOS ONLY until the #339 human risk review clears real-repo use"
-        trigger: "adapter/gate-hook/session/usage/auth code changes; release (once #339 lands)"
-        unblock: "the Grok Build adapter lands AND the recorded #339 human risk-review decision exists"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; release"
+        certified: "2026-08-07 in sandbox (adapter landed #339)"
+        restriction: "real-repo use remains gated on the recorded #339 human risk-review decision"
         note: "the human risk-review record is a precondition, never evidence"
       - id: CF-B26-L3
-        status: PENDING-ADAPTER
+        status: ACTIVE             # runnable-on-trigger only — NOT a pass claim (see current_l3_outcome)
         target: "real muse exec headless; the swarm gate probe (intra_turn_fanout) is the load-bearing case"
-        trigger: "adapter/gate-hook/session/usage/auth code changes; every version bump (beta churn); release (once #340 lands)"
-        unblock: "the Muse Code adapter lands (#340)"
+        trigger: "adapter/gate-hook/session/usage/auth code changes; every version bump (beta churn); release"
+        adapter_certification: "2026-08-07 (adapter landed #340; fail-closed behavior certified live)"   # relabeled 2026-08-10, final-gate follow-up 7: bare certified: conflated adapter certification with the L3 obligation
+        current_l3_outcome: "INCOMPLETE — the 2026-08-07 walk did not run; no live seam, swarm probe unprovable on that build; never pass (boundary-map B-26)"
         note: "no role goes live before the swarm gate probe passes live, or fan-out is disabled in the capability profile with a documented degradation"
     spend_policy:                            # human-ratified 2026-07-31 (release ceiling amended at ratification)
       pre_merge_adapter_campaign:
@@ -451,7 +497,7 @@ verdict_semantics:                           # owner-ratified
       - "an axis with no legal disjoint grader reports ungraded; it is never graded by a correlated provider (CORMIDIA-INV-ACC-2)"
       - "any ungraded axis, killed scenario, ceiling exhaustion, or missing grader run => completeness: incomplete for that scenario"
       - "while a threshold is unratified, every threshold-dependent axis verdict is inconclusive — never pass, never fail"
-    thresholds: "NONE. acceptance/rubric.md §5 (human-ratified 2026-08-07) declares no threshold in v0; they are ratified separately from run 1's observed distribution. A RATIFIED DEFERRAL, not an open finding — no F-PT id is owed and none may be minted for it, and no threshold may be introduced anywhere else."
+    thresholds: "NONE. acceptance/rubric.md §5 (human-ratified 2026-08-07) declares no threshold in v0; they are ratified separately from the FIRST GRADED distribution a campaign produces (run 1 terminated at the plan gate entirely ungraded, so that trigger remains unmet — clarified 2026-08-10, reader test 9 / gate follow-up; the deferral itself is unchanged). A RATIFIED DEFERRAL, not an open finding — no F-PT id is owed and none may be minted for it, and no threshold may be introduced anywhere else."
 
 l_acc_lane:                                  # outcome acceptance — registered 2026-08-07, RUN 1 TERMINAL 2026-08-08
   status: "guardrails, runner and execution layer implemented (HB-120..HB-132). Run 1 exercised packaged cormidia@0.1.1 from tarball sha256:e2eb2650156d65158242f783560f0eaaa0837ae805b751890ef10f9cb772183a at commit e52b304ac8f6a00be973e265b84af8533c59dd72 and stopped at the unchanged rubric section 6 plan gate. Its official distribution is entirely ungraded/inconclusive, all three scenarios are incomplete, and release_signal is null; acceptance/run-1-result.md indexes the immutable report. No rubric axis, golden set, plan gate or threshold changed; every threshold-dependent verdict remains inconclusive and L-ACC remains outside RQ-1."
@@ -629,7 +675,7 @@ open_findings:
   - {id: F-PT-017, status: open-blocked-contract, subject: "provider terminal status vocabulary: ratified CORMIDIA-C-CORE-001 says 'interrupted', while Runtime TurnResult and all three adapters expose 'timed_out'; product meaning and compatibility path are undecided"}
   # Opened 2026-08-01 during the #202-#213 fix campaign (procedure: agents-md-contribution.md).
   - {id: F-PT-019, status: resolved-ratified, resolved: 2026-08-03, subject: "secrets-or-auth is operation-blind: a metadata-only query that never opens the file (git check-ignore .env, git status --ignored -- .env.example) matches the same pure-text rule as a genuine contents read (cat .env). #204 shows the false-positive cost (a blocked promotion, and an approval queue the human learns to rubber-stamp); narrowing the rule would also loosen it for real exfiltration reads. Owner must decide whether the rule becomes operation-aware and, if so, which git subcommands count as contents reads",
-     resolution: "contract truth (PURPOSE v2.15): secrets-or-auth is operation-aware and fails closed. It classifies on whether an action actually emits file contents, not on text alone; any command whose effect cannot be parsed is treated as critical. The two error directions are not symmetric per system-map.md 5.2 — a real critical effect classified routine is authority damage, a false positive is only availability damage — so the fail-closed default on unparsed effects is part of the contract. Coverage must also reach effects that bypass the gate entirely rather than merely evading a pattern (#20)"}
+     resolution: "PURPOSE v2.15 §4 (2026-08-03), the ratified contract truth reproduced here so HB-135 is implementable from this corpus alone (added 2026-08-10, reader test 12 — new-engineer finding 2): (1) the rule classifies on whether an action ACTUALLY EMITS FILE CONTENTS, not on text alone — a metadata-only query (git check-ignore .env; git status --ignored) is not a contents read, while an emitting operation (cat .env; git show HEAD:.env) is; (2) any command whose effect cannot be parsed is treated as CRITICAL — the fail-closed default on unparsed effects is part of the ratified decision, because a real critical effect classified routine is authority damage while a false positive is only availability damage (system-map §5.2); (3) coverage must also reach effects that BYPASS the classifier entirely rather than merely evading a pattern (the #20 direction). Implementation owed under HB-135; the pre-split text rule remains in force until it lands (gate.ts §5.2 comment is the implementation-state evidence). Supersedes the earlier condensed resolution note, removed 2026-08-10 at the gate review — a duplicate sibling key broke strict YAML parsing and shadowed this full text under permissive parsers"}
   - {id: F-PT-020, status: resolved-ratified, resolved: 2026-08-03, subject: "undecided approval items have no documented lifetime: approvals/design.md specifies TTL and expiry for GRANTS (post-decision) but says nothing about a pending item whose raising turn has ended. #205 shows the cost — 7 of 7 items in the august-org run outlived their turns, and app verify treats any pending item as a promotion blocker, so the queue grows monotonically under the scheduler and permanently blocks promotion. Deciding it means adding a terminal non-blocking state to the ratified approval state machine (CF-SM-APPR) and changing what app verify counts; adjacent to F-PT-008. Owner decision required",
      resolution: "contract truth (PURPOSE v2.15): a gate denial suspends the raising turn, so an approval is raised synchronously and cannot outlive its turn. CF-SM-APPR gains a terminal non-blocking 'expired' state reached after a TTL (default 24h, matching the grant TTL, resolved through policy configuration not a source constant). On expiry the turn's durable artifacts and worktree are preserved, its claim is released, the turn resolves as blocked rather than failed and consumes no failure claim (#104), and the item leaves the pending queue for an audit view. cormidia app verify counts only approvals whose raising turn is still live. F-PT-008 is adjacent but NOT resolved: it concerns an item whose grant expires after a decision, not an item never decided"}
   - {id: F-PT-018, status: open-known-limitation, subject: "the current private-repository GitHub plan cannot enable branch protection/rulesets; protected human merge and exact-tag rerun are the ratified bounded mechanism, without claiming mechanical merge blocking"}
@@ -684,6 +730,12 @@ open_findings:
      subject: "does B-28 section 1's four-required-plant-categories rule apply to a JOB scenario? The categories are plan-axis instrumentation (contradiction/P-2, under-specification/P-3, buried hard requirement/P-1, tangent/P-4), and a job has no Planner and no plan arm, so P-1..P-6 never run for S-ACC-3. Its ratified Plants section is written in job vocabulary instead, so mechanical extraction could not map it onto the four categories without inventing the mapping - which left J-2 (handoff fidelity), the highest-value job axis, ungradeable because J-2 is scored against the sealed key",
      resolution: "OWNER DECISION 2026-08-08: section 2's four plants are SCOPED TO APP SCENARIOS, and job scenarios carry their own four required plants - one genuine conflict between inputs that must be preserved rather than resolved; one item with no discoverable answer where the honest move is to say so; one mechanically-checkable hard deliverable constraint; one tangent that must not become a step. Both lists stay complete-or-refused and an unmapped plants lead-in is still refused and named. NOT A LOOSENING: nothing became optional, an inapplicable requirement of cardinality four was replaced by an applicable one of cardinality four with identical fail-closed semantics, and the app list is unchanged. S-ACC-3 needs NO EDIT - its ratified Plants already satisfies the job list as written, which is why the amendment was preferable to rewriting a human-ratified brief. Recorded as a second ratification block at acceptance/rubric.md section 9, per that file's own rule that section 8 is never edited.",
      implemented: "tests/campaign/acceptance/sealed-key.ts (per-kind category tables + markers), tests/unit/cf-inv-acc-1/ (S-ACC-3 now extracts a complete job key; each list refuses the other kind's scenario), CORMIDIA-C-B28-001 section 1"}
+  # F-PT-033 minted 2026-08-10 (final-gate follow-up 10, next-id procedure). The id
+  # was never previously used: the 2026-08-10 Phase 0 ruling refused to spend it on
+  # the GTM direction (elicitation-log round 1), which was a subject veto, not a
+  # number reservation.
+  - {id: F-PT-033, status: open-blocked-contract,
+     subject: "S-3 verdict-marker refusal semantics + vocabulary: corpus clause said 'exactly one structured VERDICT: APPROVE|REJECT marker; parser refuses zero/two' (llm-eval-plan.md §2 S-3, HB-005(d)); the running parser (src/loop/verdicts.ts extractKeywordValueStrict, which cites that clause) deliberately parses duplicate IDENTICAL markers ('restating the same value twice is unambiguous') and refuses only DISTINCT conflicting values, with keyword precedence (first matching keyword consulted: Verdict over Status); production vocabulary is approve|findings (docs/loop/design.md section 6), not APPROVE|REJECT; and the fourth accepted bare-line form ('Status: done' / 'Verdict: approve') is a code+template addition beyond design.md section 6's three status formats. Undecided: is duplicate-identical tolerance contract truth (ratify the code's reading) or over-leniency (tighten the parser)? The landed tests (tests/unit/s3-verdict-marker.test.ts) record current implementation behavior - duplicate-identical parses, Verdict-before-Status precedence - as pinned regression facts conferring NO ratification; no NEW test may encode either answer as contract truth, and the strict reading would require changing the parser and those tests, red-then-green whichever way the owner decides (the F-PT-012 pattern: ratified prose vs deliberate code design)"}
   - {id: F-PT-001, status: resolved-by-docs, subject: "redaction scope"}
   - {id: F-PT-005, status: resolved-ratified, resolved: 2026-07-31, subject: "subscriber-set cutoff",
      resolution: "simulated-seat derivation human-ratified by adoption 2026-07-31: added subscribers inherit pending events; removed subscribers cease blocking retirement"}
@@ -693,6 +745,7 @@ case_sourcing:
   - "acceptance criteria land with every feature (contracts/journey-acceptance.md format)"
   - "adversarial derivation from invariants as the system evolves"
   - "every production bug deposits its regression detector in the same change; every bad LLM output in prod becomes a golden case (non-negotiable)"
+  - "the same change records the defect's traceability row in case-catalog.md section 10.3 (the defect register — not the 10.1/10.2 ratified-revision tables) and regenerates case-catalog.yaml (tightened 2026-08-10, Phase 8 reader test; subsection precision added reader test 8 — this block is the single source of truth and must carry the same precision the routing doc does); a structural-shaped defect re-enters harness-revision instead of being force-fit into a row"
   - "evidence-deposit rule: deterministic defects found at L3/L4 deposit L1/L2 detectors in the same change"
   - "structural mismatch => re-enter validation-harness-design in harness-revision mode; never pile cases onto a wrong shape"
 
@@ -703,13 +756,15 @@ harness_self_tests:                          # skill rules 16-17
 
 modules:
   - id: M17
-    status: "accepted implementation contract; HB-100..HB-110 offline machinery complete, HB-109 live evidence and HB-111 pending"
+    # changelog 2026-08-10 (consistency sweep): HB-111 applied 2026-08-04 (#266); was "…HB-111 pending".
+    status: "accepted implementation contract; HB-100..HB-111 complete, HB-109 live evidence pending"
     subject: "roadmap and validation planning"
     contracts: [CORMIDIA-C-B20-001, CORMIDIA-C-B21-001,
       CORMIDIA-C-B22-001, CORMIDIA-C-OPBATCH-001,
       CORMIDIA-C-OPVALIDATION-001]
   - id: M18
-    status: "product shipped #359; harness families registered 2026-08-07 and design-only (they clear the docs/jobs/design.md §14 structural debt)"
+    # changelog 2026-08-10 (consistency sweep): was "…design-only" — stale: HB-128 implemented the families 2026-08-08.
+    status: "product shipped #359; harness families registered 2026-08-07 and IMPLEMENTED 2026-08-08 (HB-128 — they clear the docs/jobs/design.md §14 structural debt; offline-provable, no outcome lane by design)"
     subject: "jobs — ad-hoc dependency-ordered step graphs behind the second binary cormidia-job"
     journeys: [J-22, J-23]
     boundaries: [B-30]

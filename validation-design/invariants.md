@@ -4,7 +4,13 @@ Status: CONFIRMED at the Phase 2 gate (2026-07-31, round 3); human-ratified 2026
 Namespace: `CORMIDIA-INV-NNN`. Product scope — no parent, nothing inherited.
 
 Provenance per item: `[elicited]` = stakeholder's Phase 2 ramble (elicitation-log.md);
-`[doc]` = derivable from ./docs/; `[rambling]` = ./rambling.txt (cited); `[simulated]` =
+`[doc]` = derivable from ./docs/; `[rambling]` = the owner's operator ramble as present
+in evidence when the tag was minted — every tag in this file predates 2026-08-10 and
+cites the **superseded** 2026-07-31 ramble, which the 2026-08-10 evidence sync replaced;
+these are no longer checkable against the current ./rambling.txt and resolve via
+`rambling-archive.md` <!-- AUD-101 (audit rev-2026-08-10): definition rescoped
+historically; was "= ./rambling.txt (cited)", which became false when the evidence
+file was replaced -->; `[simulated]` =
 stakeholder judgment beyond docs; `[PROPOSED]` = designer-originated. Most items are
 `[elicited+doc]`: spoken by the stakeholder and anchored in ratified text.
 
@@ -113,7 +119,16 @@ Self-approval and self-merge are unrepresentable at any scope. Once execution
 of an approved irreversible effect starts, durable evidence always exists that it is
 `executing`, `executed`, `failed`, or `ambiguous`; ambiguity is terminal-until-reconciled
 and is never resolved by re-performing the effect.
-**Enforcement.** Both. **Falsifying test shape.** An executed critical op with no prior
+**Enforcement.** Both — **with one open enforcement gap a reader must not gloss:
+F-PT-014 (open).** The statement names "outside-worktree actions" never-broadly-
+scopeable, but `NEVER_SCOPEABLE_RULES` carries **no rule mapping for that category
+today**; the nearest live classes are human-widenable. Until the owner ratifies the
+mapping, this clause is a stated promise whose guardrail leg is parked (dependent
+case parked in CF-SM-GRANT; operator framing in operator-triage-runbook.md §1.5).
+<!-- changelog 2026-08-10 (reader test 6, operator finding 3): the gap was
+disclosed in the tier-table comment above and in the runbook, but not at the
+Enforcement line a face-value reader trusts; now stated where it bites. -->
+**Falsifying test shape.** An executed critical op with no prior
 persisted decision. For **once** grants: consumed twice; changed bytes executing under
 the old approval. For **scoped** grants: a use outside the rule/path or app/ticket scope;
 a use after TTL expiry or revocation; a use beyond the use cap; a use with no per-use

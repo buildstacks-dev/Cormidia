@@ -13,7 +13,11 @@ by mapping judgment 1 below. Design input: `acceptance/` (rubric human-ratified
 2026-08-07, tighten-only) and the superseded `jobs-harness-revision-proposal.md`,
 whose internal ID choices (M18 kept; B-23/J-21/J-22/F-PT-025 **collided** with the
 2026-08-07 #336 adapter revision and are renumbered here — see that file's header).
-Provenance labels: `[doc]` = derivable from ./docs/ · `[rambling]` = ./rambling.txt (cited) ·
+Provenance labels: `[doc]` = derivable from ./docs/ · `[rambling]` = the owner's
+operator ramble as present when the tag was minted — every tag in this file predates
+2026-08-10 and cites the superseded 2026-07-31 ramble, no longer checkable against the
+current ./rambling.txt; resolve via `rambling-archive.md` <!-- AUD-101 (audit
+rev-2026-08-10): definition rescoped historically; was "= ./rambling.txt (cited)" --> ·
 `[simulated]` = stakeholder judgment beyond docs/rambling · `[PROPOSED]` = designer-originated.
 `[stated]` = direct live owner input; absent from the closed 2026-07-31 campaign and
 used only on the owner-confirmed 2026-08-01 comparative-execution direction.
@@ -32,7 +36,9 @@ used only on the owner-confirmed 2026-08-01 comparative-execution direction.
 - **ID namespace:** `CORMIDIA-` (`CORMIDIA-INV-NNN`, `CORMIDIA-B-NNN`, `CORMIDIA-C-<boundary>-NNN`).
   A later module-scope deep pass mints its own prefix and inherits by reference. `[PROPOSED, accepted by stakeholder]`
 - **Release-gating replacement** is a **campaign/policy obligation, not a product module**:
-  RQ-1 is active under PURPOSE v2.17; the archived qualification machinery is not an
+  RQ-1 is active under PURPOSE v2.16 (2026-08-04)
+  <!-- changelog 2026-08-10 (consistency sweep): was "v2.17" — no such version; the
+  current PURPOSE header is v2.16 -->; the archived qualification machinery is not an
   active module; the replacement harness policy carries the qualification obligation,
   proportionately (`[rambling: "I do not want the 83-contract apparatus back"; "something I
   trust AND afford"]`). Active release-*handoff* behavior remains under the build-loop and

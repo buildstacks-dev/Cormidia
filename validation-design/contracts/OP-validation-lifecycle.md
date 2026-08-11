@@ -28,7 +28,14 @@ B-20/B-21/B-22 and the affected product boundary contracts.
   falsifying layer per obligation; failure cases; detector and seeded negative-control
   requirements; expected evidence; exact shared-boundary detector refs; and any waiver.
 - Every ID resolves against the accepted harness artifact set. A structural change that
-  needs a new journey/boundary/invariant is marked `requires_harness_revision`; it cannot
+  needs a new journey/boundary/invariant/LLM call site — or any other structural
+  truth absent from the accepted catalog; the canonical exhaustive trigger list
+  lives in `agents-md-contribution.md`'s structural-additions section <!--
+  changelog 2026-08-10 (final-gate follow-up 20): fifth live trigger-list
+  mirror, missed by the follow-up-19 sweep because this file phrases the list
+  with slashes rather than commas; fourth trigger added AND made explicitly
+  non-exhaustive with the canonical pointer so this mirror cannot drift
+  again --> — is marked `requires_harness_revision`; it cannot
   be smuggled through a case-only contract.
 - A waiver is explicit, policy-classed, provenance-bearing, bounded to the exact
   obligation/unit/version, and never available for invariant floors or C3 control-point

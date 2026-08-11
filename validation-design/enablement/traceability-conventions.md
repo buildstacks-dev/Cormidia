@@ -1,0 +1,13 @@
+# Traceability conventions
+
+**Traceability conventions** (normative — the `validation-trace` CLI enforces their mechanical closure subset in CI):
+
+1. **Test directories are named by case-family ID.** Specs for `CF-INV-001` live under a directory whose name contains `cf-inv-001` (case-insensitive); likewise for every other family. Helpers and fixtures that are not family-scoped may sit beside them.
+2. **Spec file headers cite the family and the owning backlog ticket.** The first comment block of every `*.test.*` / `*.spec.*` file names the `CF-…` family it exercises and the `HB-…` ticket that owns it (plus the contract/invariant section it binds to). A citation the catalog does not know is an orphan — the trace CLI turns red.
+3. **Every implementable family owns ≥1 citing spec, or is declared pending with its wave.** Non-pruned, non-blocked families without a citing spec must appear on a backlog ticket whose status is not LANDED. A LANDED ticket whose families lack specs is a status-honesty failure.
+4. **Traceability updates in the same change as the tests.** Adding, moving, or deleting a citing spec updates `case-catalog.yaml` (and the markdown catalog it must agree with) and the backlog's status annotations in the same change — never a follow-up.
+5. **The machine-readable catalog is authoritative for tools.** `case-catalog.yaml` is the companion of `case-catalog.md`; disagreement between them is a corpus bug. The markdown catalog remains the human artifact.
+6. **Implement tickets via the `implement-harness-ticket` skill.** That skill is the standard path from an HB ticket to landed specs: ticket → family → ratified enumeration → red-then-green tests, with the conventions above so `validation-trace` stays green. Do not invent a parallel workflow.
+7. **Regenerate `owner-backlog.md` when the backlog changes.** The companion is non-normative and living; a backlog edit that leaves the companion's ticket-ID set stale is a corpus bug.
+8. **Resolve outcome-acceptance families from `acceptance/`.** An `L-ACC` family binds realistic scenario briefs and human-ratified rubric axes. Mechanical campaign guardrails (sealed answers, producer↔grader independence, preflight, spend cutoff, intermediate-gate persistence) remain layer-1/2 detectors with negative controls; do not recast a scored axis as binary merely to make it easy to implement.
+9. **Outcome campaigns require fresh human authorization.** Implementing their fixtures and mechanical preflights is ordinary ticket work; running a live layer-6 campaign is not. It names its target, scenario set, spend/time ceiling, and permitted effects, and incomplete inputs or missing grader calibration produce `inconclusive`, never green.

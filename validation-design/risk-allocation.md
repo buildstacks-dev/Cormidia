@@ -9,6 +9,24 @@ The ratified allocation and the pending 2026-08-03 revision are encoded in
 `validation-policy.yaml`; the latter remains design-only until the Phase 8 acceptance
 gate. The policy is the surface a future audit diffs deliberate-thinness against.
 
+**Tag vocabulary this file is the source for** <!-- changelog 2026-08-10 (reader
+test 7, coding-agent finding 1): the routing doc points here for all seven tags,
+but FLOOR/STD/THIN/L4Q were glossed only in passing elsewhere -->: **E-1/E-2/E-3**
+— the exhaustive families defined in §2 below. **STD** — standard depth: the
+ordinary derivation-grammar coverage, neither exhaustive nor deliberately thin.
+**THIN** — deliberately thin per §4 (smoke or none; a decision, not an omission).
+**FLOOR** — non-discretionary: coverage that may never be thinned or waived
+regardless of risk arithmetic (the INV-001/011/015 floors in
+`validation-policy.yaml` → `non_discretionary_floors`, plus the harness's own
+self-test register). **L4Q** — the statistical quality lane, funded per §4 and
+governed by the eval plan's §9 decision-status rule. **REG** — the eighth value,
+**reserved for `case-catalog.md` §10.3 defect-register rows**: a family derived
+from an escaped defect (sourcing channel: the bug-fix detector-deposit
+obligation), where the risk is the specific regression the detector pins — not
+a derivation tier, never budgeted through §4, never valid on a §§1–8 matrix row
+<!-- changelog 2026-08-10 (reader test 20, coding-agent finding 1): REG was
+used on every CF-REG-* row but defined nowhere -->.
+
 Harness revision 2026-08-01: comparative execution inherits this confirmed
 allocation. No new tier or control point is introduced; its clauses trace into
 E-1/E-2/E-3, standard L1/L2, S-8 L4, and conditional future L5 below.
@@ -37,8 +55,17 @@ representative-model smokes for backbones; **certification ≠ qualification** �
 remains qualification's lane and no roster publication assigns a role. No new tier,
 control point, campaign type, or spend bound is introduced. B-25's live cell is
 additionally conditional on the #339 human risk review (sandbox repos only until it
-clears); B-26's swarm gate probe is the load-bearing certification case. All four are
-design-only until #337–#340 land; F-PT-025…028 keep the mechanism-level cells parked.
+clears); B-26's swarm gate probe is the load-bearing certification case. HISTORICAL
+NOTE as written 2026-08-03; superseded <!-- changelog 2026-08-10 (reader test 28,
+new-engineer finding 2): this sentence still said "all four are design-only …
+F-PT-025…028 keep the mechanism-level cells parked", contradicting the canonical
+registry — this file was missed by the rev-2026-08-10 consistency sweep -->:
+**#337–#340 landed and all four adapters were certified 2026-08-07**
+(B-24 standalone; B-25 sandbox-scope, #339 real-repo gate unchanged; B-26's
+walk INCOMPLETE, never pass — boundary-map B-26), and **F-PT-025…028 are
+resolved 2026-08-07** in `validation-policy.yaml → open_findings`, which wins
+over this file on any disagreement; the mechanism-level cells are no longer
+finding-parked.
 
 Harness revision 2026-08-07 (outcome acceptance + jobs). Two independent additions,
 neither introducing a tier, control point, or exhaustive family:

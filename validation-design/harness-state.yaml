@@ -1,0 +1,90 @@
+# harness-state.yaml — MACHINE-WRITTEN run state for the validation-harness-design
+# skill's re-entry loop. Never human-ratified, never tighten-only, freely rewritten
+# by campaigns. The design contract lives in validation-policy.yaml; keeping them in
+# separate files is what stops a machine write from landing on a ratified artifact.
+schema: validation-architect/harness-state/v1
+product: cormidia
+written_by: harness-revision campaign rev-2026-08-10
+written_at: 2026-08-10
+
+source_bases:
+  prior_design_base: ca6d03564f54cb53ff644f485f4a993eec8d6553   # 2026-07-31 ratified baseline capture
+  current_base: 15708a7ed7ebfd2e24477262daf809c67734d15d        # this revision's frozen target
+  current_source_tree_digest: 73a4f4c3ce0242d8b7645139152f9f428f3f4b15
+  current_docs_tree_digest: 0edbd807def1734713378e993008b6572a10378e
+  captured_at: "2026-08-10T18:32:12.707Z"
+
+campaigns:
+  - {id: cormidia-2026-07-31, mode: product-onboarding, closed: 2026-07-31, human_ratified: 2026-07-31}
+  - {id: comparative-execution-2026-08-01, mode: harness-revision, closed: 2026-08-01, status: proposed-implementation-contract}
+  - {id: roadmap-validation-delivery-2026-08-03, mode: harness-revision-fast, closed: 2026-08-03, accepted: 2026-08-03}
+  - {id: rq1-release-gate-2026-08-04, mode: harness-revision, closed: 2026-08-04, ratified: 2026-08-04}
+  - {id: consequence-splits-2026-08-06, mode: harness-revision, closed: 2026-08-06, ratified: "2026-08-06 (#296, one decision)"}
+  - {id: adapter-boundaries-2026-08-07, mode: harness-revision, closed: 2026-08-07, confirmation: "PR #341 review (#336)"}
+  - {id: lacc-jobs-2026-08-07, mode: harness-revision, closed: 2026-08-08, confirmation: "registering PR review; rubric human-ratified 2026-08-07"}
+  - {id: rev-2026-08-10, mode: harness-revision-steady-state, status: closed,
+     final_gate: "CONFIRMED 2026-08-10 by the AI stakeholder seat (ratification-package.md §12.9)",
+     stakeholder_seat: "AI agent ([stated] unused; [simulated] items pending human ratification — ratification-package.md §12 remains DRAFT)"}
+
+# Per-artifact derivation state: which revision each artifact was last reconciled
+# against. "fresh" = reconciled at current_base by the rev-2026-08-10 sweep.
+artifacts:
+  scope-and-module-map.md: {reconciled_at: 15708a7e, state: fresh, note: "M1-M18 unchanged; F-PT-002 deployed-state snapshot is dated 2026-07-31 by design (corpus is not a deployed-state oracle)"}
+  system-map.md: {reconciled_at: 15708a7e, state: fresh, note: "untouched this revision — diff showed no journey/actor/state-owner drift"}
+  invariants.md: {reconciled_at: 15708a7e, state: fresh, note: "untouched this revision; INV-001..016 + INV-ACC-1..7b unchanged"}
+  boundary-map.md: {reconciled_at: 15708a7e, state: fresh, note: "status-only reconciliation 2026-08-10 (reader test 5 + stakeholder gate): F-PT-025/027 entries and the B-23/B-24/B-25 design-only/unproven-real labels corrected toward the canonical policy registry and certification records; #339 real-repo restriction preserved verbatim. B-01..B-30 boundary SEMANTICS (failure modes, honest-fake verdicts, layer placements) unchanged"}
+  contracts/: {reconciled_at: 15708a7e, state: fresh, note: "untouched; episodes-contract wording tighten remains a proposal (owner ruling rev-2026-08-10)"}
+  risk-allocation.md: {reconciled_at: 15708a7e, state: fresh, note: "untouched"}
+  llm-eval-plan.md: {reconciled_at: 15708a7e, state: fresh, note: "untouched; S-1..S-11 unchanged"}
+  case-catalog.md: {reconciled_at: 15708a7e, state: fresh, note: "consistency-swept + §10.2/§10.3 registered 2026-08-10"}
+  case-catalog.yaml: {reconciled_at: 15708a7e, state: fresh, note: "GENERATED 2026-08-10 by case-catalog-generator.awk from the two markdowns (396 families = 357 implementable + 38 pruned + 1 blocked; 101 tickets = 82 landed + 19 pending — see ratification-package.md §12.6/§12.7); regeneration verified byte-identical; the rollup is emitted by the generator itself; regenerate on any catalog/backlog change (HB-140 owes the CI pin)"}
+  case-catalog-generator.awk: {reconciled_at: 15708a7e, state: fresh, note: "the extraction tool that derives case-catalog.yaml; replicates the corpus gate's parsing rules"}
+  harness-backlog.md: {reconciled_at: 15708a7e, state: fresh, note: "HB-133..HB-136 added; HB-111/F-PT-025..028 status claims corrected"}
+  validation-policy.yaml: {reconciled_at: 15708a7e, state: fresh, note: "artifact registry + revision changelog + status-field corrections; tighten-only preserved"}
+  agents-md-contribution.md: {reconciled_at: 15708a7e, state: fresh, note: "L-ACC addendum corrected; traceability conventions added verbatim (proposal — AGENTS.md is human-ratified)"}
+  README.md: {reconciled_at: 15708a7e, state: fresh}
+  harness-design-state.md: {reconciled_at: 15708a7e, state: fresh}
+  elicitation-log.md: {reconciled_at: 15708a7e, state: fresh}
+  ratification-package.md: {reconciled_at: 15708a7e, state: fresh, note: "§12 added; §§9-11 historical"}
+  owner-briefing.md: {reconciled_at: 15708a7e, state: fresh, note: "generated 2026-08-10; non-normative"}
+  owner-backlog.md: {reconciled_at: 15708a7e, state: fresh, note: "generated 2026-08-10 from harness-backlog.md at 15708a7e; regenerated after the reader test (HB-140); regenerate on backlog change"}
+  operator-triage-runbook.md: {reconciled_at: 15708a7e, state: fresh, note: "rewritten self-contained 2026-08-10 (Phase 8 reader test); canonical packaged mapping wins on conflict"}
+
+# Substrate-drift watch (sourcing channel 4): enumerated classes and their last
+# verified member sets at current_base. A new member of any class fires channel 4.
+substrate_classes:
+  provider_adapters: {members: [claude, codex, pi, opencode, cursor, grok, muse], verified_at: 15708a7e,
+    guard: "src/runtime/registry.ts + capability matrix; each new adapter = new B-NN boundary via harness-revision (the #336 precedent)"}
+  entry_binaries: {members: [cormidia, cormidia-job], verified_at: 15708a7e,
+    guard: "PACKAGED_BINARIES/PACKAGED_SKILLS shared table (CF-REG-359 structural pin)"}
+  durable_planning_stores: {members: [org journal, approvals, budget ledger, runlog, learning stores, roadmap-delivery authority stores, planning-coverage store (#380), product-doc records (#379), jobs journal], verified_at: 15708a7e,
+    guard: "INV-013 store-class sweep; #380/#379 additions absorbed via CF-REG-374/CF-REG-369"}
+  entry_surfaces: {members: [CLI, CLI --json, observe UI, portable HTML, MCP-skill ($cormidia/$cormidia-job), scheduler tick, file-drop inbox, GitHub events], verified_at: 15708a7e,
+    guard: "CF-IF-* conformance + CF-IF-XSURF agreement"}
+  llm_call_sites: {members: [S-1, S-2, S-3, S-4, S-5, S-6, S-7, S-8, S-9, S-10, S-11], verified_at: 15708a7e,
+    guard: "llm-eval-plan §1 inventory; job steps deliberately NOT a site"}
+
+convergence:
+  rule: "a re-run against an unchanged tree must produce zero artifact changes and zero questions"
+  last_diff_verdict: >
+    rev-2026-08-10: the product delta since the last structural revision was almost
+    fully absorbed by sourcing channels (verified: CF-REG-369/370/373/374/375 rows +
+    citing specs). Residue that required this campaign: rambling.txt (new elicitation
+    input -> CF-REVIEW-PROVIDER), docs/gtm-wip.md (-> HB-134), F-PT-019/020 mirror
+    staleness, and the missing machine-readable/owner deliverables.
+    One changed-source item carried no named disposition until the rev-2026-08-10
+    independent audit (AUD-103): #376 (fd3bb8158, progressive CLI help hierarchy) is
+    ABSORBED BY EXISTING COVERAGE -- CF-IF-CLI's "progressive human-help hierarchy
+    (concise task groups -> exhaustive command safety help)" leg and its #371
+    structural/inline-snapshot conformance tests under tests/unit/cf-if/, at the
+    already-ratified THIN (help text) / C1 presentation-leaf risk class
+    (validation-policy.yaml c1_leaves). No NEW row was owed because that row
+    already covers it; recorded here so the convergence claim recomputes without
+    inference. (Disposition-gate round 1 correction: first wording said
+    "assessed-and-pruned; no case row or spec owed" with a wrong short SHA fd3bb814
+    inherited unverified from the audit report; TARGET-SNAPSHOT.md governs.)
+
+open_ratification_items:  # mirror; canonical lists live in validation-policy.yaml + ratification-package.md §12
+  - "ratification-package.md §12.3 items 1-5 (rev-2026-08-10 seat decisions, esp. provider-FAMILY ruling)"
+  - "F-PT-006, F-PT-008; F-PT-009/010/011; #339 Grok risk review; L-ACC thresholds (ratified deferral); PROPOSED register items 9-12"
+  - "F-PT-033 (S-3 verdict-marker refusal semantics/vocabulary: ratify the parser's duplicate-identical tolerance or tighten it) # added 2026-08-10, final-gate follow-up 10"

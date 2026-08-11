@@ -1,7 +1,21 @@
 # LLM eval plan — Cormidia (product scope)
 
 Status: CONFIRMED at the Phase 5 gate (2026-07-31, round 4); human-ratified 2026-07-31 (F-PT-009/010/011 thresholds remain open — the inconclusive-only rule stands; ratification-package.md §9). <!-- AUD-105 -->
-Provenance: `[elicited]` = stakeholder Phase 5 ramble; `[doc]`; `[rambling]` cited;
+
+<!-- changelog 2026-08-10 (Phase 8 reader test 2, new-engineer finding 3): the
+threshold-placeholder ASYMMETRY is deliberate, and now said so. S-1/S-3/S-4 carry
+numeric budgeting hypotheses because the owner voiced those numbers in the
+2026-07-31 elicitation (decision register items 9–12, PROPOSED, expiry = first
+eval-campaign design review). The later sites (S-5/S-6/S-7/S-8/S-10) were
+deliberately left BARE under the F-PT-011 umbrella: no one — owner or docs — ever
+voiced a number for them, and minting one here would be exactly the invented-value
+fossilization the PROPOSED-register discipline exists to prevent. Their numbers get
+minted at the first eval-campaign design review, from observed data, not before. -->
+
+Provenance: `[elicited]` = stakeholder Phase 5 ramble; `[doc]`; `[rambling]` cited —
+all tags in this file predate 2026-08-10 and cite the superseded 2026-07-31 operator
+ramble (resolve via `rambling-archive.md`, not the current ./rambling.txt) <!-- AUD-101
+(audit rev-2026-08-10): historical scope added -->;
 `[PROPOSED]` provisional (owner: human; expiry: first eval-campaign design review).
 Grounding rule: the archived qualification machinery is prohibited design input; where
 0–8 artifact scoring or campaign semantics are cited, the citation is the **live
@@ -23,7 +37,10 @@ Harness revision 2026-08-07 (outcome acceptance + jobs): adds **S-11**, the L-AC
 acceptance grader — a judge site, so it inherits the §3 calibration rule. Its rubric is
 `acceptance/rubric.md`, **human-ratified 2026-08-07 and tighten-only**, and it declares
 **no thresholds at all** in v0 by that rubric's own §5; thresholds are ratified later
-from run 1's observed distribution. That is a ratified deferral, not an open finding, and
+from the **first graded distribution** a campaign produces (run 1 terminated at the
+plan gate entirely ungraded, so the trigger remains unmet — wording clarified
+2026-08-10, reader test 9: the trigger is a graded run, not "run 1" by number; the
+deferral itself is unchanged). That is a ratified deferral, not an open finding, and
 no F-PT id is minted for it. **Jobs add no site** — see §1's exclusion note.
 
 ## 0. Standing rules (apply to every site)
@@ -96,8 +113,20 @@ obligations. Broken/not-great lines are the stakeholder's `[elicited]`.
 
 ### S-3 Reviewer — **first-funded golden set** `[elicited: "where plausible green
 becomes merged reality"; PR #182 the emotional center]`
-- **Contract (L1/2):** exactly one structured `VERDICT: APPROVE|REJECT` marker; parser
-  refuses zero/two; APPROVE-prose without marker → no review artifact (INV-012);
+- **Contract (L1/2):** exactly one structured verdict marker — production
+  vocabulary `Verdict: approve|findings`, grammar reproduced at
+  `contracts/OP-loop.md` §4 <!-- changelog 2026-08-10 (final-gate follow-up 10):
+  this clause's `VERDICT: APPROVE|REJECT` wording and "refuses zero/two" did
+  not match the running parser (approve|findings; duplicate identical markers
+  parse, only distinct conflicts refuse) — the discrepancy is now F-PT-033;
+  original wording preserved in that finding's subject -->; parser refuses zero
+  markers and distinct conflicting values (duplicate-identical tolerance OPEN —
+  F-PT-033: the landed tests record the lenient behavior as pinned regression
+  facts conferring no ratification; no NEW test may encode either reading as
+  contract truth <!-- changelog 2026-08-10 (final-gate follow-up 12): "neither
+  reading testable" contradicted the landed test that pins the lenient
+  behavior -->); APPROVE-prose without
+  marker → no review artifact (INV-012);
   verdict→GitHub-review binding carries exact HEAD (INV-009); no effect from prose;
   wrong-HEAD acceptance is machinery failure, not model failure.
 - **Quality (L4) — a judge, so the quality layer IS a meta-eval:**
@@ -288,8 +317,11 @@ becomes merged reality"; PR #182 the emotional center]`
   against that seeded fabricated claim before it is trusted (rubric §7 rule 4).
 - **Thresholds: none, by ratified rubric §5.** v0 runs in data-collection mode; every
   threshold-dependent axis reports `inconclusive` and the campaign report is a
-  distribution plus a gap list, not a grade. The human ratifies thresholds from run 1's
-  observed data, and only then do later runs emit pass/fail. This is a **ratified
+  distribution plus a gap list, not a grade. The human ratifies thresholds from the
+  **first graded distribution** a campaign produces (run 1 terminated at its plan
+  gate entirely ungraded, so that trigger remains unmet — wording aligned
+  2026-08-10, gate follow-up: the trigger is a graded run, not "run 1" by number),
+  and only then do later runs emit pass/fail. This is a **ratified
   deferral**, not an F-PT finding — do not mint one, and do not introduce a number into
   the rubric.
 - **Cadence:** per authorized campaign only. L-ACC is never scheduled and never casual.
@@ -312,7 +344,16 @@ its scores are admissible as evidence anywhere downstream.
 3. Swap acceptance = per-site deltas within threshold vs the currently qualified
    tuple's recorded results — comparative, never an absolute score floating in space.
 4. Verdict `pass | fail | inconclusive`; inconclusive → human judgment, never limbo,
-   never a coin-flip veto.
+   never a coin-flip veto. **Future-state action line for a statistical `fail`**
+   <!-- changelog 2026-08-10 (reader test 32, operator finding 4): the corpus
+   gave a DO for gate-red and for inconclusive but none for the day a ratified
+   threshold can actually fail --> — currently unreachable (no threshold is
+   ratified anywhere), but once one IS: a threshold `fail` is a quality
+   regression, not an incident — the swap/candidate does not qualify; the
+   consequence is exactly what the ratifying decision recorded (the
+   `proposed_register` entry's ratified form names what a fail blocks), and
+   nothing else; never patch the model, the threshold, or the golden set to
+   flip the verdict at machine speed.
 
 ## 5. Release qualification — RQ-1
 
@@ -373,7 +414,12 @@ rest.
 - **F-PT-009 (open — owner decision):** Reviewer thresholds (serious-defect catch,
   clean-change FP), N, and the sample design (case counts per defect class and clean
   pool; aggregation by severity and by builder×reviewer pairing; the rule that flips a
-  result to `inconclusive`) are unratified. Numbers on file are budgeting hypotheses.
+  result to `inconclusive`) are unratified. Numbers on file are budgeting hypotheses —
+  concretely **≥95% serious-defect catch / ≤10% clean-change FP / N≥3** (canonical
+  home: `validation-policy.yaml → proposed_register`; also stated in
+  `golden-sets/reviewer/README.md`) <!-- changelog 2026-08-10 (reader test 31,
+  new-engineer finding 3): the finding entry said "numbers on file" without
+  co-locating them -->.
   **Owner ruling (2026-07-31): until ratified, runs collect data; every
   threshold-dependent verdict is `inconclusive`, never release-blocking, never green
   evidence.** Per-pairing reporting mandatory regardless.

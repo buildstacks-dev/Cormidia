@@ -1,0 +1,514 @@
+# case-catalog.yaml — machine-readable companion of case-catalog.md
+# GENERATED 2026-08-10 by the rev-2026-08-10 campaign's extraction of
+# case-catalog.md and harness-backlog.md (regenerate with the same rules
+# whenever either file changes; hand-editing this file is a corpus bug).
+# AUD-102 (audit rev-2026-08-10): known_limitation markers now extracted
+# alongside BLOCKED/PRUNE so every register entry is machine-visible.
+schema: validation-architect/case-catalog/v1
+product: cormidia
+generated: 2026-08-10
+source_catalog: ./case-catalog.md
+source_backlog: ./harness-backlog.md
+source_revision: 15708a7ed7ebfd2e24477262daf809c67734d15d
+families:
+  - {id: CF-HARNESS-CI, section: "Harness self-test register", status: implementable, layers: "1 + CI", oracle: "evid+det", risk: "FLOOR", known_limitation: [F-PT-018], ticket: HB-P7, wave: "parked"}
+  - {id: CF-HARNESS-REPORT, section: "Harness self-test register", status: implementable, layers: "1/2", oracle: "evid+refusal+det", risk: "FLOOR", ticket: HB-050, wave: "L3"}
+  - {id: CF-HARNESS-RQ, section: "Harness self-test register", status: implementable, layers: "1/2", oracle: "evid+refusal+det", risk: "E3/FLOOR", ticket: HB-113, wave: "proposed"}
+  - {id: CF-HARNESS-CURRENCY, section: "Harness self-test register", status: implementable, layers: "1/2", oracle: "diff+evid+refusal+det", risk: "E3/FLOOR", ticket: HB-113, wave: "proposed"}
+  - {id: CF-HARNESS-ATTEST, section: "Harness self-test register", status: implementable, layers: "1/2", oracle: "evid+refusal+det", risk: "E1/E3/FLOOR", ticket: HB-116, wave: "proposed"}
+  - {id: CF-HARNESS-JUDGE, section: "Harness self-test register", status: implementable, layers: "1/2", oracle: "stat-envelope+refusal+det", risk: "E3/L4Q", ticket: HB-115, wave: "proposed"}
+  - {id: CF-HARNESS-RELEASE, section: "Harness self-test register", status: implementable, layers: "1/2 + CI", oracle: "evid+refusal+det", risk: "E1/E3/FLOOR", known_limitation: [F-PT-018], ticket: HB-117, wave: "proposed"}
+  - {id: CF-HARNESS-ACCFIX, section: "Harness self-test register", status: implementable, layers: "1/2", oracle: "evid+det", risk: "FLOOR", ticket: HB-120, wave: "outcome-acceptance"}
+  - {id: CF-J01-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-015, wave: "1"}
+  - {id: CF-J01-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal+diff", risk: "E1 (T-8 slice)", ticket: HB-015, wave: "1"}
+  - {id: CF-J01-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+diff", risk: "E1", ticket: HB-015, wave: "1"}
+  - {id: CF-J01-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-015, wave: "1"}
+  - {id: CF-J01-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "STD", ticket: HB-015, wave: "1"}
+  - {id: CF-J02-S, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "state+evid+det", risk: "STD", ticket: HB-042, wave: "4"}
+  - {id: CF-J02-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "STD", ticket: HB-042, wave: "4"}
+  - {id: CF-J02-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1 (lifecycle journal)", ticket: HB-042, wave: "4"}
+  - {id: CF-J02-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-042, wave: "4"}
+  - {id: CF-J02-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-042, wave: "4"}
+  - {id: CF-J03-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E3/STD (HB-101/HB-105; HB-108 closure complete)", ticket: HB-041, wave: "4"}
+  - {id: CF-J03-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E1/E3/STD (HB-101/HB-105; HB-108 closure complete)", ticket: HB-041, wave: "4"}
+  - {id: CF-J03-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-101/HB-105; HB-108 closure complete)", ticket: HB-041, wave: "4"}
+  - {id: CF-J03-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-101/HB-105; HB-108 closure complete)", ticket: HB-041, wave: "4"}
+  - {id: CF-J03-A, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "evid+refusal", risk: "E3/STD (HB-100/HB-105 plus pre-tuning Planner corpus; HB-108 closure complete, human references validated; F-PT-010 remains open)", ticket: HB-041, wave: "4"}
+  - {id: CF-J04-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E3 (HB-100/HB-103/HB-105; HB-108 closure complete)", ticket: HB-005, wave: "0"}
+  - {id: CF-J04-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E1/E3 (HB-100/HB-103; HB-108 closure complete)", ticket: HB-031, wave: "3"}
+  - {id: CF-J04-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2/E3 (HB-100/HB-103 crash detectors; HB-108 closure complete)", ticket: HB-023, wave: "2"}
+  - {id: CF-J04-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-100/HB-103/HB-104; HB-108 closure complete)", ticket: HB-103, wave: "proposed"}
+  - {id: CF-J04-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+diff", risk: "E1/E3 (HB-103/HB-105; HB-108 closure complete)", ticket: HB-103, wave: "proposed"}
+  - {id: CF-J05-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1", ticket: HB-013, wave: "1"}
+  - {id: CF-J05-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "E1", ticket: HB-013, wave: "1"}
+  - {id: CF-J05-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1", ticket: HB-013, wave: "1"}
+  - {id: CF-J05-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E1", ticket: HB-013, wave: "1"}
+  - {id: CF-J05-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-013, wave: "1"}
+  - {id: CF-J06-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1/E2", ticket: HB-012, wave: "1"}
+  - {id: CF-J06-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "E1", ticket: HB-012, wave: "1"}
+  - {id: CF-J06-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", blocked_remainder: [F-PT-008], ticket: HB-012, wave: "1"}
+  - {id: CF-J06-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-012, wave: "1"}
+  - {id: CF-J06-A, section: "Journey matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single surface; queue observation covered CF-J05-A)", ticket: HB-012, wave: "1"}
+  - {id: CF-J07-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+det", risk: "E2", ticket: HB-022, wave: "2"}
+  - {id: CF-J07-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E2", ticket: HB-022, wave: "2"}
+  - {id: CF-J07-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-022, wave: "2"}
+  - {id: CF-J07-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-022, wave: "2"}
+  - {id: CF-J07-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-022, wave: "2"}
+  - {id: CF-J08-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-020, wave: "2"}
+  - {id: CF-J08-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "state", risk: "E2", ticket: HB-020, wave: "2"}
+  - {id: CF-J08-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-020, wave: "2"}
+  - {id: CF-J08-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-020, wave: "2"}
+  - {id: CF-J08-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-020, wave: "2"}
+  - {id: CF-J09-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-021, wave: "2"}
+  - {id: CF-J09-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E2", ticket: HB-021, wave: "2"}
+  - {id: CF-J09-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-021, wave: "2"}
+  - {id: CF-J09-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-021, wave: "2"}
+  - {id: CF-J09-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-021, wave: "2"}
+  - {id: CF-J10-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-040, wave: "4"}
+  - {id: CF-J10-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "STD", ticket: HB-040, wave: "4"}
+  - {id: CF-J10-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", blocked_remainder: [F-PT-006], ticket: HB-040, wave: "4"}
+  - {id: CF-J10-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-040, wave: "4"}
+  - {id: CF-J10-A, section: "Journey matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single entry surface — file drop; GitHub-polled events covered CF-B01)", ticket: HB-040, wave: "4"}
+  - {id: CF-J11-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-032, wave: "3"}
+  - {id: CF-J11-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "E1", ticket: HB-010, wave: "1"}
+  - {id: CF-J11-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-032, wave: "3"}
+  - {id: CF-J11-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E1", ticket: HB-032, wave: "3"}
+  - {id: CF-J11-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "THIN (render)", ticket: HB-032, wave: "3"}
+  - {id: CF-J12-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-017, wave: "1"}
+  - {id: CF-J12-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E1 (T-10)", ticket: HB-017, wave: "1"}
+  - {id: CF-J12-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-017, wave: "1"}
+  - {id: CF-J12-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-017, wave: "1"}
+  - {id: CF-J12-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-017, wave: "1"}
+  - {id: CF-J13, section: "Journey matrix", status: pruned, prune: "PRUNE-dup:interruption+recovery", reason: "PRUNE-dup:interruption+recovery rows of J-01…J-12, J-14…J-17 (J-13 is the recovery dimension itself, exercised per-journey; authority-order assertion appears in every RC family)"}
+  - {id: CF-J14-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+diff", risk: "E1 (T-8)", blocked_remainder: [F-PT-012], ticket: HB-015, wave: "1"}
+  - {id: CF-J14-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "E1", ticket: HB-015, wave: "1"}
+  - {id: CF-J14-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-015, wave: "1"}
+  - {id: CF-J14-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1", ticket: HB-015, wave: "1"}
+  - {id: CF-J14-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "diff", risk: "E1/FLOOR", ticket: HB-015, wave: "1"}
+  - {id: CF-J15-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-032, wave: "3"}
+  - {id: CF-J15-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "FLOOR (T-4)", ticket: HB-032, wave: "3"}
+  - {id: CF-J15-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-032, wave: "3"}
+  - {id: CF-J15-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-032, wave: "3"}
+  - {id: CF-J15-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3 (+THIN pixels)", ticket: HB-032, wave: "3"}
+  - {id: CF-J16-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "STD", ticket: HB-043, wave: "4"}
+  - {id: CF-J16-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "STD", ticket: HB-043, wave: "4"}
+  - {id: CF-J16-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-043, wave: "4"}
+  - {id: CF-J16-RC, section: "Journey matrix", status: pruned, prune: "PRUNE-dup:CF-J16-I", reason: "PRUNE-dup:CF-J16-I (health = the recovery observation)"}
+  - {id: CF-J16-A, section: "Journey matrix", status: implementable, layers: "3", oracle: "live", risk: "STD (bounded)", ticket: HB-053, wave: "L3"}
+  - {id: CF-J17-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid+refusal+det", risk: "E1/E3 (T-12)", ticket: HB-013, wave: "1"}
+  - {id: CF-J17-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "refusal", risk: "E1", ticket: HB-013, wave: "1"}
+  - {id: CF-J17-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E1", ticket: HB-013, wave: "1"}
+  - {id: CF-J17-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E1", ticket: HB-013, wave: "1"}
+  - {id: CF-J17-A, section: "Journey matrix", status: blocked, blocked_by: "B-17-L3", reason: "non-GitHub real round-trip: BLOCKED:B-17-L3", ticket: HB-013, wave: "1"}
+  - {id: CF-J18-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3", ticket: HB-054, wave: "L3"}
+  - {id: CF-J18-R, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E2", ticket: HB-054, wave: "L3"}
+  - {id: CF-J18-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-054, wave: "L3"}
+  - {id: CF-J18-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-054, wave: "L3"}
+  - {id: CF-J18-A, section: "Journey matrix", status: implementable, layers: "3", oracle: "live", risk: "E1/E2/E3 (≤$100 release campaign, amended 2026-07-31)", ticket: HB-054, wave: "L3"}
+  - {id: CF-J19-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid+diff", risk: "E1/E2/E3 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-J19-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal+evid", risk: "E1/E3 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-J19-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+diff", risk: "E1/E2 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-J19-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1/E2 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-J19-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "diff+evid", risk: "E1/E3 (design-only)", ticket: HB-091, wave: "proposed"}
+  - {id: CF-J20-S, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "state+evid", risk: "E1/E2/E3 (HB-104/HB-107 plus HB-109 contention; deterministic closure complete)", ticket: HB-100, wave: "proposed"}
+  - {id: CF-J20-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E1/E2/E3 (HB-104/HB-106/HB-107 plus HB-109 stale/overlap/duplicate controls; deterministic closure complete)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-J20-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-104/HB-106/HB-107 crash slices plus HB-109 contention; deterministic closure complete)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-J20-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-104/HB-107 plus HB-109 mixed-sibling settlement; deterministic closure complete)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-J20-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid+refusal", risk: "E1/E3 (HB-106 complete local authority/evidence/follow-up slice; B-17 live proof still blocked)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-J21-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E3", ticket: HB-130, wave: "outcome-acceptance"}
+  - {id: CF-J21-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E1/E3", ticket: HB-127, wave: "outcome-acceptance"}
+  - {id: CF-J21-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (PENDING:HB-136 — no citing spec exists for the kill-boundary sweep; the torn-report/resume-drift/gate-ordering halves are already owned at CF-B27-* and CF-INV-ACC-4 and are not re-owed here )", ticket: HB-136, wave: "steady-state"}
+  - {id: CF-J21-RC, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "evid", risk: "E3", ticket: HB-130, wave: "outcome-acceptance"}
+  - {id: CF-J21-A, section: "Journey matrix", status: pruned, prune: "PRUNE-dup:CF-INV-ACC-7a", reason: "PRUNE-dup:CF-INV-ACC-7a (the campaign-vs-operator reconciliation IS that family — identical product paths, no supervisor-authored effect, invocation audit × per-commit authorship × run-journal turn records or `ungraded`/`incomplete`; implemented HB-125/HB-132 with its seeded hand-authored-commit control; no separate cf-j21-a spec is owed)"}
+  - {id: CF-J22-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J22-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E1", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J22-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J22-RC, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J22-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J23-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "STD", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J23-R, section: "Journey matrix", status: implementable, layers: "1", oracle: "refusal", risk: "E1/STD", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J23-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J23-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-J23-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "diff", risk: "E2 (T-6)", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-SM-LOOP-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E3", ticket: HB-031, wave: "3"}
+  - {id: CF-SM-LOOP-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "refusal", risk: "E3", ticket: HB-031, wave: "3"}
+  - {id: CF-SM-LOOP-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-031, wave: "3"}
+  - {id: CF-SM-LOOP-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2 (PRUNE-dup:CF-J04-I where identical)", ticket: HB-031, wave: "3"}
+  - {id: CF-SM-APPR-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-011, wave: "1"}
+  - {id: CF-SM-APPR-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-011, wave: "1"}
+  - {id: CF-SM-APPR-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-011, wave: "1"}
+  - {id: CF-SM-APPR-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-011, wave: "1"}
+  - {id: CF-SM-GRANT-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", blocked_remainder: [F-PT-014], ticket: HB-011, wave: "1"}
+  - {id: CF-SM-GRANT-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", blocked_remainder: [F-PT-014], ticket: HB-011, wave: "1"}
+  - {id: CF-SM-GRANT-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", blocked_remainder: [F-PT-014], ticket: HB-011, wave: "1"}
+  - {id: CF-SM-GRANT-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", blocked_remainder: [F-PT-014], ticket: HB-011, wave: "1"}
+  - {id: CF-SM-PLAN-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-041, wave: "4"}
+  - {id: CF-SM-PLAN-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-041, wave: "4"}
+  - {id: CF-SM-PLAN-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-041, wave: "4"}
+  - {id: CF-SM-PLAN-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-041, wave: "4"}
+  - {id: CF-SM-LADDER-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-042, wave: "4"}
+  - {id: CF-SM-LADDER-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-042, wave: "4"}
+  - {id: CF-SM-LADDER-R, section: "State-machine matrix", status: pruned, prune: "PRUNE-dup:CF-J02-I/RC", reason: "PRUNE-dup:CF-J02-I/RC (ladder transitions are lifecycle ops)"}
+  - {id: CF-SM-LADDER-C, section: "State-machine matrix", status: pruned, prune: "PRUNE-dup:CF-J02-I/RC", reason: "PRUNE-dup:CF-J02-I/RC (ladder transitions are lifecycle ops)"}
+  - {id: CF-SM-LEARN-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1 (T-10)", ticket: HB-017, wave: "1"}
+  - {id: CF-SM-LEARN-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1 (T-10)", ticket: HB-017, wave: "1"}
+  - {id: CF-SM-LEARN-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1 (T-10)", ticket: HB-017, wave: "1"}
+  - {id: CF-SM-LEARN-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E1 (T-10)", ticket: HB-017, wave: "1"}
+  - {id: CF-SM-EVENT-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", blocked_remainder: [F-PT-006], ticket: HB-040, wave: "4"}
+  - {id: CF-SM-EVENT-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", blocked_remainder: [F-PT-006], ticket: HB-040, wave: "4"}
+  - {id: CF-SM-EVENT-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", blocked_remainder: [F-PT-006], ticket: HB-040, wave: "4"}
+  - {id: CF-SM-EVENT-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", blocked_remainder: [F-PT-006], ticket: HB-040, wave: "4"}
+  - {id: CF-SM-TURN-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-023, wave: "2"}
+  - {id: CF-SM-TURN-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-023, wave: "2"}
+  - {id: CF-SM-TURN-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-023, wave: "2"}
+  - {id: CF-SM-TURN-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-023, wave: "2"}
+  - {id: CF-SM-COMP-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1/E2/E3 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-SM-COMP-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1/E2/E3 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-SM-COMP-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1/E2/E3 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-SM-COMP-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1/E2/E3 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-SM-ROADMAP-L, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E2/E3 (HB-101/HB-105; HB-108 closure complete)", ticket: HB-101, wave: "proposed"}
+  - {id: CF-SM-ROADMAP-I, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E2/E3 (HB-101/HB-105; HB-108 closure complete)", ticket: HB-101, wave: "proposed"}
+  - {id: CF-SM-ROADMAP-R, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E2/E3 (HB-101/HB-105; HB-108 closure complete)", ticket: HB-101, wave: "proposed"}
+  - {id: CF-SM-ROADMAP-C, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E2/E3 (HB-101/HB-105; HB-108 closure complete)", ticket: HB-101, wave: "proposed"}
+  - {id: CF-SM-VALIDATION-L, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E1/E3 (HB-102; HB-108 closure complete)", ticket: HB-102, wave: "proposed"}
+  - {id: CF-SM-VALIDATION-I, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E1/E3 (HB-102; HB-108 closure complete)", ticket: HB-102, wave: "proposed"}
+  - {id: CF-SM-VALIDATION-R, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E1/E3 (HB-102; HB-108 closure complete)", ticket: HB-102, wave: "proposed"}
+  - {id: CF-SM-VALIDATION-C, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E1/E3 (HB-102; HB-108 closure complete)", ticket: HB-102, wave: "proposed"}
+  - {id: CF-SM-BATCH-L, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-104/HB-107/HB-109; deterministic machinery complete)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-SM-BATCH-I, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-104/HB-107/HB-109; deterministic machinery complete)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-SM-BATCH-R, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-104/HB-107/HB-109; deterministic machinery complete)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-SM-BATCH-C, section: "State-machine matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-104/HB-107/HB-109; deterministic machinery complete)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-SM-ACC-L, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E3", ticket: HB-127, wave: "outcome-acceptance"}
+  - {id: CF-SM-ACC-I, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E3", ticket: HB-127, wave: "outcome-acceptance"}
+  - {id: CF-SM-ACC-R, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E3", ticket: HB-127, wave: "outcome-acceptance"}
+  - {id: CF-SM-ACC-C, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E3", ticket: HB-127, wave: "outcome-acceptance"}
+  - {id: CF-SM-JOB-L, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-SM-JOB-I, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-SM-JOB-R, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-SM-JOB-C, section: "State-machine matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-INV-001, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "FLOOR", ticket: HB-014, wave: "1"}
+  - {id: CF-INV-002, section: "Invariant matrix", status: implementable, layers: "1/2 (+3 per §5 triggers)", oracle: "refusal+det", risk: "E1", blocked_remainder: [F-PT-013], ticket: HB-010, wave: "1"}
+  - {id: CF-INV-003, section: "Invariant matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E1 (HB-106 seven exact approval/acknowledgement identities and broadened-grant detector)", ticket: HB-011, wave: "1"}
+  - {id: CF-INV-004, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E2/FLOOR (HB-107 exact-app session detector slice)", ticket: HB-014, wave: "1"}
+  - {id: CF-INV-005, section: "Invariant matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-021, wave: "2"}
+  - {id: CF-INV-006, section: "Invariant matrix", status: implementable, layers: "2", oracle: "state", risk: "E2 (HB-107 prepared/settled crash recovery and cache-unknown slice)", ticket: HB-020, wave: "2"}
+  - {id: CF-INV-007, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+state", risk: "E2", ticket: HB-022, wave: "2"}
+  - {id: CF-INV-008, section: "Invariant matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3 (HB-106 exact effect evidence projection; HB-107 cache unknown distinct from miss)", ticket: HB-032, wave: "3"}
+  - {id: CF-INV-009, section: "Invariant matrix", status: implementable, layers: "2", oracle: "refusal", risk: "E3", ticket: HB-030, wave: "3"}
+  - {id: CF-INV-010, section: "Invariant matrix", status: implementable, layers: "2", oracle: "diff+refusal", risk: "E1/FLOOR", ticket: HB-015, wave: "1"}
+  - {id: CF-INV-011, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "evid+det", risk: "FLOOR", ticket: HB-016, wave: "1"}
+  - {id: CF-INV-012, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E3/E1", ticket: HB-030, wave: "3"}
+  - {id: CF-INV-013, section: "Invariant matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-023, wave: "2"}
+  - {id: CF-INV-014, section: "Invariant matrix", status: implementable, layers: "2", oracle: "evid", risk: "E2", ticket: HB-032, wave: "3"}
+  - {id: CF-INV-015, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "FLOOR", ticket: HB-014, wave: "1"}
+  - {id: CF-INV-016, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+evid+det", risk: "E1/E2/E3/FLOOR (HB-100/HB-102/HB-103/HB-104/HB-107; HB-108 registry closure and HB-109 sibling contention complete)", ticket: HB-100, wave: "proposed"}
+  - {id: CF-INV-ACC-1, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "det+refusal", risk: "E3 (FLOOR-adjacent: a leak voids every axis it touched)", ticket: HB-121, wave: "outcome-acceptance"}
+  - {id: CF-INV-ACC-2, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E3", ticket: HB-122, wave: "outcome-acceptance"}
+  - {id: CF-INV-ACC-3, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E3", ticket: HB-123, wave: "outcome-acceptance"}
+  - {id: CF-INV-ACC-4, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "STD", ticket: HB-130, wave: "outcome-acceptance"}
+  - {id: CF-INV-ACC-5, section: "Invariant matrix", status: implementable, layers: "1", oracle: "evid+det", risk: "STD (E3 by consequence — this is INV-008 pointed at the harness)", ticket: HB-124, wave: "outcome-acceptance"}
+  - {id: CF-INV-ACC-6, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "evid", risk: "STD", ticket: HB-124, wave: "outcome-acceptance"}
+  - {id: CF-INV-ACC-7a, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "det+diff+evid", risk: "E3", ticket: HB-125, wave: "outcome-acceptance"}
+  - {id: CF-INV-ACC-7b, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E3", ticket: HB-126, wave: "outcome-acceptance"}
+  - {id: CF-B01, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E3", covers: [dup,ok,ps,rt,skew,stale,to], ticket: HB-003, wave: "0"}
+  - {id: CF-B01-L3, section: "Boundary matrix", status: implementable, layers: "3", oracle: "live", risk: "E3", ticket: HB-003, wave: "0"}
+  - {id: CF-B02, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E1/E2 (T-11 exhaustive)", ticket: HB-051, wave: "L3"}
+  - {id: CF-B03, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E1/E2", ticket: HB-051, wave: "L3"}
+  - {id: CF-B03-L3, section: "Boundary matrix", status: implementable, layers: "3", oracle: "live", risk: "E1/E2", ticket: HB-051, wave: "L3"}
+  - {id: CF-B04, section: "Boundary matrix", status: implementable, layers: "2", oracle: "refusal", risk: "E1", ticket: HB-051, wave: "L3"}
+  - {id: CF-B04-L3, section: "Boundary matrix", status: implementable, layers: "3", oracle: "live", risk: "E1", ticket: HB-051, wave: "L3"}
+  - {id: CF-B05, section: "Boundary matrix", status: implementable, layers: "2", oracle: "evid", risk: "STD", ticket: HB-043, wave: "4"}
+  - {id: CF-B06, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-002, wave: "0"}
+  - {id: CF-B07, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-023, wave: "2"}
+  - {id: CF-B08, section: "Boundary matrix", status: pruned, prune: "PRUNE-dup:CF-J09-*", reason: "PRUNE-dup:CF-J09-* (tick↔turn cells are exactly the J-09 families)"}
+  - {id: CF-B09a, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", blocked_remainder: [F-PT-008], ticket: HB-012, wave: "1"}
+  - {id: CF-B09b, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E1", ticket: HB-011, wave: "1"}
+  - {id: CF-B10, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E1/E2/FLOOR", ticket: HB-014, wave: "1"}
+  - {id: CF-B11, section: "Boundary matrix", status: pruned, prune: "PRUNE-dup:CF-J12-*", reason: "PRUNE-dup:CF-J12-* + CF-SM-LEARN-* (publisher boundary fully covered there)"}
+  - {id: CF-B12, section: "Boundary matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-032, wave: "3"}
+  - {id: CF-B13, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", blocked_remainder: [F-PT-006], ticket: HB-040, wave: "4"}
+  - {id: CF-B14, section: "Boundary matrix", status: implementable, layers: "2", oracle: "diff+refusal", risk: "E1", blocked_remainder: [F-PT-015,F-PT-016], ticket: HB-P4, wave: "unparked"}
+  - {id: CF-B15, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E2", ticket: HB-025, wave: "2"}
+  - {id: CF-B16, section: "Boundary matrix", status: implementable, layers: "2", oracle: "evid+refusal", risk: "E3", ticket: HB-010, wave: "1"}
+  - {id: CF-B17, section: "Boundary matrix", status: implementable, layers: "2", oracle: "evid", risk: "E1", blocked_remainder: [B-17-L3], ticket: HB-013, wave: "1"}
+  - {id: CF-B18, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "state+diff+refusal", risk: "E1/E2/E3 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-B19, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "state+evid+diff", risk: "E1/E3 (design-only)", ticket: HB-090, wave: "proposed"}
+  - {id: CF-B20, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "state+evid+refusal", risk: "E1/E2/E3 (HB-101/HB-105; HB-108 deterministic closure complete)", ticket: HB-101, wave: "proposed"}
+  - {id: CF-B21, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "state+evid+refusal+det", risk: "E1/E3 (HB-102/HB-108 complete; human S-10 references validated; F-PT-011 remains open)", ticket: HB-102, wave: "proposed"}
+  - {id: CF-B22, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "state+evid+refusal", risk: "E1/E2/E3 (HB-103/HB-104/HB-107 plus HB-109 contention machinery complete; seven-day evidence pending)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-B23, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E1/E2 (T-11; implemented #337 — `tests/fixtures/adapters/opencode-double*`, `tests/unit/cf-b23-opencode/`; F-PT-025 resolved-ratified 2026-08-07, mechanism legs unparked)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B23-L3, section: "Boundary matrix", status: implementable, layers: "3", oracle: "live", risk: "E1/E2 (wired #337; `research/2026-08-07_opencode-adapter-certification.md`)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B24, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E1/E2 (T-11; implemented #338 — `tests/fixtures/adapters/cursor-double.ts` + self-test, `tests/unit/cf-b24/`)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B24-L3, section: "Boundary matrix", status: implementable, layers: "3", oracle: "live", risk: "E1/E2 (certified 2026-08-07, cursor-agent 2026.08.04-aaa8809, violations `[]`, $0.080423 — `research/2026-08-07_cursor-adapter-certification.md`)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B24-SUBGATE, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state", risk: "E1/E2 (`tests/hermetic/cf-adapter-conformance/subagent-gate-ordering.test.ts`; live twin in the certification record)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B24-PAYLOAD, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state", risk: "E1/E2 (`tests/hermetic/cf-adapter-conformance/payload-transport.test.ts`)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B25, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+refusal+det", risk: "E1/E2 (T-11)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B25-L3, section: "Boundary matrix", status: implementable, layers: "3", oracle: "live", risk: "E1/E2 (risk-review-gated)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B26, section: "Boundary matrix", status: implementable, layers: "2", oracle: "state+refusal+det", risk: "E1/E2 (T-11; implemented #340)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B26-L3, section: "Boundary matrix", status: implementable, layers: "3", oracle: "live", risk: "E1/E2 (incomplete — reported, never green)", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-B27, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "refusal+evid+state", risk: "E1/E3", ticket: HB-127, wave: "outcome-acceptance"}
+  - {id: CF-B28, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "det+refusal", risk: "E3", ticket: HB-121, wave: "outcome-acceptance"}
+  - {id: CF-B29, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "refusal+det+state", risk: "E3", ticket: HB-122, wave: "outcome-acceptance"}
+  - {id: CF-B30, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "refusal+state+evid", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-C-CORE, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E2 (T-11)", blocked_remainder: [F-PT-017], ticket: HB-P6, wave: "parked"}
+  - {id: CF-C-B01, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E3", ticket: HB-003, wave: "0"}
+  - {id: CF-C-B02, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E2", ticket: HB-004, wave: "0"}
+  - {id: CF-C-B03, section: "Contract matrix", status: implementable, layers: "1/2 + 3 + 5 (rotation)", oracle: "contract", risk: "E1/E2", ticket: HB-024, wave: "2"}
+  - {id: CF-C-B04, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E1", ticket: HB-024, wave: "2"}
+  - {id: CF-C-B05, section: "Contract matrix", status: implementable, layers: "1/2 + 3 (launchd lifecycle proof)", oracle: "contract", risk: "STD (health claims E3)", ticket: HB-043, wave: "4"}
+  - {id: CF-C-B06, section: "Contract matrix", status: implementable, layers: "2 + 5 (real elapsed time)", oracle: "contract", risk: "E2", ticket: HB-002, wave: "0"}
+  - {id: CF-C-B07, section: "Contract matrix", status: implementable, layers: "2 + 5 (sleep/wake)", oracle: "contract", risk: "E2", ticket: HB-023, wave: "2"}
+  - {id: CF-C-B08, section: "Contract matrix", status: implementable, layers: "2", oracle: "contract", risk: "E2", ticket: HB-021, wave: "2"}
+  - {id: CF-C-B09A, section: "Contract matrix", status: implementable, layers: "2", oracle: "contract", risk: "E1", blocked_remainder: [F-PT-008], ticket: HB-012, wave: "1"}
+  - {id: CF-C-B09B, section: "Contract matrix", status: implementable, layers: "2 + 3 (unattended profile)", oracle: "contract", risk: "E1", ticket: HB-011, wave: "1"}
+  - {id: CF-C-B10, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/FLOOR", ticket: HB-014, wave: "1"}
+  - {id: CF-C-B11, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1 (T-10)", ticket: HB-017, wave: "1"}
+  - {id: CF-C-B12, section: "Contract matrix", status: implementable, layers: "2", oracle: "contract", risk: "E3/FLOOR (T-4 slice)", ticket: HB-032, wave: "3"}
+  - {id: CF-C-B13, section: "Contract matrix", status: implementable, layers: "2", oracle: "contract", risk: "STD", blocked_remainder: [F-PT-006], ticket: HB-040, wave: "4"}
+  - {id: CF-C-B14, section: "Contract matrix", status: implementable, layers: "2", oracle: "contract", risk: "E1", ticket: HB-P4, wave: "unparked"}
+  - {id: CF-C-B15, section: "Contract matrix", status: implementable, layers: "2", oracle: "contract", risk: "E2", ticket: HB-P2, wave: "unparked"}
+  - {id: CF-C-B16, section: "Contract matrix", status: implementable, layers: "2", oracle: "contract", risk: "E3", ticket: HB-010, wave: "1"}
+  - {id: CF-C-B17, section: "Contract matrix", status: implementable, layers: "2", oracle: "contract", risk: "E1 (T-12)", blocked_remainder: [B-17-L3], ticket: HB-013, wave: "1"}
+  - {id: CF-C-B18, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E2/E3", ticket: HB-090, wave: "proposed"}
+  - {id: CF-C-B19, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E3", ticket: HB-090, wave: "proposed"}
+  - {id: CF-C-B20, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E2/E3", ticket: HB-101, wave: "proposed"}
+  - {id: CF-C-B21, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E3", ticket: HB-102, wave: "proposed"}
+  - {id: CF-C-B22, section: "Contract matrix", status: implementable, layers: "1/2 + 5 repeat trigger", oracle: "contract", risk: "E1/E2/E3", ticket: HB-104, wave: "proposed"}
+  - {id: CF-C-B23, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E1/E2", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-C-B24, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E1/E2", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-C-B25, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E1/E2", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-C-B26, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E1/E2", ticket: HB-137, wave: "retrospective"}
+  - {id: CF-C-B27, section: "Contract matrix", status: implementable, layers: "1/2 (+ L-ACC at campaign time)", oracle: "contract", risk: "E1/E3", ticket: HB-127, wave: "outcome-acceptance"}
+  - {id: CF-C-B28, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E3", ticket: HB-121, wave: "outcome-acceptance"}
+  - {id: CF-C-B29, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E3", ticket: HB-122, wave: "outcome-acceptance"}
+  - {id: CF-C-B30, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-C-OPJOB, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E2 (T-5 nested-invocation slice)", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-C-OPLIFE, section: "Contract matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E1 (T-8 slices)", ticket: HB-015, wave: "1"}
+  - {id: CF-C-OPPLAN, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "refusal+state", risk: "STD (HB-107 shared-façade wiring slice; validator depth per risk-allocation §3)", ticket: HB-101, wave: "proposed"}
+  - {id: CF-C-OPLOOP, section: "Contract matrix", status: implementable, layers: "2", oracle: "state", risk: "E3 (HB-107 shared delivery-façade wiring slice)", ticket: HB-103, wave: "proposed"}
+  - {id: CF-C-OPVALIDATION, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "state+refusal+evid+det", risk: "E1/E3 (HB-102/HB-105 implementation plus HB-108 complete deterministic registry/detector walk; S-10 human references validated; F-PT-011 remains open)", ticket: HB-102, wave: "proposed"}
+  - {id: CF-C-OPBATCH, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "state+refusal+evid", risk: "E1/E2/E3 (HB-104/HB-106/HB-107 implementation plus HB-109 overlap/duplicate/atomic-claim/per-unit/sibling/stale-frontier machinery complete; seven-day evidence pending)", ticket: HB-104, wave: "proposed"}
+  - {id: CF-C-ACCEPT, section: "Contract matrix", status: pruned, prune: "PRUNE-dup", reason: "journey-acceptance criteria as executable checks — PRUNE-dup: each criterion's cell in §1 (traces already resolve)"}
+  - {id: CF-IF-CLI, section: "Interface-adapter matrix", status: implementable, layers: "2", oracle: "refusal+evid+det", risk: "E3 (claims) / THIN (help text)", ticket: HB-033, wave: "3"}
+  - {id: CF-IF-JSON, section: "Interface-adapter matrix", status: implementable, layers: "2", oracle: "evid", risk: "STD", ticket: HB-033, wave: "3"}
+  - {id: CF-IF-UI, section: "Interface-adapter matrix", status: implementable, layers: "2", oracle: "evid", risk: "THIN/E3", ticket: HB-033, wave: "3"}
+  - {id: CF-IF-HTML, section: "Interface-adapter matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-033, wave: "3"}
+  - {id: CF-IF-SKILL, section: "Interface-adapter matrix", status: implementable, layers: "2", oracle: "evid", risk: "STD", ticket: HB-033, wave: "3"}
+  - {id: CF-IF-COMPARE, section: "Interface-adapter matrix", status: implementable, layers: "1/2", oracle: "refusal+evid+diff", risk: "E1/E3 (design-only)", ticket: HB-033, wave: "3"}
+  - {id: CF-IF-JOB, section: "Interface-adapter matrix", status: implementable, layers: "1/2", oracle: "refusal+evid", risk: "STD/E1", ticket: HB-033, wave: "3"}
+  - {id: CF-IF-XSURF, section: "Interface-adapter matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3 (HB-110 RoadmapPlan/validation/unit/batch slice complete; J-19 slice design-only)", ticket: HB-033, wave: "3"}
+  - {id: CF-S1-env, section: "LLM call-site matrix", status: implementable, layers: "1/2", oracle: "refusal+evid", risk: "E3/STD (HB-101/HB-108 deterministic envelope and pre-tuning corpus integration complete)", ticket: HB-105, wave: "proposed"}
+  - {id: CF-S1-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q", ticket: HB-062, wave: "L4"}
+  - {id: CF-S1-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (planner is not agentic-looping here; no judge)"}
+  - {id: CF-S1-judge, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (planner is not agentic-looping here; no judge)"}
+  - {id: CF-S2-env, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-dup:CF-INV-001/002/004/006", reason: "builder envelope: guardrail set (authority/boundary/gates/artifacts/spend) — PRUNE-dup:CF-INV-001/002/004/006 + CF-B16"}
+  - {id: CF-S2-traj, section: "LLM call-site matrix", status: implementable, layers: "2", oracle: "det", risk: "E2", ticket: HB-046, wave: "4"}
+  - {id: CF-S2-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (deferred/THIN)", ticket: HB-062, wave: "L4"}
+  - {id: CF-S2-judge, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na"}
+  - {id: CF-S3-env, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-dup:CF-INV-009/012", reason: "verdict marker/parser/HEAD-binding — PRUNE-dup:CF-INV-009/012 clause families"}
+  - {id: CF-S3-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (first-funded)", ticket: HB-061, wave: "L4"}
+  - {id: CF-S3-judge, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (first-funded)", ticket: HB-061, wave: "L4"}
+  - {id: CF-S3-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single-pass judge; trajectory covered by S-2)"}
+  - {id: CF-S4-env, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-dup:CF-J11-I/RC", reason: "analysis/filing claim separation — PRUNE-dup:CF-J11-I/RC"}
+  - {id: CF-S4-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q", ticket: HB-062, wave: "L4"}
+  - {id: CF-S4-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single-pass analyzer; no judge)"}
+  - {id: CF-S4-judge, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single-pass analyzer; no judge)"}
+  - {id: CF-S5-env, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-dup:CF-J11-R", reason: "draft-only + publication gate — PRUNE-dup:CF-J11-R + CF-INV-011"}
+  - {id: CF-S5-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (deferred/THIN)", ticket: HB-062, wave: "L4"}
+  - {id: CF-S5-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (drafters/analyzers; no agentic loop, no judge)"}
+  - {id: CF-S5-judge, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (drafters/analyzers; no agentic loop, no judge)"}
+  - {id: CF-S6-env, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-dup:CF-J12-R", reason: "provenance/secret/write-path — PRUNE-dup:CF-J12-R + CF-INV-011"}
+  - {id: CF-S6-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (deferred/THIN)", ticket: HB-062, wave: "L4"}
+  - {id: CF-S6-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single-pass synthesizer; no judge)"}
+  - {id: CF-S6-judge, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single-pass synthesizer; no judge)"}
+  - {id: CF-S7-env, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-dup:CF-J12", reason: "fail-closed verdict persistence — PRUNE-dup:CF-J12 families"}
+  - {id: CF-S7-judge, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q", ticket: HB-062, wave: "L4"}
+  - {id: CF-S7-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q", ticket: HB-062, wave: "L4"}
+  - {id: CF-S7-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single-pass judge)"}
+  - {id: CF-S8-env, section: "LLM call-site matrix", status: implementable, layers: "1/2", oracle: "refusal+evid", risk: "E3 (design-only)", ticket: HB-093, wave: "proposed"}
+  - {id: CF-S8-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (design-only/deferred)", ticket: HB-093, wave: "proposed"}
+  - {id: CF-S8-judge, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (design-only/deferred)", ticket: HB-093, wave: "proposed"}
+  - {id: CF-S8-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single-pass judge; candidate trajectories belong to their emitting call sites)"}
+  - {id: CF-S9-env, section: "LLM call-site matrix", status: implementable, layers: "2", oracle: "state", risk: "STD", ticket: HB-047, wave: "4"}
+  - {id: CF-S9-qual, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (contract-only site by ratified decision)"}
+  - {id: CF-S9-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (contract-only site by ratified decision)"}
+  - {id: CF-S9-judge, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (contract-only site by ratified decision)"}
+  - {id: CF-S10-env, section: "LLM call-site matrix", status: implementable, layers: "1/2", oracle: "refusal+evid+det", risk: "E1/E3 (HB-102 implementation plus HB-108 complete deterministic registry/detector walk)", ticket: HB-102, wave: "proposed"}
+  - {id: CF-S10-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (pre-tuning corpus integrated and human-validated; threshold-dependent results remain inconclusive)", ticket: HB-108, wave: "proposed"}
+  - {id: CF-S10-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (bounded design capability, not an agentic loop or judge; compatible units may share input/session but emit separate contracts)"}
+  - {id: CF-S10-judge, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (bounded design capability, not an agentic loop or judge; compatible units may share input/session but emit separate contracts)"}
+  - {id: CF-S11-env, section: "LLM call-site matrix", status: implementable, layers: "1/2", oracle: "refusal+evid+det", risk: "E3", ticket: HB-129, wave: "outcome-acceptance"}
+  - {id: CF-S11-qual, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (scaffold only)", ticket: HB-062, wave: "L4"}
+  - {id: CF-S11-judge, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat", risk: "L4Q (scaffold only)", ticket: HB-062, wave: "L4"}
+  - {id: CF-S11-traj, section: "LLM call-site matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na (single-pass judge per axis; the campaign's own trajectory is J-21, not a model loop)"}
+  - {id: CF-COND, section: "LLM call-site matrix", status: implementable, layers: "4", oracle: "stat (non-gating)", risk: "THIN", ticket: HB-062, wave: "L4"}
+  - {id: CF-OPS-CONT, section: "Operational-obligation matrix", status: implementable, layers: "5 (hermetic rig, deterministic oracle)", oracle: "state", risk: "E2", ticket: HB-070, wave: "L5"}
+  - {id: CF-OPS-SOAK, section: "Operational-obligation matrix", status: implementable, layers: "5", oracle: "live+evid", risk: "E2/E3", ticket: HB-071, wave: "L5"}
+  - {id: CF-OPS-ROT, section: "Operational-obligation matrix", status: implementable, layers: "5", oracle: "live+evid", risk: "E2", ticket: HB-071, wave: "L5"}
+  - {id: CF-OPS-GROW, section: "Operational-obligation matrix", status: implementable, layers: "2", oracle: "state", risk: "E2", ticket: HB-044, wave: "4"}
+  - {id: CF-OPS-SKEW, section: "Operational-obligation matrix", status: pruned, prune: "PRUNE-dup:CF-B06-*", reason: "PRUNE-dup:CF-B06-* (clock anomalies) + soak's real sleep cycles"}
+  - {id: CF-OPS-ABUSE, section: "Operational-obligation matrix", status: implementable, layers: "5", oracle: "mixed", risk: "E1 (future lane, declared)", ticket: HB-073, wave: "L5"}
+  - {id: CF-OPS-REC, section: "Operational-obligation matrix", status: pruned, prune: "PRUNE-dup:§1", reason: "PRUNE-dup:§1 interruption/recovery rows + CF-B07 (recovery is a modifier everywhere, not a lane)"}
+  - {id: CF-OPS-COMP, section: "Operational-obligation matrix", status: pruned, prune: "PRUNE-na", reason: "PRUNE-na for V1 (explicit tuples, sequential execution, hard per-comparison ceilings are falsifiable at L1/L2); automatic sampling or parallel candidates must re-enter allocation and may create a bounded L5 contention/cost obligation", ticket: HB-094, wave: "proposed"}
+  - {id: CF-ACC-S1, section: "8b. Outcome-acceptance lane", status: implementable, layers: "L-ACC", oracle: "stat+evid", risk: "L4Q (built; run-1 evidence incomplete/ungraded — inconclusive-only, no threshold )", ticket: HB-131, wave: "execution"}
+  - {id: CF-ACC-S2, section: "8b. Outcome-acceptance lane", status: implementable, layers: "L-ACC", oracle: "stat+evid", risk: "L4Q (built; run-1 evidence incomplete/ungraded )", ticket: HB-131, wave: "execution"}
+  - {id: CF-ACC-S3, section: "8b. Outcome-acceptance lane", status: implementable, layers: "L-ACC (J-3) + 1/2 (J-1/J-2)", oracle: "stat+evid+state", risk: "L4Q + E2 (built; mechanical J-1/J-2 implemented HB-131 `mechanical-scoring.ts`; run-1 evidence incomplete/ungraded )", ticket: HB-131, wave: "execution"}
+  - {id: CF-ACC-GATE, section: "8b. Outcome-acceptance lane", status: implementable, layers: "L-ACC + 1/2", oracle: "evid", risk: "E3 (built — run 1 stopped exactly here, 2026-08-08; the ordering guardrail is CF-INV-ACC-4 )", ticket: HB-131, wave: "execution"}
+  - {id: CF-ACC-REPORT, section: "8b. Outcome-acceptance lane", status: pruned, prune: "PRUNE-dup:CF-B27-*", reason: "PRUNE-dup:CF-B27-* + CF-INV-ACC-5/6 (report identity, completeness and verdict algebra are deterministic and already owned at L1/L2)"}
+  - {id: CF-SPLIT-DESTRUCTIVE, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E1", ticket: HB-138, wave: "retrospective"}
+  - {id: CF-SPLIT-SECRETS, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "refusal+det", risk: "E1", ticket: HB-135, wave: "steady-state"}
+  - {id: CF-SPLIT-NETWORK, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E1", ticket: HB-138, wave: "retrospective"}
+  - {id: CF-SPLIT-PUBLISHING, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E1", ticket: HB-138, wave: "retrospective"}
+  - {id: CF-REVIEW-PROVIDER, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E1 (T-3, T-7)", ticket: HB-133, wave: "steady-state"}
+  - {id: CF-REG-206, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+state+evid", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-231, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-230, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+evid+refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-232, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+evid+refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-374, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "state+refusal+evid+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-239, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-HB102-MANUAL-REVIEW, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-229, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+refusal+evid", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-236-BUDGET, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+refusal+evid+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-181, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-154, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "state+refusal+evid+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-244, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+evid+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-228, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+evid", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-211, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+evid", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-209, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+evid", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-205, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+evid+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-204, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "det", risk: "REG", ticket: HB-135, wave: "steady-state"}
+  - {id: CF-REG-202, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "state+evid", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-203, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-203-G, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-251, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-268, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-269, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "evid+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-271, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-285, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-287, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "evid+state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-272, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-273, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "state+det", risk: "REG", ticket: HB-052, wave: "L3"}
+  - {id: CF-REG-278, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-279, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-291, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "evid+state+det", risk: "REG", ticket: HB-052, wave: "L3"}
+  - {id: CF-REG-293, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "evid+state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-297, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-299, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-300, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+evid+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-306, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-274, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "evid+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-281, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-283, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-335, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-332, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "evid+refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-359, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "det+state", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-370, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "det+state+refusal", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-369, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "det+refusal+state", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-375, section: "Defect-sourced regression families", status: implementable, layers: "1", oracle: "det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-356, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "state+refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-373, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+tickets:
+  - {id: HB-001, wave: "0", status: landed, families: []}
+  - {id: HB-002, wave: "0", status: landed, families: [CF-B06, CF-C-B06]}
+  - {id: HB-003, wave: "0", status: landed, families: [CF-B01, CF-B01-L3, CF-C-B01]}
+  - {id: HB-004, wave: "0", status: landed, families: [CF-C-B02]}
+  - {id: HB-005, wave: "0", status: landed, families: [CF-J04-S]}
+  - {id: HB-006, wave: "0", status: landed, families: []}
+  - {id: HB-007, wave: "0", status: landed, families: []}
+  - {id: HB-010, wave: "1", status: landed, families: [CF-B16, CF-C-B16, CF-INV-002, CF-J11-R]}
+  - {id: HB-011, wave: "1", status: landed, families: [CF-B09b, CF-C-B09B, CF-INV-003, CF-SM-APPR-C, CF-SM-APPR-I, CF-SM-APPR-L, CF-SM-APPR-R, CF-SM-GRANT-C, CF-SM-GRANT-I, CF-SM-GRANT-L, CF-SM-GRANT-R]}
+  - {id: HB-012, wave: "1", status: landed, families: [CF-B09a, CF-C-B09A, CF-J06-A, CF-J06-I, CF-J06-R, CF-J06-RC, CF-J06-S]}
+  - {id: HB-013, wave: "1", status: landed, families: [CF-B17, CF-C-B17, CF-J05-A, CF-J05-I, CF-J05-R, CF-J05-RC, CF-J05-S, CF-J17-A, CF-J17-I, CF-J17-R, CF-J17-RC, CF-J17-S]}
+  - {id: HB-014, wave: "1", status: landed, families: [CF-B10, CF-C-B10, CF-INV-001, CF-INV-004, CF-INV-015]}
+  - {id: HB-015, wave: "1", status: landed, families: [CF-C-OPLIFE, CF-INV-010, CF-J01-A, CF-J01-I, CF-J01-R, CF-J01-RC, CF-J01-S, CF-J14-A, CF-J14-I, CF-J14-R, CF-J14-RC, CF-J14-S]}
+  - {id: HB-016, wave: "1", status: landed, families: [CF-INV-011]}
+  - {id: HB-017, wave: "1", status: landed, families: [CF-C-B11, CF-J12-A, CF-J12-I, CF-J12-R, CF-J12-RC, CF-J12-S, CF-SM-LEARN-C, CF-SM-LEARN-I, CF-SM-LEARN-L, CF-SM-LEARN-R]}
+  - {id: HB-020, wave: "2", status: landed, families: [CF-INV-006, CF-J08-A, CF-J08-I, CF-J08-R, CF-J08-RC, CF-J08-S]}
+  - {id: HB-021, wave: "2", status: landed, families: [CF-C-B08, CF-INV-005, CF-J09-A, CF-J09-I, CF-J09-R, CF-J09-RC, CF-J09-S]}
+  - {id: HB-022, wave: "2", status: landed, families: [CF-INV-007, CF-J07-A, CF-J07-I, CF-J07-R, CF-J07-RC, CF-J07-S]}
+  - {id: HB-023, wave: "2", status: landed, families: [CF-B07, CF-C-B07, CF-INV-013, CF-J04-I, CF-SM-TURN-C, CF-SM-TURN-I, CF-SM-TURN-L, CF-SM-TURN-R]}
+  - {id: HB-024, wave: "2", status: landed, families: [CF-C-B03, CF-C-B04]}
+  - {id: HB-025, wave: "2", status: landed, families: [CF-B15]}
+  - {id: HB-030, wave: "3", status: landed, families: [CF-INV-009, CF-INV-012]}
+  - {id: HB-031, wave: "3", status: landed, families: [CF-J04-R, CF-J04-S, CF-SM-LOOP-C, CF-SM-LOOP-I, CF-SM-LOOP-L, CF-SM-LOOP-R]}
+  - {id: HB-032, wave: "3", status: landed, families: [CF-B12, CF-C-B12, CF-INV-008, CF-INV-014, CF-J11-A, CF-J11-I, CF-J11-RC, CF-J11-S, CF-J15-A, CF-J15-I, CF-J15-R, CF-J15-RC, CF-J15-S]}
+  - {id: HB-033, wave: "3", status: landed, families: [CF-IF-CLI, CF-IF-COMPARE, CF-IF-HTML, CF-IF-JOB, CF-IF-JSON, CF-IF-SKILL, CF-IF-UI, CF-IF-XSURF]}
+  - {id: HB-040, wave: "4", status: landed, families: [CF-B13, CF-C-B13, CF-J10-A, CF-J10-I, CF-J10-R, CF-J10-RC, CF-J10-S, CF-SM-EVENT-C, CF-SM-EVENT-I, CF-SM-EVENT-L, CF-SM-EVENT-R]}
+  - {id: HB-041, wave: "4", status: landed, families: [CF-J03-A, CF-J03-I, CF-J03-R, CF-J03-RC, CF-J03-S, CF-SM-PLAN-C, CF-SM-PLAN-I, CF-SM-PLAN-L, CF-SM-PLAN-R]}
+  - {id: HB-042, wave: "4", status: landed, families: [CF-J02-A, CF-J02-I, CF-J02-R, CF-J02-RC, CF-J02-S, CF-SM-LADDER-I, CF-SM-LADDER-L]}
+  - {id: HB-043, wave: "4", status: landed, families: [CF-B05, CF-C-B05, CF-J16-I, CF-J16-R, CF-J16-S]}
+  - {id: HB-044, wave: "4", status: landed, families: [CF-OPS-GROW]}
+  - {id: HB-045, wave: "4", status: landed, families: []}
+  - {id: HB-046, wave: "4", status: landed, families: [CF-S2-traj]}
+  - {id: HB-047, wave: "4", status: landed, families: [CF-S9-env]}
+  - {id: HB-050, wave: "L3", status: landed, families: [CF-HARNESS-REPORT]}
+  - {id: HB-051, wave: "L3", status: landed, families: [CF-B02, CF-B03, CF-B03-L3, CF-B04, CF-B04-L3]}
+  - {id: HB-052, wave: "L3", status: landed, families: [CF-B01, CF-B01-L3, CF-REG-273, CF-REG-291]}
+  - {id: HB-053, wave: "L3", status: landed, families: [CF-J16-A]}
+  - {id: HB-054, wave: "L3", status: landed, families: [CF-J18-A, CF-J18-I, CF-J18-R, CF-J18-RC, CF-J18-S]}
+  - {id: HB-055, wave: "L3", status: pending, families: []}
+  - {id: HB-060, wave: "L4", status: landed, families: []}
+  - {id: HB-061, wave: "L4", status: landed, families: [CF-S3-judge, CF-S3-qual]}
+  - {id: HB-062, wave: "L4", status: pending, families: [CF-COND, CF-S1-qual, CF-S11-judge, CF-S11-qual, CF-S2-qual, CF-S4-qual, CF-S5-qual, CF-S6-qual, CF-S7-judge, CF-S7-qual]}
+  - {id: HB-063, wave: "L4", status: landed, families: []}
+  - {id: HB-070, wave: "L5", status: landed, families: [CF-OPS-CONT]}
+  - {id: HB-071, wave: "L5", status: landed, families: [CF-OPS-ROT, CF-OPS-SOAK]}
+  - {id: HB-072, wave: "L5", status: pending, families: []}
+  - {id: HB-073, wave: "L5", status: pending, families: [CF-OPS-ABUSE]}
+  - {id: HB-P1, wave: "unparked", status: landed, families: [CF-J07-I]}
+  - {id: HB-P2, wave: "unparked", status: landed, families: [CF-B15, CF-C-B15, CF-J04-I]}
+  - {id: HB-P4, wave: "unparked", status: landed, families: [CF-B14, CF-C-B14]}
+  - {id: HB-P3, wave: "parked", status: pending, families: []}
+  - {id: HB-P5, wave: "parked", status: pending, families: []}
+  - {id: HB-P6, wave: "parked", status: pending, families: [CF-C-CORE]}
+  - {id: HB-P7, wave: "parked", status: pending, families: [CF-HARNESS-CI]}
+  - {id: HB-080, wave: "post-ratification", status: landed, families: []}
+  - {id: HB-081, wave: "post-ratification", status: landed, families: []}
+  - {id: HB-090, wave: "proposed", status: pending, families: [CF-B18, CF-B19, CF-C-B18, CF-C-B19, CF-J19-I, CF-J19-R, CF-J19-RC, CF-J19-S, CF-SM-COMP-C, CF-SM-COMP-I, CF-SM-COMP-L, CF-SM-COMP-R]}
+  - {id: HB-091, wave: "proposed", status: pending, families: [CF-IF-COMPARE, CF-J19-A]}
+  - {id: HB-092, wave: "proposed", status: pending, families: []}
+  - {id: HB-093, wave: "proposed", status: pending, families: [CF-S8-env, CF-S8-judge, CF-S8-qual]}
+  - {id: HB-094, wave: "proposed", status: pending, families: [CF-OPS-COMP]}
+  - {id: HB-100, wave: "proposed", status: landed, families: [CF-INV-016, CF-J20-S]}
+  - {id: HB-101, wave: "proposed", status: landed, families: [CF-B20, CF-C-B20, CF-C-OPPLAN, CF-J03-A, CF-J03-I, CF-J03-R, CF-J03-RC, CF-J03-S, CF-SM-ROADMAP-C, CF-SM-ROADMAP-I, CF-SM-ROADMAP-L, CF-SM-ROADMAP-R]}
+  - {id: HB-102, wave: "proposed", status: landed, families: [CF-B21, CF-C-B21, CF-C-OPVALIDATION, CF-INV-016, CF-S10-env, CF-SM-VALIDATION-C, CF-SM-VALIDATION-I, CF-SM-VALIDATION-L, CF-SM-VALIDATION-R]}
+  - {id: HB-103, wave: "proposed", status: landed, families: [CF-C-OPLOOP, CF-INV-005, CF-INV-009, CF-INV-016, CF-J04-A, CF-J04-I, CF-J04-R, CF-J04-RC, CF-J04-S]}
+  - {id: HB-104, wave: "proposed", status: landed, families: [CF-B22, CF-C-B22, CF-C-OPBATCH, CF-J20-A, CF-J20-I, CF-J20-R, CF-J20-RC, CF-J20-S, CF-SM-BATCH-C, CF-SM-BATCH-I, CF-SM-BATCH-L, CF-SM-BATCH-R]}
+  - {id: HB-105, wave: "proposed", status: landed, families: [CF-C-OPPLAN, CF-C-OPVALIDATION, CF-J03-A, CF-J03-R, CF-S1-env]}
+  - {id: HB-106, wave: "proposed", status: landed, families: [CF-C-OPBATCH, CF-J20-A]}
+  - {id: HB-107, wave: "proposed", status: landed, families: [CF-B22, CF-J20-I, CF-J20-RC, CF-J20-S]}
+  - {id: HB-108, wave: "proposed", status: landed, families: [CF-S10-qual]}
+  - {id: HB-109, wave: "proposed", status: landed, families: [CF-OPS-CONT, CF-OPS-SOAK]}
+  - {id: HB-110, wave: "proposed", status: landed, families: [CF-IF-XSURF]}
+  - {id: HB-111, wave: "proposed", status: landed, families: []}
+  - {id: HB-112, wave: "proposed", status: pending, families: []}
+  - {id: HB-113, wave: "proposed", status: landed, families: [CF-HARNESS-CURRENCY, CF-HARNESS-RQ]}
+  - {id: HB-114, wave: "proposed", status: landed, families: []}
+  - {id: HB-115, wave: "proposed", status: landed, families: [CF-HARNESS-JUDGE]}
+  - {id: HB-116, wave: "proposed", status: landed, families: [CF-HARNESS-ATTEST]}
+  - {id: HB-117, wave: "proposed", status: landed, families: [CF-HARNESS-RELEASE]}
+  - {id: HB-118, wave: "proposed", status: landed, families: []}
+  - {id: HB-120, wave: "outcome-acceptance", status: landed, families: [CF-HARNESS-ACCFIX]}
+  - {id: HB-121, wave: "outcome-acceptance", status: landed, families: [CF-B28, CF-C-B28, CF-INV-ACC-1]}
+  - {id: HB-122, wave: "outcome-acceptance", status: landed, families: [CF-B29, CF-C-B29, CF-INV-ACC-2]}
+  - {id: HB-123, wave: "outcome-acceptance", status: landed, families: [CF-INV-ACC-3]}
+  - {id: HB-124, wave: "outcome-acceptance", status: landed, families: [CF-INV-ACC-5, CF-INV-ACC-6]}
+  - {id: HB-125, wave: "outcome-acceptance", status: landed, families: [CF-INV-ACC-7a]}
+  - {id: HB-126, wave: "outcome-acceptance", status: landed, families: [CF-INV-ACC-7b]}
+  - {id: HB-127, wave: "outcome-acceptance", status: landed, families: [CF-B27, CF-C-B27, CF-J21-R, CF-SM-ACC-C, CF-SM-ACC-I, CF-SM-ACC-L, CF-SM-ACC-R]}
+  - {id: HB-128, wave: "outcome-acceptance", status: landed, families: [CF-B30, CF-C-B30, CF-C-OPJOB, CF-IF-JOB, CF-J22-A, CF-J22-I, CF-J22-R, CF-J22-RC, CF-J22-S, CF-J23-A, CF-J23-I, CF-J23-R, CF-J23-RC, CF-J23-S, CF-SM-JOB-C, CF-SM-JOB-I, CF-SM-JOB-L, CF-SM-JOB-R]}
+  - {id: HB-129, wave: "outcome-acceptance", status: landed, families: [CF-S11-env]}
+  - {id: HB-130, wave: "outcome-acceptance", status: landed, families: [CF-INV-ACC-4, CF-J21-RC, CF-J21-S]}
+  - {id: HB-131, wave: "execution", status: landed, families: [CF-ACC-GATE, CF-ACC-S1, CF-ACC-S2, CF-ACC-S3]}
+  - {id: HB-132, wave: "run-1", status: landed, families: []}
+  - {id: HB-133, wave: "steady-state", status: pending, families: [CF-REVIEW-PROVIDER]}
+  - {id: HB-134, wave: "steady-state", status: pending, families: []}
+  - {id: HB-135, wave: "steady-state", status: pending, families: [CF-REG-204, CF-SPLIT-SECRETS]}
+  - {id: HB-136, wave: "steady-state", status: pending, families: [CF-B27, CF-INV-ACC-4, CF-J21-I]}
+  - {id: HB-140, wave: "steady-state", status: pending, families: [CF-HARNESS-CI]}
+  - {id: HB-137, wave: "retrospective", status: landed, families: [CF-B23, CF-B23-L3, CF-B24, CF-B24-L3, CF-B24-PAYLOAD, CF-B24-SUBGATE, CF-B25, CF-B25-L3, CF-B26, CF-B26-L3, CF-C-B23, CF-C-B24, CF-C-B25, CF-C-B26]}
+  - {id: HB-138, wave: "retrospective", status: landed, families: [CF-SPLIT-DESTRUCTIVE, CF-SPLIT-NETWORK, CF-SPLIT-PUBLISHING, CF-SPLIT-SECRETS]}
+  - {id: HB-139, wave: "retrospective", status: landed, families: [CF-HB102-MANUAL-REVIEW, CF-REG-154, CF-REG-181, CF-REG-202, CF-REG-203, CF-REG-203-G, CF-REG-204, CF-REG-205, CF-REG-206, CF-REG-209, CF-REG-211, CF-REG-228, CF-REG-229, CF-REG-230, CF-REG-231, CF-REG-232, CF-REG-236-BUDGET, CF-REG-239, CF-REG-244, CF-REG-251, CF-REG-268, CF-REG-269, CF-REG-271, CF-REG-272, CF-REG-273, CF-REG-274, CF-REG-278, CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-291, CF-REG-293, CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335, CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374, CF-REG-375]}
+# rollup (derived by the generator from the entries above — recompute, never hand-edit):
+#   families: 396 = 357 implementable + 38 pruned + 1 blocked
+#   tickets: 101 = 82 landed + 19 pending

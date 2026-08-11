@@ -25,7 +25,14 @@ slice resolves to existing controls — T-11 adapter enforcement (gate hook tota
 budget observation, exact-session binding), T-5 settlement, T-6 workspace containment
 (Muse `--workspace`), T-4 secret containment (Grok vendor-transport posture), and T-9
 evidence truthfulness (Cursor force-absent no-op edits). No new C3 control point is
-introduced; all four boundaries are design-only until #337–#340 land.
+introduced; all four boundaries are design-only until #337–#340 land — HISTORICAL
+AS WRITTEN 2026-08-07; superseded <!-- changelog 2026-08-10 (reader test 41
+gate follow-up 33): this sentence still stated the pre-landing status as
+current — the same stale class the risk-allocation mirror carried -->:
+**#337–#340 landed and all four adapters were certified 2026-08-07** (B-25
+sandbox-scope only, the #339 human risk review still gating real-repo use;
+B-26's L3 outcome INCOMPLETE, never pass — canonical statuses:
+`validation-policy.yaml → layers → L3_live_sandbox → obligations`).
 
 Harness revision 2026-08-07 (outcome acceptance + jobs): adds **J-21** (outcome
 acceptance campaign — the L-ACC lane's own journey, whose actor is the campaign
@@ -40,8 +47,10 @@ campaign score never outruns its evidence), and T-4 (the sealed answer key is a
 confidentiality surface — B-28). No new C3 control point is introduced.
 
 Provenance: rows are `[doc]` unless marked `[walk]` (stakeholder's Phase 1 elicitation,
-see elicitation-log.md), `[rambling]`, `[simulated]`, `[stated]` (direct live owner
-input), or `[PROPOSED]`.
+see elicitation-log.md), `[rambling]` (all tags in this file predate 2026-08-10 and
+cite the superseded 2026-07-31 operator ramble — resolve via `rambling-archive.md`,
+not the current ./rambling.txt <!-- AUD-101, audit rev-2026-08-10 -->), `[simulated]`,
+`[stated]` (direct live owner input), or `[PROPOSED]`.
 
 ## 0. Intended use, deployment shape, criticality
 
@@ -165,7 +174,7 @@ sole write exception `[doc]`):
 
 One process family, no daemon: CLI invocations, detached turn processes spawned by ticks,
 candidate turn processes coordinated by a comparison journal, and the foreground
-observer. Module inventory M1–M17 per `scope-and-module-map.md` §2.
+observer. Module inventory M1–M18 (M18 Jobs, 2026-08-07 <!-- changelog 2026-08-10 (reader test 30, operator finding 1): stale count -->) per `scope-and-module-map.md` §2.
 Import direction `org → loop → runtime`; observe/report/narrative are read-only leaves.
 
 For the revised planning/delivery slice, M5 is one shared EpisodePlanner capability,
@@ -292,7 +301,7 @@ killed campaigns `[rambling]`).
 | J-18 | composite of J-09,03,04,05,07,08,15 | all of the above, unattended | — (formerly inherited F-PT-003/004; both ratified 2026-07-31) |
 | J-19 | M16 with M5/M4 entry in org mode or M15 entry standalone; M7/M3 per candidate and judge; M9/B-14/B-15/B-16 for workspaces and validation | provider spend; selected local branch or episode artifact (reversible before ordinary merge); candidate lanes have no outward effects | judge thresholds/sample design remain F-PT-011; automatic judge selection is inadmissible until ratified |
 | J-20 | M6 scheduler/batch admission, M5 per-unit EpisodePlanner, M7 role sessions, M3 budget/settlement, M9 durable recovery; code units additionally M17/M4, direct effects M1/M2/T-12 | provider spend; no product effect merely from grouping; operational EpisodePlans may later perform separately approved external effects | provider cache hits are measured adapter evidence, never assumed; non-GitHub live effect proof remains B-17-L3 blocked until a disposable target exists |
-| J-21 | the L-ACC runner over B-27/B-28/B-29; then the *packaged* product across M10, M17, M5, M4, M7, M3, M14 and B-01, plus M18 for the job scenario | **provider spend (the dominant one)**; issues/PRs/merges in the campaign's own sandbox repos; org and app registration in the campaign org. **Deployment is deliberately not reachable** — a campaign ends buildable with a preview command, never hosted | settled 2026-08-07 — **L-ACC never gates a release** (F-PT-029) and an unattended campaign **may** auto-continue past the plan gate through a declared policy (F-PT-030), under the unchanged rubric §6 criteria. Remaining: every axis threshold is unratified by ratified rubric §5, so no axis yields pass/fail from run 1's data alone |
+| J-21 | the L-ACC runner over B-27/B-28/B-29; then the *packaged* product across M10, M17, M5, M4, M7, M3, M14 and B-01, plus M18 for the job scenario | **provider spend (the dominant one)**; issues/PRs/merges in the campaign's own sandbox repos; org and app registration in the campaign org. **Deployment is deliberately not reachable** — a campaign ends buildable with a preview command, never hosted | settled 2026-08-07 — **L-ACC never gates a release** (F-PT-029) and an unattended campaign **may** auto-continue past the plan gate through a declared policy (F-PT-030), under the unchanged rubric §6 criteria. Remaining: every axis threshold is unratified by ratified rubric §5, so no axis yields pass/fail from any run's data until the human ratifies thresholds from the first **graded** distribution a campaign produces (run 1 ended entirely ungraded — trigger unmet; wording aligned 2026-08-10, gate follow-up) |
 | J-22 | M18 over M7 (per-step assignment under the `operator` ceiling), M3 (job envelope), M1 (gate), M9/B-15 (journal durability), M14 (`observe`) | provider spend; whatever a gated-and-approved step performs | none — jobs reach no GitHub and no external target of their own (`docs/jobs/design.md` §3) |
 | J-23 | M18 over M7/M3/M1/B-15; deliberately **not** M10 (no app), M17, M4 | provider spend | none |
 
@@ -358,6 +367,16 @@ double-settlement is T-5; T-2 applies only when the decision or grant itself was
 compromised; silent reset of ambiguous bytes is T-6/F-PT-004). Adversity stimuli (sleep,
 auth expiry, GitHub failure, process death) are *normal* inputs at this tier, not chaos
 engineering `[walk]`.
+
+**Sequencing when several control points fire at once** <!-- changelog 2026-08-10
+(reader test 7, operator finding 4): restates the rows' own consequence rationale
+as an ordering; it introduces no new ranking decision -->: all twelve are C3-equal
+by tier; triage the one whose ongoing effect is *least recallable* first. From the
+rows' stated rationale that means: the §5.5 compound worst case as a unit if its
+shape is present; otherwise effects that leave the machine or destroy state
+(T-12 irreversible execution, T-8 destructive lifecycle, T-7 merge authority)
+before internally recoverable ones (settlement, scheduling, evidence truth), whose
+records support later reconciliation.
 
 ### 5.3 C2 standard (everything not listed above)
 

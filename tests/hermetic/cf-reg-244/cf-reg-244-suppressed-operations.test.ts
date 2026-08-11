@@ -1,3 +1,5 @@
+// Traceability: CF-REG-244 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-244 — a suppressed critical operation is recorded and reaches the
 // turn verdict.
 //

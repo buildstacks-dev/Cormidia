@@ -1,3 +1,5 @@
+// CF-B27 — HB-127 — contracts/B-27-acceptance-campaign.md §1.
+
 // CF-B27-SPEND (L1) — the exact outer authorization is a pre-admission bound.
 
 import { afterEach, describe, expect, it } from "vitest";

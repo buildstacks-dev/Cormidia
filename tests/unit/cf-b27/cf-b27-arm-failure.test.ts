@@ -1,3 +1,5 @@
+// CF-B27 — HB-127 — contracts/B-27-acceptance-campaign.md §4.
+
 import { describe, expect, it } from "vitest";
 import { failedArmRows } from "../../campaign/acceptance/campaign-arms.js";
 import type { AxisGraderResolution } from "../../campaign/acceptance/grader-independence.js";

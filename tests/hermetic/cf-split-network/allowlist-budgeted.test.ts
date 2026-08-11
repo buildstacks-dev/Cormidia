@@ -1,3 +1,5 @@
+// Traceability: CF-SPLIT-NETWORK · HB-138 · case-catalog.md §10.3.
+
 // CF-SPLIT-NETWORK (L2) — the allowlist→budgeted refinement at the composed
 // gate (#296 §5.4, F-PT-023 ratified): a request to a host on the app's
 // CONFIGURED allowlist is budgeted — it proceeds with a per-action audit row

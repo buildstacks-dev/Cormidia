@@ -1,3 +1,5 @@
+// CF-INV-002 — HB-010 — invariants.md CORMIDIA-INV-002.
+
 // CF-INV-002/CF-INV-003 — Stage 1 of the consequence-classification plan
 // (docs/approvals/consequence-classification-implementation-plan.md): the
 // decideDisposition mechanism must reproduce today's gate decisions EXACTLY.

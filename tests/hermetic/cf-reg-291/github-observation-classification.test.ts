@@ -1,3 +1,5 @@
+// Traceability: CF-REG-291 · HB-052 · case-catalog.md §10.3.
+
 // CF-REG-291 — a finite sample of GitHub's eventually consistent search
 // projection cannot falsify a contract that promises no staleness maximum.
 // The gate must remain red as incomplete/inconclusive, while real artifact

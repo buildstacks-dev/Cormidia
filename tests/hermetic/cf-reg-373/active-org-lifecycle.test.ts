@@ -1,3 +1,5 @@
+// Traceability: CF-REG-373 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-373 (L2) — stale active-org pointers retain lifecycle identity at
 // every CLI boundary. Real temp org homes and pointer bytes; zero network.
 

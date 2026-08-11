@@ -1,3 +1,5 @@
+// Traceability: CF-REG-202 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-202 — an accepted revision triggered by a reviewer's findings is
 // executable: its repaired review step settles from the evidence that already
 // exists, and the revision reaches its `fix` step.

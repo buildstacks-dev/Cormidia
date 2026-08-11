@@ -1,3 +1,5 @@
+// CF-REG-332 — HB-139 — case-catalog.md §10.3, defect #332.
+
 // CF-REG-332 — the drifting harness facts have exactly one home.
 //
 // Two obligations, both load-bearing:

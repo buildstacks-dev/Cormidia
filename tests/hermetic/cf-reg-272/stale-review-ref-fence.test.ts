@@ -1,3 +1,5 @@
+// Traceability: CF-REG-272 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-272 — GitHub's PR projection can lag a just-pushed branch ref. The
 // review write fence must compare expectedCommit to the authoritative ref,
 // not accept a stale `pr view` result and publish against the old commit.

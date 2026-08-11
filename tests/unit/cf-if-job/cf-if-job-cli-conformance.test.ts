@@ -1,3 +1,5 @@
+// CF-IF-JOB — HB-033 — system-map.md §1.4 interface-adapter matrix.
+
 // CF-IF-JOB (L1) — the `cormidia-job` CLI adapter surface.
 //
 // The second binary carries a DIFFERENT promise from `cormidia`, and the

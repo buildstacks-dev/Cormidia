@@ -1,3 +1,5 @@
+// CF-SPLIT-NETWORK — HB-138 — case-catalog.md §10.1, consequence split §5.4.
+
 // CF-SPLIT-NETWORK (L1) — the §5.4 outbound-network destination refinement
 // (#296, F-PT-023 ratified 2026-08-06; case-catalog §10.1):
 //

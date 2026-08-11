@@ -14,7 +14,7 @@
 // "NONE" — introducing a threshold anywhere but a ratified rubric edit is
 // exactly what rubric §5 forbids.
 
-import { loadValidationPolicy, PolicyLoadError } from "../../policy/policy-loader.js";
+import { loadValidationPolicy, PolicyLoadError } from "../../policy/cf-reg-278/policy-loader.js";
 
 export type AxisScoreValue = 0 | 1 | 2 | 3 | "ungraded";
 

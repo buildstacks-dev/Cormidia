@@ -1,3 +1,5 @@
+// Traceability: CF-REG-228 · HB-139 · case-catalog.md §10.3.
+
 // #228 — a clock wake-up is not paid-turn eligibility. These cases exercise
 // the dispatcher boundary so the spawn/provider-construction seam itself is
 // proven untouched for empty scheduled work.

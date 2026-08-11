@@ -1,3 +1,5 @@
+// CF-REG-370 — HB-139 — case-catalog.md §10.3, defect #370.
+
 // CF-REG-370 — packaging smoke must exercise npm's actual global layout.
 // A project-local node_modules install cannot prove global bin placement,
 // same-prefix reinstall, or the installed-root path used by packaged skills.

@@ -1,3 +1,5 @@
+// Traceability: CF-REG-370 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-370 — --replace-source-links is consent for the invoking checkout,
 // not permission to dismantle another Cormidia development loop.
 

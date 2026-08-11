@@ -1,3 +1,5 @@
+// CF-REG-274 — HB-139 — case-catalog.md §10.3, defect #274.
+
 // CF-REG-274 — live Vitest wrappers could all pass while the durable campaign
 // correctly recorded a failing verdict. The persisted terminal report now
 // drives the process-level gate result too.

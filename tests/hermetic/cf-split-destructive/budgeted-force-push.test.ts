@@ -1,3 +1,5 @@
+// Traceability: CF-SPLIT-DESTRUCTIVE · HB-138 · case-catalog.md §10.3.
+
 // CF-SPLIT-DESTRUCTIVE (L2) — the budgeted tier at the composed gate (#296,
 // F-PT-023 ratified; owner decision 3: force-push follows the namespace the
 // orchestrator already owns — budgeted there, human-only everywhere else).

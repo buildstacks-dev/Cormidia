@@ -1,3 +1,5 @@
+// Traceability: CF-REG-209 · HB-139 · case-catalog.md §10.3.
+
 // #209 — scheduler health describes scheduler execution, not ordinary
 // backpressure, and a spawned provider decision is pending until its durable
 // receipt makes settlement denominators measurable.

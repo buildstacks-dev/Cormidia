@@ -1,3 +1,5 @@
+// CF-SPLIT-PUBLISHING — HB-138 — case-catalog.md §10.1, consequence split §5.3.
+
 // CF-SPLIT-PUBLISHING (L1) — the §5.3 headline split of `external-publishing`
 // (#296, F-PT-023 ratified 2026-08-06; case-catalog §10.1):
 //

@@ -1,3 +1,5 @@
+// Traceability: CF-INV-ACC-3 · HB-123 · invariants.md INV-ACC-3.
+
 // CF-INV-ACC-3 (L1/L2) — a campaign never points an app at this repository.
 //
 // Real temp git repos, real remotes, real realpaths: the three escape routes

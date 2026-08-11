@@ -1,3 +1,5 @@
+// Traceability: CF-INV-002 · HB-010 · invariants.md CORMIDIA-INV-002.
+
 // CF-INV-002 — "forbidden read via hook bridge" + seed (d) "the Codex
 // untrusted-read bypass (issue #20) generalized to a write". Codex's App Server
 // approval callback does not see auto-approved reads such as `cat .env`; the

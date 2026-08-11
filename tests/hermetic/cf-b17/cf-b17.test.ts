@@ -1,3 +1,5 @@
+// Traceability: CF-B17 · HB-013 · boundary-map.md B-17; contracts/B-17-typed-executor.md §§1–5.
+
 // CF-B17-* — typed critical-effect executor against a scripted external
 // target (contracts/B-17-typed-executor.md §1–§5; CORMIDIA-INV-003/008/014;
 // system-map T-12; risk E-1): accept-vs-complete split, lost response,

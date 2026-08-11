@@ -1,3 +1,5 @@
+// CF-REG-369 — HB-139 — case-catalog.md §10.3, defect #369.
+
 // CF-REG-369 (L1) — disposition-specific TicketPlan ordering. Seeded plans
 // prove the detector fires; corrected controls prove the intended graph passes.
 

@@ -1,3 +1,5 @@
+// Traceability: CF-OPS-CONT · HB-070 · risk-allocation.md §6 contention obligation.
+
 import { describe, expect, it, vi } from "vitest";
 
 // The desktop sandbox denies `ps`, but the contention rig is about dispatch,

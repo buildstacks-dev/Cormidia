@@ -1,3 +1,5 @@
+// CF-INV-002 — HB-010 — invariants.md CORMIDIA-INV-002, objective authority routes.
+
 // CF-INV-002 — the objective CLI's write verbs are an effect surface (#296
 // Stage 3): `cormidia objective grant|grant-critical|revoke` from inside a
 // turn is self-granting by CLI — the same forged authority as a grant-file

@@ -1,3 +1,5 @@
+// Traceability: CF-REG-374 · HB-139 · case-catalog.md §10.3.
+
 // #374 CLI acceptance: help and token-free dry-run distinguish complete
 // decomposition intent from per-invocation publication admission.
 

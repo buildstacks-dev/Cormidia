@@ -13,7 +13,7 @@
 // exactly as strict.
 //
 // Binaries keep the opposite rule (fail-fast, nothing partial) and that
-// asymmetry is pinned in tests/hermetic/cf-b14/cf-b14-link-ownership.test.ts.
+// asymmetry is pinned in tests/hermetic/cf-b14-cf-c-b14-cf-reg-359/cf-b14-link-ownership.test.ts.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readlink, rm, symlink, writeFile } from "node:fs/promises";

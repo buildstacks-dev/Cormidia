@@ -1,3 +1,5 @@
+// Traceability: CF-REG-370 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-370 — an existing Cormidia install must converge as one owned set.
 // Every command below redirects npm's global prefix and all provider homes to
 // one temp root. The host's actual global package, bins, and skills are never

@@ -1,3 +1,5 @@
+// Traceability: CF-INV-ACC-7b · HB-126 · invariants.md INV-ACC-7b.
+
 // CF-INV-ACC-7b (L1/L2) — the campaign asserts `install:packaged`'s exit status
 // and records what it installed, without reimplementing the script's checks.
 //

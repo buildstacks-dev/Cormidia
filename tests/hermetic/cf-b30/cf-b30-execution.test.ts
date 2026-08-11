@@ -1,3 +1,5 @@
+// Traceability: CF-B30 · HB-128 · boundary-map.md B-30; contracts/B-30-jobs.md.
+
 // CF-B30-CHK / CF-B30-HND / CF-B30-SET (L2) — job step execution composition.
 //
 // These are the three properties that make a job trustworthy without a reviewer:

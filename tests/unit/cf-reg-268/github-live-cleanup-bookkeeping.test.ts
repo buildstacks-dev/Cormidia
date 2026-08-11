@@ -1,3 +1,5 @@
+// CF-REG-268 — HB-139 — case-catalog.md §10.3, defect #268.
+
 // CF-REG-268 — successful conformance branch deletion consumes the tracked
 // cleanup effect. The seeded bypass below reproduces the stale bookkeeping
 // that made a clean real-GitHub walk report one false cleanup failure.

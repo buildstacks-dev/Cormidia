@@ -1,3 +1,5 @@
+// Traceability: CF-REG-211 · HB-139 · case-catalog.md §10.3.
+
 // #211 — the scheduler definition owns its environment. Required binaries
 // are resolved at install time and verified under that exact PATH.
 

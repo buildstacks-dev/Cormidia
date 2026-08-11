@@ -1,3 +1,5 @@
+// Traceability: CF-C-OPLIFE · HB-015 · contracts/OP-lifecycle.md §§1–6.
+
 // CF-C-OPLIFE — contract-clause sweep over CORMIDIA-C-OPLIFE-001 §§1–6 plus the
 // error split: precondition/identity failures refuse BEFORE domain mutation;
 // mid-execution failures leave the journaled, resumable intermediate
@@ -42,8 +44,13 @@ import {
   makeUpgradeWorld,
   snapshotTree,
   snapshotTreeAllowEmpty,
-} from "../cf-j01/support.js";
-import { diffWorld, makeResetWorld, snapshotWorld, TARGET_APP } from "../cf-j14/support.js";
+} from "../cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/support.js";
+import {
+  diffWorld,
+  makeResetWorld,
+  snapshotWorld,
+  TARGET_APP,
+} from "../cf-inv-010-cf-j14-a-cf-j14-i-cf-j14-r-cf-j14-rc-cf-j14-s/support.js";
 
 describe("CF-C-OPLIFE — C-OP-LIFE §§1–6 + error split (contracts/OP-lifecycle.md)", () => {
   let cleanups: Array<() => Promise<void>> = [];

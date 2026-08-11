@@ -1,3 +1,5 @@
+// Traceability: CF-INV-002 · HB-010 · invariants.md CORMIDIA-INV-002.
+
 // CF-INV-002 — the gate is total, and every critical route meets the SAME
 // approval boundary before execution. This exercises the composed org gate
 // (src/org/gate-compose.ts) over the real classifier (src/runtime/gate.ts) and

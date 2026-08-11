@@ -1,3 +1,5 @@
+// Traceability: CF-REG-236-BUDGET · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-236-BUDGET (executor half) — a parked provider step stays open.
 //
 // The live ticket path is the EpisodePlan DAG executor, and its journal has

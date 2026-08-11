@@ -11,12 +11,13 @@ function stripcomments(s) {
   }
   return trim(s)
 }
-function addfam(fid, sec, st, lay, ora, rsk, prn, rsn, bby, brem, cov, kl) {
+function addfam(fid, sec, st, lay, ora, rsk, prn, rsn, bby, brem, cov, kl, evs, evp) {
   if (fid in fstat) { dupfam[fid] = 1; return }
   forder[++nf] = fid
   fsec[fid] = sec; fstat[fid] = st; flay[fid] = lay; fora[fid] = ora; frisk[fid] = rsk
   fprune[fid] = prn; freason[fid] = rsn; fbby[fid] = bby; fbrem[fid] = brem; fcov[fid] = cov
   fkl[fid] = kl
+  fevstate[fid] = evs; fevpath[fid] = evp
 }
 # AUD-102 (audit rev-2026-08-10): KNOWN-LIMITATION:<finding> markers were invisible
 # to the YAML (only BLOCKED: was extracted), hiding F-PT-018 from machine consumers.
@@ -41,6 +42,15 @@ function extract_blocked(text,   out, t, tok) {
     t = substr(t, RSTART + RLENGTH)
   }
   return out
+}
+function extract_evidence(text,   t, tok) {
+  t = text
+  gsub(/\*\*/, "", t)
+  if (match(t, /EVIDENCE:(complete|incomplete|inconclusive|unobserved):[^ \t)`]+/)) {
+    tok = substr(t, RSTART, RLENGTH)
+    return tok
+  }
+  return ""
 }
 function prune_token(text,   t) {
   t = text
@@ -136,12 +146,20 @@ pass == 1 {
   for (a = 1; a <= nids; a++) {
     fid = idlist[a]
     kl = extract_kl(text)
+    ev = extract_evidence(text)
+    evs = ""; evp = ""
+    if (ev != "") {
+      sub(/^EVIDENCE:/, "", ev)
+      ep = index(ev, ":")
+      evs = substr(ev, 1, ep - 1)
+      evp = substr(ev, ep + 1)
+    }
     if (isblank) {
       bb = extract_blocked(text)
       if (bb != "") addfam(fid, cursec, "blocked", "", "", "", "", text, bb, "", cov, kl)
       else addfam(fid, cursec, "pruned", "", "", "", prune_token(text), text, "", "", cov, kl)
     } else {
-      addfam(fid, cursec, "implementable", lay, ora, rsk, "", "", "", extract_blocked(text), cov, kl)
+      addfam(fid, cursec, "implementable", lay, ora, rsk, "", "", "", extract_blocked(text), cov, kl, evs, evp)
     }
   }
   next
@@ -235,6 +253,7 @@ END {
     if (fstat[f] == "implementable") {
       lineout = lineout ", layers: \"" esc(flay[f]) "\", oracle: \"" esc(fora[f]) "\", risk: \"" esc(frisk[f]) "\""
       if (fbrem[f] != "") lineout = lineout ", blocked_remainder: [" esc(fbrem[f]) "]"
+      if (fevstate[f] != "") lineout = lineout ", evidence_state: \"" esc(fevstate[f]) "\", evidence_path: \"" esc(fevpath[f]) "\""
     }
     if (fstat[f] == "pruned") {
       lineout = lineout ", prune: \"" esc(fprune[f]) "\", reason: \"" esc(freason[f]) "\""

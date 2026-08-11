@@ -165,9 +165,8 @@ ambiguities became findings F-PT-012..016 (cells parked; see policy
 open_findings). -->
 
 
-- **HB-010** Gate classifier adversarial suite (CF-INV-002 seeds incl. obfuscation,
-  unknown-tool fail-closed; gate-runner toolchain families CF-B16-*, CF-C-B16;
-  publication-gate refusal CF-J11-R). Executor: build-agent.
+- **HB-010** Gate classifier adversarial suite (CF-INV-002 seeds incl. obfuscation
+  and unknown-tool fail-closed). Executor: build-agent.
 - **HB-011** Approval store + grant lifecycle state machines (CF-SM-APPR-*,
   CF-SM-GRANT-*, both grant shapes; orphan-grant intermediate; CF-INV-003,
   CF-B09b-*, CF-C-B09B decision-entry families). Executor: build-agent.
@@ -176,8 +175,8 @@ open_findings). -->
 - **HB-013** Typed executor + marker typing (CF-B17-*, CF-C-B17, CF-J05-*, CF-J17-*;
   B-17 live remainder stays BLOCKED). Executor: build-agent.
 - **HB-014** Authority resolution + org-identity suite (CF-B10-*, CF-C-B10,
-  CF-INV-001 seeds, CF-INV-004 app-isolation facets, CF-INV-015 error-branch sweep,
-  B-10a identity classes). Executor: build-agent.
+  CF-INV-001 seeds, CF-INV-004 app-isolation facets, B-10a identity classes).
+  Executor: build-agent.
 - **HB-015** Destructive lifecycle containment (CF-J01-*, CF-J14-*, CF-C-OPLIFE,
   CF-INV-010; sibling-diff oracle; temp-FS/git fault injection only). Executor:
   build-agent.
@@ -199,10 +198,10 @@ land with every discovered defect. Full per-commit L1/L2 gate: 95 files,
 provider conformance remains the separately gated HB-051 L3 obligation. -->
 
 - **HB-020** Settlement conservation + reconcile (CF-J08-*, CF-INV-006 property tests
-  via fast-check). **HB-021** Claim uniqueness/races (CF-INV-005, CF-J09-*, CF-C-B08
-  tick↔turn families). **HB-022** Admission/pause (CF-J07-*, CF-INV-007; the former
+  via fast-check). **HB-021** Claim uniqueness/races (CF-INV-005, CF-J09-RC).
+  **HB-022** Admission/pause (CF-J07-*, CF-INV-007; the former
   F-PT-003 block lifted 2026-07-31 — convergence cases land via HB-P1, unparked
-  below). **HB-023** Crash-point sweeps (CF-J04-I, CF-SM-TURN-*, CF-INV-013,
+  below). **HB-023** Crash-point sweeps (CF-J04-I, CF-SM-TURN-*,
   CF-B07-*, CF-C-B07 harness; F-PT-004 line ratified 2026-07-31:
   preserve-and-inspect — ambiguous-byte cases land via HB-P2, unparked below).
   **HB-024** Adapter enforcement slices T-11 (budget observation per capability
@@ -226,11 +225,11 @@ typecheck and build green. This status is L1/L2 only and does not imply any
 separately gated L3/L4/L5 evidence. -->
 
 - **HB-030** Merge boundary suite (CF-INV-009, CF-INV-012; HEAD equality; resolved
-  default). **HB-031** Loop state machine + labels-after-artifacts (CF-SM-LOOP-*,
-  CF-J04-S, CF-J04-R). **HB-032** Evidence truthfulness sweep across readers (CF-INV-008,
-  CF-INV-014, CF-J15-*, the J-07/J-08/J-02 agreement legs (owned at their home
-  tickets HB-022/HB-020/HB-042), CF-J11-S, CF-J11-I, CF-J11-RC,
-  CF-J11-A, CF-B12-*, CF-C-B12 incl. capability/traversal). **HB-033** Cross-surface
+  default). **HB-031** Loop legal/illegal/replay state machine + labels-after-artifacts
+  (CF-SM-LOOP-L, CF-SM-LOOP-I, CF-SM-LOOP-R, CF-J04-S, CF-J04-R).
+  **HB-032** Evidence truthfulness sweep across readers (CF-INV-008, CF-J15-*, the
+  J-07/J-08/J-02 agreement legs (owned at their home tickets HB-022/HB-020/HB-042),
+  CF-B12-*, CF-C-B12 incl. capability/traversal). **HB-033** Cross-surface
   agreement (CF-IF-XSURF + CF-IF-* conformance). Executor: build-agent (all).
 
 ## Wave 4 — standard + thin remainder (L1/L2)
@@ -250,7 +249,7 @@ evidence. -->
 
 - **HB-040** Event inbox (CF-B13-*, CF-C-B13, CF-J10-*, CF-SM-EVENT-*; F-PT-006
   clauses parked). **HB-041** Planner validator + planning ops (CF-J03-*,
-  CF-SM-PLAN-*, C-OP-PLAN). **HB-042** Onboarding ladder + lifecycle records
+  C-OP-PLAN). **HB-042** Onboarding ladder + lifecycle records
   (CF-J02-*, CF-SM-LADDER-L, CF-SM-LADDER-I). **HB-043** Scheduler lifecycle
   hermetic (CF-J16-S, CF-J16-R, CF-J16-I, CF-B05-*, CF-C-B05). **HB-044** Retention GROW suite
   (CF-OPS-GROW, seeded aged state). **HB-045** Presentation smokes (thin, per
@@ -296,9 +295,9 @@ blocked exactly as designed. -->
   authorized L3 evidence.
 - **HB-053** CF-J16-A launchd proof. *Gate: operator machine session.* Executor:
   human + build-agent script.
-- **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile, with
-  its hermetic composite halves CF-J18-S, CF-J18-R, CF-J18-I, CF-J18-RC preceding
-  the live run on the fake-timer rig.
+- **HB-054** Unattended sandbox campaign CF-J18-A under the test-mode profile. Its
+  deterministic hermetic composite prerequisite is now pending on HB-144 rather than
+  claimed by this landed live-campaign ticket.
   *Gate: the profile surface must first be ratified + implemented in Cormidia (policy
   `unattended_test_mode_profile`) — a product change, tracked as its own product
   ticket, not a harness ticket.* Executor: campaign. **Implementation dependency
@@ -634,7 +633,7 @@ prepares the proposal and a human separately ratifies any such surface. -->
   construct zero provider runtimes; detailed prose, label-only state, C3/boundary/schema/
   migration changes and incomplete scopes take the bounded planning/design path or
   refuse—never the shortcut. A future Jira adapter is not implied by this work.
-  *Defends:* CF-J03-A, CF-J03-R, CF-S1-env, CF-C-OPPLAN, CF-C-OPVALIDATION. *Layer:* 1/2.
+  *Defends:* CF-J03-A, CF-J03-R, CF-C-OPPLAN, CF-C-OPVALIDATION. *Layer:* 1/2.
   *Executor:* build-agent. *Depends on:* HB-101/102.
   *Implementation:* `src/org/roadmap-loop-runtime.ts`, `src/org/ticket-episode-runtime.ts`,
   `src/org/plan-auto.ts`, and the CLI/dispatcher seams consume accepted RoadmapPlan,
@@ -913,13 +912,13 @@ guessed, and S-ACC-3 needed no edit. **No L-ACC cell is blocked.**
   *Defends:* CORMIDIA-C-B27-001, CORMIDIA-INV-ACC-4. *Families:* CF-SM-ACC-*,
   CF-B27-*, CF-C-B27, CF-J21-R (the preflight-refusal journey leg). *Layer:* 1/2.
   *Executor:* build-agent.
-- **HB-128 — jobs families (M18). DONE 2026-08-08** — the pre-existing suite was re-registered from the pre-revision numbering (the ids then called B-23/J-21/J-22 <!-- changelog 2026-08-10 (machine-parse): the old ids are named in prose, not as family tokens, so this history cannot claim ownership of the families those numbers denote today (OpenCode adapter; L-ACC campaign journey) -->) onto CF-B30-*/CF-J22-*/CF-J23-* (B-23 is now OpenCode, J-21 the L-ACC campaign), and CF-SM-JOB-*, CF-IF-JOB and the seeded double-settle control are new (`tests/unit/cf-b30-cfg/`, `tests/hermetic/cf-b30/`, `tests/hermetic/cf-j22-j23/`, `tests/hermetic/cf-sm-job/`, `tests/unit/cf-if-job/`). CF-B30-*, CF-J22-*, CF-J23-*, CF-SM-JOB-*,
+- **HB-128 — jobs families (M18). DONE 2026-08-08** — the pre-existing suite was re-registered from the pre-revision numbering (the ids then called B-23/J-21/J-22 <!-- changelog 2026-08-10 (machine-parse): the old ids are named in prose, not as family tokens, so this history cannot claim ownership of the families those numbers denote today (OpenCode adapter; L-ACC campaign journey) -->) onto CF-B30-*, CF-J22-S, CF-J22-I, CF-J22-RC, and CF-J23-* (B-23 is now OpenCode, J-21 the L-ACC campaign), and CF-SM-JOB-*, CF-IF-JOB and the seeded double-settle control are new (`tests/unit/cf-b30-cfg/`, `tests/hermetic/cf-b30/`, `tests/hermetic/cf-j22-j23/`, `tests/hermetic/cf-sm-job/`, `tests/unit/cf-if-job/`). CF-B30-*, CF-J22-S, CF-J22-I, CF-J22-RC, CF-J23-*, CF-SM-JOB-*,
   CF-IF-JOB against the existing fixture kit. *Acceptance:* negative controls per the
   jobs design — cyclic config, drifted config hash, a declared output that exists but is
   empty, a lying fake provider reporting `completed` for a step whose check fails, nested
   invocation, and a seeded double-settle. *Defends:* CORMIDIA-C-B30-001…003,
-  CORMIDIA-C-OPJOB-001, INV-008/015 jobs tightenings. *Families:* also CF-C-B30,
-  CF-C-OPJOB. *Layer:* 1/2. *Executor:* build-agent.
+  CORMIDIA-C-OPJOB-001, INV-008/015 jobs tightenings. *Families:* also CF-C-B30.
+  *Layer:* 1/2. *Executor:* build-agent.
 - **HB-129 — S-11 grader envelope + the fabrication control. DONE 2026-08-08** (`tests/hermetic/cf-s11-env/`; the required first case is committed at `golden-sets/acceptance-grader/cases.json` and the O-5 detector was verified red against it). Evidence-set composition
   per axis (self-report excluded from O-1…O-3 and the subject of O-5), result schema with
   mandatory citation, and the **seeded fabricated claim** as the first committed case in
@@ -1114,6 +1113,114 @@ or golden set changed.
   discipline applied to the machine catalog). *Acceptance:* red-then-green against
   a seeded hand-edit to the committed YAML; runs in the per-commit lane.
   *Families:* CF-HARNESS-CI (harness self-test register). *Layer:* 1 + CI.
+  *Executor:* build-agent.
+
+## Wave 1 — status-honesty reclassification (2026-08-11)
+
+Approved from the read-only status-honesty triage. These are new pending tickets, not
+retroactive changes to the assertions in any existing spec.
+
+- **HB-141 — gate-command runner and exact-payload publication refusal. PENDING.**
+  Build the missing scripted gate-command matrix: hang→timeout-kill, bounded
+  stdout/stderr flood, missing tool, exit-0 liar bound to candidate SHA, candidate
+  mutation between bind and run, and a bare pending template that fails closed. Add
+  the journey-level refusal for publication without exact-payload approval.
+  *Acceptance:* every named runner failure and the publication bypass have their own
+  case; a seeded exit-0 liar and a seeded approval bypass each turn the detector red
+  before the corrected path is green. *Defends:* CF-B16, CF-C-B16, CF-J11-R.
+  *Families:* CF-B16, CF-C-B16, CF-J11-R. *Layer:* 1/2. *Executor:* build-agent.
+- **HB-150 — conservative cross-family error-branch sweep. PENDING.** Exercise corrupt
+  HMAC key, missing charter, classifier throw, and unreadable budget as one floor
+  invariant: every error must reduce capability, never increase it or produce a greener
+  result. *Acceptance:* four explicit cases plus a seeded permissive fallback that turns
+  the detector red before the conservative paths are green. *Defends:* CF-INV-015.
+  *Families:* CF-INV-015. *Layer:* 1/2. *Executor:* build-agent.
+
+## Wave 2 — status-honesty reclassification (2026-08-11)
+
+- **HB-142 — scheduler-admission matrix and clause-complete contract. PENDING.** Add
+  due arithmetic over schedule/event/cadence overrides, the full named non-admission
+  vocabulary, durable pre-spawn decisions, the asymmetric spawn-failure versus
+  post-spawn-bookkeeping-failure paths without duplicate spawn, and manual-versus-timer
+  dispatch parity. *Acceptance:* the complete B-08 contract enumeration is exercised;
+  a seeded duplicate spawn and a seeded initiator divergence each turn red before the
+  honest implementation is green. *Defends:* CF-J09-S, CF-J09-R, CF-J09-I, CF-J09-A,
+  CF-C-B08. *Families:* CF-J09-S, CF-J09-R, CF-J09-I, CF-J09-A, CF-C-B08. *Layer:* 2.
+  *Executor:* build-agent.
+- **HB-148 — store-class crash/truncation/quarantine invariant. PENDING.** Sweep kill
+  points at append, rename, and journal boundaries for every durable store class; reject
+  truncated JSON and prove quarantined bytes are never accepted as state. Existing
+  journey-specific kill tests remain evidence only for their own journeys.
+  *Acceptance:* each store class has a crash leg and a seeded truncated/quarantined-state
+  negative control that turns red before the invariant is green. *Defends:* CF-INV-013.
+  *Families:* CF-INV-013. *Layer:* 2. *Executor:* build-agent.
+
+## Wave 3 — status-honesty reclassification (2026-08-11)
+
+- **HB-143 — internal-artifact and incident journey family. PENDING.** Exercise
+  Support/Marketing/SRE completion into channel-gated internal artifacts, the distinct
+  analysis-complete and incident-filed claims with a crash between them, exactly one
+  source-linked incident under retry, and draft visibility through observe without any
+  publication effect. *Acceptance:* all four journey families have direct cases; seeded
+  duplicate-incident and publication-side-effect controls turn red before the walk is
+  green. *Defends:* CF-J11-S, CF-J11-I, CF-J11-RC, CF-J11-A. *Families:* CF-J11-S,
+  CF-J11-I, CF-J11-RC, CF-J11-A. *Layer:* 2. *Executor:* build-agent.
+- **HB-146 — loop transition crash sweep. PENDING.** Extend the existing legal,
+  illegal, and replay loop-state suite with a crash at every transition boundary while
+  preserving predecessor authority and labels-after-artifacts ordering. *Acceptance:*
+  every productive transition has a kill point and a seeded torn transition turns the
+  detector red before recovery is green. *Defends:* CF-SM-LOOP-C. *Families:*
+  CF-SM-LOOP-C. *Layer:* 2. *Executor:* build-agent.
+- **HB-149 — admission/bookkeeping evidence invariant. PENDING.** Add the missing
+  four-leg invariant sweep: WIP limitation emits its named reason, a sweep without marks
+  refuses, spawn failure after the durable decision is named, and post-spawn bookkeeping
+  failure remains distinct. *Acceptance:* all four legs are independently asserted; a
+  seeded collapsed failure vocabulary turns red before the evidence is green.
+  *Defends:* CF-INV-014. *Families:* CF-INV-014. *Layer:* 2. *Executor:* build-agent.
+
+## Wave 4 — status-honesty reclassification (2026-08-11)
+
+- **HB-147 — EpisodePlan revision state machine. PENDING.** Implement direct coverage
+  for legal forward-only revisions, refusal of backward/edit-in-place revisions,
+  idempotent replay, and crash-safe persistence where a torn plan never becomes
+  terminal. *Acceptance:* all four state-machine families have direct cases; seeded
+  backward revision and torn-persist controls turn red before the state machine is
+  green. *Defends:* CF-SM-PLAN-L, CF-SM-PLAN-I, CF-SM-PLAN-R, CF-SM-PLAN-C.
+  *Families:* CF-SM-PLAN-L, CF-SM-PLAN-I, CF-SM-PLAN-R, CF-SM-PLAN-C. *Layer:* 2.
+  *Executor:* build-agent.
+
+## Wave L3 — status-honesty reclassification (2026-08-11)
+
+- **HB-144 — unattended composite hermetic prerequisite. PENDING.** Before any live
+  campaign credit, build the missing fake-timer multi-tick composite: full reached-link
+  evidence, admitted-or-named-non-admission accounting, every typed non-green morning
+  state, and recovery without lost or duplicate work. The existing profile test remains
+  cited only for profile authorization. *Acceptance:* all four deterministic composite
+  families run on the hermetic rig; seeded lost-work and duplicate-work controls each
+  turn red before recovery is green. *Defends:* CF-J18-S, CF-J18-R, CF-J18-I,
+  CF-J18-RC. *Families:* CF-J18-S, CF-J18-R, CF-J18-I, CF-J18-RC. *Layer:* 2.
+  *Executor:* build-agent.
+
+## Outcome-acceptance status-honesty reclassification (2026-08-11)
+
+- **HB-145 — job refusal, cross-surface agreement, and critical-operation contract.
+  PENDING.** Complete the job pre-runtime refusal enumeration, downstream-stop and
+  gated-operation legs; then prove the CLI and observe agree while keeping
+  `completed (unverified)` distinct on every surface. Existing job lifecycle and journey
+  tests remain cited only for the adjacent behavior they assert. *Acceptance:* each
+  refusal occurs before runtime construction, failed checks stop downstream work, a
+  seeded gate bypass turns red, and CLI/observe render the same durable fixture truth.
+  *Defends:* CF-J22-R, CF-J22-A, CF-C-OPJOB. *Families:* CF-J22-R, CF-J22-A,
+  CF-C-OPJOB. *Layer:* 1/2. *Executor:* build-agent.
+
+## Proposed deterministic status-honesty reclassification (2026-08-11)
+
+- **HB-151 — planning-call-site deterministic envelope. PENDING.** Complete the S-1
+  envelope beyond the existing roadmap/delta slices: malformed RoadmapPlan/EpisodePlan
+  handling, the aggregate 100-item/delta/eager trajectory, and the format-repair budget.
+  *Acceptance:* each enumerated envelope leg has a direct case; a seeded malformed plan
+  accepted past validation and a seeded over-budget repair each turn red before the
+  envelope is green. *Defends:* CF-S1-env. *Families:* CF-S1-env. *Layer:* 1/2.
   *Executor:* build-agent.
 
 ## Retrospective ownership records (2026-08-10, rev-2026-08-10)

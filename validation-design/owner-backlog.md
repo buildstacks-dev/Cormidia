@@ -1,7 +1,8 @@
-# Owner backlog companion — Cormidia harness (generated 2026-08-10, regenerated same day after the machine-traceability pass)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after the status-honesty triage)
 
-Non-normative, living. Generated from `harness-backlog.md` at commit `15708a7e`
-(rev-2026-08-10, including the HB-137…HB-139 retrospective records). If the backlog changes and this file's ticket-ID set goes stale,
+Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
+pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
+records. If the backlog changes and this file's ticket-ID set goes stale,
 that is a corpus bug — regenerate it in the same change; the repo's standing
 agent instructions (`agents-md-contribution.md`, landed in AGENTS.md) carry that
 staleness contract, so whichever coding agent touches the backlog next is routed
@@ -13,6 +14,58 @@ what done bought you.
 
 ## Open now — the short list that matters
 
+- **HB-141 — gate-command runner and exact-payload publication refusal (PENDING).**
+  Defends the point where an apparently green gate command or unapproved publication
+  would otherwise cross into effects. The failure it catches: hangs, floods, absent
+  tools, exit-0 liars, candidate drift, bare pending templates, and publication without
+  exact-payload approval. Done buys you one direct red-then-green case per failure,
+  before any larger journey can treat the gate as trustworthy.
+- **HB-142 — scheduler-admission matrix and contract (PENDING).** Defends truthful
+  due/admission/spawn accounting. The failure it catches: arithmetic or vocabulary gaps,
+  a lost durable pre-spawn decision, duplicate spawn across asymmetric failures, or
+  manual/timer initiators behaving differently. Done buys you the complete B-08
+  deterministic matrix rather than crediting the existing race slice for all of it.
+- **HB-143 — internal-artifact and incident journeys (PENDING).** Defends channel-gated
+  Support/Marketing/SRE output and truthful incident lifecycle. The failure it catches:
+  conflated analysis/filing, duplicate incidents on retry, or an observe-only draft that
+  publishes as a side effect. Done buys you direct coverage of all four missing journey
+  families.
+- **HB-144 — unattended composite hermetic prerequisite (PENDING).** Defends the live
+  unattended claim with a cheap deterministic prerequisite. The failure it catches: a
+  multi-tick chain that loses or duplicates work, omits considered-item dispositions, or
+  leaves a misleading morning state. Done buys you the complete fake-timer composite;
+  the existing profile test remains credited only for authorization.
+- **HB-145 — job refusal, agreement, and critical-operation contract (PENDING).**
+  Defends jobs before runtime construction and across CLI/observe surfaces. The failure
+  it catches: an omitted refusal, downstream work after a failed check, a gated operation
+  that proceeds, or `completed (unverified)` rendered as completed. Done buys you the
+  missing refusal/gate enumeration and cross-surface agreement without widening the
+  existing lifecycle tests.
+- **HB-146 — loop transition crash sweep (PENDING).** Defends predecessor authority at
+  every loop transition boundary. The failure it catches: a torn transition or label
+  projection that survives a crash as terminal truth. Done buys you the crash dimension
+  currently absent from the legal/illegal/replay loop suite.
+- **HB-147 — EpisodePlan revision state machine (PENDING).** Defends forward-only,
+  content-bound plan authority. The failure it catches: backward or in-place edits,
+  non-idempotent replay, and torn persistence accepted as terminal. Done buys you direct
+  legal/illegal/replay/crash coverage for all four state-machine families.
+- **HB-148 — store-class crash/truncation/quarantine invariant (PENDING).** Defends every
+  durable store class, not just the journey-specific kill points already present. The
+  failure it catches: truncated JSON or quarantined bytes becoming valid state after an
+  append, rename, or journal interruption. Done buys you the missing invariant sweep.
+- **HB-149 — admission/bookkeeping evidence invariant (PENDING).** Defends the distinct
+  reasons at the scheduler/sweep boundary. The failure it catches: WIP, missing marks,
+  spawn failure, and post-spawn bookkeeping failure collapsing into one greener or
+  ambiguous story. Done buys you an explicit four-leg evidence suite.
+- **HB-150 — conservative cross-family error sweep (PENDING).** Defends fail-closed
+  capability under corrupt HMAC state, missing charter, classifier exceptions, and
+  unreadable budget. The failure it catches: any error branch granting more authority or
+  producing a greener result. Done buys you one floor invariant across all four paths.
+- **HB-151 — planning-call-site deterministic envelope (PENDING).** Defends the S-1
+  envelope beyond the already-covered roadmap/delta slices. The failure it catches:
+  malformed plans admitted, eager large-plan trajectory drift, or repair continuing
+  beyond budget. Done buys you the aggregate malformed-plan, trajectory, and repair
+  family without overstating the partial tests.
 - **HB-133 — Builder/Reviewer provider-family pin (TODO, implementation-ready
   under a flagged caveat: the provider-FAMILY unit is a pending-ratification seat
   ruling, so "ready" means buildable with that unit swappable, not semantically
@@ -125,25 +178,28 @@ what done bought you.
   policy turns CI red.
 - HB-007: every provisional number was put in front of you; 1–8 and 13 ratified.
 
-**Wave 1 — permission-to-effect chain (2026-07-31).** HB-010 obfuscated-command
-refusals; HB-011 approval/grant state machines; HB-012 resume fingerprints fail
-closed; HB-013 approve-vs-execute split with ambiguity terminal; HB-014 authority
-resolution fails conservative; HB-015 destruction archived, scoped, sibling-proof;
+**Wave 1 — permission-to-effect chain (2026-07-31).** HB-010 classifier-level
+obfuscated-command refusals; HB-011 approval/grant state machines; HB-012 resume
+fingerprints fail closed; HB-013 approve-vs-execute split with ambiguity terminal;
+HB-014 authority and org-identity resolution fails conservative; HB-015 destruction
+archived, scoped, sibling-proof;
 HB-016 secret egress sweep; HB-017 learning can never self-promote; HB-P4 your
 ratified compare-and-refuse rule — a human edit racing the bootstrap always keeps
 the human's bytes. Twelve real product defects found and fixed with deposited
 detectors; five ambiguities became findings instead of guesses.
 
 **Wave 2 — durability + money (2026-07-31).** HB-020 exactly-once settlement;
-HB-021 claim races; HB-022 budget pause; HB-023 SIGKILL sweeps; HB-024 adapter
+HB-021 claim-race recovery; HB-022 budget pause; HB-023 journey/turn SIGKILL sweeps;
+HB-024 adapter
 enforcement + remaining doubles; HB-025 filesystem/git faults; HB-P1/HB-P2 your
 ratified crash and preserve-bytes contracts, encoded.
 
 **Wave 3 — merge + evidence truth (2026-07-31).** HB-030 exact-HEAD merge
-authorization; HB-031 loop state machine, labels only after artifacts; HB-032
-surfaces tell durable truth; HB-033 all interfaces agree on the same fixture truth.
+authorization; HB-031 loop legal/illegal/replay transitions, labels only after
+artifacts; HB-032 implemented reader surfaces tell durable truth; HB-033 all
+implemented interfaces agree on the same fixture truth.
 
-**Wave 4 — remainder (2026-07-31).** HB-040 event inbox; HB-041 planner validation;
+**Wave 4 — remainder (2026-07-31).** HB-040 event inbox; HB-041 planner operations;
 HB-042 onboarding ladder; HB-043 scheduler health; HB-044 retention boundaries;
 HB-045 thin presentation smokes; HB-046 trajectory assertions; HB-047 format-repair
 contract.
@@ -173,7 +229,7 @@ sealed-key confinement (all three escape routes, including git history); HB-122
 grader family-disjointness; HB-123 never-this-repository binding; HB-124 verdict
 algebra (`ungraded` is never a zero); HB-125 the supervisor provably never does the
 work; HB-126 packaged-binary provenance; HB-127 campaign contract + lifecycle;
-HB-128 jobs families (machinery proven; quality has no lane by design); HB-129
+HB-128 implemented job lifecycle/mechanical families; HB-129
 grader envelope + the fabricated-claim control; HB-130 the runner (emits a report,
 never a release signal); HB-131 the execution layer (the only path to the product
 is the packaged binaries); HB-132 the honesty repairs the first real run forced.

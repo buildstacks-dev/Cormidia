@@ -1,3 +1,5 @@
+// Traceability: CF-REG-236-BUDGET · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-236-BUDGET — a turn that hits its per-turn budget boundary preserves
 // its state and reports what happened to it.
 //

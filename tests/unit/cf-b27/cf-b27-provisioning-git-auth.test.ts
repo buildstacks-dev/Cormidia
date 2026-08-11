@@ -1,3 +1,5 @@
+// CF-B27 — HB-127 — contracts/B-27-acceptance-campaign.md §1.
+
 import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

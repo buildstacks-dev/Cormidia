@@ -1,3 +1,5 @@
+// CF-REG-359 — HB-139 — case-catalog.md §10.3, defect #359.
+
 // CF-REG-359 — every declared install surface is actually installable.
 //
 // #359 added a second binary (`cormidia-job`) and a second packaged skill
@@ -11,7 +13,7 @@
 // table in scripts/lib/link-artifacts.mjs against what package.json actually
 // declares and what exists on disk, so a THIRD binary or skill cannot land
 // with a two-entry installer. The behavioural half is
-// tests/hermetic/cf-b14/cf-b14-link-ownership.test.ts, which runs the real
+// tests/hermetic/cf-b14-cf-c-b14-cf-reg-359/cf-b14-link-ownership.test.ts, which runs the real
 // linker and asserts every target lands.
 
 import { describe, expect, it } from "vitest";

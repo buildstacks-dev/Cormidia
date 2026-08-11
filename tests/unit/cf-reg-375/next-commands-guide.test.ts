@@ -1,3 +1,5 @@
+// CF-REG-375 — HB-139 — case-catalog.md §10.3, defect #375.
+
 // CF-REG-375 (L1) — generated guide specialization and stale-command guard.
 
 import { describe, expect, it } from "vitest";

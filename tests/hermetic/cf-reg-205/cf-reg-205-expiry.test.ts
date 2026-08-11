@@ -1,3 +1,5 @@
+// Traceability: CF-REG-205 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-205 — an undecided approval has a bounded lifetime. This detector
 // was landed red-before-green against #205: before the repair reconcile()
 // left the item pending forever.
@@ -14,7 +16,11 @@ import { ApprovalStore, type ApprovalItem } from "../../../src/org/approvals.js"
 import { releaseExpiredTicketApprovalClaim } from "../../../src/org/ticket-episode-approval.js";
 import { readTicketClaimState, writeTicketClaimState } from "../../../src/loop/rehydrate.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
-import { initWorldOrg, makeInitWorld, type InitWorld } from "../cf-j01/support.js";
+import {
+  initWorldOrg,
+  makeInitWorld,
+  type InitWorld,
+} from "../cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/support.js";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const worlds: InitWorld[] = [];

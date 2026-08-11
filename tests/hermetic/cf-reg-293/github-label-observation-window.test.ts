@@ -1,3 +1,5 @@
+// Traceability: CF-REG-293 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-293 — release qualification must give GitHub's label-filtered issue
 // projection a useful observation window without widening the ratified
 // three-attempt count or changing inconclusive evidence into pass/fail.

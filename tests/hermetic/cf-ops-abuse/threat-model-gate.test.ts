@@ -1,3 +1,5 @@
+// Traceability: CF-OPS-ABUSE · HB-073 · risk-allocation.md §6 threat-model admission precondition only.
+
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

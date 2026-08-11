@@ -1,3 +1,5 @@
+// Traceability: CF-SPLIT-PUBLISHING · HB-138 · case-catalog.md §10.3.
+
 // CF-SPLIT-PUBLISHING (L2) — target-repo verification at the composed gate
 // (#296 §5.3, F-PT-023 ratified): the budgeted collaboration tier is reachable
 // ONLY after the gate verifies the action's target is the app's own configured

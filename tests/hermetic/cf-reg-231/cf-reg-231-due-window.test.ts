@@ -1,3 +1,5 @@
+// Traceability: CF-REG-231 · HB-139 · case-catalog.md §10.3.
+
 // #231 — one scheduled due window is one durable settlement, even when the
 // first turn fails and derived schedule bookkeeping is lost.
 

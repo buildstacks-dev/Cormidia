@@ -1,3 +1,5 @@
+// Traceability: CF-REG-230 · HB-139 · case-catalog.md §10.3.
+
 // #230 — Planner intake is unfiltered; readiness application is deterministic
 // and fail-closed. Builder's query remains op:ready-only.
 

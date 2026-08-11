@@ -1,3 +1,5 @@
+// CF-REG-181 — HB-139 — case-catalog.md §10.3, defect #181.
+
 // #181 focused adapter construction. The detector checks BOTH the process/SDK
 // option and the Codex App Server request; a seeded bypass/missing-mode array
 // must trip it before this family counts as a guard.

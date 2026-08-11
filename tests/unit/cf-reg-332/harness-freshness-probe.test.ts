@@ -1,3 +1,5 @@
+// CF-REG-332 — HB-139 — case-catalog.md §10.3, defect #332.
+
 // CF-REG-332 — the upstream-freshness probe, run offline against the recorded
 // corpus in `tests/fixtures/harness-freshness/`.
 //

@@ -1,3 +1,5 @@
+// Traceability: CF-REG-229 · HB-139 · case-catalog.md §10.3.
+
 // #229 — hard execution admission. Budget exhaustion terminates the current
 // turn and refuses the next tool action; it never creates an approval item.
 

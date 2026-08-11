@@ -1,3 +1,5 @@
+// Traceability: CF-B27 · HB-127 · boundary-map.md B-27; contracts/B-27-outcome-campaign.md §3.
+
 // CF-B27-* (L2) — durable report persistence and resume (B-27 §3).
 //
 // Every clause here was contract text with no implementation until this landed:

@@ -1,3 +1,5 @@
+// Traceability: CF-S9-env · HB-047 · llm-eval-plan.md §2 S-9 format-repair envelope.
+
 // HB-047 — S-9 format-repair contract: one bounded retry, same native
 // session, and one durable execution/settlement per provider turn.
 

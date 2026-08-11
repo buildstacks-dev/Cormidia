@@ -1,3 +1,5 @@
+// Traceability: CF-REG-232 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-232 — Planner publication is a durable exactly-once transaction.
 
 import { execFileSync } from "node:child_process";

@@ -1,3 +1,5 @@
+// CF-REG-271 — HB-139 — case-catalog.md §10.3, defect #271.
+
 // CF-REG-271 — @openai/codex 0.144.4 exposed code-mode shell execution as
 // `exec`, bypassing the legacy Bash matcher and both live gate denials. The
 // adapter now disables the unclassifiable code-mode family and matches `exec`

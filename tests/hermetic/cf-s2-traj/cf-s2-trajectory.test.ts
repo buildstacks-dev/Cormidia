@@ -1,3 +1,5 @@
+// Traceability: CF-S2-traj · HB-046 · llm-eval-plan.md §2 S-2 trajectory envelope.
+
 // HB-046 — deterministic S-2 trajectory assertions. These are detector
 // checks over ratified grounds only. The PROPOSED repeat-loop N=3 threshold
 // remains observation-only and is intentionally not encoded as a verdict.

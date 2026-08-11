@@ -1,3 +1,5 @@
+// CF-B27 — HB-127 — contracts/B-27-acceptance-campaign.md §2 and §4.
+
 // CF-B27-* (L1) — the durable report's shape (CORMIDIA-C-B27-001 §2, §4).
 //
 // A report that cannot answer "which bytes did this exercise" or "which model

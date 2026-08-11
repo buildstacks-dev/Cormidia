@@ -1,3 +1,5 @@
+// Traceability: CF-REG-206 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-206 — the interactive approval reviewer is never a successful
 // non-interactive no-op. This detector was landed red-before-green against
 // #206: before the repair EOF caused every item to be skipped with exit 0.
@@ -6,7 +8,12 @@ import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ApprovalStore } from "../../../src/org/approvals.js";
-import { initWorldOrg, makeInitWorld, REPO_ROOT, type InitWorld } from "../cf-j01/support.js";
+import {
+  initWorldOrg,
+  makeInitWorld,
+  REPO_ROOT,
+  type InitWorld,
+} from "../cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/support.js";
 
 const worlds: InitWorld[] = [];
 

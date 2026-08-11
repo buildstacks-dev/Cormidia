@@ -1,4 +1,6 @@
-// CF-INV-ACC-4 / CF-ACC-GATE (L1) — who may resolve the plan gate, and on what.
+// CF-INV-ACC-4 — HB-130 — invariants.md INV-ACC-4; rubric.md §6 plan-gate criteria.
+
+// Who may resolve the plan gate, and on what (L1).
 //
 // F-PT-030 resolved 2026-08-07: a declared `plan_gate` policy may resolve the
 // gate unattended. What it did NOT change is the criteria — rubric §6 still

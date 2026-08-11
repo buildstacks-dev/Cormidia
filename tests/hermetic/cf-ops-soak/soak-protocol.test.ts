@@ -1,3 +1,5 @@
+// Traceability: CF-OPS-SOAK · HB-071 · risk-allocation.md §6 soak obligation (evidence protocol only).
+
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

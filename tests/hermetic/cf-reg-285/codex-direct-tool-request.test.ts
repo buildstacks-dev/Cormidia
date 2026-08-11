@@ -1,3 +1,5 @@
+// Traceability: CF-REG-285 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-285 — Codex 0.144.4's gpt-5.6-sol metadata forces
 // `tool_mode=code_mode_only` after feature resolution. The resulting custom
 // `exec` tool can run nested shell calls without Cormidia's PreToolUse bridge.

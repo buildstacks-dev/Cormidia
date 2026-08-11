@@ -1,3 +1,5 @@
+// CF-INV-002 — HB-010 — invariants.md CORMIDIA-INV-002 and §4.2.1 gate implementation.
+
 // CF-INV-002 — the `gate-implementation-edit` class (#296 Stage 2, proposal
 // §4.2.1): the gate's own source is the machinery of consent. Before this
 // class existed, an agent could edit the code that decides what requires

@@ -1,3 +1,5 @@
+// CF-SPLIT-DESTRUCTIVE — HB-138 — case-catalog.md §10.1, consequence split §5.1.
+
 // CF-SPLIT-DESTRUCTIVE (L1) — the §5.1 split of `destructive-or-irreversible`
 // by TARGET (#296, F-PT-023 ratified 2026-08-06; case-catalog §10.1):
 //

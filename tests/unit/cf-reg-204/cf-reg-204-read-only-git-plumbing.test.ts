@@ -1,3 +1,5 @@
+// CF-REG-204 — HB-135 — case-catalog.md §10.3, defect #204.
+
 // CF-REG-204 — read-only git plumbing classifies as a READ, and every write
 // against the same sensitive paths still classifies CRITICAL.
 //

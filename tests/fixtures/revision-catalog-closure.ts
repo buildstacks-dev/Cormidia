@@ -42,12 +42,14 @@ export const REVISION_FAMILY_EVIDENCE: readonly RevisionFamilyEvidence[] = [
       "CF-C-B20",
       "CF-S1-env",
     ],
-    test_path: "tests/hermetic/cf-hb101/roadmap-authority.test.ts",
+    test_path:
+      "tests/hermetic/cf-b20-cf-c-b20-cf-c-opplan-cf-j03-i-cf-j03-r-cf-j03-rc-cf-j03-s-cf-sm-roadmap-c-cf-sm-roadmap-i-cf-sm-roadmap-l-cf-sm-roadmap-r/roadmap-authority.test.ts",
     seeded_detector_marker: "turns red for unaccounted and multiply-assigned issues",
   },
   {
     case_ids: ["CF-J04-S", "CF-J04-R", "CF-J04-I", "CF-J04-RC", "CF-J04-A"],
-    test_path: "tests/hermetic/cf-hb103/delivery-unit-atomic-loop.test.ts",
+    test_path:
+      "tests/hermetic/cf-c-oploop-cf-inv-005-cf-inv-016-cf-j04-a-cf-j04-i-cf-j04-r-cf-j04-s/delivery-unit-atomic-loop.test.ts",
     seeded_detector_marker: "rolls every member back when a seeded subset label transition fails",
   },
   {
@@ -62,22 +64,25 @@ export const REVISION_FAMILY_EVIDENCE: readonly RevisionFamilyEvidence[] = [
       "CF-C-B22",
       "CF-C-OPBATCH",
     ],
-    test_path: "tests/hermetic/cf-hb104/execution-unit-batching.test.ts",
+    test_path:
+      "tests/hermetic/cf-b22-cf-c-b22-cf-c-opbatch-cf-j20-i-cf-j20-r-cf-j20-rc-cf-j20-s-cf-sm-batch-c-cf-sm-batch-i-cf-sm-batch-l-cf-sm-batch-r/execution-unit-batching.test.ts",
     seeded_detector_marker: "Seeded negative control: the complete governed shortcut still cannot",
   },
   {
     case_ids: ["CF-SM-VALIDATION-L/I/R/C", "CF-B21-*", "CF-C-B21", "CF-C-OPVALIDATION", "CF-S10-env"],
-    test_path: "tests/hermetic/cf-hb102/validation-contract-authority.test.ts",
+    test_path:
+      "tests/hermetic/cf-b21-cf-c-b21-cf-c-opvalidation-cf-hb102-manual-review-cf-inv-016-cf-sm-validation-c-cf-sm-validation-i-cf-sm-validation-l-cf-sm-validation-r/validation-contract-authority.test.ts",
     seeded_detector_marker: "negative control",
   },
   {
     case_ids: ["CF-INV-016"],
-    test_path: "tests/hermetic/cf-hb107/session-cache-affinity.test.ts",
+    test_path:
+      "tests/hermetic/cf-b22-cf-c-b22-cf-inv-004-cf-inv-006-cf-inv-008-cf-inv-016-cf-j20-i-cf-j20-r-cf-j20-rc-cf-j20-s/session-cache-affinity.test.ts",
     seeded_detector_marker: "Seeded negative control: role is the only changed field",
   },
   {
     case_ids: ["CF-IF-XSURF"],
-    test_path: "tests/hermetic/cf-hb110/cross-surface-roadmap-explanation.test.ts",
+    test_path: "tests/hermetic/cf-if-xsurf-cf-inv-008/cross-surface-roadmap-explanation.test.ts",
     seeded_detector_marker: "negative control: a corrupt batch disposition cannot project false completion",
   },
 ] as const;

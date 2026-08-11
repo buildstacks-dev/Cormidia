@@ -1,3 +1,5 @@
+// Traceability: CF-IF-UI · HB-033 · system-map.md §1.4 Live UI interface adapter.
+
 // HB-045 — deliberately thin presentation smokes. Truthfulness,
 // confidentiality, and cross-surface semantics live in the exhaustive E-3
 // families; this file pins representative shell/Markdown behavior only.

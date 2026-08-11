@@ -1,3 +1,5 @@
+// CF-INV-002 — HB-010 — invariants.md CORMIDIA-INV-002, seed (a).
+
 // CF-INV-002 — the gate is total over critical effects, regardless of route.
 // Seed (a): obfuscated critical effects (heredoc / base64 / nested shell / eval
 // / url-encoding / env-wrapper). This file attacks the T-1 control point in its

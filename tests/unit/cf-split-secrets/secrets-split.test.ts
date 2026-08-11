@@ -1,3 +1,5 @@
+// CF-SPLIT-SECRETS — HB-135 — case-catalog.md §10.1, consequence split §5.2.
+
 // CF-SPLIT-SECRETS (L1) — the §5.2 split of `secrets-or-auth` into read vs
 // mutate (#296, F-PT-023 ratified 2026-08-06; case-catalog §10.1):
 //

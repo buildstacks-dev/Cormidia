@@ -1,3 +1,5 @@
+// Traceability: CF-REG-203 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-203 — the base a ticket branch is cut from is resolved AT THAT
 // TICKET'S CLAIM, never reused from an earlier claim in the same run.
 //

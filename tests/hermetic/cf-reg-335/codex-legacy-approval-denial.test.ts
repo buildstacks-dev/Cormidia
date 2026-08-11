@@ -1,3 +1,5 @@
+// Traceability: CF-REG-335 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-335 — the @openai/codex 0.144.4 → 0.147.0 bump silently changed the
 // LEGACY approval denial wire shape. `ReviewDecision::Denied` stopped being the
 // bare string "denied" and became the struct variant

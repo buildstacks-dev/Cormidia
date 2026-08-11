@@ -1,3 +1,5 @@
+// Traceability: CF-REG-273 · HB-052 · case-catalog.md §10.3.
+
 // CF-REG-273 — GitHub recorded a create-time label immediately, but its
 // label-filtered issue search lagged the direct entity read. B01-CF-02 must
 // apply the suite's bounded readback policy to both projections.

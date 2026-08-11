@@ -1,3 +1,5 @@
+// Traceability: CF-REG-374 · HB-139 · case-catalog.md §10.3.
+
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

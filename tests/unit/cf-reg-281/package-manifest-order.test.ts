@@ -1,3 +1,5 @@
+// CF-REG-281 — HB-139 — case-catalog.md §10.3, defect #281.
+
 // CF-REG-281 — the release tarball reader and validator must share one
 // locale-independent path order. The seeded legacy order proves the detector fires.
 

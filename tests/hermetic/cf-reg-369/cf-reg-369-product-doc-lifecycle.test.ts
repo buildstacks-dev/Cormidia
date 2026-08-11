@@ -1,3 +1,5 @@
+// Traceability: CF-REG-369 · HB-139 · case-catalog.md §10.3.
+
 // CF-REG-369 (L2) — the scaffold filesystem/manifest/planning composition.
 // It proves byte-exact placeholders, user replacements, and deletion remain
 // distinct across preview, execution, and the pre-provider planning guard.

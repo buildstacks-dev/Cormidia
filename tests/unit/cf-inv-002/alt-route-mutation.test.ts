@@ -1,3 +1,5 @@
+// CF-INV-002 — HB-010 — invariants.md CORMIDIA-INV-002, seed (c).
+
 // CF-INV-002 — seed (c): a direct GitHub mutation / direct API call from a turn
 // must meet the same gate as the recognized tool-channel verb (INV-002:
 // "regardless of route: ... adapter-native tool formats, newly introduced

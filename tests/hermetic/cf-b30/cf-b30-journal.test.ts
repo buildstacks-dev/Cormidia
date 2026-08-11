@@ -1,3 +1,5 @@
+// Traceability: CF-B30 · HB-128 · boundary-map.md B-30; contracts/B-30-jobs.md.
+
 // CF-B30-JRN / CF-B30-DRIFT / CF-B30-NEST (L2) — the journal is the completion
 // authority, and the two refusals that protect it.
 //

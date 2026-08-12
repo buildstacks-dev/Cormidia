@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-148)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-146/HB-148)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -35,10 +35,6 @@ what done bought you.
   that proceeds, or `completed (unverified)` rendered as completed. Done buys you the
   missing refusal/gate enumeration and cross-surface agreement without widening the
   existing lifecycle tests.
-- **HB-146 — loop transition crash sweep (PENDING).** Defends predecessor authority at
-  every loop transition boundary. The failure it catches: a torn transition or label
-  projection that survives a crash as terminal truth. Done buys you the crash dimension
-  currently absent from the legal/illegal/replay loop suite.
 - **HB-147 — EpisodePlan revision state machine (PENDING).** Defends forward-only,
   content-bound plan authority. The failure it catches: backward or in-place edits,
   non-idempotent replay, and torn persistence accepted as terminal. Done buys you direct
@@ -198,6 +194,10 @@ ratified crash and preserve-bytes contracts, encoded.
 authorization; HB-031 loop legal/illegal/replay transitions, labels only after
 artifacts; HB-032 implemented reader surfaces tell durable truth; HB-033 all
 implemented interfaces agree on the same fixture truth.
+
+**Wave 3 status-honesty remainder (2026-08-11).** HB-146 adds the missing
+build-artifact→gates real-SIGKILL point and rejects a torn successor label without
+its PR; the identical claim/PR/review/merge kill points remain owned by CF-J04-I.
 
 **Wave 4 — remainder (2026-07-31).** HB-040 event inbox; HB-041 planner operations;
 HB-042 onboarding ladder; HB-043 scheduler health; HB-044 retention boundaries;

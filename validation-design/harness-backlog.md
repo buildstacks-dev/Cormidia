@@ -1172,11 +1172,13 @@ retroactive changes to the assertions in any existing spec.
   duplicate-incident and publication-side-effect controls turn red before the walk is
   green. *Defends:* CF-J11-S, CF-J11-I, CF-J11-RC, CF-J11-A. *Families:* CF-J11-S,
   CF-J11-I, CF-J11-RC, CF-J11-A. *Layer:* 2. *Executor:* build-agent.
-- **HB-146 — loop transition crash sweep. PENDING.** Extend the existing legal,
+- **HB-146 — loop transition crash sweep. LANDED 2026-08-11.** Extended the existing legal,
   illegal, and replay loop-state suite with a crash at every transition boundary while
   preserving predecessor authority and labels-after-artifacts ordering. *Acceptance:*
   every productive transition has a kill point and a seeded torn transition turns the
-  detector red before recovery is green. *Defends:* CF-SM-LOOP-C. *Families:*
+  detector red before recovery is green. The non-duplicate build-artifact→gates leg is
+  `tests/hermetic/cf-sm-loop-c/`; identical claim/PR/review/merge legs remain credited to
+  HB-023's delivery-interruption family. *Defends:* CF-SM-LOOP-C. *Families:*
   CF-SM-LOOP-C. *Layer:* 2. *Executor:* build-agent.
 - **HB-149 — admission/bookkeeping evidence invariant. PENDING.** Add the missing
   four-leg invariant sweep: WIP limitation emits its named reason, a sweep without marks
@@ -1279,7 +1281,8 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-141 LANDED. HB-148 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
+HB-120..HB-132 LANDED. HB-141 LANDED. HB-146 LANDED. HB-148 LANDED.
+HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
 
 ## Standing rules
 

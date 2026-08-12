@@ -1103,8 +1103,8 @@ or golden set changed.
   seeded resume-past-the-gate violation; directory named `cf-j21-i`. *Defends:*
   CORMIDIA-C-B27-001 §3 · CORMIDIA-INV-ACC-4/6. *Layer:* 2. *Executor:* build-agent.
 
-- **HB-140 — case-catalog.yaml regeneration drift gate. TODO (opened at the Phase 8
-  reader test, new-engineer finding 2).** The policy says the two catalog surfaces
+- **HB-140 — case-catalog.yaml regeneration drift gate. LANDED 2026-08-12 (opened at
+  the Phase 8 reader test, new-engineer finding 2).** The policy says the two catalog surfaces
   MUST agree; today agreement holds by construction (the YAML is generated) but no
   check enforces it, so a future hand-edit to `case-catalog.md` without rerunning
   `case-catalog-generator.awk` would silently desync them. Owed: a CI/local check
@@ -1114,6 +1114,12 @@ or golden set changed.
   a seeded hand-edit to the committed YAML; runs in the per-commit lane.
   *Families:* CF-HARNESS-CI (harness self-test register). *Layer:* 1 + CI.
   *Executor:* build-agent.
+  <!-- implementation status 2026-08-12: HB-140 LANDED in
+  scripts/check-catalog-drift.mjs (final pnpm check lane step, so per-commit
+  CI and the pre-commit hook both run it) +
+  tests/policy/cf-harness-ci/catalog-drift.test.ts; seeded YAML hand-edit,
+  un-regenerated markdown edits, missing-file, generator-diagnostics, and
+  empty-walk paths all proven red. -->
 
 ## Wave 1 — status-honesty reclassification (2026-08-11)
 
@@ -1336,7 +1342,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
+HB-120..HB-132 LANDED. HB-140 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
 HB-P2 LANDED.
 HB-P4 LANDED.

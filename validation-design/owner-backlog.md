@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403, HB-147, HB-151, and HB-145)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-12 after landed HB-140)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -61,12 +61,11 @@ what done bought you.
   `git show HEAD:.env` once classified routine. Done buys you: classification by what
   an action actually *emits*, unparseable effects still critical, classifier-bypass
   routes covered, and the detector deposited in the same PR.
-- **HB-140 — machine-catalog drift gate (TODO; opened by the reader test).**
-  Defends the promise that the human catalog and the machine catalog never
-  disagree. The failure it catches: someone edits the human-readable catalog,
-  forgets to regenerate the machine copy, and the tooling then enforces stale
-  truth. Done buys you: regeneration is checked byte-for-byte on every commit,
-  proven red first against a seeded hand-edit.
+- **HB-140 — machine-catalog drift gate (LANDED).** Defends the promise that the human
+  and machine catalogs never disagree; it catches a catalog or backlog edit made without
+  rerunning the generator — and a hand-edit to the derived YAML itself. Done bought you
+  byte-for-byte regeneration checked in every `pnpm check`, proven red first against a
+  seeded hand-edit.
 - **HB-136 — campaign kill-boundary sweep (TODO).** Defends the honesty of the
   acceptance lane's reports. The failure it catches: a campaign killed mid-arm that
   resumes past its plan gate or presents a torn report as terminal truth. Done buys

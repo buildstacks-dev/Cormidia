@@ -75,6 +75,9 @@ describe("CF-REG-278 — repository enforcement gate", () => {
       "node scripts/check-import-direction.mjs",
       "node scripts/check-size-ratchet.mjs",
       "node scripts/check-type-ratchet.mjs",
+      // HB-140 (CF-HARNESS-CI): case-catalog.yaml regeneration drift gate —
+      // spec: tests/policy/cf-harness-ci/catalog-drift.test.ts.
+      "node scripts/check-catalog-drift.mjs",
     ]);
     expect(packageJson.scripts["prepare"]).toBe("node scripts/install-git-hooks.mjs");
 

@@ -1189,7 +1189,7 @@ retroactive changes to the assertions in any existing spec.
 
 ## Wave 4 — status-honesty reclassification (2026-08-11)
 
-- **HB-147 — EpisodePlan revision state machine. PENDING.** Implement direct coverage
+- **HB-147 — COMPLETE 2026-08-11 — EpisodePlan revision state machine.** Implement direct coverage
   for legal forward-only revisions, refusal of backward/edit-in-place revisions,
   idempotent replay, and crash-safe persistence where a torn plan never becomes
   terminal. *Acceptance:* all four state-machine families have direct cases; seeded
@@ -1197,6 +1197,10 @@ retroactive changes to the assertions in any existing spec.
   green. *Defends:* CF-SM-PLAN-L, CF-SM-PLAN-I, CF-SM-PLAN-R, CF-SM-PLAN-C.
   *Families:* CF-SM-PLAN-L, CF-SM-PLAN-I, CF-SM-PLAN-R, CF-SM-PLAN-C. *Layer:* 2.
   *Executor:* build-agent.
+  *Implementation:* `tests/hermetic/cf-sm-plan-c-cf-sm-plan-i-cf-sm-plan-l-cf-sm-plan-r/episode-plan-revision-state-machine.test.ts`
+  walks the real plan-version, pointer, execution-journal, and typed-replan stores. It
+  proves legal future-only revision, backward and completed-step refusal, exact replay,
+  checkpoint recovery, and rejection of seeded torn version bytes.
 
 ## Wave L3 — status-honesty reclassification (2026-08-11)
 
@@ -1320,7 +1324,8 @@ HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-141 LANDED. HB-144 LANDED. HB-146 LANDED. HB-148 LANDED.
-HB-149 LANDED. HB-152 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
+HB-147 LANDED. HB-149 LANDED. HB-152 LANDED. HB-P1 LANDED. HB-P2 LANDED.
+HB-P4 LANDED.
 
 ## Standing rules
 

@@ -514,7 +514,7 @@ tickets:
   - {id: HB-143, wave: "3", status: pending, families: [CF-J11-A, CF-J11-I, CF-J11-RC, CF-J11-S]}
   - {id: HB-146, wave: "3", status: landed, families: [CF-SM-LOOP-C]}
   - {id: HB-149, wave: "3", status: landed, families: [CF-INV-014]}
-  - {id: HB-147, wave: "4", status: pending, families: [CF-SM-PLAN-C, CF-SM-PLAN-I, CF-SM-PLAN-L, CF-SM-PLAN-R]}
+  - {id: HB-147, wave: "4", status: landed, families: [CF-SM-PLAN-C, CF-SM-PLAN-I, CF-SM-PLAN-L, CF-SM-PLAN-R]}
   - {id: HB-144, wave: "L3", status: landed, families: [CF-J18-I, CF-J18-R, CF-J18-RC, CF-J18-S]}
   - {id: HB-145, wave: "outcome-acceptance", status: pending, families: [CF-C-OPJOB, CF-J22-A, CF-J22-R]}
   - {id: HB-151, wave: "proposed", status: pending, families: [CF-S1-env]}
@@ -524,4 +524,4 @@ tickets:
   - {id: HB-139, wave: "retrospective", status: landed, families: [CF-HB102-MANUAL-REVIEW, CF-REG-154, CF-REG-181, CF-REG-202, CF-REG-203, CF-REG-203-G, CF-REG-204, CF-REG-205, CF-REG-206, CF-REG-209, CF-REG-211, CF-REG-228, CF-REG-229, CF-REG-230, CF-REG-231, CF-REG-232, CF-REG-236-BUDGET, CF-REG-239, CF-REG-244, CF-REG-251, CF-REG-268, CF-REG-269, CF-REG-271, CF-REG-272, CF-REG-273, CF-REG-274, CF-REG-278, CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-291, CF-REG-293, CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335, CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374, CF-REG-375, CF-REG-403]}
 # rollup (derived by the generator from the entries above — recompute, never hand-edit):
 #   families: 397 = 358 implementable + 38 pruned + 1 blocked
-#   tickets: 113 = 88 landed + 25 pending
+#   tickets: 113 = 89 landed + 24 pending

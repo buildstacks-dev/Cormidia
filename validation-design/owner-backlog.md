@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403 and HB-147)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -30,10 +30,6 @@ what done bought you.
   that proceeds, or `completed (unverified)` rendered as completed. Done buys you the
   missing refusal/gate enumeration and cross-surface agreement without widening the
   existing lifecycle tests.
-- **HB-147 — EpisodePlan revision state machine (PENDING).** Defends forward-only,
-  content-bound plan authority. The failure it catches: backward or in-place edits,
-  non-idempotent replay, and torn persistence accepted as terminal. Done buys you direct
-  legal/illegal/replay/crash coverage for all four state-machine families.
 - **HB-148 — store-class crash/truncation/quarantine invariant (LANDED).** Defends every
   durable store class, not just the journey-specific kill points already present. The
   failure it catches: truncated JSON or quarantined bytes becoming valid state after an
@@ -201,6 +197,11 @@ its PR; the identical claim/PR/review/merge kill points remain owned by CF-J04-I
 **Status-honesty Wave 3 (2026-08-11).** HB-149: WIP limitation, event retirement
 without marks, committed-decision spawn failure, and post-spawn bookkeeping failure
 now retain four direct, distinct evidence outcomes with a collapsed-vocabulary tripwire.
+
+**Wave 4 — status-honesty closure (2026-08-11).** HB-147 forward-only,
+content-bound EpisodePlan revisions; backward and completed-step edits refuse,
+exact replay is idempotent, and torn/checkpoint persistence never becomes silent
+terminal authority.
 
 **Wave 4 — remainder (2026-07-31).** HB-040 event inbox; HB-041 planner operations;
 HB-042 onboarding ladder; HB-043 scheduler health; HB-044 retention boundaries;

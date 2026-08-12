@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-144/HB-146/HB-148/HB-149)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-152)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -13,6 +13,16 @@ staleness contract's carrier named explicitly. --> Convention: **open tickets ge
 what done bought you.
 
 ## Open now — the short list that matters
+
+- **HB-152 — GitHub-orchestrated self-hosted Core Checks (IN PROGRESS).** Defends
+  truthful per-commit validation while moving ordinary compute from paid hosted Linux
+  to your Mac. The failure it catches is broader than “runner offline”: an unpinned or
+  persistent runner, PR code reaching the host/Docker socket/LAN, a fork silently
+  landing on your machine, a missing exact-SHA cloud escape hatch, or release work
+  drifting off GitHub-hosted OIDC. Done buys you one disposable ARM64 job boundary,
+  automatic internal-PR/main routing, fail-safe fork and manual cloud routing, a real
+  pre-cutover probe, a supervised one-command host service, and a measured faster,
+  flake-free suite without weakening any gate.
 
 - **HB-142 — scheduler-admission matrix and contract (PENDING).** Defends truthful
   due/admission/spawn accounting. The failure it catches: arithmetic or vocabulary gaps,

@@ -1238,6 +1238,34 @@ retroactive changes to the assertions in any existing spec.
   envelope is green. *Defends:* CF-S1-env. *Families:* CF-S1-env. *Layer:* 1/2.
   *Executor:* build-agent.
 
+## CI execution revision (2026-08-11, issue #403)
+
+- **HB-152 — GitHub-orchestrated self-hosted Core Checks. IN PROGRESS.** Replace
+  GitHub-hosted compute for ordinary internal PR and `main` Core Checks with one
+  repository-scoped, ephemeral Linux ARM64 runner on the owner's Mac while retaining
+  GitHub as orchestrator and check system of record. Fork-origin PRs and an explicit
+  exact-SHA fallback remain GitHub-hosted; release, npm publication, OIDC/provenance,
+  artifacts, and scheduled GitHub-mutating workflows stay GitHub-hosted. The runner
+  appliance uses checksum/digest-pinned official inputs, one short-lived registration
+  token, a unique custom label, no host mounts/Docker socket/host credentials, an empty
+  job capability set, denied private/link-local egress except Docker DNS, bounded
+  resources, and destruction after one job. A launchd supervisor keeps exactly one
+  idle runner available and removes only exact-label/name offline residue. Core lane
+  cleanup removes duplicate typecheck work, makes pinned gitleaks architecture-aware,
+  fixes the observed late cleanup flake with its detector, and selects test concurrency
+  only after repeated clean measurements. *Acceptance:* (1) the isolated appliance
+  build and doctor pass; (2) a real GitHub-assigned probe job succeeds before Core
+  routing changes; (3) internal PR and `main` jobs run on the Mac while a seeded fork
+  and manual exact-SHA fallback select `ubuntu-latest`; (4) the Mac-offline fallback is
+  exercised; (5) release remains hosted; (6) every routing/isolation/pin has a seeded
+  negative control; (7) repeated full-suite runs are flake-free and p90 is reported
+  against the ratified five-minute target. *Defends:* validation-policy `ci`,
+  CF-HARNESS-CI, CF-HARNESS-RELEASE, secret-hygiene, and RQ-1 exact-candidate gate
+  identity. *Families:* CF-HARNESS-CI (primary; CF-HARNESS-RELEASE is unchanged and
+  asserted as a hosted-only non-regression). *Layer:* 1/2 + CI. *Executor:* build-agent;
+  human ratification and repository/host authority recorded in issue #403 and the
+  2026-08-11 session.
+
 ## Retrospective ownership records (2026-08-10, rev-2026-08-10)
 
 Added by the rev-2026-08-10 machine-traceability pass so every implementable family

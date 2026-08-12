@@ -35,7 +35,7 @@ function probeViolations(source: string): string[] {
   const jobs = document.jobs as Record<string, Record<string, unknown>> | undefined;
   const probe = jobs?.probe;
   const steps = Array.isArray(probe?.steps) ? (probe.steps as Record<string, unknown>[]) : [];
-  const checkout = steps.find((step) => step.uses === "actions/checkout@v4");
+  const checkout = steps.find((step) => step.uses === "actions/checkout@v5");
   const withValues = checkout?.with as Record<string, unknown> | undefined;
   const violations: string[] = [];
   if (probe?.["runs-on"] !== RUNNER_CONFIG.label) violations.push("probe routing label drifted");

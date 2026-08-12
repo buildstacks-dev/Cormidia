@@ -14,7 +14,8 @@ import type {
   TriggerDescriptor,
 } from "../../loop/episode-plan.js";
 import { stableHash } from "../../loop/episode-plan.js";
-import { fixedAssignmentFromRole, turnAssignmentKey } from "../../runtime/assignment.js";
+import { assertReviewProviderFamiliesDisjoint, ReviewProviderCollapseError } from "../../loop/review-provider.js";
+import { configuredProviderFamily, fixedAssignmentFromRole, turnAssignmentKey } from "../../runtime/assignment.js";
 import { runtimeCapabilityProfile, type RuntimeCapability } from "../../runtime/capabilities.js";
 import type { RoleConfig, TurnAssignment } from "../../runtime/types.js";
 import type { AppEntry } from "../apps.js";
@@ -231,6 +232,31 @@ export function createEpisodePlanningPolicy(
     : [];
   const defaultReview = safetyKinds.has("independent_review") ? defaultBuilderReviewerPolicy(options.roles) : undefined;
   const review = options.independentReview ?? defaultReview;
+  // HB-133 / CF-REVIEW-PROVIDER: when this route demands independent review,
+  // refuse HERE — deterministically, before the EpisodePlanner turn and every
+  // other provider construction — if any Builder/Reviewer seat pair resolves
+  // to one provider family (docs/loop/design.md "Review identity"). The
+  // family unit is the guard's swappable resolver parameter (pending-human-
+  // ratification caveat recorded in src/loop/review-provider.ts); production
+  // pins `configuredProviderFamily`. Empty seat lists fail closed: a review
+  // policy that can cover nothing must never read as satisfied.
+  if (review !== undefined) {
+    if (review.subjectRoles.length === 0 || review.reviewerRoles.length === 0) {
+      throw new ReviewProviderCollapseError(
+        "error_review_provider_family_unresolvable",
+        "independent-review policy names no subject or no reviewer seat; refusing before provider construction (fail closed)",
+      );
+    }
+    for (const subjectRole of review.subjectRoles) {
+      for (const reviewerRole of review.reviewerRoles) {
+        assertReviewProviderFamiliesDisjoint({
+          builder: { role: subjectRole, assignment: configuredAssignmentFor(subjectRole) },
+          reviewer: { role: reviewerRole, assignment: configuredAssignmentFor(reviewerRole) },
+          resolveProviderFamily: configuredProviderFamily,
+        });
+      }
+    }
+  }
   const validation: EpisodePlanValidationPolicy = {
     ...materialization,
     isKnownRole: (roleName) => roleByName.has(roleName),

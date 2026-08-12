@@ -47,7 +47,7 @@ jobs:
     runs-on: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: Refuse a drifted manual candidate
@@ -55,10 +55,10 @@ jobs:
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
         run: test "${GITHUB_SHA}" = "${EXPECTED_SHA}"
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.10.0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "26"
           cache: pnpm
@@ -88,7 +88,7 @@ jobs:
       GITLEAKS_SHA256_X64: ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
       GITLEAKS_SHA256_ARM64: bf5f7f466ebfade1296c8bd32cf7d3f592c2aa78836aa9980ffbe2cadca7a861
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: Refuse a drifted manual candidate

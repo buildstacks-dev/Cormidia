@@ -5,6 +5,11 @@ Ordinary internal pull requests and `main` pushes use a disposable Linux ARM64
 runner container on the owner's Mac; the workflow never runs on a contributor's
 laptop merely because they opened the pull request.
 
+JavaScript actions run on their Node 24-compatible majors, while Cormidia's
+install, check, build, and test commands run on Node 26. The CF-HARNESS-CI
+policy suite scans every active workflow plus the validation-trace template and
+refuses known pre-Node-24 action majors or a project runtime other than Node 26.
+
 ## Where a check runs
 
 | Event | Compute | Reason |

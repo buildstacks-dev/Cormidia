@@ -611,6 +611,16 @@ newest 256 KiB and 50 lines by default. The exportable run envelope also keeps
 the scrubbed command and a 2,000-character output tail, so a process crash does
 not turn a prior green result into an unsupported claim.
 
+Before an app-owned command starts, the runner binds its evidence to the
+worktree's candidate HEAD plus tracked and non-ignored decision-relevant bytes.
+It compares that identity again after the process exits: a command that returns
+zero but mutates the candidate is a named `candidate-mutation` failure, while
+ignored dependency/cache residue is not candidate corruption. A missing
+required executable is a distinct `required-tool-unavailable` environment
+failure rather than an ordinary red gate. Every truncated local capture begins
+with an explicit marker, so absence from a bounded tail is never presented as
+proof that the omitted output did not occur.
+
 An absent or stale managed block is repaired by editing only the PR
 description from the already-captured green result. No gate is rerun and the
 repair fails closed unless the evaluated revision, worktree HEAD, and PR head
@@ -1225,6 +1235,7 @@ src/loop/
   pipelines.ts     pipelines.yaml schema/loader — typed, validated config
   brief.ts         brief assembler (§3), state-budgeted
   qgates.ts        quality-gate engine (§5) — pure subprocess + git
+  qgate-process.ts bounded process-group runner + candidate mutation binding
   verdicts.ts      typed verdicts + lenient parsers (§6)
   github.ts        provider-blind GitHub ops (`gh` wrapper): labels, PRs,
                    reviews, verified self-approval fallback, squash-merge

@@ -1120,7 +1120,7 @@ or golden set changed.
 Approved from the read-only status-honesty triage. These are new pending tickets, not
 retroactive changes to the assertions in any existing spec.
 
-- **HB-141 — gate-command runner and exact-payload publication refusal. PENDING.**
+- **HB-141 — COMPLETE 2026-08-11 — gate-command runner and exact-payload publication refusal.**
   Build the missing scripted gate-command matrix: hang→timeout-kill, bounded
   stdout/stderr flood, missing tool, exit-0 liar bound to candidate SHA, candidate
   mutation between bind and run, and a bare pending template that fails closed. Add
@@ -1129,6 +1129,10 @@ retroactive changes to the assertions in any existing spec.
   case; a seeded exit-0 liar and a seeded approval bypass each turn the detector red
   before the corrected path is green. *Defends:* CF-B16, CF-C-B16, CF-J11-R.
   *Families:* CF-B16, CF-C-B16, CF-J11-R. *Layer:* 1/2. *Executor:* build-agent.
+  *Implementation:* `tests/hermetic/cf-b16-cf-c-b16-cf-j11-r/gate-command-runner.test.ts`
+  runs the scripted boundary matrix and exact-payload refusal. The runner now binds
+  command evidence to candidate/worktree identity, marks bounded output truncation,
+  types missing tools, kills timed-out process groups, and refuses candidate mutation.
 - **HB-150 — conservative cross-family error-branch sweep. PENDING.** Exercise corrupt
   HMAC key, missing charter, classifier throw, and unreadable budget as one floor
   invariant: every error must reduce capability, never increase it or produce a greener
@@ -1272,7 +1276,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
+HB-120..HB-132 LANDED. HB-141 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
 
 ## Standing rules
 

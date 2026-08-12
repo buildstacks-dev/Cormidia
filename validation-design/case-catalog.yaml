@@ -506,7 +506,7 @@ tickets:
   - {id: HB-135, wave: "steady-state", status: pending, families: [CF-REG-204, CF-SPLIT-SECRETS]}
   - {id: HB-136, wave: "steady-state", status: pending, families: [CF-B27, CF-INV-ACC-4, CF-J21-I]}
   - {id: HB-140, wave: "steady-state", status: pending, families: [CF-HARNESS-CI]}
-  - {id: HB-141, wave: "1", status: pending, families: [CF-B16, CF-C-B16, CF-J11-R]}
+  - {id: HB-141, wave: "1", status: landed, families: [CF-B16, CF-C-B16, CF-J11-R]}
   - {id: HB-150, wave: "1", status: pending, families: [CF-INV-015]}
   - {id: HB-142, wave: "2", status: pending, families: [CF-C-B08, CF-J09-A, CF-J09-I, CF-J09-R, CF-J09-S]}
   - {id: HB-148, wave: "2", status: pending, families: [CF-INV-013]}
@@ -522,4 +522,4 @@ tickets:
   - {id: HB-139, wave: "retrospective", status: landed, families: [CF-HB102-MANUAL-REVIEW, CF-REG-154, CF-REG-181, CF-REG-202, CF-REG-203, CF-REG-203-G, CF-REG-204, CF-REG-205, CF-REG-206, CF-REG-209, CF-REG-211, CF-REG-228, CF-REG-229, CF-REG-230, CF-REG-231, CF-REG-232, CF-REG-236-BUDGET, CF-REG-239, CF-REG-244, CF-REG-251, CF-REG-268, CF-REG-269, CF-REG-271, CF-REG-272, CF-REG-273, CF-REG-274, CF-REG-278, CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-291, CF-REG-293, CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335, CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374, CF-REG-375]}
 # rollup (derived by the generator from the entries above — recompute, never hand-edit):
 #   families: 396 = 357 implementable + 38 pruned + 1 blocked
-#   tickets: 112 = 82 landed + 30 pending
+#   tickets: 112 = 83 landed + 29 pending

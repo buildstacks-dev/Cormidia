@@ -34,16 +34,16 @@
 // M4.4/M4.5 extend the process gates with the security scan, completeness,
 // review-freshness, and the tier orchestrator `runGates`.
 
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
-import { appCommandEnv } from "../runtime/non-interactive-env.js";
 import { asGlobal, SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import { gatesForTier, type GateName, type Policy, type RiskTier } from "./policy.js";
 import { describeSetupArtifacts, scanSetupArtifacts, type SetupArtifact } from "./setup-artifacts.js";
 import { definedProps } from "../runtime/optional-properties.js";
+import { runCandidateBoundProcess } from "./qgate-process.js";
 
 /** Every gate the engine can report on: the policy-schedulable set plus
  *  `review-freshness`, which always runs (policy.ts rejects configuring it;
@@ -76,10 +76,18 @@ export interface GateResult {
   matches?: SecretMatch[];
   /** Machine-readable data-gate failures (completeness / freshness). */
   failures?: string[];
-  /** Set when the failure's remedy is not "fix the command that ran".
+  /** Typed root cause when the failure's remedy is not an ordinary red gate.
    *  `unresolved-setup-artifact`: a tool left the worktree in a state it cannot
    *  itself repair (ISSUE-029) — the remedy is in `outputTail`, per artifact. */
-  cause?: "unresolved-setup-artifact";
+  cause?:
+    | "unresolved-setup-artifact"
+    | "required-tool-unavailable"
+    | "candidate-identity-unavailable"
+    | "candidate-mutation";
+  /** Absolute worktree identity captured before an app-owned command ran. */
+  worktree?: string;
+  /** Candidate HEAD captured before an app-owned command ran. */
+  candidateSha?: string;
   /** Wall-clock subprocess time; 0 for unconfigured/skipped gates. */
   durationMs: number;
 }
@@ -198,10 +206,6 @@ const DEFAULT_TIMEOUTS_MS = {
 } as const;
 
 const DEFAULT_TAIL_LINES = 50;
-
-/** Byte bound on retained subprocess output while streaming — the tail is
- *  cut from at most this much; everything older is discarded as it streams. */
-const MAX_CAPTURE_BYTES = 256 * 1024;
 
 // ---------------------------------------------------------------------------
 // The three process gates
@@ -533,8 +537,10 @@ export async function runGates(
     failureIdentity !== undefined &&
     options.previousFailureIdentity !== undefined &&
     failureIdentity === options.previousFailureIdentity;
+  const headCommitId = results.find((result) => result.candidateSha !== undefined)?.candidateSha;
   return {
     tier,
+    ...definedProps({ headCommitId }),
     status: failed ? (exhausted || noProgress ? "blocked" : "fail") : "pass",
     results,
     remediation: {
@@ -738,11 +744,40 @@ async function runProcessGate(worktree: string, opts: ProcessGateOpts, spec: Pro
   const timeoutMs = opts.timeoutMs ?? spec.defaultTimeoutMs;
   const tailLines = opts.tailLines ?? DEFAULT_TAIL_LINES;
   const started = Date.now();
-  const run = await runShell(spec.command, worktree, timeoutMs);
+  const run = await runCandidateBoundProcess(spec.command, worktree, timeoutMs, tailLines);
   const durationMs = Date.now() - started;
+  const binding = { worktree: run.worktree, ...definedProps({ candidateSha: run.candidateSha }) };
+  const withTail = definedProps({ outputTail: run.outputTail });
 
-  const tail = lastLines(run.output, tailLines);
-  const withTail = tail === "" ? {} : { outputTail: tail };
+  if (run.candidateError !== undefined) {
+    return {
+      gate: spec.gate,
+      status: "fail",
+      detail: `${spec.gate} could not bind candidate identity: ${run.candidateError.message}`,
+      command: spec.command,
+      cause: "candidate-identity-unavailable",
+      failures: [run.candidateError.message],
+      durationMs,
+      ...binding,
+      ...withTail,
+    };
+  }
+
+  if (run.candidateMutationPaths !== undefined) {
+    return {
+      gate: spec.gate,
+      status: "fail",
+      detail: `${spec.gate} mutated the bound candidate`,
+      command: spec.command,
+      ...(run.exitCode !== null ? { exitCode: run.exitCode } : {}),
+      ...(run.timedOut ? { timedOut: true } : {}),
+      cause: "candidate-mutation",
+      failures: run.candidateMutationPaths,
+      durationMs,
+      ...binding,
+      ...withTail,
+    };
+  }
 
   if (run.timedOut) {
     return {
@@ -752,6 +787,7 @@ async function runProcessGate(worktree: string, opts: ProcessGateOpts, spec: Pro
       command: spec.command,
       timedOut: true,
       durationMs,
+      ...binding,
       ...withTail,
     };
   }
@@ -765,6 +801,22 @@ async function runProcessGate(worktree: string, opts: ProcessGateOpts, spec: Pro
       detail: `${spec.gate} could not run: ${run.spawnError.message}`,
       command: spec.command,
       durationMs,
+      ...binding,
+      ...withTail,
+    };
+  }
+
+  if (run.exitCode === 127) {
+    return {
+      gate: spec.gate,
+      status: "fail",
+      detail: `${spec.gate} environment failed: required tool unavailable`,
+      command: spec.command,
+      exitCode: 127,
+      cause: "required-tool-unavailable",
+      failures: ["required tool unavailable"],
+      durationMs,
+      ...binding,
       ...withTail,
     };
   }
@@ -777,6 +829,7 @@ async function runProcessGate(worktree: string, opts: ProcessGateOpts, spec: Pro
       command: spec.command,
       exitCode: 0,
       durationMs,
+      ...binding,
       ...withTail,
     };
   }
@@ -791,112 +844,9 @@ async function runProcessGate(worktree: string, opts: ProcessGateOpts, spec: Pro
     command: spec.command,
     ...(run.exitCode !== null ? { exitCode: run.exitCode } : {}),
     durationMs,
+    ...binding,
     ...withTail,
   };
-}
-
-interface ShellRun {
-  exitCode: number | null;
-  signal: NodeJS.Signals | null;
-  timedOut: boolean;
-  spawnError?: Error;
-  /** Combined stdout+stderr in arrival order, byte-bounded. */
-  output: string;
-}
-
-/** Run a shell command with cwd = the worktree; never rejects — every
- *  outcome (exit, signal, timeout, spawn failure) is data in the result. */
-function runShell(command: string, cwd: string, timeoutMs: number): Promise<ShellRun> {
-  return new Promise((resolve) => {
-    const child = spawn(command, {
-      shell: true,
-      cwd,
-      detached: true,
-      stdio: ["ignore", "pipe", "pipe"],
-      // Gates always run non-interactively: package managers must never wait
-      // on (or fail for lack of) a TTY. pnpm refuses to replace an existing
-      // modules dir without CI=1 — that refusal cost a full remediation turn
-      // in the 2026-07-10 episode (proportionality campaign Stage 3).
-      //
-      // The setup gate is where the FIRST install of a fresh worktree happens,
-      // so the deny-by-default dependency build policy has to be here too, not
-      // only in the provider sandbox (ISSUE-029). CI stays "1" — the Stage 3
-      // value this gate has always used — and wins over the overlay.
-      env: appCommandEnv(),
-    });
-
-    const tail = new TailBuffer(MAX_CAPTURE_BYTES);
-    child.stdout?.on("data", (chunk: Buffer) => tail.push(chunk));
-    child.stderr?.on("data", (chunk: Buffer) => tail.push(chunk));
-
-    let timedOut = false;
-    let spawnError: Error | undefined;
-    let settled = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killProcessTree(child);
-    }, timeoutMs);
-
-    const settle = (exitCode: number | null, signal: NodeJS.Signals | null) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({
-        exitCode,
-        signal,
-        timedOut,
-        ...definedProps({ spawnError }),
-        output: tail.toString(),
-      });
-    };
-
-    child.on("error", (err) => {
-      // Spawn failures may never emit "close" — settle here.
-      spawnError = err;
-      settle(null, null);
-    });
-    child.on("close", (code, signal) => settle(code, signal));
-  });
-}
-
-function killProcessTree(child: ChildProcess): void {
-  if (child.pid === undefined) {
-    child.kill("SIGKILL");
-    return;
-  }
-
-  try {
-    // `detached: true` makes the shell the process-group leader on POSIX.
-    // Killing the group prevents grandchildren from surviving a timeout.
-    process.kill(-child.pid, "SIGKILL");
-  } catch {
-    child.kill("SIGKILL");
-  }
-}
-
-/** Rolling byte-bounded buffer: keeps only the newest ~cap bytes while the
- *  subprocess streams, so capture memory is O(cap) regardless of output. */
-class TailBuffer {
-  private chunks: Buffer[] = [];
-  private total = 0;
-
-  constructor(private readonly cap: number) {}
-
-  push(chunk: Buffer): void {
-    this.chunks.push(chunk);
-    this.total += chunk.length;
-    // Drop whole old chunks while the rest still covers the cap.
-    while (this.chunks.length > 1 && this.total - this.chunks[0]!.length >= this.cap) {
-      this.total -= this.chunks[0]!.length;
-      this.chunks.shift();
-    }
-  }
-
-  toString(): string {
-    const all = Buffer.concat(this.chunks);
-    const bounded = all.length > this.cap ? all.subarray(all.length - this.cap) : all;
-    return bounded.toString("utf8");
-  }
 }
 
 function lastLines(output: string, n: number): string {

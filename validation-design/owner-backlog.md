@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after the status-honesty triage)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -14,12 +14,6 @@ what done bought you.
 
 ## Open now — the short list that matters
 
-- **HB-141 — gate-command runner and exact-payload publication refusal (PENDING).**
-  Defends the point where an apparently green gate command or unapproved publication
-  would otherwise cross into effects. The failure it catches: hangs, floods, absent
-  tools, exit-0 liars, candidate drift, bare pending templates, and publication without
-  exact-payload approval. Done buys you one direct red-then-green case per failure,
-  before any larger journey can treat the gate as trustworthy.
 - **HB-142 — scheduler-admission matrix and contract (PENDING).** Defends truthful
   due/admission/spawn accounting. The failure it catches: arithmetic or vocabulary gaps,
   a lost durable pre-spawn decision, duplicate spawn across asymmetric failures, or
@@ -187,6 +181,10 @@ HB-016 secret egress sweep; HB-017 learning can never self-promote; HB-P4 your
 ratified compare-and-refuse rule — a human edit racing the bootstrap always keeps
 the human's bytes. Twelve real product defects found and fixed with deposited
 detectors; five ambiguities became findings instead of guesses.
+
+**Wave 1 — status-honesty closure (2026-08-11).** HB-141 gate-command evidence
+binding and exact-payload publication refusal; hangs, floods, missing tools,
+candidate drift, bare templates, and approval bypasses now fail directly.
 
 **Wave 2 — durability + money (2026-07-31).** HB-020 exactly-once settlement;
 HB-021 claim-race recovery; HB-022 budget pause; HB-023 journey/turn SIGKILL sweeps;

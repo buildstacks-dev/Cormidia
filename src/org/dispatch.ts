@@ -708,6 +708,15 @@ async function computeDueTurns(input: {
     for (const error of polled.errors) {
       input.result.errors.push(`${error.app}/${error.kind}: ${error.code}: ${error.message}`);
     }
+    // B-13 §2 (F-PT-006): exactly one turn per real-world event. A duplicate
+    // delivery correctly fires once — and says so, rather than vanishing: a
+    // producer double-delivering is an operator-visible fact (INV-008).
+    for (const duplicate of polled.collapsed) {
+      input.result.skipped.push(
+        `duplicate_delivery: ${duplicate.app} inbox file ${duplicate.file} carries the same event content as ` +
+          `${duplicate.firstFile} (${duplicate.key}); collapsed to one firing`,
+      );
+    }
 
     let openIssues: Awaited<ReturnType<NonNullable<GitHubEventSource["openIssues"]>>> | undefined;
     let openIssuesAvailable = false;

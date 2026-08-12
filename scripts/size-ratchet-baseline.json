@@ -628,7 +628,7 @@
     },
     "src/org/dispatch.ts": {
       "exports": 4,
-      "lines": 1476,
+      "lines": 1485,
       "newModule": false
     },
     "src/org/episode-planner/assignment-readiness.ts": {
@@ -682,8 +682,8 @@
       "newModule": false
     },
     "src/org/events.ts": {
-      "exports": 7,
-      "lines": 296,
+      "exports": 8,
+      "lines": 350,
       "newModule": false
     },
     "src/org/execution-affinity.ts": {

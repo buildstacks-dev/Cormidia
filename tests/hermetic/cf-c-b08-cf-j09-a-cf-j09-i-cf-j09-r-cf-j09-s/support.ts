@@ -15,7 +15,7 @@ import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { dispatchTick, type DispatchSpawn, type DispatchTickResult, type DueTurn } from "../../../src/org/dispatch.js";
-import type { GitHubEventSource } from "../../../src/org/events.js";
+import { inboxEventKey, type GitHubEventSource } from "../../../src/org/events.js";
 import { SchedulerEvidenceStore, type SchedulerDecisionRecord } from "../../../src/org/scheduler/evidence.js";
 import { ScheduleDueClaimStore } from "../../../src/org/scheduler/due-window-claims.js";
 import { schedulerIdentity, schedulerOrgId, type SchedulerReasonCode } from "../../../src/org/scheduler/model.js";
@@ -229,7 +229,11 @@ export async function makeSchedulerWorld(spec: WorldSpec): Promise<SchedulerWorl
       });
     },
     async seedInboxEvent(input) {
-      const key = `${input.id}.json`;
+      // changelog 2026-08-12 (HB-P3, F-PT-006): the returned key is the ratified
+      // CONTENT identity, not the delivery filename. The file is still written
+      // under `<id>.json` — the point of the ruling is that the name does not
+      // decide identity (B-13 §2).
+      const file = `${input.id}.json`;
       const inbox = join(home.stateHome, "state", "events", "inbox");
       await mkdir(inbox, { recursive: true });
       const envelope = {
@@ -244,8 +248,8 @@ export async function makeSchedulerWorld(spec: WorldSpec): Promise<SchedulerWorl
         input.kind === "adoption-signal"
           ? { ...envelope, metric: "weekly-installs", direction: "up" }
           : { ...envelope, severity: "high", channel: input.channel ?? "email" };
-      await writeFile(join(inbox, key), `${JSON.stringify(body)}\n`, "utf8");
-      return key;
+      await writeFile(join(inbox, file), `${JSON.stringify(body)}\n`, "utf8");
+      return inboxEventKey(body);
     },
     async corruptScheduleState(bytes = "{ this is not json") {
       const path = join(home.stateHome, "state", "schedule.json");

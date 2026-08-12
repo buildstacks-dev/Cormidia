@@ -401,6 +401,11 @@
       "lines": 154,
       "newModule": false
     },
+    "src/loop/qgate-process.ts": {
+      "exports": 2,
+      "lines": 220,
+      "newModule": true
+    },
     "src/loop/qgates.ts": {
       "exports": 10,
       "lines": 907,

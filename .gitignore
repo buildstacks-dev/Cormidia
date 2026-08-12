@@ -35,3 +35,11 @@ TODO.md
 # Private Cormidia manual-run guide. It contains local paths and operator
 # observations; never commit it. The generic recorder now lives in ~/Build.
 CORMIDIA-MANUAL-E2E-RUNBOOK.md
+
+# Per-repo pnpm store (pnpm-workspace.yaml makes this repo pnpm-self-contained).
+# Package-manager cache, not repository content: untracked-but-unignored it (a)
+# feeds content-addressed blob copies of migration-seam sources into the CF-B10
+# identity sweep's untracked-file walk, and (b) surfaces broken project links to
+# Biome (vcs.useIgnoreFile) after a linked worktree is removed. Both tools
+# exclude ignored paths by their own existing rules; nothing tracked changes.
+.pnpm-store/

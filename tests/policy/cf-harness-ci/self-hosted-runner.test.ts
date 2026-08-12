@@ -122,6 +122,8 @@ describe("CF-HARNESS-CI — HB-152 self-hosted runner appliance", () => {
     expect(spec.args).toContain("--cap-add=SETPCAP");
     expect(spec.args).toContain("--cap-add=SETUID");
     expect(spec.args).toContain("--security-opt=no-new-privileges");
+    expect(spec.args).toContain("--sysctl=net.ipv6.conf.all.disable_ipv6=1");
+    expect(spec.args).toContain("--sysctl=net.ipv6.conf.default.disable_ipv6=1");
     expect(spec.args).toContain("--pids-limit=2048");
     expect(spec.args).toContain("--cpus=12");
     expect(spec.args).toContain("--memory=24g");
@@ -226,6 +228,8 @@ describe("CF-HARNESS-CI — HB-152 seeded runner-appliance violations", () => {
 
   it("fires when ephemeral registration, the network guard, or capability drop disappears", async () => {
     const sources = await applianceSources();
+    const seeded = dockerRunSpec("fixture-token");
+    seeded.args = seeded.args.filter((arg) => !arg.includes("disable_ipv6"));
     const seededEntrypoint = sources.entrypoint
       .replace("--ephemeral", "")
       .replaceAll("--dport 53", "--dport 443")
@@ -235,11 +239,12 @@ describe("CF-HARNESS-CI — HB-152 seeded runner-appliance violations", () => {
     const violations = auditRunnerAppliance({
       dockerfile: sources.dockerfile,
       entrypoint: seededEntrypoint,
-      runSpec: dockerRunSpec("fixture-token"),
+      runSpec: seeded,
     });
     expect(violations).toContainEqual(expect.stringContaining("ephemeral"));
     expect(violations).toContainEqual(expect.stringContaining("link-local"));
     expect(violations).toContainEqual(expect.stringContaining("DNS"));
+    expect(violations).toContainEqual(expect.stringContaining("disable_ipv6"));
     expect(violations).toContainEqual(expect.stringContaining("identity environment"));
     expect(violations).toContainEqual(expect.stringContaining("capabilities"));
   });

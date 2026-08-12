@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-152)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-152/CF-REG-403)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -256,6 +256,7 @@ anything a pass.
   changes nothing about Grok staying sandbox-only or Muse staying fail-closed off.
 - HB-138: the same kind of record for the consequence-split families the #313–#316
   PRs landed.
-- HB-139: the same for the forty-plus regression detectors that landed with their
+- HB-139: the same for the forty-plus regression detectors, including CF-REG-403,
+  that landed with their
   fix PRs over the product's life — the "every bug leaves a tripwire behind" promise,
   now resolvable ticket-by-ticket by the tooling as well as by reading the catalog.

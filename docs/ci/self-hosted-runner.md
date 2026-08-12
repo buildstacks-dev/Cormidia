@@ -56,8 +56,9 @@ pinned. The container has bounded CPU, memory, and processes; no host mount,
 Docker socket, host credential, or persistent workspace; and no effective
 capabilities while job code runs. Private, carrier-grade, link-local, and
 cloud-metadata IPv4 ranges are rejected before the bootstrap capability is
-dropped. The registration token is removed before job execution. Completion
-destroys the container and deregisters the runner.
+dropped, and the container run specification disables IPv6. The registration
+token is removed before job execution. Completion destroys the container and
+deregisters the runner.
 
 Only exact-prefix, exact-label, offline, non-busy runner records are eligible
 for cleanup. The manager refuses to register a duplicate while a managed

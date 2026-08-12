@@ -47,6 +47,9 @@ against cursor-agent 2026.08.04-aaa8809), or `[PROPOSED]`.
   headless), so the claim is version-banded and a post-turn executed-versus-allowed
   cross-check reports `error_gate_not_observed` rather than `completed` when anything
   ran the gate never classified `[certified]`.
+  Hook-process launch, timeout, early stdin closure, and output failures are all typed
+  pre-spend refusals; none may escape as a process-level error. <!-- changelog
+  2026-08-11 (#403): added the early-stdin-close transport shape observed in CI. -->
 - Permission-config integrity: an app-authored `.cursor/hooks.json` or `.cursor/cli.json`
   in the workdir, or an operator-global `~/.cursor/cli-config.json` that is malformed
   or allows an act the role denies, is a typed refusal before provider construction —

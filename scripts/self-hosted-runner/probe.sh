@@ -8,6 +8,8 @@ set -euo pipefail
 [[ -r /run/cormidia-runner/network-isolated ]]
 [[ ! -e /var/run/docker.sock ]]
 [[ -z "${RUNNER_TOKEN:-}" ]]
+[[ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6)" == "1" ]]
+[[ "$(cat /proc/sys/net/ipv6/conf/default/disable_ipv6)" == "1" ]]
 
 CAP_EFFECTIVE="$(awk '/^CapEff:/ { print $2 }' /proc/self/status)"
 [[ "${CAP_EFFECTIVE}" == "0000000000000000" ]]
@@ -26,6 +28,7 @@ git -C "${GITHUB_WORKSPACE}" diff --check
   echo "- Effective capabilities: none"
   echo "- Runtime identity: unprivileged runner home"
   echo "- Docker socket: absent"
-  echo "- Private/link-local egress guard: installed"
+  echo "- Private/link-local IPv4 egress guard: installed"
+  echo "- IPv6 path: disabled"
   echo "- Registration token in job environment: absent"
 } >> "${GITHUB_STEP_SUMMARY}"

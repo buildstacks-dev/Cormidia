@@ -1,4 +1,5 @@
-// CF-B24 + CF-C-B24 — HB-137; case-catalog.md §§4–5, boundary-map.md B-24,
+// CF-B24 + CF-C-B24 — HB-137; CF-REG-403 — HB-139;
+// case-catalog.md §§4–5/10.3, boundary-map.md B-24,
 // and contracts/B-24-cursor.md: scripted Cursor boundary/contract tests.
 //
 // Every shape asserted here is a projection of bytes captured live from
@@ -16,6 +17,10 @@ import {
   CURSOR_HOOKS_RELATIVE_PATH,
 } from "../../../../src/runtime/adapters/cursor-config.js";
 import { normalizeCursorHookAction } from "../../../../src/runtime/adapters/cursor-gate-bridge.js";
+import {
+  CursorGateBridgeUnavailableError,
+  runCursorGateHandshake,
+} from "../../../../src/runtime/adapters/cursor-gate-handshake.js";
 import { cursorModelPrice, estimateCursorCostUsd } from "../../../../src/runtime/adapters/cursor-pricing.js";
 import type { GateDecision, ToolAction, TurnEvent, TurnHooks } from "../../../../src/runtime/types.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../git-repo.js";
@@ -421,6 +426,15 @@ describe("CF-B24 — negative controls (seeded liars must make a detector fire)"
     // The decisive assertion: no provider process was ever constructed, so no
     // turn ran with --force behind an unproven gate.
     expect(dbl.recorder.turns).toHaveLength(0);
+  });
+
+  it("CF-REG-403: a hook that closes stdin during handshake delivery refuses without a process-level pipe error", async () => {
+    repo = await makeTempGitRepo();
+    const nonce = "x".repeat(1024 * 1024);
+
+    await expect(runCursorGateHandshake("exit 0", repo.dir, {}, nonce)).rejects.toBeInstanceOf(
+      CursorGateBridgeUnavailableError,
+    );
   });
 
   it("an app-authored .cursor/hooks.json is a typed refusal, never an overwrite or a merge", async () => {

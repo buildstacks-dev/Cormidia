@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-146/HB-148/HB-149)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-144/HB-146/HB-148/HB-149)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -24,11 +24,6 @@ what done bought you.
   conflated analysis/filing, duplicate incidents on retry, or an observe-only draft that
   publishes as a side effect. Done buys you direct coverage of all four missing journey
   families.
-- **HB-144 — unattended composite hermetic prerequisite (PENDING).** Defends the live
-  unattended claim with a cheap deterministic prerequisite. The failure it catches: a
-  multi-tick chain that loses or duplicates work, omits considered-item dispositions, or
-  leaves a misleading morning state. Done buys you the complete fake-timer composite;
-  the existing profile test remains credited only for authorization.
 - **HB-145 — job refusal, agreement, and critical-operation contract (PENDING).**
   Defends jobs before runtime construction and across CLI/observe surfaces. The failure
   it catches: an omitted refusal, downstream work after a failed check, a gated operation
@@ -181,9 +176,12 @@ ratified compare-and-refuse rule — a human edit racing the bootstrap always ke
 the human's bytes. Twelve real product defects found and fixed with deposited
 detectors; five ambiguities became findings instead of guesses.
 
-**Wave 1 — status-honesty closure (2026-08-11).** HB-141 gate-command evidence
+**Wave 1/L3 — status-honesty closure (2026-08-11).** HB-141 gate-command evidence
 binding and exact-payload publication refusal; hangs, floods, missing tools,
-candidate drift, bare templates, and approval bypasses now fail directly.
+candidate drift, bare templates, and approval bypasses now fail directly. HB-144
+unattended composite proves every reached link, every considered-item disposition,
+all seven typed non-green morning states, and multi-tick recovery without lost or
+duplicate work; the live campaign remains separate.
 
 **Wave 2 — durability + money (2026-07-31).** HB-020 exactly-once settlement;
 HB-021 claim-race recovery; HB-022 budget pause; HB-023 journey/turn SIGKILL sweeps;

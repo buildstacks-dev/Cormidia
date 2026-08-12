@@ -1085,9 +1085,9 @@ or golden set changed.
   are genuinely undetermined until triggered. --> *Executor:* human (trigger recognition) +
   build-agent (children 1–2), harness-revision campaign (child 3).
 - **HB-135 — F-PT-019 operation-aware `secrets-or-auth` classifier + deposited
-  detector. TODO (implementation-ready — product change).** Implements the contract
+  detector. LANDED 2026-08-12.** Implements the contract
   truth ratified in PURPOSE v2.15 §4 (F-PT-019 resolved-ratified 2026-08-03;
-  `src/runtime/gate.ts` §5.2 comment records the pending state). **The ratified
+  `src/runtime/gate.ts` §5.2 comment records the implementation state). **The ratified
   classification rule is reproduced in full at `validation-policy.yaml` →
   `open_findings` → F-PT-019 → `resolution`, so this ticket is implementable from
   the design corpus alone.** <!-- changelog 2026-08-10 (reader test 12,
@@ -1102,8 +1102,20 @@ or golden set changed.
   metadata query and a true-positive content emission); CF-SPLIT-SECRETS and
   CF-REG-204 PENDING annotations flip to landed in the same change. If a product-repo
   issue is opened for this work, record the cross-reference here in the same change.
+  Product-repo cross-reference: **#218** (`git show HEAD:<secret>` classified
+  routine — the known false-negative class this ticket closes; recorded on the
+  issue while fixing #204, PR #217).
   *Defends:* INV-002/INV-003 · CF-SPLIT-SECRETS · CF-REG-204. *Layer:* 1/2 + product.
   *Executor:* build-agent.
+  <!-- implementation status 2026-08-12: HB-135 LANDED in src/runtime/gate.ts
+  (operation-aware secret-read: metadataOnlyInvocation/emitsContents projection,
+  CONTENT_EMITTING_GIT_SUBCOMMANDS operand targets closing #218) with detectors in
+  tests/unit/cf-reg-204/cf-reg-204-read-only-git-plumbing.test.ts (rule-level half:
+  emission/fail-closed table, metadata-only table, two seeded permissive-classifier
+  controls) and tests/unit/cf-split-secrets/secrets-split.test.ts (boundary leg);
+  red-then-green in both directions — the exact #204 reviewer compound went green
+  only after the fix, and the #218 emission class stayed red against both seeded
+  permissive classifiers. -->
 - **HB-136 — CF-J21-I campaign kill-boundary sweep. LANDED 2026-08-12.** Opened by the
   rev-2026-08-10 status-honesty check: CF-J21-I has no citing spec (verified against
   `tests/hermetic/cf-j21/`); its torn-report, resume-drift and gate-ordering halves
@@ -1393,7 +1405,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-133 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
+HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
 HB-P2 LANDED.
 HB-P4 LANDED.

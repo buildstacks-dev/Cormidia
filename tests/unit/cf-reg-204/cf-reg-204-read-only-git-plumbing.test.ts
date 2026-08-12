@@ -45,7 +45,7 @@
 // are what must fail.
 
 import { describe, expect, it } from "vitest";
-import { classify, defaultGate, normalizeSemanticAction } from "../../../src/runtime/gate.js";
+import { classify, CRITICAL_RULES, defaultGate, normalizeSemanticAction } from "../../../src/runtime/gate.js";
 import type { ToolAction } from "../../../src/runtime/types.js";
 
 const bash = (command: string): ToolAction => ({ tool: "bash", input: { command } });
@@ -177,12 +177,11 @@ const STILL_WRITES: ReadonlyArray<{
  *  no rule matches on other grounds — raises no approval. Each is verbatim or
  *  minimally reduced from the two approval records the live run produced.
  *
- *  NOT included here: commands that name a bare `.env`. Those still match
- *  `secret-read`, which is a pure TEXT rule and deliberately operation-
- *  blind. Whether a metadata-only query that never opens the file (`git
- *  check-ignore .env`) should count as a secrets op is a product-truth
- *  question, opened as **F-PT-019** and parked — not guessed at here. See the
- *  BLOCKED case at the end of this file. */
+ *  Commands that name a bare `.env` live in the F-PT-019 tables below: since
+ *  HB-135 the rule-level half is operation-aware (resolved-ratified
+ *  2026-08-03, PURPOSE v2.15 §4; landed 2026-08-12), so a metadata-only query
+ *  naming a secret path is routine while every emission or unprovable effect
+ *  stays critical. */
 const NOW_ROUTINE_READS: ReadonlyArray<{ name: string; command: string }> = [
   {
     name: "the exact protocol-self-edit record that blocked promotion (#204, 20260801T083514Z-r3qm)",
@@ -260,40 +259,154 @@ describe("CF-REG-204 — read-only git plumbing is a read; writes on the same pa
     expect(semantic.destination).toBeNull();
     expect(semantic.effect).toBeNull();
   });
+});
 
-  // BLOCKED:F-PT-019 — the second half of #204's promotion block.
-  //
-  // `secret-read` is a pure TEXT rule: any command mentioning a bare
-  // `.env` matches, whatever the operation. So the reviewer's command still
-  // classifies critical AFTER this fix, even though it is now correctly a
-  // READ and never opens the file — `git check-ignore` consults the ignore
-  // rules, not the blob.
-  //
-  // Whether a metadata-only query naming a secret path is a secrets op is the
-  // product owner's call, not this change's: narrowing it would weaken a gate
-  // that also catches `cat .env`, `git show HEAD:.env`, and `grep -r . .env`.
-  // Opened as F-PT-019; this case PINS today's behaviour so the finding cannot
-  // be resolved silently in either direction.
-  it("BLOCKED:F-PT-019 — a metadata-only query naming a secret path still classifies critical (pinned, not endorsed)", () => {
-    // The SECOND of the two approvals that blocked promotion. Unlike the
-    // protocol-self-edit record above, this one is NOT resolved by the
-    // operation fix: `secret-read` is a pure TEXT rule over the projected
-    // effect fields, so `.env.example` appearing in `targets` matches whatever
-    // the operation is.
-    //
-    // Whether a metadata-only query that never opens the file (`git
-    // check-ignore`, `git status --ignored`) is a secrets op is the product
-    // owner's call, not this change's: narrowing the rule would also loosen it
-    // for `cat .env`, which is a genuine exfiltration read. Opened as
-    // F-PT-019. This case PINS today's behaviour so the finding cannot be
-    // resolved silently in either direction.
-    const command =
+// ---------------------------------------------------------------------------
+// F-PT-019 rule-level half — HB-135 (resolved-ratified 2026-08-03, PURPOSE
+// v2.15 §4; the ratified rule is reproduced in full at validation-policy.yaml
+// → open_findings → F-PT-019 → resolution). The second half of #204's
+// promotion block, and the whole of #218's false negative:
+//
+//   git check-ignore .env / git status --ignored  → metadata-only, no blob is
+//       opened — classified by ACTUAL EFFECT, i.e. routine;
+//   cat .env / git show HEAD:.env                 → the secret's bytes are
+//       EMITTED — a contents read, critical (`git show HEAD:<secret>` was
+//       ROUTINE before this change because a targetless read projected no
+//       path at all — #218: the rule fired on punctuation, not effect);
+//   anything whose effect cannot be proven metadata-only — an unknown
+//       program, a nested shell beyond the projection horizon, an
+//       unresolvable variable, a named expansion, a redirection, a non-shell
+//       tool — FAILS CLOSED to critical, never routine (system-map §5.2:
+//       authority damage vs availability damage).
+//
+// The #20 direction: the emission table below reaches effects that BYPASSED
+// the classifier entirely (targetless git reads, non-shell tools, nested
+// shells), not merely text-pattern evasions.
+// ---------------------------------------------------------------------------
+
+/** THE LOAD-BEARING HALF of the F-PT-019 narrowing, listed first and larger
+ *  than the negatives (never weaken a gate to make something pass): every
+ *  content emission and every unprovable effect classifies `secret-read`. */
+const EMITS_OR_UNPROVEN: ReadonlyArray<{ name: string; command: string }> = [
+  // the #218 class: emissions whose paths never reached the pre-HB-135 rule
+  { name: "git show HEAD:.env (the #218 record — emits the secret's bytes)", command: "git show HEAD:.env" },
+  { name: "git show HEAD:.env.local", command: "git show HEAD:.env.local" },
+  { name: "git cat-file blob HEAD:.env", command: "git cat-file blob HEAD:.env" },
+  { name: "git cat-file -p HEAD:.env", command: "git cat-file -p HEAD:.env" },
+  { name: "git show of a secret-named blob", command: "git show HEAD:secrets.json" },
+  // emissions the text rule already caught — pinned so the narrowing never leaks
+  { name: "cat .env", command: "cat .env" },
+  { name: "printenv API_TOKEN", command: "printenv API_TOKEN" },
+  { name: "git diff -- .env (patch bytes are contents)", command: "git diff HEAD~1 -- .env" },
+  { name: "git log -p -- .env", command: "git log -p -- .env" },
+  { name: "input redirection feeds the secret to a stdin filter", command: "grep TOKEN < .env" },
+  { name: "metadata query redirected into a secret path", command: "git check-ignore .env > .env.local" },
+  // fail closed: the effect cannot be PROVEN metadata-only
+  { name: "metadata query followed by an unknown program", command: "git status --ignored -- .env; somebinary" },
+  {
+    name: "metadata query followed by an unresolvable variable command",
+    command: "git status --ignored -- .env; $PAYLOAD",
+  },
+  {
+    name: "metadata query beside an echo of a named expansion (an env secret would re-emit)",
+    command: 'git status --ignored -- .env; echo "$OAUTH_REFRESH"',
+  },
+  {
+    name: "metadata query buried beyond the projection horizon is unproven, not proven harmless",
+    command: "git status --ignored -- .env; eval eval eval eval eval git status",
+  },
+];
+
+/** The narrowing: PROVABLY metadata-only queries over secret-named paths are
+ *  routine. The first row is the exact second approval record that blocked
+ *  promotion in #204 (20260801T083514Z-…), which the operation fix above
+ *  could not resolve while the rule stayed text-only. */
+const METADATA_ONLY_QUERIES: ReadonlyArray<{ name: string; command: string }> = [
+  {
+    name: "the exact second #204 approval record (the Reviewer's secret-protection proof)",
+    command:
       'git check-ignore .env.example; echo "plain check-ignore exit: $?"; ' +
       "git check-ignore .env .env.local; " +
-      "git status --ignored --porcelain -- .env.example 2>&1 | head";
-    expect(classify(bash(command))).toEqual({ cls: "critical", rule: "secret-read" });
-    // What the fix DID achieve on this command: it is no longer reported as a
-    // write, so it no longer also trips protocol-self-edit.
+      "git status --ignored --porcelain -- .env.example 2>&1 | head",
+  },
+  { name: "git check-ignore .env", command: "git check-ignore .env" },
+  { name: "git check-ignore -v .env .env.local", command: "git check-ignore -v .env .env.local" },
+  { name: "git status --ignored", command: "git status --ignored" },
+  { name: "git status --ignored -- .env", command: "git status --ignored -- .env" },
+  {
+    name: "metadata query piped to a stdin-only filter",
+    command: "git status --ignored --porcelain -- .env.example 2>&1 | head",
+  },
+  { name: "wrapped metadata query", command: "bash -c 'git status --ignored -- .env'" },
+  { name: "git check-attr against the secret path", command: "git check-attr diff -- .env" },
+];
+
+describe("CF-REG-204 — F-PT-019 rule-level half: secret-read is operation-aware (HB-135, #204/#218, INV-002/INV-003/T-1)", () => {
+  it("covers both halves, emissions weighted heaviest (narrowing a gate keeps positives in the lead)", () => {
+    expect(EMITS_OR_UNPROVEN.length).toBeGreaterThanOrEqual(15);
+    expect(METADATA_ONLY_QUERIES.length).toBeGreaterThanOrEqual(8);
+    expect(EMITS_OR_UNPROVEN.length).toBeGreaterThan(METADATA_ONLY_QUERIES.length);
+  });
+
+  // --- positive controls: emission or unprovable effect stays critical ----
+
+  it.each(EMITS_OR_UNPROVEN)("EMISSION / FAIL-CLOSED — classifies secret-read: $name", ({ command }) => {
+    expect(classify(bash(command)), command).toEqual({ cls: "critical", rule: "secret-read" });
+    const decision = defaultGate(bash(command));
+    expect(decision.allow, command).toBe(false);
+    if (!decision.allow) expect(decision.escalate, command).toBe(true);
+  });
+
+  it("a non-shell read tool naming the secret has no shell projection to prove — fail closed", () => {
+    // The #20 direction's purest form: an effect route with no command text
+    // at all. There is nothing to prove metadata-only, so the rule matches.
+    expect(classify({ tool: "read_file", input: { path: ".env" } })).toEqual({ cls: "critical", rule: "secret-read" });
+  });
+
+  // --- the narrowing: metadata-only queries raise no approval -------------
+
+  it.each(METADATA_ONLY_QUERIES)("METADATA-ONLY — routine, no approval: $name", ({ command }) => {
+    expect(classify(bash(command)), command).toEqual({ cls: "routine" });
+    expect(defaultGate(bash(command)).allow, command).toBe(true);
+  });
+
+  it("the reviewer compound is still never reported as a write (the #204 operation fix holds)", () => {
+    const command = METADATA_ONLY_QUERIES[0]?.command ?? "";
     expect(normalizeSemanticAction(bash(command)).operation).not.toBe("write");
+  });
+});
+
+describe("CF-REG-204 — seeded permissive classifiers are caught (the detector bites in both directions)", () => {
+  const EMISSIONS = [bash("git show HEAD:.env"), bash("cat .env")];
+
+  it("seed 1 — with secret-read removed, no remaining rule catches the #218 emission (the family goes dark)", () => {
+    // The seeded permissive state: the operation-aware rule deleted outright.
+    // Unlike the exfil pairing control in cf-split-secrets (where
+    // outbound-network independently closes the PIPED exfil), a plain local
+    // emission has no second net — so the EMITS_OR_UNPROVEN table above is
+    // the only thing standing, and this control proves it would turn red.
+    const withoutSecretRead = CRITICAL_RULES.filter((rule) => rule.name !== "secret-read");
+    for (const action of EMISSIONS) {
+      expect(withoutSecretRead.some((rule) => rule.matches(action))).toBe(false);
+      expect(classify(action)).toEqual({ cls: "critical", rule: "secret-read" });
+    }
+  });
+
+  it("seed 2 — an overbroad metadata carve-out (trusting every read) misses both emissions; the live rule catches them", () => {
+    // The seeded permissive state in the OTHER direction: a classifier that
+    // rescues anything whose operation projects as a read. `cat .env` and
+    // `git show HEAD:.env` are both reads — emission-awareness, not
+    // read-awareness, is what the ratified rule requires.
+    const liveSecretRead = CRITICAL_RULES.find((rule) => rule.name === "secret-read");
+    expect(liveSecretRead).toBeDefined();
+    const seeded = (action: ToolAction): boolean =>
+      liveSecretRead !== undefined &&
+      liveSecretRead.matches(action) &&
+      normalizeSemanticAction(action).operation !== "read";
+    for (const action of EMISSIONS) {
+      expect(normalizeSemanticAction(action).operation).toBe("read");
+      expect(seeded(action)).toBe(false);
+      expect(classify(action)).toEqual({ cls: "critical", rule: "secret-read" });
+    }
   });
 });

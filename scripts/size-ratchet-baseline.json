@@ -1708,7 +1708,7 @@
     },
     "src/runtime/gate.ts": {
       "exports": 18,
-      "lines": 2532,
+      "lines": 2660,
       "newModule": false
     },
     "src/runtime/git-worktree-sandbox.ts": {

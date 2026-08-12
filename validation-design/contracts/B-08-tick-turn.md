@@ -23,7 +23,10 @@ Status: DRAFT (Phase 4). Defends INV-005/007/014, T-5/T-6. Journeys J-09/J-13/J-
   A malformed schedule/trigger definition terminates as
   `scheduler_definition_failure` and corrupt or unreadable scheduler state as
   `scheduler_state_failure` — validated non-admission with durable evidence, never a
-  thrown crash (implementation owed under HB-142) `[doc]` (INV-014).
+  thrown crash (implemented 2026-08-12 under HB-142) `[doc]` (INV-014).
+  <!-- changelog 2026-08-12 (HB-142 landing): "implementation owed under
+  HB-142" → implemented; the admission seam now routes both, red-then-green in
+  tests/hermetic/cf-c-b08-cf-j09-a-cf-j09-i-cf-j09-r-cf-j09-s/. -->
   <!-- changelog 2026-08-12 (F-PT-034): list closed per owner ruling; it previously
   ended open with an ellipsis while the design doc's table was already closed, and
   the two scheduler_* members existed in the design doc and product type but not

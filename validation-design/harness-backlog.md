@@ -1199,7 +1199,7 @@ retroactive changes to the assertions in any existing spec.
 
 ## Wave 2 — status-honesty reclassification (2026-08-11)
 
-- **HB-142 — scheduler-admission matrix and clause-complete contract. PENDING.** Add
+- **HB-142 — scheduler-admission matrix and clause-complete contract. LANDED 2026-08-12.** Add
   due arithmetic over schedule/event/cadence overrides, the full named non-admission
   vocabulary, durable pre-spawn decisions, the asymmetric spawn-failure versus
   post-spawn-bookkeeping-failure paths without duplicate spawn, and manual-versus-timer
@@ -1219,6 +1219,17 @@ retroactive changes to the assertions in any existing spec.
   Execution/admission row (B-08 §2 updated); both scheduler_* reasons are real
   runtime-triggered validated non-admission with durable evidence, never a crash.
   UNBLOCKED: implement product change + detectors per F-PT-034's resolution.
+  <!-- implementation status 2026-08-12: HB-142 LANDED in
+  tests/hermetic/cf-c-b08-cf-j09-a-cf-j09-i-cf-j09-r-cf-j09-s/ (five spec files +
+  shared world/detectors). Product change per F-PT-034: src/org/schedule.ts mints
+  typed ScheduleDefinitionError/ScheduleStateError and validates schedule state
+  (parse, don't cast); src/org/dispatch.ts routes both to named, evidenced
+  non-admission (scheduler_definition_failure / scheduler_state_failure), fails
+  the unreadable budget overlay closed per B-08 §3, and no longer lets a later
+  tick's backpressure observation terminalize a live execution's pending
+  decision. Pre-fix reds captured in the landing PR: tick crash on corrupt
+  schedule.json and corrupt budget overlay; channel_gated mislabel of a malformed
+  spec; silent not_due over an unparseable timestamp; pending-decision rewrite. -->
 - **HB-148 — store-class crash/truncation/quarantine invariant. LANDED.** Sweep kill
   points at append, rename, and journal boundaries for every durable store class; reject
   truncated JSON and prove quarantined bytes are never accepted as state. Existing
@@ -1425,7 +1436,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
+HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-142 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-150 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
 HB-P2 LANDED.
 HB-P4 LANDED.

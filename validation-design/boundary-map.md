@@ -208,7 +208,14 @@ both fake and real dependency to prevent drift.
   never a generic "spawn failed"** `[elicited]`: (1) durable spawn decision with no
   child; (2) **a real child with missing post-spawn bookkeeping — worse, because the
   next tick is tempted to create a duplicate**. Plus: lock heartbeat stale-vs-live race;
-  WIP race between two ticks.
+  WIP race between two ticks; malformed schedule/trigger definition (was a tick crash
+  or a mislabeled route skip); corrupt or unreadable scheduler state — schedule
+  last-fired bytes, spawn-evidence reads at admission, the budget overlay (was a tick
+  crash, or silent not_due arithmetic over an unparseable timestamp); a later tick's
+  backpressure observation rewriting a live execution's pending decision.
+  <!-- changelog 2026-08-12 (HB-142, F-PT-034 write-back): the last three failure
+  modes were observed while implementing the admission matrix — enrichment of the
+  elicited list with observed reality, per the routing doc's write-back obligation. -->
 - **Honest fake:** YES — both sides real code in temp state homes, controlled clock +
   process seams.
 - **Layer:** 2 entirely.

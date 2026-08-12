@@ -463,8 +463,9 @@ process-identity probe.
   reason codes" (canonical table unchanged), and ratified `scheduler_definition_failure`
   / `scheduler_state_failure` as real runtime-triggered non-admission reasons —
   malformed definitions and corrupt/unreadable scheduler state terminate as validated
-  non-admission with durable evidence, never a thrown crash. Implementation owed under
-  HB-142.
+  non-admission with durable evidence, never a thrown crash. Implemented 2026-08-12
+  (HB-142 landing): admission seam converted, detectors red-then-green in
+  `tests/hermetic/cf-c-b08-cf-j09-a-cf-j09-i-cf-j09-r-cf-j09-s/`.
 - F-PT-035 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **own-repo
   incident filing is budgeted repo-collaboration.** J-11's exact-payload clause
   predated the #296 §5.3 consequence split and contradicted it plus the landed split

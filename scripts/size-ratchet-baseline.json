@@ -628,7 +628,7 @@
     },
     "src/org/dispatch.ts": {
       "exports": 4,
-      "lines": 1371,
+      "lines": 1476,
       "newModule": false
     },
     "src/org/episode-planner/assignment-readiness.ts": {
@@ -1317,8 +1317,8 @@
       "newModule": false
     },
     "src/org/schedule.ts": {
-      "exports": 4,
-      "lines": 144,
+      "exports": 6,
+      "lines": 200,
       "newModule": false
     },
     "src/org/scheduled-role-eligibility.ts": {

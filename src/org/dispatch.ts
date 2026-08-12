@@ -29,7 +29,7 @@ import {
 import { recoverStaleTurn } from "./recovery.js";
 import { runScheduledRetentionSweep, type StateSweepResult } from "./retention.js";
 import { loadRoles, type RolesFile } from "./roles.js";
-import { isDue, scheduleDueWindow, ScheduleStore } from "./schedule.js";
+import { isDue, parseSchedule, ScheduleDefinitionError, scheduleDueWindow, ScheduleStore } from "./schedule.js";
 import { scheduledRoleEligibility } from "./scheduled-role-eligibility.js";
 import { ScheduleDueClaimStore, type ScheduleDueClaimPayload } from "./scheduler/due-window-claims.js";
 import { assertScheduledRequiredExecutables } from "./scheduler/environment.js";
@@ -186,7 +186,7 @@ interface BlockedDecision {
   triggerKind: "schedule" | "event" | "mechanical";
   trigger: string;
   eventKey?: string;
-  outcome: "blocked" | "skipped";
+  outcome: "blocked" | "skipped" | "failed";
   reason: SchedulerReasonCode;
   detail: string;
 }
@@ -324,7 +324,20 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
 
   if (capacity === 0) result.skipped.push("org WIP limit reached");
   if (invocation !== undefined) {
-    for (const blocker of blocked) await recordBlockedDecision(evidence, invocation, blocker, tickAt);
+    for (const blocker of blocked) {
+      try {
+        await recordBlockedDecision(evidence, invocation, blocker, tickAt);
+      } catch (error) {
+        // Considered work must never vanish (INV-014): if the evidence
+        // deposit itself fails, the tick surfaces it loudly instead of dying
+        // mid-loop and dropping the remaining blockers' evidence.
+        result.errors.push(
+          `${blocker.app}/${blocker.role}: recording ${blocker.reason} evidence failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   // Retirement sweep: an event retires only when every CURRENT subscriber
@@ -656,7 +669,28 @@ async function computeDueTurns(input: {
       input.result.skipped.push(`${app.name}: skipped, app not live (status: ${app.status})`);
       continue;
     }
-    if (await isOverlayPaused(input.runtimeHome, app.name)) {
+    // B-08 §3 / F-PT-034: unreadable budget state → no admission for the app
+    // (fail closed, INV-015), named and evidenced — never a thrown crash.
+    let overlayPaused: boolean;
+    try {
+      overlayPaused = await isOverlayPaused(input.runtimeHome, app.name);
+    } catch (error) {
+      const detail = `budget overlay unreadable (failed closed to no admission): ${
+        error instanceof Error ? error.message : String(error)
+      }`;
+      input.result.skipped.push(`${app.name}: scheduler_state_failure ${detail}`);
+      blocked.push({
+        app: app.name,
+        role: "*",
+        triggerKind: "mechanical",
+        trigger: "budget-overlay",
+        outcome: "failed",
+        reason: "scheduler_state_failure",
+        detail,
+      });
+      continue;
+    }
+    if (overlayPaused) {
       input.result.skipped.push(`${app.name}: budget overlay paused`);
       blocked.push({
         app: app.name,
@@ -720,7 +754,28 @@ async function computeDueTurns(input: {
             subscribersByEvent.set(event.key, subscribers);
             const consumedKey = roleConsumedKey(event.key, role.name);
             if (consumed.has(consumedKey)) continue;
-            if (await input.evidence.hasSpawnedEvent(event.key, role.name)) {
+            let spawnEvidenced: boolean;
+            try {
+              spawnEvidenced = await input.evidence.hasSpawnedEvent(event.key, role.name);
+            } catch (error) {
+              // F-PT-034: unreadable spawn evidence refuses THIS (event, role)
+              // admission with the named reason instead of crashing the tick —
+              // admitting without the dedupe witness could duplicate a spawn.
+              const detail = error instanceof Error ? error.message : String(error);
+              input.result.skipped.push(`${app.name}/${role.name}: scheduler_state_failure ${detail}`);
+              blocked.push({
+                app: app.name,
+                role: role.name,
+                triggerKind: "event",
+                trigger: trigger.event,
+                eventKey: event.key,
+                outcome: "failed",
+                reason: "scheduler_state_failure",
+                detail,
+              });
+              continue;
+            }
+            if (spawnEvidenced) {
               // The durable scheduler decision reaches `spawned` before the
               // file-store mark. A crash in that narrow window must converge
               // without firing the provider turn again or stranding the event
@@ -749,6 +804,28 @@ async function computeDueTurns(input: {
           }
         }
         if (trigger.schedule !== undefined) {
+          // F-PT-034 (owner ruling 2026-08-12): a malformed schedule/trigger
+          // definition terminates THIS (app, role, trigger) entry as the named
+          // `scheduler_definition_failure` with durable evidence — never a
+          // thrown crash, never a mislabeled route skip, and never a reason to
+          // kill the rest of the tick (narrowest blast radius; the design doc
+          // is silent on radius, noted in the landing PR).
+          try {
+            parseSchedule(trigger.schedule);
+          } catch (error) {
+            if (!(error instanceof ScheduleDefinitionError)) throw error;
+            input.result.skipped.push(`${app.name}/${role.name}: scheduler_definition_failure ${error.message}`);
+            blocked.push({
+              app: app.name,
+              role: role.name,
+              triggerKind: "schedule",
+              trigger: trigger.schedule,
+              outcome: "failed",
+              reason: "scheduler_definition_failure",
+              detail: error.message,
+            });
+            continue;
+          }
           const explicitRetry = existingScheduleClaims
             .filter((claim) => input.explicitScheduleRetries.has(claim.settlement_id))
             .find(
@@ -769,8 +846,30 @@ async function computeDueTurns(input: {
             );
             continue;
           }
-          const stored = await input.schedule.lastFired(app.name, role.name, trigger.schedule);
-          const evidenced = await input.evidence.lastSpawnedScheduleWindow(app.name, role.name, trigger.schedule);
+          // F-PT-034: corrupt or unreadable scheduler state does less, never
+          // more (INV-015, B-08 §3 "unreadable schedule → no spawn, durable
+          // anomaly"): the affected scheduled entry terminates as the named
+          // `scheduler_state_failure` with durable evidence, and admission
+          // that never reads this state (event triggers) proceeds untouched.
+          let stored: Date | undefined;
+          let evidenced: Date | undefined;
+          try {
+            stored = await input.schedule.lastFired(app.name, role.name, trigger.schedule);
+            evidenced = await input.evidence.lastSpawnedScheduleWindow(app.name, role.name, trigger.schedule);
+          } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            input.result.skipped.push(`${app.name}/${role.name}: scheduler_state_failure ${detail}`);
+            blocked.push({
+              app: app.name,
+              role: role.name,
+              triggerKind: "schedule",
+              trigger: trigger.schedule,
+              outcome: "failed",
+              reason: "scheduler_state_failure",
+              detail,
+            });
+            continue;
+          }
           const last = [stored, evidenced]
             .filter((value): value is Date => value !== undefined)
             .sort((a, b) => b.getTime() - a.getTime())[0];
@@ -992,7 +1091,13 @@ async function recordBlockedDecision(
     ...definedProps({ eventKey: blocker.eventKey }),
     now,
   });
-  if (claimed.record.stage !== "terminal") {
+  // Terminalize only a decision this observation just prepared: a record
+  // already progressing through lock/journal/spawn stages belongs to a live
+  // execution, and rewriting it (e.g. a next-tick `not_due` flattening a
+  // pending `post_spawn_bookkeeping_failure`) would falsify winner evidence —
+  // "a spawned decision remains pending until the child journal is terminal"
+  // (docs/scheduler/design.md → Health semantics; HB-142).
+  if (claimed.record.stage === "prepared") {
     await evidence.finishDecision(claimed.record.decision_id, blocker.outcome, blocker.reason, now, {
       detail: blocker.detail,
     });

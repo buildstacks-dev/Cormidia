@@ -143,6 +143,7 @@ export function auditRunnerAppliance({ dockerfile, entrypoint, runSpec }) {
     if (!entrypoint.includes(cidr)) violations.push(`private-LAN network refusal is missing: ${cidr}`);
   }
   if (!entrypoint.includes("--bounding-set=-all")) violations.push("job capabilities are not dropped before execution");
+  if (!entrypoint.includes("--reset-env")) violations.push("job identity environment is not reset to the runner user");
   if (!entrypoint.includes("env -u RUNNER_TOKEN")) violations.push("registration token remains in the job environment");
   if (env.GH_TOKEN !== undefined) violations.push("administrator GitHub credential entered the runner container");
   return violations;

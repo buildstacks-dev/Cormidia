@@ -56,6 +56,7 @@ exec setpriv \
   --reuid=1001 \
   --regid=1001 \
   --init-groups \
+  --reset-env \
   --bounding-set=-all \
   --inh-caps=-all \
   --ambient-caps=-all \

@@ -4,6 +4,7 @@ set -euo pipefail
 [[ "${RUNNER_OS:-}" == "Linux" ]]
 [[ "${RUNNER_ARCH:-}" == "ARM64" ]]
 [[ "$(uname -m)" == "aarch64" ]]
+[[ "${HOME:-}" == "/home/runner" ]]
 [[ -r /run/cormidia-runner/network-isolated ]]
 [[ ! -e /var/run/docker.sock ]]
 [[ -z "${RUNNER_TOKEN:-}" ]]
@@ -23,6 +24,7 @@ git -C "${GITHUB_WORKSPACE}" diff --check
   echo "- OS/architecture: Linux ARM64"
   echo "- Workspace filesystem: overlay (no host mount)"
   echo "- Effective capabilities: none"
+  echo "- Runtime identity: unprivileged runner home"
   echo "- Docker socket: absent"
   echo "- Private/link-local egress guard: installed"
   echo "- Registration token in job environment: absent"

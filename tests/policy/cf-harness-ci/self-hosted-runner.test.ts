@@ -79,6 +79,7 @@ describe("CF-HARNESS-CI — HB-152 self-hosted runner appliance", () => {
     expect(sources.entrypoint).toContain("--disableupdate");
     expect(sources.entrypoint).toContain("--no-default-labels");
     expect(sources.entrypoint).toContain('--labels "${RUNNER_LABEL}"');
+    expect(sources.entrypoint).toContain("--reset-env");
     expect(sources.entrypoint).toContain("--bounding-set=-all");
     expect(sources.entrypoint).toContain("env -u RUNNER_TOKEN");
   });
@@ -140,6 +141,7 @@ describe("CF-HARNESS-CI — HB-152 seeded runner-appliance violations", () => {
       .replace("--ephemeral", "")
       .replaceAll("--dport 53", "--dport 443")
       .replace("169.254.0.0/16", "198.18.0.0/15")
+      .replace("--reset-env", "")
       .replace("--bounding-set=-all", "--bounding-set=+net_admin");
     const violations = auditRunnerAppliance({
       dockerfile: sources.dockerfile,
@@ -149,6 +151,7 @@ describe("CF-HARNESS-CI — HB-152 seeded runner-appliance violations", () => {
     expect(violations).toContainEqual(expect.stringContaining("ephemeral"));
     expect(violations).toContainEqual(expect.stringContaining("link-local"));
     expect(violations).toContainEqual(expect.stringContaining("DNS"));
+    expect(violations).toContainEqual(expect.stringContaining("identity environment"));
     expect(violations).toContainEqual(expect.stringContaining("capabilities"));
   });
 

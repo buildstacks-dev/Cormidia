@@ -594,9 +594,10 @@ function jobAllowsFailure(job: Record<string, unknown>): boolean {
 }
 
 /**
- * Pins the per-commit CI lane shape (policy `ci`): typecheck+check+build+test in
- * the core job, and a pinned, checksum-verified, fail-closed gitleaks job with
- * a canary negative-control step. Returns violations; empty = no drift.
+ * Pins the per-commit CI lane shape (policy `ci`): check (including strict
+ * typecheck)+build+test in the core job, and a pinned, checksum-verified,
+ * fail-closed gitleaks job with a canary negative-control step. Returns
+ * violations; empty = no drift.
  */
 export function auditCoreChecksWorkflow(workflowSource: string): string[] {
   const violations: string[] = [];
@@ -625,7 +626,7 @@ export function auditCoreChecksWorkflow(workflowSource: string): string[] {
     violations.push("per-commit `core` job is missing");
   } else {
     const runs = jobSteps(core).map(stepRun);
-    for (const command of ["pnpm typecheck", "pnpm check", "pnpm build", "pnpm test"]) {
+    for (const command of ["pnpm check", "pnpm build", "pnpm test"]) {
       if (!runs.some((run) => runsCommand(run, command))) {
         violations.push(`core job no longer runs \`${command}\` (per-commit L1/L2 lane drift; policy ci.per_commit)`);
       }
@@ -653,15 +654,17 @@ export function auditCoreChecksWorkflow(workflowSource: string): string[] {
   } else if (!/^\d+\.\d+\.\d+$/.test(String(version))) {
     violations.push(`GITLEAKS_VERSION "${String(version)}" is not an exact semver version pin`);
   }
-  const sha = isRecord(env) ? env["GITLEAKS_SHA256"] : undefined;
-  if (!isString(sha) || !/^[0-9a-f]{64}$/.test(sha)) {
-    violations.push("GITLEAKS_SHA256 checksum pin is missing or malformed");
+  for (const key of ["GITLEAKS_SHA256_X64", "GITLEAKS_SHA256_ARM64"]) {
+    const sha = isRecord(env) ? env[key] : undefined;
+    if (!isString(sha) || !/^[0-9a-f]{64}$/.test(sha)) {
+      violations.push(`${key} checksum pin is missing or malformed`);
+    }
   }
 
   const steps = jobSteps(gitleaks);
   const runs = steps.map(stepRun);
-  if (!runs.some((run) => run.includes("sha256sum -c"))) {
-    violations.push("gitleaks download is not checksum-verified (no `sha256sum -c` step)");
+  if (!runs.some((run) => runsCommand(run, "bash scripts/ci/install-gitleaks.sh"))) {
+    violations.push("gitleaks download does not use the architecture-aware pinned installer");
   }
 
   const canary = steps.find((step) => /canary/i.test(stepName(step)) || /canary/i.test(stepRun(step)));

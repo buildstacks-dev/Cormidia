@@ -578,10 +578,13 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   `.cursor/hooks.json` `preToolUse` channel was certified live 2026-08-07,
   F-PT-026 resolved; the residual risk is a future build silently dropping it, which
   the post-turn executed-versus-allowed cross-check surfaces as
-  `error_gate_not_observed`); native `AGENTS.md`/`CLAUDE.md` and
+  `error_gate_not_observed`); **a hook process that closes stdin while the pre-spend
+  handshake is being delivered** (typed bridge refusal, never an unhandled process
+  error); native `AGENTS.md`/`CLAUDE.md` and
   `~/.cursor/skills-cursor/**` ingestion pulling operator-personal config into org
   turns (hermeticity — partial, gate-visible, documented); thread resume that
-  authenticates but does not restore the thread.
+  authenticates but does not restore the thread. <!-- changelog 2026-08-11 (#403):
+  added the early-stdin-close shape observed by the Linux ARM64 CI run. -->
 - **Honest fake:** YES — scripted `cursor-agent` subprocess double speaking
   stream-json: trust refusals, force-absent no-op edits, permission-config
   interactions, thread-resume mismatch, protocol drift.

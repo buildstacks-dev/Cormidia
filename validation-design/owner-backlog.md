@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-144/HB-146/HB-148/HB-149)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -240,12 +240,20 @@ Run 1 stopped at the plan gate — which is the lane working, not failing: it sp
 fraction of a build to learn the planner mishandled the briefs, and refused to call
 anything a pass.
 
+**CI compute (2026-08-11).** HB-152 moved ordinary internal PR and `main` Core
+Checks to one GitHub-orchestrated disposable Linux ARM64 runner on the owner's Mac,
+kept fork/fallback/release compute hosted, and pinned every host/network/credential
+boundary with seeded controls. Two clean Mac runs measured a 126-second suite p90
+and 228-second complete-job p90; the same-SHA hosted fallback stayed available and
+passed, but took 431 seconds for the suite and 504 seconds for the job.
+
 **Bookkeeping records (2026-08-10) — no new work in any of these.**
 - HB-137: a record naming the adapter families the #337–#340 GitHub PRs already
   landed and certified, so machine traceability can resolve them to a ticket. It
   changes nothing about Grok staying sandbox-only or Muse staying fail-closed off.
 - HB-138: the same kind of record for the consequence-split families the #313–#316
   PRs landed.
-- HB-139: the same for the forty-plus regression detectors that landed with their
+- HB-139: the same for the forty-plus regression detectors, including CF-REG-403,
+  that landed with their
   fix PRs over the product's life — the "every bug leaves a tripwire behind" promise,
   now resolvable ticket-by-ticket by the tooling as well as by reading the catalog.

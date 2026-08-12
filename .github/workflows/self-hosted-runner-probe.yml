@@ -1,0 +1,23 @@
+name: Self-hosted runner probe
+
+# HB-152 staged proof: this workflow proves the isolated Mac-backed runner with
+# a real GitHub-assigned job before Core checks changes its runs-on target.
+# After the successful pre-cutover PR proof, it remains available as an
+# explicit appliance smoke without adding another job to every PR.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: cormidia-core-linux-arm64
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Prove the ephemeral runner boundary
+        run: bash scripts/self-hosted-runner/probe.sh

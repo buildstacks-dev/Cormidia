@@ -1238,6 +1238,38 @@ retroactive changes to the assertions in any existing spec.
   envelope is green. *Defends:* CF-S1-env. *Families:* CF-S1-env. *Layer:* 1/2.
   *Executor:* build-agent.
 
+## CI execution revision (2026-08-11, issue #403)
+
+- **HB-152 — GitHub-orchestrated self-hosted Core Checks. LANDED.** Replace
+  GitHub-hosted compute for ordinary internal PR and `main` Core Checks with one
+  repository-scoped, ephemeral Linux ARM64 runner on the owner's Mac while retaining
+  GitHub as orchestrator and check system of record. Fork-origin PRs and an explicit
+  exact-SHA fallback remain GitHub-hosted; release, npm publication, OIDC/provenance,
+  artifacts, and scheduled GitHub-mutating workflows stay GitHub-hosted. The runner
+  appliance uses checksum/digest-pinned official inputs, one short-lived registration
+  token, a unique custom label, no host mounts/Docker socket/host credentials, an empty
+  job capability set, denied private/link-local egress except Docker DNS, bounded
+  resources, and destruction after one job. A launchd supervisor keeps exactly one
+  idle runner available and removes only exact-label/name offline residue. Core lane
+  cleanup removes duplicate typecheck work, makes pinned gitleaks architecture-aware,
+  fixes the observed late cleanup flake with its detector, and selects test concurrency
+  only after repeated clean measurements. *Acceptance:* (1) the isolated appliance
+  build and doctor pass; (2) a real GitHub-assigned probe job succeeds before Core
+  routing changes; (3) internal PR and `main` jobs run on the Mac while a seeded fork
+  and manual exact-SHA fallback select `ubuntu-latest`; (4) the Mac-offline fallback is
+  exercised; (5) release remains hosted; (6) every routing/isolation/pin has a seeded
+  negative control; (7) repeated full-suite runs are flake-free and p90 is reported
+  against the ratified five-minute target. *Defends:* validation-policy `ci`,
+  CF-HARNESS-CI, CF-HARNESS-RELEASE, secret-hygiene, and RQ-1 exact-candidate gate
+  identity. *Families:* CF-HARNESS-CI (primary; CF-HARNESS-RELEASE is unchanged and
+  asserted as a hosted-only non-regression). *Layer:* 1/2 + CI. *Executor:* build-agent;
+  human ratification and repository/host authority recorded in issue #403 and the
+  2026-08-11 session. *Evidence:* exact-SHA boundary probe run 31562095184; two
+  flake-free Mac-backed Core Checks attempts in run 31561452475 (suite 125/126s,
+  nearest-rank p90 126s; complete core job 220/228s, p90 228s); and exact-SHA
+  `ubuntu-latest` fallback run 31561730803 (suite 431s, complete core job 504s),
+  all green on `95561cd789da53da895226dd02629e8cd02fffd5`.
+
 ## Retrospective ownership records (2026-08-10, rev-2026-08-10)
 
 Added by the rev-2026-08-10 machine-traceability pass so every implementable family
@@ -1267,7 +1299,7 @@ HB-137..HB-139 LANDED (retrospective records).
   CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-293,
   CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335,
   CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374,
-  CF-REG-375, and CF-HB102-MANUAL-REVIEW. (CF-REG-273 and CF-REG-291 are owned by
+  CF-REG-375, CF-REG-403, and CF-HB102-MANUAL-REVIEW. (CF-REG-273 and CF-REG-291 are owned by
   HB-052, whose live-lane hardening deposited them; CF-REG-204 is owned by HB-135.)
   *Executor:* landed by each defect's fix PR.
 
@@ -1288,7 +1320,7 @@ HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-141 LANDED. HB-144 LANDED. HB-146 LANDED. HB-148 LANDED.
-HB-149 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
+HB-149 LANDED. HB-152 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
 
 ## Standing rules
 

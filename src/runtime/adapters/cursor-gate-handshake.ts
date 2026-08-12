@@ -1,12 +1,8 @@
 // The pre-spend proof that makes `--force` safe to pass to cursor-agent.
 //
-// cursor-agent's headless surface exposes no approval channel a wrapper could
-// answer, and it needs `--force` to do real work. So before a single token is
-// spent, the adapter runs the EXACT command string Cursor will run, from the
-// exact cwd Cursor runs project hooks from, with the exact environment the
-// child inherits, and requires both a deny probe and an allow probe to
-// round-trip through the per-turn socket. That proves binary resolution, cwd
-// semantics, socket reachability, both JSON shapes, and the fail-closed path.
+// cursor-agent needs `--force` to do real work but exposes no approval channel
+// a wrapper could answer. Before spend, the exact hook command must therefore
+// answer allow and deny probes from Cursor's project cwd and environment.
 //
 // It cannot prove Cursor CHOOSES to call the hook. That claim rests on the
 // certified version band plus CursorRuntime's post-turn executed-versus-allowed
@@ -104,6 +100,9 @@ function runHookProcess(
         }
         resolve(stdout);
       },
+    );
+    child.stdin?.on("error", (error) =>
+      reject(new CursorGateBridgeUnavailableError(`the hook command closed stdin during delivery: ${error.message}`)),
     );
     child.stdin?.end(payload);
   });

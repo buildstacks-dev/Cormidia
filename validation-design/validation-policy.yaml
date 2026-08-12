@@ -139,6 +139,15 @@
 # REPAIR=6,600, BATCH-LURE=8,700, DIRECT-PROMOTION=12,100, ROUTINE=8,000,
 # CROSS-TICKET=9,500, and STRUCTURAL=4,700; all other cases retain their baseline,
 # producing an 88,100-output-token full-corpus envelope.
+# changelog 2026-08-11 (owner-ratified issue #403 / HB-152): GitHub remains the
+# orchestrator and check system of record, while ordinary internal PR and main Core
+# Checks use one repository-scoped ephemeral Linux ARM64 runner on the owner's Mac.
+# Fork PRs and explicit exact-ref recovery use GitHub-hosted compute; every release,
+# npm publication, OIDC/provenance, and release artifact job remains GitHub-hosted.
+# The disposable runner boundary, fail-safe offline behavior, architecture-pinned
+# gitleaks inputs, and routing negative controls are now part of CF-HARNESS-CI. ACT is
+# deliberately outside the selected tooling. No validation gate, evidence rule,
+# spend bound, threshold, or release-approval requirement is weakened.
 
 # changelog 2026-08-07 (outcome-acceptance + jobs harness revision): the
 # validation-harness-design skill re-entered in harness-revision mode (existing artifacts
@@ -593,7 +602,18 @@ release_gating:
     local_approval_store_proof: "not additionally required"
 
 ci:
-  host: github-actions
+  host: github-actions-orchestrated-hybrid-compute
+  orchestrator: github-actions
+  runner_routing:
+    internal_pull_request: cormidia-core-linux-arm64
+    main_push: cormidia-core-linux-arm64
+    fork_pull_request: ubuntu-latest
+    manual_exact_ref_default: cormidia-core-linux-arm64
+    manual_exact_ref_fallback: "ubuntu-latest, with a required expected_sha == github.sha assertion before validation"
+    release_and_publication: ubuntu-latest
+  offline_behavior: "self-hosted jobs remain queued; no silent trust-boundary or compute-provider fallback. An operator cancels the queued run and explicitly dispatches the same exact ref with compute=github-hosted"
+  self_hosted_boundary: "repository-scoped one-job ephemeral Linux ARM64 container; checksum/digest-pinned official inputs; short-lived registration token; unique custom label; no host mounts, Docker socket, host credentials, retained workspace, job capabilities, or private/link-local egress; bounded resources; destroyed and deregistered after one job"
+  release_compute_rule: "every tag, npm publication, OIDC/provenance, release artifact, and release-shaped workflow remains GitHub-hosted even when the Mac runner is online"
   per_commit: [L1, L2, gitleaks]
   per_commit_gate_class: "blocking - required target: the per-commit lane (L1, L2, gitleaks) must be a required check; a red or incomplete lane blocks merge; fail-closed"
   per_commit_enforcement_status: "BLOCKED:F-PT-018 - workflow runs on pull requests and main pushes, but this private repository's current GitHub plan does not provide branch protection/rulesets; a red lane therefore cannot presently block merge"
@@ -606,8 +626,11 @@ ci:
 tooling:
   selected: [vitest, fast-check, owned-in-process-fakes-plus-real-temp-git,
     vitest-live-config, hand-rolled-eval-runner, stride-threat-model-doc,
-    bespoke-contention-rig, soak-protocol, gitleaks-pinned, github-actions]
+    bespoke-contention-rig, soak-protocol, gitleaks-pinned, github-actions,
+    ephemeral-self-hosted-linux-arm64, docker]
   rejected:
+    - option: act
+      reason: "not selected for issue #403: GitHub Actions remains the sole orchestrator and local workflow emulation would add a second execution path without reducing the self-hosted runner trust boundary"
     - option: jest
       reason: "no advantage over vitest; older ESM story"
     - option: testcontainers

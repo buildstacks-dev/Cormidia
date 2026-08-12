@@ -167,8 +167,17 @@ Phase 3 boundary owns them.
 
 ## J-11 Audience roles
 - Given scheduled Support/Marketing work, then outputs are internal artifacts/drafts;
-  any external publication path requires its own exact-payload approval + execution
-  acknowledgement. [B-17, INV-003]
+  any external publication path — external meaning outside the app's own configured
+  repositories, per the #296 §5.3 consequence split (F-PT-023) — requires its own
+  exact-payload approval + execution acknowledgement; a verified own-repository
+  action (including SRE's source-linked `op:incident` filing) proceeds as budgeted
+  `repo-collaboration` with its per-action audit row, and anything foreign, dynamic,
+  or unverifiable refines to human-only `repo-collaboration-foreign` (F-PT-035,
+  owner ruling 2026-08-12). [B-17, INV-003]
+  <!-- changelog 2026-08-12 (F-PT-035): "external" aligned with the ratified
+  consequence split. The clause predated the split and read as if own-repo filing
+  required exact-payload approval, contradicting docs/approvals/design.md §5.3 and
+  the landed split detectors; the owner ruled the split's classification controls. -->
 - Given an SRE health analysis, then analysis-complete and incident-filed are separate
   recorded claims, with exactly one source-linked `op:incident` issue. [INV-008/014]
 

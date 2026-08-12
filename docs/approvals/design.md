@@ -194,6 +194,13 @@ fresh, exact, single-use, per-instance human approval path is unchanged. Every
 Stage 2 move is a tightening; the proposal's loosening splits are not landed
 and require ratification first.
 
+SRE's source-linked `op:incident` issue filing into the app's own configured
+repository is such a verified own-repository action and routes through
+`repo-collaboration` (owner ruling 2026-08-12, F-PT-035 — which also aligned
+the J-11 journey clause's "external" to mean outside the app's own configured
+repositories; `queueIncidentFiling`'s move off the retired `external-publishing`
+rule lands under HB-143).
+
 Every decision — human or agent — records the deciding identity, a non-empty
 reason, and an audit row. A reason equal to a bare decision token is rejected
 rather than stored.

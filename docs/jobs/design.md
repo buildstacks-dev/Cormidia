@@ -334,7 +334,7 @@ jobs/<job-id>/
 ```
 
 Per-step run records reuse the **existing** `runs/` shape unchanged, so
-`cormidia observe`, `report`, and `prune-runs` work with no modification:
+`report` and `prune-runs` require no jobs-specific run-record path:
 
 ```
 runs/<app|adhoc>/<YYYYMMDD-HHMMSS>-job-<job-id>-<step-id>/
@@ -344,6 +344,14 @@ runs/<app|adhoc>/<YYYYMMDD-HHMMSS>-job-<job-id>-<step-id>/
 `runs/adhoc/` is the unscoped slot, and it is not new — `runRole` already
 defaults its runlog app to `adhoc`
 ([`../../src/loop/runRole.ts`](../../src/loop/runRole.ts)).
+
+The CLI and `cormidia observe` also project the authoritative job journal
+through one shared step-state vocabulary. In particular, a step with no declared
+mechanical check is durably `completed_unverified` and both surfaces render it
+as `completed (unverified)`, never as the greener `completed`. A corrupt journal
+degrades the local observer source instead of disappearing as an empty healthy
+job list. The observer remains projection-only: it stores no copy and does not
+turn a job journal into an episode/product trace.
 
 **One canonical location per job.** An app-scoped job's records live under
 `runs/<app>/` and nowhere else; an unscoped job's live under `runs/adhoc/` and

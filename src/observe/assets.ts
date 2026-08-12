@@ -1,5 +1,5 @@
 import { TIME_POLICY_JS } from "../report/time-policy.js";
-
+import { OBSERVE_JOBS_HTML, OBSERVE_JOBS_JS } from "./job-assets.js";
 export const OBSERVE_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -53,6 +53,7 @@ export const OBSERVE_HTML = `<!doctype html>
         <div class="section-heading"><h3 id="pending-intake-title">Pending intake</h3><span id="pending-intake-scope" class="scope-badge"></span></div>
         <ul id="pending-intake" class="inbox" aria-label="Pending company events and lifecycle states"></ul>
       </section>
+      ${OBSERVE_JOBS_HTML}
     </section>
     <section aria-labelledby="delivery-title">
       <div class="section-heading"><h2 id="delivery-title">Product delivery</h2><span id="delivery-scope" class="scope-badge"></span><span>GitHub <code>op:ready</code> is the claimable queue</span></div>
@@ -126,7 +127,6 @@ export const OBSERVE_HTML = `<!doctype html>
   <script src="/assets/observe.js" defer></script>
 </body>
 </html>`;
-
 export const OBSERVE_CSS = `
 :root { color-scheme: dark; --bg:#0b0e12; --panel:#121720; --panel2:#171e28; --line:#2a3543; --text:#eef4fa; --muted:#9ba9b8; --blue:#5ab0ff; --green:#57d69b; --amber:#f0bd5a; --red:#ff7272; --focus:#b9dcff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 * { box-sizing: border-box; }
@@ -270,7 +270,6 @@ dialog { width:min(900px,94vw); max-height:90vh; background:var(--panel); color:
 @media (max-width:900px) { .global-header { grid-template-columns:minmax(0,1fr); gap:.35rem; }.health-line { justify-content:flex-start; }.header-actions { justify-content:flex-start; flex-wrap:wrap; width:100%; }.session-control select { max-width:min(72vw,430px); }.totals { flex-wrap:wrap; }.workspace { grid-template-columns:minmax(0,1fr); }.delivery-board { grid-template-columns:repeat(6,78vw); }.history-row { grid-template-columns:1fr; } }
 @media (max-width:420px) { .section-heading { flex-wrap:wrap; }.activity-controls { flex-direction:column; align-items:stretch; }.activity-controls select { width:100%; } main { padding:0 .65rem 2rem; }.filters { padding:.55rem .65rem; }.session-control { width:100%; display:grid; grid-template-columns:minmax(0,1fr); }.session-control select { max-width:100%; min-width:0; width:100%; }.delivery-board { grid-template-columns:repeat(6,86vw); }.app-grid,.attention-grid { grid-template-columns:1fr; }.graph { min-height:180px; }.drawer { width:100vw; }.drawer dl { grid-template-columns:1fr; gap:.15rem; }.global-header { position:static; } }
 `;
-
 export const OBSERVE_JS =
   String.raw`(() => {
   'use strict';
@@ -518,7 +517,7 @@ export const OBSERVE_JS =
     );
     populateFilters(s);
     renderScopeStatement(s,scope);
-    renderAttention(s,scope); renderApps(s,scope); renderActivityHistory(s,scope); renderPendingIntake(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistoryIndex(s); renderHistory(s,scope); renderSources(s,scope); renderRoadmapExplanation(s,scope); renderValidationCampaigns(s,scope);
+    renderAttention(s,scope); renderApps(s,scope); renderActivityHistory(s,scope); renderPendingIntake(s,scope); renderJobs(s,scope); renderDelivery(s,scope); renderGraph(s,scope); renderActivity(s,scope); renderHistoryIndex(s); renderHistory(s,scope); renderSources(s,scope); renderRoadmapExplanation(s,scope); renderValidationCampaigns(s,scope);
     // A snapshot must never steal focus: the drawer takes focus when it OPENS,
     // not on each of the re-renders SSE drives while it is open.
     if(state.selectedPass) { const pass=s.passes.find((p)=>p.id===state.selectedPass); if(pass) renderDrawer(pass,false); else closeDrawer(); }
@@ -893,6 +892,7 @@ export const OBSERVE_JS =
       v.quality_reason?node('div',{class:'meta warn'},v.quality_reason):'',
     )),...(rows.length<filtered.length?[node('li',{},showMore('pending-intake',40,'pending intake','pending-intake'))]:[])]:[empty('No pending company events or lifecycle states.')]));
   }
+  ${OBSERVE_JOBS_JS}
   function renderDelivery(s,scope) {
     const defs=[['ready','Ready'],['building','Building'],['in_review','Reviewing'],['blocked_on_approval','Waiting approval'],['returned','Returned'],['merged','Recently completed']];
     const sessionTickets=sessionTicketKeys(s,scope); const tickets=s.delivery.filter((v)=>visibleApp(v.app,scope)&&(!sessionTickets||sessionTickets.has(v.app+'#'+v.issue_number)));

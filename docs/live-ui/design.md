@@ -813,6 +813,7 @@ The historical page also shows completion integrity:
 | `locks/` | active role/app ownership | fresh lock is supporting liveness; pass heartbeat is still shown separately |
 | `state/schedule.json` and event state | due/fired/pending activity | scheduler-owned durable definition/state; readability alone does not prove scheduler operational health |
 | `state/events/inbox/` | company-lifecycle intake | pending until consumed for all subscribers |
+| `jobs/<job-id>/journal.json` | durable ad-hoc job step state | journal is authority; CLI and observe share one projection, including distinct `completed (unverified)` display; corrupt bytes degrade the local source |
 | `approvals/` | critical-operation safety queue | authoritative approval state/audit |
 
 The projection must expose per-source freshness and degradation. “GitHub

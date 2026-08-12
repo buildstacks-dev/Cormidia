@@ -687,6 +687,8 @@ export interface ObserveSnapshotV1 {
     rows: PendingIntakeItemView[];
     counts: Record<PendingIntakeState, number>;
   };
+  /** Durable job states; job artifacts remain outside the observer payload. */
+  jobs: import("../jobs/status.js").JobJournalView[];
   delivery: DeliveryTicketView[];
   parent_tasks: ParentTaskView[];
   /** A FLAT array, deliberately: `sessions()`, the filter dropdowns, the graph,
@@ -708,7 +710,6 @@ export interface ObserveSnapshotV1 {
   validation_campaigns: ValidationCampaignReadResult;
   roadmap_explanation: RoadmapExplanationV1;
 }
-
 export interface GitHubAppSnapshot {
   app: string;
   repo: string;
@@ -721,7 +722,6 @@ export interface GitHubAppSnapshot {
   observed_at: string;
   error?: string;
 }
-
 export interface IndexedPass {
   row: StatusRow;
   envelope_finished_at?: string;
@@ -729,7 +729,6 @@ export interface IndexedPass {
   events_corrupt?: string;
   artifacts: Record<string, { available: boolean; size: number; sha256?: string }>;
 }
-
 export interface ObserveProjectionInput {
   now: Date;
   cursor: string;
@@ -762,6 +761,7 @@ export interface ObserveProjectionInput {
     source?: string;
     error?: string;
   }>;
+  jobs?: import("../jobs/status.js").JobJournalView[];
   github: GitHubAppSnapshot[];
   source_health: SourceHealthView[];
   validation_campaigns?: ValidationCampaignReadResult;

@@ -438,7 +438,6 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
   const providerPasses = passes.filter((pass) => pass.usage.quality !== "none");
   const quality = aggregateQuality(providerPasses.map((pass) => pass.usage.quality));
   const activity = projectActivityMeta(input.passes, passes, observedAt);
-
   const snapshot: ObserveSnapshotV1 = {
     schema_version: OBSERVE_SCHEMA_VERSION,
     generated_at: observedAt,
@@ -459,6 +458,7 @@ export function projectObserveSnapshot(input: ObserveProjectionInput): ObserveSn
       rows: pendingIntake.rows,
       counts: countPendingStates(pendingRows),
     },
+    jobs: input.jobs ?? [],
     delivery,
     parent_tasks: parentTasks,
     traces,

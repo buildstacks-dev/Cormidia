@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403, HB-147, and HB-151)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403, HB-147, HB-151, and HB-145)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -24,12 +24,7 @@ what done bought you.
   conflated analysis/filing, duplicate incidents on retry, or an observe-only draft that
   publishes as a side effect. Done buys you direct coverage of all four missing journey
   families.
-- **HB-145 — job refusal, agreement, and critical-operation contract (PENDING).**
-  Defends jobs before runtime construction and across CLI/observe surfaces. The failure
-  it catches: an omitted refusal, downstream work after a failed check, a gated operation
-  that proceeds, or `completed (unverified)` rendered as completed. Done buys you the
-  missing refusal/gate enumeration and cross-surface agreement without widening the
-  existing lifecycle tests.
+- **HB-145 — job refusal, agreement, and critical-operation contract (LANDED).** Defends pre-runtime refusal and shared CLI/observe truth; it catches role-widening/unserved tuples, downstream work after failed checks, gate bypass, and collapsed unverified completion.
 - **HB-148 — store-class crash/truncation/quarantine invariant (LANDED).** Defends every
   durable store class, not just the journey-specific kill points already present. The
   failure it catches: truncated JSON or quarantined bytes becoming valid state after an

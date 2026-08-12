@@ -1,18 +1,10 @@
 // Job runner — CORMIDIA-C-OP-JOB (docs/jobs/design.md §6, §8, §9).
 //
-// One step at a time, in dependency order, resumable. The DAG buys ordering and
-// resumability, not concurrency: a week-long job's failure modes are far easier
-// to reason about serially, and parallel provider turns multiply the ways a
-// budget ceiling gets crossed.
-//
-// Three fail-closed properties live here and each has its own detector family:
-//   - nested invocation is refused (CF-B30-NEST), or a Builder turn could spawn
-//     provider turns that escape its episode budget entirely;
-//   - a step's declared checks decide completion, not the provider's own report
-//     (CF-B30-CHK), which is the INV-008 tightening;
-//   - every provider turn settles exactly one ledger row (CF-B30-SET), failed and
-//     cancelled included, or the org's budget view silently understates spend.
+// Serial DAG execution buys ordering and resumability without multiplying
+// week-long failure modes. The runner fails closed on nested invocation, lets
+// declared checks decide completion, and settles every paid turn once.
 
+import type { RuntimeModelCatalogReader } from "../runtime/model-catalog.js";
 import type { GateFn, RoleConfig, Runtime } from "../runtime/types.js";
 import {
   appendJobEvent,
@@ -25,12 +17,12 @@ import {
 } from "./progress.js";
 import { type JobJournal, type JobJournalEvent, newJobJournal, readJobJournal, writeJobJournal } from "./journal.js";
 import { executeProviderStep } from "./step.js";
+import { projectJobJournal, type JobStepStateView } from "./status.js";
+import { validateJobAssignments } from "./admission.js";
+import { jobStepGate } from "./gate.js";
 import type { JobConfig } from "./types.js";
 
-/** Env vars whose presence means we are already inside a Cormidia provider turn.
- * `CORMIDIA_PARENT_TASK_ID` is the documented signal an outer harness exports
- * while invoking child Cormidia commands (src/cli/task.ts); the gate socket is
- * set by the Codex adapter for the duration of a turn. */
+/** Signals exported while Cormidia is already inside a provider turn. */
 const IN_TURN_ENV = ["CORMIDIA_PARENT_TASK_ID", "CORMIDIA_CODEX_GATE_SOCKET"];
 
 export type JobRunStatus = "completed" | "failed" | "awaiting_checkpoint";
@@ -46,6 +38,8 @@ export interface JobRunResult {
   /** Provider turns this invocation actually paid for. Resumed steps that were
    * already complete contribute zero. */
   providerTurns: number;
+  /** Shared CLI/observe projection over the durable journal. */
+  stepStates: JobStepStateView[];
 }
 
 export class JobRunError extends Error {
@@ -77,9 +71,12 @@ export interface RunJobOptions {
   /** Resolves a pending checkpoint. Absent means checkpoints always park. */
   checkpointDecided?: (stepId: string) => Promise<boolean>;
   onProgress?: (message: string) => void;
+  /** Deterministic roster seam. Production uses the token-free catalog. */
+  modelCatalogReader?: RuntimeModelCatalogReader;
 }
 
 export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
+  await validateJobAssignments(options.config, options.modelCatalogReader);
   assertNotNested(options.env ?? process.env);
 
   const clock = options.now ?? ((): Date => new Date());
@@ -116,10 +113,8 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
       return result(journal, "completed", providerTurns);
     }
 
-    // A step whose latest event is `started` was interrupted mid-flight: the
-    // process died between the durable start and the terminal event. It is
-    // retried once (see the bound below) rather than skipped, because skipping
-    // would lose work that may already have been paid for.
+    // A durable `started` without a terminal event is retried once rather than
+    // skipped, because the interrupted work may already have been paid for.
     const interrupted = interruptedStep(journal);
     const ready = readyJobSteps(config, completed);
     const step = interrupted === undefined ? ready[0] : config.steps.find((entry) => entry.id === interrupted.step);
@@ -150,9 +145,7 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
     }
 
     const attempt = attemptsFor(journal, step.id) + 1;
-    // A recovery that had ALREADY been recovered once has now died twice. Stop
-    // with evidence rather than spending a third turn on it. This is checked
-    // before the start event is appended, so the count is of prior starts only.
+    // A second interrupted recovery stops before spending a third turn.
     if (interrupted !== undefined && attemptsFor(journal, step.id) > 1) {
       return result(journal, "failed", providerTurns, {
         step: step.id,
@@ -164,12 +157,8 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
       });
     }
 
-    // Every provider turn gets its own start event, recovery included. Two
-    // reasons this is not "reuse the interrupted attempt's identity": the count
-    // of start events is what bounds retries at all, and a recovery runs a
-    // genuinely NEW paid turn — settling it under the previous identity would be
-    // deduped by recordTurnOnce and silently UNDERCOUNT spend, which is the
-    // dangerous direction for T-5 (INV-006).
+    // Every recovery is a new paid attempt; reusing the interrupted settlement
+    // identity would dedupe it and undercount spend (T-5 / INV-006).
     journal = appendJobEvent(journal, {
       step: step.id,
       status: "started",
@@ -178,7 +167,9 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
     });
     await writeJobJournal(stateHome, journal);
 
-    const event = await executeProviderStep(options, step, attempt, clock);
+    const turnId = `job:${config.job}:${step.id}:${attempt}`;
+    const gate = options.gate ?? jobStepGate(stateHome, config.app, options.role.name, turnId, options.workdir, clock);
+    const event = await executeProviderStep({ ...options, gate }, step, attempt, clock);
     providerTurns += 1;
     journal = appendJobEvent(journal, event);
     await writeJobJournal(stateHome, journal);
@@ -208,6 +199,7 @@ function result(
     job: journal.job,
     completedStepIds: completedStepIds(journal),
     providerTurns,
+    stepStates: projectJobJournal(journal).steps,
     ...(stoppedAt === undefined ? {} : { stoppedAtStepId: stoppedAt.step }),
     ...(stoppedAt?.reasonCode === undefined ? {} : { reasonCode: stoppedAt.reasonCode }),
     ...(stoppedAt?.summary === undefined ? {} : { summary: stoppedAt.summary }),

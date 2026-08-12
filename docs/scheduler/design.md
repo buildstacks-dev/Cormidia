@@ -433,6 +433,18 @@ remain in force; scheduled distillation/review uses the learning-budget overlay
 and governed publisher; empty learning windows are mechanical and construct no
 runtime. Local durable alerts are the only scheduler notification surface.
 
+The two `scheduler_*` reasons are runtime-triggered, not hypothetical
+(F-PT-034, owner ruling 2026-08-12): a malformed schedule/trigger definition
+terminates its `(app, role, trigger)` entry as `scheduler_definition_failure`,
+and corrupt or unreadable scheduler state (schedule last-fired state, spawn
+evidence consulted at admission, the budget overlay read) terminates the
+affected entries as `scheduler_state_failure` — validated non-admission with a
+durable decision record and an unresolved alert, never a thrown crash and
+never silent mis-arithmetic over garbage bytes. The blast radius is the
+narrowest honest one: only the entries that actually consume the bad
+definition or state fail closed; event admission proceeds when only schedule
+state is bad, and the rest of the tick completes.
+
 ## Health semantics
 
 `cormidia scheduler status --json` is the canonical read projection. Terminal

@@ -5,12 +5,59 @@ import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "./atomic.js";
 
+/** A schedule spec outside the ratified trigger grammar
+ * (docs/scheduler/design.md → "Schedule triggers"). The dispatcher's admission
+ * seam maps this to the named `scheduler_definition_failure` reason
+ * (F-PT-034, owner ruling 2026-08-12) — parser internals may throw, the tick
+ * may not crash. */
+export class ScheduleDefinitionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScheduleDefinitionError";
+  }
+}
+
+/** Durable schedule state that is unreadable or fails validation. The
+ * admission seam maps this to the named `scheduler_state_failure` reason
+ * (F-PT-034): validated non-admission with durable evidence, never a thrown
+ * crash and never silent mis-arithmetic over garbage timestamps. */
+export class ScheduleStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScheduleStateError";
+  }
+}
+
 interface ScheduleState {
   [key: string]: string;
 }
 
 function scheduleKey(app: string, role: string, trigger: string): string {
   return `${app}|${role}|${trigger}`;
+}
+
+/** Parse, don't cast (src/org/authority.ts pattern): every value must be a
+ * parseable timestamp or the whole read fails closed as corrupt state. */
+function parseScheduleState(raw: string, path: string): ScheduleState {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch (error) {
+    throw new ScheduleStateError(
+      `schedule state corrupt: ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new ScheduleStateError(`schedule state corrupt: ${path}: expected an object of last-fired timestamps`);
+  }
+  const state: ScheduleState = {};
+  for (const [key, fired] of Object.entries(value)) {
+    if (typeof fired !== "string" || Number.isNaN(Date.parse(fired))) {
+      throw new ScheduleStateError(`schedule state corrupt: ${path}: "${key}" is not a last-fired timestamp`);
+    }
+    state[key] = fired;
+  }
+  return state;
 }
 
 export class ScheduleStore {
@@ -23,7 +70,15 @@ export class ScheduleStore {
   async read(): Promise<ScheduleState> {
     const path = this.path();
     if (!existsSync(path)) return {};
-    return JSON.parse(await readFile(path, "utf8")) as ScheduleState;
+    let raw: string;
+    try {
+      raw = await readFile(path, "utf8");
+    } catch (error) {
+      throw new ScheduleStateError(
+        `schedule state unreadable: ${path}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return parseScheduleState(raw, path);
   }
 
   async lastFired(app: string, role: string, trigger: string): Promise<Date | undefined> {
@@ -110,15 +165,16 @@ export function parseSchedule(spec: string): ParsedSchedule {
   }
 
   const weekly = /^weekly\s+([a-z]{3,9})(?:\s+(\d{1,2}):(\d{2}))?$/.exec(text);
-  if (weekly !== null) {
-    const day = dayIndex(weekly[1]!);
+  const weeklyDay = weekly?.[1];
+  if (weekly !== null && weeklyDay !== undefined) {
+    const day = dayIndex(weeklyDay);
     const hour = weekly[2] === undefined ? 9 : Number(weekly[2]);
     const minute = weekly[3] === undefined ? 0 : Number(weekly[3]);
     assertTime(hour, minute, spec);
     return { kind: "weekly", day, hour, minute };
   }
 
-  throw new Error(`unsupported schedule trigger "${spec}"`);
+  throw new ScheduleDefinitionError(`unsupported schedule trigger "${spec}"`);
 }
 
 function timeSpec(kind: "daily", hour: number, minute: number): ParsedSchedule {
@@ -128,7 +184,7 @@ function timeSpec(kind: "daily", hour: number, minute: number): ParsedSchedule {
 
 function assertTime(hour: number, minute: number, spec: string): void {
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-    throw new Error(`invalid schedule time in "${spec}"`);
+    throw new ScheduleDefinitionError(`invalid schedule time in "${spec}"`);
   }
 }
 
@@ -139,6 +195,6 @@ function atLocalTime(date: Date, hour: number, minute: number): Date {
 function dayIndex(day: string): number {
   const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
   const idx = days.findIndex((d) => day.startsWith(d));
-  if (idx === -1) throw new Error(`invalid weekly schedule day "${day}"`);
+  if (idx === -1) throw new ScheduleDefinitionError(`invalid weekly schedule day "${day}"`);
   return idx;
 }

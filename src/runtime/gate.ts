@@ -123,6 +123,20 @@ function readsOnly(shell: ShellEffects | null): boolean {
   return shell !== null && shell.ranCommand && !shell.ranOtherCommand && !shell.writes;
 }
 
+/** F-PT-019 (HB-135): true only when the WHOLE action is PROVEN to emit no
+ *  file contents — a shell command that ran something, wrote nothing, whose
+ *  every invocation was a metadata-only query (or an inert emitter of its own
+ *  literal arguments), and whose input carried no path fields of its own for
+ *  the tool to touch outside the projection. Anything short of that proof —
+ *  a non-shell tool, an unknown program, a nested shell beyond the projection
+ *  horizon, a variable that could expand to secret bytes — returns false, so
+ *  `secret-read` FAILS CLOSED to critical (the ratified default on unparsed
+ *  effects; system-map §5.2 asymmetry). */
+function provenMetadataOnlyQuery(action: ToolAction): boolean {
+  const { semantic, shell } = semanticActionWithShell(action);
+  return shell !== null && semantic.paths.length === 0 && shell.ranCommand && !shell.writes && !shell.emitsContents;
+}
+
 /** Strip agent-authored free-text argument VALUES — a commit message
  *  (`-m`/`--message`), a PR/review body (`--body`), a release note
  *  (`--notes`), etc. — from a command before it feeds the classification
@@ -415,9 +429,22 @@ export const CRITICAL_RULES: CriticalRule[] = [
     // §5.2 split (#296): READING secret material keeps today's grantable tier
     // — reversible inside the sandbox, and exfiltration is closed
     // independently by outbound-network (the split's load-bearing premise;
-    // the CF-SPLIT-SECRETS pairing control proves it). Remains a pure TEXT
-    // rule pending F-PT-019's operation-aware implementation — the resolved
-    // contract truth stands and the CF-REG-204 parked leg is unchanged.
+    // the CF-SPLIT-SECRETS pairing control proves it).
+    //
+    // OPERATION-AWARE since HB-135 (F-PT-019 resolved-ratified 2026-08-03,
+    // PURPOSE v2.15 §4; landed 2026-08-12): the rule classifies on whether
+    // the action ACTUALLY EMITS FILE CONTENTS, not on text alone. A command
+    // PROVABLY limited to metadata-only queries over the named material
+    // (`git check-ignore .env`, `git status --ignored -- .env`) does not
+    // match; an emitting operation (`cat .env`, `git show HEAD:.env`) does;
+    // and anything the projection cannot prove — an unknown program, a
+    // nested shell beyond the projection horizon, a named expansion, a
+    // material redirection, a write — FAILS CLOSED and keeps matching
+    // (system-map §5.2: a real critical effect classified routine is
+    // authority damage; a false positive is only availability damage). The
+    // #218 false-negative sibling (`git show HEAD:.env` projecting no target
+    // at all) is closed on the projection side by gitArguments'
+    // CONTENT_EMITTING_GIT_SUBCOMMANDS operands.
     //
     // `secrets?`/`credentials?` (not word-bounded) so plural secret-bearing
     // filenames — `secrets.json`, `credentials.json` — trip too; plus the
@@ -433,12 +460,12 @@ export const CRITICAL_RULES: CriticalRule[] = [
     name: "secret-read",
     matches: (a) => {
       const scrubbed = asText(a).replace(/(^|[\s"'=([])(?:\.\/)?\.(npmrc|netrc)\b/g, "$1repo-local-rc-file");
-      return (
+      const namesSecretMaterial =
         /\bprintenv\b/.test(scrubbed) ||
         /\b(secrets?|api[_ ]?key|credentials?|oauth client)\b|\.env\b|\b(id_rsa|id_ed25519)\b|\.(pem|npmrc|netrc)\b/.test(
           scrubbed,
-        )
-      );
+        );
+      return namesSecretMaterial && !provenMetadataOnlyQuery(a);
     },
   },
   {
@@ -1328,6 +1355,13 @@ interface ShellEffects {
   ranCommand: boolean;
   /** At least one program was NOT a read-only utility. */
   ranOtherCommand: boolean;
+  /** At least one invocation could EMIT FILE CONTENTS — or could not be
+   *  PROVEN not to: a content-emitting or unknown program, a material
+   *  redirection, a nested command beyond the projection horizon. Only the
+   *  invocations `metadataOnlyInvocation` recognizes leave it false — the
+   *  F-PT-019 operation-aware signal (HB-135), consumed by
+   *  `provenMetadataOnlyQuery`. Fail-closed direction: true. */
+  emitsContents: boolean;
 }
 
 const FILE_ARGUMENT_TOOLS = new Set([
@@ -1634,6 +1668,73 @@ function gitInvocationReads(args: readonly string[]): boolean {
   return conditional !== undefined && conditional(gitSubcommandArgs(args));
 }
 
+/** `git` reads PROVEN to report metadata only — path status against the
+ *  ignore/attr rules and the worktree, never blob bytes. This is exactly
+ *  where the F-PT-019 narrowing applies (HB-135), and membership is earned
+ *  with evidence — the two #204 false-positive approval records — not by
+ *  looking harmless: `show`, `cat-file`, `diff`, `log -p`, `grep` all EMIT
+ *  contents and stay out, as do `ls-files`/`rev-parse` and friends, which
+ *  simply never carried a secret path to the rule in the first place. */
+const METADATA_ONLY_GIT_SUBCOMMANDS = new Set(["check-ignore", "check-attr", "status"]);
+
+/** `git` reads that EMIT FILE CONTENTS (blobs, patches, matched lines).
+ *  `gitArguments` projects their pre-`--` path-shaped operands as targets so
+ *  a rev-path spelling reaches the rules: `git show HEAD:.env` used to carry
+ *  no target at all and classified ROUTINE while printing the secret's bytes
+ *  (#218 — the rule fired on punctuation, not effect). `grep` is deliberately
+ *  absent: its first operand is a PATTERN (data, the L1-05 prose lesson), and
+ *  its pathspecs already project through `--`. */
+const CONTENT_EMITTING_GIT_SUBCOMMANDS = new Set([
+  "show",
+  "cat-file",
+  "diff",
+  "log",
+  "blame",
+  "annotate",
+  "whatchanged",
+  "diff-tree",
+  "diff-index",
+  "diff-files",
+]);
+
+/** Stream filters that, invoked with NO file operand and no mutating flag,
+ *  emit only what stdin fed them — safe exactly when every upstream producer
+ *  is metadata-only, which the OR-accumulated `emitsContents` flag already
+ *  guarantees across the whole command. With a file operand (`head .env`)
+ *  they are content emitters like `cat`. The grep family is deliberately
+ *  absent: `grep -r pattern` with no path reads the whole tree, and `rg` does
+ *  so by default. */
+const STDIN_FILTER_EXECUTABLES = new Set(["head", "tail", "wc", "sort", "uniq", "cut", "tr"]);
+
+/** True when an `echo`/`printf`/`logger` argument is inert data: no command
+ *  substitution, no backtick, and no parameter expansion that could carry
+ *  file or environment bytes. `$?`/`$$`/`$#` (status, pid, count) are the
+ *  only sanctioned expansions — numeric shell state, never secret material;
+ *  `echo "$OAUTH_REFRESH"` would re-emit an environment secret, so a named
+ *  expansion fails closed. */
+function inertDataArgument(arg: string): boolean {
+  const stripped = arg.replace(/\$[?$#]/g, "");
+  return !stripped.includes("$") && !stripped.includes("`");
+}
+
+/** F-PT-019 (HB-135): does THIS invocation provably emit no file contents?
+ *  Membership is deliberately small and evidence-earned (#204's approval
+ *  records): a metadata-only git query, a stdin-only stream filter, or an
+ *  echo of inert literals. Everything else — `cat`, `printenv`, `git show`,
+ *  an unknown program — answers no, and `analyzeSegment` fails the whole
+ *  action closed via `emitsContents`. */
+function metadataOnlyInvocation(executable: string, args: string[]): boolean {
+  if (["echo", "printf", "logger"].includes(executable)) return args.every(inertDataArgument);
+  if (executable === "git") {
+    return gitInvocationReads(args) && METADATA_ONLY_GIT_SUBCOMMANDS.has(gitSubcommand(args));
+  }
+  return (
+    STDIN_FILTER_EXECUTABLES.has(executable) &&
+    !mutatingFlag(executable, args) &&
+    relevantArguments(executable, args).targets.length === 0
+  );
+}
+
 /** Shell RESERVED WORDS. They are grammar, not programs: `if`, `then`, `for`,
  *  `done` never name an executable, and the pre-ISSUE-019 splitter reported
  *  seven of them as "executables" on one live command. Worse, treating them as
@@ -1691,14 +1792,15 @@ function emptyShellEffects(): ShellEffects {
     writes: false,
     ranCommand: false,
     ranOtherCommand: false,
+    emitsContents: false,
   };
 }
 
 function analyzeShell(raw: string, depth = 0): ShellEffects {
   // A command nested deeper than the projection follows is unanalyzed, not
   // proven harmless: it counts as a non-read-only program so the action cannot
-  // be reported as a read.
-  if (depth > 4) return { ...emptyShellEffects(), ranCommand: true, ranOtherCommand: true };
+  // be reported as a read, and it could emit anything (F-PT-019 fail closed).
+  if (depth > 4) return { ...emptyShellEffects(), ranCommand: true, ranOtherCommand: true, emitsContents: true };
   const unwrapped = unwrapCommand(raw);
   // Heredoc payload is data, including any Markdown backticks or illustrative
   // `$()` fragments. Remove it before every executable-intent projection, not
@@ -1748,8 +1850,10 @@ function analyzeSegment(
       if (target === undefined || target.kind !== "word") {
         // A destination the projection cannot name — a process substitution,
         // `2>$(printf /dev/null)`, a truncated tail. Unknown is not harmless:
-        // an output redirection with an unresolved target is a write.
+        // an output redirection with an unresolved target is a write, and an
+        // unresolved redirection of any direction is unproven (F-PT-019).
         if (writesOutput) effects.writes = true;
+        effects.emitsContents = true;
         continue;
       }
       i++;
@@ -1763,6 +1867,10 @@ function analyzeSegment(
       if (duplicatesFd || literalNullSink) continue;
       effects.redirections.push(target.text);
       effects.targets.push(target.text);
+      // A material redirection moves file bytes in one direction or the other
+      // — `grep x < .env` feeds the secret to the filter, `… > .env.local`
+      // writes it — so it is never a proven metadata-only query (F-PT-019).
+      effects.emitsContents = true;
       if (writesOutput) effects.writes = true;
       continue;
     }
@@ -1865,6 +1973,10 @@ function analyzeSegment(
   // (ISSUE-027 rule 1); everything else is at least unproven, and a proven
   // mutation makes the whole action a write (rule 2).
   effects.ranCommand = true;
+  // F-PT-019 (HB-135): only an invocation PROVEN metadata-only leaves the
+  // emission flag untouched; everything else — content emitters and unknown
+  // programs alike — fails the whole action closed for `secret-read`.
+  if (!metadataOnlyInvocation(executable, args)) effects.emitsContents = true;
   if (!readsFiles(executable, args)) {
     effects.ranOtherCommand = true;
     if (mutatesFiles(executable, args)) effects.writes = true;
@@ -1990,6 +2102,21 @@ function gitArguments(args: string[]): { verb: string; targets: string[] } {
   // never match protocol-self-edit.
   const delimiter = args.indexOf("--");
   const targets = delimiter === -1 ? [] : args.slice(delimiter + 1);
+  // #218 (F-PT-019 / HB-135): a content-emitting read written WITHOUT `--`
+  // projected no target at all, so `git show HEAD:.env` never reached the
+  // rules while emitting the secret's bytes — the rule fired on punctuation,
+  // not effect. Project the emitting subcommands' pre-`--` PATH-SHAPED
+  // operands (rev:path spellings included); bare revisions (`HEAD~1`) and
+  // flag values (`--grep secret`) fail the path shape, so inspection stays
+  // frictionless and `git log --grep secret` does not become a new #204.
+  if (CONTENT_EMITTING_GIT_SUBCOMMANDS.has(subcommand)) {
+    const subArgs = gitSubcommandArgs(args);
+    const stop = subArgs.indexOf("--");
+    const operands = (stop === -1 ? subArgs : subArgs.slice(0, stop)).filter(
+      (arg) => !arg.startsWith("-") && looksLikePathOrUrl(arg),
+    );
+    return { verb: subcommand, targets: [...operands, ...targets] };
+  }
   if (gitInvocationReads(args)) return { verb: subcommand, targets };
   return {
     verb: [subcommand, ...args.filter((arg) => /^(?:--force|--force-with-lease|--force-push|-f)$/.test(arg))].join(" "),
@@ -2431,6 +2558,7 @@ function mergeShellEffects(target: ShellEffects, source: ShellEffects): void {
   target.writes ||= source.writes;
   target.ranCommand ||= source.ranCommand;
   target.ranOtherCommand ||= source.ranOtherCommand;
+  target.emitsContents ||= source.emitsContents;
 }
 
 function isAssignment(value: string | undefined): value is string {

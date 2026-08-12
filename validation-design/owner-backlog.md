@@ -55,13 +55,13 @@ what done bought you.
   the collapse refuses *before any model runs*, in the per-commit gate, proven
   red-then-green against a seeded collapse — and jobs/manual routes are explicitly
   exempt so nothing grows a reviewer that shouldn't have one.
-- **HB-135 — operation-aware secrets classifier (TODO, implementation-ready).**
-  Defends the fail-closed classification promise in both directions. The failure it
-  catches is double-sided: today `git check-ignore .env` (opens nothing) escalates
-  exactly like `cat .env` (prints the secret), which trains you to rubber-stamp; and
-  `git show HEAD:.env` once classified routine. Done buys you: classification by what
-  an action actually *emits*, unparseable effects still critical, classifier-bypass
-  routes covered, and the detector deposited in the same PR.
+- **HB-135 — operation-aware secrets classifier (LANDED 2026-08-12).** Defends the
+  fail-closed classification promise in both directions; it caught the double-sided
+  failure where `git check-ignore .env` (opens nothing) escalated exactly like
+  `cat .env` (prints the secret) — training you to rubber-stamp — while
+  `git show HEAD:.env` classified routine (#218). The landed rule classifies by what
+  an action actually *emits*, fails closed on unparseable effects, covers
+  classifier-bypass routes, and deposited its detector red-then-green in the same PR.
 - **HB-140 — machine-catalog drift gate (LANDED).** Defends the promise that the human
   and machine catalogs never disagree; it catches a catalog or backlog edit made without
   rerunning the generator — and a hand-edit to the derived YAML itself. Done bought you

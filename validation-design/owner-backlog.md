@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403 and HB-147)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403, HB-147, and HB-151)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -45,11 +45,6 @@ what done bought you.
   capability under corrupt HMAC state, missing charter, classifier exceptions, and
   unreadable budget. The failure it catches: any error branch granting more authority or
   producing a greener result. Done buys you one floor invariant across all four paths.
-- **HB-151 — planning-call-site deterministic envelope (PENDING).** Defends the S-1
-  envelope beyond the already-covered roadmap/delta slices. The failure it catches:
-  malformed plans admitted, eager large-plan trajectory drift, or repair continuing
-  beyond budget. Done buys you the aggregate malformed-plan, trajectory, and repair
-  family without overstating the partial tests.
 - **HB-133 — Builder/Reviewer provider-family pin (TODO, implementation-ready
   under a flagged caveat: the provider-FAMILY unit is a pending-ratification seat
   ruling, so "ready" means buildable with that unit swappable, not semantically
@@ -202,6 +197,10 @@ now retain four direct, distinct evidence outcomes with a collapsed-vocabulary t
 content-bound EpisodePlan revisions; backward and completed-step edits refuse,
 exact replay is idempotent, and torn/checkpoint persistence never becomes silent
 terminal authority.
+
+**Wave 4 — planning-envelope closure (2026-08-11).** HB-151: malformed roadmap and
+episode plans refuse, one 100-item roadmap reuses its bounded delta without eager
+delivery plans, and structural repair cannot exceed its two-turn cost/time envelope.
 
 **Wave 4 — remainder (2026-07-31).** HB-040 event inbox; HB-041 planner operations;
 HB-042 onboarding ladder; HB-043 scheduler health; HB-044 retention boundaries;

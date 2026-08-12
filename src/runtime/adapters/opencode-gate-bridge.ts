@@ -15,12 +15,14 @@
 //    that list still reaches the gate, so a new upstream tool fails safe.
 
 import { mkdtemp, rm } from "node:fs/promises";
-import { createServer, type Server, type Socket } from "node:net";
+import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { toolUseEvent } from "../tool-events.js";
 import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
 import { normalizeToolAction } from "./claude.js";
+import { classifierThrowDenial } from "./gate-bridge-escalation.js";
+import { closeServer, listen } from "./gate-bridge-net.js";
 
 const MAX_BRIDGE_BYTES = 8 * 1024 * 1024;
 
@@ -140,6 +142,10 @@ export async function startOpencodeGateBridge(
     announce = resolve;
   });
 
+  /** The action under gate classification when a throw happens; reset per
+   *  request in `consume` below. Safe as bridge-scope state because every
+   *  decide/consume pair runs synchronously on one thread. */
+  let classifying: ToolAction | undefined;
   const decide = (request: Record<string, unknown>): { allow: boolean; reason?: string } => {
     if (request["op"] === "hello") {
       loaded = {
@@ -182,6 +188,7 @@ export async function startOpencodeGateBridge(
     let allow = true;
     let reason: string | undefined;
     for (const action of normalizeOpencodeToolActions(tool, request["args"], workdir)) {
+      classifying = action;
       const decision = hooks.gate(action);
       if (decision.allow) {
         hooks.onEvent?.(toolUseEvent(action));
@@ -210,15 +217,15 @@ export async function startOpencodeGateBridge(
       if (answered) return;
       const newline = body.indexOf("\n");
       if (newline < 0) return;
+      classifying = undefined;
       try {
         const parsed: unknown = JSON.parse(body.slice(0, newline).trim());
         if (parsed === null || typeof parsed !== "object") throw new Error("bridge request is not an object");
         answer(decide(parsed as Record<string, unknown>));
       } catch (error) {
-        answer({
-          allow: false,
-          reason: `Cormidia OpenCode gate bridge failed closed: ${error instanceof Error ? error.message : String(error)}`,
-        });
+        // Deny AND escalate (INV-015 seed (c), F-PT-036): a throwing classifier
+        // is an anomaly a human must see, never a silent universal refusal.
+        answer(classifierThrowDenial(escalations, classifying, "OpenCode", error));
       }
     };
     socket.on("data", (chunk: Buffer) => {
@@ -276,25 +283,4 @@ function subagentType(request: Record<string, unknown>): string {
     if (typeof value === "string" && value.length > 0) return value;
   }
   return "task";
-}
-
-function listen(server: Server, socketPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const fail = (error: Error): void => reject(error);
-    server.once("error", fail);
-    server.listen(socketPath, () => {
-      server.off("error", fail);
-      resolve();
-    });
-  });
-}
-
-function closeServer(server: Server): Promise<void> {
-  return new Promise((resolve) => {
-    if (!server.listening) {
-      resolve();
-      return;
-    }
-    server.close(() => resolve());
-  });
 }

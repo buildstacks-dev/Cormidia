@@ -1170,7 +1170,7 @@ retroactive changes to the assertions in any existing spec.
   runs the scripted boundary matrix and exact-payload refusal. The runner now binds
   command evidence to candidate/worktree identity, marks bounded output truncation,
   types missing tools, kills timed-out process groups, and refuses candidate mutation.
-- **HB-150 — conservative cross-family error-branch sweep. PENDING.** Exercise corrupt
+- **HB-150 — conservative cross-family error-branch sweep. LANDED.** Exercise corrupt
   HMAC key, missing charter, classifier throw, and unreadable budget as one floor
   invariant: every error must reduce capability, never increase it or produce a greener
   result. *Acceptance:* four explicit cases plus a seeded permissive fallback that turns
@@ -1185,6 +1185,17 @@ retroactive changes to the assertions in any existing spec.
   denial+reason only. Owner ruling: the invariant stands as written — all three
   bridges gain the escalation append; the invariant text is unchanged. UNBLOCKED:
   implement product change + detectors per F-PT-036's resolution.
+  <!-- implementation status 2026-08-12: HB-150 LANDED in
+  tests/hermetic/cf-inv-015/cf-inv-015-error-branch-sweep.test.ts (all four seeds, one
+  sweep) plus the extended escalation assertions in
+  tests/hermetic/cf-inv-002/codex-hook-bridge.test.ts; the F-PT-036 product change
+  landed in the same PR — all three bridges' classifier-throw catch branches now
+  answer via classifierThrowDenial (src/runtime/adapters/gate-bridge-escalation.ts),
+  deny + escalate. Red evidence: the escalation assertions ran red pre-fix, and seeded
+  permissive fallbacks (allow-on-throw in each bridge, corrupt secret accepted,
+  charterless org resolving delegated, `unknown` budget treated admissible) each turned
+  their arm red before honest bytes were restored green. -->
+
 
 ## Wave 2 — status-honesty reclassification (2026-08-11)
 
@@ -1415,7 +1426,7 @@ HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
-HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
+HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-150 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
 HB-P2 LANDED.
 HB-P4 LANDED.
 

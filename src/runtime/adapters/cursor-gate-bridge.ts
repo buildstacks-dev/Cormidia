@@ -15,12 +15,14 @@
 
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
-import { createServer, type Server, type Socket } from "node:net";
+import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
 import { writeMaskedWorktreeFile } from "../worktree-context.js";
 import { normalizeToolAction } from "./claude.js";
+import { classifierThrowDenial } from "./gate-bridge-escalation.js";
+import { closeServer, listen } from "./gate-bridge-net.js";
 import {
   assertGlobalConfigNotWiderThanRole,
   assertNoConflictingCursorConfig,
@@ -148,6 +150,7 @@ function serveConnection(socket: Socket, sockets: Set<Socket>, context: Connecti
   socket.on("close", () => sockets.delete(socket));
   socket.on("end", () => {
     if (answered) return;
+    let classifying: ToolAction | undefined;
     try {
       const input: unknown = JSON.parse(body.trim());
       const probe = cursorHandshakeProbe(input, context.nonce);
@@ -158,6 +161,7 @@ function serveConnection(socket: Socket, sockets: Set<Socket>, context: Connecti
         return;
       }
       const action = normalizeCursorHookAction(input, context.workdir);
+      classifying = action;
       context.state.consulted += 1;
       const decision = context.hooks.gate(action);
       if (decision.allow) {
@@ -171,10 +175,9 @@ function serveConnection(socket: Socket, sockets: Set<Socket>, context: Connecti
       if (decision.escalate) context.escalations.push({ action, reason: decision.reason });
       answer({ allow: false, reason: decision.reason });
     } catch (error) {
-      answer({
-        allow: false,
-        reason: `Cormidia Cursor gate bridge failed closed: ${error instanceof Error ? error.message : String(error)}`,
-      });
+      // Deny AND escalate (INV-015 seed (c), F-PT-036): a throwing classifier
+      // is an anomaly a human must see, never a silent universal refusal.
+      answer(classifierThrowDenial(context.escalations, classifying, "Cursor", error));
     }
   });
 }
@@ -205,27 +208,6 @@ function cursorToolName(rawName: string): string {
 async function removeTurnConfig(workdir: string): Promise<void> {
   await rm(join(workdir, CURSOR_HOOKS_RELATIVE_PATH), { force: true });
   await rm(join(workdir, CURSOR_CLI_CONFIG_RELATIVE_PATH), { force: true });
-}
-
-function listen(server: Server, socketPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const fail = (error: Error): void => reject(error);
-    server.once("error", fail);
-    server.listen(socketPath, () => {
-      server.off("error", fail);
-      resolve();
-    });
-  });
-}
-
-function closeServer(server: Server): Promise<void> {
-  return new Promise((resolve) => {
-    if (!server.listening) {
-      resolve();
-      return;
-    }
-    server.close(() => resolve());
-  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

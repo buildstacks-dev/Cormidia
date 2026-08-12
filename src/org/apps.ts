@@ -34,6 +34,7 @@ import { writeFileAtomic } from "./atomic.js";
 import { parseHarnessAuthConfig } from "./harness-auth-config.js";
 import { loadRoles, resolveApprovedAssignmentCandidates } from "./roles.js";
 import { definedProps } from "../runtime/optional-properties.js";
+import type { ApprovalPolicyConfig } from "./approvals.js";
 
 export type AppStatus = "live" | "paused" | "onboarding";
 export type AppAssignmentMode = AssignmentMode;
@@ -103,6 +104,11 @@ export interface AppsFile {
    *  (architecture.md §1 — `.cormidia/config.yaml` shares this schema). */
   schemaVersion?: number;
   org: { name: string; maxConcurrentTurns: number };
+  /** F-PT-008 (ratified 2026-08-12): approval TTLs resolve through POLICY
+   *  CONFIGURATION, never a source constant (the F-PT-020 precedent). Absent
+   *  keys take the ratified defaults — grant 48h, undecided item 24h — which
+   *  are deliberately independent of each other. */
+  approvalPolicy?: ApprovalPolicyConfig;
   defaults: { budgetUsdMonth: number; objectiveBudgetUsd: number; networkAllowlist?: readonly string[] };
   apps: AppEntry[];
   /** Declared billing per harness connection (#333). Org-scoped because
@@ -111,6 +117,31 @@ export interface AppsFile {
    *  optional here so hand-built registries stay small — absent reads as "no
    *  connection declared", which is exactly pre-#333 behaviour. */
   harnesses?: HarnessAuthConfig;
+}
+
+/** Parse the org-level approval TTL policy. Operator-facing unit is HOURS;
+ *  the store speaks milliseconds. A key that is present but not a positive
+ *  finite number is REFUSED — silently substituting a default would give the
+ *  operator a TTL they did not choose, on a bound that governs authority
+ *  lifetime (F-PT-008). */
+function approvalPolicyFrom(raw: unknown, path: string): ApprovalPolicyConfig | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`${path}: org.approval_policy must be a mapping`);
+  }
+  const spec: Record<string, unknown> = { ...raw };
+  const hoursToMs = (key: string): number | undefined => {
+    const value = spec[key];
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+      throw new Error(`${path}: org.approval_policy.${key} must be a positive number of hours`);
+    }
+    return value * 60 * 60 * 1000;
+  };
+  return definedProps({
+    grantTtlMs: hoursToMs("grant_ttl_hours"),
+    pendingTtlMs: hoursToMs("pending_ttl_hours"),
+  });
 }
 
 interface FindExistingOrgOptions {
@@ -172,6 +203,10 @@ export async function loadApps(path: string): Promise<AppsFile> {
     name: orgName,
     maxConcurrentTurns: numberOr(orgSpec["max_concurrent_turns"], 2),
   };
+  // F-PT-008: hours are the operator-facing unit; the store speaks ms. Parse,
+  // don't cast — a present-but-unusable value is refused rather than silently
+  // falling back to a default the operator did not choose.
+  const approvalPolicy = approvalPolicyFrom(orgSpec["approval_policy"], path);
 
   const defaultsRaw = (raw["defaults"] ?? {}) as Record<string, unknown>;
   const defaults = {
@@ -193,7 +228,7 @@ export async function loadApps(path: string): Promise<AppsFile> {
     apps.push(parseApp(name, specUnknown, defaults, path));
   }
   const harnesses = parseHarnessAuthConfig(raw["harnesses"], (message) => new Error(`${path}: ${message}`));
-  const file: AppsFile = { org, defaults, apps, harnesses };
+  const file: AppsFile = { org, defaults, apps, harnesses, ...definedProps({ approvalPolicy }) };
   if (typeof raw["schema_version"] === "number") file.schemaVersion = raw["schema_version"];
   return file;
 }

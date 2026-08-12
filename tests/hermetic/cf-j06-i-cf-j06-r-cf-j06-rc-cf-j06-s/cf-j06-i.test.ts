@@ -45,7 +45,11 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", ".
 const productModuleUrl = (rel: string): string => pathToFileURL(join(repoRoot, rel)).href;
 
 const APPROVAL_ID = "appr-cf-j06-i-1";
-const DAY_MS = 24 * 60 * 60 * 1000;
+// changelog 2026-08-12 (HB-P5, F-PT-008 owner ruling): the ratified grant TTL
+// default moved 24h -> 48h. The assertions below are restated on the ratified
+// value — the boundary semantics they pin (expired exactly AT expiresAt, never
+// usable authorization afterwards) are unchanged and untouched.
+const GRANT_TTL_MS = 48 * 60 * 60 * 1000;
 
 interface PausedWalk {
   state: TempStateHome;
@@ -317,8 +321,8 @@ await kp("provider_resumed");
     const decided = await store.decide(raised.id, { decision: "approved", now: clock.nowDate() });
     const grant = (await store.show(decided.id)).grant;
     expect(grant).toBeDefined();
-    // B-09a §3 `[doc]`: the grant TTL is 24 h from the decision.
-    expect(new Date(grant!.expiresAt).getTime() - clock.now()).toBe(DAY_MS);
+    // B-09a §3: the grant TTL is 48 h from the decision (ratified 2026-08-12).
+    expect(new Date(grant!.expiresAt).getTime() - clock.now()).toBe(GRANT_TTL_MS);
 
     // Control for the detector: before expiry the grant IS usable authorization.
     const hash = actionHash(action);
@@ -335,7 +339,7 @@ await kp("provider_resumed");
     // an expired-but-present grant sits in the store looking usable. The
     // guardrail FIRES on both revalidation seams: the matcher never returns
     // it, and consumption is a TYPED error — never silent execution.
-    clock.advance(DAY_MS); // expiresAt <= now: expired exactly at the boundary
+    clock.advance(GRANT_TTL_MS); // expiresAt <= now: expired exactly at the boundary
     expect(
       store.findMatchingGrantSync({
         app: APP,

@@ -119,10 +119,24 @@ Item schema:
 Grant TTL and expiry govern authority **after** a decision. This governs an item
 that was never decided.
 
+**What an expired GRANT does to its item** (ratified 2026-08-12, F-PT-008): it
+**reopens the original item**. The item returns to the pending queue under its
+original id with its decision history intact — never a silent fresh item, and
+never a dropped operation. Decision records stay immutable (B-09b): the reopen
+is an appended `reopened` log transition, and the item carries reopen
+provenance so a reader can tell it from one that was never decided. An
+operation whose execution already ran is not reopened.
+
 The state machine `CF-SM-APPR` has a terminal, non-blocking `expired` state.
-An undecided item reaches it after a TTL — default 24h, matching the existing
-grant TTL, resolved through ordinary policy configuration rather than a source
-constant.
+An undecided item reaches it after a TTL — **default 24h**, resolved through
+ordinary policy configuration (`org.approval_policy.pending_ttl_hours`) rather
+than a source constant.
+
+<!-- changelog 2026-08-12 (F-PT-008 owner ruling): this default previously read
+"matching the existing grant TTL". The grant default moved to 48h and the two
+are now DELIBERATELY INDEPENDENT — inheriting would have doubled this ratified
+24h bound as a side effect of lengthening a different one, which is a loosening.
+Only the grant side lengthened. -->
 
 On expiry:
 
@@ -320,7 +334,8 @@ may instead choose a wider scope — the agent never chooses:
 - `app` — every action matching (rule, path prefix) for this app until
   expiry.
 
-Semantics: TTL default 24h (existing default), use-count cap default 20,
+Semantics: grant TTL default **48h** (`org.approval_policy.grant_ttl_hours`;
+raised from 24h by the F-PT-008 owner ruling, 2026-08-12), use-count cap default 20,
 `cormidia approvals revoke <grant-id>` for immediate revocation, and **every
 use** of a multi-use grant appends its own audit row (grant id, action
 hash, timestamp) to `approvals/log.jsonl` — the audit trail stays

@@ -443,8 +443,13 @@ process-identity probe.
   so 48h would also have doubled F-PT-020's ratified 24h undecided-item bound (raise→grant
   expiry 48h→96h) — the owner therefore **pinned the pending default at 24h**, decoupling
   the two. Only the grant side lengthens; `app verify` counting is unchanged. Implementation
-  owed under HB-P5. Original subject: what expiry does to the item was unratified and B-09a
-  took no position. See contracts/B-09a.
+  owed under HB-P5. (**implemented 2026-08-12** — HB-P5 landed: the reopen runs in
+  `reconcile()`, appends rather than edits, refuses an already-executed operation, and is
+  idempotent; TTLs resolve from `org.approval_policy` in hours and refuse unusable values.
+  The F-PT-020 pending-lifetime detector was restated on the explicit seam and strengthened
+  with a case proving a grant-only change cannot move the undecided-item bound.) Original
+  subject: what expiry does to the item was unratified and B-09a took no position. See
+  contracts/B-09a.
 - F-PT-007 (RESOLVED-ratified 2026-07-31): concurrent human edit of a bootstrap-owned marker/generated path between validation and write yields **compare-and-refuse, preserving human bytes** — contract truth (org-init's exclusive-creation+exact-rollback still NOT generalized by analogy). HB-P4 unparked; see contracts/B-14.
 - F-PT-006 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **exactly one
   firing per real-world event.** Duplicate deliveries collapse to one, and the dedup

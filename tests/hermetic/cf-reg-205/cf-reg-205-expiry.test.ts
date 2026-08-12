@@ -149,11 +149,19 @@ describe("CF-REG-205 — pending approval expiry", () => {
     });
   });
 
+  // changelog 2026-08-12 (HB-P5, F-PT-008 owner ruling): this case pinned that
+  // pending lifetime comes from POLICY CONFIGURATION rather than a second
+  // source constant — which it still does, and still must. What changed is the
+  // seam: pending TTL used to INHERIT grantTtlMs, so raising the grant default
+  // to 48h would have doubled F-PT-020's ratified 24h undecided-item bound as a
+  // side effect. The owner decoupled them, so the configuration is now explicit
+  // and a second assertion below proves the coupling is gone. The original
+  // intent is preserved and the case is STRICTER, never weaker.
   it("derives pending lifetime from policy configuration rather than a second source constant", async () => {
     const world = await makeInitWorld();
     worlds.push(world);
     const raisedAt = new Date("2026-08-03T00:00:00.000Z");
-    const inherited = new ApprovalStore(world.stateHome, { policy: { grantTtlMs: 2 * DAY_MS } });
+    const inherited = new ApprovalStore(world.stateHome, { policy: { pendingTtlMs: 2 * DAY_MS } });
     const raised = await inherited.raise({
       app: "expiry-app",
       role: "builder",
@@ -166,6 +174,25 @@ describe("CF-REG-205 — pending approval expiry", () => {
     expect((await inherited.show(raised.id)).item.status).toBe("pending");
     await inherited.reconcile(new Date(raisedAt.getTime() + 2 * DAY_MS + 1));
     expect((await inherited.show(raised.id)).item.status).toBe("expired");
+  });
+
+  it("F-PT-008: lengthening the GRANT TTL does not move the undecided-item bound", async () => {
+    const world = await makeInitWorld();
+    worlds.push(world);
+    const raisedAt = new Date("2026-08-03T00:00:00.000Z");
+    // Only the grant side is configured. Under the pre-ruling inheritance this
+    // item would have survived to 3 days; under the ratified decoupling it
+    // expires at the pinned 24h bound, exactly as F-PT-020 ratified.
+    const store = new ApprovalStore(world.stateHome, { policy: { grantTtlMs: 3 * DAY_MS } });
+    const raised = await store.raise({
+      app: "expiry-app",
+      role: "builder",
+      rule: "outbound-network",
+      action: { tool: "Bash", input: { command: "curl https://example.invalid" } },
+      now: raisedAt,
+    });
+    await store.reconcile(new Date(raisedAt.getTime() + DAY_MS + 1));
+    expect((await store.show(raised.id)).item.status).toBe("expired");
   });
 
   it("negative control: the detector fires on a seeded orphan that remains pending", () => {

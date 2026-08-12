@@ -36,7 +36,9 @@ import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 
 const APP = "grant-app";
 const ROLE = "sre";
-const DAY_MS = 24 * 60 * 60 * 1000;
+// changelog 2026-08-12 (HB-P5, F-PT-008): the ratified grant TTL default moved
+// 24h -> 48h. The boundary semantics these cases pin are unchanged.
+const GRANT_TTL_MS = 48 * 60 * 60 * 1000;
 
 interface Rig {
   state: TempStateHome;
@@ -143,7 +145,7 @@ async function grantEvents(rig: Rig): Promise<ApprovalLogEvent[]> {
 }
 
 describe("CF-SM-GRANT-L — once-grant: minted → consumed, bound to actor/app/payload/content-version (L2, HB-011)", () => {
-  it("mints the ratified default shape: single-use, exact action hash, raw command literal bound, current identity version, TTL 24h [doc B-09b §5]", async () => {
+  it("mints the ratified default shape: single-use, exact action hash, raw command literal bound, current identity version, TTL 48h [doc B-09b §5, ratified 2026-08-12]", async () => {
     const rig = await makeRig();
     const minted = rig.clock.nowIso();
     const { itemId, grant } = await mintOnce(rig);
@@ -159,7 +161,7 @@ describe("CF-SM-GRANT-L — once-grant: minted → consumed, bound to actor/app/
     });
     expect(grant.scope).toBeUndefined();
     // Ratified default TTL: exactly 24 hours from decision time.
-    expect(new Date(grant.expiresAt).getTime() - new Date(grant.createdAt).getTime()).toBe(DAY_MS);
+    expect(new Date(grant.expiresAt).getTime() - new Date(grant.createdAt).getTime()).toBe(GRANT_TTL_MS);
   });
 
   it("matches only its exact binding: wrong app, wrong role, or changed payload bytes never match (INV-003 shape a)", async () => {
@@ -269,10 +271,10 @@ describe("CF-SM-GRANT-I — refusals: cap+1, expiry, revocation, scope-widening,
     expect((await grantEvents(rig)).filter((event) => event.type === "grant-consumed")).toHaveLength(2);
   });
 
-  it("refuses post-expiry with a typed outcome, closed at the exact TTL boundary (B-09b §5; item disposition BLOCKED:F-PT-008)", async () => {
+  it("refuses post-expiry with a typed outcome, closed at the exact TTL boundary (B-09b §5; item reopens on expiry per F-PT-008, ratified 2026-08-12)", async () => {
     const rig = await makeRig();
     const { grant } = await mintOnce(rig);
-    rig.clock.advance(DAY_MS - 1);
+    rig.clock.advance(GRANT_TTL_MS - 1);
     expect(matchOnce(rig)?.grantId).toBe(grant.grantId); // 1ms before the boundary: live
     rig.clock.advance(1);
     expect(matchOnce(rig)).toBeUndefined(); // at expiresAt exactly: expired (fail closed)

@@ -426,7 +426,7 @@ are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
   Same-identity-two-payloads becomes vacuous (differing payloads are different
   events). Migration: a legacy filename entry in `consumed.json` still suppresses its
   own file. The negative control seeds a duplicate delivery and a legacy-key replay.
-- **HB-P5 — UNBLOCKED 2026-08-12** F-PT-008 expiry-disposition cases. *Layer:* 2.
+- **HB-P5 — LANDED 2026-08-12 (unblocked the same day)** F-PT-008 expiry-disposition cases. *Layer:* 2.
   *Defends:* the B-09a continuation contract's TTL-expiry item-disposition clause.
   *Acceptance:* the ratified disposition (fresh item / reopen / explicit operation)
   encoded with a seeded wrong-disposition control. *Executor:* build-agent, after
@@ -1510,7 +1510,7 @@ HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-142 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-150 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
-HB-112 LANDED. HB-P3 LANDED. HB-P6 LANDED.
+HB-112 LANDED. HB-P3 LANDED. HB-P5 LANDED. HB-P6 LANDED.
 <!-- changelog 2026-08-12: HB-112 was an audit ticket, and "landed" is this register's
 only completion token — it records that the ticket's acceptance (inventory, one
 disposition per occurrence, zero scheduling-semantics changes) is discharged by the

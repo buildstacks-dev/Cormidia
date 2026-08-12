@@ -48,7 +48,7 @@
   "scripts": {
     "build": "tsc && chmod +x dist/cli.js",
     "build:watch": "tsc --watch --preserveWatchOutput",
-    "check": "biome check --error-on-warnings . && pnpm typecheck && node scripts/check-pinned-deps.mjs && node scripts/check-import-direction.mjs && node scripts/check-size-ratchet.mjs",
+    "check": "biome check --error-on-warnings . && pnpm typecheck && node scripts/check-pinned-deps.mjs && node scripts/check-import-direction.mjs && node scripts/check-size-ratchet.mjs && node scripts/check-type-ratchet.mjs",
     "ci:runner": "node scripts/self-hosted-runner/cli.mjs",
     "dev": "tsx src/cli.ts",
     "harness:freshness": "node scripts/harness-freshness.mjs",

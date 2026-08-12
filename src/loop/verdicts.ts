@@ -1067,6 +1067,9 @@ function schemaErrors(schema: VerdictSchema, value: unknown, path: string): stri
       }
       break;
     }
+    case undefined:
+      // A node with neither `enum` nor `type` declares no constraint.
+      break;
   }
   return errors;
 }

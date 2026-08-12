@@ -472,7 +472,10 @@ process-identity probe.
   rule. The owner aligned J-11's "external" to mean outside the app's own configured
   repositories; source-linked `op:incident` filing into the own repo proceeds as
   budgeted `repo-collaboration` (foreign/dynamic/unverifiable still refines to
-  human-only). Implementation owed under HB-143.
+  human-only). Implementation owed under HB-143. (**implemented 2026-08-12** —
+  HB-143 landed: `queueIncidentFiling` moved to `repo-collaboration`, an
+  attributable agent decision mints the durable execution record; detectors in
+  `tests/hermetic/cf-j11-a-cf-j11-i-cf-j11-rc-cf-j11-s/`.)
 - F-PT-036 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **classifier
   throw denies AND escalates.** INV-015 seed (c) stands as written; the three gate
   bridges denied fail-closed without appending a `GateEscalation`, leaving the

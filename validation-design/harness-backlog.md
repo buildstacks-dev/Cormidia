@@ -1221,7 +1221,7 @@ retroactive changes to the assertions in any existing spec.
 
 ## Wave 3 — status-honesty reclassification (2026-08-11)
 
-- **HB-143 — internal-artifact and incident journey family. PENDING.** Exercise
+- **HB-143 — internal-artifact and incident journey family. LANDED 2026-08-12.** Exercise
   Support/Marketing/SRE completion into channel-gated internal artifacts, the distinct
   analysis-complete and incident-filed claims with a crash between them, exactly one
   source-linked incident under retry, and draft visibility through observe without any
@@ -1241,6 +1241,15 @@ retroactive changes to the assertions in any existing spec.
   `repo-collaboration`; J-11's "external" aligned to mean outside the app's own
   configured repositories (J-11 updated). UNBLOCKED: implement product change +
   detectors per F-PT-035's resolution.
+  <!-- implementation status 2026-08-12: HB-143 LANDED in
+  tests/hermetic/cf-j11-a-cf-j11-i-cf-j11-rc-cf-j11-s/internal-artifact-incident-journey.test.ts.
+  Product change per F-PT-035: queueIncidentFiling moved off the retired
+  external-publishing lookup to budgeted repo-collaboration — the composed gate's
+  own-repo verification/foreign refinement is reused, and an allowed own-repo filing
+  mints its content-bound durable execution record via an attributable agent decision.
+  Free red captured pre-fix ("incident delivery gate allowed without a durable action
+  record"); seeded broken-idempotency-key and publishing-draft-path controls each
+  turned red before the honest walk was green. -->
 - **HB-146 — loop transition crash sweep. LANDED 2026-08-11.** Extended the existing legal,
   illegal, and replay loop-state suite with a crash at every transition boundary while
   preserving predecessor authority and labels-after-artifacts ordering. *Acceptance:*
@@ -1405,7 +1414,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
+HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
 HB-P2 LANDED.
 HB-P4 LANDED.

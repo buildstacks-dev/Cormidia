@@ -200,7 +200,13 @@ repository is such a verified own-repository action and routes through
 `repo-collaboration` (owner ruling 2026-08-12, F-PT-035 — which also aligned
 the J-11 journey clause's "external" to mean outside the app's own configured
 repositories; `queueIncidentFiling`'s move off the retired `external-publishing`
-rule lands under HB-143).
+rule landed under HB-143, 2026-08-12). When the composed gate allows the
+verified own-repo filing at the budgeted tier, `queueIncidentFiling` mints the
+content-bound durable execution record itself — raise plus a first-class
+attributable **agent** decision (`agent/orchestrator/incident-filing`, never
+presented as human) — so the durable-github executor still performs the effect
+exactly once under the idempotency marker; a foreign, dynamic, or unverifiable
+target surfaces as the human-only `repo-collaboration-foreign` item, unchanged.
 
 Every decision — human or agent — records the deciding identity, a non-empty
 reason, and an audit row. A reason equal to a bare decision token is rejected
@@ -421,7 +427,11 @@ stand in for a durable record of the exact payload and its acknowledgement.
 This is a deliberate tightening of A1, not a new outward-effect authority.
 The SRE incident pipeline uses the typed issue-create action for critical/down
 health events, with `op:incident`, source-event key, payload hash, and a stable
-incident identity. Its local analysis may be complete while filing remains
+incident identity — since F-PT-035 (2026-08-12) its filing item carries the
+budgeted `repo-collaboration` rule when the target is the app's own verified
+repository (agent-decidable; the durable execution record and idempotency
+reconciliation here are unchanged), and `repo-collaboration-foreign` otherwise.
+Its local analysis may be complete while filing remains
 pending, failed, or ambiguous; those claims are never collapsed.
 
 ## Batched same-rule decisions (A3)

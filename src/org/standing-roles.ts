@@ -4,7 +4,7 @@ import { link, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path";
 import type { GateFn } from "../runtime/types.js";
 import { githubIssueCreateAction, type DeliveryFailureCause } from "./approval-delivery.js";
-import { approvalLifecycleState, ApprovalStore } from "./approvals.js";
+import { approvalLifecycleState, ApprovalStore, type ApprovalDecider, type ApprovalItem } from "./approvals.js";
 import { writeFileAtomic } from "./atomic.js";
 import type { TurnEvent } from "./journal.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
@@ -648,6 +648,26 @@ function incidentFilingRequired(payload: Record<string, unknown>): boolean {
   return deployShaped(payload);
 }
 
+/** F-PT-035 (owner ruling 2026-08-12): source-linked `op:incident` filing into
+ * the app's OWN configured repository is budgeted `repo-collaboration` under
+ * the #296 §5.3 consequence split — never the retired `external-publishing`
+ * rule, whose human-only tombstone still governs stale persisted items so they
+ * never loosen. Own-repo verification runs INSIDE the composed gate BEFORE any
+ * grant matching (src/org/gate-compose.ts); anything foreign, dynamic, or
+ * unverifiable refines to human-only `repo-collaboration-foreign` and surfaces
+ * here as the raised refined item — this helper reuses that refinement and
+ * never reimplements it. The rule move follows the §5.3 migration pattern
+ * (ACTION_IDENTITY_VERSION v7 precedent): abrupt and intentional; an item
+ * persisted under the retired name is no longer matched here, and the
+ * content-derived idempotency marker keeps the remote effect at-most-once
+ * across the rename. */
+const INCIDENT_FILING_RULE = "repo-collaboration";
+const INCIDENT_FILING_REFINED_RULE = "repo-collaboration-foreign";
+const INCIDENT_FILING_DECIDER: ApprovalDecider = {
+  kind: "agent",
+  identity: "agent/orchestrator/incident-filing",
+};
+
 async function queueIncidentFiling(input: {
   stateHome: string;
   app: string;
@@ -676,41 +696,62 @@ async function queueIncidentFiling(input: {
     idempotency_key: idempotencyKey,
   });
   const store = new ApprovalStore(input.stateHome);
-  let item = await store.findEquivalent({
-    app: input.app,
-    role: "sre",
-    rule: "external-publishing",
-    action,
-    ticketRef,
-  });
-  let reason: string | undefined;
-  if (item === undefined) {
-    const decision = input.gate(action);
-    reason = decision.allow ? undefined : decision.reason;
-    item = await store.findEquivalent({
+  const findFiling = async (): Promise<ApprovalItem | undefined> =>
+    (await store.findEquivalent({ app: input.app, role: "sre", rule: INCIDENT_FILING_RULE, action, ticketRef })) ??
+    (await store.findEquivalent({
       app: input.app,
       role: "sre",
-      rule: "external-publishing",
+      rule: INCIDENT_FILING_REFINED_RULE,
       action,
       ticketRef,
-    });
-    // The composed gate normally records the escalation. Keep this helper
-    // fail-closed if a custom hook denies without persisting one.
-    if (item === undefined && !decision.allow) {
-      return {
-        kind: "github_issue",
-        analysis_state: "complete",
-        filing_state: "gate_denied",
-        repo: input.repo,
-        required_label: "op:incident",
-        source_event_key: input.event.key,
-        idempotency_key: idempotencyKey,
-        failure_cause: "gate_denied",
-        reason: decision.reason,
-      };
-    }
-    if (item === undefined) {
-      throw new Error("incident delivery gate allowed without a durable action record");
+    }));
+  let item = await findFiling();
+  let reason: string | undefined;
+  if (item === undefined || (item.status === "pending" && item.rule === INCIDENT_FILING_RULE)) {
+    const decision = input.gate(action);
+    reason = decision.allow ? undefined : decision.reason;
+    if (decision.allow) {
+      // Verified own-repo filing at the budgeted tier: the composed gate
+      // recorded the per-action audit row and raised no item. Approval and
+      // execution stay separate facts — mint the content-bound durable
+      // execution record with a first-class attributable AGENT decision
+      // (PURPOSE v2.15, never presented as human) so the durable-github
+      // executor performs the effect exactly once under the idempotency
+      // marker. raise() deduplicates a pending equivalent, so a crash between
+      // raise and decide converges here on the next run.
+      const raised = await store.raise({
+        app: input.app,
+        role: "sre",
+        rule: INCIDENT_FILING_RULE,
+        action,
+        ticketRef,
+        justification:
+          `source-linked op:incident filing for ${input.event.key} into the app's own ` +
+          `configured repository ${input.repo}`,
+      });
+      item = await store.decide(raised.id, {
+        decision: "approved",
+        decidedBy: INCIDENT_FILING_DECIDER,
+        reason: "own-repo source-linked op:incident filing is budgeted repo-collaboration (F-PT-035)",
+      });
+    } else {
+      item = await findFiling();
+      // The composed gate records the (possibly foreign-refined) escalation.
+      // Keep this helper fail-closed if a custom hook denies without
+      // persisting one.
+      if (item === undefined) {
+        return {
+          kind: "github_issue",
+          analysis_state: "complete",
+          filing_state: "gate_denied",
+          repo: input.repo,
+          required_label: "op:incident",
+          source_event_key: input.event.key,
+          idempotency_key: idempotencyKey,
+          failure_cause: "gate_denied",
+          reason: decision.reason,
+        };
+      }
     }
   }
   const lifecycle = approvalLifecycleState(item);

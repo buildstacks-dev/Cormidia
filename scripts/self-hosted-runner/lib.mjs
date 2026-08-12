@@ -78,8 +78,16 @@ function xml(value) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-export function renderLaunchAgent({ nodePath, cliPath, workingDirectory, stdoutPath, stderrPath }) {
-  const values = [nodePath, cliPath, workingDirectory, stdoutPath, stderrPath];
+export function renderLaunchAgent({
+  nodePath,
+  githubCliPath,
+  dockerCliPath,
+  cliPath,
+  workingDirectory,
+  stdoutPath,
+  stderrPath,
+}) {
+  const values = [nodePath, githubCliPath, dockerCliPath, cliPath, workingDirectory, stdoutPath, stderrPath];
   if (values.some((value) => typeof value !== "string" || value.length === 0)) {
     throw new TypeError("launch agent paths must be non-empty strings");
   }
@@ -93,6 +101,10 @@ export function renderLaunchAgent({ nodePath, cliPath, workingDirectory, stdoutP
     <string>serve</string>
   </array>
   <key>WorkingDirectory</key><string>${xml(workingDirectory)}</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>CORMIDIA_GH_PATH</key><string>${xml(githubCliPath)}</string>
+    <key>CORMIDIA_DOCKER_PATH</key><string>${xml(dockerCliPath)}</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>10</integer>

@@ -162,6 +162,8 @@ describe("CF-HARNESS-CI — HB-152 self-hosted runner appliance", () => {
   it("renders one keep-alive launch agent with explicit working and log paths", () => {
     const plist = renderLaunchAgent({
       nodePath: "/opt/node&26/bin/node",
+      githubCliPath: "/opt/homebrew/bin/gh",
+      dockerCliPath: "/usr/local/bin/docker",
       cliPath: "/repo<runner>/cli.mjs",
       workingDirectory: "/repo<runner>",
       stdoutPath: "/state/logs/out.log",
@@ -170,7 +172,20 @@ describe("CF-HARNESS-CI — HB-152 self-hosted runner appliance", () => {
     expect(plist).toContain("<key>RunAtLoad</key><true/>");
     expect(plist).toContain("<key>KeepAlive</key><true/>");
     expect(plist).toContain("/opt/node&amp;26/bin/node");
+    expect(plist).toContain("<key>CORMIDIA_GH_PATH</key><string>/opt/homebrew/bin/gh</string>");
+    expect(plist).toContain("<key>CORMIDIA_DOCKER_PATH</key><string>/usr/local/bin/docker</string>");
     expect(plist).toContain("/repo&lt;runner&gt;");
+    expect(() =>
+      renderLaunchAgent({
+        nodePath: "/node",
+        githubCliPath: "",
+        dockerCliPath: "/docker",
+        cliPath: "/cli",
+        workingDirectory: "/work",
+        stdoutPath: "/out",
+        stderrPath: "/err",
+      }),
+    ).toThrow(/paths must be non-empty/);
   });
 
   it("routes the independent proof job to the exact runner label without persistent checkout credentials", async () => {

@@ -31,6 +31,8 @@ export function dockerRunSpec(registrationToken: string): DockerRunSpec;
 export function managedOfflineRunnerIds(rows: readonly RunnerRow[]): number[];
 export function renderLaunchAgent(options: {
   nodePath: string;
+  githubCliPath: string;
+  dockerCliPath: string;
   cliPath: string;
   workingDirectory: string;
   stdoutPath: string;

@@ -16,7 +16,13 @@ const servicePath = join(homedir(), "Library", "LaunchAgents", `${serviceLabel}.
 
 function run(command, args, { env = process.env, capture = false, allowFailure = false } = {}) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn(command, args, {
+    const executable =
+      command === "gh"
+        ? (process.env.CORMIDIA_GH_PATH ?? command)
+        : command === "docker"
+          ? (process.env.CORMIDIA_DOCKER_PATH ?? command)
+          : command;
+    const child = spawn(executable, args, {
       env,
       stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
     });
@@ -42,6 +48,13 @@ function run(command, args, { env = process.env, capture = false, allowFailure =
       }
     });
   });
+}
+
+async function resolveExecutable(command) {
+  const result = await run("/usr/bin/which", [command], { capture: true });
+  const executable = result.stdout.trim();
+  if (!executable.startsWith("/")) throw new Error(`could not resolve absolute ${command} executable`);
+  return executable;
 }
 
 async function ghJson(path, { method = "GET" } = {}) {
@@ -218,8 +231,11 @@ async function installService() {
   }
   await rm(previousRoot, { recursive: true, force: true });
 
+  const [githubCliPath, dockerCliPath] = await Promise.all([resolveExecutable("gh"), resolveExecutable("docker")]);
   const plist = renderLaunchAgent({
     nodePath: process.execPath,
+    githubCliPath,
+    dockerCliPath,
     cliPath: join(installRoot, "cli.mjs"),
     workingDirectory: installRoot,
     stdoutPath: join(logRoot, "supervisor.log"),

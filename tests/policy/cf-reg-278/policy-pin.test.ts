@@ -116,6 +116,17 @@ interface MutablePolicy {
   };
 }
 
+/** Set a finding's status on a mutable fixture, refusing rather than asserting
+ *  non-null: a fixture that silently mutates nothing would make its negative
+ *  control vacuously green (policy `harness_self_tests`). */
+function setFindingStatus(doc: MutablePolicy, id: string, status: string): void {
+  const finding = doc.open_findings.find((entry) => entry.id === id);
+  if (finding === undefined) {
+    throw new Error(`fixture precondition failed: ${id} is not in open_findings`);
+  }
+  finding.status = status;
+}
+
 function mutatedPolicy(mutate: (doc: MutablePolicy) => void): ValidationPolicy {
   const clone = structuredClone(loadValidationPolicy(repoRoot));
   mutate(clone as unknown as MutablePolicy);
@@ -203,9 +214,17 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     expect(auditVitestConfigs(defaultConfig.default, liveConfig.default)).toEqual([]);
   });
 
-  it("(f) ratified pins hold: F-PT-006/F-PT-008 stay open-blocked-contract; spend bounds are 2 turns/$5 pre-merge and 24 turns/$100 release", () => {
+  it("(f) ratified pins hold: F-PT-006/008/017 stay resolved-ratified and F-PT-018 stays a known limitation; spend bounds are 2 turns/$5 pre-merge and 24 turns/$100 release", () => {
     const policy = loadValidationPolicy(repoRoot);
     expect(auditRatifiedPins(policy)).toEqual([]);
+    // The 2026-08-12 owner rulings, pinned in BOTH directions: a ratified ruling
+    // cannot be silently reverted to blocked, and F-PT-018 cannot be silently
+    // "resolved" while the GitHub plan still refuses branch protection.
+    const statusOf = (id: string): string | undefined => policy.open_findings.find((f) => f.id === id)?.status;
+    expect(statusOf("F-PT-006")).toBe("resolved-ratified");
+    expect(statusOf("F-PT-008")).toBe("resolved-ratified");
+    expect(statusOf("F-PT-017")).toBe("resolved-ratified");
+    expect(statusOf("F-PT-018")).toBe("open-known-limitation");
     // Assert the ratified numbers directly too, so this spec documents them.
     const spend = policy.layers.L3_live_sandbox.spend_policy;
     expect(spend.pre_merge_adapter_campaign.max_provider_turns).toBe(2);
@@ -213,10 +232,6 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     expect(spend.release_campaign.max_provider_turns).toBe(24);
     expect(spend.release_campaign.max_equiv_usd).toBe(100);
     expect(spend.on_ceiling_exhaustion).toContain("never pass");
-    const f006 = policy.open_findings.find((f) => f.id === "F-PT-006");
-    const f008 = policy.open_findings.find((f) => f.id === "F-PT-008");
-    expect(f006?.status).toBe("open-blocked-contract");
-    expect(f008?.status).toBe("open-blocked-contract");
     for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 13]) {
       expect(policy.proposed_register.items.find((item) => item.id === id)?.decision_status).toMatch(
         /^(adjusted-ratified|ratified)$/,
@@ -313,17 +328,30 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
     );
   });
 
-  it("negative control: flipping a blocked finding or a spend bound without ratification fires the pin audit", () => {
-    const flipped = mutatedPolicy((doc) => {
-      const finding = doc.open_findings.find((f) => f.id === "F-PT-006");
-      finding!.status = "resolved-ratified";
+  it("negative control: moving a pinned finding in EITHER direction, or a spend bound, without ratification fires the pin audit", () => {
+    // Reverting a ratified ruling is now caught — the pre-2026-08-12 pin could only
+    // catch the open→resolved direction, so a silent revert would have passed.
+    const reverted = mutatedPolicy((doc) => {
+      setFindingStatus(doc, "F-PT-006", "open-blocked-contract");
     });
-    expect(auditRatifiedPins(flipped)).toContainEqual(expect.stringContaining("F-PT-006"));
+    expect(auditRatifiedPins(reverted)).toContainEqual(expect.stringContaining("F-PT-006"));
 
     const dropped = mutatedPolicy((doc) => {
       doc.open_findings = doc.open_findings.filter((f) => f.id !== "F-PT-008");
     });
     expect(auditRatifiedPins(dropped)).toContainEqual(expect.stringContaining("F-PT-008"));
+
+    // The load-bearing one: nothing may quietly claim mechanical merge blocking
+    // while the plan still returns HTTP 403 for branch protection.
+    const claimedMergeBlocking = mutatedPolicy((doc) => {
+      setFindingStatus(doc, "F-PT-018", "resolved-ratified");
+    });
+    expect(auditRatifiedPins(claimedMergeBlocking)).toContainEqual(expect.stringContaining("F-PT-018"));
+
+    const unratifiedTerminalStatus = mutatedPolicy((doc) => {
+      setFindingStatus(doc, "F-PT-017", "open-blocked-contract");
+    });
+    expect(auditRatifiedPins(unratifiedTerminalStatus)).toContainEqual(expect.stringContaining("F-PT-017"));
 
     const overspend = mutatedPolicy((doc) => {
       doc.layers.L3_live_sandbox.spend_policy.release_campaign.max_equiv_usd = 500;

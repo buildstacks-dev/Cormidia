@@ -451,9 +451,20 @@ export function missingArtifacts(policy: ValidationPolicy): string[] {
 
 export const RATIFIED_PINS = {
   design_status: "ratified",
-  /** Open-blocked findings — flipping either requires human ratification evidence. */
-  blocked_findings: ["F-PT-006", "F-PT-008"],
-  blocked_status: "open-blocked-contract",
+  /** Findings whose status is pinned: moving one in EITHER direction requires human
+   *  ratification evidence. Was `blocked_findings` + a single `blocked_status`
+   *  (F-PT-006/F-PT-008 pinned `open-blocked-contract`) until 2026-08-12, when the
+   *  owner ratified F-PT-006/F-PT-008/F-PT-017 and re-checked F-PT-018. The pin is
+   *  now per-finding and covers FOUR findings instead of two — a tightening, not a
+   *  relaxation: a ratified ruling can no longer be silently reverted, and F-PT-018
+   *  is pinned as a known limitation so no change may quietly claim the mechanical
+   *  merge blocking the GitHub plan still does not offer. */
+  pinned_finding_status: {
+    "F-PT-006": "resolved-ratified",
+    "F-PT-008": "resolved-ratified",
+    "F-PT-017": "resolved-ratified",
+    "F-PT-018": "open-known-limitation",
+  },
   /** Spend bounds — hard bounds raisable only by a human policy edit. */
   pre_merge_adapter_campaign: { max_provider_turns: 2, max_equiv_usd: 5 },
   release_campaign: { max_provider_turns: 24, max_equiv_usd: 100 },
@@ -507,17 +518,17 @@ export function auditRatifiedPins(policy: ValidationPolicy): string[] {
     );
   }
 
-  for (const id of RATIFIED_PINS.blocked_findings) {
+  for (const [id, pinnedStatus] of Object.entries(RATIFIED_PINS.pinned_finding_status)) {
     const finding = policy.open_findings.find((f) => f.id === id);
     if (finding === undefined) {
       violations.push(
-        `finding ${id} vanished from open_findings — blocked findings may not be ` +
+        `finding ${id} vanished from open_findings — pinned findings may not be ` +
           `dropped without human ratification evidence`,
       );
-    } else if (finding.status !== RATIFIED_PINS.blocked_status) {
+    } else if (finding.status !== pinnedStatus) {
       violations.push(
         `finding ${id} status is "${finding.status}" — pinned as ` +
-          `"${RATIFIED_PINS.blocked_status}"; flipping it requires human ratification evidence`,
+          `"${pinnedStatus}"; changing it requires human ratification evidence`,
       );
     }
   }

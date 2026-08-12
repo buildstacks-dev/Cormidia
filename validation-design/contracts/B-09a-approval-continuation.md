@@ -18,11 +18,24 @@ Status: DRAFT (Phase 4). Defends INV-003/005, T-2. Journeys J-05/J-06.
   separates pause cost from repeated cost `[doc]`.
 
 ## 3. Error behavior
-- Grant TTL (24 h `[doc]`) expiry before resume: typed outcome; never silent execution
-  under an expired grant (INV-003). **What expiry does to the item is unratified —
-  F-PT-008**: whether it creates a fresh item, reopens the old one, or requires another
-  explicit operation is not defined by the approvals contract (and decision records are
-  immutable, B-09b); this contract takes no position.
+<!-- changelog 2026-08-12 (F-PT-008 owner ruling): the expiry-disposition clause
+below was "unratified — this contract takes no position"; it now states the
+ratified disposition, and the TTL is stated as a policy-configured value with a
+default rather than as a constant. Tighten-only: an undecided disposition became
+one exact rule, and the rule forbids both the silent-fresh-item and the
+dropped-operation readings that the silence permitted. -->
+- Grant TTL expiry before resume: typed outcome; never silent execution under an
+  expired grant (INV-003). **Expiry REOPENS the original item** (ratified
+  2026-08-12, F-PT-008): the item returns to the pending queue under its
+  **original id** with its decision history intact — never a silent fresh item,
+  never a dropped operation. B-09b's immutability holds: the reopen is an
+  **appended** log transition over immutable decision records, never an edit of
+  one.
+- **The TTL is policy configuration, never a source constant** (F-PT-020
+  precedent), resolved from org configuration. Defaults: grant **48 h**;
+  undecided-item (pending) TTL **24 h**, deliberately **pinned** rather than
+  inherited from the grant default — inheriting would have doubled F-PT-020's
+  ratified 24 h undecided-item bound as a side effect of lengthening the grant.
 - Crash between decision and continuation: decision durable, continuation retried by a
   later tick; the decision is never re-asked.
 - **Decision-store reconciliation:** the documented write order (grant, then decision

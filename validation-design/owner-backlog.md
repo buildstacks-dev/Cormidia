@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-12 after landed HB-150; same-day predecessors HB-133/HB-135/HB-136/HB-140)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-12 after the P-ticket owner rulings: HB-P3/HB-P5/HB-P6 unparked, HB-112 closed, HB-153/HB-154 minted; earlier same-day HB-150, and HB-133/HB-135/HB-136/HB-140)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -89,18 +89,29 @@ what done bought you.
   defended yet** — the source doc is WIP/non-normative — and **a child that
   cannot name what it defends when its trigger fires is not implementable**;
   you'll be asked to supply that answer, not to accept a guess.
-- **HB-112 — `manual-feelview` taxonomy audit (PENDING, non-blocking).** Bookkeeping
-  honesty for one odd label; no scheduling semantics. <!-- reviewed 2026-08-10
-  (final-gate follow-up 17) against the source ticket's round-25 Defends
-  addition (corpus hygiene, audit-only): semantically aligned, no rewrite
-  needed. -->
-- **HB-P3 / HB-P5 — parked on your answers** to F-PT-006 (event-producer crash
-  protocol) and F-PT-008 (grant-expiry disposition). They stay parked so nobody
-  encodes a guess as your policy.
-- **HB-P6 / HB-P7 — parked**: provider terminal-status vocabulary (F-PT-017) awaits
-  your choice; mechanical merge-blocking (F-PT-018) awaits a GitHub plan change —
-  until then, protected human merge plus the release-blocking exact-tag rerun carry
-  that weight, and say so.
+- **HB-112 — DONE 2026-08-12** (`manual-feelview` taxonomy audit): closed by your own
+  correction — the label was a typo of `manual-review`, so the audit's disposition was
+  RENAME, applied to eight issues, and the label is retired. No scheduling semantics
+  changed and the no-wildcard rule still holds.
+- **HB-P3 / HB-P5 / HB-P6 — UNPARKED 2026-08-12 by your rulings.** F-PT-006: one firing
+  per real event, identity derived from payload CONTENT (so a duplicate delivery
+  collapses and producers owe no atomic-rename discipline). F-PT-008: an expired grant
+  REOPENS the original item, the TTL becomes policy configuration, and the grant default
+  goes to 48h — with the undecided-item default deliberately pinned at 24h, because
+  letting it inherit would have doubled a bound you already ratified. F-PT-017: the
+  terminal status is `interrupted` and must carry a reason, with old `timed_out` records
+  still readable. Each lands its detectors red-then-green.
+- **HB-P7 — still parked, and it is not our choice.** Mechanical merge-blocking
+  (F-PT-018) needs branch protection, and the 2026-08-12 re-check got the same HTTP 403:
+  the private-repo plan does not offer it. Until that changes, protected human merge plus
+  the release-blocking exact-tag rerun carry that weight — and every surface says so
+  rather than implying a gate that does not exist.
+- **HB-153 / HB-154 — two new rulings you gave the same day.** HB-153: when a gate
+  classifier throws, the muse, grok and pi seams must deny AND escalate, like the three
+  bridges already do. pi mattered most — it looks fail-closed today only because the
+  vendor SDK happens to catch, which a version bump could silently undo. HB-154: a route
+  that requires independent review but resolves no reviewer seat now refuses instead of
+  quietly skipping the cross-provider check.
 - **HB-072 / HB-073 — the threat model is yours to author**; the abuse-case lane
   stays locked behind it (a gate refuses until your reviewed document exists).
 - **HB-071 (evidence half) — the seven-day soak** waits for you to schedule a real

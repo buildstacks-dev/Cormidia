@@ -1803,7 +1803,7 @@
     },
     "tests/policy/cf-reg-278/policy-pin.test.ts": {
       "as": 5,
-      "nonNull": 26
+      "nonNull": 25
     },
     "tests/unit/cf-adapter-version-bands/cf-b02-cf-b03-cf-b04/doctor-version-bands.test.ts": {
       "as": 2,

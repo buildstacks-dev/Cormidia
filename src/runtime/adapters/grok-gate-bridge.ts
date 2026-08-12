@@ -25,6 +25,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { toolUseEvent } from "../tool-events.js";
+import { classifierThrowDenial } from "./gate-bridge-escalation.js";
 import type { GateEscalation, TurnHooks } from "../types.js";
 import { grokIsolationEnv, turnIsolatedGrokHome } from "./grok-isolation.js";
 import { normalizeGrokHookActions } from "./grok-tool-actions.js";
@@ -177,10 +178,9 @@ export function createGrokGateCore(workdir: string, hooks: TurnHooks, escalation
         // An envelope Cormidia cannot classify (an unknown shape, or grok's
         // ungateable fan-out route) is DENIED, never waved through: grok's own
         // hook runner fails open, so failing closed here is the whole point.
-        return {
-          allow: false,
-          reason: `Cormidia Grok gate failed closed: ${error instanceof Error ? error.message : String(error)}`,
-        };
+        // F-PT-037 (owner ruling 2026-08-12) adds the escalation half of
+        // INV-015 seed (c) — a denial nobody can see is an observability hole.
+        return classifierThrowDenial(escalations, undefined, "Grok", error);
       }
       return { allow, ...(allow ? {} : { reason: reason ?? "Cormidia gate denied the tool action" }) };
     },

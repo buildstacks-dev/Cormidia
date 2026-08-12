@@ -1,7 +1,8 @@
 import type { ExtensionFactory, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import * as path from "node:path";
 import { toolUseEvent } from "../tool-events.js";
-import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
+import type { GateDecision, GateEscalation, ToolAction, TurnHooks } from "../types.js";
+import { classifierThrowDenial } from "./gate-bridge-escalation.js";
 
 // Factory identity is a stronger precondition than "some extension loaded".
 // A custom ResourceLoader used by an embedding can accidentally discard inline
@@ -46,34 +47,67 @@ function normalizePiToolAction(toolName: string, input: Record<string, unknown>,
   }
 }
 
+/** The gate decision for one pi tool call, independent of the SDK's extension
+ *  plumbing. Exported so the decision can be exercised directly — driving it
+ *  through a stubbed ExtensionAPI would prove the stub, not the gate. */
+export function piToolCallGateHandler(
+  workdir: string,
+  hooks: TurnHooks,
+  escalations: GateEscalation[],
+): (event: unknown) => ToolCallEventResult | undefined {
+  return (event) => {
+    if (isSubagentToolCallEvent(event)) {
+      hooks.onEvent?.({
+        type: "subagent",
+        detail: `pi subagent attempting: ${event.toolName}`,
+      });
+    }
+    // F-PT-037 (owner ruling 2026-08-12): pi is fail-closed TODAY only because
+    // the VENDOR catches — the throw escapes ExtensionRunner.emitToolCall
+    // (which, unlike its emitUserBash/emitContext siblings, wraps no handler in
+    // try/catch) and pi-agent-core's prepareToolCall turns the rejection into an
+    // error tool result. That is a version-banded vendor behavior one bump could
+    // silently invert, and nothing escalated either way. Cormidia owns its own
+    // denial here, per the standing rule that an unproven gate is an ungated turn.
+    let action: ToolAction | undefined;
+    let decision: GateDecision;
+    try {
+      const record = isToolCallEvent(event) ? event : { toolName: "", input: {} };
+      action = normalizePiToolAction(record.toolName, record.input, workdir);
+      decision = hooks.gate(action);
+    } catch (error) {
+      return { block: true, reason: classifierThrowDenial(escalations, action, "pi", error).reason };
+    }
+    if (decision.allow) {
+      // The tool WILL run: emit the L2-bridgeable tool_use (issue #27).
+      // Pre-execution channel (pi blocks on this handler) — no outcome
+      // fields; denied attempts are escalations, not tool activity.
+      hooks.onEvent?.(toolUseEvent(action));
+      return undefined;
+    }
+    if (decision.escalate) {
+      escalations.push({ action, reason: decision.reason });
+    }
+    return { block: true, reason: decision.reason };
+  };
+}
+
+function isToolCallEvent(event: unknown): event is { toolName: string; input: Record<string, unknown> } {
+  if (typeof event !== "object" || event === null) return false;
+  const record: Record<string, unknown> = { ...event };
+  const input = record["input"];
+  return typeof record["toolName"] === "string" && typeof input === "object" && input !== null;
+}
+
 export function createPiGateExtension(
   workdir: string,
   hooks: TurnHooks,
   escalations: GateEscalation[],
 ): ExtensionFactory {
+  const decide = piToolCallGateHandler(workdir, hooks, escalations);
   const factory: ExtensionFactory = (pi) => {
     activatedPiGateExtensions.add(factory);
-    pi.on("tool_call", async (event): Promise<ToolCallEventResult | undefined> => {
-      if (isSubagentToolCallEvent(event)) {
-        hooks.onEvent?.({
-          type: "subagent",
-          detail: `pi subagent attempting: ${event.toolName}`,
-        });
-      }
-      const action = normalizePiToolAction(event.toolName, event.input as Record<string, unknown>, workdir);
-      const decision = hooks.gate(action);
-      if (decision.allow) {
-        // The tool WILL run: emit the L2-bridgeable tool_use (issue #27).
-        // Pre-execution channel (pi blocks on this handler) — no outcome
-        // fields; denied attempts are escalations, not tool activity.
-        hooks.onEvent?.(toolUseEvent(action));
-        return undefined;
-      }
-      if (decision.escalate) {
-        escalations.push({ action, reason: decision.reason });
-      }
-      return { block: true, reason: decision.reason };
-    });
+    pi.on("tool_call", async (event): Promise<ToolCallEventResult | undefined> => decide(event));
   };
   return factory;
 }

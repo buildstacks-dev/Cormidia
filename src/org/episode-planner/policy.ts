@@ -240,6 +240,23 @@ export function createEpisodePlanningPolicy(
   // ratification caveat recorded in src/loop/review-provider.ts); production
   // pins `configuredProviderFamily`. Empty seat lists fail closed: a review
   // policy that can cover nothing must never read as satisfied.
+  // F-PT-038 (owner ruling 2026-08-12): a route that REQUIRES independent review
+  // and resolves no policy — neither configured nor from the name-based default
+  // — refuses HERE, under the same typed error class as the empty-seat-list
+  // branch below. Before the ruling this fell through and the whole
+  // cross-provider-family guard silently did not run, so the control's presence
+  // depended on whether someone had named a role "reviewer". A safety control
+  // that can cover nothing must never read as satisfied (standing rule 2:
+  // guardrails enforce, evals measure). The name-based default is retained as a
+  // convenience, so the remedy named here is explicit seat configuration.
+  if (review === undefined && safetyKinds.has("independent_review")) {
+    throw new ReviewProviderCollapseError(
+      "error_review_provider_family_unresolvable",
+      "this route requires independent review but no reviewer policy resolves: the org chart has no role named " +
+        "builder and/or reviewer, and no explicit independentReview seats were configured. Configure the subject " +
+        "and reviewer seats explicitly; refusing before provider construction (fail closed)",
+    );
+  }
   if (review !== undefined) {
     if (review.subjectRoles.length === 0 || review.reviewerRoles.length === 0) {
       throw new ReviewProviderCollapseError(

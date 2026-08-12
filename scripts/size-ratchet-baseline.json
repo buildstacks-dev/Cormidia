@@ -658,7 +658,7 @@
     },
     "src/org/episode-planner/policy.ts": {
       "exports": 7,
-      "lines": 503,
+      "lines": 517,
       "newModule": false
     },
     "src/org/episode-planner/repository-facts.ts": {
@@ -1667,8 +1667,8 @@
       "newModule": true
     },
     "src/runtime/adapters/pi-gate.ts": {
-      "exports": 2,
-      "lines": 90,
+      "exports": 3,
+      "lines": 124,
       "newModule": false
     },
     "src/runtime/adapters/pi.ts": {

@@ -108,6 +108,8 @@ describe("CF-HARNESS-CI — HB-152 self-hosted runner appliance", () => {
     expect(sources.dockerfile).toContain(`ARG RUNNER_VERSION=${RUNNER_CONFIG.runnerVersion}`);
     expect(sources.dockerfile).toContain(`ARG RUNNER_SHA256=${RUNNER_CONFIG.runnerSha256}`);
     expect(sources.dockerfile).toContain(RUNNER_CONFIG.baseImage);
+    expect(sources.dockerfile).toContain("libatomic1");
+    expect(sources.dockerfile).toContain("NODE_USE_SYSTEM_CA=1");
     expect(auditRunnerAppliance({ ...sources, runSpec: dockerRunSpec("fixture-token") })).toEqual([]);
   });
 
@@ -262,6 +264,18 @@ describe("CF-HARNESS-CI — HB-152 seeded runner-appliance violations", () => {
     const violations = auditRunnerAppliance({ ...sources, runSpec: seeded });
     expect(violations).toContainEqual(expect.stringContaining("image"));
     expect(violations).toContainEqual(expect.stringContaining("label"));
+  });
+
+  it("fires when the ARM64 Node runtime dependency or system CA integration disappears", async () => {
+    const sources = await applianceSources();
+    const seededDockerfile = sources.dockerfile.replace("libatomic1", "").replace("NODE_USE_SYSTEM_CA=1", "");
+    const violations = auditRunnerAppliance({
+      dockerfile: seededDockerfile,
+      entrypoint: sources.entrypoint,
+      runSpec: dockerRunSpec("fixture-token"),
+    });
+    expect(violations).toContainEqual(expect.stringContaining("libatomic1"));
+    expect(violations).toContainEqual(expect.stringContaining("system CA"));
   });
 
   it("fires when the probe routes elsewhere or checkout credentials persist", async () => {

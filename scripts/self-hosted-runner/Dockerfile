@@ -3,7 +3,8 @@ FROM ubuntu:24.04@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e8
 ARG RUNNER_VERSION=2.336.0
 ARG RUNNER_SHA256=58b758e420b87093fbd4bfddd368074960053e2f1388f01848c82624b90f27d1
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    NODE_USE_SYSTEM_CA=1
 
 RUN apt-get update \
   && apt-get install --yes --no-install-recommends \
@@ -13,6 +14,7 @@ RUN apt-get update \
     gzip \
     iptables \
     jq \
+    libatomic1 \
     tar \
     tini \
     util-linux \

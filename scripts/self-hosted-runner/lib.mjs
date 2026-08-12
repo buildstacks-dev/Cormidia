@@ -126,6 +126,9 @@ export function auditRunnerAppliance({ dockerfile, entrypoint, runSpec }) {
   if (!dockerfile.includes(`ARG RUNNER_SHA256=${RUNNER_CONFIG.runnerSha256}`)) {
     violations.push("official runner checksum pin is missing");
   }
+  if (!dockerfile.includes("libatomic1")) violations.push("ARM64 Node runtime dependency libatomic1 is missing");
+  if (!dockerfile.includes("NODE_USE_SYSTEM_CA=1"))
+    violations.push("Node action runtime does not use the system CA store");
   if (args.at(-1) !== RUNNER_CONFIG.image) violations.push("runner image drifted from the exact local pin");
   if (env.RUNNER_LABEL !== RUNNER_CONFIG.label) violations.push("runner label drifted from repository routing label");
   if (!args.includes("--rm") || !entrypoint.includes("--ephemeral")) {

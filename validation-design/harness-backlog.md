@@ -412,7 +412,7 @@ tickets below previously named only executors, breaking the every-ticket-carries
 Layer/Acceptance/Defends rule for exactly the tickets most likely to be picked up
 cold; fields added. Family ids stay in prose (B-NN/F-PT form) because these cells
 are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
-- **HB-P3 — UNBLOCKED 2026-08-12** F-PT-006 producer-protocol + duplicate-identity
+- **HB-P3 — LANDED 2026-08-12 (unblocked the same day)** F-PT-006 producer-protocol + duplicate-identity
   cases. *Layer:* 2. *Defends:* the B-13 inbox contract's producer-visibility and
   duplicate-identity clauses (formerly parked cells in the J-10/SM-EVENT/B-13
   families). *Acceptance:* the ratified protocol encoded red-then-green, whichever
@@ -1510,7 +1510,7 @@ HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-142 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-150 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
-HB-112 LANDED.
+HB-112 LANDED. HB-P3 LANDED.
 <!-- changelog 2026-08-12: HB-112 was an audit ticket, and "landed" is this register's
 only completion token — it records that the ticket's acceptance (inventory, one
 disposition per occurrence, zero scheduling-semantics changes) is discharged by the

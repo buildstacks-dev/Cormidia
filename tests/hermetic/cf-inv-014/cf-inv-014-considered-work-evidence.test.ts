@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { dispatchTick } from "../../../src/org/dispatch.js";
-import { EventStore, type GitHubEventSource } from "../../../src/org/events.js";
+import { EventStore, inboxEventKey, type GitHubEventSource } from "../../../src/org/events.js";
 import { acquireLock } from "../../../src/org/locks.js";
 import { SchedulerEvidenceStore, type SchedulerDecisionRecord } from "../../../src/org/scheduler/evidence.js";
 import { schedulerIdentity } from "../../../src/org/scheduler/model.js";
@@ -161,23 +161,22 @@ describe("CF-INV-014 — considered work never vanishes (L2, HB-149)", () => {
 
   it("refuses to retire an event when the subscriber consumption marks are absent", async () => {
     const home = await world({ role: "support", trigger: "event" });
-    const eventKey = "feedback-149.json";
+    // changelog 2026-08-12 (HB-P3, F-PT-006): the event key is the ratified
+    // CONTENT identity; the delivery filename no longer decides identity.
+    const payload = {
+      kind: "support-feedback",
+      id: "feedback-149",
+      app: "app-a",
+      occurred_at: NOW.toISOString(),
+      source: "fixture",
+      severity: "high",
+      channel: "email",
+      summary: "subscriber has not consumed this event",
+    };
+    const eventKey = inboxEventKey(payload);
     const inbox = join(home.stateHome, "state", "events", "inbox");
     await mkdir(inbox, { recursive: true });
-    await writeFile(
-      join(inbox, eventKey),
-      `${JSON.stringify({
-        kind: "support-feedback",
-        id: "feedback-149",
-        app: "app-a",
-        occurred_at: NOW.toISOString(),
-        source: "fixture",
-        severity: "high",
-        channel: "email",
-        summary: "subscriber has not consumed this event",
-      })}\n`,
-      "utf8",
-    );
+    await writeFile(join(inbox, "feedback-149.json"), `${JSON.stringify(payload)}\n`, "utf8");
     await acquireLock(home.stateHome, { app: "occupied", role: "sre", turnId: "existing-wip", now: NOW });
 
     const tick = await dispatchTick({

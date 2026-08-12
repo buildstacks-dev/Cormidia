@@ -1104,7 +1104,7 @@ or golden set changed.
   issue is opened for this work, record the cross-reference here in the same change.
   *Defends:* INV-002/INV-003 · CF-SPLIT-SECRETS · CF-REG-204. *Layer:* 1/2 + product.
   *Executor:* build-agent.
-- **HB-136 — CF-J21-I campaign kill-boundary sweep. TODO.** Opened by the
+- **HB-136 — CF-J21-I campaign kill-boundary sweep. LANDED 2026-08-12.** Opened by the
   rev-2026-08-10 status-honesty check: CF-J21-I has no citing spec (verified against
   `tests/hermetic/cf-j21/`); its torn-report, resume-drift and gate-ordering halves
   are already owned at CF-B27-* and CF-INV-ACC-4 and are not re-owed. Owed: the
@@ -1113,6 +1113,14 @@ or golden set changed.
   with partial-evidence preservation asserted. *Acceptance:* red-then-green with a
   seeded resume-past-the-gate violation; directory named `cf-j21-i`. *Defends:*
   CORMIDIA-C-B27-001 §3 · CORMIDIA-INV-ACC-4/6. *Layer:* 2. *Executor:* build-agent.
+  <!-- implementation status 2026-08-12: HB-136 LANDED in
+  tests/hermetic/cf-j21-i/cf-j21-i-kill-boundary-sweep.test.ts; all six campaign
+  kill boundaries carry partial-evidence-preservation legs over the hermetic rig
+  composed with the durable report store, and the resume legs carry the seeded
+  resume-past-the-gate red control (a forged continue over a stop gate turned the
+  no-build-spend-without-a-recorded-decision assertion red before honest bytes
+  went back green). The torn-report, resume-drift and gate-ordering halves stay
+  owned where the ticket left them. -->
 
 - **HB-140 — case-catalog.yaml regeneration drift gate. LANDED 2026-08-12 (opened at
   the Phase 8 reader test, new-engineer finding 2).** The policy says the two catalog surfaces
@@ -1385,7 +1393,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-133 LANDED. HB-140 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
+HB-120..HB-132 LANDED. HB-133 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
 HB-P2 LANDED.
 HB-P4 LANDED.

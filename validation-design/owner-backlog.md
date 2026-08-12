@@ -67,11 +67,12 @@ what done bought you.
   rerunning the generator — and a hand-edit to the derived YAML itself. Done bought you
   byte-for-byte regeneration checked in every `pnpm check`, proven red first against a
   seeded hand-edit.
-- **HB-136 — campaign kill-boundary sweep (TODO).** Defends the honesty of the
+- **HB-136 — campaign kill-boundary sweep (LANDED).** Defends the honesty of the
   acceptance lane's reports. The failure it catches: a campaign killed mid-arm that
-  resumes past its plan gate or presents a torn report as terminal truth. Done buys
-  you: a kill at each of six boundaries provably leaves partial evidence preserved
-  and the report honest.
+  resumes past its plan gate or loses the evidence it already paid for. The landed
+  six-boundary L2 sweep proves partial evidence preserved at every kill point, no
+  half-graded score smuggled in as terminal truth, and a resume that re-enters at
+  the gate — proven red first against a seeded resume-past-the-gate violation.
 - **HB-134 — GTM tripwires (TRIGGERED — deliberately no work now).** Defends you
   from launching commercially on a harness calibrated for a solo operator. Three
   children block their own trigger events only: customer source bundles wait for a

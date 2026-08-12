@@ -1180,7 +1180,7 @@ retroactive changes to the assertions in any existing spec.
   `tests/hermetic/cf-sm-loop-c/`; identical claim/PR/review/merge legs remain credited to
   HB-023's delivery-interruption family. *Defends:* CF-SM-LOOP-C. *Families:*
   CF-SM-LOOP-C. *Layer:* 2. *Executor:* build-agent.
-- **HB-149 — admission/bookkeeping evidence invariant. PENDING.** Add the missing
+- **HB-149 — admission/bookkeeping evidence invariant. LANDED 2026-08-11.** Added the missing
   four-leg invariant sweep: WIP limitation emits its named reason, a sweep without marks
   refuses, spawn failure after the durable decision is named, and post-spawn bookkeeping
   failure remains distinct. *Acceptance:* all four legs are independently asserted; a
@@ -1282,7 +1282,7 @@ HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-141 LANDED. HB-146 LANDED. HB-148 LANDED.
-HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
+HB-149 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
 
 ## Standing rules
 

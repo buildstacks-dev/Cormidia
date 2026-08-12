@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-146/HB-148)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-141/HB-146/HB-148/HB-149)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -45,10 +45,11 @@ what done bought you.
   append, rename, or journal interruption. The landed nine-case L2 sweep covers the
   append-only/keyed, atomic-replace, and multi-step-journal store classes with real
   SIGKILL boundaries plus truncated and quarantined negative controls.
-- **HB-149 — admission/bookkeeping evidence invariant (PENDING).** Defends the distinct
+- **HB-149 — admission/bookkeeping evidence invariant (LANDED).** Defends the distinct
   reasons at the scheduler/sweep boundary. The failure it catches: WIP, missing marks,
   spawn failure, and post-spawn bookkeeping failure collapsing into one greener or
-  ambiguous story. Done buys you an explicit four-leg evidence suite.
+  ambiguous story. The landed suite keeps all four outcomes distinct and includes a
+  collapsed-vocabulary tripwire.
 - **HB-150 — conservative cross-family error sweep (PENDING).** Defends fail-closed
   capability under corrupt HMAC state, missing charter, classifier exceptions, and
   unreadable budget. The failure it catches: any error branch granting more authority or
@@ -198,6 +199,10 @@ implemented interfaces agree on the same fixture truth.
 **Wave 3 status-honesty remainder (2026-08-11).** HB-146 adds the missing
 build-artifact→gates real-SIGKILL point and rejects a torn successor label without
 its PR; the identical claim/PR/review/merge kill points remain owned by CF-J04-I.
+
+**Status-honesty Wave 3 (2026-08-11).** HB-149: WIP limitation, event retirement
+without marks, committed-decision spawn failure, and post-spawn bookkeeping failure
+now retain four direct, distinct evidence outcomes with a collapsed-vocabulary tripwire.
 
 **Wave 4 — remainder (2026-07-31).** HB-040 event inbox; HB-041 planner operations;
 HB-042 onboarding ladder; HB-043 scheduler health; HB-044 retention boundaries;

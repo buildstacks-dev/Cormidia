@@ -18,6 +18,19 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      compute:
+        description: Run this exact ref on the Mac runner or GitHub-hosted fallback
+        type: choice
+        required: true
+        default: self-hosted
+        options:
+          - self-hosted
+          - github-hosted
+      expected_sha:
+        description: Exact 40-character commit SHA the manual run must validate
+        type: string
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -28,10 +41,20 @@ permissions:
 
 jobs:
   core:
-    runs-on: ubuntu-latest
+    # GitHub always orchestrates. Internal PR/main work uses the owner's
+    # disposable Mac-backed runner; untrusted fork PRs and explicit recovery
+    # dispatches stay on GitHub-hosted compute.
+    runs-on: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Refuse a drifted manual candidate
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: test "${GITHUB_SHA}" = "${EXPECTED_SHA}"
       - uses: pnpm/action-setup@v4
         with:
           version: 11.10.0
@@ -42,7 +65,7 @@ jobs:
       - name: Record lane start
         run: echo "LANE_START=$(date +%s)" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
+      # pnpm check already includes the strict typecheck; do not execute it twice.
       - run: pnpm check
       - run: pnpm build
       - run: pnpm test
@@ -58,22 +81,23 @@ jobs:
     # the scanner can fire (skill rule 16 — a detector that has never fired is
     # an assumption). No fixture allowlists: synthetic test secrets are
     # runtime-generated, never committed (tests/README.md convention 5).
-    runs-on: ubuntu-latest
+    runs-on: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}
     timeout-minutes: 10
     env:
       GITLEAKS_VERSION: 8.18.4
-      GITLEAKS_SHA256: ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
+      GITLEAKS_SHA256_X64: ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
+      GITLEAKS_SHA256_ARM64: bf5f7f466ebfade1296c8bd32cf7d3f592c2aa78836aa9980ffbe2cadca7a861
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Refuse a drifted manual candidate
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: test "${GITHUB_SHA}" = "${EXPECTED_SHA}"
       - name: Install pinned gitleaks (checksum-verified, fail-closed)
-        run: |
-          set -euo pipefail
-          curl -sSfL -o gitleaks.tar.gz \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
-          tar -xzf gitleaks.tar.gz gitleaks
-          ./gitleaks version | grep -qx "${GITLEAKS_VERSION}" || {
-            echo "gitleaks version mismatch — refusing to run an unpinned scanner"; exit 1; }
+        run: bash scripts/ci/install-gitleaks.sh
       - name: Canary — prove the scanner fires on a planted secret
         run: |
           set -euo pipefail

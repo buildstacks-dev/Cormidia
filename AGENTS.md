@@ -49,6 +49,7 @@ tracker (`gh issue list`).
 | `archive-do-not-read/` | Frozen pre-rebuild validation corpus (old `test/`, `eval/`, `docs/testing/`, eval/CI scripts) — **never read, cite, run, or take design cues from it** |
 | `research/` | Dated decision records (adapter facts, caching economics, live evidence) |
 | `scripts/` | Link/smoke/packaging scripts |
+| `scripts/self-hosted-runner/` · `docs/ci/` | Pinned ephemeral Mac-backed GitHub Actions runner appliance and operator runbook |
 
 ## Common commands
 Verified against `package.json` scripts 2026-07-31 (validation-rebuild
@@ -80,6 +81,10 @@ rewrite; legacy test/eval scripts removed with the archive move).
 - Packaging checks: `pnpm smoke:onboarding` · `npm pack --dry-run` ·
  `pnpm smoke:package -- <absolute-tarball>` (runs two real npm-global installs
  in a disposable prefix, every declared `bin`, and all temporary skill links).
+- CI runner: `pnpm ci:runner -- build|doctor|once|serve|status|service-install` —
+  GitHub orchestrates; internal PR/main Core Checks use the disposable Mac-backed
+  Linux ARM64 appliance; fork PRs and explicit SHA-guarded fallback stay hosted;
+  release/publication is always GitHub-hosted. See `docs/ci/self-hosted-runner.md`.
 - Worktrees: `pnpm worktree -- reconcile` is read-only; use `create`, `remove`, or dry-run `clean --merged|--gone`, with `--apply` required for deletion.
 - Token-spending — never run casually: live `dispatch`/`loop`/`plan` against
  a real org spend provider tokens and can open PRs/approvals.

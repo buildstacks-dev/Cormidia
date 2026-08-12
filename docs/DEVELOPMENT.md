@@ -99,6 +99,17 @@ final diff reaches an excluded path, stop and re-decide before merge. A
 frozen-path diff against the changed-file list is the mechanism — it held
 across 86 files in #235 and costs one command.
 
+## CI compute
+
+GitHub Actions orchestrates every check. Internal pull requests and `main`
+Core Checks normally execute inside the disposable Linux ARM64 runner appliance
+on the owner's Mac; fork pull requests use GitHub-hosted compute, and release or
+publication work is always GitHub-hosted. The selection is workflow/event
+routing, never a contributor-laptop decision. An offline Mac queues the normal
+job until an operator either restores the service or explicitly dispatches the
+same SHA on the hosted fallback. Setup, trust boundaries, operations, and the
+exact fallback command are in [`docs/ci/self-hosted-runner.md`](ci/self-hosted-runner.md).
+
 ## One objective, bounded autonomy
 
 A human authorizes a development objective **once**, and that one

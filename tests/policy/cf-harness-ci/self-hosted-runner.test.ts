@@ -22,6 +22,11 @@ import {
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const runnerRoot = join(repoRoot, "scripts", "self-hosted-runner");
 const probeWorkflowPath = join(repoRoot, ".github", "workflows", "self-hosted-runner-probe.yml");
+const coreWorkflowPath = join(repoRoot, ".github", "workflows", "core-checks.yml");
+const releaseWorkflowPath = join(repoRoot, ".github", "workflows", "release.yml");
+const gitleaksInstallerPath = join(repoRoot, "scripts", "ci", "install-gitleaks.sh");
+const ROUTING_EXPRESSION =
+  "${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}";
 
 async function applianceSources(): Promise<{ dockerfile: string; entrypoint: string }> {
   return {
@@ -38,11 +43,61 @@ function probeViolations(source: string): string[] {
   const checkout = steps.find((step) => step.uses === "actions/checkout@v5");
   const withValues = checkout?.with as Record<string, unknown> | undefined;
   const violations: string[] = [];
+  const triggers = document.on as Record<string, unknown> | undefined;
+  if (triggers === undefined || !("workflow_dispatch" in triggers) || "pull_request" in triggers) {
+    violations.push("post-cutover probe must be manual-only");
+  }
   if (probe?.["runs-on"] !== RUNNER_CONFIG.label) violations.push("probe routing label drifted");
   if (probe?.["timeout-minutes"] !== 5) violations.push("probe timeout drifted");
   if (withValues?.["persist-credentials"] !== false) violations.push("checkout credentials persist into job code");
   if (!steps.some((step) => step.run === "bash scripts/self-hosted-runner/probe.sh")) {
     violations.push("runner boundary probe command is missing");
+  }
+  return violations;
+}
+
+function coreRoutingViolations(source: string): string[] {
+  const document = parse(source) as Record<string, unknown>;
+  const triggers = document.on as Record<string, unknown> | undefined;
+  const dispatch = triggers?.workflow_dispatch as Record<string, unknown> | undefined;
+  const inputs = dispatch?.inputs as Record<string, Record<string, unknown>> | undefined;
+  const compute = inputs?.compute;
+  const expectedSha = inputs?.expected_sha;
+  const jobs = document.jobs as Record<string, Record<string, unknown>> | undefined;
+  const violations: string[] = [];
+  if (compute?.default !== "self-hosted" || !Array.isArray(compute?.options)) {
+    violations.push("manual exact-ref compute selector is missing");
+  } else if (!compute.options.includes("self-hosted") || !compute.options.includes("github-hosted")) {
+    violations.push("manual exact-ref hosted fallback is missing");
+  }
+  if (expectedSha?.required !== true) violations.push("manual exact-ref SHA assertion input is missing");
+  for (const name of ["core", "gitleaks"]) {
+    const job = jobs?.[name];
+    if (job?.["runs-on"] !== ROUTING_EXPRESSION) violations.push(`${name} runner routing drifted`);
+    const steps = Array.isArray(job?.steps) ? (job.steps as Record<string, unknown>[]) : [];
+    const checkout = steps.find((step) => step.uses === "actions/checkout@v5");
+    const withValues = checkout?.with as Record<string, unknown> | undefined;
+    if (withValues?.["persist-credentials"] !== false) violations.push(`${name} checkout credentials persist`);
+    if (!steps.some((step) => step.run === 'test "${GITHUB_SHA}" = "${EXPECTED_SHA}"')) {
+      violations.push(`${name} manual candidate SHA assertion is missing`);
+    }
+  }
+  return violations;
+}
+
+function gitleaksInstallerViolations(source: string): string[] {
+  const violations: string[] = [];
+  for (const required of [
+    "x86_64)",
+    "aarch64 | arm64)",
+    'ARCHIVE_ARCH="x64"',
+    'ARCHIVE_ARCH="arm64"',
+    "GITLEAKS_SHA256_X64",
+    "GITLEAKS_SHA256_ARM64",
+    "sha256sum --check --strict",
+    "unsupported gitleaks architecture",
+  ]) {
+    if (!source.includes(required)) violations.push(`gitleaks installer pin missing: ${required}`);
   }
   return violations;
 }
@@ -122,6 +177,23 @@ describe("CF-HARNESS-CI — HB-152 self-hosted runner appliance", () => {
     const source = await readFile(probeWorkflowPath, "utf8");
     expect(probeViolations(source)).toEqual([]);
   });
+
+  it("routes internal PR/main checks to the Mac and fork/manual fallback checks to GitHub-hosted compute", async () => {
+    const source = await readFile(coreWorkflowPath, "utf8");
+    expect(coreRoutingViolations(source)).toEqual([]);
+  });
+
+  it("keeps every release and publication job on GitHub-hosted compute", async () => {
+    const source = await readFile(releaseWorkflowPath, "utf8");
+    const document = parse(source) as { jobs?: Record<string, Record<string, unknown>> };
+    expect(document.jobs?.verify?.["runs-on"]).toBe("ubuntu-latest");
+    expect(document.jobs?.publish?.["runs-on"]).toBe("ubuntu-latest");
+  });
+
+  it("selects checksum-pinned gitleaks archives for both hosted x64 and Mac-runner ARM64", async () => {
+    const source = await readFile(gitleaksInstallerPath, "utf8");
+    expect(gitleaksInstallerViolations(source)).toEqual([]);
+  });
 });
 
 describe("CF-HARNESS-CI — HB-152 seeded runner-appliance violations", () => {
@@ -185,5 +257,29 @@ describe("CF-HARNESS-CI — HB-152 seeded runner-appliance violations", () => {
     const violations = probeViolations(seeded);
     expect(violations).toContain("probe routing label drifted");
     expect(violations).toContain("checkout credentials persist into job code");
+  });
+
+  it("fires when fork routing, manual hosted fallback, or release hosting drifts", async () => {
+    const source = await readFile(coreWorkflowPath, "utf8");
+    const seeded = source
+      .replaceAll("github.event.pull_request.head.repo.full_name != github.repository", "false")
+      .replace("- github-hosted", "- cloud-disabled")
+      .replace("required: true\n\nconcurrency:", "required: false\n\nconcurrency:");
+    expect(coreRoutingViolations(seeded)).toContain("manual exact-ref hosted fallback is missing");
+    expect(coreRoutingViolations(seeded)).toContain("core runner routing drifted");
+
+    const release = await readFile(releaseWorkflowPath, "utf8");
+    const document = parse(release.replace("runs-on: ubuntu-latest", `runs-on: ${RUNNER_CONFIG.label}`)) as {
+      jobs?: Record<string, Record<string, unknown>>;
+    };
+    expect(document.jobs?.verify?.["runs-on"]).not.toBe("ubuntu-latest");
+  });
+
+  it("fires when either gitleaks architecture or checksum verification becomes fail-open", async () => {
+    const source = await readFile(gitleaksInstallerPath, "utf8");
+    const seeded = source.replace("aarch64 | arm64)", "s390x)").replace("sha256sum --check --strict", "true");
+    const violations = gitleaksInstallerViolations(seeded);
+    expect(violations).toContainEqual(expect.stringContaining("aarch64"));
+    expect(violations).toContainEqual(expect.stringContaining("sha256sum"));
   });
 });

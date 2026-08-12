@@ -1133,3 +1133,15 @@ will resolve them.
   judge. Release currency, attestation, evaluator-debt disclosure, exact package
   equivalence, and the supported human-approved tag/npm enforcement path are
   binding as described in validation-design/release-evidence-gate-revision-proposal.md.
+- 2026-08-11 — v2.17: GitHub Actions remains the sole CI orchestrator and check
+  system of record, but ordinary internal pull requests and `main` pushes run
+  Core Checks on one repository-scoped, one-job Linux ARM64 container on the
+  owner's Mac. Pull requests from forks and an explicit, SHA-guarded manual
+  recovery dispatch use GitHub-hosted compute. An offline Mac leaves the normal
+  job queued; fallback is deliberate, never silent. Every release-shaped job —
+  including tags, npm publication, OIDC/provenance and release artifacts — stays
+  GitHub-hosted and retains the separate human release gate. The container may
+  receive no host mount, Docker socket, host credential, retained workspace,
+  job capability or private/link-local network path. ACT is not part of this
+  architecture. The owner ratified this validation-policy amendment and host
+  authority in issue #403's 2026-08-11 implementation session.

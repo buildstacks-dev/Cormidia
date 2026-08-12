@@ -60,14 +60,9 @@ jobs:
       - name: Install pinned gitleaks
         env:
           GITLEAKS_VERSION: 8.18.4
-          GITLEAKS_SHA256: ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
-        run: |
-          set -euo pipefail
-          curl -sSfL -o gitleaks.tar.gz \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
-          tar -xzf gitleaks.tar.gz gitleaks
-          ./gitleaks version | grep -qx "${GITLEAKS_VERSION}"
+          GITLEAKS_SHA256_X64: ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
+          GITLEAKS_SHA256_ARM64: bf5f7f466ebfade1296c8bd32cf7d3f592c2aa78836aa9980ffbe2cadca7a861
+        run: bash scripts/ci/install-gitleaks.sh
       - name: Prove gitleaks can fire
         run: |
           set -euo pipefail

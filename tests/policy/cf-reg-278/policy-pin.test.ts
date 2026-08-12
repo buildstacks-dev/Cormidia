@@ -179,7 +179,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     expect(readdirSync(abs).length).toBeGreaterThan(0);
   });
 
-  it("(d) CI-lane pin: the per-commit lane runs typecheck+check+build+test and a pinned fail-closed gitleaks job with a canary", () => {
+  it("(d) CI-lane pin: the per-commit lane runs check (including typecheck)+build+test and a pinned fail-closed gitleaks job with a canary", () => {
     const source = readFileSync(workflowPath, "utf8");
     expect(auditCoreChecksWorkflow(source)).toEqual([]);
     // Policy and CI must agree on the per-commit lane contents (policy ci.rule).
@@ -273,6 +273,7 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
 
     const unpinned = mutateWorkflow((doc) => {
       doc.jobs["gitleaks"]!.env!["GITLEAKS_VERSION"] = "latest";
+      doc.jobs["gitleaks"]!.env!["GITLEAKS_SHA256_ARM64"] = "missing";
     });
     expect(auditCoreChecksWorkflow(unpinned)).toContainEqual(expect.stringContaining("pin"));
 

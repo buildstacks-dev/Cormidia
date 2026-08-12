@@ -1240,7 +1240,7 @@ retroactive changes to the assertions in any existing spec.
 
 ## CI execution revision (2026-08-11, issue #403)
 
-- **HB-152 — GitHub-orchestrated self-hosted Core Checks. IN PROGRESS.** Replace
+- **HB-152 — GitHub-orchestrated self-hosted Core Checks. LANDED.** Replace
   GitHub-hosted compute for ordinary internal PR and `main` Core Checks with one
   repository-scoped, ephemeral Linux ARM64 runner on the owner's Mac while retaining
   GitHub as orchestrator and check system of record. Fork-origin PRs and an explicit
@@ -1264,7 +1264,11 @@ retroactive changes to the assertions in any existing spec.
   identity. *Families:* CF-HARNESS-CI (primary; CF-HARNESS-RELEASE is unchanged and
   asserted as a hosted-only non-regression). *Layer:* 1/2 + CI. *Executor:* build-agent;
   human ratification and repository/host authority recorded in issue #403 and the
-  2026-08-11 session.
+  2026-08-11 session. *Evidence:* exact-SHA boundary probe run 31562095184; two
+  flake-free Mac-backed Core Checks attempts in run 31561452475 (suite 125/126s,
+  nearest-rank p90 126s; complete core job 220/228s, p90 228s); and exact-SHA
+  `ubuntu-latest` fallback run 31561730803 (suite 431s, complete core job 504s),
+  all green on `95561cd789da53da895226dd02629e8cd02fffd5`.
 
 ## Retrospective ownership records (2026-08-10, rev-2026-08-10)
 
@@ -1316,7 +1320,7 @@ HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-141 LANDED. HB-144 LANDED. HB-146 LANDED. HB-148 LANDED.
-HB-149 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
+HB-149 LANDED. HB-152 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
 
 ## Standing rules
 

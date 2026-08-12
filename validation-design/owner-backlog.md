@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after HB-152/CF-REG-403)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-11 after landed HB-152/CF-REG-403)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -13,16 +13,6 @@ staleness contract's carrier named explicitly. --> Convention: **open tickets ge
 what done bought you.
 
 ## Open now — the short list that matters
-
-- **HB-152 — GitHub-orchestrated self-hosted Core Checks (IN PROGRESS).** Defends
-  truthful per-commit validation while moving ordinary compute from paid hosted Linux
-  to your Mac. The failure it catches is broader than “runner offline”: an unpinned or
-  persistent runner, PR code reaching the host/Docker socket/LAN, a fork silently
-  landing on your machine, a missing exact-SHA cloud escape hatch, or release work
-  drifting off GitHub-hosted OIDC. Done buys you one disposable ARM64 job boundary,
-  automatic internal-PR/main routing, fail-safe fork and manual cloud routing, a real
-  pre-cutover probe, a supervised one-command host service, and a measured faster,
-  flake-free suite without weakening any gate.
 
 - **HB-142 — scheduler-admission matrix and contract (PENDING).** Defends truthful
   due/admission/spawn accounting. The failure it catches: arithmetic or vocabulary gaps,
@@ -249,6 +239,13 @@ is the packaged binaries); HB-132 the honesty repairs the first real run forced.
 Run 1 stopped at the plan gate — which is the lane working, not failing: it spent a
 fraction of a build to learn the planner mishandled the briefs, and refused to call
 anything a pass.
+
+**CI compute (2026-08-11).** HB-152 moved ordinary internal PR and `main` Core
+Checks to one GitHub-orchestrated disposable Linux ARM64 runner on the owner's Mac,
+kept fork/fallback/release compute hosted, and pinned every host/network/credential
+boundary with seeded controls. Two clean Mac runs measured a 126-second suite p90
+and 228-second complete-job p90; the same-SHA hosted fallback stayed available and
+passed, but took 431 seconds for the suite and 504 seconds for the job.
 
 **Bookkeeping records (2026-08-10) — no new work in any of these.**
 - HB-137: a record naming the adapter families the #337–#340 GitHub PRs already

@@ -89,3 +89,26 @@ The standalone **Self-hosted runner probe** workflow is manual-only after the
 initial cutover proof. It verifies Linux ARM64, an overlay workspace, absent
 Docker socket and registration-token environment, zero effective capabilities,
 and the installed network guard.
+
+## Cutover evidence (2026-08-11)
+
+All three proof paths ran against commit
+`95561cd789da53da895226dd02629e8cd02fffd5`:
+
+- The [final boundary probe](https://github.com/cormidia/Cormidia/actions/runs/31562095184)
+  passed in 8 seconds, including the IPv4 guard and IPv6-disable assertions.
+- [Core Checks attempts 1 and 2](https://github.com/cormidia/Cormidia/actions/runs/31561452475)
+  both passed on independently registered `cormidia-core-linux-arm64` runners.
+  Their suite steps took 125 and 126 seconds; their complete core jobs took 220
+  and 228 seconds. With two observations, nearest-rank p90 is therefore 126
+  seconds for the suite and 228 seconds for the job, both below the ratified
+  five-minute target.
+- The [exact-SHA hosted fallback](https://github.com/cormidia/Cormidia/actions/runs/31561730803)
+  passed on GitHub Actions `ubuntu-latest`. Its suite took 431 seconds and its
+  complete core job 504 seconds. This path is retained for recovery, not the
+  ordinary internal-PR/main fast path.
+
+The host-side offline suite also passed all 272 files: 2,160 tests passed and
+one was intentionally skipped. The first Linux run exposed an unhandled Cursor
+handshake `EPIPE`; CF-REG-403 now reproduces that failure deterministically and
+pins its typed pre-spend refusal.

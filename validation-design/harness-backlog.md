@@ -1234,13 +1234,20 @@ retroactive changes to the assertions in any existing spec.
 
 ## Proposed deterministic status-honesty reclassification (2026-08-11)
 
-- **HB-151 — planning-call-site deterministic envelope. PENDING.** Complete the S-1
+- **HB-151 — planning-call-site deterministic envelope. LANDED.** Complete the S-1
   envelope beyond the existing roadmap/delta slices: malformed RoadmapPlan/EpisodePlan
   handling, the aggregate 100-item/delta/eager trajectory, and the format-repair budget.
   *Acceptance:* each enumerated envelope leg has a direct case; a seeded malformed plan
   accepted past validation and a seeded over-budget repair each turn red before the
   envelope is green. *Defends:* CF-S1-env. *Families:* CF-S1-env. *Layer:* 1/2.
   *Executor:* build-agent.
+  <!-- implementation status 2026-08-11: HB-151 LANDED in
+  tests/hermetic/cf-s1-env/planning-call-site-envelope.test.ts; malformed RoadmapPlan
+  and EpisodePlan handling, one aggregate 100-item roadmap, added/changed delta with
+  stable identities, zero eager EpisodePlans, and the exact two-attempt/provider-turn/
+  cost/time repair budget are direct. Seeded validator bypass and third-attempt
+  admission each turn the detector red. Existing roadmap/delta and S-9 specs retain
+  only their narrower evidence. -->
 
 ## CI execution revision (2026-08-11, issue #403)
 
@@ -1324,7 +1331,7 @@ HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-141 LANDED. HB-144 LANDED. HB-146 LANDED. HB-148 LANDED.
-HB-147 LANDED. HB-149 LANDED. HB-152 LANDED. HB-P1 LANDED. HB-P2 LANDED.
+HB-147 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED. HB-P2 LANDED.
 HB-P4 LANDED.
 
 ## Standing rules

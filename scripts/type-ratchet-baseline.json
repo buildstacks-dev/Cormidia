@@ -1,0 +1,1957 @@
+{
+  "schemaVersion": 1,
+  "files": {
+    "src/cli/analyze.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/app-product-docs.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/app.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/cli/approvals.ts": {
+      "as": 1,
+      "nonNull": 4
+    },
+    "src/cli/apps.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/cli/bootstrap-publish.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/bootstrap.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/cli/budget.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/claim-rearm.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/context-info.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/cli/dispatch.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/doctor.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/home-flags.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/invocation-audit.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/json-failure.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/cli/learn-activation.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "src/cli/learn-experiment.ts": {
+      "as": 1,
+      "nonNull": 3
+    },
+    "src/cli/learn.ts": {
+      "as": 5,
+      "nonNull": 4
+    },
+    "src/cli/loop.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/narrative.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/cli/new-app.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/objective.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/cli/observe.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/org.ts": {
+      "as": 1,
+      "nonNull": 5
+    },
+    "src/cli/plan-ratify.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/plan.ts": {
+      "as": 3,
+      "nonNull": 5
+    },
+    "src/cli/prune-runs.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/cli/publication.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/cli/release.ts": {
+      "as": 15,
+      "nonNull": 32
+    },
+    "src/cli/report.ts": {
+      "as": 2,
+      "nonNull": 1
+    },
+    "src/cli/retro.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/cli/roles.ts": {
+      "as": 4,
+      "nonNull": 2
+    },
+    "src/cli/status.ts": {
+      "as": 0,
+      "nonNull": 9
+    },
+    "src/cli/task.ts": {
+      "as": 5,
+      "nonNull": 3
+    },
+    "src/cli/telemetry.ts": {
+      "as": 2,
+      "nonNull": 3
+    },
+    "src/cli/typed-cli-error.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/jobs/checks.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/jobs/config.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/jobs/journal.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/loop/claim-recovery.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/loop/context-manifest.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/loop/default-branch.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/loop/driver.ts": {
+      "as": 4,
+      "nonNull": 10
+    },
+    "src/loop/durable.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/loop/efficiency.ts": {
+      "as": 19,
+      "nonNull": 3
+    },
+    "src/loop/episode-plan.ts": {
+      "as": 26,
+      "nonNull": 12
+    },
+    "src/loop/episode-replan.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/loop/episode-route.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/loop/execution-journal.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/loop/gate-config.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/loop/github.ts": {
+      "as": 8,
+      "nonNull": 0
+    },
+    "src/loop/loop.ts": {
+      "as": 5,
+      "nonNull": 10
+    },
+    "src/loop/pipeline.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/loop/pipelines.ts": {
+      "as": 11,
+      "nonNull": 2
+    },
+    "src/loop/plan-publication-guard.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/loop/plan-publication-record.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/loop/plan-tickets.ts": {
+      "as": 2,
+      "nonNull": 10
+    },
+    "src/loop/planner-admission.ts": {
+      "as": 14,
+      "nonNull": 3
+    },
+    "src/loop/planning-episode-plan.ts": {
+      "as": 3,
+      "nonNull": 6
+    },
+    "src/loop/policy.ts": {
+      "as": 16,
+      "nonNull": 1
+    },
+    "src/loop/preflight.ts": {
+      "as": 0,
+      "nonNull": 5
+    },
+    "src/loop/qgate-process.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/loop/qgates.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/loop/rehydrate.ts": {
+      "as": 7,
+      "nonNull": 4
+    },
+    "src/loop/setup-artifacts.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "src/loop/ticket-episode-plan.ts": {
+      "as": 4,
+      "nonNull": 1
+    },
+    "src/loop/verdicts.ts": {
+      "as": 14,
+      "nonNull": 30
+    },
+    "src/narrative/capture.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/narrative/sources.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/narrative/story.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "src/observe/file-index.ts": {
+      "as": 9,
+      "nonNull": 1
+    },
+    "src/observe/github-source.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/observe/live-source.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/observe/order.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/observe/project.ts": {
+      "as": 1,
+      "nonNull": 24
+    },
+    "src/observe/server.ts": {
+      "as": 4,
+      "nonNull": 9
+    },
+    "src/org/app-execution-policy.ts": {
+      "as": 10,
+      "nonNull": 0
+    },
+    "src/org/app-lifecycle.ts": {
+      "as": 11,
+      "nonNull": 3
+    },
+    "src/org/app-reset.ts": {
+      "as": 11,
+      "nonNull": 0
+    },
+    "src/org/approval-command.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/approval-delivery.ts": {
+      "as": 2,
+      "nonNull": 6
+    },
+    "src/org/approvals.ts": {
+      "as": 6,
+      "nonNull": 3
+    },
+    "src/org/apps.ts": {
+      "as": 27,
+      "nonNull": 3
+    },
+    "src/org/authority.ts": {
+      "as": 4,
+      "nonNull": 2
+    },
+    "src/org/bootstrap-publish.ts": {
+      "as": 2,
+      "nonNull": 1
+    },
+    "src/org/bootstrap.ts": {
+      "as": 13,
+      "nonNull": 3
+    },
+    "src/org/budget.ts": {
+      "as": 6,
+      "nonNull": 1
+    },
+    "src/org/context.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/direct-operational-campaign.ts": {
+      "as": 1,
+      "nonNull": 7
+    },
+    "src/org/dispatch.ts": {
+      "as": 4,
+      "nonNull": 1
+    },
+    "src/org/episode-planner/assignment-readiness.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/episode-planner/brief.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/episode-planner/coordinator.ts": {
+      "as": 5,
+      "nonNull": 1
+    },
+    "src/org/episode-planner/execution.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "src/org/episode-planner/orchestrator.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "src/org/episode-planner/policy.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/episode-planner/runtime.ts": {
+      "as": 8,
+      "nonNull": 0
+    },
+    "src/org/episode-safety-facts.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/event-schemas.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/events.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/execution-affinity.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "src/org/execution-assignments.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/governed-pipeline-episode.ts": {
+      "as": 2,
+      "nonNull": 11
+    },
+    "src/org/harness-auth-config.ts": {
+      "as": 8,
+      "nonNull": 0
+    },
+    "src/org/home.ts": {
+      "as": 8,
+      "nonNull": 3
+    },
+    "src/org/journal.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/learning/canary.ts": {
+      "as": 5,
+      "nonNull": 6
+    },
+    "src/org/learning/capsule.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/learning/capture.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/learning/concepts.ts": {
+      "as": 4,
+      "nonNull": 10
+    },
+    "src/org/learning/distillation.ts": {
+      "as": 3,
+      "nonNull": 6
+    },
+    "src/org/learning/efficiency-evidence.ts": {
+      "as": 4,
+      "nonNull": 5
+    },
+    "src/org/learning/efficiency-health.ts": {
+      "as": 3,
+      "nonNull": 4
+    },
+    "src/org/learning/episode.ts": {
+      "as": 7,
+      "nonNull": 5
+    },
+    "src/org/learning/episodes.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/learning/eval-fixture.ts": {
+      "as": 7,
+      "nonNull": 2
+    },
+    "src/org/learning/eval-result.ts": {
+      "as": 5,
+      "nonNull": 8
+    },
+    "src/org/learning/events.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/learning/experiment.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "src/org/learning/fingerprint.ts": {
+      "as": 3,
+      "nonNull": 1
+    },
+    "src/org/learning/intervention.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/learning/policy.ts": {
+      "as": 7,
+      "nonNull": 2
+    },
+    "src/org/learning/publisher.ts": {
+      "as": 4,
+      "nonNull": 8
+    },
+    "src/org/learning/records.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/org/learning/replay.ts": {
+      "as": 3,
+      "nonNull": 13
+    },
+    "src/org/learning/resolver.ts": {
+      "as": 4,
+      "nonNull": 4
+    },
+    "src/org/learning/runner.ts": {
+      "as": 1,
+      "nonNull": 6
+    },
+    "src/org/learning/validate.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/org/lifecycle.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/org/locks.ts": {
+      "as": 4,
+      "nonNull": 3
+    },
+    "src/org/memory.ts": {
+      "as": 5,
+      "nonNull": 0
+    },
+    "src/org/new-app.ts": {
+      "as": 0,
+      "nonNull": 6
+    },
+    "src/org/objective-grants.ts": {
+      "as": 3,
+      "nonNull": 1
+    },
+    "src/org/onboarding-answers.ts": {
+      "as": 12,
+      "nonNull": 0
+    },
+    "src/org/org-archive.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "src/org/org-upgrade.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/org/parent-task.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/plan-auto.ts": {
+      "as": 7,
+      "nonNull": 12
+    },
+    "src/org/plan.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/planner-intake.ts": {
+      "as": 4,
+      "nonNull": 1
+    },
+    "src/org/planner-publication.ts": {
+      "as": 3,
+      "nonNull": 3
+    },
+    "src/org/planning-auto-coverage.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "src/org/planning-coverage-model.ts": {
+      "as": 5,
+      "nonNull": 1
+    },
+    "src/org/planning-coverage-publication.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "src/org/planning-coverage-store.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/org/planning-coverage.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "src/org/planning-decomposition.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/org/planning-inputs.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/org/planning-provider-brief.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/planning-publication.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/planning-stage.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/org/product-doc-plan-validation.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/product-doc-planning.ts": {
+      "as": 0,
+      "nonNull": 5
+    },
+    "src/org/product-doc-record.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/product-doc-removal.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/release-evidence.ts": {
+      "as": 47,
+      "nonNull": 18
+    },
+    "src/org/release.ts": {
+      "as": 3,
+      "nonNull": 2
+    },
+    "src/org/retention.ts": {
+      "as": 12,
+      "nonNull": 3
+    },
+    "src/org/retro.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/roadmap-delivery/authority-core.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/roadmap-delivery/authority-store.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/org/roadmap-delivery/builder-evidence-model.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/org/roadmap-delivery/direct-episode-normalization.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/roadmap-delivery/direct-execution-authority.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/org/roadmap-delivery/execution-journal.ts": {
+      "as": 2,
+      "nonNull": 4
+    },
+    "src/org/roadmap-delivery/roadmap-invariants.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/org/roadmap-delivery/roadmap-plan.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/roadmap-delivery/validation-catalog-revision.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "src/org/roadmap-delivery/validation-contract-policy.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "src/org/roadmap-delivery/validation-current-pointer.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/roadmap-delivery/validation-identifiers.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/org/roadmap-delivery/validation-lifecycle-record.ts": {
+      "as": 16,
+      "nonNull": 0
+    },
+    "src/org/roadmap-delivery/validation-lifecycle.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/roadmap-delivery/validation-waivers.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/roadmap-explanation.ts": {
+      "as": 4,
+      "nonNull": 1
+    },
+    "src/org/roadmap-loop-runtime.ts": {
+      "as": 2,
+      "nonNull": 3
+    },
+    "src/org/role-assignment.ts": {
+      "as": 2,
+      "nonNull": 6
+    },
+    "src/org/roles.ts": {
+      "as": 8,
+      "nonNull": 1
+    },
+    "src/org/run-role-episode.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/org/schedule.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/org/scheduled-role-eligibility.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/scheduler/definition.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/scheduler/environment.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/scheduler/evidence.ts": {
+      "as": 6,
+      "nonNull": 1
+    },
+    "src/org/scheduler/lifecycle.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/org/scheduler/manager.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/scheduler/model.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/org/scorecards.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/org/standing-roles.ts": {
+      "as": 6,
+      "nonNull": 2
+    },
+    "src/org/ticket-budget-ratification.ts": {
+      "as": 8,
+      "nonNull": 0
+    },
+    "src/org/ticket-episode-approval.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/org/ticket-episode-runtime.ts": {
+      "as": 13,
+      "nonNull": 6
+    },
+    "src/org/turn-runner.ts": {
+      "as": 6,
+      "nonNull": 9
+    },
+    "src/org/validation-campaign.ts": {
+      "as": 5,
+      "nonNull": 0
+    },
+    "src/report/detail-source.ts": {
+      "as": 5,
+      "nonNull": 1
+    },
+    "src/report/efficiency.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "src/report/ledger-source.ts": {
+      "as": 3,
+      "nonNull": 1
+    },
+    "src/report/project.ts": {
+      "as": 1,
+      "nonNull": 3
+    },
+    "src/report/render-html.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "src/report/service.ts": {
+      "as": 2,
+      "nonNull": 1
+    },
+    "src/report/sessions.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "src/report/statistics.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/runtime/adapters/claude.ts": {
+      "as": 13,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/codex-gate-bridge.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/codex-gate-hook.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/codex-schema.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/codex.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/cursor-gate-hook.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/cursor-process.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/cursor-stream.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/cursor.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/grok-acp-client.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/grok-gate-bridge.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/grok-gate-hook.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/grok-session.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/grok-tool-actions.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/grok-turn.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/muse-exec.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/muse-gate-hook.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/muse-hook-router.ts": {
+      "as": 7,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/opencode-gate-bridge.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/opencode-gate-client.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/opencode-server.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "src/runtime/adapters/opencode-session.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/opencode.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/runtime/adapters/pi-gate.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/runtime/adapters/pi.ts": {
+      "as": 7,
+      "nonNull": 4
+    },
+    "src/runtime/assignment.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/runtime/auth-mode-observers.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "src/runtime/capabilities.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/cost.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/runtime/durable-claim.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/runtime/file-lock.ts": {
+      "as": 7,
+      "nonNull": 0
+    },
+    "src/runtime/gate.ts": {
+      "as": 1,
+      "nonNull": 24
+    },
+    "src/runtime/harness-metadata-parse.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/runtime/invocation-ledger.ts": {
+      "as": 7,
+      "nonNull": 0
+    },
+    "src/runtime/model-catalog.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "src/runtime/optional-properties.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/readiness.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/runtime/registry.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/runlog/anomalies.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "src/runtime/runlog/envelope.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "src/runtime/runlog/events.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/runlog/redact.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "src/runtime/runlog/status.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "src/runtime/runlog/verdict-digest.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "src/runtime/telemetry.ts": {
+      "as": 6,
+      "nonNull": 0
+    },
+    "src/runtime/tool-events.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/arm-evidence.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/campaign-arms.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/campaign/acceptance/campaign-cli.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/campaign-config.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/campaign-main.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/campaign-org-roles.ts": {
+      "as": 7,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/campaign-provisioning.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/campaign-reconciliation.ts": {
+      "as": 2,
+      "nonNull": 1
+    },
+    "tests/campaign/acceptance/cli-driver.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/grader-envelope.ts": {
+      "as": 5,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/mechanical-axis-results.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/packaged-provenance.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/plan-gate.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/report-store.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/run-1-live.ts": {
+      "as": 1,
+      "nonNull": 8
+    },
+    "tests/campaign/acceptance/sealed-key.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/seed-corpus.ts": {
+      "as": 7,
+      "nonNull": 0
+    },
+    "tests/campaign/acceptance/verdict-algebra.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "tests/eval-runner/cli.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/eval-runner/config.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "tests/eval-runner/eval-runner.ts": {
+      "as": 7,
+      "nonNull": 5
+    },
+    "tests/fixtures/acceptance/cf-harness-accfix/grader-double.test.ts": {
+      "as": 5,
+      "nonNull": 0
+    },
+    "tests/fixtures/acceptance/cf-harness-accfix/packaged-install-double.test.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "tests/fixtures/acceptance/cf-harness-accfix/scenario-repo.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/acceptance/cormidia-binary-double.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/acceptance/packaged-install-double.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/acceptance/scenario-corpus.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/adapters/cf-b02-cf-c-b02-cf-c-core/claude-double.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/adapters/cf-b03-cf-c-b03/codex-double.test.ts": {
+      "as": 6,
+      "nonNull": 7
+    },
+    "tests/fixtures/adapters/cf-b04-cf-c-b04/pi-double.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/fixtures/adapters/cf-b23-cf-c-b23/opencode-double.test.ts": {
+      "as": 5,
+      "nonNull": 10
+    },
+    "tests/fixtures/adapters/cf-b24-cf-c-b24/cursor-double.test.ts": {
+      "as": 2,
+      "nonNull": 20
+    },
+    "tests/fixtures/adapters/cf-b25-cf-c-b25/grok-double.test.ts": {
+      "as": 0,
+      "nonNull": 15
+    },
+    "tests/fixtures/adapters/cf-b26-cf-c-b26/muse-double.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/fixtures/adapters/claude-double.ts": {
+      "as": 8,
+      "nonNull": 0
+    },
+    "tests/fixtures/adapters/codex-double.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/adapters/cursor-double.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/adapters/grok-double.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/fixtures/adapters/muse-double.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/fixtures/adapters/opencode-double.ts": {
+      "as": 5,
+      "nonNull": 0
+    },
+    "tests/fixtures/adapters/pi-double.ts": {
+      "as": 7,
+      "nonNull": 1
+    },
+    "tests/fixtures/adapters/scenario.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/github-double/cf-b01/cf-b01-double.test.ts": {
+      "as": 5,
+      "nonNull": 0
+    },
+    "tests/fixtures/github-double/conformance/double-surface.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/github-double/engine.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/fixtures/harness-freshness/cf-reg-332/corpus.test.ts": {
+      "as": 10,
+      "nonNull": 1
+    },
+    "tests/fixtures/state-home.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/fixtures/synthetic-secret.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/synthetic-secret.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/walk.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/walk.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b02-cf-b03-cf-b04-cf-b23-cf-b24-cf-b24-payload-cf-b24-subgate-cf-b25-cf-b26-cf-reg-297/payload-transport.test.ts": {
+      "as": 2,
+      "nonNull": 15
+    },
+    "tests/hermetic/cf-b02-cf-b03-cf-b04-cf-b23-cf-b24-cf-b24-payload-cf-b24-subgate-cf-b25-cf-b26-cf-reg-297/subagent-gate-ordering.test.ts": {
+      "as": 1,
+      "nonNull": 19
+    },
+    "tests/hermetic/cf-b05-cf-c-b05-cf-j16-i-cf-j16-r-cf-j16-s-cf-reg-209/cf-j16-scheduler-lifecycle.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-b07-cf-c-b07/cf-b07-process-lifecycle.test.ts": {
+      "as": 1,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-b09b-cf-c-b09b/cf-j18-validation-profile.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b10/cf-b10-preview-execute-drift.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-b12-cf-c-b12-cf-if-html-cf-if-xsurf-cf-inv-008-cf-j15-a-cf-j15-i-cf-j15-r-cf-j15-rc-cf-j15-s/cf-j15-a.test.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b12-cf-c-b12-cf-if-html-cf-if-xsurf-cf-inv-008-cf-j15-a-cf-j15-i-cf-j15-r-cf-j15-rc-cf-j15-s/cf-j15-i.test.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-b12-cf-c-b12-cf-if-html-cf-if-xsurf-cf-inv-008-cf-j15-a-cf-j15-i-cf-j15-r-cf-j15-rc-cf-j15-s/cf-j15-r.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b12-cf-c-b12-cf-if-html-cf-if-xsurf-cf-inv-008-cf-j15-a-cf-j15-i-cf-j15-r-cf-j15-rc-cf-j15-s/cf-j15-rc.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-b12-cf-c-b12-cf-if-html-cf-if-xsurf-cf-inv-008-cf-j15-a-cf-j15-i-cf-j15-r-cf-j15-rc-cf-j15-s/cf-j15-s.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-b12-cf-c-b12-cf-if-html-cf-if-xsurf-cf-inv-008-cf-j15-a-cf-j15-i-cf-j15-r-cf-j15-rc-cf-j15-s/support.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-b13-cf-j10-i-cf-j10-r-cf-j10-rc-cf-j10-s-cf-sm-event-c-cf-sm-event-i-cf-sm-event-l-cf-sm-event-r/cf-j10-event-inbox.test.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-b14-cf-c-b14-cf-reg-359/cf-b14-bootstrap-checkout.test.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-b14-cf-c-b14-cf-reg-359/cf-b14-concurrent-edit.test.ts": {
+      "as": 2,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-b14-cf-c-b14-cf-reg-359/cf-b14-link-ownership.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b14-cf-c-b14-cf-reg-359/cf-b14-publish-refusals.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-b15-cf-c-b15/cf-b15-substrate.test.ts": {
+      "as": 0,
+      "nonNull": 5
+    },
+    "tests/hermetic/cf-b15-cf-j08-a-cf-j08-i-cf-j08-r-cf-j08-rc-cf-j08-s/cf-j08-a.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-b15-cf-j08-a-cf-j08-i-cf-j08-r-cf-j08-rc-cf-j08-s/cf-j08-i.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-b15-cf-j08-a-cf-j08-i-cf-j08-r-cf-j08-rc-cf-j08-s/cf-j08-r.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-b15-cf-j08-a-cf-j08-i-cf-j08-r-cf-j08-rc-cf-j08-s/cf-j08-rc.test.ts": {
+      "as": 0,
+      "nonNull": 9
+    },
+    "tests/hermetic/cf-b15-cf-j08-a-cf-j08-i-cf-j08-r-cf-j08-rc-cf-j08-s/cf-j08-s.test.ts": {
+      "as": 0,
+      "nonNull": 9
+    },
+    "tests/hermetic/cf-b16-cf-c-b16-cf-j11-r/gate-command-runner.test.ts": {
+      "as": 2,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-b17/cf-b17.test.ts": {
+      "as": 0,
+      "nonNull": 7
+    },
+    "tests/hermetic/cf-b17/scripted-target.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-b17/typed-executor-driver.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-b20-cf-c-b20-cf-c-opplan-cf-j03-i-cf-j03-r-cf-j03-rc-cf-j03-s-cf-sm-roadmap-c-cf-sm-roadmap-i-cf-sm-roadmap-l-cf-sm-roadmap-r/roadmap-authority.test.ts": {
+      "as": 1,
+      "nonNull": 9
+    },
+    "tests/hermetic/cf-b21-cf-c-b21-cf-c-opvalidation-cf-hb102-manual-review-cf-inv-016-cf-sm-validation-c-cf-sm-validation-i-cf-sm-validation-l-cf-sm-validation-r/validation-contract-authority.test.ts": {
+      "as": 7,
+      "nonNull": 11
+    },
+    "tests/hermetic/cf-b22-cf-c-b22-cf-c-opbatch-cf-j20-i-cf-j20-r-cf-j20-rc-cf-j20-s-cf-sm-batch-c-cf-sm-batch-i-cf-sm-batch-l-cf-sm-batch-r/execution-unit-batching.test.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-b22-cf-c-b22-cf-inv-004-cf-inv-006-cf-inv-008-cf-inv-016-cf-j20-i-cf-j20-r-cf-j20-rc-cf-j20-s/session-cache-affinity.test.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-b29-cf-s11-env/cf-s11-env-grader-envelope.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b29-cf-s11-env/cf-s11-grader-turn.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b30-cf-j22-i-cf-j22-rc-cf-j23-i-cf-j23-rc-cf-sm-job-c-cf-sm-job-i-cf-sm-job-l-cf-sm-job-r/cf-sm-job-step-lifecycle.test.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b30/cf-b30-execution.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-b30/cf-b30-journal.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-c-b09b-cf-sm-appr-c-cf-sm-appr-i-cf-sm-appr-l-cf-sm-appr-r/cf-sm-appr-c.test.ts": {
+      "as": 7,
+      "nonNull": 6
+    },
+    "tests/hermetic/cf-c-b09b-cf-sm-appr-c-cf-sm-appr-i-cf-sm-appr-l-cf-sm-appr-r/cf-sm-appr-lir.test.ts": {
+      "as": 1,
+      "nonNull": 6
+    },
+    "tests/hermetic/cf-c-b09b-cf-sm-appr-c-cf-sm-appr-i-cf-sm-appr-l-cf-sm-appr-r/cormidia-case-det-004.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-c-b09b-cf-sm-grant-c-cf-sm-grant-i-cf-sm-grant-l-cf-sm-grant-r/cf-sm-grant-c.test.ts": {
+      "as": 3,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-c-b09b-cf-sm-grant-c-cf-sm-grant-i-cf-sm-grant-l-cf-sm-grant-r/cf-sm-grant-lir.test.ts": {
+      "as": 3,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-a.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-s.test.ts": {
+      "as": 3,
+      "nonNull": 10
+    },
+    "tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/learning-seams.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-c.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-i.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-r.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-c-b27-cf-inv-acc-4-cf-inv-acc-7a-cf-j21-r-cf-j21-rc-cf-j21-s/cf-j21-campaign-cli.test.ts": {
+      "as": 0,
+      "nonNull": 5
+    },
+    "tests/hermetic/cf-c-b27-cf-inv-acc-4-cf-inv-acc-7a-cf-j21-r-cf-j21-rc-cf-j21-s/cf-j21-runner.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-c-b27-cf-inv-acc-4-cf-inv-acc-7a-cf-j21-r-cf-j21-rc-cf-j21-s/cf-j21-seed-corpus.test.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-c-opbatch-cf-inv-003-cf-inv-008-cf-j20-a-cf-j20-r/direct-operational-campaign.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-c-oplife/cf-c-oplife.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-c-oploop-cf-inv-005-cf-inv-016-cf-j04-a-cf-j04-i-cf-j04-r-cf-j04-s/delivery-unit-atomic-loop.test.ts": {
+      "as": 4,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-harness-attest-cf-harness-currency-cf-harness-judge-cf-harness-release-cf-harness-rq-cf-reg-283-cf-reg-299-cf-reg-306/release-evidence.test.ts": {
+      "as": 12,
+      "nonNull": 55
+    },
+    "tests/hermetic/cf-harness-attest-cf-harness-currency-cf-harness-judge-cf-harness-release-cf-harness-rq-cf-reg-283-cf-reg-299-cf-reg-306/release-surfaces.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-harness-report-cf-reg-291/campaign-runner.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-hb102-manual-review-cf-inv-016-cf-j04-i-cf-j04-rc-cf-j04-s-cf-j20-i-cf-j20-r-cf-j20-rc-cf-j20-s/roadmap-delivery-walking-skeleton.test.ts": {
+      "as": 8,
+      "nonNull": 7
+    },
+    "tests/hermetic/cf-hb102-manual-review-cf-reg-239/cf-reg-239-routing-exclusion.test.ts": {
+      "as": 20,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-if-xsurf-cf-inv-008/cross-surface-roadmap-explanation.test.ts": {
+      "as": 1,
+      "nonNull": 14
+    },
+    "tests/hermetic/cf-inv-001/cf-inv-001-seeds.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-inv-002/codex-hook-bridge.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-inv-005/cf-inv-005-claim-race.test.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-inv-006-cf-j04-rc/skeleton-tick-turn-settle.test.ts": {
+      "as": 0,
+      "nonNull": 7
+    },
+    "tests/hermetic/cf-inv-007-cf-j07-a-cf-j07-i-cf-j07-r-cf-j07-rc-cf-j07-s/cf-j07-a.test.ts": {
+      "as": 2,
+      "nonNull": 5
+    },
+    "tests/hermetic/cf-inv-007-cf-j07-a-cf-j07-i-cf-j07-r-cf-j07-rc-cf-j07-s/cf-j07-r.test.ts": {
+      "as": 3,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-inv-007-cf-j07-a-cf-j07-i-cf-j07-r-cf-j07-rc-cf-j07-s/cf-j07-rc.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-inv-007-cf-j07-a-cf-j07-i-cf-j07-r-cf-j07-rc-cf-j07-s/cf-j07-s.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-inv-007-cf-j07-a-cf-j07-i-cf-j07-r-cf-j07-rc-cf-j07-s/support.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-inv-009/cf-inv-009-merge-boundary.test.ts": {
+      "as": 0,
+      "nonNull": 13
+    },
+    "tests/hermetic/cf-inv-010-cf-j14-a-cf-j14-i-cf-j14-r-cf-j14-rc-cf-j14-s/cf-j14-a.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-inv-010-cf-j14-a-cf-j14-i-cf-j14-r-cf-j14-rc-cf-j14-s/cf-j14-i.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-inv-010-cf-j14-a-cf-j14-i-cf-j14-r-cf-j14-rc-cf-j14-s/cf-j14-r.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-inv-010-cf-j14-a-cf-j14-i-cf-j14-r-cf-j14-rc-cf-j14-s/cf-j14-rc.test.ts": {
+      "as": 2,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-inv-010-cf-j14-a-cf-j14-i-cf-j14-r-cf-j14-rc-cf-j14-s/cf-j14-s.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-inv-011/cf-inv-011-envelope-previews.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-inv-011/cf-inv-011-narrative-capture.test.ts": {
+      "as": 0,
+      "nonNull": 9
+    },
+    "tests/hermetic/cf-inv-011/cf-inv-011-published-issue.test.ts": {
+      "as": 2,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-inv-013/cf-inv-013-store-integrity.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-inv-014/cf-inv-014-considered-work-evidence.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-inv-016/deterministic-catalog-closure.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-inv-acc-2-cf-b29/cf-inv-acc-2-construction.test.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-inv-acc-3/cf-inv-acc-3-scenario-binding.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-inv-acc-7a-cf-inv-acc-7b/cf-inv-acc-7a-cli-driver.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/cf-j01-a.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/cf-j01-i.test.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/cf-j01-r.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/cf-j01-rc.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/cf-j01-s.test.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-j03-a-cf-j03-i-cf-j03-r-cf-j03-rc-cf-j03-s/cf-j03-planning.test.ts": {
+      "as": 0,
+      "nonNull": 12
+    },
+    "tests/hermetic/cf-j04-i-cf-j04-r-cf-j04-s/cf-j04-i.test.ts": {
+      "as": 1,
+      "nonNull": 9
+    },
+    "tests/hermetic/cf-j04-i-cf-j04-r-cf-j04-s/cf-j04-r.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-j04-i-cf-j04-r-cf-j04-s/cf-j04-s.test.ts": {
+      "as": 0,
+      "nonNull": 11
+    },
+    "tests/hermetic/cf-j04-i-cf-j04-r-cf-j04-s/support.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-j04-s/skeleton-j04-ready-to-pr.test.ts": {
+      "as": 1,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-j05-a-cf-j05-i-cf-j05-r-cf-j05-rc-cf-j05-s/cf-j05-a.test.ts": {
+      "as": 2,
+      "nonNull": 6
+    },
+    "tests/hermetic/cf-j05-a-cf-j05-i-cf-j05-r-cf-j05-rc-cf-j05-s/cf-j05-i.test.ts": {
+      "as": 0,
+      "nonNull": 8
+    },
+    "tests/hermetic/cf-j05-a-cf-j05-i-cf-j05-r-cf-j05-rc-cf-j05-s/cf-j05-r.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-j05-a-cf-j05-i-cf-j05-r-cf-j05-rc-cf-j05-s/cf-j05-rc.test.ts": {
+      "as": 2,
+      "nonNull": 7
+    },
+    "tests/hermetic/cf-j05-a-cf-j05-i-cf-j05-r-cf-j05-rc-cf-j05-s/cf-j05-s.test.ts": {
+      "as": 3,
+      "nonNull": 8
+    },
+    "tests/hermetic/cf-j06-i-cf-j06-r-cf-j06-rc-cf-j06-s/cf-j06-i.test.ts": {
+      "as": 0,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-j06-i-cf-j06-r-cf-j06-rc-cf-j06-s/cf-j06-r.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-j06-i-cf-j06-r-cf-j06-rc-cf-j06-s/cf-j06-rc.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-j06-i-cf-j06-r-cf-j06-rc-cf-j06-s/cf-j06-s.test.ts": {
+      "as": 0,
+      "nonNull": 13
+    },
+    "tests/hermetic/cf-j06-i-cf-j06-r-cf-j06-rc-cf-j06-s/resume-rig.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-j17-i-cf-j17-r-cf-j17-rc-cf-j17-s/cf-j17-i.test.ts": {
+      "as": 0,
+      "nonNull": 8
+    },
+    "tests/hermetic/cf-j17-i-cf-j17-r-cf-j17-rc-cf-j17-s/cf-j17-r.test.ts": {
+      "as": 0,
+      "nonNull": 5
+    },
+    "tests/hermetic/cf-j17-i-cf-j17-r-cf-j17-rc-cf-j17-s/cf-j17-rc.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-j17-i-cf-j17-r-cf-j17-rc-cf-j17-s/cf-j17-s.test.ts": {
+      "as": 5,
+      "nonNull": 17
+    },
+    "tests/hermetic/cf-j18-i-cf-j18-r-cf-j18-rc-cf-j18-s/unattended-composite.test.ts": {
+      "as": 1,
+      "nonNull": 21
+    },
+    "tests/hermetic/cf-j22-rc-cf-j22-s-cf-j23-a-cf-j23-r-cf-j23-rc-cf-j23-s/cf-j22-j23-job-journeys.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-ops-soak/soak-protocol.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-reg-154-cf-reg-181/app-execution-policy.test.ts": {
+      "as": 0,
+      "nonNull": 8
+    },
+    "tests/hermetic/cf-reg-202/cf-reg-202-failed-gate-revision.test.ts": {
+      "as": 3,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-reg-202/support.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-reg-203/cf-reg-203-base-freshness.test.ts": {
+      "as": 0,
+      "nonNull": 10
+    },
+    "tests/hermetic/cf-reg-205/cf-reg-205-expiry.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-reg-206/cf-reg-206-cli.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-reg-209/cf-reg-209-scheduler-health.test.ts": {
+      "as": 0,
+      "nonNull": 26
+    },
+    "tests/hermetic/cf-reg-228/cf-reg-228-paid-turn-eligibility.test.ts": {
+      "as": 0,
+      "nonNull": 11
+    },
+    "tests/hermetic/cf-reg-229/cf-reg-229-hard-turn-budget.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/hermetic/cf-reg-230/cf-reg-230-planner-intake.test.ts": {
+      "as": 13,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-reg-231/cf-reg-231-due-window.test.ts": {
+      "as": 0,
+      "nonNull": 11
+    },
+    "tests/hermetic/cf-reg-232/cf-reg-232-planner-publication.test.ts": {
+      "as": 9,
+      "nonNull": 6
+    },
+    "tests/hermetic/cf-reg-236-budget/cf-reg-236-plan-suspension.test.ts": {
+      "as": 1,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-reg-236-budget/cf-reg-236-turn-budget-suspend.test.ts": {
+      "as": 5,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-reg-244/cf-reg-244-suppressed-operations.test.ts": {
+      "as": 3,
+      "nonNull": 5
+    },
+    "tests/hermetic/cf-reg-272/stale-review-ref-fence.test.ts": {
+      "as": 0,
+      "nonNull": 8
+    },
+    "tests/hermetic/cf-reg-273/conformance-list-readback.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-reg-285/codex-direct-tool-request.test.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-reg-287-cf-reg-300/eval-config.test.ts": {
+      "as": 1,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-reg-287-cf-reg-300/eval-runner.test.ts": {
+      "as": 4,
+      "nonNull": 85
+    },
+    "tests/hermetic/cf-reg-335/codex-legacy-approval-denial.test.ts": {
+      "as": 7,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-reg-369/cf-reg-369-product-doc-lifecycle.test.ts": {
+      "as": 0,
+      "nonNull": 22
+    },
+    "tests/hermetic/cf-reg-370/packaged-install-ownership.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-reg-373/active-org-lifecycle.test.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-reg-374/cli-surface.test.ts": {
+      "as": 3,
+      "nonNull": 0
+    },
+    "tests/hermetic/cf-reg-374/stateful-decomposition.test.ts": {
+      "as": 4,
+      "nonNull": 15
+    },
+    "tests/hermetic/cf-s9-env/cf-s9-format-repair.test.ts": {
+      "as": 2,
+      "nonNull": 2
+    },
+    "tests/hermetic/cf-sm-loop-c/cf-sm-loop-c.test.ts": {
+      "as": 1,
+      "nonNull": 6
+    },
+    "tests/hermetic/cf-sm-loop-i-cf-sm-loop-l-cf-sm-loop-r/cf-sm-loop.test.ts": {
+      "as": 2,
+      "nonNull": 4
+    },
+    "tests/hermetic/cf-split-network/allowlist-budgeted.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/hermetic/cf-split-publishing/target-repo-verification.test.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "tests/live/cf-b01-l3_cf-b03-l3_cf-b04-l3_cf-b24-l3_cf-b25-l3_cf-b26-l3_cf-j16-a_cf-j18-a/campaign-live.test.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "tests/live/config.ts": {
+      "as": 5,
+      "nonNull": 0
+    },
+    "tests/live/real-github-surface.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/ops/contention-rig.ts": {
+      "as": 3,
+      "nonNull": 2
+    },
+    "tests/ops/soak-cli.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/ops/soak-protocol.ts": {
+      "as": 5,
+      "nonNull": 2
+    },
+    "tests/ops/threat-model-gate.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/policy/cf-harness-ci/self-hosted-runner.test.ts": {
+      "as": 14,
+      "nonNull": 0
+    },
+    "tests/policy/cf-reg-278/enforcement-gate.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/policy/cf-reg-278/policy-pin.test.ts": {
+      "as": 5,
+      "nonNull": 26
+    },
+    "tests/unit/cf-adapter-version-bands/cf-b02-cf-b03-cf-b04/doctor-version-bands.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/unit/cf-auth-mode/subscription-accounting.test.ts": {
+      "as": 2,
+      "nonNull": 12
+    },
+    "tests/unit/cf-b10/cf-c-b10/cf-b10-brand-rename.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-b23-opencode/cf-c-b23/opencode-budget-and-isolation.test.ts": {
+      "as": 0,
+      "nonNull": 3
+    },
+    "tests/unit/cf-b25/cf-c-b25/grok-isolation-and-gate.test.ts": {
+      "as": 4,
+      "nonNull": 10
+    },
+    "tests/unit/cf-b26/cf-c-b26/muse-registration.test.ts": {
+      "as": 2,
+      "nonNull": 4
+    },
+    "tests/unit/cf-b27/cf-b27-org-roles.test.ts": {
+      "as": 2,
+      "nonNull": 1
+    },
+    "tests/unit/cf-b27/cf-b27-report-shape.test.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "tests/unit/cf-b27/cf-j21-r-cf-c-b27/cf-b27-preflight.test.ts": {
+      "as": 2,
+      "nonNull": 5
+    },
+    "tests/unit/cf-b30/cf-c-b30/cf-b30-invocation-audit.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/unit/cf-hb103-105/cf-reg-230/production-wiring.test.ts": {
+      "as": 6,
+      "nonNull": 0
+    },
+    "tests/unit/cf-if-job/cf-if-job-cli-conformance.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-if/cf-if-cli/cf-if-json-cf-if-skill/cf-if-conformance.test.ts": {
+      "as": 2,
+      "nonNull": 3
+    },
+    "tests/unit/cf-inv-002/disposition-parity.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/unit/cf-inv-006/inv-006-settlement.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/unit/cf-inv-009/default-branch-detector.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-inv-011/cf-inv-011-observe-projection.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/unit/cf-inv-011/cf-inv-011-publication-refusal.test.ts": {
+      "as": 4,
+      "nonNull": 0
+    },
+    "tests/unit/cf-inv-011/cf-inv-011-scrub-guardrail.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/unit/cf-inv-011/cf-inv-011-single-policy-source.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/unit/cf-inv-011/secret-egress-detector.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-inv-acc-2/cf-b29-cf-c-b29/cf-inv-acc-2-disjointness.test.ts": {
+      "as": 9,
+      "nonNull": 0
+    },
+    "tests/unit/cf-inv-acc-5/cf-inv-acc-6/cf-inv-acc-5-verdict-algebra.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-reg-230/cf-reg-232/production-scheduler-lifecycle.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-reg-268/github-live-cleanup-bookkeeping.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-reg-271/codex-exec-gate.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-reg-281/package-manifest-order.test.ts": {
+      "as": 0,
+      "nonNull": 2
+    },
+    "tests/unit/cf-reg-332/harness-freshness-probe.test.ts": {
+      "as": 1,
+      "nonNull": 4
+    },
+    "tests/unit/cf-reg-359/install-surface-coverage.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-reg-359/install-target-classification.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-reg-359/skill-link-resilience.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/unit/cf-reg-375/next-commands-guide.test.ts": {
+      "as": 0,
+      "nonNull": 1
+    },
+    "tests/unit/cf-sched-claim/cf-reg-231/durable-claim.test.ts": {
+      "as": 1,
+      "nonNull": 2
+    },
+    "tests/unit/cf-sm-acc/cf-sm-acc-l-cf-sm-acc-i-cf-sm-acc-r-cf-sm-acc-c/cf-sm-acc-lifecycle.test.ts": {
+      "as": 10,
+      "nonNull": 0
+    },
+    "tests/unit/cf-sm-appr/cf-sm-appr-l-cf-sm-appr-i-cf-sm-appr-r/cf-sm-appr-unit.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    }
+  }
+}

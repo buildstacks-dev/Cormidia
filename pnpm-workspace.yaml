@@ -12,8 +12,33 @@ allowBuilds:
   '@google/genai': false
   esbuild: true
   protobufjs: false
+# Supply-chain window (#402): resolve only versions at least 3 days old, so a
+# compromised release is likely yanked before it can be admitted. Previously
+# this relied on pnpm's implicit default; the window is now explicit and the
+# exclude list below is guaranteed meaningful.
+minimumReleaseAge: 4320
+# Dependency-audit baseline (#402): the scheduled dependency-audit workflow
+# fails on any advisory NOT listed here. Every entry below was recorded
+# 2026-08-11 — all transitive under the exact-pinned provider SDKs, none
+# fixable without an upstream bump. Removing entries when an SDK bump clears
+# them is part of that bump's change; adding one requires the same named
+# justification as any baseline increase.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-frvp-7c67-39w9 # @hono/node-server moderate — serve-static path traversal (Windows)
+    - GHSA-8j4g-w8fx-2239 # hono moderate — language middleware complexity DoS
+    - GHSA-f23p-vx2j-j53r # hono moderate — memo() cross-request SSR retention
+    - GHSA-54fx-42gc-7vw4 # hono moderate — CORS middleware ReDoS
+    - GHSA-79qm-7rj5-m7r9 # hono low — proxy helper Connection-header passthrough
+    - GHSA-v2hh-gcrm-f6hx # fast-uri high — host confusion (backslash delimiter)
+    - GHSA-7p8r-x3mc-p8w7 # fast-uri high — host confusion (backslash introducer)
+    - GHSA-mh99-v99m-4gvg # brace-expansion high — unbounded-expansion OOM DoS
+    - GHSA-rgw5-rvv9-x895 # brace-expansion high — unbounded intermediate arrays DoS
+    - GHSA-mwp4-54f8-5fhr # ip-address high — leading-zero octet SSRF bypass
+    - GHSA-4xrf-jv44-h6hh # ip-address moderate — CIDR-suffix SSRF bypass
+    - GHSA-22jq-vg5j-6vgg # ip-address moderate — IPv4-mapped/NAT64 misclassification
 # pi ships ~3 releases/week, so the pinned version is always younger than the
-# default minimum release age. The allowance is exact-version by design: it
+# configured minimum release age. The allowance is exact-version by design: it
 # names what we certified, never a range, so a later upload is not admitted
 # silently. pi 0.84 split pi-client/pi-protocol/pi-telemetry out of the
 # coding-agent package — new names, same single pinned version.

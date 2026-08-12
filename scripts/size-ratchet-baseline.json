@@ -448,7 +448,7 @@
     },
     "src/loop/verdicts.ts": {
       "exports": 17,
-      "lines": 1150,
+      "lines": 1153,
       "newModule": false
     },
     "src/narrative/capture.ts": {

@@ -562,8 +562,8 @@
       "newModule": false
     },
     "src/org/authority.ts": {
-      "exports": 16,
-      "lines": 457,
+      "exports": 17,
+      "lines": 478,
       "newModule": false
     },
     "src/org/bootstrap-publish.ts": {
@@ -573,7 +573,7 @@
     },
     "src/org/bootstrap.ts": {
       "exports": 11,
-      "lines": 1335,
+      "lines": 1350,
       "newModule": false
     },
     "src/org/budget.ts": {

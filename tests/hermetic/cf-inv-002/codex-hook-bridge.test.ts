@@ -16,7 +16,9 @@
 //
 // Detector family = "the bridge denies a forbidden action + records the
 // escalation, and fails closed on anything it cannot classify". Negative
-// controls: (i) a THROWING gate is denied (the bridge's own fail-closed fires),
+// controls: (i) a THROWING gate is denied (the bridge's own fail-closed fires)
+// AND escalated — the escalation half extended 2026-08-12 under HB-150 per
+// F-PT-036's ruling (INV-015 seed (c): deny + escalate, never silent denial),
 // and (ii) a permissive gate is surfaced as allow — proving the deny in the
 // real-gate cases comes from the gate's classification and the bridge would
 // surface a weakened gate rather than mask it (the assertions are load-bearing).
@@ -132,14 +134,21 @@ describe("CF-INV-002 (hook bridge / seed d) — forbidden reads & writes are den
     expect(badJson.reason).toContain("failed closed");
   });
 
-  it("negative control: a THROWING gate (INV-015 classifier-error posture) is denied — the bridge's own fail-closed fires", async () => {
+  it("negative control: a THROWING gate (INV-015 classifier-error posture) is denied AND escalated — the bridge's own fail-closed fires and a human sees the anomaly", async () => {
     const throwingGate = (): GateDecision => {
       throw new Error("classifier boom");
     };
-    const bridge = await startBridge({ gate: throwingGate });
+    const escalations: GateEscalation[] = [];
+    const bridge = await startBridge({ gate: throwingGate }, escalations);
     const reply = await askBridge(bridge.socketPath, hook("Bash", { command: "cat .env" }));
     expect(reply.allow).toBe(false);
     expect(reply.reason).toContain("failed closed");
+    // EXTENSION (HB-150 / F-PT-036, 2026-08-12): the fail-closed denial is no
+    // longer silent — a throwing classifier appends a GateEscalation so the
+    // anomaly reaches a human instead of masquerading as universal refusal.
+    expect(escalations).toHaveLength(1);
+    expect(escalations[0]?.action.tool).toBe("bash");
+    expect(escalations[0]?.reason).toContain("classifier boom");
   });
 
   it("negative control: a permissive gate lets the forbidden write through — proving the deny comes from the gate, not the transport", async () => {

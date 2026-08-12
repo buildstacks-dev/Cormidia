@@ -1483,7 +1483,7 @@
     },
     "src/runtime/adapters/codex-gate-bridge.ts": {
       "exports": 4,
-      "lines": 317,
+      "lines": 300,
       "newModule": false
     },
     "src/runtime/adapters/codex-gate-hook.ts": {
@@ -1508,7 +1508,7 @@
     },
     "src/runtime/adapters/cursor-gate-bridge.ts": {
       "exports": 4,
-      "lines": 233,
+      "lines": 215,
       "newModule": true
     },
     "src/runtime/adapters/cursor-gate-handshake.ts": {
@@ -1539,6 +1539,16 @@
     "src/runtime/adapters/cursor.ts": {
       "exports": 3,
       "lines": 271,
+      "newModule": true
+    },
+    "src/runtime/adapters/gate-bridge-escalation.ts": {
+      "exports": 1,
+      "lines": 33,
+      "newModule": true
+    },
+    "src/runtime/adapters/gate-bridge-net.ts": {
+      "exports": 2,
+      "lines": 27,
       "newModule": true
     },
     "src/runtime/adapters/grok-acp-client.ts": {
@@ -1628,7 +1638,7 @@
     },
     "src/runtime/adapters/opencode-gate-bridge.ts": {
       "exports": 7,
-      "lines": 300,
+      "lines": 286,
       "newModule": true
     },
     "src/runtime/adapters/opencode-gate-client.ts": {

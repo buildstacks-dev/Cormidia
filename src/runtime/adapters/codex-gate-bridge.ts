@@ -10,12 +10,14 @@
 // because current Codex hooks do not expose those alternate effects in a shape
 // the gate can classify completely. The matcher
 // still names `exec` as defense in depth: if a provider/version exposes it
-// anyway, the normalizer below throws and the bridge denies the whole call.
+// anyway, the normalizer below throws and the bridge denies the whole call —
+// and escalates the anomaly (F-PT-036: a classifier throw is deny + escalate,
+// never a silent denial).
 
 import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { createServer, type Server, type Socket } from "node:net";
+import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +25,8 @@ import { promisify } from "node:util";
 import { toolUseEvent } from "../tool-events.js";
 import type { GateEscalation, ToolAction, TurnHooks } from "../types.js";
 import { normalizeToolAction } from "./claude.js";
+import { classifierThrowDenial } from "./gate-bridge-escalation.js";
+import { closeServer, listen } from "./gate-bridge-net.js";
 
 const MAX_BRIDGE_BYTES = 8 * 1024 * 1024;
 const execFileAsync = promisify(execFile);
@@ -69,12 +73,14 @@ export async function startCodexGateBridge(
     socket.on("close", () => sockets.delete(socket));
     socket.on("end", () => {
       if (answered) return;
+      let classifying: ToolAction | undefined;
       try {
         const input: unknown = JSON.parse(body.trim());
         const actions = normalizeCodexHookActions(input, workdir);
         let allow = true;
         let reason: string | undefined;
         for (const action of actions) {
+          classifying = action;
           const decision = hooks.gate(action);
           if (decision.allow) {
             // App Server emits completed Bash/apply_patch items itself. MCP
@@ -89,11 +95,9 @@ export async function startCodexGateBridge(
         }
         answer({ allow, ...(allow ? {} : { reason: reason ?? "Cormidia gate denied the tool action" }) });
       } catch (error) {
-        answer({
-          allow: false,
-          reason:
-            `Cormidia Codex gate bridge failed closed: ` + `${error instanceof Error ? error.message : String(error)}`,
-        });
+        // Deny AND escalate (INV-015 seed (c), F-PT-036): a throwing classifier
+        // is an anomaly a human must see, never a silent universal refusal.
+        answer(classifierThrowDenial(escalations, classifying, "Codex", error));
       }
     });
   });
@@ -285,27 +289,6 @@ export function codexAppServerArgs(
     "--listen",
     "stdio://",
   ];
-}
-
-function listen(server: Server, socketPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const fail = (error: Error): void => reject(error);
-    server.once("error", fail);
-    server.listen(socketPath, () => {
-      server.off("error", fail);
-      resolve();
-    });
-  });
-}
-
-function closeServer(server: Server): Promise<void> {
-  return new Promise((resolve) => {
-    if (!server.listening) {
-      resolve();
-      return;
-    }
-    server.close(() => resolve());
-  });
 }
 
 function shellQuote(value: string): string {

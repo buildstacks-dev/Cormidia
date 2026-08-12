@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-12 after landed HB-140)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-12 after landed HB-150; same-day predecessors HB-133/HB-135/HB-136/HB-140)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -36,10 +36,12 @@ what done bought you.
   spawn failure, and post-spawn bookkeeping failure collapsing into one greener or
   ambiguous story. The landed suite keeps all four outcomes distinct and includes a
   collapsed-vocabulary tripwire.
-- **HB-150 — conservative cross-family error sweep (PENDING).** Defends fail-closed
+- **HB-150 — conservative cross-family error sweep (LANDED).** Defends fail-closed
   capability under corrupt HMAC state, missing charter, classifier exceptions, and
-  unreadable budget. The failure it catches: any error branch granting more authority or
-  producing a greener result. Done buys you one floor invariant across all four paths.
+  unreadable budget; it catches any error branch granting more authority or a greener
+  result, and (per F-PT-036) a classifier throw that denies silently instead of
+  escalating. Done bought one floor invariant across all four paths plus the
+  deny+escalate product change on the Codex/Cursor/OpenCode bridges.
 - **HB-133 — Builder/Reviewer provider-family pin (LANDED 2026-08-12,
   under a flagged caveat: the provider-FAMILY unit is a pending-ratification seat
   ruling, so the pin is built with that unit swappable, not semantically

@@ -1200,7 +1200,7 @@ retroactive changes to the assertions in any existing spec.
 
 ## Wave L3 — status-honesty reclassification (2026-08-11)
 
-- **HB-144 — unattended composite hermetic prerequisite. PENDING.** Before any live
+- **HB-144 — unattended composite hermetic prerequisite. LANDED.** Before any live
   campaign credit, build the missing fake-timer multi-tick composite: full reached-link
   evidence, admitted-or-named-non-admission accounting, every typed non-green morning
   state, and recovery without lost or duplicate work. The existing profile test remains
@@ -1209,6 +1209,12 @@ retroactive changes to the assertions in any existing spec.
   turn red before recovery is green. *Defends:* CF-J18-S, CF-J18-R, CF-J18-I,
   CF-J18-RC. *Families:* CF-J18-S, CF-J18-R, CF-J18-I, CF-J18-RC. *Layer:* 2.
   *Executor:* build-agent.
+  <!-- implementation status 2026-08-11: HB-144 LANDED in
+  tests/hermetic/cf-j18-i-cf-j18-r-cf-j18-rc-cf-j18-s/unattended-composite.test.ts;
+  fake-timer multi-tick reached-link evidence, admitted/named-non-admission
+  accounting, seven typed non-green morning states, and terminal-receipt recovery are
+  covered with seeded lost-work, duplicate-work, and lying-status controls. The live
+  unattended campaign remains separate and was not run. -->
 
 ## Outcome-acceptance status-honesty reclassification (2026-08-11)
 
@@ -1281,7 +1287,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-141 LANDED. HB-146 LANDED. HB-148 LANDED.
+HB-120..HB-132 LANDED. HB-141 LANDED. HB-144 LANDED. HB-146 LANDED. HB-148 LANDED.
 HB-149 LANDED. HB-P1 LANDED. HB-P2 LANDED. HB-P4 LANDED.
 
 ## Standing rules

@@ -1223,7 +1223,7 @@ retroactive changes to the assertions in any existing spec.
 ## Outcome-acceptance status-honesty reclassification (2026-08-11)
 
 - **HB-145 — job refusal, cross-surface agreement, and critical-operation contract.
-  PENDING.** Complete the job pre-runtime refusal enumeration, downstream-stop and
+  DONE 2026-08-11.** Complete the job pre-runtime refusal enumeration, downstream-stop and
   gated-operation legs; then prove the CLI and observe agree while keeping
   `completed (unverified)` distinct on every surface. Existing job lifecycle and journey
   tests remain cited only for the adjacent behavior they assert. *Acceptance:* each
@@ -1231,6 +1231,12 @@ retroactive changes to the assertions in any existing spec.
   seeded gate bypass turns red, and CLI/observe render the same durable fixture truth.
   *Defends:* CF-J22-R, CF-J22-A, CF-C-OPJOB. *Families:* CF-J22-R, CF-J22-A,
   CF-C-OPJOB. *Layer:* 1/2. *Executor:* build-agent.
+  <!-- implementation status 2026-08-11: HB-145 LANDED in
+  tests/hermetic/cf-c-opjob-cf-j22-a-cf-j22-r/; the complete pre-runtime
+  refusal enumeration, failed-check downstream stop, job-owned approval item,
+  shared CLI/observe durable-state projection, and checked-vs-unverified display
+  distinction are covered. The critical-operation detector includes a seeded
+  allow-all bypass that turns it red. -->
 
 ## Proposed deterministic status-honesty reclassification (2026-08-11)
 
@@ -1330,8 +1336,9 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-141 LANDED. HB-144 LANDED. HB-146 LANDED. HB-148 LANDED.
-HB-147 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED. HB-P2 LANDED.
+HB-120..HB-132 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
+HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
+HB-P2 LANDED.
 HB-P4 LANDED.
 
 ## Standing rules

@@ -11,11 +11,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
-import type { Effort, RuntimeKind } from "../runtime/types.js";
+import { validateTurnAssignment } from "../runtime/assignment.js";
 import type { DeclaredOutput, JobConfig, JobStep, JobStepAssignment, OutputCheck } from "./types.js";
-
-const RUNTIME_KINDS = new Set<RuntimeKind>(["claude", "codex", "pi"]);
-const EFFORTS = new Set<Effort>(["low", "medium", "high", "xhigh", "max"]);
 
 export class JobConfigError extends Error {
   constructor(
@@ -189,22 +186,19 @@ function parseCheck(value: unknown, context: string): OutputCheck {
 function parseAssignment(value: unknown, context: string): JobStepAssignment | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isRecord(value)) throw new JobConfigError("job_assignment_invalid", `${context} must be a mapping`);
-  const harness = value["harness"];
-  if (typeof harness !== "string" || !RUNTIME_KINDS.has(harness as RuntimeKind)) {
+  try {
+    // Use the shared assignment boundary, including its exact-key and
+    // harness/effort compatibility checks. In particular, a job config cannot
+    // smuggle role authority (`delegation`, budget, permission mode) into the
+    // assignment map: the assignment is free, the operator role's authority is
+    // not (docs/jobs/design.md §4).
+    return validateTurnAssignment(value, context);
+  } catch (error) {
     throw new JobConfigError(
       "job_assignment_invalid",
-      `${context}.harness must be one of ${[...RUNTIME_KINDS].join(", ")}`,
+      error instanceof Error ? error.message : `${context} is not an approved assignment tuple`,
     );
   }
-  const effort = value["effort"];
-  if (typeof effort !== "string" || !EFFORTS.has(effort as Effort)) {
-    throw new JobConfigError("job_assignment_invalid", `${context}.effort must be one of ${[...EFFORTS].join(", ")}`);
-  }
-  return {
-    harness: harness as RuntimeKind,
-    model: requireText(value["model"], `${context}.model`),
-    effort: effort as Effort,
-  };
 }
 
 function assertDependenciesResolve(steps: JobStep[], path: string): void {

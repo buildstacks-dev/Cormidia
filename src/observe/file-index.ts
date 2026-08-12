@@ -13,6 +13,7 @@ import { readEvents } from "../runtime/runlog/events.js";
 import { runPaths } from "../runtime/runlog/paths.js";
 import { readStatusRows } from "../runtime/runlog/status.js";
 import type { InvocationRecord, TurnRecord } from "../runtime/telemetry.js";
+import { indexJobJournals } from "../jobs/status.js";
 import type { IndexedPass, ObserveFiltersV1, ObserveProjectionInput, SourceHealthView } from "./types.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
@@ -49,6 +50,7 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
   const schedule = await readObjectFile(join(options.stateHome, "state", "schedule.json"));
   const locks = await indexLocks(join(options.stateHome, "locks"));
   const inbox = await indexInbox(join(options.stateHome, "state", "events", "inbox"));
+  const jobs = await indexJobJournals(options.stateHome);
   const validationCampaigns = await readValidationCampaignReports(options.stateHome);
   const roadmapExplanation = await readRoadmapExplanation(
     options.stateHome,
@@ -57,18 +59,13 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
   errors.push(...validationCampaigns.corrupt.map((item) => `validation campaign ${item.campaign_id}: ${item.detail}`));
   errors.push(...ledger.errors.map((error) => `ledger: ${error}`));
   errors.push(...invocations.errors.map((error) => `invocations: ${error}`));
-
-  const localStatus = errors.some((error) => error.includes("envelope") || error.includes("events"))
-    ? "degraded"
-    : "healthy";
+  errors.push(...jobs.errors.map((error) => `job journal: ${error}`));
+  const localErrors = errors.filter((error) =>
+    ["envelope", "events", "job journal"].some((fragment) => error.includes(fragment)),
+  );
+  const localStatus = localErrors.length > 0 ? "degraded" : "healthy";
   const sourceHealth: SourceHealthView[] = [
-    source(
-      "local_files",
-      localStatus,
-      observedAt,
-      errors.filter((error) => error.includes("envelope") || error.includes("events")).join("; ") ||
-        "Run/task files readable",
-    ),
+    source("local_files", localStatus, observedAt, localErrors.join("; ") || "Run/task files readable"),
     source(
       "approvals",
       approvals.errors.length > 0 ? "degraded" : "healthy",
@@ -128,6 +125,7 @@ export async function indexLocalSources(options: LocalIndexOptions): Promise<Loc
     schedule: schedule.value,
     locks: locks.records,
     inbox,
+    jobs: jobs.records,
     source_health: sourceHealth,
     validation_campaigns: validationCampaigns,
     roadmap_explanation: roadmapExplanation,

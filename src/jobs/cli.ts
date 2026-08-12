@@ -1,20 +1,18 @@
 // `cormidia-job` — the second binary (docs/jobs/design.md §12).
 //
-// Deliberately NOT a `cormidia` subcommand. A subcommand would read as part of
-// the governed org runtime and import every guarantee §3 explicitly withholds;
-// two names carry two promises. Its flag surface is its own for the same reason
-// — this module may not import src/cli (import rank forbids it), which is the
-// rule doing its job rather than an inconvenience.
+// Not a `cormidia` subcommand: two names carry §3's two promises and preserve the one-way import graph.
 
 import { join } from "node:path";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { loadRoles } from "../org/roles.js";
 import { getRuntime } from "../runtime/registry.js";
 import type { RoleConfig } from "../runtime/types.js";
+import { validateJobAssignments } from "./admission.js";
 import { JobConfigError, loadJobConfig } from "./config.js";
 import { JobJournalError } from "./journal.js";
 import { type JobRunResult, JobRunError, runJob } from "./runner.js";
 import { JobStepError } from "./step.js";
+import { formatJobStepStates } from "./status.js";
 
 const OPERATOR_ROLE = "operator";
 
@@ -50,6 +48,7 @@ export async function cmdJob(argv: string[]): Promise<number> {
   const config = await loadJobConfig(parsed.configPath);
 
   if (subcommand === "explain") {
+    await validateJobAssignments(config);
     printExplain(config, parsed);
     return 0;
   }
@@ -176,6 +175,7 @@ function printResult(job: string, result: JobRunResult): void {
   process.stdout.write(`\n[cormidia-job] ${job}: ${result.status}\n`);
   process.stdout.write(`Completed steps: ${result.completedStepIds.join(", ") || "none"}\n`);
   process.stdout.write(`Provider turns this run: ${result.providerTurns}\n`);
+  process.stdout.write(`Step states:\n  ${formatJobStepStates(result.stepStates).join("\n  ")}\n`);
   if (result.status === "awaiting_checkpoint") {
     process.stdout.write(
       `Parked at checkpoint "${result.stoppedAtStepId}": ${result.summary ?? ""}\n` +

@@ -216,6 +216,11 @@
       "lines": 15,
       "newModule": true
     },
+    "src/jobs/admission.ts": {
+      "exports": 1,
+      "lines": 35,
+      "newModule": true
+    },
     "src/jobs/brief.ts": {
       "exports": 3,
       "lines": 144,
@@ -236,9 +241,19 @@
       "lines": 292,
       "newModule": true
     },
+    "src/jobs/gate.ts": {
+      "exports": 1,
+      "lines": 23,
+      "newModule": true
+    },
     "src/jobs/invocation-audit.ts": {
       "exports": 1,
       "lines": 50,
+      "newModule": true
+    },
+    "src/jobs/journal-parse.ts": {
+      "exports": 1,
+      "lines": 83,
       "newModule": true
     },
     "src/jobs/journal.ts": {
@@ -259,6 +274,11 @@
     "src/jobs/runner.ts": {
       "exports": 5,
       "lines": 215,
+      "newModule": true
+    },
+    "src/jobs/status.ts": {
+      "exports": 7,
+      "lines": 103,
       "newModule": true
     },
     "src/jobs/step.ts": {
@@ -490,6 +510,11 @@
       "exports": 3,
       "lines": 162,
       "newModule": false
+    },
+    "src/observe/job-assets.ts": {
+      "exports": 2,
+      "lines": 9,
+      "newModule": true
     },
     "src/observe/live-source.ts": {
       "exports": 1,

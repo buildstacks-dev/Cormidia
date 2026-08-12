@@ -149,12 +149,8 @@
       "as": 4,
       "nonNull": 0
     },
-    "src/jobs/config.ts": {
-      "as": 4,
-      "nonNull": 0
-    },
     "src/jobs/journal.ts": {
-      "as": 3,
+      "as": 1,
       "nonNull": 0
     },
     "src/loop/claim-recovery.ts": {

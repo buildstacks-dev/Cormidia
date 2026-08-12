@@ -13,6 +13,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeLoopFileAtomic } from "../loop/durable.js";
+import { parseJobJournal } from "./journal-parse.js";
 import type { JobConfig } from "./types.js";
 
 export const JOB_JOURNAL_VERSION = 1 as const;
@@ -80,7 +81,7 @@ export async function readJobJournal(stateHome: string, config: JobConfig): Prom
   } catch {
     throw new JobJournalError("job_journal_corrupt", `${path}: journal is not valid JSON`);
   }
-  const journal = assertJournalShape(value, path);
+  const journal = parseJobJournal(value, path);
 
   if (journal.job !== config.job) {
     throw new JobJournalError(
@@ -123,26 +124,4 @@ function succeededStepCount(journal: JobJournal): number {
   const latest = new Map<string, JobStepStatus>();
   for (const event of journal.events) latest.set(event.step, event.status);
   return [...latest.values()].filter((status) => status === "completed" || status === "completed_unverified").length;
-}
-
-function assertJournalShape(value: unknown, path: string): JobJournal {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new JobJournalError("job_journal_corrupt", `${path}: journal is not a JSON object`);
-  }
-  const record = value as Record<string, unknown>;
-  if (record["schemaVersion"] !== JOB_JOURNAL_VERSION) {
-    throw new JobJournalError(
-      "job_journal_corrupt",
-      `${path}: unsupported journal schemaVersion ${String(record["schemaVersion"])}`,
-    );
-  }
-  for (const field of ["job", "configHash", "createdAt", "updatedAt"]) {
-    if (typeof record[field] !== "string") {
-      throw new JobJournalError("job_journal_corrupt", `${path}: journal.${field} must be a string`);
-    }
-  }
-  if (!Array.isArray(record["events"])) {
-    throw new JobJournalError("job_journal_corrupt", `${path}: journal.events must be an array`);
-  }
-  return value as JobJournal;
 }

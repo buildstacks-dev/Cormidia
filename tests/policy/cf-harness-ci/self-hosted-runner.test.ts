@@ -6,7 +6,7 @@
 // registration, cleanup scope, and launchd supervision. Every structural pin has
 // a seeded negative control so the detector proves it can turn red.
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -20,13 +20,22 @@ import {
 } from "../../../scripts/self-hosted-runner/lib.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const workflowsRoot = join(repoRoot, ".github", "workflows");
 const runnerRoot = join(repoRoot, "scripts", "self-hosted-runner");
 const probeWorkflowPath = join(repoRoot, ".github", "workflows", "self-hosted-runner-probe.yml");
 const coreWorkflowPath = join(repoRoot, ".github", "workflows", "core-checks.yml");
 const releaseWorkflowPath = join(repoRoot, ".github", "workflows", "release.yml");
+const validationTraceTemplatePath = join(repoRoot, "validation-design", "enablement", "ci", "validation-trace.yml");
 const gitleaksInstallerPath = join(repoRoot, "scripts", "ci", "install-gitleaks.sh");
 const ROUTING_EXPRESSION =
   "${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}";
+const NODE24_ACTION_MINIMUM_MAJOR = new Map([
+  ["actions/checkout", 6],
+  ["actions/setup-node", 6],
+  ["pnpm/action-setup", 6],
+  ["actions/upload-artifact", 7],
+  ["actions/download-artifact", 8],
+]);
 
 async function applianceSources(): Promise<{ dockerfile: string; entrypoint: string }> {
   return {
@@ -35,12 +44,46 @@ async function applianceSources(): Promise<{ dockerfile: string; entrypoint: str
   };
 }
 
+async function workflowSources(): Promise<Record<string, string>> {
+  const names = (await readdir(workflowsRoot)).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"));
+  const sources = Object.fromEntries(
+    await Promise.all(
+      names.map(async (name) => [`.github/workflows/${name}`, await readFile(join(workflowsRoot, name), "utf8")]),
+    ),
+  );
+  sources["validation-design/enablement/ci/validation-trace.yml"] = await readFile(validationTraceTemplatePath, "utf8");
+  return sources;
+}
+
+function workflowNodeRuntimeViolations(sources: Readonly<Record<string, string>>): string[] {
+  const violations: string[] = [];
+  for (const [path, source] of Object.entries(sources)) {
+    for (const match of source.matchAll(/uses:\s*([^\s#]+)/g)) {
+      const pin = match[1];
+      if (pin === undefined) continue;
+      const parsed = /^([^@]+)@v(\d+)$/.exec(pin);
+      if (parsed === null) continue;
+      const action = parsed[1];
+      const major = parsed[2];
+      if (action === undefined || major === undefined) continue;
+      const minimum = NODE24_ACTION_MINIMUM_MAJOR.get(action);
+      if (minimum !== undefined && Number(major) < minimum) {
+        violations.push(`${path}: ${pin} predates its Node 24 action runtime`);
+      }
+    }
+    for (const match of source.matchAll(/node-version:\s*["']?([^\s"']+)/g)) {
+      if (match[1] !== "26") violations.push(`${path}: project Node version drifted to ${match[1]}`);
+    }
+  }
+  return violations;
+}
+
 function probeViolations(source: string): string[] {
   const document = parse(source) as Record<string, unknown>;
   const jobs = document.jobs as Record<string, Record<string, unknown>> | undefined;
   const probe = jobs?.probe;
   const steps = Array.isArray(probe?.steps) ? (probe.steps as Record<string, unknown>[]) : [];
-  const checkout = steps.find((step) => step.uses === "actions/checkout@v5");
+  const checkout = steps.find((step) => step.uses === "actions/checkout@v6");
   const withValues = checkout?.with as Record<string, unknown> | undefined;
   const violations: string[] = [];
   const triggers = document.on as Record<string, unknown> | undefined;
@@ -75,7 +118,7 @@ function coreRoutingViolations(source: string): string[] {
     const job = jobs?.[name];
     if (job?.["runs-on"] !== ROUTING_EXPRESSION) violations.push(`${name} runner routing drifted`);
     const steps = Array.isArray(job?.steps) ? (job.steps as Record<string, unknown>[]) : [];
-    const checkout = steps.find((step) => step.uses === "actions/checkout@v5");
+    const checkout = steps.find((step) => step.uses === "actions/checkout@v6");
     const withValues = checkout?.with as Record<string, unknown> | undefined;
     if (withValues?.["persist-credentials"] !== false) violations.push(`${name} checkout credentials persist`);
     if (!steps.some((step) => step.run === 'test "${GITHUB_SHA}" = "${EXPECTED_SHA}"')) {
@@ -209,6 +252,10 @@ describe("CF-HARNESS-CI — HB-152 self-hosted runner appliance", () => {
     expect(document.jobs?.publish?.["runs-on"]).toBe("ubuntu-latest");
   });
 
+  it("keeps workflow actions on Node 24 runtimes while project commands stay on Node 26", async () => {
+    expect(workflowNodeRuntimeViolations(await workflowSources())).toEqual([]);
+  });
+
   it("selects checksum-pinned gitleaks archives for both hosted x64 and Mac-runner ARM64", async () => {
     const source = await readFile(gitleaksInstallerPath, "utf8");
     expect(gitleaksInstallerViolations(source)).toEqual([]);
@@ -315,5 +362,23 @@ describe("CF-HARNESS-CI — HB-152 seeded runner-appliance violations", () => {
     const violations = gitleaksInstallerViolations(seeded);
     expect(violations).toContainEqual(expect.stringContaining("aarch64"));
     expect(violations).toContainEqual(expect.stringContaining("sha256sum"));
+  });
+
+  it("fires when a Node 20 action major or non-26 project runtime returns", () => {
+    const violations = workflowNodeRuntimeViolations({
+      "seeded.yml": `
+steps:
+  - uses: actions/checkout@v4
+  - uses: pnpm/action-setup@v4
+  - uses: actions/setup-node@v4
+    with:
+      node-version: 20
+  - uses: actions/upload-artifact@v4
+  - uses: actions/download-artifact@v4
+`,
+    });
+    expect(violations).toHaveLength(6);
+    expect(violations).toContainEqual(expect.stringContaining("actions/setup-node@v4"));
+    expect(violations).toContainEqual(expect.stringContaining("project Node version drifted to 20"));
   });
 });

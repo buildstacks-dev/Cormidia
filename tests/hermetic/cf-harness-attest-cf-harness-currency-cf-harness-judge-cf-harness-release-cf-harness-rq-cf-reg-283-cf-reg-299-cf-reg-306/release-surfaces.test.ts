@@ -187,8 +187,8 @@ function assertReleaseSurfaces(surfaces: Surfaces): void {
     "CORMIDIA_RELEASE_ACTOR: ${{ github.actor }}",
     "CORMIDIA_RELEASE_REPOSITORY: ${{ github.repository }}",
     "run: pnpm release:verify",
-    "actions/upload-artifact@v4",
-    "actions/download-artifact@v4",
+    "actions/upload-artifact@v7",
+    "actions/download-artifact@v8",
     "sha256sum -c",
     'npm publish "${TARBALL}"',
   ]) {

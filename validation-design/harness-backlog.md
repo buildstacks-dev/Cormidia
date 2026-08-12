@@ -1024,8 +1024,8 @@ revision record; elicitation-log.md the gate history). No existing ticket, gate,
 or golden set changed.
 
 - **HB-133 — CF-REVIEW-PROVIDER: Builder/Reviewer provider-family disjointness pin.
-  TODO (implementation-ready — under the flagged provenance caveat below: the
-  FAMILY unit is a pending-ratification seat ruling, so "ready" means buildable
+  LANDED 2026-08-12 (implemented under the flagged provenance caveat below: the
+  FAMILY unit is a pending-ratification seat ruling, so the pin is built
   as specified with the unit swappable, not semantically settled <!-- changelog
   2026-08-10 (reader test 15, new-engineer finding 5) -->).** Deterministic refusal before provider construction
   when an autonomous code-delivery route resolves Builder and Reviewer to one provider
@@ -1049,6 +1049,17 @@ or golden set changed.
   in the per-commit blocking lane. *Family:* CF-REVIEW-PROVIDER (catalog §10.2).
   *Defends:* INV-012/INV-016 · B-10 (config authority) · C-OP-LOOP. *Layer:* 1/2.
   *Executor:* build-agent.
+  <!-- implementation status 2026-08-12: HB-133 LANDED in
+  tests/unit/cf-review-provider/route-refusal.test.ts (legs a/b/c/d + manual half
+  of e; red-then-green — 4 seeded config-level legs failed pre-pin),
+  tests/unit/cf-review-provider/family-resolver-unit.test.ts (swappable
+  family-unit caveat + fail-closed resolver), and
+  tests/hermetic/cf-review-provider/jobs-scope.test.ts (leg e, jobs/M18).
+  Enforcement: src/loop/review-provider.ts, wired at
+  createEpisodePlanningPolicy (src/org/episode-planner/policy.ts) — the seam
+  every autonomous code-delivery planning boundary crosses before any provider
+  construction, the EpisodePlanner turn included. -->
+
 - **HB-134 — GTM pre-launch triggered obligations. TRIGGERED (not scheduled; no work
   now).** Source: `docs/gtm-wip.md` (WIP/non-normative, owner-aligned 2026-08-09).
   Three trigger-children, each blocking its own trigger event and nothing else:
@@ -1374,7 +1385,7 @@ HB-001..HB-006 LANDED. HB-007 LANDED. HB-010..HB-017 LANDED. HB-020..HB-025 LAND
 HB-030..HB-033 LANDED. HB-040..HB-047 LANDED. HB-050..HB-054 LANDED.
 HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
-HB-120..HB-132 LANDED. HB-140 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
+HB-120..HB-132 LANDED. HB-133 LANDED. HB-140 LANDED. HB-141 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
 HB-P2 LANDED.
 HB-P4 LANDED.

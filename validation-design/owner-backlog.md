@@ -40,12 +40,13 @@ what done bought you.
   capability under corrupt HMAC state, missing charter, classifier exceptions, and
   unreadable budget. The failure it catches: any error branch granting more authority or
   producing a greener result. Done buys you one floor invariant across all four paths.
-- **HB-133 — Builder/Reviewer provider-family pin (TODO, implementation-ready
+- **HB-133 — Builder/Reviewer provider-family pin (LANDED 2026-08-12,
   under a flagged caveat: the provider-FAMILY unit is a pending-ratification seat
-  ruling, so "ready" means buildable with that unit swappable, not semantically
+  ruling, so the pin is built with that unit swappable, not semantically
   settled <!-- changelog 2026-08-10 (final-gate follow-up 2): regenerated from
   harness-backlog.md's hoisted hedge; the ID-set diff cannot catch stale
-  companion prose -->).**
+  companion prose --> <!-- changelog 2026-08-12 (HB-133): status regenerated
+  from harness-backlog.md's LANDED flip -->).**
   Defends the independent-review promise (§2.16 in the briefing) at its cheapest
   point. The failure it catches: a quiet config edit — convenience, cost, an outage
   workaround — resolves Builder and Reviewer to the same provider family, and every

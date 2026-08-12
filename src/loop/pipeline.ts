@@ -71,6 +71,7 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
+import { parseInterruptedReason, terminalStopFields, type InterruptedReason } from "../runtime/types.js";
 import { withAuthorityBrief } from "./brief.js";
 import { writeContextManifest } from "./context-manifest.js";
 import { writeLoopFileAtomic } from "./durable.js";
@@ -534,8 +535,8 @@ async function finalizePipelineEpisode(
       ? "completed"
       : last?.status === "cancelled"
         ? "cancelled"
-        : last?.status === "timed_out"
-          ? "timed_out"
+        : last?.status === "interrupted"
+          ? "interrupted"
           : last?.status === "blocked_on_gate"
             ? "blocked"
             : "failed";
@@ -563,7 +564,11 @@ const DEFAULT_ADAPTER_START_TIMEOUT_MS = 30_000;
 const DEFAULT_CANCELLATION_GRACE_MS = 2_000;
 
 interface AbortDescriptor {
-  status: "cancelled" | "timed_out" | "failed";
+  status: "cancelled" | "interrupted" | "failed";
+  /** REQUIRED when status is `interrupted` (CORMIDIA-C-CORE-001 §2, F-PT-017).
+   *  Only the stop site knows why the pass stopped, so the reason is decided
+   *  there and travels with the descriptor. */
+  interruptedReason?: InterruptedReason;
   errorCode: string;
   reason: string;
 }
@@ -1067,7 +1072,10 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
               queueBudgetStop(activeBudget.stopActiveTime(capMs));
             } else {
               passController.abort({
-                status: "timed_out",
+                status: "interrupted",
+                // The pass hit its wall-clock cap: exactly `time_limit`, which
+                // is what the retired `timed_out` name used to convey.
+                interruptedReason: "time_limit",
                 errorCode: ERROR_WALL_CLOCK_EXCEEDED,
                 reason: `pass "${pass.id}" exceeded its ${Math.round(capMs / 60_000)}-minute wall-clock cap`,
               } satisfies AbortDescriptor);
@@ -1495,9 +1503,9 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
         errorCode: verdictOutcome.ok ? (result.errorCode ?? "error_turn_failed") : verdictOutcome.errorCode,
         detail: { reason: result.summary },
       });
-    } else if (status === "cancelled" || status === "timed_out") {
+    } else if (status === "cancelled" || status === "interrupted") {
       await events.append({
-        type: status === "cancelled" ? "pass.cancelled" : "pass.timed_out",
+        type: status === "cancelled" ? "pass.cancelled" : "pass.interrupted",
         severity: "warn",
         errorCode: result.errorCode ?? (status === "cancelled" ? "error_cancelled" : ERROR_WALL_CLOCK_EXCEEDED),
         detail: { reason: result.summary },
@@ -1528,7 +1536,7 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
             ? { errorCode: result.errorCode ?? "error_turn_failed" }
             : status === "cancelled"
               ? { errorCode: result.errorCode ?? "error_cancelled" }
-              : status === "timed_out"
+              : status === "interrupted"
                 ? { errorCode: result.errorCode ?? ERROR_WALL_CLOCK_EXCEEDED }
                 : result.status !== "completed" && result.errorCode !== undefined
                   ? { errorCode: result.errorCode }
@@ -1657,7 +1665,7 @@ function envelopeStatus(result: TurnResult): Exclude<EnvelopeStatus, "running"> 
   if (result.status === "completed") return "completed";
   if (result.status === "blocked_on_gate") return "blocked";
   if (result.status === "cancelled") return "cancelled";
-  if (result.status === "timed_out") return "timed_out";
+  if (result.status === "interrupted") return "interrupted";
   return "failed";
 }
 
@@ -1806,9 +1814,13 @@ function isAbortDescriptor(value: unknown): value is AbortDescriptor {
   if (value === null || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   return (
-    (record["status"] === "cancelled" || record["status"] === "timed_out" || record["status"] === "failed") &&
+    (record["status"] === "cancelled" || record["status"] === "interrupted" || record["status"] === "failed") &&
     typeof record["errorCode"] === "string" &&
-    typeof record["reason"] === "string"
+    typeof record["reason"] === "string" &&
+    // An `interrupted` descriptor without a valid reason is not a descriptor:
+    // refuse it here so the abort falls through to the typed failure path
+    // rather than reaching terminalStopFields and throwing mid-stop.
+    (record["status"] !== "interrupted" || parseInterruptedReason(record["interruptedReason"]) !== undefined)
   );
 }
 
@@ -1821,7 +1833,7 @@ function stoppedResult(
 ): TurnResult {
   const usage = settled?.usage ?? progress?.usage ?? unavailableUsage();
   return {
-    status: descriptor.status,
+    ...terminalStopFields(descriptor),
     errorCode: descriptor.errorCode,
     summary: descriptor.reason,
     artifacts: settled?.artifacts ?? [],

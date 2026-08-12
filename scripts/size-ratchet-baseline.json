@@ -322,8 +322,8 @@
       "newModule": false
     },
     "src/loop/efficiency.ts": {
-      "exports": 48,
-      "lines": 2049,
+      "exports": 49,
+      "lines": 2083,
       "newModule": false
     },
     "src/loop/episode-plan-executor.ts": {
@@ -378,7 +378,7 @@
     },
     "src/loop/pipeline.ts": {
       "exports": 6,
-      "lines": 1949,
+      "lines": 1961,
       "newModule": false
     },
     "src/loop/pipelines.ts": {
@@ -533,7 +533,7 @@
     },
     "src/observe/project.ts": {
       "exports": 1,
-      "lines": 2121,
+      "lines": 2123,
       "newModule": false
     },
     "src/observe/server.ts": {
@@ -608,7 +608,7 @@
     },
     "src/org/budget.ts": {
       "exports": 16,
-      "lines": 889,
+      "lines": 907,
       "newModule": false
     },
     "src/org/context.ts": {
@@ -668,7 +668,7 @@
     },
     "src/org/episode-planner/runtime.ts": {
       "exports": 3,
-      "lines": 1765,
+      "lines": 1777,
       "newModule": false
     },
     "src/org/episode-safety-facts.ts": {
@@ -717,8 +717,8 @@
       "newModule": false
     },
     "src/org/journal.ts": {
-      "exports": 11,
-      "lines": 214,
+      "exports": 12,
+      "lines": 240,
       "newModule": false
     },
     "src/org/learning/binding.ts": {
@@ -1398,7 +1398,7 @@
     },
     "src/org/turn-runner.ts": {
       "exports": 11,
-      "lines": 2637,
+      "lines": 2674,
       "newModule": false
     },
     "src/org/validation-campaign.ts": {
@@ -1478,7 +1478,7 @@
     },
     "src/runtime/adapters/claude.ts": {
       "exports": 4,
-      "lines": 590,
+      "lines": 608,
       "newModule": false
     },
     "src/runtime/adapters/codex-gate-bridge.ts": {
@@ -1533,12 +1533,12 @@
     },
     "src/runtime/adapters/cursor-stream.ts": {
       "exports": 6,
-      "lines": 233,
+      "lines": 235,
       "newModule": true
     },
     "src/runtime/adapters/cursor.ts": {
       "exports": 3,
-      "lines": 271,
+      "lines": 285,
       "newModule": true
     },
     "src/runtime/adapters/gate-bridge-escalation.ts": {
@@ -1583,7 +1583,7 @@
     },
     "src/runtime/adapters/grok-turn.ts": {
       "exports": 9,
-      "lines": 155,
+      "lines": 176,
       "newModule": true
     },
     "src/runtime/adapters/grok.ts": {
@@ -1673,7 +1673,7 @@
     },
     "src/runtime/adapters/pi.ts": {
       "exports": 4,
-      "lines": 380,
+      "lines": 401,
       "newModule": false
     },
     "src/runtime/assignment.ts": {
@@ -1793,7 +1793,7 @@
     },
     "src/runtime/readiness.ts": {
       "exports": 4,
-      "lines": 898,
+      "lines": 903,
       "newModule": false
     },
     "src/runtime/registry.ts": {
@@ -1812,8 +1812,8 @@
       "newModule": false
     },
     "src/runtime/runlog/envelope.ts": {
-      "exports": 12,
-      "lines": 472,
+      "exports": 13,
+      "lines": 499,
       "newModule": false
     },
     "src/runtime/runlog/events.ts": {
@@ -1882,8 +1882,8 @@
       "newModule": true
     },
     "src/runtime/types.ts": {
-      "exports": 27,
-      "lines": 329,
+      "exports": 32,
+      "lines": 386,
       "newModule": false
     },
     "src/runtime/worktree-context.ts": {

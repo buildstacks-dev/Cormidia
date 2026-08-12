@@ -480,7 +480,13 @@ process-identity probe.
   `time_limit`. Asserted across every adapter plus the migration case per HB-P6's
   acceptance; no test derives truth from current code. Scope fence: the landed
   `tests/unit/s3-verdict-marker.test.ts` pins confer no ratification here and **F-PT-033 is
-  untouched**. Implementation owed under HB-P6. Original subject: ratified
+  untouched**. (**implemented 2026-08-12** — HB-P6 landed: `TurnResult`'s `interrupted` arm
+  cannot be built without its reason; every stop site names one; run envelopes, execution
+  records and turn journals gained the durable field plus legacy readers. Notable: the
+  execution vocabulary already had `timed_out` AND `interrupted` as separate members with
+  different ledger classes — they collapse onto one status and the split is preserved on the
+  reason, which is exactly what the requirement is for. Readiness-probe outcomes keep
+  `timed_out`, deliberately outside the ruling's scope.) Original subject: ratified
   CORMIDIA-C-CORE-001 said `interrupted` while `Runtime`/all adapters exposed `timed_out`.
 - F-PT-018 (open-known-limitation; raised harness audit/revision 2026-07-31; disposition ratified 2026-08-04): the per-commit workflow runs and is fail-closed internally, but the current private-repository GitHub plan does not offer branch protection/rulesets. RQ-1 is bounded by protected human merge plus the release-blocking exact-tag rerun and does not claim mechanical merge blocking; future mechanical enforcement remains parked in CF-HARNESS-CI/HB-P7 pending a plan change.
   **Re-checked 2026-08-12** at the owner's request (had the plan been upgraded?): still

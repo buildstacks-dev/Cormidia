@@ -26,6 +26,7 @@ import type {
   TurnAssignmentSource,
   UsageQuality,
 } from "../types.js";
+import type { InterruptedReason } from "../types.js";
 import { runPaths } from "./paths.js";
 import { scrubSecrets, truncatePreview } from "./redact.js";
 import { definedProps } from "../optional-properties.js";
@@ -33,8 +34,26 @@ import { definedProps } from "../optional-properties.js";
 /** Terminal statuses: infra errors are `failed` (+ error_code); merit
  *  outcomes (findings, blocked-with-evidence) are their own statuses —
  *  infra and merit never conflate (§9). */
-export type EnvelopeStatus = "running" | "completed" | "failed" | "blocked" | "cancelled" | "timed_out";
-const TERMINAL: EnvelopeStatus[] = ["completed", "failed", "blocked", "cancelled", "timed_out"];
+export type EnvelopeStatus = "running" | "completed" | "failed" | "blocked" | "cancelled" | "interrupted";
+
+/** Read a durable envelope's terminal status under the F-PT-017 migration
+ *  clause: a pre-2026-08-12 record says `timed_out` and means `interrupted`
+ *  for the `time_limit` reason. Never treated as unknown, never dropped. */
+export function normalizeLegacyEnvelopeStatus(envelope: {
+  /** The retired literal is admitted HERE, in the parameter type, so a durable
+   *  read needs no cast — legacy bytes are a legitimate input shape. */
+  status: EnvelopeStatus | "timed_out";
+  interrupted_reason?: InterruptedReason;
+}): { status: EnvelopeStatus; interruptedReason?: InterruptedReason } {
+  if (envelope.status === "timed_out") {
+    return { status: "interrupted", interruptedReason: envelope.interrupted_reason ?? "time_limit" };
+  }
+  return {
+    status: envelope.status,
+    ...(envelope.interrupted_reason === undefined ? {} : { interruptedReason: envelope.interrupted_reason }),
+  };
+}
+const TERMINAL: EnvelopeStatus[] = ["completed", "failed", "blocked", "cancelled", "interrupted"];
 
 export interface EnvelopeUsage {
   tokens_in: number;
@@ -93,6 +112,12 @@ export interface RunEnvelope {
    *  spec §7). Absent for non-git workdirs and pre-M2b runs. */
   git_head?: string;
   status: EnvelopeStatus;
+  /** REQUIRED alongside `status: "interrupted"` (CORMIDIA-C-CORE-001 §2,
+   *  F-PT-017). Optional in the TYPE only because envelopes written before
+   *  2026-08-12 carry `status: "timed_out"` with no reason; those are read
+   *  through `normalizeLegacyEnvelopeStatus`, which supplies `time_limit` —
+   *  exactly what the retired name meant. */
+  interrupted_reason?: InterruptedReason;
   started_at: string;
   finished_at?: string;
   /** Heartbeat: stamped periodically while the pass runs, so a reader can
@@ -248,6 +273,7 @@ interface EnvelopePatch {
 
 interface FinalizeOutcome {
   status: Exclude<EnvelopeStatus, "running">;
+  interruptedReason?: InterruptedReason;
   verdictSummary?: string;
   errorCode?: string;
   usage?: EnvelopeUsage;
@@ -369,6 +395,7 @@ export async function finalizeRun(
     envelope.verdict_summary = durableVerdictSummary(outcome.verdictSummary);
   }
   if (outcome.errorCode !== undefined) envelope.error_code = outcome.errorCode;
+  if (outcome.interruptedReason !== undefined) envelope.interrupted_reason = outcome.interruptedReason;
   if (outcome.reason !== undefined) envelope.terminal_reason = scrubSecrets(outcome.reason);
   // Keep the session_log ref only when the sink actually produced the file —
   // a terminal envelope must never reference a file that does not exist.

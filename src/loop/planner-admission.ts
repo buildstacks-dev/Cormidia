@@ -963,7 +963,7 @@ async function readPlannerAttemptTerminal(
     !HASH.test(record.input_fingerprint) ||
     !validTimestamp(record.started_at) ||
     !validTimestamp(record.finished_at) ||
-    !(["completed", "failed", "blocked", "cancelled", "timed_out", "interrupted"] as const).includes(record.status) ||
+    !(["completed", "failed", "blocked", "cancelled", "interrupted", "interrupted"] as const).includes(record.status) ||
     (record.usage !== null && !isRecord(record.usage))
   ) {
     throw corruptAttempt(admission.episode_id, attempt, "terminal record is malformed");

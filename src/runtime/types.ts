@@ -250,8 +250,20 @@ export interface TurnUsage {
  */
 export type UsageQuality = "complete" | "partial" | "estimated" | "unavailable" | "none";
 
-export interface TurnResult {
-  status: "completed" | "blocked_on_gate" | "failed" | "cancelled" | "timed_out";
+/** Why a turn ended `interrupted` (CORMIDIA-C-CORE-001 §2, ratified 2026-08-12
+ *  under F-PT-017). The vocabulary widened from `timed_out` to `interrupted`,
+ *  so the reason carries the specificity the old NAME used to carry — losing it
+ *  was the objection the ruling answers, which is why it is REQUIRED rather
+ *  than another optional code.
+ *
+ *  `time_limit` is exactly what the retired `timed_out` meant, so a durable
+ *  record written under the old name normalizes to `interrupted` + `time_limit`
+ *  and is never read as unknown (`normalizeLegacyTerminalStatus`). */
+export type InterruptedReason = "time_limit" | "operator_kill" | "provider_crash";
+
+export type TerminalTurnStatus = "completed" | "blocked_on_gate" | "failed" | "cancelled" | "interrupted";
+
+interface TurnResultCommon {
   summary: string;
   artifacts: Artifact[];
   session: SessionHandle;
@@ -263,6 +275,51 @@ export interface TurnResult {
    *  secrets/auth escalation (proportionality campaign Stage 3). Absent on
    *  success and on failures with no more specific cause. */
   errorCode?: string;
+}
+
+/** A run envelope. `interrupted` CANNOT be constructed without its reason —
+ *  the requirement is enforced by the type, not by a convention a call site can
+ *  forget (CORMIDIA-C-CORE-001 §2). */
+export type TurnResult =
+  | (TurnResultCommon & { status: Exclude<TerminalTurnStatus, "interrupted"> })
+  | (TurnResultCommon & { status: "interrupted"; interruptedReason: InterruptedReason });
+
+/** Durable-read normalizer (the F-PT-017 migration clause). Records written
+ *  before 2026-08-12 carry `timed_out`; they mean `interrupted` for the
+ *  `time_limit` reason and are read as exactly that — never as unknown, never
+ *  dropped. Parse, don't cast: an unrecognized value is returned untouched so
+ *  the caller's own validator refuses it. */
+export function normalizeLegacyTerminalStatus(status: string): {
+  status: string;
+  interruptedReason?: InterruptedReason;
+} {
+  return status === "timed_out" ? { status: "interrupted", interruptedReason: "time_limit" } : { status };
+}
+
+/** Narrow an untrusted value to the ratified reason vocabulary. Adapters read
+ *  their stop descriptor back off an AbortSignal reason, which is `unknown` by
+ *  construction — this is the trust boundary, so it is parsed, never cast. */
+export function parseInterruptedReason(value: unknown): InterruptedReason | undefined {
+  return value === "time_limit" || value === "operator_kill" || value === "provider_crash" ? value : undefined;
+}
+
+/** Project a stop descriptor onto the TurnResult terminal discriminant, so the
+ *  reason travels with the status it belongs to instead of being re-derived —
+ *  or forgotten — at each construction site. Parse, don't cast: a descriptor
+ *  claiming `interrupted` with no reason is a bug at the STOP site, and this
+ *  refuses rather than inventing one. Fabricating `time_limit` for an unknown
+ *  interruption is exactly the lost specificity F-PT-017 objected to. */
+export function terminalStopFields(descriptor: {
+  status: TerminalTurnStatus;
+  interruptedReason?: InterruptedReason;
+}):
+  | { status: Exclude<TerminalTurnStatus, "interrupted"> }
+  | { status: "interrupted"; interruptedReason: InterruptedReason } {
+  if (descriptor.status !== "interrupted") return { status: descriptor.status };
+  if (descriptor.interruptedReason === undefined) {
+    throw new Error("an interrupted turn must carry a machine-readable reason (CORMIDIA-C-CORE-001 §2, F-PT-017)");
+  }
+  return { status: "interrupted", interruptedReason: descriptor.interruptedReason };
 }
 
 /** Monotonic provider progress that must survive a crash/cancellation before

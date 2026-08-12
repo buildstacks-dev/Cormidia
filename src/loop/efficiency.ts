@@ -22,6 +22,7 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
+import { normalizeLegacyTerminalStatus, type InterruptedReason } from "../runtime/types.js";
 import { writeLoopFileAtomic, writeLoopFileOnce } from "./durable.js";
 import type { TicketTier } from "./pipelines.js";
 import { assertMonotonicRoute, executionBoundsFor, type RouteExecutionBounds } from "./route-policy.js";
@@ -166,7 +167,7 @@ export interface RouteReassessment {
 
 export interface EpisodeTerminal {
   at: string;
-  status: "completed" | "failed" | "blocked" | "cancelled" | "timed_out" | "interrupted";
+  status: "completed" | "failed" | "blocked" | "cancelled" | "interrupted";
   reason: string;
   final_route: EfficiencyRoute;
   next_step: string | null;
@@ -193,7 +194,31 @@ export interface RouteRecord {
   terminal: EpisodeTerminal | null;
 }
 
-export type ExecutionStatus = "completed" | "failed" | "blocked" | "cancelled" | "timed_out" | "interrupted";
+/** changelog 2026-08-12 (F-PT-017 owner ruling): this union previously carried
+ *  BOTH `timed_out` (wall-clock stop) and `interrupted` (owner heartbeat lost
+ *  before finalization) as separate members. They collapse onto the ratified
+ *  `interrupted` and keep their distinction in `interrupted_reason` —
+ *  `time_limit` and `provider_crash` respectively. That is precisely the
+ *  specificity the ruling required a reason to preserve; nothing is lost, and a
+ *  durable record written under either old name still reads (see
+ *  `normalizeLegacyExecutionStatus`). */
+export type ExecutionStatus = "completed" | "failed" | "blocked" | "cancelled" | "interrupted";
+
+/** Read a durable execution record's status under the F-PT-017 migration
+ *  clause. `timed_out` means `interrupted` + `time_limit`; a legacy
+ *  `interrupted` with no reason meant heartbeat loss, i.e. `provider_crash`.
+ *  Both are read exactly, never as unknown. */
+export function normalizeLegacyExecutionStatus(record: { status: string; interrupted_reason?: InterruptedReason }): {
+  status: string;
+  interruptedReason?: InterruptedReason;
+} {
+  const normalized = normalizeLegacyTerminalStatus(record.status);
+  const reason =
+    record.interrupted_reason ??
+    normalized.interruptedReason ??
+    (record.status === "interrupted" ? ("provider_crash" as const) : undefined);
+  return { status: normalized.status, ...(reason === undefined ? {} : { interruptedReason: reason }) };
+}
 
 export interface ExecutionStepRecord {
   schema_version: typeof EFFICIENCY_SCHEMA_VERSION;
@@ -221,6 +246,10 @@ export interface ExecutionStepRecord {
   started_at: string;
   finished_at: string;
   status: ExecutionStatus;
+  /** REQUIRED alongside `status: "interrupted"` (F-PT-017). Optional in the
+   *  TYPE only for records written before 2026-08-12; those are read through
+   *  `normalizeLegacyExecutionStatus`. */
+  interrupted_reason?: InterruptedReason;
   error_code: string | null;
   reason: string;
   next_step: string | null;
@@ -1173,6 +1202,11 @@ async function reconcileProviderReceipts(
         started_at: receipt.started_at,
         finished_at: now.toISOString(),
         status: "interrupted",
+        // The owner heartbeat vanished before finalization — the provider side
+        // died, which is exactly `provider_crash` (F-PT-017). This case is WHY
+        // the reason is required: under the old vocabulary it was
+        // indistinguishable from a wall-clock stop once both became one name.
+        interrupted_reason: "provider_crash",
         error_code: "error_stale_missing_finalization",
         reason: "provider execution lost its owner heartbeat before finalization",
         next_step: "resume from the last valid artifact boundary",

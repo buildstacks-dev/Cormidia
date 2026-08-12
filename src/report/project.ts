@@ -427,7 +427,7 @@ function buildHealth(sessions: ReportSessionDetailV1[]): ReportSnapshotV1["healt
     gate_passes: activities.reduce((sum, turn) => sum + (turn.gate_passes ?? 0), 0),
     gate_failures: activities.reduce((sum, turn) => sum + (turn.gate_failures ?? 0), 0),
     escalations: activities.reduce((sum, turn) => sum + turn.escalations, 0),
-    interrupted_turns: provider.filter((turn) => ["failed", "cancelled", "timed_out"].includes(turn.status)).length,
+    interrupted_turns: provider.filter((turn) => ["failed", "cancelled", "interrupted"].includes(turn.status)).length,
     fallback_sessions: sessions.filter(
       (session) => session.summary.execution_mode === "mixed" || session.summary.execution_mode === "manual",
     ).length,
@@ -461,7 +461,7 @@ function buildAppRows(
         sessions: appSessions.length,
         completed_sessions: appSessions.filter((session) => session.summary.outcome === "completed").length,
         failed_sessions: appSessions.filter((session) =>
-          ["failed", "timed_out", "cancelled"].includes(session.summary.outcome),
+          ["failed", "interrupted", "cancelled"].includes(session.summary.outcome),
         ).length,
         current_month_spend_usd: budget.spentUsd,
         monthly_budget_usd: budget.budgetUsd,

@@ -3,7 +3,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { SessionHandle, Trigger } from "../runtime/types.js";
+import type { InterruptedReason, SessionHandle, Trigger } from "../runtime/types.js";
+import { normalizeLegacyTerminalStatus } from "../runtime/types.js";
 import { writeFileAtomic } from "./atomic.js";
 
 export type JournalPhase =
@@ -14,7 +15,7 @@ export type JournalPhase =
   | "blocked_on_gate"
   | "failed"
   | "cancelled"
-  | "timed_out";
+  | "interrupted";
 
 /** The event that triggered a dispatched turn, persisted at dispatch time so
  *  the turn's briefs can quote the original payload with a provenance stamp
@@ -46,6 +47,9 @@ export interface TurnJournal {
   triggerKind?: keyof Trigger;
   event?: TurnEvent;
   phase: JournalPhase;
+  /** REQUIRED alongside `phase: "interrupted"` (F-PT-017). Optional in the TYPE
+   *  only for journals written before 2026-08-12, which normalize on read. */
+  interruptedReason?: InterruptedReason;
   attempt: number;
   startedAt: string;
   updatedAt: string;
@@ -75,8 +79,14 @@ export type RecoveryDecision =
   | { action: "recollect"; reason: string; nextAttempt: number }
   | { action: "fail_incident"; reason: string; nextAttempt: number };
 
-const TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>(["done", "blocked_on_gate", "failed", "cancelled", "timed_out"]);
-const ERROR_TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>(["blocked_on_gate", "failed", "cancelled", "timed_out"]);
+const TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>([
+  "done",
+  "blocked_on_gate",
+  "failed",
+  "cancelled",
+  "interrupted",
+]);
+const ERROR_TERMINAL_JOURNAL_PHASES = new Set<JournalPhase>(["blocked_on_gate", "failed", "cancelled", "interrupted"]);
 
 /**
  * A turn journal is a forward-only recovery record, not a freely mutable
@@ -152,7 +162,23 @@ export async function writeJournalPatch(
 }
 
 export async function readJournal(root: string, turnId: string): Promise<TurnJournal> {
-  return JSON.parse(await readFile(journalPath(root, turnId), "utf8")) as TurnJournal;
+  const parsed = JSON.parse(await readFile(journalPath(root, turnId), "utf8")) as TurnJournal;
+  return normalizeLegacyJournalPhase(parsed);
+}
+
+/** F-PT-017 migration clause: journals written before 2026-08-12 carry the
+ *  retired `timed_out` phase. They mean `interrupted` for the `time_limit`
+ *  reason and are read as exactly that — never as an unknown phase, which
+ *  would make `assertJournalPhaseTransition` refuse a legitimate resume. */
+export function normalizeLegacyJournalPhase(journal: TurnJournal): TurnJournal {
+  // The phase read off disk may be the retired literal, which JournalPhase no
+  // longer admits — so it is compared as the string it is and rebuilt from
+  // literals. No cast: the shared normalizer decides, and the two ratified
+  // values are written out by hand.
+  const raw: string = journal.phase;
+  const normalized = normalizeLegacyTerminalStatus(raw);
+  if (normalized.status === raw) return journal;
+  return { ...journal, phase: "interrupted", interruptedReason: normalized.interruptedReason ?? "time_limit" };
 }
 
 export async function listJournals(root: string): Promise<TurnJournal[]> {

@@ -13,7 +13,7 @@
 // settlementIdentity) so it can never drift from what the guard enforces.
 
 import { join } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
   admitEpisode,
   beginProviderStep,
@@ -30,6 +30,7 @@ import {
 } from "../../../src/runtime/runlog/envelope.js";
 import { settlementIdentity, settlementKey, toRecord, type TurnRecord } from "../../../src/runtime/telemetry.js";
 import type { RoleConfig, TurnResult, TurnUsage } from "../../../src/runtime/types.js";
+import { terminalStopFields } from "../../../src/runtime/types.js";
 
 export const PIPELINE = "build";
 export const PASS = "implement";
@@ -66,16 +67,18 @@ export function makeUsage(costUsd: number, overrides: Partial<TurnUsage> = {}): 
 export function makeTurnResult(
   status: TurnResult["status"],
   usage: TurnUsage,
-  overrides: Partial<TurnResult> = {},
+  overrides: Omit<Partial<TurnResult>, "status" | "interruptedReason"> = {},
 ): TurnResult {
   return {
-    status,
     summary: `scripted ${status} turn`,
     artifacts: [],
     session: { runtime: "claude", id: "sess-cf-j08" },
     usage,
     escalations: [],
     ...overrides,
+    // F-PT-017: an `interrupted` fixture carries its reason like production,
+    // and overrides may not re-widen the discriminant back out of the union.
+    ...terminalStopFields({ status, ...(status === "interrupted" ? { interruptedReason: "time_limit" } : {}) }),
   };
 }
 
@@ -209,7 +212,10 @@ export async function plantEnvelope(input: {
   stateHome: string;
   app: string;
   runId: string;
-  status: "completed" | "failed" | "blocked" | "cancelled" | "timed_out" | "running";
+  /** `timed_out` is deliberately still accepted here: planting a LEGACY
+   *  envelope is how the F-PT-017 migration-compatibility case is exercised
+   *  (HB-P6). Production writes `interrupted` + a reason. */
+  status: "completed" | "failed" | "blocked" | "cancelled" | "interrupted" | "timed_out" | "running";
   usage?: EnvelopeUsage;
   providerTurnIds?: string[];
   startedAt: Date;
@@ -235,6 +241,30 @@ export async function plantEnvelope(input: {
     });
   }
   if (input.status === "running") return envelope;
+  if (input.status === "timed_out") {
+    // Plant a genuine PRE-MIGRATION envelope: finalize under the ratified
+    // vocabulary, then rewrite the durable byte to the retired name with no
+    // reason — exactly what a record written before 2026-08-12 looks like on
+    // disk. The caller reads the bytes back itself; this returns the ratified
+    // handle rather than pretending the retired literal is a live status.
+    const ratified = await finalizeRun(
+      input.stateHome,
+      input.app,
+      input.runId,
+      {
+        status: "interrupted",
+        interruptedReason: "time_limit",
+        ...(input.usage !== undefined ? { usage: input.usage } : {}),
+      },
+      input.finishedAt ?? input.startedAt,
+    );
+    const path = join(input.stateHome, "state", "runs", input.app, input.runId, "envelope.json");
+    const legacy: Record<string, unknown> = JSON.parse(await readFile(path, "utf8"));
+    legacy["status"] = "timed_out";
+    delete legacy["interrupted_reason"];
+    await writeFile(path, `${JSON.stringify(legacy, null, 2)}\n`, "utf8");
+    return ratified;
+  }
   return finalizeRun(
     input.stateHome,
     input.app,

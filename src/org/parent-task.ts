@@ -14,7 +14,7 @@ import type { AuthorityEvidence } from "../runtime/types.js";
 import { writeFileAtomic } from "./atomic.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
-export type ParentTaskStatus = "running" | "completed" | "failed" | "cancelled" | "timed_out";
+export type ParentTaskStatus = "running" | "completed" | "failed" | "cancelled" | "interrupted";
 type ParentTaskExecutionMode = "cormidia" | "mixed" | "external_manual";
 
 export interface ParentTaskRecord {

@@ -106,7 +106,7 @@ export interface CaptureProjectionResult {
    * efficiency evidence at all. Unlike a bare zero-yield count this cannot
    * fire on a genuinely clean org: a healthy run has nothing to classify, but
    * a run that demonstrably failed and yields nothing is a projector fault.
-   * See `hasFailureSignal` for why `blocked`/`timed_out` are excluded. */
+   * See `hasFailureSignal` for why `blocked`/`interrupted` are excluded. */
   evidenceGaps: Array<{ app: string; runId: string; reason: "terminal_failure_without_evidence" }>;
   /** Alias with the complete typed recovery inventory used by health JSON. */
   blockedRuns: Array<{ app: string; runId: string; reason: CaptureBlockingReason }>;
@@ -558,7 +558,7 @@ function indexEfficiency(evidence: EfficiencyEpisodeEvidence[]): Map<string, Ind
  * status has no class yet. `failed` yields `execution.pass_failed` (or
  * `execution.cap_stop`); `cancelled` yields `execution.cancelled`.
  *
- * `blocked` and `timed_out` are excluded on purpose. `blocked` is a MERIT
+ * `blocked` and `interrupted` are excluded on purpose. `blocked` is a MERIT
  * outcome — an approval-gated pass, i.e. healthy operation — and the projector
  * emits nothing for either, so counting them would pin `capture.status` to
  * `degraded` forever on a perfectly healthy org that uses approval gating.

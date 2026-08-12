@@ -109,7 +109,7 @@ const EVENT_KINDS: Record<string, EventKind> = {
   "pass.completed": "pass",
   "pass.failed": "pass",
   "pass.cancelled": "pass",
-  "pass.timed_out": "pass",
+  "pass.interrupted": "pass",
   // Heartbeats get their OWN kind so coalescing them can never swallow a
   // pass outcome carried on the same pass.
   "pass.heartbeat": "heartbeat",
@@ -134,7 +134,7 @@ const EVENT_OUTCOMES: Record<string, EventOutcome> = {
   "pass.completed": "success",
   "pass.failed": "failure",
   "pass.cancelled": "failure",
-  "pass.timed_out": "failure",
+  "pass.interrupted": "failure",
   "pass.heartbeat": "not_applicable",
   "gate.started": "pending",
   "gate.passed": "success",
@@ -303,7 +303,7 @@ function graphState(pass: PassView): GraphNodeState {
   if (pass.status === "running") return "running";
   if (pass.status === "completed") return "completed";
   if (pass.status === "blocked") return "blocked";
-  if (pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled") return "failed";
+  if (pass.status.startsWith("failed") || pass.status === "interrupted" || pass.status === "cancelled") return "failed";
   if (pass.started_at === null) return pass.quality_reason === null ? "not_started" : "unknown";
   return "unknown";
 }
@@ -1015,7 +1015,9 @@ function findTraceSkipped(group: PassView[]): Array<{ pass: string; reason: stri
 function traceStatus(group: PassView[], missing: string[]): string {
   if (group.some((pass) => pass.status === "running")) return "running";
   if (
-    group.some((pass) => pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled")
+    group.some(
+      (pass) => pass.status.startsWith("failed") || pass.status === "interrupted" || pass.status === "cancelled",
+    )
   )
     return "failed";
   if (group.some((pass) => pass.status === "blocked")) return "blocked";
@@ -1660,7 +1662,7 @@ function projectAttention(
         }),
       );
     }
-    if (pass.status.startsWith("failed") || pass.status === "timed_out" || pass.status === "cancelled") {
+    if (pass.status.startsWith("failed") || pass.status === "interrupted" || pass.status === "cancelled") {
       out.push(
         attention({
           // Cause-level title: `${role}/${pass} ${status}` differs per occurrence

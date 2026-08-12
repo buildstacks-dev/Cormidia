@@ -8,7 +8,16 @@
 // unknown here — `quality: "partial"` with no invented dollar figure — because
 // "absence means unreported or incomplete, never free".
 
-import type { Artifact, GateEscalation, TurnResult, TurnRequest, TurnUsage } from "../types.js";
+import type {
+  Artifact,
+  GateEscalation,
+  InterruptedReason,
+  TerminalTurnStatus,
+  TurnResult,
+  TurnRequest,
+  TurnUsage,
+} from "../types.js";
+import { parseInterruptedReason, terminalStopFields } from "../types.js";
 
 const TICKS_PER_USD = 10_000_000_000;
 
@@ -57,7 +66,7 @@ export function grokUsage(value: unknown, elapsedMs: number): TurnUsage | undefi
   };
 }
 
-export function grokTurnStatus(stopReason: string | undefined): TurnResult["status"] {
+export function grokTurnStatus(stopReason: string | undefined): Exclude<TerminalTurnStatus, "interrupted"> {
   if (stopReason === "end_turn") return "completed";
   if (stopReason === "cancelled") return "cancelled";
   return "failed";
@@ -106,7 +115,7 @@ export function stoppedGrokResult(req: TurnRequest, state: GrokTurnState, escala
   const elapsed = Date.now() - state.startedAt;
   const usage = state.usage ?? zeroGrokUsage(elapsed);
   return {
-    status: descriptor.status,
+    ...terminalStopFields(descriptor),
     errorCode: descriptor.errorCode,
     summary: descriptor.reason,
     artifacts: [],
@@ -132,15 +141,27 @@ function budgetOverrunSentence(state: GrokTurnState, req: TurnRequest): string {
   );
 }
 
-function stopDescriptor(reason: unknown): { status: "cancelled" | "timed_out"; errorCode: string; reason: string } {
+function stopDescriptor(reason: unknown): {
+  status: "cancelled" | "interrupted";
+  /** REQUIRED when status is `interrupted` (CORMIDIA-C-CORE-001 §2, F-PT-017). */
+  interruptedReason?: InterruptedReason;
+  errorCode: string;
+  reason: string;
+} {
   if (reason !== null && typeof reason === "object") {
     const value = reason as Record<string, unknown>;
     if (
-      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      (value["status"] === "cancelled" || value["status"] === "interrupted") &&
       typeof value["errorCode"] === "string" &&
       typeof value["reason"] === "string"
     ) {
-      return { status: value["status"], errorCode: value["errorCode"], reason: value["reason"] };
+      const carried = parseInterruptedReason(value["interruptedReason"]);
+      return {
+        status: value["status"],
+        ...(carried === undefined ? {} : { interruptedReason: carried }),
+        errorCode: value["errorCode"],
+        reason: value["reason"],
+      };
     }
   }
   return {

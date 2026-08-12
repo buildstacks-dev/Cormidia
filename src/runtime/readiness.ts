@@ -44,6 +44,11 @@ import { definedProps } from "./optional-properties.js";
 // bounded but leave enough startup headroom for that token-free first launch.
 const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
 
+/** Readiness-probe outcomes are a SEPARATE vocabulary from the provider run
+ *  envelope's terminal status. F-PT-017 renamed `timed_out` to `interrupted`
+ *  for CORMIDIA-C-CORE-001 §2 only; a probe that misses its deadline never ran
+ *  a turn, so `timed_out` stays exactly right here and the ruling is not
+ *  broadened past what the owner decided. */
 type RuntimeReadinessStatus =
   | "ready"
   | "missing_binary"

@@ -395,7 +395,7 @@ const REPEATED_WORK_FINGERPRINT = "execution_step_input_fingerprint/v1" as const
 
 /** Origin statuses that mean the repeat was forced by the orchestrator losing
  *  durable work, not by the pass legitimately failing and being retried. */
-const RECOVERY_DEFECT_STATUSES: ReadonlySet<string> = new Set(["interrupted", "cancelled", "timed_out"]);
+const RECOVERY_DEFECT_STATUSES: ReadonlySet<string> = new Set(["interrupted", "cancelled", "interrupted"]);
 
 function deriveRepeatedWork(
   providerSteps: readonly ExecutionStepRecord[],
@@ -501,7 +501,7 @@ function inferredTerminal(envelopes: RunEnvelope[]): string | null {
   if (envelopes.length === 0 || envelopes.some((envelope) => envelope.status === "running")) return null;
   if (envelopes.some((envelope) => envelope.status === "failed")) return "failed";
   if (envelopes.some((envelope) => envelope.status === "cancelled")) return "cancelled";
-  if (envelopes.some((envelope) => envelope.status === "timed_out")) return "timed_out";
+  if (envelopes.some((envelope) => envelope.status === "interrupted")) return "interrupted";
   if (envelopes.some((envelope) => envelope.status === "blocked")) return "blocked";
   return "completed";
 }

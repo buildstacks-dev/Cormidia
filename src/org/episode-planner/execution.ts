@@ -524,7 +524,7 @@ function envelopeStatusForExecution(status: ExecutionStepRecord["status"]): Excl
   if (status === "completed") return "completed";
   if (status === "blocked") return "blocked";
   if (status === "cancelled") return "cancelled";
-  if (status === "timed_out") return "timed_out";
+  if (status === "interrupted") return "interrupted";
   return "failed";
 }
 

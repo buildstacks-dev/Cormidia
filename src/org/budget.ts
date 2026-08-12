@@ -15,8 +15,14 @@ import {
   routeRecordPath,
   type ExecutionStepRecord,
 } from "../loop/efficiency.js";
+import { normalizeLegacyExecutionStatus } from "../loop/efficiency.js";
 import { withFileLock } from "../runtime/file-lock.js";
-import { finalizeRun, readEnvelope, type RunEnvelope } from "../runtime/runlog/envelope.js";
+import {
+  finalizeRun,
+  normalizeLegacyEnvelopeStatus,
+  readEnvelope,
+  type RunEnvelope,
+} from "../runtime/runlog/envelope.js";
 import { scrubSecrets } from "../runtime/runlog/redact.js";
 import { readSettledKeys, recordTurnOnce, settlementKey, type TurnRecord } from "../runtime/telemetry.js";
 import { billingSettlementFault, settleBilling } from "../runtime/turn-usage.js";
@@ -687,8 +693,17 @@ export function turnRecordFromExecutionStep(step: ExecutionStepRecord): TurnReco
           ? "blocked_on_gate"
           : step.status === "cancelled"
             ? "cancelled"
-            : step.status === "timed_out"
-              ? "timed_out"
+            : step.status === "interrupted"
+              ? // changelog 2026-08-12 (F-PT-017): `timed_out` and `interrupted`
+                // were separate members here and mapped DIFFERENTLY — wall-clock
+                // stops surfaced as their own ledger class, while a lost-owner
+                // heartbeat counted as a failure. They now share one status, so
+                // the same split is keyed on the ratified reason and the ledger's
+                // behavior is unchanged. This is the split the required reason
+                // exists to preserve.
+                normalizeLegacyExecutionStatus(step).interruptedReason === "provider_crash"
+                ? "failed"
+                : "interrupted"
               : "failed",
     tokensIn: usage.tokensIn,
     tokensOut: usage.tokensOut,
@@ -782,8 +797,11 @@ function recordFromEnvelope(envelope: RunEnvelope, runtimeByRole: Record<string,
         ? "blocked_on_gate"
         : envelope.status === "cancelled"
           ? "cancelled"
-          : envelope.status === "timed_out"
-            ? "timed_out"
+          : envelope.status === "interrupted"
+            ? // Same F-PT-017 split as above, read off the durable envelope.
+              normalizeLegacyEnvelopeStatus(envelope).interruptedReason === "provider_crash"
+              ? "failed"
+              : "interrupted"
             : "failed"; // running-with-usage means the turn returned but the pass never terminated; the spend is real.
   const record: TurnRecord = {
     at: envelope.started_at,

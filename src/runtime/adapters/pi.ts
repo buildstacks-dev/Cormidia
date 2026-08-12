@@ -25,7 +25,17 @@ import {
 import * as path from "node:path";
 import { resolveTurnRequestAssignment } from "../assignment.js";
 import { withNonInteractiveEnv } from "../non-interactive-env.js";
-import type { Artifact, Effort, GateEscalation, Runtime, TurnHooks, TurnRequest, TurnResult } from "../types.js";
+import type {
+  Artifact,
+  Effort,
+  GateEscalation,
+  InterruptedReason,
+  Runtime,
+  TurnHooks,
+  TurnRequest,
+  TurnResult,
+} from "../types.js";
+import { parseInterruptedReason, terminalStopFields } from "../types.js";
 import { renderContextBundle, writeMaskedWorktreeFile } from "../worktree-context.js";
 import { createPiGateExtension, isPiGateExtensionActive } from "./pi-gate.js";
 
@@ -256,13 +266,16 @@ export class PiRuntime implements Runtime {
         ? []
         : piArtifacts(req);
     return {
-      status:
-        stop?.status ??
-        (overBudget || assistantFailure !== undefined
-          ? "failed"
-          : escalations.length > 0
-            ? "blocked_on_gate"
-            : "completed"),
+      ...terminalStopFields(
+        stop ?? {
+          status:
+            overBudget || assistantFailure !== undefined
+              ? "failed"
+              : escalations.length > 0
+                ? "blocked_on_gate"
+                : "completed",
+        },
+      ),
       summary: stop?.reason ?? summary,
       artifacts,
       session: { runtime: "pi", id: session.sessionFile ?? session.sessionId },
@@ -311,19 +324,27 @@ function classifyPiFailure(detail: string): string {
 }
 
 function piStopDescriptor(reason: unknown): {
-  status: "cancelled" | "timed_out";
+  status: "cancelled" | "interrupted";
+  /** REQUIRED when status is `interrupted` (CORMIDIA-C-CORE-001 §2, F-PT-017);
+   *  the stop site knows why, and only the stop site can know. */
+  interruptedReason?: InterruptedReason;
   errorCode: string;
   reason: string;
 } {
   if (reason !== null && typeof reason === "object") {
     const value = reason as Record<string, unknown>;
     if (
-      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      (value["status"] === "cancelled" || value["status"] === "interrupted") &&
       typeof value["errorCode"] === "string" &&
       typeof value["reason"] === "string"
     ) {
+      // The reason is carried by the abort descriptor the stop site built; an
+      // `interrupted` stop without one is refused downstream rather than
+      // silently defaulted (terminalStopFields).
+      const carried = parseInterruptedReason(value["interruptedReason"]);
       return {
         status: value["status"],
+        ...(carried === undefined ? {} : { interruptedReason: carried }),
         errorCode: value["errorCode"],
         reason: value["reason"],
       };

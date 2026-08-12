@@ -291,7 +291,7 @@ function taskCompletion(
 function traceCompletion(activities: ReportTurnV1[]): CompletionIntegrity {
   if (
     activities.some((activity) =>
-      ["running", "failed", "cancelled", "timed_out", "blocked", "blocked_on_gate"].includes(activity.status),
+      ["running", "failed", "cancelled", "interrupted", "blocked", "blocked_on_gate"].includes(activity.status),
     )
   )
     return "incomplete";
@@ -301,7 +301,7 @@ function traceCompletion(activities: ReportTurnV1[]): CompletionIntegrity {
 }
 
 function sessionOutcome(activities: ReportTurnV1[]): string {
-  for (const status of ["running", "failed", "timed_out", "cancelled", "blocked_on_gate", "blocked"])
+  for (const status of ["running", "failed", "interrupted", "cancelled", "blocked_on_gate", "blocked"])
     if (activities.some((activity) => activity.status === status)) return status;
   return activities.every((activity) => activity.status === "completed") ? "completed" : "unknown";
 }

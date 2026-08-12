@@ -410,7 +410,7 @@ function completionIntegrity(
   return {
     requiredStages,
     interruptedRuns: views
-      .filter((view) => ["running", "cancelled", "timed_out"].includes(view.status))
+      .filter((view) => ["running", "cancelled", "interrupted"].includes(view.status))
       .map((view) => view.runId),
     inconsistentWorkdirs,
     staleEnvelopes: views
@@ -834,7 +834,7 @@ function statusClass(status: string): string {
   if (status === "completed") return "completed";
   if (status === "running") return "running";
   if (status === "blocked") return "blocked";
-  if (status === "cancelled" || status === "timed_out") return "failed";
+  if (status === "cancelled" || status === "interrupted") return "failed";
   if (status.startsWith("failed")) return "failed";
   return "other";
 }

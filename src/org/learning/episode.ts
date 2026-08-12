@@ -70,7 +70,7 @@ type EpisodeStatus = "open" | "closed";
  *  `running` envelope: `running` means a live heartbeat, `stalled` means the
  *  pass died without finalizing (killed, crashed) — reconcile recovers its
  *  spend but the envelope stays `running` on disk forever. */
-type EpisodeTurnStatus = "completed" | "failed" | "blocked" | "cancelled" | "timed_out" | "running" | "stalled";
+type EpisodeTurnStatus = "completed" | "failed" | "blocked" | "cancelled" | "interrupted" | "running" | "stalled";
 
 /** One (turn, pipeline, pass) with its run ids — retries append run ids;
  *  `status` reads the latest attempt. `status` is a spec §5 delta: without
@@ -617,7 +617,7 @@ function terminalReasonFor(views: RunView[]): Exclude<EpisodeOutcome["terminal_r
   const reason = `${latest.envelope.error_code ?? ""} ${latest.envelope.terminal_reason ?? ""}`.toLowerCase();
   if (reason.includes("cap") || reason.includes("budget")) return "cap_stop";
   if (latest.status === "cancelled") return "cancelled";
-  if (latest.status === "timed_out") return "timeout";
+  if (latest.status === "interrupted") return "timeout";
   if (latest.status === "stalled") return "stale_finalization";
   if (latest.status === "failed" || latest.status === "blocked") return "crash";
   return "completed";

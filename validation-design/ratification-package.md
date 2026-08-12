@@ -545,7 +545,7 @@ Items 4–5 remain for the PR review.
 the ratified corpus (diff base `ca6d0356` → `15708a7e`). The product-owner seat this
 campaign was an **AI stakeholder agent** grounded in ./docs/ and ./rambling.txt;
 nothing below is human ratification, and `[stated]` was not used. Everything in this
-section is DRAFT until a real human works through §12.3. **This makes the older §§9–11
+section is DRAFT until a real human works through §12.3. <!-- changelog 2026-08-12: one §12 surface has since been human-ratified — the traceability conventions + machine-catalog ADDENDUM (owner decision 2026-08-12, landed at validation-design/routing.md "Ratified addenda"); the five §12.3 seat decisions themselves remain DRAFT/pending. --> **This makes the older §§9–11
 records unmistakably historical: they describe earlier revisions and their own
 ratification events, not the current state.** Full revision record:
 `harness-design-state.md` → "Harness revision — steady-state reconciliation…";

@@ -12,6 +12,9 @@ that live outside the frozen text:
   annotated source document beside this file.
 - The "Activation" paragraph's "until the landing merges" clause is satisfied:
   the landing merged 2026-08-11 (e265d66); the section is binding.
+- Ratified addenda were appended AFTER the closing horizontal rule on
+  2026-08-12 (see that section's own record); the byte-identical frozen
+  region is exactly the text between the marker line and that rule.
 verbatim-below: AGENTS.md lines 177-642 at commit fa86238 -->
 
 ## Validation harness (replacement, designed 2026-07-31)
@@ -480,3 +483,159 @@ resolution never changes the obligation).
 
 ---
 
+## Ratified addenda (2026-08-12)
+
+<!-- Ratification record: the three addenda parked by the #402 restructure under
+validation-design/proposals/ (removed in this change) were each ratified by the
+owner on 2026-08-12 — attributable decision recorded in the landing PR body,
+naming each addendum exactly. The normative blocks below are byte-identical to
+the parked texts; only the proposal-status wrappers around them were replaced
+by this record, exactly as each proposal's own landing instruction anticipated.
+Scope note for the rev-2026-08-10 item: this ratifies the traceability
+conventions + machine-catalog addendum ONLY; the five §12.3 seat decisions in
+ratification-package.md remain DRAFT pending their own human YES/NO. -->
+
+### Roadmap, validation and execution-batch routing — designed 2026-08-03, ratified 2026-08-12
+
+> **Roadmap, validation and execution-batch changes** start at J-03/J-20,
+> C-OP-PLAN/C-OP-VALIDATION/C-OP-BATCH, B-20/B-21/B-22 and INV-016. Code work is
+> always RoadmapPlan-accounted and delivered as one independently reviewed PR per
+> delivery unit, even when complete structured input makes the roadmap or
+> EpisodePlanner provider turn unnecessary. Complete non-code operational work may
+> omit RoadmapPlan only through the direct `ExecutionUnit` contract; it still requires
+> EpisodeIntent/EpisodePlan, validation/evidence policy, and separately exact approval
+> plus acknowledgement for every external payload/effect.
+>
+> Labels and trailers—including `op:ready`, `op:tier-*` and any
+> `planning:preplanned` projection—are discoverability/state projections, never plan,
+> validation, routing or effect authority. Their referenced persisted artifact and hash
+> must validate independently. Batch admission is deterministic and token-free;
+> EpisodePlans are created lazily per admitted unit. Affinity/cache/session reuse may
+> reorder compatible same-app units, but never changes membership, priority, routing,
+> validation, one-PR atomicity, per-unit budget/evidence, effect grants, or Builder/
+> Reviewer independence. Cache benefit is reported only from adapter evidence and has
+> no correctness effect.
+>
+> Changes needing a new journey, boundary, invariant, or LLM call site — the
+> exhaustive structural trigger list, one rule with the structural-additions
+> section above — re-enter
+> `validation-harness-design` in `harness-revision` mode. Changes to TASTE.md,
+> roles.yaml, pipelines.yaml, prompts/** or PURPOSE.md remain proposal-only until a
+> human explicitly ratifies the exact diff. **The MECHANIC when an ordinary
+> ticket needs such an edit**: mirror the mid-change
+> disposition — **draft the exact protocol-surface diff and park it in the
+> change description as proposal-pending-ratification (never merge it); land
+> the parts of the ticket that stand alone without it; escalate through the
+> same solo-operator channel** (change description + F-PT finding if
+> product-truth-shaped); the ratified diff lands in its own change once the
+> human ratifies it verbatim.
+
+### Outcome acceptance (L-ACC) + jobs routing — designed 2026-08-07, ratified 2026-08-12
+
+> **Jobs (M18).** Work on `src/jobs/` or the `cormidia-job` binary starts at J-22/J-23,
+> `CORMIDIA-C-B30-001…003` and `CORMIDIA-C-OPJOB-001`. `docs/jobs/design.md` §3 is the
+> non-inherited-guarantee list and is never softened: a job has no reviewer, no typed
+> verdicts, no ticket machine and no GitHub. "Completed" for a job step means the
+> provider returned **and** every declared output check passed; a step with no declared
+> outputs is `completed (unverified)`, never bare `completed`. The journal is the sole
+> completion authority — never infer completion from an output file's presence. A config
+> that changed under a live journal refuses; it never resumes. INV-016 is
+> **delivery-scoped** and does not reach a job step (F-PT-031); that is the invariant's
+> domain being written down, not an exemption, and it is not a licence to skip the
+> declared checks.
+>
+> **The outcome-acceptance lane (L-ACC).** It is **built and has run once**: HB-120…132
+> implemented the guardrails, runner and execution layer, and run 1 reached a terminal
+> stop at the unchanged rubric §6 plan gate on 2026-08-08 with an entirely
+> ungraded/inconclusive distribution (`acceptance/run-1-result.md`). Do not cite it as
+> a gate or as release evidence — F-PT-029 (resolved 2026-08-07) keeps it permanently
+> outside RQ-1 — and never start a new campaign without an exact per-campaign human
+> authorization; F-PT-030 (resolved 2026-08-07) permits unattended plan-gate
+> resolution only through a config's declared `plan_gate` policy under the unchanged
+> criteria, and an undeclared policy refuses.
+> 
+> `acceptance/rubric.md` is human-ratified and **tighten-only**: you may narrow an axis or
+> a rule, never loosen one, and **you may not introduce a threshold anywhere** — every
+> threshold stays unratified until a campaign produces a **graded** distribution the
+> owner can ratify against. (Run 1 terminated at the plan gate entirely ungraded, so
+> that condition remains unmet: the trigger is the first graded run, not "run 1" by
+> number.) If a change
+> seems to require loosening the rubric, stop and escalate rather than editing it.
+>
+> Two rules carry the whole lane and are easy to get wrong. **All campaign work runs
+> through the PACKAGED `cormidia` and `cormidia-job` binaries** (`pnpm install:packaged
+> --replace-source-links`; assert its exit status, never reimplement its checks) — a
+> `link:local` binary is source-backed and measures the working tree, not the product.
+> **And the supervisor never does the work**: an agent that runs `git`/`gh` itself, edits
+> a scenario repo, or calls a provider SDK is simulating the org, and every score then
+> measures the supervisor. Both are `CORMIDIA-INV-ACC-7a/7b`.
+>
+> Campaign invariants live in their own fenced registry (`CORMIDIA-INV-ACC-*`,
+> `validation-policy.yaml` → `campaign_invariants`). They constrain the harness, never
+> the product — never cite one as a product promise. All eight are mechanical guardrails
+> at L1/L2 with negative controls; only the rubric's scored axes are lane work.
+> `ungraded` is policy, not runner discretion (`verdict_semantics.axis_score`): it is
+> never coerced to `0` and never enters an aggregate as a number.
+
+### Traceability conventions and machine catalog — rev-2026-08-10, ratified 2026-08-12
+
+<!-- Provenance: rev-2026-08-10 harness revision, AI product-owner seat; the
+conventions block below lands unedited as its landing instruction requires,
+with the layer-6 gloss adjacent outside the frozen block. Human-ratified
+2026-08-12. -->
+
+**Traceability conventions** (normative — the `validation-trace` CLI enforces their mechanical closure subset in CI):
+
+1. **Test directories are named by case-family ID.** Specs for `CF-INV-001` live under a directory whose name contains `cf-inv-001` (case-insensitive); likewise for every other family. Helpers and fixtures that are not family-scoped may sit beside them.
+2. **Spec file headers cite the family and the owning backlog ticket.** The first comment block of every `*.test.*` / `*.spec.*` file names the `CF-…` family it exercises and the `HB-…` ticket that owns it (plus the contract/invariant section it binds to). A citation the catalog does not know is an orphan — the trace CLI turns red.
+3. **Every implementable family owns ≥1 citing spec, or is declared pending with its wave.** Non-pruned, non-blocked families without a citing spec must appear on a backlog ticket whose status is not LANDED. A LANDED ticket whose families lack specs is a status-honesty failure.
+4. **Traceability updates in the same change as the tests.** Adding, moving, or deleting a citing spec updates `case-catalog.yaml` (and the markdown catalog it must agree with) and the backlog's status annotations in the same change — never a follow-up.
+5. **The machine-readable catalog is authoritative for tools.** `case-catalog.yaml` is the companion of `case-catalog.md`; disagreement between them is a corpus bug. The markdown catalog remains the human artifact.
+6. **Implement tickets via the `implement-harness-ticket` skill.** That skill is the standard path from an HB ticket to landed specs: ticket → family → ratified enumeration → red-then-green tests, with the conventions above so `validation-trace` stays green. Do not invent a parallel workflow.
+7. **Regenerate `owner-backlog.md` when the backlog changes.** The companion is non-normative and living; a backlog edit that leaves the companion's ticket-ID set stale is a corpus bug.
+8. **Resolve outcome-acceptance families from `acceptance/`.** An `L-ACC` family binds realistic scenario briefs and human-ratified rubric axes. Mechanical campaign guardrails (sealed answers, producer↔grader independence, preflight, spend cutoff, intermediate-gate persistence) remain layer-1/2 detectors with negative controls; do not recast a scored axis as binary merely to make it easy to implement.
+9. **Outcome campaigns require fresh human authorization.** Implementing their fixtures and mechanical preflights is ordinary ticket work; running a live layer-6 campaign is not. It names its target, scenario set, spend/time ceiling, and permitted effects, and incomplete inputs or missing grader calibration produce `inconclusive`, never green.
+
+> **Gloss (landing):** In this corpus, the design skill's "layer-6" name for the
+> outcome-acceptance lane is `L-ACC`, configured at `validation-policy.yaml` →
+> `l_acc_lane:` (a separate top-level block — there is no `L6` key under `layers:`).
+
+**Adoption notes (ratified alongside the block; operational guidance, never part of the frozen wording).**
+Convention 9's phrase "a live **layer-6** campaign" uses the design skill's
+six-layer taxonomy name for the outcome-acceptance lane: in THIS corpus that lane
+is `L-ACC`, configured at `validation-policy.yaml` → `l_acc_lane:` (a separate
+top-level block — there is no `L6` key under `layers:`). The verbatim block cannot
+be edited, so this gloss lives here — **and the landing edit must carry it**: when
+the conventions block lands in the real AGENTS.md, land this one-line gloss as an
+adjacent line *outside* the frozen block in the same change, so the "layer-6"
+phrase never appears without its resolution. 
+`owner-backlog.md` (convention 7) has **no generator script by design** — it is a
+consequence-language prose companion, regenerated by the editing human/agent
+rewriting the affected entries from `harness-backlog.md`; the mechanical check
+that you did it is the ticket-ID **set-equality** diff:
+`grep -oE 'HB-[0-9P]+[0-9]*' <file> | sort -u` over both files must produce an
+empty `comm -3` difference — both directions, so a stale owner-only ID fails too,
+not just a missing one. 
+`case-catalog.yaml` is DERIVED: regenerate it with
+`awk -f validation-design/case-catalog-generator.awk validation-design/case-catalog.md validation-design/harness-backlog.md`
+whenever either markdown changes — hand-editing the YAML is a corpus bug (its
+header says so; HB-140 owes the CI check that enforces byte-identical
+regeneration). **Fallback for convention 6 (added 2026-08-10, coding-agent
+finding 3):** if the `implement-harness-ticket` skill is not available in your
+environment, implement the ticket by hand following conventions 1–5 and the
+red-then-green rule, and say so in the change description — the prohibition is on
+inventing a *different* workflow, not on working without the skill; stop and
+escalate only if the ticket's enumeration is ambiguous. **Do not confuse this
+permissive fallback with the structural one**: for
+`implement-harness-ticket` (THIS rule) hand-implementation is permitted; for
+`validation-harness-design`/`harness-revision` (the structural-additions
+section above) hand-approximation is FORBIDDEN — stop and escalate. Ticket
+work may proceed by hand; structural revision never may. Existing spec
+directories already follow convention 1; convention 2's header citations are owed
+incrementally — add them on touch, never in a bulk rewrite that would blur authorship.
+Convention 3's current pending set is recorded in `case-catalog.yaml` (notably
+CF-REVIEW-PROVIDER→HB-133, the F-PT-019 leg→HB-135, CF-J21-I→HB-136, and the
+comparative-execution families→HB-090…094). A structural mismatch still re-enters
+`validation-harness-design` in `harness-revision` mode, exactly as the ratified
+section above requires.
+<!-- changelog 2026-08-12 (ratification landing): two statements above aged between parking and landing — HB-140 no longer "owes" the drift check (it landed 2026-08-12 via #415 as scripts/check-catalog-drift.mjs in pnpm check), and the "notably" pending-set examples are stale (HB-133/135/136 landed 2026-08-12); case-catalog.yaml remains the authoritative pending list, notably the comparative-execution families→HB-090…094. Text kept verbatim above; corrected here. -->

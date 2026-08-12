@@ -571,6 +571,19 @@ its §9). Summary of the event:
   F-PT-009/010/011 (inconclusive-only rule stands). HB-007 items 1–8 and 13 were
   ratified/adjusted-ratified on 2026-07-31; only register items 9–12 remain PROPOSED.
 
+## Human ratification — 2026-08-12 (routing addenda)
+
+The owner ratified all three parked routing addenda in one attributable
+decision on 2026-08-12 (recorded in the landing PR): the 2026-08-03
+roadmap/validation/batch routing block, the 2026-08-07 L-ACC + jobs routing
+block, and the rev-2026-08-10 traceability conventions + machine catalog
+(conventions block landed unedited with its layer-6 gloss adjacent, per its
+landing instruction). All three now live under "Ratified addenda" at the end
+of `validation-design/routing.md`; `validation-design/proposals/` retired.
+Scope: this ratifies the rev-2026-08-10 ADDENDUM only — the five §12.3 seat
+decisions in `ratification-package.md` remain DRAFT pending human YES/NO
+(notably the provider-FAMILY unit, which HB-133 deliberately built swappable).
+
 ## Pending confirmations
 
 **How to read this section** <!-- changelog 2026-08-10 (reader test 20,

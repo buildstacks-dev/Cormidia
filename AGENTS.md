@@ -40,7 +40,7 @@ issue tracker (`gh issue list`).
 | `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table |
 | `src/jobs/` · `docs/jobs/` | Ad-hoc job graphs (`cormidia-job`, a SECOND binary) — outside the governed loop: no review, verdicts, tickets, or GitHub authority |
-| `validation-design/` | Ratified harness corpus — `validation-policy.yaml` is the contract, **`routing.md` the binding procedure** (moved from this file), `harness-backlog.md` the build plan, `proposals/` the parked unratified addenda |
+| `validation-design/` | Ratified harness corpus — `validation-policy.yaml` is the contract, **`routing.md` the binding procedure** (moved from this file; its three addenda ratified 2026-08-12), `harness-backlog.md` the build plan |
 | `tests/` | Offline L1/L2 harness + explicitly authorized L3/L4/L5 campaign runners; `tests/campaign/acceptance/` is the L-ACC lane (gates nothing, F-PT-029) |
 | `archive-do-not-read/` | Frozen pre-rebuild corpus — **never read, cite, run, or take design cues from it** |
 | `research/` | Dated decision records |
@@ -147,12 +147,12 @@ remains the contract (tighten-only). Triggers:
 Tickets run through the `implement-harness-ticket` skill (hand-implementation
 fallback per routing.md's adoption notes).
 
-## Pending proposals (not yet binding)
-Three routing addenda await exact-diff human ratification and are parked
-verbatim under `validation-design/proposals/`: `2026-08-03-routing-addendum.md`
-(roadmap/validation/batch routing), `2026-08-07-lacc-jobs-addendum.md`
-(L-ACC + jobs), and `2026-08-10-traceability-addendum.md` (traceability
-conventions + machine catalog). None may be represented as landed policy.
+## Ratified addenda
+The three routing addenda parked by the #402 restructure (roadmap/validation/
+batching · L-ACC + jobs · traceability conventions + machine catalog) were
+ratified by the owner on 2026-08-12 and are binding; they live at the end of
+`validation-design/routing.md`. `validation-design/proposals/` was retired in
+the same change.
 
 ## Navigation
 - Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · operator outcome: `docs/VISION.md` · platform development: `docs/DEVELOPMENT.md`

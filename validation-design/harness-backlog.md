@@ -1139,6 +1139,15 @@ retroactive changes to the assertions in any existing spec.
   result. *Acceptance:* four explicit cases plus a seeded permissive fallback that turns
   the detector red before the conservative paths are green. *Defends:* CF-INV-015.
   *Families:* CF-INV-015. *Layer:* 1/2. *Executor:* build-agent.
+  **Contradiction recorded and ruled (2026-08-12, F-PT-036).** The 2026-08-11 campaign
+  found (HR-HB150-001): INV-015 seed (c) requires "classifier throws → deny +
+  escalate" (`invariants.md`), but the Codex (`src/runtime/adapters/codex-gate-bridge.ts`
+  catch branch), Cursor (`cursor-gate-bridge.ts`), and OpenCode
+  (`opencode-gate-bridge.ts`) classifier-throw branches deny with a fail-closed reason
+  and append **no** `GateEscalation`; the existing cf-inv-002 codex test asserts
+  denial+reason only. Owner ruling: the invariant stands as written — all three
+  bridges gain the escalation append; the invariant text is unchanged. UNBLOCKED:
+  implement product change + detectors per F-PT-036's resolution.
 
 ## Wave 2 — status-honesty reclassification (2026-08-11)
 
@@ -1151,6 +1160,17 @@ retroactive changes to the assertions in any existing spec.
   honest implementation is green. *Defends:* CF-J09-S, CF-J09-R, CF-J09-I, CF-J09-A,
   CF-C-B08. *Families:* CF-J09-S, CF-J09-R, CF-J09-I, CF-J09-A, CF-C-B08. *Layer:* 2.
   *Executor:* build-agent.
+  **Contradiction recorded and ruled (2026-08-12, F-PT-034).** The 2026-08-11 campaign
+  found (HR-HB142-001): this ticket requires "the full named non-admission
+  vocabulary" while B-08 §2's list literally ended with an ellipsis;
+  `docs/scheduler/design.md` §"Outcomes and reason codes" declares
+  `scheduler_definition_failure` and `scheduler_state_failure` canonical; the product
+  type (`src/org/scheduler/model.ts`) carries both members; and a malformed schedule
+  trigger THROWS from `src/org/schedule.ts` parsing instead of terminating in a named
+  reason. Owner ruling: vocabulary CLOSED to the design doc's 20-member
+  Execution/admission row (B-08 §2 updated); both scheduler_* reasons are real
+  runtime-triggered validated non-admission with durable evidence, never a crash.
+  UNBLOCKED: implement product change + detectors per F-PT-034's resolution.
 - **HB-148 — store-class crash/truncation/quarantine invariant. LANDED.** Sweep kill
   points at append, rename, and journal boundaries for every durable store class; reject
   truncated JSON and prove quarantined bytes are never accepted as state. Existing
@@ -1172,6 +1192,18 @@ retroactive changes to the assertions in any existing spec.
   duplicate-incident and publication-side-effect controls turn red before the walk is
   green. *Defends:* CF-J11-S, CF-J11-I, CF-J11-RC, CF-J11-A. *Families:* CF-J11-S,
   CF-J11-I, CF-J11-RC, CF-J11-A. *Layer:* 2. *Executor:* build-agent.
+  **Contradiction recorded and ruled (2026-08-12, F-PT-035).** The 2026-08-11 campaign
+  found (HR-HB143-001): J-11 (`contracts/journey-acceptance.md`) required exact-payload
+  approval for "any external publication path" while the ratified #296 §5.3
+  consequence split (`docs/approvals/design.md`, enforced by
+  `tests/unit/cf-split-publishing/`) replaces `external-publishing` with budgeted
+  `repo-collaboration` for verified own-repository actions — and
+  `src/org/standing-roles.ts` `queueIncidentFiling` still searched for an
+  `external-publishing` action record, failing when an allowed operation lacked one.
+  Owner ruling: own-repo source-linked `op:incident` filing is budgeted
+  `repo-collaboration`; J-11's "external" aligned to mean outside the app's own
+  configured repositories (J-11 updated). UNBLOCKED: implement product change +
+  detectors per F-PT-035's resolution.
 - **HB-146 — loop transition crash sweep. LANDED 2026-08-11.** Extended the existing legal,
   illegal, and replay loop-state suite with a crash at every transition boundary while
   preserving predecessor authority and labels-after-artifacts ordering. *Acceptance:*

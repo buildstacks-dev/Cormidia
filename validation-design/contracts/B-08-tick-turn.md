@@ -11,10 +11,23 @@ Status: DRAFT (Phase 4). Defends INV-005/007/014, T-5/T-6. Journeys J-09/J-13/J-
 
 ## 2. Output guarantees
 - Every considered (app, role, trigger, window) terminates in a durable named reason
-  from the ratified vocabulary (`executed`, `no_due_work`, `fresh_lock`, `wip_limit`,
-  `budget_paused`, `approval_blocked`, `channel_gated`, `no_subscriber`,
-  `empty_learning_window`, `missed_window_reconciled`, `spawn_failure`,
-  `post_spawn_bookkeeping_failure`, …) `[doc]` (INV-014).
+  from the ratified vocabulary, which is **CLOSED** (F-PT-034, owner ruling
+  2026-08-12): exactly `executed`, `no_due_work`, `no_actionable_input`, `not_due`,
+  `already_claimed`, `already_settled`, `explicit_retry`, `retry_exhausted`,
+  `fresh_lock`, `wip_limit`, `budget_paused`, `approval_blocked`, `channel_gated`,
+  `no_subscriber`, `empty_learning_window`, `missed_window_reconciled`,
+  `spawn_failure`, `post_spawn_bookkeeping_failure`, `scheduler_definition_failure`,
+  `scheduler_state_failure` — the same 20-member set as the Execution/admission row
+  of `docs/scheduler/design.md` → "Outcomes and reason codes", which remains the
+  canonical table; adding a member is a contract revision, never an in-code addition.
+  A malformed schedule/trigger definition terminates as
+  `scheduler_definition_failure` and corrupt or unreadable scheduler state as
+  `scheduler_state_failure` — validated non-admission with durable evidence, never a
+  thrown crash (implementation owed under HB-142) `[doc]` (INV-014).
+  <!-- changelog 2026-08-12 (F-PT-034): list closed per owner ruling; it previously
+  ended open with an ellipsis while the design doc's table was already closed, and
+  the two scheduler_* members existed in the design doc and product type but not
+  here. Tighten-only: an open enumeration became exact. -->
 - The spawn decision is durably committed **before** the child starts `[doc]`.
 - A scheduled due window has one content-bound claim/commit/settle identity; a later
   ordinary tick observes it and cannot retry it. A dead pre-commit owner is reclaimed

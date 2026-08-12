@@ -456,6 +456,28 @@ process-identity probe.
 - F-PT-029 (**RESOLVED-ratified 2026-08-07** — owner decision: **NO BLOCKER**. L-ACC never gates a release and never enters RQ-1 completeness, verdict or qualification; it is disclosed assurance outside RQ-1, beside the soak and the threat model. A bad result is information the human acts on, and no surface may present it as a block). Original subject: **L-ACC's relationship to RQ-1.** The policy says triggered lanes gate their own layer's claims and never gate merge; it says nothing about whether a *scored* lane can ever contribute to release evidence, or sits permanently outside RQ-1 as disclosed future assurance beside the seven-day soak and the threat model. It decides whether a bad L-ACC result can ever block a release, so it is the owner's. Interim posture — no release evidence, gates nothing — is fail-closed and is **not** the answer.
 - F-PT-030 (**RESOLVED-ratified 2026-08-07** — owner decision: an unattended campaign **may** auto-continue past the plan gate via the config's declared `plan_gate` policy, because an end-to-end run is the point of a campaign. Unchanged: the ratified rubric §6 criteria still decide, the resolution is still recorded durably before any build-arm spend, the envelope still bounds spend, approvals still run under the sandbox test-mode profile, and a config with no declared policy still refuses — silence is not consent). Original subject: **plan-gate authority under unattended execution.** Rubric §6 allows the gate to resolve by human decision or by a declared `plan_gate` policy; whether an unattended campaign may auto-continue past a *scored* gate at all is undecided. Adjacent to but not covered by the ratified sandbox test-mode profile, whose only permitted auto-grant category is `campaign_budget`. Interim: human-only; do not implement auto-continue before ratification.
 - F-PT-031 (**RESOLVED-ratified 2026-08-07; owner-confirmed**, with a nuance recorded rather than inferred: a job may be recurring and app- or org-scoped and may be *associated* with a ticket, but a ticket is never mandatory for a job, and such an association does not pull a job step into INV-016's domain — the precondition is a readiness transition, which no job step has either way): **INV-016's domain.** Resolved delivery-scoped — the invariant's own precondition ("before it becomes ready") names a delivery-unit state a job step can never reach, so the universal reading was never checkable and the scope clause narrows nothing enforceable. Rejected alternative: a standing subsystem-wide waiver class, which misuses a per-unit mechanism and reads at a future audit as "this rule applies and we are ignoring it". Provenance is an explicit owner delegation recorded in `jobs-harness-revision-proposal.md` §0.8, whose package was never accepted and whose original id collided with #336's F-PT-025. Because the delegation predates this pass and the clause touches a ratified invariant, it is flagged rather than treated as settled.
+- F-PT-034 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **B-08
+  non-admission vocabulary closed.** The contract's §2 list ended with an ellipsis
+  while HB-142 required the full named vocabulary; the owner closed it to exactly the
+  20-member Execution/admission row of `docs/scheduler/design.md` → "Outcomes and
+  reason codes" (canonical table unchanged), and ratified `scheduler_definition_failure`
+  / `scheduler_state_failure` as real runtime-triggered non-admission reasons —
+  malformed definitions and corrupt/unreadable scheduler state terminate as validated
+  non-admission with durable evidence, never a thrown crash. Implementation owed under
+  HB-142.
+- F-PT-035 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **own-repo
+  incident filing is budgeted repo-collaboration.** J-11's exact-payload clause
+  predated the #296 §5.3 consequence split and contradicted it plus the landed split
+  detectors; `queueIncidentFiling` still queried the retired `external-publishing`
+  rule. The owner aligned J-11's "external" to mean outside the app's own configured
+  repositories; source-linked `op:incident` filing into the own repo proceeds as
+  budgeted `repo-collaboration` (foreign/dynamic/unverifiable still refines to
+  human-only). Implementation owed under HB-143.
+- F-PT-036 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **classifier
+  throw denies AND escalates.** INV-015 seed (c) stands as written; the three gate
+  bridges denied fail-closed without appending a `GateEscalation`, leaving the
+  escalation half unenforced. Narrowing the invariant was rejected (tighten-only);
+  all three bridges gain the escalation append. Implementation owed under HB-150.
 - F-PT-033 (**OPEN-blocked-contract, minted 2026-08-10**, final-gate follow-up 10 —
   next-id procedure; the 2026-08-10 Phase 0 refusal of "F-PT-033 for GTM" was a
   subject veto, not a number reservation): **S-3 verdict-marker refusal

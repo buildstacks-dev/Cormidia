@@ -131,9 +131,43 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     expect(countOccurrences(composed, AUTHORITY_BLOCK_END)).toBe(1);
     expect(composed.endsWith(`${AUTHORITY_BLOCK_END}\n`)).toBe(true);
 
-    // CLAUDE.md did not pre-exist: bootstrap authors it whole, marker included.
+    // CLAUDE.md did not pre-exist: bootstrap authors it as the pure import
+    // stub — the authority block lives exactly once, in AGENTS.md, and reaches
+    // Claude sessions through the import (#402 dedupe).
     const claude = readFileSync(join(walk.repo.dir, "CLAUDE.md"), "utf8");
+    expect(claude).toBe("@AGENTS.md\n");
+    expect(countOccurrences(claude, AUTHORITY_BLOCK_START)).toBe(0);
+  });
+
+  it("§2/§4 a CLAUDE.md that imports AGENTS.md sheds its stale block: AGENTS.md keeps the only copy", async () => {
+    const walk = await makeWalk();
+    const staleBlock = `${AUTHORITY_BLOCK_START}\nstale cormidia content\n${AUTHORITY_BLOCK_END}`;
+    writeFileSync(join(walk.repo.dir, "CLAUDE.md"), `@AGENTS.md\n\n${staleBlock}\n`);
+    const result = await walk.run();
+
+    expect(readFileSync(join(walk.repo.dir, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n");
+    expect(result.updated).toContain("CLAUDE.md");
+    expect(countOccurrences(readFileSync(join(walk.repo.dir, "AGENTS.md"), "utf8"), AUTHORITY_BLOCK_START)).toBe(1);
+  });
+
+  it("§2 a standalone CLAUDE.md (no @AGENTS.md import) still receives the block — Claude-only apps keep charter coverage", async () => {
+    const walk = await makeWalk();
+    writeFileSync(join(walk.repo.dir, "CLAUDE.md"), "# Human CLAUDE.md\n");
+    await walk.run();
+
+    const claude = readFileSync(join(walk.repo.dir, "CLAUDE.md"), "utf8");
+    expect(claude.startsWith("# Human CLAUDE.md\n")).toBe(true);
     expect(countOccurrences(claude, AUTHORITY_BLOCK_START)).toBe(1);
+  });
+
+  it("§2 an already-clean import-stub CLAUDE.md is a no-op: bytes untouched and never reported updated", async () => {
+    const walk = await makeWalk();
+    writeFileSync(join(walk.repo.dir, "CLAUDE.md"), "@AGENTS.md\n");
+    const result = await walk.run();
+
+    expect(readFileSync(join(walk.repo.dir, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n");
+    expect(result.updated).not.toContain("CLAUDE.md");
+    expect(result.created).not.toContain("CLAUDE.md");
   });
 
   it("§2 containment sweep: the command's tree diff is exactly its created + updated sets", async () => {

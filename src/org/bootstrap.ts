@@ -35,6 +35,7 @@ import {
   createAppAuthorityDocument,
   projectAuthorityBlock,
   resolveAuthority,
+  stripProjectInstructions,
   type AppAuthoritySelection,
 } from "./authority.js";
 import {
@@ -95,6 +96,13 @@ export interface RepoScan {
 }
 
 const AGENT_DOCS = ["AGENTS.md", "CLAUDE.md"];
+/** A CLAUDE.md that imports AGENTS.md already loads the block through the
+ * import; composing a second copy doubles the always-loaded charter (#402). */
+const CLAUDE_IMPORT_STUB = "@AGENTS.md\n";
+
+function importsRootAgents(content: string): boolean {
+  return content.split(/\r?\n/).some((line) => line.trim() === "@AGENTS.md");
+}
 const DEPLOY_HINTS = [
   "Dockerfile",
   "docker-compose.yml",
@@ -872,6 +880,9 @@ export async function emitAppArtifacts(targetRootIn: string, options: EmitAppArt
             "a concurrent edit; refusing to merge with unvalidated content",
         );
       }
+      // A plan whose content equals the validated bytes is a no-op: skipping
+      // the write keeps the created/updated report honest (§2 containment).
+      if (plan.existed && plan.content === plan.validated) continue;
       await writeFile(abs, plan.content, "utf8");
       if (plan.existed) updated.push(plan.rel);
       else created.push(plan.rel);
@@ -948,12 +959,16 @@ async function planProjectInstructionFiles(
         );
       }
       const existed = stat !== undefined;
-      const existing = existed ? await readFile(path, "utf8") : `# ${rel}\n`;
+      const seed = rel === "CLAUDE.md" ? CLAUDE_IMPORT_STUB : `# ${rel}\n`;
+      const existing = existed ? await readFile(path, "utf8") : seed;
       return {
         rel,
         existed,
         validated: existed ? existing : undefined,
-        content: composeProjectInstructions(existing, instructionBlock),
+        content:
+          rel === "CLAUDE.md" && importsRootAgents(existing)
+            ? stripProjectInstructions(existing)
+            : composeProjectInstructions(existing, instructionBlock),
       };
     }),
   );

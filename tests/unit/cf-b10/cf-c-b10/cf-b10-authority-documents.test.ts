@@ -16,6 +16,7 @@ import {
   AUTHORITY_BLOCK_END,
   AUTHORITY_BLOCK_START,
   composeProjectInstructions,
+  stripProjectInstructions,
   createAppAuthorityDocument,
   createOrgAuthorityDocument,
   DELEGATED_OPERATOR_VERSION,
@@ -197,6 +198,36 @@ describe("CF-B10-* (L1) project-instruction block composition", () => {
     ];
     for (const existing of malformed) {
       expect(() => composeProjectInstructions(existing, block), existing.slice(0, 40)).toThrow(
+        /malformed Cormidia authority block/,
+      );
+    }
+  });
+
+  // #402 dedupe: an import-stub CLAUDE.md sheds the block instead of carrying
+  // a second copy of what its @AGENTS.md import already loads.
+  it("strip round-trips compose: stripping a composed document restores the original bytes", () => {
+    const block = projectAuthorityBlock("AUTHORITY.md", orgAuthority());
+    for (const existing of ["@AGENTS.md\n", "# My app\n\nhand-written intro\n", ""]) {
+      expect(stripProjectInstructions(composeProjectInstructions(existing, block))).toBe(existing);
+    }
+  });
+
+  it("strip is the identity on marker-free text and removes only the block elsewhere", () => {
+    expect(stripProjectInstructions("@AGENTS.md\n")).toBe("@AGENTS.md\n");
+    const block = projectAuthorityBlock("AUTHORITY.md", orgAuthority());
+    const midFile = `pre\n${block}\npost\n`;
+    const stripped = stripProjectInstructions(midFile);
+    expect(stripped).toBe("pre\npost\n");
+  });
+
+  it("negative control: strip refuses the same malformed marker shapes compose refuses", () => {
+    const malformed = [
+      `intro\n${AUTHORITY_BLOCK_START}\nno end marker`,
+      `intro\n${AUTHORITY_BLOCK_END}\nend before start\n${AUTHORITY_BLOCK_START}`,
+      `${AUTHORITY_BLOCK_START}\nx\n${AUTHORITY_BLOCK_END}\n${AUTHORITY_BLOCK_START}\ny\n${AUTHORITY_BLOCK_END}`,
+    ];
+    for (const existing of malformed) {
+      expect(() => stripProjectInstructions(existing), existing.slice(0, 40)).toThrow(
         /malformed Cormidia authority block/,
       );
     }

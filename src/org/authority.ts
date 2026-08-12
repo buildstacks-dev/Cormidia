@@ -246,9 +246,9 @@ export function projectAuthorityBlock(
   ].join("\n");
 }
 
-/** Preserve all non-Cormidia content byte-for-byte and replace/append only the
- * marked block. Used for both AGENTS.md and CLAUDE.md. */
-export function composeProjectInstructions(existing: string, block: string): string {
+/** Validated span of the marked block, or undefined when no markers exist.
+ * Shared by compose and strip so both refuse the same malformed shapes. */
+function authorityBlockSpan(existing: string): { start: number; end: number } | undefined {
   const start = existing.indexOf(AUTHORITY_BLOCK_START);
   const end = existing.indexOf(AUTHORITY_BLOCK_END);
   const duplicateStart = start !== -1 && existing.lastIndexOf(AUTHORITY_BLOCK_START) !== start;
@@ -256,12 +256,33 @@ export function composeProjectInstructions(existing: string, block: string): str
   if ((start === -1) !== (end === -1) || (start !== -1 && end < start) || duplicateStart || duplicateEnd) {
     throw new Error("authority: malformed Cormidia authority block in project instructions");
   }
-  if (start !== -1) {
-    const after = end + AUTHORITY_BLOCK_END.length;
-    return `${existing.slice(0, start)}${block}${existing.slice(after)}`;
+  if (start === -1) return undefined;
+  return { start, end: end + AUTHORITY_BLOCK_END.length };
+}
+
+/** Preserve all non-Cormidia content byte-for-byte and replace/append only the
+ * marked block. Used for AGENTS.md and for CLAUDE.md files that do not import
+ * AGENTS.md (an import-stub CLAUDE.md is stripped instead — #402 dedupe). */
+export function composeProjectInstructions(existing: string, block: string): string {
+  const span = authorityBlockSpan(existing);
+  if (span !== undefined) {
+    return `${existing.slice(0, span.start)}${block}${existing.slice(span.end)}`;
   }
   const separator = existing.length === 0 ? "" : existing.endsWith("\n") ? "\n" : "\n\n";
   return `${existing}${separator}${block}\n`;
+}
+
+/** Inverse of the compose append: remove the marked block plus the separator
+ * newline compose added, so strip(compose(x)) === x for newline-terminated x.
+ * Identity on marker-free text; refuses the same malformed shapes as compose. */
+export function stripProjectInstructions(existing: string): string {
+  const span = authorityBlockSpan(existing);
+  if (span === undefined) return existing;
+  let head = existing.slice(0, span.start);
+  let tail = existing.slice(span.end);
+  if (tail.startsWith("\n")) tail = tail.slice(1);
+  if (head.endsWith("\n\n")) head = head.slice(0, -1);
+  return head + tail;
 }
 
 function authorityFromDocument(text: string, source: string): AuthorityContext {

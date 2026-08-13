@@ -58,6 +58,7 @@ import {
 } from "../loop/planning-episode-plan.js";
 import { parseDependsOn } from "../loop/scheduling.js";
 import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../runtime/assignment.js";
+import { resolvedRuntimeCapabilities } from "../runtime/capabilities.js";
 import { isRuntimeCapability, type RuntimeCapability } from "../runtime/capabilities.js";
 import { defaultGate } from "../runtime/gate.js";
 import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../runtime/readiness.js";
@@ -328,6 +329,29 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     repository: options.app.repo,
     ...(sourceScope === undefined ? {} : { sources: sourceScope }),
   };
+  // CORMIDIA-C-B31-003 / INV-017: an image- or document-bearing scope requires a
+  // planner that can actually open it. `assignmentForPass` only checks
+  // capabilities in ADAPTIVE mode, so a fixed configured tuple would otherwise
+  // skip the check entirely and plan around an asset it cannot read.
+  if (sourceScope?.requires_media_read === true) {
+    const plannerAssignment = fixedAssignmentFromRole(planner);
+    if (!resolvedRuntimeCapabilities(plannerAssignment.harness).includes("media_read")) {
+      return {
+        status: "failed",
+        summary:
+          `planning sources include image or document files, but the configured planner ` +
+          `(${plannerAssignment.harness}/${plannerAssignment.model}) has no proven ability to read them`,
+        problems: [
+          `${plannerAssignment.harness} records media_read: unsupported. Capability follows evidence, so this ` +
+            "refuses before spending tokens rather than planning around assets it cannot open. Certify the " +
+            "harness (CF-B31-L3) or pass only text sources.",
+        ],
+        episodeId,
+        stageResolution,
+        planningSources: sourceScope,
+      };
+    }
+  }
   const productDocs = await prepareProductDocPlanning(productDocPlanningInput);
   const assertCurrentProductDocPlan = async (plan: TicketPlan) => {
     await assertCurrentProductDocTicketPlan(productDocPlanningInput, productDocs, plan);
@@ -1138,7 +1162,7 @@ async function executePlanningProviderStep(
             activeTimeMs: DEFAULT_PLANNER_ACTIVE_TIME_MS,
           },
         },
-        requiredCapabilities: planningRuntimeCapabilities(input.step),
+        requiredCapabilities: planningRuntimeCapabilities(input.step, input.sourceScope),
         ...(definition.output === "ticket_plan" ? { verdictSchemaFor: () => PLAN_SCHEMA } : {}),
         ...(input.sourceScope === undefined
           ? {}
@@ -1380,9 +1404,20 @@ function planningProviderRunId(
   );
 }
 
-function planningRuntimeCapabilities(step: ProviderTurnStep): RuntimeCapability[] {
+/** A declared scope containing an image or document makes `media_read` a REQUIRED
+ * capability for this turn, so an incapable harness/model/effort tuple refuses
+ * before provider construction rather than planning around an asset it cannot
+ * open (CORMIDIA-C-B31-003, INV-017). */
+function planningRuntimeCapabilities(
+  step: ProviderTurnStep,
+  scope: PlanningSourceScope | undefined,
+): RuntimeCapability[] {
   return [
-    ...new Set([...BASELINE_PROVIDER_CAPABILITIES, ...step.requiredCapabilities.filter(isRuntimeCapability)]),
+    ...new Set([
+      ...BASELINE_PROVIDER_CAPABILITIES,
+      ...step.requiredCapabilities.filter(isRuntimeCapability),
+      ...(scope?.requires_media_read === true ? (["media_read"] as const) : []),
+    ]),
   ].sort();
 }
 

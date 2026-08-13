@@ -11,6 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { GateFn, ToolAction, TurnEvent } from "../../../src/runtime/types.js";
+import { resolvedRuntimeCapabilities, runtimeCapabilityProfile } from "../../../src/runtime/capabilities.js";
+import { RUNTIME_KINDS } from "../../../src/runtime/registry.js";
 import {
   declarePlanningSourceScope,
   PlanningSourceResolutionError,
@@ -279,3 +281,28 @@ async function corpus(): Promise<string> {
   await writeFile(join(root, "outside.md"), "not in scope\n", "utf8");
   return root;
 }
+
+describe("CORMIDIA-C-B31-003 — modality capability is proven before spend", () => {
+  it("treats an image-bearing scope as requiring media_read, which no harness yet proves", async () => {
+    const root = await corpus();
+    const scope = declare(root, [{ path: "specs" }]);
+    expect(scope.requires_media_read).toBe(true);
+
+    // Every harness records `media_read: unsupported` until CF-B31-L3 certifies
+    // it, so the capability is absent from every resolved projection. That is
+    // what makes an image-bearing scope refuse before provider construction
+    // instead of planning around an asset nobody can open.
+    for (const harness of RUNTIME_KINDS) {
+      expect(resolvedRuntimeCapabilities(harness)).not.toContain("media_read");
+      expect(runtimeCapabilityProfile(harness).capabilities.media_read).toBe("unsupported");
+    }
+  });
+
+  it("leaves a text-only scope free of the media requirement", async () => {
+    const root = await mkdtemp(join(tmpdir(), "cf-b31-text-"));
+    roots.push(root);
+    await mkdir(join(root, "specs"), { recursive: true });
+    await writeFile(join(root, "specs", "only.md"), "# text only\n", "utf8");
+    expect(declare(root, [{ path: "specs" }]).requires_media_read).toBe(false);
+  });
+});

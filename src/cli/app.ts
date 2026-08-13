@@ -8,6 +8,7 @@ import { executeAppPromotion, planAppPromotion, verifyApp } from "../org/app-lif
 import { appRepositoryRejection } from "../org/app-repository.js";
 import { executeAppReset, finalizeInterruptedAppReset, planAppReset, type AppResetPlan } from "../org/app-reset.js";
 import { resolveCormidiaHomes } from "../org/home.js";
+import { committedSurfaceStatus } from "../org/org-home-publication.js";
 import { stableJson } from "../org/lifecycle.js";
 import { latestResetArchiveForApp } from "../org/onboarding-answers.js";
 import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
@@ -109,6 +110,10 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
   }
 
   const result = await executeAppReset(input, plan);
+  // Reset removes the registry entry from the COMMITTED org home (#388); the
+  // removal is not org truth until it reaches the remote. The reset's own
+  // execute order is untouched here (F-PT-012 is open on it).
+  const registry = await committedSurfaceStatus(homes.orgHome, "app-registry", homes.stateHome);
   if (json)
     console.log(
       stableJson({
@@ -118,11 +123,14 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
         app: appName,
         archive_path: result.archivePath,
         plan: result.plan,
+        registry,
       }).trimEnd(),
     );
   else {
     console.log(`app reset complete: ${appName}`);
     console.log(`archive: ${result.archivePath}`);
+    console.log(`org registry: ${registry.state} — ${registry.detail}`);
+    console.log(`next: ${registry.next_action}`);
   }
   return 0;
 }
@@ -216,8 +224,16 @@ async function promote(
     return plan.executable ? 0 : 2;
   }
   const result = await executeAppPromotion(input, plan);
-  if (json) console.log(stableJson(result).trimEnd());
-  else console.log(`App promotion ${result.status}: ${appName} -> live`);
+  // The app-side commit reaches the app remote, but the registry status lives
+  // in the COMMITTED org home (#388). Promotion is not org truth until that
+  // reaches the org remote too, so the status is reported, never assumed.
+  const registry = await committedSurfaceStatus(homes.orgHome, "app-registry", homes.stateHome);
+  if (json) console.log(stableJson({ ...result, registry }).trimEnd());
+  else {
+    console.log(`App promotion ${result.status}: ${appName} -> live`);
+    console.log(`org registry: ${registry.state} — ${registry.detail}`);
+    console.log(`next: ${registry.next_action}`);
+  }
   return 0;
 }
 

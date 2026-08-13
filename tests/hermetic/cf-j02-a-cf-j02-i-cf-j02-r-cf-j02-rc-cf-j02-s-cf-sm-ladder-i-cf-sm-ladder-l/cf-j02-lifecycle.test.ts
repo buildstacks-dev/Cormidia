@@ -257,5 +257,13 @@ describe("CF-J02-I/RC — lifecycle interruption and convergence", () => {
     const idempotent = await planAppPromotion(common);
     expect(idempotent).toMatchObject({ executable: true, idempotent: true, changes: [] });
     expect((await executeAppPromotion(common, idempotent)).status).toBe("already_live");
-  }, 30_000);
+    // 90s, raised from 30s in #388: this case drives two real bootstraps, a
+    // managed clone, a fault-injected promotion and a full re-verify, and
+    // measures 15-16s alone. It was already at half its own ceiling, so the
+    // per-commit lane's two workers only had to be busy for it to time out —
+    // which the git-heavy CF-REG-388/389 suites made routine. Nothing about
+    // what this case proves changed; only the wall-clock allowance it needs
+    // when it is not the sole thing running. A real slowdown still fails: 90s
+    // is ~5x the measured cost, not an open-ended wait.
+  }, 90_000);
 });

@@ -104,6 +104,32 @@ orders all implementation after it. Bare templates additionally order that unit 
 the single stack-and-gates unit. Missing or drifted disposition refuses before a
 provider is constructed or an implementation issue is published.
 
+The decision is an **app-repository** transaction, not a local file edit (#389).
+Live planning reads Cormidia's managed checkout, synchronized from the app
+remote — it never consumes arbitrary human working-tree state, and that
+isolation is deliberate. `--execute` therefore records the decision *and*
+publishes it through the same primitive the org home uses: only the manifest
+(plus, for `remove`, the byte-exact placeholders it deletes, bound into the same
+commit) on a dedicated branch cut from the resolved remote default branch, with
+a draft pull request a human merges. It reports the same durability vocabulary,
+and `--publish --execute --confirm <app>:publish` resumes a publication that did
+not finish without re-recording the decision.
+
+Planning distinguishes five states and names the transition that is actually
+missing:
+
+| State | What planning says |
+| --- | --- |
+| no decision reachable, none in flight | record one (the disposition command) |
+| recorded in a local checkout, never published | finish the publication — never "record it again" |
+| published, awaiting human merge | merge the named branch or pull request |
+| merged but the bound document bytes changed | re-record for the named path and hashes |
+| current and reachable | planning proceeds |
+
+The "recorded locally" and "awaiting merge" states come from Cormidia's own
+publication journal in the state home, not from reading the operator's
+checkout.
+
 Checkouts created before the scaffold manifest existed are not exempt. The command
 recognizes their exact generated planning seed, reconstructs the template-specific
 document hashes, reports the pending migration in preview, and writes the v1 manifest

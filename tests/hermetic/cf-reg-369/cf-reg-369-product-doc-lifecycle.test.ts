@@ -103,8 +103,13 @@ describe("CF-REG-369 — product-doc disposition lifecycle", () => {
       await rm(join(target, ".cormidia/bootstrap/product-docs.json"));
       await writeFile(join(target, ".cormidia/planning/0001-greenfield-seed.md"), legacyPlanningSeed(template), "utf8");
 
+      // #389 re-worded this refusal to name reachability and to tag the legacy
+      // scaffold explicitly; the fail-closed behavior is unchanged.
       await expect(prepareProductDocPlanning({ workdir: target, app: APP, repository: REPO })).rejects.toThrow(
-        /legacy scaffold product documents have no keep\/reconcile\/remove disposition/,
+        /scaffold product documents have no keep\/reconcile\/remove disposition reachable from the app remote/,
+      );
+      await expect(prepareProductDocPlanning({ workdir: target, app: APP, repository: REPO })).rejects.toThrow(
+        /legacy pre-manifest scaffold/,
       );
       const preview = await planProductDocDisposition(input(target, "keep"));
       expect(preview.migrates_legacy_scaffold).toBe(true);
@@ -181,8 +186,12 @@ describe("CF-REG-369 — product-doc disposition lifecycle", () => {
     });
 
     await writeFile(join(root, DOCS[0]!), "unreviewed drift\n", "utf8");
+    // #389: the stale-content refusal now names the changed path and both
+    // hashes rather than saying only that something changed.
+    const stale = prepareProductDocPlanning({ workdir: root, app: APP, repository: REPO });
+    await expect(stale).rejects.toThrow(/product-document disposition is stale/);
     await expect(prepareProductDocPlanning({ workdir: root, app: APP, repository: REPO })).rejects.toThrow(
-      /changed after their disposition was recorded/,
+      new RegExp(`${DOCS[0]?.replaceAll("/", "\\/") ?? ""} \\([0-9a-f]{12} -> [0-9a-f]{12}\\)`),
     );
   });
 

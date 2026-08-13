@@ -134,8 +134,17 @@ ${productDocs("reconcile", true)}
 ${productDocs("remove", true)}
 \`\`\`
 
-Expected result: \`.cormidia/bootstrap/product-docs.json\` records one content-bound disposition. Planning refuses if
-the record is missing or if those document bytes drift afterward.
+Expected result: \`.cormidia/bootstrap/product-docs.json\` records one content-bound disposition and the command
+reports its durability. Before this repository has a remote (which is the case here — Checkpoint 3 creates it) that is
+\`local_only\`: the decision is recorded and Cormidia claims nothing beyond this checkout, which is correct because the
+initial commit below carries it. Planning refuses if the record is not reachable from the app remote, or if those
+document bytes drift afterward.
+
+Running this command LATER, once the repository exists, publishes the decision instead: it stages only the manifest
+(plus, for \`remove\`, the exact placeholders it deletes), cuts a dedicated branch, and opens a draft pull request for
+review. It reports \`pending_merge\` until a human merges it — planning is not unblocked before that, and the refusal
+names the merge, never another disposition run. \`--publish --execute --confirm ${options.appName}:publish\` resumes a
+publication that did not finish; it does not re-record the decision.
 
 ## Checkpoint 2 — Prove the local readiness path
 

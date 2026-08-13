@@ -327,6 +327,10 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     workdir: localRepo,
     app: options.app.name,
     repository: options.app.repo,
+    // The state home carries Cormidia's own publication journal, which is what
+    // lets a refusal distinguish "no decision" from "a decision that has not
+    // reached the managed base yet" (#389).
+    stateHome: options.stateHome,
     ...(sourceScope === undefined ? {} : { sources: sourceScope }),
   };
   // CORMIDIA-C-B31-003 / INV-017: an image- or document-bearing scope requires a

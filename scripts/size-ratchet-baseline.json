@@ -13,7 +13,7 @@
     },
     "src/cli/app-product-docs.ts": {
       "exports": 1,
-      "lines": 87,
+      "lines": 216,
       "newModule": true
     },
     "src/cli/app.ts": {
@@ -53,7 +53,7 @@
     },
     "src/cli/context-info.ts": {
       "exports": 3,
-      "lines": 308,
+      "lines": 315,
       "newModule": false
     },
     "src/cli/dispatch-run.ts": {
@@ -963,7 +963,7 @@
     },
     "src/org/new-app-guide.ts": {
       "exports": 1,
-      "lines": 272,
+      "lines": 281,
       "newModule": true
     },
     "src/org/new-app-preflight.ts": {
@@ -1008,7 +1008,7 @@
     },
     "src/org/plan-auto.ts": {
       "exports": 2,
-      "lines": 1732,
+      "lines": 1736,
       "newModule": false
     },
     "src/org/plan.ts": {
@@ -1093,7 +1093,17 @@
     },
     "src/org/product-doc-planning.ts": {
       "exports": 5,
-      "lines": 187,
+      "lines": 193,
+      "newModule": true
+    },
+    "src/org/product-doc-publication.ts": {
+      "exports": 9,
+      "lines": 168,
+      "newModule": true
+    },
+    "src/org/product-doc-reachability.ts": {
+      "exports": 4,
+      "lines": 128,
       "newModule": true
     },
     "src/org/product-doc-record.ts": {

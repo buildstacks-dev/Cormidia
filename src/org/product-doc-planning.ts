@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { TicketPlan } from "../loop/plan-tickets.js";
+import { productDocDecisionRefusal, resolveProductDocDecision } from "./product-doc-reachability.js";
 import { inspectProductDocScaffold, type ProductDocDisposition } from "./product-doc-record.js";
 import type { PlanningSourceScope } from "./planning-inputs.js";
 
@@ -21,23 +22,28 @@ export async function prepareProductDocPlanning(input: {
   app: string;
   repository: string;
   sources?: PlanningSourceScope;
+  /** Cormidia's state home, so the publication journal can distinguish "no
+   *  decision exists" from "a decision exists and has not reached the managed
+   *  base yet" (#389). Managed-checkout isolation is unchanged: the journal is
+   *  Cormidia's own state, never an arbitrary human working-tree file. */
+  stateHome?: string;
 }): Promise<ProductDocPlanningState> {
   const inspected = await inspectProductDocScaffold(input);
   if (inspected === undefined) return { kind: "unscaffolded" };
   const { record, documents, legacy } = inspected;
-  if (record.disposition === null) {
-    throw new Error(
-      `plan: ${legacy ? "legacy " : ""}scaffold product documents have no keep/reconcile/remove disposition; ` +
-        "run `cormidia app product-docs` before automated planning",
-    );
-  }
-  const decided = record.disposition.documents;
-  const current = documents.map(({ path, current_sha256 }) => ({ path, current_sha256 }));
-  if (JSON.stringify(decided) !== JSON.stringify(current)) {
-    throw new Error(
-      "plan: product documents changed after their disposition was recorded; preview and record it again",
-    );
-  }
+  // One resolution for all five reachability states, so the refusal names the
+  // transition that is actually missing instead of the one already performed.
+  const refusal = productDocDecisionRefusal(
+    await resolveProductDocDecision({
+      app: input.app,
+      decision: record.disposition,
+      documents,
+      ...(input.stateHome === undefined ? {} : { stateHome: input.stateHome }),
+    }),
+    input.app,
+  );
+  if (refusal !== undefined) throw new Error(legacy ? `${refusal} (legacy pre-manifest scaffold)` : refusal);
+  if (record.disposition === null) throw new Error("plan: product-document disposition vanished during planning");
   if (record.disposition.value === "keep" && documents.some((document) => document.status === "absent")) {
     throw new Error("plan: keep disposition requires every reviewed scaffold product document to remain present");
   }

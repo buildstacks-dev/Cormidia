@@ -77,6 +77,12 @@ const RATIFIED_TIERS: Readonly<Record<string, DispositionTier>> = {
   // gate refines foreign/unverifiable to repo-collaboration-foreign, HO);
   // publish/release/message stay human-only.
   "repo-collaboration": "budgeted",
+  // #382: repository provisioning — the existence/visibility of a repository,
+  // reachable through `gh repo create|delete|edit`, the repository-root raw-API
+  // endpoints, and the org CLI's own provisioning verbs. Human-only: unlike
+  // collaboration there is no "own repository" verification that could make it
+  // safe unattended, because the repository does not exist yet.
+  "repo-provisioning": "human-only",
   "package-publish": "human-only",
   "release-artifact": "human-only",
   "outbound-message": "human-only",
@@ -113,6 +119,10 @@ const RULE_FIXTURES: ReadonlyArray<{ rule: string; action: ToolActionLike }> = [
   { rule: "secret-mutate", action: { tool: "bash", input: { command: "gh secret set NPM_TOKEN" } } },
   { rule: "secret-read", action: { tool: "bash", input: { command: "cat .env" } } },
   { rule: "repo-collaboration", action: { tool: "bash", input: { command: "gh issue comment 12 --body done" } } },
+  {
+    rule: "repo-provisioning",
+    action: { tool: "bash", input: { command: "gh repo create acme/widget --private --source . --push" } },
+  },
   { rule: "package-publish", action: { tool: "bash", input: { command: "npm publish --access public" } } },
   { rule: "release-artifact", action: { tool: "bash", input: { command: "gh release create v1.2.3 --notes done" } } },
   { rule: "outbound-message", action: { tool: "bash", input: { command: "sendmail ops@example.com" } } },
@@ -148,7 +158,7 @@ const RULE_FIXTURES: ReadonlyArray<{ rule: string; action: ToolActionLike }> = [
 describe("CF-INV — disposition table (every classifier rule, ratified tiers)", () => {
   it("covers the classifier's exact rule set — a rule added or renamed without a table row fails here", () => {
     expect(CRITICAL_RULES.map((rule) => rule.name).sort()).toEqual(RULE_FIXTURES.map((fixture) => fixture.rule).sort());
-    expect(RULE_FIXTURES).toHaveLength(22);
+    expect(RULE_FIXTURES).toHaveLength(23);
   });
 
   for (const { rule, action } of RULE_FIXTURES) {

@@ -152,7 +152,32 @@ ${gateSection}
 
 ## Checkpoint 3 — Create and push the private repository
 
-Review \`git status --short\` before the initial commit. These are the first outward mutations:
+This is the first outward mutation. One governed command does all of it — create the private repository, commit and push
+only the declared bootstrap paths, and install the canonical labels — and previews by default:
+
+\`\`\`bash
+cormidia app provision-repo ${app} --source-dir ${target}
+\`\`\`
+
+Read the preview: the exact repository name, visibility, every file that would be committed with its byte count, the remote and
+push target, and the label set. Nothing has reached GitHub yet. When it is what you intended:
+
+\`\`\`bash
+cormidia app provision-repo ${app} --source-dir ${target} --execute --confirm ${app}
+\`\`\`
+
+Expected result: \`${options.repoSlug}\` exists privately, its default branch carries the bootstrap commit including the
+recorded disposition, all canonical labels are installed, and the command reports \`verification ready\` after re-reading
+visibility, remote identity, default-branch ancestry, the commit, and the labels from the remote.
+
+If it stops partway — a lost response, a failed push, a half-installed label set — re-run the same \`--execute\` command.
+It reconciles against what already exists: never a second repository, never a force-push, never a repeated ambiguous
+write. The reported durability state and next action name the transition that is actually missing.
+
+<details>
+<summary>Manual fallback (retained)</summary>
+Only when there is no Cormidia install here. Review \`git status --short\` first: \`git add .\` stages everything in the
+directory, which is exactly what the governed path avoids.
 
 \`\`\`bash
 git -C ${target} init
@@ -160,18 +185,12 @@ git -C ${target} status --short
 git -C ${target} add .
 git -C ${target} commit -m ${shellQuote(`Bootstrap ${options.appName}`)}
 gh repo create ${repo} --private --source ${target} --remote origin --push
-\`\`\`
-
-Expected result: \`${options.repoSlug}\` exists privately and its default branch contains the recorded disposition.
-
-Install the canonical labels idempotently:
-
-\`\`\`bash
 cat ${target}/.cormidia/LABELS.md
 ${labelCommands}
 \`\`\`
 
-Expected result: \`.cormidia/LABELS.md\` and the remote label definitions agree.
+\`gh repo create|delete|edit\` are classified \`repo-provisioning\` (human-only), so an agent cannot run them for you.
+</details>
 
 ## Checkpoint 4 — Preview and publish the first plan
 

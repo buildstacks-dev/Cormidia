@@ -60,6 +60,14 @@ export interface GithubDoubleOptions {
   viewerLogin?: string;
   /** Deliberate misbehaviors — ONLY for conformance negative controls. */
   lies?: DoubleLies;
+  /** Model a slug nobody has created yet, so `repo view` 404s and `repo
+   *  create` succeeds (#382 provisioning). Defaults to true — every
+   *  pre-provisioning scenario assumes the repository is already there. */
+  repositoryExists?: boolean;
+  /** Visibility the repository already has. Provisioning refuses to adopt a
+   *  repository whose visibility is not the one it would have created. */
+  repositoryVisibility?: "PRIVATE" | "PUBLIC" | "INTERNAL";
+  repositoryDescription?: string;
   /** Initial scripted steps (more can be added later via handle.script). */
   scenario?: ScenarioStep[];
 }
@@ -200,6 +208,11 @@ export async function installGithubDouble(options: GithubDoubleOptions = {}): Pr
       epochIso: "2026-01-01T00:00:00.000Z",
       lies: options.lies ?? {},
     },
+    repository: {
+      exists: options.repositoryExists ?? true,
+      visibility: options.repositoryVisibility ?? "PRIVATE",
+      description: options.repositoryDescription ?? "",
+    },
     defaultBranch,
     labels: {},
     branches: {},
@@ -214,7 +227,10 @@ export async function installGithubDouble(options: GithubDoubleOptions = {}): Pr
   for (const label of options.labels ?? []) {
     state.labels[label.name] = { ...label, color: label.color.toLowerCase() };
   }
-  state.branches[defaultBranch] = { oid: nextOid(state, defaultBranch) };
+  // A repository that does not exist yet has no refs. Seeding the default
+  // branch anyway would let a provisioning test pass against a repo that was
+  // never really empty.
+  if (state.repository.exists) state.branches[defaultBranch] = { oid: nextOid(state, defaultBranch) };
   for (const branch of options.branches ?? []) {
     if (state.branches[branch] === undefined) {
       state.branches[branch] = { oid: nextOid(state, branch) };

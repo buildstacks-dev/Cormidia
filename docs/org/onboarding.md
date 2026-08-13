@@ -86,7 +86,10 @@ stack-and-gates unit before dependent feature work. `--template typescript-node`
 remains an explicit accelerator whose output is unchanged. It records the exact generated product-document hashes with no
 initial disposition and emits an app-specific, checkpointed repository-to-operation
 guide at `.cormidia/bootstrap/next-commands.md`. It does not create a GitHub repo,
-push, run the Planner, or publish an issue. After push,
+push, run the Planner, or publish an issue: those remain explicit follow-up
+steps (`docs/PURPOSE.md` -> Decided, 2026-07-07). Repository creation is now a
+governed follow-up rather than a hand-typed one -- see *Repository
+provisioning* below. After push,
 `cormidia app verify` synthesizes the lifecycle record; `cormidia app promote
 --to live --execute` flips status without a manual `apps.yaml` edit.
 
@@ -181,6 +184,69 @@ agreement — when no remote ref has been fetched.
 The surfaces and their owned paths are declared in `src/org/committed-org-surfaces.ts`;
 an org-home writer whose destination is not classified there fails an architectural
 guard in CI rather than becoming a third silent category.
+
+## Repository provisioning
+
+`cormidia app provision-repo <app> --source-dir <checkout>` and `cormidia org
+provision-repo --repo <owner/repo>` create the private GitHub repository an app
+or an org home lives in (#382). They exist because *requiring human approval*
+and *requiring the human to type `gh repo create` themselves* are different
+things, and onboarding had collapsed them into one. The operator still decides;
+the deciding is done against a preview and the executing is done by a
+reconciling transaction.
+
+Four steps, in order:
+
+1. **Preview, with no GitHub mutation.** The repository owner/name, visibility
+   (always private), local source path, the exact owned commit scope with a byte
+   bound per file and in total, the remote name, the push target, and the
+   canonical label set. An unresolved or placeholder identity is refused *before
+   the first network call* -- `src/runtime/repo-identity.ts` is the one decision
+   (#385), and provisioning a repository literally named `YOUR_APP_REPOSITORY`
+   is the one identity bug a retry cannot undo.
+2. **Exact confirmation.** `--execute` plus `--confirm <app>` / `--confirm
+   <org>`. The reviewed content id is bound, so a target or a byte that moved
+   between preview and execution refuses rather than provisioning something
+   nobody looked at.
+3. **Execute.** Create the private repository, commit and push ONLY the declared
+   owned paths, install the canonical labels (`CANONICAL_LABELS`, the same set
+   `app verify` checks). The owned set is DECLARED, never discovered: unrelated
+   files sitting in the target directory are never swept in. For the org scope
+   the declaration IS the committed-surface inventory and every expanded path is
+   re-checked through `classifyOrgHomeWrite`, so the **state home can never enter
+   a provisioning commit**.
+4. **Verify before advancing any readiness claim.** Visibility, remote identity,
+   default-branch ancestry (resolved through `resolveRemoteDefaultBranch`, never
+   hardcoded and never cached), the expected bootstrap commit, and the canonical
+   labels are re-read from the remote. `ready` is the conjunction of all five; a
+   facet that could not be *checked* never counts as passing.
+
+Durability and reconciliation use the same journal discipline as `org publish`,
+keyed by content identity under `<state-home>/provision/<scope>/`. Every partial
+outcome reconciles **forward**: a repository that already exists, a remote
+already configured, a commit already present, a push already landed, some labels
+already installed, and a lost response mid-create. It never creates a duplicate
+repository, never repeats an ambiguous write, and never force-pushes. A
+repository that already holds commits this provisioning did not create is
+refused, not overwritten; one that is not private is refused, and provisioning
+never changes an existing repository's visibility.
+
+The bootstrap commit descends from the checkout's existing HEAD when there is
+one, so an org home's history is never orphaned, and files outside the
+declaration are never recorded as deleted. The commit is built against a
+temporary index, so the operator's own index is untouched -- except on a genesis
+commit, where the index is synced to it so `git status` does not report every
+provisioned file as deleted.
+
+The manual `gh repo create` / `git push` / `gh label create` sequence is retained
+as a documented fallback in the generated `next-commands.md`. It is no longer the
+supported path, and `gh repo create|delete|edit|archive|rename` now classify
+`repo-provisioning` (human-only, never-scopeable) at the critical-ops gate, so an
+agent cannot run them without an explicit human approval.
+
+Provisioning is not attempted for a local-only org: an org home with no
+configured remote reports the explicit `local_only` contract, exactly as
+publication does.
 
 ## App reset, verify, and promote
 

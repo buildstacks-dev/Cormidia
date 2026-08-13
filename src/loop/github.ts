@@ -100,6 +100,32 @@ interface EnsureLabelInput {
   description: string;
 }
 
+/** What a repository actually IS on the remote, read back rather than assumed
+ *  (#382). Every field is a fact a readiness claim depends on: `visibility`
+ *  decides whether a private app repo is really private, `defaultBranch` is the
+ *  ancestry anchor (resolved from the remote, never hardcoded), and
+ *  `description` carries the provisioning idempotency marker so a lost
+ *  `gh repo create` response reconciles to the repository it actually made
+ *  instead of creating a second one. */
+export interface GhRepositoryView {
+  /** owner/name exactly as the remote reports it. */
+  slug: string;
+  visibility: "PRIVATE" | "PUBLIC" | "INTERNAL";
+  /** Null for a repository with no commits yet — a freshly created one. */
+  defaultBranch: string | null;
+  description: string;
+  isEmpty: boolean;
+}
+
+export interface CreateRepositoryInput {
+  /** Deliberately not a union with "public": #382 provisions private
+   *  repositories only, and making one public is a separate human decision the
+   *  gate classifies `repo-provisioning`. */
+  visibility: "private";
+  /** Carries the provisioning idempotency marker. */
+  description: string;
+}
+
 export interface GhOps {
   addLabel(issueNumber: number, label: string): Promise<void>;
   removeLabel(issueNumber: number, label: string): Promise<void>;
@@ -115,6 +141,18 @@ export interface GhOps {
   /** Read the repository label definitions for token-free onboarding
    *  verification. */
   listLabels(): Promise<EnsureLabelInput[]>;
+  /** The repository as the remote reports it, or undefined when it does not
+   *  exist (#382). "Absent" is a normal answer a provisioning preview asks for,
+   *  so it is NOT an error — but only a genuine not-found becomes undefined;
+   *  an auth failure, a rate limit, or any other error still throws, because
+   *  "I could not look" and "it is not there" must never be the same answer on
+   *  a path that decides whether to create something. */
+  readRepository(): Promise<GhRepositoryView | undefined>;
+  /** Create this GhOps' repository, private, with the provisioning marker in
+   *  its description. Single-shot by contract: a failed response may hide a
+   *  completed creation, so the caller reconciles by marker rather than
+   *  retrying (#382 — the same rule as createIssue). */
+  createRepository(input: CreateRepositoryInput): Promise<GhRepositoryView>;
   /** All comments on the issue, oldest first — the durable artifacts
    *  (contract, review verdicts, fix resolutions) that rehydration reads back
    *  on a re-claim (proportionality campaign Stage 2). */
@@ -388,6 +426,49 @@ export class GhCliOps implements GhOps {
     ]);
     if (!Array.isArray(raw)) throw new Error("gh label list returned a non-array response");
     return raw.map((value, index) => parseLabelDefinition(value, index));
+  }
+
+  async readRepository(): Promise<GhRepositoryView | undefined> {
+    let raw: unknown;
+    try {
+      raw = await this.runJson([
+        "repo",
+        "view",
+        this.repo,
+        "--json",
+        "nameWithOwner,visibility,defaultBranchRef,description,isEmpty",
+      ]);
+    } catch (error) {
+      // Narrow to a genuine not-found. Anything else — auth, rate limit,
+      // network — propagates: a provisioning path that read "absent" from an
+      // expired token would create a duplicate repository.
+      if (isRepositoryNotFound(error)) return undefined;
+      throw error;
+    }
+    return parseRepositoryView(raw, this.repo);
+  }
+
+  async createRepository(input: CreateRepositoryInput): Promise<GhRepositoryView> {
+    // Single-shot (retrySafe = false): a lost response may hide a completed
+    // creation, and the caller reconciles by reading the marker back.
+    // Deliberately no `--source`/`--push`: the repository is created EMPTY so
+    // the remote, the commit, and the push stay three independently resumable
+    // steps whose partial outcomes reconcile forward.
+    await this.run(
+      ["repo", "create", this.repo, `--${input.visibility}`, "--description", input.description],
+      undefined,
+      false,
+    );
+    const view = await this.readRepository();
+    if (view === undefined) {
+      throw new GhOpsError(`gh repo create ${this.repo} reported success but the repository is not readable`, {
+        args: ["repo", "create", this.repo],
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+      });
+    }
+    return view;
   }
 
   async listIssueComments(issueNumber: number): Promise<GhIssueComment[]> {
@@ -702,6 +783,41 @@ function parseLabelDefinition(raw: unknown, index: number): EnsureLabelInput {
     name: stringField(record, "name", where),
     color: stringField(record, "color", where),
     description: stringField(record, "description", where, ""),
+  };
+}
+
+/** GitHub's not-found text for a repository, across the two shapes `gh` emits
+ *  (the GraphQL resolver message and the REST 404). Deliberately narrow: any
+ *  other failure must propagate rather than read as "absent" on a path that
+ *  decides whether to create a repository (#382). */
+function isRepositoryNotFound(error: unknown): boolean {
+  if (!(error instanceof GhOpsError)) return false;
+  const detail = `${error.stderr}\n${error.stdout}`;
+  return (
+    /Could not resolve to a Repository/i.test(detail) ||
+    (/\bHTTP\s*:?[ ]*404\b/i.test(detail) && /\brepositor/i.test(detail)) ||
+    /^\s*GraphQL: Could not resolve/i.test(detail)
+  );
+}
+
+function parseRepositoryView(raw: unknown, requested: string): GhRepositoryView {
+  const where = `gh repo view ${requested} output`;
+  const record = asRecord(raw, where);
+  const visibility = stringField(record, "visibility", where, "PRIVATE").toUpperCase();
+  if (visibility !== "PRIVATE" && visibility !== "PUBLIC" && visibility !== "INTERNAL") {
+    throw new Error(`${where}: unknown visibility ${JSON.stringify(visibility)}`);
+  }
+  // `defaultBranchRef` is null for a repository with no commits — the normal
+  // state of one Cormidia just created. Null is the answer, never "main".
+  const ref = record["defaultBranchRef"];
+  const defaultBranch =
+    ref === null || ref === undefined ? null : stringField(asRecord(ref, `${where}.defaultBranchRef`), "name", where);
+  return {
+    slug: stringField(record, "nameWithOwner", where, requested),
+    visibility,
+    defaultBranch,
+    description: stringField(record, "description", where, ""),
+    isEmpty: record["isEmpty"] === true || defaultBranch === null,
   };
 }
 

@@ -146,8 +146,22 @@ export interface CallLogEntry {
   effect: boolean;
 }
 
+/** The repository's own existence and shape (#382). Before provisioning
+ *  existed the double modelled exactly one repository that was always there;
+ *  a provisioning scenario needs to start from "not there yet" and needs the
+ *  facts a verification gate reads back. */
+export interface DoubleRepository {
+  /** False models a slug nobody has created. Reads 404 and `repo create`
+   *  succeeds; true makes `repo create` fail the way GitHub does. */
+  exists: boolean;
+  visibility: "PRIVATE" | "PUBLIC" | "INTERNAL";
+  /** Carries the provisioning idempotency marker. */
+  description: string;
+}
+
 export interface DoubleState {
   config: DoubleConfig;
+  repository: DoubleRepository;
   defaultBranch: string;
   labels: Record<string, DoubleLabel>;
   branches: Record<string, { oid: string }>;
@@ -875,13 +889,49 @@ function executeOp(
       if (positionalRepo !== undefined && positionalRepo !== repo) {
         return err(`GraphQL: Could not resolve to a Repository with the name '${positionalRepo}'. (repository)`);
       }
+      // A slug nobody has created reads exactly like GitHub's not-found, so
+      // the product's "absent vs I-could-not-look" split is exercised for real
+      // rather than being assumed (#382).
+      if (!state.repository.exists) {
+        return err(`GraphQL: Could not resolve to a Repository with the name '${repo}'. (repository)`);
+      }
       const reported = state.config.lies.reportedDefaultBranch ?? state.defaultBranch;
+      // An empty repository has no default branch ref at all. The product must
+      // read null rather than inventing `main` for a repo with no commits.
+      const isEmpty = Object.keys(state.branches).length === 0;
       const record: Record<string, unknown> = {
         name: repo.split("/")[1] ?? repo,
-        defaultBranchRef: { name: reported },
+        nameWithOwner: repo,
+        visibility: state.repository.visibility,
+        description: state.repository.description,
+        isEmpty,
+        defaultBranchRef: isEmpty ? null : { name: reported },
       };
       const fields = jsonFields(parsed);
       return ok(`${JSON.stringify(fields.length > 0 ? project(record, fields) : record)}\n`, false);
+    }
+
+    case "repo.create": {
+      const named = parsed.positionals[2];
+      if (named !== undefined && named !== repo) {
+        return err(`HTTP 422: Validation Failed — this double only models ${repo}, not '${named}'`);
+      }
+      if (state.repository.exists) {
+        // GitHub's own text. The product must treat this as "reconcile against
+        // what is there", never as "try again".
+        return err(
+          `HTTP 422: Validation Failed (https://api.github.com/user/repos)\nname already exists on this account`,
+        );
+      }
+      state.repository = {
+        exists: true,
+        visibility: parsed.bools.has("--public") ? "PUBLIC" : parsed.bools.has("--internal") ? "INTERNAL" : "PRIVATE",
+        description: flagValue(parsed, "--description") ?? "",
+      };
+      // Created EMPTY: no commits, so no default branch. The push is a
+      // separate, separately-resumable step.
+      state.branches = {};
+      return ok(`https://github.com/${repo}\n`, true);
     }
 
     default:

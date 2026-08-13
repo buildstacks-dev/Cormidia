@@ -91,6 +91,11 @@ describe("CF-INV-003 — Stage 2 ratified tier table (five tightenings + the new
     // rule.
     "repo-collaboration": "budgeted",
     "repo-collaboration-foreign": "human-only",
+    // #382: new class. `gh repo create|delete|edit|archive|rename`, the
+    // repository-root raw-API endpoints, and `cormidia org|app provision-repo
+    // --execute` all classified ROUTINE before it — the `gh` subcommand surface
+    // had no fail-closed default the way `gh api` does.
+    "repo-provisioning": "human-only",
     "package-publish": "human-only",
     "release-artifact": "human-only",
     "outbound-message": "human-only",

@@ -128,6 +128,23 @@ what done bought you.
   image reader actually fires inside a Cormidia-gated turn. Until that runs, a folder
   containing images is refused before any tokens are spent rather than planned around
   blindly — honest, but not yet the workflow you asked for.
+- **HB-156 (landed) — creating the repository is now a Cormidia command, not a
+  sequence you type.** Onboarding used to hand you `gh repo create`, `git add .`,
+  `git push`, and a wall of `gh label create` lines, and `git add .` stages whatever
+  happens to be sitting in the folder. Now one command previews the exact repository
+  name, that it will be private, every file it would commit with its size, where it
+  would push, and which labels it would install — and creates nothing until you re-run
+  it with `--execute --confirm`. You are still the one deciding; you are no longer the
+  one typing it. Two things this is aimed at: if it stops halfway you re-run the same
+  command and it picks up where it stopped instead of making a *second* repository,
+  and it re-reads GitHub afterwards to confirm the repository really is private, really
+  is on the right branch, really has your commit, and really has all the labels — and
+  says NOT ready if any of that is wrong, rather than reporting success. It also closed
+  a hole worth knowing about: until this landed, an agent that shelled out to
+  `gh repo create` — or `gh repo delete`, or `gh repo edit --visibility public` — would
+  not have been stopped by the approval gate at all. Those now require you.
+  **What still needs you:** nothing; this is complete and offline-tested. The manual
+  `gh` sequence stays documented as a fallback for machines with no Cormidia install.
 - **HB-072 / HB-073 — the threat model is yours to author**; the abuse-case lane
   stays locked behind it (a gate refuses until your reviewed document exists).
 - **HB-071 (evidence half) — the seven-day soak** waits for you to schedule a real

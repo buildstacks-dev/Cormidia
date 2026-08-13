@@ -206,6 +206,33 @@ function hasExecutableEffect(value: string): boolean {
   return value.includes("$(") || value.includes("`") || value.includes("${");
 }
 
+/** True when the action's RAW command carries `--execute` — the flag the effect
+ *  projection deliberately drops (flags are not executables or targets, so
+ *  `cormidia app product-docs x --execute` and the same command previewing
+ *  project identically).
+ *
+ *  Used ONLY for verbs whose default is inspection and whose publication is a
+ *  mode, so an ordinary preview stays routine rather than burning a human
+ *  decision — the same "the point is the boundary, not friction on inspection"
+ *  rule that keeps `roles`/`status`/`doctor` out of CORMIDIA_VERB.
+ *
+ *  Fails CLOSED on every axis it cannot read: an action with no parsed command
+ *  (a typed tool, a prose projection), and a command carrying ANY expansion or
+ *  substitution, both count as executing.
+ *
+ *  The expansion test is deliberately broader than `hasExecutableEffect`, which
+ *  asks a different question ("would the shell RUN this message value?") and so
+ *  only looks for `$(`, a backtick, and `${`. Here the question is "could this
+ *  command turn out to carry `--execute`?", and a bare `$FLAGS` answers yes just
+ *  as well as `${FLAGS}` — so any `$` or backtick anywhere makes the flag
+ *  unknowable and the action escalates. */
+function carriesExecuteFlag(action: ToolAction): boolean {
+  const command = normalizeSemanticAction(action).command;
+  if (command === null) return true;
+  const stripped = stripMessageArgs(command, { keepExecutable: true });
+  return /(?:^|\s)--execute(?:[\s=]|$)/.test(stripped) || stripped.includes("$") || stripped.includes("`");
+}
+
 function semanticActionText(action: ToolAction): string {
   const fields = actionEffectFields(action);
   return [
@@ -246,8 +273,21 @@ const CORMIDIA_VERB = {
   protocolWrite: /\bcormidia\s+org\s+(?:upgrade|init|use)\b/,
   /** Archives and removes managed state, or deletes durable run records. */
   destructive: /\bcormidia\s+(?:app\s+reset|prune-runs)\b/,
-  /** Publishes to GitHub: bootstrap draft PRs, ratified ticket issues. */
-  publish: /\bcormidia\s+(?:plan\s+ratify-ticket-budget|bootstrap\s+publish)\b/,
+  /** Publishes to GitHub: bootstrap draft PRs, ratified ticket issues, and the
+   *  committed-configuration publication transaction (#388's `org publish`).
+   *  Matched by VERB, with or without `--execute`, exactly as `bootstrap
+   *  publish` has always been: the projection drops flags, and a verb whose
+   *  whole purpose is publication pays one tap on its preview mode. */
+  publish: /\bcormidia\s+(?:plan\s+ratify-ticket-budget|bootstrap\s+publish|org\s+publish)\b/,
+  /** Publication modes of verbs whose DEFAULT is inspection, so the verb name
+   *  alone must not escalate. #389's `app product-docs` records a disposition
+   *  locally by default and publishes an app-repository transaction only under
+   *  `--execute`; #382's provisioning verbs preview by default. Gated on the
+   *  flag that actually publishes — see `carriesExecuteFlag`. */
+  executeGatedPublish: /\bcormidia\s+app\s+product-docs\b/,
+  /** Creates the remote repository an org home or an app will live in (#382).
+   *  Preview is the default; only `--execute` reaches GitHub. */
+  provision: /\bcormidia\s+(?:org|app)\s+provision-repo\b/,
   /** Decides, revokes or dispositions approvals — the gate's root of trust.
    *  `cormidia objective grant|grant-critical|revoke` joins it (#296 Stage 3):
    *  creating or revoking a standing objective grant from inside a turn is
@@ -262,7 +302,21 @@ const CORMIDIA_VERB = {
  *  the flattened effect text: `gh api <method> <endpoint>`. */
 const GH_API_PROJECTION = /\bgh api (get|head|post|put|patch|delete|unknown)(?: (\S+))?/g;
 
-type GhApiRoute = "self-merge-or-approve" | "repo-collaboration" | "release-artifact" | "gh-api-unrecognized";
+type GhApiRoute =
+  | "self-merge-or-approve"
+  | "repo-collaboration"
+  | "release-artifact"
+  | "repo-provisioning"
+  | "gh-api-unrecognized";
+
+/** The raw-API endpoints that decide a repository's EXISTENCE rather than
+ *  operate inside one: `POST /user/repos` and `POST /orgs/<org>/repos` create,
+ *  and a mutating call against the repository root itself
+ *  (`repos/<owner>/<name>` with nothing after it) deletes or re-shapes it.
+ *  A DEEPER path is an operation inside the repo and keeps routing on its own
+ *  merits — `repos/o/r/issues` is collaboration, `repos/o/r/releases` is a
+ *  release artifact. */
+const REPO_PROVISIONING_ENDPOINT = /^\/?(?:user\/repos|orgs\/[^/\s]+\/repos|repos\/[^/\s]+\/[^/\s]+)\/?$/;
 
 /** `gh api` is the GitHub CLI's raw REST/GraphQL escape hatch: `gh api
  *  --method PUT repos/o/r/pulls/7/merge` performs the same merge as
@@ -301,11 +355,13 @@ function ghApiRoutesTo(text: string, rule: GhApiRoute): boolean {
           ? null
           : /\bpulls\/[^\s/]+\/merge\b/.test(endpoint) || /(?:^|\/)reviews\b/.test(endpoint)
             ? "self-merge-or-approve"
-            : /(?:^|\/)releases\b/.test(endpoint)
-              ? "release-artifact"
-              : /(?:^|\/)(?:issues|comments)\b/.test(endpoint)
-                ? "repo-collaboration"
-                : "gh-api-unrecognized";
+            : REPO_PROVISIONING_ENDPOINT.test(endpoint)
+              ? "repo-provisioning"
+              : /(?:^|\/)releases\b/.test(endpoint)
+                ? "release-artifact"
+                : /(?:^|\/)(?:issues|comments)\b/.test(endpoint)
+                  ? "repo-collaboration"
+                  : "gh-api-unrecognized";
     if (route === rule) return true;
   }
   return false;
@@ -492,7 +548,55 @@ export const CRITICAL_RULES: CriticalRule[] = [
     name: "outbound-message",
     matches: (a) => {
       const t = effectText(a);
-      return /\b(?:sendmail|mail|tweet)\b/.test(t) || CORMIDIA_VERB.publish.test(t);
+      return (
+        /\b(?:sendmail|mail|tweet)\b/.test(t) ||
+        CORMIDIA_VERB.publish.test(t) ||
+        (CORMIDIA_VERB.executeGatedPublish.test(t) && carriesExecuteFlag(a))
+      );
+    },
+  },
+  {
+    // #382: the EXISTENCE, ownership, and visibility of a remote repository —
+    // creating one, deleting one, archiving or renaming it, or flipping what
+    // the world can see. Human-only, and never-scopeable by derivation from
+    // the tier table.
+    //
+    // The gate had NO `repo` subcommand handling before this. Measured against
+    // gate.ts at 437256c7: `gh repo create`, `gh repo delete`, and `gh repo
+    // edit --visibility public` each classified ROUTINE, while their raw-API
+    // spellings classified human-only through `gh-api-unrecognized`. That
+    // asymmetry is the whole defect — `gh api` has a fail-closed default for
+    // endpoints no rule recognizes and the `gh` SUBCOMMAND surface has none,
+    // so an effect reachable two ways was governed one way.
+    //
+    // Two rules this must NOT be folded into, both load-bearing:
+    //  - `repo-collaboration` would be actively unsafe, not merely imprecise.
+    //    Its budgeted tier is reached whenever the composed gate verifies every
+    //    target as the app's OWN configured repository (gate-compose.ts), and a
+    //    provisioning target IS the app's configured slug — `new-app` writes it
+    //    into apps.yaml before the repository exists. Creation would verify as
+    //    "own", ride the budgeted tier, and become agent-decidable with no
+    //    human tap: the exact outcome #382 forbids.
+    //  - `gh-api-unrecognized` has the right tier and the wrong NAME. Rule
+    //    names key ORCHESTRATOR_EXECUTABLE_RULES, FORBIDDEN_BY_ROLE, objective
+    //    grants, and the persisted classification evidence; recording
+    //    "gh-api-unrecognized" against a command containing no `gh api` is a
+    //    false audit record.
+    //
+    // Matched on the effect projection, which drops flags — `gh repo edit
+    // --visibility public` and `gh repo edit --description x` are
+    // indistinguishable here, so EVERY `gh repo edit` matches. That is the
+    // ratified asymmetry (system-map §5.2): a mis-escalated description edit is
+    // availability damage, a silently published private repository is authority
+    // damage. `gh repo view|list|clone|sync|set-default` stay routine.
+    name: "repo-provisioning",
+    matches: (a) => {
+      const t = effectText(a);
+      return (
+        /\bgh\s+repo\s+(?:create|delete|edit|archive|unarchive|rename)\b/.test(t) ||
+        ghApiRoutesTo(t, "repo-provisioning") ||
+        (CORMIDIA_VERB.provision.test(t) && carriesExecuteFlag(a))
+      );
     },
   },
   {
@@ -1191,6 +1295,12 @@ export const RULE_DISPOSITION_TIERS: Readonly<Record<string, Exclude<Disposition
   // action so the later executor can acknowledge exactly what ran.
   "repo-collaboration": "budgeted",
   "repo-collaboration-foreign": "human-only",
+  // #382: repository provisioning is permanent and outside-world, and — unlike
+  // collaboration — has no "own repository" verification that could ever make
+  // it safe to proceed unattended, because the repository does not exist yet.
+  // Human-only, so NEVER_SCOPEABLE_RULES covers it by derivation: no widened
+  // A1 grant and no objective grant may ever stand for "create any repository".
+  "repo-provisioning": "human-only",
   "package-publish": "human-only",
   "release-artifact": "human-only",
   "outbound-message": "human-only",

@@ -103,6 +103,25 @@ creation and push, canonical labels, plan preview then publication, Builder and
 Reviewer delivery, approvals and human merge, verification and promotion, and
 ongoing operation.
 
+Checkpoint 3 (repository creation) is the run's first outward mutation and is
+now one governed command:
+
+```bash
+cormidia app provision-repo "$E2E_APP" --source-dir "$E2E_APP_DIR"
+cormidia app provision-repo "$E2E_APP" --source-dir "$E2E_APP_DIR" --execute --confirm "$E2E_APP"
+```
+
+Record the preview verbatim before executing — it is the exact outward action
+being approved. Record the post-execution verification block too: all five
+facets (visibility, remote identity, default-branch ancestry, bootstrap commit,
+canonical labels) must report `ok`, and a run that reports `NOT ready` has not
+completed Checkpoint 3 even though the repository exists.
+
+If the command stops partway, re-run the same `--execute` invocation rather than
+reaching for `gh`. It reconciles against what already exists and reports the
+transition that is actually missing. Reaching for `gh repo create` after a
+partial provisioning is how a duplicate repository gets made.
+
 ## 4. Record the run
 
 Capture the outcome of each checkpoint (command, expected result, what actually

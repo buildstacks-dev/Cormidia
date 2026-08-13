@@ -32,12 +32,28 @@ const GIT_ENV: NodeJS.ProcessEnv = {
  *  Matches `resolveRemoteDefaultBranch`: failing loudly beats wedging a tick. */
 const GIT_TIMEOUT_MS = 30_000;
 
+/** Extra environment for one git call, merged over `GIT_ENV`.
+ *
+ *  `GIT_ENV` is snapshotted at module load, so mutating `process.env` around a
+ *  call does NOT reach the child — a trap worth naming, because the symptom is
+ *  a silently ignored setting rather than an error. Provisioning (#382) needs
+ *  `GIT_INDEX_FILE` to stage into a temporary index without touching the
+ *  operator's own, and this is the only sanctioned way to set it. */
+export interface PublicationGitEnv {
+  readonly GIT_INDEX_FILE?: string;
+}
+
 /** Run git, throwing with the failing command and stderr on any nonzero exit. */
-export function publicationGit(cwd: string, args: readonly string[], errorPrefix: string): string {
+export function publicationGit(
+  cwd: string,
+  args: readonly string[],
+  errorPrefix: string,
+  env?: PublicationGitEnv,
+): string {
   try {
     return execFileSync("git", [...args], {
       cwd,
-      env: GIT_ENV,
+      env: env === undefined ? GIT_ENV : { ...GIT_ENV, ...env },
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: GIT_TIMEOUT_MS,

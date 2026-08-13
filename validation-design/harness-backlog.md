@@ -1488,7 +1488,7 @@ HB-137..HB-139 LANDED (retrospective records).
   CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-293,
   CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335,
   CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374,
-  CF-REG-375, CF-REG-384, CF-REG-385, CF-REG-388, CF-REG-389, CF-REG-390, CF-REG-403, and CF-HB102-MANUAL-REVIEW. (CF-REG-273 and CF-REG-291 are owned by
+  CF-REG-375, CF-REG-382, CF-REG-384, CF-REG-385, CF-REG-388, CF-REG-389, CF-REG-390, CF-REG-403, and CF-HB102-MANUAL-REVIEW. (CF-REG-273 and CF-REG-291 are owned by
   HB-052, whose live-lane hardening deposited them; CF-REG-204 is owned by HB-135.)
   *Executor:* landed by each defect's fix PR.
 
@@ -1595,6 +1595,45 @@ the ingestion secret pre-scan. See case-catalog.md §10.3's CF-REG-374 changelog
   on restore. CF-REG-374's suite was rewritten to its surviving legs with the prune recorded
   in its own header and §10.3 row. CF-B31-L3 (per-harness modality proof) remains OPEN and is
   the only thing between this and a usable image-bearing planning scope. -->
+
+## Governed repository provisioning (2026-08-13, issue #382) — HB-156
+
+<!-- Provenance: feature work against EXISTING structure, not a harness revision.
+Adding a human-only disposition class TIGHTENS under the unchanged INV-002 ("critical
+operations require human approval"); the #296 §5.1-5.4 splits were structural because they
+REPLACED that invariant by loosening tiers, which this does not. No new journey, boundary,
+invariant, or LLM call site is minted, so none of routing.md's four structural triggers
+fires. Owner ruling 2026-08-13 ratified the `repo-provisioning` class (human-only) over the
+two alternatives: `repo-collaboration` was disqualified because the composed gate's budgeted
+tier is reached whenever every target verifies as the app's own configured repository — and
+a provisioning target IS that slug, already in apps.yaml before the repository exists — so
+folding them would have made repository creation agent-decidable; `gh-api-unrecognized` was
+rejected as the right tier under a false name, since rule names key
+ORCHESTRATOR_EXECUTABLE_RULES, FORBIDDEN_BY_ROLE, objective grants, and the persisted
+classification evidence. PURPOSE.md:432 ("creating/pushing the private GitHub repo ...
+remain explicit follow-up steps") is SATISFIED, not amended: `new-app` stays local and
+deterministic and provisioning remains a separate, explicit, operator-initiated follow-up —
+a governed command instead of a hand-typed one. -->
+
+- **HB-156 — Governed repository provisioning (org home + greenfield app).**
+  *Acceptance:* preview names owner/name, visibility, local source, the byte-bounded owned
+  commit scope, remote, push target, and canonical label set with no GitHub mutation;
+  identity refuses before the first network call; execution creates the private repository,
+  commits and pushes ONLY declared owned paths, installs CANONICAL_LABELS, and journals the
+  transaction by content identity; every partial outcome (repository exists, remote
+  configured, commit present, push landed, labels half-installed, response lost mid-create)
+  reconciles FORWARD with no duplicate create, no repeated ambiguous write, and no
+  force-push; verification proves visibility, remote identity, default-branch ancestry
+  (resolveRemoteDefaultBranch, never hardcoded or cached), the bootstrap commit, and the
+  canonical labels before any readiness claim advances.
+  *Defends:* INV-002 (gate totality over the `gh repo` surface), INV-008 (no observable
+  state claims more than its evidence), INV-013 (a torn journal never reads as absent),
+  and the org/state boundary (`classifyOrgHomeWrite` re-checks every expanded org path, so
+  the state home can never enter a provisioning commit).
+  *Families:* CF-REG-382 (§10.3, owned by HB-139 — the classification defect and the two
+  unregistered publish verbs it surfaced).
+  *Layer:* 1/2. *Executor:* landed with the implementing PR.
+  *Status:* LANDED 2026-08-13.
 
 ## Standing rules
 

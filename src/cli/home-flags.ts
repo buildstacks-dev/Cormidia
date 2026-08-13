@@ -1,5 +1,5 @@
 import { definedProps } from "../runtime/optional-properties.js";
-interface HomeFlags {
+export interface HomeFlags {
   orgHome?: string;
   stateHome?: string;
   rest: string[];

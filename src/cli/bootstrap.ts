@@ -2,7 +2,7 @@
 // target repo (docs/architecture.md §9 step 1), walk the alignment
 // questionnaire (step 2: interactive in a terminal, or injected via
 // `--answers answers.json` for tests/scripting), and emit the `.cormidia/`
-// tree (step 3): app charter/config/policy/onboarding report + seeded memory
+// tree (step 3): optional app taste/config/policy/onboarding report + seeded memory
 // bundles, then register the app with the active org.
 // `--scan-only` prints the scan profile and the would-create list without
 // writing anything. An explicit active org is now a prerequisite: package source, committed org
@@ -212,7 +212,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     if (recovered === undefined) {
       console.log(
         "\nnext: review + commit app artifacts under .cormidia/ in the app repo:\n" +
-          "charter (.cormidia/TASTE.md), authority (.cormidia/AUTHORITY.md), registry entry (.cormidia/config.yaml),\n" +
+          "optional app taste (.cormidia/TASTE.md), authority (.cormidia/AUTHORITY.md), registry entry (.cormidia/config.yaml),\n" +
           "policy (.cormidia/policy.yaml), onboarding report (.cormidia/onboarding-report.md),\n" +
           "and seeded memory bundles.",
       );
@@ -269,8 +269,8 @@ async function readAnswersFile(path: string): Promise<unknown> {
 }
 
 /** Interactive §9 step-2 questionnaire — roles, budget, authority, critical
- * ops, and channels. Product identity is not prompted: `.cormidia/TASTE.md`
- * is a comment-only stub the operator fills in. `--answers answers.json`
+ * ops, and channels. Product identity stays in reviewed product documents;
+ * `.cormidia/TASTE.md` is a comment-only optional-craft stub. `--answers answers.json`
  * supplies the same raw shape (validated once, in parseAnswers). Streams are
  * injected so tests can drive it. Cadence overrides are deliberately not
  * prompted — the default (empty = roles.yaml triggers) is right for

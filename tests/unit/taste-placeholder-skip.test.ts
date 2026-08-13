@@ -38,7 +38,7 @@ describe("optional taste placeholders are not injected", () => {
     });
   }
 
-  it("skips packaged comment-only role taste and empty app charter", async () => {
+  it("skips packaged comment-only role taste and empty app taste", async () => {
     const fixture = await makeTempOrgHome({ name: "taste-skip" });
     cleanups.push(fixture.cleanup);
     const appWorkdir = join(fixture.root, "app");
@@ -65,7 +65,7 @@ describe("optional taste placeholders are not injected", () => {
     expect(assembled.systemPrompt).not.toContain(PLACEHOLDER);
   });
 
-  it("bootstrap-emitted app charter is a skipped placeholder, even when answers name the product", async () => {
+  it("bootstrap-emitted app taste is a skipped placeholder, even when answers name the product", async () => {
     const fixture = await makeTempOrgHome({ name: "taste-charter" });
     cleanups.push(fixture.cleanup);
     const appWorkdir = join(fixture.root, "app");

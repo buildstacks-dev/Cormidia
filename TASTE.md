@@ -2,9 +2,11 @@
 
 Every role loads this, then `taste/<role>.md` if it has craft, then the app's
 `.cormidia/TASTE.md`. This file is how the org works; the role file is craft;
-the app file is what this product is. They stack. They do not replace each other.
-Add a role file only when that role needs craft this file does not cover.
-Empty files and HTML comments are not added to the turn.
+the app file is optional, durable product-specific taste that neither layer
+covers. Product identity, requirements, and current work belong in reviewed
+product documents and briefs, not app TASTE. The layers stack; they do not
+replace each other. Add a narrower file only when it contributes distinct
+craft. Empty files and HTML comments are not added to the turn.
 
 Editing this file is a critical op. Agents may propose; only the human ratifies.
 

@@ -325,11 +325,15 @@ evidence layers defined in `validation-design/validation-policy.yaml` and
   compiles to gates; the Reviewer enforces the un-lintable residue. Editing
   TASTE.md is a protocol change → human-gated.
 
-- **TASTE layers answer different questions.** The stack is not an override
-  cascade of one document type. Org `TASTE.md`: values + engineering
-  constitution. App `.cormidia/TASTE.md`: product charter. Role
-  `taste/<role>.md`: craft standards. Assembly is concatenation in fixed order
-  (org → role → app). The org's "What we never do" section is unoverridable.
+- **TASTE layers answer different questions.** Org `TASTE.md` holds values and
+  the engineering constitution. Role `taste/<role>.md` holds distinct craft
+  standards. App `.cormidia/TASTE.md` is optional: it holds only durable,
+  product-specific taste or craft constraints not covered by the broader
+  layers. It is not a product definition, PRD, requirements document, or task
+  brief; those facts come from reviewed product documents and the executable
+  brief. Assembly is concatenation in fixed order (org → role → app), skipping
+  empty and comment-only files. The org's "What we never do" section is
+  unoverridable.
 
 - **Knowledge & improvement — three tiers + forward scorecards.**
   *Constitution:* TASTE.md — slow-moving, human-gated. *Skills:* curated

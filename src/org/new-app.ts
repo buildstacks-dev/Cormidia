@@ -496,7 +496,7 @@ vacuous green checks.
 ## Cormidia
 
 - GitHub repo slug: \`${repoSlug}\`
-- App charter: \`.cormidia/TASTE.md\`
+- Optional app taste: \`.cormidia/TASTE.md\`
 - App registry entry: \`.cormidia/config.yaml\`
 - GitHub label contract: \`.cormidia/LABELS.md\`
 - Product-doc disposition: \`.cormidia/bootstrap/product-docs.json\`
@@ -568,7 +568,7 @@ The local server builds the app and serves it at http://localhost:4173.
 ## Cormidia
 
 - GitHub repo slug: \`${repoSlug}\`
-- App charter: \`.cormidia/TASTE.md\`
+- Optional app taste: \`.cormidia/TASTE.md\`
 - App registry entry: \`.cormidia/config.yaml\`
 - GitHub label contract: \`.cormidia/LABELS.md\`
 - Product-doc disposition: \`.cormidia/bootstrap/product-docs.json\`

@@ -1,19 +1,8 @@
-// `cormidia bootstrap` — runs inside the product repo (docs/architecture.md §9).
-//
-// Step 1 ("Learn") is `scanRepo()` — language/build/test commands from
-// manifests and CI config, documentation inventory, agent docs
-// (CLAUDE.md / AGENTS.md), deploy hints.
-// Step 2 ("Questionnaire") is the `BootstrapAnswers` contract + `parseAnswers`
-// — interactive collection lives in the CLI; tests and scripts inject the
-// same object via `--answers answers.json`. Step 3 ("Emit") is
-// `emitAppArtifacts()`: the app charter stub (`.cormidia/TASTE.md`,
-// comment-only until the operator writes craft), the app's registry entry
-// (`.cormidia/config.yaml`, apps.yaml schema), `.cormidia/onboarding-report.md`,
-// and seeded per-role memory bundles. `bootstrapRun()` composes steps 1–3 and
-// registers the app in
-// the required active org home. App-owned bootstrap output also includes
-// `.cormidia/policy.yaml` when the M4.2 policy template is present in this
-// package.
+// `cormidia bootstrap` runs inside a product repo (docs/architecture.md §9).
+// `scanRepo` learns local evidence; `parseAnswers` validates the questionnaire;
+// `emitAppArtifacts` writes app policy, optional taste, its onboarding report,
+// and role memory seeds. `bootstrapRun` composes the three steps and registers
+// the app in the active org.
 
 import { existsSync, lstatSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
@@ -467,16 +456,16 @@ function assertNoRetiredAppArtifactRoot(targetRoot: string): void {
 // Step 2 — questionnaire answers (architecture §9 step 2)
 // ---------------------------------------------------------------------------
 
-/** The alignment-questionnaire result: exactly one field per §9 step-2
- * question, nothing else. Interactive collection (the CLI) and `--answers
- * answers.json` both produce the raw shape; `parseAnswers` validates and
- * normalizes it into this type. Raw JSON: `roles` is required; `product`
- * and `good` are accepted from recovered answers and ignored by the charter
- * emitter; everything else is optional and defaulted here. */
+/** The alignment-questionnaire result. Interactive collection (the CLI) and
+ * `--answers answers.json` both produce the raw shape; `parseAnswers` validates
+ * and normalizes it into this type. Raw JSON: `roles` is required; legacy
+ * `product` and `good` inputs remain accepted for recovery and are surfaced in
+ * the onboarding report for product-document reconciliation, never app TASTE
+ * or agent context; everything else is optional and defaulted here. */
 export interface BootstrapAnswers {
-  /** Recovered questionnaire prose, when present. Not written into TASTE.md. */
+  /** Legacy questionnaire prose, surfaced only in the onboarding report. */
   product: string;
-  /** Recovered questionnaire prose, when present. Not written into TASTE.md. */
+  /** Legacy questionnaire prose, surfaced only in the onboarding report. */
   good: string;
   /** Roles enabled for this app; each must name a role in the org
    * roles.yaml. Un-listed roles are disabled — emitted as empty cadence
@@ -690,18 +679,13 @@ interface EmitAppArtifactsOptions {
   answers: BootstrapAnswers;
   /** The scan that produced this bootstrap run; emitAppArtifacts scans when omitted. */
   scan?: RepoScan;
-  /** Every role in the org roles.yaml, in file order. Emission order for
-   * memory bundles; the complement of answers.roles gets an explicit empty
-   * cadence override (= disabled, src/org/apps.ts semantics). */
+  /** Org roles in file order; omitted roles receive disabling cadence. */
   allRoles: string[];
   /** Canonical org grant to snapshot. bootstrapRun supplies it; direct unit
    * callers safely fall back to legacy-conservative resolution. */
   orgAuthority?: AuthorityContext;
-  /** Instruction-file plans captured at the command's validation phase.
-   * bootstrapRun supplies its pre-flight plans so the write phase compares
-   * against exactly the bytes the command validated (F-PT-007
-   * compare-and-refuse); direct callers may omit and emitAppArtifacts
-   * validates (plans) itself. */
+  /** Pre-flight instruction plans pin validated bytes through the write phase;
+   * direct callers may omit them and plan during emission. */
   instructionPlans?: ProjectInstructionPlan[];
   /** Template root for docs/policy.yaml.template; defaults to this package. */
   templateRoot?: string;
@@ -803,9 +787,9 @@ function buildOnboardingGapReport(scan: RepoScan, answers: BootstrapAnswers): On
 }
 
 /** Emit the app-level artifacts (architecture §9 step 3, first three
- * bullets): the product charter, the app's registry entry, and one seeded
+ * bullets): optional app taste, the app's registry entry, and one seeded
  * OKF memory bundle per enabled role, plus the onboarding doc inventory/gap
- * report. All content is deterministic — no timestamps — because the charter
+ * report. All content is deterministic — no timestamps — because app taste
  * is context layer [3] and layers [1]–[4] must stay a pure function of
  * ratified files (§5 cache-stable rule 1). */
 export async function emitAppArtifacts(targetRootIn: string, options: EmitAppArtifactsOptions): Promise<EmitResult> {
@@ -859,7 +843,7 @@ export async function emitAppArtifacts(targetRootIn: string, options: EmitAppArt
   };
 
   try {
-    await emit(".cormidia/TASTE.md", charterMd());
+    await emit(".cormidia/TASTE.md", appTasteMd());
     await emit(".cormidia/AUTHORITY.md", appAuthority);
     await emit(
       ".cormidia/config.yaml",
@@ -868,7 +852,7 @@ export async function emitAppArtifacts(targetRootIn: string, options: EmitAppArt
     await emit(".cormidia/policy.yaml", policyTemplate);
     await emit(
       ".cormidia/onboarding-report.md",
-      onboardingReportMd(appName, onboardingReport, effectiveAuthority, answers.authority),
+      onboardingReportMd(appName, onboardingReport, effectiveAuthority, answers.authority, answers),
     );
     for (const role of allRoles) {
       if (answers.roles.includes(role)) {
@@ -1002,15 +986,16 @@ async function readPolicyTemplate(templateRoot: string): Promise<string> {
   }
 }
 
-/** The app charter — TASTE layer [3] (docs/PURPOSE.md → TASTE layers).
+/** Optional product-specific taste — layer [3] (docs/PURPOSE.md → TASTE layers).
  * Bootstrap emits a comment-only stub; context assembly skips empty and
  * HTML-comment-only files (docs/org/context.md). Budget/cadence/roles are
  * config, so they live in config.yaml, never here. */
-function charterMd(): string {
+function appTasteMd(): string {
   return `<!--
-Add a product charter only if this app should specialize the org
-constitution (TASTE.md). If this file is empty or only this comment,
-Cormidia does not add it to the agent's turn.
+Add only durable product-specific preferences or craft constraints not covered
+by the org constitution or role craft. Product identity, requirements, and
+current work belong in reviewed product documents and briefs. If this file is
+empty or only this comment, Cormidia does not add it to the agent's turn.
 -->
 `;
 }
@@ -1107,6 +1092,7 @@ function onboardingReportMd(
   report: OnboardingGapReport,
   authority: AuthorityContext,
   selection: AppAuthoritySelection,
+  answers: BootstrapAnswers,
 ): string {
   const lines: string[] = [
     `# Cormidia Onboarding Report — ${appName}`,
@@ -1138,6 +1124,23 @@ function onboardingReportMd(
     lines.push("- None detected");
   }
   lines.push("");
+
+  if (answers.product.length > 0 || answers.good.length > 0) {
+    lines.push(
+      "## Legacy Product-Document Inputs",
+      "",
+      "These recovered questionnaire fields are not authoritative product truth, are not loaded into agent context, and never populate `.cormidia/TASTE.md`. Reconcile any facts that remain valid into reviewed product documents before automated planning.",
+      "",
+      "### Product summary",
+      "",
+      answers.product || "_Not supplied._",
+      "",
+      "### Definition of success",
+      "",
+      answers.good || "_Not supplied._",
+      "",
+    );
+  }
 
   lines.push("## Setup Signals", "");
   lines.push(`- Build: ${commandLine(report.setupSignals.build)}`);

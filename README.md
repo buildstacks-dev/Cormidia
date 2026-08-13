@@ -397,7 +397,12 @@ repo, org home, and state home before anything is written. A non-interactive
 run requires `--answers` or `--answers-from` and otherwise writes no bootstrap
 artifacts (the command audit row still records the refusal). Normalized
 non-secret answers are retained in isolated state and reset archives;
-`--answers-from <app>` resolves the app's latest default reset archive.
+`--answers-from <app>` resolves the app's latest default reset archive. Legacy
+`product` and `good` fields remain accepted and recoverable; the onboarding
+report surfaces them for reconciliation into reviewed product documents, but
+they never populate `.cormidia/TASTE.md` or agent context. App TASTE is an
+optional home for durable product-specific preferences or craft constraints,
+not product identity, requirements, or current-task facts.
 Generated YAML/authority metadata and text formatting are validated before
 success. `new-app` creates a separate product repo and then follows the same
 bootstrap/register path. Its default is `--template bare`: omitting `--template`

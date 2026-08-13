@@ -201,7 +201,7 @@ describe("CF-J02-S — explicit typescript-node output is unchanged", () => {
       lintCommand: "npm run lint",
     });
     // Pins the explicit typescript-node scaffold, including the comment-only
-    // app charter stub. Fails if that template's emitted bytes drift.
+    // optional app-taste stub. Fails if that template's emitted bytes drift.
     const expected = parseBaseline(
       await readFile(join(PACKAGE_ROOT, "tests/fixtures/new-app/typescript-node-scaffold.sha256"), "utf8"),
     );

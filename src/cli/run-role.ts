@@ -155,7 +155,7 @@ export async function cmdRunRole(args: string[], dependencies: RunRoleCommandDep
   // The brief references the context by count; a live turn passes the full
   // bundle through the adapter context channel. In the token-free inspection
   // path we also print the assembled app-aware context so the operator can
-  // actually verify what the role would see (M12: app charter, role addendum,
+  // actually verify what the role would see (M12: optional app taste, role addendum,
   // memory excerpts) rather than trusting a count.
   printContext(context);
   return 0;

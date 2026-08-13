@@ -7,9 +7,9 @@ itself is [`memory.md`](memory.md); the per-pass task payload is the loop's
 brief assembler ([`../loop/design.md`](../loop/design.md) §3); the system map
 is [`../architecture.md`](../architecture.md) §5.*
 
-Assembly is **concatenation in fixed order** (PURPOSE v0.8 — layers answer
-different questions, so conflicts are rare; narrower layers specialize
-defaults):
+Assembly is **concatenation in fixed order**. Layers answer different
+questions, so narrower layers contribute distinct craft instead of restating
+broader context:
 
 ```
 [0] effective delegated authority    org AUTHORITY.md, optionally narrowed
@@ -17,14 +17,20 @@ defaults):
 [1] org TASTE.md                      values + engineering constitution
 [2] taste/<role>.md                   role craft (when it has visible craft;
                                       empty or HTML-comment-only files are skipped)
-[3] <app>/.cormidia/TASTE.md            product charter (when it has visible craft;
-                                      empty or HTML-comment-only files are skipped)
+[3] <app>/.cormidia/TASTE.md            optional durable product-specific taste or
+                                      craft (when visible; empty or HTML-comment-only
+                                      files are skipped; never the PRD or task brief)
 [4] role turn protocol                generated: expected outputs, GitHub
                                       conventions (../loop/github-conventions.md), end-of-turn learning
                                       note instruction, approval etiquette
 [5] memory excerpts                   role craft bundle + this app's domain
                                       bundle (memory.md) — capped
 ```
+
+Product identity, requirements, and the definition of success come from
+reviewed product documents and the per-pass brief. App TASTE is for stable
+preferences or craft constraints that should steer every turn for that app;
+it may remain blank indefinitely.
 
 **Authority and the org's "What we never do" section are unoverridable by
 narrower context — but the guarantee is the gate, not prompt order.** App

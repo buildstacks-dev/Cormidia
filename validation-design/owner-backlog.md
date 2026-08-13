@@ -1,4 +1,4 @@
-# Owner backlog companion — Cormidia harness (regenerated 2026-08-12 after the P-ticket owner rulings: HB-P3/HB-P5/HB-P6 unparked, HB-112 closed, HB-153/HB-154 minted; earlier same-day HB-150, and HB-133/HB-135/HB-136/HB-140)
+# Owner backlog companion — Cormidia harness (regenerated 2026-08-13 after HB-139 gained the CF-REG-444 preflight detector)
 
 Non-normative, living. Regenerated from `harness-backlog.md` after the 2026-08-11
 pending-family ruling, including HB-141…HB-151 and the HB-137…HB-139 retrospective
@@ -298,6 +298,8 @@ passed, but took 431 seconds for the suite and 504 seconds for the job.
 - HB-139: the same for the forty-plus regression detectors, including CF-REG-403,
   CF-REG-443 (legacy product inputs had no visible disposition after app TASTE
   became optional),
+  CF-REG-444 (the offline test entrypoint now refuses unsupported process-start
+  identity or package-store hosts before Vitest),
   CF-REG-385 (onboarding accepted a placeholder repository identity and
   emitted executable commands against it), and CF-REG-384 (new-app equated
   greenfield with an empty directory, and its dry run validated a different

@@ -7,6 +7,7 @@ temp_parent="${TMPDIR:-/tmp}"
 temp_parent="${temp_parent%/}"
 git_askpass="$(type -P false)"
 vitest_bin="$PWD/node_modules/.bin/vitest"
+tsx_bin="$PWD/node_modules/.bin/tsx"
 pnpm_store="$(pnpm store path --silent)"
 if [[ -n "${COREPACK_HOME-}" ]]; then
   corepack_home="$COREPACK_HOME"
@@ -15,10 +16,14 @@ elif [[ "$(uname -s)" == "Darwin" ]]; then
 else
   corepack_home="${XDG_CACHE_HOME:-$HOME/.cache}/node/corepack"
 fi
-readonly temp_parent git_askpass vitest_bin pnpm_store corepack_home
+readonly temp_parent git_askpass vitest_bin tsx_bin pnpm_store corepack_home
 
 if [[ ! -x "$vitest_bin" ]]; then
   printf "Vitest is not installed at %s; run pnpm install first.\n" "$vitest_bin" >&2
+  exit 1
+fi
+if [[ ! -x "$tsx_bin" ]]; then
+  printf "Test preflight runner is not installed at %s; run pnpm install first.\n" "$tsx_bin" >&2
   exit 1
 fi
 
@@ -95,9 +100,10 @@ if [[ "${1-}" == "--probe-environment" ]]; then
     -e
     'const credentialKeys = Object.keys(process.env).filter((name) => /(API_KEY|TOKEN|SECRET|OPENAI|ANTHROPIC|GOOGLE|GEMINI|AWS_.*(KEY|TOKEN|SECRET)|GITHUB_TOKEN|GH_TOKEN)/i.test(name)).sort(); console.log(JSON.stringify({ credentialKeys, home: process.env.HOME, pathPresent: Boolean(process.env.PATH), timezone: process.env.TZ }));'
   )
+  echo "Running offline test-environment probe in isolated home: $test_root/home" >&2
+  env -i "${test_env[@]}" "${test_command[@]}"
 else
-  test_command=("$vitest_bin" run "$@")
+  echo "Running deterministic offline test preflight in isolated home: $test_root/home" >&2
+  preflight_args=("$tsx_bin" "$PWD/scripts/test-preflight.ts" --vitest "$vitest_bin" --store-dir "$pnpm_store" -- run "$@")
+  env -i "${test_env[@]}" "${preflight_args[@]}"
 fi
-
-echo "Running offline tests without provider credentials in isolated home: $test_root/home"
-env -i "${test_env[@]}" "${test_command[@]}"

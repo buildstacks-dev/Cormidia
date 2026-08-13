@@ -38,8 +38,10 @@ inventory.
   a workspace; `pnpm-workspace.yaml` is per-repo pnpm config only.
 - Check: `pnpm check` (Biome warnings-as-errors, typecheck, and the
   deterministic gate scripts in `scripts/check-*.mjs`).
-- Test: `pnpm test` (offline L1/L2 vitest over `tests/`; passWithNoTests
-  disabled) · typecheck: `pnpm typecheck` · build: `pnpm build` (tsc → `dist/`).
+- Test: `pnpm test` (runs the deterministic process-identity and offline-store
+  preflight before offline L1/L2 vitest over `tests/`; an incomplete preflight
+  starts zero Vitest files) · typecheck: `pnpm typecheck` · build: `pnpm build`
+  (tsc → `dist/`).
 - Triggered validation (human authorization + reviewed absolute config
   required): `pnpm test:live` · `pnpm test:eval` · `pnpm test:soak`; see
   `docs/qualification/design.md` and never run these casually.

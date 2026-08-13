@@ -19,6 +19,16 @@ covers only what an implementer needs to write or read a test here.
 | `eval-runner/` | L4 hand-rolled runner (`pnpm test:eval`, gated on `CORMIDIA_EVAL=1`) | per-site cadence |
 | `ops/` | L5 contention, soak collector, and threat-model admission gate | per obligation |
 
+`pnpm test` runs a deterministic preflight before starting Vitest. It checks the
+same process-start identity seam used by runtime liveness code for the current
+process and a live child, then performs a disposable canary install with
+`--offline --frozen-lockfile --ignore-scripts --verify-store-integrity`. The
+canary is removed afterward and never downloads packages or changes the repo or
+package store. If either capability is unavailable, the command reports one
+`INCOMPLETE` result with remediation and starts zero test files; restore the
+offline store or use a host that exposes process-start identity, then retry.
+Preflight diagnostics go to stderr so Vitest text and JSON output remain intact.
+
 Case families live in specs named for their catalog IDs, e.g.
 `hermetic/cf-j04/cf-j04-s.test.ts` asserts family `CF-J04-S`
 (`validation-design/case-catalog.md`). Every spec's `describe` block starts

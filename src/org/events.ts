@@ -11,6 +11,7 @@ import {
   type CompanyEventKind,
   type CompanyEventValidationCode,
 } from "./event-schemas.js";
+import { sha256, stableJson } from "./lifecycle.js";
 
 /** Transport kinds: GitHub-polled kinds plus the file-drop `alert-webhook`
  *  inbox transport. `alert-webhook` remains the dedup/transport identity for
@@ -26,9 +27,24 @@ type RoutedEventKind = EventKind | CompanyEventKind;
 
 export interface DueEvent {
   kind: RoutedEventKind;
+  /** Dedup identity. For GitHub-polled kinds this is the per-kind natural key;
+   *  for file-drop inbox events it is the CONTENT identity (B-13 §2, F-PT-006),
+   *  never the delivery filename. */
   key: string;
   app: string;
   payload: Record<string, unknown>;
+}
+
+/** One inbox delivery that collapsed into an earlier one under the same content
+ *  identity. Reported, never silent: a producer double-delivering is an
+ *  operator-visible fact even though it correctly fires only once (INV-008). */
+interface CollapsedDelivery {
+  app: string;
+  /** The duplicate file that did NOT produce a turn. */
+  file: string;
+  /** The delivery that did, under the shared identity. */
+  firstFile: string;
+  key: string;
 }
 
 interface EventPollError {
@@ -43,6 +59,8 @@ type EventPollErrorCode = "error_event_source" | "invalid_event_transport" | Com
 interface PollEventsResult {
   events: DueEvent[];
   errors: EventPollError[];
+  /** Duplicate inbox deliveries collapsed under B-13 §2's one-firing rule. */
+  collapsed: CollapsedDelivery[];
 }
 
 export interface GitHubEventSource {
@@ -86,8 +104,27 @@ function dedupKey(kind: EventKind, payload: Record<string, unknown>): string {
     case "release-shipped":
       return `release:${mustString(payload, "tag")}`;
     case "alert-webhook":
-      return mustString(payload, "filename");
+      return inboxEventKey(payload);
   }
+}
+
+/** B-13 §2 / F-PT-006 (owner ruling 2026-08-12): an inbox event's dedup identity
+ *  is CONTENT-DERIVED — sha256 over the canonical sorted-key serialization of
+ *  the producer's payload — so **exactly one turn fires per real-world event**
+ *  and duplicate deliveries collapse no matter what the producer named the file.
+ *
+ *  Why content and not a producer-supplied id (§6, and the reason the contract
+ *  could take no position before): a retrying producer that mints a fresh id
+ *  double-fires, and one that reuses an id with different bytes recreates the
+ *  same-identity-two-payloads case nobody could resolve. Deriving from content
+ *  makes that case VACUOUS — payloads that differ are different events. Same
+ *  shape as the incident idempotency marker in standing-roles.ts.
+ *
+ *  `filename` is stripped first: it is transport, added by readInbox for the
+ *  operator locator, and including it would key on delivery again. */
+export function inboxEventKey(payload: Record<string, unknown>): string {
+  const { filename: _filename, ...content } = payload;
+  return `event:${sha256(stableJson(content))}`;
 }
 
 export class EventStore {
@@ -124,7 +161,7 @@ export class EventStore {
     events.push(...inbox.events);
     errors.push(...inbox.errors);
 
-    return { events, errors };
+    return { events, errors, collapsed: inbox.collapsed };
   }
 
   async readConsumed(): Promise<string[]> {
@@ -185,7 +222,16 @@ export class EventStore {
     const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
     const events: DueEvent[] = [];
     const errors: EventPollError[] = [];
+    const collapsed: CollapsedDelivery[] = [];
+    // Content identity → the delivery that already claimed it THIS sweep, so a
+    // second file carrying the same event collapses into the first rather than
+    // fanning out twice (B-13 §2). Sorted filenames make the winner stable.
+    const claimedThisSweep = new Map<string, string>();
     for (const file of files) {
+      // MIGRATION (B-13 §6): consumed.json entries written before F-PT-006
+      // are filenames. A legacy entry still suppresses its own file, so
+      // nothing already consumed re-fires under the new identity. Suppression
+      // only widens — tighten-only.
       if (consumed.has(file)) continue;
       // "::" is reserved for per-role consumption marks (roleConsumedKey);
       // a filename containing it could impersonate or shadow another event's
@@ -224,9 +270,17 @@ export class EventStore {
         continue;
       }
       if (event.app !== app) continue;
-      events.push({ kind: event.kind, key: file, app: event.app, payload: { ...payload, filename: file } });
+      const key = inboxEventKey(payload);
+      if (consumed.has(key)) continue;
+      const firstFile = claimedThisSweep.get(key);
+      if (firstFile !== undefined) {
+        collapsed.push({ app: event.app, file, firstFile, key });
+        continue;
+      }
+      claimedThisSweep.set(key, file);
+      events.push({ kind: event.kind, key, app: event.app, payload: { ...payload, filename: file } });
     }
-    return { events, errors };
+    return { events, errors, collapsed };
   }
 
   async removeInboxFile(filename: string): Promise<void> {

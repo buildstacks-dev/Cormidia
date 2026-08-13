@@ -1,14 +1,20 @@
 // Traceability: CF-J10-S · HB-040; CF-J10-R · HB-040; CF-J10-I · HB-040; CF-J10-RC · HB-040; CF-SM-EVENT-L · HB-040; CF-SM-EVENT-I · HB-040; CF-SM-EVENT-R · HB-040; CF-SM-EVENT-C · HB-040; CF-B13 · HB-040 · contracts/journey-acceptance.md J-10; case-catalog.md §2 event machine; boundary-map.md B-13.
 
 // HB-040 — CF-J10 / CF-SM-EVENT / CF-B13 event-inbox contract.
-// F-PT-006 producer-partial-file and duplicate-identity/different-payload
-// semantics remain deliberately absent and parked.
+//
+// changelog 2026-08-12 (HB-P3, F-PT-006 owner ruling): the consumption-mark
+// assertions below keyed on the delivery FILENAME, which was the pre-ruling
+// dedup identity. They now key on the ratified CONTENT identity
+// (`inboxEventKey`) — the same assertions, restated under the ratified rule,
+// never weakened. The producer-partial-file and duplicate-identity semantics
+// this header recorded as "deliberately absent and parked" are ratified and
+// covered in cf-b13-content-identity.test.ts.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { dispatchTick } from "../../../src/org/dispatch.js";
-import { EventStore, roleConsumedKey, type GitHubEventSource } from "../../../src/org/events.js";
+import { EventStore, inboxEventKey, roleConsumedKey, type GitHubEventSource } from "../../../src/org/events.js";
 import { readLock, releaseLock } from "../../../src/org/locks.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
 
@@ -78,6 +84,9 @@ function validEvent(overrides: Record<string, unknown> = {}): Record<string, unk
   };
 }
 
+/** The ratified content identity of the fixture event (B-13 §2). */
+const KEY = inboxEventKey(validEvent());
+
 async function makeWorld(
   roles: readonly ("planner" | "support")[] = ["planner", "support"],
   channels = true,
@@ -125,8 +134,8 @@ describe("HB-040 event inbox fan-out and state machine", () => {
     expect(first.spawned).toHaveLength(1);
     const firstRole = first.spawned[0]!.role;
     const secondRole = firstRole === "planner" ? "support" : "planner";
-    expect(await consumed(home)).toContain(roleConsumedKey(FILE, firstRole));
-    expect(await consumed(home)).not.toContain(FILE);
+    expect(await consumed(home)).toContain(roleConsumedKey(KEY, firstRole));
+    expect(await consumed(home)).not.toContain(KEY);
 
     await unlock(home, firstRole);
     const second = await tick(home, "2026-07-31T12:05:00.000Z");
@@ -136,7 +145,7 @@ describe("HB-040 event inbox fan-out and state machine", () => {
     const retirement = await tick(home, "2026-07-31T12:10:00.000Z");
     expect(retirement.spawned).toEqual([]);
     expect(retirement.skipped.some((line) => line.includes("retired: all subscribers consumed"))).toBe(true);
-    expect(await consumed(home)).toEqual([FILE]);
+    expect(await consumed(home)).toEqual([KEY]);
   });
 
   it("adds current subscribers to a pending event and stops removed subscribers blocking retirement", async () => {
@@ -155,7 +164,7 @@ describe("HB-040 event inbox fan-out and state machine", () => {
     await writeFile(join(removed.orgHome, "roles.yaml"), rolesYaml([handled as "planner" | "support"]), "utf8");
     const converged = await tick(removed, "2026-07-31T14:05:00.000Z");
     expect(converged.skipped.some((line) => line.includes("retired: all subscribers consumed"))).toBe(true);
-    expect(await consumed(removed)).toEqual([FILE]);
+    expect(await consumed(removed)).toEqual([KEY]);
   });
 
   it("retains malformed, unknown-kind, no-subscriber, and channel-gated events loudly", async () => {
@@ -182,24 +191,24 @@ describe("HB-040 event inbox fan-out and state machine", () => {
     await writeFile(join(inbox, FILE), JSON.stringify(validEvent()) + "\n", "utf8");
     const noSubscriber = await tick(direct, "2026-07-31T15:00:00.000Z");
     expect(noSubscriber.skipped.some((line) => line.startsWith("no_subscriber:"))).toBe(true);
-    expect(await consumed(direct)).not.toContain(FILE);
+    expect(await consumed(direct)).not.toContain(KEY);
 
     const gated = await makeWorld(["support"], false);
     const gatedTick = await tick(gated, "2026-07-31T15:05:00.000Z");
     expect(gatedTick.spawned).toEqual([]);
     expect(gatedTick.skipped.some((line) => line.includes("support channel gate"))).toBe(true);
-    expect(await consumed(gated)).not.toContain(FILE);
+    expect(await consumed(gated)).not.toContain(KEY);
   });
 
   it("recovers a crash after durable spawn but before the per-role mark without refiring", async () => {
     const home = await makeWorld(["support"]);
     await expect(tick(home, "2026-07-31T16:00:00.000Z", "after_child_spawn")).rejects.toThrow("seeded crash");
-    expect(await consumed(home)).not.toContain(roleConsumedKey(FILE, "support"));
+    expect(await consumed(home)).not.toContain(roleConsumedKey(KEY, "support"));
     await unlock(home, "support");
 
     const recovered = await tick(home, "2026-07-31T16:05:00.000Z");
     expect(recovered.spawned).toEqual([]);
     expect(recovered.skipped.some((line) => line.includes("retired: all subscribers consumed"))).toBe(true);
-    expect(await consumed(home)).toEqual([FILE]);
+    expect(await consumed(home)).toEqual([KEY]);
   });
 });

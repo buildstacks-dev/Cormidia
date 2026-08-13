@@ -83,34 +83,22 @@ import { safetyFactsFromPlanningRequest } from "./episode-safety-facts.js";
 import { composeGate } from "./gate-compose.js";
 import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
 import type { PlanningDepthInput } from "./planning-depth.js";
+import type { PlanningSourceTicketEvidence } from "../loop/plan-tickets.js";
+import { validatePlanningDecomposition } from "./planning-decomposition.js";
 import {
-  coverageResult,
-  decompositionRefusal,
-  type PlanningCoverageResult,
-  type PlanningRefusal,
-} from "./planning-coverage-request.js";
-import {
-  renderPlanningSectionCatalog,
-  validatePlanningDecomposition,
-  type PlanningSourceSection,
-} from "./planning-decomposition.js";
-import {
-  consumedPlanningSourceManifest,
-  planningSourceManifestJson,
-  renderPlanningSourceBrief,
-  resolvePlanningSources,
-  type PlanningSourceManifest,
+  declarePlanningSourceScope,
+  planningSourceScopeJson,
+  reconcilePlanningSourceReads,
+  renderPlanningSourceScopeBrief,
+  type PlanningSourceConsumption,
   type PlanningSourceRequest,
-  type ResolvedPlanningSources,
+  type PlanningSourceScope,
 } from "./planning-inputs.js";
-import { prepareAutoPlanningCoverage, recoverPreparedAutoPlanningCoverage } from "./planning-auto-coverage.js";
-import {
-  decompositionRequestForBrief,
-  publishAutoPlanningCoverage,
-  recordAutoPlanningDecomposition,
-  type PlanningCoverageRoadmapPersistence,
-} from "./planning-auto-coverage-operations.js";
-import { renderPriorPlanningCoverage } from "./planning-publication.js";
+import { planningRecoveryIntentHash, preparedPlanningRecoveryDecision } from "./planning-publication-ledger.js";
+import { createPlanningSourceReadObserver, withPlanningSourceScopeGate } from "./planning-source-reads.js";
+import { publishPlanningLedger } from "./planning-publication-publish.js";
+import { readPlanningLedger, recordPlanningLedger } from "./planning-publication-operations.js";
+import { resolvePlanningPublicationLimit } from "./planning-publication.js";
 import { planningRepositoryFacts, productPlanningBrief, type PlanningSnapshot } from "./planning-provider-brief.js";
 import {
   discoverPlanningStageCheckout,
@@ -139,7 +127,6 @@ import { definedProps } from "../runtime/optional-properties.js";
 
 const PRODUCT_PLANNING_EPISODE_POLICY_VERSION = "product-planning/episode-planner-v1" as const;
 
-const AUTO_PLAN_SOURCE_BUDGET_BYTES = 128 * 1024;
 const MAX_PRODUCT_PLANNING_PROVIDER_TURNS = Object.keys(PLANNING_PROVIDER_OPERATION_CATALOG).length;
 const DEFAULT_PLANNER_ACTIVE_TIME_MS = 5 * 60_000;
 const BASELINE_PROVIDER_CAPABILITIES = [
@@ -192,9 +179,10 @@ interface AutoPlanOptions {
   /** Compatibility/request facts only. They no longer select workflow shape. */
   planning?: Omit<PlanningDepthInput, "goal" | "stage">;
   /** Publish the next bounded batch, or plan only still-remaining source coverage. */
-  resume?: boolean;
-  /** Explicitly replace still-unpublished coverage with a new decomposition revision. */
-  revise?: boolean;
+  /** Recover an interrupted publication batch. Not a coverage resume: the
+   * source-section coverage layer was removed with the pre-read (F-PT-039);
+   * this recovers an outstanding GitHub-effect transaction and nothing else. */
+  resumePublication?: boolean;
   sources?: readonly PlanningSourceRequest[];
   /** The only explicit zero-planner path. No scope is inferred from goal text. */
   creatorScope?: CreatorEpisodeScope;
@@ -224,15 +212,15 @@ interface AutoPlanResult {
   problems?: string[];
   published?: PublishedTicket[];
   planProjection?: FinalPlanProjection;
-  planningSources?: PlanningSourceManifest;
+  planningSources?: PlanningSourceScope;
+  /** What the turn was OBSERVED to read (INV-017); absent when no scope was declared. */
+  planningSourceConsumption?: PlanningSourceConsumption;
   episodeId?: string;
   episodePlan?: EpisodePlan;
   planningTurnSkipped?: boolean;
   planningExecution?: AutoPlanningExecutionResult;
   /** Exact explicit/inferred/persisted stage decision used by this episode. */
   stageResolution?: PlanningStageResolution;
-  coverage?: PlanningCoverageResult;
-  refusal?: PlanningRefusal;
 }
 
 type AutoPlanningExecutionResult = EpisodePlanExecutionResult;
@@ -302,17 +290,29 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
           stored: existingIntent.repositoryFacts["planningStageResolution"],
         });
   const stage = stageResolution.stage;
-  const persistCoverageRoadmap: PlanningCoverageRoadmapPersistence = ({ gh, plan, published, now }) =>
-    persistPublishedRoadmap({ stateHome: options.stateHome, app: options.app, gh, plan, published, now });
-  const preparedRecovery = await recoverPreparedAutoPlanningCoverage({
-    options,
+  const publicationLimit = resolvePlanningPublicationLimit({
     stageResolution,
-    stageEvidenceCheckout: stageCheckout.checkout,
-    stageEvidenceSource: stageCheckout.source,
-    clock,
-    persistRoadmap: persistCoverageRoadmap,
+    checkout: stageCheckout.checkout,
+    checkoutSource: stageCheckout.source,
   });
-  if (preparedRecovery !== undefined) return preparedRecovery;
+  const decompositionRequest = options.planning?.expectedTickets;
+  const planningIntentHash = planningRecoveryIntentHash({
+    goal: options.goal,
+    requestedStage: options.stage ?? null,
+    planning: options.planning ?? {},
+    creatorScope: options.creatorScope ?? null,
+  });
+  const publicationScopeId = stableHash({ app: options.app.name, intent: planningIntentHash }).slice(0, 32);
+  const priorLedger = await readPlanningLedger(options.stateHome, options.app.name, publicationScopeId);
+  const recovery = preparedPlanningRecoveryDecision({
+    ledger: priorLedger,
+    currentIntentHash: planningIntentHash,
+    resume: options.resumePublication === true,
+    publish: options.publish !== false,
+  });
+  if (recovery.action === "refuse") {
+    return { status: "failed", summary: recovery.summary, problems: [recovery.nextAction], episodeId };
+  }
   const snapshot = await withAppGitLock(options.stateHome, options.app.name, async () => {
     const source =
       options.workdir !== undefined
@@ -321,33 +321,17 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     return createOrReusePlanningSnapshot(source, join(options.stateHome, "worktrees", options.app.name, traceId));
   });
   const localRepo = snapshot.path;
-  const resolvedSources = resolveAutoPlanSources(options, snapshot, traceId);
-  const consumedSources =
-    resolvedSources === undefined ? undefined : consumedPlanningSourceManifest(resolvedSources.manifest);
+  const sourceScope = resolveAutoPlanSources(options, snapshot, traceId, clock);
   const productDocPlanningInput = {
     workdir: localRepo,
     app: options.app.name,
     repository: options.app.repo,
-    ...(consumedSources === undefined ? {} : { sources: consumedSources }),
+    ...(sourceScope === undefined ? {} : { sources: sourceScope }),
   };
   const productDocs = await prepareProductDocPlanning(productDocPlanningInput);
   const assertCurrentProductDocPlan = async (plan: TicketPlan) => {
     await assertCurrentProductDocTicketPlan(productDocPlanningInput, productDocs, plan);
   };
-  const coveragePreparation = await prepareAutoPlanningCoverage({
-    options,
-    stage,
-    stageResolution,
-    stageEvidenceCheckout: stageCheckout.checkout,
-    stageEvidenceSource: stageCheckout.source,
-    resolvedSources,
-    clock,
-    persistRoadmap: persistCoverageRoadmap,
-    beforePublish: assertCurrentProductDocPlan,
-  });
-  if ("result" in coveragePreparation) return coveragePreparation.result;
-  const coverageContext = coveragePreparation.context;
-  const { publicationLimit, decompositionRequest, priorCoverage, planningSections, priorTicketCount } = coverageContext;
   const priorAdmission = await readPlannerAdmission(options.stateHome, episodeId);
   const limits =
     options.plannerLimits ??
@@ -377,7 +361,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     goal: options.goal,
     stage,
     planning: jsonValue(options.planning ?? {}, "planning request facts"),
-    sourceManifestSha256: resolvedSources?.manifest.manifest_sha256 ?? null,
+    sourceScopeSha256: sourceScope?.scope_sha256 ?? null,
     creatorScope: options.creatorScope ?? null,
     catalog: planningCatalogForIntent(),
   };
@@ -442,17 +426,9 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       ticketPlanOutput: { id: "ticket-plan", kind: "TicketPlan", required: true },
       planningOperationCatalog: planningCatalogForIntent(),
       requestedPlanningFacts: jsonValue(options.planning ?? {}, "planning request facts"),
-      ...(resolvedSources === undefined
+      ...(sourceScope === undefined
         ? {}
-        : {
-            planningSources: jsonValue(
-              {
-                manifest: resolvedSources.manifest,
-                documents: resolvedSources.documents,
-              },
-              "planning sources",
-            ),
-          }),
+        : { planningSourceScope: jsonValue({ scope: sourceScope }, "planning source scope") }),
     },
     hardBudget: {
       maxProviderTurns: MAX_PRODUCT_PLANNING_PROVIDER_TURNS,
@@ -496,7 +472,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         problems: assessment.issues.map((entry) => `${entry.code}: ${entry.message}`),
         episodeId,
         stageResolution,
-        ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
+        ...(sourceScope === undefined ? {} : { planningSources: sourceScope }),
       };
     }
     try {
@@ -505,23 +481,34 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       return failedResult(error, {
         episodeId,
         stageResolution,
-        ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
+        ...(sourceScope === undefined ? {} : { planningSources: sourceScope }),
       });
     }
   }
 
   const store = new ApprovalStore(options.stateHome);
+  const readObserver = createPlanningSourceReadObserver(sourceScope ?? EMPTY_SOURCE_SCOPE);
   const hooks: TurnHooks = {
     ...options.observer,
-    gate: composeGate(defaultGate, store, {
-      app: options.app.name,
-      role: planner.name,
-      appRepo: options.app.repo,
-      ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
-      turnId: traceId,
-      workdir: localRepo,
-      now: clock,
-    }),
+    gate: withPlanningSourceScopeGate(
+      composeGate(defaultGate, store, {
+        app: options.app.name,
+        role: planner.name,
+        appRepo: options.app.repo,
+        ...definedProps({ networkAllowlist: options.app.networkAllowlist }),
+        turnId: traceId,
+        workdir: localRepo,
+        now: clock,
+      }),
+      { workdir: localRepo, scope: sourceScope },
+    ),
+    // Both consumers must see every event: the progress reporter (#433) and the
+    // read observer that INV-017 reconciles against. Spreading the observer
+    // first and then assigning onEvent would silently drop the reporter's.
+    onEvent: (event) => {
+      options.observer?.onEvent?.(event);
+      readObserver.onEvent(event);
+    },
   };
   const context = (
     await assembleContext({
@@ -531,7 +518,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       role: planner,
       taskText:
         `${stage} EpisodePlanner product plan for ${options.app.name}: ${options.goal}` +
-        (resolvedSources === undefined ? "" : `; planning sources ${resolvedSources.manifest.manifest_sha256}`),
+        (sourceScope === undefined ? "" : `; planning source scope ${sourceScope.scope_sha256}`),
     })
   ).bundle;
   const promptText =
@@ -550,15 +537,11 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     stageEvidenceCheckout: stageCheckout.checkout,
     budget,
     publicationCap: publicationLimit.cap,
-    decompositionRequest: decompositionRequestForBrief(decompositionRequest, priorTicketCount),
-    coverageMode:
-      priorCoverage === undefined ? "initial" : options.revise === true ? "revision" : "remaining-only resume",
+    decompositionRequest: decompositionRequest?.syntax ?? "unconstrained",
   });
   const sourceBrief = [
     renderProductDocPlanningBrief(productDocs),
-    resolvedSources === undefined ? "" : renderPlanningSourceBrief(resolvedSources.manifest, resolvedSources.documents),
-    renderPriorPlanningCoverage(priorCoverage, options.revise === true),
-    renderPlanningSectionCatalog(planningSections),
+    sourceScope === undefined ? "" : renderPlanningSourceScopeBrief(sourceScope),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -634,11 +617,8 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
             baseBrief,
             sourceBrief,
             productDocs,
-            ...(resolvedSources === undefined ? {} : { resolvedSources }),
-            ...(consumedSources === undefined ? {} : { consumedSources }),
-            planningSections,
+            ...(sourceScope === undefined ? {} : { sourceScope }),
             decompositionRequest,
-            priorTicketCount,
             stage,
             clock,
           });
@@ -675,7 +655,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
             episodePlan: persistedPlan,
             planningTurnSkipped: persistedPlan.planningSource === "creator_scope",
           }),
-      ...(resolvedSources === undefined ? {} : { planningSources: resolvedSources.manifest }),
+      ...(sourceScope === undefined ? {} : { planningSources: sourceScope }),
     });
   }
 
@@ -690,31 +670,12 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
     episodePlan: executedPlan,
     planningTurnSkipped: prepared.planningTurnSkipped,
     planningExecution,
-    ...(resolvedSources === undefined
-      ? {}
-      : {
-          planningSources: execution.status === "completed" ? consumedSources! : resolvedSources.manifest,
-        }),
+    ...(sourceScope === undefined ? {} : { planningSources: sourceScope }),
   };
   if (execution.status !== "completed") {
     const terminal = terminalProviderStep(executedPlan);
     const output =
       terminal === undefined ? undefined : await readPlanningStepOutput(options.stateHome, executedPlan, terminal.id);
-    const preserved =
-      output?.ticketPlan === undefined
-        ? undefined
-        : (
-            await recordAutoPlanningDecomposition({
-              options,
-              context: coverageContext,
-              disposition: "refused",
-              refusalProblems: output.problems,
-              plan: output.ticketPlan,
-              provenance: { episodeId, runId: output.runId, traceId },
-              consumedSources,
-              now: clock(),
-            })
-          ).record;
     return {
       status:
         output?.providerStatus === "cancelled"
@@ -726,12 +687,6 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         planningExecution.summary ??
         `accepted product-planning workflow stopped at ${execution.nextStepId ?? "an unknown step"}`,
       ...(output?.problems.length ? { problems: output.problems } : {}),
-      ...(preserved === undefined
-        ? {}
-        : {
-            coverage: coverageResult(preserved),
-            refusal: decompositionRefusal(preserved, publicationLimit.cap),
-          }),
       ...resultBase,
     };
   }
@@ -753,20 +708,23 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       ...resultBase,
     };
   }
-  const stored = await recordAutoPlanningDecomposition({
-    options,
-    context: coverageContext,
-    disposition: "accepted",
-    refusalProblems: [],
+  const consumption = reconcilePlanningSourceReads(sourceScope ?? EMPTY_SOURCE_SCOPE, readObserver.reads());
+  const sourceEvidence = sourceScope === undefined ? undefined : ticketEvidenceFromConsumption(consumption);
+  const ledger = await recordPlanningLedger({
+    root: options.stateHome,
+    app: options.app.name,
+    scopeId: publicationScopeId,
+    planningIntentHash,
     plan: output.ticketPlan,
     provenance: { episodeId, runId: output.runId, traceId },
-    consumedSources,
+    ...(sourceEvidence === undefined ? {} : { sourceEvidence }),
     now: clock(),
   });
-  const planProjection = finalizePlanForPublication(stored.record.plan, undefined, {
+  const planProjection = finalizePlanForPublication(ledger.plan, undefined, {
     indexes: [],
-    publicationCap: stored.record.publication_cap,
+    publicationCap: publicationLimit.cap,
   });
+  const consumptionResult = sourceScope === undefined ? {} : { planningSourceConsumption: consumption };
 
   if (options.publish === false) {
     return {
@@ -776,28 +734,66 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
         "planned provider step(s); TicketPlan validated; publication skipped (--no-publish)",
       plan: planProjection.plan,
       planProjection,
-      coverage: coverageResult(stored.record),
+      ...consumptionResult,
       ...resultBase,
     };
   }
-  const publication = await publishAutoPlanningCoverage({
-    options,
-    coverage: stored.record,
-    resume: options.resume === true,
+  const publication = await publishPlanningLedger({
+    stateHome: options.stateHome,
+    app: options.app,
+    ...(options.gh === undefined ? {} : { gh: options.gh }),
+    ledger,
+    cap: publicationLimit.cap,
     clock,
-    persistRoadmap: persistCoverageRoadmap,
     beforePublish: assertCurrentProductDocPlan,
+    persistRoadmap: ({ gh, plan, published, now }) =>
+      persistPublishedRoadmap({ stateHome: options.stateHome, app: options.app, gh, plan, published, now }),
   });
   return {
     status: "completed",
     summary:
-      `EpisodePlan v${executedPlan.version} preserved ${stored.record.plan.tickets.length} ticket(s); ` +
+      `EpisodePlan v${executedPlan.version} preserved ${publication.ledger.plan.tickets.length} ticket(s); ` +
       publication.summary,
     plan: publication.projection.plan,
     planProjection: publication.projection,
     published: publication.published,
-    coverage: coverageResult(publication.coverage),
+    ...consumptionResult,
     ...resultBase,
+  };
+}
+
+/** An empty scope stands in when no --source was declared, so reconciliation has
+ * one shape rather than an undefined branch every caller must remember. */
+const EMPTY_SOURCE_SCOPE: PlanningSourceScope = {
+  schema_version: 2,
+  kind: "planning-source-scope",
+  app: "",
+  trace_id: "",
+  source_checkout: "",
+  source_checkout_head: "",
+  observed_at: "1970-01-01T00:00:00.000Z",
+  requires_media_read: false,
+  scope_sha256: "",
+  roots: [],
+  entries: [],
+};
+
+/** Project observed consumption onto the publication-boundary evidence shape.
+ * Every declared entry travels with the state it was OBSERVED in — a source the
+ * turn never opened publishes as `not_read` rather than being silently dropped,
+ * which is what stops a ticket implying evidence nobody read (INV-017). */
+function ticketEvidenceFromConsumption(consumption: PlanningSourceConsumption): PlanningSourceTicketEvidence {
+  return {
+    scopeSha256: consumption.scope_sha256,
+    evidence: consumption.evidence,
+    sources: consumption.entries.map((entry) => ({
+      canonicalRef: entry.canonical_ref,
+      readSha256: entry.read_sha256,
+      readBytes: entry.read_bytes,
+      modality: entry.modality,
+      consumption: entry.consumption,
+      trust: "operator-supplied-untrusted-data",
+    })),
   };
 }
 
@@ -1091,11 +1087,8 @@ interface PlanningProviderExecutionInput {
   baseBrief: string;
   sourceBrief: string;
   productDocs: ProductDocPlanningState;
-  resolvedSources?: ResolvedPlanningSources;
-  consumedSources?: PlanningSourceManifest;
-  planningSections: readonly PlanningSourceSection[];
+  sourceScope?: PlanningSourceScope;
   decompositionRequest: PlanningDepthInput["expectedTickets"];
-  priorTicketCount: number;
   stage: ProjectStage;
   clock: () => Date;
 }
@@ -1147,13 +1140,13 @@ async function executePlanningProviderStep(
         },
         requiredCapabilities: planningRuntimeCapabilities(input.step),
         ...(definition.output === "ticket_plan" ? { verdictSchemaFor: () => PLAN_SCHEMA } : {}),
-        ...(input.resolvedSources === undefined || input.consumedSources === undefined
+        ...(input.sourceScope === undefined
           ? {}
           : {
               inputManifest: {
-                fileName: "planning-sources.json",
-                pendingContents: planningSourceManifestJson(input.resolvedSources.manifest),
-                completedContents: planningSourceManifestJson(input.consumedSources),
+                fileName: "planning-source-scope.json",
+                pendingContents: planningSourceScopeJson(input.sourceScope),
+                completedContents: planningSourceScopeJson(input.sourceScope),
               },
             }),
         telemetry: { orgDir: input.options.stateHome, trigger: "manual" },
@@ -1195,8 +1188,6 @@ async function executePlanningProviderStep(
       evidence.output,
       input.stage,
       input.decompositionRequest,
-      input.planningSections,
-      input.priorTicketCount,
       input.productDocs,
     );
     ticketPlan = parsed.plan;
@@ -1519,8 +1510,6 @@ function parseAndValidateTicketPlan(
   output: string,
   stage: ProjectStage,
   request: PlanningDepthInput["expectedTickets"],
-  sections: readonly PlanningSourceSection[],
-  priorTicketCount: number,
   productDocs: ProductDocPlanningState,
 ): { plan?: TicketPlan; problems: string[] } {
   const plan = parsePlanJson(output);
@@ -1528,7 +1517,7 @@ function parseAndValidateTicketPlan(
     return { problems: ["planner output is not a parseable TicketPlan JSON object"] };
   }
   const validation = validatePlan(plan, undefined, false);
-  validation.problems.push(...validatePlanningDecomposition(plan, request, sections, priorTicketCount));
+  validation.problems.push(...validatePlanningDecomposition(plan, request));
   validation.problems.push(...productDocPlanProblems(plan, productDocs));
   validation.ok = validation.problems.length === 0;
   if (plan.stage !== stage) {
@@ -1606,15 +1595,16 @@ function resolveAutoPlanSources(
   options: AutoPlanOptions,
   snapshot: PlanningSnapshot,
   traceId: string,
-): ResolvedPlanningSources | undefined {
+  now: () => Date,
+): PlanningSourceScope | undefined {
   if ((options.sources?.length ?? 0) === 0) return undefined;
-  return resolvePlanningSources({
+  return declarePlanningSourceScope({
     app: options.app.name,
     traceId,
     sourceCheckout: snapshot.sourcePath,
     sourceCheckoutHead: snapshot.sourceHead,
     requests: options.sources ?? [],
-    budgetBytes: AUTO_PLAN_SOURCE_BUDGET_BYTES,
+    now,
   });
 }
 

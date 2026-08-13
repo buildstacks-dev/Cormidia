@@ -1,15 +1,23 @@
 import { SECRET_PATTERNS } from "../runtime/secret-patterns.js";
 import type { PlanTicket } from "./plan-tickets.js";
 
-/** Hash-only planning-source evidence allowed to cross the issue-publication boundary. */
+/** Hash-only planning-source evidence allowed to cross the issue-publication
+ * boundary. Raw source bytes — and, since F-PT-039, raw media bytes — never
+ * cross it; only refs and digests do (INV-011, CORMIDIA-C-B31-003).
+ *
+ * Every row carries its OBSERVED consumption state rather than an assumed one:
+ * a declared source the turn never opened publishes as `not_read`, and an
+ * absent observation channel publishes as `unobservable`. A ticket must never
+ * imply it was planned from evidence nobody looked at (INV-017). */
 export interface PlanningSourceTicketEvidence {
-  manifestSha256: string;
+  scopeSha256: string;
+  evidence: "observed" | "unobservable";
   sources: Array<{
     canonicalRef: string;
-    sourceSha256: string;
-    sourceBytes: number;
-    includedBytes: number;
-    inclusion: "full" | "truncated";
+    readSha256: string | null;
+    readBytes: number | null;
+    modality: "text" | "media";
+    consumption: "consumed" | "not_read" | "unreadable" | "changed";
     trust: string;
   }>;
 }

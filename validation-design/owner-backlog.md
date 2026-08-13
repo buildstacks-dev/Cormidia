@@ -112,6 +112,22 @@ what done bought you.
   vendor SDK happens to catch, which a version bump could silently undo. HB-154: a route
   that requires independent review but resolves no reviewer seat now refuses instead of
   quietly skipping the cross-provider check.
+- **HB-155 (landed) — you ruled that Cormidia should stop reading your spec folder itself.**
+  Pointing `plan --source` at a directory used to make Cormidia walk it, decode every
+  file as text and paste the result into the planner's prompt — which is why one PNG
+  killed the whole run, and why no sketch ever reached a model. Now Cormidia declares
+  the folder as a scope the harness is allowed to read, and the harness reads it with
+  its own tools, images included. Two things go with the old design rather than being
+  rebuilt: the source-section coverage layer behind `--resume`/`--revise` (the planner
+  already decomposes, as the RoadmapPlan — the coverage layer was a second, worse copy
+  of that), and the ingestion secret pre-scan (the publication guard already refuses to
+  publish a secret, which is the boundary that actually carries the risk). The one thing
+  this ticket must never get wrong, and what its detectors are aimed at: Cormidia must
+  never report that it planned from your drawing when nothing actually opened it.
+  **What still needs you:** one small authorized live run to certify that a harness's
+  image reader actually fires inside a Cormidia-gated turn. Until that runs, a folder
+  containing images is refused before any tokens are spent rather than planned around
+  blindly — honest, but not yet the workflow you asked for.
 - **HB-072 / HB-073 — the threat model is yours to author**; the abuse-case lane
   stays locked behind it (a gate refuses until your reviewed document exists).
 - **HB-071 (evidence half) — the seven-day soak** waits for you to schedule a real

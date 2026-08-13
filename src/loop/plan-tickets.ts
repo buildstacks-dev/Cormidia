@@ -649,12 +649,21 @@ function renderTicketBody(
     "",
     ...(planningSources !== undefined && planningSources.sources.length > 0
       ? [
-          "## Planning sources consumed",
-          `Manifest SHA-256: ${planningSources.manifestSha256}`,
+          "## Planning sources",
+          `Scope SHA-256: ${planningSources.scopeSha256}`,
+          ...(planningSources.evidence === "unobservable"
+            ? [
+                "Read evidence was UNOBSERVABLE for this planning turn: the sources below were declared in " +
+                  "scope, but Cormidia cannot show that any of them was opened. Treat this plan as unverified " +
+                  "against its stated evidence.",
+              ]
+            : []),
           ...planningSources.sources.map(
             (source) =>
-              `- \`${source.canonicalRef}\` — SHA-256 ${source.sourceSha256}; ` +
-              `${source.includedBytes}/${source.sourceBytes} bytes; ${source.inclusion}; ${source.trust}`,
+              `- \`${source.canonicalRef}\` — ${source.modality}; ${source.consumption}` +
+              (source.readSha256 === null ? "" : `; read SHA-256 ${source.readSha256}`) +
+              (source.readBytes === null ? "" : `; ${source.readBytes} bytes`) +
+              `; ${source.trust}`,
           ),
           "",
         ]

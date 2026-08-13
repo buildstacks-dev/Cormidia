@@ -56,7 +56,6 @@ export function productPlanningBrief(input: {
   budget: BudgetRow;
   publicationCap: number;
   decompositionRequest: string;
-  coverageMode: "initial" | "revision" | "remaining-only resume";
 }): string {
   const facts = planningRepositoryFacts(input.snapshot, input.stageResolution, input.stageEvidenceCheckout);
   return [
@@ -65,7 +64,6 @@ export function productPlanningBrief(input: {
     "## Product goal",
     input.goal,
     `Decomposition intent: ${input.decompositionRequest}`,
-    `Coverage mode: ${input.coverageMode}`,
     `Publication admission is separate and capped at ${input.publicationCap} ticket(s) this invocation.`,
     "Produce the complete requested decomposition; do not shrink it to the publication cap.",
     ...(input.creatorScope === undefined

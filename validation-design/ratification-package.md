@@ -2122,3 +2122,77 @@ empty unresolved-disputes/deferrals statement. -->
 iteration 1 findings and dispositions. -->
 <!-- changelog 2026-08-10 (disposition gate round 1): AUD-101 and AUD-103 fix
 cells corrected per the stakeholder's upheld objections; gate history added. -->
+
+## 15. Harness revision rev-2026-08-12 — F-PT-039 (governed planning-source scope)
+
+**Trigger.** Issue #386 reported that one PNG in a `--source` directory rejects the whole
+root. Investigation found the report was a symptom: `src/org/planning-inputs.ts` walked the
+operator's directory, decoded every file as fatal UTF-8, JSON-encoded the text and
+concatenated it into the planner's `task` string — which `docs/PURPOSE.md` non-negotiable 2
+forbids ("Cormidia must use the harness's full evolving capability, not treat the model as
+a bare completion API"). That is a ratified-text-vs-reality contradiction, so it opened
+**F-PT-039** rather than being fixed in place.
+
+**Owner ruling (2026-08-12, attributable via the rewritten #386 body the owner reviewed and
+approved, and the landing PR body).** The non-negotiable governs. Cormidia declares a
+governed read scope; the harness reads the operator's files with its own tools, images and
+documents included. A Cormidia-side media-classification taxonomy was proposed during
+triage and **explicitly refused by the owner** as scaffolding for the design being deleted —
+recorded here because refusing a proposed mechanism is a design decision worth keeping.
+
+**Seat decisions taken in this revision.**
+
+1. **New boundary B-31** — declared planning-source scope ↔ harness-native reading. The
+   seam did not previously exist: under the pre-read Cormidia held the bytes, so "declared"
+   and "read" were one fact and nothing could fail independently. The boundary test passes
+   in both directions, the dangerous one being a scope that resolves perfectly while the
+   harness reads nothing. Registered `[stated]` from the ruling.
+2. **New invariant CORMIDIA-INV-017** — consumption is proven, never assumed. Sorted as an
+   invariant rather than a B-31 clause by the standard test (it holds over every planning
+   turn, scope and modality, not one named operation). It is INV-008's failure class at a
+   seam whose evidence producer is now a party Cormidia does not control.
+3. **New contract CORMIDIA-C-B31-001…003** — scope declaration, governed reading,
+   consumption evidence.
+4. **Two prunes, not migrations.** Source-section coverage (`planningSourceCoverageHash`,
+   the coverage record, `--resume`/`--revise`, `plan_source_changed`) was constructible only
+   because Cormidia held the bytes, and duplicated a decomposition the planner already
+   produces as the RoadmapPlan; the ingestion secret pre-scan duplicated the INV-011
+   publication guard at a boundary that does not carry the risk. Both are pruned **with the
+   mechanism they served**. Recorded against CF-REG-374's §10.3 row, which keeps its
+   crash-recovery, publication-cap, tamper and cap-bypass legs unchanged.
+
+   <!-- changelog 2026-08-12 (HB-155 implementation write-back, same day): the prune list
+   grew by one leg once implementation reached it. Predecessor/orphan REVISION recovery was
+   initially recorded as retained; it is not, and cannot be — it repaired a crash between
+   writing `revision-<n>.json` and swapping the current-record pointer, and revisions existed
+   only because `--revise` minted new decomposition versions. Pruning `--revise` prunes the
+   revision chain, which prunes what orphan recovery recovers. The prepared→completed
+   publication barrier — the leg that actually prevents duplicate GitHub issues after a crash —
+   is separate, survives, and now lives in `src/org/planning-publication-ledger.ts`. Corrected
+   here and at CF-REG-374's row rather than diverged from in code. -->
+
+7. **The retired record was two records.** `PlanningCoverageRecord` carried source-section
+   coverage AND the publication transaction (prepared/completed batches, ticket identities,
+   issue numbers, planning-intent binding). Only the first was constructible from the
+   pre-read; the second is what makes publication at-most-once. The revision therefore
+   deletes one and re-homes the other in a smaller record that cannot describe file content.
+5. **No new LLM call site.** S-1b now reads its own scope with harness tools, which is tool
+   activity — but the question it raises ("did it open the evidence it planned from") is
+   deterministic enforcement, so it lands at L1/L2 as CF-B31-\*/CF-INV-017 rather than as a
+   trajectory eval. Standing rules 1 and 2. `CF-S1-traj/judge` stays `PRUNE-na` with the
+   narrowed reason recorded inline.
+6. **Capability, not inference.** `media_read` enters the runtime capability profile and is
+   proven per harness at L3 (CF-B31-L3), never claimed from documentation and never inferred
+   from a model id. An unproven harness records `unsupported` and refuses image-bearing
+   scopes — the same capability-follows-evidence discipline as the adapter certifications.
+
+**Families registered.** CF-B31-\*, CF-B31-L3, CF-INV-017, CF-C-B31, plus CF-J03-R's new
+modality-refusal leg. Ticket: **HB-155**. `case-catalog.yaml` regenerated (401 families,
+116 tickets) and the drift check passes; `owner-backlog.md` regenerated to set-equality.
+
+**Open findings after this revision.** No new finding. F-PT-039 is resolved-ratified with
+implementation owed under HB-155/#386. The pre-existing human-owned set is unchanged.
+
+**What this revision deliberately does not decide.** Whether any specific harness build's
+image reader fires headless (per-harness L3, gated on certification), and whether a model
+*understood* what it read (S-1b quality, L4, still inconclusive-only under F-PT-010).

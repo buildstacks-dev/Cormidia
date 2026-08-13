@@ -46,6 +46,7 @@ describe("CF-B26 registration — muse is a first-class harness with an HONEST p
       cache_telemetry: "adapter",
       cancellation: "adapter",
       intra_turn_fanout: "unsupported",
+      media_read: "unsupported",
       session_resume: "native",
       structured_verdict: "fallback",
       tool_gate: "unsupported",

@@ -399,6 +399,40 @@ low-risk waiver outside its policy class; (c) evidence copied from another unit/
 (d) cross-ticket boundary touched without its shared contract detector; (e) Reviewer
 resumed from Builder's private session and self-confirms the same unsupported claim.
 
+## CORMIDIA-INV-017 — Consumption is proven, never assumed
+`[stated: F-PT-039 / #386 owner ruling, 2026-08-12]`
+**Statement.** Cormidia never reports an operator-supplied planning source as consumed
+without evidence that the turn actually read it, and never reports a modality as
+understood that the selected assignment could not read. Where a declared scope contains
+a modality the exact harness/model/effort tuple cannot read, the episode refuses before
+provider construction rather than proceeding on the readable subset. Read evidence that
+is missing or unattributable is reported as unobservable — never as coverage, never as
+zero. A text-only read is never rendered as image consumption.
+**Why it is an invariant and not a B-31 clause.** It must hold over every planning turn,
+every scope and every modality, not over one named operation — the standard sorting test.
+It is also the exact failure INV-008 names ("evidence never outruns reality") pointed at
+a seam where the evidence producer is now a party Cormidia does not control; B-31 owns
+the seam's mechanics, this owns the claim.
+**Relationship to the retired pre-read.** Under the pre-read design consumption was
+trivially true — Cormidia had the bytes, so "selected" and "consumed" were the same fact.
+Moving the read to the harness makes them independent, and this invariant is what stops
+that independence from being silently resolved in the optimistic direction.
+**Enforcement.** Both — a deterministic pre-spend capability refusal at admission plus a
+post-turn reconciliation of claimed consumption against gate-observed reads, with tests
+that attack each. Never a prompt instruction; the harness cannot be asked to be honest
+about this (standing rule 2).
+**Falsifying test shape.** A turn reads nothing and the manifest still reports consumed;
+a text-only read of a scope containing a PNG reports the image consumed; an assignment
+with no image reader is admitted for an image-bearing scope; read evidence is absent and
+the run still reports green.
+**Adversarial seeds.** (a) the harness narrates having examined the sketch while no read
+event exists — the `subagentTurns` prose-vs-records precedent, now at a second site;
+(b) a read that errored counted as a successful read; (c) scope declared, turn never
+reaches it, plan published anyway; (d) modality capability inferred from a model id
+rather than proven by the profile; (e) a file changed between declare-hash and read, so
+the recorded hash describes bytes nobody saw; (f) an unreadable modality quietly dropped
+from the scope so the remaining subset "covers" it.
+
 ---
 
 # Campaign invariants — the L-ACC outcome-acceptance lane (added 2026-08-07)

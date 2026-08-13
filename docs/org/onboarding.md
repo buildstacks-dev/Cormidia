@@ -97,8 +97,9 @@ untouched placeholders, user replacements, and absent documents are distinct. `k
 requires all three reviewed documents and creates no disposition-only work. `remove`
 uses a recoverable staging transaction, deletes exact placeholders only, refuses or
 preserves replacements that arrive after preview, and never records a mixed partial
-result. Planning then keeps the optional documents absent. `reconcile` requires an authoritative `--source` outside
-the scaffold documents; planning creates one Builder/Reviewer documentation unit and
+result. Planning then keeps the optional documents absent. `reconcile` requires an authoritative `--source` DECLARED outside
+the scaffold documents (a declared scope, not a proven read — whether the turn
+actually opened it is INV-017's separate question); planning creates one Builder/Reviewer documentation unit and
 orders all implementation after it. Bare templates additionally order that unit after
 the single stack-and-gates unit. Missing or drifted disposition refuses before a
 provider is constructed or an implementation issue is published.

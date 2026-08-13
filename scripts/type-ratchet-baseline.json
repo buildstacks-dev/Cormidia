@@ -543,7 +543,7 @@
     },
     "src/org/plan-auto.ts": {
       "as": 7,
-      "nonNull": 12
+      "nonNull": 11
     },
     "src/org/plan.ts": {
       "as": 1,
@@ -557,41 +557,9 @@
       "as": 3,
       "nonNull": 3
     },
-    "src/org/planning-auto-coverage.ts": {
-      "as": 0,
-      "nonNull": 4
-    },
-    "src/org/planning-coverage-model.ts": {
-      "as": 5,
-      "nonNull": 1
-    },
-    "src/org/planning-coverage-publication.ts": {
-      "as": 1,
-      "nonNull": 2
-    },
-    "src/org/planning-coverage-store.ts": {
-      "as": 1,
-      "nonNull": 1
-    },
-    "src/org/planning-coverage.ts": {
-      "as": 0,
-      "nonNull": 4
-    },
-    "src/org/planning-decomposition.ts": {
-      "as": 0,
-      "nonNull": 2
-    },
-    "src/org/planning-inputs.ts": {
-      "as": 0,
-      "nonNull": 2
-    },
     "src/org/planning-provider-brief.ts": {
       "as": 1,
       "nonNull": 0
-    },
-    "src/org/planning-publication.ts": {
-      "as": 0,
-      "nonNull": 1
     },
     "src/org/planning-stage.ts": {
       "as": 0,
@@ -1547,7 +1515,7 @@
     },
     "tests/hermetic/cf-j03-a-cf-j03-i-cf-j03-r-cf-j03-rc-cf-j03-s/cf-j03-planning.test.ts": {
       "as": 0,
-      "nonNull": 12
+      "nonNull": 10
     },
     "tests/hermetic/cf-j04-i-cf-j04-r-cf-j04-s/cf-j04-i.test.ts": {
       "as": 1,
@@ -1738,8 +1706,8 @@
       "nonNull": 0
     },
     "tests/hermetic/cf-reg-374/stateful-decomposition.test.ts": {
-      "as": 4,
-      "nonNull": 15
+      "as": 3,
+      "nonNull": 0
     },
     "tests/hermetic/cf-s9-env/cf-s9-format-repair.test.ts": {
       "as": 2,

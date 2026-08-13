@@ -30,7 +30,7 @@ families:
   - {id: CF-J02-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state", risk: "E1", ticket: HB-042, wave: "4"}
   - {id: CF-J02-A, section: "Journey matrix", status: implementable, layers: "2", oracle: "evid", risk: "E3", ticket: HB-042, wave: "4"}
   - {id: CF-J03-S, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E3/STD (HB-101/HB-105; HB-108 closure complete)", ticket: HB-041, wave: "4"}
-  - {id: CF-J03-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E1/E3/STD (HB-101/HB-105; HB-108 closure complete)", ticket: HB-041, wave: "4"}
+  - {id: CF-J03-R, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "E1/E3/STD (HB-101/HB-105; HB-108 closure complete; HB-155 modality leg)", ticket: HB-041, wave: "4"}
   - {id: CF-J03-I, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-101/HB-105; HB-108 closure complete)", ticket: HB-041, wave: "4"}
   - {id: CF-J03-RC, section: "Journey matrix", status: implementable, layers: "2", oracle: "state+evid", risk: "E2/E3 (HB-101/HB-105; HB-108 closure complete)", ticket: HB-041, wave: "4"}
   - {id: CF-J03-A, section: "Journey matrix", status: implementable, layers: "1/2", oracle: "evid+refusal", risk: "E3/STD (HB-100/HB-105 plus pre-tuning Planner corpus; HB-108 closure complete, human references validated; F-PT-010 remains open)", ticket: HB-041, wave: "4"}
@@ -202,6 +202,7 @@ families:
   - {id: CF-INV-014, section: "Invariant matrix", status: implementable, layers: "2", oracle: "evid", risk: "E2", ticket: HB-149, wave: "3"}
   - {id: CF-INV-015, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal", risk: "FLOOR", ticket: HB-150, wave: "1"}
   - {id: CF-INV-016, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+evid+det", risk: "E1/E2/E3/FLOOR (HB-100/HB-102/HB-103/HB-104/HB-107; HB-108 registry closure and HB-109 sibling contention complete)", ticket: HB-100, wave: "proposed"}
+  - {id: CF-INV-017, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+evid+det", risk: "E1/FLOOR (HB-155; registered by the 2026-08-12 F-PT-039 revision)", ticket: HB-155, wave: "structural"}
   - {id: CF-INV-ACC-1, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "det+refusal", risk: "E3 (FLOOR-adjacent: a leak voids every axis it touched)", ticket: HB-121, wave: "outcome-acceptance"}
   - {id: CF-INV-ACC-2, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E3", ticket: HB-122, wave: "outcome-acceptance"}
   - {id: CF-INV-ACC-3, section: "Invariant matrix", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "E3", ticket: HB-123, wave: "outcome-acceptance"}
@@ -250,6 +251,8 @@ families:
   - {id: CF-B28, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "det+refusal", risk: "E3", ticket: HB-121, wave: "outcome-acceptance"}
   - {id: CF-B29, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "refusal+det+state", risk: "E3", ticket: HB-122, wave: "outcome-acceptance"}
   - {id: CF-B30, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "refusal+state+evid", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-B31, section: "Boundary matrix", status: implementable, layers: "1/2", oracle: "refusal+state+evid+det", risk: "E1/E3 (HB-155; registered by the 2026-08-12 F-PT-039 revision)", ticket: HB-155, wave: "structural"}
+  - {id: CF-B31-L3, section: "Boundary matrix", status: implementable, layers: "3", oracle: "live", risk: "E1/E2 (HB-155; gated on adapter certification per harness)", ticket: HB-155, wave: "structural"}
   - {id: CF-C-CORE, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "state+refusal", risk: "E2 (T-11)", ticket: HB-P6, wave: "parked"}
   - {id: CF-C-B01, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E3", ticket: HB-003, wave: "0"}
   - {id: CF-C-B02, section: "Contract matrix", status: implementable, layers: "1/2 + 3", oracle: "contract", risk: "E2", ticket: HB-004, wave: "0"}
@@ -282,6 +285,7 @@ families:
   - {id: CF-C-B28, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E3", ticket: HB-121, wave: "outcome-acceptance"}
   - {id: CF-C-B29, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E3", ticket: HB-122, wave: "outcome-acceptance"}
   - {id: CF-C-B30, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E2", ticket: HB-128, wave: "outcome-acceptance"}
+  - {id: CF-C-B31, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E3", ticket: HB-155, wave: "structural"}
   - {id: CF-C-OPJOB, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "contract", risk: "E1/E2 (T-5 nested-invocation slice)", ticket: HB-145, wave: "outcome-acceptance"}
   - {id: CF-C-OPLIFE, section: "Contract matrix", status: implementable, layers: "2", oracle: "state+refusal", risk: "E1 (T-8 slices)", ticket: HB-015, wave: "1"}
   - {id: CF-C-OPPLAN, section: "Contract matrix", status: implementable, layers: "1/2", oracle: "refusal+state", risk: "STD (HB-107 shared-façade wiring slice; validator depth per risk-allocation §3)", ticket: HB-101, wave: "proposed"}
@@ -527,6 +531,7 @@ tickets:
   - {id: HB-139, wave: "retrospective", status: landed, families: [CF-HB102-MANUAL-REVIEW, CF-REG-154, CF-REG-181, CF-REG-202, CF-REG-203, CF-REG-203-G, CF-REG-204, CF-REG-205, CF-REG-206, CF-REG-209, CF-REG-211, CF-REG-228, CF-REG-229, CF-REG-230, CF-REG-231, CF-REG-232, CF-REG-236-BUDGET, CF-REG-239, CF-REG-244, CF-REG-251, CF-REG-268, CF-REG-269, CF-REG-271, CF-REG-272, CF-REG-273, CF-REG-274, CF-REG-278, CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-291, CF-REG-293, CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335, CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374, CF-REG-375, CF-REG-384, CF-REG-385, CF-REG-390, CF-REG-403]}
   - {id: HB-153, wave: "campaign-finding", status: landed, families: [CF-INV-015]}
   - {id: HB-154, wave: "campaign-finding", status: landed, families: [CF-REVIEW-PROVIDER]}
+  - {id: HB-155, wave: "structural", status: pending, families: [CF-B31, CF-B31-L3, CF-C-B31, CF-INV-017, CF-J03-R, CF-REG-374]}
 # rollup (derived by the generator from the entries above — recompute, never hand-edit):
-#   families: 400 = 361 implementable + 38 pruned + 1 blocked
-#   tickets: 115 = 104 landed + 11 pending
+#   families: 404 = 365 implementable + 38 pruned + 1 blocked
+#   tickets: 116 = 104 landed + 12 pending

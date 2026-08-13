@@ -853,6 +853,41 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - **Layer:** 1/2 dominant. **No new L3 seam** — the strongest argument that this
   subsystem is cheap to validate.
 
+### B-31 — Declared planning-source scope ↔ harness-native reading `[stated: F-PT-039 / #386, 2026-08-12]`
+- **Why it is a boundary:** Cormidia canonicalizes the operator's `--source` paths and
+  declares them as a governed read scope; the party that actually opens those files is
+  the **harness**, using readers Cormidia neither owns nor controls. Both tests for a
+  boundary change at that line. Ownership of state: the source directory lives outside
+  the app checkout and outside Cormidia's write domain, and the operator may edit it
+  mid-turn. Failure domain: scope resolution succeeding says nothing about whether a
+  single byte was read. This replaces the pre-read design ratified away by F-PT-039 —
+  under the old shape Cormidia held the bytes, so there was no seam and no boundary.
+- **Boundary test:** a scope can resolve perfectly while the harness reads nothing (the
+  dangerous direction — the plan still looks complete); and a fully capable harness can
+  face a scope whose root vanished or whose symlink escapes it. PASS, both directions.
+- **Journeys / tier:** J-03; C2 with T-3 assignment-authority, T-9 evidence and T-1
+  gate-classification slices.
+- **Failure modes:** declared root missing, unreadable, or not a directory at declare
+  time; symlink escaping a declared root; a read attempted outside every declared root;
+  **the harness reads nothing at all** (silent under-read — the plan is published on
+  evidence nobody looked at); the harness reads only text and never opens the image while
+  the plan is reported as covering visual evidence; the exact assignment tuple has no
+  reader for a modality present in scope; read evidence unobservable or unattributable
+  (must report as such, never as coverage); the scope mutating between declare and read,
+  so a recorded hash describes bytes nobody saw; unbounded traversal or corpus volume
+  exhausting the turn's execution limits; source content attempting to act as instruction
+  rather than data.
+- **Honest fake:** YES — a scripted adapter double replaying a known sequence of read
+  tool actions through the **real** gate core (never a copy), over B-15 temp state, with
+  the B-07 kill-point harness. Silent under-read, out-of-scope denial, symlink escape,
+  modality refusal, and unobservable-evidence reporting are all falsifiable with no
+  provider.
+- **Unproven real:** whether a given harness build's image/document reader actually fires
+  headless (L3 adapter certification, per harness), and whether the model *understood*
+  what it read (S-1b quality, L4). Neither is claimable from this boundary's L1/L2 cases.
+- **Layer:** 1/2 dominant, plus a per-harness L3 modality-proof leg feeding the
+  capability profile.
+
 ## 2. Not boundaries (named, so nobody re-litigates)
 
 - `org → loop → runtime` module layering — import discipline inside one process.

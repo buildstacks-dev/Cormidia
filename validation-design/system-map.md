@@ -283,7 +283,7 @@ killed campaigns `[rambling]`).
 |---|---|---|---|
 | J-01 | M10 (org home, state home, pointer) | none (archive-backed, rollback) | — |
 | J-02 | M10, M4 (labels), GitHub | draft PRs (**externally durable, closable — not reversible**: closing does not erase the remote write, content, or history) | — (F-PT-002 resolved 2026-07-31) |
-| J-03 | Planner role, M5 roadmap adapter, validation designer, M3, deterministic publisher, GitHub | published/edited issue projections (durable externally); planning tokens | exact RoadmapPlan storage path and the projection-label spelling remain implementation choices, not authority decisions |
+| J-03 | Planner role, M5 roadmap adapter, validation designer, M3, deterministic publisher, GitHub, **declared operator-source scope (B-31)** | published/edited issue projections (durable externally); planning tokens; **gate-observed source-read evidence** | exact RoadmapPlan storage path and the projection-label spelling remain implementation choices, not authority decisions <!-- changelog 2026-08-12 (F-PT-039 revision): operator `--source` input joined this journey as a governed READ SCOPE (B-31) rather than as Cormidia-decoded prompt content; the harness performs the reads, so consumption evidence is observed rather than constructed (INV-017) --> |
 | J-04 | M5 delivery adapter, M4, M9, M7, M1, M3, GitHub | **one squash-merge to default branch; branch deletion; tokens** | — |
 | J-05 | M1, M2, GitHub (typed executor) | the executed op itself (may be deploy/publication) | — |
 | J-06 | M2, M9, M7 (session resume) | tokens on resume | — |

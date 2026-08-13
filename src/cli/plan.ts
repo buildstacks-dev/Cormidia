@@ -230,8 +230,7 @@ export async function cmdPlan(args: string[], dependencies: PlanCommandDependenc
         observer: reporter.observer,
         ...definedProps({ parentTaskId }),
         planning: planningOptions(parsed),
-        resume: parsed.resume,
-        revise: parsed.revise,
+        resumePublication: parsed.resumePublication,
         ...(parsed.sources.length > 0 ? { sources: parsed.sources } : {}),
         ...(creatorScope === undefined ? {} : { creatorScope, requireExecutionReadyCreatorScope: true }),
       });
@@ -273,24 +272,28 @@ export async function cmdPlan(args: string[], dependencies: PlanCommandDependenc
       });
     }
     for (const problem of result.problems ?? []) console.log(`problem: ${problem}`);
-    if (result.coverage !== undefined) {
-      console.log(
-        `coverage: revision ${result.coverage.revision}; decomposition ${result.coverage.decompositionId}; ` +
-          `publication cap ${result.coverage.publicationCap}`,
-      );
-      console.log(`coverage states: ${JSON.stringify(result.coverage.states)}`);
-    }
-    if (result.refusal !== undefined) {
-      console.log(`refusal (${result.refusal.code}): ${result.refusal.syntax}`);
-      console.log(`preserved decomposition: ${result.refusal.preservedDecomposition ?? "none"}`);
-      console.log(`next action: ${result.refusal.nextAction}`);
-    }
     if (result.planningSources !== undefined) {
-      console.log(`planning-source manifest: ${result.planningSources.manifest_sha256}`);
-      for (const source of result.planningSources.sources) {
+      console.log(`planning-source scope: ${result.planningSources.scope_sha256}`);
+      for (const root of result.planningSources.roots) {
         console.log(
-          `planning source: ${source.canonical_ref} ${source.selection}/${source.inclusion}/${source.consumption}`,
+          `planning source root (${root.requirement}): ${root.requested_path} ${root.availability}` +
+            (root.entry_count === null ? "" : ` (${root.entry_count} file(s))`) +
+            (root.reason === null ? "" : ` — ${root.reason}`),
         );
+      }
+      if (result.planningSources.requires_media_read) {
+        console.log("planning source scope contains image/document files; the planner must be able to read them");
+      }
+    }
+    if (result.planningSourceConsumption !== undefined) {
+      const consumption = result.planningSourceConsumption;
+      console.log(
+        `planning sources read: ${consumption.consumed_count}/${consumption.declared_count}` +
+          ` (media ${consumption.media_consumed_count}/${consumption.media_declared_count}); ` +
+          `evidence ${consumption.evidence}`,
+      );
+      for (const entry of consumption.entries.filter((candidate) => candidate.consumption !== "consumed")) {
+        console.log(`planning source NOT consumed: ${entry.canonical_ref} — ${entry.consumption}`);
       }
     }
     // A failed/incomplete planning turn must not exit 0. The explicit
@@ -371,8 +374,7 @@ interface ParsedPlanArgs {
   reversibility?: PlanningReversibility;
   externalConsequence?: ExternalConsequence;
   expectedTickets?: PlanningDecompositionRequest;
-  resume: boolean;
-  revise: boolean;
+  resumePublication: boolean;
   sensitiveDomains?: string[];
   workLifecycle?: PlanningWorkLifecycle;
   explainRoute: boolean;
@@ -389,6 +391,7 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
     throw new Error(
       "plan: usage: cormidia plan <app> --dry-run [--topic <string>] [--workdir <path>] " +
         "| cormidia plan <app> --auto --goal <text> [--stage bootstrap] [--no-publish] " +
+        "[--source <file-or-dir>] [--optional-source <file-or-dir>] [--resume-publication] " +
         "| cormidia plan <app> --creator-scope <scope.json|scope.yaml> --execution-ready [--no-publish]",
     );
   }
@@ -408,8 +411,7 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
   let reversibility: PlanningReversibility | undefined;
   let externalConsequence: ExternalConsequence | undefined;
   let expectedTickets: PlanningDecompositionRequest | undefined;
-  let resume = false;
-  let revise = false;
+  let resumePublication = false;
   let sensitiveDomains: string[] | undefined;
   let workLifecycle: PlanningWorkLifecycle | undefined;
   let explainRoute = false;
@@ -429,10 +431,8 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
       auto = true;
     } else if (arg === "--no-publish") {
       noPublish = true;
-    } else if (arg === "--resume") {
-      resume = true;
-    } else if (arg === "--revise") {
-      revise = true;
+    } else if (arg === "--resume-publication") {
+      resumePublication = true;
     } else if (arg === "--creator-scope") {
       const next = args[i + 1];
       if (!next || next.startsWith("--")) {
@@ -533,9 +533,8 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
   if (creatorScopePath !== undefined && topic !== undefined) {
     throw new Error("plan: --topic applies only to the manual context preview, not --creator-scope");
   }
-  if (resume && revise) throw new Error("plan: --resume and --revise are mutually exclusive");
-  if ((resume || revise) && !auto && creatorScopePath === undefined) {
-    throw new Error("plan: --resume/--revise apply only to automated planning");
+  if (resumePublication && !auto && creatorScopePath === undefined) {
+    throw new Error("plan: --resume-publication applies only to automated planning");
   }
 
   return {
@@ -546,8 +545,7 @@ function parsePlanArgs(args: string[]): ParsedPlanArgs {
     explainRoute,
     json,
     sources,
-    resume,
-    revise,
+    resumePublication,
     ...definedProps({ goal }),
     ...definedProps({ stage }),
     ...definedProps({ topic }),
@@ -624,8 +622,8 @@ function projectTicketBudget(input: {
     publication: input.publication,
     decompositionRequest: input.request ?? null,
     detail:
-      "The complete decomposition is stored independently. Publication is bounded per invocation; " +
-      "use --resume for the next admissible batch or --revise for an explicit replacement of remaining coverage.",
+      "The planner owns decomposition and its RoadmapPlan is where that decomposition is durable. " +
+      "Publication is bounded per invocation; --resume-publication recovers an interrupted publication batch.",
   };
 }
 

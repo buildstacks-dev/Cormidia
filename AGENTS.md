@@ -138,14 +138,25 @@ remains the contract (tighten-only). Triggers:
 - Feature change → derivation chain: routing.md "Feature changes".
 - Bug fix → detector deposit + case-catalog §10.3 row in the same change (two
   sanctioned exceptions listed in routing.md's standing-rules digest).
-- Structural addition or mismatch (new journey/boundary/invariant/LLM site) →
-  re-enter `validation-harness-design` in `harness-revision` mode; if that
-  skill is unavailable, STOP and escalate — never improvise structure.
+- Structural additions/mismatches: first apply the clause-vs-shape test. A
+  conflict confined to one contract/invariant clause is ordinary: open a
+  finding and park its cases `BLOCKED:<finding>`; a new journey, boundary,
+  invariant, or LLM site, or a conflict with the structure's ownership,
+  failure domain, or existence, is structural. Re-enter
+  `validation-harness-design` in `harness-revision` mode. If that skill is
+  unavailable, never approximate the revision by hand: halt only the
+  structural work, record the blocker in the change description (PR body or
+  commit message) plus an `F-PT` finding when product-truth-shaped — there is
+  no other channel — and split the change. Structure-independent parts may
+  land; dependent cases/specs park in the change description as
+  pending-the-revision.
 - Before picking up any ticket: scan for BLOCKED/PARKED/`Gate:` markers
   (mechanized greps in routing.md; run them from `validation-design/`).
 - Never weaken a gate or test. Never read `archive-do-not-read/`.
-Tickets run through the `implement-harness-ticket` skill (hand-implementation
-fallback per routing.md's adoption notes).
+Tickets normally run through the `implement-harness-ticket` skill. If it is
+unavailable and enumeration is unambiguous, hand-implementation is permitted
+per routing.md's adoption notes; that fallback is forbidden for
+`validation-harness-design`/`harness-revision`.
 
 ## Ratified addenda
 The three routing addenda parked by the #402 restructure (roadmap/validation/

@@ -1510,7 +1510,7 @@ HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-142 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-150 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
-HB-112 LANDED. HB-P3 LANDED. HB-P5 LANDED. HB-P6 LANDED.
+HB-112 LANDED. HB-P3 LANDED. HB-P5 LANDED. HB-P6 LANDED. HB-153 LANDED. HB-154 LANDED.
 <!-- changelog 2026-08-12: HB-112 was an audit ticket, and "landed" is this register's
 only completion token — it records that the ticket's acceptance (inventory, one
 disposition per occurrence, zero scheduling-semantics changes) is discharged by the
@@ -1525,7 +1525,7 @@ HB-P4 LANDED.
 as plain-language options BEFORE any implementation, and ruled the same day. Ids minted
 by the next-id scan over this file and case-catalog.yaml's ticket list. -->
 
-- **HB-153 — classifier-throw deny+escalate at the muse, grok and pi seams (F-PT-037).**
+- **HB-153 — LANDED 2026-08-12 — classifier-throw deny+escalate at the muse, grok and pi seams (F-PT-037).**
   Extend the ratified INV-015 seed (c) enforcement to the three seams F-PT-036 did not
   reach: the muse and grok bridges route their classifier-throw catches through
   `classifierThrowDenial` (deny + `GateEscalation`), and `src/runtime/adapters/pi-gate.ts`
@@ -1537,7 +1537,7 @@ by the next-id scan over this file and case-catalog.yaml's ticket list. -->
   vendor bump that stopped catching cannot silently open the seam. *Defends:* INV-015
   seed (c); CF-INV-015; B-25/B-26 and the pi leg of CORMIDIA-C-CORE-001. *Layer:* 2.
   *Executor:* build-agent.
-- **HB-154 — unresolvable independent-review policy fails closed (F-PT-038).** When an
+- **HB-154 — LANDED 2026-08-12 — unresolvable independent-review policy fails closed (F-PT-038).** When an
   EpisodeIntent carries the `independent_review` safety fact and no review policy
   resolves — neither explicitly configured nor from the name-based
   `defaultBuilderReviewerPolicy` — refuse before provider construction under the same

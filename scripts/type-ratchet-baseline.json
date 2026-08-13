@@ -894,7 +894,7 @@
       "nonNull": 1
     },
     "src/runtime/adapters/pi-gate.ts": {
-      "as": 2,
+      "as": 1,
       "nonNull": 0
     },
     "src/runtime/adapters/pi.ts": {

@@ -64,6 +64,16 @@ function role(name: string, runtime: RoleConfig["runtime"], model: string): Role
   };
 }
 
+/** An intent whose route REQUIRES independent review — the precondition the
+ *  F-PT-038 legs exercise. The base `intentFor` deliberately carries no safety
+ *  facts, so this is opt-in rather than a change to every existing case. */
+function reviewRequiringIntent(episodeId: string, roles: RoleConfig[]): ReturnType<typeof intentFor> {
+  return {
+    ...intentFor(episodeId, roles),
+    requiredSafetyFacts: [{ kind: "independent_review" as const, evidenceRefs: ["f-pt-038"] }],
+  };
+}
+
 function intentFor(episodeId: string, roles: RoleConfig[]): EpisodeIntent {
   return buildEpisodeIntent({
     episodeId,
@@ -158,6 +168,46 @@ describe("CF-REVIEW-PROVIDER — route refusal before provider construction (L1,
         independentReview: { subjectRoles: ["builder"], reviewerRoles: [] },
       });
     expect(thrownCode(construction)).toBe("error_review_provider_family_unresolvable");
+  });
+
+  it("leg (f) F-PT-038: a route requiring independent review with NO resolvable policy fails closed", () => {
+    // The hole this closes: leg (c) above passes an EXPLICIT independentReview,
+    // so it never exercised the path where no policy resolves AT ALL. With no
+    // role named builder or reviewer, defaultBuilderReviewerPolicy returned
+    // undefined and the whole `if (review !== undefined)` guard was SKIPPED —
+    // the cross-provider-family control silently did not run, while an empty
+    // seat list two lines below deliberately refused. The same unsatisfiable
+    // policy failed closed one way and open the other, decided by role naming.
+    const unnamed = [
+      role("planner", "claude", "claude-opus-4-8"),
+      role("implementer", "codex", "gpt-5.6-sol"),
+      role("critic", "claude", "claude-opus-4-8"),
+    ];
+    const construction = (): unknown =>
+      createEpisodePlanningPolicy(APP, {
+        intent: reviewRequiringIntent("f-pt-038-unresolvable", unnamed),
+        roles: unnamed,
+      });
+    // SEEDED CONTROL: before the ruling this returned a policy object instead of
+    // throwing, and `policy.validation.independentReview` was undefined — a
+    // safety control reading as satisfied while covering nothing.
+    expect(thrownCode(construction)).toBe("error_review_provider_family_unresolvable");
+  });
+
+  it("leg (f) F-PT-038: the name-based default still resolves when the seats ARE named — not a regression", () => {
+    // The default is retained as a convenience; the refusal above must not fire
+    // for an org chart that does use the convention (negative control both ways).
+    const named = [
+      role("planner", "claude", "claude-opus-4-8"),
+      role("builder", "codex", "gpt-5.6-sol"),
+      role("reviewer", "claude", "claude-opus-4-8"),
+    ];
+    const policy = createEpisodePlanningPolicy(APP, {
+      intent: reviewRequiringIntent("f-pt-038-named", named),
+      roles: named,
+    });
+    expect(policy.validation.independentReview?.subjectRoles).toEqual(["builder"]);
+    expect(policy.validation.independentReview?.reviewerRoles).toEqual(["reviewer"]);
   });
 
   it("leg (d): different provider families pass — the non-vacuous positive", () => {

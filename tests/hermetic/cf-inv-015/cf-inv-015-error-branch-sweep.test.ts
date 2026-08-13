@@ -42,6 +42,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { startCodexGateBridge } from "../../../src/runtime/adapters/codex-gate-bridge.js";
 import { startCursorGateBridge } from "../../../src/runtime/adapters/cursor-gate-bridge.js";
 import { startOpencodeGateBridge } from "../../../src/runtime/adapters/opencode-gate-bridge.js";
+import { startMuseGateBridge } from "../../../src/runtime/adapters/muse-gate-bridge.js";
+import { startGrokGateBridge } from "../../../src/runtime/adapters/grok-gate-bridge.js";
+import { piToolCallGateHandler } from "../../../src/runtime/adapters/pi-gate.js";
 import { cursorDenyRulesForRole } from "../../../src/runtime/role-shaping.js";
 import type { GateDecision, GateEscalation } from "../../../src/runtime/types.js";
 import { LEGACY_CONSERVATIVE_VERSION, resolveAuthority } from "../../../src/org/authority.js";
@@ -69,6 +72,40 @@ function parseBridgeReply(raw: string): BridgeReply {
 
 /** Codex/Cursor wire protocol (mirrors codex-gate-hook.ts / cursor-gate-hook.ts):
  *  connect, half-close with the payload, read the JSON reply written on end. */
+/** Muse answers in its vendor hook envelope rather than the shared
+ *  `{allow, reason}` shape, so its reply is read raw. */
+function askMuseBridge(socketPath: string, payload: unknown): Promise<{ decision?: string; reason?: string }> {
+  return new Promise((resolve, reject) => {
+    const socket = createConnection(socketPath);
+    let out = "";
+    socket.setTimeout(10_000, () => {
+      socket.destroy();
+      reject(new Error("bridge client timed out"));
+    });
+    socket.on("connect", () => socket.end(JSON.stringify(payload)));
+    socket.on("data", (chunk: Buffer) => {
+      out += chunk.toString("utf8");
+    });
+    socket.on("error", reject);
+    socket.on("end", () => {
+      const parsed: unknown = JSON.parse(out);
+      if (typeof parsed !== "object" || parsed === null) {
+        reject(new Error(`muse bridge reply is not an object: ${out}`));
+        return;
+      }
+      const envelope: Record<string, unknown> = { ...parsed };
+      const output = envelope["hookSpecificOutput"];
+      const fields: Record<string, unknown> = typeof output === "object" && output !== null ? { ...output } : {};
+      const decision = fields["permissionDecision"];
+      const reason = fields["permissionDecisionReason"];
+      resolve({
+        ...(typeof decision === "string" ? { decision } : {}),
+        ...(typeof reason === "string" ? { reason } : {}),
+      });
+    });
+  });
+}
+
 function askHalfCloseBridge(socketPath: string, payload: unknown, raw = false): Promise<BridgeReply> {
   return new Promise((resolve, reject) => {
     const socket = createConnection(socketPath);
@@ -284,6 +321,61 @@ describe("CF-INV-015 (L1/L2, HB-150) — every error branch reduces capability, 
       expect(reply.reason).toContain("failed closed");
       expect(escalations).toHaveLength(1);
       expect(escalations[0]?.action.tool).toBe("bash");
+      expect(escalations[0]?.reason).toContain("classifier boom");
+    });
+
+    // F-PT-037 (owner ruling 2026-08-12) extends seed (c) to the three seams
+    // F-PT-036 did not reach. muse and grok denied fail-closed in their own
+    // catches WITHOUT escalating; pi had no catch at all.
+    it("Muse bridge (F-PT-037): a throwing gate denies AND appends the GateEscalation", async () => {
+      const escalations: GateEscalation[] = [];
+      const bridge = await startMuseGateBridge("/tmp/cf-inv-015-muse-wd", { gate: throwingGate }, escalations);
+      cleanups.push(() => bridge.close());
+
+      const reply = await askMuseBridge(bridge.socketPath, {
+        hook_event_name: "PreToolUse",
+        tool_name: "Bash",
+        tool_input: { command: "cat .env" },
+      });
+      expect(reply.decision).toBe("deny");
+      expect(reply.reason).toContain("failed closed");
+      // SEEDED CONTROL for this seam: before the ruling this list stayed empty,
+      // so a persistently broken classifier read as universal refusal with no
+      // signal anywhere.
+      expect(escalations).toHaveLength(1);
+      expect(escalations[0]?.reason).toContain("classifier boom");
+    });
+
+    it("Grok bridge (F-PT-037): a throwing gate denies AND appends the GateEscalation", async () => {
+      const escalations: GateEscalation[] = [];
+      const bridge = await startGrokGateBridge("/tmp/cf-inv-015-grok-wd", { gate: throwingGate }, escalations);
+      cleanups.push(() => bridge.close());
+
+      const reply = await askHalfCloseBridge(bridge.socketPath, {
+        hookEventName: "pre_tool_use",
+        toolName: "shell",
+        toolInput: { command: "cat .env" },
+      });
+      expect(reply.allow).toBe(false);
+      expect(reply.reason).toContain("failed closed");
+      expect(escalations).toHaveLength(1);
+      expect(escalations[0]?.reason).toContain("classifier boom");
+    });
+
+    it("pi extension (F-PT-037): Cormidia's OWN catch blocks and escalates, not the vendor's", () => {
+      // The load-bearing case. pi is fail-closed today only because the vendor
+      // SDK catches downstream — a version-banded behavior one bump could
+      // invert, with no escalation either way. This drives the gate decision
+      // directly, so it asserts that CORMIDIA's code produces the block.
+      const escalations: GateEscalation[] = [];
+      const decide = piToolCallGateHandler("/tmp/cf-inv-015-pi-wd", { gate: throwingGate }, escalations);
+
+      const result = decide({ toolName: "bash", input: { command: "cat .env" } });
+      // SEEDED CONTROL: without Cormidia's own catch this THROWS instead of
+      // returning a block, and the guarantee belongs to the vendor.
+      expect(result?.block).toBe(true);
+      expect(result?.reason).toContain("failed closed");
+      expect(escalations).toHaveLength(1);
       expect(escalations[0]?.reason).toContain("classifier boom");
     });
   });

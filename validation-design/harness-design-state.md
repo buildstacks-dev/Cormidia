@@ -507,7 +507,11 @@ process-identity probe.
   pi-agent-core's `prepareToolCall` catch turns it into an error tool result. That is
   version-banded vendor behavior one bump could invert, and nothing escalates either way, so
   Cormidia owns its own fail-closed denial at the seam. INV-015 text unchanged; this widens
-  where the ratified seed is enforced. Implementation owed under HB-153.
+  where the ratified seed is enforced. (**implemented 2026-08-12** — HB-153 landed: muse and
+  grok route their catches through `classifierThrowDenial`; `pi-gate.ts` gained its own catch
+  and its gate decision was extracted to an exported handler so the denial is exercisable
+  without a stubbed SDK — which also removed a pre-existing cast. Each of the three new
+  CF-INV-015 legs was verified red against its own seam.)
 - F-PT-038 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **an unresolvable
   independent-review policy fails closed.** `defaultBuilderReviewerPolicy` resolves seats by
   role NAME and returns undefined when no role is called builder/reviewer, so the whole
@@ -516,7 +520,10 @@ process-identity probe.
   other, decided by naming. Now: a route requiring `independent_review` with no resolvable
   policy refuses before provider construction under the same typed error class. The
   name-based default is retained as a convenience and the refusal names explicit seat
-  configuration as the remedy. Implementation owed under HB-154.
+  configuration as the remedy. (**implemented 2026-08-12** — HB-154 landed: the refusal fires
+  before provider construction; CF-REVIEW-PROVIDER gained leg (f). The hole survived because
+  the pre-existing leg (c) passed an EXPLICIT `independentReview` and so never exercised the
+  no-policy-at-all path.)
 - F-PT-021 (resolved-ratified 2026-08-04): the supported release workflow authenticates RQ-1 authority by requiring exact equality among GitHub's tag-push actor, `approval.approved_by`, and a configured release approver for the matching repository.
 - F-PT-022 (RESOLVED-ratified 2026-08-05; calibrated #300): L4 reservations, campaign `max_tokens`, and `observed_tokens` count output tokens only. Golden `token_reservation` values remain human-reviewed baselines; an exact human-approved release config may raise effective reservations but must cover every selected case once, never lower a baseline, and bind `max_tokens` to their sum. The #300 two-times-observed-rounded-to-100 calibration raises seven effective reservations to 5,700/6,600/8,700/12,100/8,000/9,500/4,700 and the full-corpus envelope to 88,100. Input/cache usage remains telemetry and equivalent-USD input. Unknown use debits the effective reservation; known overruns preserve evidence and remain incomplete/inconclusive. CF-REG-287 and CF-REG-300 provide the seeded controls.
 - F-PT-024 (RESOLVED-ratified 2026-08-06 — owner decision on #296: grantless budgeted actions are deliberately outside dollar accumulation; the per-action audit row is the complete record; objective grants remain the opt-in bound; pinned by tests/hermetic/cf-inv-003/f-pt-024-grantless-budgeted.test.ts). Original subject: grantless budgeted-tier accounting — budgeted actions proceed at the composed gate with per-action audit rows (ratified "free until it isn't"), and a covering objective grant bounds them by uses/ledger; but with NO covering grant the debit quantum and any hard bound are undecided. Interim: audit-only visibility; bare defaultGate keeps denying budgeted actions. Dependent ceiling-trip cases parked BLOCKED:F-PT-024 in case-catalog §10.1.

@@ -27,6 +27,7 @@ import {
   newMuseHookRouterState,
   type MuseGateConsultation,
 } from "./muse-hook-router.js";
+import { classifierThrowDenial } from "./gate-bridge-escalation.js";
 import { writeMuseIsolatedSettings, writeMuseManagedHooks } from "./muse-managed-hooks.js";
 
 const MAX_BRIDGE_BYTES = 8 * 1024 * 1024;
@@ -83,12 +84,11 @@ export async function startMuseGateBridge(
       try {
         answer(handleMuseHookPayload(JSON.parse(body.trim()), workdir, hooks, escalations, state));
       } catch (error) {
-        answer(
-          museDenyPayload(
-            "PreToolUse",
-            `Cormidia Muse gate bridge failed closed: ${error instanceof Error ? error.message : String(error)}`,
-          ),
-        );
+        // F-PT-037 (owner ruling 2026-08-12) extends F-PT-036's INV-015 seed (c)
+        // here: deny AND escalate. The denial alone was silent, so a persistently
+        // broken classifier would read as universal refusal with no signal — an
+        // availability failure compounding into an observability hole.
+        answer(museDenyPayload("PreToolUse", classifierThrowDenial(escalations, undefined, "Muse", error).reason));
       }
     });
   });

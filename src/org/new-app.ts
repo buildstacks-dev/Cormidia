@@ -26,7 +26,10 @@ import { renderProductDocScaffoldDocuments } from "./product-doc-scaffold.js";
 
 export const NEW_APP_TEMPLATES = ["typescript-node", "bare"] as const;
 export type NewAppTemplate = (typeof NEW_APP_TEMPLATES)[number];
-export const DEFAULT_NEW_APP_TEMPLATE: NewAppTemplate = "typescript-node";
+/** Omitting `--template` is not a stack decision, so the default must not make
+ * one (#383). `bare` is stack-neutral; `typescript-node` stays available as an
+ * explicit accelerator and its output is unchanged. */
+export const DEFAULT_NEW_APP_TEMPLATE: NewAppTemplate = "bare";
 
 interface NewAppOptions {
   /** Cormidia app key. Defaults to the target directory basename. */
@@ -38,7 +41,8 @@ interface NewAppOptions {
   repoSlug: string;
   /** Human-provided product idea or mandate. */
   goal: string;
-  /** Explicit scaffold shape. The existing TypeScript/Node scaffold remains the default. */
+  /** Explicit scaffold shape. Omission resolves to the stack-neutral `bare`
+   * template — absence of a choice never selects an architecture. */
   template?: NewAppTemplate;
   /** Existing org home to join. */
   orgHome: string;

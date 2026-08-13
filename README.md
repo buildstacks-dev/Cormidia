@@ -324,8 +324,8 @@ cormidia bootstrap publish <app> --json             # preview; --execute opens d
 cormidia org upgrade --authority delegated-operator --json
 cormidia app verify <app> --json
 cormidia app promote <app> --to live --json         # non-mutating plan
-cormidia new-app marketplace --target-dir ../marketplace --repo acme-co/marketplace --goal "A marketplace for dummy products" --dry-run
-cormidia new-app docs-site --target-dir ../docs-site --repo acme-co/docs-site --goal "Publish product documentation" --template bare --dry-run --json
+cormidia new-app marketplace --target-dir ../marketplace --repo acme-co/marketplace --goal "A marketplace for dummy products" --dry-run # stack-neutral bare, the default
+cormidia new-app docs-site --target-dir ../docs-site --repo acme-co/docs-site --goal "Publish product documentation" --template typescript-node --dry-run --json # explicit accelerator
 cormidia app product-docs <app> --workdir <checkout> --disposition keep # preview; execute requires <app>:keep
 cormidia plan <app> --dry-run
 cormidia plan ratify-ticket-budget --app <app> --decomposition <id> --actor <identity> --reason "<why>" --from-budget N --to-budget N # preview; human-gated
@@ -401,11 +401,13 @@ non-secret answers are retained in isolated state and reset archives;
 `--answers-from <app>` resolves the app's latest default reset archive.
 Generated YAML/authority metadata and text formatting are validated before
 success. `new-app` creates a separate product repo and then follows the same
-bootstrap/register path. Its backward-compatible default,
-`--template typescript-node`, emits the existing npm + strict TypeScript web
-scaffold and executable setup/test/lint commands. `--template bare` emits only
-stack-neutral product docs and Cormidia artifacts: no framework, runtime, package
-manager, application skeleton, or gate command is inferred from `--goal`.
+bootstrap/register path. Its default is `--template bare`: omitting `--template`
+behaves exactly like passing it, because the absence of a choice is not an
+architecture decision. Bare emits only stack-neutral product docs and Cormidia
+artifacts — no framework, runtime, package manager, application skeleton, or gate
+command is inferred from `--goal`. `--template typescript-node` remains an
+explicit accelerator and emits the existing npm + strict TypeScript web scaffold
+and executable setup/test/lint commands, byte-identical to before.
 Required test/lint gates remain explicitly pending and fail closed until the
 first implementation configures meaningful stack-specific commands. Dry-run
 text and JSON report the selected template, exact paths (including the

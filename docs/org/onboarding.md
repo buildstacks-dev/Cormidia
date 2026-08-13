@@ -76,8 +76,14 @@ no durable plan, which is exactly why execution re-classifies independently.
 
 `new-app` is deterministic and local: target skeleton, starter product truth
 (`docs/VISION.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`), `.cormidia/`
-contract, optional template (`typescript-node` or `bare`), then the same register
-path as bootstrap. It records the exact generated product-document hashes with no
+contract, template, then the same register path as bootstrap. **`bare` is the
+default**: omitting `--template` resolves to it in both preview and execution,
+because the template controls the repository's initial scaffold and whether
+executable quality gates exist — it is not the application architecture, and the
+absence of a choice must not make one. A bare app's required test and lint gates
+stay explicitly pending and fail closed, and automated planning orders the
+stack-and-gates unit before dependent feature work. `--template typescript-node`
+remains an explicit accelerator whose output is unchanged. It records the exact generated product-document hashes with no
 initial disposition and emits an app-specific, checkpointed repository-to-operation
 guide at `.cormidia/bootstrap/next-commands.md`. It does not create a GitHub repo,
 push, run the Planner, or publish an issue. After push,

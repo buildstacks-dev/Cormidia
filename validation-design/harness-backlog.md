@@ -1489,7 +1489,7 @@ HB-137..HB-139 LANDED (retrospective records).
   CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335,
   CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374,
   CF-REG-375, CF-REG-382, CF-REG-384, CF-REG-385, CF-REG-388, CF-REG-389, CF-REG-390,
-  CF-REG-403, CF-REG-443, and CF-HB102-MANUAL-REVIEW. (CF-REG-273 and CF-REG-291 are owned by
+  CF-REG-403, CF-REG-443, CF-REG-444, and CF-HB102-MANUAL-REVIEW. (CF-REG-273 and CF-REG-291 are owned by
   HB-052, whose live-lane hardening deposited them; CF-REG-204 is owned by HB-135.)
   *Executor:* landed by each defect's fix PR.
 

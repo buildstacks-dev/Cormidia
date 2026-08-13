@@ -735,6 +735,13 @@ pnpm smoke:onboarding   # packaging / onboarding changes
 npm pack --dry-run      # packaging changes
 ```
 
+`pnpm test` first performs a non-mutating host preflight for process-start
+identity (the current process and a live child) and the offline package store
+needed by disposable install fixtures. An unavailable prerequisite produces one
+bounded `INCOMPLETE` result with remediation and starts no Vitest files; it is
+not a skip or a pass. The preflight writes diagnostics to stderr, preserving
+Vitest text/JSON output.
+
 Triggered lanes are explicit and human-authorized; an absent config is a refusal, not
 a skip. Schemas and procedures are in
 [`docs/qualification/design.md`](docs/qualification/design.md#replacement-campaign-contract).

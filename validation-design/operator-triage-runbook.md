@@ -81,6 +81,13 @@ in order:
 3. `cormidia doctor` — environment/identity checks.
 4. `cormidia budget` (and `budget --reconcile` if ledger questions arise —
    reconcile back-fills idempotently from surviving evidence; CF-J08-RC).
+5. `cormidia context --json` — read its `publication` field before trusting any
+   org configuration you see. `diverged` means this checkout's committed
+   configuration is NOT recoverable from the remote (a second host or a fresh
+   clone will disagree with you); `unknown` means the checkout has a remote but
+   no fetched ref and proves nothing either way. Neither is agreement. The
+   supported recovery is `cormidia org publish` — never `git add -A` in an org
+   home, and never a hand-edited `apps.yaml` (#388, CF-REG-388).
 
 If the scheduler is not installed/loaded, nothing autonomous caused your page.
 Command output semantics live in the product docs; at the level this corpus

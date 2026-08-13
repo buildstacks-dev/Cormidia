@@ -3,6 +3,7 @@
 
 import { join, resolve } from "node:path";
 import { resolveCormidiaHomes } from "../org/home.js";
+import { committedSurfaceStatus } from "../org/org-home-publication.js";
 import {
   applyRoleAssignmentChange,
   formatRoleAssignmentPlan,
@@ -139,8 +140,19 @@ async function cmdRolesSet(args: string[] = []): Promise<number> {
     ...(reason === undefined ? {} : { reason }),
     ...(by === undefined ? {} : { by }),
   });
-  if (json) console.log(JSON.stringify(plan, null, 2));
-  else console.log(formatRoleAssignmentPlan(plan));
+  // roles.yaml is COMMITTED org configuration (#388): an executed change is not
+  // org truth until it reaches the remote.
+  const assignments = plan.executed
+    ? await committedSurfaceStatus(homes.orgHome, "role-assignments", homes.stateHome)
+    : undefined;
+  if (json) console.log(JSON.stringify({ ...plan, publication: assignments ?? null }, null, 2));
+  else {
+    console.log(formatRoleAssignmentPlan(plan));
+    if (assignments !== undefined) {
+      console.log(`role assignments: ${assignments.state} — ${assignments.detail}`);
+      console.log(`next: ${assignments.next_action}`);
+    }
+  }
   // A harness with a token-free roster refuses an id it will not serve before
   // anything is written. A harness without one cannot, so the operator is told
   // on stderr as well — the --json consumer would otherwise have to know to go

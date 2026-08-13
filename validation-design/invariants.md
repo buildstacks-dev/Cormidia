@@ -242,7 +242,13 @@ contradicted.
 **Adversarial seeds.** (a) flip label with no artifact, observe every reader; (b) GitHub
 unavailable → queue must not render empty; (c) usage unavailable → spend must not render
 $0; (d) scheduler definition present but no tick evidence → not "healthy"; (e) contradictory
-claim file vs GitHub state → reader must surface contradiction, not pick the greener.
+claim file vs GitHub state → reader must surface contradiction, not pick the greener;
+(f) mutate committed org configuration in the working tree only, leaving the configured
+remote stale → no surface may render it "registered", "promoted", or "recorded", and an
+org home whose remote ref has never been fetched renders unknown, never converged (#388).
+<!-- changelog 2026-08-12 (CF-REG-388 write-back): seed (f) records the adversarial shape
+this invariant lacked — the local-write/stale-remote split. Additive enrichment,
+tighten-only; not a structural event. -->
 
 ## CORMIDIA-INV-009 — No merge escapes the reviewed boundary
 `[elicited+doc: loop design §7, github-conventions]` `[rambling: default-branch scar]`

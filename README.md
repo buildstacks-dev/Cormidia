@@ -830,6 +830,10 @@ planning/apps/<hash>/      # immutable backlog snapshots/RoadmapPlan revisions,
                            # superseded/remaining and bounded publication batches
 planning/publications/<hash>/ # durable scheduled-Planner publication transactions;
                            # exact branch/commit/effects/evidence and recovery command
+publication/org/<content-id>.json # durable COMMITTED-ORG-HOME publication
+                           # transactions (#388): the exact surface, owned paths,
+                           # resolved base, branch, commit, pushed commit, draft PR,
+                           # and the typed durability state a command may claim
 planning/delivery-unit-claims/ # atomic all-member delivery-unit claim records
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
 approvals/                # content-bound decisions, grants, execution state,
@@ -852,6 +856,18 @@ learning/compaction/      # weekly report-only compaction snapshots (never bundl
 runs/learning-replay/     # reserved replay namespace (M5) — reconciled for spend,
                           # excluded from capture/episode projection
 ```
+
+The *committed org home* is Git-backed configuration, so a change written there
+is not org truth until it reaches the configured remote. Every mutating command
+reports a durability state — `local_only`, `recorded_locally`,
+`pending_publication`, `pending_merge`, or `reachable_at_remote` (the only
+terminal one) — and `cormidia org publish [--surface <id>] [--execute]` is the
+governed route and the supported recovery for an org home whose configuration
+never reached its remote. It stages only the named surface's owned paths, cuts a
+dedicated branch from the resolved remote default branch, and opens a draft pull
+request; Cormidia never merges it. `cormidia context` reports whether this
+checkout is recoverable from its remote, and says `unknown` rather than agreeing
+when no remote ref has been fetched. See `docs/org/onboarding.md`.
 
 The experiment and activation substrate (M3–M5) lives in the *committed org
 home* instead — `learning/experiments/` (ExperimentRecords + EvalResults,

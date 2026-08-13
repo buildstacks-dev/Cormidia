@@ -284,7 +284,16 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - **Failure modes:** invalid YAML; package/org schema skew during upgrade; missing
   AUTHORITY.md (fail closed to legacy-conservative — never a newer default because it
   was convenient `[elicited]`, INV-015); mid-edit torn read; app narrowing wider than
-  org (refuse, INV-001); **config changing between preview and execution** `[elicited]`.
+  org (refuse, INV-001); **config changing between preview and execution** `[elicited]`;
+  **committed org configuration present in the working tree but absent from the
+  configured remote** — one dirty checkout read as universally authoritative, so a
+  second host, a fresh clone, or a recovery from the remote silently loses it (#388);
+  **an org home deliberately without a remote**, whose local-only contract must be
+  explicit rather than an implied durability claim (#388).
+  <!-- changelog 2026-08-12 (CF-REG-388 write-back): the two clauses above were
+  observed reality absent from this list — `new-app` reported a terminal
+  `app-created-and-registered` with `origin/<default>` still at `apps: {}`. Additive
+  enrichment of ratified text, tighten-only; not a structural event. -->
 - **B-10a — active-org identity resolution (explicit sub-boundary)** `[elicited]`:
   the active pointer, `CORMIDIA_ORG_HOME`/`CORMIDIA_STATE_HOME` overrides, resolved org
   home, and resolved state home can disagree **while every individual file is valid**.

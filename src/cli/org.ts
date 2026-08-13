@@ -32,6 +32,8 @@ import {
   recordOrgBacklink,
 } from "../org/org-archive.js";
 import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
+import { orgHomeDivergence } from "../org/org-home-publication.js";
+import { cmdOrgPublish } from "./org-publish.js";
 import {
   bindCliInvocationStateHome,
   currentCliInvocationStateHome,
@@ -59,7 +61,10 @@ export async function cmdOrg(args: string[], options: OrgCommandOptions = {}): P
   if (subcommand === "upgrade") return upgrade(args.slice(1), options);
   if (subcommand === "list") return list(args.slice(1), options);
   if (subcommand === "archive") return archive(args.slice(1), options);
-  throw new Error('org: expected "init", "show", "use", "list", "archive", or "upgrade" — run `cormidia org --help`');
+  if (subcommand === "publish") return cmdOrgPublish(args.slice(1));
+  throw new Error(
+    'org: expected "init", "show", "use", "list", "archive", "publish", or "upgrade" — run `cormidia org --help`',
+  );
 }
 
 function activePointerPath(options: OrgCommandOptions): string {
@@ -233,11 +238,15 @@ async function upgrade(args: string[], options: OrgCommandOptions): Promise<numb
     return plan.executable ? 0 : 2;
   }
   const result = await executeOrgUpgrade(input, plan);
-  if (json) console.log(stableJson(result).trimEnd());
+  // Upgrade adds packaged surfaces to the COMMITTED org home (#388): the
+  // migration is not org truth until it reaches the remote.
+  const divergence = orgHomeDivergence(result.plan.org_home);
+  if (json) console.log(stableJson({ ...result, divergence }).trimEnd());
   else {
     console.log(`Org upgrade ${result.status}: ${result.plan.org_home}`);
     console.log(`Archive: ${result.archive_path ?? "not needed"}`);
     console.log(`Doctor: ${result.doctor.status} — ${result.doctor.detail}`);
+    console.log(`Publication: ${divergence.state} — ${divergence.detail}`);
   }
   return 0;
 }

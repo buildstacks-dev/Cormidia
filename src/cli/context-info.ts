@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { authorityEvidence, resolveAuthority } from "../org/authority.js";
 import * as home from "../org/home.js";
+import { orgHomeDivergence } from "../org/org-home-publication.js";
 import { extractHomeFlags } from "./home-flags.js";
 
 export async function cmdContext(args: string[], options: home.CormidiaHomeOptions = {}): Promise<number> {
@@ -24,6 +25,10 @@ export async function cmdContext(args: string[], options: home.CormidiaHomeOptio
     promptsPath: join(homes.orgHome, "prompts"),
     authority: authorityEvidence(authority),
     apps: homes.appsFile.apps.map((app) => ({ name: app.name, repo: app.repo, status: app.status })),
+    // Whether this checkout's committed configuration is recoverable from its
+    // remote (#388). Reading a dirty org home as universally authoritative is
+    // how a registered app existed on exactly one laptop.
+    publication: orgHomeDivergence(homes.orgHome),
   };
   if (json) console.log(JSON.stringify(data, null, 2));
   else {
@@ -33,6 +38,10 @@ export async function cmdContext(args: string[], options: home.CormidiaHomeOptio
     console.log(`State home: ${data.stateHome} — ${home.STATE_HOME_DEFINITION}.`);
     console.log(`Authority:  ${data.authority.version} (sha256:${data.authority.sha256})`);
     console.log(`Apps:       ${data.apps.length}`);
+    console.log(`Publication: ${data.publication.state} — ${data.publication.detail}`);
+    for (const surface of data.publication.surfaces) {
+      console.log(`  ${surface.surface}: ${surface.paths.join(", ")}`);
+    }
   }
   return 0;
 }
@@ -70,6 +79,13 @@ const CAPABILITIES = [
     writes: true,
     spendsTokens: false,
     summary: "preview/apply an additive archived org migration with post-upgrade doctor",
+  },
+  {
+    command: "org publish",
+    writes: true,
+    spendsTokens: false,
+    summary:
+      "preview or publish committed org configuration through a dedicated branch and draft pull request; never merges",
   },
   { command: "roles", writes: false, spendsTokens: false, summary: "validate and list the active org's roles" },
   {
@@ -227,6 +243,7 @@ const JSON_COMMANDS = new Set<string>([
   "org list",
   "org archive",
   "org upgrade",
+  "org publish",
   "roles",
   "roles set",
   "apps",

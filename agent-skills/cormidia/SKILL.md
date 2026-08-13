@@ -115,12 +115,47 @@ real slug. The human walk-through is `docs/org/manual-e2e-runbook.md`.
 no commit or remote yet. Once you have pushed the scaffold, run
 `cormidia app verify <name>`: it synthesizes the lifecycle record from the pushed
 remote, and `cormidia app promote <name> --to live --execute` then transitions the
-app to `status: live` (required for SRE/Support/Marketing dispatch). If
+app to `status: live` (required for SRE/Support/Marketing dispatch) — then
+publish the org registry change (see "Publish committed org configuration"), or
+the promotion exists only on this machine. If
 `cormidia app verify` reports a `blocked` `lifecycle-record` check, its
 remediation names the missing step (usually: push the scaffold to the remote
 default branch). An app onboarded before record synthesis existed recovers the
 same way — just re-run `cormidia app verify <name>`; do not hand-edit
 `apps.yaml`.
+
+## Publish committed org configuration
+
+The org home is **committed** organization configuration. `new-app`,
+`bootstrap`, `app promote`, `app reset`, `roles set`, `org upgrade`, and the
+learning publisher all write the operator's working tree first, which is one
+checkout, not org truth. Those commands now report a durability state rather
+than a terminal claim: `local_only`, `recorded_locally`, `pending_publication`,
+`pending_merge`, or `reachable_at_remote` — only the last means the change
+survives a fresh clone.
+
+Preview what would be published, then publish it:
+
+```bash
+cormidia org publish --json
+cormidia org publish --surface app-registry --execute --json
+```
+
+Execution stages only that surface's owned paths in a throwaway worktree, cuts a
+dedicated branch from the resolved remote default branch, pushes it, and opens a
+DRAFT pull request. It never merges, never pushes a default branch, and never
+stages unrelated work — unrelated *staged* content refuses as an ambiguous
+scope. Retries adopt an existing branch or pull request instead of duplicating
+one. Run it with no `--surface` to reconcile an org home whose configuration
+never reached its remote; never tell an operator to `git add -A` in an org home
+or to hand-edit `apps.yaml`.
+
+`cormidia context --json` carries a `publication` field with the same vocabulary.
+`unknown` there means the checkout has a remote but no fetched ref — it is not
+agreement, and it is not a reason to proceed as if the remote matched.
+
+An org home with no configured remote is a supported setup: it reports
+`local_only`, and no command may claim durability beyond that working tree.
 
 ## Reset one app for another test iteration
 

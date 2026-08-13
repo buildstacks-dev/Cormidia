@@ -108,14 +108,18 @@ Machine discovery:
     expect(loop).toContain("Non-interactive execution requires every field plus exact --confirm");
   });
 
+  // Re-pinned 2026-08-12 (#388): `org publish` joins the catalog as the
+  // governed route for committed org configuration. The pin is a byte-shape
+  // detector for accidental drift, so a deliberate command addition re-pins it
+  // — the count and hash both move together, and neither is loosened.
   it("capabilities --json remains byte-shape compatible with the pre-change catalog", async () => {
     const parsed: unknown = JSON.parse(await runCli(["capabilities", "--json"]));
     if (typeof parsed !== "object" || parsed === null || !("commands" in parsed) || !Array.isArray(parsed.commands)) {
       throw new Error("capabilities output omitted commands[]");
     }
-    expect(parsed.commands).toHaveLength(39);
+    expect(parsed.commands).toHaveLength(40);
     expect(createHash("sha256").update(JSON.stringify(parsed.commands)).digest("hex")).toBe(
-      "cdd677878886e8c276d43e2e76f844c7a95c0ae14652d6cbfc01134949378d6c",
+      "ed4b819419d2d6cf9eb0a3cac4f8e8025c56ff48c458fdab34ddbffb516348b1",
     );
   });
 });

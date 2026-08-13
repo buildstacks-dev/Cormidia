@@ -3,7 +3,7 @@
   "modules": {
     "src/cli.ts": {
       "exports": 0,
-      "lines": 313,
+      "lines": 318,
       "newModule": false
     },
     "src/cli/analyze.ts": {
@@ -18,7 +18,7 @@
     },
     "src/cli/app.ts": {
       "exports": 2,
-      "lines": 275,
+      "lines": 291,
       "newModule": false
     },
     "src/cli/approvals.ts": {
@@ -53,7 +53,7 @@
     },
     "src/cli/context-info.ts": {
       "exports": 3,
-      "lines": 291,
+      "lines": 308,
       "newModule": false
     },
     "src/cli/dispatch-run.ts": {
@@ -138,7 +138,7 @@
     },
     "src/cli/new-app.ts": {
       "exports": 1,
-      "lines": 189,
+      "lines": 198,
       "newModule": false
     },
     "src/cli/objective.ts": {
@@ -151,9 +151,14 @@
       "lines": 123,
       "newModule": false
     },
+    "src/cli/org-publish.ts": {
+      "exports": 1,
+      "lines": 219,
+      "newModule": true
+    },
     "src/cli/org.ts": {
       "exports": 1,
-      "lines": 505,
+      "lines": 514,
       "newModule": false
     },
     "src/cli/pipelines.ts": {
@@ -203,7 +208,7 @@
     },
     "src/cli/roles.ts": {
       "exports": 1,
-      "lines": 185,
+      "lines": 197,
       "newModule": false
     },
     "src/cli/run-role-live.ts": {
@@ -651,6 +656,11 @@
       "lines": 907,
       "newModule": false
     },
+    "src/org/committed-org-surfaces.ts": {
+      "exports": 7,
+      "lines": 175,
+      "newModule": true
+    },
     "src/org/context.ts": {
       "exports": 2,
       "lines": 303,
@@ -740,6 +750,26 @@
       "exports": 3,
       "lines": 341,
       "newModule": false
+    },
+    "src/org/git-publication-execute.ts": {
+      "exports": 4,
+      "lines": 292,
+      "newModule": true
+    },
+    "src/org/git-publication-journal.ts": {
+      "exports": 10,
+      "lines": 232,
+      "newModule": true
+    },
+    "src/org/git-publication-substrate.ts": {
+      "exports": 9,
+      "lines": 152,
+      "newModule": true
+    },
+    "src/org/git-publication.ts": {
+      "exports": 6,
+      "lines": 277,
+      "newModule": true
     },
     "src/org/governed-pipeline-episode.ts": {
       "exports": 2,
@@ -960,6 +990,11 @@
       "exports": 7,
       "lines": 608,
       "newModule": false
+    },
+    "src/org/org-home-publication.ts": {
+      "exports": 10,
+      "lines": 294,
+      "newModule": true
     },
     "src/org/org-upgrade.ts": {
       "exports": 4,

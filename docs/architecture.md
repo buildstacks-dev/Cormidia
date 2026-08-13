@@ -222,6 +222,20 @@ with no `AUTHORITY.md` fails closed to the built-in legacy-conservative
 profile; it never silently inherits the newer delegated default.
 `CORMIDIA_ORG_HOME` overrides the active pointer for a single process.
 
+"Committed separately" is a durability claim, and Cormidia enforces it rather
+than assuming it. Each committed surface above is declared in
+`src/org/committed-org-surfaces.ts` with its owned paths and its authorized
+writers; a write destination that is neither a declared committed surface nor a
+declared state-home prefix fails an architectural guard. A command that mutates
+one reports a typed durability state (`local_only`, `recorded_locally`,
+`pending_publication`, `pending_merge`, `reachable_at_remote`) instead of a
+terminal "registered"/"promoted"/"recorded" claim, and `cormidia org publish`
+carries the change to the remote through one journaled, idempotent transaction:
+owned-path-only staging in a throwaway worktree, a dedicated branch cut from the
+resolved remote default branch, a push, and a draft pull request a human merges.
+Downstream consumers read `orgHomeDivergence`, so a dirty checkout is never
+treated as universally authoritative (`docs/org/onboarding.md`).
+
 `cormidia org upgrade` migrates a legacy org, spending no tokens. By default it
 only prints a byte-stable plan of the schema changes it would make. Execution
 copies only the packaged surfaces that are missing (including nested

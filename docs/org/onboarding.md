@@ -123,6 +123,39 @@ app-artifact directory to `.cormidia/` in one reviewed repository commit,
 including updates to its instruction links. Bootstrap refuses before mutation
 when the retired directory still exists, preventing split app policy.
 
+## Committed org configuration is not durable until it reaches the remote
+
+The org home holds **committed** organization configuration. Every command that
+mutates it — `new-app`/`bootstrap` registration, `app promote`, `app reset`,
+`roles set`, `org upgrade`, and the governed learning publisher — writes the
+operator's working tree first, which is one checkout, not org truth. Registration
+is therefore reported with a durability state, never a terminal claim:
+
+| State | Meaning |
+| --- | --- |
+| `local_only` | the org home has no configured remote; Cormidia claims nothing beyond this working tree |
+| `recorded_locally` | written in the working tree; no publication attempted |
+| `pending_publication` | a publication transaction exists but has not reached the remote |
+| `pending_merge` | on the remote as a branch (and a draft pull request when the remote is GitHub), awaiting human merge |
+| `reachable_at_remote` | reachable from the resolved remote default branch — the only durable state |
+
+`cormidia org publish [--surface <id>] [--execute]` is the governed route and the
+supported recovery for an org home whose local configuration never reached its
+remote. It previews by default; execution stages **only** the named surface's owned
+paths in a throwaway worktree, cuts a dedicated branch from the resolved remote
+default branch (never a hardcoded `main`), pushes it, and opens a draft pull
+request. Unrelated staged, unstaged, and untracked content is never staged and
+never committed; unrelated *staged* content makes the scope ambiguous and refuses.
+Retries adopt an existing branch or pull request rather than duplicating one, and a
+publish branch whose remote content differs is refused, never overwritten. Cormidia
+does not merge these. `cormidia context` reports whether this checkout's committed
+configuration is recoverable from its remote, and reports `unknown` — never
+agreement — when no remote ref has been fetched.
+
+The surfaces and their owned paths are declared in `src/org/committed-org-surfaces.ts`;
+an org-home writer whose destination is not classified there fails an architectural
+guard in CI rather than becoming a third silent category.
+
 ## App reset, verify, and promote
 
 `cormidia app reset`, `cormidia app verify`, and `cormidia app promote` are the
@@ -134,5 +167,8 @@ constructing a provider turn; it also synthesizes or repairs the lifecycle
 record. Promote to `live` is plan-by-default and executes only from passing
 verification. Readiness claims follow the generated → registered →
 runtime-ready → live → autonomously scheduled ladder in `docs/episodes/contract.md`;
-none of those states is implied by an earlier one. CLI details and remediation
+none of those states is implied by an earlier one. Promote and reset both change
+the committed registry, so both report the org-home durability state above; a
+promotion whose app-side commit landed is still not org truth while the org
+registry change sits unpublished. CLI details and remediation
 live with the commands themselves and README → Commands.

@@ -5,6 +5,7 @@ import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION } from
 import { stableJson } from "../org/lifecycle.js";
 import { NewAppBlockedError } from "../org/new-app-blocked.js";
 import { createNewApp, DEFAULT_NEW_APP_TEMPLATE, NEW_APP_TEMPLATES, type NewAppTemplate } from "../org/new-app.js";
+import { committedSurfaceStatus } from "../org/org-home-publication.js";
 import { reportCliInvocation } from "./invocation-audit.js";
 
 export async function cmdNewApp(args: string[]): Promise<number> {
@@ -27,16 +28,22 @@ export async function cmdNewApp(args: string[]): Promise<number> {
     if (error instanceof NewAppBlockedError) reportNewAppRefusal(error, parsed.json);
     throw error;
   });
+  // Registration is a COMMITTED org-configuration change (#388). It is not org
+  // truth until it reaches the remote, so the outcome names the durability
+  // state rather than claiming a terminal "registered".
+  const registry = result.dryRun
+    ? undefined
+    : await committedSurfaceStatus(homes.orgHome, "app-registry", homes.stateHome);
   reportCliInvocation({
     org: homes.appsFile.org.name,
     app: result.appName,
     dryRun: result.dryRun,
-    outcome: result.dryRun ? "new-app-preview-ready" : "app-created-and-registered",
+    outcome: result.dryRun ? "new-app-preview-ready" : `app-created-and-${registry?.state ?? "recorded_locally"}`,
     provenance: { template: result.template },
   });
 
   if (parsed.json) {
-    console.log(JSON.stringify(result, null, 2));
+    console.log(JSON.stringify({ ...result, registry: registry ?? null }, null, 2));
     return 0;
   }
 
@@ -67,8 +74,10 @@ export async function cmdNewApp(args: string[]): Promise<number> {
   }
   if (result.dryRun) {
     console.log("\n(dry-run: no app/org artifacts written; invocation audit only)");
-  } else {
-    console.log("\nnext: follow .cormidia/bootstrap/next-commands.md; record keep/reconcile/remove before planning.");
+  } else if (registry !== undefined) {
+    console.log(`\napp registration: ${registry.state} — ${registry.detail}`);
+    console.log(`next: ${registry.next_action}`);
+    console.log("then: follow .cormidia/bootstrap/next-commands.md; record keep/reconcile/remove before planning.");
   }
   return 0;
 }

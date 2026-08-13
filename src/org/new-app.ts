@@ -3,7 +3,7 @@
 // identical to an existing-app onboarding.
 
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { CANONICAL_LABELS, type CanonicalLabelKind } from "../loop/plan-tickets.js";
 import {
@@ -17,7 +17,8 @@ import { onboardingAnswersPath, onboardingSourcePath, storeOnboardingSource } fr
 import { loadRoles } from "./roles.js";
 import { definedProps } from "../runtime/optional-properties.js";
 import { classifyRepositoryIdentity, isRepositoryIdentity } from "../runtime/repo-identity.js";
-import { NewAppBlockedError } from "./new-app-blocked.js";
+import { NewAppBlockedError, type NewAppBlocker } from "./new-app-blocked.js";
+import { inspectNewAppTarget, targetPlanDrift, type NewAppTargetKind } from "./new-app-preflight.js";
 import { PACKAGE_ROOT } from "./home.js";
 import { renderNextCommandsGuide } from "./new-app-guide.js";
 import { renderProductDocScaffoldRecord } from "./product-doc-record.js";
@@ -30,7 +31,8 @@ export const DEFAULT_NEW_APP_TEMPLATE: NewAppTemplate = "typescript-node";
 interface NewAppOptions {
   /** Cormidia app key. Defaults to the target directory basename. */
   appName?: string;
-  /** Local directory to create. Must be absent or empty. */
+  /** Local directory to scaffold into. Classified by content, never by
+   * emptiness — see `new-app-preflight.ts`. */
   targetDir: string;
   /** GitHub owner/repo slug the app will use once pushed. */
   repoSlug: string;
@@ -48,6 +50,10 @@ interface NewAppOptions {
   marketingChannels?: string[];
   /** Plan the files and registration without writing. */
   dryRun?: boolean;
+  /** Fault-injection seam, invoked between target validation and the first
+   * write so the revalidation branch is exercised by a real concurrent write.
+   * Production never sets it. */
+  beforeFirstWrite?: () => Promise<void>;
 }
 
 interface NewAppResult {
@@ -56,8 +62,12 @@ interface NewAppResult {
   repoSlug: string;
   template: NewAppTemplate;
   dryRun: boolean;
+  /** How the preflight classified the target directory before any write. */
+  target: NewAppTargetKind;
   created: string[];
   updated: string[];
+  /** Existing target entries this run leaves byte-identical. */
+  preserved: string[];
   stateCreated: string[];
   qualityGates: {
     status: "configured" | "pending";
@@ -132,6 +142,23 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
       : [onboardingAnswersPath(options.stateHome, appName), onboardingSourcePath(options.stateHome, appName)];
   const qualityGates = qualityGatePlan(template);
 
+  // The SAME preflight for preview and execution, and it runs BEFORE the
+  // dry-run return: the previous order built the plan, returned it, and only
+  // then validated the target, so a dry run could report a creation plan that
+  // execution immediately refused (#384).
+  const preflight = await inspectNewAppTarget(targetDir, plannedCreated);
+  const refusal = (blockers: readonly NewAppBlocker[]) =>
+    new NewAppBlockedError({
+      schema_version: 1,
+      kind: "new-app-refusal",
+      app: appName,
+      target_dir: targetDir,
+      repository: identity.slug,
+      dry_run: options.dryRun === true,
+      blockers,
+    });
+  if (preflight.blockers.length > 0) throw refusal(preflight.blockers);
+
   if (options.dryRun) {
     return {
       appName,
@@ -139,15 +166,21 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
       repoSlug: options.repoSlug,
       template,
       dryRun: true,
+      target: preflight.kind,
       created: plannedCreated,
       updated: plannedUpdated,
+      preserved: [...preflight.preserved],
       stateCreated,
       qualityGates,
       joinedOrgHome: orgHome,
     };
   }
 
-  await assertTargetAvailable(targetDir);
+  // Revalidate immediately before the first write. An intervening human write
+  // fails closed instead of being overwritten.
+  await options.beforeFirstWrite?.();
+  const drift = targetPlanDrift(preflight, await inspectNewAppTarget(targetDir, plannedCreated));
+  if (drift !== undefined) throw refusal([drift]);
   await mkdir(targetDir, { recursive: true });
   for (const file of scaffold) await writeGeneratedFile(targetDir, file);
 
@@ -195,8 +228,10 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
     repoSlug: options.repoSlug,
     template,
     dryRun: false,
+    target: preflight.kind,
     created: [...scaffold.map((file) => file.rel), ...bootstrap.created, ...cormidiaSeeds.map((file) => file.rel)],
     updated: [...new Set([...plannedUpdated, ...bootstrap.updated])],
+    preserved: [...preflight.preserved],
     stateCreated,
     qualityGates,
     ...(bootstrap.joinedOrgHome ? { joinedOrgHome: bootstrap.joinedOrgHome } : {}),
@@ -254,16 +289,6 @@ function buildAnswers(options: {
     },
     options.allRoles,
   );
-}
-
-async function assertTargetAvailable(targetDir: string): Promise<void> {
-  if (!existsSync(targetDir)) return;
-  const info = await stat(targetDir);
-  if (!info.isDirectory()) throw new Error(`new-app: target ${targetDir} exists and is not a directory`);
-  const entries = await readdir(targetDir);
-  if (entries.length > 0) {
-    throw new Error(`new-app: target ${targetDir} already exists and is not empty`);
-  }
 }
 
 async function writeGeneratedFile(root: string, file: GeneratedFile): Promise<void> {

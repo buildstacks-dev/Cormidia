@@ -41,7 +41,7 @@ export async function cmdNewApp(args: string[]): Promise<number> {
   }
 
   console.log(`${result.dryRun ? "would create" : "created"} greenfield app: ${result.appName}`);
-  console.log(`target: ${result.targetDir}`);
+  console.log(`target: ${result.targetDir} (${result.target})`);
   console.log(`repo: ${result.repoSlug}`);
   console.log(`template: ${result.template}`);
   console.log(`quality gates: ${result.qualityGates.status} — ${result.qualityGates.detail}`);
@@ -57,6 +57,10 @@ export async function cmdNewApp(args: string[]): Promise<number> {
   for (const rel of result.created) console.log(`  ${rel}`);
   console.log("\nupdated:");
   for (const rel of result.updated) console.log(`  ${rel}`);
+  if (result.preserved.length > 0) {
+    console.log("\npreserved (existing target entries, left byte-identical):");
+    for (const rel of result.preserved) console.log(`  ${rel}`);
+  }
   if (result.stateCreated.length > 0) {
     console.log("\nstate records:");
     for (const path of result.stateCreated) console.log(`  ${path}`);

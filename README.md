@@ -362,6 +362,17 @@ with no current role trigger as the non-error skip `no_subscriber`; only valid
 subscribed kinds spawn turns. See [the event schema contract](docs/scheduler/event-schemas.md)
 for the supported kinds, payloads, and exact retention behavior.
 
+`new-app` classifies its target by content, not by emptiness. Design documents,
+briefs, assets, prototypes, and incidental metadata are legitimate greenfield
+inputs: the scaffold lands additively beside them and every existing byte is
+preserved and reported. An existing application checkout is routed to
+`cormidia bootstrap`, an already-onboarded app to verify/reset, and a path the
+scaffold would create — or a symlinked, non-directory, or unwritable target —
+refuses before the first write and names the exact path. Preview and execution
+run the same preflight, and preview runs it before reporting, so a dry run that
+reports ready is a prediction execution can keep; the target is re-read
+immediately before the first write so an intervening write fails closed.
+
 One rule decides whether an `owner/repo` slug is a concrete, deliberately
 chosen external-action target, and every surface reads it: `new-app` preview and
 execution, bootstrap registration, the generated guide, `app verify`, planning,

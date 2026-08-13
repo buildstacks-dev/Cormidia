@@ -70,6 +70,13 @@ cormidia app reset "$E2E_APP_NAME" --execute --confirm "$E2E_APP_NAME"
 cormidia new-app "$E2E_APP_NAME" --target-dir "$E2E_APP_DIR" --repo "$E2E_APP_REPO" --goal "$E2E_APP_GOAL" --json
 ```
 
+If `$E2E_APP_DIR` already holds design documents, a brief, or assets, that is a
+supported greenfield input: the preview reports them under `preserved` and the
+scaffold lands beside them. If it holds an application checkout or an onboarded
+app, the refusal names the command to use instead (`cormidia bootstrap` or
+`cormidia app verify`); switch to that command rather than emptying the
+directory.
+
 **Expected result:** the scaffold, `.cormidia/` contract, org registration, and
 `.cormidia/bootstrap/next-commands.md` — an app-specific, checkpointed guide
 whose commands already carry the exact resolved identities. There is no

@@ -53,6 +53,27 @@ wrong repository.
 The human onboarding walk-through, whose identity preflight is fail-closed, is
 [`manual-e2e-runbook.md`](manual-e2e-runbook.md).
 
+## Target classification
+
+`new-app` never equates greenfield with an empty directory. One deterministic,
+content-aware preflight runs for both preview and execution — and it runs before
+the dry-run result is produced, so what a preview reports is what execution
+reaches — classifying the target as:
+
+| Class | What it looks like | Outcome |
+| --- | --- | --- |
+| `absent` / `empty` | nothing there | scaffold |
+| `additive-greenfield` | design documents, briefs, research, assets, prototypes, incidental metadata such as `.DS_Store` | scaffold additively; every existing byte is preserved and reported under `preserved` |
+| `existing-checkout` | `.git`, a top-level `src/`, or a language manifest | refuse; remediation is `cormidia bootstrap <dir>` |
+| `onboarded-app` | `.cormidia/config.yaml` or `.cormidia/TASTE.md` | refuse; remediation is `cormidia app verify <app>`, or `cormidia app reset` to start over |
+| `conflicting` | a path `new-app` would create already exists, or the target is a symlink, a non-directory, or unwritable | refuse before any write, naming the exact path |
+
+Refusals are typed (`kind: new-app-refusal`) and carry a supported command, not
+just "not empty". The classification is re-read immediately before the first
+write, so a write that lands between validation and execution fails closed
+instead of being overwritten; separate preview and execution invocations share
+no durable plan, which is exactly why execution re-classifies independently.
+
 `new-app` is deterministic and local: target skeleton, starter product truth
 (`docs/VISION.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`), `.cormidia/`
 contract, optional template (`typescript-node` or `bare`), then the same register

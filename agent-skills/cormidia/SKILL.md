@@ -87,6 +87,13 @@ Remove `--dry-run` only after the target, repository slug, and goal are correct.
 Follow the generated `.cormidia/bootstrap/next-commands.md` for GitHub creation
 and the first ticket.
 
+`--target-dir` may already hold design documents, briefs, or assets: those are
+greenfield inputs and the scaffold lands beside them without touching a byte.
+An existing application checkout, an already-onboarded app, or a file at a path
+the scaffold would create refuses before any write and names the command to use
+instead. The preview performs the same checks as execution, so its report is a
+prediction execution can keep.
+
 The preview is also the identity gate. `--repo` must be a concrete, deliberately
 chosen `owner/repo`; an unresolved template value in either component (or a URL,
 path, or whitespace variant) makes both preview and execution exit non-zero with

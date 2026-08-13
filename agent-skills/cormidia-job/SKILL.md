@@ -82,7 +82,7 @@ steps:
     objective: |
       What this step must do, concretely, and exactly which files to write.
       Be specific: the model sees this text and the dependency outputs, nothing else.
-    assignment: { harness: claude, model: claude-opus-4-8, effort: xhigh }
+    assignment: { harness: claude, model: claude-opus-5, effort: xhigh }
     outputs:
       - path: outputs/framing.md
         check: non_empty

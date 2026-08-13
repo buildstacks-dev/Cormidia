@@ -283,8 +283,8 @@ cormidia compare . \
   --operation builder-change \
   --policy builder-change-v1 \
   --candidate codex:gpt-5.6-sol:high \
-  --candidate claude:claude-opus-4-8:xhigh \
-  --judge claude:claude-opus-4-8:xhigh
+  --candidate claude:claude-opus-5:xhigh \
+  --judge claude:claude-opus-5:xhigh
 ```
 
 Without `--execute`, the command is token-free and prints the frozen base, candidate

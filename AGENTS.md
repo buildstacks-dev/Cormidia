@@ -115,7 +115,9 @@ issue tracker (`gh issue list`).
   is binding; public-symbol count is the module gate, line count the smoke
   alarm (`scripts/check-size-ratchet.mjs`).
 - **Model IDs** in roles.yaml were human-ratified 2026-07-15
-  (`research/2026-07-15_model-assignment-refresh.md`); `gpt-5.6-sol`
+  (`research/2026-07-15_model-assignment-refresh.md`) and the Claude frontier
+  tier (planner/reviewer/operator) refreshed to `claude-opus-5` on 2026-08-12
+  (`research/2026-08-12_claude-frontier-model-refresh.md`); `gpt-5.6-sol`
   availability is proved by adapter calibration before a candidate campaign.
 
 ## Testing expectations

@@ -123,6 +123,13 @@ command, never because a schedule elapsed.
 > subagent spend, so fan-out would multiply cost against a bound they did not
 > choose), manual-only trigger. All tighten-only from here. `roles.yaml` keeps
 > human merge, so the role lands by human merge, not by agent commit.
+>
+> **Amended 2026-08-12 (#387).** The model half of that tuple is now
+> `claude/claude-opus-5@high` — a frontier-tier refresh of the same Claude
+> Opus assignment, ratified in
+> `research/2026-08-12_claude-frontier-model-refresh.md`. Everything else in
+> the block above is unchanged, and the 2026-08-07 record stands as written:
+> `claude-opus-4-8` is what was ratified on that date.
 
 ## 5. The job config
 
@@ -142,7 +149,7 @@ steps:
     objective: |
       Read board-inputs/ and produce the framing questions each team must
       answer. Write them to outputs/framing.md.
-    assignment: { harness: claude, model: claude-opus-4-8, effort: xhigh }
+    assignment: { harness: claude, model: claude-opus-5, effort: xhigh }
     outputs:
       - path: outputs/framing.md
         check: non_empty
@@ -164,7 +171,7 @@ steps:
   - id: synthesize
     dependsOn: [checkpoint-review]
     objective: Produce the board brief from the team updates.
-    assignment: { harness: claude, model: claude-opus-4-8, effort: max }
+    assignment: { harness: claude, model: claude-opus-5, effort: max }
     outputs:
       - path: outputs/board-brief.md
         check: non_empty

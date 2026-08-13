@@ -7,8 +7,10 @@
 # INSIDE a turn. Cross-provider mixing never happens intra-turn; it is an
 # org-level flow between roles (see docs/PURPOSE.md).
 #
-# Model IDs: verified against live catalogs on 2026-07-05 and refreshed on
-# 2026-07-15 — see research/2026-07-15_model-assignment-refresh.md.
+# Model IDs: verified against live catalogs on 2026-07-05, refreshed on
+# 2026-07-15 (research/2026-07-15_model-assignment-refresh.md), and the Claude
+# frontier tier refreshed again on 2026-08-12 —
+# see research/2026-08-12_claude-frontier-model-refresh.md.
 
 defaults:
   max_turn_budget_usd: 5        # hard stop per turn; overrun = incident note, not silent spend
@@ -18,7 +20,7 @@ defaults:
 roles:
   planner:
     runtime: claude
-    model: claude-opus-4-8      # frontier: ticket quality determines everything downstream
+    model: claude-opus-5        # frontier: ticket quality determines everything downstream
     effort: xhigh
     delegation:
       allow: [research-fanout]  # parallel readers over feedback/repo/issues; no code subagents
@@ -49,7 +51,7 @@ roles:
 
   reviewer:
     runtime: claude             # DELIBERATELY a different provider than builder —
-    model: claude-opus-4-8      # uncorrelated blind spots; the single most important
+    model: claude-opus-5        # uncorrelated blind spots; the single most important
     effort: xhigh               # pairing decision in this file
     max_turn_budget_usd: 50     # xhigh adversarial review of a real diff needs
                                 # more than the $5 default; bounded, not
@@ -158,7 +160,7 @@ roles:
   # someone wants to try. Availability plus this ceiling are the real guards.
   operator:
     runtime: claude
-    model: claude-opus-4-8
+    model: claude-opus-5
     effort: high
     max_turn_budget_usd: 50     # matches builder: a job step doing real analysis
                                 # over a large corpus sits closer to a builder

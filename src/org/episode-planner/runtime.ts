@@ -61,11 +61,11 @@ import {
   updateEnvelope,
   type EnvelopeStatus,
   type EnvelopeUsage,
-  type SessionEvidence,
 } from "../../runtime/runlog/envelope.js";
 import { createEventWriter, type EventWriter } from "../../runtime/runlog/events.js";
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../../runtime/runlog/forensics.js";
 import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
+import { sessionEvidence } from "../../runtime/runlog/session-evidence.js";
 import { recordTurnOnce, toRecord, type TriggerKind } from "../../runtime/telemetry.js";
 import { ZERO_USAGE } from "../../runtime/turn-usage.js";
 import type {
@@ -78,6 +78,7 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../../runtime/types.js";
+import { notifyObserver, type GovernedTurnProgressIdentity } from "../../runtime/turn-observer.js";
 import { terminalStopFields } from "../../runtime/types.js";
 import type { AppEntry } from "../apps.js";
 import {
@@ -757,7 +758,20 @@ async function executeStartedAttempt(
   const sessionLog = createSessionLogSink(options.root, options.app.name, runId);
   let latestProgress: TurnProgress | undefined;
   let checkpointWrites = Promise.resolve();
+  let heartbeatWrites = Promise.resolve();
   let toolCalls = 0;
+  const observerIdentity: GovernedTurnProgressIdentity = {
+    at: now().toISOString(),
+    episodeId: options.intent.episodeId,
+    runId,
+    pipeline: EPISODE_PLANNER_PIPELINE,
+    pass: attemptName,
+    role: plannerRole.name,
+    assignment,
+    ordinal: request.attempt,
+    total: 2,
+    resumed: false,
+  };
   const turnHooks: TurnHooks = {
     // The deterministic repository/trigger inspection already happened
     // before this turn. Deny every tool (including subagent tools) so the
@@ -771,7 +785,7 @@ async function executeStartedAttempt(
     onEvent: (event) => {
       sessionLog(event);
       if (event.type === "tool_use") toolCalls += 1;
-      options.hooks.onEvent?.(event);
+      notifyObserver(() => options.hooks.onEvent?.(event));
     },
     onProgress: (progress) => {
       latestProgress = mergeProgress(latestProgress, progress);
@@ -782,12 +796,24 @@ async function executeStartedAttempt(
           lastSeenAt: progress.at ?? now().toISOString(),
         }).then(() => undefined),
       );
-      options.hooks.onProgress?.(progress);
+      notifyObserver(() => options.hooks.onProgress?.(progress));
     },
   };
 
   let result: TurnResult;
   let executionError: Error | undefined;
+  notifyObserver(() => options.hooks.onTurnStarted?.(observerIdentity));
+  const heartbeat = setInterval(() => {
+    const observedAt = now().toISOString();
+    heartbeatWrites = heartbeatWrites.then(async () => {
+      await Promise.allSettled([
+        updateEnvelope(options.root, options.app.name, runId, { lastSeenAt: observedAt }),
+        events.append({ type: "pass.heartbeat", detail: { observed_at: observedAt } }),
+      ]);
+    });
+    notifyObserver(() => options.hooks.onHeartbeat?.({ ...observerIdentity, at: observedAt }));
+  }, 30_000);
+  heartbeat.unref?.();
   try {
     // Admission, started receipt, context manifest, and exact input are all
     // durable before this construction boundary.
@@ -833,6 +859,9 @@ async function executeStartedAttempt(
   } catch (error) {
     executionError = normalizeError(error);
     result = failedResult(error, assignment, request.attempt, latestProgress);
+  } finally {
+    clearInterval(heartbeat);
+    await heartbeatWrites;
   }
   await checkpointWrites;
   const rawOutput = result.summary;
@@ -902,6 +931,15 @@ async function executeStartedAttempt(
     now,
     strictSettlement,
     evaluation?.kind === "internal_error" ? evaluation.error : executionError,
+  );
+  notifyObserver(() =>
+    options.hooks.onTurnTerminal?.({
+      ...observerIdentity,
+      at: now().toISOString(),
+      status: result.status,
+      ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
+      usage: result.usage,
+    }),
   );
   return {
     rawOutput,
@@ -1699,76 +1737,6 @@ function toEnvelopeUsage(usage: TurnUsage, quality?: TurnUsage["quality"]): Enve
     ...(usage.costEstimated === true ? { cost_estimated: true } : {}),
     ...(usage.cacheReadTokens === undefined ? {} : { cache_read_tokens: usage.cacheReadTokens }),
     ...(usage.cacheCreationTokens === undefined ? {} : { cache_write_tokens: usage.cacheCreationTokens }),
-  };
-}
-
-function sessionEvidence(session: TurnResult["session"]): SessionEvidence {
-  if (session.runtime === "codex") {
-    return {
-      ...session,
-      native_ref: `codex://threads/${encodeURIComponent(session.id)}`,
-      transcript: "native_task",
-      transcript_note: "Open the native Codex task for the full provider transcript.",
-    };
-  }
-  if (session.runtime === "pi") {
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note: "Provider session reference recorded; session.log is activity only.",
-    };
-  }
-  if (session.runtime === "cursor") {
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note: "Resume the chat with `cursor-agent --resume <id>`; session.log is activity only.",
-    };
-  }
-  if (session.runtime === "opencode") {
-    // OpenCode sessions are first-class server objects the operator can reopen,
-    // so the id is a real transcript reference. Falling through would have
-    // recorded an opencode turn as transcript-less AND blamed the Claude SDK.
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note: "Provider session reference recorded; session.log is activity only.",
-    };
-  }
-  if (session.runtime === "muse") {
-    // `--session-id <uuid>` is muse's own session identity and the durable
-    // session log is the real transcript. Falling through to the final branch
-    // would have blamed the Claude SDK for a muse turn having no transcript.
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note:
-        "Provider session reference recorded; the durable muse session log is the transcript " +
-        "and session.log is activity only.",
-    };
-  }
-  if (session.runtime === "grok") {
-    // Grok resumes the exact id over ACP `session/load` and keeps the real
-    // transcript under the turn's isolated `$GROK_HOME/sessions`. Falling
-    // through to the final branch would have recorded a grok turn as having no
-    // provider transcript AND attributed the absence to the Claude SDK.
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note:
-        "Provider session reference recorded; the transcript lives under the turn's " +
-        "isolated $GROK_HOME/sessions and session.log is activity only.",
-    };
-  }
-  return {
-    ...session,
-    transcript: "unavailable",
-    transcript_note: "Claude SDK did not expose a full transcript reference; session.log is activity only.",
   };
 }
 

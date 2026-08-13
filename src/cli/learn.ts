@@ -64,7 +64,8 @@ import { loadLearningPolicy } from "../org/learning/policy.js";
 import { readRejections } from "../org/learning/rejections.js";
 import { listReviewerVerdicts, readReviewerVerdict } from "../org/learning/review.js";
 import { loadRoles } from "../org/roles.js";
-import { runDispatchedTurn } from "../org/turn-runner.js";
+import { extractProgressArgs } from "../runtime/cli-progress.js";
+import { definedProps } from "../runtime/optional-properties.js";
 import { extractHomeFlags } from "./home-flags.js";
 import {
   activationReport,
@@ -78,8 +79,7 @@ import {
   renderVerdictLine,
 } from "./learn-activation.js";
 import { canaryStatusLines, learnCanary, learnExperiment } from "./learn-experiment.js";
-import { installProcessCancellation } from "./process-signal.js";
-import { definedProps } from "../runtime/optional-properties.js";
+import { runLiveDistillation } from "./learn-distill-run.js";
 
 export async function cmdLearn(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "learn");
@@ -164,6 +164,8 @@ export async function cmdLearn(args: string[]): Promise<number> {
 }
 
 async function distill(homes: CormidiaHomes, args: string[]): Promise<number> {
+  const progressArgs = extractProgressArgs(args, "learn distill");
+  args = progressArgs.rest;
   let appName: string | undefined;
   let dryRun = false;
   for (let i = 0; i < args.length; i++) {
@@ -208,23 +210,7 @@ async function distill(homes: CormidiaHomes, args: string[]): Promise<number> {
     return 0;
   }
 
-  const turnId = `learn-distill-${new Date()
-    .toISOString()
-    .replace(/[^0-9]/g, "")
-    .slice(0, 14)}`;
-  const cancellation = installProcessCancellation();
-  const result = await runDispatchedTurn({
-    role,
-    app,
-    appsFile: homes.appsFile,
-    turnId,
-    orgRoot: homes.orgHome,
-    runtimeHome: homes.stateHome,
-    pipelineOverride: "learning-distill",
-    signal: cancellation.signal,
-  }).finally(() => cancellation.dispose());
-  console.log(`${turnId}: ${result.status} — ${result.summary}`);
-  return cancellation.exitCode ?? (result.status === "failed" ? 1 : 0);
+  return runLiveDistillation(homes, app, role, progressArgs.mode);
 }
 
 // ---------------------------------------------------------------------------

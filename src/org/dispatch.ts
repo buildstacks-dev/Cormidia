@@ -7,6 +7,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { GhCliOps } from "../loop/github.js";
 import type { DurableClaimOwner, DurableClaimOwnerStatus } from "../runtime/durable-claim.js";
+import { notifyObserver } from "../runtime/turn-observer.js";
 import { processIdentityStatus } from "../runtime/process-identity.js";
 import type { Trigger } from "../runtime/types.js";
 import { loadApps, resolveTriggers, type AppEntry, type AppsFile } from "./apps.js";
@@ -53,17 +54,15 @@ interface DispatchTickOptions {
   now?: () => Date;
   eventSource?: GitHubEventSource;
   spawn?: DispatchSpawn;
+  onSpawned?: (turn: DueTurn) => void;
   kill?: (pid: number, signal?: NodeJS.Signals) => Promise<void> | void;
-  /** Liveness probe for a killed pid; defaults to a real `process.kill(pid,0)`
-   *  check. Injectable so recovery gating is deterministic in tests. */
+  /** Injectable killed-pid liveness probe for deterministic recovery tests. */
   pidAlive?: (pid: number) => boolean;
   /** Liveness probe for an owned detached process group (positive pgid). */
   groupAlive?: (processGroupId: number) => boolean;
-  /** Exact PID/start probe at the kill boundary; injectable for deterministic
-   * ownership-refusal tests. Unknown always defers rather than signalling. */
+  /** Exact PID/start probe; unknown defers rather than signalling. */
   processIdentityStatus?: (pid: number, expectedStartIdentity: string) => "match" | "mismatch" | "unknown";
-  /** How long to wait for a signalled turn to actually exit before escalating
-   *  to SIGKILL, and the poll interval while waiting. */
+  /** SIGKILL escalation grace and polling interval. */
   killGraceMs?: number;
   killPollMs?: number;
   wallClockCapMs?: number;
@@ -550,6 +549,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     }
     await options.schedulerFault?.("after_child_spawn");
     await evidence.advanceDecision(decisionId, "spawned", tickAt);
+    notifyObserver(() => options.onSpawned?.(executingTurn));
 
     // The detached child is now running. A failure in post-spawn bookkeeping
     // (recordFired / markConsumed hitting a transient ENOSPC/EIO) must NOT

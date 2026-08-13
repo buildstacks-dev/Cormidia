@@ -4,6 +4,7 @@
 import type { AuthMode } from "./auth-mode.js";
 import type { RuntimeCapability } from "./capabilities.js";
 import type { ProviderPermissionModes } from "./permission-mode.js";
+import type { TurnObserver } from "./turn-observer.js";
 
 export type RuntimeKind = "claude" | "codex" | "pi" | "cursor" | "grok" | "muse" | "opencode";
 
@@ -371,13 +372,11 @@ export interface TurnEvent {
   args?: unknown;
 }
 
-export interface TurnHooks {
+export interface TurnHooks extends TurnObserver {
   /** MUST be consulted for every tool action, including those made by
    *  subagents. Adapters prove this via the gate conformance suite. */
   gate: GateFn;
-  onEvent?: (e: TurnEvent) => void;
   /** Synchronous notification; the executor serializes durable writes. */
-  onProgress?: (progress: TurnProgress) => void;
 }
 
 export interface Runtime {

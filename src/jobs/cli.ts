@@ -12,39 +12,25 @@ import { JobConfigError, loadJobConfig } from "./config.js";
 import { JobJournalError } from "./journal.js";
 import { type JobRunResult, JobRunError, runJob } from "./runner.js";
 import { JobStepError } from "./step.js";
-import { formatJobStepStates } from "./status.js";
+import { createCliProgressReporter, extractProgressArgs } from "../runtime/cli-progress.js";
+import { installProcessCancellation } from "../runtime/process-cancellation.js";
+import { JOB_USAGE, jobProgressState, printJobResult } from "./presentation.js";
 
 const OPERATOR_ROLE = "operator";
-
-const USAGE = `Usage:
-  cormidia-job run <config.yaml> [--workdir <path>] [--decide-checkpoint <step-id>] [--json]
-  cormidia-job explain <config.yaml> [--json]
-
-Runs a dependency-ordered graph of provider steps once or on demand. Jobs are
-org work, not product work: no ticket, no PR, no GitHub, and no independent
-review — a completed step means the provider returned AND every declared output
-check passed. See docs/jobs/design.md §3 for what jobs deliberately do not
-inherit.
-
-  run                 execute (or resume) the job; completed steps are never re-run
-  explain             validate the config and print the execution plan; spends nothing
-  --workdir <path>    where declared outputs are read/written (default: cwd)
-  --decide-checkpoint approve a parked checkpoint step and continue
-  --json              machine-readable result
-`;
 
 export async function cmdJob(argv: string[]): Promise<number> {
   const subcommand = argv[0];
   if (subcommand === undefined || subcommand === "--help" || subcommand === "-h" || subcommand === "help") {
-    process.stdout.write(USAGE);
+    process.stdout.write(JOB_USAGE);
     return subcommand === undefined ? 1 : 0;
   }
   if (subcommand !== "run" && subcommand !== "explain") {
-    process.stderr.write(`cormidia-job: unknown subcommand "${subcommand}"\n\n${USAGE}`);
+    process.stderr.write(`cormidia-job: unknown subcommand "${subcommand}"\n\n${JOB_USAGE}`);
     return 1;
   }
 
-  const parsed = parseArgs(argv.slice(1));
+  const progressArgs = extractProgressArgs(argv.slice(1), "cormidia-job");
+  const parsed = parseArgs(progressArgs.rest);
   const config = await loadJobConfig(parsed.configPath);
 
   if (subcommand === "explain") {
@@ -67,31 +53,52 @@ export async function cmdJob(argv: string[]): Promise<number> {
     homes.appsFile.apps.map((app) => app.name),
   );
 
-  const result = await runJob({
-    config,
-    workdir: parsed.workdir,
+  const reporter = createCliProgressReporter({
     stateHome: homes.stateHome,
-    orgDir: homes.stateHome,
-    role,
-    runtimeFor: (harness: RoleConfig["runtime"]) => getRuntime(harness),
-    ...(parsed.decideCheckpoint === undefined
-      ? {}
-      : { checkpointDecided: async (stepId: string) => stepId === parsed.decideCheckpoint }),
-    ...(parsed.json
-      ? {}
-      : {
-          onProgress: (message: string): void => {
-            process.stdout.write(`  ${message}\n`);
-          },
-        }),
+    command: "cormidia-job",
+    scope: config.app ?? config.job,
+    mode: progressArgs.mode,
   });
+  reporter.phase("preflight", "started");
+  const cancellation = installProcessCancellation();
+  let result: JobRunResult;
+  try {
+    result = await runJob({
+      config,
+      workdir: parsed.workdir,
+      stateHome: homes.stateHome,
+      orgDir: homes.stateHome,
+      role,
+      runtimeFor: (harness: RoleConfig["runtime"]) => getRuntime(harness),
+      signal: cancellation.signal,
+      observer: reporter.observer,
+      onProgress: (message: string): void => reporter.phase(message),
+      ...(parsed.decideCheckpoint === undefined
+        ? {}
+        : { checkpointDecided: async (stepId: string) => stepId === parsed.decideCheckpoint }),
+    });
+    reporter.terminal(cancellation.signal.aborted ? "cancelled" : jobProgressState(result.status), {
+      artifactRef: `job:${config.job}`,
+      ...(result.status === "completed"
+        ? {}
+        : { nextAction: `inspect ${reporter.relativeLogRef} and re-run the same job config` }),
+    });
+  } catch (error) {
+    reporter.terminal(cancellation.signal.aborted ? "cancelled" : "failed", {
+      nextAction: `inspect ${reporter.relativeLogRef}`,
+    });
+    throw error;
+  } finally {
+    cancellation.dispose();
+    reporter.dispose();
+  }
 
   if (parsed.json) {
     process.stdout.write(`${JSON.stringify({ ok: result.status === "completed", result }, null, 2)}\n`);
   } else {
-    printResult(config.job, result);
+    printJobResult(config.job, result);
   }
-  return result.status === "completed" ? 0 : 1;
+  return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
 }
 
 interface ParsedArgs {
@@ -169,25 +176,6 @@ function printExplain(config: Awaited<ReturnType<typeof loadJobConfig>>, parsed:
     "\nNot inherited: independent review, typed merit verdicts, ticket lifecycle, GitHub, learning input.\n" +
       "Inherited: the critical-ops gate, per-turn budget ceilings, exactly-once ledger settlement.\n",
   );
-}
-
-function printResult(job: string, result: JobRunResult): void {
-  process.stdout.write(`\n[cormidia-job] ${job}: ${result.status}\n`);
-  process.stdout.write(`Completed steps: ${result.completedStepIds.join(", ") || "none"}\n`);
-  process.stdout.write(`Provider turns this run: ${result.providerTurns}\n`);
-  process.stdout.write(`Step states:\n  ${formatJobStepStates(result.stepStates).join("\n  ")}\n`);
-  if (result.status === "awaiting_checkpoint") {
-    process.stdout.write(
-      `Parked at checkpoint "${result.stoppedAtStepId}": ${result.summary ?? ""}\n` +
-        `Resume with: cormidia-job run <config> --decide-checkpoint ${result.stoppedAtStepId}\n`,
-    );
-  }
-  if (result.status === "failed") {
-    process.stdout.write(
-      `Failed at "${result.stoppedAtStepId}" (${result.reasonCode ?? "unknown"}): ${result.summary ?? ""}\n` +
-        "Completed steps are durable; fix the cause and re-run to resume from this step.\n",
-    );
-  }
 }
 
 /** Maps a typed job error onto an actionable message. Every branch names what

@@ -45,9 +45,16 @@ import { loadRoles } from "../org/roles.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { cmdPlanRatifyTicketBudget } from "./plan-ratify.js";
 import { installProcessCancellation } from "./process-signal.js";
+import { createCliProgressReporter, extractProgressArgs } from "../runtime/cli-progress.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
-export async function cmdPlan(args: string[]): Promise<number> {
+interface PlanCommandDependencies {
+  runAutoPlan?: typeof runAutoPlan;
+  progressHeartbeatMs?: number;
+  progressWriter?: (line: string) => void;
+}
+
+export async function cmdPlan(args: string[], dependencies: PlanCommandDependencies = {}): Promise<number> {
   const common = extractHomeFlags(args, "plan");
   // `ratify-ticket-budget` is a subcommand rather than a flag for the same
   // reason `bootstrap publish` is: it is a different, human-gated operation
@@ -55,7 +62,8 @@ export async function cmdPlan(args: string[]): Promise<number> {
   if (common.rest[0] === "ratify-ticket-budget") {
     return cmdPlanRatifyTicketBudget(common.rest.slice(1), await resolveCormidiaHomes(common));
   }
-  const parsed = parsePlanArgs(common.rest);
+  const progressArgs = extractProgressArgs(common.rest, "plan");
+  const parsed = parsePlanArgs(progressArgs.rest);
   const creatorScope =
     parsed.creatorScopePath === undefined ? undefined : await loadCreatorEpisodeScopeFile(parsed.creatorScopePath);
   if (creatorScope !== undefined && creatorScope.planningDisposition !== "execution_ready") {
@@ -196,24 +204,52 @@ export async function cmdPlan(args: string[]): Promise<number> {
       console.log("(dry-run: no runtime, run envelope, telemetry, learning projection, or GitHub write)");
       return 0;
     }
-    const cancellation = installProcessCancellation();
-    const result = await runAutoPlan({
-      orgHome: homes.orgHome,
+    const reporter = createCliProgressReporter({
       stateHome: homes.stateHome,
-      app,
-      appsFile,
-      goal,
-      ...definedProps({ workdir: parsed.workdir }),
-      ...definedProps({ stage: parsed.stage }),
-      ...(parsed.noPublish ? { publish: false } : {}),
-      signal: cancellation.signal,
-      ...definedProps({ parentTaskId }),
-      planning: planningOptions(parsed),
-      resume: parsed.resume,
-      revise: parsed.revise,
-      ...(parsed.sources.length > 0 ? { sources: parsed.sources } : {}),
-      ...(creatorScope === undefined ? {} : { creatorScope, requireExecutionReadyCreatorScope: true }),
-    }).finally(() => cancellation.dispose());
+      command: "plan",
+      scope: app.name,
+      mode: progressArgs.mode,
+      ...(dependencies.progressHeartbeatMs === undefined ? {} : { heartbeatMs: dependencies.progressHeartbeatMs }),
+      ...(dependencies.progressWriter === undefined ? {} : { writeStderr: dependencies.progressWriter }),
+    });
+    reporter.phase("preflight", "started");
+    const cancellation = installProcessCancellation();
+    let result: Awaited<ReturnType<typeof runAutoPlan>>;
+    try {
+      reporter.phase("checkout-and-episode-planning");
+      result = await (dependencies.runAutoPlan ?? runAutoPlan)({
+        orgHome: homes.orgHome,
+        stateHome: homes.stateHome,
+        app,
+        appsFile,
+        goal,
+        ...definedProps({ workdir: parsed.workdir }),
+        ...definedProps({ stage: parsed.stage }),
+        ...(parsed.noPublish ? { publish: false } : {}),
+        signal: cancellation.signal,
+        observer: reporter.observer,
+        ...definedProps({ parentTaskId }),
+        planning: planningOptions(parsed),
+        resume: parsed.resume,
+        revise: parsed.revise,
+        ...(parsed.sources.length > 0 ? { sources: parsed.sources } : {}),
+        ...(creatorScope === undefined ? {} : { creatorScope, requireExecutionReadyCreatorScope: true }),
+      });
+      reporter.terminal(planProgressState(result.status), {
+        ...(result.episodeId === undefined ? {} : { artifactRef: `episode:${result.episodeId}` }),
+        ...(result.status === "completed"
+          ? {}
+          : { nextAction: "inspect the episode and CLI progress logs, then resume the exact command" }),
+      });
+    } catch (error) {
+      reporter.terminal(cancellation.signal.aborted ? "cancelled" : "failed", {
+        nextAction: `inspect ${reporter.relativeLogRef}`,
+      });
+      throw error;
+    } finally {
+      cancellation.dispose();
+      reporter.dispose();
+    }
     if (parsed.json) {
       console.log(JSON.stringify({ schema_version: 1, kind: "plan-result", app: app.name, ...result }, null, 2));
       return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
@@ -291,6 +327,12 @@ export async function cmdPlan(args: string[]): Promise<number> {
   } finally {
     await cleanupPlanningWorktree(session.worktree);
   }
+}
+
+function planProgressState(
+  status: Awaited<ReturnType<typeof runAutoPlan>>["status"],
+): "completed" | "failed" | "cancelled" | "interrupted" {
+  return status;
 }
 
 /** Text rendering of the token-free ticket-budget preview. */

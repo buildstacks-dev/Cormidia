@@ -14,7 +14,6 @@ import { ApprovalStore } from "../org/approvals.js";
 import { loadApps, runtimePolicyForApp } from "../org/apps.js";
 import { enforceBudgetOverlay, isBudgetBlocking, raiseTurnBudgetEscalation, rollupBudgets } from "../org/budget.js";
 import { assembleContext, createEpisodeContextResolver } from "../org/context.js";
-import { composeGate } from "../org/gate-compose.js";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
 import { queueReleaseApprovals } from "../org/release.js";
@@ -26,11 +25,13 @@ import { createExistingTicketApprovalHandler } from "../org/ticket-episode-appro
 import { createTicketEpisodeRuntime, inspectTicketEpisodeInvocation } from "../org/ticket-episode-runtime.js";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
-import type { GateFn, RoleConfig, TurnAssignment } from "../runtime/types.js";
+import type { TurnAssignment, TurnHooks } from "../runtime/types.js";
 import { cmdClaimRearm } from "./claim-rearm.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { reportCliInvocation } from "./invocation-audit.js";
+import { createLoopGateForRole } from "./loop-gate.js";
 import { installProcessCancellation, waitForDelay } from "./process-signal.js";
+import { createCliProgressReporter, extractProgressArgs } from "../runtime/cli-progress.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
 function loopInvocationOutcome(result: LoopDriverResult, dryRun = false): string {
@@ -87,40 +88,6 @@ async function persistLoopScorecards(
     if (result.appended) appended += 1;
   }
   return appended;
-}
-
-/** Manual `cormidia loop` must use the same durable approval boundary as the
- * autonomous dispatcher. The previous raw defaultGate wiring denied critical
- * actions but never created an approval item, leaving tickets stranded with
- * no possible `cormidia approvals review` recovery path. */
-function createLoopGateForRole(
-  stateHome: string,
-  app: string,
-  turnId: string,
-  orgHome?: string,
-  store: ApprovalStore = new ApprovalStore(stateHome),
-  workdir?: string,
-  /** §5.3/§5.4 (#296): the app's configured repo and egress allowlist. Without
-   *  them collaboration actions fail closed to repo-collaboration-foreign and
-   *  the egress allowlist falls back to the ratified default. */
-  appConfig?: { repo: string; networkAllowlist?: readonly string[] },
-): (role: RoleConfig, passWorkdir?: string) => GateFn {
-  return (role, passWorkdir) => {
-    // The executor running the pass knows its sandbox cwd; this call site only
-    // knows the managed clone. A builder ticket pass runs in the per-ticket
-    // worktree, so preferring the caller's cwd is what makes the recorded
-    // approval workdir the tree the action was actually raised from.
-    const cwd = passWorkdir ?? workdir;
-    return composeGate(defaultGate, store, {
-      app,
-      role: role.name,
-      turnId,
-      ...definedProps({ orgHome }),
-      ...definedProps({ workdir: cwd }),
-      ...(appConfig !== undefined ? { appRepo: appConfig.repo } : {}),
-      ...(appConfig?.networkAllowlist !== undefined ? { networkAllowlist: appConfig.networkAllowlist } : {}),
-    });
-  };
 }
 
 interface ParsedLoopRunArgs {
@@ -197,7 +164,8 @@ export async function cmdLoop(args: string[]): Promise<number> {
   if (args[0] === "rearm") {
     return cmdClaimRearm(args.slice(1), await resolveCormidiaHomes(common));
   }
-  const parsed = parseLoopRunArgs(args);
+  const progressArgs = extractProgressArgs(args, "loop");
+  const parsed = parseLoopRunArgs(progressArgs.rest);
   const { appName, dryRun, repoDir, worktreeRoot, allowNetwork, parentTaskInput, explainEpisode, resumeEpisode } =
     parsed;
   let { once, follow } = parsed;
@@ -261,296 +229,325 @@ export async function cmdLoop(args: string[]): Promise<number> {
   const app = appsFile.apps.find((entry) => entry.name === appName);
   if (app === undefined) throw new Error(`loop: unknown app "${appName}" in apps.yaml`);
   const selectedApp = app;
-
-  const localRepo = repoDir ?? join(homes.stateHome, "repos", selectedApp.name);
-  const worktrees = worktreeRoot ?? join(homes.stateHome, "worktrees", selectedApp.name);
-  const selfApprovalSecret = await resolveReviewAuthorizationSecret(homes.stateHome, {
-    ...(process.env["CORMIDIA_SELF_APPROVAL_SECRET"] === undefined
-      ? {}
-      : { environmentSecret: process.env["CORMIDIA_SELF_APPROVAL_SECRET"] }),
-    dryRun,
-  });
-  const inputs = await defaultLoopInputs(selectedApp.repo, localRepo, {
-    ...(repoDir !== undefined
-      ? {
-          supplied: true,
-          snapshotDir: join(homes.stateHome, "repos", "snapshots", selectedApp.name, `${Date.now()}-${process.pid}`),
-        }
-      : {}),
-    ...(selfApprovalSecret === undefined ? {} : { selfApprovalSecret }),
-  });
-  const rolesFile = await loadRoles(rolesPath);
-  const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(selectedApp));
-  const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
-  const maybeBuilderRole = roles["builder"];
-  if (maybeBuilderRole === undefined) throw new Error("loop: roles.yaml has no builder role");
-  const builderRole = maybeBuilderRole;
-  const promptsDir = join(homes.orgHome, "prompts");
-  const pipelines = await loadPipelines(pipelinesPath, {
-    roleNames: rolesFile.roles.map((role) => role.name),
-    promptsDir,
-  });
-
-  let sawBudgetRefusal = false;
-  let sawTerminalEpisodeRefusal = false;
-  let accumulatedLoopExitCode: 0 | 1 = 0;
-  let itemsClaimed = 0;
-  let itemsPreviewed = 0;
-  const invocationOutcomes: string[] = [];
-  const cancellation = dryRun ? undefined : installProcessCancellation();
-
-  async function tick(): Promise<void> {
-    // Stamp a turn id on this tick so claimed items carry one — the loop only
-    // emits scorecard events for items with a turnId (loop.ts), and this is the
-    // attribution/dedupe key the org scorecard ledger records under.
-    const turnId = `loop-${selectedApp.name}-${Date.now()}`;
-    let liveEngine: NonNullable<Parameters<typeof runLoopOnce>[0]["engine"]> | undefined;
-    let ticketInspection: NonNullable<Parameters<typeof runLoopOnce>[0]["ticketInspection"]> | undefined;
-    let deliveryUnits: NonNullable<Parameters<typeof runLoopOnce>[0]["deliveryUnits"]> | undefined;
-    if (dryRun) {
-      // Preview must not call the mutating budget overlay. The read-only
-      // rollup yields the same current remainder used to build live ticket
-      // facts, while persisted episodes retain their original hard ceiling.
-      const budgetRows = await rollupBudgets(homes.stateHome, appsFile);
-      const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);
-      if (budgetRow === undefined) {
-        throw new Error(`loop: could not resolve the app budget for ${selectedApp.name}`);
-      }
-      const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
-      ticketInspection = {
-        root: homes.stateHome,
-        inspect: async (request) => {
-          await inspectTicketEpisodeInvocation(
-            {
-              root: homes.stateHome,
-              app: selectedApp,
-              roles: configuredRoles,
-              remainingBudgetUsd,
-            },
-            request,
-          );
-        },
-      };
-      deliveryUnits = createRoadmapLoopRuntime({
-        root: homes.stateHome,
-        app: selectedApp,
-        gh: inputs.gh,
-      });
-    }
-    if (!dryRun) {
-      const plannerRole = roles["planner"];
-      if (plannerRole === undefined) {
-        throw new Error("loop: roles.yaml has no planner role for ticket EpisodePlanner boot");
-      }
-      const approvalStore = new ApprovalStore(homes.stateHome);
-      const gateForRole = createLoopGateForRole(
-        homes.stateHome,
-        selectedApp.name,
-        turnId,
-        homes.orgHome,
-        approvalStore,
-        localRepo,
-        {
-          repo: selectedApp.repo,
-          ...definedProps({ networkAllowlist: selectedApp.networkAllowlist }),
-        },
-      );
-      const budgetRows = await enforceBudgetOverlay(homes.stateHome, appsFile);
-      const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);
-      if (budgetRow === undefined) {
-        throw new Error(`loop: could not resolve the app budget for ${selectedApp.name}`);
-      }
-      const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
-      const fallbackContext = (
-        await assembleContext({
-          orgHome: homes.orgHome,
-          appWorkdir: localRepo,
-          app: selectedApp.name,
-          role: builderRole,
-          taskText: `build loop for ${selectedApp.name}`,
-        })
-      ).bundle;
-      const plannerContext = (
-        await assembleContext({
-          orgHome: homes.orgHome,
-          appWorkdir: localRepo,
-          app: selectedApp.name,
-          role: plannerRole,
-          taskText: `plan bounded ticket delivery for ${selectedApp.name}`,
-        })
-      ).bundle;
-      const resolveEpisodeContext = createEpisodeContextResolver({
-        orgHome: homes.orgHome,
-        appWorkdir: localRepo,
-        app: selectedApp.name,
-        roles,
+  const reporter = dryRun
+    ? undefined
+    : createCliProgressReporter({
         stateHome: homes.stateHome,
-        turnId,
+        command: "loop",
+        scope: selectedApp.name,
+        mode: progressArgs.mode,
       });
-      const runtimeForAssignment = (assignment: TurnAssignment) => getRuntime(assignment.harness);
-      const ticketEpisode = createTicketEpisodeRuntime({
-        root: homes.stateHome,
-        orgRoot: homes.orgHome,
-        app: selectedApp,
-        roles: configuredRoles,
-        gh: inputs.gh,
-        policy: inputs.policy,
-        commands: inputs.commands,
-        hooks: { gate: defaultGate },
-        runtimeForAssignment,
-        plannerContext,
-        contextForProviderStep: async ({ item, role }) =>
-          (await resolveEpisodeContext(item, EPISODE_PLAN_EXECUTION_PIPELINE, role.name)) ?? fallbackContext,
-        remainingBudgetUsd,
-        gateForRole,
-        approval: createExistingTicketApprovalHandler({
-          store: approvalStore,
-          app: selectedApp.name,
-          roleNames: configuredRoles.map((role) => role.name),
-        }),
-        raiseTurnBudgetEscalation: (escalation) => raiseTurnBudgetEscalation(approvalStore.root, escalation),
-        ...(selfApprovalSecret === undefined
-          ? {}
-          : {
-              authorization: {
-                selfApprovalSecret,
-              },
-            }),
-        ...(selectedApp.release === undefined ? {} : { release: selectedApp.release }),
-        telemetry: { orgDir: homes.stateHome, trigger: "manual" },
-        ...(parentTaskId === undefined ? {} : { parentTaskId }),
-        ...(allowNetwork ? { networkAccess: true } : {}),
-        ...(cancellation === undefined ? {} : { signal: cancellation.signal }),
-      });
-      deliveryUnits = ticketEpisode.deliveryUnits;
-      liveEngine = {
-        pipelines,
-        roles,
-        runtimeFor: (role) => getRuntime(role.runtime),
-        promptsDir,
-        runlogRoot: homes.stateHome,
-        hooks: { gate: defaultGate },
-        gateForRole,
-        context: fallbackContext,
-        // One governed resolve per (ticket episode, plan role), pinned for
-        // the tick. The accepted plan, rather than a static pipeline name,
-        // now owns the execution sequence.
-        contextFor: resolveEpisodeContext,
-        planTicket: ticketEpisode.planTicket,
-        executeTicketPlan: ticketEpisode.executeTicketPlan,
-        ...(allowNetwork ? { networkAccess: true } : {}),
-        telemetry: { orgDir: homes.stateHome, trigger: "manual" },
-        onEpisodeTerminal: async (terminal) => {
-          await finalizeEpisode({
-            root: homes.stateHome,
-            episodeId: terminal.episodeId,
-            status: terminal.status,
-            reason: terminal.reason,
-            ...definedProps({ nextStep: terminal.nextStep }),
-            now: terminal.now,
-          });
-        },
-        ...(cancellation !== undefined ? { signal: cancellation.signal } : {}),
-        ...definedProps({ parentTaskId }),
-        budgetGuard: async () => {
-          if (isBudgetBlocking(budgetRow.status)) {
-            return {
-              allowed: false,
-              reason:
-                budgetRow.status === "unknown"
-                  ? `${budgetRow.app} budget total could not be computed this month ` +
-                    `(malformed ledger row) — refusing to spend; run ` +
-                    `\`cormidia budget --reconcile\` to repair the ledger`
-                  : `${budgetRow.app} spent $${budgetRow.spentUsd.toFixed(2)} of its ` +
-                    `$${budgetRow.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
-                    `or wait for the month to reset`,
-            };
-          }
-          return { allowed: true };
-        },
-      };
-    }
-    const result = await runLoopOnce({
-      app: selectedApp.name,
-      repo: selectedApp.repo,
-      gh: inputs.gh,
-      localRepo: inputs.localRepo,
-      worktreeRoot: worktrees,
-      policy: inputs.policy,
-      commands: inputs.commands,
-      maxConcurrent: appsFile.org.maxConcurrentTurns,
-      turnId,
-      base: inputs.base,
-      // `inputs` is built once per invocation, but `--follow` ticks for hours
-      // and merges land in the default branch while it runs. Forwarding the
-      // refresher makes the driver re-resolve per claim instead of reusing
-      // this startup snapshot (#203). Absent for `--repo-dir`, whose base is
-      // an immutable commit.
-      ...(inputs.refreshBase === undefined ? {} : { refreshBase: inputs.refreshBase }),
-      planOnly: dryRun,
-      ...(ticketInspection === undefined ? {} : { ticketInspection }),
-      ...definedProps({ release: selectedApp.release }),
-      // Merge authorization: the self-approval fallback must carry an HMAC tag
-      // signed with this operator secret (never repo-visible). Without it, the
-      // single-account fallback is not trusted — the loop fails closed rather
-      // than accepting a forgeable static marker.
-      ...(selfApprovalSecret !== undefined ? { authorization: { selfApprovalSecret } } : {}),
-      ...(liveEngine === undefined ? {} : { engine: liveEngine }),
-      ...(deliveryUnits === undefined ? {} : { deliveryUnits }),
-    });
-    await persistLoopScorecards(homes.stateHome, selectedApp.name, result.scorecardEvents);
-    // A4: a merged deploy/package milestone queues its release as a critical
-    // op on the approval queue — the trigger, never the execution.
-    if (!dryRun) {
-      const queuedReleases = await queueReleaseApprovals(homes.stateHome, selectedApp.name, result.items, undefined, {
-        localRepo: inputs.localRepo,
-      });
-      for (const queued of queuedReleases) {
-        console.log(
-          `release: ${queued.kind} for ${queued.ticketRef} queued as critical op ` +
-            `${queued.approvalId} (owner: ${queued.owner}) — decide with \`cormidia approvals\``,
-        );
-      }
-    }
-    for (const line of result.lines) console.log(line);
-    for (const item of result.items) {
-      console.log(`${item.ticketRef}: ${item.phase}${episodeReplanOutcome(item)}`);
-    }
-    if (result.budgetRefusal !== undefined) sawBudgetRefusal = true;
-    if ((result.terminalEpisodeRefusals?.length ?? 0) > 0) sawTerminalEpisodeRefusal = true;
-    if (loopDriverExitCode(result) !== 0) accumulatedLoopExitCode = 1;
-    itemsClaimed += result.items.length;
-    itemsPreviewed += result.itemsPreviewed ?? 0;
-    invocationOutcomes.push(loopInvocationOutcome(result, dryRun));
-    if (result.lines.length === 0 && result.items.length === 0) {
-      console.log(`loop: no ready tickets for ${selectedApp.name}`);
-    }
-  }
+  reporter?.phase("preflight", "started");
 
   try {
-    await tick();
-    // A refused tick ends follow mode too. An exhausted monthly cap will not
-    // clear on a 30-second cadence; a terminal ticket was repaired to a parked
-    // state and requires a new ticket. Continuing would hide either stop
-    // behind a later idle tick.
-    while (follow && !sawBudgetRefusal && !sawTerminalEpisodeRefusal && cancellation?.signal.aborted !== true) {
-      await waitForDelay(30_000, cancellation?.signal);
-      if (cancellation?.exitCode !== undefined) break;
-      await tick();
+    const localRepo = repoDir ?? join(homes.stateHome, "repos", selectedApp.name);
+    const worktrees = worktreeRoot ?? join(homes.stateHome, "worktrees", selectedApp.name);
+    const selfApprovalSecret = await resolveReviewAuthorizationSecret(homes.stateHome, {
+      ...(process.env["CORMIDIA_SELF_APPROVAL_SECRET"] === undefined
+        ? {}
+        : { environmentSecret: process.env["CORMIDIA_SELF_APPROVAL_SECRET"] }),
+      dryRun,
+    });
+    const inputs = await defaultLoopInputs(selectedApp.repo, localRepo, {
+      ...(repoDir !== undefined
+        ? {
+            supplied: true,
+            snapshotDir: join(homes.stateHome, "repos", "snapshots", selectedApp.name, `${Date.now()}-${process.pid}`),
+          }
+        : {}),
+      ...(selfApprovalSecret === undefined ? {} : { selfApprovalSecret }),
+    });
+    const rolesFile = await loadRoles(rolesPath);
+    const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(selectedApp));
+    const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
+    const maybeBuilderRole = roles["builder"];
+    if (maybeBuilderRole === undefined) throw new Error("loop: roles.yaml has no builder role");
+    const builderRole = maybeBuilderRole;
+    const promptsDir = join(homes.orgHome, "prompts");
+    const pipelines = await loadPipelines(pipelinesPath, {
+      roleNames: rolesFile.roles.map((role) => role.name),
+      promptsDir,
+    });
+
+    let sawBudgetRefusal = false;
+    let sawTerminalEpisodeRefusal = false;
+    let accumulatedLoopExitCode: 0 | 1 = 0;
+    let itemsClaimed = 0;
+    let itemsPreviewed = 0;
+    const invocationOutcomes: string[] = [];
+    const cancellation = dryRun ? undefined : installProcessCancellation();
+    const progressHooks: TurnHooks =
+      reporter === undefined ? { gate: defaultGate } : { ...reporter.observer, gate: defaultGate };
+
+    async function tick(): Promise<void> {
+      reporter?.phase("loop-tick");
+      // Stamp a turn id on this tick so claimed items carry one — the loop only
+      // emits scorecard events for items with a turnId (loop.ts), and this is the
+      // attribution/dedupe key the org scorecard ledger records under.
+      const turnId = `loop-${selectedApp.name}-${Date.now()}`;
+      let liveEngine: NonNullable<Parameters<typeof runLoopOnce>[0]["engine"]> | undefined;
+      let ticketInspection: NonNullable<Parameters<typeof runLoopOnce>[0]["ticketInspection"]> | undefined;
+      let deliveryUnits: NonNullable<Parameters<typeof runLoopOnce>[0]["deliveryUnits"]> | undefined;
+      if (dryRun) {
+        // Preview must not call the mutating budget overlay. The read-only
+        // rollup yields the same current remainder used to build live ticket
+        // facts, while persisted episodes retain their original hard ceiling.
+        const budgetRows = await rollupBudgets(homes.stateHome, appsFile);
+        const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);
+        if (budgetRow === undefined) {
+          throw new Error(`loop: could not resolve the app budget for ${selectedApp.name}`);
+        }
+        const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
+        ticketInspection = {
+          root: homes.stateHome,
+          inspect: async (request) => {
+            await inspectTicketEpisodeInvocation(
+              {
+                root: homes.stateHome,
+                app: selectedApp,
+                roles: configuredRoles,
+                remainingBudgetUsd,
+              },
+              request,
+            );
+          },
+        };
+        deliveryUnits = createRoadmapLoopRuntime({
+          root: homes.stateHome,
+          app: selectedApp,
+          gh: inputs.gh,
+        });
+      }
+      if (!dryRun) {
+        const plannerRole = roles["planner"];
+        if (plannerRole === undefined) {
+          throw new Error("loop: roles.yaml has no planner role for ticket EpisodePlanner boot");
+        }
+        const approvalStore = new ApprovalStore(homes.stateHome);
+        const gateForRole = createLoopGateForRole(
+          homes.stateHome,
+          selectedApp.name,
+          turnId,
+          homes.orgHome,
+          approvalStore,
+          localRepo,
+          {
+            repo: selectedApp.repo,
+            ...definedProps({ networkAllowlist: selectedApp.networkAllowlist }),
+          },
+        );
+        const budgetRows = await enforceBudgetOverlay(homes.stateHome, appsFile);
+        const budgetRow = budgetRows.find((row) => row.app === selectedApp.name);
+        if (budgetRow === undefined) {
+          throw new Error(`loop: could not resolve the app budget for ${selectedApp.name}`);
+        }
+        const remainingBudgetUsd = Math.max(0, budgetRow.budgetUsd - budgetRow.spentUsd);
+        const fallbackContext = (
+          await assembleContext({
+            orgHome: homes.orgHome,
+            appWorkdir: localRepo,
+            app: selectedApp.name,
+            role: builderRole,
+            taskText: `build loop for ${selectedApp.name}`,
+          })
+        ).bundle;
+        const plannerContext = (
+          await assembleContext({
+            orgHome: homes.orgHome,
+            appWorkdir: localRepo,
+            app: selectedApp.name,
+            role: plannerRole,
+            taskText: `plan bounded ticket delivery for ${selectedApp.name}`,
+          })
+        ).bundle;
+        const resolveEpisodeContext = createEpisodeContextResolver({
+          orgHome: homes.orgHome,
+          appWorkdir: localRepo,
+          app: selectedApp.name,
+          roles,
+          stateHome: homes.stateHome,
+          turnId,
+        });
+        const runtimeForAssignment = (assignment: TurnAssignment) => getRuntime(assignment.harness);
+        const ticketEpisode = createTicketEpisodeRuntime({
+          root: homes.stateHome,
+          orgRoot: homes.orgHome,
+          app: selectedApp,
+          roles: configuredRoles,
+          gh: inputs.gh,
+          policy: inputs.policy,
+          commands: inputs.commands,
+          hooks: progressHooks,
+          runtimeForAssignment,
+          plannerContext,
+          contextForProviderStep: async ({ item, role }) =>
+            (await resolveEpisodeContext(item, EPISODE_PLAN_EXECUTION_PIPELINE, role.name)) ?? fallbackContext,
+          remainingBudgetUsd,
+          gateForRole,
+          approval: createExistingTicketApprovalHandler({
+            store: approvalStore,
+            app: selectedApp.name,
+            roleNames: configuredRoles.map((role) => role.name),
+          }),
+          raiseTurnBudgetEscalation: (escalation) => raiseTurnBudgetEscalation(approvalStore.root, escalation),
+          ...(selfApprovalSecret === undefined
+            ? {}
+            : {
+                authorization: {
+                  selfApprovalSecret,
+                },
+              }),
+          ...(selectedApp.release === undefined ? {} : { release: selectedApp.release }),
+          telemetry: { orgDir: homes.stateHome, trigger: "manual" },
+          ...(parentTaskId === undefined ? {} : { parentTaskId }),
+          ...(allowNetwork ? { networkAccess: true } : {}),
+          ...(cancellation === undefined ? {} : { signal: cancellation.signal }),
+        });
+        deliveryUnits = ticketEpisode.deliveryUnits;
+        liveEngine = {
+          pipelines,
+          roles,
+          runtimeFor: (role) => getRuntime(role.runtime),
+          promptsDir,
+          runlogRoot: homes.stateHome,
+          hooks: progressHooks,
+          gateForRole,
+          context: fallbackContext,
+          // One governed resolve per (ticket episode, plan role), pinned for
+          // the tick. The accepted plan, rather than a static pipeline name,
+          // now owns the execution sequence.
+          contextFor: resolveEpisodeContext,
+          planTicket: ticketEpisode.planTicket,
+          executeTicketPlan: ticketEpisode.executeTicketPlan,
+          ...(allowNetwork ? { networkAccess: true } : {}),
+          telemetry: { orgDir: homes.stateHome, trigger: "manual" },
+          onEpisodeTerminal: async (terminal) => {
+            await finalizeEpisode({
+              root: homes.stateHome,
+              episodeId: terminal.episodeId,
+              status: terminal.status,
+              reason: terminal.reason,
+              ...definedProps({ nextStep: terminal.nextStep }),
+              now: terminal.now,
+            });
+          },
+          ...(cancellation !== undefined ? { signal: cancellation.signal } : {}),
+          ...definedProps({ parentTaskId }),
+          budgetGuard: async () => {
+            if (isBudgetBlocking(budgetRow.status)) {
+              return {
+                allowed: false,
+                reason:
+                  budgetRow.status === "unknown"
+                    ? `${budgetRow.app} budget total could not be computed this month ` +
+                      `(malformed ledger row) — refusing to spend; run ` +
+                      `\`cormidia budget --reconcile\` to repair the ledger`
+                    : `${budgetRow.app} spent $${budgetRow.spentUsd.toFixed(2)} of its ` +
+                      `$${budgetRow.budgetUsd.toFixed(2)} monthly cap — raise the cap in apps.yaml ` +
+                      `or wait for the month to reset`,
+              };
+            }
+            return { allowed: true };
+          },
+        };
+      }
+      const result = await runLoopOnce({
+        app: selectedApp.name,
+        repo: selectedApp.repo,
+        gh: inputs.gh,
+        localRepo: inputs.localRepo,
+        worktreeRoot: worktrees,
+        policy: inputs.policy,
+        commands: inputs.commands,
+        maxConcurrent: appsFile.org.maxConcurrentTurns,
+        turnId,
+        base: inputs.base,
+        // `inputs` is built once per invocation, but `--follow` ticks for hours
+        // and merges land in the default branch while it runs. Forwarding the
+        // refresher makes the driver re-resolve per claim instead of reusing
+        // this startup snapshot (#203). Absent for `--repo-dir`, whose base is
+        // an immutable commit.
+        ...(inputs.refreshBase === undefined ? {} : { refreshBase: inputs.refreshBase }),
+        planOnly: dryRun,
+        ...(ticketInspection === undefined ? {} : { ticketInspection }),
+        ...definedProps({ release: selectedApp.release }),
+        // Merge authorization: the self-approval fallback must carry an HMAC tag
+        // signed with this operator secret (never repo-visible). Without it, the
+        // single-account fallback is not trusted — the loop fails closed rather
+        // than accepting a forgeable static marker.
+        ...(selfApprovalSecret !== undefined ? { authorization: { selfApprovalSecret } } : {}),
+        ...(liveEngine === undefined ? {} : { engine: liveEngine }),
+        ...(deliveryUnits === undefined ? {} : { deliveryUnits }),
+      });
+      await persistLoopScorecards(homes.stateHome, selectedApp.name, result.scorecardEvents);
+      // A4: a merged deploy/package milestone queues its release as a critical
+      // op on the approval queue — the trigger, never the execution.
+      if (!dryRun) {
+        const queuedReleases = await queueReleaseApprovals(homes.stateHome, selectedApp.name, result.items, undefined, {
+          localRepo: inputs.localRepo,
+        });
+        for (const queued of queuedReleases) {
+          console.log(
+            `release: ${queued.kind} for ${queued.ticketRef} queued as critical op ` +
+              `${queued.approvalId} (owner: ${queued.owner}) — decide with \`cormidia approvals\``,
+          );
+        }
+      }
+      for (const line of result.lines) console.log(line);
+      for (const item of result.items) {
+        console.log(`${item.ticketRef}: ${item.phase}${episodeReplanOutcome(item)}`);
+      }
+      if (result.budgetRefusal !== undefined) sawBudgetRefusal = true;
+      if ((result.terminalEpisodeRefusals?.length ?? 0) > 0) sawTerminalEpisodeRefusal = true;
+      if (loopDriverExitCode(result) !== 0) accumulatedLoopExitCode = 1;
+      itemsClaimed += result.items.length;
+      itemsPreviewed += result.itemsPreviewed ?? 0;
+      invocationOutcomes.push(loopInvocationOutcome(result, dryRun));
+      if (result.lines.length === 0 && result.items.length === 0) {
+        console.log(`loop: no ready tickets for ${selectedApp.name}`);
+      }
     }
+
+    try {
+      await tick();
+      // A refused tick ends follow mode too. An exhausted monthly cap will not
+      // clear on a 30-second cadence; a terminal ticket was repaired to a parked
+      // state and requires a new ticket. Continuing would hide either stop
+      // behind a later idle tick.
+      while (follow && !sawBudgetRefusal && !sawTerminalEpisodeRefusal && cancellation?.signal.aborted !== true) {
+        await waitForDelay(30_000, cancellation?.signal);
+        if (cancellation?.exitCode !== undefined) break;
+        await tick();
+      }
+    } finally {
+      cancellation?.dispose();
+    }
+    const exitCode = cancellation?.exitCode ?? accumulatedLoopExitCode;
+    reportCliInvocation({
+      app: selectedApp.name,
+      dryRun,
+      itemsClaimed,
+      itemsPreviewed,
+      outcome: invocationOutcomes.join("; ") || (exitCode === 0 ? "completed" : `failed: exit ${exitCode}`),
+      ...(parentTaskId === undefined ? {} : { parentTaskId }),
+    });
+    reporter?.terminal(loopProgressState(exitCode), {
+      ...(exitCode === 0 ? {} : { nextAction: `inspect ${reporter.relativeLogRef} and resume the loop` }),
+    });
+    return exitCode;
+  } catch (error) {
+    reporter?.terminal("failed", {
+      ...(reporter === undefined ? {} : { nextAction: `inspect ${reporter.relativeLogRef}` }),
+    });
+    throw error;
   } finally {
-    cancellation?.dispose();
+    reporter?.dispose();
   }
-  const exitCode = cancellation?.exitCode ?? accumulatedLoopExitCode;
-  reportCliInvocation({
-    app: selectedApp.name,
-    dryRun,
-    itemsClaimed,
-    itemsPreviewed,
-    outcome: invocationOutcomes.join("; ") || (exitCode === 0 ? "completed" : `failed: exit ${exitCode}`),
-    ...(parentTaskId === undefined ? {} : { parentTaskId }),
-  });
-  return exitCode;
+}
+
+function loopProgressState(exitCode: number): "completed" | "failed" | "cancelled" {
+  if (exitCode === 130 || exitCode === 143) return "cancelled";
+  return exitCode === 0 ? "completed" : "failed";
 }
 
 function episodeReplanOutcome(item: LoopDriverResult["items"][number]): string {

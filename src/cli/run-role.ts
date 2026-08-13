@@ -1,11 +1,7 @@
 // `cormidia run-role <role> --app <app> --turn <id> --template <path>`
 // [--assignment <candidate-id>@<effort>] [--allow-network] [--dry-run]`.
-// Both modes first traverse the same read-only argument/template/assignment/
-// creator-scope inspection. --dry-run then prints that execution intent and
-// constructs no Runtime or state; live persists the already-validated manual
-// creator journal before the dispatcher constructs a provider. Existing
-// scheduled/event routes retain their governed pipeline or ticket EpisodePlan
-// boundaries and reject standalone scope overrides.
+// Both modes share read-only scope inspection. Live then persists the validated
+// creator journal; scheduled/event routes retain their governed boundaries.
 
 import { join } from "node:path";
 import { runRole } from "../loop/runRole.js";
@@ -14,25 +10,25 @@ import { assembleContext } from "../org/context.js";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { resolveParentTaskId } from "../org/parent-task.js";
 import { loadRoles } from "../org/roles.js";
-import {
-  inspectStandaloneRunRoleScope,
-  prepareStandaloneRunRoleScope,
-  type PreparedStandaloneRunRoleScope,
-} from "../org/run-role-episode.js";
+import { inspectStandaloneRunRoleScope, type PreparedStandaloneRunRoleScope } from "../org/run-role-episode.js";
 import { runDispatchedTurn, turnWorktreeIdentity } from "../org/turn-runner.js";
 import type { ContextBundle, RoleConfig } from "../runtime/types.js";
-import { extractHomeFlags } from "./home-flags.js";
-import { installProcessCancellation } from "./process-signal.js";
+import { extractProgressArgs } from "../runtime/cli-progress.js";
 import { definedProps } from "../runtime/optional-properties.js";
+import { extractHomeFlags } from "./home-flags.js";
+import { runLiveRole } from "./run-role-live.js";
 
 interface RunRoleCommandDependencies {
   /** Test seam at the provider-owning boundary. Dry-run must never call it. */
   runDispatchedTurn?: typeof runDispatchedTurn;
+  progressHeartbeatMs?: number;
+  progressWriter?: (line: string) => void;
 }
 
 export async function cmdRunRole(args: string[], dependencies: RunRoleCommandDependencies = {}): Promise<number> {
   const common = extractHomeFlags(args, "run-role");
-  args = common.rest;
+  const progressArgs = extractProgressArgs(common.rest, "run-role");
+  args = progressArgs.rest;
   let name: string | undefined;
   let app: string | undefined;
   let turnId: string | undefined;
@@ -95,22 +91,22 @@ export async function cmdRunRole(args: string[], dependencies: RunRoleCommandDep
   };
 
   if (!dryRun) {
-    const prepared = await prepareStandaloneRunRoleScope(scopeOptions);
-    const cancellation = installProcessCancellation();
-    const result = await (dependencies.runDispatchedTurn ?? runDispatchedTurn)({
-      role,
+    return runLiveRole({
+      homes,
       app: appEntry,
       appsFile,
+      role,
       turnId,
-      orgRoot: homes.orgHome,
-      runtimeHome: homes.stateHome,
-      signal: cancellation.signal,
+      scopeOptions,
       ...definedProps({ parentTaskId }),
-      ...(prepared.creatorScope === undefined ? {} : { creatorScope: prepared.creatorScope }),
-      ...(networkAccess ? { networkAccess: true } : {}),
-    }).finally(() => cancellation.dispose());
-    console.log(`${turnId}: ${result.status} — ${result.summary}`);
-    return cancellation.exitCode ?? (result.status === "completed" ? 0 : 1);
+      networkAccess,
+      mode: progressArgs.mode,
+      ...definedProps({
+        runTurn: dependencies.runDispatchedTurn,
+        heartbeatMs: dependencies.progressHeartbeatMs,
+        writer: dependencies.progressWriter,
+      }),
+    });
   }
 
   const prepared = await inspectStandaloneRunRoleScope(scopeOptions);

@@ -45,11 +45,11 @@ import {
   type EnvelopeStatus,
   type EnvelopeUsage,
   type PlanningRouteEvidence,
-  type SessionEvidence,
 } from "../runtime/runlog/envelope.js";
 import { createEventWriter, readEvents, type EventWriter } from "../runtime/runlog/events.js";
 import { createSessionLogSink, writeBrief, writeOutput, writePrompt } from "../runtime/runlog/forensics.js";
 import { mintRunId, RUN_ID_RE, runPaths } from "../runtime/runlog/paths.js";
+import { sessionEvidence } from "../runtime/runlog/session-evidence.js";
 import { recordTurnOnce, toRecord, type TriggerKind } from "../runtime/telemetry.js";
 import { ZERO_USAGE } from "../runtime/turn-usage.js";
 import {
@@ -71,6 +71,7 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
+import { notifyObserver, type GovernedTurnProgressIdentity } from "../runtime/turn-observer.js";
 import { parseInterruptedReason, terminalStopFields, type InterruptedReason } from "../runtime/types.js";
 import { withAuthorityBrief } from "./brief.js";
 import { writeContextManifest } from "./context-manifest.js";
@@ -787,6 +788,8 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
   const executionContext = contextWithExecution(options.context, assignment, role, requiredCapabilities);
   const selectedPasses = selectPasses(options.pipeline, options.selection);
   const selectedIds = new Set(selectedPasses.map((candidate) => candidate.id));
+  const passOrdinal = selectedPasses.findIndex((candidate) => candidate.id === pass.id) + 1;
+  const passTotal = selectedPasses.length;
 
   const { root, app, ticket, traceId } = options.runlog;
   const episodeId = options.episode?.id;
@@ -1035,6 +1038,7 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
     let runtime: Runtime | undefined;
     let providerOrdinal = 0;
     const providerResults: TurnResult[] = [];
+    let activeObserverIdentity: GovernedTurnProgressIdentity | undefined;
     const verdictSchema = options.verdictSchemaFor?.(pass);
 
     // Heartbeat: stamp both the envelope and the append-only event stream while
@@ -1048,6 +1052,9 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
           updateEnvelope(root, app, runId, { lastSeenAt: observedAt }),
           events.append({ type: "pass.heartbeat", detail: { observed_at: observedAt } }),
         ]);
+        const heartbeatIdentity = activeObserverIdentity;
+        if (heartbeatIdentity !== undefined)
+          notifyObserver(() => options.hooks.onHeartbeat?.({ ...heartbeatIdentity, at: observedAt }));
       });
     }, HEARTBEAT_INTERVAL_MS);
     heartbeat.unref?.();
@@ -1221,6 +1228,20 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
             pass: pass.id,
             resumed: request.session !== undefined,
           });
+          activeObserverIdentity = {
+            at: clock().toISOString(),
+            episodeId,
+            runId,
+            pipeline: options.pipeline.name,
+            pass: pass.id,
+            role: role.name,
+            assignment,
+            ordinal: passOrdinal,
+            total: passTotal,
+            resumed: request.session !== undefined,
+          };
+          const startedIdentity = activeObserverIdentity;
+          notifyObserver(() => options.hooks.onTurnStarted?.(startedIdentity));
         }
         turnResult = await runOwnedTurn({
           runtime,
@@ -1296,6 +1317,18 @@ async function runPass(pass: PassConfig, options: ExecutePipelineOptions, clock:
         ...definedProps({ artifactFingerprint }),
         toolCallCount: providerToolCalls - toolCallStart,
       });
+      if (activeObserverIdentity !== undefined) {
+        const terminalIdentity = { ...activeObserverIdentity, at: clock().toISOString() };
+        notifyObserver(() =>
+          options.hooks.onTurnTerminal?.({
+            ...terminalIdentity,
+            status: turnResult.status,
+            ...definedProps({ errorCode: turnResult.errorCode }),
+            usage: turnResult.usage,
+          }),
+        );
+        activeObserverIdentity = undefined;
+      }
       const settlementRole: RoleConfig = {
         ...admittedRole,
         runtime: assignment.harness,
@@ -1887,75 +1920,5 @@ function mergeProgress(previous: TurnProgress | undefined, next: TurnProgress): 
     ...next,
     ...definedProps({ usage: next.usage }),
     ...definedProps({ session: next.session }),
-  };
-}
-
-function sessionEvidence(session: TurnResult["session"]): SessionEvidence {
-  if (session.runtime === "codex") {
-    return {
-      ...session,
-      native_ref: `codex://threads/${encodeURIComponent(session.id)}`,
-      transcript: "native_task",
-      transcript_note: "Open the native Codex task for the full provider transcript.",
-    };
-  }
-  if (session.runtime === "pi") {
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note: "Provider session reference recorded; session.log is activity only.",
-    };
-  }
-  if (session.runtime === "cursor") {
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note: "Resume the chat with `cursor-agent --resume <id>`; session.log is activity only.",
-    };
-  }
-  if (session.runtime === "opencode") {
-    // OpenCode sessions are first-class server objects the operator can reopen,
-    // so the id is a real transcript reference. Falling through would have
-    // recorded an opencode turn as transcript-less AND blamed the Claude SDK.
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note: "Provider session reference recorded; session.log is activity only.",
-    };
-  }
-  if (session.runtime === "muse") {
-    // `--session-id <uuid>` is muse's own session identity and the durable
-    // session log is the real transcript. Falling through to the final branch
-    // would have blamed the Claude SDK for a muse turn having no transcript.
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note:
-        "Provider session reference recorded; the durable muse session log is the transcript " +
-        "and session.log is activity only.",
-    };
-  }
-  if (session.runtime === "grok") {
-    // Grok resumes the exact id over ACP `session/load` and keeps the real
-    // transcript under the turn's isolated `$GROK_HOME/sessions`. Falling
-    // through to the final branch would have recorded a grok turn as having no
-    // provider transcript AND attributed the absence to the Claude SDK.
-    return {
-      ...session,
-      native_ref: session.id,
-      transcript: "provider_session",
-      transcript_note:
-        "Provider session reference recorded; the transcript lives under the turn's " +
-        "isolated $GROK_HOME/sessions and session.log is activity only.",
-    };
-  }
-  return {
-    ...session,
-    transcript: "unavailable",
-    transcript_note: "Claude SDK did not expose a full transcript reference; session.log is activity only.",
   };
 }

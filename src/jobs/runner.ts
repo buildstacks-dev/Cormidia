@@ -6,6 +6,7 @@
 
 import type { RuntimeModelCatalogReader } from "../runtime/model-catalog.js";
 import type { GateFn, RoleConfig, Runtime } from "../runtime/types.js";
+import type { TurnObserver } from "../runtime/turn-observer.js";
 import {
   appendJobEvent,
   attemptsFor,
@@ -68,9 +69,12 @@ export interface RunJobOptions {
   now?: () => Date;
   /** Explicit env for the nested-invocation check; defaults to process.env. */
   env?: Record<string, string | undefined>;
+  signal?: AbortSignal;
   /** Resolves a pending checkpoint. Absent means checkpoints always park. */
   checkpointDecided?: (stepId: string) => Promise<boolean>;
   onProgress?: (message: string) => void;
+  /** Best-effort foreground lifecycle observer. */
+  observer?: TurnObserver;
   /** Deterministic roster seam. Production uses the token-free catalog. */
   modelCatalogReader?: RuntimeModelCatalogReader;
 }
@@ -166,6 +170,7 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
       at: clock().toISOString(),
     });
     await writeJobJournal(stateHome, journal);
+    options.onProgress?.(`${step.id}: started attempt ${attempt}`);
 
     const turnId = `job:${config.job}:${step.id}:${attempt}`;
     const gate = options.gate ?? jobStepGate(stateHome, config.app, options.role.name, turnId, options.workdir, clock);
@@ -173,7 +178,7 @@ export async function runJob(options: RunJobOptions): Promise<JobRunResult> {
     providerTurns += 1;
     journal = appendJobEvent(journal, event);
     await writeJobJournal(stateHome, journal);
-    options.onProgress?.(`${step.id}: ${event.status}${event.summary === undefined ? "" : ` — ${event.summary}`}`);
+    options.onProgress?.(`${step.id}: ${event.status}`);
   }
 }
 

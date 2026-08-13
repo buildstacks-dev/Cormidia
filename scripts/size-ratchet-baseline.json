@@ -56,6 +56,11 @@
       "lines": 291,
       "newModule": false
     },
+    "src/cli/dispatch-run.ts": {
+      "exports": 1,
+      "lines": 81,
+      "newModule": true
+    },
     "src/cli/dispatch.ts": {
       "exports": 1,
       "lines": 105,
@@ -96,6 +101,16 @@
       "lines": 468,
       "newModule": false
     },
+    "src/cli/learn-distill-run.ts": {
+      "exports": 1,
+      "lines": 56,
+      "newModule": true
+    },
+    "src/cli/learn-experiment-git.ts": {
+      "exports": 2,
+      "lines": 37,
+      "newModule": true
+    },
     "src/cli/learn-experiment.ts": {
       "exports": 3,
       "lines": 741,
@@ -105,6 +120,11 @@
       "exports": 1,
       "lines": 1277,
       "newModule": false
+    },
+    "src/cli/loop-gate.ts": {
+      "exports": 1,
+      "lines": 27,
+      "newModule": true
     },
     "src/cli/loop.ts": {
       "exports": 2,
@@ -186,6 +206,11 @@
       "lines": 185,
       "newModule": false
     },
+    "src/cli/run-role-live.ts": {
+      "exports": 1,
+      "lines": 70,
+      "newModule": true
+    },
     "src/cli/run-role.ts": {
       "exports": 1,
       "lines": 296,
@@ -266,6 +291,11 @@
       "lines": 17,
       "newModule": true
     },
+    "src/jobs/presentation.ts": {
+      "exports": 3,
+      "lines": 44,
+      "newModule": true
+    },
     "src/jobs/progress.ts": {
       "exports": 7,
       "lines": 82,
@@ -279,6 +309,11 @@
     "src/jobs/status.ts": {
       "exports": 7,
       "lines": 103,
+      "newModule": true
+    },
+    "src/jobs/step-turn.ts": {
+      "exports": 2,
+      "lines": 98,
       "newModule": true
     },
     "src/jobs/step.ts": {
@@ -1696,6 +1731,21 @@
       "lines": 288,
       "newModule": false
     },
+    "src/runtime/cli-progress-args.ts": {
+      "exports": 3,
+      "lines": 37,
+      "newModule": true
+    },
+    "src/runtime/cli-progress-render.ts": {
+      "exports": 3,
+      "lines": 66,
+      "newModule": true
+    },
+    "src/runtime/cli-progress.ts": {
+      "exports": 5,
+      "lines": 255,
+      "newModule": true
+    },
     "src/runtime/cost.ts": {
       "exports": 8,
       "lines": 200,
@@ -1786,6 +1836,11 @@
       "lines": 33,
       "newModule": false
     },
+    "src/runtime/process-cancellation.ts": {
+      "exports": 2,
+      "lines": 50,
+      "newModule": true
+    },
     "src/runtime/process-identity.ts": {
       "exports": 3,
       "lines": 56,
@@ -1841,6 +1896,11 @@
       "lines": 63,
       "newModule": false
     },
+    "src/runtime/runlog/session-evidence.ts": {
+      "exports": 1,
+      "lines": 63,
+      "newModule": true
+    },
     "src/runtime/runlog/status.ts": {
       "exports": 4,
       "lines": 263,
@@ -1875,6 +1935,11 @@
       "exports": 7,
       "lines": 324,
       "newModule": false
+    },
+    "src/runtime/turn-observer.ts": {
+      "exports": 5,
+      "lines": 41,
+      "newModule": true
     },
     "src/runtime/turn-usage.ts": {
       "exports": 3,

@@ -109,8 +109,10 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
   if (!first || first.startsWith("--")) {
     throw new Error(
       "new-app: usage: cormidia new-app <name-or-goal> --target-dir <path> --repo <owner/repo> " +
-        "[--goal <string>] [--name <app>] [--template typescript-node|bare] [--org-home <path>] " +
-        "[--support-channel <id>] [--marketing-channel <id>] [--dry-run] [--json]",
+        "[--goal <string>] [--name <app>] [--template bare|typescript-node] [--org-home <path>] " +
+        "[--support-channel <id>] [--marketing-channel <id>] [--dry-run] [--json]\n" +
+        "--template defaults to bare (stack-neutral). Pass --template typescript-node for the " +
+        "strict TypeScript/Node web scaffold with executable setup/test/lint commands.",
     );
   }
 

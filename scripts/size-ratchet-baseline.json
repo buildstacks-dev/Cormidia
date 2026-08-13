@@ -138,7 +138,7 @@
     },
     "src/cli/new-app.ts": {
       "exports": 1,
-      "lines": 187,
+      "lines": 189,
       "newModule": false
     },
     "src/cli/objective.ts": {
@@ -943,7 +943,7 @@
     },
     "src/org/new-app.ts": {
       "exports": 4,
-      "lines": 1069,
+      "lines": 1073,
       "newModule": false
     },
     "src/org/objective-grants.ts": {

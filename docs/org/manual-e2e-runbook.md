@@ -70,6 +70,12 @@ cormidia app reset "$E2E_APP_NAME" --execute --confirm "$E2E_APP_NAME"
 cormidia new-app "$E2E_APP_NAME" --target-dir "$E2E_APP_DIR" --repo "$E2E_APP_REPO" --goal "$E2E_APP_GOAL" --json
 ```
 
+This resolves to the stack-neutral `bare` template, the default. Its required
+test and lint gates are deliberately pending and fail closed until the first
+implementation establishes them, and planning orders that stack-and-gates unit
+first — expect `cormidia app verify` to stay blocked until it merges. Add
+`--template typescript-node` only if you specifically want that scaffold.
+
 If `$E2E_APP_DIR` already holds design documents, a brief, or assets, that is a
 supported greenfield input: the preview reports them under `preserved` and the
 scaffold lands beside them. If it holds an application checkout or an onboarded

@@ -83,6 +83,13 @@ Preview first:
 cormidia new-app <name> --target-dir <local-path> --repo <owner/repo> --goal <goal> --dry-run
 ```
 
+Omitting `--template` resolves to `bare`, a stack-neutral repository: product
+truth and Cormidia artifacts only, with required test/lint gates explicitly
+pending and failing closed until the first implementation establishes them.
+Planning orders that stack-and-gates unit before dependent feature work. Pass
+`--template typescript-node` only when that exact npm + strict TypeScript web
+scaffold is genuinely wanted; never infer a stack from the goal text.
+
 Remove `--dry-run` only after the target, repository slug, and goal are correct.
 Follow the generated `.cormidia/bootstrap/next-commands.md` for GitHub creation
 and the first ticket.

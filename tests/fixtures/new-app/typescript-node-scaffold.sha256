@@ -1,0 +1,39 @@
+# sha256 of every file cormidia new-app --template typescript-node emits, captured
+# from the implementation BEFORE #383 flipped the default (branch
+# claude/384-new-app-preflight, commit e609710) and from a DIFFERENT checkout
+# directory than the one the test runs in, which is what proves the digests
+# are machine-independent. Absolute paths (target, org home, state home,
+# package root) are normalized before hashing. shasum -a 256 shape: digest
+# first, so no keyword precedes a high-entropy value (.gitleaks.toml is
+# tighten-only and allows no fixture allowlists).
+c9d1785d1f4eec1075e817f5ea74a8b7beca8d8c60a67e3b330c25afbe313e14  .cormidia/AUTHORITY.md
+1003a05d88afe9f293eb1dfe44bf0dd7560ad7ab10f6d43c677c8cff53f7083c  .cormidia/LABELS.md
+468864ae347b361b5d66d400e2ae9359c2b7051c5d75a39835ea0741adba772e  .cormidia/TASTE.md
+d48926e8d09f4c5d36cd5d4e17b6d380cbf9809779213cd6c06aeab1ab875d03  .cormidia/bootstrap/next-commands.md
+7747bd48ce7b2591c97986108170d12e59b904fc09ca70c74c914f330195bfdb  .cormidia/bootstrap/product-docs.json
+d378f7414fbdb4ccc483ae24ff91f2234a092e1e3564e58bda019b49fd2177f7  .cormidia/config.yaml
+aaae8c8295d50b94e1cd53cfad9ccfa3f7aa5b4931aff528afaa482ad86b42e7  .cormidia/memory/builder/INDEX.md
+8ba413b675156b3cc12dcf0145f8002f833c4fd91c64be2d156fdf73901cb6e3  .cormidia/memory/planner/INDEX.md
+f1d3cafa879780a5e84e208f7a0e8c84aba9a93a0288bc0c184d4218b12eed83  .cormidia/memory/reviewer/INDEX.md
+89124c994071c765ee9ebb814b79ed1a4948c4e06fd3866af44715cb5845fa79  .cormidia/memory/sre/INDEX.md
+ad76e8b5b4186c0ecaca12f19008db143cd7fa65b93e526938399bd1d96c0f79  .cormidia/onboarding-report.md
+ef7e62bbb7657dafcb613849eb67293dd3d47819c4d35dbea30cafffae7c157d  .cormidia/planning/0001-greenfield-seed.md
+3128159c5da9413c6e9b4d2287a43cdc864f5f3b8d1011acd2fbd80eec014f9a  .cormidia/policy.yaml
+a459038af144bb649dd32c98f20e160838ec500ed5580fb1669ed0860196e140  .gitignore
+23ec6aaf49ed67a474e70cf6a765aa9a02b40a5b6b9484553cdb6529f3ed08e7  AGENTS.md
+336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49  CLAUDE.md
+3d1879d01e442e77448f80eb49b640ed4b40feec1f5e63468956a3e702840483  README.md
+11857df0050b3f02c3e7e482387374999345ac0fa020268fe0ff17d1a4745b32  docs/ARCHITECTURE.md
+a5797dde779cdb086ba075b0fed15b2544c64bdf51fca025eea8b21f63691bf9  docs/REQUIREMENTS.md
+12a7d184bcfc5a70afa2c174511191e617bebed3859ccf22bfd866d02f8c6d08  docs/RUNBOOK.md
+b7b84df88a00aaaa08005c467b4e7dca5aacb7fecb28cdc0efe796dc2628178d  docs/TESTING.md
+9daae291a7e36c292a061f3575bf299c723a9aaa01166b77a3cf32000820bd00  docs/VISION.md
+09559d62652e7e7c340450fa6b96dba7da8023c18e9d60ed51e7b936a4cbbfc2  index.html
+55e818dfb143f3a6943d36ec7ecd627095fb72b5f0ba09ab364ca6674e251e7f  package.json
+82de738edc18afa6080d3a079572430e78f36b6ac1c0ad28719a50320db4729a  scripts/lint.mjs
+061ee5131bd03fd8e750a1ad9d215775524004407bbbcd1a85a00125da7483ba  scripts/server.mjs
+c52cd6281f0d0a81bbc6d187a69dd95bda741cc207234403e7e4251382850da5  src/client.ts
+fd0c7e2bc94a0b74f8923765adf25fb784e9bab9d561285a1bcc4b8ae686f671  src/domain.ts
+95194ccae975f361b16e2a5f5d07fa4402a47d839115e820af4a03bb568ad7ea  styles.css
+74594440011c9c8fef7f7cfdfd3cf387b9d3588597d97876c7fb6928e83e5b33  test/domain.test.ts
+8105556eb0096e62c03bad2e745742db9695848dfbde2242f0980b648da16152  tsconfig.json

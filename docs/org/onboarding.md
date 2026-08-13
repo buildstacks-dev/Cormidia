@@ -17,6 +17,42 @@ ladder in `docs/episodes/contract.md` (generated → registered → runtime-read
 live → autonomously scheduled); registry states remain `onboarding | live |
 paused`.
 
+## Repository identity
+
+An identity used as an external-action target must be concrete, deliberately
+chosen, and placeholder-free. `src/runtime/repo-identity.ts` is the single place
+that decides this; no surface re-derives the rule. It parses rather than casts:
+callers receive a validated identity or a typed rejection naming the offending
+component (`placeholder-owner`, `placeholder-repository`, `invalid-owner`,
+`invalid-repository`, `malformed-slug`, `empty`, `not-a-string`). Detection is
+token-based and deliberately precise — a component is a placeholder only when
+every one of its tokens is documentation vocabulary — so `github/docs` and
+`acme/app-repository-scanner` remain ordinary names while `OWNER/<app>` and
+`<owner>/YOUR_APP_REPOSITORY` do not.
+
+The rule is enforced as defense in depth, because each surface can be reached
+without the others: `new-app` preview and execution (typed
+`kind: new-app-refusal`, before any app/org/state write), bootstrap
+registration, `renderNextCommandsGuide`, `app verify` (before lifecycle-record
+synthesis, which would otherwise clone a remote derived from the slug),
+automated planning (before a provider is constructed), every dispatched turn
+(before the turn lock), and the `GhCliOps` constructor, which is the last seam
+before a `gh` command runs.
+
+An existing-app bootstrap with no resolvable remote still registers, recording
+the one marked non-actionable literal `OWNER/<app>`. That is a deliberate,
+refused-by-construction state, not a target: the emitted `.cormidia/config.yaml`
+says so and names the correction path. Correcting an app already registered with
+a placeholder is `cormidia app reset <app> --execute --confirm <app>` followed by
+re-onboarding with the real slug. Reset stays available for exactly this case: it
+builds no GitHub work surface from a non-actionable identity. Remediation is
+never a hand-edit of `apps.yaml`, `.cormidia/config.yaml`, or the generated
+guide — they are written together, so editing one leaves the others bound to the
+wrong repository.
+
+The human onboarding walk-through, whose identity preflight is fail-closed, is
+[`manual-e2e-runbook.md`](manual-e2e-runbook.md).
+
 `new-app` is deterministic and local: target skeleton, starter product truth
 (`docs/VISION.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`), `.cormidia/`
 contract, optional template (`typescript-node` or `bare`), then the same register

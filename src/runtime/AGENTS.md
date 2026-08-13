@@ -14,6 +14,20 @@ OpenCode server+SDK, Grok Build ACP, Muse Code CLI).
   of the one-way import direction and what keeps the loop extractable.
 - `secret-patterns.ts` is the ONE secret-regex list — redaction and qgates
   both import it. Never fork a second list.
+- **`repo-identity.ts` is the ONE place a repository slug becomes an
+  external-action target** (#385). Every surface that could name a repository
+  outward — `new-app` preview/execute, bootstrap registration, the generated
+  guide, `app verify`, planning, dispatched turns, and the `GhCliOps`
+  constructor — parses through it and gets a validated identity or a typed
+  rejection. Never re-implement the shape check: a one-line slug regex is what
+  let `<owner>/YOUR_APP_REPOSITORY` reach `apps.yaml`, `.cormidia/config.yaml`,
+  and executable `gh` commands. Placeholder detection is token-based on purpose
+  (a component is a placeholder only when EVERY token is documentation
+  vocabulary) so it never degrades into a substring ban; widen the vocabulary
+  only with an acceptance case proving a legitimate near-match still passes.
+  `placeholderRepositorySlug()` is the single marked non-actionable literal for
+  an app registered before its remote exists — refused everywhere by
+  construction, never a target.
 - `file-lock.ts` is the shared O_EXCL + PID/process-start/nonce ownership-token
   + liveness/stale-reclamation lock primitive. The app git-clone lock is a
   configuration of it; the settlement and turn locks are the model but not

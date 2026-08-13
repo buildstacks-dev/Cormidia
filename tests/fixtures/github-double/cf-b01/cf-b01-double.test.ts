@@ -370,7 +370,7 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
     const delays: number[] = [];
     const random = [0, 1];
     const gh = new GhCliOps(
-      "owner/sandbox",
+      "sandbox-org/sandbox",
       async () => {
         calls += 1;
         return calls < 3
@@ -394,7 +394,7 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
   it("negative control: attempt 3 is terminal, 4xx is not retried, and ambiguous writes stay single-shot", async () => {
     let retryableCalls = 0;
     const retryable = new GhCliOps(
-      "owner/sandbox",
+      "sandbox-org/sandbox",
       async () => {
         retryableCalls += 1;
         return { stdout: "", stderr: "HTTP 502 bad gateway", exitCode: 1 };
@@ -407,7 +407,7 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
 
     let terminalCalls = 0;
     const terminal = new GhCliOps(
-      "owner/sandbox",
+      "sandbox-org/sandbox",
       async () => {
         terminalCalls += 1;
         return { stdout: "", stderr: "HTTP 404 not found", exitCode: 1 };
@@ -420,7 +420,7 @@ describe("CF-B01-{ok,to,ps,rt,dup,stale,skew} — GitHub double v1 at the gh pro
 
     let createCalls = 0;
     const ambiguousCreate = new GhCliOps(
-      "owner/sandbox",
+      "sandbox-org/sandbox",
       async () => {
         createCalls += 1;
         return { stdout: "", stderr: "HTTP 503 response lost after possible effect", exitCode: 1 };

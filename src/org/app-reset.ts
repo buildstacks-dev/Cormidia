@@ -45,7 +45,11 @@ export interface AppResetOptions {
   stateHome: string;
   appsFile: AppsFile;
   appName: string;
-  gh: GhOps;
+  /** `null` when the app's registered identity is not an actionable target
+   * (#385). Reset is the named recovery for a contaminated registration, so it
+   * must stay runnable — with no GitHub work surface, never with one derived
+   * from the placeholder. */
+  gh: GhOps | null;
   /** Archive parent. Defaults to a sibling of the state home so reset can
    * never remove its own backup. */
   archiveRoot?: string;
@@ -219,8 +223,8 @@ export async function planAppReset(options: AppResetOptions): Promise<AppResetPl
     listJournals(stateHome),
     listAppLocks(stateHome, app.name),
     listAppApprovalFiles(stateHome, app.name),
-    options.gh.listIssues({ state: "open", limit: 100 }),
-    options.gh.listPullRequests({ state: "open", limit: 100 }),
+    options.gh === null ? [] : options.gh.listIssues({ state: "open", limit: 100 }),
+    options.gh === null ? [] : options.gh.listPullRequests({ state: "open", limit: 100 }),
     readResetIntent(stateHome, app.name),
   ]);
 
@@ -412,7 +416,7 @@ export async function executeAppReset(options: AppResetOptions, reviewedPlan?: A
     await writeResetIntent(plan);
     const archivePath = await createArchive(plan, options.fault);
     try {
-      await closeManagedGitHubWork(options.gh, plan.github, options.fault);
+      if (options.gh !== null) await closeManagedGitHubWork(options.gh, plan.github, options.fault);
       await removeLocalAppState(plan);
       await options.fault?.("before_registry_write");
       const current = await loadApps(join(plan.orgHome, "apps.yaml"));

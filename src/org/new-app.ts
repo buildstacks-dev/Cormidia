@@ -16,6 +16,8 @@ import {
 import { onboardingAnswersPath, onboardingSourcePath, storeOnboardingSource } from "./onboarding-answers.js";
 import { loadRoles } from "./roles.js";
 import { definedProps } from "../runtime/optional-properties.js";
+import { classifyRepositoryIdentity, isRepositoryIdentity } from "../runtime/repo-identity.js";
+import { NewAppBlockedError } from "./new-app-blocked.js";
 import { PACKAGE_ROOT } from "./home.js";
 import { renderNextCommandsGuide } from "./new-app-guide.js";
 import { renderProductDocScaffoldRecord } from "./product-doc-record.js";
@@ -80,8 +82,28 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   const template = options.template ?? DEFAULT_NEW_APP_TEMPLATE;
   const goal = options.goal.trim();
   if (goal.length === 0) throw new Error("new-app: --goal must be a non-empty string");
-  if (!isRepoSlug(options.repoSlug)) {
-    throw new Error(`new-app: --repo must be a GitHub owner/repo slug (got "${options.repoSlug}")`);
+  // Identity first: preview and execution reach this before any plan is built,
+  // any artifact is written, and any outward command is generated (#385).
+  const identity = classifyRepositoryIdentity(options.repoSlug);
+  if (!isRepositoryIdentity(identity)) {
+    throw new NewAppBlockedError({
+      schema_version: 1,
+      kind: "new-app-refusal",
+      app: appName,
+      target_dir: targetDir,
+      repository: typeof options.repoSlug === "string" ? options.repoSlug : String(options.repoSlug),
+      dry_run: options.dryRun === true,
+      blockers: [
+        {
+          code: `repository-identity:${identity.code}`,
+          subject: identity.value,
+          detail: identity.detail,
+          remediation:
+            `${identity.remediation}. Re-run new-app with the concrete slug; nothing was ` +
+            "registered, so there is no generated guide or apps.yaml entry to repair.",
+        },
+      ],
+    });
   }
 
   const orgHome = resolve(options.orgHome);
@@ -399,10 +421,6 @@ function npmPackageName(name: string): string {
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^[._-]+|[._-]+$/g, "");
   return cleaned.length > 0 ? cleaned : "app";
-}
-
-function isRepoSlug(value: string): boolean {
-  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
 }
 
 function json(value: string): string {

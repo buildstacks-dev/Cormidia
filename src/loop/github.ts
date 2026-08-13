@@ -8,6 +8,7 @@
 
 import { spawn } from "node:child_process";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { parseRepositoryIdentity } from "../runtime/repo-identity.js";
 
 type IssueState = "OPEN" | "CLOSED" | string;
 type PullRequestState = "OPEN" | "CLOSED" | "MERGED" | string;
@@ -262,7 +263,12 @@ export class GhCliOps implements GhOps {
     selfApprovalSecret?: string,
     retryClock: GhRetryClock = defaultGhRetryClock,
   ) {
-    this.repo = repo;
+    // Last line of defense (#385): every `--repo` argument this class emits is
+    // built from this value, so a contaminated legacy record fails here — at
+    // construction, before the first network call — no matter which caller
+    // forgot to check. The injected-executor path is guarded too: a test double
+    // must be pointed at an identity the product would accept in production.
+    this.repo = parseRepositoryIdentity(repo, "github").slug;
     this.exec = exec;
     this.retryClock = retryClock;
     if (selfApprovalSecret !== undefined) this.selfApprovalSecret = selfApprovalSecret;

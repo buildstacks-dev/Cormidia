@@ -100,7 +100,15 @@ both fake and real dependency to prevent drift.
   permission change mid-flight; **remote default branch moved / wrong base** — the
   representative failure: every call succeeds while the operation is about the wrong tree
   `[rambling: guessed-default-branch defect]`; **green evidence attached to the wrong
-  candidate** `[rambling: PR #182]`; force-push/history rewrite by a human.
+  candidate** `[rambling: PR #182]`; force-push/history rewrite by a human;
+  **the repository identity itself is an unresolved placeholder** — the sibling of
+  the wrong-base mode one level up: every call is well-formed and every response
+  succeeds, but the target is a repository the operator never chose, so the
+  effect lands on a literal sentinel-named repo (or another account's existing
+  one) while both configuration sources record it as the app's identity
+  <!-- changelog 2026-08-12 (#385 §10.3 write-back): observed in the first
+  production manual E2E run; absent from this list, which had only wrong-BASE,
+  never wrong-REPO -->.
 - **Honest fake:** YES — scripted GitHub double: per-call failure scripts, label/PR/
   review state machine, configurable default branch, lost-response mode (effect applied,
   error returned), rate limits, partial sequences.

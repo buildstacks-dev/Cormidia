@@ -28,6 +28,7 @@ import {
   updateAppStatus,
   type AppEntry,
 } from "./apps.js";
+import { appRepositoryRecovery, appRepositoryRejection } from "./app-repository.js";
 import { resolveAuthority } from "./authority.js";
 import {
   appArtifactFiles,
@@ -419,6 +420,21 @@ export async function verifyApp(options: VerifyAppOptions): Promise<AppVerificat
   const apps = await loadApps(join(orgHome, "apps.yaml"));
   const app = apps.apps.find((entry) => entry.name === options.appName);
   if (app === undefined) throw new Error(`app verify: unknown app "${options.appName}"`);
+  // Before ANY network step: record synthesis clones the remote derived from
+  // this slug, so a contaminated legacy registration must stop here (#385).
+  const identityRejection = appRepositoryRejection(app.repo);
+  if (identityRejection !== undefined) {
+    return unverifiableReport(
+      stateHome,
+      app,
+      fail(
+        "repository-identity",
+        `registered repository "${identityRejection.value}" is not an actionable target: ${identityRejection.detail}`,
+        appRepositoryRecovery(app.name),
+      ),
+      options,
+    );
+  }
   // A missing or unreadable lifecycle record must be a typed verification
   // result, never a raw ENOENT (L0-01). A real `app verify` (synchronize !==
   // false) synthesizes the record for a greenfield/`new-app` app from its

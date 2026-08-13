@@ -52,6 +52,7 @@ import type {
 import { recordObservedEvent } from "../runtime/turn-observer.js";
 import { parseInterruptedReason, terminalStopFields, type InterruptedReason } from "../runtime/types.js";
 import { effectiveEpisodeHardCeiling, resolveAppRoles } from "./app-execution-policy.js";
+import { assertActionableAppRepository } from "./app-repository.js";
 import { executeApprovedCommands, type ApprovedCommandResult } from "./approval-command.js";
 import { ApprovalStore, approvedCommand, type ApprovalItem } from "./approvals.js";
 import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
@@ -187,6 +188,9 @@ interface RunDispatchedTurnResult {
 }
 
 export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Promise<RunDispatchedTurnResult> {
+  // Before the turn lock, the worktree, and every GitHub op this turn performs:
+  // a contaminated registration must not reach an outward action (#385).
+  assertActionableAppRepository(options.app, "turn");
   const clock = options.now ?? (() => new Date());
   const orgRoot = resolve(options.orgRoot ?? process.cwd());
   const runtimeHome = resolve(

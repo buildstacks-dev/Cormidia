@@ -18,7 +18,7 @@
     },
     "src/cli/app.ts": {
       "exports": 2,
-      "lines": 271,
+      "lines": 275,
       "newModule": false
     },
     "src/cli/approvals.ts": {
@@ -138,7 +138,7 @@
     },
     "src/cli/new-app.ts": {
       "exports": 1,
-      "lines": 161,
+      "lines": 183,
       "newModule": false
     },
     "src/cli/objective.ts": {
@@ -393,7 +393,7 @@
     },
     "src/loop/github.ts": {
       "exports": 12,
-      "lines": 809,
+      "lines": 815,
       "newModule": false
     },
     "src/loop/issue-snapshot.ts": {
@@ -588,12 +588,17 @@
     },
     "src/org/app-lifecycle.ts": {
       "exports": 8,
-      "lines": 1921,
+      "lines": 1937,
       "newModule": false
+    },
+    "src/org/app-repository.ts": {
+      "exports": 3,
+      "lines": 42,
+      "newModule": true
     },
     "src/org/app-reset.ts": {
       "exports": 6,
-      "lines": 811,
+      "lines": 815,
       "newModule": false
     },
     "src/org/app-workdir.ts": {
@@ -638,7 +643,7 @@
     },
     "src/org/bootstrap.ts": {
       "exports": 11,
-      "lines": 1350,
+      "lines": 1373,
       "newModule": false
     },
     "src/org/budget.ts": {
@@ -921,14 +926,19 @@
       "lines": 379,
       "newModule": false
     },
+    "src/org/new-app-blocked.ts": {
+      "exports": 3,
+      "lines": 35,
+      "newModule": true
+    },
     "src/org/new-app-guide.ts": {
       "exports": 1,
-      "lines": 267,
+      "lines": 272,
       "newModule": true
     },
     "src/org/new-app.ts": {
       "exports": 4,
-      "lines": 1026,
+      "lines": 1044,
       "newModule": false
     },
     "src/org/objective-grants.ts": {
@@ -958,7 +968,7 @@
     },
     "src/org/plan-auto.ts": {
       "exports": 2,
-      "lines": 1703,
+      "lines": 1708,
       "newModule": false
     },
     "src/org/plan.ts": {
@@ -1433,7 +1443,7 @@
     },
     "src/org/turn-runner.ts": {
       "exports": 11,
-      "lines": 2674,
+      "lines": 2678,
       "newModule": false
     },
     "src/org/validation-campaign.ts": {
@@ -1855,6 +1865,11 @@
       "exports": 2,
       "lines": 27,
       "newModule": false
+    },
+    "src/runtime/repo-identity.ts": {
+      "exports": 8,
+      "lines": 207,
+      "newModule": true
     },
     "src/runtime/role-shaping.ts": {
       "exports": 4,

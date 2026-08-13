@@ -87,6 +87,16 @@ Remove `--dry-run` only after the target, repository slug, and goal are correct.
 Follow the generated `.cormidia/bootstrap/next-commands.md` for GitHub creation
 and the first ticket.
 
+The preview is also the identity gate. `--repo` must be a concrete, deliberately
+chosen `owner/repo`; an unresolved template value in either component (or a URL,
+path, or whitespace variant) makes both preview and execution exit non-zero with
+a typed `kind: new-app-refusal` and write nothing. Never "fix" a placeholder by
+editing the generated guide, `.cormidia/config.yaml`, or `apps.yaml`: those are
+written together, so a hand-edit leaves the others bound to the wrong
+repository. For an app already registered with a placeholder, run
+`cormidia app reset <app> --execute --confirm <app>` and re-onboard with the
+real slug. The human walk-through is `docs/org/manual-e2e-runbook.md`.
+
 `new-app` cannot write the app's lifecycle record — at scaffold time there is
 no commit or remote yet. Once you have pushed the scaffold, run
 `cormidia app verify <name>`: it synthesizes the lifecycle record from the pushed

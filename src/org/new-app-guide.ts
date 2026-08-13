@@ -1,4 +1,5 @@
 import { CANONICAL_LABELS } from "../loop/plan-tickets.js";
+import { parseRepositoryIdentity } from "../runtime/repo-identity.js";
 
 interface NewAppGuideOptions {
   appName: string;
@@ -15,8 +16,12 @@ interface NewAppGuideOptions {
 }
 
 export function renderNextCommandsGuide(options: NewAppGuideOptions): string {
+  // Defense in depth: this file's whole purpose is emitting executable `gh`
+  // commands, so an unresolved identity must never reach it — the guide claims
+  // its commands use the app's exact identities, and that claim has to be true.
+  const identity = parseRepositoryIdentity(options.repoSlug, "new-app guide");
   const app = shellQuote(options.appName);
-  const repo = shellQuote(options.repoSlug);
+  const repo = shellQuote(identity.slug);
   const target = shellQuote(options.targetDir);
   const confirmation = (disposition: string) => shellQuote(`${options.appName}:${disposition}`);
   const productDocs = (disposition: string, execute = false) =>

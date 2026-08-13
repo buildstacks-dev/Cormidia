@@ -262,7 +262,8 @@ passed, but took 431 seconds for the suite and 504 seconds for the job.
   changes nothing about Grok staying sandbox-only or Muse staying fail-closed off.
 - HB-138: the same kind of record for the consequence-split families the #313–#316
   PRs landed.
-- HB-139: the same for the forty-plus regression detectors, including CF-REG-403,
-  that landed with their
+- HB-139: the same for the forty-plus regression detectors, including CF-REG-403
+  and CF-REG-385 (onboarding accepted a placeholder repository identity and
+  emitted executable commands against it), that landed with their
   fix PRs over the product's life — the "every bug leaves a tripwire behind" promise,
   now resolvable ticket-by-ticket by the tooling as well as by reading the catalog.

@@ -324,8 +324,8 @@ cormidia bootstrap publish <app> --json             # preview; --execute opens d
 cormidia org upgrade --authority delegated-operator --json
 cormidia app verify <app> --json
 cormidia app promote <app> --to live --json         # non-mutating plan
-cormidia new-app marketplace --target-dir ../marketplace --repo owner/marketplace --goal "A marketplace for dummy products" --dry-run
-cormidia new-app docs-site --target-dir ../docs-site --repo owner/docs-site --goal "Publish product documentation" --template bare --dry-run --json
+cormidia new-app marketplace --target-dir ../marketplace --repo acme-co/marketplace --goal "A marketplace for dummy products" --dry-run
+cormidia new-app docs-site --target-dir ../docs-site --repo acme-co/docs-site --goal "Publish product documentation" --template bare --dry-run --json
 cormidia app product-docs <app> --workdir <checkout> --disposition keep # preview; execute requires <app>:keep
 cormidia plan <app> --dry-run
 cormidia plan ratify-ticket-budget --app <app> --decomposition <id> --actor <identity> --reason "<why>" --from-budget N --to-budget N # preview; human-gated
@@ -361,6 +361,23 @@ unregistered kinds as `unknown_company_event_kind`, and valid registered kinds
 with no current role trigger as the non-error skip `no_subscriber`; only valid
 subscribed kinds spawn turns. See [the event schema contract](docs/scheduler/event-schemas.md)
 for the supported kinds, payloads, and exact retention behavior.
+
+One rule decides whether an `owner/repo` slug is a concrete, deliberately
+chosen external-action target, and every surface reads it: `new-app` preview and
+execution, bootstrap registration, the generated guide, `app verify`, planning,
+and every dispatched turn. An unresolved template value — a placeholder in
+either component, a URL, a path, or a whitespace variant — is a blocker, never
+generated executable guidance and never a durable registration; preview and
+execution report the same typed refusal naming the exact target. An existing-app
+bootstrap with no resolvable remote still registers, but the recorded
+`OWNER/<app>` slug is marked non-actionable and refused by every outward path.
+Correcting an app already registered with a placeholder is a supported
+lifecycle operation (`cormidia app reset <app> --execute --confirm <app>`, then
+re-onboard with the real slug) — never a hand-edit of `apps.yaml`,
+`.cormidia/config.yaml`, or the generated guide, which are written together and
+would otherwise disagree. The human walk-through is
+[`docs/org/manual-e2e-runbook.md`](docs/org/manual-e2e-runbook.md), whose
+identity preflight is fail-closed.
 
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
 the active org and writes app-owned files under `.cormidia/`, plus one marked,

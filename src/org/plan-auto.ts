@@ -65,6 +65,7 @@ import { getRuntime } from "../runtime/registry.js";
 import { hashedFileStem, mintRunId, runPaths } from "../runtime/runlog/paths.js";
 import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../runtime/types.js";
 import { resolveAppRoles } from "./app-execution-policy.js";
+import { assertActionableAppRepository } from "./app-repository.js";
 import { ApprovalStore } from "./approvals.js";
 import { normalizeAppExecution, runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
 import { isBudgetBlocking, rollupBudgets } from "./budget.js";
@@ -239,6 +240,10 @@ type AutoPlanningExecutionResult = EpisodePlanExecutionResult;
 export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanResult> {
   const clock = options.now ?? (() => new Date());
   const startedAt = clock();
+
+  // Planning publishes issues against options.app.repo. Refuse a contaminated
+  // registration before a provider is constructed or a token is spent (#385).
+  assertActionableAppRepository(options.app, "plan");
 
   const rolesFile = await loadRoles(join(options.orgHome, "roles.yaml"));
   const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(options.app));

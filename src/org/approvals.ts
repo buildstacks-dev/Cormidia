@@ -105,6 +105,20 @@ export interface ApprovalItem {
   decidedBy?: ApprovalDecider;
   expiredAt?: string;
   expiryReason?: string;
+  /** F-PT-008 (ratified 2026-08-12): an expired GRANT reopens the ORIGINAL
+   * item — never a silent fresh item, never a dropped operation. The item
+   * returns to the pending queue under its original id with its decision
+   * history intact; these fields record that it has been round the loop, so a
+   * reader can tell a reopened item from one that was never decided. B-09b
+   * immutability holds: the reopen is an APPENDED log transition over
+   * immutable decision records, never an edit of one. */
+  reopenedAt?: string;
+  reopenReason?: string;
+  /** The grant whose expiry caused the reopen. */
+  expiredGrantId?: string;
+  /** How many times this item has been reopened; a decision history that keeps
+   * growing is visible rather than flattened. */
+  reopenCount?: number;
   grantId?: string;
   /** Decision and execution are separate facts. `status: approved` never
    * means the side effect ran; this lifecycle advances only on acknowledged
@@ -261,6 +275,7 @@ export type ApprovalLogEvent =
       grant?: ApprovalGrant;
     }
   | { type: "expired"; id: string; at: string; reason: string }
+  | { type: "reopened"; id: string; at: string; reason: string; expiredGrantId: string }
   | { type: "grant-minted"; id: string; grantId: string; at: string }
   | { type: "grant-consumed"; id: string; grantId: string; at: string }
   | { type: "grant-revoked"; id: string; grantId: string; at: string }
@@ -331,9 +346,11 @@ export interface ApprovalStoreOptions {
 }
 
 export interface ApprovalPolicyConfig {
-  /** Grant authority lifetime after an approval decision. */
+  /** Grant authority lifetime after an approval decision. Default 48h
+   * (F-PT-008, 2026-08-12). */
   grantTtlMs?: number;
-  /** Undecided item lifetime. Omission deliberately inherits grantTtlMs. */
+  /** Undecided item lifetime. Default 24h, INDEPENDENT of grantTtlMs — see
+   * APPROVAL_POLICY_DEFAULTS for why the two are deliberately decoupled. */
   pendingTtlMs?: number;
 }
 
@@ -343,16 +360,25 @@ export interface ApprovalPolicy {
 }
 
 const APPROVAL_POLICY_DEFAULTS = Object.freeze({
-  grantTtlMs: 24 * 60 * 60 * 1000,
+  /** F-PT-008 (owner ruling 2026-08-12): raised from 24h. */
+  grantTtlMs: 48 * 60 * 60 * 1000,
+  /** F-PT-008: DELIBERATELY PINNED, not inherited from the grant default.
+   * Pending TTL used to fall back to grantTtlMs, so raising the grant default
+   * to 48h would ALSO have doubled F-PT-020's ratified 24h undecided-item
+   * bound — worst case, raise-to-grant-expiry 48h to 96h. That loosens an
+   * enforced bound as a side effect of lengthening a different one, so the
+   * owner decoupled them: only the grant side lengthens. An explicit
+   * `pendingTtlMs` still overrides, and F-PT-020's "matching the grant TTL"
+   * described the then-equal defaults, never a binding coupling. */
+  pendingTtlMs: 24 * 60 * 60 * 1000,
 });
 
-/** Resolve one policy for grants and pending items. Pending TTL follows the
- * configured grant TTL unless explicitly narrowed/widened, so the v2.15
- * default is expressed at the policy seam rather than duplicated in expiry
- * code as a second source constant. */
+/** Resolve one policy for grants and pending items. Both defaults live here,
+ * at the policy seam, rather than as source constants in expiry code — and
+ * they are INDEPENDENT (see the pinning note above). */
 export function resolveApprovalPolicy(config: ApprovalPolicyConfig = {}): ApprovalPolicy {
   const grantTtlMs = config.grantTtlMs ?? APPROVAL_POLICY_DEFAULTS.grantTtlMs;
-  const pendingTtlMs = config.pendingTtlMs ?? grantTtlMs;
+  const pendingTtlMs = config.pendingTtlMs ?? APPROVAL_POLICY_DEFAULTS.pendingTtlMs;
   for (const [name, value] of Object.entries({ grantTtlMs, pendingTtlMs })) {
     if (!Number.isFinite(value) || value <= 0) {
       throw new Error(`approval policy ${name} must be a positive finite number`);
@@ -601,6 +627,10 @@ export class ApprovalStore {
       await this.withDecisionLock(id, () => this.reconcileDecisionLocked(id, log, now));
     }
     const expired = await this.expirePending(now);
+    // F-PT-008: an expired grant reopens its original item in the same sweep,
+    // so the operation returns to the queue rather than being stranded behind
+    // authority that quietly ran out.
+    await this.reopenExpiredGrants(now);
     await this.reconcileLegacyActorRetryStates();
     await this.reconcileUnreachableActorRetryHoming(now);
     return expired;
@@ -624,6 +654,72 @@ export class ApprovalStore {
       if (item !== undefined) expired.push(item);
     }
     return expired;
+  }
+
+  /** Sweep every unrevoked grant that has outlived its TTL and reopen the item
+   * it authorized (F-PT-008). Returns the items actually reopened by THIS call. */
+  async reopenExpiredGrants(now: Date = this.clock()): Promise<ApprovalItem[]> {
+    await this.ensureDirs();
+    const reopened: ApprovalItem[] = [];
+    for (const grantId of await listJsonIds(this.grantsDir())) {
+      const item = await this.reopenOnExpiredGrant(grantId, now);
+      if (item !== undefined) reopened.push(item);
+    }
+    return reopened;
+  }
+
+  /** F-PT-008 (owner ruling 2026-08-12): an EXPIRED GRANT REOPENS THE ORIGINAL
+   * ITEM. The item returns to the pending queue under its original id with its
+   * decision history intact — never a silent fresh item (which would lose the
+   * thread between the operation and the decision already made about it), and
+   * never a dropped operation (which would strand work the human already saw).
+   *
+   * B-09b immutability holds: the durable decision record is not edited. The
+   * reopen is an APPENDED `reopened` log event, and the item carries reopen
+   * provenance so a reader can tell a reopened item from a never-decided one.
+   *
+   * Idempotent: an item already back in pending yields `undefined` (nothing
+   * transitioned), so a repeated sweep cannot inflate `reopenCount` or
+   * re-append events. */
+  async reopenOnExpiredGrant(grantId: string, now: Date = this.clock()): Promise<ApprovalItem | undefined> {
+    await this.ensureDirs();
+    if (!existsSync(this.grantPath(grantId))) return undefined;
+    const grant = await readJson<ApprovalGrant>(this.grantPath(grantId));
+    if (new Date(grant.expiresAt).getTime() > now.getTime()) return undefined;
+    return this.withDecisionLock(grant.approvalId, async () => {
+      // Already back in pending: this call transitioned nothing. Returning
+      // undefined keeps the sweep's contract identical to expirePending's —
+      // "the items THIS call moved" — so a repeated sweep cannot re-append
+      // events or inflate reopenCount.
+      if (existsSync(this.pendingPath(grant.approvalId))) return undefined;
+      if (!existsSync(this.decidedPath(grant.approvalId))) return undefined;
+      const decided = await readJson<ApprovalItem>(this.decidedPath(grant.approvalId));
+      // A grant only exists for an approval, and an already-executed operation
+      // has nothing to re-ask: reopening it would re-raise a side effect that
+      // already happened.
+      if (decided.execution?.state === "executed") return undefined;
+      const reason =
+        `grant ${grantId} expired before the operation ran; the original item is reopened for a fresh decision ` +
+        `(F-PT-008) — the prior decision record is preserved and unmodified`;
+      const reopened: ApprovalItem = {
+        ...decided,
+        status: "pending",
+        reopenedAt: now.toISOString(),
+        reopenReason: reason,
+        expiredGrantId: grantId,
+        reopenCount: (decided.reopenCount ?? 0) + 1,
+      };
+      await writeJsonAtomic(this.pendingPath(reopened.id), reopened);
+      await rm(this.decidedPath(reopened.id), { force: true });
+      await appendJsonLine(this.logPath(), {
+        type: "reopened",
+        id: reopened.id,
+        at: reopened.reopenedAt ?? now.toISOString(),
+        reason,
+        expiredGrantId: grantId,
+      } satisfies ApprovalLogEvent);
+      return reopened;
+    });
   }
 
   /** Expire one known approval at the observation seam (ticket episode). */

@@ -460,7 +460,7 @@ tickets:
   - {id: HB-P2, wave: "unparked", status: landed, families: [CF-B15, CF-C-B15, CF-J04-I]}
   - {id: HB-P4, wave: "unparked", status: landed, families: [CF-B14, CF-C-B14]}
   - {id: HB-P3, wave: "parked", status: landed, families: []}
-  - {id: HB-P5, wave: "parked", status: pending, families: []}
+  - {id: HB-P5, wave: "parked", status: landed, families: []}
   - {id: HB-P6, wave: "parked", status: landed, families: [CF-C-CORE]}
   - {id: HB-P7, wave: "parked", status: pending, families: [CF-HARNESS-CI]}
   - {id: HB-080, wave: "post-ratification", status: landed, families: []}
@@ -526,4 +526,4 @@ tickets:
   - {id: HB-154, wave: "campaign-finding", status: pending, families: [CF-REVIEW-PROVIDER]}
 # rollup (derived by the generator from the entries above — recompute, never hand-edit):
 #   families: 397 = 358 implementable + 38 pruned + 1 blocked
-#   tickets: 115 = 101 landed + 14 pending
+#   tickets: 115 = 102 landed + 13 pending

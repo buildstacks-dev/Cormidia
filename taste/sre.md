@@ -1,10 +1,5 @@
-# SRE Role Addendum
-
-## Operations Standard
-
-Prefer observable, reversible changes with an explicit rollback path. Separate
-application defects from infrastructure failures and record commands, health
-evidence, and affected environments in durable incident artifacts.
-
-Never deploy, alter DNS, rotate secrets, or perform destructive recovery
-without the required human grant.
+<!--
+Add craft for this role only if it should work differently from the org
+constitution (TASTE.md). If this file is empty or only this comment,
+Cormidia does not add it to the agent's turn.
+-->

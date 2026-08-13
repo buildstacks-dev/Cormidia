@@ -51,7 +51,7 @@ through. The org's own squash-merge is a separate path, gated by HMAC review
 authorization rather than this gate.
 
 Read [`docs/PURPOSE.md`](docs/PURPOSE.md) for the why and every decision made so far;
-[`TASTE.md`](TASTE.md) is the org's constitution;
+[`TASTE.md`](TASTE.md) is the org's constitution — stacked with `taste/<role>.md` and the app's `.cormidia/TASTE.md`;
 [`roles.yaml`](roles.yaml) is the org chart made executable;
 [`AGENTS.md`](AGENTS.md) is the contributor map.
 New to the code? Start at [`docs/architecture.md`](docs/architecture.md) —
@@ -62,7 +62,7 @@ authoritative contract.
 
 Cormidia turns approved goals into verified software outcomes with process
 proportional to the work and its risk, minimal human attention, durable forward
-progress, and continuously improving unit economics. `docs/VISION.md` states
+progress, and continuously improving unit economics. `docs/PURPOSE.md` states
 the operator outcome; `docs/episodes/contract.md` is the normative plan-derived
 budget, route, and measurement contract; `docs/qualification/design.md`
 owns qualification and release gating.
@@ -126,7 +126,7 @@ pnpm link:local
 `$CORMIDIA_BIN_DIR`) and links **both** skills into the same three provider
 skill homes the published install uses, using each provider's default home when
 its override is unset. Add `~/.local/bin` to `PATH` if necessary. Rerunning it
-is idempotent and upgrades the former `scripts/cormidia-local.mjs` link only
+is idempotent and migrates a legacy `scripts/cormidia-local.mjs` link only
 when it belongs to that same checkout; files, directories, and links owned by
 another checkout remain untouched and are refused.
 
@@ -158,21 +158,22 @@ checks does it transactionally promote the Cormidia-owned package root, both dec
 binaries, and all six skill links. Same-version reinstall and packaged upgrade
 converge in place; any ordinary failure restores the prior complete generation.
 
-Every package, binary, PATH shadow, and skill target is classified before the
-first install-target mutation from its exact directory-entry evidence plus the
-owning `package.json` name/version/bin identity. Foreign collisions are all
-reported with evidence and exact move-aside commands and remain untouched. A
+Nothing is mutated until every target is classified. Each package, binary,
+PATH shadow, and skill target is classified before the first install-target
+mutation from its exact directory-entry evidence plus the owning
+`package.json` name/version/bin identity. Foreign collisions are all reported
+with evidence and exact move-aside commands and remain untouched. Replacing a
 source-backed generation requires explicit `--replace-source-links`; this is
 the safe source-to-package path, and `pnpm link:local` restores the dev loop.
 `--tarball <absolute-path>` applies the same checks and transaction to an exact
 already-packed candidate without rebuilding it.
 
-That consent is intentionally scoped to links into the checkout running the
-command. A link into another identity-verified Cormidia checkout remains a
-foreign collision because it may be a separate active dev loop; even
-`--replace-source-links` leaves it untouched. The refusal names that checkout,
-shows the exact symlink evidence, and supplies one move-aside command per path
-so the operator can inspect and explicitly retire the other loop before retrying.
+That consent covers only links into the checkout running the command. A link
+into another identity-verified Cormidia checkout may be a separate active dev
+loop, so it stays a foreign collision even under `--replace-source-links`; the
+refusal names that checkout, shows the exact symlink evidence, and supplies one
+move-aside command per path so the operator can inspect and explicitly retire
+the other loop before retrying.
 
 `pnpm smoke:package -- <absolute-tarball-path>` is the narrower CI check — it
 performs two real `npm install -g --prefix <temporary-prefix>` passes, runs every
@@ -201,7 +202,7 @@ cormidia context
 `org init --dry-run` is a token-free, zero-domain-write preflight: it resolves the org,
 state, and pointer paths; lists every generated destination; and shows the
 authority summary plus complete packaged role chart. Without `--dry-run`, init
-keeps its execute-by-default compatibility. It creates an absent directory or
+executes. It creates an absent directory or
 safely populates an existing real directory while preserving unrelated entries;
 an existing org, generated-path collision, or symlink blocks before target
 mutation and nothing is overwritten. Once the proposed state home has passed
@@ -243,18 +244,16 @@ Existing app repositories also need one reviewed repository commit that runs
 files. Bootstrap refuses to create `.cormidia/` beside the retired directory,
 so app policy can never split across two roots.
 
-Every dispatched CLI command whose state home is explicit or safely resolved
-writes one terminal command row under `invocations/`, including read-only
-commands, previews, parser failures, and pre-provider refusals. Rows carry a
-stable invocation id, command/subcommand, secret-redacted argv, dry-run flag,
-outcome/exit code/duration, and resolved org/app when known. Intent is persisted
-first under `state/invocation-journal/`; terminal append is idempotent, and the
-next command reconciles a terminal journal or a running journal whose process
-is proven dead as `interrupted`. A live process's running journal is never
-guessed terminal and remains inspectable. This audit write is the sole
-exception to preview/read-only "no state writes" claims. Help, version, the
-no-command usage banner, and commands with neither an explicit nor a safely
-resolved state home have no org-scoped destination and are deliberately not
+Every command leaves one audit row. A dispatched CLI command whose state home
+is explicit or safely resolved writes one terminal row under `invocations/` —
+including read-only commands, previews, parser failures, and pre-provider
+refusals — carrying a stable invocation id, command/subcommand, secret-redacted
+argv, dry-run flag, outcome/exit code/duration, and resolved org/app when
+known. This audit write is the sole exception to preview/read-only "no state
+writes" claims. Intent persists first under `state/invocation-journal/`; the
+next command reconciles a journal whose process is proven dead as
+`interrupted`, and a live process's journal is never guessed terminal. Help,
+version, and commands with no resolvable state home are deliberately not
 journaled.
 
 ## Commands
@@ -392,11 +391,11 @@ identity preflight is fail-closed.
 
 Bootstrap accepts a local checkout path, never a GitHub URL. It always joins
 the active org and writes app-owned files under `.cormidia/`, plus one marked,
-idempotent authority pointer composed into root `AGENTS.md` and `CLAUDE.md`.
-Existing instruction content is preserved. Its opening output explains the app repo, org home, and
-state home before anything is written. A non-interactive run requires
-`--answers` or `--answers-from` and otherwise writes no bootstrap artifacts
-(the universal command audit row still records the refusal). Normalized
+idempotent authority pointer composed into root `AGENTS.md` and `CLAUDE.md`;
+existing instruction content is preserved. Its opening output explains the app
+repo, org home, and state home before anything is written. A non-interactive
+run requires `--answers` or `--answers-from` and otherwise writes no bootstrap
+artifacts (the command audit row still records the refusal). Normalized
 non-secret answers are retained in isolated state and reset archives;
 `--answers-from <app>` resolves the app's latest default reset archive.
 Generated YAML/authority metadata and text formatting are validated before
@@ -482,7 +481,7 @@ agreement; a definition file alone is never healthy. See
 reason codes, and health rules.
 
 The `--dry-run` variants of `new-app`, `plan`, `loop`, `dispatch`, and
-`run-role` spend no tokens. The current `plan --auto --dry-run` and
+`run-role` spend no tokens. The `plan --auto --dry-run` and
 `plan --creator-scope ... --execution-ready --dry-run` and
 `plan --explain-route` commands expose only a provisional, token-free intent
 preview: current ledger budget, declared request facts, assignment candidates,
@@ -642,7 +641,7 @@ without mutating the record. Promotion mutates app/registry status
 only after verification and resumes exactly once across config, commit, push,
 and registry boundaries. All lifecycle JSON is canonically key-sorted.
 
-Contributors can still use `pnpm dev <command>` inside the Cormidia source repo,
+Contributors can use `pnpm dev <command>` inside the Cormidia source repo,
 but product and org workflows should exercise the installed `cormidia` command
 from a neutral directory.
 
@@ -710,18 +709,18 @@ git root; there is no `.env.example` yet — the variables above are the full se
 
 ## Testing
 
-**Replacement harness implemented; RQ-1 release gate active (2026-08-04).** The
-legacy suite remains frozen under `archive-do-not-read/` — never read, cite, or run
-it. The ratified contract is `validation-design/validation-policy.yaml`; the executable
-L1/L2 harness plus opt-in L3/L4/L5 runners live in `tests/`. RQ-1 qualifies an exact
-candidate only from complete deterministic L1/L2 plus separately authorized L3/L4
-campaign evidence bound to that candidate; missing work is incomplete/inconclusive,
-never green. The human threat model, HB-073 abuse cases, seven-day soak, and natural
-rotation remain visible future L5 assurance outside the RQ-1 denominator. F-PT-018 is
-an explicit merge-enforcement limitation bounded by protected human merge and an
-exact-tag rerun, not a claim of mechanical branch protection.
+The ratified contract is `validation-design/validation-policy.yaml`; the
+executable L1/L2 harness plus opt-in L3/L4/L5 campaign runners live in
+`tests/`. RQ-1 is the release-evidence gate: it qualifies an exact candidate
+only from complete deterministic L1/L2 plus separately authorized L3/L4
+campaign evidence bound to that candidate; missing work is
+incomplete/inconclusive, never green. The human threat model, HB-073 abuse
+cases, seven-day soak, and natural rotation are future L5 assurance outside
+the RQ-1 denominator; their absence stays visible. F-PT-018 is an explicit
+merge-enforcement limitation bounded by protected human merge and an exact-tag
+rerun, not a claim of mechanical branch protection.
 
-The interim verification for source changes is:
+Every source change runs:
 
 ```bash
 pnpm test          # complete offline L1/L2 suite; passWithNoTests is disabled
@@ -746,15 +745,11 @@ from verdict. `INCONCLUSIVE` explicitly means not a pass and not release evidenc
 Use the [validation triage runbook](docs/qualification/validation-triage.md) for every
 reported alert or missing obligation.
 
-The ratified Phase 6 boundary is defined only in
-[`docs/qualification/design.md`](docs/qualification/design.md#phase-6-qualification-scope);
-that document remains the canonical *contract*, but its executable machinery
-(campaign scripts, evidence promotion, release attestation) is archived and
-non-operational during the rebuild. The retained Phase 6 candidate-campaign
-records stay in `research/evals/`. The independent control-plane boundary and
-incremental workflow are canonical in the repository-only
-[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md); those developer instructions and
-grants never become authority for an operated org.
+[`docs/qualification/design.md`](docs/qualification/design.md) is the
+canonical qualification contract. The development lifecycle and its grants are
+canonical in the repository-only [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md);
+those developer instructions and grants never become authority for an operated
+org.
 
 ## Layout
 
@@ -775,9 +770,8 @@ src/observe/   versioned read projection, bounded GitHub source, loopback
 src/report/    ledger/range/detail readers, deterministic report projection,
                portable renderers, lazy cache/paging service, Reports assets
 src/cli/       one module per subcommand; src/cli.ts is a thin dispatch table
-tests/  implemented replacement validation harness + opt-in campaign runners
-research/      decision records
-archive-do-not-read/  frozen pre-rebuild validation corpus — never read or run
+tests/         offline L1/L2 validation harness + opt-in campaign runners
+research/      dated decision records
 ```
 
 Imports flow downward only: `org -> loop -> runtime`.
@@ -944,24 +938,13 @@ Telemetry joins those child traces back to the exact prompt and will not call
 a task “Cormidia end-to-end complete” when a required stage or Reviewer is
 missing, or when execution used a fallback.
 
-Episode execution now has one workflow authority: a schema-validated,
-versioned `EpisodePlan`. EpisodePlanner normally designs the smallest
-sufficient role/step DAG before delivery. A creator may avoid that provider
-turn only by deliberately supplying complete scope, acceptance criteria,
-artifacts, governed steps or a workflow-template reference, safety facts, and
-provenance; Cormidia normalizes it into the same plan and validates it under the
-same policy. Incomplete creator scope remains authoritative input, but
-EpisodePlanner fills the missing decisions.
-
-App configuration uses `execution.assignment_mode: fixed | adaptive` and
-defaults omission to `fixed`. Fixed mode preserves the role's configured
-harness/model/effort tuple. Adaptive mode can only select exact, qualified
-role candidates allowed by the org and optionally narrowed by the app. The
-tuple is persisted and resumed atomically; no fallback may change just its
-harness, model, or effort. Roles still own instructions, tools, permissions,
-and expected outputs, so a different assignment never grants broader
-authority. See `docs/architecture.md` § 7 for the exact
-`adaptive_assignments` and app-narrowing schema.
+Episode execution has one workflow authority: the schema-validated, versioned
+`EpisodePlan`. The planning law — EpisodePlanner by default, complete creator
+scope as the only bypass, atomic assignment tuples — is in `docs/PURPOSE.md` →
+Standing → How work executes; the exact `adaptive_assignments` and
+app-narrowing schema is `docs/architecture.md` §7. App configuration uses
+`execution.assignment_mode: fixed | adaptive`; omission means `fixed`, and a
+different assignment never grants broader role authority.
 
 The same app `execution` block resolves safe provider permission modes and
 execution limits. Shipped defaults are Codex `on-request` and Claude `auto`;
@@ -971,23 +954,14 @@ and static-route execution bounds are independent, monotonic, and visible in
 replace Cormidia's critical-operation approvals or widen sandbox, filesystem,
 or network authority. See `docs/org/apps.md`.
 
-After validation, the plan is written before its first delivery turn. Its
-typed provider, mechanical-gate, and approval steps execute in deterministic
-dependency order. New material evidence can produce a bounded, forward-only
-plan revision: completed steps, artifacts, approvals, and accounting remain
-linked to the version that authorized them. Budget, approval requirements,
-and quick/standard/deep labels are projections of the accepted plan constrained
-by hard policy, not inputs that choose a generic pass set. `pipelines.yaml`
-remains a governed protocol vocabulary and one-step provider transport for the
-current executor; it is not a second workflow planner.
-
-`cormidia plan --auto` is itself an EpisodePlanner-backed episode. Its accepted
+`cormidia plan --auto` is itself an EpisodePlanner-backed episode: its accepted
 plan selects the smallest DAG over code-owned, human-ratified product-planning
-operations; the terminal operation emits the existing schema-validated
-`TicketPlan`, which the deterministic publisher may turn into GitHub issues.
-The old depth/risk flags remain bounded request facts and compatibility input,
-not pass selectors or planner-bypass signals. Use `cormidia episode explain
-<episode-id>` for the accepted execution plan's durable explanation.
+operations, and the terminal operation emits the schema-validated `TicketPlan`
+that the deterministic publisher may turn into GitHub issues. Depth/risk flags
+are bounded request facts and compatibility input, never pass selectors or
+planner-bypass signals. `pipelines.yaml` is a governed protocol vocabulary and
+one-step provider transport, not a second workflow planner. Use `cormidia
+episode explain <episode-id>` for the accepted plan's durable explanation.
 
 Automated planning also accepts repeatable required `--source <file-or-dir>`
 and optional `--optional-source <file-or-dir>` inputs. Relative paths resolve
@@ -1033,37 +1007,33 @@ live canary is unrepresentable in policy; insufficient volume reads
 
 Cormidia is build-complete and proven live: real Planner/Builder/Reviewer turns
 take GitHub issues from `op:ready` through quality gates, PR, cross-provider
-review, and squash-merge on real repos — most recently `cormidia-sandbox-delta`
-("Ledgerette"), onboarded from scratch, where the loop fixed and merged both
-planted bugs unaided. A 2026-07-10 proportionality campaign then
-rebuilt the org's economics end to end: per-pass ledger settlement with
+review, and squash-merge on real repositories, including a from-scratch
+onboarded sandbox app where the loop fixed and merged planted bugs unaided.
+The org's economics are live end to end: per-pass ledger settlement with
 enforced budget caps, durable continuation from artifacts, honest stops with
-token-free environment preflight, one-pass proportional bootstrap planning
-published by the orchestrator, a ratified approval & release boundary (scoped
-grants, release handoff, adapter-level role toolset shaping), and a
-repeatable clean-room benchmark
-([`docs/qualification/benchmark-runbook.md`](docs/qualification/benchmark-runbook.md)). On top of that
-substrate, a governed learning loop
-([`docs/learning-loop/`](docs/learning-loop/), ratified 2026-07-11) is complete
-and live through M6: every pass is captured into episodes and replay
+token-free environment preflight, orchestrator-published bootstrap planning,
+the ratified approval & release boundary (scoped grants, release handoff,
+adapter-level role toolset shaping), and a repeatable clean-room benchmark
+([`docs/qualification/benchmark-runbook.md`](docs/qualification/benchmark-runbook.md)).
+The governed learning loop ([`docs/learning-loop/`](docs/learning-loop/)) is
+complete and live through M6: every pass is captured into episodes and replay
 capsules, and learned changes activate only through human review, offline
-paired-replay evaluation, a human-started canary, and M6 scheduled
-distillation with independent review and report-only compaction. The latest dated live evidence is
-[`research/2026-07-11_adapter-tool-events.md`](research/2026-07-11_adapter-tool-events.md);
-open work lives in the [issue tracker](https://github.com/cormidia/Cormidia/issues).
+paired-replay evaluation, a human-started canary, and scheduled distillation
+with independent review and report-only compaction. Dated live evidence lives
+in `research/`; open work lives in the
+[issue tracker](https://github.com/cormidia/Cormidia/issues).
 
-`docs/harness/capability-matrix.md` records each adapter's native, adapter-built, and
-degraded capabilities. (The gated live-adapter proof suite is archived during
-the validation rebuild — see Testing above.)
+`docs/harness/capability-matrix.md` records each adapter's native,
+adapter-built, and degraded capabilities.
 
 ### Known limitations
 
-- **Autonomous roadmap delivery is not enabled yet.** HB-103…107 now wire accepted
+- **Autonomous roadmap delivery is not enabled yet.** HB-103…107 wire accepted
   roadmap and validation authority into the production Planner/Builder loop, including
   atomic multi-ticket delivery units, deterministic bounded execution batches,
   per-unit journals/budgets, strict provenance-bearing zero-turn normalization,
   complete seven-destination campaign authority, and exact role-safe context/session/
-  cache evidence. Product-roadmap planning and ticket delivery now share the
+  cache evidence. Product-roadmap planning and ticket delivery share the
   `orchestrateEpisode` façade without collapsing RoadmapPlan into EpisodePlan. HB-108
   closes the deterministic catalog and integrates the now-human-validated pre-tuning
   corpora; HB-109 closes contention/collector machinery without running the seven-day
@@ -1102,7 +1072,7 @@ the validation rebuild — see Testing above.)
   never passed.
 
 - **The Muse Code harness is registered but cannot run a turn.** Certification
-  on 2026-08-07 (`research/2026-08-07_muse-code-adapter-certification.md`,
+  (`research/2026-08-07_muse-code-adapter-certification.md`,
   Muse Code `0.1.0-R708.1`) found no working pre-execution gate seam: `muse exec`
   auto-approves tool calls headlessly, and no managed hook fired across twenty
   installation configurations. Rather than degrade, the adapter proves the seam
@@ -1115,7 +1085,7 @@ the validation rebuild — see Testing above.)
   refusal itself. This stays a known limitation until a seam is proven live and
   the record is re-run.
 - **Tool-event outcomes are partial on Claude and pi.** All three adapters
-  emit `tool_use` turn events (issue #27, live-verified 2026-07-11 —
+  emit `tool_use` turn events (issue #27;
   `research/2026-07-11_adapter-tool-events.md`), so `envelope.tool_counts`
   is populated and all five anomaly detectors can fire. But Claude and pi
   surface tool calls before execution, so their events carry no
@@ -1134,8 +1104,7 @@ the validation rebuild — see Testing above.)
   draft pull requests — it never merges or marks ready, is idempotent on
   retry, and refuses when unrelated staged changes, a merge in progress, or a
   detached HEAD make the scope ambiguous. Marking ready and merging stay
-  human ([issue #61](https://github.com/cormidia/Cormidia/issues/61),
-  closed 2026-07-18).
+  human ([issue #61](https://github.com/cormidia/Cormidia/issues/61)).
 - **Codex App-Server read bypass:** under the `untrusted` approval policy the
   App Server auto-runs trusted read-only commands (`cat`, `ls`) without an
   approval request, so those reads do not reach the gate hook. Tracked in

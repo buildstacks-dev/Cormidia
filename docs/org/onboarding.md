@@ -144,8 +144,10 @@ as unscaffolded.
 runs the operator questionnaire, emits app-owned `.cormidia/` artifacts plus
 marked AGENTS.md/CLAUDE.md blocks, and registers the app as `onboarding`. It
 inventories setup signals; it does not infer authoritative product truth from
-source. Recovered bootstrap writes only to a Cormidia-managed clone and leaves
-the human checkout untouched.
+source. The emitted `.cormidia/TASTE.md` is a comment-only placeholder;
+context assembly skips it until the operator writes visible craft. Recovered
+bootstrap writes only to a Cormidia-managed clone and leaves the human
+checkout untouched.
 
 Repositories onboarded before the product rename must move the retired
 app-artifact directory to `.cormidia/` in one reviewed repository commit,

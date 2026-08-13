@@ -268,12 +268,13 @@ async function readAnswersFile(path: string): Promise<unknown> {
   }
 }
 
-/** Interactive §9 step-2 questionnaire — one prompt per answers field,
- * producing the same raw shape `--answers answers.json` supplies (validated
- * once, in parseAnswers). Streams are injected so tests can drive it.
- * Cadence overrides are deliberately not prompted — the default (empty =
- * roles.yaml triggers) is right for onboarding; edit .cormidia/config.yaml
- * to tune later. */
+/** Interactive §9 step-2 questionnaire — roles, budget, authority, critical
+ * ops, and channels. Product identity is not prompted: `.cormidia/TASTE.md`
+ * is a comment-only stub the operator fills in. `--answers answers.json`
+ * supplies the same raw shape (validated once, in parseAnswers). Streams are
+ * injected so tests can drive it. Cadence overrides are deliberately not
+ * prompted — the default (empty = roles.yaml triggers) is right for
+ * onboarding; edit .cormidia/config.yaml to tune later. */
 async function collectAnswers(
   input: NodeJS.ReadableStream,
   output: NodeJS.WritableStream,
@@ -288,9 +289,6 @@ async function collectAnswers(
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
 
-    const product = await ask("What is this product? (one paragraph — the app charter's identity)");
-    const good = await ask('What does "good" mean for this product?');
-
     const rolesText = await ask(`Roles to enable [${knownRoles.join(", ")}] (comma-separated, empty = all)`);
     const rolesAnswered = rolesText
       .split(",")
@@ -300,7 +298,7 @@ async function collectAnswers(
 
     const budgetText = await ask("Monthly budget in USD [1000]");
 
-    const answers: Record<string, unknown> = { product, good, roles };
+    const answers: Record<string, unknown> = { roles };
     if (budgetText.length > 0) answers["budgetUsdMonth"] = Number(budgetText);
 
     const authorityMode = (await ask("App authority [inherit | conservative | custom] [inherit]")) || "inherit";

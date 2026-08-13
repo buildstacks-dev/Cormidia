@@ -123,9 +123,6 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
   const orgHome = resolve(options.orgHome);
   const allRoles = (await loadRoles(join(orgHome, "roles.yaml"))).roles.map((role) => role.name);
   const answers = buildAnswers({
-    appName,
-    goal,
-    template,
     allRoles,
     supportChannels: options.supportChannels ?? [],
     marketingChannels: options.marketingChannels ?? [],
@@ -243,9 +240,6 @@ export async function createNewApp(options: NewAppOptions): Promise<NewAppResult
 }
 
 function buildAnswers(options: {
-  appName: string;
-  goal: string;
-  template: NewAppTemplate;
   allRoles: string[];
   supportChannels: string[];
   marketingChannels: string[];
@@ -264,25 +258,8 @@ function buildAnswers(options: {
     channels["marketing"] = options.marketingChannels;
   }
 
-  const product =
-    options.template === "bare"
-      ? `${options.appName} is a greenfield product scaffolded from this goal: ${options.goal}. ` +
-        "The repository is intentionally stack-neutral: it begins with product truth and Cormidia bootstrap artifacts only. " +
-        "The first implementation work must select the stack and establish meaningful stack-specific build, test, and lint gates."
-      : `${options.appName} is a greenfield product scaffolded from this goal: ` +
-        `${options.goal}. The initial app is intentionally small: a documented web product skeleton, ` +
-        "a starter domain model, and a Cormidia-ready first ticket packet.";
-  const good =
-    options.template === "bare"
-      ? "Good means the first implementation explicitly records its stack, delivers one observable product slice, " +
-        "and configures non-vacuous test and lint commands before Cormidia accepts the work. Missing gate commands remain a failure, not a green check."
-      : "Good means the first vertical slice is buildable from GitHub issues, has explicit acceptance criteria, " +
-        "keeps product truth in docs, and keeps every code change covered by the configured build, test, and lint gates.";
-
   return parseAnswers(
     {
-      product,
-      good,
       roles,
       criticalOps: {
         deployCommands: [],

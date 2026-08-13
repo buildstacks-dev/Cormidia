@@ -1,13 +1,27 @@
 # PURPOSE — Cormidia
 
-*v2.16 — 2026-08-07. Human-ratified decision log. Keep this file high-level;
-execution details belong in the GitHub issue tracker, docs/architecture.md, and docs/loop/design.md.
-The operator outcome is `docs/VISION.md`; product status and known limitations
-live in README → Status.*
+*v2.18 — 2026-08-12. Human-ratified decision log. Standing decisions below
+are current law. Execution details belong in the GitHub issue tracker and
+the subsystem design.md files. Product status and known limitations live in
+README → Status.*
 
 Cormidia is a governed **org runtime** that turns approved goals into verified
 software outcomes with process proportional to risk, minimal human attention,
 durable forward progress, and continuously improving unit economics.
+
+One human should be able to direct a small portfolio of software products at
+the quality bar of an excellent engineering organization without becoming its
+scheduler, retry loop, state reconciler, or approval clerk.
+
+Cormidia spends intelligence on judgment and deterministic computation on
+mechanics. It selects the smallest safe workflow, preserves every valid unit
+of forward progress, surfaces genuine decisions, learns from evidence, and
+makes comparable work measurably cheaper and more reliable over time.
+
+The operator supplies goals, ratifies organizational policy, and decides
+material or irreversible actions. Cormidia owns routine coordination and reaches
+one truthful terminal outcome: verified completion, a precise governed wait,
+or an evidence-backed stop with an executable next step.
 
 It provides a standing team of AI agents (Planner, Builder, Reviewer, SRE,
 Support, Marketing, Distiller, Learning Reviewer), coordinated through private
@@ -16,7 +30,9 @@ operations only.
 
 **Cormidia is an installable package/runtime, not an app.** Its CLI is pointed
 at org configuration and target repos; it never contains app code. One org
-runtime, N applications.
+runtime, N applications. The standing team develops, operates, and markets
+those applications. Work that is not a product still runs here as jobs, with a
+weaker verification promise.
 
 ## The org chart
 
@@ -46,806 +62,446 @@ and agent definitions.
    change that never broadens the role's authority.
 3. **Protocol over prompt-and-pray.** Agents, gates, and assignments are
    versioned, enforceable, inspectable config and code — not freeform prompting.
-4. **One runtime, many apps.** App knowledge stays in the target repo and
+4. **One runtime, many apps.** Each app is developed, operated, and marketed
+   by the same standing team. App knowledge stays in the target repo and
    per-app memory; the runtime stays general and extensible by config unless
    evidence proves the core must change.
 5. **Scarce human attention, durable truthful outcomes.** Humans gate critical
    ops only. Valid progress survives interruption. Cheap-wrong results, hidden
    retries, and human babysitting are not success.
 
-## Decided
+## Standing
 
-- **Episode planning precedes execution routing; creator scope is the only
-  planner-turn bypass; turn assignment is atomic** (ratified 2026-07-19).
-  Every episode persists one schema-validated, executable EpisodePlan before
-  delivery begins. Normally a dedicated EpisodePlanner designs the smallest
-  sufficient role/turn graph in both assignment modes. It may be skipped only
-  when the human or agent that created the episode explicitly supplied
-  provenance-bearing, execution-ready scope: bounded objective and exclusions,
-  acceptance criteria and expected artifacts, necessary provider/mechanical
-  steps and dependencies directly or through an unambiguous governed workflow
-  template, known constraints and safety facts, and every assignment decision
-  that cannot be resolved deterministically. Apparent simplicity, title,
-  labels, prompt length, lifecycle, tier, or existing-ticket status never imply
-  this bypass. Incomplete creator scope remains authoritative input and the
+*Current law. Citations to this section as "Decided" mean Standing.*
+
+How the pieces fit: a timer tick wakes the dispatcher, which turns due work —
+normally a ticket — into one planned **episode**. To work a ticket the loop
+**claims** it: takes ownership of it for one delivery attempt, with attempts
+per ticket capped. An episode executes as role **turns**, each a single
+harness/model/effort assignment working in one app's checkout. Mechanical
+**gates** run between passes; a critical operation pauses the turn into the
+human **approval queue**. Merged, verified work is the only outcome that
+counts. The full loop is drawn at the top of the README.
+
+Some bullets cite tracking IDs. `F-PT-*` are findings, registered in
+`validation-design/harness-design-state.md`; `HB-*` are harness-backlog
+tickets in `validation-design/harness-backlog.md`; L1–L5 are the validation
+evidence layers defined in `validation-design/validation-policy.yaml` and
+`docs/qualification/design.md`. Any ID resolves by grep from the repo root.
+
+### How work executes
+
+- **Every episode is planned before any work runs.** One schema-validated,
+  executable EpisodePlan is persisted before delivery begins. Normally a
+  dedicated EpisodePlanner turn designs the smallest sufficient role/turn
+  graph. The planner turn is skipped only when the episode's creator — human
+  or agent — already wrote a complete, execution-ready, provenance-bearing
+  scope: bounded objective and exclusions, acceptance criteria and expected
+  artifacts, the necessary provider/mechanical steps and dependencies
+  (directly or through an unambiguous governed workflow template), known
+  constraints and safety facts, and every assignment decision that cannot be
+  resolved deterministically. The system verifies the scope itself — no
+  label, tier, title, prompt length, lifecycle, or apparent simplicity can
+  skip planning. Incomplete creator scope remains authoritative input; the
   EpisodePlanner completes the missing decisions.
 
-  App configuration exposes `fixed` and `adaptive` assignment modes; omission
-  preserves existing configured behavior by resolving to `fixed` and never
+  Turn assignment is atomic and mode-driven. App configuration exposes `fixed`
+  and `adaptive` assignment modes; omission resolves to `fixed` and never
   disables planning. In fixed mode the EpisodePlanner chooses the workflow and
-  each provider step receives its configured atomic harness/model/effort tuple.
-  In adaptive mode the EpisodePlanner—or an execution-ready creator—chooses
+  each provider step receives its configured harness/model/effort tuple. In
+  adaptive mode the EpisodePlanner — or an execution-ready creator — chooses
   each tuple from exact org-approved candidates narrowed by app policy. The
-  EpisodePlanner's own boot assignment is explicit and fixed, never recursively
-  selected. Deterministic policy validates capabilities, qualification,
-  availability, budgets, approvals, safety floors, gates, release constraints,
-  terminal coverage, and independent review; it may reject or require a
-  bounded revision but may not silently replace the plan with a static
-  workflow. Accepted plans are persisted before their first delivery turn;
-  revisions are versioned, bounded, and forward-only. Quick/standard/deep may
-  remain as derived compatibility, reporting, or safety-floor projections, but
-  no longer select the workflow or cap a turn's effort. This supersedes the
-  route-first/static-pass-set reading of the 2026-07-06 protocol-loop and
-  2026-07-12/13 efficiency-doctrine decisions while preserving their safety,
-  approval, accounting, continuation, evidence, and hard-ceiling guarantees.
+  EpisodePlanner's own boot assignment is explicit and fixed, never
+  recursively selected. Deterministic policy validates the plan (capabilities,
+  qualification, availability, budgets, approvals, safety floors, gates,
+  release constraints, terminal coverage, independent review); it may reject
+  or require a bounded revision but may not silently replace the plan with a
+  static workflow. Accepted plans are persisted before their first delivery
+  turn; revisions are versioned, bounded, and forward-only. Quick/standard/deep
+  may remain as derived compatibility, reporting, or safety-floor projections,
+  but no longer select the workflow or cap a turn's effort.
 
-- **Ticket claims are recoverable sagas, and approval waits resume the exact
-  pass without consuming another claim** (ratified 2026-07-18; supersedes the
-  A2 same-pass-resume deferral below). Claim acquisition is provisional until
-  the first provider turn starts. A crash before that boundary auto-repairs the
-  GitHub label and consumes no allowance; ambiguity after provider work never
-  retries blindly and requires the explicit, content-bound `cormidia loop rearm`
-  transaction. Approval pauses persist the pipeline/pass, native session,
-  completed-pass set, context fingerprint, worktree fingerprint, run id, cost,
-  and exact decisions; approved and denied decisions both continue the same
-  session as distinct guidance, while changed role/runtime/context/work fails
-  closed. The claim number stays stable across any number of approval pauses,
-  and lifecycle telemetry separates pause cost from repeated cost. This change
-  is now admissible because all three adapters expose native session resume and
-  the retained final adapter calibration qualified continuation without retry
-  (`docs/harness/capability-matrix.md`; campaign
-  `adapter-harness-calibration-v1-20260713-9c3b336d6842`). It does not broaden
-  approval authority or collapse decision and execution acknowledgement.
+- **Protocol-driven loop.** The loop is a pipeline of small, versioned
+  passes — never one opaque prompt — and nothing durable is ever triggered by
+  parsing an agent's free-text output; side effects follow typed artifacts
+  and mechanical gates. Planning is a Planner pipeline; Builder and Reviewer passes get
+  assembled briefs; mechanical quality gates run between passes and twice at
+  ship; orchestrator failures are loud. Ticket-level parallelism is
+  dependency/scope-aware. Review dimensions are risk-selected, with security
+  always-on. Acceptance criteria are a first-class quality contract: binary,
+  mapped to named tests, never summarized away, and human-touched for
+  deep/high-risk work.
 
-- **Approval decisions and delivery acknowledgements are separate durable
-  facts** (ratified 2026-07-18). Classification is action-aware: executable or
-  typed operation, targets, redirections, environment, destination, and effect
-  are evaluated before agent-authored prose; search patterns, comments,
-  messages, and heredoc bodies are data, while executable substitutions and
-  obfuscated real actions remain gated. A human approval persists the exact
-  content-bound action in `approved`; it never claims the effect happened. A
-  later dispatch may execute only an orchestrator-owned typed allowlist
-  (currently GitHub issue create/comment, plus the existing specialized release
-  handoff), recording `executing → executed|failed|ambiguous`, attempt, actor,
-  result, remote reference, and next action. Idempotency markers reconcile a
-  crash after a remote effect; ambiguity is never retried blindly and requires
-  reconciliation or explicit human disposition. External publication is never
-  broadly scopeable because every published payload needs its own execution
-  acknowledgement. Critical SRE health events use this boundary to file exactly
-  one source-linked `op:incident` issue while retaining analysis and filing as
-  distinct completion claims. `docs/approvals/design.md` and
-  `docs/architecture.md` carry the detailed contract.
+- **A claim survives crashes and approval pauses; nothing retries blindly.**
+  When a turn needs human approval it pauses: the claim, the native session,
+  and all completed work are kept (pipeline/pass, completed-pass set, context
+  and worktree fingerprints, run id, cost, and the exact decisions), and the
+  decision — approve or deny — continues the *same* session as distinct
+  guidance. An undecided approval expires (default 24 h) and the turn ends
+  blocked, not failed. The claim number stays stable across any number of
+  approval pauses. A claim is provisional until the first provider turn
+  starts: a crash before that boundary auto-repairs the GitHub label and
+  consumes no allowance. A crash after provider work is never retried
+  automatically — recovery is the explicit, content-bound
+  `cormidia loop rearm` transaction. Resume fails closed if role, runtime,
+  context, or the work itself changed. None of this broadens approval authority, and an
+  approval decision is still not an execution acknowledgement.
 
-- **Qualification is proportionate to material release risk** (ratified
-  2026-07-16). Evaluation exists to reduce material product risk, not to create
-  an infinite proof loop. Genuine product, safety-boundary, provider-accounting,
-  learning-integrity, build, typecheck, core-test, required-CI, or budget-ceiling
-  failures block release. An evaluator-only defect does not trigger a recursive
-  adapter, focused-admission, and full-candidate cascade when deterministic
-  coverage and retained live evidence already bound the affected risk; preserve
-  the failure and track it as disclosed release debt instead. One repaired
-  candidate receives at most one decisive full qualification campaign unless a
-  genuine product defect materially changes the candidate. Releases report
-  residual evidence debt honestly and never rescore, overwrite, relabel,
-  conceal, or promote unsupported evidence. A real pre-V1 product may ship with
-  bounded, disclosed eval debt while every product, safety, accounting,
-  learning, budget, and CI boundary remains intact. `docs/DEVELOPMENT.md` and
-  `docs/qualification/benchmark-runbook.md` carry the detailed shipping policy.
+- **One turn, one app.** Each app is a hard boundary. A role turn works in
+  exactly one app's checkout and sees only that app's memory; only the
+  scheduler and the human surfaces ever see more than one app at once. Memory
+  splits per role (craft knowledge, cross-app) vs per role+app (domain
+  knowledge); context assembly loads the role bundle plus the *current* app's
+  bundle only. Scorecards are per (role, app). Multi-app is designed in but
+  operated sequentially: the org runs **one live app** until the scorecards
+  and the human's own load say otherwise — one app-tagged approval queue,
+  per-app cadence in config, org-level WIP limits. Co-planning is the
+  irreducibly per-app human cost, and why onboarding is sequential.
 
-- **Replacement release-evidence gate** (ratified 2026-08-04). Release
-  qualification is restored through RQ-1: deterministic contracts admit the
-  exact candidate before spend; bounded L3/L4 evidence remains separate by
-  completeness and verdict; candidate/baseline quality evidence is paired per
-  site and exact producer/evaluator tuple; uncalibrated judge scores remain
-  advisory; evaluator debt can be accepted only as a separate immutable human
-  disposition and never rewrites failed or inconclusive evidence. One canonical
-  manifest binds commit, package bytes, policy, prompts, assignments, golden
-  references, tools and ceilings. A deterministic attestation admits only a
-  content-bound evidence-only descendant whose package and qualification inputs
-  are identical. The supported tag/npm path verifies that attestation and still
-  requires a separate exact human release approval. Publication proceeds only
-  when the GitHub-authenticated tag-push actor, the approval's `approved_by`
-  identity, and an app-configured release approver are the same exact identity.
-  Remote proof that the tag traversed the local ApprovalStore is not additionally
-  required; an identity mismatch refuses before npm authentication. F-PT-018
-  remains an honest
-  merge-enforcement limitation; release verification reruns the mandatory gates
-  on the tag candidate. The human-authored threat model, HB-073 abuse-case
-  detectors, seven-day soak, and natural credential rotation remain future L5
-  assurance outside RQ-1's completeness, verdict, and qualification denominator.
-  Their absence must remain visible and may never be represented as a pass, but
-  it does not block RQ-1 activation or qualification.
+- **Dispatcher, approvals, and idempotency.** The autonomous host is a
+  stateless `cormidia dispatch` tick that spawns detached turns; turns operate
+  in org-managed clones/worktrees under `~/.cormidia/`. Durable side effects are
+  git/GitHub artifacts only; labels move after the artifacts they announce;
+  merges are loop-owned squash merges after approval/review/gates.
 
-- **Cormidia platform-development authority is independently governed**
-  (ratified 2026-07-16; original operational exclusion superseded by the
-  self-hosting decision of 2026-08-02). The standing org may operate the
-  Cormidia source repository as an app; its ratified org/app authority can
-  authorize ordinary platform work under repository policy. Repository
-  developer instructions remain app-scoped context, while objective grants,
-  raw eval artifacts, campaign state, and CI evidence never become org-home
-  constitution, cross-app learning, or approval authority. A human may
-  authorize one bounded development
-  objective whose isolated repair descendants remain authorized across fresh
-  candidate identities. Subscription-backed equivalent USD is a cumulative
-  accounting and loop-detection ceiling, not incremental billing. Development
-  proceeds through deterministic reproduction and proportionate retained or
-  fresh live evidence before at most one fail-fast full qualification. Fresh
-  authority is still required for scope/effect expansion, metered or unknown
-  billing, threshold or safety weakening, a raised ceiling, governed learning
-  actions, production/outward effects, reserved future campaigns, or a second
-  full campaign without a material product repair. `docs/DEVELOPMENT.md` is the
-  canonical detailed policy; developer-only files are excluded from the
-  installable org-runtime package.
+- **Resolved operating defaults.** Org WIP defaults to `max_concurrent_turns:
+  2`; approval grants expire after 24 h; dispatch ticks every 5 minutes; loop
+  review/fix cycles cap at 3. Support and Marketing are disabled per app until
+  that app has real feedback or adoption channels. Route depth and time budgets
+  come from `docs/episodes/contract.md`. High-tier tickets stay autonomous after
+  the Builder's contract pass in v1.
 
-- **Phase 6 qualification scope and deferred real-time soak** (ratified
-  2026-07-15). Phase 6 completion now covers applicable retained or
-  exact-candidate adapter admission,
-  the unchanged planning, context, delivery, continuation, approval, paired-
-  learning, deterministic seven-day virtual-soak, and standing-role candidate
-  matrix; provider accounting; the nine non-soak evidence promotions;
-  read-only production confirmation; documentation; CI; release-equivalence;
-  and shipping. The 84-contract inventory remains intact: 83 contracts are in
-  the current scope, while only `I-LIVE-01` is `future_soak`. That contract is
-  still required and known-red pending its genuine separately authorized
-  48–72 hour campaign; preview, virtual-soak, manufactured, or production-
-  confirmation evidence cannot promote it. Phase 6 completion may be reported
-  while the future soak is pending, but the broader claim that Cormidia is a
-  fully proven “highly efficient organization” remains reserved until
-  `I-LIVE-01` passes. `docs/qualification/design.md` → Phase 6 qualification scope is the
-  canonical boundary.
+- **Future opt-ins.** A Lab role is approved as a future opt-in live-environment
+  verifier when a pipeline needs evidence artifacts from real execution.
+  Competitive intelligence stays a Marketing pipeline (`ci-sweep`) unless
+  scorecards later justify a standalone role.
 
-- **Input tokens are not a budget dimension** (ratified 2026-07-20; retracts
-  the Phase 6 deep-route input-token ceiling ratified 2026-07-14). Work is
-  bounded by equivalent cost, provider turns, active time, and human
-  decisions — every one of which derives from configured app and role budgets.
-  Input-token ceilings are removed from admission, from route budgets, from
-  planner admission, and from campaign manifests.
+### Human approvals
 
-  The retracted decision gave Phase 6 `deep` episodes a hard 4,000,000-token
-  admission ceiling. It is withdrawn because the dimension does not measure
-  what a ceiling on it implies. Input tokens are a byproduct of context
-  assembly and caching: a cached re-read costs roughly a tenth of a fresh
-  token yet inflated the same counter, so the bound tightened fastest exactly
-  when work was cheapest. No operator could set it — the ceiling existed only
-  as constants in source (512,000 on the ticket route, 256,000 on standalone
-  turns, 0/2,000,000/4,000,000 across route tiers, 8,000,000 in the pipeline),
-  with no `roles.yaml`, `apps.yaml`, or CLI surface anywhere.
-
-  It was withdrawn after a live onboarding run deadlocked on it: a single
-  builder turn consumed 2,893,441 input tokens (1,399,040 of them cache reads)
-  against a 512,000 episode ceiling. Admission had reserved dollars only and
-  never checked the dimension on the way in, so the ceiling first took effect
-  when it refused the recovery replan — leaving the episode with no surfaced
-  continuation. Ordinary caps behaved correctly throughout; only the
-  unconfigurable one failed. Campaign manifests retain `route_budget_overrides`
-  as an accepted-but-ignored key so historical evidence still validates.
-
-- **Phase 6 paired-learning qualification and activation boundary** (ratified
-  2026-07-14). Phase 6 uses a predeclared, content-hashed T1 treatment only on
-  treatment arms. Paired outcomes come from the retained provider artifacts
-  and hidden guardrails; a fixed synthetic verdict is not evidence and cannot
-  qualify the learning block. The primary metric is the hidden-grader
-  artifact-quality score, an integer from zero through eight: grounded error
-  classes, a causal hypothesis, a bounded/reversible intervention, and
-  guardrails each contribute zero through two points. The result is `improved`
-  only when all three treatment scores exceed their paired controls and every
-  hidden guardrail passes. Each arm also retains an independent provider
-  review ending in exactly one `VERDICT: APPROVE` or `VERDICT: REJECT` marker;
-  a rejection is a retained guardrail failure, never a synthesized approval or
-  corrupt measurement. Any negative delta or guardrail failure is
-  `regressed`; nonnegative deltas with any zero delta are `inconclusive`; and
-  missing, mismatched, or infrastructure-corrupt evidence is `invalid`. Only
-  `improved` may proceed to governed activation and rollback. That action
-  occurs once, only after all three pairs have terminal evidence, and requires
-  a separate exact candidate/action-hash approval. Candidate-qualification
-  provider-spend authorization does not authorize the activation action.
-
-- **Efficiency doctrine and evaluation semantics** (evaluation semantics
-  ratified 2026-07-12; organization-wide operating doctrine ratified
-  2026-07-13; operator outcome in `docs/VISION.md`, canonical contract in
-  `docs/episodes/contract.md`, executable requirement inventory in
-  `eval/contracts.yaml`).
-  Efficiency is a correctness property and never weakens safety, independent
-  review, evidence, or critical-operation governance. Provider accounting and
-  execution have distinct identities: every provider turn settles exactly
-  once, every provider or mechanical execution step terminates exactly once,
-  and mechanical work creates no provider settlement. Routes and budgets are
-  admitted before runtime construction from explicit risk/uncertainty factors;
-  the episode owns `planned_route`, `current_route`, and `final_route`; a
-  planning pass-set decision is not a competing route authority. Role
-  invocations and configured passes are orchestration identities, while each
-  adapter invocation is a separately settled provider turn. Campaigns are
-  predeclared and retain
-  every attempt; missing live auth/usage or a skipped required case is invalid
-  or incomplete, never green. Qualification runs only in isolated eval orgs
-  and disposable apps; production is read-only confirmation, never
-  calibration. Readiness claims follow the generated → registered →
-  runtime-ready → live → autonomously scheduled evidence ladder without
-  replacing the `onboarding | live | paused` registry states.
-
-- **Build, don't buy — TypeScript orchestrator, claude-loop reborn.** Ground-up
-  rewrite in TypeScript (strict mode) porting claude-loop's proven patterns
-  (state-in-markdown, roles.yaml, worktrees, squash-merge discipline). No
-  multi-agent framework. **Cormidia supersedes claude-loop outright** —
-  claude-loop has no users, so the Python repo is frozen as pattern reference
-  with no back-compat obligation. TS over Python because: pi (and our mandatory
-  gating extension) is TS, Codex App Server exposes a generated JSON-RPC schema
-  cleanly driven from Node, and the codebase matches the house convention
-  (tastytrade-tools, kalshi-tools).
-- **Runtime layer — three adapters, one interface, native harnesses** (see
-  `research/2026-07-03_runtime-layer.md`):
-  - **Anthropic roles** → Claude Agent SDK (TypeScript; hooks + `canUseTool`
-    for the critical-ops gate)
-  - **OpenAI roles** → Codex App Server through the pinned `@openai/codex`
-    CLI and documented JSON-RPC over stdio (per-thread model, approvals,
-    sandbox modes). The `@openai/codex-sdk` package wraps `codex exec` and is
-    not the adapter surface for Cormidia.
-  - **All other models** → **pi** embedded via its SDK
-    (`createAgentSession()`); SYSTEM.md + extensions for protocol enforcement.
-    pi has no first-class approval flow, so Cormidia installs the gating
-    extension at runtime.
-- **Single-runtime orgs are a first-class profile.** Nothing in the
-  orchestrator assumes a mix — `runtime:` is per-role config, so a user can run
-  the whole org on pi (including pi + Opus: pi speaks Anthropic natively).
-  Consequence: the critical-ops gate and per-turn telemetry are **adapter-level
-  conformance requirements** — every adapter must pass the same gate test suite
-  so an all-pi org gets identical guarantees. Degradations are documented in a
-  capability matrix, not silently absorbed (pi's known gap: no native
-  intra-turn subagent fan-out).
-- **TASTE.md — the org's constitution.** A layered taste/protocol document each
-  agent loads at bootstrap: org-wide `TASTE.md` (what "good" means here) →
-  per-role addenda → per-app overrides in the target repo. Injected through
-  each harness's *native* context channel (CLAUDE.md / AGENTS.md / pi
-  SYSTEM.md-append) — no bespoke mechanism. Where taste is mechanically
-  checkable it **compiles to gates** (lint configs, CI checks, PR templates —
-  regenerated from TASTE.md, never hand-edited); the Reviewer enforces the
-  un-lintable residue. Editing TASTE.md is a protocol change → human-gated.
-- **Knowledge & improvement — three tiers + forward scorecards.**
-  - *Constitution:* TASTE.md — slow-moving, human-gated.
-  - *Skills:* curated distillations of recurring lessons (Agent Skills
-    standard — supported by all three harnesses) — review-gated.
-  - *Working memory:* per-role knowledge bundles in **OKF** (Google's Open
-    Knowledge Format — markdown + YAML frontmatter, vendor-neutral, agents read
-    and update directly). Roles write freely at end of turn; a scheduled
-    curation pass dedupes, prunes wrong lessons, and promotes durable ones up a
-    tier. OKF's vendor neutrality means knowledge survives model/runtime swaps.
-  - *Scorecards:* every role is graded forward (Reviewer: post-merge escaped
-    bugs; Planner: ticket rework rate; Builder: review cycles per PR;
-    Support/Marketing: human edit-distance on drafts). A weekly retro pass
-    turns scores into memory updates, skill promotions, and proposed TASTE
-    changes (human-gated).
-- **Runtime host:** Bikram's laptop first, migrating to a DigitalOcean droplet
-  later. Consequence: the dispatcher is a plain CLI entrypoint any scheduler can
-  call (launchd now, systemd timer/cron on the droplet) — no lock-in to GitHub
-  Actions or macOS. State lives in git + files so migration ≈ clone + secrets.
 - **Approval boundary — critical ops only.** Agents work autonomously, including
   merging reviewed work to main. Human gate on: production deploys; destructive
   or irreversible ops (data deletion, DNS/domain, external publishing); spend
   above a threshold; security-sensitive changes (auth, secrets handling); and
-  **changes to the org's own protocols** — agents don't rewrite their own rules
-  unsupervised.
-- **An employee is a team, not a single model — but the harness runs the team.**
-  Each role is one harness turn from the orchestrator's view; *inside* the turn,
-  the harness may spawn subagents with per-subtask model tiering (e.g. an Opus
-  lead with Haiku scouts, Claude Code-style dynamic workflows). Two boundary
-  rules: (1) **same-provider tiering happens intra-turn; cross-provider mixing
-  is an org-level flow between roles** (a GPT Builder wanting a Claude check is
-  the Reviewer role, not a subagent); (2) the org contract is at the **artifact
-  level** — ticket in → PR/comment/artifact out, within budget; internal
-  delegation is the employee's business. Hardening: per-turn cost telemetry so
-  silent fan-out shows up in budget reports, and gates/permissions bind the
-  whole session including subagents. `roles.yaml` carries a per-role
-  **delegation policy** (whether/when a role may fan out).
-- **Folder home: `~/Build/`.** The source checkout lives under `~/Build/`; its
-  local basename is not a product contract. The existing checkout keeps its
-  predecessor basename until its attached worktrees have been retired. Target
-  apps arrive as sibling clones when the org starts operating on them.
+  **changes to the org's own protocols**. The human may widen a grant at
+  decision time to rule+path scope for a ticket or app (TTL, use-count cap,
+  revocation, per-use audit); the single-use action hash stays the default.
+  Self-merge, production deploy, protocol-surface writes, and outside-worktree
+  actions are never scopeable. Same-rule batch review is allowed with unchanged
+  per-item audit rows. Every app declares a `release:` mechanism and owner; a
+  deployable milestone with no declared mechanism fails the ship gate. Denial
+  reasons persist as curated role memory. Gate escalations land in a CLI
+  approval queue the human reviews **one by one** — approve, or deny with
+  reason — and every decision persists as an audit trail; any future
+  push/email channel is a pointer into this same queue, never a second
+  approval path. Full design: `docs/approvals/design.md`.
 
-- **Repo shape — one repo, one package.** `Cormidia` is a single TypeScript
-  package (no workspace). The layering is enforced as module boundaries —
-  `src/runtime` (adapters, gate, telemetry) ← `src/loop` (the build loop,
-  claude-loop's successor) ← `src/org` (scheduler, roles, memory, retro) —
-  with imports flowing downward only, so extracting the loop into its own
-  package later is mechanical if it ever earns independent users. The loop's
-  CLI identity survives as a subcommand. The original Python claude-loop will
-  be archived.
-- **Named Cormidia; the predecessor product name is retired completely**
-  (ratified 2026-08-02). Cormidia is the product and brand, the `cormidia` CLI
-  and npm package, and the `cormidia` GitHub organization. Product vocabulary
-  remains org, app, and role; the brand is never a unit inside the product.
-  The default state root is `~/.cormidia`, with one atomic first-run migration
-  from the retired root and a fail-closed dual-root collision. Environment
-  variables use only the `CORMIDIA_*` prefix. App-owned artifacts live only at
-  `.cormidia/`; existing app repositories move that directory in one reviewed
-  commit rather than supporting parallel paths. The source repository is
-  `cormidia/Cormidia`; the front-door repository is `cormidia/cormidia-web`.
-  The existing developer checkout directory is deliberately not renamed by
-  this repository change because attached worktree paths depend on it.
-- **Sandbox proof before production onboarding** (2026-07-05; gamma approved
-  2026-07-06). Roadmap "toy task" smokes are replaced by real, disposable
-  sandbox repos. Alpha/beta cover onboarding, build loop, multi-app, approvals,
-  budgets, memory, and multi-provider behavior. Gamma adds a running service
-  plus synthetic feedback/adoption inputs so SRE, Support, and Marketing get
-  functional coverage. Civic and buildstacks.dev stayed deferred until the
-  product reached build-complete at M10; buildstacks.dev was then onboarded as
-  an `onboarding` app, while Civic remains pending.
-- **Multi-app: designed in, operated sequentially** (2026-07-04). The
-  architecture is multi-app from day one (app registry; per-app config,
-  TASTE, memory, scorecards), but the org runs **one live app** until the
-  scorecards and the human's own load say otherwise. Human bandwidth is
-  protected by construction: a single app-tagged approval queue (one inbox,
-  never one per app), per-app cadence in config, org-level WIP limits.
-  Co-planning sessions are the one irreducibly per-app human cost — that is
-  the real limit on live-app count, and why onboarding is sequential.
-- **One turn, one app** (2026-07-04). A role turn operates in exactly one
-  target-repo workdir (already the `TurnRequest` contract); multi-app exists
-  only in the scheduler and the human surfaces, never inside a turn's
-  context. Memory splits per role (craft knowledge, cross-app) vs per
-  role+app (domain knowledge); context assembly loads the role bundle plus
-  the *current* app's bundle only. Scorecards are kept per (role, app) so
-  quality regressions localize.
-- **Packaging, homes, and bootstrap boundary** (reconciled 2026-07-09;
-  supersedes the optional single-app org-home profile from 2026-07-04).
-  Cormidia's installed package/source, committed org home, local runtime state,
-  and app repo are four distinct paths. `cormidia org init` creates a complete
-  org home from packaged templates and records an active pointer;
-  `CORMIDIA_ORG_HOME` and `CORMIDIA_STATE_HOME` are explicit overrides. Runtime
-  state defaults to `~/.cormidia/<org>/` and never lives in git. `cormidia
-  bootstrap` requires an active org, accepts a local app checkout, emits only
-  app-owned `.cormidia/` artifacts there, and registers the app in the org's
-  `apps.yaml`. The Cormidia source repo never doubles as the active org merely
-  because it is the current working directory.
-- **Archive-backed app reset** (2026-07-11). A repeatable app test iteration
-  is `cormidia app reset <app>`, not deletion/recreation of the whole org. Its
-  default is a non-mutating plan; explicit `--execute --confirm <app>` first
-  writes a checksummed archive outside the state home, then removes only the
-  named app's Cormidia-managed clone/worktrees/runs/ticket state, app-attributed
-  control records, and registry entry. It refuses active runs, journals,
-  locks, and pending approvals. `--force` crosses only stale run envelopes
-  with no heartbeat for ten minutes; it never crosses a fresh run or any other
-  live-work boundary. GitHub cleanup closes only identifiable
-  Cormidia work (`op:*` issues and linked/`op/` PRs) and deletes its head
-  branches; the repository, default branch, human checkout, and retained
-  closed history stay intact. This is one lifecycle operation, not a new
-  user-facing app-epoch concept.
-- **Local development installation is source-backed** (2026-07-09).
-  `pnpm link:local` exposes the `cormidia` command and Cormidia Agent Skill while
-  retaining a live reference to the local source tree; subsequent invocations
-  pick up source edits without update/relink/build. Packed installations use
-  the compiled `dist/cli.js`. Agents discover the installed surface through
-  `cormidia capabilities --json`, `cormidia context --json`, command help, and the
-  packaged `$cormidia` skill rather than reading implementation code.
-- **Greenfield creation is create-then-bootstrap** (2026-07-07). A brand-new
-  product starts with `cormidia new-app`: create a separate target app repo
-  skeleton, write seed vision/requirements docs plus an initial issue packet,
-  then reuse the same `cormidia bootstrap` app-artifact/register path. The command
-  is local and deterministic; creating/pushing the private GitHub repo, running
-  the Planner, and starting the loop remain explicit follow-up steps. This keeps
-  Cormidia a runtime pointed at app repos, never a place where app code lives.
-- **TASTE layers answer different questions** (2026-07-04). The stack is not
-  an override cascade of one document type. Org `TASTE.md`: values +
-  engineering constitution ("how we work; what we never do"). App
-  `.cormidia/TASTE.md` in the target repo: product charter ("what this product
-  is; what good means here" — civic's evidence honesty vs buildstacks'
-  personal voice). Role `taste/<role>.md`: craft standards ("what good looks
-  like in this discipline" — reviewer checklist, marketing tone). Assembly
-  is concatenation in fixed order (org → role → app); layers are orthogonal
-  so real conflicts are rare — where they collide, the narrower layer
-  specializes defaults, but the org's "What we never do" section is
-  unoverridable.
-- **Approval surface — CLI queue** (2026-07-04). Gate escalations land in a
-  CLI approval queue; the human reviews items **one by one** — approve, or
-  deny with reason — and every decision is persisted as an audit trail.
-  No push/email channel in v1; if one is added later it is a pointer into
-  the same queue, never a second approval path.
-- **Budget & cadence** (2026-07-04). Default **$1,000/month per app**,
-  configurable per app; the per-turn hard stop stays in roles.yaml
-  (`max_turn_budget_usd`). Per-turn telemetry rolls up to monthly spend per
-  app against its budget. Cadence: **flexi, no restrictions** — roles fire
-  per their triggers at any hour; no working-hours window.
-- **Dispatcher, approvals, and idempotency** (ratified 2026-07-06). The
-  autonomous host is a stateless `cormidia dispatch` tick that spawns detached
-  turns; turns operate in org-managed clones/worktrees under `~/.cormidia/`.
-  Critical-op approval means an expiring, single-use, action-hashed grant for a
-  later retry — never auto-execution by the orchestrator. Durable side effects
-  are git/GitHub artifacts only; labels move after the artifacts they announce;
-  merges are loop-owned squash merges after approval/review/gates.
-- **Protocol-driven loop** (ratified 2026-07-06). The loop is a pipeline of
-  versioned passes, not one opaque prompt. Planning is a Planner pipeline;
-  Builder/Reviewer passes get assembled briefs; mechanical quality gates run
-  between passes and twice at ship; no side effect keys off agent prose;
-  ticket-level parallelism is dependency/scope-aware; orchestrator failures are
-  loud. Review dimensions are risk-selected, with security always-on.
-  Acceptance criteria are a first-class quality contract: binary, mapped to
-  named tests, never summarized away, and human-touched for deep/high-risk work.
-- **Resolved operating defaults** (ratified 2026-07-06; proportionality and
-  wall-time portions superseded by the 2026-07-12 efficiency doctrine).
-  High-tier tickets stay
-  autonomous after the Builder's contract pass in v1; revisit with scorecard
-  evidence if contracts prove weak. Planner depth previously defaulted to deep
-  competing-PM planning for milestones and per-pass wall time previously
-  defaulted to 60 minutes. Route depth and time budgets now come from
-  `docs/episodes/contract.md`; neither former default can override proportional
-  admission.
-  Org WIP defaults to `max_concurrent_turns: 2`; approval grants expire after
-  24 h; dispatch ticks every 5 minutes; loop review/fix cycles cap at 3.
-  Support and Marketing are disabled per app until that app has real feedback
-  or adoption channels.
-- **Future opt-ins** (ratified 2026-07-06). A Lab role is approved as a future
-  opt-in live-environment verifier when a pipeline needs evidence artifacts
-  from real execution. Competitive intelligence stays a Marketing pipeline
-  (`ci-sweep`) unless scorecards later justify a standalone role.
-- **Approval & release boundary amendment** (ratified 2026-07-10; full design,
-  threat model, adapter feasibility, and regression requirements in
-  `docs/approvals/design.md`). Amends the 2026-07-04/06
-  approval decisions after the buildstacks.dev episode (42 decisions in one
-  afternoon, mostly false positives): (A1) the human may widen a grant at
-  decision time to rule+path scope for a ticket or app — TTL, use-count cap,
-  revocation, per-use audit; the single-use action hash stays the default and
-  self-merge, production deploy, protocol-surface writes, and
-  outside-worktree actions are never scopeable. (A2) approval semantics stay
-  later-retry, with durable approve/deny-and-rearm; as amended on 2026-07-18,
-  the next tick resumes the exact content-bound provider session after all
-  three adapters obtained retained live conformance. (A3) same-rule batch review
-  is allowed with unchanged per-item audit rows. (A4) every app declares a
-  `release:` mechanism and owner; the orchestrator (default) or SRE triggers
-  the declared deploy as a critical op after merge, SRE owns smoke/rollback,
-  and a deployable milestone with no declared mechanism fails the ship gate.
-  (A5) denial reasons persist as curated role memory so no denial is
-  re-litigated. Agents gain no unilateral power anywhere in this amendment —
-  every widening is a human act at decision time.
-- **Learning loop design** (ratified 2026-07-11; full design and schemas in
-  `docs/learning-loop/`). Cormidia's governed
-  self-improvement system: agents stop writing active memory directly and
-  emit candidates instead; a distiller routes evidence to the
-  lowest-authority useful destination (OKF concept, skill draft, protocol
-  proposal, eval/gate proposal, ticket, rejection ledger); a cross-provider
-  reviewer screens; a deterministic publisher — the sole writer of
-  gate-protected learning surfaces — executes one content-hash-bound
-  transaction per approval. Core decisions: (L1) the **episode**
-  (ticket / incident / feedback thread / campaign) is the unit of treatment
-  assignment and outcome measurement — canary lineage is `hash(episode_id)`,
-  sticky across every turn; `EpisodeRecord` is a projection over
-  process-owned state, never a second store. (L2) `authorized` and
-  `validated` are distinct permanent claims; executable `ExperimentRecord`s
-  are required only for efficacy-claiming candidates and T2/T3 activation,
-  so scoped facts are not taxed with experiment apparatus. (L3) evaluation
-  is three-layered — deterministic tests, paired offline replay from
-  `ReplayCapsule`s, human-started episode-sticky canary; V1 capsules cover
-  build episodes only, and T3 live canary exposure is forbidden (sandbox,
-  replay, shadow, or bounded manual trials only). (L4) approvals are
-  proportional: activation into context, ratified-surface merges, T2/T3, and
-  promotion are human-gated; deduplicated rate-capped tickets and unmerged
-  proposal drafts publish routinely. (L5) OKF holds bounded facts and
-  procedures — permissions, security posture, deployment, tools, gates, and
-  constitutional behavior are never expressible as memory. Milestones M1–M6
-  sequence capture → episode/replay substrate → experiment substrate →
-  governed activation → offline eval + canary → scheduled distillation;
-  autonomy is earned by measured agreement plus outcomes, never granted by
-  release.
-- **Live observability is read-only and disposable** (ratified 2026-07-12;
-  implementation contract in `docs/live-ui/design.md`). Cormidia remains
-  agent-operated through coding agents and the CLI; `cormidia observe` is a
-  human-observable projection over existing durable files plus bounded,
-  read-only GitHub state. It binds only to loopback with a per-process
-  capability token, uses HTTP snapshots plus SSE, owns no workflow state or
-  second queue, and exposes no configuration, approval, retry, label, merge,
-  deploy, or other mutation controls. GitHub `op:ready` issues are the
-  product-delivery queue; onboarding, scheduled/event intake, and approvals
-  remain separate concepts. Stopping or restarting the observer cannot affect
-  a run.
-- **Reporting is deterministic, ledger-first, and shares the observer**
-  (ratified 2026-07-12; implementation contract in
-  `docs/reporting/design.md`). `cormidia report` provides token-free org/app
-  usage, allocation, quality, budget-context, and exhaustive session/pass
-  snapshots over an explicit UTC period; the ledger is accounting authority
-  and run/task evidence enriches it without repair or hidden deduplication.
-  `cormidia observe` remains the one loopback reader server, with Live at `/`
-  and as-of Reports at `/reports`; portable HTML works without a server. No
-  reporting database, workflow controls, reconciliation side effect, provider
-  turn, or model-written management narrative is introduced. `cormidia
-  telemetry` remains the backward-compatible envelope-first forensic view.
-- **The Phase 6 release attestation fails closed, and its changed-path rule
-  binds only to the packaged artifact** (PROPOSED 2026-07-17 — ratified when the
-  Wave 5 remediation PR merges; ROOT-001). Two parts. (1) *Fail closed.* The
-  verifier requires the qualified candidate commit to be present; its
-  changed-path check now calls `changedPaths` unconditionally and throws
-  `release_attestation_candidate_commit_unavailable` when the commit is absent.
-  The previous `if (commitExists(...))` guard silently skipped the check exactly
-  where it mattered most — a shallow CI checkout (`actions/checkout` default
-  depth 1) where the candidate commit is never fetched — so CI reported green and
-  deleting git history made the integrity check pass. CI now uses `fetch-depth:
-  0`, a `phase6-candidate-<date>` annotated tag keeps the squash-orphaned
-  candidate reachable, and the workflow gains a `push:` trigger on `main` so
-  merges are verified, not only nightly-cron shallow runs. **(Amended by the
-  integrity/currency-separation entry below, PROPOSED 2026-07-17.)** The
-  original reading — that the full attestation, including the live-product
-  recompute, runs on every `main` push, so the dev suite stays red until a fresh
-  qualification campaign re-attests — is superseded: per-push/PR CI now runs
-  evidence **integrity** only (deterministic, green on intact evidence), and the
-  live product-**currency** recompute moves to a release-gated job. `fetch-depth:
-  0` is retained (the release job's changed-path check still needs history). (2)
-  *Scope.* The
-  changed-path rule binds only to files that affect the **packaged artifact** —
-  what `npm pack` ships per package.json `files` (the compiled `dist` output,
-  `agent-skills/cormidia/`, `config/launchd/`, `docs/policy.yaml.template`,
-  `docs/scheduler/design.md`, the prompts and taste trees, `TASTE.md`, `roles.yaml`,
-  `pipelines.yaml`, `README.md`, and the three packaged `scripts/*.mjs`) plus the
-  `src` sources and `package.json` that produce it. A change under those paths
-  invalidates qualification. The executable suite — `scripts/eval/`, `test/`,
-  `eval/` except `eval/contracts.yaml`, the qualification workflow, and the
-  test-runner/grading configs (`vitest.config.ts`, `vitest.live.config.ts`,
-  `playwright.observe.config.ts`) that select and grade which tests run — stays
-  governed by `executable_suite_sha256` and the proportionate-repair path;
-  `isExecutableSuitePath` is the single membership predicate shared by the
-  suite-hash and the changed-path rule so the two can never drift apart. The org
-  surfaces stay governed by `org_fingerprint`; sanitized promotion evidence under
-  `research/evals/` stays governed by the `ALLOWED_PROMOTION_PATHS` allowlist,
-  which still rejects unsanitized evidence. Every other changed path — docs other
-  than the two packed docs, `review/`, `.github/` other than the workflow,
-  install/build-environment config (`pnpm-workspace.yaml`, `pnpm-lock.yaml`,
-  `tsconfig.json`), and any untracked non-shipped file — is **outside
-  qualification scope and does not invalidate it**. The test-runner configs are
-  in the suite, not out, because they ship in no package (so
-  `release_package_sha256` never sees them) yet decide which tests run: leaving
-  them ungoverned would let a post-qualification `exclude` skip the red contract
-  tests and report the suite green. Install/build-environment config is
-  deliberately outside the suite: a bad value there fails the install/build/test
-  loudly rather than silently favouring a graded outcome, any effect on shipped
-  bytes is caught by `release_package_sha256`, and resolved runtime deps are
-  pinned by `system_fingerprint`. Rationale: qualification certifies product
-  behavior; a docs-only or reviewer-notes change cannot alter graded behavior, and
-  AGENTS.md already promises "Docs-only changes: nothing to run." The prior
-  all-paths rule contradicted that promise — a single docs commit (`#80`, adding
-  `docs/architecture/conceptual-overview.md`) silently invalidated the evidence
-  while CI still reported green.
+- **Approval decisions and delivery acknowledgements are separate durable
+  facts.** Classification is action-aware: executable or typed operation,
+  targets, redirections, environment, destination, and effect are evaluated
+  before agent-authored prose; search patterns, comments, messages, and heredoc
+  bodies are data, while executable substitutions and obfuscated real actions
+  remain gated. A human approval persists the exact content-bound action in
+  `approved`; it never claims the effect happened. A later dispatch may execute
+  only an orchestrator-owned typed allowlist (currently GitHub issue
+  create/comment, plus the existing specialized release handoff), recording
+  `executing → executed|failed|ambiguous`. Idempotency markers reconcile a crash
+  after a remote effect; ambiguity is never retried blindly. External
+  publication is never broadly scopeable. Critical SRE health events file
+  exactly one source-linked `op:incident` issue; analysis and filing remain
+  distinct completion claims.
+
+- **Approval contract.** (1) A gate denial suspends the turn — the approval is
+  raised synchronously and the turn waits; it is not an after-the-fact
+  notification. (2) An undecided approval expires (default 24 h, policy-
+  configurable). On expiry the raising turn's artifacts and worktree are
+  preserved, its claim is released, and the turn resolves as blocked rather
+  than failed; a pause is not a merit failure. (3) An agent operating an org
+  may decide ordinary approvals; the never-scopeable rules stay human. An agent
+  decision is recorded against a distinct agent identity, never presented as a
+  human one. The org can never approve its own release. (4) `secrets-or-auth`
+  is operation-aware and fails closed: classification on whether an action
+  actually emits file contents, and any command whose effect cannot be parsed
+  is treated as critical.
+
+### Release & qualification
+
+- **Qualification is proportionate to material release risk.** Evaluation
+  exists to reduce material product risk, not to create an infinite proof loop.
+  Genuine product, safety-boundary, provider-accounting, learning-integrity,
+  build, typecheck, core-test, required-CI, or budget-ceiling failures block
+  release. An evaluator-only defect does not trigger a recursive adapter and
+  full-candidate cascade when deterministic coverage and retained live evidence
+  already bound the affected risk; preserve the failure and track it as
+  disclosed release debt. One repaired candidate receives at most one decisive
+  full qualification campaign unless a genuine product defect materially
+  changes the candidate. Releases report residual evidence debt honestly.
+  Canonical shipping policy: `docs/DEVELOPMENT.md` and
+  `docs/qualification/`.
+
+- **Release-evidence gate (RQ-1).** A release needs two things: current
+  qualification evidence bound to the exact candidate being shipped, and a
+  separate human approval of exactly that release. Deterministic contracts
+  admit the exact candidate before any spend. Bounded L3/L4 campaign evidence
+  is tracked on two separate axes — completeness and verdict; candidate and
+  baseline quality evidence are paired per site and exact producer/evaluator
+  tuple; uncalibrated judge scores stay advisory. Evaluator debt can be
+  accepted only as a separate immutable human disposition and never rewrites
+  failed or inconclusive evidence. One canonical manifest binds commit,
+  package bytes, policy, prompts, assignments, golden references, tools, and
+  ceilings; the deterministic attestation admits only a content-bound
+  evidence-only descendant whose package and qualification inputs are
+  identical. The supported tag/npm path verifies that attestation, and
+  publication proceeds only when the GitHub-authenticated tag-push actor, the
+  approval's `approved_by` identity, and an app-configured release approver
+  are the same exact identity. Release verification reruns the mandatory
+  gates on the tag candidate; F-PT-018 remains an honest merge-enforcement
+  limitation. The human-authored threat model, HB-073 abuse-case detectors,
+  seven-day soak, and natural credential rotation are future L5 assurance
+  outside RQ-1: their absence stays visible and is never represented as a
+  pass, but it does not block RQ-1. Do not claim Cormidia is a fully proven
+  organization until the real-time soak (`I-LIVE-01` in
+  `docs/qualification/design.md`) passes its genuine, separately authorized
+  campaign.
+
 - **The offline suite asserts evidence integrity; product-currency is enforced
-  only at the release gate** (PROPOSED 2026-07-17 — ratified when this PR merges;
-  P0-07 / ROOT-001 follow-up). The Phase 6 contract verifier had one entry point
-  that mixed two separable questions: *is the committed qualification evidence
-  genuine and internally coherent* (integrity — deterministic, a function of the
-  committed attestation and its committed campaign) and *does the live product
-  still match the qualified pin* (currency — recomputed from the working tree by
-  live `npm pack`, executable-suite, org-surface, on-disk-byte, and git
-  changed-path hashing). Because the two were fused, the nine required contract
-  tests went red the instant a legitimate src change moved the package hash away
-  from `release_package_sha256` — an accurate release check, but mis-scoped into
-  the dev suite, which made `pnpm test` structurally un-green-able after any src
-  change and contradicted AGENTS.md's "Any src change: pnpm test". *Decision:* the
-  offline suite (`pnpm test`, `test:transformation`) asserts **integrity only** —
-  `verifyAttestationIntegrity` / `verifyContractEvidence(..., "integrity")` run
-  the well-formedness, campaign-binding, qualified-pin, self-consistency, and
-  allowlist checks and are green whenever the committed evidence is intact.
-  **Product-currency is enforced fail-closed only at the release gate:**
-  `eval:attest-release` refuses to *mint* an attestation for a moved product
-  (`release_package_bytes_changed_after_qualification`); `eval:promote` and the
-  new `eval:release-verify` *verify* it in full `"release"` scope
-  (`release_attestation_package_mismatch`); and a dedicated `release-currency` CI
-  job — gated to release tags and manual `workflow_dispatch`, deliberately off
-  ordinary push/PR — runs `eval:release-verify` so releases are gated while
-  per-commit CI stays honest-green. `verifyReleaseAttestation`'s external
-  behavior is unchanged (same codes, same order, same ROOT-001 fail-closed on an
-  absent candidate commit); integrity is a strict prefix of it. *Rationale:* this
-  restores the "Any src change: pnpm test" contract without weakening the release
-  gate — a moved or fabricated product still cannot be minted, promoted, or
-  released without a new qualification campaign. **This supersedes the reading of
-  the P0-07 entry above that the dev suite stays red until re-qualified.** A
-  release from post-Wave-5 `main` therefore still requires a fresh qualification
-  campaign (Option 1); that requirement is now enforced by the release-currency
-  gate rather than by red dev tests.
-- **Candidate qualification is decoupled from learning-activation eligibility;
-  strict paired-learning improvement gates activation, not qualification**
-  (PROPOSED 2026-07-17 — ratified when this PR merges). The Phase 6 candidate
-  campaign runs a predeclared six-arm AB/BA/AB paired-learning experiment: the
-  T1 treatment must strictly beat its paired control on all three pairs to be
-  `improved`. `qualify()` previously treated any non-`improved` aggregate
-  (including a valid, guardrail-clean `inconclusive`) as a qualification failure
-  — via `qualificationMiss` and an "invalid supplemental evidence" classification
-  — so the whole candidate, and therefore the release-currency gate, went
-  `invalid` whenever a single control artifact happened to score at the 8/8
-  ceiling (a tie → delta 0 → inconclusive). Because the treatment reliably hits
-  the ceiling and all the variance is in the controls, this made candidate
-  qualification a **stochastic ~50/50 gate driven by control draws, unrelated to
-  product quality**, and policy forbids rerunning an aggregate experiment for a
-  better draw. Empirically the qualified candidate `c6834cf0` drew controls at
-  7/6/7 (`+1,+2,+1`); the post-remediation `830028b` re-qualification drew a
-  control at 8/8 on one pair (`0,+2,+1`) and was correctly, but unshippably,
-  `invalid` despite 30/30 product attempts passing with exact settlement and zero
-  safety misses. *Decision:* candidate qualification requires a **valid,
-  guardrail-clean, non-regressing** paired-learning measurement — `improved` and
-  `inconclusive` both pass; `regressed` (any negative delta or hidden-guardrail
-  failure) and `invalid` (malformed/incomplete) still fail. **Strict `improved`
-  remains the sole outcome that may proceed to the separately-authorized
-  publish/activate/rollback activation, and to promotion of the learning
-  contract** — the activation and promotion paths are unchanged. Learning
-  *capture* (100% eligible capture) was already, and remains, the operations SLO
-  for the loop (`docs/episodes/contract.md` → Threshold semantics). This is the same
-  class of mis-scoping as the integrity/currency separation above: an accurate
-  check (does the treatment strictly improve artifacts *on this draw*) was
-  embedded where it structurally blocked a legitimate release. *Rationale
-  (first-principles):* learning is instrumental and outcome-accountable
-  (outcome-accountable learning) — it succeeds only by improving a *later
-  comparable episode that had headroom*. A qualification that forces an improvement out of
-  every episode — including ones where the untreated baseline already scores at
-  the ceiling — does not measure learning; it manufactures deltas, and every
-  manufactured delta competes for the same finite attention and risk budget the
-  org should reserve for the few lessons that actually move the needle. **The org
-  does not need to learn from everything; trying to dilutes the high-leverage
-  learnings.** So qualification certifies that the learning *loop* is healthy —
-  it captures every eligible episode, forms grounded/guardrailed candidates,
-  passes independent review, and never regresses — as an SLO alongside product
-  behavior, safety, accounting, settlement, and the distribution SLOs, and
-  reserves the strict `improved` verdict for **activation**, where the org
-  actually spends attention promoting a lesson only when a real, measured
-  improvement exists. Declining to activate where a control is already at the
-  ceiling is correct behavior, not a failure. Candidate qualification therefore
-  does not turn on a three-sample experiment's luck against a strong baseline. No
-  product, safety, accounting, settlement, grader,
-  threshold, or activation contract is weakened — regressions still fail
-  qualification, activation still requires strict improvement, and the executable
-  suite is `validateLearningPairEvidence(…, "qualification"|"activation")` with
-  the strict activation mode as the default. **This does not retroactively
-  qualify any prior campaign** (each is immutable at its own `campaign_sha256`
-  and bytes); a release from `main` still requires a fresh qualifying campaign.
+  only at the release gate.** `pnpm test` asserts that committed qualification
+  evidence is genuine and internally coherent. Whether the live product still
+  matches the qualified pin is enforced fail-closed only at the release gate.
+  A moved or fabricated product cannot be minted, promoted, or released without
+  a new qualification campaign.
+
 - **CI runs change-aware lanes, executes the offline suite exactly once, and
-  governs its own lane-admission logic** (PROPOSED 2026-07-18 — ratified when
-  this PR merges; issue #99). Three parts.
-  (1) *Deduplication.* The single `deterministic` job ran `test:transformation`,
-  `eval:deterministic`, the full vitest suite, and `test:transformation:strict`
-  in sequence. Each of those umbrella scripts bundles a vitest invocation with a
-  distinct non-vitest assertion, so `test/transformation` + `test/eval` executed
-  **four times per PR/push and six times nightly** (~340s/run of pure
-  duplication, measured on run 29637905909). The distinct assertions cost ~2s
-  total, and `evaluateContracts` verifies evidence presence and the declared
-  debt set *without probing source text*, so one offline-suite execution plus
-  the atomic `eval:contracts` / `eval:contracts:strict` gates is exactly
-  equivalent coverage. The strict gate remains **unconditional** on every CI
-  invocation (J-REL-01), and the nightly shuffle is retained as the one
-  deliberate repetition because it tests a distinct invariant (order dependence
-  at two workers, concurrency dependence at one).
-  (2) *Admission.* Lanes are admitted from the changed paths, so a docs-only
-  change consumes no qualification runner — which is what AGENTS.md ("Docs-only
-  changes: nothing to run") and the 2026-07-17 qualification-scope decision
-  already promised, and which per-commit CI had never implemented. Admission
-  fails open into **more** testing: schedules, tags, manual dispatch, an
-  unresolvable diff, and any unrecognised path admit every lane; only provably
-  behaviour-free paths admit none. Pushes to `main` keep the core lane because
-  this repository has no branch-protection enforcement. Superseded pull-request
-  runs are cancelled; `main` and tag runs never are. This also adds the
-  Observer/Reports browser, smoke, build, and pack checks that AGENTS.md
-  required but per-commit CI had never run.
-  (3) *Amendment — the executable suite now governs `.github/workflows/**` and
-  `scripts/ci/**` as trees* rather than the single filename
-  `.github/workflows/efficiency-qualification.yml`. This **widens** governance
-  and is the direct extension of the ROOT-001 reasoning that put
-  `vitest.config.ts` in the suite: lane admission decides which tests execute,
-  so under the old exact-filename rule a second workflow file — or a change to
-  the path classifier that admitted no lane — could skip the red contract tests
-  while CI still reported green. Both trees ship in no package, so
-  `release_package_sha256` never sees them; `executable_suite_sha256` now does.
-  The entry above that lists ".github/** other than the workflow" as outside
-  qualification scope is amended to "outside the workflows tree". No product,
-  safety, accounting, qualification, or release assertion is weakened: the
-  release-currency gate keeps its tag/dispatch gating, full history, and
-  fail-closed behaviour, and `test/transformation/release-gate.test.ts` gains
-  regression guards that the offline suite runs exactly once, that no umbrella
-  re-run reappears, that the strict gate carries no `if:`, that concurrency
-  never cancels `main`, and that no provider-spending or externally mutating
-  command can enter CI.
-- **Cormidia develops and distributes Cormidia: self-hosting ratified with
-  uniform human-approved releases** (ratified 2026-08-02; clarified in v2.13).
-  The product's
-  public front door is `cormidia/cormidia-web` (homepage, install docs,
-  community issues, release notes; never source). The platform source is the
-  private repo `cormidia/Cormidia`, and the npm package is the unscoped
-  `cormidia` package. The standing Cormidia org may register, onboard, and
-  operate both repositories as apps; neither app's onboarding is conditioned
-  on the other first proving the loop. This amends the prior standing rule
-  that the product does not self-host its own development. Retained carve-outs,
-  tighten-only: (1) *Release authority stays human and is uniform across apps*
-  — every release-shaped action for every app, including website deployment,
-  external publication, npm publish, version tags, and release handoff,
-  requires explicit human approval. Approval is not execution; after approval,
-  Cormidia may execute only the exact approved action through the ordinary
-  durable release mechanism. The org can never approve its own release, and
-  there is no manual-execution-only exception for the Cormidia source app.
-  (2) *Same rules as any developer* — the org obeys AGENTS.md
-  working rules; validation policy stays tighten-only; gates and thresholds
-  change only by human ratification. (3) *Authority separation stands* —
-  repository instructions and linked developer policy are app-scoped context
-  for source work, not org-global authority. Development grants, raw eval and
-  campaign state, and outer-session instructions never enter org-home prompts,
-  state, learning, or approvals. (4) *Human-ratified surfaces keep human merge*
-  — TASTE.md,
-  roles.yaml, docs/PURPOSE.md, pipelines.yaml, prompts/**. v1.5 stands
-  unchanged: the source repo never doubles as the active org home; org state
-  lives in `~/.cormidia/<org>/`. *Rationale:* the recoverability boundary is
-  proven (package/org/state separation; onboard, reset, and verify are
-  built paths), and what the old rule actually protected — authority
-  separation, not development itself — is preserved by the carve-outs,
-  which is where the risk of a self-modifying system actually lives.
-  Distribution stays gated: publishing to npm is release-shaped work and
-  waits on reinstated release evidence per v2.9/v2.10 (release gating
-  suspended; L3/L4/L5 campaigns pending). **Exact one-release exception:** the
-  owner explicitly authorized publication of `cormidia@0.1.1` despite that
-  suspended evidence gate. This authorization applies only to version 0.1.1,
-  is not release evidence, does not reactivate or weaken the gate, and does not
-  authorize any later version. The candidate must still pass the complete
-  offline, typecheck, build, packaging, and installed-command checks before
-  publication.
+  governs its own lane-admission logic.** Lanes are admitted from the changed
+  paths; admission fails open into **more** testing. The strict contracts gate
+  is unconditional on every CI invocation. The executable suite governs
+  `.github/workflows/**` and `scripts/ci/**` as trees. GitHub Actions remains
+  the sole CI orchestrator and check system of record. Ordinary internal
+  pull requests and `main` pushes run Core Checks on one repository-scoped,
+  one-job Linux ARM64 container on the operator's Mac. Pull requests from forks
+  and an explicit SHA-guarded manual recovery dispatch use GitHub-hosted
+  compute. Every release-shaped job stays GitHub-hosted and retains the
+  separate human release gate. Runbook: `docs/ci/self-hosted-runner.md`.
+
+### Money & efficiency
+
+- **Input tokens are not a budget dimension.** Work is bounded by money
+  (equivalent cost), provider turns, active time, and human decisions — all
+  derived from configured app and role budgets. Nothing admits, routes, or
+  caps work by input-token counts. Historical manifests may still carry the
+  old `route_budget_overrides` key; it is accepted and ignored.
+
+- **Efficiency doctrine.** Efficiency is a correctness property and never
+  weakens safety, independent review, evidence, or critical-operation
+  governance. Provider accounting and execution have distinct identities: every
+  provider turn settles exactly once, every provider or mechanical execution
+  step terminates exactly once, and mechanical work creates no provider
+  settlement. Campaigns are predeclared and retain every attempt; missing live
+  auth/usage or a skipped required case is invalid or incomplete, never green.
+  Qualification runs only in isolated eval orgs and disposable apps; production
+  is read-only confirmation, never calibration. Canonical contract:
+  `docs/episodes/contract.md`.
+
+- **Budget & cadence.** Default **$1,000/month per app**, configurable per app;
+  the per-turn hard stop stays in roles.yaml (`max_turn_budget_usd`). Per-turn
+  telemetry rolls up to monthly spend per app against its budget. Cadence:
+  **flexi, no restrictions** — roles fire per their triggers at any hour.
+
+### Learning & knowledge
+
+- **Paired-learning improvement gates activation, not qualification.** This
+  governs the learning loop, not ordinary delivery: when the org proposes a
+  change to its own memory or skills, that candidate is measured by paired
+  replay — the same episodes with and without the change. Qualification
+  requires a valid, guardrail-clean, non-regressing measurement: `improved`
+  and `inconclusive` both pass; `regressed` and `invalid` fail. Only strict
+  `improved` may proceed to separately-authorized activation/rollback and to
+  promotion of the learning contract. Capture of every eligible episode
+  remains the operations SLO. Details: `docs/learning-loop/` and
+  `docs/qualification/design.md`.
+
+- **TASTE.md — the org's constitution.** Each agent loads org-wide `TASTE.md`
+  → per-role addenda → per-app overrides in the target repo, through each
+  harness's native context channel. Where taste is mechanically checkable it
+  compiles to gates; the Reviewer enforces the un-lintable residue. Editing
+  TASTE.md is a protocol change → human-gated.
+
+- **TASTE layers answer different questions.** The stack is not an override
+  cascade of one document type. Org `TASTE.md`: values + engineering
+  constitution. App `.cormidia/TASTE.md`: product charter. Role
+  `taste/<role>.md`: craft standards. Assembly is concatenation in fixed order
+  (org → role → app). The org's "What we never do" section is unoverridable.
+
+- **Knowledge & improvement — three tiers + forward scorecards.**
+  *Constitution:* TASTE.md — slow-moving, human-gated. *Skills:* curated
+  distillations of recurring lessons — review-gated. *Working memory:* per-role
+  knowledge bundles in OKF (markdown + YAML frontmatter). Agents do not write
+  active memory directly; they emit candidates into the learning loop below.
+  *Scorecards:* every role is graded forward; a weekly retro turns scores into
+  proposed memory, skill, and TASTE changes (human-gated).
+
+- **Learning loop.** Agents emit candidates; a Distiller routes evidence to the
+  lowest-authority useful destination; a cross-provider Learning Reviewer
+  screens; a deterministic publisher — the sole writer of gate-protected
+  learning surfaces — executes one content-hash-bound transaction per approval.
+  (L1) The episode is the unit of treatment assignment and outcome measurement.
+  (L2) `authorized` and `validated` are distinct permanent claims. (L3)
+  Evaluation is three-layered — deterministic tests, paired offline replay,
+  human-started episode-sticky canary; T3 live canary exposure is forbidden.
+  (L4) Approvals are proportional: activation into context, ratified-surface
+  merges, T2/T3, and promotion are human-gated. (L5) OKF holds bounded facts
+  and procedures — permissions, security posture, deployment, tools, gates, and
+  constitutional behavior are never expressible as memory. Full design:
+  `docs/learning-loop/`.
+
+### Platform & packaging
+
+- **TypeScript orchestrator, no multi-agent framework.** The orchestrator is
+  ground-up TypeScript (strict mode) with no third-party multi-agent
+  framework. Three adapters share one interface, each driving its provider's
+  native harness: Anthropic roles → Claude Agent SDK; OpenAI roles → Codex
+  App Server through the pinned `@openai/codex` CLI and documented JSON-RPC
+  over stdio (`@openai/codex-sdk` is not the adapter surface); all other
+  models → pi embedded via its SDK. Where a harness cannot do something, the
+  gap is documented in the capability matrix, never silently absorbed. There
+  is no back-compat obligation to the predecessor orchestrator.
+
+- **Single-runtime orgs are a first-class profile.** Nothing in the
+  orchestrator assumes a mix — `runtime:` is per-role config. The critical-ops
+  gate and per-turn telemetry are adapter-level conformance requirements.
+
+- **An employee is a team, not a single model — but the harness runs the
+  team.** Each role is one harness turn from the orchestrator's view; inside
+  the turn the harness may spawn subagents. (1) Same-provider tiering happens
+  intra-turn; cross-provider mixing is an org-level flow between roles. (2) The
+  org contract is at the artifact level. Per-turn cost telemetry makes silent
+  fan-out visible; gates/permissions bind the whole session including
+  subagents. `roles.yaml` carries a per-role delegation policy.
+
+- **Repo shape — one repo, one package.** Single TypeScript package (no
+  workspace). Layering is a module boundary: `src/runtime` ← `src/loop` ←
+  `src/org`, imports flowing downward only.
+
+- **Named Cormidia; the predecessor product name is retired completely.**
+  Product vocabulary stays org, app, and role; the brand is never a unit
+  inside the product. The CLI, npm package, and GitHub organization are all
+  `cormidia`; the default state root is `~/.cormidia`; environment variables
+  use only the `CORMIDIA_*` prefix; app-owned artifacts live only at
+  `.cormidia/`. Source repository: `cormidia/Cormidia`; front door:
+  `cormidia/cormidia-web`.
+
+- **Runtime host.** The dispatcher is a plain CLI entrypoint any scheduler can
+  call. State lives in git plus files, so moving hosts is clone plus secrets.
+  No lock-in to GitHub Actions or a particular OS.
+
+- **Packaging, homes, and bootstrap boundary.** Cormidia's installed
+  package/source, committed org home, local runtime state, and app repo are
+  four distinct paths. `cormidia org init` creates a complete org home from
+  packaged templates and records an active pointer; `CORMIDIA_ORG_HOME` and
+  `CORMIDIA_STATE_HOME` are explicit overrides. Runtime state defaults to
+  `~/.cormidia/<org>/` and never lives in git. `cormidia bootstrap` requires an
+  active org, accepts a local app checkout, emits only app-owned `.cormidia/`
+  artifacts there, and registers the app in the org's `apps.yaml`. The Cormidia
+  source repo never doubles as the active org merely because it is the current
+  working directory.
+
+- **Local development installation is source-backed.** `pnpm link:local`
+  keeps the `cormidia` command and Agent Skill live against the source tree;
+  packed installations run the compiled `dist/`. Agents discover the installed
+  surface through `cormidia capabilities --json`, `cormidia context --json`,
+  command help, and the packaged skill, never by reading implementation code.
+
+### App lifecycle & self-hosting
+
+- **Greenfield creation is create-then-bootstrap.** `cormidia new-app` creates
+  a separate target app repo skeleton with seed vision/requirements docs and
+  an initial issue packet, then reuses `cormidia bootstrap`. Pushing the
+  private GitHub repo, running the Planner, and starting the loop remain
+  explicit follow-up steps.
+
+- **Archive-backed app reset.** `cormidia app reset <app>` plans by default;
+  `--execute --confirm <app>` first writes a checksummed archive outside the
+  state home, then removes only that app's Cormidia-managed state and registry
+  entry. It refuses active runs, journals, locks, and pending approvals;
+  GitHub cleanup closes only identifiable Cormidia work; the repository,
+  default branch, human checkout, and retained closed history stay intact.
+
+- **Sandbox proof before production onboarding.** Roadmap smokes are replaced
+  by real, disposable sandbox repos before production apps are onboarded.
+  Production-app inventory lives in README → Status.
+
+- **Cormidia develops and distributes Cormidia: self-hosting with uniform
+  human-approved releases.** The product's public front door is
+  `cormidia/cormidia-web` (homepage, install docs, community issues, release
+  notes; never source). The platform source is the private repo
+  `cormidia/Cormidia`, and the npm package is the unscoped `cormidia` package.
+  The standing org may register, onboard, and operate both repositories as
+  apps; neither app's onboarding is conditioned on the other first proving the
+  loop. Carve-outs, tighten-only: (1) *Release authority stays human and is
+  uniform across apps* — every release-shaped action for every app, including
+  website deployment, external publication, npm publish, version tags, and
+  release handoff, requires explicit human approval. Approval is not execution;
+  after approval, Cormidia may execute only the exact approved action through
+  the ordinary durable release mechanism. The org can never approve its own
+  release. (2) *Same rules as any developer* — the org obeys AGENTS.md working
+  rules; validation policy stays tighten-only; gates and thresholds change only
+  by human ratification. (3) *Authority separation stands* — repository
+  instructions and linked developer policy are app-scoped context for source
+  work, not org-global authority. Development grants, raw eval and campaign
+  state, and outer-session instructions never enter org-home prompts, state,
+  learning, or approvals. (4) *Human-ratified surfaces keep human merge* —
+  TASTE.md, roles.yaml, docs/PURPOSE.md, pipelines.yaml, prompts/**. The source
+  repo never doubles as the active org home; org state lives in
+  `~/.cormidia/<org>/`. `docs/DEVELOPMENT.md` is the canonical detailed
+  development policy; developer-only files are excluded from the installable
+  org-runtime package.
+
+  **Exact one-release exception:** the owner explicitly authorized publication
+  of `cormidia@0.1.1` despite the then-suspended evidence gate. This
+  authorization applies only to version 0.1.1, is not release evidence, does
+  not reactivate or weaken the gate, and does not authorize any later version.
 
 - **Jobs: the org runtime expresses non-product work through a second entry
-  point** (ratified 2026-08-07). An organization does work that is not a product:
-  a strategy exercise, a cross-team synthesis, a one-off analysis. Such work has
-  a goal, a dependency order, intermediate artifacts, and a human steering it,
-  and it has no repository, ticket, or PR. Cormidia admits it as **jobs** —
-  named, dependency-ordered step graphs run once or on demand, executed at most
-  one step at a time, resumable across process death, shipped as a separate
-  `cormidia-job` binary in the same package. A job may be app-scoped (evidence
-  lands under that app) or unscoped in the active or default org (evidence lands
-  under the `adhoc` slot). This amends "Cormidia is an installable
-  package/runtime, not an app" only in entry-point count, not in kind: the
-  runtime still contains no app code, and "one runtime, many apps" stands.
-  Carve-outs, tighten-only: (1) *Jobs carry no verification authority* — no
-  independent review, no typed merit verdict, no ticket state machine, and no
-  GitHub interaction of any kind. A completed step means the provider returned
-  and the step's declared deterministic checks passed; it never means the work is
-  correct, and a job can never be a release or deployment path. (2) *The gate
-  still binds* — every job step passes the critical-ops gate, so reduced
-  verification never becomes reduced containment. (3) *Spend stays truthful* —
-  every job provider turn settles into the org ledger exactly once under a
-  distinct job attribution, and `cormidia-job` invoked from inside a Cormidia
-  turn is refused. (4) *No learning input* — job output never feeds the
-  distiller or becomes a learning or calibration candidate; unreviewed prose must
-  not become a governed candidate. (5) *Authority is a role, not an assignment* —
+  point.** An organization does work that is not a product: a strategy
+  exercise, a cross-team synthesis, a one-off analysis. Cormidia admits it as
+  **jobs** — named, dependency-ordered step graphs run once or on demand,
+  executed at most one step at a time, resumable across process death, shipped
+  as a separate `cormidia-job` binary in the same package. A job may be
+  app-scoped or unscoped in the active or default org. This amends entry-point
+  count, not kind: the runtime still contains no app code, and "one runtime,
+  many apps" stands. Carve-outs, tighten-only: (1) *Jobs carry no verification
+  authority* — no independent review, no typed merit verdict, no ticket state
+  machine, and no GitHub interaction of any kind. A completed step means the
+  provider returned and the step's declared deterministic checks passed; it
+  never means the work is correct, and a job can never be a release or
+  deployment path. (2) *The gate still binds* — every job step passes the
+  critical-ops gate. (3) *Spend stays truthful* — every job provider turn
+  settles into the org ledger exactly once under a distinct job attribution,
+  and `cormidia-job` invoked from inside a Cormidia turn is refused. (4) *No
+  learning input* — job output never feeds the distiller or becomes a learning
+  or calibration candidate. (5) *Authority is a role, not an assignment* —
   job steps run as one generic non-product `operator` role that carries the
   authority ceiling; a step may name its own harness/model/effort and can never
-  widen what the turn is permitted to do. *Rationale:* the ad-hoc need is real
-  and recurring, and the alternative is not "users run governed work instead" —
-  it is that the work happens outside Cormidia entirely, unobserved and
-  unbounded. Admitting it under an explicitly weaker, explicitly contained
-  contract keeps the evidence and the gate while being honest that verification
-  is absent. The separate binary is the honest signal: two names, two promises.
-  **Scope clarification on CORMIDIA-INV-016** (validation obligation lineage,
-  finding F-PT-025): that invariant governs *delivery units* — autonomously
-  executed work that reaches readiness through a RoadmapPlan/EpisodePlan
-  admission path and lands in a product or performs an operational effect. A job
-  step has no readiness transition, no delivery-unit membership, and no external
-  effect, so the invariant's own precondition is unsatisfiable for it; jobs are
-  outside its domain rather than waived from it. Jobs remain bound by the
-  standing no-green-by-absence rule, which is what makes their declared
-  per-step output checks mandatory. Status: **build-complete and offline-proven,
-  not outcome-validated** — real-token validation against real apps with outcome
-  measurement (L-JOB-LIVE) is a separate authorized campaign that has not run.
+  widen what the turn is permitted to do. Jobs are outside CORMIDIA-INV-016's
+  domain (finding F-PT-025): that invariant governs delivery units; a job step
+  has no readiness transition and no external effect. Jobs remain bound by the
+  standing no-green-by-absence rule. Status: **build-complete and
+  offline-proven, not outcome-validated.** Contract: `docs/jobs/design.md`.
 
-## Prior art (ours)
+### Observability & reporting
 
-**claude-loop** (read-only reference checkout at
-`scratchpad-gitignore/claude-loop-teams/`) already proved the core
-shape: vision.md → plan → dev → review → ship, state in plain markdown in the
-target repo, per-role model selection in `roles.yaml`, fresh agent sessions,
-squash-merge to main. Cormidia is its successor, generalizing on two axes:
+- **Live observability is read-only and disposable.** `cormidia observe` is a
+  human-observable projection over existing durable files plus bounded,
+  read-only GitHub state. It binds only to loopback with a per-process
+  capability token, owns no workflow state, and exposes no mutation controls.
+  Stopping or restarting the observer cannot affect a run. Contract:
+  `docs/live-ui/design.md`.
 
-| Axis | claude-loop | Cormidia |
-| --- | --- | --- |
-| Runtime | Claude CLI only | model-agnostic body per role |
-| Roles | build pipeline (plan/dev/review/ship) | standing org incl. SRE + Support |
-| Time | batch runs, invoked by hand | scheduled, long-running, recovers from failure |
-| Memory | deliberately none ("no memory to go stale") | curated long-term memory per role |
-
-Other in-house experiments worth mining for lessons: `agent-team-template-codex`,
-`codex-orchestrator`, `codex-runner`, `openclaw-orchestrator-platform`,
-`ralph-loop-modified`.
+- **Reporting is deterministic, ledger-first, and shares the observer.**
+  `cormidia report` provides token-free org/app usage, allocation, quality,
+  budget-context, and exhaustive session/pass snapshots over an explicit UTC
+  period; the ledger is accounting authority. No reporting database, workflow
+  controls, or model-written management narrative. Contract:
+  `docs/reporting/design.md`.
 
 ## Design pressure points
 
@@ -860,288 +516,3 @@ These are the areas where the product earns trust or fails:
   are deleted, not hedged.
 - **Human load** — one app-tagged approval queue, one live-app posture by
   default, and production onboarding only after sandbox proof.
-
-## Open questions
-
-No high-level PURPOSE questions are open right now. Current build-time
-verification questions live with the subsystem docs and the issue-tracker items that
-will resolve them.
-
-## Status
-
-- 2026-07-03 — folder created, purpose drafted.
-- 2026-07-03 — v0.2: first app = Civic Intelligence; library-not-app framing;
-  laptop → DO droplet; critical-ops-only approval; claude-loop named as prior art.
-- 2026-07-03 — v0.3: build-vs-buy resolved — Python rewrite reusing claude-loop
-  patterns; runtime layer decided (Claude Agent SDK + Codex app-server native,
-  pi for everything else); pi reviewed and adopted
-  (`research/2026-07-03_runtime-layer.md`).
-- 2026-07-03 — v0.4: moved to `~/Build/agentic-org`; employee-as-team decided —
-  intra-role delegation lives in the harness, cross-provider mixing lives at the
-  org level.
-- 2026-07-03 — v0.5: TypeScript over Python (agentic-org supersedes claude-loop
-  outright); Marketing role added; all-pi single-runtime profile made
-  first-class; TASTE.md constitution + three-tier knowledge (TASTE → skills →
-  OKF bundles) + forward scorecards decided.
-- 2026-07-03 — v0.6: repo shape decided (one repo, one package, layered
-  modules); scaffold landed — Runtime contract, critical-ops gate v0 +
-  conformance seed (16 tests green), roles.yaml loader, CLI (`roles`,
-  `doctor`), TASTE.md v0. Adapters are documented stubs. Python claude-loop to
-  be archived by Bikram.
-- 2026-07-03 — v0.7: agentic-org received its predecessor product brand and
-  original repository. Superseded by the complete Cormidia rename in v2.11.
-- 2026-07-04 — v0.8: pilots decided — civic (app #1) drives the loop
-  milestones via real acceptance tasks; **buildstacks.dev** added as app #2
-  to prove config-not-fork and the SRE/approval surface. Multi-app designed
-  in, operated one-live-app-at-a-time; one-turn-one-app invariant; memory
-  and scorecards partitioned per (role, app). Bootstrap artifact home
-  decided (`.cormidia/` in the product repo; org-home repo optional). This
-  artifact-home choice was superseded by v1.5's required separate org home. TASTE
-  layer semantics clarified (org values / app charter / role craft).
-  Superseded by v1.0's sandbox-first validation path for roadmap acceptance;
-  civic/buildstacks remain production onboarding targets.
-- 2026-07-04 — v0.9: approval channel decided — CLI queue, reviewed one by
-  one, persisted audit trail. Budget decided — $1,000/month per app,
-  configurable per app. Cadence decided — flexi, no restrictions. Open
-  question #1 (budget & cadence) closed.
-- 2026-07-06 — v1.0: PURPOSE kept as the high-level decision log; validation
-  path updated. Product is build-complete at M10; civic and buildstacks.dev
-  are production onboarding after that point. operon-sandbox-gamma approved,
-  then created, as the third sandbox target for SRE/Support/Marketing
-  functional coverage.
-- 2026-07-06 — v1.1: architecture.md §11 and loop.md §11 ratified; remaining
-  human defaults resolved (60 min wall-clock cap, deep milestone planning /
-  lighter weekly groom, autonomous high-tier contracts, future Lab opt-in,
-  competitive intelligence as Marketing pipeline, Support/Marketing disabled
-  per app until channels exist).
-- 2026-07-06 — v1.2: buildstacks.dev production onboarding executed after
-  M10: private repo `buildstacks-dev/buildstacks.dev` created, bootstrapped
-  with app-owned `.cormidia/` artifacts, and registered in the Cormidia org as
-  `status: onboarding`. Civic remains pending; buildstacks.dev is not live
-  until the human flips its app status.
-- 2026-07-06 — v1.3: post-M12 hardening and live verification recorded (no
-  Decided changes; three enforcement notes on already-ratified defaults).
-  (1) The per-turn budget hard stop (`max_turn_budget_usd`, "Budget & cadence"
-  above) is now enforced across **all three adapters** — Claude natively, Codex
-  against an estimated cost from cited prices, pi against real provider cost —
-  not on Anthropic runtimes alone. (2) "Support and Marketing are disabled per
-  app until channels exist" ("Resolved operating defaults" above) is now
-  actually enforced by channel-presence gating: audience-facing roles skip an
-  app that declares no matching channels, with an observable reason — no longer
-  only a cadence convention. (3) The product was verified build-complete
-  end-to-end: the live build loop drove planted tickets on the sandbox apps
-  through ready → build → gates → review → ship → squash-merge, and the Claude
-  live conformance suite re-passed.
-- 2026-07-07 — v1.4: greenfield creation boundary recorded. `cormidia new-app`
-  creates a separate product repo scaffold, starter product docs, and initial
-  issue packet, then converges through the existing bootstrap/register path.
-- 2026-07-09 — v1.5: packaging/onboarding boundary reconciled. Cormidia is a
-  locally installable CLI with a source-backed development link and packaged
-  Agent Skill; package, org, state, and app paths are explicit and separate;
-  bootstrap always joins a complete active org and no longer creates a nested
-  single-app org profile.
-- 2026-07-10 — v1.6: approval & release boundary amendment ratified (A1–A5:
-  scoped grants, approve-and-rearm, batch review, release handoff, denial
-  lessons; full design `docs/approvals/design.md`). Recorded in
-  Decided above; implemented through Stage 6 of the proportionality plan.
-- 2026-07-11 — v1.7: learning loop design ratified (v0.8 suite,
-  `docs/learning-loop/`; governed self-improvement — capture → episodes →
-  experiments → governed activation → offline eval + human-started canary →
-  scheduled distillation). At that versioned snapshot, Preflight + M1–M5 were
-  built and M6 remained next; v1.8 below supersedes that status.
-- 2026-07-12 — v1.8: M6 scheduled distillation built through the ordinary
-  dispatch/pipeline/ledger path: deterministic zero-token prechecks,
-  evidence clustering and dedupe/suppression, candidate/frequency/budget caps,
-  daily Distiller, weekly cross-provider Learning Reviewer, structured
-  fail-closed verdict persistence, and report-only compaction. M6 is complete
-  and live in the dispatch/CLI path; offline conformance is complete, and no
-  token-spending calibration campaign was required for the implementation.
-- 2026-07-12 — v1.9: the read-only Cormidia Live UI contract was ratified and
-  implemented as `cormidia observe`: loopback capability URL, versioned
-  snapshot projection, SSE reconciliation, deliberate local evidence access,
-  and framework-free responsive browser UI without a second workflow store.
-- 2026-07-12 — v2.0: Reporting V1 ratified and implemented as a deterministic
-  ledger-first `cormidia report` CLI/portable export plus lazily computed
-  `/reports` mode in the existing observer; detailed semantics remain in
-  `docs/reporting/design.md` v0.1.
-- 2026-07-13 — v2.1: P0-01 through P0-09 ratified as Cormidia's
-  organization-wide efficiency operating doctrine. The episode now owns its
-  route; execution/accounting terms and layer ownership are explicit; legacy
-  deep/60-minute defaults are non-normative; durable progress and lifecycle
-  evidence claims are part of the product contract. Numeric budgets remain
-  solely in the efficiency contract (`efficiency/v1`; today `docs/episodes/contract.md`).
-- 2026-07-16 — v2.4: proportionate release evidence ratified. Material
-  product, safety, accounting, learning-integrity, budget, and CI failures
-  remain blockers; bounded evaluator-only defects are retained and disclosed
-  without recursively restarting provider qualification.
-- 2026-07-19 — v2.6: EpisodePlanner made the default start of every episode in
-  fixed and adaptive assignment modes; explicit execution-ready creator scope
-  became the sole planner-turn bypass; atomic harness/model/effort assignment,
-  plan-derived routing, and forward-only plan revisions were ratified.
-- 2026-07-26 — v2.7: front matter compacted — opener without section name;
-  sandbox/production inventory dropped (README → Status); org chart
-  keeps Human unnamed and GitHub as system-of-record note; non-negotiables
-  reduced to five (deterministic default, harness+model intelligence, protocol,
-  one-runtime/many-apps, scarce human attention / durable outcomes).
-  `docs/status.md` removed as a redundant shadow of README Status, Observability,
-  and subsystem design docs.
-- 2026-07-26 — v2.8: documentation re-homed into topic folders (decided in
-  session with the human; path citations updated mechanically, decision
-  content untouched). `docs/` root now holds only PURPOSE, VISION,
-  architecture (thin system map, stable §numbering), DEVELOPMENT (renamed
-  all-caps; campaign ephemera trimmed to a standing-grant pointer), and the
-  packaged policy template; depth lives in per-subsystem folders (loop,
-  scheduler, approvals, episodes, qualification, harness, org, testing,
-  learning-loop, live-ui, reporting, narrative). `docs/efficiency.md` split
-  into `docs/episodes/contract.md` (operating contract; efficiency/v1
-  lineage, markers, and doctrine tests preserved) and
-  `docs/qualification/design.md` (campaign/Phase 6/isolation) — the
-  efficiency *doctrine* and its ratification history are unchanged; only the
-  filename retired. The Stage 5 approval amendment file retired into
-  `docs/approvals/design.md`; `docs/wiki.html` retired (a generation behind
-  the surface inventory); `research/` deliberately remains a separate
-  top-level tree for dated evidence. Deposited detectors: repo-wide
-  docs-citation/link/anchor checker and a docs-root inventory pin
-  (`test/docs/`).
-- 2026-07-31 — v2.9: validation surface rebuilt from a clean slate (decided in
-  session with the human). The incumbent offline suite (`test/`), the
-  qualification/release-gate machinery (`eval/`, `scripts/eval/`,
-  `scripts/ci/`, the efficiency-qualification workflow), `docs/testing/`, and
-  the prior Codex-built harness-design corpus (`codex-tests/`) are frozen
-  intact under `archive-do-not-read/` — agents must never read, cite, run, or
-  take design cues from that tree, so the replacement is unanchored from the
-  incumbent suite's structure. The Validation-Design-Agent
-  (validation-harness-design skill, five-layer allocation) designs the
-  replacement harness, which lands under `tests/` with its own
-  validation-policy.yaml as the ratifiable contract. Consequences accepted
-  explicitly: release gating (release-currency lane, attestation, Phase 6
-  campaigns) is SUSPENDED until the replacement rebuilds an equivalent — do
-  not ship expecting a gate; interim CI is typecheck + build + `pnpm test`
-  (green-by-absence via passWithNoTests until the first spec lands); the
-  deposited detectors of v2.8 and earlier (docs-citation guard,
-  default-branch literal scanner, packaging-separation pin) are archived with
-  the suite and their rules stand unenforced until re-guarded. Unattended
-  runnability is a design requirement of the new harness: sandbox-org
-  validation must run to completion with zero human approval decisions.
-- 2026-07-31 — v2.10: the owner ratified the harness recommendations and approved
-  their complete implementation in an isolated worktree/PR workflow. The replacement
-  L1/L2 suite, bounded L3 live runner, L4 data-collection runner, L5 contention/soak
-  collectors, and operator triage surfaces now live under `tests/` and
-  `validation-design/`. Two product surfaces are permanent: versioned validation
-  campaign reports under `<stateHome>/validation/campaigns/<campaign-id>/report.json`,
-  projected read-only through status/Report/Observe; and the sandbox-only unattended
-  profile `cormidia/unattended-sandbox/v1`, whose sole auto-grant category is campaign
-  budget and which can never authorize publication, non-sandbox effects, critical
-  operations, or forge a human decision. Completeness and verdict are separate;
-  `inconclusive` is explicitly not a pass and never release evidence. Release gating
-  remains SUSPENDED: no L3/L4 external campaign or seven-day soak was executed by the
-  implementation change, F-PT-009/010/011 keep thresholds provisional, human reference
-  validation is pending, HB-072 still requires a genuinely human-authored/reviewed
-  threat model, B-17-L3 remains blocked, and F-PT-018 leaves required-check enforcement
-  unavailable. Implemented machinery never substitutes for missing evidence.
-- 2026-08-02 — v2.11: self-hosting ratified with retained human release
-  authority. The front door and platform source may both be operated as apps,
-  while release authority and human-ratified surfaces remain human-controlled.
-  Its identity deferrals were superseded the same day by v2.12; the authority
-  carve-outs remain in force. (The header's stale v2.7 was corrected here.)
-- 2026-08-02 — v2.12: the product was renamed completely and permanently to
-  Cormidia. The CLI/package/skill, repository and organization, prompts, docs,
-  source, validation corpus, state/app artifact paths, and environment variables
-  moved together. Default state migrates atomically on first use and refuses a
-  dual-root ambiguity; environment variables are a hard break; existing app
-  repositories require one reviewed artifact-directory move. Narrative research
-  was normalized for open-source consistency; signed, content-addressed, and
-  hash-referenced raw research evidence remains byte-identical so its provenance
-  continues to verify. The frozen archive and five named external repository
-  identities remain untouched. The primary local checkout is renamed only after
-  its attached worktrees are repaired as part of the landing sequence.
-- 2026-08-02 — v2.13: self-hosting was made operationally uniform. The standing
-  org may register, onboard, and manage both `cormidia-web` and
-  `cormidia/Cormidia` without a web-first prerequisite. Every app release now
-  uses the same boundary: explicit human approval supplies authority, and
-  Cormidia may execute only the exact approved release through its durable
-  release mechanism. The obsolete manual-execution-only package exception and
-  remaining platform-self-hosting prohibitions were removed from the developer
-  policy and packaged operator skill.
-- 2026-08-02 — v2.14: the owner explicitly authorized the exact
-  `cormidia@0.1.1` npm publication despite the suspended release-evidence gate.
-  This is a one-release exception, not evidence and not gate reactivation;
-  every later release remains blocked on both its own human approval and the
-  ordinary release-evidence policy. Version 0.1.1 still requires green offline,
-  typecheck, build, packaging, and installed-command checks.
-- 2026-08-03 — v2.15: **the approval contract was settled on four points that
-  had been left undecided, and under which defects kept recurring** (epic
-  #236). Approvals had produced defects in every live run because the
-  behaviour beneath them was unspecified, not because the code was wrong.
-
-  (1) *A gate denial suspends the turn.* An approval is raised synchronously
-  and the turn genuinely waits; it is not an after-the-fact notification that
-  the turn ships past. This uses the same pause and resume machinery as the
-  budget soft cap ratified the same day — one mechanism, two triggers — so an
-  approval can no longer outlive the turn that raised it. Supersedes the
-  deny-and-continue behaviour that produced #103, #104, #176, and #205.
-
-  (2) *An undecided approval expires* (resolves F-PT-020). The approval state
-  machine CF-SM-APPR gains a terminal, non-blocking `expired` state reached
-  after a TTL, defaulting to 24h to match the existing grant TTL and
-  configurable through ordinary policy resolution. On expiry the raising
-  turn's durable artifacts and worktree are preserved, its claim is released,
-  and the turn resolves as blocked rather than failed — a pause is not a merit
-  failure, and it does not consume a failure claim (the rule established for
-  granted approval pauses in #104). An expired item leaves the pending queue
-  and appears in an audit view; `cormidia app verify` counts only approvals
-  whose raising turn is still live. A queue whose sole exit was a human
-  decision grew monotonically by construction: 7 of 7 items outlived their
-  turns in the 2026-08-01 run and were the only thing blocking promotion.
-
-  (3) *An agent operating an org may decide ordinary approvals; the
-  never-scopeable rules stay human.* An agent decision is a first-class,
-  attributable decision recorded against a distinct agent identity, never
-  presented as a human one, so an unattended org can drain its own queue. The
-  `NEVER_SCOPEABLE_RULES` set — self-merge/approve, production deploy,
-  external publication, writes to human-ratified protocol surfaces, and any
-  action outside the app's own worktree/repo boundary — continues to require a
-  human decision and remains ineligible for a widened grant. v2.13's rule that
-  the org can never approve its own release is unchanged and is now enforced
-  through this boundary rather than by the absence of a decision path. This
-  resolves the `approval-store-tamper` collision that made a non-interactive
-  decision verb unreachable while the packaged `$cormidia` skill was expected
-  to operate an org without a TTY (#206).
-
-  (4) *`secrets-or-auth` becomes operation-aware and fails closed* (resolves
-  F-PT-019). The rule classifies on whether an action actually emits file
-  contents rather than on text alone, and any command whose effect cannot be
-  parsed is treated as critical. Text-only matching was wrong in both
-  directions at once: `git check-ignore .env` opens nothing and classified
-  critical (#204), while `git show HEAD:.env` prints the secret and classified
-  routine (#218). The two directions are not symmetric — per
-  `validation-design/system-map.md` §5.2 a real critical effect classified
-  routine is authority damage, while a false positive is only availability
-  damage — so the fail-closed default on unparsed effects is part of the
-  decision, not an implementation detail. Coverage must also reach effects
-  that bypass the classifier entirely rather than merely evading a pattern
-  (#20).
-
-  F-PT-008 (grant-expiry item disposition) is adjacent but **not** resolved
-  here: it concerns an item whose grant expires after a decision, whereas
-  F-PT-020 concerns an item that was never decided. It remains open.
-- 2026-08-04 — v2.16: RQ-1 replacement release qualification ratified. The
-  0.1.1 exception remains non-evidence; the first replacement campaign is a
-  bootstrap baseline. Absolute F-PT-009/010/011 hypotheses are not adopted.
-  L4 uses paired evidence and human disposition until separately ratified judge
-  calibration exists; deterministic trajectory remains outside the artifact
-  judge. Release currency, attestation, evaluator-debt disclosure, exact package
-  equivalence, and the supported human-approved tag/npm enforcement path are
-  binding as described in validation-design/release-evidence-gate-revision-proposal.md.
-- 2026-08-11 — v2.17: GitHub Actions remains the sole CI orchestrator and check
-  system of record, but ordinary internal pull requests and `main` pushes run
-  Core Checks on one repository-scoped, one-job Linux ARM64 container on the
-  owner's Mac. Pull requests from forks and an explicit, SHA-guarded manual
-  recovery dispatch use GitHub-hosted compute. An offline Mac leaves the normal
-  job queued; fallback is deliberate, never silent. Every release-shaped job —
-  including tags, npm publication, OIDC/provenance and release artifacts — stays
-  GitHub-hosted and retains the separate human release gate. The container may
-  receive no host mount, Docker socket, host credential, retained workspace,
-  job capability or private/link-local network path. ACT is not part of this
-  architecture. The owner ratified this validation-policy amendment and host
-  authority in issue #403's 2026-08-11 implementation session.

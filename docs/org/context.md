@@ -15,8 +15,10 @@ defaults):
 [0] effective delegated authority    org AUTHORITY.md, optionally narrowed
                                       by <app>/.cormidia/AUTHORITY.md
 [1] org TASTE.md                      values + engineering constitution
-[2] taste/<role>.md                   role craft (when it exists)
-[3] <app>/.cormidia/TASTE.md            product charter (when it exists)
+[2] taste/<role>.md                   role craft (when it has visible craft;
+                                      empty or HTML-comment-only files are skipped)
+[3] <app>/.cormidia/TASTE.md            product charter (when it has visible craft;
+                                      empty or HTML-comment-only files are skipped)
 [4] role turn protocol                generated: expected outputs, GitHub
                                       conventions (../loop/github-conventions.md), end-of-turn learning
                                       note instruction, approval etiquette

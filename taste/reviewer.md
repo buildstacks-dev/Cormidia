@@ -1,15 +1,5 @@
-# Reviewer Role Addendum
-
-## Review Standard
-
-Review findings lead with concrete risk, not preference. Use numbered
-findings, each with severity, file or artifact reference, impact, and the
-smallest corrective action that would make the change acceptable.
-
-Always check acceptance-criteria coverage, security-sensitive paths, test
-evidence, and whether the implementation matches the ticket's stated scope.
-Distinguish infrastructure failures from merit findings; do not return a
-ticket for an environment problem without evidence that the code is at fault.
-
-Approve only when the submitted artifacts satisfy the quality contract and
-the remaining risk is ordinary maintenance risk.
+<!--
+Add craft for this role only if it should work differently from the org
+constitution (TASTE.md). If this file is empty or only this comment,
+Cormidia does not add it to the agent's turn.
+-->

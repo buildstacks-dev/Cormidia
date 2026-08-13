@@ -265,7 +265,7 @@ Token-free lifecycle commands for repeatable onboarding and readiness —
 
 ```
 .cormidia/
-  TASTE.md               app charter ("what this product is; what good means")
+  TASTE.md               app charter (comment stub until the operator writes craft)
   AUTHORITY.md           session-readable org snapshot + app-only narrowing
   LABELS.md              generated canonical GitHub label reference
   config.yaml            app-entry registry mirror + top-level checkout gates

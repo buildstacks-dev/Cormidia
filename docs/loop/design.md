@@ -1,16 +1,15 @@
 # The Build Loop — engineering design
 
 *Living design doc — last aligned 2026-07-19. The loop is Cormidia's center
-of gravity: a TypeScript
-re-engineering of the predecessor orchestrator — a private Python prototype
-that proved the approach, called simply "the predecessor" throughout
-(maintainers can find it read-only at* `scratchpad-gitignore/claude-loop-teams/`*)
-— made framework-agnostic through the runtime adapters. This doc is the
-detail layer for* `src/loop/`*;* [`turns.md`](turns.md) *holds the
-surrounding turn/worktree machinery,* [`github-conventions.md`](github-conventions.md)
+of gravity: a TypeScript re-engineering of a private Python prototype that
+proved the approach, called simply "the predecessor" throughout — made
+framework-agnostic through the runtime adapters. This doc is the detail
+layer for* `src/loop/`*;* [`turns.md`](turns.md) *holds the surrounding
+turn/worktree machinery,* [`github-conventions.md`](github-conventions.md)
 *the GitHub substrate conventions. §11 records decisions ratified into
-docs/PURPOSE.md on 2026-07-06, 2026-07-13, and 2026-07-19; future new decisions should be proposed here
-first, then promoted only after human ratification.*
+docs/PURPOSE.md on 2026-07-06, 2026-07-13, and 2026-07-19; future new
+decisions should be proposed here first, then promoted only after human
+ratification.*
 
 ## 0. Position
 
@@ -406,7 +405,7 @@ findings in the structured grammar (§6); for UI apps with a verification
 strategy in the spec, walk user journeys end-to-end (a task that passes
 its criteria but breaks a journey is still a FAIL — the predecessor's
 "connect the hallway" rule); never modify source.
-- **fix** — resolve or explicitly rebut every finding (TASTE §8); same
+- **fix** — resolve or explicitly rebut every finding; same
 discipline as implement.
 - **decomposer** — atomic/testable/scoped/ordered/independent tickets;
 binary criteria; `Depends-on: #N` edges; execution-group annotation (§8);

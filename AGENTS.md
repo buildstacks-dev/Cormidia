@@ -1,32 +1,17 @@
 # AGENTS.md
 
 ## Scope
-Applies to the whole repo. Nested AGENTS.md files specialize local rules in
-`src/runtime/`, `src/observe/`, `src/report/`, and `src/narrative/` — read the
-nearest one when working there. `docs/PURPOSE.md` is the decision log; on
-conflict its Decided section wins and this file is stale — fix this file.
-
-This file governs **building and maintaining the Cormidia platform**, including
-when the standing Cormidia org operates this repository as an app (self-hosting
-ratified, PURPOSE.md → Decided 2026-08-02: the org may register, onboard, and
-operate both `cormidia-web` and this repository). Read `docs/DEVELOPMENT.md`
-before development campaigns. Every release-shaped action for every app — npm
-publish, version tags, release handoff, deployment, external publication —
-requires explicit human approval; after approval, Cormidia may execute only the
-exact approved action through its durable release path. Development grants, raw
-eval state, and outer-session instructions must never be copied into the org
-home, org-global prompts, learning, or approvals. `agent-skills/cormidia/` is
-the packaged org-operation guide; `agent-skills/cormidia-job/` the ad-hoc-job
-guide.
+`docs/PURPOSE.md` is the decision log; on conflict its Standing section wins
+and this file is stale — fix this file. Nested `AGENTS.md` files add local
+rules; read the nearest one when working there.
 
 ## What this repo is
 An installable **org runtime**: a standing team of AI agents (Planner, Builder,
 Reviewer, SRE, Support, Marketing) that develops and operates a software
 product through a private GitHub repo, with a human gating critical ops only.
-Build-complete and proven live end-to-end — README → Status / Known
-limitations are the product view; README → Observability is the authoritative
-state-home inventory (`~/.cormidia/<org>/`). Open work lives in the GitHub
-issue tracker (`gh issue list`).
+Open work lives in the GitHub issue tracker (`gh issue list`). Durable org
+state lives under `~/.cormidia/<org>/` — README → Observability is the
+inventory.
 
 ## Repository map
 | Path | What it is |
@@ -40,9 +25,8 @@ issue tracker (`gh issue list`).
 | `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table |
 | `src/jobs/` · `docs/jobs/` | Ad-hoc job graphs (`cormidia-job`, a SECOND binary) — outside the governed loop: no review, verdicts, tickets, or GitHub authority |
-| `validation-design/` | Ratified harness corpus — `validation-policy.yaml` is the contract, **`routing.md` the binding procedure** (moved from this file; its three addenda ratified 2026-08-12), `harness-backlog.md` the build plan |
+| `validation-design/` | Ratified harness corpus — `validation-policy.yaml` is the contract, `routing.md` the binding procedure, `harness-backlog.md` the build plan |
 | `tests/` | Offline L1/L2 harness + explicitly authorized L3/L4/L5 campaign runners; `tests/campaign/acceptance/` is the L-ACC lane (gates nothing, F-PT-029) |
-| `archive-do-not-read/` | Frozen pre-rebuild corpus — **never read, cite, run, or take design cues from it** |
 | `research/` | Dated decision records |
 | `scripts/` | Link/smoke/packaging scripts + the `pnpm check` gate scripts |
 | `scripts/self-hosted-runner/` · `docs/ci/` | Pinned ephemeral Mac-backed GitHub Actions runner appliance and operator runbook |
@@ -62,8 +46,6 @@ issue tracker (`gh issue list`).
 - Local product install: `pnpm link:local` (source-backed bins + skill links).
   Packaged install: `pnpm install:packaged` (npm's real global layout,
   transactional promotion; source conversion needs `--replace-source-links`).
-  `scripts/lib/link-artifacts.mjs` is the single install table (pinned by
-  `tests/unit/cf-reg-359/`).
 - CLI: `pnpm dev <cmd>` in source mode; full catalog: README → Commands plus
   `cormidia <cmd> --help`.
 - Packaging checks: `pnpm smoke:onboarding` · `npm pack --dry-run` ·
@@ -76,7 +58,6 @@ issue tracker (`gh issue list`).
   deletion requires `--apply`.
 - Token-spending — never run casually: live `dispatch`/`loop`/`plan` against a
   real org spend provider tokens and can open PRs/approvals.
-- Development lifecycle and grants: `docs/DEVELOPMENT.md`.
 
 ## Working rules
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;
@@ -103,27 +84,20 @@ issue tracker (`gh issue list`).
   call site: `any`, `as`, and `!` are ratcheted gate failures
   (`scripts/check-type-ratchet.mjs`), not style choices; `unknown` plus
   narrowing is the sanctioned exit.
-- **Dependencies minimal and boring** (TASTE.md §3): prefer `node:` built-ins;
+- **Dependencies minimal and boring:** prefer `node:` built-ins;
   `yaml` plus the four provider SDKs are the whole runtime set, and adding one
   is a decision, not a convenience. Cursor, Grok Build and Muse Code are
   required preinstalled binaries — Cormidia never installs a provider (#224).
 - **Grok Build is sandbox-only** until #339's human vendor risk review is
   recorded: never point a grok turn at a real repository and never assign it a
   role in roles.yaml (`research/2026-08-07_grok-build-adapter-certification.md`).
-- **Agent-authored engineering standard:**
-  `research/2026-08-05_pi-forensic-analysis/pi-engineering-standards-skill.md`
-  is binding; public-symbol count is the module gate, line count the smoke
-  alarm (`scripts/check-size-ratchet.mjs`).
-- **Model IDs** in roles.yaml were human-ratified 2026-07-15
-  (`research/2026-07-15_model-assignment-refresh.md`) and the Claude frontier
-  tier (planner/reviewer/operator) refreshed to `claude-opus-5` on 2026-08-12
-  (`research/2026-08-12_claude-frontier-model-refresh.md`); `gpt-5.6-sol`
-  availability is proved by adapter calibration before a candidate campaign.
+- **New modules ≤10 exports and ≤300 lines**; existing modules may shrink or
+  hold, never grow (`scripts/check-size-ratchet.mjs`). Public-symbol count is
+  the gate; line count is the smoke alarm. Override requires a baseline edit
+  and a named justification in the PR body.
 
 ## Testing expectations
-The replacement validation harness is implemented (ratified 2026-07-31,
-PURPOSE.md v2.9/v2.10); the legacy corpus is frozen under
-`archive-do-not-read/`. The minimum for any change is
+The minimum for any change is
 `pnpm test && pnpm typecheck` — a populated offline gate, not
 green-by-absence. Release qualification is active under RQ-1: the exact
 candidate requires a current aggregate attestation and a separate exact human
@@ -154,21 +128,14 @@ remains the contract (tighten-only). Triggers:
   pending-the-revision.
 - Before picking up any ticket: scan for BLOCKED/PARKED/`Gate:` markers
   (mechanized greps in routing.md; run them from `validation-design/`).
-- Never weaken a gate or test. Never read `archive-do-not-read/`.
+- Never weaken a gate or test.
 Tickets normally run through the `implement-harness-ticket` skill. If it is
 unavailable and enumeration is unambiguous, hand-implementation is permitted
 per routing.md's adoption notes; that fallback is forbidden for
 `validation-harness-design`/`harness-revision`.
 
-## Ratified addenda
-The three routing addenda parked by the #402 restructure (roadmap/validation/
-batching · L-ACC + jobs · traceability conventions + machine catalog) were
-ratified by the owner on 2026-08-12 and are binding; they live at the end of
-`validation-design/routing.md`. `validation-design/proposals/` was retired in
-the same change.
-
 ## Navigation
-- Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · operator outcome: `docs/VISION.md` · platform development: `docs/DEVELOPMENT.md`
+- Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · platform development: `docs/DEVELOPMENT.md`
 - `docs/architecture.md` is the thin system map (stable §numbering); depth lives in topic folders — one per subsystem, `design.md` as the folder's contract
 - Build loop: `docs/loop/` · dispatch/scheduler: `docs/scheduler/` · approvals/release: `docs/approvals/design.md`
 - Episode contract: `docs/episodes/contract.md` · qualification: `docs/qualification/` · learning loop: `docs/learning-loop/`
@@ -176,7 +143,6 @@ the same change.
 - Org layer: `docs/org/` (context · memory · apps · onboarding · manual-e2e-runbook)
 - Jobs (`cormidia-job`): `docs/jobs/design.md` — §3 is the non-inherited-guarantee list; it is NOT the build loop
 - Live UI / Reports / Narrative contracts: `docs/live-ui/design.md` · `docs/reporting/design.md` · `docs/narrative/design.md`
-- Predecessor orchestrator (read-only prior art): `scratchpad-gitignore/claude-loop-teams/`
 
 ## Maintenance
 When you change code, update the nearest AGENTS.md or linked reference doc if
@@ -185,6 +151,17 @@ auth/security behavior, data models, generated-code workflow, deployment
 behavior, or testing strategy. When you add a new deployable service, app,
 package, or major subsystem, create or update the appropriate AGENTS.md in the
 same change.
+
+## When Cormidia operates this repository
+The standing org may register, onboard, and operate both `cormidia-web` and
+this repository as apps. Every release-shaped action for every app — npm
+publish, version tags, release handoff, deployment, external publication —
+requires explicit human approval; after approval, Cormidia may execute only the
+exact approved action through its durable release path. Development grants, raw
+eval state, and outer-session instructions must never be copied into the org
+home, org-global prompts, learning, or approvals. `agent-skills/cormidia/` is
+the packaged org-operation guide; `agent-skills/cormidia-job/` the ad-hoc-job
+guide.
 
 ## Cormidia delegated authority
 

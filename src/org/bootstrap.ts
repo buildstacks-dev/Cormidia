@@ -6,10 +6,11 @@
 // Step 2 ("Questionnaire") is the `BootstrapAnswers` contract + `parseAnswers`
 // — interactive collection lives in the CLI; tests and scripts inject the
 // same object via `--answers answers.json`. Step 3 ("Emit") is
-// `emitAppArtifacts()`: the app charter
-// (`.cormidia/TASTE.md`), the app's registry entry (`.cormidia/config.yaml`,
-// apps.yaml schema), `.cormidia/onboarding-report.md`, and seeded per-role
-// memory bundles. `bootstrapRun()` composes steps 1–3 and registers the app in
+// `emitAppArtifacts()`: the app charter stub (`.cormidia/TASTE.md`,
+// comment-only until the operator writes craft), the app's registry entry
+// (`.cormidia/config.yaml`, apps.yaml schema), `.cormidia/onboarding-report.md`,
+// and seeded per-role memory bundles. `bootstrapRun()` composes steps 1–3 and
+// registers the app in
 // the required active org home. App-owned bootstrap output also includes
 // `.cormidia/policy.yaml` when the M4.2 policy template is present in this
 // package.
@@ -469,12 +470,13 @@ function assertNoRetiredAppArtifactRoot(targetRoot: string): void {
 /** The alignment-questionnaire result: exactly one field per §9 step-2
  * question, nothing else. Interactive collection (the CLI) and `--answers
  * answers.json` both produce the raw shape; `parseAnswers` validates and
- * normalizes it into this type. Raw JSON: `product`, `good`, and `roles`
- * are required; everything else is optional and defaulted here. */
+ * normalizes it into this type. Raw JSON: `roles` is required; `product`
+ * and `good` are accepted from recovered answers and ignored by the charter
+ * emitter; everything else is optional and defaulted here. */
 export interface BootstrapAnswers {
-  /** "What the product is" — the charter's first section. */
+  /** Recovered questionnaire prose, when present. Not written into TASTE.md. */
   product: string;
-  /** "What 'good' means here" — the charter's second section. */
+  /** Recovered questionnaire prose, when present. Not written into TASTE.md. */
   good: string;
   /** Roles enabled for this app; each must name a role in the org
    * roles.yaml. Un-listed roles are disabled — emitted as empty cadence
@@ -517,8 +519,8 @@ export function parseAnswers(rawUnknown: unknown, knownRoles: string[]): Bootstr
     }
   }
 
-  const product = requireText(raw["product"], "product", err);
-  const good = requireText(raw["good"], "good", err);
+  const product = optionalText(raw["product"], "product", err);
+  const good = optionalText(raw["good"], "good", err);
 
   const rolesRaw = raw["roles"];
   if (!Array.isArray(rolesRaw) || rolesRaw.length === 0) {
@@ -655,6 +657,12 @@ function requireText(v: unknown, field: string, err: (msg: string) => Error): st
   if (typeof v !== "string" || v.trim().length === 0) {
     throw err(`${field} is required (a non-empty string)`);
   }
+  return v.trim();
+}
+
+function optionalText(v: unknown, field: string, err: (msg: string) => Error): string {
+  if (v === undefined) return "";
+  if (typeof v !== "string") throw err(`${field} must be a string`);
   return v.trim();
 }
 
@@ -851,7 +859,7 @@ export async function emitAppArtifacts(targetRootIn: string, options: EmitAppArt
   };
 
   try {
-    await emit(".cormidia/TASTE.md", charterMd(appName, answers));
+    await emit(".cormidia/TASTE.md", charterMd());
     await emit(".cormidia/AUTHORITY.md", appAuthority);
     await emit(
       ".cormidia/config.yaml",
@@ -994,27 +1002,16 @@ async function readPolicyTemplate(templateRoot: string): Promise<string> {
   }
 }
 
-/** The app charter — TASTE layer [3] (docs/PURPOSE.md → TASTE layers): product
- * identity only. Budget/cadence/roles are config, so they live in
- * config.yaml, never here. */
-function charterMd(appName: string, answers: BootstrapAnswers): string {
-  return `# TASTE.md — ${appName} product charter
-
-App-level taste, layer [3] of context assembly (docs/architecture.md §5;
-docs/PURPOSE.md → TASTE layers): what this product is and what "good" means here.
-Concatenated after the org constitution and role craft addenda — it
-specializes defaults; the org's "What we never do" section stays
-unoverridable. Seeded by \`cormidia bootstrap\` from the questionnaire; edit
-freely via proposal PR (human-ratified surface — agent writes are
-gate-critical).
-
-## What this product is
-
-${answers.product}
-
-## What "good" means here
-
-${answers.good}
+/** The app charter — TASTE layer [3] (docs/PURPOSE.md → TASTE layers).
+ * Bootstrap emits a comment-only stub; context assembly skips empty and
+ * HTML-comment-only files (docs/org/context.md). Budget/cadence/roles are
+ * config, so they live in config.yaml, never here. */
+function charterMd(): string {
+  return `<!--
+Add a product charter only if this app should specialize the org
+constitution (TASTE.md). If this file is empty or only this comment,
+Cormidia does not add it to the agent's turn.
+-->
 `;
 }
 

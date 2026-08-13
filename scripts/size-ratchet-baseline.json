@@ -773,7 +773,7 @@
     },
     "src/org/git-publication-substrate.ts": {
       "exports": 10,
-      "lines": 168,
+      "lines": 178,
       "newModule": true
     },
     "src/org/git-publication.ts": {

@@ -2,6 +2,8 @@
 // repo skeleton first, then hands off to the normal bootstrap/register path.
 
 import { ORG_HOME_DEFINITION, resolveCormidiaHomes, STATE_HOME_DEFINITION } from "../org/home.js";
+import { stableJson } from "../org/lifecycle.js";
+import { NewAppBlockedError } from "../org/new-app-blocked.js";
 import { createNewApp, DEFAULT_NEW_APP_TEMPLATE, NEW_APP_TEMPLATES, type NewAppTemplate } from "../org/new-app.js";
 import { reportCliInvocation } from "./invocation-audit.js";
 
@@ -19,6 +21,11 @@ export async function cmdNewApp(args: string[]): Promise<number> {
     supportChannels: parsed.supportChannels,
     marketingChannels: parsed.marketingChannels,
     dryRun: parsed.dryRun,
+  }).catch((error: unknown) => {
+    // Preview and execution refuse identically; the operator sees the exact
+    // refused target rather than a generated guide bound to it (#385).
+    if (error instanceof NewAppBlockedError) reportNewAppRefusal(error, parsed.json);
+    throw error;
   });
   reportCliInvocation({
     org: homes.appsFile.org.name,
@@ -60,6 +67,24 @@ export async function cmdNewApp(args: string[]): Promise<number> {
     console.log("\nnext: follow .cormidia/bootstrap/next-commands.md; record keep/reconcile/remove before planning.");
   }
   return 0;
+}
+
+function reportNewAppRefusal(error: NewAppBlockedError, json: boolean): void {
+  const refusal = error.refusal;
+  if (json) {
+    console.log(stableJson(refusal).trimEnd());
+    return;
+  }
+  console.log(`new-app: blocked (${refusal.dry_run ? "preview" : "execution"}) — no app/org/state artifact written`);
+  console.log(`app: ${refusal.app}`);
+  console.log(`target: ${refusal.target_dir}`);
+  console.log(`repo: ${refusal.repository}`);
+  console.log("\nblockers:");
+  for (const blocker of refusal.blockers) {
+    console.log(`  ${blocker.code}: ${blocker.detail}`);
+    console.log(`    subject: ${blocker.subject}`);
+    console.log(`    remediation: ${blocker.remediation}`);
+  }
 }
 
 interface ParsedNewAppArgs {
@@ -125,9 +150,9 @@ function parseArgs(args: string[]): ParsedNewAppArgs {
 
   if (!targetDir) throw new Error("new-app: --target-dir <path> is required");
   if (!repoSlug) throw new Error("new-app: --repo <owner/repo> is required");
-  if (!/^[^/\s]+\/[^/\s]+$/.test(repoSlug)) {
-    throw new Error("new-app: --repo must be a GitHub owner/repo slug, not a URL or local path");
-  }
+  // Slug validity is NOT re-implemented here: src/runtime/repo-identity.ts is
+  // the single rule, and createNewApp turns its rejection into the typed
+  // blocked result both preview and execution report (#385).
 
   return {
     appName: appName ?? first,

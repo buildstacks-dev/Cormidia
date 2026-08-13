@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import type { GhOps } from "../loop/github.js";
 import { GhCliOps } from "../loop/github.js";
 import { executeAppPromotion, planAppPromotion, verifyApp } from "../org/app-lifecycle.js";
+import { appRepositoryRejection } from "../org/app-repository.js";
 import { executeAppReset, finalizeInterruptedAppReset, planAppReset, type AppResetPlan } from "../org/app-reset.js";
 import { resolveCormidiaHomes } from "../org/home.js";
 import { stableJson } from "../org/lifecycle.js";
@@ -87,7 +88,11 @@ export async function cmdApp(args: string[], options: AppCommandOptions = {}): P
     stateHome: homes.stateHome,
     appsFile: homes.appsFile,
     appName,
-    gh: options.ghFactory?.(app.repo) ?? new GhCliOps(app.repo),
+    // Reset is the named recovery for a placeholder registration, so it never
+    // builds a GitHub surface from one; there is provably no managed work on a
+    // repository that was never a real target (#385).
+    gh:
+      appRepositoryRejection(app.repo) !== undefined ? null : (options.ghFactory?.(app.repo) ?? new GhCliOps(app.repo)),
     ...(force ? { force: true } : {}),
     ...definedProps({ archiveRoot }),
   };

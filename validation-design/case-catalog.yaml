@@ -409,6 +409,7 @@ families:
   - {id: CF-REG-356, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "state+refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
   - {id: CF-REG-403, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
   - {id: CF-REG-373, section: "Defect-sourced regression families", status: implementable, layers: "2", oracle: "refusal+state+det", risk: "REG", ticket: HB-139, wave: "retrospective"}
+  - {id: CF-REG-385, section: "Defect-sourced regression families", status: implementable, layers: "1/2", oracle: "refusal+det+state", risk: "REG", ticket: HB-139, wave: "retrospective"}
 tickets:
   - {id: HB-001, wave: "0", status: landed, families: []}
   - {id: HB-002, wave: "0", status: landed, families: [CF-B06, CF-C-B06]}
@@ -522,9 +523,9 @@ tickets:
   - {id: HB-152, wave: "ci", status: landed, families: [CF-HARNESS-CI, CF-HARNESS-RELEASE]}
   - {id: HB-137, wave: "retrospective", status: landed, families: [CF-B23, CF-B23-L3, CF-B24, CF-B24-L3, CF-B24-PAYLOAD, CF-B24-SUBGATE, CF-B25, CF-B25-L3, CF-B26, CF-B26-L3, CF-C-B23, CF-C-B24, CF-C-B25, CF-C-B26]}
   - {id: HB-138, wave: "retrospective", status: landed, families: [CF-SPLIT-DESTRUCTIVE, CF-SPLIT-NETWORK, CF-SPLIT-PUBLISHING, CF-SPLIT-SECRETS]}
-  - {id: HB-139, wave: "retrospective", status: landed, families: [CF-HB102-MANUAL-REVIEW, CF-REG-154, CF-REG-181, CF-REG-202, CF-REG-203, CF-REG-203-G, CF-REG-204, CF-REG-205, CF-REG-206, CF-REG-209, CF-REG-211, CF-REG-228, CF-REG-229, CF-REG-230, CF-REG-231, CF-REG-232, CF-REG-236-BUDGET, CF-REG-239, CF-REG-244, CF-REG-251, CF-REG-268, CF-REG-269, CF-REG-271, CF-REG-272, CF-REG-273, CF-REG-274, CF-REG-278, CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-291, CF-REG-293, CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335, CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374, CF-REG-375, CF-REG-390, CF-REG-403]}
+  - {id: HB-139, wave: "retrospective", status: landed, families: [CF-HB102-MANUAL-REVIEW, CF-REG-154, CF-REG-181, CF-REG-202, CF-REG-203, CF-REG-203-G, CF-REG-204, CF-REG-205, CF-REG-206, CF-REG-209, CF-REG-211, CF-REG-228, CF-REG-229, CF-REG-230, CF-REG-231, CF-REG-232, CF-REG-236-BUDGET, CF-REG-239, CF-REG-244, CF-REG-251, CF-REG-268, CF-REG-269, CF-REG-271, CF-REG-272, CF-REG-273, CF-REG-274, CF-REG-278, CF-REG-279, CF-REG-281, CF-REG-283, CF-REG-285, CF-REG-287, CF-REG-291, CF-REG-293, CF-REG-297, CF-REG-299, CF-REG-300, CF-REG-306, CF-REG-332, CF-REG-335, CF-REG-356, CF-REG-359, CF-REG-369, CF-REG-370, CF-REG-373, CF-REG-374, CF-REG-375, CF-REG-385, CF-REG-390, CF-REG-403]}
   - {id: HB-153, wave: "campaign-finding", status: landed, families: [CF-INV-015]}
   - {id: HB-154, wave: "campaign-finding", status: landed, families: [CF-REVIEW-PROVIDER]}
 # rollup (derived by the generator from the entries above — recompute, never hand-edit):
-#   families: 398 = 359 implementable + 38 pruned + 1 blocked
+#   families: 399 = 360 implementable + 38 pruned + 1 blocked
 #   tickets: 115 = 104 landed + 11 pending

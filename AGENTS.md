@@ -173,7 +173,7 @@ the same change.
 - Build loop: `docs/loop/` · dispatch/scheduler: `docs/scheduler/` · approvals/release: `docs/approvals/design.md`
 - Episode contract: `docs/episodes/contract.md` · qualification: `docs/qualification/` · learning loop: `docs/learning-loop/`
 - Adapters: `docs/harness/` (capability-matrix · adding-updating · qualification-evidence)
-- Org layer: `docs/org/` (context · memory · apps · onboarding)
+- Org layer: `docs/org/` (context · memory · apps · onboarding · manual-e2e-runbook)
 - Jobs (`cormidia-job`): `docs/jobs/design.md` — §3 is the non-inherited-guarantee list; it is NOT the build loop
 - Live UI / Reports / Narrative contracts: `docs/live-ui/design.md` · `docs/reporting/design.md` · `docs/narrative/design.md`
 - Predecessor orchestrator (read-only prior art): `scratchpad-gitignore/claude-loop-teams/`

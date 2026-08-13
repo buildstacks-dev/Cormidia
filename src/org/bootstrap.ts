@@ -20,6 +20,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
 import type { AuthorityContext, Trigger } from "../runtime/types.js";
+import { parseRepositoryIdentity, placeholderRepositorySlug } from "../runtime/repo-identity.js";
 import {
   appExecutionYaml,
   joinExistingOrg,
@@ -803,7 +804,13 @@ export async function emitAppArtifacts(targetRootIn: string, options: EmitAppArt
   const targetRoot = resolve(targetRootIn);
   const { answers, allRoles } = options;
   const appName = sanitizeAppName(options.appName);
-  const repoSlug = options.repoSlug ?? `OWNER/${appName}`;
+  // A supplied slug is an identity claim and is parsed as one. The absent case
+  // records the ONE marked non-actionable literal (#385): every outward path
+  // refuses it by construction rather than each one re-deciding.
+  const repoSlug =
+    options.repoSlug === undefined
+      ? placeholderRepositorySlug(appName)
+      : parseRepositoryIdentity(options.repoSlug, "bootstrap").slug;
   const templateRoot = options.templateRoot ?? PACKAGE_ROOT;
 
   assertNoRetiredAppArtifactRoot(targetRoot);
@@ -1085,7 +1092,15 @@ function configYaml(
 
   let out = header + body;
   if (slugIsPlaceholder) {
-    out = out.replace(`repo: ${repoSlug}`, `repo: ${repoSlug} # TODO: set the real owner/repo slug`);
+    // Marked non-actionable, and the remediation is a supported command — never
+    // "edit this line", which would leave apps.yaml bound to the placeholder
+    // while this file claimed a real target (#385).
+    out = out.replace(
+      `repo: ${repoSlug}`,
+      `repo: ${repoSlug} # NON-ACTIONABLE PLACEHOLDER: no outward command may use it.` +
+        ` Re-onboard with the real slug (cormidia app reset ${appName} --execute --confirm ${appName},` +
+        " then cormidia bootstrap/new-app --repo <owner/repo>); do not edit this line.",
+    );
   }
   return out;
 }
@@ -1240,8 +1255,12 @@ export async function bootstrapRun(
   assertNonSecretOnboardingAnswers(answers);
 
   const scan = await scanRepo(targetRoot);
-  const repoSlug = options.repoSlug ?? scan.repoSlug;
-  const registrationRepoSlug = repoSlug ?? `OWNER/${appName}`;
+  const supplied = options.repoSlug ?? scan.repoSlug;
+  // Scanned origins are subprocess output crossing a trust boundary: parse,
+  // never pass through. Only the absent case falls back to the marked,
+  // deliberately non-actionable placeholder (#385).
+  const repoSlug = supplied === undefined ? undefined : parseRepositoryIdentity(supplied, "bootstrap").slug;
+  const registrationRepoSlug = repoSlug ?? placeholderRepositorySlug(appName);
 
   assertNoRetiredAppArtifactRoot(targetRoot);
   const appFiles = appArtifactFiles(answers, allRoles);
@@ -1338,7 +1357,11 @@ export async function registerAppWithExistingOrg(
   const targetRoot = resolve(targetRootIn);
   const scan = await scanRepo(targetRoot);
   const appName = sanitizeAppName(options.appName ?? basename(targetRoot));
-  const repo = options.repoSlug ?? scan.repoSlug ?? `OWNER/${appName}`;
+  const supplied = options.repoSlug ?? scan.repoSlug;
+  const repo =
+    supplied === undefined
+      ? placeholderRepositorySlug(appName)
+      : parseRepositoryIdentity(supplied, "bootstrap register").slug;
   const joined = await joinExistingOrg(options.orgHome, {
     name: appName,
     repo,

@@ -108,18 +108,21 @@ Machine discovery:
     expect(loop).toContain("Non-interactive execution requires every field plus exact --confirm");
   });
 
-  // Re-pinned 2026-08-12 (#388): `org publish` joins the catalog as the
-  // governed route for committed org configuration. The pin is a byte-shape
-  // detector for accidental drift, so a deliberate command addition re-pins it
-  // — the count and hash both move together, and neither is loosened.
+  // Re-pinned 2026-08-12 twice: `org publish` (#388) joins the catalog as the
+  // governed route for committed org configuration, and `app product-docs`
+  // (#389) is added because it was missing outright — the command has shipped
+  // since #369 while the catalog that claims to be exhaustive did not list it.
+  // The pin is a byte-shape detector for accidental drift, so a deliberate
+  // command addition re-pins it — the count and hash both move together, and
+  // neither is loosened.
   it("capabilities --json remains byte-shape compatible with the pre-change catalog", async () => {
     const parsed: unknown = JSON.parse(await runCli(["capabilities", "--json"]));
     if (typeof parsed !== "object" || parsed === null || !("commands" in parsed) || !Array.isArray(parsed.commands)) {
       throw new Error("capabilities output omitted commands[]");
     }
-    expect(parsed.commands).toHaveLength(40);
+    expect(parsed.commands).toHaveLength(41);
     expect(createHash("sha256").update(JSON.stringify(parsed.commands)).digest("hex")).toBe(
-      "ed4b819419d2d6cf9eb0a3cac4f8e8025c56ff48c458fdab34ddbffb516348b1",
+      "573ec285cd5e94b49885cf42849cc60d950d406c10cb11d5cff44388b672d913",
     );
   });
 });

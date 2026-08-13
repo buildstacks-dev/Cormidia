@@ -834,6 +834,11 @@ publication/org/<content-id>.json # durable COMMITTED-ORG-HOME publication
                            # transactions (#388): the exact surface, owned paths,
                            # resolved base, branch, commit, pushed commit, draft PR,
                            # and the typed durability state a command may claim
+publication/app-<app>/<content-id>.json # the same, for app-repository
+                           # publications (#389): the product-document
+                           # disposition. Planning reads these to tell "no
+                           # decision" from "a decision that has not reached the
+                           # managed base yet" — WITHOUT reading a human checkout
 planning/delivery-unit-claims/ # atomic all-member delivery-unit claim records
 standing-roles/<app>/     # grounded draft-only artifacts + Planner feeds
 approvals/                # content-bound decisions, grants, execution state,

@@ -236,6 +236,14 @@ resolved remote default branch, a push, and a draft pull request a human merges.
 Downstream consumers read `orgHomeDivergence`, so a dirty checkout is never
 treated as universally authoritative (`docs/org/onboarding.md`).
 
+The same primitive carries app-repository decisions that automated planning
+consumes — today the product-document disposition. Live planning reads the
+org-managed checkout synchronized from the app remote and never a human working
+tree; what it gained is Cormidia's own publication journal, which is what lets a
+refusal distinguish "no decision exists" from "a decision exists and has not
+reached the managed base yet", and name the transition that is missing rather
+than the one already performed.
+
 `cormidia org upgrade` migrates a legacy org, spending no tokens. By default it
 only prints a byte-stable plan of the schema changes it would make. Execution
 copies only the packaged surfaces that are missing (including nested

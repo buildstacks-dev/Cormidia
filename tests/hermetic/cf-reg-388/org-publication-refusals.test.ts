@@ -86,12 +86,11 @@ describe("CF-REG-388 — publication refusals and negative controls", () => {
     // The operator edits the registry again between preview and execution.
     await joinExistingOrg(home.orgHome, { name: "second-app", repo: "fixture/second-app" });
 
-    await expect(publish(home, { expectedContentId: reviewed.preflight.content_id })).rejects.toThrow(
-      PublicationRefusedError,
-    );
-    await expect(publish(home, { expectedContentId: reviewed.preflight.content_id })).rejects.toThrow(
-      /moved since the preview/,
-    );
+    // One attempt, two assertions on it: a second publish would be a second
+    // full preflight for no additional coverage.
+    const refused = publish(home, { expectedContentId: reviewed.preflight.content_id });
+    await expect(refused).rejects.toThrow(PublicationRefusedError);
+    await expect(refused).rejects.toThrow(/moved since the preview/);
     expect(git(home.orgHome, ["ls-remote", "--heads", "origin", BRANCH])).toBe("");
   });
 

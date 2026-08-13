@@ -88,6 +88,11 @@ in order:
    no fetched ref and proves nothing either way. Neither is agreement. The
    supported recovery is `cormidia org publish` — never `git add -A` in an org
    home, and never a hand-edited `apps.yaml` (#388, CF-REG-388).
+6. If automated planning refuses on the product-document disposition, read WHICH
+   transition it names: record it, publish it, merge it, or re-record because
+   named document bytes drifted. It never asks for a disposition run that was
+   already performed; a refusal that does is a bug worth filing (#389,
+   CF-REG-389).
 
 If the scheduler is not installed/loaded, nothing autonomous caused your page.
 Command output semantics live in the product docs; at the level this corpus

@@ -124,6 +124,37 @@ default branch). An app onboarded before record synthesis existed recovers the
 same way — just re-run `cormidia app verify <name>`; do not hand-edit
 `apps.yaml`.
 
+## Record and publish the product-document disposition
+
+Before automated planning, a `new-app` scaffold needs exactly one
+keep/reconcile/remove decision — and that decision must be **reachable from the
+app remote**, because live planning reads Cormidia's managed checkout, not the
+operator's working tree.
+
+```bash
+cormidia app product-docs <app> --workdir <app-checkout> --disposition reconcile --json
+cormidia app product-docs <app> --workdir <app-checkout> --disposition reconcile --execute --confirm <app>:reconcile --json
+```
+
+`--execute` records the decision and publishes it: only the scaffold manifest
+(plus, for `remove`, the byte-exact placeholders it deletes, in the same commit)
+on a dedicated branch with a draft pull request. It reports a durability state.
+`pending_merge` means a human still has to merge it; planning stays blocked
+until then, and that is correct.
+
+If a publication did not finish, resume it — do NOT record the decision again:
+
+```bash
+cormidia app product-docs <app> --workdir <app-checkout> --publish --execute --confirm <app>:publish --json
+```
+
+When planning refuses, read which transition it names: record it, publish it,
+merge it, or re-record because named document bytes drifted. If a refusal ever
+tells you to re-run a disposition you just ran, that is a bug — report it.
+
+Before the app repository exists (the `new-app` happy path), the disposition
+reports `local_only` and the initial commit carries it. That is expected.
+
 ## Publish committed org configuration
 
 The org home is **committed** organization configuration. `new-app`,

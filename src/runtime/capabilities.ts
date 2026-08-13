@@ -12,6 +12,13 @@ const RUNTIME_CAPABILITIES = [
   "cache_telemetry",
   "cancellation",
   "intra_turn_fanout",
+  // Whether this harness can read a non-text file (image, PDF) off disk with
+  // its OWN tools and put it in front of the model. The orchestrator validates
+  // it before spend when a declared planning-source scope contains such a file
+  // (B-31, INV-017), so it belongs here by the "orchestrator validates it" rule
+  // above. It is NOT a grant: a harness that can read images still reads only
+  // what the gate allows.
+  "media_read",
   "session_resume",
   "structured_verdict",
   "tool_gate",
@@ -19,6 +26,17 @@ const RUNTIME_CAPABILITIES = [
 
 export type RuntimeCapability = (typeof RUNTIME_CAPABILITIES)[number];
 
+/**
+ * MEDIA_READ_TIERS: every profile below records `media_read: "unsupported"`.
+ *
+ * Capability follows evidence, never documentation — the Muse precedent. A
+ * vendor's docs saying its reader handles images is not proof that the read
+ * fires in a Cormidia-gated headless turn and reaches the model. CF-B31-L3 is
+ * the per-harness certification that flips a tier here; until it runs, a
+ * planning scope containing an image or PDF refuses before provider
+ * construction rather than planning around an asset nobody opened
+ * (B-31, CORMIDIA-INV-017).
+ */
 const RUNTIME_CAPABILITY_SUPPORT = ["native", "adapter", "fallback", "unsupported"] as const;
 
 /** `fallback` is intentionally rendered to agents as "fallback (degraded)". */
@@ -44,6 +62,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       cache_telemetry: "native",
       cancellation: "native",
       intra_turn_fanout: "native",
+      media_read: "unsupported", // see MEDIA_READ_TIERS note
       session_resume: "native",
       structured_verdict: "native",
       tool_gate: "native",
@@ -61,6 +80,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       cache_telemetry: "adapter",
       cancellation: "adapter",
       intra_turn_fanout: "native",
+      media_read: "unsupported", // see MEDIA_READ_TIERS note
       session_resume: "native",
       structured_verdict: "adapter",
       tool_gate: "adapter",
@@ -88,6 +108,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       // denial there produced no side effect. The parent stream does not
       // itemize the subagent's inner calls, which the matrix records.
       intra_turn_fanout: "native",
+      media_read: "unsupported", // see MEDIA_READ_TIERS note
       session_resume: "native",
       // No output-schema knob on the CLI surface; the loop's lenient parser is
       // the fallback.
@@ -115,6 +136,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       cache_telemetry: "native",
       cancellation: "native",
       intra_turn_fanout: "native",
+      media_read: "unsupported", // see MEDIA_READ_TIERS note
       session_resume: "native",
       // The server exposes a native json_schema output format, but certifying
       // it produced a retry loop that ran past five minutes and returned no
@@ -138,6 +160,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       // Pi has no fan-out surface. The adapter's degradation artifact makes
       // that absence visible after the turn, but it does not provide fan-out.
       intra_turn_fanout: "unsupported",
+      media_read: "unsupported", // see MEDIA_READ_TIERS note
       session_resume: "native",
       structured_verdict: "fallback",
       tool_gate: "adapter",
@@ -159,6 +182,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       // uncertified surface, the adapter's gate bridge denies spawn_subagent
       // outright and the turn is told to work serially (B-25, #339).
       intra_turn_fanout: "unsupported",
+      media_read: "unsupported", // see MEDIA_READ_TIERS note
       session_resume: "native",
       // ACP exposes no client-settable output schema on this surface, so the
       // loop's lenient parser is the fallback.
@@ -186,6 +210,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
       // owner-decided fallback is contract truth: never an ungated swarm
       // (contracts/B-26-muse-code.md, F-PT-028). Fan-out stays absent.
       intra_turn_fanout: "unsupported",
+      media_read: "unsupported", // see MEDIA_READ_TIERS note
       session_resume: "native",
       // No JSON-schema output surface; the loop's lenient parser is the path.
       structured_verdict: "fallback",
@@ -208,6 +233,7 @@ const CAPABILITY_LABELS: Record<RuntimeCapability, string> = {
   cache_telemetry: "cache telemetry",
   cancellation: "cancellation",
   intra_turn_fanout: "intra-turn fan-out",
+  media_read: "image/document reading",
   session_resume: "session resume",
   structured_verdict: "structured verdict",
   tool_gate: "tool gate",

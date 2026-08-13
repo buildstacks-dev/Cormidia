@@ -48,6 +48,7 @@ describe("CF-B24 — cursor is registered on every exhaustive surface", () => {
       cache_telemetry: "adapter",
       cancellation: "adapter",
       intra_turn_fanout: "native",
+      media_read: "unsupported",
       session_resume: "native",
       structured_verdict: "fallback",
       tool_gate: "adapter",
@@ -58,7 +59,8 @@ describe("CF-B24 — cursor is registered on every exhaustive surface", () => {
       fields: ["tokensInUncached", "cacheCreationTokens", "cacheReadTokens"],
     });
     // structured_verdict is a fallback, not an absence, so it stays in the
-    // resolved projection; nothing is unsupported on this harness.
+    // resolved projection. `media_read` IS an absence until CF-B31-L3 certifies
+    // it, so it is excluded — an uncertified surface is never advertised.
     expect(resolvedRuntimeCapabilities("cursor")).toEqual([
       "cache_telemetry",
       "cancellation",

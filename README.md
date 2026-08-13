@@ -507,7 +507,7 @@ Live forms can spend tokens and touch GitHub:
 ```bash
 cormidia plan <app> --auto --goal "<bounded goal>"
 cormidia plan <app> --auto --goal "<corpus goal>" --source docs/specs --expected-tickets complete
-cormidia plan <app> --auto --goal "<corpus goal>" --source docs/specs --expected-tickets complete --resume
+cormidia plan <app> --auto --goal "<corpus goal>" --source docs/specs --expected-tickets complete --resume-publication
 cormidia plan <app> --creator-scope ./scope.yaml --execution-ready --no-publish
 cormidia loop --app <app> --once
 cormidia dispatch
@@ -522,21 +522,17 @@ supplies `--goal` when it is omitted. A mismatched disposition, incomplete
 scope, unknown operation/role, or unapproved adaptive assignment fails before
 provider construction instead of silently falling back to EpisodePlanner.
 
-`--expected-tickets` scopes the durable decomposition and accepts an exact
+`--expected-tickets` states how many tickets you expect and accepts an exact
 count (`10`), inclusive range (`4-12`), open range (`7+`), or `complete`.
 It does not raise publication admission: each invocation remains bounded to
 bootstrap 3, growth 5, or mature 7 tickets, further constrained by repository
-evidence even when `--stage` is asserted. Cormidia stores the full decomposition
-before publishing a batch. An identical rerun reuses it; `--resume` publishes
-the next admissible batch or plans only remaining source sections, while
-`--revise` explicitly replaces still-unpublished coverage. Source content
-changes supersede affected section versions and leave their replacements
-remaining rather than silently treating old coverage as current. Remaining-only
-and revision turns receive a bounded metadata ledger of preserved ticket
-indexes, lifecycle states, issue numbers, dependency indexes, and source
-coverage IDs, never source bytes. Dependency indexes in a new delta are local
-to that delta; preserved indexes are context only, because cross-episode
-dependency edges are not supported.
+evidence even when `--stage` is asserted. The planner owns decomposition, and
+its RoadmapPlan is where that decomposition is durable — Cormidia does not keep
+a second, source-derived decomposition beside it. A publication batch is marked
+prepared before any issue is created, so an interrupted run recovers that exact
+batch with `--resume-publication` instead of creating duplicates. Dependency
+indexes are local to the plan that declares them; cross-episode dependency edges
+are not supported.
 
 ```yaml
 planningDisposition: execution_ready
@@ -962,12 +958,26 @@ not pass selectors or planner-bypass signals. Use `cormidia episode explain
 Automated planning also accepts repeatable required `--source <file-or-dir>`
 and optional `--optional-source <file-or-dir>` inputs. Relative paths resolve
 against the exact source checkout; absolute external sources are allowed.
-Cormidia resolves bounded directories, content-hashes UTF-8 text, applies the
-shared secret boundary, and records canonical refs, bytes, trust, selection,
-truncation/exclusion, and consumption before constructing a provider runtime.
-A missing, unreadable, rejected, or over-budget required source fails closed.
-Every pass retains `planning-sources.json`; emitted tickets carry only the
-manifest/source refs and hashes, never the source bytes.
+**Cormidia does not read these files.** It declares them as a governed read
+scope — canonical roots, bounded traversal, symlinks refused — and the harness
+reads them with its own tools, including its image and document readers, so a
+directory mixing Markdown, screenshots, hand-drawn sketches and PDFs is ordinary
+input rather than a rejection. The gate confines the turn to the workdir and the
+declared roots.
+
+A missing, unreadable, or rejected required root fails closed before any
+provider is constructed; an optional one stays visible as an unavailable row.
+When a declared scope contains images or documents, the selected
+harness/model/effort tuple must carry the `media_read` capability or the episode
+refuses before spending tokens — capability is read from the proven profile,
+never inferred from a model id.
+
+Consumption is observed, never assumed: a source is reported consumed only when
+the gate saw the turn read it, hashed at read time. A declared source the turn
+never opened is reported `not_read`, and a turn with no observable read channel
+reports `unobservable` — neither is ever rendered as coverage. Every pass
+retains `planning-source-scope.json`; emitted tickets carry refs, hashes and the
+observed consumption state, never source bytes and never raw media.
 
 `cormidia learn` is the learning loop's human window; `cormidia learn --help`
 has the full argument semantics. The capture verbs (`report`, `inspect

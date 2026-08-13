@@ -423,7 +423,7 @@
     },
     "src/loop/plan-publication-guard.ts": {
       "exports": 3,
-      "lines": 62,
+      "lines": 70,
       "newModule": true
     },
     "src/loop/plan-publication-record.ts": {
@@ -433,7 +433,7 @@
     },
     "src/loop/plan-tickets.ts": {
       "exports": 30,
-      "lines": 1092,
+      "lines": 1101,
       "newModule": false
     },
     "src/loop/planner-admission.ts": {
@@ -973,7 +973,7 @@
     },
     "src/org/plan-auto.ts": {
       "exports": 2,
-      "lines": 1708,
+      "lines": 1732,
       "newModule": false
     },
     "src/org/plan.ts": {
@@ -996,41 +996,6 @@
       "lines": 12,
       "newModule": true
     },
-    "src/org/planning-auto-coverage-operations.ts": {
-      "exports": 9,
-      "lines": 176,
-      "newModule": true
-    },
-    "src/org/planning-auto-coverage.ts": {
-      "exports": 4,
-      "lines": 295,
-      "newModule": true
-    },
-    "src/org/planning-coverage-model.ts": {
-      "exports": 10,
-      "lines": 259,
-      "newModule": true
-    },
-    "src/org/planning-coverage-publication.ts": {
-      "exports": 2,
-      "lines": 167,
-      "newModule": true
-    },
-    "src/org/planning-coverage-request.ts": {
-      "exports": 10,
-      "lines": 123,
-      "newModule": true
-    },
-    "src/org/planning-coverage-store.ts": {
-      "exports": 3,
-      "lines": 167,
-      "newModule": true
-    },
-    "src/org/planning-coverage.ts": {
-      "exports": 10,
-      "lines": 300,
-      "newModule": true
-    },
     "src/org/planning-decomposition.ts": {
       "exports": 9,
       "lines": 205,
@@ -1042,8 +1007,8 @@
       "newModule": false
     },
     "src/org/planning-inputs.ts": {
-      "exports": 8,
-      "lines": 522,
+      "exports": 10,
+      "lines": 434,
       "newModule": false
     },
     "src/org/planning-provider-brief.ts": {
@@ -1051,9 +1016,29 @@
       "lines": 95,
       "newModule": true
     },
+    "src/org/planning-publication-ledger.ts": {
+      "exports": 6,
+      "lines": 113,
+      "newModule": true
+    },
+    "src/org/planning-publication-operations.ts": {
+      "exports": 5,
+      "lines": 173,
+      "newModule": true
+    },
+    "src/org/planning-publication-publish.ts": {
+      "exports": 2,
+      "lines": 165,
+      "newModule": true
+    },
     "src/org/planning-publication.ts": {
       "exports": 6,
       "lines": 113,
+      "newModule": true
+    },
+    "src/org/planning-source-reads.ts": {
+      "exports": 3,
+      "lines": 117,
       "newModule": true
     },
     "src/org/planning-stage.ts": {
@@ -1073,7 +1058,7 @@
     },
     "src/org/product-doc-planning.ts": {
       "exports": 5,
-      "lines": 185,
+      "lines": 187,
       "newModule": true
     },
     "src/org/product-doc-record.ts": {
@@ -1743,7 +1728,7 @@
     },
     "src/runtime/capabilities.ts": {
       "exports": 8,
-      "lines": 288,
+      "lines": 314,
       "newModule": false
     },
     "src/runtime/cli-progress-args.ts": {

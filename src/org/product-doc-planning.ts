@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { TicketPlan } from "../loop/plan-tickets.js";
 import { inspectProductDocScaffold, type ProductDocDisposition } from "./product-doc-record.js";
-import type { PlanningSourceManifest } from "./planning-inputs.js";
+import type { PlanningSourceScope } from "./planning-inputs.js";
 
 export type ProductDocPlanningState =
   | { kind: "unscaffolded" }
@@ -20,7 +20,7 @@ export async function prepareProductDocPlanning(input: {
   workdir: string;
   app: string;
   repository: string;
-  sources?: PlanningSourceManifest;
+  sources?: PlanningSourceScope;
 }): Promise<ProductDocPlanningState> {
   const inspected = await inspectProductDocScaffold(input);
   if (inspected === undefined) return { kind: "unscaffolded" };
@@ -46,7 +46,7 @@ export async function prepareProductDocPlanning(input: {
   }
   if (record.disposition.value === "reconcile" && !hasAuthoritativeSource(input.sources, record.documents)) {
     throw new Error(
-      "plan: reconcile disposition requires at least one consumed --source outside the scaffold product documents",
+      "plan: reconcile disposition requires at least one declared --source outside the scaffold product documents",
     );
   }
   return {
@@ -146,7 +146,7 @@ export function productDocPlanProblems(plan: TicketPlan, state: ProductDocPlanni
 }
 
 export async function assertCurrentProductDocTicketPlan(
-  input: { workdir: string; app: string; repository: string; sources?: PlanningSourceManifest },
+  input: { workdir: string; app: string; repository: string; sources?: PlanningSourceScope },
   expected: ProductDocPlanningState,
   plan: TicketPlan,
 ): Promise<void> {
@@ -171,15 +171,17 @@ function commonPlanningBrief(state: Extract<ProductDocPlanningState, { kind: "sc
   return `## Product-document disposition\n\nTemplate: ${state.template}.${bare}`;
 }
 
-function hasAuthoritativeSource(
-  manifest: PlanningSourceManifest | undefined,
-  documents: Array<{ path: string }>,
-): boolean {
-  if (manifest === undefined) return false;
-  return manifest.sources.some(
-    (source) =>
-      source.selection === "selected" &&
-      source.consumption === "consumed" &&
-      !documents.some((document) => source.canonical_ref.endsWith(`:${document.path}`)),
+/** Did the operator DECLARE something authoritative to reconcile from, beyond
+ * the product-document placeholders themselves?
+ *
+ * This asks about the declared scope, not about consumption: the question is
+ * whether the operator supplied real product truth, and it is answered before
+ * the turn runs. Whether the turn actually read it is a different question with
+ * a different owner (INV-017 / reconcilePlanningSourceReads) — conflating the
+ * two would make a pre-turn decision depend on post-turn evidence. */
+function hasAuthoritativeSource(scope: PlanningSourceScope | undefined, documents: Array<{ path: string }>): boolean {
+  if (scope === undefined) return false;
+  return scope.entries.some(
+    (entry) => !documents.some((document) => entry.canonical_ref.endsWith(`:${document.path}`)),
   );
 }

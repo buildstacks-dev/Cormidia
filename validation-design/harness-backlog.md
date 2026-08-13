@@ -1550,6 +1550,52 @@ by the next-id scan over this file and case-catalog.yaml's ticket list. -->
   review guard; standing rule 2 (guardrails enforce). *Layer:* 2. *Executor:*
   build-agent.
 
+## Structural revision (2026-08-12, F-PT-039 / issue #386) — HB-155
+
+<!-- Provenance: harness revision 2026-08-12 resolving F-PT-039 (owner ruling: PURPOSE
+non-negotiable 2 governs planning `--source`; the Cormidia-side pre-read is removed and
+the harness reads the operator's files with its own tools). Registered structure: B-31,
+CORMIDIA-INV-017, CORMIDIA-C-B31-001…003, families CF-B31-*/CF-B31-L3/CF-INV-017/CF-C-B31.
+Pruned with the mechanism they served: the source-section coverage legs of CF-REG-374
+(planningSourceCoverageHash, coverage record, --resume/--revise, plan_source_changed) and
+the ingestion secret pre-scan. See case-catalog.md §10.3's CF-REG-374 changelog. -->
+
+- **HB-155 — LANDED 2026-08-12 — governed planning-source scope + harness-native reading (F-PT-039, #386).**
+  Cormidia declares a governed read scope from `--source`/`--optional-source` and the
+  harness reads it with its own tools; the pre-read, the source-section coverage layer and
+  the ingestion secret pre-scan are removed. *Acceptance:* (1) a required root that is
+  missing/unreadable/non-regular refuses pre-runtime while an optional one records
+  unavailable and proceeds; (2) a symlink escaping a declared root refuses and escalates;
+  (3) a read outside every declared root is denied through the ordinary gate path, with no
+  bespoke source-read mechanism; (4) **silent under-read never reports consumption** — a
+  turn that reads nothing, or reads only text from an image-bearing scope, cannot produce
+  a consumed manifest row, and the seeded narrate-without-reading liar turns the detector
+  red; (5) an assignment lacking `media_read` for an image-bearing scope refuses before
+  provider construction with typed remediation, and capability is read from the profile,
+  never inferred from a model id (seeded control); (6) unobservable read evidence reports
+  unobservable — never coverage, never a clean empty walk; (7) a mixed directory of
+  Markdown + PNG + PDF plans successfully end to end with the image demonstrably read;
+  (8) the INV-011 publication guard still refuses and no raw media byte crosses the
+  publication boundary; (9) removal is complete — no Cormidia-side decode, classify, or
+  content-embed path survives, asserted structurally. *Defends:* CORMIDIA-INV-017,
+  CORMIDIA-C-B31-001…003, CF-J03-R's modality refusal leg. *Families:* CF-B31-\*,
+  CF-INV-017, CF-C-B31 (CF-B31-L3 is the separate per-harness live leg, gated on adapter
+  certification and never claimed from documentation). *Layer:* 1/2 (+3 for CF-B31-L3).
+  *Executor:* build-agent.
+  <!-- implementation status 2026-08-12: LANDED. Product change: src/org/planning-inputs.ts
+  declares a scope (stat + bounded 16-byte magic-byte probe) and never reads content;
+  src/org/planning-source-reads.ts observes gate-reported reads and narrows the gate to
+  workdir + declared roots; the pre-read, its byte budget, its secret pre-scan, and the
+  seven coverage modules are deleted; the coverage record's transactional half moved to
+  src/org/planning-publication-ledger.ts + -operations.ts + -publish.ts; `media_read`
+  joined the runtime capability profiles at `unsupported` pending CF-B31-L3.
+  Detectors: tests/hermetic/cf-b31/planning-source-scope.test.ts (15 cases) — red-then-green
+  verified against three seeded violations: (1) unread reported as consumed → 5 red,
+  (2) narration counted as a read → 2 red, (3) scope gate stops denying → 1 red; all green
+  on restore. CF-REG-374's suite was rewritten to its surviving legs with the prune recorded
+  in its own header and §10.3 row. CF-B31-L3 (per-harness modality proof) remains OPEN and is
+  the only thing between this and a usable image-bearing planning scope. -->
+
 ## Standing rules
 
 (Single source of truth for the detector-deposit obligation:

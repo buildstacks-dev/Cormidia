@@ -15,7 +15,7 @@ describe("CF-REG-369 — product-doc planning policy", () => {
     const source = await readFile(new URL("../../../src/org/plan-auto.ts", import.meta.url), "utf8");
     const policy = await readFile(new URL("../../../src/org/product-doc-planning.ts", import.meta.url), "utf8");
     const publication = await readFile(
-      new URL("../../../src/org/planning-coverage-publication.ts", import.meta.url),
+      new URL("../../../src/org/planning-publication-publish.ts", import.meta.url),
       "utf8",
     );
     expect(publicationGuardProblems(source, policy, publication)).toEqual([]);
@@ -33,7 +33,7 @@ describe("CF-REG-369 — product-doc planning policy", () => {
     expect(publicationGuardProblems(seededStaleResume, policy, publication)).toEqual(["publication recheck missing"]);
 
     const seededCentralBypass = publication.replace(
-      "await input.beforePublish?.(coverage.plan);",
+      "await input.beforePublish?.(ledger.plan);",
       "await Promise.resolve(); // removed centralized pre-publication callback",
     );
     expect(publicationGuardProblems(source, policy, seededCentralBypass)).toEqual([
@@ -148,8 +148,8 @@ function publicationGuardProblems(source: string, policy: string, publicationSou
   const boundGuard = source.indexOf("const productDocs = await prepareProductDocPlanning(productDocPlanningInput);");
   const provider = source.indexOf("const orchestrated = await orchestrateEpisode({");
   const publicationRecheck = source.indexOf("await assertCurrentProductDocTicketPlan(");
-  const publicationCall = source.indexOf("const publication = await publishAutoPlanningCoverage(");
-  const callback = publicationSource.indexOf("await input.beforePublish?.(coverage.plan);");
+  const publicationCall = source.indexOf("const publication = await publishPlanningLedger(");
+  const callback = publicationSource.indexOf("await input.beforePublish?.(ledger.plan);");
   const publication = publicationSource.indexOf("await publishPlanProjection(");
   if (guard < 0 && boundGuard < 0) return ["product-doc guard missing"];
   return [

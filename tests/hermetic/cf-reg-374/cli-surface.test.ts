@@ -76,7 +76,7 @@ describe("CF-REG-374 — CLI decomposition/admission surfaces", () => {
       evidenceStage: "bootstrap",
       constrainedByEvidence: true,
     });
-    expect(preview.ticketBudget.detail).toContain("complete decomposition is stored independently");
+    expect(preview.ticketBudget.detail).toContain("planner owns decomposition");
     expect(preview.effects).toEqual([]);
     expect(preview.episode).toMatchObject({ providerRuntimeCalled: false, durableStateWritten: false });
     expect(await externalCalls(org)).toEqual([]);
@@ -122,15 +122,10 @@ describe("CF-REG-374 — CLI decomposition/admission surfaces", () => {
       "--json",
     ]);
     expect(revise.code, revise.stderr).toBe(1);
-    expect(JSON.parse(revise.stdout)).toMatchObject({
-      status: "failed",
-      refusal: {
-        code: "plan_revision_missing",
-        publicationCap: 3,
-        preservedDecomposition: null,
-        nextAction: expect.stringContaining("without --revise"),
-      },
-    });
+    // changelog 2026-08-12 (F-PT-039): `--revise` was removed with the coverage
+    // layer. The surviving property is that a removed flag is refused up front
+    // rather than silently ignored into a live planning run.
+    expect(`${revise.stdout}${revise.stderr}`).toContain("--revise");
     expect(await externalCalls(org)).toEqual([]);
   });
 });

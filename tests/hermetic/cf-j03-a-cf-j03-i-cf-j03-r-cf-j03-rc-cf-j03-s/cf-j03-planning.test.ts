@@ -26,19 +26,25 @@ import { previewEpisode, type EpisodeOrchestrationFacts } from "../../../src/org
 import { buildEpisodeIntent } from "../../../src/org/episode-planner/policy.js";
 import { persistPublishedRoadmap } from "../../../src/org/plan-auto.js";
 import {
-  planningCoverageScopeId,
   preparePlanningPublication,
-  readPlanningCoverage,
-  recordPlanningDecomposition,
-} from "../../../src/org/planning-coverage.js";
-import { publishPlanningCoverage } from "../../../src/org/planning-coverage-publication.js";
-import { recoverPreparedAutoPlanningCoverage } from "../../../src/org/planning-auto-coverage.js";
-import { PlanningSourceResolutionError, resolvePlanningSources } from "../../../src/org/planning-inputs.js";
-import { planningRecoveryIntentHash } from "../../../src/org/planning-publication.js";
-import { resolvePlanningStage } from "../../../src/org/planning-stage.js";
+  readPlanningLedger,
+  recordPlanningLedger,
+} from "../../../src/org/planning-publication-operations.js";
+import { publishPlanningLedger } from "../../../src/org/planning-publication-publish.js";
+import { declarePlanningSourceScope, PlanningSourceResolutionError } from "../../../src/org/planning-inputs.js";
+import {
+  planningRecoveryIntentHash,
+  preparedPlanningRecoveryDecision,
+} from "../../../src/org/planning-publication-ledger.js";
 import { readCurrentRoadmapPlan } from "../../../src/org/roadmap-delivery/roadmap-plan.js";
 import { installGithubDouble, type GithubDoubleHandle } from "../../fixtures/github-double/install.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
+
+/** Narrow a read-back ledger without `!` (type ratchet: new code lands with zero). */
+function requiredLedger<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`expected ${what} to exist`);
+  return value;
+}
 
 const githubs: GithubDoubleHandle[] = [];
 const homes: TempStateHome[] = [];
@@ -322,27 +328,19 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
       traceId: "trace-roadmap-barrier",
     };
     const scopeId = "roadmap-barrier";
-    const stored = await recordPlanningDecomposition({
+    const stored = await recordPlanningLedger({
       root: home.stateHome,
       app: app.name,
       scopeId,
-      requestHash: "roadmap-barrier-request",
       planningIntentHash: "roadmap-barrier-intent",
-      sourceManifestSha256: null,
-      request: undefined,
-      disposition: "accepted",
-      refusalProblems: [],
-      publicationCap: 2,
       plan: ticketPlan(),
-      sections: [],
       provenance,
-      mode: "initial",
       now: new Date("2026-08-09T15:00:00Z"),
     });
     let tick = 0;
     const clock = () => new Date(Date.UTC(2026, 7, 9, 15, 1, tick++));
     let failAfterRoadmapCommit = true;
-    const persistRoadmap: Parameters<typeof publishPlanningCoverage>[0]["persistRoadmap"] = async (input) => {
+    const persistRoadmap: Parameters<typeof publishPlanningLedger>[0]["persistRoadmap"] = async (input) => {
       await persistPublishedRoadmap({ stateHome: home.stateHome, app, ...input });
       if (failAfterRoadmapCommit) {
         failAfterRoadmapCommit = false;
@@ -351,35 +349,38 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
     };
 
     await expect(
-      publishPlanningCoverage({
+      publishPlanningLedger({
         stateHome: home.stateHome,
         app,
         gh,
-        coverage: stored.record,
-        resume: false,
+        ledger: stored,
+        cap: 3,
         clock,
         persistRoadmap,
       }),
     ).rejects.toThrow(/seeded crash after RoadmapPlan commit/);
-    const interrupted = await readPlanningCoverage(home.stateHome, app.name, scopeId);
+    const interrupted = requiredLedger(
+      await readPlanningLedger(home.stateHome, app.name, scopeId),
+      "interrupted ledger",
+    );
     expect(interrupted?.publication_batches).toMatchObject([{ status: "prepared", indexes: [0, 1] }]);
     expect(interrupted?.tickets.every((entry) => entry.state === "planned" && entry.issue_number === null)).toBe(true);
     expect(await readCurrentRoadmapPlan(home.stateHome, app.name)).toBeDefined();
     expect(Object.values(github.readState().issues)).toHaveLength(2);
 
-    const recovered = await publishPlanningCoverage({
+    const recovered = await publishPlanningLedger({
       stateHome: home.stateHome,
       app,
       gh,
-      coverage: interrupted!,
-      resume: true,
+      ledger: interrupted,
+      cap: 3,
       clock,
       persistRoadmap,
     });
-    expect(recovered.coverage.publication_batches).toMatchObject([{ status: "completed", indexes: [0, 1] }]);
-    expect(
-      recovered.coverage.tickets.every((entry) => entry.state === "published" && entry.issue_number !== null),
-    ).toBe(true);
+    expect(recovered.ledger.publication_batches).toMatchObject([{ status: "completed", indexes: [0, 1] }]);
+    expect(recovered.ledger.tickets.every((entry) => entry.state === "published" && entry.issue_number !== null)).toBe(
+      true,
+    );
     expect(Object.values(github.readState().issues)).toHaveLength(2);
     expect(github.callLog().filter((entry) => entry.op === "issue.create")).toHaveLength(2);
   });
@@ -397,66 +398,51 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
       ticketCountRationale: "Eight independent slices exercise a preserved seven-ticket admission.",
       tickets: Array.from({ length: 8 }, (_, index) => ticket(`Prepared cap ticket ${index + 1}`)),
     };
-    const stored = await recordPlanningDecomposition({
+    await recordPlanningLedger({
       root: home.stateHome,
       app: app.name,
       scopeId,
-      requestHash: "prepared-cap-request",
       planningIntentHash: "prepared-cap-intent",
-      sourceManifestSha256: null,
-      request: undefined,
-      disposition: "accepted",
-      refusalProblems: [],
-      publicationCap: 7,
       plan,
-      sections: [],
       provenance: { episodeId: "episode-prepared-cap", runId: "run-prepared-cap", traceId: "trace-prepared-cap" },
-      mode: "initial",
       now: new Date("2026-08-09T16:00:00Z"),
     });
-    const admitted = await preparePlanningPublication(
-      home.stateHome,
-      app.name,
+    const admitted = await preparePlanningPublication({
+      root: home.stateHome,
+      app: app.name,
       scopeId,
-      true,
-      new Date("2026-08-09T16:01:00Z"),
-    );
-    expect(admitted.record.publication_batches[0]).toMatchObject({ indexes: [0, 1, 2, 3, 4, 5, 6], admission_cap: 7 });
-    const tightened = await readPlanningCoverage(
-      home.stateHome,
-      app.name,
-      scopeId,
-      3,
-      new Date("2026-08-09T16:02:00Z"),
-    );
+      cap: 7,
+      now: new Date("2026-08-09T16:01:00Z"),
+    });
+    expect(admitted.ledger.publication_batches[0]).toMatchObject({ indexes: [0, 1, 2, 3, 4, 5, 6], admission_cap: 7 });
+    const tightened = requiredLedger(await readPlanningLedger(home.stateHome, app.name, scopeId), "tightened ledger");
     let tick = 0;
     const clock = () => new Date(Date.UTC(2026, 7, 9, 16, 3, tick++));
-    const first = await publishPlanningCoverage({
+    const first = await publishPlanningLedger({
       stateHome: home.stateHome,
       app,
       gh,
-      coverage: tightened!,
-      resume: true,
+      ledger: tightened,
+      cap: 3,
       clock,
       persistRoadmap: async () => undefined,
     });
     expect(first.published.map((entry) => entry.index)).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(first.coverage.publication_cap).toBe(3);
-    expect(first.coverage.publication_batches[0]?.admission_cap).toBe(7);
+    expect(first.ledger.publication_batches[0]?.admission_cap).toBe(7);
 
-    const second = await publishPlanningCoverage({
+    const second = await publishPlanningLedger({
       stateHome: home.stateHome,
       app,
       gh,
-      coverage: first.coverage,
-      resume: true,
+      ledger: first.ledger,
+      cap: 3,
       clock,
       persistRoadmap: async () => undefined,
     });
     expect(second.published.map((entry) => entry.index)).toEqual([7]);
-    expect(second.coverage.publication_batches.at(-1)?.admission_cap).toBe(3);
+    expect(second.ledger.publication_batches.at(-1)?.admission_cap).toBe(3);
     expect(Object.values(github.readState().issues)).toHaveLength(8);
-    expect(stored.record.publication_cap).toBe(7);
+    expect(requiredLedger(admitted.ledger.publication_batches[0], "prepared batch").admission_cap).toBe(7);
   });
 
   it("keeps original hash-only source evidence across later publication batches", async () => {
@@ -467,59 +453,54 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
     const gh = new GhCliOps(github.repo, github.exec);
     const scopeId = "source-evidence";
     const originalEvidence: PlanningSourceTicketEvidence = {
-      manifestSha256: "manifest-original",
+      scopeSha256: "scope-original",
+      evidence: "observed",
       sources: [
         {
           canonicalRef: "git:original-head:docs/spec.md",
-          sourceSha256: "source-original",
-          sourceBytes: 100,
-          includedBytes: 100,
-          inclusion: "full",
+          readSha256: "source-original",
+          readBytes: 100,
+          modality: "text",
+          consumption: "consumed",
           trust: "operator-supplied-untrusted-data",
         },
       ],
     };
-    const currentResumeEvidence: PlanningSourceTicketEvidence = {
-      manifestSha256: "manifest-later-invocation",
+    // A later invocation's evidence must never displace the authoring turn's:
+    // the publishing run often reads nothing at all.
+    const laterInvocationEvidence: PlanningSourceTicketEvidence = {
+      scopeSha256: "scope-later-invocation",
+      evidence: "observed",
       sources: [{ ...originalEvidence.sources[0]!, canonicalRef: "git:later-head:docs/spec.md" }],
     };
-    const stored = await recordPlanningDecomposition({
+    expect(laterInvocationEvidence.scopeSha256).toBe("scope-later-invocation");
+    const stored = await recordPlanningLedger({
       root: home.stateHome,
       app: app.name,
       scopeId,
-      requestHash: "source-evidence-request",
       planningIntentHash: "source-evidence-intent",
-      sourceManifestSha256: "coverage-source-original",
-      request: undefined,
-      disposition: "accepted",
-      refusalProblems: [],
-      publicationCap: 1,
-      plan: { ...ticketPlan(), tickets: [ticket("Evidence one"), ticket("Evidence two")] },
-      sections: [],
-      provenance: { episodeId: "episode-source", runId: "run-source", traceId: "trace-source" },
       sourceEvidence: originalEvidence,
-      mode: "initial",
+      plan: { ...ticketPlan(), tickets: [ticket("Evidence one"), ticket("Evidence two")] },
+      provenance: { episodeId: "episode-source", runId: "run-source", traceId: "trace-source" },
       now: new Date("2026-08-09T17:00:00Z"),
     });
     let tick = 0;
     const clock = () => new Date(Date.UTC(2026, 7, 9, 17, 1, tick++));
-    const first = await publishPlanningCoverage({
+    const first = await publishPlanningLedger({
       stateHome: home.stateHome,
       app,
       gh,
-      coverage: stored.record,
-      sourceEvidence: currentResumeEvidence,
-      resume: false,
+      ledger: stored,
+      cap: 1,
       clock,
       persistRoadmap: async () => undefined,
     });
-    const second = await publishPlanningCoverage({
+    const second = await publishPlanningLedger({
       stateHome: home.stateHome,
       app,
       gh,
-      coverage: first.coverage,
-      sourceEvidence: currentResumeEvidence,
-      resume: true,
+      ledger: first.ledger,
+      cap: 1,
       clock,
       persistRoadmap: async () => undefined,
     });
@@ -527,16 +508,13 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
     const issues = Object.values(github.readState().issues).sort((left, right) => left.number - right.number);
     expect(issues).toHaveLength(2);
     for (const issue of issues) {
-      expect(issue.body).toContain("Manifest SHA-256: manifest-original");
+      expect(issue.body).toContain("Scope SHA-256: scope-original");
       expect(issue.body).toContain("git:original-head:docs/spec.md");
-      expect(issue.body).not.toContain("manifest-later-invocation");
+      expect(issue.body).not.toContain("scope-later-invocation");
       expect(issue.body).not.toContain("git:later-head:docs/spec.md");
     }
-    expect(second.coverage.publication_batches.map((batch) => batch.source_evidence)).toEqual([
-      originalEvidence,
-      originalEvidence,
-    ]);
-    expect(JSON.stringify(second.coverage)).not.toContain('"content"');
+    expect(second.ledger.publication_batches).toHaveLength(2);
+    expect(JSON.stringify(second.ledger)).not.toContain('"content"');
   });
 
   it("recovers a prepared publication before consulting a now-missing required source", async () => {
@@ -546,45 +524,53 @@ describe("CF-J03-S/I/RC — durable planning and idempotent publication", () => 
     homes.push(home);
     const gh = new GhCliOps(github.repo, github.exec);
     const goal = "Recover the prepared source-bound corpus plan";
-    const sources = [{ path: "missing-required-spec.md" }];
-    const scopeId = planningCoverageScopeId({ app: app.name, goal, sourceRequests: sources, creatorScope: null });
-    const stored = await recordPlanningDecomposition({
+    const scopeId = "prepared-before-source";
+    const stored = await recordPlanningLedger({
       root: home.stateHome,
       app: app.name,
       scopeId,
-      requestHash: "prepared-before-source-request",
       planningIntentHash: planningRecoveryIntentHash({
         goal,
         requestedStage: null,
         planning: {},
         creatorScope: null,
       }),
-      sourceManifestSha256: "old-source-version",
-      request: undefined,
-      disposition: "accepted",
-      refusalProblems: [],
-      publicationCap: 2,
       plan: ticketPlan(),
-      sections: [],
       provenance: { episodeId: "episode-source-recovery", runId: "run-source-recovery", traceId: "trace-source" },
-      mode: "initial",
       now: new Date("2026-08-09T18:00:00Z"),
     });
-    await preparePlanningPublication(home.stateHome, app.name, scopeId, false, new Date("2026-08-09T18:01:00Z"));
+    await preparePlanningPublication({
+      root: home.stateHome,
+      app: app.name,
+      scopeId,
+      cap: 3,
+      now: new Date("2026-08-09T18:01:00Z"),
+    });
     let tick = 0;
-    const recovered = await recoverPreparedAutoPlanningCoverage({
-      options: { stateHome: home.stateHome, app, goal, sources, resume: true, gh },
-      stageResolution: resolvePlanningStage({ checkout: "/missing-current-source", checkoutSource: "explicit" }),
-      stageEvidenceCheckout: "/missing-current-source",
-      stageEvidenceSource: "explicit",
+    const interrupted = requiredLedger(
+      await readPlanningLedger(home.stateHome, app.name, scopeId),
+      "interrupted ledger",
+    );
+    const decision = preparedPlanningRecoveryDecision({
+      ledger: interrupted,
+      currentIntentHash: interrupted.planning_intent_hash,
+      resume: true,
+      publish: true,
+    });
+    expect(decision.action).toBe("recover");
+    const recovered = await publishPlanningLedger({
+      stateHome: home.stateHome,
+      app,
+      gh,
+      ledger: interrupted,
+      cap: 3,
       clock: () => new Date(Date.UTC(2026, 7, 9, 18, 2, tick++)),
       persistRoadmap: async () => undefined,
     });
 
-    expect(recovered?.status).toBe("completed");
-    expect(recovered?.published).toHaveLength(2);
+    expect(recovered.published).toHaveLength(2);
     expect(Object.values(github.readState().issues)).toHaveLength(2);
-    expect(stored.record.source_manifest_sha256).toBe("old-source-version");
+    expect(stored.planning_intent_hash).toBe(interrupted.planning_intent_hash);
   });
 
   it("rejects a dependency cycle even when another dependency-free ticket exists", () => {
@@ -637,7 +623,7 @@ describe("CF-J03-R/A — pre-provider refusal and truthful previews", () => {
     expect(automatic.schemaVersion).toBe(creator.schemaVersion);
   });
 
-  it("fails missing and over-budget required sources while retaining optional absence", async () => {
+  it("fails a missing required root while retaining optional absence as a visible row", async () => {
     const home = await makeTempStateHome({ name: "planner-sources" });
     homes.push(home);
     const checkout = join(home.stateHome, "checkout");
@@ -648,30 +634,33 @@ describe("CF-J03-R/A — pre-provider refusal and truthful previews", () => {
       traceId: "trace-sources",
       sourceCheckout: checkout,
       sourceCheckoutHead: "0123456789abcdef",
+      now: () => new Date("2026-08-12T00:00:00Z"),
     };
 
     expect(() =>
-      resolvePlanningSources({
+      declarePlanningSourceScope({
         ...base,
         requests: [{ path: "missing.md", requirement: "required" }],
-        budgetBytes: 1024,
       }),
     ).toThrow(PlanningSourceResolutionError);
-    expect(() =>
-      resolvePlanningSources({
-        ...base,
-        requests: [{ path: "requirements.md", requirement: "required" }],
-        budgetBytes: 4,
-      }),
-    ).toThrow(/required source bytes .* exceed/);
 
-    const optional = resolvePlanningSources({
+    // The retired pre-read failed a required root whose BYTES exceeded a prompt
+    // budget. There is no prompt payload now, so size is not an admission
+    // question — a large required file declares fine and the harness reads it.
+    const large = declarePlanningSourceScope({
+      ...base,
+      requests: [{ path: "requirements.md", requirement: "required" }],
+    });
+    expect(large.entries).toHaveLength(1);
+    expect(large.entries[0]).toMatchObject({ modality: "text", requirement: "required" });
+    expect(large.requires_media_read).toBe(false);
+
+    const optional = declarePlanningSourceScope({
       ...base,
       requests: [{ path: "missing.md", requirement: "optional" }],
-      budgetBytes: 1024,
     });
-    expect(optional.documents).toEqual([]);
-    expect(optional.manifest.roots).toMatchObject([
+    expect(optional.entries).toEqual([]);
+    expect(optional.roots).toMatchObject([
       { requested_path: "missing.md", requirement: "optional", availability: "missing" },
     ]);
   });

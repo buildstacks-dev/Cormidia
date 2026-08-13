@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeTempOrgHome } from "../../fixtures/org-home.js";
 import { cmdApp } from "../../../src/cli/app.js";
 import { createNewApp } from "../../../src/org/new-app.js";
-import type { PlanningSourceManifest } from "../../../src/org/planning-inputs.js";
+import type { PlanningSourceScope } from "../../../src/org/planning-inputs.js";
 import { executeProductDocDisposition, planProductDocDisposition } from "../../../src/org/product-doc-disposition.js";
 import { renderProductDocScaffoldRecord } from "../../../src/org/product-doc-record.js";
 import { prepareProductDocPlanning } from "../../../src/org/product-doc-planning.js";
@@ -229,15 +229,15 @@ describe("CF-REG-369 — product-doc disposition lifecycle", () => {
     ).rejects.toThrow();
   });
 
-  it("reconcile requires a consumed authoritative source outside the scaffold documents", async () => {
+  it("reconcile requires a declared authoritative source outside the scaffold documents", async () => {
     const root = await scaffold();
     await executeProductDocDisposition(input(root, "reconcile"));
     await expect(prepareProductDocPlanning({ workdir: root, app: APP, repository: REPO })).rejects.toThrow(
-      /requires at least one consumed --source outside/,
+      /requires at least one declared --source outside/,
     );
     await expect(
       prepareProductDocPlanning({ workdir: root, app: APP, repository: REPO, sources: sources("docs/VISION.md") }),
-    ).rejects.toThrow(/requires at least one consumed --source outside/);
+    ).rejects.toThrow(/requires at least one declared --source outside/);
     await expect(
       prepareProductDocPlanning({
         workdir: root,
@@ -321,36 +321,29 @@ function input(root: string, disposition: "keep" | "reconcile" | "remove") {
   return { workdir: root, app: APP, repository: REPO, disposition };
 }
 
-function sources(path: string): PlanningSourceManifest {
+function sources(path: string): PlanningSourceScope {
   return {
-    schema_version: 1,
-    kind: "planning-source-manifest",
+    schema_version: 2,
+    kind: "planning-source-scope",
     app: APP,
     trace_id: "trace",
     source_checkout: "/tmp/checkout",
     source_checkout_head: "0123456789abcdef0123456789abcdef01234567",
-    budget_bytes: 1024,
-    included_bytes: 4,
-    manifest_sha256: "a".repeat(64),
+    observed_at: "2026-08-12T00:00:00.000Z",
+    requires_media_read: false,
+    scope_sha256: "a".repeat(64),
     roots: [],
-    sources: [
+    entries: [
       {
-        source_id: "source-1",
+        entry_id: "entry-1",
         root_index: 0,
-        requested_path: path,
         canonical_path: `/tmp/checkout/${path}`,
         canonical_ref: `repo:${path}`,
-        source_sha256: "b".repeat(64),
-        source_bytes: 4,
-        included_bytes: 4,
+        declared_bytes: 4,
+        modality: "text",
         trust: "operator-supplied-untrusted-data",
         provenance: "cli:--source",
         requirement: "required",
-        availability: "available",
-        selection: "selected",
-        inclusion: "full",
-        consumption: "consumed",
-        reason: null,
       },
     ],
   };

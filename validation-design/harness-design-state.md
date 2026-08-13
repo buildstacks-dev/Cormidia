@@ -1,6 +1,31 @@
 # Harness design state — Cormidia validation campaign
 
-Updated: 2026-08-10 (steady-state harness revision below; prior state retained)
+Updated: 2026-08-12 (F-PT-039 governed-planning-source revision below; prior state retained)
+
+## Harness revision — governed planning-source scope (2026-08-12, F-PT-039 / #386)
+
+Diff-scoped revision resolving F-PT-039: `docs/PURPOSE.md` non-negotiable 2 governs
+planning `--source`, so the Cormidia-side pre-read is removed and the harness reads the
+operator's files with its own tools. Full seat decisions and provenance in
+`ratification-package.md` §15.
+
+**Registered structure.** B-31 (declared planning-source scope ↔ harness-native reading),
+CORMIDIA-INV-017 (consumption is proven, never assumed), CORMIDIA-C-B31-001…003
+(`contracts/B-31-planning-source-scope.md`). Families CF-B31-\*, CF-B31-L3, CF-INV-017,
+CF-C-B31, plus CF-J03-R's modality-refusal leg. Ticket HB-155.
+
+**Pruned with the mechanism they served** (not migrated): source-section coverage —
+`planningSourceCoverageHash`, the coverage record, `--resume`/`--revise`,
+`plan_source_changed` — and the ingestion secret pre-scan. Recorded against CF-REG-374's
+§10.3 row, whose crash-recovery, publication-cap, tamper and cap-bypass legs are unchanged.
+
+**Not a new LLM call site.** S-1b reads its own scope now, but "did it open the evidence it
+planned from" is deterministic enforcement (INV-017), not a trajectory score;
+`CF-S1-traj/judge` stays `PRUNE-na` with the narrowed reason recorded inline.
+
+**Machine state.** `case-catalog.yaml` regenerated (401 families, 116 tickets),
+`scripts/check-catalog-drift.mjs` green, `owner-backlog.md` at set-equality.
+Implementation owed under HB-155 / #386.
 
 ## Independent audit — rev-2026-08-10 corpus, iteration 1 (2026-08-10)
 
@@ -524,6 +549,22 @@ process-identity probe.
   before provider construction; CF-REVIEW-PROVIDER gained leg (f). The hole survived because
   the pre-existing leg (c) passed an EXPLICIT `independentReview` and so never exercised the
   no-policy-at-all path.)
+- F-PT-039 (**RESOLVED-ratified 2026-08-12**, owner decision same day; raised from issue #386):
+  **PURPOSE non-negotiable 2 governs planning `--source`; the Cormidia-side pre-read is
+  removed.** `src/org/planning-inputs.ts` walked the operator's directory, decoded every file
+  as fatal UTF-8 and concatenated the JSON-encoded text into the planner's `task` string —
+  a worse file reader than the one every harness already ships, which is exactly what
+  "not a bare completion API" forbids. The image rejection at `:386` is a symptom, so a
+  Cormidia-side media taxonomy was proposed and REFUSED as scaffolding for the design being
+  deleted. Now: Cormidia declares a governed read scope and the harness reads it with its own
+  tools. Two mechanisms that existed only to support the pre-read go with it — source-section
+  coverage (the planner already decomposes, as the RoadmapPlan; the coverage layer was a
+  second decomposition doing the same job worse) and the ingestion secret pre-scan (redundant
+  with the publication guard's INV-011 refusal, which is the boundary that carries the risk).
+  RoadmapPlan persistence, publication idempotency, content-derived event identity, the
+  publication guard, qgates and runlog redaction are all explicitly retained. Structural: a
+  governed operator-source read scope is a new failure domain, so it re-enters
+  `harness-revision`. (**implementation owed** — issue #386.)
 - F-PT-021 (resolved-ratified 2026-08-04): the supported release workflow authenticates RQ-1 authority by requiring exact equality among GitHub's tag-push actor, `approval.approved_by`, and a configured release approver for the matching repository.
 - F-PT-022 (RESOLVED-ratified 2026-08-05; calibrated #300): L4 reservations, campaign `max_tokens`, and `observed_tokens` count output tokens only. Golden `token_reservation` values remain human-reviewed baselines; an exact human-approved release config may raise effective reservations but must cover every selected case once, never lower a baseline, and bind `max_tokens` to their sum. The #300 two-times-observed-rounded-to-100 calibration raises seven effective reservations to 5,700/6,600/8,700/12,100/8,000/9,500/4,700 and the full-corpus envelope to 88,100. Input/cache usage remains telemetry and equivalent-USD input. Unknown use debits the effective reservation; known overruns preserve evidence and remain incomplete/inconclusive. CF-REG-287 and CF-REG-300 provide the seeded controls.
 - F-PT-024 (RESOLVED-ratified 2026-08-06 — owner decision on #296: grantless budgeted actions are deliberately outside dollar accumulation; the per-action audit row is the complete record; objective grants remain the opt-in bound; pinned by tests/hermetic/cf-inv-003/f-pt-024-grantless-budgeted.test.ts). Original subject: grantless budgeted-tier accounting — budgeted actions proceed at the composed gate with per-action audit rows (ratified "free until it isn't"), and a covering objective grant bounds them by uses/ledger; but with NO covering grant the debit quantum and any hard bound are undecided. Interim: audit-only visibility; bare defaultGate keeps denying budgeted actions. Dependent ceiling-trip cases parked BLOCKED:F-PT-024 in case-catalog §10.1.

@@ -28,20 +28,24 @@ describe("HB-107 — shared orchestrateEpisode façade wiring", () => {
   });
 
   it("retains separate RoadmapPlan and EpisodePlan schemas and authority persistence", async () => {
-    const [roadmapModel, episodePlan, roadmapPlanning, coverageOperations, coveragePublication] = await Promise.all([
+    // changelog 2026-08-12 (F-PT-039 / HB-155): the coverage modules this case
+    // read were deleted with the pre-read. The property it defends is unchanged
+    // and now reads the publication ledger that replaced them: RoadmapPlan and
+    // EpisodePlan stay separate schemas, and prepared-publication recovery is
+    // still decided BEFORE sources are resolved (recovering an outstanding
+    // GitHub effect outranks new planning work).
+    const [roadmapModel, episodePlan, roadmapPlanning, ledgerPublish] = await Promise.all([
       source("src/org/roadmap-delivery/roadmap-model.ts"),
       source("src/loop/episode-plan.ts"),
       source("src/org/plan-auto.ts"),
-      source("src/org/planning-auto-coverage-operations.ts"),
-      source("src/org/planning-coverage-publication.ts"),
+      source("src/org/planning-publication-publish.ts"),
     ]);
     expect(roadmapModel).toContain("export interface RoadmapPlan {");
     expect(episodePlan).toContain("export interface EpisodePlan {");
-    expect(coverageOperations).toContain("return publishPlanningCoverage({");
     expect(roadmapPlanning).toContain("persistPublishedRoadmap({");
-    expect(coveragePublication).toContain("await input.persistRoadmap({");
+    expect(ledgerPublish).toContain("await input.persistRoadmap({");
     expect(roadmapPlanning).toContain("await orchestrateEpisode({");
-    expect(roadmapPlanning.indexOf("recoverPreparedAutoPlanningCoverage({")).toBeLessThan(
+    expect(roadmapPlanning.indexOf("preparedPlanningRecoveryDecision({")).toBeLessThan(
       roadmapPlanning.indexOf("resolveAutoPlanSources(options"),
     );
   });

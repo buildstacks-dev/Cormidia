@@ -219,7 +219,7 @@ interface AutoPlanOptions {
 }
 
 interface AutoPlanResult {
-  status: "completed" | "failed" | "cancelled" | "timed_out";
+  status: "completed" | "failed" | "cancelled" | "interrupted";
   summary: string;
   plan?: TicketPlan;
   problems?: string[];
@@ -715,8 +715,8 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
       status:
         output?.providerStatus === "cancelled"
           ? "cancelled"
-          : output?.providerStatus === "timed_out"
-            ? "timed_out"
+          : output?.providerStatus === "interrupted"
+            ? "interrupted"
             : "failed",
       summary:
         planningExecution.summary ??
@@ -1494,7 +1494,7 @@ function isPlanningStepOutputRecord(value: unknown): value is PlanningStepOutput
     typeof record["operation"] === "string" &&
     typeof record["runId"] === "string" &&
     typeof record["providerExecutionStepId"] === "string" &&
-    ["completed", "failed", "blocked", "cancelled", "timed_out", "interrupted"].includes(
+    ["completed", "failed", "blocked", "cancelled", "interrupted", "interrupted"].includes(
       String(record["providerStatus"]),
     ) &&
     (record["status"] === "completed" || record["status"] === "failed") &&

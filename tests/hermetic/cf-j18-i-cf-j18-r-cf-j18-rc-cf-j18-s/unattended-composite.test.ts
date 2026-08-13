@@ -392,7 +392,7 @@ function assertArtifactOrder(operations: readonly string[]): void {
 
 interface MorningCase {
   id: string;
-  status: "failed" | "blocked" | "timed_out";
+  status: "failed" | "blocked" | "interrupted";
   errorCode?: string;
   reason: string;
   gateFailed?: boolean;
@@ -400,7 +400,7 @@ interface MorningCase {
 
 const MORNING_CASES: MorningCase[] = [
   { id: "provider-death", status: "failed", errorCode: "error_provider", reason: "provider process died" },
-  { id: "timeout", status: "timed_out", reason: "provider turn exceeded its bounded deadline" },
+  { id: "timeout", status: "interrupted", reason: "provider turn exceeded its bounded deadline" },
   {
     id: "red-gates",
     status: "failed",

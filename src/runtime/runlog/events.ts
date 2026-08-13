@@ -23,7 +23,7 @@ type RunlogEventType =
   | "pass.completed"
   | "pass.failed"
   | "pass.cancelled"
-  | "pass.timed_out"
+  | "pass.interrupted"
   | "gate.started"
   | "gate.passed"
   | "gate.failed"

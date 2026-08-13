@@ -34,6 +34,8 @@ import type {
   TurnRequest,
   TurnResult,
 } from "../types.js";
+import type { InterruptedReason } from "../types.js";
+import { parseInterruptedReason, terminalStopFields } from "../types.js";
 import { renderContextBundle, writeMaskedWorktreeFile } from "../worktree-context.js";
 import { cursorContextRule } from "./cursor-config.js";
 import { StdioCursorProcess, type CursorProcessFactory } from "./cursor-process.js";
@@ -230,7 +232,7 @@ function stoppedCursorResult(
     wallClockMs,
   };
   return {
-    status: descriptor.status,
+    ...terminalStopFields(descriptor),
     errorCode: descriptor.errorCode,
     summary: descriptor.reason,
     artifacts: [],
@@ -240,15 +242,27 @@ function stoppedCursorResult(
   };
 }
 
-function stopDescriptor(reason: unknown): { status: "cancelled" | "timed_out"; errorCode: string; reason: string } {
+function stopDescriptor(reason: unknown): {
+  status: "cancelled" | "interrupted";
+  /** REQUIRED when status is `interrupted` (CORMIDIA-C-CORE-001 §2, F-PT-017). */
+  interruptedReason?: InterruptedReason;
+  errorCode: string;
+  reason: string;
+} {
   if (reason !== null && typeof reason === "object") {
     const value = reason as Record<string, unknown>;
     if (
-      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      (value["status"] === "cancelled" || value["status"] === "interrupted") &&
       typeof value["errorCode"] === "string" &&
       typeof value["reason"] === "string"
     ) {
-      return { status: value["status"], errorCode: value["errorCode"], reason: value["reason"] };
+      const carried = parseInterruptedReason(value["interruptedReason"]);
+      return {
+        status: value["status"],
+        ...(carried === undefined ? {} : { interruptedReason: carried }),
+        errorCode: value["errorCode"],
+        reason: value["reason"],
+      };
     }
   }
   return {

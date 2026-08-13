@@ -293,7 +293,7 @@ function storyStatus(envelopes: RunEnvelope[], journalStatus?: string): StorySta
   if (journalStatus === "running") return "in_progress";
   if (
     envelopes.some(
-      (e) => e.status === "failed" || e.status === "blocked" || e.status === "cancelled" || e.status === "timed_out",
+      (e) => e.status === "failed" || e.status === "blocked" || e.status === "cancelled" || e.status === "interrupted",
     )
   )
     return "failed";

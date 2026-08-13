@@ -11,6 +11,7 @@ import {
   type ProviderStepPlanMetadata,
   type StartedProviderStep,
 } from "../../loop/efficiency.js";
+import { normalizeLegacyExecutionStatus } from "../../loop/efficiency.js";
 import { completedEpisodePlanStepIds, readEpisodePlanExecutionJournal } from "../../loop/episode-plan-executor.js";
 import {
   EPISODE_PLAN_PROPOSAL_SCHEMA,
@@ -77,6 +78,7 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../../runtime/types.js";
+import { terminalStopFields } from "../../runtime/types.js";
 import type { AppEntry } from "../apps.js";
 import {
   renderEpisodePlannerBrief,
@@ -1066,8 +1068,8 @@ async function finalizePlannerRun(
       ? "pass.completed"
       : status === "cancelled"
         ? "pass.cancelled"
-        : status === "timed_out"
-          ? "pass.timed_out"
+        : status === "interrupted"
+          ? "pass.interrupted"
           : "pass.failed";
   await events.append({
     type: terminalEvent,
@@ -1129,17 +1131,23 @@ function plannerEventWriter(
 
 function resultFromTerminal(step: ExecutionStepRecord): TurnResult {
   if (step.runtime === null) throw new Error("EpisodePlanner terminal step lacks runtime identity");
+  // Durable read: a record written before 2026-08-12 says `timed_out`, and a
+  // legacy `interrupted` meant heartbeat loss. Both project exactly (F-PT-017).
+  const normalized = normalizeLegacyExecutionStatus(step);
   return {
-    status:
-      step.status === "completed"
-        ? "completed"
-        : step.status === "blocked"
-          ? "blocked_on_gate"
-          : step.status === "cancelled"
-            ? "cancelled"
-            : step.status === "timed_out"
-              ? "timed_out"
-              : "failed",
+    ...terminalStopFields({
+      status:
+        normalized.status === "completed"
+          ? "completed"
+          : normalized.status === "blocked"
+            ? "blocked_on_gate"
+            : normalized.status === "cancelled"
+              ? "cancelled"
+              : normalized.status === "interrupted"
+                ? "interrupted"
+                : "failed",
+      ...(normalized.interruptedReason === undefined ? {} : { interruptedReason: normalized.interruptedReason }),
+    }),
     ...(step.error_code === null ? {} : { errorCode: step.error_code }),
     summary: step.reason,
     artifacts: [],
@@ -1623,7 +1631,11 @@ function stoppedPlannerResult(
   const usage = settled?.usage ?? progress?.usage ?? unavailableUsage();
   const timedOut = cause === "timeout";
   return {
-    status: timedOut ? "timed_out" : "cancelled",
+    // A cause of "timeout" is precisely the ratified `time_limit` reason;
+    // anything else is an ordinary cancellation (F-PT-017).
+    ...(timedOut
+      ? { status: "interrupted" as const, interruptedReason: "time_limit" as const }
+      : { status: "cancelled" as const }),
     errorCode: timedOut ? "error_episode_planner_active_time_exceeded" : "error_episode_planner_cancelled",
     summary: timedOut
       ? "EpisodePlanner exceeded its admitted per-attempt active-time ceiling"

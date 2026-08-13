@@ -211,8 +211,8 @@ function parseFinish(args: string[]): {
     ]),
   );
   const status = requiredMulti(multi, "--status", "task finish");
-  if (!(["completed", "failed", "cancelled", "timed_out"] as string[]).includes(status)) {
-    throw new Error("task finish: --status must be completed | failed | cancelled | timed_out");
+  if (!(["completed", "failed", "cancelled", "interrupted"] as string[]).includes(status)) {
+    throw new Error("task finish: --status must be completed | failed | cancelled | interrupted");
   }
   return {
     id: requiredMulti(multi, "--id", "task finish"),

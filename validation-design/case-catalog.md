@@ -385,7 +385,7 @@ spanning the six rows) except where a dimension is separately risky.
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-C-CORE | CORMIDIA-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause ratified 2026-08-12 F-PT-017: `interrupted` with a REQUIRED machine-readable reason, asserted across every adapter, plus the `timed_out`→`interrupted`+`time_limit` migration case**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
+| CF-C-CORE | CORMIDIA-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause ratified 2026-08-12 F-PT-017: `interrupted` with a REQUIRED machine-readable reason, asserted across every adapter, plus the `timed_out`→`interrupted`+`time_limit` migration case**) [spec: `tests/unit/cf-c-core/terminal-status-vocabulary.test.ts` — HB-P6, landed red-then-green 2026-08-12], usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
 Twenty-seven boundary-contract families (B-09a and B-09b are separate contracts;
 B-23…B-26 added 2026-08-07, implemented and certified via #337–#340
 <!-- changelog 2026-08-10 (consistency sweep): was "design-only" — stale after the

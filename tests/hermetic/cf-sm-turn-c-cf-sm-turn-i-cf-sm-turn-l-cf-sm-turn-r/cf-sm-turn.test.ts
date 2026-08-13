@@ -21,7 +21,9 @@ const RECOGNIZED_PHASES = new Set<JournalPhase>([
   "blocked_on_gate",
   "failed",
   "cancelled",
-  "timed_out",
+  // changelog 2026-08-12 (HB-P6, F-PT-017): the retired `timed_out` phase is
+  // now `interrupted`; legacy journals normalize on read.
+  "interrupted",
 ]);
 
 function killSweepSource(): string {

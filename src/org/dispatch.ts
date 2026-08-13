@@ -1126,7 +1126,7 @@ async function reconcileCommittedScheduleClaims(
   now: Date,
   result: DispatchTickResult,
 ): Promise<void> {
-  const terminalPhases = new Set(["done", "blocked_on_gate", "failed", "cancelled", "timed_out"]);
+  const terminalPhases = new Set(["done", "blocked_on_gate", "failed", "cancelled", "interrupted"]);
   for (const claim of await claims.list()) {
     if (claim.status !== "committed" || claim.run_id === null) continue;
     try {

@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import type { Runtime, RuntimeKind, TurnRequest, TurnResult, TurnHooks } from "../../../src/runtime/types.js";
 import type { RoleConfig } from "../../../src/runtime/types.js";
+import { terminalStopFields } from "../../../src/runtime/types.js";
 
 /** One scripted step outcome: files it writes, then the turn it returns. */
 export interface ScriptedJobTurn {
@@ -67,7 +68,10 @@ export class ScriptedJobRuntime implements Runtime {
     }
 
     return {
-      status: scripted.status ?? "completed",
+      ...terminalStopFields({
+        status: scripted.status ?? "completed",
+        ...(scripted.status === "interrupted" ? { interruptedReason: "time_limit" as const } : {}),
+      }),
       summary: scripted.summary ?? `step ${index + 1} done`,
       artifacts: [],
       session: { runtime: this.kind, id: `session-${index + 1}` },

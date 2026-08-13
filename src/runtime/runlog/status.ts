@@ -199,7 +199,7 @@ function verdictDigestFor(verdictSummary: string | undefined): { verdictDigest?:
 }
 
 function terminalAttentionStatus(status: string): boolean {
-  return status === "blocked" || status === "cancelled" || status === "timed_out" || status.startsWith("failed(");
+  return status === "blocked" || status === "cancelled" || status === "interrupted" || status.startsWith("failed(");
 }
 
 function formatStatusCost(row: StatusRow): string {

@@ -439,7 +439,7 @@ are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
   have doubled F-PT-020's ratified bound as a side effect. Seeded controls: a
   fresh-item disposition and a dropped-operation disposition must both fail, and a 48h
   grant default must NOT move the pending bound.
-- **HB-P6 — UNBLOCKED 2026-08-12** F-PT-017 provider terminal-status enum decision and
+- **HB-P6 — LANDED 2026-08-12 (unblocked the same day)** F-PT-017 provider terminal-status enum decision and
   migration cases (CF-C-CORE). *Layer:* 1/2. *Defends:* the core contract's
   terminal-status enum clause. *Acceptance:* the chosen vocabulary asserted across
   every adapter plus a migration-compatibility case; no test may derive truth from the
@@ -1510,7 +1510,7 @@ HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-142 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-150 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
-HB-112 LANDED. HB-P3 LANDED.
+HB-112 LANDED. HB-P3 LANDED. HB-P6 LANDED.
 <!-- changelog 2026-08-12: HB-112 was an audit ticket, and "landed" is this register's
 only completion token — it records that the ticket's acceptance (inventory, one
 disposition per occurrence, zero scheduling-semantics changes) is discharged by the

@@ -6,7 +6,7 @@
 
 import { definedProps } from "../optional-properties.js";
 import { toolUseEvent } from "../tool-events.js";
-import type { ToolAction, TurnHooks, TurnResult, TurnUsage } from "../types.js";
+import type { TerminalTurnStatus, ToolAction, TurnHooks, TurnUsage } from "../types.js";
 import { cursorUsage } from "./cursor-pricing.js";
 
 /** One decoded stream-json line. Unknown `type` values are forward-compatible
@@ -17,7 +17,9 @@ export type CursorStreamEvent = Record<string, unknown>;
 export interface CursorTurnState {
   sessionId: string;
   finalSummary?: string;
-  status?: TurnResult["status"];
+  /** completed|failed only — see the codex note; interruption arrives via the
+   *  abort descriptor with its required reason (F-PT-017). */
+  status?: Exclude<TerminalTurnStatus, "interrupted">;
   usage?: TurnUsage;
   subagentTurns: number;
   /** tool_call events whose result shows the tool actually ran. Compared

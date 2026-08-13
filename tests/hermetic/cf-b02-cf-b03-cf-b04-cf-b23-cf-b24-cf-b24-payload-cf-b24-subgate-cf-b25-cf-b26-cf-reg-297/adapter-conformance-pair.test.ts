@@ -19,6 +19,7 @@ import { runAdapterConformance } from "../../fixtures/adapters/conformance.js";
 import { script } from "../../fixtures/adapters/scenario.js";
 import { makeTempGitRepo, type TempGitRepo } from "../../fixtures/git-repo.js";
 import type { Runtime, RuntimeKind, TurnResult } from "../../../src/runtime/types.js";
+import { terminalStopFields } from "../../../src/runtime/types.js";
 
 let repo: TempGitRepo | undefined;
 let museLogRoot: string | undefined;
@@ -219,7 +220,8 @@ function taskAwareRuntime(kind: RuntimeKind): { runtime: Runtime; tasks: string[
 
 function result(status: TurnResult["status"], session: TurnResult["session"], summary: string): TurnResult {
   return {
-    status,
+    // F-PT-017: an interrupted double must carry a reason like the real thing.
+    ...terminalStopFields({ status, ...(status === "interrupted" ? { interruptedReason: "time_limit" } : {}) }),
     summary,
     artifacts: [],
     session,

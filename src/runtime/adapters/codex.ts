@@ -27,6 +27,8 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../types.js";
+import type { InterruptedReason, TerminalTurnStatus } from "../types.js";
+import { parseInterruptedReason, terminalStopFields } from "../types.js";
 import { renderContextBundle } from "../worktree-context.js";
 import { codexAppServerArgs, startCodexGateBridge } from "./codex-gate-bridge.js";
 import { toCodexStrictSchema } from "./codex-schema.js";
@@ -252,7 +254,9 @@ export class CodexSessionResumeMismatchError extends Error {
 interface CodexTurnState {
   threadId: string;
   finalSummary?: string;
-  status?: TurnResult["status"];
+  /** The stream parser only ever resolves completed|failed; an interrupted
+   *  turn comes from the abort path, which carries its own reason. */
+  status?: Exclude<TerminalTurnStatus, "interrupted">;
   usage?: TurnUsage;
   subagentTurns: number;
   durationMs?: number;
@@ -558,7 +562,7 @@ function stoppedCodexResult(
   const descriptor = stopDescriptor(req.signal?.reason);
   const usage = state.usage ?? zeroUsage(Date.now() - startedAt, state.subagentTurns);
   return {
-    status: descriptor.status,
+    ...terminalStopFields(descriptor),
     errorCode: descriptor.errorCode,
     summary: descriptor.reason,
     artifacts: [],
@@ -573,19 +577,27 @@ function stoppedCodexResult(
 }
 
 function stopDescriptor(reason: unknown): {
-  status: "cancelled" | "timed_out";
+  status: "cancelled" | "interrupted";
+  /** REQUIRED when status is `interrupted` (CORMIDIA-C-CORE-001 §2, F-PT-017);
+   *  the stop site knows why, and only the stop site can know. */
+  interruptedReason?: InterruptedReason;
   errorCode: string;
   reason: string;
 } {
   if (reason !== null && typeof reason === "object") {
     const value = reason as Record<string, unknown>;
     if (
-      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      (value["status"] === "cancelled" || value["status"] === "interrupted") &&
       typeof value["errorCode"] === "string" &&
       typeof value["reason"] === "string"
     ) {
+      // The reason is carried by the abort descriptor the stop site built; an
+      // `interrupted` stop without one is refused downstream rather than
+      // silently defaulted (terminalStopFields).
+      const carried = parseInterruptedReason(value["interruptedReason"]);
       return {
         status: value["status"],
+        ...(carried === undefined ? {} : { interruptedReason: carried }),
         errorCode: value["errorCode"],
         reason: value["reason"],
       };

@@ -61,7 +61,17 @@ import { withNonInteractiveEnv } from "../non-interactive-env.js";
 import { permissionModeFor, type ClaudePermissionMode } from "../permission-mode.js";
 import { claudeDenyRulesForRole } from "../role-shaping.js";
 import { toolUseEvent } from "../tool-events.js";
-import type { GateEscalation, Runtime, ToolAction, TurnHooks, TurnRequest, TurnResult, TurnUsage } from "../types.js";
+import type {
+  GateEscalation,
+  InterruptedReason,
+  Runtime,
+  ToolAction,
+  TurnHooks,
+  TurnRequest,
+  TurnResult,
+  TurnUsage,
+} from "../types.js";
+import { parseInterruptedReason, terminalStopFields } from "../types.js";
 import { renderContextBundle } from "../worktree-context.js";
 import { definedProps } from "../optional-properties.js";
 
@@ -379,7 +389,7 @@ export class ClaudeRuntime implements Runtime {
     if (req.signal?.aborted) {
       const descriptor = claudeStopDescriptor(req.signal.reason);
       return {
-        status: descriptor.status,
+        ...terminalStopFields(descriptor),
         errorCode: descriptor.errorCode,
         summary: descriptor.reason,
         artifacts: [],
@@ -564,19 +574,27 @@ function addClaudeMessageUsage(
 }
 
 function claudeStopDescriptor(reason: unknown): {
-  status: "cancelled" | "timed_out";
+  status: "cancelled" | "interrupted";
+  /** REQUIRED when status is `interrupted` (CORMIDIA-C-CORE-001 §2, F-PT-017);
+   *  the stop site knows why, and only the stop site can know. */
+  interruptedReason?: InterruptedReason;
   errorCode: string;
   reason: string;
 } {
   if (reason !== null && typeof reason === "object") {
     const value = reason as Record<string, unknown>;
     if (
-      (value["status"] === "cancelled" || value["status"] === "timed_out") &&
+      (value["status"] === "cancelled" || value["status"] === "interrupted") &&
       typeof value["errorCode"] === "string" &&
       typeof value["reason"] === "string"
     ) {
+      // The reason is carried by the abort descriptor the stop site built; an
+      // `interrupted` stop without one is refused downstream rather than
+      // silently defaulted (terminalStopFields).
+      const carried = parseInterruptedReason(value["interruptedReason"]);
       return {
         status: value["status"],
+        ...(carried === undefined ? {} : { interruptedReason: carried }),
         errorCode: value["errorCode"],
         reason: value["reason"],
       };

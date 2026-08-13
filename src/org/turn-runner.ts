@@ -35,7 +35,7 @@ import type { HarnessAuthConfig } from "../runtime/auth-mode.js";
 import { worstUsageQuality } from "../runtime/cost.js";
 import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
-import { readEnvelope } from "../runtime/runlog/envelope.js";
+import { normalizeLegacyEnvelopeStatus, readEnvelope } from "../runtime/runlog/envelope.js";
 import { recordTurn, toRecord, type TriggerKind } from "../runtime/telemetry.js";
 import { ZERO_USAGE } from "../runtime/turn-usage.js";
 import type {
@@ -49,6 +49,7 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
+import { parseInterruptedReason, terminalStopFields, type InterruptedReason } from "../runtime/types.js";
 import { effectiveEpisodeHardCeiling, resolveAppRoles } from "./app-execution-policy.js";
 import { executeApprovedCommands, type ApprovedCommandResult } from "./approval-command.js";
 import { ApprovalStore, approvedCommand, type ApprovalItem } from "./approvals.js";
@@ -440,7 +441,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
       ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
       ...(recovery === undefined ? {} : { recovery }),
       ...(result.status === "cancelled" ||
-      result.status === "timed_out" ||
+      result.status === "interrupted" ||
       result.status === "failed" ||
       result.status === "blocked_on_gate" ||
       recovery !== undefined
@@ -511,7 +512,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
       message: stop?.reason ?? failureSummary,
     });
     const status: TurnResult["status"] = stop?.status ?? (blocked ? "blocked_on_gate" : "failed");
-    const result = zeroResult(status, stop?.reason ?? failureSummary, options.role);
+    const result = zeroResult(status, stop?.reason ?? failureSummary, options.role, stop?.interruptedReason);
     await recordSchedulerReceipt(
       runtimeHome,
       orgRoot,
@@ -1861,8 +1862,22 @@ async function pipelineResultFromGovernedEvidence(
         throw new Error(`governed provider evidence references unknown pass ${pipeline.name}/${entry.passId}`);
       }
       const envelope = await readEnvelope(root, app, entry.record.run_id);
+      const envelopeTerminal = normalizeLegacyEnvelopeStatus({
+        status: entry.envelopeStatus,
+        ...(envelope.interrupted_reason === undefined ? {} : { interrupted_reason: envelope.interrupted_reason }),
+      });
       const result: TurnResult = {
-        status: entry.envelopeStatus === "blocked" ? "blocked_on_gate" : entry.envelopeStatus,
+        ...terminalStopFields({
+          // A terminal envelope is never "running"; the reader's own validator
+          // refuses that, so narrow rather than widen the result type.
+          status:
+            envelopeTerminal.status === "blocked" || envelopeTerminal.status === "running"
+              ? "blocked_on_gate"
+              : envelopeTerminal.status,
+          ...(envelopeTerminal.interruptedReason === undefined
+            ? {}
+            : { interruptedReason: envelopeTerminal.interruptedReason }),
+        }),
         summary: entry.output,
         artifacts: structuredClone(envelope.artifacts ?? []),
         session:
@@ -2093,7 +2108,7 @@ async function runBuilderTicketTurn(
   });
   if (options.signal?.aborted) {
     const stopped = stopDescriptor(options.signal.reason);
-    return zeroResult(stopped.status, stopped.reason, options.role);
+    return zeroResult(stopped.status, stopped.reason, options.role, stopped.interruptedReason);
   }
   // A4: a merged deploy/package milestone queues its release as a critical
   // op — dispatch-driven merges must not bypass the approval boundary.
@@ -2264,8 +2279,11 @@ function resultFromPipeline(
 ): TurnResult {
   const statuses = result.passes.map((record) => record.result.status);
   const stopped = signal?.aborted === true ? stopDescriptor(signal.reason) : undefined;
-  const status: TurnResult["status"] = statuses.includes("timed_out")
-    ? "timed_out"
+  // An interrupted pass carries its own reason; the pipeline result inherits
+  // that pass's reason rather than inventing one (F-PT-017).
+  const interruptedPass = result.passes.find((record) => record.result.status === "interrupted")?.result;
+  const status: TurnResult["status"] = statuses.includes("interrupted")
+    ? "interrupted"
     : statuses.includes("cancelled")
       ? "cancelled"
       : statuses.includes("blocked_on_gate")
@@ -2284,7 +2302,14 @@ function resultFromPipeline(
         };
   const last = result.passes[result.passes.length - 1]?.result;
   return {
-    status,
+    ...terminalStopFields({
+      status,
+      ...(interruptedPass?.status === "interrupted"
+        ? { interruptedReason: interruptedPass.interruptedReason }
+        : stopped?.interruptedReason === undefined
+          ? {}
+          : { interruptedReason: stopped.interruptedReason }),
+    }),
     summary:
       `pipeline ${pipelineName} ${status}; passes: ` +
       (result.passes.length === 0
@@ -2335,18 +2360,25 @@ function journalPhaseForStatus(status: TurnResult["status"]): TurnJournal["phase
   if (status === "blocked_on_gate") return "blocked_on_gate";
   if (status === "failed") return "failed";
   if (status === "cancelled") return "cancelled";
-  if (status === "timed_out") return "timed_out";
+  if (status === "interrupted") return "interrupted";
   return "done";
 }
 
 function stopDescriptor(reason: unknown): {
-  status: "cancelled" | "timed_out";
+  status: "cancelled" | "interrupted";
+  /** REQUIRED when status is `interrupted` (CORMIDIA-C-CORE-001 §2, F-PT-017). */
+  interruptedReason?: InterruptedReason;
   reason: string;
 } {
   if (reason !== null && typeof reason === "object") {
     const value = reason as Record<string, unknown>;
-    if ((value["status"] === "cancelled" || value["status"] === "timed_out") && typeof value["reason"] === "string") {
-      return { status: value["status"], reason: value["reason"] };
+    if ((value["status"] === "cancelled" || value["status"] === "interrupted") && typeof value["reason"] === "string") {
+      const carried = parseInterruptedReason(value["interruptedReason"]);
+      return {
+        status: value["status"],
+        ...(carried === undefined ? {} : { interruptedReason: carried }),
+        reason: value["reason"],
+      };
     }
   }
   return {
@@ -2581,15 +2613,20 @@ async function buildContext(
   ).bundle;
 }
 
-function zeroResult(status: TurnResult["status"], summary: string, role: RoleConfig): TurnResult {
+function zeroResult(
+  status: TurnResult["status"],
+  summary: string,
+  role: RoleConfig,
+  interruptedReason?: InterruptedReason,
+): TurnResult {
   return {
-    status,
+    ...terminalStopFields({ status, ...(interruptedReason === undefined ? {} : { interruptedReason }) }),
     summary,
     artifacts: [],
     session: { runtime: role.runtime, id: `turn-${Date.now()}` },
     usage: {
       ...ZERO_USAGE,
-      ...(status === "cancelled" || status === "timed_out" ? { quality: "unavailable" as const } : {}),
+      ...(status === "cancelled" || status === "interrupted" ? { quality: "unavailable" as const } : {}),
     },
     escalations: [],
   };

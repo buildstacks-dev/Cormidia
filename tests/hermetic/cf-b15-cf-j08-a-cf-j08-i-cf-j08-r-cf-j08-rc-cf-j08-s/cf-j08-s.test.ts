@@ -14,7 +14,9 @@
 //
 // Outcome-class mapping (product truth, src/runtime/types.ts TurnResult):
 // succeeded=completed · failed=failed · cancelled=cancelled ·
-// gate-stopped=blocked_on_gate · timed_out=timed_out. "Malformed" has no
+// gate-stopped=blocked_on_gate · interrupted=interrupted (renamed from
+// timed_out 2026-08-12 under F-PT-017, and now carrying a required reason).
+// "Malformed" has no
 // dedicated status — a malformed provider output surfaces as status "failed"
 // with a typed errorCode, so that class is asserted as the failed+errorCode
 // variant.
@@ -82,9 +84,9 @@ const OUTCOME_CLASSES: OutcomeCase[] = [
     ledgerStatus: "blocked_on_gate",
   },
   {
-    label: "timed_out",
-    result: makeTurnResult("timed_out", makeUsage(0.1)),
-    ledgerStatus: "timed_out",
+    label: "interrupted",
+    result: makeTurnResult("interrupted", makeUsage(0.1)),
+    ledgerStatus: "interrupted",
   },
 ];
 

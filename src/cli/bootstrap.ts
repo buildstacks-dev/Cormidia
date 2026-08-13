@@ -2,7 +2,7 @@
 // target repo (docs/architecture.md §9 step 1), walk the alignment
 // questionnaire (step 2: interactive in a terminal, or injected via
 // `--answers answers.json` for tests/scripting), and emit the `.cormidia/`
-// tree (step 3): app charter/config/policy/onboarding report + seeded memory
+// tree (step 3): optional app taste/config/policy/onboarding report + seeded memory
 // bundles, then register the app with the active org.
 // `--scan-only` prints the scan profile and the would-create list without
 // writing anything. An explicit active org is now a prerequisite: package source, committed org
@@ -212,7 +212,7 @@ export async function cmdBootstrap(args: string[]): Promise<number> {
     if (recovered === undefined) {
       console.log(
         "\nnext: review + commit app artifacts under .cormidia/ in the app repo:\n" +
-          "charter (.cormidia/TASTE.md), authority (.cormidia/AUTHORITY.md), registry entry (.cormidia/config.yaml),\n" +
+          "optional app taste (.cormidia/TASTE.md), authority (.cormidia/AUTHORITY.md), registry entry (.cormidia/config.yaml),\n" +
           "policy (.cormidia/policy.yaml), onboarding report (.cormidia/onboarding-report.md),\n" +
           "and seeded memory bundles.",
       );
@@ -268,12 +268,13 @@ async function readAnswersFile(path: string): Promise<unknown> {
   }
 }
 
-/** Interactive §9 step-2 questionnaire — one prompt per answers field,
- * producing the same raw shape `--answers answers.json` supplies (validated
- * once, in parseAnswers). Streams are injected so tests can drive it.
- * Cadence overrides are deliberately not prompted — the default (empty =
- * roles.yaml triggers) is right for onboarding; edit .cormidia/config.yaml
- * to tune later. */
+/** Interactive §9 step-2 questionnaire — roles, budget, authority, critical
+ * ops, and channels. Product identity stays in reviewed product documents;
+ * `.cormidia/TASTE.md` is a comment-only optional-craft stub. `--answers answers.json`
+ * supplies the same raw shape (validated once, in parseAnswers). Streams are
+ * injected so tests can drive it. Cadence overrides are deliberately not
+ * prompted — the default (empty = roles.yaml triggers) is right for
+ * onboarding; edit .cormidia/config.yaml to tune later. */
 async function collectAnswers(
   input: NodeJS.ReadableStream,
   output: NodeJS.WritableStream,
@@ -288,9 +289,6 @@ async function collectAnswers(
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
 
-    const product = await ask("What is this product? (one paragraph — the app charter's identity)");
-    const good = await ask('What does "good" mean for this product?');
-
     const rolesText = await ask(`Roles to enable [${knownRoles.join(", ")}] (comma-separated, empty = all)`);
     const rolesAnswered = rolesText
       .split(",")
@@ -300,7 +298,7 @@ async function collectAnswers(
 
     const budgetText = await ask("Monthly budget in USD [1000]");
 
-    const answers: Record<string, unknown> = { product, good, roles };
+    const answers: Record<string, unknown> = { roles };
     if (budgetText.length > 0) answers["budgetUsdMonth"] = Number(budgetText);
 
     const authorityMode = (await ask("App authority [inherit | conservative | custom] [inherit]")) || "inherit";

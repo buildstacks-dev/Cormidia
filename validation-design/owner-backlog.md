@@ -296,6 +296,8 @@ passed, but took 431 seconds for the suite and 504 seconds for the job.
 - HB-138: the same kind of record for the consequence-split families the #313–#316
   PRs landed.
 - HB-139: the same for the forty-plus regression detectors, including CF-REG-403,
+  CF-REG-443 (legacy product inputs had no visible disposition after app TASTE
+  became optional),
   CF-REG-385 (onboarding accepted a placeholder repository identity and
   emitted executable commands against it), and CF-REG-384 (new-app equated
   greenfield with an empty directory, and its dry run validated a different

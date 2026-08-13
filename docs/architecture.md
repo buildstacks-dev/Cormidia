@@ -265,7 +265,7 @@ Token-free lifecycle commands for repeatable onboarding and readiness —
 
 ```
 .cormidia/
-  TASTE.md               app charter ("what this product is; what good means")
+  TASTE.md               optional product-specific taste (comment stub until distinct craft exists)
   AUTHORITY.md           session-readable org snapshot + app-only narrowing
   LABELS.md              generated canonical GitHub label reference
   config.yaml            app-entry registry mirror + top-level checkout gates
@@ -478,7 +478,7 @@ requirements.
 
 What an agent knows is assembled by concatenation in a fixed order: the
 effective delegated authority, the org's TASTE, the role's craft notes, the
-app's charter, the generated role protocol, and finally pinned memory and
+app's optional taste, the generated role protocol, and finally pinned memory and
 concept excerpts. Narrower layers can only specialize defaults — they can
 never override authority or the org's never-do list, and that guarantee
 lives in the gate, not in prompt order. The first five layers are a pure

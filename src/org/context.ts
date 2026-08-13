@@ -1,8 +1,5 @@
-// Five-layer context assembly (docs/architecture.md §5).
-//
-// The assembler returns the runtime-layer ContextBundle unchanged: layers
-// [1]-[4] are taste entries in fixed order, layer [5] is memoryExcerpts.
-// It never writes assembled context into a repo.
+// Context assembly (docs/architecture.md §5): layers [1]-[4] are taste
+// entries; layer [5] is memoryExcerpts. Nothing assembled is written to a repo.
 
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -262,8 +259,11 @@ async function readLayer(
     if (required) throw new Error(`context: missing required layer ${path}`);
     return undefined;
   }
+  const raw = (await readFile(path, "utf8")).trim();
+  const body = required ? raw : raw.replace(/<!--[\s\S]*?-->/g, "").trim();
+  if (!required && body === "") return undefined;
   sources.push(path);
-  return `## ${title}\n\n${(await readFile(path, "utf8")).trim()}\n`;
+  return `## ${title}\n\n${body}\n`;
 }
 
 async function readRequiredLayer(path: string, title: string, sources: string[]): Promise<string> {

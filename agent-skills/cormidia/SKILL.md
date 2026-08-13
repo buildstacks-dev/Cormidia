@@ -57,8 +57,12 @@ cormidia doctor
 
 The bare command opens the questionnaire only in an interactive terminal.
 Coding-agent and other non-interactive runs require `--answers`; if the user
-has not supplied those product choices, ask rather than infer them. Review the
-generated `.cormidia/` files before committing them.
+has not supplied questionnaire answers, ask rather than infer them. Review the
+generated `.cormidia/` files before committing them. `.cormidia/TASTE.md` is a
+comment-only stub; fill it only with durable product-specific preferences or
+craft constraints not covered by the org constitution or role craft. Product
+identity, requirements, and current work belong in reviewed product documents
+and briefs.
 The answers may select `authority.mode` as `inherit`, `conservative`, or
 `custom` (with restrictions). Bootstrap preserves existing root `AGENTS.md`
 and `CLAUDE.md` content while composing one marked pointer to

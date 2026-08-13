@@ -144,7 +144,14 @@ as unscaffolded.
 runs the operator questionnaire, emits app-owned `.cormidia/` artifacts plus
 marked AGENTS.md/CLAUDE.md blocks, and registers the app as `onboarding`. It
 inventories setup signals; it does not infer authoritative product truth from
-source. Recovered bootstrap writes only to a Cormidia-managed clone and leaves
+source. The emitted `.cormidia/TASTE.md` is a comment-only placeholder;
+context assembly skips it until the operator writes durable product-specific
+taste or craft that is not already covered by the org constitution or role
+craft. Product identity, requirements, and current work stay in reviewed
+product documents and briefs. Legacy `product` and `good` answer fields remain
+accepted and recoverable; when present, the onboarding report surfaces them as
+non-authoritative product-document inputs to reconcile, never as TASTE or agent
+context. Recovered bootstrap writes only to a Cormidia-managed clone and leaves
 the human checkout untouched.
 
 Repositories onboarded before the product rename must move the retired

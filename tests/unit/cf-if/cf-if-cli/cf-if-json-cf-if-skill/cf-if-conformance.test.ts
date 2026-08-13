@@ -115,7 +115,7 @@ describe("CF-IF-SKILL — packaged Cormidia skill discovers only real CLI comman
 // CF-IF-SKILL (self-hosting half) — "self-hosting and human-approved-release
 // agreement across PURPOSE, developer policy, root instructions, and packaged
 // skill" per case-catalog.md §6. docs/PURPOSE.md is the decision log (AGENTS.md
-// § Scope: on conflict its Decided section wins and the other file is stale),
+// § Scope: on conflict its Standing section wins and the other file is stale),
 // so this asserts the dependent surfaces have not drifted behind it. Deposited
 // because they had: AGENTS.md carried a sequencing carve-out PURPOSE dropped,
 // and SKILL.md — the packaged guide shipped to users — still prohibited

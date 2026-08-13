@@ -19,10 +19,20 @@ Defends: INV-001/002/003/004/006, T-1/T-5/T-11. Journeys: any provider turn (J-0
 ## 2. Output guarantees
 - Always: a run envelope with terminal status ∈ {completed, failed, cancelled,
   blocked_on_gate, interrupted}; ids (app, runId, providerTurnId, session identity);
-  timings. <!-- harness revision 2026-07-31: src/runtime/types.ts currently exposes
-  "timed_out" instead of this ratified "interrupted" vocabulary. The implementation
-  is not treated as the specification; the enum-conformance clause is
-  BLOCKED:F-PT-017 pending a product-owner decision. -->
+  timings. <!-- changelog 2026-08-12 (F-PT-017 owner ruling): the enum-conformance
+  clause is UNBLOCKED. The 2026-07-31 revision note recorded that src/runtime/types.ts
+  exposed "timed_out" instead of this ratified vocabulary and parked the clause
+  BLOCKED:F-PT-017; the owner ruled for the contract's `interrupted` and required a
+  machine-readable reason with it. Tighten-only: the enum is unchanged and an
+  additional REQUIRED field now discriminates what the retired name conveyed only
+  by being narrow. -->
+- **`interrupted` carries a required machine-readable reason** ∈ {`time_limit`,
+  `operator_kill`, `provider_crash`} (ratified 2026-08-12, F-PT-017). Every adapter
+  emits the vocabulary and the reason; no surface may report an `interrupted` turn
+  without one. **Migration**: durable records written under the retired `timed_out`
+  name remain readable and project as `interrupted` with reason `time_limit` — that
+  is exactly what the old name meant, and no reader may treat the legacy value as
+  unknown.
 - Usage: reported **as provided or as `unknown`** — never fabricated, never zero-when-
   absent (INV-006).
 - Tool events as surfaced by the provider; outcome fields (`success`, `durationMs`) only

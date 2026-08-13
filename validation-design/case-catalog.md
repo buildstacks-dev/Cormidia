@@ -137,7 +137,7 @@ journey-acceptance.md alias table.
 | CF-J05-A | queue via CLI + observe read-only view agree; approved never rendered executed | 2 | evid | E3 |
 | CF-J06-S | approve and deny both resume same session/claim with guidance | 2 | state | E1/E2 |
 | CF-J06-R | every fingerprint mismatch class (role, runtime, context, worktree, work) fails closed pre-spend | 2 | refusal | E1 |
-| CF-J06-I | crash mid-resume; TTL expiry before resume (typed outcome; item disposition BLOCKED:F-PT-008) | 2 | state | E1 |
+| CF-J06-I | crash mid-resume; TTL expiry before resume (typed outcome; **item disposition ratified 2026-08-12 F-PT-008: REOPEN the original item — original id, decision history intact, appended transition; seeded fresh-item and dropped-operation controls**) | 2 | state | E1 |
 | CF-J06-RC | duplicate continuation attempt refused with original outcome preserved | 2 | state | E2 |
 | CF-J06-A | PRUNE-na (single surface; queue observation covered CF-J05-A) | — | — | — |
 | CF-J07-S | per-turn cap stop at adapter observation point (per capability-matrix semantics); 80% warning; 100% pause + item (documented path) | 2 | state+det | E2 |
@@ -157,7 +157,7 @@ journey-acceptance.md alias table.
 | CF-J09-A | **IMPLEMENTED 2026-08-12 (HB-142)** — `tests/hermetic/cf-c-b08-cf-j09-a-cf-j09-i-cf-j09-r-cf-j09-s/cf-j09-a-initiator-parity.test.ts`. manual `dispatch` = timer-fired dispatch: twin worlds at window-start vs mid-window arrival yield identical evidence normalized against the EXPECTED identity derivation; re-arrival is the same named observation with no evidence rewrite (red first); seeded initiator-divergence control <!-- changelog 2026-08-11 status-honesty triage: was landed, no citing spec; reclassified pending on HB-142 --><!-- changelog 2026-08-12 HB-142: landed initiator parity --> | 2 | state | STD |
 | CF-J10-S | N-subscriber fan-out incl. across-tick under WIP; retirement only when all current marked/removed | 2 | state | STD |
 | CF-J10-R | malformed/unknown-kind retained loudly; no_subscriber pending; channel-gated holds retirement | 2 | evid | STD |
-| CF-J10-I | crash mid-fan-out (marks atomic; F-PT-005 semantics asserted); **producer-crash partial file: BLOCKED:F-PT-006** | 2 | state | STD |
+| CF-J10-I | crash mid-fan-out (marks atomic; F-PT-005 semantics asserted); **producer-crash partial file ratified 2026-08-12 F-PT-006: retained as malformed_company_event, fires once under its content identity when complete — producers owe no atomicity** | 2 | state | STD |
 | CF-J10-RC | subscriber add/remove while pending (F-PT-005 resolved semantics) | 2 | state | STD |
 | CF-J10-A | PRUNE-na (single entry surface — file drop; GitHub-polled events covered CF-B01) | — | — | — |
 | CF-J11-S | Support/Marketing/SRE runs end in internal artifacts; channel gating enforced (`tests/hermetic/cf-j11-a-cf-j11-i-cf-j11-rc-cf-j11-s/internal-artifact-incident-journey.test.ts`) <!-- changelog 2026-08-11 status-honesty triage: was landed, no citing spec; reclassified pending on HB-143 --><!-- changelog 2026-08-12 HB-143: landed the three-role draft-only artifact walk with channel-gate routing and a seeded publishing-draft-path control (red-then-green) --> | 2 | state | STD |
@@ -236,7 +236,7 @@ journey-acceptance.md alias table.
 | CF-SM-LADDER-L/I | evidence ladder monotonic claims; no surface implies a higher rung (illegal = overclaim) | 2 | evid | E3 |
 | CF-SM-LADDER-R/C | PRUNE-dup:CF-J02-I/RC (ladder transitions are lifecycle ops) | — | — | — |
 | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) |
-| CF-SM-EVENT-L/I/R/C | event pending→per-role-marked→retired: retire-before-all-marks illegal; refire-on-marked illegal; crash between mark and retire; **partial-file legality BLOCKED:F-PT-006** | 2 | state | STD |
+| CF-SM-EVENT-L/I/R/C | event pending→per-role-marked→retired: retire-before-all-marks illegal; refire-on-marked illegal; crash between mark and retire; **partial-file legality ratified 2026-08-12 F-PT-006: a partial file is legal input, retained and re-read; one firing per content identity** | 2 | state | STD |
 | CF-SM-TURN-L/I/R/C | productive turn journal path `assembling→running→collecting→done`: phases in order, productive-phase skip illegal (error terminals may end the current phase honestly), same-phase replay idempotent, real SIGKILL at every productive phase (recognized intermediates only) | 2 | state | E2 |
 | CF-SM-COMP-L/I/R/C | comparison `planned→executing→evaluating→selected→materializing→completed`, with typed `evaluating→inconclusive ∕ failed` terminals: legal transitions only; candidate-set/input/policy hashes immutable after spend starts; settled candidates and selection replay idempotently; crash sweep at every transition and materialization acknowledgement | 2 | state+evid | E1/E2/E3 (design-only) |
 | CF-SM-ROADMAP-L/I/R/C | RoadmapPlan draft→validated→accepted→superseded lifecycle: only schema/graph/complete-accounting-valid versions become authority; predecessor/hash immutable; replay idempotent; crash leaves the accepted predecessor authoritative | 1/2 | state+refusal | E2/E3 (HB-101/HB-105; HB-108 closure complete) |
@@ -337,12 +337,12 @@ obligation exists.
 | CF-B06-* | fake-clock sweep: TTL, heartbeat 30s/2min/10min semantics, UTC windows vs host-time scheduling, missed-window (app,role,trigger,window) reconciliation, rollback/NTP/DST/timezone anomalies fail closed | 2 | state | E2 |
 | CF-B07-* | kill-point injection harness; PID-reuse liveness; full journal↔lock PID/start/nonce binding before signal; nonce-bound serialized release refuses a late holder and cannot remove its successor; unknown/mismatched ownership refuses kill; signal-vs-terminal-write race; orphaned descendant cleanup; dead-child-fresh-heartbeat | 2 | state | E2 |
 | CF-B08-* | PRUNE-dup:CF-J09-* (tick↔turn cells are exactly the J-09 families) | — | — | — |
-| CF-B09a-* | continuation set persisted/validated; TTL expiry typed (**item disposition BLOCKED:F-PT-008**); orphan-grant intermediate recognizable, never usable authorization | 2 | state | E1 |
+| CF-B09a-* | continuation set persisted/validated; TTL expiry typed (**item disposition ratified 2026-08-12 F-PT-008: reopen; TTL is policy configuration — grant default 48h, pending default pinned 24h**); orphan-grant intermediate recognizable, never usable authorization | 2 | state | E1 |
 | CF-B09b-* | decision-entry: one-by-one + reason + attributable identity, non-TTY review refuses in favor of exact-confirmation `decide`, batch same-rule per-item audit, widening and NEVER_SCOPEABLE_RULES decisions human-only, revocation, concurrent decisions first-write-wins; unattended-profile prohibition cases (no forged human decisions; zero-decision evidence) | 2 | state+evid | E1 |
 | CF-B10-* | fixture org-home sweep: invalid YAML, schema skew, missing AUTHORITY→legacy-conservative, mid-edit torn read, widening-narrowing refusal, preview→execute drift refusal; app execution defaults/overrides, bypass-mode and non-monotonic-limit refusal, cross-app isolation and effective-evidence persistence; B-10a identity sweep (fresh/stale/incomplete/valid selection, cross-command typed agreement, no pointer mutation, override disagreement, symlinked home, mismatched state-home, retired-root relocation/replay, dual-root refusal); product-identity/package-path sweep with exact migration and external-repository exceptions | 1/2 | refusal | E1/E2/FLOOR |
 | CF-B11-* | PRUNE-dup:CF-J12-* + CF-SM-LEARN-* (publisher boundary fully covered there) | — | — | — |
 | CF-B12-* | reader seam: torn reads, stale-as-current refused, capability/traversal (CF-J15-R), SSE gaps, per-source health; conformance CLI/HTML/observe agreement (CF-J15-A) | 2 | evid | E3 |
-| CF-B13-* | inbox sweep incl. duplicate-identity-different-payload (**BLOCKED:F-PT-006**), retention interplay, F-PT-005 add/remove semantics | 2 | state | STD |
+| CF-B13-* | inbox sweep incl. duplicate delivery collapsing to one firing and the legacy-filename-key migration (**ratified 2026-08-12 F-PT-006: content-derived identity, so identity-with-two-payloads is vacuous**), retention interplay, F-PT-005 add/remove semantics | 2 | state | STD |
 | CF-B14-* | temp-checkout interference: dirty accept (ordinary), publish-only refusals, marked-block idempotency, byte preservation, foreign-link refusal, symlink/wrong-remote/path-overlap, retired app-artifact root refusal; **concurrent-edit outcome per ratified F-PT-007 (2026-07-31): compare-and-refuse, preserving human bytes** (cases derivable — HB-P4); re-run semantics **BLOCKED:F-PT-015**; publish-origin comparison **BLOCKED:F-PT-016** | 2 | diff+refusal | E1 |
 | CF-B15-* | FS faults (full/read-only/perm/torn/ENOSPC) per store class; git faults (index.lock bounded wait, corrupt refs → re-clone, remote-changed identity stop, hooks-disabled, partial-command post-verify). Worktree-content preservation asserted up to the accepted-artifact line; **ambiguous-byte disposition per ratified F-PT-004 (2026-07-31): preserve-and-inspect, never reset** (cases derivable — HB-P2) | 2 | state+refusal | E2 |
 | CF-B16-* | scripted gate commands: hang→timeout-kill, flood→ratified truncation bounds (256KiB/50 lines; 8k PR; 2k tail), missing tool typed, exit-0-lying (evidence binds to candidate SHA), candidate-mutation detection within governed scope, pending-fails-closed (bare template) (`tests/hermetic/cf-b16-cf-c-b16-cf-j11-r/gate-command-runner.test.ts`) <!-- changelog 2026-08-11 HB-141: the six-case runner suite and seeded exit-0 evidence-binding control landed; status-honesty triage had reclassified this pending because no citing runner suite existed --> | 2 | evid+refusal | E3 |
@@ -385,7 +385,7 @@ spanning the six rows) except where a dimension is separately risky.
 
 | Cell | Family | Layer | Oracle | Risk |
 |---|---|---|---|---|
-| CF-C-CORE | CORMIDIA-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause BLOCKED:F-PT-017**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
+| CF-C-CORE | CORMIDIA-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause ratified 2026-08-12 F-PT-017: `interrupted` with a REQUIRED machine-readable reason, asserted across every adapter, plus the `timed_out`→`interrupted`+`time_limit` migration case**), usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |
 Twenty-seven boundary-contract families (B-09a and B-09b are separate contracts;
 B-23…B-26 added 2026-08-07, implemented and certified via #337–#340
 <!-- changelog 2026-08-10 (consistency sweep): was "design-only" — stale after the
@@ -405,12 +405,12 @@ asserted as ratified bounds/mechanisms; active PROPOSED items 9–12 remain prov
 | CF-C-B06 | clause-complete contract family; live/ops dup: dup: CF-OPS-SOAK; blocked remainder: — | 2 + 5 (real elapsed time) | contract | E2 |
 | CF-C-B07 | clause-complete contract family; live/ops dup: dup: CF-OPS-SOAK; blocked remainder: — | 2 + 5 (sleep/wake) | contract | E2 |
 | CF-C-B08 | **IMPLEMENTED 2026-08-12 (HB-142)** — `tests/hermetic/cf-c-b08-cf-j09-a-cf-j09-i-cf-j09-r-cf-j09-s/cf-c-b08-contract.test.ts` (clause ledger in header: every §1–§5 clause asserted or delegated to its named spec); three ratified vocabulary surfaces pinned to one closed set; §3 error clauses landed with F-PT-034's product change. clause-complete contract family; live/ops dup: —; blocked remainder: — <!-- changelog 2026-08-11 status-honesty triage: was landed, no citing spec; reclassified pending on HB-142 --><!-- changelog 2026-08-12 HB-142: landed the clause-complete walk --> | 2 | contract | E2 |
-| CF-C-B09A | clause-complete contract family; live/ops dup: —; blocked remainder: BLOCKED:F-PT-008 (expiry disposition clause) | 2 | contract | E1 |
+| CF-C-B09A | clause-complete contract family; live/ops dup: —; **remainder unblocked 2026-08-12 (F-PT-008 expiry-disposition clause ratified: reopen + policy-configured TTL)** | 2 | contract | E1 |
 | CF-C-B09B | clause-complete contract family; live/ops dup: dup: CF-J18-A; blocked remainder: — | 2 + 3 (unattended profile) | contract | E1 |
 | CF-C-B10 | clause-complete contract family; live/ops dup: —; blocked remainder: — | 1/2 | contract | E1/FLOOR |
 | CF-C-B11 | clause-complete contract family; live/ops dup: —; blocked remainder: — | 1/2 | contract | E1 (T-10) |
 | CF-C-B12 | clause-complete contract family; live/ops dup: —; blocked remainder: — | 2 | contract | E3/FLOOR (T-4 slice) |
-| CF-C-B13 | clause-complete contract family; live/ops dup: —; blocked remainder: BLOCKED:F-PT-006 (producer protocol + dup-identity clauses) | 2 | contract | STD |
+| CF-C-B13 | clause-complete contract family; live/ops dup: —; **remainder unblocked 2026-08-12 (F-PT-006 producer-protocol + identity clauses ratified: content-derived identity, no producer atomicity obligation)** | 2 | contract | STD |
 | CF-C-B14 | clause-complete contract family; live/ops dup: —; blocked remainder: — (F-PT-007 ratified 2026-07-31; concurrent-edit clause derivable — HB-P4) | 2 | contract | E1 |
 | CF-C-B15 | clause-complete contract family; live/ops dup: —; blocked remainder: — (F-PT-004 ratified 2026-07-31; ambiguous-byte clause derivable — HB-P2) | 2 | contract | E2 |
 | CF-C-B16 | clause-complete contract family; live/ops dup: —; blocked remainder: —; gate-command runner contract bound by `tests/hermetic/cf-b16-cf-c-b16-cf-j11-r/gate-command-runner.test.ts` <!-- changelog 2026-08-11 HB-141: runner contract cases landed; status-honesty triage had reclassified this pending because classifier-adjacent tests did not cover the runner --> | 2 | contract | E3 |
@@ -641,7 +641,15 @@ outside the product invariant count and is stated separately below; boundaries 2
   CF-SM-EVENT-*, CF-B13-*; contract-matrix remainder CF-C-B13), F-PT-008
   (CF-J06-I, CF-B09a-*; contract-matrix remainder CF-C-B09A), B-17-L3 (CF-J17-A,
   CF-B17-*; contract-matrix remainder CF-C-B17), F-PT-017 (CF-C-CORE terminal-
-  status enum clause), F-PT-018 (CF-HARNESS-CI required-check enforcement —
+  status enum clause)<!-- changelog 2026-08-12 (owner rulings): F-PT-006, F-PT-008
+  and F-PT-017 ALL LEFT this register the same day — resolved-ratified in
+  validation-policy.yaml, their eight parked cells un-parked in §§1–5 above, and
+  their implementations owed under the now-unblocked HB-P3/HB-P5/HB-P6. The three
+  entries are retained in this sentence as provenance of what WAS parked; the count
+  of currently-parked findings excludes them. F-PT-018 did NOT leave: its
+  2026-08-12 re-check found the GitHub plan unchanged (HTTP 403), so HB-P7 stays
+  parked and the known-limitation marker class below is unaffected. -->,
+  F-PT-018 (CF-HARNESS-CI required-check enforcement —
   marker class `KNOWN-LIMITATION`, not `BLOCKED`: unlike the eight parked
   entries its cells DO encode the bounded expected behavior, protected human
   merge + release-blocking exact-tag rerun; carried in case-catalog.yaml as

@@ -433,17 +433,79 @@ process-identity probe.
 - F-PT-009 (open — owner decision): Reviewer thresholds, N, AND sample design (case counts, severity+pairing aggregation, inconclusive rule) unratified; numbers on file are budgeting hypotheses; owner ruling: data-collection only, threshold-dependent verdicts inconclusive, never release-blocking/green. See llm-eval-plan.md §§8–9.
 - F-PT-010 (open): Planner (≥85%) and SRE (≥80%) thresholds + sample designs are unratified budgeting hypotheses (source: neither owner nor docs); same ruling applies.
 - F-PT-011 (open — umbrella, site-specific decisions): later-set thresholds + sample designs (Builder quality, Support, Marketing content, Marketing analysis, Distiller, Learning Reviewer), brief-conditioning sampling design, and S-8 selection-judge calibration/thresholds; inconclusive-only until each ratifies; Learning Reviewer and Selection Judge scores inadmissible until calibrated + ratified.
-- F-PT-008 (open): what grant TTL expiry does to the approval item (fresh item, reopen, or explicit operation) is unratified; decision records are immutable; B-09a takes no position. See contracts/B-09a.
+- F-PT-008 (**RESOLVED-ratified 2026-08-12**, owner decision same day): grant TTL expiry
+  **REOPENS the original item** — never a silent fresh item, never a dropped operation.
+  The item returns to pending under its original id with decision history intact; B-09b
+  immutability holds because the reopen is an appended log transition, not an edit. Two
+  further rulings landed with it: the grant TTL resolves through **policy configuration**
+  wired to org config (never a source constant, F-PT-020 precedent), and the grant default
+  moves 24h → 48h. The checked interaction was real: `pendingTtlMs` inherited `grantTtlMs`,
+  so 48h would also have doubled F-PT-020's ratified 24h undecided-item bound (raise→grant
+  expiry 48h→96h) — the owner therefore **pinned the pending default at 24h**, decoupling
+  the two. Only the grant side lengthens; `app verify` counting is unchanged. Implementation
+  owed under HB-P5. Original subject: what expiry does to the item was unratified and B-09a
+  took no position. See contracts/B-09a.
 - F-PT-007 (RESOLVED-ratified 2026-07-31): concurrent human edit of a bootstrap-owned marker/generated path between validation and write yields **compare-and-refuse, preserving human bytes** — contract truth (org-init's exclusive-creation+exact-rollback still NOT generalized by analogy). HB-P4 unparked; see contracts/B-14.
-- F-PT-006 (open): company-event producer visibility protocol (atomic rename vs tolerated-partial+retry) unspecified in docs; fake must not make policy by fixture convenience. See boundary-map.md §4.
+- F-PT-006 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **exactly one
+  firing per real-world event.** Duplicate deliveries collapse to one, and the dedup
+  identity is **content-derived** — sha256 over the canonical sorted-key serialization of
+  the producer's payload — never the delivery filename and never a producer-supplied id
+  (a retrying producer's fresh id double-fires; a reused id with different bytes recreates
+  the unresolvable same-identity-two-payloads case). This follows the incident
+  idempotency-key precedent in `src/org/standing-roles.ts`. Content identity also makes the
+  second clause vacuous: differing payloads ARE different events. **Producer atomicity is
+  not required** — a partial file fails parse, is retained loudly as
+  `malformed_company_event`, and fires once under its content identity when the complete
+  bytes land. Migration: legacy filename entries in `consumed.json` still suppress their own
+  file, so nothing already consumed re-fires (suppression only widens — tighten-only).
+  Implementation owed under HB-P3. Original subject: producer visibility protocol (atomic
+  rename vs tolerated-partial+retry) unspecified in docs; fake must not make policy by
+  fixture convenience. See boundary-map.md §4.
 - F-PT-005 (RESOLVED by owner ratification 2026-07-31; human-ratified by adoption 2026-07-31): added subscribers inherit still-pending events; removed subscribers cease blocking retirement. Derivation retained as provenance. See invariants.md.
 - F-PT-012 (open; raised Wave-1 implementation 2026-07-31): app-reset execute order — ratified prose (registry removal before local clears, OP-lifecycle §6 + CF-J14-S row) vs deliberate code design (local clears first; registry removal as the atomic commit point). Dependent case parked in cf-j14-s.
 - F-PT-013 (open; raised Wave-1): direct `git push` to the remote default branch classifies routine; enforcement locus (gate classifier vs loop-level guard holding default-branch state) undecided (INV-009 adjacency). Parked leg in cf-inv-002 alt-route spec.
 - F-PT-014 (open; raised Wave-1): INV-003 names "outside-worktree actions" never-broadly-scopeable but NEVER_SCOPEABLE_RULES has no mapping for that category; nearest live classes are human-widenable today. Parked in cf-sm-appr unit spec.
 - F-PT-015 (open; raised Wave-1): B-14 §4 bootstrap re-run semantics — product refuses outright vs contract "idempotent; marked block replaced in place; regenerated deterministically". Unambiguous half asserted; disjunction documented in cf-b14 spec.
 - F-PT-016 (open; raised Wave-1): publish-origin identity comparison ownership — bootstrap publish pushes to an origin that is not the registered repo (no comparison exists); B-14 §3 wrong-remote vs B-15 remote-identity split unresolved. Parked leg in cf-b14-publish spec.
-- F-PT-017 (open-blocked-contract; raised Wave-2 harness revision 2026-07-31): provider terminal-status vocabulary conflicts — ratified CORMIDIA-C-CORE-001 says `interrupted`, while `Runtime`/all adapters expose `timed_out`. The contract was not rewritten from implementation behavior; its enum-conformance clause is parked in CF-C-CORE/HB-P6 pending the owner decision.
+- F-PT-017 (**RESOLVED-ratified 2026-08-12**, owner decision same day): the terminal status
+  is **`interrupted`** — the ratified vocabulary wins and `timed_out` migrates to it, rather
+  than the contract being rewritten from code (the F-PT-012 pattern, resolved the contract's
+  way). `interrupted` **must carry a machine-readable reason** (`time_limit`,
+  `operator_kill`, `provider_crash`) so the specificity the old name carried in its NAME is
+  not lost when the name widens. The checked shape question needed **no structural change**:
+  `TurnResult` already exposes a machine-code channel, and requiring a reason on the
+  interrupted arm is a clause tightening inside an existing contract — no new
+  journey/boundary/invariant/LLM site. Migration compatibility is part of the ruling:
+  durable records written as `timed_out` stay readable and project as `interrupted` +
+  `time_limit`. Asserted across every adapter plus the migration case per HB-P6's
+  acceptance; no test derives truth from current code. Scope fence: the landed
+  `tests/unit/s3-verdict-marker.test.ts` pins confer no ratification here and **F-PT-033 is
+  untouched**. Implementation owed under HB-P6. Original subject: ratified
+  CORMIDIA-C-CORE-001 said `interrupted` while `Runtime`/all adapters exposed `timed_out`.
 - F-PT-018 (open-known-limitation; raised harness audit/revision 2026-07-31; disposition ratified 2026-08-04): the per-commit workflow runs and is fail-closed internally, but the current private-repository GitHub plan does not offer branch protection/rulesets. RQ-1 is bounded by protected human merge plus the release-blocking exact-tag rerun and does not claim mechanical merge blocking; future mechanical enforcement remains parked in CF-HARNESS-CI/HB-P7 pending a plan change.
+  **Re-checked 2026-08-12** at the owner's request (had the plan been upgraded?): still
+  unavailable — `gh api .../rulesets` and `gh api .../branches/main/protection` both answer
+  HTTP 403 "Upgrade to GitHub Pro or make this repository public". HB-P7 stays parked;
+  nothing was configured, claimed, or changed.
+- F-PT-037 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **F-PT-036's
+  deny-AND-escalate ruling extends to the muse, grok and pi seams.** muse and grok denied
+  fail-closed in their own catches without appending a `GateEscalation`; `pi-gate.ts` had no
+  catch at all. The empirical L2 determination the owner required before ruling on pi: pi is
+  fail-CLOSED today, but the property is the **vendor's** — the throw escapes the SDK's
+  `emitToolCall` (no try/catch, unlike its `emitUserBash`/`emitContext` siblings) and
+  pi-agent-core's `prepareToolCall` catch turns it into an error tool result. That is
+  version-banded vendor behavior one bump could invert, and nothing escalates either way, so
+  Cormidia owns its own fail-closed denial at the seam. INV-015 text unchanged; this widens
+  where the ratified seed is enforced. Implementation owed under HB-153.
+- F-PT-038 (**RESOLVED-ratified 2026-08-12**, owner decision same day): **an unresolvable
+  independent-review policy fails closed.** `defaultBuilderReviewerPolicy` resolves seats by
+  role NAME and returns undefined when no role is called builder/reviewer, so the whole
+  cross-provider-family guard was skipped — while an empty seat list two lines below
+  deliberately refuses. The same unsatisfiable policy failed closed one way and open the
+  other, decided by naming. Now: a route requiring `independent_review` with no resolvable
+  policy refuses before provider construction under the same typed error class. The
+  name-based default is retained as a convenience and the refusal names explicit seat
+  configuration as the remedy. Implementation owed under HB-154.
 - F-PT-021 (resolved-ratified 2026-08-04): the supported release workflow authenticates RQ-1 authority by requiring exact equality among GitHub's tag-push actor, `approval.approved_by`, and a configured release approver for the matching repository.
 - F-PT-022 (RESOLVED-ratified 2026-08-05; calibrated #300): L4 reservations, campaign `max_tokens`, and `observed_tokens` count output tokens only. Golden `token_reservation` values remain human-reviewed baselines; an exact human-approved release config may raise effective reservations but must cover every selected case once, never lower a baseline, and bind `max_tokens` to their sum. The #300 two-times-observed-rounded-to-100 calibration raises seven effective reservations to 5,700/6,600/8,700/12,100/8,000/9,500/4,700 and the full-corpus envelope to 88,100. Input/cache usage remains telemetry and equivalent-USD input. Unknown use debits the effective reservation; known overruns preserve evidence and remain incomplete/inconclusive. CF-REG-287 and CF-REG-300 provide the seeded controls.
 - F-PT-024 (RESOLVED-ratified 2026-08-06 — owner decision on #296: grantless budgeted actions are deliberately outside dollar accumulation; the per-action audit row is the complete record; objective grants remain the opt-in bound; pinned by tests/hermetic/cf-inv-003/f-pt-024-grantless-budgeted.test.ts). Original subject: grantless budgeted-tier accounting — budgeted actions proceed at the composed gate with per-action audit rows (ratified "free until it isn't"), and a covering objective grant bounds them by uses/ledger; but with NO covering grant the debit quantum and any hard bound are undecided. Interim: audit-only visibility; bare defaultGate keeps denying budgeted actions. Dependent ceiling-trip cases parked BLOCKED:F-PT-024 in case-catalog §10.1.

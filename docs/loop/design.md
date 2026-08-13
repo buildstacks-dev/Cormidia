@@ -523,8 +523,10 @@ The exact `manual-review` label is a second hard exclusion with the same two-bou
 and whole-delivery-unit behavior, but a distinct reason: it is a human review hold,
 not the technical/self-judging classification. Planner never projects `op:ready` for
 it, Builder rereads every member's current labels at claim, and Cormidia never removes
-the label. There is deliberately no `manual-*` wildcard; `manual-feelview` remains a
-separate taxonomy-audit item and has no scheduling semantics.
+the label. There is deliberately no `manual-*` wildcard. `manual-feelview` was a typo of
+`manual-review` (owner correction 2026-08-12, closing HB-112) — the affected issues carry
+exact `manual-review` and the label is retired; the retired string survives only as the
+no-wildcard negative control.
 
 - `triage` (bug batches): classify each issue — *bug* → tier + spec
 links + `op:ready`; *improvement* → backlog candidate (labeled, not

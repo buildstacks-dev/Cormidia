@@ -398,25 +398,59 @@ release obligations. Missing evidence remains visible and never pass. -->
 
 ## Parked (blocked candidate contracts — never implemented before ratification)
 
+<!-- changelog 2026-08-12 (owner rulings, attributable decision cited in the landing
+PR body): HB-P3, HB-P5 and HB-P6 are UNBLOCKED — F-PT-006, F-PT-008 and F-PT-017 are
+resolved-ratified in validation-policy.yaml. Their ruling text is recorded on each
+ticket below so the ticket is implementable from this file plus the policy alone.
+HB-P7 stays PARKED: the branch-protection re-check on 2026-08-12 still returned HTTP
+403 "Upgrade to GitHub Pro or make this repository public". This section keeps its
+heading because HB-P7 is still parked in it. -->
+
+
 <!-- changelog 2026-08-10 (reader test 6, new-engineer finding 3): the four parked
 tickets below previously named only executors, breaking the every-ticket-carries-
 Layer/Acceptance/Defends rule for exactly the tickets most likely to be picked up
 cold; fields added. Family ids stay in prose (B-NN/F-PT form) because these cells
 are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
-- **HB-P3** F-PT-006 producer-protocol + duplicate-identity cases. *Layer:* 2.
-  *Defends:* the B-13 inbox contract's producer-visibility and duplicate-identity
-  clauses (parked cells in the J-10/SM-EVENT/B-13 families). *Acceptance:* the
-  ratified protocol encoded red-then-green, whichever way the owner decides —
-  never both readings. *Executor:* build-agent, after human ratifies the finding.
-  **HB-P5** F-PT-008 expiry-disposition cases. *Layer:* 2. *Defends:* the B-09a
-  continuation contract's TTL-expiry item-disposition clause. *Acceptance:* the
-  ratified disposition (fresh item / reopen / explicit operation) encoded with a
-  seeded wrong-disposition control. *Executor:* build-agent, after human ratifies.
-- **HB-P6** F-PT-017 provider terminal-status enum decision and migration cases
-  (CF-C-CORE). *Layer:* 1/2. *Defends:* the core contract's terminal-status enum
-  clause. *Acceptance:* the chosen vocabulary asserted across every adapter plus a
-  migration-compatibility case; no test may derive truth from the current code.
-  *Executor:* human + build-agent after the owner chooses.
+- **HB-P3 — UNBLOCKED 2026-08-12** F-PT-006 producer-protocol + duplicate-identity
+  cases. *Layer:* 2. *Defends:* the B-13 inbox contract's producer-visibility and
+  duplicate-identity clauses (formerly parked cells in the J-10/SM-EVENT/B-13
+  families). *Acceptance:* the ratified protocol encoded red-then-green, whichever
+  way the owner decides — never both readings. *Executor:* build-agent, after human
+  ratifies the finding. **Ruling (owner, 2026-08-12):** exactly ONE firing per
+  real-world event; duplicate deliveries collapse to one. Dedup identity is
+  **content-derived** — `sha256` over the canonical sorted-key serialization of the
+  producer's payload — never the delivery filename, never a producer-supplied id.
+  Producers owe **no atomicity**: a partial file fails parse, is retained as
+  `malformed_company_event`, and fires once under its content identity when complete.
+  Same-identity-two-payloads becomes vacuous (differing payloads are different
+  events). Migration: a legacy filename entry in `consumed.json` still suppresses its
+  own file. The negative control seeds a duplicate delivery and a legacy-key replay.
+- **HB-P5 — UNBLOCKED 2026-08-12** F-PT-008 expiry-disposition cases. *Layer:* 2.
+  *Defends:* the B-09a continuation contract's TTL-expiry item-disposition clause.
+  *Acceptance:* the ratified disposition (fresh item / reopen / explicit operation)
+  encoded with a seeded wrong-disposition control. *Executor:* build-agent, after
+  human ratifies. **Ruling (owner, 2026-08-12):** expiry **REOPENS the original
+  item** — original id, decision history intact, appended log transition (B-09b
+  immutability holds); never a silent fresh item, never a dropped operation. The TTL
+  is **policy configuration wired to org config**, never a source constant (F-PT-020
+  precedent). Grant default 24h → **48h**; the undecided-item (pending) TTL default is
+  **pinned at 24h** and no longer inherits the grant default, because inheriting would
+  have doubled F-PT-020's ratified bound as a side effect. Seeded controls: a
+  fresh-item disposition and a dropped-operation disposition must both fail, and a 48h
+  grant default must NOT move the pending bound.
+- **HB-P6 — UNBLOCKED 2026-08-12** F-PT-017 provider terminal-status enum decision and
+  migration cases (CF-C-CORE). *Layer:* 1/2. *Defends:* the core contract's
+  terminal-status enum clause. *Acceptance:* the chosen vocabulary asserted across
+  every adapter plus a migration-compatibility case; no test may derive truth from the
+  current code. *Executor:* human + build-agent after the owner chooses. **Ruling
+  (owner, 2026-08-12):** the terminal status is **`interrupted`**, carrying a
+  **required** machine-readable reason ∈ {`time_limit`, `operator_kill`,
+  `provider_crash`}. No structural change was needed — the reason is a clause
+  tightening on an existing contract. Migration: durable `timed_out` records stay
+  readable and project as `interrupted` + `time_limit`. Scope fence: the existing
+  `tests/unit/s3-verdict-marker.test.ts` pins confer no ratification, and **F-PT-033
+  must not be touched by this ticket**.
 - **HB-P7** F-PT-018 mechanical merge-blocking enforcement (CF-HARNESS-CI), retained
   as a known limitation/future improvement. *Layer:* 1 + CI. *Defends:* the
   per-commit gate's merge-blocking claim (currently bounded by protected human
@@ -424,7 +458,13 @@ are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
   a required-check configuration proven blocking by a seeded red PR. *Executor:*
   human + build-agent after GitHub required-check controls become available. The PR
   workflow remains active and fail-closed internally; RQ-1 does not claim
-  mechanical merge blocking.
+  mechanical merge blocking. <!-- changelog 2026-08-12: re-checked at the owner's
+  request. `gh api repos/cormidia/Cormidia/rulesets` and
+  `gh api repos/cormidia/Cormidia/branches/main/protection` both return HTTP 403
+  "Upgrade to GitHub Pro or make this repository public to enable this feature".
+  STILL PARKED — no required check was configured, no seeded red PR was run, and
+  F-PT-018 keeps its 2026-08-04 known-limitation disposition. -->
+  **Re-checked 2026-08-12: still unavailable (HTTP 403, plan unchanged).**
 
 ## Post-ratification additions (2026-07-31)
 
@@ -746,11 +786,43 @@ prepares the proposal and a human separately ratifies any such surface. -->
   text do not change, and includes the ordinary code dependency, migration, rollback,
   and golden/gate impact. No protected surface was edited; application remains pending
   separate explicit human approval and human merge.
-- **HB-112 — PENDING, non-blocking — `manual-feelview` backlog-taxonomy audit.** Inventory
+- **HB-112 — CLOSED 2026-08-12 by owner correction — `manual-feelview` backlog-taxonomy
+  audit.** <!-- changelog 2026-08-12: closed by an attributable owner correction, not by
+  the agent's own taxonomy judgement. The ticket's whole premise — that the label might
+  carry an independent meaning needing a keep/rename/retire proposal — was wrong: the
+  owner states `manual-feelview` was a TYPO of `manual-review`, i.e. it always meant
+  exactly "the Cormidia planner must ignore the labeled item" and never a second
+  taxonomy. The audit's acceptance (inventory + one proposal per occurrence + zero
+  semantics changes) is discharged by the correction itself: the inventory was taken,
+  and the single disposition is RENAME-TO-`manual-review`, decided by the human. --> The
+  complete 2026-08-12 inventory of the exact string: 8 GitHub issues (#196, #197 — both
+  already carrying exact `manual-review`; and #369, #370, #371, #373, #374, #375 — all
+  CLOSED), the repository label itself, three corpus mentions
+  (`validation-policy.yaml` line 55, `autonomous-routing-audit-2026-08-04.md`,
+  `owner-backlog.md`), two product docs (`docs/DEVELOPMENT.md`, `docs/loop/design.md`),
+  one catalog row (the exact-`manual-review` regression family's no-wildcard negative
+  control — deliberately NOT named by id here, so this closure note cannot steal that
+  family's ownership from HB-139 in the generated catalog), one test
+  (`tests/hermetic/cf-hb102-manual-review-cf-reg-239/`), and the frozen `.validation/`
+  audit run (never edited). Applied: the six open/closed issues without it gained exact
+  `manual-review`, the label was deleted from the repository, and the taxonomy docs now
+  record the typo rather than a second label. **Deliberately unchanged:** the
+  no-wildcard rule and its negative control — `manual-*` is still not a wildcard, and
+  the test keeps using the retired string as its non-matching control, which is exactly
+  what a retired typo is good for. Zero scheduling semantics changed. *Layer:*
+  process/read-only audit + label hygiene. *Defends:* the backlog taxonomy itself —
+  corpus hygiene. *Executor:* build-agent + human taxonomy decision (**decision given
+  2026-08-12**). Original ticket text follows.
+- **HB-112 (original) — PENDING, non-blocking — `manual-feelview` backlog-taxonomy audit.** Inventory
   every use of the exact label, identify its human owner and intended lifecycle, and
   propose keep/rename/retire cleanup without assigning autonomous-scheduling semantics.
   It is not an alias of `manual-review`, does not justify a `manual-*` wildcard, and any
   future scheduling meaning requires a separate product-owner decision plus detectors.
+  <!-- SUPERSEDED 2026-08-12: "It is not an alias of `manual-review`" was the correct
+  fail-closed posture while the label's meaning was unknown, and is now factually wrong
+  — the owner states it was a typo OF `manual-review`. Preserved verbatim as the
+  ticket's original text; read the CLOSED entry above for current truth. The
+  no-wildcard clause is NOT superseded and still holds. -->
   *Acceptance:* a written inventory covering every occurrence of the exact label,
   each with owner and lifecycle; one keep/rename/retire proposal per occurrence
   presented to the human; zero scheduling-semantics changes made by this ticket.
@@ -1438,8 +1510,45 @@ HB-060..HB-061 LANDED. HB-063 LANDED. HB-070..HB-071 LANDED.
 HB-080..HB-081 LANDED. HB-100..HB-111 LANDED. HB-113..HB-118 LANDED.
 HB-120..HB-132 LANDED. HB-133 LANDED. HB-135 LANDED. HB-136 LANDED. HB-140 LANDED. HB-141 LANDED. HB-142 LANDED. HB-143 LANDED. HB-144 LANDED. HB-145 LANDED. HB-146 LANDED.
 HB-147 LANDED. HB-148 LANDED. HB-149 LANDED. HB-150 LANDED. HB-151 LANDED. HB-152 LANDED. HB-P1 LANDED.
+HB-112 LANDED.
+<!-- changelog 2026-08-12: HB-112 was an audit ticket, and "landed" is this register's
+only completion token — it records that the ticket's acceptance (inventory, one
+disposition per occurrence, zero scheduling-semantics changes) is discharged by the
+owner's 2026-08-12 typo correction and the relabel/retire applied in the same change.
+It is not a claim that a detector family shipped; HB-112 owns none. -->
 HB-P2 LANDED.
 HB-P4 LANDED.
+
+## Campaign-finding rulings (2026-08-12, F-PT-037/F-PT-038) — HB-153…HB-154
+
+<!-- Both findings were surfaced by the 2026-08-12 campaign pass, presented to the owner
+as plain-language options BEFORE any implementation, and ruled the same day. Ids minted
+by the next-id scan over this file and case-catalog.yaml's ticket list. -->
+
+- **HB-153 — classifier-throw deny+escalate at the muse, grok and pi seams (F-PT-037).**
+  Extend the ratified INV-015 seed (c) enforcement to the three seams F-PT-036 did not
+  reach: the muse and grok bridges route their classifier-throw catches through
+  `classifierThrowDenial` (deny + `GateEscalation`), and `src/runtime/adapters/pi-gate.ts`
+  gains its own catch instead of relying on the vendor's `prepareToolCall` to convert a
+  thrown classifier into a blocked tool. *Acceptance:* every seam denies AND appends an
+  escalation on a throwing classifier, red-then-green, with a **seeded permissive-fallback
+  control per seam** (a catch that allows, or no catch at all, must fail); the pi case
+  additionally pins that Cormidia's own code — not the SDK — produces the denial, so a
+  vendor bump that stopped catching cannot silently open the seam. *Defends:* INV-015
+  seed (c); CF-INV-015; B-25/B-26 and the pi leg of CORMIDIA-C-CORE-001. *Layer:* 2.
+  *Executor:* build-agent.
+- **HB-154 — unresolvable independent-review policy fails closed (F-PT-038).** When an
+  EpisodeIntent carries the `independent_review` safety fact and no review policy
+  resolves — neither explicitly configured nor from the name-based
+  `defaultBuilderReviewerPolicy` — refuse before provider construction under the same
+  typed error class the adjacent empty-seat-list branch already uses, naming explicit
+  seat configuration as the remedy. *Acceptance:* a route requiring independent review
+  against an org chart with no builder/reviewer-named roles refuses deterministically
+  before any provider construction, red-then-green, with a seeded control proving the
+  pre-ruling silent-skip path now fails; a chart that DOES resolve seats is unaffected
+  (negative control both ways). *Defends:* the HB-133/CF-REVIEW-PROVIDER cross-provider
+  review guard; standing rule 2 (guardrails enforce). *Layer:* 2. *Executor:*
+  build-agent.
 
 ## Standing rules
 

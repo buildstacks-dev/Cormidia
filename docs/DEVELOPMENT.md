@@ -91,8 +91,11 @@ The exact GitHub label `manual-review` is a second, independent autonomous
 scheduling exclusion. Planner may inspect/explain it but cannot publish `op:ready`;
 Builder rereads current labels and refuses any delivery unit containing it, even when
 `op:ready` is present. Cormidia never removes `manual-review`; only a human does. This
-rule is exact—there is no `manual-*` wildcard, and `manual-feelview` has no scheduling
-meaning pending the separate HB-112 taxonomy audit.
+rule is exact—there is no `manual-*` wildcard. `manual-feelview` was a **typo of
+`manual-review`** (owner correction 2026-08-12, closing HB-112): it always meant the
+same thing, the affected issues now carry exact `manual-review`, and the label has been
+retired from the repository. It is retained only as the no-wildcard negative control —
+a retired string is exactly what that control needs.
 
 Drift is caught at the end, not prevented by chunking in the middle: if a PR's
 final diff reaches an excluded path, stop and re-decide before merge. A

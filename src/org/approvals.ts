@@ -245,6 +245,13 @@ export const ORCHESTRATOR_EXECUTABLE_RULES: readonly string[] = [
   "release-artifact",
   "outbound-message",
   "outbound-network",
+  // #382: repository provisioning. The whole governed lifecycle depends on
+  // this — the human approves an exact content-bound provisioning action, and
+  // the orchestrator's durable executor creates the repository ONCE against
+  // its idempotency marker. Without executor capability the only remaining
+  // path would be the operator retyping `gh repo create` by hand, which is the
+  // gap #382 exists to close.
+  "repo-provisioning",
   // §5.1 split (#296): the five classes that replaced
   // destructive-or-irreversible keep its executor capability — the same
   // outward-effect deletes/rewrites the human read in `cormidia approvals
@@ -1728,10 +1735,14 @@ function isActorClaimable(executor: ApprovalExecutor | undefined): boolean {
  *  destructive family changed, so authority minted under the old semantics
  *  stops matching and agents simply re-raise. v5 repeats that cancellation at
  *  the §5.2 secrets split landing, v6 at the §5.4 outbound refinement, and
- *  v7 at the §5.3 publishing split. Each migration is intentional and
+ *  v7 at the §5.3 publishing split, and v8 at the `repo-provisioning` landing
+ *  (#382): `gh repo create|delete|edit`, the repository-root raw-API endpoints,
+ *  and two previously-unclassified `cormidia` publish verbs moved routine →
+ *  human-only, so any authority minted while they were routine must not carry
+ *  forward. Each migration is intentional and
  *  abrupt: the instant it lands, in-flight grants stop matching, agents
  *  re-raise, and the miss path yields a fresh approval item — never a crash. */
-export const ACTION_IDENTITY_VERSION = 7;
+export const ACTION_IDENTITY_VERSION = 8;
 
 /** Input keys `normalizeSemanticAction` (src/runtime/gate.ts) already folds
  *  into the semantic identity. Everything ELSE in the input is agent-authored

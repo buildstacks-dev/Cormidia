@@ -34,6 +34,8 @@ import {
 import { executeOrgUpgrade, planOrgUpgrade, type UpgradeAuthorityChoice } from "../org/org-upgrade.js";
 import { orgHomeDivergence } from "../org/org-home-publication.js";
 import { cmdOrgPublish } from "./org-publish.js";
+import { cmdOrgProvisionRepo } from "./provision-repo.js";
+import { extractHomeFlags } from "./home-flags.js";
 import {
   bindCliInvocationStateHome,
   currentCliInvocationStateHome,
@@ -62,8 +64,13 @@ export async function cmdOrg(args: string[], options: OrgCommandOptions = {}): P
   if (subcommand === "list") return list(args.slice(1), options);
   if (subcommand === "archive") return archive(args.slice(1), options);
   if (subcommand === "publish") return cmdOrgPublish(args.slice(1));
+  if (subcommand === "provision-repo") {
+    const common = extractHomeFlags(args.slice(1), "org provision-repo");
+    return cmdOrgProvisionRepo(common.rest, common);
+  }
   throw new Error(
-    'org: expected "init", "show", "use", "list", "archive", "publish", or "upgrade" — run `cormidia org --help`',
+    'org: expected "init", "show", "use", "list", "archive", "publish", "provision-repo", or "upgrade" — ' +
+      "run `cormidia org --help`",
   );
 }
 

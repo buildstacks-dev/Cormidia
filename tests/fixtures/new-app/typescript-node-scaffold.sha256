@@ -7,6 +7,10 @@
 # first, so no keyword precedes a high-entropy value (.gitleaks.toml is
 # tighten-only and allows no fixture allowlists).
 # Re-pinned 2026-08-13 (#389), ONE line: .cormidia/bootstrap/next-commands.md.
+# Re-pinned 2026-08-13 (#382), the SAME one line: Checkpoint 3 now describes the
+# governed `cormidia app provision-repo` path and keeps the manual gh/git
+# sequence as a documented fallback. Every other path's hash is untouched, which
+# is the point of re-pinning one line rather than regenerating the file.
 # The guide now states the disposition's publication durability and the
 # --publish resume, so its bytes changed deliberately. Every other digest is
 # untouched, which is what keeps this fixture's actual subject — that #383's
@@ -14,7 +18,7 @@
 c9d1785d1f4eec1075e817f5ea74a8b7beca8d8c60a67e3b330c25afbe313e14  .cormidia/AUTHORITY.md
 1003a05d88afe9f293eb1dfe44bf0dd7560ad7ab10f6d43c677c8cff53f7083c  .cormidia/LABELS.md
 468864ae347b361b5d66d400e2ae9359c2b7051c5d75a39835ea0741adba772e  .cormidia/TASTE.md
-9e6b0ced16c28d26a7bd5b54c751852041fa00ade71c4b6548c47b89842eb127  .cormidia/bootstrap/next-commands.md
+010a1d15491957b971d2a143b4ef12784297d1250aa3deaedea11d274fe3bc11  .cormidia/bootstrap/next-commands.md
 7747bd48ce7b2591c97986108170d12e59b904fc09ca70c74c914f330195bfdb  .cormidia/bootstrap/product-docs.json
 d378f7414fbdb4ccc483ae24ff91f2234a092e1e3564e58bda019b49fd2177f7  .cormidia/config.yaml
 aaae8c8295d50b94e1cd53cfad9ccfa3f7aa5b4931aff528afaa482ad86b42e7  .cormidia/memory/builder/INDEX.md

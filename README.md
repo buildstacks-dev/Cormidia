@@ -427,6 +427,19 @@ from later invocations unless their accepted work requires egress. Verify and pr
 promotion only after the required units merge with real checks.
 `new-app` and ordinary `bootstrap` themselves create neither a GitHub repo nor an
 issue; the generated guide marks the later outward commands explicitly.
+Repository creation is a governed follow-up rather than a hand-typed one:
+`cormidia app provision-repo <app> --source-dir <checkout>` (and `cormidia org
+provision-repo --repo <owner/repo>` for the org home) previews the exact
+owner/name, visibility, byte-bounded commit scope, remote, push target, and
+canonical label set, then on `--execute --confirm <app>` creates the private
+repository, pushes only the declared bootstrap paths, installs the labels, and
+verifies visibility, remote identity, default-branch ancestry, the bootstrap
+commit, and the labels before reporting ready. The transaction is journaled by
+content identity and reconciles forward — a lost create response, a failed push,
+or a half-installed label set resumes against what already exists rather than
+creating a second repository. The manual `gh repo create` sequence is retained
+as a documented fallback; `gh repo create|delete|edit` now classify
+`repo-provisioning` (human-only) at the critical-ops gate.
 
 Onboarding claims follow an evidence ladder:
 

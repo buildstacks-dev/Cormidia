@@ -120,9 +120,9 @@ Machine discovery:
     if (typeof parsed !== "object" || parsed === null || !("commands" in parsed) || !Array.isArray(parsed.commands)) {
       throw new Error("capabilities output omitted commands[]");
     }
-    expect(parsed.commands).toHaveLength(41);
+    expect(parsed.commands).toHaveLength(43);
     expect(createHash("sha256").update(JSON.stringify(parsed.commands)).digest("hex")).toBe(
-      "573ec285cd5e94b49885cf42849cc60d950d406c10cb11d5cff44388b672d913",
+      "8b1975f73cb2371c1a089132de0619817f1c4943cbcb786a96e7710001a282e8",
     );
   });
 });

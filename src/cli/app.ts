@@ -13,6 +13,7 @@ import { stableJson } from "../org/lifecycle.js";
 import { latestResetArchiveForApp } from "../org/onboarding-answers.js";
 import type { RuntimeReadinessProbe } from "../runtime/readiness.js";
 import { cmdAppProductDocs } from "./app-product-docs.js";
+import { cmdAppProvisionRepo } from "./provision-repo.js";
 import { extractHomeFlags } from "./home-flags.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
@@ -26,13 +27,24 @@ interface AppCommandOptions {
 export async function cmdApp(args: string[], options: AppCommandOptions = {}): Promise<number> {
   const common = extractHomeFlags(args, "app");
   const [verb, appName, ...rest] = common.rest;
-  if (verb !== "reset" && verb !== "verify" && verb !== "promote" && verb !== "product-docs") {
-    throw new Error(`app: unknown subcommand "${verb ?? ""}" (expected reset, verify, promote, or product-docs)`);
+  if (
+    verb !== "reset" &&
+    verb !== "verify" &&
+    verb !== "promote" &&
+    verb !== "product-docs" &&
+    verb !== "provision-repo"
+  ) {
+    throw new Error(
+      `app: unknown subcommand "${verb ?? ""}" (expected reset, verify, promote, product-docs, or provision-repo)`,
+    );
   }
   if (appName === undefined || appName.startsWith("--")) {
     throw new Error(`app ${verb}: <app-name> is required`);
   }
   if (verb === "product-docs") return cmdAppProductDocs(appName, rest, common);
+  if (verb === "provision-repo") {
+    return cmdAppProvisionRepo(appName, rest, common, definedProps({ ghFactory: options.ghFactory }));
+  }
 
   if (verb === "verify") return verify(appName, rest, common, options);
   if (verb === "promote") return promote(appName, rest, common, options);

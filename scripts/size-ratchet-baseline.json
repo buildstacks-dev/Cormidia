@@ -18,7 +18,7 @@
     },
     "src/cli/app.ts": {
       "exports": 2,
-      "lines": 291,
+      "lines": 303,
       "newModule": false
     },
     "src/cli/approvals.ts": {
@@ -53,7 +53,7 @@
     },
     "src/cli/context-info.ts": {
       "exports": 3,
-      "lines": 315,
+      "lines": 329,
       "newModule": false
     },
     "src/cli/dispatch-run.ts": {
@@ -82,7 +82,7 @@
       "newModule": true
     },
     "src/cli/home-flags.ts": {
-      "exports": 1,
+      "exports": 2,
       "lines": 32,
       "newModule": false
     },
@@ -158,7 +158,7 @@
     },
     "src/cli/org.ts": {
       "exports": 1,
-      "lines": 514,
+      "lines": 521,
       "newModule": false
     },
     "src/cli/pipelines.ts": {
@@ -180,6 +180,16 @@
       "exports": 2,
       "lines": 57,
       "newModule": false
+    },
+    "src/cli/provision-repo-report.ts": {
+      "exports": 2,
+      "lines": 92,
+      "newModule": true
+    },
+    "src/cli/provision-repo.ts": {
+      "exports": 3,
+      "lines": 298,
+      "newModule": true
     },
     "src/cli/prune-runs.ts": {
       "exports": 1,
@@ -397,8 +407,8 @@
       "newModule": false
     },
     "src/loop/github.ts": {
-      "exports": 12,
-      "lines": 815,
+      "exports": 14,
+      "lines": 931,
       "newModule": false
     },
     "src/loop/issue-snapshot.ts": {
@@ -623,7 +633,7 @@
     },
     "src/org/approvals.ts": {
       "exports": 35,
-      "lines": 2002,
+      "lines": 2013,
       "newModule": false
     },
     "src/org/apps.ts": {
@@ -762,8 +772,8 @@
       "newModule": true
     },
     "src/org/git-publication-substrate.ts": {
-      "exports": 9,
-      "lines": 152,
+      "exports": 10,
+      "lines": 178,
       "newModule": true
     },
     "src/org/git-publication.ts": {
@@ -963,7 +973,12 @@
     },
     "src/org/new-app-guide.ts": {
       "exports": 1,
-      "lines": 281,
+      "lines": 300,
+      "newModule": true
+    },
+    "src/org/new-app-paths.ts": {
+      "exports": 2,
+      "lines": 48,
       "newModule": true
     },
     "src/org/new-app-preflight.ts": {
@@ -1140,6 +1155,51 @@
       "exports": 4,
       "lines": 1265,
       "newModule": false
+    },
+    "src/org/repo-provision-adopt.ts": {
+      "exports": 3,
+      "lines": 109,
+      "newModule": true
+    },
+    "src/org/repo-provision-execute.ts": {
+      "exports": 4,
+      "lines": 294,
+      "newModule": true
+    },
+    "src/org/repo-provision-git.ts": {
+      "exports": 3,
+      "lines": 159,
+      "newModule": true
+    },
+    "src/org/repo-provision-journal.ts": {
+      "exports": 9,
+      "lines": 228,
+      "newModule": true
+    },
+    "src/org/repo-provision-marker.ts": {
+      "exports": 1,
+      "lines": 11,
+      "newModule": true
+    },
+    "src/org/repo-provision-remote.ts": {
+      "exports": 3,
+      "lines": 72,
+      "newModule": true
+    },
+    "src/org/repo-provision-scope.ts": {
+      "exports": 7,
+      "lines": 167,
+      "newModule": true
+    },
+    "src/org/repo-provision-verify.ts": {
+      "exports": 5,
+      "lines": 263,
+      "newModule": true
+    },
+    "src/org/repo-provision.ts": {
+      "exports": 10,
+      "lines": 300,
+      "newModule": true
     },
     "src/org/retention.ts": {
       "exports": 7,
@@ -1813,7 +1873,7 @@
     },
     "src/runtime/gate.ts": {
       "exports": 18,
-      "lines": 2660,
+      "lines": 2770,
       "newModule": false
     },
     "src/runtime/git-worktree-sandbox.ts": {

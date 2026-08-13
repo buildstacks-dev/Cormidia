@@ -21,23 +21,49 @@ import { join } from "node:path";
 import { classifyRepositoryIdentity, isRepositoryIdentity } from "../runtime/repo-identity.js";
 
 /** Never prompt for credentials (a hung command is indistinguishable from a
- *  wedged org) and never let host system config change what git reports. */
-const GIT_ENV: NodeJS.ProcessEnv = {
-  ...process.env,
-  GIT_TERMINAL_PROMPT: "0",
-  GIT_CONFIG_NOSYSTEM: "1",
-};
+ *  wedged org) and never let host system config change what git reports.
+ *
+ *  Read at CALL time, not module load. The previous snapshot meant any change
+ *  to `process.env` after this module was first imported was silently ignored —
+ *  and ESM hoists imports above module bodies, so a caller setting an
+ *  environment variable at the top of its own file was already too late. The
+ *  symptom is not an error but a setting that quietly does nothing, which is how
+ *  #382's hermetic suites passed on a machine with a global git identity and
+ *  failed on CI without one. A fresh object per call also keeps the result safe
+ *  for a caller to hold. */
+function gitEnv(extra?: PublicationGitEnv): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...extra,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_CONFIG_NOSYSTEM: "1",
+  };
+}
 
 /** Wall-clock ceiling for any single git call, including the network ones.
  *  Matches `resolveRemoteDefaultBranch`: failing loudly beats wedging a tick. */
 const GIT_TIMEOUT_MS = 30_000;
 
+/** Extra environment for one git call, layered over the ambient environment.
+ *
+ *  Provisioning (#382) needs `GIT_INDEX_FILE` to stage into a temporary index
+ *  without touching the operator's own. Passing it here rather than mutating
+ *  `process.env` keeps the scope to exactly one call. */
+export interface PublicationGitEnv {
+  readonly GIT_INDEX_FILE?: string;
+}
+
 /** Run git, throwing with the failing command and stderr on any nonzero exit. */
-export function publicationGit(cwd: string, args: readonly string[], errorPrefix: string): string {
+export function publicationGit(
+  cwd: string,
+  args: readonly string[],
+  errorPrefix: string,
+  env?: PublicationGitEnv,
+): string {
   try {
     return execFileSync("git", [...args], {
       cwd,
-      env: GIT_ENV,
+      env: gitEnv(env),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: GIT_TIMEOUT_MS,
@@ -73,7 +99,7 @@ export function showBlobAtRev(cwd: string, rev: string, relativePath: string): B
   try {
     return execFileSync("git", ["show", `${rev}:${relativePath}`], {
       cwd,
-      env: GIT_ENV,
+      env: gitEnv(),
       stdio: ["ignore", "pipe", "pipe"],
       timeout: GIT_TIMEOUT_MS,
       maxBuffer: 64 * 1024 * 1024,

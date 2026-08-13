@@ -155,6 +155,49 @@ tells you to re-run a disposition you just ran, that is a bug — report it.
 Before the app repository exists (the `new-app` happy path), the disposition
 reports `local_only` and the initial commit carries it. That is expected.
 
+## Provision the private repository
+
+`new-app` and `bootstrap` are local. Creating the GitHub repository an app or
+org home lives in is a separate, explicit, outward step — and it is a governed
+command, not a hand-typed `gh repo create`:
+
+```bash
+cormidia app provision-repo <app> --source-dir <checkout> --json
+cormidia app provision-repo <app> --source-dir <checkout> --execute --confirm <app> --json
+cormidia org provision-repo --repo <owner/repo> --execute --confirm <org> --json
+```
+
+Preview is the default and reaches GitHub only to READ. It reports the exact
+owner/name, visibility (always private), local source, the byte-bounded set of
+files that would be committed, the remote and push target, and the canonical
+label set. `--execute` additionally requires `--confirm`, and binds the content
+id you previewed: a target or a byte that moved in between refuses rather than
+provisioning something nobody reviewed.
+
+Execution creates the repository, commits and pushes ONLY the declared bootstrap
+paths, installs the canonical labels, then re-reads the remote and reports
+`verification ready` only when visibility, remote identity, default-branch
+ancestry, the bootstrap commit, and all canonical labels agree. Anything less is
+`NOT ready`, and no readiness claim may be advanced on it.
+
+**On a partial outcome, re-run the same `--execute` command.** The transaction is
+journaled by content identity and reconciles forward against what already
+exists — a lost create response, a failed push, a half-installed label set.
+Never fall back to `gh repo create` after a partial provisioning: that is how a
+duplicate repository gets made. `gh repo create|delete|edit|archive|rename` and
+the equivalent raw-API endpoints classify `repo-provisioning` (human-only,
+never-scopeable) at the critical-ops gate, so an agent turn cannot run them
+without a fresh human approval anyway.
+
+Refusals worth recognizing rather than working around: an unresolved or
+placeholder identity (refused before the first network call), a repository that
+already exists and is not private, one that already holds commits this
+provisioning did not create, a local remote naming a different repository, and a
+remote branch whose content differs — which is never force-pushed.
+
+An org home with no configured remote reports the explicit `local_only`
+contract; provisioning is not attempted for a local-only org.
+
 ## Publish committed org configuration
 
 The org home is **committed** organization configuration. `new-app`,

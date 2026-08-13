@@ -37,7 +37,7 @@ const PROTECTED_EXTERNAL_SLUGS = new Map([
 
 const PROTECTED_EXTERNAL_NAMES = new Map([
   [`${RETIRED}-sandbox-alpha`, 14],
-  [`${RETIRED}-sandbox-gamma`, 23],
+  [`${RETIRED}-sandbox-gamma`, 22],
   [`${RETIRED}-marketplace-demo`, 16],
 ]);
 

@@ -9,9 +9,10 @@ import { cmdPlan } from "../../../src/cli/plan.js";
 import { createCliProgressReporter, extractProgressArgs } from "../../../src/runtime/cli-progress.js";
 import type { GovernedTurnProgressIdentity } from "../../../src/runtime/turn-observer.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
+import { makeSyntheticSecret } from "../../fixtures/synthetic-secret.js";
 
 const APP = "progress-app";
-const SECRET = "sk-live-cf-reg-390-secret";
+const REDACTION_FIXTURE = makeSyntheticSecret("sk-api-key").value;
 const execFileAsync = promisify(execFile);
 let org: TempOrgHome | undefined;
 
@@ -65,8 +66,8 @@ describe("CF-REG-390 — durable foreground CLI progress", () => {
           options.observer?.onEvent?.({
             type: "tool_use",
             name: "shell",
-            detail: `raw prompt ${SECRET}`,
-            args: { command: `curl -H Authorization:${SECRET}` },
+            detail: `raw prompt ${REDACTION_FIXTURE}`,
+            args: { command: `curl -H Authorization:${REDACTION_FIXTURE}` },
           });
           await providerPending;
           options.observer?.onTurnTerminal?.({
@@ -137,9 +138,9 @@ describe("CF-REG-390 — durable foreground CLI progress", () => {
       .filter((row) => row.identity?.runId === "run-cf-reg-390");
     expect(turnRows.filter((row) => row.phase === "plan" && row.state === "started")).toHaveLength(1);
     expect(turnRows.filter((row) => row.phase === "plan" && row.state === "completed")).toHaveLength(1);
-    expect(log).not.toContain(SECRET);
+    expect(log).not.toContain(REDACTION_FIXTURE);
     expect(log).not.toContain("curl -H");
-    expect(stderr.join("")).not.toContain(SECRET);
+    expect(stderr.join("")).not.toContain(REDACTION_FIXTURE);
   });
 
   it("keeps logging when terminal progress is off and never lets a renderer failure fail work", async () => {
@@ -230,13 +231,13 @@ describe("CF-REG-390 — durable foreground CLI progress", () => {
     });
 
     for (let index = 0; index < 100; index++) {
-      reporter.observer.onEvent?.({ type: "text", detail: `provider chunk ${index} ${SECRET}` });
+      reporter.observer.onEvent?.({ type: "text", detail: `provider chunk ${index} ${REDACTION_FIXTURE}` });
     }
     reporter.dispose();
 
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('"phase":"provider-text"');
-    expect(lines[0]).not.toContain(SECRET);
+    expect(lines[0]).not.toContain(REDACTION_FIXTURE);
   });
 
   it("parses text, JSONL, quiet, and conflict modes without consuming command arguments", () => {

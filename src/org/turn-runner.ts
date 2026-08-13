@@ -49,6 +49,7 @@ import type {
   TurnResult,
   TurnUsage,
 } from "../runtime/types.js";
+import { recordObservedEvent } from "../runtime/turn-observer.js";
 import { parseInterruptedReason, terminalStopFields, type InterruptedReason } from "../runtime/types.js";
 import { effectiveEpisodeHardCeiling, resolveAppRoles } from "./app-execution-policy.js";
 import { executeApprovedCommands, type ApprovedCommandResult } from "./approval-command.js";
@@ -158,6 +159,7 @@ interface RunDispatchedTurnOptions {
   now?: () => Date;
   /** Cooperative cancellation sent by the owning CLI/dispatcher process. */
   signal?: AbortSignal;
+  observer?: Omit<TurnHooks, "gate">;
   parentTaskId?: string;
   /** Explicit human CLI entry into the M6 scheduled protocol. The journal
    * stays manual for telemetry; only this named pipeline may be overridden. */
@@ -250,10 +252,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
       return { status: "blocked_on_gate", summary };
     }
 
-    // Route is an authority decision, so resolve it before selecting an
-    // execution checkout. Only the explicit standalone creator scope gets a
-    // durable per-turn branch; governed ticket and scheduled/event routes keep
-    // their existing checkout ownership.
+    // Only explicit standalone creator scope gets a durable per-turn branch.
     const route =
       options.pipelineOverride !== undefined
         ? ({ kind: "pipeline", pipeline: options.pipelineOverride } as const)
@@ -280,6 +279,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
       turnId: options.turnId,
     });
     const hooks: TurnHooks = {
+      ...options.observer,
       gate: composeGate(defaultGate, store, {
         app: options.app.name,
         role: options.role.name,
@@ -291,7 +291,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
         workdir: localRepo,
         now: clock,
       }),
-      onEvent: (event) => actorEvents.push(event),
+      onEvent: (event) => recordObservedEvent(options.observer, actorEvents, event),
     };
 
     await writeJournalPatch(runtimeHome, options.turnId, {

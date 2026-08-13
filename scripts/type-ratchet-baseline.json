@@ -41,10 +41,6 @@
       "as": 1,
       "nonNull": 0
     },
-    "src/cli/dispatch.ts": {
-      "as": 0,
-      "nonNull": 1
-    },
     "src/cli/doctor.ts": {
       "as": 0,
       "nonNull": 1

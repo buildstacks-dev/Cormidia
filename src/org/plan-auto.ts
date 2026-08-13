@@ -1,8 +1,5 @@
-// Non-interactive product planning. EpisodePlanner first selects the smallest
-// sufficient graph over a code-owned catalog of governed planning passes; the
-// accepted EpisodePlan then executes one exact provider turn per planned step.
-// The terminal provider output is still the existing schema-validated
-// TicketPlan, and publication remains deterministic orchestrator work.
+// Non-interactive planning: EpisodePlanner selects governed passes, whose
+// terminal output remains a schema-validated, deterministically published TicketPlan.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
@@ -189,6 +186,7 @@ interface AutoPlanOptions {
   runtimeFor?: (role: RoleConfig) => Runtime;
   now?: () => Date;
   signal?: AbortSignal;
+  observer?: Omit<TurnHooks, "gate">;
   parentTaskId?: string;
   /** Compatibility/request facts only. They no longer select workflow shape. */
   planning?: Omit<PlanningDepthInput, "goal" | "stage">;
@@ -509,6 +507,7 @@ export async function runAutoPlan(options: AutoPlanOptions): Promise<AutoPlanRes
 
   const store = new ApprovalStore(options.stateHome);
   const hooks: TurnHooks = {
+    ...options.observer,
     gate: composeGate(defaultGate, store, {
       app: options.app.name,
       role: planner.name,

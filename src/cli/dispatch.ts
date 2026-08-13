@@ -1,28 +1,25 @@
 import { join, resolve } from "node:path";
-import { executeApprovedCommands } from "../org/approval-command.js";
-import { executeApprovedDeliveries } from "../org/approval-delivery.js";
-import { ApprovalStore } from "../org/approvals.js";
 import { loadApps } from "../org/apps.js";
-import { dispatchTick } from "../org/dispatch.js";
 import { resolveCormidiaHomes } from "../org/home.js";
-import { executeApprovedReleases } from "../org/release.js";
+import { createCliProgressReporter, extractProgressArgs } from "../runtime/cli-progress.js";
+import { runDispatch } from "./dispatch-run.js";
 import { extractHomeFlags } from "./home-flags.js";
-import { reportCliInvocation } from "./invocation-audit.js";
 
 export async function cmdDispatch(args: string[]): Promise<number> {
   const common = extractHomeFlags(args, "dispatch");
+  const progressArgs = extractProgressArgs(common.rest, "dispatch");
   let appsPath: string | undefined;
   let rolesPath: string | undefined;
   let dryRun = false;
   const explicitScheduleRetries: string[] = [];
 
-  for (let i = 0; i < common.rest.length; i++) {
-    const arg = common.rest[i]!;
-    if (arg === "--apps") appsPath = needValue(common.rest, ++i, "--apps");
-    else if (arg === "--roles") rolesPath = needValue(common.rest, ++i, "--roles");
+  for (let i = 0; i < progressArgs.rest.length; i++) {
+    const arg = progressArgs.rest[i];
+    if (arg === "--apps") appsPath = needValue(progressArgs.rest, ++i, "--apps");
+    else if (arg === "--roles") rolesPath = needValue(progressArgs.rest, ++i, "--roles");
     else if (arg === "--dry-run") dryRun = true;
     else if (arg === "--retry-schedule") {
-      explicitScheduleRetries.push(needValue(common.rest, ++i, "--retry-schedule"));
+      explicitScheduleRetries.push(needValue(progressArgs.rest, ++i, "--retry-schedule"));
     } else throw new Error(`dispatch: unknown argument "${arg}"`);
   }
 
@@ -30,72 +27,34 @@ export async function cmdDispatch(args: string[]): Promise<number> {
   const effectiveApps = appsPath ? resolve(appsPath) : join(homes.orgHome, "apps.yaml");
   const effectiveRoles = rolesPath ? resolve(rolesPath) : join(homes.orgHome, "roles.yaml");
   const appsFile = await loadApps(effectiveApps);
-  // Reconcile BEFORE anything tries to execute. Re-homing an unreachable
-  // `actor-retry` record onto the orchestrator happens there (ISSUE-020), and
-  // only `cormidia approvals` and a provider turn were calling it — so an
-  // operator who ran `cormidia dispatch` alone against the run-3 queue got
-  // exactly what run 3 already had: four records at attempts=0 /
-  // nextAction=actor_retry and nothing executed. A dry run stays read-only.
-  if (!dryRun) await new ApprovalStore(homes.stateHome).reconcile();
-  const deliveries = dryRun
-    ? []
-    : await executeApprovedDeliveries({
+  const reporter = dryRun
+    ? undefined
+    : createCliProgressReporter({
         stateHome: homes.stateHome,
-        appsFile,
+        command: "dispatch",
+        scope: appsFile.org.name,
+        mode: progressArgs.mode,
       });
-  // Approved generic shell actions are executed from the durable record here
-  // (ISSUE-020) rather than waiting for a provider turn to retry them.
-  const commands = dryRun
-    ? []
-    : await executeApprovedCommands({
-        stateHome: homes.stateHome,
-        appsFile,
-      });
-  const releases = dryRun
-    ? []
-    : await executeApprovedReleases({
-        stateHome: homes.stateHome,
-        orgHome: homes.orgHome,
-        appsFile,
-      });
-  const result = await dispatchTick({
-    orgRoot: homes.orgHome,
-    runtimeHome: homes.stateHome,
-    appsPath: effectiveApps,
-    rolesPath: effectiveRoles,
-    dryRun,
-    ...(explicitScheduleRetries.length > 0 ? { explicitScheduleRetries } : {}),
-  });
-  reportCliInvocation({
-    dryRun,
-    itemsClaimed: result.spawned.length,
-    outcome:
-      result.spawned.map((turn) => `${turn.app}/${turn.role}=${turn.turnId}`).join(", ") ||
-      (result.errors.length > 0 ? `errors: ${result.errors.length}` : "no-due-triggers"),
-  });
-  console.log(
-    `dispatch: spawned=${result.spawned.length} skipped=${result.skipped.length} errors=${result.errors.length}`,
-  );
-  for (const turn of result.spawned) {
-    console.log(`spawned ${turn.turnId} ${turn.app}/${turn.role} ${turn.triggerKind}:${turn.trigger}`);
+  reporter?.phase("preflight", "started");
+  try {
+    return await runDispatch({
+      orgHome: homes.orgHome,
+      stateHome: homes.stateHome,
+      appsFile,
+      appsPath: effectiveApps,
+      rolesPath: effectiveRoles,
+      dryRun,
+      explicitScheduleRetries,
+      ...(reporter === undefined ? {} : { reporter }),
+    });
+  } catch (error) {
+    reporter?.terminal("failed", {
+      ...(reporter === undefined ? {} : { nextAction: `inspect ${reporter.relativeLogRef}` }),
+    });
+    throw error;
+  } finally {
+    reporter?.dispose();
   }
-  for (const line of result.skipped) console.log(`skip ${line}`);
-  for (const line of result.errors) console.log(`error ${line}`);
-  for (const release of releases) {
-    console.log(`release ${release.approvalId}: ${release.status} — ${release.summary.split("\n")[0]}`);
-  }
-  for (const delivery of deliveries) {
-    console.log(`delivery ${delivery.approvalId}: ${delivery.status} — ${delivery.summary.split("\n")[0]}`);
-  }
-  for (const command of commands) {
-    console.log(`approved-command ${command.approvalId}: ${command.status} — ${command.summary.split("\n")[0]}`);
-  }
-  return result.errors.length > 0 ||
-    releases.some((release) => release.status === "failed") ||
-    deliveries.some((delivery) => delivery.status === "failed" || delivery.status === "ambiguous") ||
-    commands.some((command) => command.status === "failed" || command.status === "ambiguous")
-    ? 1
-    : 0;
 }
 
 function needValue(args: string[], index: number, flag: string): string {

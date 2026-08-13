@@ -748,6 +748,12 @@ Imports flow downward only: `org -> loop -> runtime`.
 The operational evidence stores live under the org's *state home*
 (`~/.cormidia/<org>/` by default), with one authority per fact:
 
+Live provider commands report sanitized phase, assignment, elapsed-time, usage,
+heartbeat, and terminal-state progress on stderr. `--progress=jsonl` selects
+machine-readable JSON Lines; `--quiet` and `--progress=off` suppress terminal
+progress without disabling its durable log. A command's `--json` stdout remains
+one final document, and redirected progress is newline-delimited without ANSI.
+
 ```
 runs/<app>/<YYYYMMDD-HHMMSS>-<pipeline>-<pass>/   # ad-hoc job steps reuse this shape as
 #                                          # <ts>-job-<job-id>-<step-id>, under the
@@ -779,6 +785,9 @@ efficiency/episodes/<hash>/ # EpisodeIntent + immutable plan-vN records/current
                             # terminal execution steps + context projection
 invocations/<date>.jsonl  # one terminal row per CLI command; internal release
                           # executions remain separate kind:release rows
+cli-progress/<command>/   # sanitized per-invocation JSONL for foreground
+                          # phases, 30-second heartbeats, exact assignments,
+                          # usage, terminal state, next action, and artifact ref
 state/invocation-journal/ # pre-command intent + terminal append recovery;
                           # a later command reconciles dead-process/terminal rows
 scheduler/installation.json # owned definition/install record

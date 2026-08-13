@@ -9,13 +9,13 @@
 // consumed budget just as a successful one did, and a step failing its declared
 // check must never make its spend invisible (INV-006, CF-B30-SET).
 
-import { defaultGate } from "../runtime/gate.js";
 import { recordTurnOnce } from "../runtime/telemetry.js";
-import type { RoleConfig, TurnRequest, TurnResult } from "../runtime/types.js";
+import type { TurnAssignment, TurnResult } from "../runtime/types.js";
 import { assembleJobBrief } from "./brief.js";
 import { evaluateStepChecks, type StepCheckResult } from "./checks.js";
 import type { JobJournalEvent } from "./journal.js";
 import type { RunJobOptions } from "./runner.js";
+import { runJobProviderTurn } from "./step-turn.js";
 import type { ProviderJobStep } from "./types.js";
 
 export class JobStepError extends Error {
@@ -46,37 +46,14 @@ export async function executeProviderStep(
     );
   }
 
-  const assignment = step.assignment ?? {
-    harness: options.role.runtime,
-    model: options.role.model,
-    effort: options.role.effort,
-  };
-  const runtime = options.runtimeFor(assignment.harness);
-  const request: TurnRequest = {
-    role: options.role,
-    assignment,
-    workdir: options.workdir,
-    task: brief.text,
-    context: { taste: [], memoryExcerpts: [] },
-  };
-
-  let turn: TurnResult;
-  try {
-    turn = await runtime.runTurn(request, { gate: options.gate ?? defaultGate });
-  } catch (error) {
-    return {
-      step: step.id,
-      status: "failed",
-      attempt,
-      at: clock().toISOString(),
-      reasonCode: "job_provider_error",
-      summary: error instanceof Error ? error.message : String(error),
-    };
-  }
+  const execution = await runJobProviderTurn(options, step, attempt, brief.text, clock);
+  if ("failure" in execution) return execution.failure;
+  const { assignment, turn } = execution;
 
   // Settle before judging the checks. Failed and cancelled turns consume budget
   // too, and a step failing its check must never make its spend invisible.
   await settle(options, step, assignment, turn, attempt, clock);
+  execution.terminal();
 
   if (turn.status !== "completed") {
     return {
@@ -112,7 +89,7 @@ export async function executeProviderStep(
 async function settle(
   options: RunJobOptions,
   step: ProviderJobStep,
-  assignment: { harness: RoleConfig["runtime"]; model: string; effort: RoleConfig["effort"] },
+  assignment: TurnAssignment,
   turn: TurnResult,
   attempt: number,
   clock: () => Date,

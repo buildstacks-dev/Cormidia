@@ -14,9 +14,8 @@
 // canary status/promote/stop — observe, then advance stable or roll back.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { resolveAppRoles } from "../org/app-execution-policy.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { runtimePolicyForApp } from "../org/apps.js";
@@ -51,11 +50,14 @@ import {
   type SystemFingerprint,
 } from "../org/learning/fingerprint.js";
 import { loadLearningPolicy, type LearningPolicy, type TierPromoteRule } from "../org/learning/policy.js";
-import { createLoopReplayExecutor, gitIn, renderCandidateOverlay } from "../org/learning/replay.js";
+import { createLoopReplayExecutor, renderCandidateOverlay } from "../org/learning/replay.js";
 import { eligibleFixtures, runExperiment } from "../org/learning/runner.js";
 import { loadRoles } from "../org/roles.js";
+import { defaultGate } from "../runtime/gate.js";
 import { getRuntime } from "../runtime/registry.js";
 import { flag, learningRoots, parseFlags, requireFlag, type Flags } from "./learn-activation.js";
+import { ensureCommit, ensureSeedClone } from "./learn-experiment-git.js";
+import { createCliProgressReporter, extractProgressArgs } from "../runtime/cli-progress.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
 // ---------------------------------------------------------------------------
@@ -202,7 +204,8 @@ function sha256Ref(value: string): string {
 }
 
 async function run(homes: CormidiaHomes, args: string[]): Promise<number> {
-  const flags = parseFlags(args, "learn experiment run");
+  const progressArgs = extractProgressArgs(args, "learn experiment run");
+  const flags = parseFlags(progressArgs.rest, "learn experiment run");
   const experimentId = flags.positionals[0];
   if (experimentId === undefined) {
     throw new Error("learn experiment run: <experiment-id> is required");
@@ -222,133 +225,152 @@ async function run(homes: CormidiaHomes, args: string[]): Promise<number> {
   if (appEntry === undefined) {
     throw new Error(`learn experiment run: unknown app "${appName}" — pass --app`);
   }
-  let appWorkdir: string | undefined;
-  try {
-    appWorkdir = resolveAppWorkdir(appEntry, {
-      orgRoot: homes.orgHome,
-      runtimeHome: homes.stateHome,
-    });
-  } catch {
-    // Overlay lookup falls back to the org root below.
-  }
-
-  const fixtures = await eligibleFixtures(homes.orgHome, experiment);
-  if (fixtures.length === 0) {
-    console.error(
-      `learn experiment run: no trusted fixtures under ${experiment.eligibility.episodes} — ` +
-        "draft with `cormidia learn fixture <episode-id> --set <set>` and have a second actor --validate",
-    );
-    return 1;
-  }
-
-  // Seed clone: replay worktrees check out fixture seed commits from a local
-  // clone that never pushes (the executor constructs no GhOps).
-  const repoDir = flag(flags, "repo-dir") ?? join(homes.stateHome, "repos", appEntry.name);
-  ensureSeedClone(appEntry.repo, repoDir);
-  for (const fixture of fixtures) {
-    if (fixture.seed.commit !== null) ensureCommit(repoDir, appEntry.repo, fixture.seed.commit);
-  }
-
-  const rolesFile = await loadRoles(join(homes.orgHome, "roles.yaml"));
-  const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(appEntry));
-  const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
-  const overlay = await renderCandidateOverlay({
-    orgHome: homes.orgHome,
-    ...definedProps({ appWorkdir }),
-    candidateId: experiment.candidate_ref,
-    policy,
+  const reporter = createCliProgressReporter({
+    stateHome: homes.stateHome,
+    command: "learn-experiment",
+    scope: `${appEntry.name}/${experimentId}`,
+    mode: progressArgs.mode,
   });
+  reporter.phase("preflight", "started");
+  try {
+    let appWorkdir: string | undefined;
+    try {
+      appWorkdir = resolveAppWorkdir(appEntry, {
+        orgRoot: homes.orgHome,
+        runtimeHome: homes.stateHome,
+      });
+    } catch {
+      // Overlay lookup falls back to the org root below.
+    }
 
-  const spendRollup = await rollupLearningSpend(homes.stateHome);
-  const worktreeRoot = flag(flags, "worktree-root") ?? join(homes.stateHome, "worktrees", "learning-replay");
-  await mkdir(worktreeRoot, { recursive: true });
+    const fixtures = await eligibleFixtures(homes.orgHome, experiment);
+    if (fixtures.length === 0) {
+      console.error(
+        `learn experiment run: no trusted fixtures under ${experiment.eligibility.episodes} — ` +
+          "draft with `cormidia learn fixture <episode-id> --set <set>` and have a second actor --validate",
+      );
+      reporter.terminal("failed", {
+        nextAction: "create and validate a trusted fixture, then re-run the experiment",
+      });
+      return 1;
+    }
 
-  // Drift check (design §9.1: arms are declared before results): refuse on
-  // MATERIAL drift — the surfaces that shape agent behavior — and only note
-  // the rest (org/app commits move on every unrelated commit; refusing on
-  // them would push operators into declare-and-run-atomically, hollowing
-  // out declared-before-results).
-  const arms = await armFingerprints(homes, appEntry.name, overlay.candidate);
-  const declaredControl = await readFingerprint(homes.stateHome, experiment.control.fingerprint_ref);
-  if (declaredControl === undefined) {
-    process.stderr.write(
-      `learn experiment run: declared control arm ${experiment.control.fingerprint_ref} is not ` +
-        `in the fingerprint store — drift cannot be checked\n`,
-    );
-  } else if (arms.controlId !== experiment.control.fingerprint_ref) {
-    const delta = fingerprintDelta(declaredControl, arms.control);
-    const material = delta.filter((path) =>
-      MATERIAL_FINGERPRINT_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}.`)),
-    );
-    if (material.length > 0) {
-      throw new Error(
-        `learn experiment run: the system has materially drifted since ${experimentId} was ` +
-          `declared (${material.join(", ")}) — a replay now would measure the drift, not the ` +
-          `candidate; declare a fresh experiment`,
+    // Seed clone: replay worktrees check out fixture seed commits from a local
+    // clone that never pushes (the executor constructs no GhOps).
+    const repoDir = flag(flags, "repo-dir") ?? join(homes.stateHome, "repos", appEntry.name);
+    ensureSeedClone(appEntry.repo, repoDir);
+    for (const fixture of fixtures) {
+      if (fixture.seed.commit !== null) ensureCommit(repoDir, appEntry.repo, fixture.seed.commit);
+    }
+
+    const rolesFile = await loadRoles(join(homes.orgHome, "roles.yaml"));
+    const configuredRoles = resolveAppRoles(rolesFile.roles, runtimePolicyForApp(appEntry));
+    const roles = Object.fromEntries(configuredRoles.map((role) => [role.name, role]));
+    const overlay = await renderCandidateOverlay({
+      orgHome: homes.orgHome,
+      ...definedProps({ appWorkdir }),
+      candidateId: experiment.candidate_ref,
+      policy,
+    });
+
+    const spendRollup = await rollupLearningSpend(homes.stateHome);
+    const worktreeRoot = flag(flags, "worktree-root") ?? join(homes.stateHome, "worktrees", "learning-replay");
+    await mkdir(worktreeRoot, { recursive: true });
+
+    // Drift check (design §9.1: arms are declared before results): refuse on
+    // MATERIAL drift — the surfaces that shape agent behavior — and only note
+    // the rest (org/app commits move on every unrelated commit; refusing on
+    // them would push operators into declare-and-run-atomically, hollowing
+    // out declared-before-results).
+    const arms = await armFingerprints(homes, appEntry.name, overlay.candidate);
+    const declaredControl = await readFingerprint(homes.stateHome, experiment.control.fingerprint_ref);
+    if (declaredControl === undefined) {
+      process.stderr.write(
+        `learn experiment run: declared control arm ${experiment.control.fingerprint_ref} is not ` +
+          `in the fingerprint store — drift cannot be checked\n`,
+      );
+    } else if (arms.controlId !== experiment.control.fingerprint_ref) {
+      const delta = fingerprintDelta(declaredControl, arms.control);
+      const material = delta.filter((path) =>
+        MATERIAL_FINGERPRINT_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}.`)),
+      );
+      if (material.length > 0) {
+        throw new Error(
+          `learn experiment run: the system has materially drifted since ${experimentId} was ` +
+            `declared (${material.join(", ")}) — a replay now would measure the drift, not the ` +
+            `candidate; declare a fresh experiment`,
+        );
+      }
+      process.stderr.write(
+        `learn experiment run: immaterial drift since declaration (${delta.join(", ")}) — proceeding\n`,
       );
     }
-    process.stderr.write(
-      `learn experiment run: immaterial drift since declaration (${delta.join(", ")}) — proceeding\n`,
-    );
-  }
-  if (arms.treatmentId !== experiment.treatment.fingerprint_ref) {
-    throw new Error(
-      `learn experiment run: the candidate changed since ${experimentId} was declared ` +
-        `(treatment arm ${experiment.treatment.fingerprint_ref}, current ${arms.treatmentId}) — ` +
-        `the replay would test different intervention bytes than the declaration bound; ` +
-        `declare a fresh experiment`,
-    );
-  }
-  const outcome = await runExperiment(experimentId, {
-    orgHome: homes.orgHome,
-    policy,
-    decidedBy,
-    // The candidate was already located across org AND app roots — the
-    // runner's org-root-only default must not decide held-in coverage for
-    // app-repo candidates.
-    heldInEpisodeIds: overlay.candidate.episode_ids,
-    executor: createLoopReplayExecutor({
+    if (arms.treatmentId !== experiment.treatment.fingerprint_ref) {
+      throw new Error(
+        `learn experiment run: the candidate changed since ${experimentId} was declared ` +
+          `(treatment arm ${experiment.treatment.fingerprint_ref}, current ${arms.treatmentId}) — ` +
+          `the replay would test different intervention bytes than the declaration bound; ` +
+          `declare a fresh experiment`,
+      );
+    }
+    const outcome = await runExperiment(experimentId, {
       orgHome: homes.orgHome,
-      stateHome: homes.stateHome,
-      localRepo: repoDir,
-      worktreeRoot,
-      app: appEntry,
-      roles,
-      runtimeForAssignment: (assignment) => getRuntime(assignment.harness),
       policy,
-      treatmentOverlay: overlay.overlay,
-      candidateRef: experiment.candidate_ref,
-    }),
-    spend: {
-      monthUsd: spendRollup.monthUsd,
-      candidateUsd: spendRollup.byCandidate.get(experiment.candidate_ref) ?? 0,
-      experimentsThisMonth: spendRollup.experimentsThisMonth,
-      experimentCounted: spendRollup.byExperiment.has(experimentId),
-    },
-    fixtures,
-  });
+      decidedBy,
+      // The candidate was already located across org AND app roots — the
+      // runner's org-root-only default must not decide held-in coverage for
+      // app-repo candidates.
+      heldInEpisodeIds: overlay.candidate.episode_ids,
+      executor: createLoopReplayExecutor({
+        orgHome: homes.orgHome,
+        stateHome: homes.stateHome,
+        localRepo: repoDir,
+        worktreeRoot,
+        app: appEntry,
+        roles,
+        runtimeForAssignment: (assignment) => getRuntime(assignment.harness),
+        policy,
+        treatmentOverlay: overlay.overlay,
+        candidateRef: experiment.candidate_ref,
+        hooks: { ...reporter.observer, gate: defaultGate },
+      }),
+      spend: {
+        monthUsd: spendRollup.monthUsd,
+        candidateUsd: spendRollup.byCandidate.get(experiment.candidate_ref) ?? 0,
+        experimentsThisMonth: spendRollup.experimentsThisMonth,
+        experimentCounted: spendRollup.byExperiment.has(experimentId),
+      },
+      fixtures,
+    });
 
-  console.log(`experiment ${experimentId}: verdict ${outcome.result.verdict}`);
-  console.log(
-    `  primary ${outcome.result.primary_metric.name}: control ${fmt(outcome.result.primary_metric.control)} ` +
-      `vs treatment ${fmt(outcome.result.primary_metric.treatment)}` +
-      ` (direction_ok ${outcome.result.primary_metric.direction_ok}, min_useful ${outcome.result.primary_metric.min_useful_met})`,
-  );
-  for (const guardrail of outcome.result.guardrails) {
+    console.log(`experiment ${experimentId}: verdict ${outcome.result.verdict}`);
     console.log(
-      `  guardrail ${guardrail.metric}: ${guardrail.pass ? "pass" : "FAIL"}` +
-        (guardrail.detail !== undefined ? ` — ${guardrail.detail}` : ""),
+      `  primary ${outcome.result.primary_metric.name}: control ${fmt(outcome.result.primary_metric.control)} ` +
+        `vs treatment ${fmt(outcome.result.primary_metric.treatment)}` +
+        ` (direction_ok ${outcome.result.primary_metric.direction_ok}, min_useful ${outcome.result.primary_metric.min_useful_met})`,
     );
+    for (const guardrail of outcome.result.guardrails) {
+      console.log(
+        `  guardrail ${guardrail.metric}: ${guardrail.pass ? "pass" : "FAIL"}` +
+          (guardrail.detail !== undefined ? ` — ${guardrail.detail}` : ""),
+      );
+    }
+    for (const trial of outcome.result.trials) {
+      console.log(
+        `  pair ${trial.pair}: control ${renderMetrics(trial.control)} | treatment ${renderMetrics(trial.treatment)}`,
+      );
+    }
+    console.log(`  cost: $${outcome.result.cost_usd.toFixed(2)} (${outcome.attempts.length} attempts)`);
+    if (outcome.halted !== null) console.log(`  halted: ${outcome.halted}`);
+    console.log(`  recorded: ${outcome.result.eval_id} (cormidia learn show ${outcome.result.eval_id})`);
+    reporter.terminal("completed", { artifactRef: `evaluation:${outcome.result.eval_id}` });
+    return 0;
+  } catch (error) {
+    reporter.terminal("failed", { nextAction: `inspect ${reporter.relativeLogRef}` });
+    throw error;
+  } finally {
+    reporter.dispose();
   }
-  for (const trial of outcome.result.trials) {
-    console.log(
-      `  pair ${trial.pair}: control ${renderMetrics(trial.control)} | treatment ${renderMetrics(trial.treatment)}`,
-    );
-  }
-  console.log(`  cost: $${outcome.result.cost_usd.toFixed(2)} (${outcome.attempts.length} attempts)`);
-  if (outcome.halted !== null) console.log(`  halted: ${outcome.halted}`);
-  console.log(`  recorded: ${outcome.result.eval_id} (cormidia learn show ${outcome.result.eval_id})`);
-  return 0;
 }
 
 async function list(homes: CormidiaHomes): Promise<number> {
@@ -649,46 +671,6 @@ async function nextExperimentId(orgHome: string, candidateId: string): Promise<s
     if (!existing.has(id)) return id;
   }
   throw new Error(`learn experiment: 99 experiments already declared for ${candidateId}`);
-}
-
-// ---------------------------------------------------------------------------
-// seed clones
-// ---------------------------------------------------------------------------
-
-function ensureSeedClone(repoSlug: string, repoDir: string): void {
-  if (existsSync(join(repoDir, ".git"))) {
-    try {
-      gitIn(repoDir, "fetch", "origin");
-    } catch (error) {
-      // Offline with a warm clone is fine — ensureCommit still verifies the
-      // seed is present before any token is spent.
-      process.stderr.write(
-        `learn experiment: fetch failed (continuing with the local clone): ` +
-          `${error instanceof Error ? error.message : String(error)}\n`,
-      );
-    }
-    return;
-  }
-  mkdirSync(dirname(repoDir), { recursive: true });
-  gitIn(dirname(repoDir), "clone", `https://github.com/${repoSlug}.git`, repoDir);
-}
-
-function ensureCommit(repoDir: string, repoSlug: string, commit: string): void {
-  try {
-    gitIn(repoDir, "cat-file", "-e", `${commit}^{commit}`);
-    return;
-  } catch {
-    // Not local yet — a seed commit predating the clone or on a pruned ref.
-  }
-  try {
-    gitIn(repoDir, "fetch", "origin", commit);
-    gitIn(repoDir, "cat-file", "-e", `${commit}^{commit}`);
-  } catch {
-    throw new Error(
-      `learn experiment run: seed commit ${commit} is not reachable in ${repoSlug} — ` +
-        "the fixture's starting state no longer exists; re-draft from a fresh episode",
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------

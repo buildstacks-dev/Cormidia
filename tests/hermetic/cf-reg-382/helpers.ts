@@ -185,6 +185,22 @@ const SCAFFOLD: ReadonlyArray<readonly [string, string]> = [
   [".gitignore", "node_modules/\n"],
 ];
 
+/** Give this PROCESS a git author identity, for the paths where the product
+ *  runs `git init` itself and there is no repository for a fixture to configure.
+ *
+ *  Deliberately environment rather than config: `GIT_AUTHOR_*`/`GIT_COMMITTER_*`
+ *  take precedence over every config file, so a hermetic run neither depends on
+ *  the host having a global identity nor picks up whose it is. CI has none —
+ *  which is exactly how the missing product-side preflight check was found — and
+ *  a developer machine usually does, so without this the suite passes locally
+ *  for a reason that is not in the repository. */
+export function pinProcessGitIdentity(): void {
+  process.env["GIT_AUTHOR_NAME"] = "Cormidia Fixture";
+  process.env["GIT_AUTHOR_EMAIL"] = "fixture@cormidia.invalid";
+  process.env["GIT_COMMITTER_NAME"] = "Cormidia Fixture";
+  process.env["GIT_COMMITTER_EMAIL"] = "fixture@cormidia.invalid";
+}
+
 /** A greenfield checkout exactly as `new-app` leaves it, plus a file:// bare
  *  repository standing in for the GitHub remote. `initGit` controls whether the
  *  checkout is already a git repository, so both the `git init` path and the

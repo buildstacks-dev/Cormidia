@@ -21,6 +21,7 @@ import {
   FIXTURE_SLUG,
   git,
   makeGreenfieldCheckout,
+  pinProcessGitIdentity,
   ProvisionGithubDouble,
   type GreenfieldCheckout,
 } from "./helpers.js";
@@ -32,6 +33,11 @@ const FIRST_LABEL = (() => {
   if (label === undefined) throw new Error("CANONICAL_LABELS is empty");
   return label;
 })();
+
+// The product runs `git init` itself on the greenfield path, so there is no
+// repository for a fixture to configure — the identity has to come from the
+// environment. Without this the suite depends on the host's global git config.
+pinProcessGitIdentity();
 
 let fixture: GreenfieldCheckout | undefined;
 

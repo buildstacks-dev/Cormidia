@@ -15,17 +15,13 @@
 //     because unlike a bad `gh issue comment` it is not recoverable by
 //     retrying against the right target: the wrong repository now exists.
 //
-//  2. **The owned set is DECLARED, never discovered.** Callers pass exact file
-//     paths and `dir/` prefixes; a prefix expands to its real files bounded by
-//     the declaration at every step. "What happens to be in the directory" is
-//     never the answer — that is how unrelated operator work ends up in an
-//     onboarding commit (the `bootstrap publish` rule, generalized).
+//  2. **The owned set is DECLARED, never discovered**, and for the org scope the
+//     state home can never enter a commit. Both are enforced in
+//     `repo-provision-scope.ts`, which documents them.
 //
-//  3. **The org home's state home is never publishable.** For the org scope
-//     every expanded path is re-checked through `classifyOrgHomeWrite`, so a
-//     runtime-state path cannot enter a commit even if a declaration grew wrong.
-//     That guard is mechanical and doubled on purpose (src/org/home.ts owns the
-//     boundary; this module refuses to restate it as a second list).
+//  3. **Every local precondition is checked before the network.** A missing git
+//     author identity fails `commit-tree`, and discovering that at the commit
+//     step means the repository already exists on GitHub.
 
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -40,6 +36,7 @@ import { COMMITTED_ORG_SURFACES } from "./committed-org-surfaces.js";
 import { sha256Hex } from "./git-publication-substrate.js";
 import {
   expandDeclaration,
+  gitAuthorIdentityResolvable,
   readLocalOrigin,
   remoteUrlNamesSlug,
   type RepositoryProvisionOwnedPath,
@@ -200,6 +197,21 @@ export async function preflightRepositoryProvision(
       ...owned.map((entry) => `${entry.path}:${entry.sha256}`),
     ].join(" "),
   );
+
+  // A commit needs an author, and git resolves one from config or environment
+  // that Cormidia does not own. Checked HERE, locally, before the network:
+  // discovering it at the commit step means the repository already exists on
+  // GitHub and the run has produced exactly the partial outcome this design
+  // exists to avoid. Cormidia deliberately does not invent an identity —
+  // authorship is the operator's, and a fabricated author on the genesis commit
+  // of their repository is not Cormidia's to write.
+  if (existsSync(root) && !gitAuthorIdentityResolvable(root)) {
+    blockers.push(
+      `${input.errorPrefix}: git has no author identity in ${root}, so the bootstrap commit cannot be authored — ` +
+        'set one (`git config --global user.name "…"` and `git config --global user.email "…"`, or the ' +
+        "repository-local equivalent) and re-run. Nothing was created.",
+    );
+  }
 
   const remoteUrl = input.remoteUrl ?? `https://github.com/${identity.slug}.git`;
   const localOriginUrl = readLocalOrigin(root, remoteName);

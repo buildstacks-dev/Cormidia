@@ -10,6 +10,7 @@
 // L2 — hermetic composition against real git and a scripted GitHub double.
 // Risk E-1. Control point T-12.
 
+import { devNull } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeRepositoryProvision } from "../../../src/org/repo-provision-execute.js";
 import { readProvisionTransaction, provisionJournalPath } from "../../../src/org/repo-provision-journal.js";
@@ -21,6 +22,7 @@ import {
   FIXTURE_SLUG,
   git,
   makeGreenfieldCheckout,
+  pinProcessGitIdentity,
   pinIdentity,
   ProvisionGithubDouble,
   type GreenfieldCheckout,
@@ -32,6 +34,11 @@ function requireCommit(value: string | null): string {
   if (value === null) throw new Error("expected the transaction to have recorded a commit");
   return value;
 }
+
+// The product runs `git init` itself on the greenfield path, so there is no
+// repository for a fixture to configure — the identity has to come from the
+// environment. Without this the suite depends on the host's global git config.
+pinProcessGitIdentity();
 
 let fixture: GreenfieldCheckout | undefined;
 
@@ -333,6 +340,53 @@ describe("CF-REG-382 — refusals that must fire before anything outward happens
 
     await expect(executeRepositoryProvision(executeInput(fixture, preflight, gh))).rejects.toThrow();
     expect(gh.createCalls).toBe(0);
+  });
+
+  it("an unresolvable git author identity blocks before any network call", async () => {
+    // Found by CI, not by the author's machine: `commit-tree` needs an author,
+    // git resolves one from config Cormidia does not own, and a developer's
+    // global identity made this pass locally. Without the check the repository
+    // would already EXIST on GitHub before git refused — the exact partial
+    // outcome the whole design exists to avoid.
+    fixture = await makeGreenfieldCheckout({ initGit: false });
+    const gh = new ProvisionGithubDouble();
+    const saved = {
+      GIT_AUTHOR_NAME: process.env["GIT_AUTHOR_NAME"],
+      GIT_AUTHOR_EMAIL: process.env["GIT_AUTHOR_EMAIL"],
+      GIT_COMMITTER_NAME: process.env["GIT_COMMITTER_NAME"],
+      GIT_COMMITTER_EMAIL: process.env["GIT_COMMITTER_EMAIL"],
+      GIT_CONFIG_GLOBAL: process.env["GIT_CONFIG_GLOBAL"],
+      GIT_CONFIG_SYSTEM: process.env["GIT_CONFIG_SYSTEM"],
+      GIT_CONFIG_COUNT: process.env["GIT_CONFIG_COUNT"],
+      GIT_CONFIG_KEY_0: process.env["GIT_CONFIG_KEY_0"],
+      GIT_CONFIG_VALUE_0: process.env["GIT_CONFIG_VALUE_0"],
+    };
+    for (const key of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"]) {
+      delete process.env[key];
+    }
+    process.env["GIT_CONFIG_GLOBAL"] = devNull;
+    process.env["GIT_CONFIG_SYSTEM"] = devNull;
+    // `user.useConfigOnly` is the deterministic lever: it forbids git from
+    // auto-detecting `user@hostname`. Without it this case is host-dependent —
+    // it fails on CI (which cannot auto-detect) and passes on a developer Mac
+    // (which can), which is the very asymmetry that let the defect through.
+    process.env["GIT_CONFIG_COUNT"] = "1";
+    process.env["GIT_CONFIG_KEY_0"] = "user.useConfigOnly";
+    process.env["GIT_CONFIG_VALUE_0"] = "true";
+    try {
+      const preflight = await planFor(fixture, gh);
+      expect(preflight.blockers.join("\n")).toMatch(/no author identity/i);
+      expect(preflight.blockers.join("\n")).toMatch(/git config --global user\.name/);
+      // The load-bearing assertion: the refusal is LOCAL and comes first.
+      expect(gh.createCalls).toBe(0);
+      await expect(executeRepositoryProvision(executeInput(fixture, preflight, gh))).rejects.toThrow();
+      expect(gh.createCalls).toBe(0);
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it("an existing repository with the wrong visibility is refused, never adopted", async () => {

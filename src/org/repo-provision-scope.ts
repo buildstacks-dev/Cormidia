@@ -11,6 +11,7 @@
 // whatever a declaration claims. That is why the check lives here rather than
 // being restated as a second exclusion list.
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { classifyOrgHomeWrite } from "./committed-org-surfaces.js";
@@ -137,4 +138,30 @@ export function readLocalOrigin(root: string, remoteName: string): string | null
 export function remoteUrlNamesSlug(url: string, slug: string): boolean {
   const match = /([^/:]+\/[^/:]+?)(?:\.git)?\/?$/.exec(url.trim());
   return match?.[1]?.toLowerCase() === slug.toLowerCase();
+}
+
+/** Can git resolve an author for a commit made in this directory?
+ *
+ *  `git var GIT_AUTHOR_IDENT` is exactly the question `commit-tree` asks, and it
+ *  exits non-zero with "Please tell me who you are" when the answer is no. It
+ *  consults the same precedence a real commit would — environment, then
+ *  repository config, then global/system — so this cannot pass for a reason the
+ *  commit would not.
+ *
+ *  A directory that is not yet a repository still answers, because the
+ *  environment and global config are what a fresh `git init` would inherit.
+ *  Any failure reads as "cannot author", which is the fail-closed direction:
+ *  the cost is one clear refusal before anything outward happens. */
+export function gitAuthorIdentityResolvable(root: string): boolean {
+  try {
+    execFileSync("git", ["var", "GIT_AUTHOR_IDENT"], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 10_000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }

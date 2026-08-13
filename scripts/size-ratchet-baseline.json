@@ -1187,8 +1187,8 @@
       "newModule": true
     },
     "src/org/repo-provision-scope.ts": {
-      "exports": 6,
-      "lines": 140,
+      "exports": 7,
+      "lines": 167,
       "newModule": true
     },
     "src/org/repo-provision-verify.ts": {
@@ -1198,7 +1198,7 @@
     },
     "src/org/repo-provision.ts": {
       "exports": 10,
-      "lines": 288,
+      "lines": 300,
       "newModule": true
     },
     "src/org/retention.ts": {

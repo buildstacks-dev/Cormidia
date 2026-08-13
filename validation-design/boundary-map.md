@@ -371,7 +371,16 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - **Why separate:** a process can be healthy while the filesystem or git independently
   misbehaves — different failure domain than process lifecycle.
 - **Filesystem failure modes:** disk full; read-only remount; permission change;
-  symlinked paths; torn/short reads; ENOSPC mid-append.
+  symlinked paths; torn/short reads; ENOSPC mid-append; **a target directory
+  whose CONTENT decides which operation is legal** — the same path can be
+  greenfield inputs, an application checkout, an already-onboarded app, or a
+  generated-path collision, and reading it as a single "empty / not empty" bit
+  loses the distinction a command needs to route correctly; **the same directory
+  inspected twice** (preview, then execution) can differ, so a preview that does
+  not re-read is a prediction about a world that has already moved
+  <!-- changelog 2026-08-12 (#384 §10.3 write-back): observed in the first
+  production manual E2E run; this list had per-file failure modes but no
+  directory-classification or preview-vs-execution-drift mode -->.
 - **Git failure modes:** `index.lock` held; corrupt refs; missing worktree metadata;
   remote URL changed; hooks present in a cloned repo; git version skew; **a git command
   that partially succeeds**.

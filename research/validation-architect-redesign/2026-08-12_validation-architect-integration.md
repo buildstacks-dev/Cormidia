@@ -3,6 +3,9 @@
 Planning decision record. No implementation, npm publication, live validation
 campaign, provider turn, or release-shaped action was performed in this session.
 
+Companion redesign proposal:
+[validation-architect-core-improvements.md](./validation-architect-core-improvements.md).
+
 ## Context
 
 Cormidia needs two honest validation modes per application:

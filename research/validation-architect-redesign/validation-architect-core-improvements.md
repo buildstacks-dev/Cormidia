@@ -6,8 +6,9 @@ Status: **recommended implementation design**, not yet implemented.
 
 Date: 2026-08-13
 
-Companion decision record:
-[2026-08-12 — Validation Architect packaging and Cormidia integration](./2026-08-12_validation-architect-integration.md).
+Companion decision records:
+[Validation Architect package and API contract](./validation-architect-api-contract.md) ·
+[Cormidia — consuming Validation Architect as an adapter](./cormidia-validation-architect-adapter.md).
 
 No harness, test, ratified surface, ticket, live campaign, or eval campaign was
 changed as part of this assessment. The command names, schemas, interfaces, and

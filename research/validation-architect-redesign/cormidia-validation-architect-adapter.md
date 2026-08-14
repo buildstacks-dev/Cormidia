@@ -31,7 +31,9 @@ belongs there instead — a host requirement that only Cormidia can satisfy is a
 sign the contract is wrong.
 
 Work order: the contract lands first, then the library implements it, then this
-integration is designed against a published package.
+integration is designed against that exact implemented API. Cormidia may use an
+exact local package artifact while the integration is built; replacing it with
+the registry package still waits for the separately approved publication.
 
 ## 2. What the contract already settles for Cormidia
 
@@ -40,25 +42,40 @@ contract and need no Cormidia-specific design.
 
 **Provider-turn ownership.** Cormidia must own atomic harness/model/effort
 assignment, per-turn and per-app ceilings, critical-operation gates, run
-envelopes, exactly-once settlement, and cross-provider independence. The
-injected `TurnPort` gives it exactly that: the library requests a logical seat
-with an independence requirement, Cormidia resolves it to one approved provider
-tuple, invokes its own Runtime, gates every tool action, writes the run
-envelope, settles the turn, and returns a typed result. The library constructs
-no provider client and holds no credential. The published envelope — finite turn
-sequence, maximum turn count, required independence, method version — is
-admitted under Cormidia's ordinary EpisodePlan and budget rules before the first
-turn.
+envelopes, exactly-once settlement, and every required independence dimension.
+The injected `TurnPort` gives it that boundary: the library requests one logical
+seat instance with explicit provider/model/session separation, new-versus-resume
+session semantics, and a stable idempotency key. Cormidia resolves the request to
+one approved provider tuple, invokes its own Runtime, gates every tool action,
+settles the key exactly once, and returns the actual provider, model, and native
+session identities. Designer and Stakeholder are cross-provider; readers and
+each Auditor iteration are fresh sessions, while the Auditor may use the
+Designer's model. The library constructs no provider client and holds no
+credential.
+
+The published envelope contains either the exact C0–C2 turn sequence or the
+finite C3/C4 state machine, plus its maximum turn count, permitted transitions,
+terminal coverage, independence requirements, schemas, and method version.
+Cormidia admits that envelope under its ordinary EpisodePlan and budget rules
+before the first turn.
+
+**Campaign persistence is explicit and remains Cormidia's.** The third injected
+port, `CampaignStorePort`, stores compare-and-swap `design-run/v1` checkpoints in
+the state home. The library records the next request before spend and the
+accepted result afterward. A crash replays the same idempotency key and resumes
+the exact persistent Designer or Stakeholder session; it never repeats a settled
+turn. Fresh reader and Auditor requests remain fresh on recovery.
 
 **Deterministic checks need no governance at all.** `check`, `plan`, `explain`,
 and `ingest` spend nothing and reach nothing. They can run in ordinary CI and in
 the build loop without an approval path.
 
 **Cormidia installs only the core package.** The contract splits the published
-software in two: a deterministic core whose single runtime dependency is `yaml`,
-and a design package carrying the provider SDKs. Because Cormidia injects its
-own `TurnPort`, it never wants the SDKs, so it takes the core package alone and
-its dependency footprint grows by nothing it does not already have.
+software in two: an SDK-free core containing deterministic functions and the
+provider-neutral campaign engine, and a standalone design package carrying the
+provider adapters and SDKs. Because Cormidia injects its own repository, turn,
+and checkpoint ports, it takes the core package alone and its dependency
+footprint grows by nothing it does not already have.
 
 **Publication stays Cormidia's.** `design` returns a bundle of unwritten files.
 Cormidia lands it through its own crash-resumable planning and publication
@@ -66,9 +83,11 @@ transaction, resolved remote default branch, managed checkout, branch, and PR
 authority. The package's standalone delivery command is that CLI's publisher,
 not a second one for Cormidia to call.
 
-## 3. Decisions carried over
+## 3. Host decisions already settled
 
-Both were made in the superseded 2026-08-12 record and survive the split.
+C1 survives the superseded 2026-08-12 record unchanged. C2 narrows that
+record's deletion decision after contract review: prevent a second Validation
+Architect authority without deleting Cormidia's unrelated generic skill surface.
 
 **C1 — the accepted corpus lives in the application repository.** The canonical
 corpus is `validation-design/` in the application repo. It survives a fresh
@@ -82,19 +101,21 @@ ratified corpus. Planning reads the accepted corpus from the freshly
 synchronized managed checkout at the resolved default branch — never an
 arbitrary working tree, never an unmerged draft branch.
 
-**C2 — delete the unused org-home `skills/` placeholder.** The canonical method
-arrives through the exact-pinned package; loading another copy from org home
-would create a second version and prompt authority. `org init` stops generating
-`skills/.gitkeep`, and documentation stops describing that root as an active
-role-consumed surface.
+**C2 — do not copy Validation Architect into the org-home `skills/` root.** The
+canonical method arrives as data in the exact-pinned package; loading another
+editable copy from org home would create a second version and prompt authority.
+The adapter reads the package-owned method and schemas through the library only.
 
-This does not remove user-global packaged operator skills under provider skill
-homes, the skills shipped as package data, or governed learning-loop
-`skill_draft` proposals under `learning/proposals/skills/`, which remain
-proposals rather than active role context. A future generic role-skill mechanism
-needs its own design for selection, hash and version binding, native-harness
-loading, authority, context manifests, resumption, and cross-provider
-equivalence. An empty directory is not that design.
+The generic org-home `skills/` root remains. It is already documented as the
+future activation destination for promoted org skills, independently of this
+integration, while `learning/proposals/skills/` contains unmerged drafts. `org
+init` therefore continues generating `skills/.gitkeep`. User-global packaged
+operator skills under provider skill homes, package-owned Validation Architect
+skills, generic promoted org skills, and learning-loop proposals remain four
+different authorities. Activating generic org skills still requires its own
+design for selection, hash and version binding, native-harness loading,
+authority, context manifests, resumption, and cross-provider equivalence; this
+adapter neither implements nor removes that mechanism.
 
 ## 4. The open question: does an application get a validation corpus?
 
@@ -142,12 +163,13 @@ C3/C4. The default follows what the application does, not when it was created.
 That removes two invented terms and a wrong default in a single move, and it
 uses vocabulary that already exists in the ratified corpus.
 
-**The one case that remains.** An application can still end up without a corpus:
-the design run failed, timed out, exhausted its budget, or did not have enough
-product truth to design against. That is a visible degradation with a stated
-reason attached — not a configuration mode, and never silent. Ordinary Builder
-tests, independent Reviewer evidence, and the application's configured gates
-apply in every case; they never depended on the corpus.
+**The one case that remains.** An application can still end up without an
+accepted corpus: the design run failed, timed out, exhausted its budget, did not
+have enough product truth, or reported that its admitted profile was too shallow
+and has not completed the required higher profile. That is a visible degradation
+with a stated reason attached — not a configuration mode, and never silent.
+Ordinary Builder tests, independent Reviewer evidence, and the application's
+configured gates apply in every case; they never depended on the corpus.
 
 This is a recommendation, not a decision, because it changes what Cormidia asks
 an owner during onboarding. It needs a ruling before the integration is
@@ -177,9 +199,9 @@ No human-ratified surface was edited by this document or its predecessor.
 Implementing this integration requires an exact, separately ratified proposal
 for `pipelines.yaml` and `prompts/**`: the currently unreachable S-10 prompt
 must become a thin governed transport or retire, rather than remaining a second
-locally authored validation method beside the library. Removing the org-home
-skill implication requires the corresponding `docs/PURPOSE.md` proposal. Neither
-may be silently rewritten.
+locally authored validation method beside the library. Those surfaces may not be
+silently rewritten. No `docs/PURPOSE.md` change is required for the org-home
+skill root because this corrected design preserves its generic purpose.
 
 Nothing here authorizes an L3, L4, L5, or L-ACC campaign, a model-quality claim,
 an npm publication, a version tag, or a release handoff.
@@ -187,9 +209,10 @@ an npm publication, a version tag, or a release handoff.
 ## 7. Tickets
 
 - `cormidia/Cormidia#381` — Phases 0–1 remain independent. Phases 2–4 exact-pin
-  the package, implement `RepositoryPort` and `TurnPort` against governed turns,
-  publish the accepted corpus through Cormidia's own path, remove the org-home
-  `skills/` placeholder, and integrate joint review and steady state.
+  the package, implement `RepositoryPort`, `TurnPort`, and `CampaignStorePort`
+  against managed checkouts, governed turns, and the state home, publish the
+  accepted corpus through Cormidia's own path, keep package skills out of the
+  generic org-home `skills/` root, and integrate joint review and steady state.
 - `cormidia/Cormidia#431` — make deterministic trace closure green and enforced,
   then replace the vendored tarball with the exact public package. The closure
   work can proceed now; the dependency swap waits on publication.

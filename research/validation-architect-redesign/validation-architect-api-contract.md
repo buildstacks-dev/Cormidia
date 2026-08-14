@@ -50,13 +50,13 @@ someone's internal platform. The contract must not assume which.
 
 | ID | Decision |
 | --- | --- |
-| D1 | Split the API into a deterministic core that spends nothing and a campaign that spends provider turns. |
-| D2 | Hosts inject two ports — repository read access and a turn executor. The library performs no effects itself. |
-| D3 | Publish seven deterministic entry points plus `design`/`resume`, and nothing else. |
-| D4 | Publish two lockstep-versioned packages, split by whether the work spends provider tokens. |
+| D1 | Split deterministic computation and provider-neutral campaign orchestration from standalone provider adapters. |
+| D2 | Hosts inject three ports — repository read access, governed turns, and durable campaign checkpoints. The headless library owns no effects itself. |
+| D3 | The core package publishes seven deterministic entry points plus provider-neutral `design`/`resume`; the design package supplies the standalone provider-backed CLI. |
+| D4 | Publish two lockstep-versioned packages, split by whether code constructs and governs provider clients. |
 | D5 | Ship the three skill directories as data in the core package; the package version is their only released identity. |
 | D6 | The core package keeps its single `yaml` runtime dependency. The provider SDKs live only in the design package. |
-| D7 | Method depth is a caller-selected profile keyed to C0–C4; a run may escalate its own profile but never silently. |
+| D7 | Method depth is a caller-selected profile keyed to C0–C4; a too-shallow run reports a typed escalation requirement but never changes its own budget. |
 | D8 | Package SemVer plus independently versioned schema IDs. No separate contract manifest. |
 | D9 | License the published package MIT. |
 
@@ -83,7 +83,9 @@ The single most useful observation about this system is that it does two
 completely different kinds of work, and only one of them is expensive.
 
 **Designing validation** requires model turns. It costs money, takes hours,
-needs budgets and resumability, and must be governed by whoever is paying.
+needs budgets and resumability, and must be governed by whoever is paying. The
+campaign state machine can still be provider-neutral: it asks a host for a
+governed turn and a durable checkpoint without constructing either facility.
 
 **Everything else** — validating the corpus, proving it is closed against the
 real test files, answering "why does this test exist", turning a changed-file
@@ -96,22 +98,25 @@ provider governance even when they only wanted to run a CI check. Separating
 them means the common case gets radically simpler:
 
 ```
-Deterministic core        no turns · no network · no credentials · no authority
+Core package              no provider client · no credentials · no publication authority
   compile · check · explain · plan · ingest · render · migrate
-        ▲
-        │ same model, same schemas
-        ▼
-Design campaign           provider turns · budgets · hours · resumable
   design · resume
+        ▲
+        │ same model, schemas, and campaign state machine
+        ▼
+Standalone adapters       provider clients · local checkpoint store · CLI
+  designer · stakeholder · auditor · reader
 ```
 
 This is also the packaging boundary (§8): the two halves have install profiles
 that differ by roughly five hundred times, so they ship as two packages.
 
-**D1. The public API is split into a deterministic core and a campaign
-surface.** A consumer that only needs closure checking in CI never touches the
-campaign half, installs no provider SDK, and needs no secrets. A consumer that
-needs a corpus designed opts into the campaign explicitly.
+**D1. The public API separates deterministic computation and provider-neutral
+campaign orchestration from provider adapters.** A consumer that only needs
+closure checking in CI calls only the deterministic functions, installs no
+provider SDK, and needs no secrets. An embedded host uses the same small core
+package and supplies governed turns plus storage. Standalone use opts into the
+provider-backed design package explicitly.
 
 ## 4. What the host supplies
 
@@ -119,10 +124,10 @@ A library that reads files, runs git, spawns processes, calls provider APIs and
 writes branches has an unbounded blast radius, and every embedder has to audit
 all of it. It is also untestable without a real repository and real spend.
 
-So the library performs no effects. It asks for exactly two capabilities and
-returns data for the caller to act on.
+So the headless library owns no effects. It asks the host for exactly three
+capabilities and returns data for the caller to publish.
 
-**D2. Hosts inject two ports.**
+**D2. Hosts inject three ports.**
 
 ```ts
 interface RepositoryPort {
@@ -135,6 +140,11 @@ interface RepositoryPort {
 interface TurnPort {                                        // campaign only
   runTurn(request: TurnRequest): Promise<TurnResult>;
 }
+
+interface CampaignStorePort {                               // campaign only
+  load(runId: string): Promise<CampaignCheckpoint | null>;
+  save(checkpoint: CampaignCheckpoint, expectedGeneration: number): Promise<void>;
+}
 ```
 
 `RepositoryPort` is read-only by construction. The standalone CLI implements it
@@ -143,49 +153,104 @@ it already manages. The test inventory is not a third port — the library
 derives it by listing and parsing spec files, which is what the existing
 `scanSpecs` already does.
 
-`TurnRequest` describes a *logical seat*, never a provider:
+`CampaignStorePort` is a host-owned compare-and-swap store. The campaign saves
+the next pending request before invoking a turn and saves the accepted result
+afterward. A stale `expectedGeneration` is refused rather than overwriting
+another process. The standalone adapter implements it with an atomic local
+checkpoint file; Cormidia implements it in its state home. The checkpoint is a
+published `design-run/v1` object containing the exact package version, source
+revision, admitted envelope, state-machine position, pending idempotency key,
+accepted turn receipts, and the opaque native session identities needed to
+continue persistent seats.
+
+`TurnRequest` describes a *logical seat instance*, never a provider assignment:
 
 ```ts
 type Seat = "designer" | "stakeholder" | "auditor" | "reader";
 
-interface TurnRequest {
+interface SeatRef {
   seat: Seat;
-  independentOf: Seat[];        // seats this turn must not share an identity with
+  instance: string;              // designer, stakeholder, auditor:1, reader:operator, ...
+}
+
+type IndependenceDimension = "provider" | "model" | "session";
+
+interface IndependenceRequirement {
+  from: SeatRef;
+  dimensions: IndependenceDimension[];
+}
+
+type SessionRequest =
+  | { mode: "new" }
+  | { mode: "resume"; sessionId: string };
+
+interface TurnRequest {
+  seat: SeatRef;
+  independence: IndependenceRequirement[];
+  session: SessionRequest;
+  idempotencyKey: string;        // stable across crash recovery
   prompt: string;
   outputSchema?: JsonSchema;    // when the turn must return structured data
   limits: { maxTokens?: number; maxWallMs?: number };
   metadata: { runId: string; phase: string; turnIndex: number };
 }
 
-interface TurnResult {
-  status: "ok" | "refused" | "limit_exhausted" | "error";
-  text?: string;
-  parsed?: unknown;             // validated against outputSchema by the library
-  seatIdentity: string;         // opaque, stable per provider/model/session
-  usage?: { inputTokens: number; outputTokens: number };
+interface ExecutionIdentity {
+  provider: string;              // opaque, stable and comparable within this host
+  model: string;                 // opaque, stable and comparable within this host
+  session: string;               // exact native session identity
 }
+
+type TurnResult =
+  | {
+      status: "ok";
+      text: string;
+      parsed?: unknown;          // validated against outputSchema by the library
+      identity: ExecutionIdentity;
+      usage?: { inputTokens: number; outputTokens: number };
+    }
+  | {
+      status: "refused" | "limit_exhausted" | "error";
+      reason: string;
+      identity?: ExecutionIdentity; // absent when refusal happened before assignment
+      usage?: { inputTokens: number; outputTokens: number };
+    };
 ```
 
-Two properties are worth calling out because they are contract, not
+Four properties are worth calling out because they are contract, not
 convenience.
 
-`seatIdentity` is what makes independence checkable rather than merely
-requested. The method's value depends on the auditor not being the same mind as
-the designer — the same reason a code reviewer should not be the author. The
-library refuses to accept an audit whose `seatIdentity` matches the designer's,
-so a host that quietly points every seat at one model gets a typed failure
-instead of a clean-looking verdict.
+`independence` states *which kind* of separation the method needs. The persistent
+Designer and Stakeholder seats are cross-provider because their disagreement is
+the method's anti-yes-loop. Readers and each audit iteration are new sessions
+that share no context with the Designer or one another; the current method does
+not require the Auditor to use a different model. The library compares the
+returned provider, model, and session identities along the requested dimensions
+and refuses a mismatch, so neither a fresh session nor a model alias can be
+misrepresented as cross-provider review.
+
+`session` makes context lifecycle explicit. Designer and Stakeholder start once
+and then resume the exact returned native session. Each reader persona and audit
+iteration starts with `mode: "new"`. A host may not infer freshness or
+continuation merely from the seat name.
+
+`idempotencyKey` closes the crash window between a provider result and the next
+checkpoint. Replaying the same pending request must reconcile and return the
+same settled turn result, never spend a second turn. Cormidia binds this key to
+its ordinary provider-turn settlement identity.
 
 `status` has no success-by-omission. A refusal, an exhausted limit, or an error
 is a typed outcome that flows into the result record as incomplete evidence.
 The library never retries around it, never substitutes a different seat, and
 never adds an unplanned turn to recover.
 
-**What the library never does.** It constructs no provider client, opens no
-socket, spawns no subprocess, writes no file in the target repository, creates
-no branch or pull request, reads no credential, and reaches no conclusion about
-what the caller is authorized to do. `design` returns an artifact bundle; the
-caller decides where it lands.
+**What the headless core never does.** It constructs no provider client, opens
+no socket itself, spawns no subprocess, writes no file in the target repository,
+creates no branch or pull request, reads no credential, or reaches a conclusion
+about what the caller is authorized to do. It requests repository reads, turns,
+and checkpoints through the three ports. The standalone design package supplies
+concrete provider and local-store adapters; `design` still returns an artifact
+bundle, and its caller decides where that bundle lands.
 
 ## 5. The public API
 
@@ -193,9 +258,10 @@ With the split and the ports in place, the surface a consumer has to learn is
 small. Every deterministic function is a pure function of the corpus plus
 repository facts, so all of them can be tested offline against fixtures.
 
-**D3. The packages expose these entry points and no others.** Everything that
-spends nothing is in the core package; `design` and `resume` are in the design
-package (§8).
+**D3. The packages expose these entry points and no others.** All nine
+provider-neutral functions are in the core package. The standalone design
+package supplies the concrete provider adapters and CLI that call the same
+`design` and `resume` functions (§8).
 
 | Entry point | Spends | Answers |
 | --- | --- | --- |
@@ -228,10 +294,15 @@ Notes that keep the surface this small:
   data on request.
 
 `design` publishes its envelope before it runs — the selected profile, the
-finite turn sequence, the maximum turn count, the required seat independence,
-the output schemas, and the method version. A host admits that envelope against
-its own budget before the first turn. Exhausting a declared bound is a typed
-incomplete result; the library never extends its own envelope.
+maximum turn count, the required seat and session independence, the output
+schemas, and the method version. C0–C2 publish a finite sequence. C3/C4 publish
+a finite transition graph with explicit states, permitted transitions, terminal
+coverage, and per-transition turn costs because gate refusals, reader residue,
+and audit dispositions determine the next step. Both shapes are bounded and
+admittable; neither pretends an adaptive relay is a predetermined sequence. A
+host admits the envelope against its own budget before the first turn.
+Exhausting a declared bound is a typed incomplete result; the library never
+extends its own envelope.
 
 `design` returns a bundle, not a side effect:
 
@@ -239,11 +310,37 @@ incomplete result; the library never extends its own envelope.
 interface DesignBundle {
   files: Array<{ path: string; content: string }>;   // the corpus, unwritten
   provenance: Provenance;                            // versions, revision, run identity
-  verdict: "clean" | "clean-with-reservations" | "reservations" | "failed";
-  findings: AuditFinding[];
+  profileAssessment: {
+    selected: "C0" | "C1" | "C2" | "C3" | "C4";
+    minimumSupportedByFindings: "C0" | "C1" | "C2" | "C3" | "C4";
+    escalationRequired: boolean;
+  };
+  audit:
+    | { status: "not_required_by_profile" }
+    | {
+        status: "performed";
+        verdict: "clean" | "clean-with-reservations" | "reservations";
+        findings: AuditFinding[];
+      };
   usage: { turns: number; inputTokens: number; outputTokens: number };
 }
+
+type DesignOutcome =
+  | { status: "complete"; bundle: DesignBundle }
+  | {
+      status: "incomplete";
+      checkpoint: CampaignCheckpoint;
+      reason: "turn_refused" | "limit_exhausted" | "turn_error" | "invalid_artifact";
+      nextAction: string;
+    };
 ```
+
+Failure is an outcome of the campaign, not an audit verdict. C0 records that an
+audit was not required by its selected profile instead of calling an unaudited
+result clean. A discovered criticality above the selected profile is equally
+explicit: the admitted run may finish within its budget and return its bundle,
+but `escalationRequired` prevents a host from presenting that shallow design as
+sufficient for the discovered use.
 
 The standalone CLI writes that bundle to `validation-design/` on a branch. An
 embedder writes it through whatever publication path it already trusts. There
@@ -296,8 +393,8 @@ data, C2 is production with real users and persistent data, and C4 is
 safety- or mission-critical. Cormidia's own corpus already runs at `C2`. No new
 scale is invented here; the profiles simply attach a turn budget to it.
 
-**D7. `design` takes a profile, and the profile determines the finite turn
-sequence.**
+**D7. `design` takes a profile, and the profile determines either a finite turn
+sequence or a finite bounded state machine.**
 
 | Tier | Plain reading | Provider turns | Shape |
 | --- | --- | ---: | --- |
@@ -312,17 +409,19 @@ They are computation, not turns, so they cost nothing and are never skipped.
 
 Three rules keep the cheap tiers honest:
 
-- **Findings surface; they do not trigger repair loops.** At C0–C2 an audit
+- **Findings surface; they do not trigger repair loops.** At C1–C2 an audit
   produces `clean`, `clean-with-reservations`, or `reservations`, and the
-  reservations are visible in the output. There is no unbounded fix cycle.
+  reservations are visible in the output. C0 records the declared audit
+  omission. There is no unbounded fix cycle.
 - **A failed run is a failed run.** Missing artifacts, invalid schemas or IDs, a
   failed required turn, or an exhausted budget produce a typed design failure.
   The library does not manufacture a thin corpus to have something to return.
-- **Profiles escalate, never silently.** Criticality is assessed *during*
-  design, so a C0 run that discovers the product handles production customer
-  data reports that its profile was too shallow for what it found. It completes
-  and says so; it does not quietly upgrade itself and spend the caller's budget,
-  and it does not stay silent.
+- **Escalation requirements surface; profiles never change silently.**
+  Criticality is assessed *during* design, so a C0 run that discovers the
+  product handles production customer data reports that its profile was too
+  shallow for what it found. It completes within the admitted envelope and says
+  so; it does not upgrade itself and spend the caller's budget, and the host may
+  not present the result as sufficient for that use.
 
 At C3/C4 the existing relay defaults remain explicit outer bounds rather than
 an implicit loop: 60 relay exchanges, 300 wall minutes, three reader turns, at
@@ -364,22 +463,25 @@ where the decision lives. The decision lives in *cadence*:
   install is cold every time. Half a gigabyte to run a deterministic closure
   check is a tax paid on every commit of the product's life.
 
-**D4. Two packages, split by whether the work spends provider tokens.**
+**D4. Two packages, split by whether code constructs provider clients.**
 
 | Package | Contains | Installed as | Runtime deps |
 | --- | --- | --- | --- |
-| `validation-architect` | Deterministic core, its CLI, all schemas, all three skills | Pinned devDependency in the application repo | `yaml` |
-| `validation-architect-design` | `design`, `resume`, and the designer/stakeholder/auditor/reader adapters | Global install or `npx`, once per product | core + provider SDKs |
+| `validation-architect` | Deterministic functions, provider-neutral `design`/`resume`, port and checkpoint types, core CLI, all schemas, all three skills | Exact-pinned devDependency in an application or dependency of an embedded host | `yaml` |
+| `validation-architect-design` | Standalone CLI plus designer/stakeholder/auditor/reader provider adapters and local checkpoint store | Exact-version global install or `npx validation-architect-design@<exact>`, once per product | exact-equal core + provider SDKs |
 
-The rule a user can predict is one sentence: **if it spends tokens it is in the
-design package; if it is deterministic it is in the core package.** That is what
-makes this different from today's `validation-trace`-versus-`pnpm vda` split,
-which is a fragment of an unpublished whole divided by accident of history.
+The rule a user can predict is one sentence: **if code constructs or directly
+operates a provider client it is in the design package; deterministic code and
+provider-neutral orchestration are in core.** Calling core `design` can still
+cause a host's injected `TurnPort` to spend, but the dependency itself carries
+no provider SDK, credential, or hidden execution path. That is what makes this
+different from today's `validation-trace`-versus-`pnpm vda` split, which is a
+fragment of an unpublished whole divided by accident of history.
 
 Two consequences fall out cleanly, which is the sign the boundary is in the
-right place. An embedded host installs **only the core package** — it injects
-its own `TurnPort` and never wants an SDK. And a CI job that runs `check` on
-every PR installs 1.2 MB.
+right place. An embedded host installs **only the core package** and injects its
+own repository, turn, and checkpoint ports. A CI job that runs `check` on every
+PR installs the same SDK-free package and never calls its campaign functions.
 
 The packages are versioned and published in lockstep from this one repository,
 and the design package depends on the core at an exact equal version. There is
@@ -414,9 +516,10 @@ All three go in the core package rather than being split across the two. They
 total 476 KB, `implement-harness-ticket` is installed into the application
 repository's own agent-skill location, and keeping the design and audit skills
 alongside the schemas means the core package is the complete, readable
-definition of the method. The design package is then only the automation that
-executes it — including for a user who wants to run the design skill by hand in
-their own agent session rather than through the campaign.
+definition of the method. The design package is then only the standalone
+provider-backed adapter and CLI — including for a user who wants to run the
+design skill by hand in their own agent session rather than through the
+campaign.
 
 **D6. The core package's only runtime dependency stays `yaml`.** The provider
 SDKs move from devDependencies into the design package's ordinary dependencies,
@@ -498,26 +601,28 @@ an interface everyone else has to implement.
 | --- | --- |
 | Per-application validation modes and their defaults | A host's product policy about which of its users' apps get a corpus. The library supports greenfield, existing-with-tests, existing-design, and older-method starting points regardless. |
 | Criticality elicitation during onboarding | How a host asks its owner a question. The library takes a profile; it does not care how the caller chose it. |
-| Provider-turn governance, budgets, approvals, settlement | Already satisfied by `TurnPort` for every host. Cormidia's specific rules are Cormidia's. |
-| Corpus storage, publication path, and state layout | The library returns a bundle. Where it lands is the host's. |
-| The org-home `skills/` placeholder | A Cormidia repository detail with no bearing on the package. |
+| Provider-turn governance, budgets, approvals, settlement | The contract exposes identity, independence, session, and idempotency requirements through `TurnPort`; Cormidia's specific admission and execution rules remain Cormidia's. |
+| Corpus storage, checkpoint implementation, publication path, and state layout | The core defines the checkpoint protocol and returns a bundle. Where a host persists those records and lands the bundle is the host's. |
+| Whether Cormidia copies package skills into its org-home `skills/` root | A host integration choice with no bearing on package contents; the package does not redefine the root's generic promoted-skill purpose. |
 | `pipelines.yaml` / `prompts/**` consequences | Cormidia's ratified surfaces. |
 
 ## 12. Tickets
 
 Both tickets are in `buildstacks-dev/validation-architect`.
 
-- **#16 — the library.** Deterministic core, the two ports, the seven
-  deterministic entry points, tier profiles, schemas, provenance, resumability,
-  and incremental mode.
+- **#16 — the library.** Deterministic core, provider-neutral campaign engine,
+  the three ports, all nine entry points, explicit session and independence
+  semantics, tier profiles, schemas, provenance, crash-safe resumability, and
+  incremental mode.
 - **#17 — the packages.** MIT license, the two-package split and its lockstep
   release, package metadata, the two CLI binaries, the complete published file
   sets including the skill directories, release workflow, package smoke tests,
   and the first public publication at `0.3.0`.
 
-`0.3.0` rather than `0.2.0`: §5 is a larger change than a minor implies. Both
-are pre-1.0 and carry no compatibility promise, but the number should not
-understate the change.
+`0.3.0` rather than the superseded record's proposed `0.2.0`: the new release
+identity names the corrected core/API plus packaging boundary and avoids making
+two incompatible designs appear to be the same planned release. Both are
+pre-1.0 and carry no compatibility promise.
 
 Sequencing: the license, metadata, and release workflow in #17 can land before
 #16. The first publish waits for #16 so the public contract is not born

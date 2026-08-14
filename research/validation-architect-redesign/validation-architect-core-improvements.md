@@ -2,7 +2,7 @@
 
 ## Friendlier validation without weaker assurance
 
-Status: **proposed redesign and assessment**, not ratified policy.
+Status: **recommended implementation design**, not yet implemented.
 
 Date: 2026-08-13
 
@@ -23,30 +23,36 @@ problem is not an obvious shortage of tests. Its main problem is that authors an
 operators must understand too much of the harness's internal vocabulary before
 they can select, run, or diagnose those tests confidently.
 
-The redesign should therefore make **validation understanding** a first-class
-capability of the `validation-architect` library. The library should compile a
-validation corpus into a typed intermediate representation, answer trace and
-impact questions, normalize result semantics, reduce explicit causal dependency
-graphs, and project the same facts for change authors, validation architects,
-Reviewers, and operators.
+The redesign should make **validation understanding** a first-class capability of
+the `validation-architect` library. It should turn validation-design documents and
+the existing test inventory into a checked internal model. From that model it
+should:
 
-Cormidia should remain the host integration. It should own repository inspection,
-Vitest execution, prerequisite probes, fixture setup, CI orchestration, artifact
-persistence, and all provider-turn authority. This preserves the boundary already
-chosen in the companion integration record: the library owns the method and pure
-validation reasoning; Cormidia owns governed execution.
+- show which product rule each test protects;
+- propose which tests a change affects and explain uncertainty;
+- classify outcomes consistently across local runs and CI;
+- group derivative failures under a declared root cause without losing any case;
+- present the same facts clearly to authors, validation architects, Reviewers,
+  and operators.
 
-The recommended sequence is:
+There are two distinct uses:
 
-1. compile and validate the existing corpus without changing its authority;
-2. introduce one typed result envelope and explicit failure taxonomy;
-3. add causal reporting that retains every leaf case;
-4. expose `explain` and role-specific projections;
-5. add changed-path planning as an advisory, fail-open optimization;
-6. measure recall and local/CI parity before considering any canonical targeted
-   gate;
-7. make structural policy changes only through harness revision and human
-   ratification.
+- **Direct repository use:** the standalone agent, CLI, or library designs or
+  revises validation for any target repository. When used on Cormidia itself,
+  Cormidia is the target, not the host.
+- **Embedded Cormidia use:** Cormidia hosts the library as a capability for its
+  users' applications. Cormidia owns provider turns, budgets, approvals, and
+  durable execution; the user's application is the target.
+
+The core library stays host-neutral. A standalone wrapper or an embedding platform
+supplies repository access, test execution, prerequisite probes, fixture setup,
+CI integration, artifact storage, and governed model turns.
+
+The improvements belong inside the existing validation-architect lifecycle. They
+do not create another agent or a parallel process. The designer/stakeholder loop
+creates the model and its human views; fresh readers test whether those views are
+usable; the design auditor checks their rigor; and the same model later powers
+implementation trace, explanation, test planning, and result reporting.
 
 The guiding rule is:
 
@@ -123,6 +129,12 @@ The trace findings and incomplete external campaign rows must remain visible.
 They are limitations to close or classify, not reasons to discount the coverage
 that has landed.
 
+Here, **L1** means fast in-process tests with controlled inputs. **L2** may use
+real local processes, temporary directories, Git repositories, worktrees, or owned
+service doubles, but it still avoids live GitHub, cloud services, network access,
+and provider spend. Fixtures are the known data and environments those tests set
+up. They may model an external failure without depending on the external service.
+
 ### 4.2 Usability quality
 
 The principal usability gaps are:
@@ -148,72 +160,56 @@ Improving these gaps does not require weakening a single detector.
 | --- | --- | --- | --- |
 | Understand a change | Purpose, architecture docs, routing rules, catalog, and backlog | Authors must manually map code to validation structures. | Library trace query plus Cormidia repository adapter. |
 | Derive obligations | Eight-row routing grammar and cheapest-falsifying-layer rule | Rigorous but identifier-heavy and reconstruction-intensive. | Library corpus compiler and method API. |
-| Record a family | Catalog Markdown, generated YAML, backlog, spec path, header, negative control, and evidence references | Repeated transcription creates drift and ceremony. | Library typed IR/compiler; authority migration requires ratification. |
+| Record a family | Catalog Markdown, generated YAML, backlog, spec path, header, negative control, and evidence references | Repeated transcription creates drift and ceremony. | Library checked model/compiler; authority migration requires ratification. |
 | Select tests | Full `pnpm test`, manually chosen Vitest paths, or known CF/HB directories | A fast path is not necessarily a trustworthy coverage set. | Library impact planner; Cormidia changed-path and runner adapters. |
 | Start locally | Isolated wrapper, process identity and package-store preflight | Strong checks, but not every bootstrap path reaches the typed report. | Library capability schema; Cormidia outer launcher and probes. |
-| Execute | Offline Vitest L1/L2; separately authorized higher lanes | Full feedback is slow and default output can obscure the first cause. | Cormidia runner/reporter using library result semantics. |
-| Diagnose | Raw Vitest output plus stronger campaign triage guidance | Shared fixture or prerequisite failures can fan out into noisy derivatives. | Library causal reducer plus explicit dependency data from adapters. |
+| Execute | Offline Vitest L1/L2; separately authorized higher lanes | Full feedback is slow and default output can obscure the first cause. | Cormidia runner/reporter using the common result format. |
+| Diagnose | Raw Vitest output plus stronger campaign triage guidance | Shared fixture or prerequisite failures can fan out into noisy derivatives. | Library root-cause grouping plus declared dependency data from adapters. |
 | Review | Catalog, backlog, spec headers, reports, and status registers | Reviewers reconstruct product meaning, ownership, layer rationale, and evidence. | Library role projections generated from one manifest. |
 | Operate CI | Core Checks, manual trace workflow, self-hosted/hosted routing | Results are split across workflows and environments. | Cormidia CI integration and parity fingerprint. |
 
+The current validation-architect campaign already has the right human workflow:
+
+1. a stakeholder is grounded in the product documents and `rambling.txt`;
+2. a designer and the stakeholder iterate on the validation design and backlog;
+3. three fresh readers test whether an operator, new engineer, and coding agent
+   can use the artifacts without the campaign transcript;
+4. an independent design auditor checks falsifiability, coverage derivation,
+   negative controls, layer placement, policy behavior, and provenance;
+5. the designer disposes findings, the stakeholder confirms or arbitrates them,
+   and a fresh second audit verifies the repairs.
+
+That auditor checks whether the proposed design is coherent and rigorous. It does
+not prove that later test code faithfully implements the design. After tests are
+built, deterministic trace checks prove that the planned families and actual
+tests are connected, while a separate fidelity audit judges whether the test
+meaning and negative controls still match the design. These are complementary
+checks, not competing meanings of “audit.”
+
 ## 6. Experience by role
 
-### 6.1 Ordinary change author
+| Role | What the system should answer |
+| --- | --- |
+| Change author | “I changed these paths. What is the smallest trustworthy validation plan, and why?” |
+| Validation architect | “What must be added or revised, at which layer, with which owner and negative control?” |
+| Independent Reviewer | “What product meaning is protected, why is this detector sufficient, and is its evidence complete?” |
+| CI/operator | “What is the first causal failure, what did it prevent, and what should I do next?” |
 
-The current system answers “what does this family prove?” after the author finds
-the family. It does not reliably answer the author's first question:
-
-> I changed these paths. What is the smallest trustworthy validation plan, and
-> why is it trustworthy?
-
-The safe default remains the full offline suite. Direct file selection is useful
-for diagnosis but cannot, by itself, prove that every affected contract, neighbor,
-boundary, invariant, and negative control is present.
-
-### 6.2 Validation architect
-
-The method has a rigorous derivation model but pays for it through synchronized
-catalog, backlog, spec, status, ownership, and evidence surfaces. The current
-structure findings are evidence of authoring friction. They are not evidence that
-trace fields or negative controls should be removed.
-
-As a packaged library, `validation-architect` should make correct structure the
-easy output of the method rather than requiring callers to reassemble it from
-prose.
-
-### 6.3 Independent Reviewer
-
-A Reviewer needs one auditable explanation containing:
-
-- the protected product meaning;
-- the owning contract, invariant, boundary, or journey;
-- why the selected layer is the cheapest sufficient falsifier;
-- the detector and its negative control;
-- what was selected, omitted, blocked, or not assessed;
-- the exact evidence and version identities.
-
-Today those facts exist, but the Reviewer must reconstruct them from multiple
-artifacts.
-
-### 6.4 CI/operator
-
-Campaign triage already distinguishes severity, action, and preserved evidence
-better than routine test output. The operator needs the same causal vocabulary for
-Core Checks and local runs, plus a stable fingerprint to compare local,
-self-hosted, and hosted execution of the same commit and lane.
+Today these facts exist, but each role reconstructs them from several artifacts.
+The library should generate the four views from one checked model.
 
 ## 7. Principles for “friendlier without weaker”
 
-1. **Verdict and completeness stay independent.** Missing evidence cannot pass;
-   an observed product violation still fails.
-2. **Summarize without deleting.** One causal headline may represent many leaves,
+1. **The product answer and evidence completeness stay independent.** Missing
+   evidence cannot pass; an observed product violation still fails.
+2. **Summarize without deleting.** One causal headline may represent many cases,
    but every affected case remains in machine-readable evidence.
 3. **Group only from explicit causality.** Never infer a shared root merely from
    similar messages or stack traces.
 4. **Unknown impact expands scope.** The safe fallback is the full required lane,
    not optimistic omission.
 5. **Selection is initially advisory.** Full Core CI stays authoritative while
-   targeted-suite recall is measured.
+   the planner's misses and extra selections are measured.
 6. **One fact model, several views.** Builder, Reviewer, architect, and operator
    outputs are projections, not separately maintained truth.
 7. **Plain meaning leads; exact identity follows.** Human output starts with the
@@ -226,407 +222,334 @@ self-hosted, and hosted execution of the same commit and lane.
 10. **Ergonomics are measured.** Time, recall, parity, and reviewer comprehension
     are evaluated alongside assurance.
 
-## 8. Proposed library boundary
+## 8. Library boundary
 
-The companion integration record establishes a provider-neutral library with an
-injected governed turn executor. The same boundary should govern validation
-friendliness.
+The companion integration record defines a provider-neutral library with an
+injected turn executor. The same core supports two uses:
 
-| `validation-architect` library owns | Cormidia integration owns |
-| --- | --- |
-| Method profiles, phase state machine, prompts, schemas, resumability, and method version | Provider/model/effort selection, budgets, run envelopes, settlement, and approval gates |
-| Typed validation corpus IR and semantic compiler | Reading Cormidia's current Markdown/YAML corpus and resolving repository paths |
-| Trace graph and query semantics | Git changed-path discovery and Cormidia architecture mappings |
-| Pure impact-plan construction | Process execution, Vitest selection, safety-floor commands, and CI ordering |
-| Failure taxonomy and result-envelope schemas | Host probes, package-store checks, fixture creation, credentials, and authorizations |
-| Pure causal reduction from explicit dependency edges | Capturing runner/fixture dependencies and raw stdout/stderr |
-| Builder, Reviewer, architect, and operator projections | Console rendering, GitHub summaries, artifact upload, and durable storage |
-| Schema/method compatibility and migration contracts | Pinning the exact package version and accepting a corpus migration |
-
-The library should not acquire provider SDK ownership, spawn opaque token-spending
-subprocesses, publish Git state, infer authorization, or silently modify a
-consumer's corpus. Core functions should be deterministic and side-effect-free;
-host effects should enter through narrow injected interfaces.
-
-## 9. Proposed core capabilities
-
-Names in this section are illustrative API concepts, not accepted package exports.
-
-### 9.1 Typed corpus intermediate representation
-
-The library should normalize source material into one `ValidationCorpus` model
-containing:
-
-- structures: journeys, states, invariants, boundaries, contracts, interfaces,
-  LLM sites, and operations;
-- families: stable ID, plain meaning, owner, layer, risk, oracle, negative
-  controls, detected structures, evidence obligations, and lifecycle status;
-- implementations: spec paths, concrete test identities, fixture dependencies,
-  and evidence references;
-- provenance: source file, location, source revision, schema version, method
-  version, and content hash.
-
-The compiler should reject duplicate IDs, dangling references, invalid status
-transitions, lossy column parsing, ownership gaps, and catalog/generated-artifact
-disagreement. Diagnostics should identify the field and source location in plain
-language while retaining the exact identifier.
-
-Initially, this compiler should consume Cormidia's ratified sources without
-changing which source is authoritative. Moving authority from Markdown to a
-structured manifest is a separate protocol decision requiring migration evidence
-and human ratification.
-
-### 9.2 Semantic compilation, not byte agreement alone
-
-Generation should have two independent checks:
-
-1. deterministic rendering from the normalized IR;
-2. semantic reparse and equality against that IR.
-
-This catches cases where the same lossy parser corrupts both a generated artifact
-and its byte-level regeneration. Delimited prose must use a parser that honors the
-actual syntax or, preferably, move machine fields out of delimiter-sensitive prose
-after ratification.
-
-### 9.3 Trace graph and query API
-
-The normalized corpus should compile into a graph with typed nodes and edges such
-as:
-
-`changed path -> subsystem -> structure -> family -> detector -> evidence`
-
-The graph should support queries by path, symbol, contract, family, backlog item,
-owner, risk, layer, and status. Each result should explain how it was reached and
-where uncertainty forced expansion.
-
-This capability powers both strict trace audits and approachable questions such
-as:
-
-- What protects this contract?
-- Why does this test exist?
-- Which negative control proves this detector?
-- What remains blocked or unassessed?
-- Which families could this changed path affect?
-
-### 9.4 Unified result envelope and failure taxonomy
-
-The library should define a versioned result envelope while leaving probes and
-execution to the host. A proposed taxonomy is:
-
-| Cause class | Meaning | Required semantic treatment |
+| Use | Target repository | Host |
 | --- | --- | --- |
-| `PREREQUISITE` | A required host, tool, process, package-store, credential, or authorization capability is unavailable. | Incomplete; do not start affected tests; never report product pass. |
-| `HARNESS` | A fixture, adapter, runner, reporter, or harness self-test is defective. | Validation-integrity failure or inconclusive result; fail closed. |
-| `PRODUCT` | Product behavior violates a ratified contract, invariant, journey, boundary, or equivalent expectation. | Fail, even if unrelated evidence is incomplete. |
-| `EVIDENCE` | Required evidence is missing, stale, ceiling-stopped, uncalibrated, unauthorized, or not run. | Incomplete/inconclusive unless a separate product failure is proven. |
-| `TRACEABILITY` | Catalog, ownership, implementation, status, or generated-artifact closure is inconsistent. | Validation-integrity failure; never silently pass. |
+| Direct | Any repository, including Cormidia itself | Standalone CLI or agent |
+| Embedded | A Cormidia user's application | Cormidia |
 
-Cause class must not replace the existing distinction between completeness and
-verdict. The envelope should carry both. At minimum it should retain:
+| Core library owns | Host or repository adapter owns |
+| --- | --- |
+| Design method, prompts, schemas, resumability, and method version | Provider/model selection, budgets, approvals, and durable execution |
+| Validation model, compiler, trace, explain, and impact reasoning | Reading the target, Git changes, and product-specific path mappings |
+| Result meanings and causal grouping rules | Tests, fixtures, probes, stdout/stderr capture, and CI orchestration |
+| Generated author, architect, Reviewer, and operator views | Rendering, artifact storage, and publication |
 
-- schema, method, corpus, policy, product revision, and requested-lane identity;
-- environment fingerprint and prerequisite results;
-- first failing phase;
-- root cause ID, class, plain meaning, trace owner, and remediation;
-- every leaf case ID and its status;
-- explicit root-to-leaf dependency edges;
-- selection plan, safety floor, expansions, and uncertainties;
-- raw evidence references with integrity hashes.
+The core must not own provider credentials, publish Git state, infer authority, or
+silently change an accepted design. Cormidia's adapter work comes after the core
+library and interface work; it is intentionally outside this document's backlog.
 
-### 9.5 Causal reducer with a complete leaf ledger
+## 9. Core design
 
-The reducer should be a pure function over explicit events and dependencies. It may
-group:
+Names below describe behavior, not final exported TypeScript names.
 
-- a failed prerequisite and every test that declares that capability;
-- a shared fixture setup failure and its dependent cases;
-- a runner or reporter failure and the records it prevented from completing.
+### 9.1 Supported starting points
 
-It must not group independent product assertions because their messages or stacks
-look alike. Each leaf remains one of `failed`, `blocked_by_root`, `not_assessed`,
-`incomplete`, `passed`, or another ratified status. A derivative leaf never becomes
-pass merely because its root is shown once.
+| Starting point | Expected behavior |
+| --- | --- |
+| Greenfield | Derive the design from product intent and architecture. |
+| Existing application and tests | Derive requirements first, then inspect the existing suite to reuse sound tests and find gaps. |
+| Existing validation-architect design | Reopen only affected structures and improve the suite incrementally. |
+| Older method or schema | Produce and validate an explicit migration; never upgrade silently. |
 
-Human output can then lead with:
+The existing test suite is an input, not the source of requirements: **derive
+requirements from first principles; improve implementation incrementally.**
 
-> The host could not prove stable process identity, so Vitest did not start and
-> product behavior is unassessed.
+### 9.2 One authoritative model
 
-The exact prerequisite ID, affected CF families, leaf statuses, remediation, and
-raw evidence remain directly available underneath.
+Three things must stay distinct:
 
-### 9.6 Capability and preflight contract
+- the **design corpus**: product structures, validation policy, families,
+  backlog, owners, negative controls, and trace links;
+- the **test inventory**: actual test files, test identities, fixtures, and
+  runners;
+- the **evidence**: results from one exact revision and environment.
 
-The library should describe required capabilities and normalize probe results. The
-host should implement the probes. This permits Cormidia to reuse its strong
-process-identity and offline-store checks without making the library OS-specific.
+The redesign should make a versioned, schema-validated YAML model the sole
+authority for machine facts. Split it into logical files rather than one large
+manifest. Generate the catalog, backlog, owner brief, trace view, and other human
+Markdown from that model. Narrative inputs such as product documents,
+`rambling.txt`, and ratification rationale remain authored prose; duplicated
+tables of machine facts do not.
 
-The outer launcher also needs a minimal bootstrap envelope so failures before the
-library or Vitest loads can still produce a typed `PREREQUISITE` or `HARNESS`
-record. Preflights should run cheapest and most foundational checks first, stop
-affected execution, and disclose no secrets.
+This is a deliberate clean break. Validation Architect has no external users, so
+preserving a fragile Markdown/YAML dual authority would add complexity without a
+compatibility benefit. The compiler must reject duplicate IDs, broken links,
+missing owners or negative controls, invalid statuses, and generated-view drift.
+It must report the exact source location and plain-language correction.
 
-### 9.7 Explain and role-projection API
+The test inventory remains outside the design model because test code is real
+repository state. A repository adapter reads it and the compiler joins it to the
+design for trace and impact queries.
 
-One normalized manifest should generate four views:
+### 9.3 Built into the existing campaign
 
-- **Change author:** affected product meaning, trustworthy commands, fixtures,
-  negative controls, safety-floor expansion, and unknowns.
-- **Validation architect:** enumerations, ownership, layer/oracle rationale,
-  closure findings, and migration diagnostics.
-- **Reviewer:** protected meaning, trace chain, negative-control evidence,
-  selected/omitted scope, unresolved findings, and exact artifacts.
-- **Operator/human:** causal outcome, completeness, remediation, approvals, run
-  identity, and links to full evidence.
+The checked model is not an extra workflow layer. It becomes the working state of
+the current campaign:
 
-Plain language leads every view. Exact CF/HB/contract identifiers remain visible
-for audit and linking.
+1. the designer/stakeholder loop edits the structured model;
+2. the compiler validates it and regenerates human views after each meaningful
+   change;
+3. campaign completion is blocked on a clean compile;
+4. the fresh-reader pass reviews only the generated, self-contained artifacts;
+5. the design auditor receives the model, compiler report, and generated views,
+   then applies judgment that deterministic checks cannot provide;
+6. the accepted bundle includes the model, readable views, and an initial trace
+   report showing planned implementation links.
 
-### 9.8 Advisory impact planner
+After tests are built, the same trace engine adds actual test and evidence links.
+A deterministic trace check proves closure on every change. A fidelity audit then
+judges whether the tests truly implement the intended oracle and negative
+control. The audit need not spend model judgment rediscovering broken links that
+the compiler can find exactly.
 
-The planner should return an explanation, not merely a list of test paths. Its
-output should include:
+### 9.4 Trace, explain, and impact
 
-- changed inputs and resolved structures;
-- selected families and detector paths;
-- always-run safety-floor checks;
-- neighboring or boundary expansions;
-- unresolved mappings;
-- the fallback decision and reason;
-- the full set that CI will still execute.
+The shared relationship is:
 
-Unknown, structural, corpus, gate, fixture, or policy changes should expand to the
-full applicable lane. The first useful deployment is local advisory selection and
-CI ordering: run the likely causal slice early, then run the complete required
-suite exactly once. Test omission must not become canonical until recall is
-demonstrated and the harness change is ratified.
+`changed path -> product structure -> validation family -> test -> evidence`
 
-### 9.9 Compatibility and migration manifest
+- **Trace** walks relationships that already exist: “Why does this test exist?”
+  or “What protects this contract?”
+- **Explain** renders that answer for a person, leading with product meaning and
+  retaining exact IDs and source links.
+- **Impact** starts with a proposed change and asks which structures, families,
+  and tests may be affected.
 
-Every accepted corpus should bind:
+These are three uses of the same model, not three new document sets. Product
+adapters supply path and symbol mappings. If a mapping is missing or uncertain,
+the plan expands to a wider set, up to the full applicable suite.
 
-- library package version;
-- method version;
-- corpus schema version;
-- result schema version;
-- policy and golden-set identity;
-- migration history and compatibility range.
+### 9.5 One result record people can understand
 
-The library should validate these identities before design, planning, or result
-interpretation. It should never silently upgrade an accepted corpus.
+Adopt a stable `validation-result/v1` record. Every launcher, prerequisite check,
+test runner, trace check, and higher-lane campaign maps into it.
 
-## 10. Alternative designs
+Each result answers three separate questions:
 
-| Alternative | Benefits | Risks | Tradeoff |
-| --- | --- | --- | --- |
-| Full suite plus causal reporting | Lowest assurance risk; immediate diagnostic improvement; no selection-recall problem. | Local feedback remains slow; causal edges must be instrumented. | Safest first delivery, but does not solve discovery. |
-| Changed-path impact manifest | Directly answers the author's question and can accelerate feedback. | Stale mappings can create false confidence. | High value only with fail-open fallback, visible explanation, and measured recall. |
-| Contract-first `explain` and run plans | Useful before automatic selection; serves authors and Reviewers. | A human still confirms scope; depends on reliable corpus compilation. | Strong near-term interface and a prerequisite for trustworthy automation. |
-| Generated manifest and role briefs | Reduces repeated transcription and gives each role an appropriate view. | Can become another drifting artifact if hand-maintained. | Excellent when generated from one authoritative IR. |
-| Structured corpus compiler | Removes delimiter fragility and centralizes semantic validation. | A canonical-source migration is a protocol change with meaningful conversion risk. | Best long-term foundation; begin as a read-only compiler before changing authority. |
+| Question | Values | Meaning |
+| --- | --- | --- |
+| Does this rule apply? | `applicable`, `not_applicable` | `not_applicable` requires an accepted reason. |
+| Was all required evidence collected? | `complete`, `incomplete` | Missing, blocked, stopped, or stale evidence is incomplete. |
+| What did the evidence show? | `pass`, `fail`, `inconclusive` | A proven violation fails; insufficient evidence is inconclusive. |
 
-### Recommendation
+This separation matters. A product violation may be `fail` even when unrelated
+evidence is incomplete. Incomplete evidence can never produce `pass`. Only an
+applicable, complete pass is green.
 
-Adopt a hybrid of all five in risk order:
+When an applicable result is not green, its reason uses one of five plain
+meanings:
 
-- build the compiler and explanation layer first;
-- add causal reporting to the unchanged full suite;
-- expose impact plans as advisory and fail-open;
-- generate role views from the same IR;
-- ratify any authority migration or canonical selection only after measured
-  evidence.
+| Reason | Meaning |
+| --- | --- |
+| `product_failure` | Product behavior violated an accepted rule. |
+| `prerequisite_unavailable` | The required host, tool, package store, credential, authorization, or process capability was unavailable. |
+| `harness_failure` | A fixture, adapter, runner, reporter, or harness self-test failed. |
+| `evidence_incomplete` | Required evidence was missing, stale, stopped, unauthorized, or not run. |
+| `traceability_broken` | Design, ownership, test, status, or generated-view links disagreed. |
 
-## 11. Recommended target experience
+The stable record contains only the facts every consumer needs:
 
-The target flow is:
+- applicability, completeness, verdict, and reason;
+- a plain-language summary and next action;
+- exact product revision, lane, environment, and library/method/model versions;
+- the owning product structure and root identifier;
+- every affected case with its status and any `blocked_by` root;
+- selected scope, expansions, and unresolved mappings when planning was used;
+- evidence references and integrity hashes.
+
+Hosts may add namespaced details, but may not redefine these meanings. A skipped
+required test is incomplete and inconclusive; it never passes.
+
+### 9.6 One root cause, every affected case
+
+A failed prerequisite or shared fixture can block hundreds of tests. Human output
+should show that root once, then summarize its effects. The machine record must
+still retain every affected case and the explicit `blocked_by` link.
+
+Grouping is allowed only when the dependency is declared: a test requires a
+failed capability, fixture, or runner stage. Similar error text or stack traces
+are not enough. Independent product failures remain independent.
+
+### 9.7 Startup checks
+
+The library defines required capabilities and result meanings; the host implements
+the probes. A minimal outer launcher must also classify failures that happen
+before the library or test framework loads. Checks run from cheapest and most
+foundational to most expensive. A failed prerequisite starts zero dependent tests
+and produces a useful result without exposing secrets.
+
+### 9.8 Role-specific views
+
+The same model generates:
+
+- an author view with affected meaning, trustworthy commands, fixtures, negative
+  controls, expansions, and unknowns;
+- an architect view with enumerations, ownership, layer/oracle rationale, and
+  closure findings;
+- a Reviewer view with protected meaning, trace chain, exclusions, negative
+  controls, and evidence;
+- an operator view with the first cause, affected cases, next action, run
+  identity, and full evidence link.
+
+Plain meaning comes first. CF/HB/contract IDs remain available as precise
+secondary detail.
+
+### 9.9 Changed-path planning
+
+The planner returns an explained test plan, not merely test paths. It includes the
+changed inputs, affected structures and families, always-run safety checks,
+negative controls, expansions, unknowns, and exact commands.
+
+This is initially a feedback optimization. Locally, it suggests the smallest
+trustworthy set. In CI, it may run likely failures first. The full required suite
+still runs exactly once. Unknown or structural changes expand to the full suite,
+so advice can become broader but never silently narrower.
+
+“Selection recall” simply asks: of all test families later confirmed as relevant,
+how many did the planner recommend? Selecting 19 of 20 is 95% recall. Before the
+tool calls its advice trustworthy, it must miss zero required families across:
+
+- a generated example for every mapping and fallback rule;
+- representative historical changes;
+- deliberate negative controls that remove or corrupt mappings; and
+- shadow runs compared with independent review and the full suite.
+
+Extra selections are acceptable and measured separately. This evidence improves
+advice; it does not authorize test omission from the required CI suite.
+
+### 9.10 Versions and migration
+
+Before version 1.0, use a clean current schema with no compatibility promise. Do
+not carry the old dual-authority structure into the new design merely to preserve
+it.
+
+At 1.0, semantic-version rules apply. The library writes only the current schema
+major and can read the current and immediately previous major only to perform an
+explicit migration. Every accepted design records the package, method, model,
+result, policy, and golden-set versions. A major meaning change requires a named
+migration and review; it never happens while reading a corpus.
+
+## 10. Target experience
+
+### 10.1 Design or revise validation
+
+`inputs -> designer/stakeholder loop -> compile -> reader test -> design audit -> accepted bundle`
+
+The user experiences one campaign. Trace and explain artifacts appear because the
+campaign compiles its model, not because the user starts another agent afterward.
+In revision mode, the current design and test inventory are inputs, and only the
+affected design is reopened.
+
+### 10.2 Use the built validation
 
 `change -> doctor -> explain/plan -> execute -> causal result -> diagnose -> review -> full CI`
 
-1. **Doctor.** A proposed `validate doctor` entrypoint emits concise human text and
-   a versioned JSON result. The outer launcher captures bootstrap failure too.
-2. **Explain and plan.** A proposed `validate explain <path|symbol|contract|CF|HB>`
-   or `validate plan --changed` returns the product structures, families, safety
-   floor, expansions, unknowns, and exact commands.
-3. **Execute.** The local slice uses the same isolated home, temp, Git, network,
-   credential, process, and package-store rules as the full lane. Negative controls
-   stay selected with their detectors.
-4. **Fail usefully.** The first screen shows one plain-language causal root, its
-   class, remediation, and owner. It does not stream hundreds of derivative
-   failures first.
-5. **Retain evidence.** A compact table and machine artifact preserve every case,
-   exact ID, status, edge, stdout/stderr reference, and identity hash.
-6. **Review.** A generated brief shows changed paths, selected and expanded
-   families, omissions and reasons, contract/invariant trace, negative controls,
-   unresolved findings, and evidence completeness.
-7. **Run full CI.** Core CI retains all required checks. An impact slice may order
-   likely failures earlier but cannot replace the full lane without ratification.
+1. `doctor` checks that the environment can run the plan.
+2. `explain` and `plan --changed` show affected product meaning, tests, unknowns,
+   and commands.
+3. local execution uses the same isolation and fixtures as CI.
+4. the first failure leads with one plain-language cause and next action.
+5. the full artifact retains every case and exact identity.
+6. a generated brief gives the Reviewer the trace, selection, negative controls,
+   and evidence.
+7. a separate required `Validation Trace` CI check proves model-to-test closure;
+   Core Checks still runs the complete required suite.
 
-## 12. Local/CI parity and time to first actionable failure
+Trace is not merely navigation. It detects missing implementations, orphan tests,
+false “landed” status, missing owners, broken negative-control links, and generated
+view drift. It should therefore be a separate named required check, not a manual
+audit and not a detail buried inside a generic Core Checks job. The design
+campaign runs the same deterministic gate before its auditor. The independent
+auditor remains responsible for design quality and test fidelity.
 
-Parity requires more than running the same test names. Local and CI results should
-bind the same:
+## 11. Measurements
 
-- product revision and requested lane;
-- library, method, corpus, result-schema, policy, and golden-set versions;
-- Node, package manager, architecture, runner class, and package-store evidence;
-- selected family set, safety-floor set, and negative controls;
-- cause classification, verdict, completeness, and leaf ledger.
+| Measure | Plain definition |
+| --- | --- |
+| Time to first actionable failure | Start to the first message that states what happened, why, who owns it, and what to do next. Include startup and preflight time. |
+| Causal-to-derivative failure ratio | Number of displayed roots compared with affected case records. Also report ungrouped cases so grouping cannot hide failures. |
+| Selection recall | Relevant families recommended divided by all families confirmed relevant through the benchmark and review. Track extra selections separately. |
+| Local/CI parity | For the same revision and lane, agreement on the plan, outcome, reason, affected families, and evidence; disclose environment differences. |
+| Time to owning contract | Time for an unfamiliar author to reach the exact owning contract, invariant, boundary, or journey from a failure. |
+| Correctly traced detector effort | Time, commands, files, and repair iterations needed to add a detector whose trace and negative control pass. |
+| Prerequisite classification accuracy | Share of environment failures stopped before dependent tests and correctly described as prerequisites. |
+| Reviewer comprehension | Time and accuracy for a fresh Reviewer to identify meaning, owner, layer, negative control, exclusions, and evidence. |
 
-Environment-specific values may differ, but differences must be explicit. Hosted
-fallback must never silently change the SHA, lane, gates, or evidence obligation.
+Collect the baseline across feature changes, defect fixes, new detectors, trace
+repairs, prerequisite failures, and fixture failures.
 
-Time to first actionable failure should include startup, package-store checks,
-fixture setup, and reporter initialization—not just Vitest duration. The first
-actionable message must contain plain meaning, cause class, owning structure, and a
-remediation or next diagnostic step.
+## 12. Source-module size
 
-## 13. Structural gates and the line-count ratchet
+The purpose of a line limit is simple: keep a module small enough for a human or
+agent to understand. For Validation Architect core, target 400 lines and set a
+500-line ceiling for new source modules. Keep the existing public-export limit and
+require a named exception when a cohesive module genuinely needs more room.
 
-The exact line-count ratchet can provide useful architecture pressure: it makes
-growth visible and encourages decomposition. It can also create incentives for
-mechanical splitting, line shaving, baseline churn, or moving complexity without
-reducing it.
+Line count is a guardrail, not a design verdict. Do not create a separate metrics
+program for it in this redesign, and do not split cohesive code mechanically just
+to satisfy the number.
 
-The current commit sample establishes maintenance frequency, not harm. Therefore:
+## 13. Implementation backlog and dependency order
 
-- do not weaken or remove the ratchet now;
-- measure baseline overrides, split-only changes, review time, churn, export-count
-  workarounds, and post-change defects;
-- compare physical size with responsibility count, coupling, public symbols, and
-  change frequency;
-- require human ratification for any threshold or enforcement change.
+These are the core-library work items. Cormidia adapter implementation follows in
+a separate effort after the library interfaces and this core redesign are built.
 
-This is primarily a Cormidia design-policy question, not a generic
-`validation-architect` core responsibility. The library may represent and report a
-consumer's structural findings, but it should not impose one universal line limit.
-
-## 14. Improvements by horizon
-
-### Quick wins
-
-- Compile the current corpus read-only and emit field-level semantic diagnostics.
-- Repair Cormidia's 65 trace findings and delimiter-sensitive catalog generation
-  without weakening trace checks.
-- Define the versioned result envelope and five-class cause taxonomy as a proposal.
-- Add a bootstrap-aware JSON preflight artifact alongside concise human output.
-- Add `explain` queries backed by the current generated corpus.
-- Make routine failures link to the owning contract and routing source.
-- Document that direct Vitest invocation is a diagnostic shortcut, not a complete
-  validation entrypoint.
-
-### Medium-term improvements
-
-- Add the pure causal reducer and a Cormidia Vitest/fixture adapter.
-- Generate Builder, Reviewer, architect, and operator views from one manifest.
-- Publish a secret-safe local/CI environment fingerprint.
-- Add the advisory changed-path graph with full-suite fallback.
-- Run likely impacted cases first in CI while retaining the complete required run.
-- Record root-to-leaf metrics and upload the complete machine artifact.
-
-### Structural proposals
-
-These require protocol review and, when they alter corpus or gate semantics,
-harness revision and human ratification:
-
-- ratify the cross-lane result schema and cause taxonomy;
-- decide whether a structured corpus becomes authoritative;
-- ratify impact-selection recall and fallback requirements;
-- decide whether trace closure joins Core Checks as a required status;
-- change any size-ratchet threshold or enforcement semantics;
-- allow targeted selection to omit tests from an authoritative lane.
-
-## 15. Measurements
-
-| Measure | Definition | Guard against gaming |
-| --- | --- | --- |
-| Time to first actionable failure | Start of command/job to the first message containing meaning, class, owner, and remediation. | Include bootstrap and preflight time, not only test-framework time. |
-| Causal-to-derivative ratio | Displayed causal roots divided by affected leaf records. | Report root-assignment coverage and ungrouped leaves beside it. |
-| Targeted-suite recall | Families reached by the selector divided by families established as affected by a trustworthy full run/review. | Required-lane recall must be 100% before omission; measure false-positive expansion separately. |
-| Local/CI parity | Same commit/lane yielding the same selected families, cause class, completeness, and verdict where environment permits. | Publish environment differences rather than excluding mismatches. |
-| Time to owning contract | Time from first failure to the exact owning contract, invariant, boundary, or journey. | Test with authors unfamiliar with CF/HB IDs. |
-| Correctly traced detector effort | Median author time, commands, files touched, and trace-fix iterations for one valid detector. | A detector counts only when its negative control and trace closure pass. |
-| Prerequisite classification accuracy | Share of environment failures stopped before affected tests and correctly typed. | Sample false `PRODUCT` and false `PREREQUISITE` classifications. |
-| Preflight overhead | Time added by prerequisite checks on clean and cold hosts. | Never trade away required checks solely to lower the number. |
-| Reviewer comprehension | Time and accuracy for an independent Reviewer to identify meaning, owner, layer rationale, negative control, and evidence state. | Use blind tasks, not corpus experts only. |
-| Mechanical-churn indicators | Baseline-only changes, split-only commits, overrides, line shaving, and review time around structural gates. | Pair with coupling and defect outcomes; frequency alone does not prove harm. |
-
-Collect the first baseline across ordinary feature changes, bug fixes, detector
-deposits, trace repairs, prerequisite failures, and fixture failures before changing
-policy.
-
-## 16. Ranked candidate backlog
-
-These are candidate work items, not created tickets.
-
-| Rank | Candidate | User problem | Responsible layer | Expected benefit | Assurance that must remain unchanged | Measurement | Classification |
+| Rank | Candidate | User problem | Responsible layer | Expected benefit | Assurance unchanged | Measurement | Work type |
 | ---: | --- | --- | --- | --- | --- | --- | --- |
-| 1 | VA-CORE-001: typed corpus IR and semantic compiler | Corpus fields and generated artifacts can drift or be parsed lossily. | `validation-architect` core plus a read-only Cormidia source adapter | One validated fact model, precise diagnostics, and safer generation. | Every family, structure, status, owner, negative control, and evidence reference remains represented; no silent repair. | Semantic findings, parser defects, files/iterations per detector. | Ordinary library work while read-only; changing corpus authority requires harness revision and human ratification. |
-| 2 | VA-CORE-002: versioned result envelope and cause taxonomy | Launch paths describe prerequisite, harness, product, evidence, and trace failures inconsistently. | `validation-architect` results core; Cormidia emitters | Uniform fail-closed semantics and portable reports. | Verdict/completeness independence, exact identity binding, and product-failure precedence. | Classification accuracy, schema conformance, local/CI parity. | Protocol-surface proposal; human ratification before stable adoption. |
-| 3 | VA-CORE-003: trace graph and `explain` API | Authors and Reviewers must already know CF/HB identifiers and document topology. | `validation-architect` trace/query core | Faster path-to-contract and product-oriented explanations. | Exact IDs, full trace edges, unresolved findings, and source provenance stay visible. | Time to owning contract, reviewer comprehension, query coverage. | Ordinary work against accepted metadata; new mandatory metadata is a protocol proposal. |
-| 4 | VA-CORE-004: causal reducer and complete leaf ledger | One shared failure can produce hundreds of noisy derivatives. | `validation-architect` results core plus Cormidia dependency instrumentation | One actionable root with complete audit evidence. | Every affected case remains recorded; no heuristic grouping; no leaf becomes pass. | Causal-to-derivative ratio, root coverage, misgrouping rate. | Protocol-surface proposal; display adapter is ordinary after ratification. |
-| 5 | CORM-VAL-001: universal bootstrap and preflight adapter | Failures can occur before the current preflight can classify them. | Cormidia launcher/probes using the library capability schema | Earlier environment diagnosis and zero derivative test starts. | Fail closed, exact offline canary, credential isolation, zero affected tests on incomplete prerequisites. | Classification rate, time to actionable failure, preflight overhead. | Ordinary Cormidia work if verdict semantics stay unchanged; shared schema follows VA-CORE-002 ratification. |
-| 6 | CORM-VAL-002: repair and surface trace closure | The assessed trace report is RED and separate from Core Checks. | Cormidia corpus, trace adapter, and CI summary | Restores closure and makes drift visible in normal review. | No weakening of agreement, closure, status, or structure checks. | Findings from 65 to zero, recurrence rate, time to repair. | Corpus repair is ordinary work; required-CI promotion is a protocol proposal. |
-| 7 | VA-CORE-005: advisory impact planner | Authors cannot discover a smallest trustworthy suite from changed paths. | Library planner plus Cormidia Git/architecture adapter | Faster feedback with explainable expansions and fallback. | Unknowns expand to the full lane; safety floor and negative controls remain; full CI remains. | Recall, false-positive expansion, planning latency. | Advisory mode is ordinary; canonical omission requires harness revision and human ratification. |
-| 8 | VA-CORE-006: role-specific validation briefs | Builders, Reviewers, architects, and operators reconstruct the same facts differently. | Library projection core plus Cormidia renderers | Lower comprehension burden without duplicate truth. | All views derive from the same versioned manifest and retain exact evidence links. | Reviewer comprehension, authoring effort, view/manifest agreement. | Ordinary tooling; making a new field mandatory is a protocol proposal. |
-| 9 | CORM-VAL-003: local/CI parity fingerprint and causal reporter | Runner and environment differences are hard to compare; default output is noisy. | Cormidia Vitest reporter, wrapper, and CI artifact integration | Faster “works locally” diagnosis and consistent first-screen output. | Same SHA/lane/gates, no silent hosted fallback, full raw evidence retained. | Parity rate, time to classify drift, root coverage. | Ordinary integration after result-schema ratification. |
-| 10 | VA-CORE-007: compatibility and migration manifest | Library, method, corpus, policy, and result versions can otherwise drift independently. | `validation-architect` core and Cormidia pinning/acceptance | Reproducible design and interpretation across upgrades. | No silent upgrade; exact accepted versions and migration evidence remain binding. | Rejected mismatch rate, migration defects, reproducibility checks. | Protocol-surface proposal; accepted-corpus migration requires human ratification. |
-| 11 | CORM-VAL-004: impact-first CI ordering | Full-suite feedback is slow even when likely affected tests are known. | Cormidia Core Checks orchestration | Earlier causal signal without executing less assurance. | Complete required suite still runs exactly once with unchanged gates. | Time to actionable failure, total CI time, duplicate execution. | Ordinary workflow work if it only orders and never omits. |
-| 12 | CORM-DESIGN-001: measure the size ratchet | Exact line thresholds may encourage mechanical churn, but harm is unproven. | Cormidia design policy and size gate | Evidence for retaining, refining, or replacing the signal. | No immediate weakening; type, export, import-direction, and test gates remain. | Baseline churn, overrides, coupling, review time, post-change defects. | Measurement is ordinary work; policy change requires human ratification. |
+| 1 | VA-CORE-001: authoritative model and compiler | Repeated facts drift across Markdown, YAML, backlog, and owner views. | Core model, schema, compiler, generators | One source of truth and precise errors. | All structures, families, owners, layers, oracles, negative controls, statuses, and provenance remain required. | Compiler findings; duplicate edits per design change; generated-view drift. | Protocol surface; approve schema before implementation. |
+| 2 | VA-CORE-002: campaign integration | Compilation, reader tests, and audit can otherwise become disconnected stages. | Campaign state machine and completion gates | One understandable design loop that always emits usable artifacts. | Fresh readers, independent audit, bounded dispositions, frozen audited corpus, and resumability remain. | Completion-gate defects; reader comprehension; audit findings caused by deterministic drift. | Harness revision and human ratification. |
+| 3 | VA-CORE-003: trace and explain | Users must know internal identifiers and reconstruct relationships manually. | Core query engine and generated views | Fast answers from product meaning to test and evidence. | Exact IDs, provenance, unresolved gaps, and full relationship closure remain visible. | Time to owning contract; query coverage; Reviewer comprehension. | Ordinary work after the model schema is approved. |
+| 4 | VA-CORE-004: stable result API | Different launch paths use different words and can obscure whether product behavior was assessed. | Result schema and adapter contracts | One portable, fail-closed meaning across local, CI, and higher lanes. | Only complete success is green; product-failure precedence and exact identity binding remain. | Schema conformance; classification accuracy; local/CI parity. | Protocol surface; approve `validation-result/v1`. |
+| 5 | VA-CORE-005: causal reporting and startup contract | One prerequisite or fixture failure can create hundreds of noisy outcomes, including failures before the reporter starts. | Result reducer and host capability interfaces | One actionable cause with every affected case preserved. | Declared dependencies only; no case disappears or becomes pass; zero dependent tests on failed prerequisite. | Root coverage; misgrouping rate; time to actionable failure. | Harness revision; host adapters follow separately. |
+| 6 | VA-CORE-006: changed-path planner | Authors cannot find a small trustworthy set without knowing the corpus topology. | Impact engine and adapter interfaces | Faster explained local feedback and earlier CI signal. | Unknowns expand; negative controls and safety checks stay paired; full required CI remains. | Zero benchmark misses; extra-selection rate; planning latency. | Ordinary advisory tooling; any future omission is a separate ratified proposal. |
+| 7 | VA-CORE-007: versioning and migration | Method, model, and result meanings can drift across upgrades. | Version checks and migration API | Reproducible interpretation and deliberate upgrades. | No silent migration; accepted version and migration evidence remain exact. | Rejected mismatches; migration round-trip tests; reproducibility. | Protocol surface before 1.0. |
 
-## 17. Acceptance conditions for the redesign
+## 14. Decisions and rationale
 
-The redesign is not successful merely because its output is shorter. It should be
-accepted only when it demonstrates that:
+| Decision | Recommendation | Why |
+| --- | --- | --- |
+| Stable results | Adopt the three result axes, five reasons, and required record contents in section 9.5 as `validation-result/v1`. | They answer the user's questions—what happened, why, what was affected, and what to do—without exposing runner-specific vocabulary. |
+| Source of truth | Move machine facts to schema-validated YAML and generate Markdown views. | There are no external users to protect, and dual authority is the main source of parsing and synchronization complexity. |
+| Trace in the workflow | Compile and trace during the design loop, require deterministic implementation trace in CI, and retain independent design/fidelity audit. | Deterministic closure, human comprehension, and judgment test different properties. |
+| Impact-planning proof | Require zero missed required families in generated, historical, negative-control, and shadow benchmarks; still run full CI. | This makes the advice credible without using a metric to weaken assurance. |
+| Result vocabulary | Keep three plain answers: applicability, completeness, and verdict. Treat blocked/not-run as reasons for incomplete evidence. | The same model works across deterministic tests and higher lanes without hiding a product failure behind missing evidence. |
+| Compatibility | Clean break before 1.0; from 1.0, write current schema and read current plus previous major for explicit migration only. | It avoids premature legacy while providing a disciplined future upgrade path. |
+| Module size | Target 400 lines and cap new core modules at 500, with named exceptions. | It protects human and agent comprehension without turning line count into an architectural theory. |
 
-- an empty or unstarted suite cannot be reported green;
-- every summarized root resolves to a complete leaf ledger;
-- negative controls remain paired with selected detectors;
-- unknown mappings expand rather than omit;
-- local and CI artifacts bind exact identities and explain differences;
-- trace compilation detects semantic corruption, not just byte drift;
-- an unfamiliar author can find the owning product contract without knowing an ID;
-- an independent Reviewer can reconstruct selection, exclusions, and evidence from
-  one generated brief;
-- provider calls, budgets, approvals, and settlement remain entirely under the
-  injected Cormidia authority boundary;
-- no accepted corpus or stable schema is migrated silently.
+## 15. Acceptance conditions
 
-Core functionality should deposit its own focused detectors and negative controls,
-but the program should resist adding product test families merely to increase a
-count. Where coverage is already strong, the priority is classification,
-selection, causal reporting, portability, and explanation.
+The redesign is complete only when:
 
-## 18. Open decisions requiring explicit ratification
+- the campaign cannot finish with an invalid model or stale generated view;
+- an empty or unstarted required suite cannot be green;
+- every summarized cause resolves to every affected case;
+- negative controls remain paired with their detectors;
+- unknown impact expands instead of omitting tests;
+- trace detects missing, orphaned, dishonest, and semantically broken links;
+- an unfamiliar author can find the owning rule without knowing a CF/HB ID;
+- a fresh Reviewer can reconstruct scope, exclusions, and evidence from one view;
+- accepted versions and migrations are exact and never silently changed; and
+- provider calls, budgets, approvals, and storage remain under the active host's
+  authority.
 
-- Which result fields and cause classes become stable public API?
-- Does Cormidia keep Markdown as the ratified source with a compiled IR, or migrate
-  to a structured authoritative manifest?
-- What evidence establishes 100% required-lane recall for impact selection?
-- Does trace closure join Core Checks, become a separate required check, or remain
-  manually enforced until a defined closure milestone?
-- Which status vocabulary is shared across deterministic tests and higher-lane
-  evidence?
-- What compatibility window will the packaged library support across method,
-  corpus, and result-schema versions?
-- Which structural metrics should complement physical line count before any
-  ratchet change is considered?
+Core work should add its own focused detectors and negative controls. It should
+not add product test families merely to increase a count. Where coverage is
+already strong, improve classification, selection, reporting, portability, and
+explanation first.
 
-Until those decisions are made, the proposed APIs and workflows remain
-experimental projections around Cormidia's existing assurance rules.
+## 16. Final judgment
 
-## 19. Final judgment
+Validation Architect should become one coherent system that designs validation,
+compiles its decisions, explains them, checks implementation closure, plans
+feedback, and reports results. The compiler and generated views strengthen the
+existing designer–stakeholder–reader–auditor loop; they do not sit beside it.
 
-Cormidia does not primarily need more tests. It needs a clearer interface to the
-substantial validation system it already has.
-
-Packaging `validation-architect` as a library is the right point to separate the
-generic capability from the first product integration:
-
-- the library compiles, explains, plans, classifies, reduces, and projects;
-- Cormidia probes, executes, authorizes, persists, and enforces;
-- the accepted corpus and all assurance semantics remain exact;
-- any change to canonical authority or test omission returns through harness
-  revision and human ratification.
-
-That boundary makes validation easier to understand, author, select, run, and
-diagnose without buying convenience by spending assurance.
+The standalone tool can apply this core directly to any repository, including
+Cormidia. Later, Cormidia can embed the same core for its users' applications
+through a separate adapter. In both modes, validation becomes easier to understand
+without weakening what counts as evidence.

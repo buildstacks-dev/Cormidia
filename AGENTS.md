@@ -62,6 +62,8 @@ inventory.
   real org spend provider tokens and can open PRs/approvals.
 
 ## Working rules
+- **Platform development lands through a PR and squash-merge.** Never commit or
+  push directly to this repository's remote default branch.
 - **Import direction is one-way:** `src/org` → `src/loop` → `src/runtime`;
   runtime imports nothing above it (`scripts/check-import-direction.mjs`).
 - **Never hardcode a default branch.** Resolve with

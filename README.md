@@ -1011,7 +1011,7 @@ enforced budget caps, durable continuation from artifacts, honest stops with
 token-free environment preflight, orchestrator-published bootstrap planning,
 the ratified approval & release boundary (scoped grants, release handoff,
 adapter-level role toolset shaping), and a repeatable clean-room benchmark
-([`docs/qualification/benchmark-runbook.md`](docs/qualification/benchmark-runbook.md)).
+(2026-07 Stage 7 runbook, preserved in git history; targets met 2026-07-11).
 The governed learning loop ([`docs/learning-loop/`](docs/learning-loop/)) is
 complete and live through M6: every pass is captured into episodes and replay
 capsules, and learned changes activate only through human review, offline

@@ -600,8 +600,8 @@ Promote, extend, reject, or rollback
 True held-out behavioral cases remain **verifier-only**. Visible tests in the
 app or org repository are valuable regression tests, but they are not held out
 if the acting agent can read and optimize directly against their expected
-answers. The post-proportionality bootstrap benchmark
-(`docs/qualification/benchmark-runbook.md`) is the first global eval; it is not sufficient
+answers. The post-proportionality bootstrap benchmark (the 2026-07 Stage 7
+runbook, retired to git history) is the first global eval; it is not sufficient
 as the general learning suite.
 
 ### 9.4 ReplayCapsule and the Ownership Boundary

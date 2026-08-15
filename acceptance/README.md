@@ -45,9 +45,9 @@ Two places already name that gap, unbuilt:
 - [`docs/jobs/design.md`](../docs/jobs/design.md) §14 — **L-JOB-LIVE (not run)**:
   real apps, real tokens, outcome measurement per job shape, blocked on "a
   human-authored measurement rubric before it means anything."
-- [`docs/qualification/benchmark-runbook.md`](../docs/qualification/benchmark-runbook.md)
-  — the buildstacks-class bootstrap replay, the nearest ancestor for the app
-  half, now historical with archived entrypoints.
+- the 2026-07 Stage 7 benchmark runbook (the buildstacks-class bootstrap
+  replay, retired to git history) — the nearest ancestor for the app half,
+  historical with archived entrypoints.
 
 L-ACC is the lane that would close both.
 

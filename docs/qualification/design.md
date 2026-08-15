@@ -122,6 +122,33 @@ complete evidence and a ratified/non-proposed decision. Status, terminal/HTML Re
 and Observe all render inconclusive as **not a pass and not release evidence** and link
 the operator runbook at `docs/qualification/validation-triage.md`.
 
+## Proportionate release evidence
+
+Evaluation reduces material release risk; it is not an obligation to generate
+an infinite proof cascade. A genuine product defect, safety-boundary failure,
+provider-settlement or accounting mismatch, learning-integrity failure, build,
+typecheck, core-test or required-CI failure, or campaign budget-ceiling breach
+blocks release. Do not weaken a product contract, grader, hidden threshold,
+provider assignment, safety rule, accounting invariant, or CI check to pass.
+
+Evaluator-only false positives, redundant exact-candidate admission demands,
+report or metadata defects, transient eval infrastructure failures with
+preserved evidence, and missing repetition whose risk is already bounded by
+deterministic tests and retained live evidence are non-blocking release debt.
+Retain the original result exactly, add a focused deterministic regression when
+inexpensive, and disclose the debt. Do not rescore, overwrite, relabel, conceal,
+or promote from unsupported evidence, and do not recursively restart adapter,
+focused-admission, and full-candidate campaigns for evaluator-only defects.
+Real pre-V1 products may ship with bounded, disclosed eval debt.
+
+Each repaired candidate gets at most one decisive full qualification campaign.
+If it qualifies, use that evidence. If it exposes a genuine material defect,
+repair the product and treat the materially changed candidate as a new release
+decision. If it stops only on an evaluator defect, preserve the non-qualified
+campaign, record the bounded debt, and continue release validation without a
+merit retry or another provider campaign. Every release report and PR names the
+residual debt explicitly.
+
 ## Retained historical qualification contract
 
 The executable machinery named below (`scripts/eval/**`, `eval/**`, transformation

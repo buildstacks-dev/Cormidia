@@ -239,16 +239,29 @@ denominator. No campaign is authorized merely because the gate is active.
 
 ## Shipping discipline
 
-Work in an isolated clean worktree. Review the entire diff and staged set;
-exclude credentials, provider scratch, raw prompts/outputs/session logs, and
-unrelated user changes. Run checks sequentially when they are resource-heavy,
-and bound worker concurrency for subprocess/disk-heavy umbrella suites so the
-test harness does not manufacture timeout flakes through self-contention.
-A qualified release must match the frozen installable-package and executable-
+Platform development of this repository never commits directly to `main` or
+pushes `main` to origin. Start from current `origin/main` in an isolated clean
+worktree or branch. Keep one coherent objective; size alone neither requires a
+split nor excuses a diff that cannot be reviewed. Review the entire diff and
+staged set, excluding credentials, provider scratch, raw prompts/outputs/session
+logs, and unrelated user changes.
+
+Open a ready pull request and wait for Core Checks. Repair causes without
+weakening gates. The active `Production Protection` ruleset requires a pull
+request, linear history, and resolved review threads and refuses branch deletion
+and non-fast-forward updates. It does not currently make Core Checks a required
+ruleset check, so F-PT-018 remains the honest merge-enforcement bound rather
+than a claim that green CI is mechanically required.
+
+Squash-merge only. The pull-request title and body are the surviving `main`
+commit title and body; do not replace them with an inventory at merge time.
+After merge, synchronize the primary checkout without overwriting or resetting
+local work. Run checks sequentially when they are resource-heavy, and bound
+worker concurrency for subprocess/disk-heavy umbrella suites so the test
+harness does not manufacture timeout flakes through self-contention. A
+qualified release must match the frozen installable-package and executable-
 suite hashes, or a tested evidence-only descendant attestation must prove the
-equivalence. Push a focused branch, open a ready PR, wait for every required CI
-check, repair causes without weakening gates, squash-merge, and synchronize the
-primary checkout without disturbing protected local edits.
+equivalence.
 
 Phase 6 working-version completion is defined only by
 [`docs/qualification/design.md`](qualification/design.md#phase-6-qualification-scope). The future

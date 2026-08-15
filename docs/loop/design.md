@@ -1156,3 +1156,8 @@ Title: imperative, one concern (one ticket may be one complete delivery unit)
   HMAC-verified marker are §6.
 - Merge: squash-merge only, performed by the loop after APPROVE; branch
   deleted; PR description survives as the commit body.
+
+Human and coding-agent platform development of this repository uses the same
+branch → pull request → checks → squash-merge shape, with repository merge
+options exposing squash only. That does not place platform work inside this
+ticket state machine; its lifecycle remains governed by `docs/DEVELOPMENT.md`.

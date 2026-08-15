@@ -1,8 +1,8 @@
 # Cormidia Architecture
 
 *v1.9 — last aligned 2026-08-03. This is the implementation map: how Cormidia
-actually runs, and where each subsystem's full contract lives. Decisions and
-their history belong to `docs/PURPOSE.md` → Decided; numeric budgets, routes,
+actually runs, and where each subsystem's full contract lives. Current
+decisions belong to `docs/PURPOSE.md` → Standing; numeric budgets, routes,
 and measurement definitions live only in `docs/episodes/contract.md`;
 qualification and release gating in `docs/qualification/design.md`. Propose
 implementation changes here first, and promote them to PURPOSE only after
@@ -14,6 +14,8 @@ Cormidia is an installable **org runtime**: a standing AI company that develops
 and operates a portfolio of independent software products. One human leads by
 setting goals and guardrails and by making the critical decisions. Cormidia
 handles the day-to-day work that turns that direction into software outcomes.
+[`origin.md`](origin.md) tells the non-normative architectural story behind
+this map; git history remains the full development notebook.
 
 ```mermaid
 flowchart TB

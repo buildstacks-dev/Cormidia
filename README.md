@@ -1019,6 +1019,8 @@ paired-replay evaluation, a human-started canary, and scheduled distillation
 with independent review and report-only compaction. Dated live evidence lives
 in `research/`; open work lives in the
 [issue tracker](https://github.com/cormidia/Cormidia/issues).
+[`docs/origin.md`](docs/origin.md) is the non-normative architectural story
+behind this current state; git history remains the full development notebook.
 
 `docs/harness/capability-matrix.md` records each adapter's native,
 adapter-built, and degraded capabilities.
@@ -1042,9 +1044,10 @@ adapter-built, and degraded capabilities.
   needs current L1/L2 and separately authorized L3/L4 evidence. No paid campaign or
   release ran in the gate implementation change. The generic B-17 non-GitHub live
   target and the L5 threat/abuse/soak/rotation program remain future assurance and
-  never report pass while absent. F-PT-018 prevents the current private-repo CI check
-  from being mechanically merge-blocking; protected human merge plus the release-
-  blocking exact-tag rerun is the ratified bounded mechanism.
+  never report pass while absent. The active main ruleset now requires pull requests,
+  linear history, and resolved review threads, but it does not require Core Checks;
+  F-PT-018 therefore remains the explicit merge-check enforcement limitation, bounded
+  by protected human merge plus the release-blocking exact-tag rerun.
 
 - **Live UI V1 is local-only.** It has no remote/public bind, TLS, multi-user
   auth, cloud ingestion, or workflow controls. Use SSH port forwarding to the

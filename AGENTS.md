@@ -92,7 +92,7 @@ inventory.
   required preinstalled binaries — Cormidia never installs a provider (#224).
 - **Grok Build is sandbox-only** until #339's human vendor risk review is
   recorded: never point a grok turn at a real repository and never assign it a
-  role in roles.yaml (`research/2026-08-07_grok-build-adapter-certification.md`).
+  role in roles.yaml (`research/adapters/2026-08-07_grok-build-adapter-certification.md`).
 - **New modules ≤10 exports and ≤300 lines**; existing modules may shrink or
   hold, never grow (`scripts/check-size-ratchet.mjs`). Public-symbol count is
   the gate; line count is the smoke alarm. Override requires a baseline edit

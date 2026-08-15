@@ -93,7 +93,7 @@ export const HARNESS_AUTH_SUPPORT: Record<RuntimeKind, HarnessAuthSupport> = {
     // API key only, by vendor construction: `muse` resolves a key from
     // CORMIDIA_MUSE_API_KEY_FILE/CORMIDIA_MUSE_API_KEY/MUSE_API_KEY/
     // META_API_KEY and exposes no subscription login at all
-    // (research/2026-08-06_adapter-upstream-references.md). A `subscription`
+    // (research/adapters/2026-08-06_adapter-upstream-references.md). A `subscription`
     // declaration here is refused at config load, not left to fail at a probe.
     modes: ["api_key"],
     multiProvider: false,

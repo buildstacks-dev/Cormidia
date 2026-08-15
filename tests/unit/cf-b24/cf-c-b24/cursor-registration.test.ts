@@ -112,7 +112,7 @@ describe("CF-B24 — cursor is registered on every exhaustive surface", () => {
       command: "cursor-agent",
       args: ["--version"],
     });
-    expect(declaration.testedEvidence).toBe("research/2026-08-07_cursor-adapter-certification.md");
+    expect(declaration.testedEvidence).toBe("research/adapters/2026-08-07_cursor-adapter-certification.md");
     // `YYYY.MM.DD-<sha>` orders exactly like semver once the padding and the
     // build sha are gone; the sha is `+build` under a different spelling.
     expect(normalizeCalendarVersion("2026.08.04-aaa8809")).toBe("2026.8.4");

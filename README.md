@@ -1070,7 +1070,7 @@ adapter-built, and degraded capabilities.
 - **OpenCode: no structured verdict, and the budget cap is not a spend
   ceiling.** The OpenCode harness (#337) is certified against the operator's
   own opencode 1.18.15
-  (`research/2026-08-07_opencode-adapter-certification.md`), with two honest
+  (`research/adapters/2026-08-07_opencode-adapter-certification.md`), with two honest
   limits. Its native `json_schema` output format is published but not usable:
   requesting it put a one-step review into a retry loop that ran past five
   minutes and returned no assistant message, so `structured_verdict` is
@@ -1084,7 +1084,7 @@ adapter-built, and degraded capabilities.
   never passed.
 
 - **The Muse Code harness is registered but cannot run a turn.** Certification
-  (`research/2026-08-07_muse-code-adapter-certification.md`,
+  (`research/adapters/2026-08-07_muse-code-adapter-certification.md`,
   Muse Code `0.1.0-R708.1`) found no working pre-execution gate seam: `muse exec`
   auto-approves tool calls headlessly, and no managed hook fired across twenty
   installation configurations. Rather than degrade, the adapter proves the seam
@@ -1098,7 +1098,7 @@ adapter-built, and degraded capabilities.
   the record is re-run.
 - **Tool-event outcomes are partial on Claude and pi.** All three adapters
   emit `tool_use` turn events (issue #27;
-  `research/2026-07-11_adapter-tool-events.md`), so `envelope.tool_counts`
+  `research/adapters/2026-07-11_adapter-tool-events.md`), so `envelope.tool_counts`
   is populated and all five anomaly detectors can fire. But Claude and pi
   surface tool calls before execution, so their events carry no
   `success`/`durationMs` outcome fields; per-tool failure and latency

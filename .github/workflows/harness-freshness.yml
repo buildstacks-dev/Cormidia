@@ -3,7 +3,7 @@ name: Harness upstream freshness
 # Scheduled upstream-freshness probe (#332). Keeping harness support current
 # "need not be manual" (product owner, 2026-08-07): this lane fetches the
 # latest versions, model rosters and prices from the official sources recorded
-# in research/2026-08-06_adapter-upstream-references.md, diffs them against
+# in research/adapters/2026-08-06_adapter-upstream-references.md, diffs them against
 # src/runtime/harness-metadata.json, and opens ONE pull request for a human to
 # read and merge.
 #

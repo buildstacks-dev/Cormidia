@@ -1265,7 +1265,7 @@ revision is binding until the owner reviews and merges it.
 
 ### Synthesis notes (what was derived, what was originated)
 
-- `[doc]` facts trace to `research/2026-08-06_adapter-upstream-references.md`
+- `[doc]` facts trace to `research/adapters/2026-08-06_adapter-upstream-references.md`
   (fetch-verified survey; ships in PR #341 — a textual dependency of this revision).
 - Designer-originated (`[PROPOSED]`, owner review requested in the PR): B-23's
   stale/foreign-server identity refusal (B-10a analogy); B-24's

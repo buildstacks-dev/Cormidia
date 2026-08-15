@@ -647,7 +647,7 @@ function threadParams(
       // per-turn Cormidia hook whose command is pinned in the launch args.
       // Still required on 0.147.0, and not provably retirable: the bypass is
       // applied at hook-execution time, so no token-free probe separates it
-      // from the CLI flag (research/2026-08-07_codex-0.147-refresh.md §a).
+      // from the CLI flag (research/adapters/2026-08-07_codex-0.147-refresh.md §a).
       bypass_hook_trust: true,
     },
   };

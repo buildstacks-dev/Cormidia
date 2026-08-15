@@ -69,7 +69,7 @@ before the turn. The Luna cost probe moved to S-ACC-2's **builder**, where it do
 real build work rather than one research pass, which is a stronger test of the
 cheap-model-plus-effort hypothesis. (Luna is the cheapest model in the registry —
 $0.20/M in, $1.20/M out,
-[`research/2026-08-07_pi-0.84.1-refresh.md:226`](../../research/2026-08-07_pi-0.84.1-refresh.md:226).)
+[`research/adapters/2026-08-07_pi-0.84.1-refresh.md:226`](../../research/adapters/2026-08-07_pi-0.84.1-refresh.md:226).)
 
 ## The brief (ramble — becomes the step objectives)
 

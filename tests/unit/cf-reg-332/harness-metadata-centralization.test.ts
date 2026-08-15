@@ -99,7 +99,7 @@ describe("CF-REG-332 — centralized harness metadata preserves every asserted p
     expect(catalog.available).toBe(true);
     if (!catalog.available) return;
     expect(catalog.models).toEqual(["muse-spark-1.1", "muse-spark-1.2"]);
-    expect(catalog.source).toContain("research/2026-08-06_adapter-upstream-references.md");
+    expect(catalog.source).toContain("research/adapters/2026-08-06_adapter-upstream-references.md");
   });
 
   it("every harness declares metadata and at least one upstream source", () => {

@@ -105,7 +105,7 @@ OpenCode server+SDK, Grok Build ACP, Muse Code CLI).
   command Cursor will run. A bridge that cannot answer refuses the turn before
   provider construction, and a post-turn executed-versus-allowed cross-check
   reports `error_gate_not_observed` instead of `completed`. Hook firing is a
-  version-banded claim (`research/2026-08-07_cursor-adapter-certification.md`) —
+  version-banded claim (`research/adapters/2026-08-07_cursor-adapter-certification.md`) —
   re-certify on every `cursor-agent` bump, and never register
   `beforeShellExecution`/`beforeReadFile` alongside `preToolUse` (they fire for
   the same action and would consult the gate twice).
@@ -120,7 +120,7 @@ OpenCode server+SDK, Grok Build ACP, Muse Code CLI).
   before sending the prompt and refuses with typed `error_gate_unproven`
   otherwise. Never relax that into "no permission request observed, so nothing
   happened" — that is the exact failure the handshake exists to prevent
-  (F-PT-027, `research/2026-08-07_grok-build-adapter-certification.md`).
+  (F-PT-027, `research/adapters/2026-08-07_grok-build-adapter-certification.md`).
 - Grok's per-turn provider isolation (`adapters/grok-isolation.ts`) is part of
   the gate, not housekeeping: an operator's `permission_mode = "always-approve"`
   and their `~/.claude/settings.json` both reach grok otherwise. Carry only
@@ -133,7 +133,7 @@ OpenCode server+SDK, Grok Build ACP, Muse Code CLI).
   refuses with `error_gate_seam_unavailable` when it cannot. The capability
   profile says `tool_gate: unsupported` and `intra_turn_fanout: unsupported` to
   match. Never soften this into "gate on a best-effort basis" — an unproven gate
-  is an ungated turn (`research/2026-08-07_muse-code-adapter-certification.md`).
+  is an ungated turn (`research/adapters/2026-08-07_muse-code-adapter-certification.md`).
 - **`subagentTurns` comes from records, never from prose.** Muse narrated
   parallel subagents it had not spawned; the offline suite carries a seeded liar
   for exactly that. Fan-out accounting reads the hook join table and the durable
@@ -159,4 +159,4 @@ Interim during the validation rebuild (root AGENTS.md → Testing expectations):
 `docs/harness/capability-matrix.md` · `docs/harness/adding-updating.md` ·
 `research/2026-07-03_runtime-layer.md` ·
 `research/2026-07-04_prompt-caching.md` ·
-`research/2026-08-07_grok-build-adapter-certification.md`
+`research/adapters/2026-08-07_grok-build-adapter-certification.md`

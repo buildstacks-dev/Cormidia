@@ -49,7 +49,7 @@ cross-family review — so unlike S-ACC-1 this arm needs no correction.
 
 **Luna is the cheap-builder probe.** It is the cheapest model in the registry —
 $0.20/M in, $1.20/M out against Sol's $5/$30
-([`research/2026-08-07_pi-0.84.1-refresh.md:226`](../../research/2026-08-07_pi-0.84.1-refresh.md:226)),
+([`research/adapters/2026-08-07_pi-0.84.1-refresh.md:226`](../../research/adapters/2026-08-07_pi-0.84.1-refresh.md:226)),
 roughly 25× cheaper input. It builds here rather than doing one research pass in
 S-ACC-3, because real multi-ticket build work under an independent reviewer is the
 only thing that actually tests the hypothesis.

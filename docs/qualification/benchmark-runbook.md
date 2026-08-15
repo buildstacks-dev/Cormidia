@@ -1,5 +1,8 @@
 # Stage 7 benchmark runbook — the buildstacks-class bootstrap replay
 
+> **Note (2026-08-14):** the `research/evals/` evidence tree cited throughout this document was retired in the pre-alpha research cleanup. Citations marked *(git history)* resolve in pre-cleanup commits, not the working tree.
+
+
 > **Status 2026-07-31:** the eval entrypoints this runbook invokes are
 > archived (`archive-do-not-read/`) and campaigns are suspended during the
 > validation rebuild (docs/PURPOSE.md → Decided, v2.9); this procedure is
@@ -103,7 +106,7 @@ run to erase: 11 attempts passed, eight were product misses, three were
 infrastructure-invalid, and the remainder was incomplete after unavailable
 provider token totals exposed a fail-closed harness defect. Its immutable
 qualifier and archive are recorded in
-`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md`. A fresh
+`research/evals/2026-07-15-phase6-candidate-qualification-invalid.md` (git history). A fresh
 campaign must use a fresh content identity; the old results cannot be retried,
 relabelled, or copied into promotion evidence.
 
@@ -114,7 +117,7 @@ errors. The deep actors changed pinned package scripts, continuation cancelled
 before Codex emitted usage, and the fully network-dark learning case selected
 a loopback-bearing broad test. The retained evidence, exact accounting,
 archives, and fail-closed corrections are recorded in
-`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md`. Those
+`research/evals/2026-07-15-phase6-pi-codex-candidate-invalid.md` (git history). Those
 corrections change covered bytes and therefore require fresh adapter and
 candidate identities; the old campaign is never resumed.
 
@@ -128,7 +131,7 @@ safety prose embedded in a shell check; a pass-scoped contract-authoring ban
 was incorrectly carried into implementation; and one learning artifact
 annotated otherwise-correct class identifiers. The exact retained evidence,
 archive, and corrections are recorded in
-`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`. Covered
+`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md` (git history). Covered
 bytes changed again, so both fresh campaign identities require new previews
 and authorization.
 
@@ -141,7 +144,7 @@ inspection plus path-free structural Git commands, focuses live admission on
 the two failed cases, and stops final execution immediately after any terminal
 miss or non-improved learning aggregate. Its exact accounting and archive
 hashes are in
-`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md`.
+`research/evals/2026-07-16-phase6-review-boundary-candidate-invalid.md` (git history).
 
 The next fail-fast candidate passed 14 attempts—planning, context delta, and
 all five clean deliveries—before quick `mixed-q1` exposed fixed per-turn budget
@@ -150,7 +153,7 @@ ceiling. Only that episode was terminal; 19 later repetitions did not run. The
 repair allocates remaining case capacity across remaining declared turns and
 adds quick `mixed-q1` to focused admission ahead of the two review-boundary
 cases. Exact accounting and archive identity are in
-`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md`.
+`research/evals/2026-07-16-phase6-budget-carry-candidate-not-qualified.md` (git history).
 
 The next candidate passed every one of its 30 executed attempts and stopped
 after the paired-learning block, before the virtual soak and standing roles,
@@ -161,7 +164,7 @@ that component. The original campaign remains invalid. The repair recognizes
 ordinary causal morphology, pins the exact artifact as a token-free regression,
 and adds the three previously unrun standing roles to focused provider
 admission without adding another six-arm learning sample. Exact evidence is in
-`research/evals/2026-07-16-phase6-learning-scorer-candidate-invalid.md`.
+`research/evals/2026-07-16-phase6-learning-scorer-candidate-invalid.md` (git history).
 
 The corrected-scorer candidate then passed 19 cases before deep migration
 `mixed-d1` stopped fail-fast. Codex attempted every declared executable check,
@@ -172,7 +175,7 @@ provider-authored failing test; the merit miss remains immutable. The repair
 normalizes only the exact shell launcher while retaining and adversarially
 checking the full inner command. Exact accounting, archive identity, and the
 retained rejection text are in
-`research/evals/2026-07-16-phase6-codex-shell-wrapper-candidate-not-qualified.md`.
+`research/evals/2026-07-16-phase6-codex-shell-wrapper-candidate-not-qualified.md` (git history).
 
 ## Targets (vs the 2026-07-10 episode)
 

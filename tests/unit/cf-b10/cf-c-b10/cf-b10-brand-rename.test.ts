@@ -20,25 +20,21 @@ const LEGACY_DIR = `.${RETIRED}`;
 const FROZEN_ARCHIVE = "archive-do-not-read/";
 const STANDALONE_AGENT_TOOLING = ".agents/";
 
-const IMMUTABLE_RESEARCH_EVIDENCE = [
-  "research/evals/campaigns/",
-  "research/2026-07-12_live-ui/buildstacks-telemetry.evidence/",
-  "research/2026-07-12_live-ui/buildstacks-telemetry.html",
-  "research/2026-07-12_live-ui/buildstacks-final-snapshot.json",
-];
+// The signed campaign / live-observability evidence trees were retired to git
+// history in the 2026-08-14 pre-alpha research cleanup; nothing in the working
+// tree is exempt from the scan today. New immutable evidence registers here.
+const IMMUTABLE_RESEARCH_EVIDENCE: string[] = [];
 
 const PROTECTED_EXTERNAL_SLUGS = new Map([
-  [`bikramgupta/${RETIRED}-sandbox-alpha`, 5],
-  [`bikramgupta/${RETIRED}-sandbox-gamma`, 5],
-  [`bikramgupta/${RETIRED}-marketplace-demo`, 2],
-  [`bikramgupta/${RETIRED}-eval-candidate-qualification-v1-20260718-eb658f6309c9`, 1],
-  [`buildstacks-dev/${RETIRED}-eval-candidate-qualification-v1-20260716-9ccc03a2c582`, 1],
+  [`bikramgupta/${RETIRED}-sandbox-alpha`, 2],
+  [`bikramgupta/${RETIRED}-sandbox-gamma`, 1],
+  [`bikramgupta/${RETIRED}-marketplace-demo`, 1],
 ]);
 
 const PROTECTED_EXTERNAL_NAMES = new Map([
-  [`${RETIRED}-sandbox-alpha`, 14],
-  [`${RETIRED}-sandbox-gamma`, 22],
-  [`${RETIRED}-marketplace-demo`, 16],
+  [`${RETIRED}-sandbox-alpha`, 2],
+  [`${RETIRED}-sandbox-gamma`, 7],
+  [`${RETIRED}-marketplace-demo`, 15],
 ]);
 
 const LEGACY_MIGRATION_COUNTS = new Map([

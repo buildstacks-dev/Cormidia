@@ -1,5 +1,8 @@
 # Harness qualification evidence
 
+> **Note (2026-08-14):** the `research/evals/` evidence tree cited throughout this document was retired in the pre-alpha research cleanup. Citations marked *(git history)* resolve in pre-cleanup commits, not the working tree.
+
+
 *Dated campaign archaeology for the live contract in
 [`capability-matrix.md`](capability-matrix.md): which adapter calibrations
 qualified, which are intentionally invalid, and what each retained ledger
@@ -16,7 +19,7 @@ The 2026-07-12 baseline non-billable probe confirmed Claude Max first-party
 authentication and a ChatGPT Pro Codex account. Its dollar values are
 equivalent-cost indicators because both turns used subscriptions. Codex usage
 remained `estimated`; Claude usage remained provider-complete. The dated result
-is `research/evals/2026-07-12-pre-transformation-baseline.md`.
+is `research/evals/2026-07-12-pre-transformation-baseline.md` (git history).
 
 The retained 2026-07-13 adapter campaigns
 `adapter-harness-calibration-v1-20260713-524ab18c52d8` and
@@ -26,7 +29,7 @@ attempt summaries were incomplete or misleading. The exactly authorized
 post-repair run preserved six settlements and $1.55126, then exposed
 metadata-only readiness, dropped Codex hook-trust activation, and an
 undersized continuation cap. Both repair rounds are covered offline and
-documented in `research/evals/2026-07-13-adapter-calibration-repair.md`; none of
+documented in `research/evals/2026-07-13-adapter-calibration-repair.md` (git history); none of
 the repaired claims was qualified at that stage. The final content-hashed
 campaign below supplies that proof.
 
@@ -97,7 +100,7 @@ pi with 20 turns equal to 20 settlements, but its dependent candidate was
 invalid and therefore changes to covered executor bytes require another fresh
 admission. It remains historical evidence only; exact identity, accounting,
 and archive hashes are in
-`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md`.
+`research/evals/2026-07-15-phase6-scope-split-candidate-invalid.md` (git history).
 
 The final candidate campaign
 `candidate-qualification-v1-20260716-9ccc03a2c582` qualified Claude, Codex,

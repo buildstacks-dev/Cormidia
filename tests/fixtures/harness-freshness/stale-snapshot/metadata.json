@@ -5,8 +5,8 @@
     "claude": {
       "upstream": {
         "references": [
-          "research/2026-08-06_adapter-upstream-references.md",
-          "research/2026-08-07_claude-sdk-0.3.224-refresh.md"
+          "research/adapters/2026-08-06_adapter-upstream-references.md",
+          "research/adapters/2026-08-07_claude-sdk-0.3.224-refresh.md"
         ],
         "versionSources": [
           {
@@ -41,8 +41,8 @@
     "codex": {
       "upstream": {
         "references": [
-          "research/2026-08-06_adapter-upstream-references.md",
-          "research/2026-08-07_codex-0.147-refresh.md"
+          "research/adapters/2026-08-06_adapter-upstream-references.md",
+          "research/adapters/2026-08-07_codex-0.147-refresh.md"
         ],
         "versionSources": [
           {
@@ -146,8 +146,8 @@
     "pi": {
       "upstream": {
         "references": [
-          "research/2026-08-06_adapter-upstream-references.md",
-          "research/2026-08-07_pi-0.84.1-refresh.md"
+          "research/adapters/2026-08-06_adapter-upstream-references.md",
+          "research/adapters/2026-08-07_pi-0.84.1-refresh.md"
         ],
         "versionSources": [
           {
@@ -182,8 +182,8 @@
     "cursor": {
       "upstream": {
         "references": [
-          "research/2026-08-06_adapter-upstream-references.md",
-          "research/2026-08-07_cursor-adapter-certification.md"
+          "research/adapters/2026-08-06_adapter-upstream-references.md",
+          "research/adapters/2026-08-07_cursor-adapter-certification.md"
         ],
         "versionSources": [
           {
@@ -201,7 +201,7 @@
         "source": {
           "kind": "doc",
           "url": "https://cursor.com/docs/account/pricing",
-          "evidence": "research/2026-08-07_cursor-adapter-certification.md",
+          "evidence": "research/adapters/2026-08-07_cursor-adapter-certification.md",
           "contentDigest": "8e61c517bd17766de74f0139a4fed57a93e39539117bc324c19493c551d12747"
         },
         "rationale": "cursor-agent's stream-json carries token counts but no dollar cost, so Cormidia estimates spend from the vendor's OWN published rate table and flags every figure costEstimated: true. Keys match as longest id PREFIXES because the CLI's roster spells effort into the id (gpt-5.6-sol-high, claude-opus-5-thinking-xhigh).",
@@ -336,8 +336,8 @@
     "grok": {
       "upstream": {
         "references": [
-          "research/2026-08-06_adapter-upstream-references.md",
-          "research/2026-08-07_grok-build-adapter-certification.md"
+          "research/adapters/2026-08-06_adapter-upstream-references.md",
+          "research/adapters/2026-08-07_grok-build-adapter-certification.md"
         ],
         "versionSources": [
           {
@@ -362,8 +362,8 @@
     "opencode": {
       "upstream": {
         "references": [
-          "research/2026-08-06_adapter-upstream-references.md",
-          "research/2026-08-07_opencode-adapter-certification.md"
+          "research/adapters/2026-08-06_adapter-upstream-references.md",
+          "research/adapters/2026-08-07_opencode-adapter-certification.md"
         ],
         "versionSources": [
           {
@@ -408,8 +408,8 @@
     "muse": {
       "upstream": {
         "references": [
-          "research/2026-08-06_adapter-upstream-references.md",
-          "research/2026-08-07_muse-code-adapter-certification.md"
+          "research/adapters/2026-08-06_adapter-upstream-references.md",
+          "research/adapters/2026-08-07_muse-code-adapter-certification.md"
         ],
         "versionSources": [
           {
@@ -427,7 +427,7 @@
         "source": {
           "kind": "doc",
           "url": "https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2",
-          "evidence": "research/2026-08-06_adapter-upstream-references.md",
+          "evidence": "research/adapters/2026-08-06_adapter-upstream-references.md",
           "contentDigest": "0000000000000000000000000000000000000000000000000000000000000000"
         },
         "rationale": "The vendor reports no dollar figure at all, so costUsd is a Cormidia ESTIMATE from the documented Muse Spark list prices and is flagged costEstimated: true. An estimate is evidence; a silent zero is not (INV-006). Every Muse Spark model is priced identically in the announcement, so one family row carries the rate and the fallback repeats it - an off-roster Muse id must not cost $0.",
@@ -457,7 +457,7 @@
         "source": {
           "kind": "doc",
           "url": "https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2",
-          "evidence": "research/2026-08-06_adapter-upstream-references.md",
+          "evidence": "research/adapters/2026-08-06_adapter-upstream-references.md",
           "contentDigest": "a5485b9093b0f01963b997351a40e010fc0061e389837eda37f7a31997e5bf82"
         },
         "pattern": "muse-spark-[0-9]+\\.[0-9]+",

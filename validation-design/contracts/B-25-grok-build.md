@@ -2,12 +2,12 @@
 Canonical ID: **CORMIDIA-C-B25-001 (alias: B-25)**
 
 Status: IMPLEMENTED + CERTIFIED (adapter landed #339, 2026-08-07; live certification
-recorded in `research/2026-08-07_grok-build-adapter-certification.md`). **Adoption
+recorded in `research/adapters/2026-08-07_grok-build-adapter-certification.md`). **Adoption
 remains blocked on #339's OPEN human risk review — certification proves the adapter,
 never the vendor; sandbox repos only, and no role may be assigned to this harness.**
 Extends `provider-adapter-core.md`; deltas only. Sources:
-`[doc: research/2026-08-06_adapter-upstream-references.md]` and
-`[cert: research/2026-08-07_grok-build-adapter-certification.md]` unless marked
+`[doc: research/adapters/2026-08-06_adapter-upstream-references.md]` and
+`[cert: research/adapters/2026-08-07_grok-build-adapter-certification.md]` unless marked
 `[stated]` (owner text in #339) or `[PROPOSED]`.
 
 - Surface: user-installed official `grok` binary (xai-org/grok-build). The community

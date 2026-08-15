@@ -1,6 +1,6 @@
 // xAI/SpaceXAI roles -> Grok Build over ACP, driving `grok agent stdio`.
 //
-// Surface choice (research/2026-08-06_adapter-upstream-references.md, B-25):
+// Surface choice (research/adapters/2026-08-06_adapter-upstream-references.md, B-25):
 // grok ships no SDK. `grok -p --output-format streaming-json` is the batch
 // surface; ACP is the client protocol with sessions, resume, streamed tool
 // events, permission callbacks and usage — the same reasons B-03 uses Codex's

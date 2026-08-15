@@ -50,7 +50,7 @@ their formerly parked mechanism cells are unparked. <!-- changelog 2026-08-10
 (reader test 5, operator finding 6): was "design-only until its adapter lands …
 F-PT-025…028 park the cells" — stale against the policy registry. -->
 Facts `[doc]`-derived
-from `research/2026-08-06_adapter-upstream-references.md`; `[stated]` = owner text in
+from `research/adapters/2026-08-06_adapter-upstream-references.md`; `[stated]` = owner text in
 issues #330/#337–#340 and their field-verification comments.
 
 Harness revision 2026-08-07 (outcome acceptance + jobs): four additions.
@@ -590,7 +590,7 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   server+SDK — real auth store; real hook-seam denial of a forbidden attempt (the
   ratified post-F-PT-025 mechanism); real session resume; representative-model
   smokes (roster published, never per-model certified). Spend-bounded per policy.
-  Evidence: `research/2026-08-07_opencode-adapter-certification.md`.
+  Evidence: `research/adapters/2026-08-07_opencode-adapter-certification.md`.
   <!-- changelog 2026-08-10 (stakeholder gate finding): was "Unproven real (L3)" —
   stale against the #337 certification record already cited by case-catalog CF-B23-L3. -->
 - **Layer:** 2 + L3 certification (adapter landed #337). <!-- changelog 2026-08-10:
@@ -626,7 +626,7 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   (and a real denied **subagent** attempt) through the certified `preToolUse` bridge
   with no side effect, exact chat resume, version band `cursor-agent
   2026.08.04-aaa8809`. Spend-bounded per policy.
-  Evidence: `research/2026-08-07_cursor-adapter-certification.md`.
+  Evidence: `research/adapters/2026-08-07_cursor-adapter-certification.md`.
 - **Layer:** 2 + L3 certification (adapter landed #338).
 
 ### B-25 — Grok Build ACP (`grok agent stdio`) `[doc]` (adapter landed #339, certified 2026-08-07 in sandbox; real-repo use stays #339 risk-review-gated) <!-- changelog 2026-08-10 (stakeholder gate finding): heading was "design-only; #339 risk-review-gated" — the adapter and its sandbox certification are landed; ONLY real-repo use remains gated -->
@@ -655,7 +655,7 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   over ACP in throwaway sandbox repos (2 provider turns / $0.058, violations empty:
   real auth, real denied shell+read attempts through the ratified PreToolUse hook
   bridge, exact session resume, isolation sentinel). Evidence:
-  `research/2026-08-07_grok-build-adapter-certification.md`. **Real-repository use
+  `research/adapters/2026-08-07_grok-build-adapter-certification.md`. **Real-repository use
   remains gated on the OPEN #339 human risk-review decision — certification proves
   the adapter, never the vendor; sandbox-repo-only until it clears** `[stated]`.
   <!-- changelog 2026-08-10 (stakeholder gate finding): was "Unproven real (L3)" —
@@ -1046,7 +1046,7 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
   degraded-tier/role-narrowing decision was needed. Ratified rung: `preToolUse` as the
   sole gate channel over a per-turn Unix socket, `failClosed: true`; tiers
   `tool_gate: adapter`, `intra_turn_fanout: native`. Evidence:
-  `research/2026-08-07_cursor-adapter-certification.md` (#338).
+  `research/adapters/2026-08-07_cursor-adapter-certification.md` (#338).
 - **F-PT-027 (resolved-by-evidence 2026-08-07, B-25):** answered empirically against
   grok 1.0.0 — ACP permission coverage is incomplete BY DESIGN (read-only tools
   never reach `session/request_permission`), denial semantics differ per channel,
@@ -1065,7 +1065,7 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
   widest: `tool_gate` and `intra_turn_fanout` are `unsupported` and the adapter
   refuses any turn whose seam is unproven. The mechanism-level cases stay
   scripted-only; CF-B26-L3 reports incomplete
-  (`research/2026-08-07_muse-code-adapter-certification.md`).
+  (`research/adapters/2026-08-07_muse-code-adapter-certification.md`).
 
 ### Findings raised at the 2026-08-07 outcome-acceptance + jobs revision
 

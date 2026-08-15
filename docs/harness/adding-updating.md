@@ -62,7 +62,7 @@ token-free handshake and refuses (`error_gate_seam_unavailable`) when the proof
 does not arrive. Its capability profile records `tool_gate: unsupported` and
 `intra_turn_fanout: unsupported`, its L3 walk reports **incomplete** rather than
 pass, and `roles.yaml` stays untouched
-(`research/2026-08-07_muse-code-adapter-certification.md`). Never turn an
+(`research/adapters/2026-08-07_muse-code-adapter-certification.md`). Never turn an
 unproven gate into a best-effort one.
 
 ## 2. The contract a harness must honor
@@ -127,7 +127,7 @@ parts adapters get wrong first:
   record.** A dated `research/` reference states the chosen surface (SDK vs
   CLI-headless vs server protocol), the pinned version, auth model, and risk
   flags, with fetch-verified sources — the current survey is
-  `research/2026-08-06_adapter-upstream-references.md`. Vendors that ship via
+  `research/adapters/2026-08-06_adapter-upstream-references.md`. Vendors that ship via
   installer scripts (Cursor, Grok Build, Muse Code) are *required
   preinstalled binaries*: the adapter never installs a provider (#224) and
   readiness means usable auth, not binary presence alone.
@@ -230,7 +230,7 @@ review blocker if skipped:
 > any turn, and a stdout-close race that swallowed the resulting diagnostic and
 > reported a bare `failed` turn with no reason. Neither was reachable against a
 > double, and both now have offline detectors
-> (`research/2026-08-07_cursor-adapter-certification.md`).
+> (`research/adapters/2026-08-07_cursor-adapter-certification.md`).
 
 | Tier | Where | Runs in | Proves |
 | --- | --- | --- | --- |
@@ -425,6 +425,6 @@ still required before the issue can be called completed.
 | Live certification walk (human-triggered; spends tokens) | `pnpm test:live` |
 | Adapter readiness without a model turn | `cormidia doctor` / `pnpm dev doctor` |
 | Capability profiles as the org sees them | `cormidia capabilities` |
-| Upstream surface survey (dated) | `research/2026-08-06_adapter-upstream-references.md` |
-| Cursor certification record (dated) | `research/2026-08-07_cursor-adapter-certification.md` |
-| Grok Build certification + F-PT-027 disposition | `research/2026-08-07_grok-build-adapter-certification.md` |
+| Upstream surface survey (dated) | `research/adapters/2026-08-06_adapter-upstream-references.md` |
+| Cursor certification record (dated) | `research/adapters/2026-08-07_cursor-adapter-certification.md` |
+| Grok Build certification + F-PT-027 disposition | `research/adapters/2026-08-07_grok-build-adapter-certification.md` |

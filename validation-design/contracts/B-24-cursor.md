@@ -3,9 +3,9 @@ Canonical ID: **CORMIDIA-C-B24-001 (alias: B-24)**
 
 Status: ACTIVE (harness revision 2026-08-07 #336; adapter landed and certified
 2026-08-07, #338). Extends `provider-adapter-core.md`; deltas only. Sources: `[doc:
-research/2026-08-06_adapter-upstream-references.md]` unless marked `[stated]`
+research/adapters/2026-08-06_adapter-upstream-references.md]` unless marked `[stated]`
 (owner text in #338 incl. the 2026-08-07 field-verification comment),
-`[certified: research/2026-08-07_cursor-adapter-certification.md]` (observed
+`[certified: research/adapters/2026-08-07_cursor-adapter-certification.md]` (observed
 against cursor-agent 2026.08.04-aaa8809), or `[PROPOSED]`.
 
 - Surface: user-installed binary, resolved as **`cursor-agent` — never `agent`**: the
@@ -93,4 +93,4 @@ against cursor-agent 2026.08.04-aaa8809), or `[PROPOSED]`.
   attempt and a real forbidden **subagent** shell attempt were both denied through the
   `preToolUse` bridge with no side effect; version band `cursor-agent
   2026.08.04-aaa8809` recorded. Spend-bounded per policy (~$0.245 total across four
-  provider turns). Evidence: `research/2026-08-07_cursor-adapter-certification.md`.
+  provider turns). Evidence: `research/adapters/2026-08-07_cursor-adapter-certification.md`.

@@ -54,6 +54,7 @@ interface CliOptions {
   readonly path: string | undefined;
   readonly base: string | undefined;
   readonly setupCommand: string | undefined;
+  readonly match: string | undefined;
 }
 
 interface ParsedCli {
@@ -68,7 +69,7 @@ export interface CleanCandidate {
   readonly dirty: boolean | null;
   readonly remote: boolean;
   readonly local: boolean;
-  readonly reason: "merged" | "gone";
+  readonly reason: "merged" | "gone" | "match";
 }
 
 export function parseWorktreePorcelain(input: string): WorktreeRecord[] {
@@ -286,6 +287,7 @@ function parseOptions(args: readonly string[]): ParsedCli {
   let path: string | undefined;
   let base: string | undefined;
   let setupCommand: string | undefined;
+  let match: string | undefined;
 
   if (normalizedArgs[0] !== undefined && !normalizedArgs[0].startsWith("-")) command = normalizedArgs[0];
   let index = command === "help" ? 0 : 1;
@@ -326,6 +328,9 @@ function parseOptions(args: readonly string[]): ParsedCli {
       case "--setup-command":
         setupCommand = requiredOption(normalizedArgs[++index], "--setup-command");
         break;
+      case "--match":
+        match = requiredOption(normalizedArgs[++index], "--match");
+        break;
       case "--help":
       case "-h":
         command = "help";
@@ -351,6 +356,7 @@ function parseOptions(args: readonly string[]): ParsedCli {
       path,
       base,
       setupCommand,
+      match,
     },
   };
 }
@@ -369,6 +375,7 @@ Usage:
   pnpm worktree -- remove <branch> [--force] [--remote <name>]
   pnpm worktree -- clean --merged [--apply] [--remote <name>] [--refresh] [--force] [--keep <branch>]
   pnpm worktree -- clean --gone [--apply] [--force] [--keep <branch>]
+  pnpm worktree -- clean --match <substring> [--apply] [--remote <name>] [--force] [--keep <branch>]
 
 Safety:
   reconcile is read-only.
@@ -377,7 +384,12 @@ Safety:
   Dirty worktrees require --force; the default branch and current checkout are protected.
 
 --merged uses Git ancestry against the remote's advertised default branch.
-Squash-merged or closed PR branches remain candidates for explicit review.\n`;
+Squash-merged or closed PR branches remain candidates for explicit review.
+
+--match sweeps every local branch (and worktree) plus every remote-only
+branch whose name contains <substring>, e.g. "claude/" removes both local
+and remote branches under that prefix. Add --remote <name> --apply to also
+delete the matching branches on the remote.\n`;
 }
 
 function printReport(report: ReconcileReport): void {
@@ -417,15 +429,23 @@ function refreshRemote(repoRoot: string, remote: string): void {
 
 export function cleanCandidates(
   report: ReconcileReport,
-  mode: "merged" | "gone",
+  mode: "merged" | "gone" | "match",
   keep: readonly string[],
   force: boolean,
+  matchPattern?: string,
 ): CleanCandidate[] {
+  if (mode === "match" && (matchPattern === undefined || matchPattern === ""))
+    throw new Error("clean --match requires a non-empty substring");
   const candidates: CleanCandidate[] = [];
   for (const branch of report.local_branches) {
     if (branch.name === report.default_branch || branch.name === report.current_branch || keep.includes(branch.name))
       continue;
-    const matches = mode === "merged" ? branch.merged === true : branch.tracking === "[gone]";
+    const matches =
+      mode === "merged"
+        ? branch.merged === true
+        : mode === "gone"
+          ? branch.tracking === "[gone]"
+          : branch.name.includes(matchPattern!);
     if (!matches) continue;
     if (mode === "gone" && !force) {
       console.log(`SKIP gone upstream (use --force): ${branch.name}`);
@@ -444,12 +464,12 @@ export function cleanCandidates(
       reason: mode,
     });
   }
-  if (mode === "merged") {
+  if (mode === "merged" || mode === "match") {
     const localNames = new Set(report.local_branches.map((branch) => branch.name));
     for (const branch of report.remote_branches) {
       if (localNames.has(branch.name)) continue;
       if (branch.name === report.default_branch || keep.includes(branch.name)) continue;
-      if (branch.merged !== true) continue;
+      if (mode === "merged" ? branch.merged !== true : !branch.name.includes(matchPattern!)) continue;
       candidates.push({
         branch: branch.name,
         path: null,
@@ -463,19 +483,27 @@ export function cleanCandidates(
   return candidates;
 }
 
-function executeClean(repoRoot: string, candidates: readonly CleanCandidate[], options: CliOptions): void {
+export function executeClean(repoRoot: string, candidates: readonly CleanCandidate[], options: CliOptions): boolean {
+  let hadFailure = false;
   for (const candidate of candidates) {
     console.log(
       `${options.apply ? "DELETE" : "PLAN"} ${candidate.reason}: ${candidate.branch}${candidate.path === null ? "" : ` (${candidate.path})`}`,
     );
     if (!options.apply) continue;
-    if (candidate.local) {
-      if (candidate.path !== null)
-        git(repoRoot, ["worktree", "remove", ...(candidate.dirty === true ? ["--force"] : []), candidate.path]);
-      git(repoRoot, ["branch", options.force ? "-D" : "-d", candidate.branch]);
+    try {
+      if (candidate.local) {
+        if (candidate.path !== null)
+          git(repoRoot, ["worktree", "remove", ...(candidate.dirty === true ? ["--force"] : []), candidate.path]);
+        git(repoRoot, ["branch", options.force ? "-D" : "-d", candidate.branch]);
+      }
+      if (options.remoteDelete && candidate.remote)
+        git(repoRoot, ["push", options.remote, "--delete", candidate.branch]);
+    } catch (error) {
+      hadFailure = true;
+      console.error(`FAILED ${candidate.branch}: ${error instanceof Error ? error.message : String(error)}`);
     }
-    if (options.remoteDelete && candidate.remote) git(repoRoot, ["push", options.remote, "--delete", candidate.branch]);
   }
+  return hadFailure;
 }
 
 function createWorktree(repoRoot: string, branch: string, options: CliOptions): void {
@@ -539,15 +567,22 @@ async function main(argv: readonly string[] = process.argv.slice(2)): Promise<vo
       removeWorktree(repoRoot, parsed.positionals[0] ?? "", options);
       return;
     case "clean": {
-      const mode = parsed.positionals.find((item): item is "merged" | "gone" => item === "merged" || item === "gone");
-      if (mode === undefined) throw new Error("clean requires --merged or --gone");
+      const mode =
+        options.match !== undefined
+          ? "match"
+          : parsed.positionals.find((item): item is "merged" | "gone" => item === "merged" || item === "gone");
+      if (mode === undefined) throw new Error("clean requires --merged, --gone, or --match <substring>");
       if (options.refresh) refreshRemote(repoRoot, options.remote);
       const report = buildReport(repoRoot, options.remote);
-      const candidates = cleanCandidates(report, mode, options.keep, options.force);
+      const candidates = cleanCandidates(report, mode, options.keep, options.force, options.match);
       if (candidates.length === 0) console.log("no cleanup candidates");
-      executeClean(repoRoot, candidates, options);
+      const hadFailure = executeClean(repoRoot, candidates, options);
       if (options.remoteDelete && !options.apply)
         console.log("remote deletion is planned only; add --apply to execute it");
+      if (hadFailure)
+        throw new Error(
+          "clean encountered failures on one or more candidates (see FAILED lines above); unmerged branches need --force",
+        );
       return;
     }
     default:

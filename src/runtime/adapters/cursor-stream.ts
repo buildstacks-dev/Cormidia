@@ -1,7 +1,7 @@
 // cursor-agent stream-json decoding: the reduction from ordered CLI events to
 // the adapter's turn state. Every shape here was captured live from
 // cursor-agent 2026.08.04-aaa8809 on 2026-08-07
-// (research/2026-08-07_cursor-adapter-certification.md). Drift is a typed
+// (research/adapters/2026-08-07_cursor-adapter-certification.md). Drift is a typed
 // failure at the transport, never a silent re-parse here.
 
 import { definedProps } from "../optional-properties.js";

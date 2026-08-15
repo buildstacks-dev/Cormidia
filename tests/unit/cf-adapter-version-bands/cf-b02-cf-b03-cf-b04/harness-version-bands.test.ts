@@ -65,7 +65,7 @@ describe("CF-B02/03/04-BANDS — declared bands", () => {
     expect(bandForVersion(declaration, declaration.floor)).not.toBe("unknown");
     // floor > testedWith would make the tested version itself unsupported.
     expect(bandForVersion(declaration, declaration.testedWith)).toBe("at_tested");
-    expect(declaration.testedEvidence).toMatch(/^research\/\d{4}-\d{2}-\d{2}[-_].+\.md$/);
+    expect(declaration.testedEvidence).toMatch(/^research\/adapters\/\d{4}-\d{2}-\d{2}[-_].+\.md$/);
   });
 
   it("refuses a declaration that is not strict semver", () => {

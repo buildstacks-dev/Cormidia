@@ -5,6 +5,11 @@ loop design)
 **Build status:** built through M5 (PR #52, 2026-07-11); where this document and the code diverge, the code and `AGENTS.md` are authoritative  
 **Companions:** `learning-loop-design.md`
 
+> Example payloads in this document cite
+> `research/2026-07-07_marketplace-demo-e2e-assessment.md`, a record retired to
+> git history in the 2026-08-14 research cleanup; the examples remain valid
+> illustrations of the schema.
+
 Episode identity, learning-capture coverage, and outcome-accountable efficacy
 use the canonical definitions and missingness rules in `docs/episodes/contract.md`.
 The schemas below carry those facts but do not redefine their measurements.

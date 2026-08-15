@@ -134,7 +134,7 @@ export async function startCodexGateBridge(
  * `features.code_mode*=false` and exposes a custom `exec` tool whose nested
  * effects are not reliably covered by PreToolUse. Still true on 0.147.0:
  * `debug models --bundled` ships the same `tool_mode`/`use_responses_lite`
- * values as 0.144.4 (research/2026-08-07_codex-0.147-refresh.md §b).
+ * values as 0.144.4 (research/adapters/2026-08-07_codex-0.147-refresh.md §b).
  *
  * Codex's package-local `debug models --bundled` command exposes the exact
  * catalog compiled into the pinned binary without network or provider use.

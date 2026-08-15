@@ -5,7 +5,7 @@
 // Keeping harness support current "need not be manual" (product owner,
 // 2026-08-07): this script fetches the latest versions, model rosters and
 // prices from the official sources recorded in
-// `research/2026-08-06_adapter-upstream-references.md` and each adapter's dated
+// `research/adapters/2026-08-06_adapter-upstream-references.md` and each adapter's dated
 // certification record, diffs them against `src/runtime/harness-metadata.json`,
 // and — on a delta — updates that one file and opens a pull request for a human
 // to read and merge.

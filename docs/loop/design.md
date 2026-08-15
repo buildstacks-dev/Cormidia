@@ -1052,7 +1052,7 @@ src/loop/pipeline.ts); the state machine emits `gate.started/passed/failed`
 and `ticket.transition` (via a per-step run record, src/loop/loop-runlog.ts
 `openPhaseRun`) and populates `envelope.gate_results`; `verdict.recorded`
 lands from `recordPassVerdict`. **Tool telemetry is live** (issue #27,
-live-verified 2026-07-11 — `research/2026-07-11_adapter-tool-events.md`):
+live-verified 2026-07-11 — `research/adapters/2026-07-11_adapter-tool-events.md`):
 all three adapters emit `TurnEvent{type:"tool_use"}` for gate-allowed tool
 calls through the one shared builder (`src/runtime/tool-events.ts`), and the
 L2 bridge turns them into `tool.called` events and `envelope.tool_counts`.

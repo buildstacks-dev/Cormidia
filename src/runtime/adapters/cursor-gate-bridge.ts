@@ -3,7 +3,7 @@
 // cursor-agent's headless (`-p`) stream-json surface is fire-and-forget: it
 // emits no approval request a wrapper could answer. Its `.cursor/hooks.json`
 // machinery IS live headless, though — certified 2026-08-07 against build
-// 2026.08.04-aaa8809 (research/2026-08-07_cursor-adapter-certification.md):
+// 2026.08.04-aaa8809 (research/adapters/2026-08-07_cursor-adapter-certification.md):
 // `preToolUse` fires before Shell, Read, Write, Grep/Glob and Task calls,
 // including calls issued inside a spawned subagent's OWN conversation, and a
 // `{"permission":"deny"}` reply stops the action before it executes (proven by

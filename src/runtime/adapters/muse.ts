@@ -3,7 +3,7 @@
 // in `muse-exec.ts`, spend in `muse-usage.ts`, stream folding in
 // `muse-events.ts`, and the gate seam in `muse-gate-bridge.ts` +
 // `muse-hook-router.ts`. Field facts:
-// `research/2026-08-07_muse-code-adapter-certification.md` (0.1.0-R708.1).
+// `research/adapters/2026-08-07_muse-code-adapter-certification.md` (0.1.0-R708.1).
 //
 // THE GATE, AND WHY EVERY TURN CURRENTLY REFUSES. `muse exec` exposes no
 // in-process permission callback, and its headless approval path auto-approves:

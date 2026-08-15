@@ -3,9 +3,9 @@ Canonical ID: **CORMIDIA-C-B26-001 (alias: B-26)**
 
 Status: DRAFT (harness revision 2026-08-07, #336). **Adapter landed #340 (2026-08-07)
 and certified against Muse Code 0.1.0-R708.1 —
-`[doc: research/2026-08-07_muse-code-adapter-certification.md]`.** Extends
+`[doc: research/adapters/2026-08-07_muse-code-adapter-certification.md]`.** Extends
 `provider-adapter-core.md`; deltas only. Sources: `[doc:
-research/2026-08-06_adapter-upstream-references.md]` unless marked `[stated]`
+research/adapters/2026-08-06_adapter-upstream-references.md]` unless marked `[stated]`
 (owner text in #340 incl. the 2026-08-07 field-verification comment), `[certified]`
 (the 2026-08-07 certification record), or `[PROPOSED]`. Beta accepted deliberately:
 agent-swarm coordination is the harness advantage being arbitraged `[stated]`.

@@ -93,7 +93,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
   },
   // Every tier below was certified live against cursor-agent
   // 2026.08.04-aaa8809 on 2026-08-07
-  // (research/2026-08-07_cursor-adapter-certification.md). Nothing here is
+  // (research/adapters/2026-08-07_cursor-adapter-certification.md). Nothing here is
   // claimed from documentation alone.
   cursor: {
     ref: "cursor/v1",
@@ -124,7 +124,7 @@ const PROFILES: Record<RuntimeKind, RuntimeCapabilityProfile> = {
     },
   },
   // Tiers certified against the operator's opencode 1.18.15 on 2026-08-07
-  // (research/2026-08-07_opencode-adapter-certification.md). `tool_gate` is
+  // (research/adapters/2026-08-07_opencode-adapter-certification.md). `tool_gate` is
   // adapter-built because OpenCode ships no Cormidia-gate surface: the enforcing
   // seam is a Cormidia-authored plugin bridging `tool.execute.before` to the
   // in-process GateFn. Everything else is a first-class server endpoint or

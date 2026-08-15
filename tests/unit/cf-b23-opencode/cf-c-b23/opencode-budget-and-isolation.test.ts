@@ -267,7 +267,9 @@ describe("CF-B23 version bands — opencode's version is read from a banner, nev
     // whose hooks are wired.
     expect(HARNESS_SUPPORT.opencode.floor).toBe("1.18.15");
     expect(HARNESS_SUPPORT.opencode.testedWith).toBe("1.18.15");
-    expect(HARNESS_SUPPORT.opencode.testedEvidence).toBe("research/2026-08-07_opencode-adapter-certification.md");
+    expect(HARNESS_SUPPORT.opencode.testedEvidence).toBe(
+      "research/adapters/2026-08-07_opencode-adapter-certification.md",
+    );
     expect(HARNESS_SUPPORT.opencode.versionSource).toEqual({
       kind: "installed_binary",
       command: "opencode",

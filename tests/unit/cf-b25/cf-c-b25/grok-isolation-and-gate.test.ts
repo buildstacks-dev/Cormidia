@@ -308,7 +308,9 @@ describe("CF-B25 version bands — grok's decorated --version line is read, not 
     // build is refused rather than assumed to fire hooks first.
     expect(HARNESS_SUPPORT.grok.floor).toBe("1.0.0");
     expect(HARNESS_SUPPORT.grok.testedWith).toBe("1.0.0");
-    expect(HARNESS_SUPPORT.grok.testedEvidence).toBe("research/2026-08-07_grok-build-adapter-certification.md");
+    expect(HARNESS_SUPPORT.grok.testedEvidence).toBe(
+      "research/adapters/2026-08-07_grok-build-adapter-certification.md",
+    );
     expect(HARNESS_SUPPORT.grok.versionSource).toEqual({
       kind: "installed_binary",
       command: "grok",

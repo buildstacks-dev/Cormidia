@@ -52,14 +52,14 @@ export interface HarnessSupportDeclaration {
   readonly floor: string;
   /** Exact version certification last ran against. */
   readonly testedWith: string;
-  /** Dated `research/` record backing `testedWith`. */
+  /** Dated `research/adapters/` record backing `testedWith`. */
   readonly testedEvidence: string;
   readonly versionSource: HarnessVersionSource;
 }
 
 // Each adapter now points at its own dated refresh record; the shared
 // 2026-08-06 upstream-reference constant retired with codex's last use of it.
-const CLAUDE_TESTED_EVIDENCE = "research/2026-08-07_claude-sdk-0.3.224-refresh.md";
+const CLAUDE_TESTED_EVIDENCE = "research/adapters/2026-08-07_claude-sdk-0.3.224-refresh.md";
 
 /**
  * Exhaustive by construction: a new `RuntimeKind` is a compile error until its
@@ -94,7 +94,7 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     // for no proven incompatibility (#224 owes the real per-adapter floor).
     floor: "0.144.4",
     testedWith: "0.147.0",
-    testedEvidence: "research/2026-08-07_codex-0.147-refresh.md",
+    testedEvidence: "research/adapters/2026-08-07_codex-0.147-refresh.md",
     versionSource: { kind: "vendored_npm_package", packageName: "@openai/codex" },
   },
   pi: {
@@ -103,7 +103,7 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     // which is exactly what bands exist to avoid.
     floor: "0.80.7",
     testedWith: "0.84.1",
-    testedEvidence: "research/2026-08-07_pi-0.84.1-refresh.md",
+    testedEvidence: "research/adapters/2026-08-07_pi-0.84.1-refresh.md",
     versionSource: { kind: "vendored_npm_package", packageName: "@earendil-works/pi-coding-agent" },
   },
   cursor: {
@@ -113,7 +113,7 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     // the `+build` component semver §10 says to ignore.
     floor: "2026.8.4",
     testedWith: "2026.8.4",
-    testedEvidence: "research/2026-08-07_cursor-adapter-certification.md",
+    testedEvidence: "research/adapters/2026-08-07_cursor-adapter-certification.md",
     versionSource: { kind: "installed_binary", command: "cursor-agent", args: ["--version"] },
   },
   grok: {
@@ -122,7 +122,7 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     // proven against exactly this build (F-PT-027).
     floor: "1.0.0",
     testedWith: "1.0.0",
-    testedEvidence: "research/2026-08-07_grok-build-adapter-certification.md",
+    testedEvidence: "research/adapters/2026-08-07_grok-build-adapter-certification.md",
     versionSource: { kind: "installed_binary", command: "grok", args: ["--version"] },
   },
   opencode: {
@@ -136,7 +136,7 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     // every tool ungated.
     floor: "1.18.15",
     testedWith: "1.18.15",
-    testedEvidence: "research/2026-08-07_opencode-adapter-certification.md",
+    testedEvidence: "research/adapters/2026-08-07_opencode-adapter-certification.md",
     versionSource: { kind: "installed_binary", command: "opencode", args: ["--version"] },
   },
   muse: {
@@ -147,7 +147,7 @@ export const HARNESS_SUPPORT: Record<RuntimeKind, HarnessSupportDeclaration> = {
     // hook across twenty configurations, so every turn refuses an unproven seam.
     floor: "0.1.0",
     testedWith: "0.1.0",
-    testedEvidence: "research/2026-08-07_muse-code-adapter-certification.md",
+    testedEvidence: "research/adapters/2026-08-07_muse-code-adapter-certification.md",
     versionSource: {
       kind: "installed_binary",
       command: "muse",

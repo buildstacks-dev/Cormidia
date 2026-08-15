@@ -129,7 +129,8 @@ definition, with `fallback_model`.
 > disproven empirically — it never fires for auto-allowed read-only bash and
 > does not reliably see subagent tool calls. The gate channel is a
 > **PreToolUse hook**. See
-> `research/2026-07-05_claude-runtime-live-conformance.md`.
+> `research/2026-07-05_claude-runtime-live-conformance.md` (git history;
+> record retired in the 2026-08-14 research cleanup).
 
 ## Adapter interface (sketch)
 

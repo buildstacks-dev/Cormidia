@@ -12,7 +12,7 @@
 //
 // Every event shape below is a projection of bytes captured from
 // cursor-agent 2026.08.04-aaa8809 on 2026-08-07 and recorded in
-// research/2026-08-07_cursor-adapter-certification.md.
+// research/adapters/2026-08-07_cursor-adapter-certification.md.
 
 import { createConnection } from "node:net";
 import { CursorRuntime } from "../../../src/runtime/adapters/cursor.js";

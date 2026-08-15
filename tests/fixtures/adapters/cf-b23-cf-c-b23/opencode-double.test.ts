@@ -341,7 +341,7 @@ describe("opencode adapter double — core conformance (B-23)", () => {
     // `structured_verdict: fallback` is a certified tier, not an oversight:
     // requesting the server's native format put a real turn into a retry loop
     // that ran past five minutes and returned no assistant message
-    // (research/2026-08-07_opencode-adapter-certification.md). If someone
+    // (research/adapters/2026-08-07_opencode-adapter-certification.md). If someone
     // re-enables it, this case fails and the capability profile must move too.
     const dbl = opencodeDouble([
       script.turn({

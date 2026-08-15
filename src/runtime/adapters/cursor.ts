@@ -1,6 +1,6 @@
 // Cursor roles -> the user-installed `cursor-agent` CLI in headless mode.
 //
-// Surface choice (research/2026-08-06_adapter-upstream-references.md, #338):
+// Surface choice (research/adapters/2026-08-06_adapter-upstream-references.md, #338):
 // `cursor-agent -p --output-format stream-json`, threads via `--resume`, brief
 // on stdin. `@cursor/sdk` is public beta and deliberately NOT the day-one
 // surface. Sibling modules own the pieces: cursor-process (subprocess),

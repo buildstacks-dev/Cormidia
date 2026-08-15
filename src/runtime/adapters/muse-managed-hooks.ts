@@ -12,7 +12,7 @@
 //
 // MANIFEST SHAPE IS COPIED, NOT INVENTED. It reproduces byte-for-byte the only
 // manifest ever *observed* to load: the one captured by the F-PT-028 probe
-// (`research/2026-08-07_muse-code-adapter-certification.md` §7) — a top-level
+// (`research/adapters/2026-08-07_muse-code-adapter-certification.md` §7) — a top-level
 // `hooks` object, PascalCase event names, `{type,command}` entries, and
 // deliberately NO `matcher` and NO `timeoutMs`. Muse's loader rejects a hook
 // group it cannot parse without any diagnostic, so guessing extra fields is a

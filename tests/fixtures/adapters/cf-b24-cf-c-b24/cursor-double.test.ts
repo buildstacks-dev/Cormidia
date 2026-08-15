@@ -4,7 +4,7 @@
 //
 // Every shape asserted here is a projection of bytes captured live from
 // cursor-agent 2026.08.04-aaa8809 on 2026-08-07
-// (research/2026-08-07_cursor-adapter-certification.md). If the CLI's
+// (research/adapters/2026-08-07_cursor-adapter-certification.md). If the CLI's
 // stream-json drifts, this file is re-derived from a fresh capture — never
 // loosened to keep a suite green.
 

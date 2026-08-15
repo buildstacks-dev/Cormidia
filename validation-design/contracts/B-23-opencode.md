@@ -3,9 +3,9 @@ Canonical ID: **CORMIDIA-C-B23-001 (alias: B-23)**
 
 Status: DRAFT (harness revision 2026-08-07, #336). **Adapter landed #337 (2026-08-07);
 no longer design-only.** Extends `provider-adapter-core.md`; deltas only. Sources:
-`[doc: research/2026-08-06_adapter-upstream-references.md]` unless marked `[stated]`
+`[doc: research/adapters/2026-08-06_adapter-upstream-references.md]` unless marked `[stated]`
 (owner text in #330/#337), `[PROPOSED]`, or `[certified]`
-(`research/2026-08-07_opencode-adapter-certification.md`, against the operator's
+(`research/adapters/2026-08-07_opencode-adapter-certification.md`, against the operator's
 opencode 1.18.15).
 
 - Surface: user-installed `opencode` binary — never installed by Cormidia (#224);

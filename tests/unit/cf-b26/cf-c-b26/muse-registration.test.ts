@@ -83,7 +83,7 @@ describe("CF-B26 registration — muse is a first-class harness with an HONEST p
 
   it("writes the ONLY manifest shape ever observed to load, with no invented fields", () => {
     // Byte-shape of the F-PT-028 probe's captured `xdg-real/hooks.json`
-    // (research/2026-08-07_muse-code-adapter-certification.md §7). Muse rejects
+    // (research/adapters/2026-08-07_muse-code-adapter-certification.md §7). Muse rejects
     // an unparseable hook group silently, so an extra `matcher` or `timeoutMs`
     // is a silent-failure risk with nothing to gain.
     const manifest = museManagedHookManifest("/bin/sh probe.sh") as {
@@ -201,7 +201,7 @@ describe("CF-B26 version bands — muse's decorated --version line, read without
     // hook fired), so an older build carries no gate evidence at all.
     expect(HARNESS_SUPPORT.muse.floor).toBe("0.1.0");
     expect(HARNESS_SUPPORT.muse.testedWith).toBe("0.1.0");
-    expect(HARNESS_SUPPORT.muse.testedEvidence).toBe("research/2026-08-07_muse-code-adapter-certification.md");
+    expect(HARNESS_SUPPORT.muse.testedEvidence).toBe("research/adapters/2026-08-07_muse-code-adapter-certification.md");
     expect(detectHarnessVersion).toBeTypeOf("function");
   });
 });

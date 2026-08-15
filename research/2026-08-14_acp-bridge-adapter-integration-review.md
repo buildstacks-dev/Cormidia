@@ -316,7 +316,7 @@ would have to make the PATH path mandatory, which means an ACP adapter becomes a
 down.
 
 **Where ACP does pay:** a harness that ships ACP first-party and has no SDK. That
-is exactly the rule `research/2026-08-06_adapter-upstream-references.md` already
+is exactly the rule `research/adapters/2026-08-06_adapter-upstream-references.md` already
 applied when choosing ACP for grok, and `grok.ts` says so in its header. The
 existing policy is correct and needs no change. Cursor is the one adapter worth
 re-examining opportunistically (§8.4) — it ships native ACP now and Cormidia
@@ -457,7 +457,7 @@ bounded, opportunistic per-adapter question — not a strategy.
 ## 10. Recommendation
 
 1. **No change to adapter strategy.** The rule in
-   `research/2026-08-06_adapter-upstream-references.md` — pick the vendor's
+   `research/adapters/2026-08-06_adapter-upstream-references.md` — pick the vendor's
    canonical surface, prefer first-party SDK or server protocol, use ACP where it
    *is* the first-party surface — is correct and already produced the right answer
    for all seven adapters.
@@ -486,8 +486,8 @@ bounded, opportunistic per-adapter question — not a strategy.
   `adapters/grok-acp-client.ts`, `adapters/grok-gate-bridge.ts`,
   `adapters/grok-session.ts`, `docs/harness/capability-matrix.md`,
   `docs/harness/adding-updating.md`
-- `research/2026-08-06_adapter-upstream-references.md` ·
-  `research/2026-08-07_grok-build-adapter-certification.md` (F-PT-027) ·
+- `research/adapters/2026-08-06_adapter-upstream-references.md` ·
+  `research/adapters/2026-08-07_grok-build-adapter-certification.md` (F-PT-027) ·
   `research/2026-08-09_shepherd-substrate-review.md` §4, §5.1
 - Issues: #366 (containment floor) · #367 (brokered egress) · #224 (never install
   providers) · #339 (grok vendor risk review) · #358 (muse hook seam) ·

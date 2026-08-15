@@ -475,12 +475,12 @@ This brief is derivative and non-normative. Normative Cormidia decisions remain 
 - `docs/PURPOSE.md`
 - `docs/episodes/contract.md`
 - `docs/org/memory.md`
-- `research/2026-08-02-hermes-learning/cormidia-hermes-learning-comparison.md`
-- `research/2026-08-02-hermes-learning/hermes-adapter-for-cormidia.md`
-- `research/2026-08-02-hermes-learning/hermes-learning-architecture.md`
-- `research/2026-07-18-phase6-requalification-learning-slo-qualified.md`
-- `research/2026-07-11_adapter-tool-events.md`
-- `research/evals/2026-07-16-phase6-learning-scorer-candidate-invalid.md`
+- `research/2026-08-02-hermes-learning/cormidia-hermes-learning-comparison.md` (git history; retired 2026-08-14)
+- `research/2026-08-02-hermes-learning/hermes-adapter-for-cormidia.md` (git history; retired 2026-08-14)
+- `research/2026-08-02-hermes-learning/hermes-learning-architecture.md` (git history; retired 2026-08-14)
+- `research/2026-07-18-phase6-requalification-learning-slo-qualified.md` (git history; retired 2026-08-14)
+- `research/adapters/2026-07-11_adapter-tool-events.md`
+- `research/evals/2026-07-16-phase6-learning-scorer-candidate-invalid.md` (git history; retired 2026-08-14)
 - `research/2026-08-11_prompt-and-ts-posture-audit.md`
 - `validation-design/contracts/B-11-learning-publisher.md`
 - `validation-design/harness-backlog.md`
@@ -493,7 +493,7 @@ This brief is derivative and non-normative. Normative Cormidia decisions remain 
 - the four hermetic `cf-sm-learn-*` tests covering legal and illegal transitions, silent-promotion refusals, replay/no-op behavior, lineage, and tail-crash recovery;
 - the two learning-loop Mermaid diagrams;
 - `package.json` for current packaging and dependency posture; and
-- `research/2026-08-05_pi-forensic-analysis/pi-engineering-standards-skill.md` for the binding public-surface standard.
+- `research/2026-08-05_pi-forensic-analysis/pi-engineering-standards-skill.md` (git history; retired 2026-08-14) for the binding public-surface standard.
 
 ### Exclusions and limitations
 

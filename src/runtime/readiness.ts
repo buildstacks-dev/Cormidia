@@ -640,7 +640,7 @@ async function probeOpencode(request: RuntimeReadinessImplementationRequest): Pr
 }
 
 /** The documented OpenCode credential store
- *  (`research/2026-08-06_adapter-upstream-references.md`), honouring the same
+ *  (`research/adapters/2026-08-06_adapter-upstream-references.md`), honouring the same
  *  XDG data home the adapter deliberately leaves in place. */
 function opencodeAuthStorePath(env: NodeJS.ProcessEnv): string {
   const dataHome = env["XDG_DATA_HOME"];

@@ -2,7 +2,7 @@
 // server (`opencode serve`) plus `@opencode-ai/sdk`'s generated v2 client.
 //
 // Integration facts, all verified against the operator's installed opencode
-// 1.18.15 on 2026-08-07 (research/2026-08-07_opencode-adapter-certification.md):
+// 1.18.15 on 2026-08-07 (research/adapters/2026-08-07_opencode-adapter-certification.md):
 // - Cormidia NEVER installs opencode (#224). The binary is the operator's; the
 //   adapter spawns it, binds to that exact process, and readiness answers for
 //   usable auth rather than mere presence.

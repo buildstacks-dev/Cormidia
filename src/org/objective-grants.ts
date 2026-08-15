@@ -1,5 +1,5 @@
 // Objective grants — authority with a lifetime longer than one commit
-// (docs/approvals/consequence-classification-proposal.md §6–§7; #296 Stage 3).
+// (#296 Stage 3; proposal §6–§7 preserved at 929c8247:docs/approvals/consequence-classification-proposal.md).
 //
 // An ObjectiveGrant is a durable, HUMAN-CREATED-ONLY authority object bound to
 // an objective rather than a candidate hash: when the candidate commit moves,

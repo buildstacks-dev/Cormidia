@@ -21,7 +21,7 @@ broader context:
                                       craft (when visible; empty or HTML-comment-only
                                       files are skipped; never the PRD or task brief)
 [4] role turn protocol                generated: expected outputs, GitHub
-                                      conventions (../loop/github-conventions.md), end-of-turn learning
+                                      conventions (../loop/design.md §15), end-of-turn learning
                                       note instruction, approval etiquette
 [5] memory excerpts                   role craft bundle + this app's domain
                                       bundle (memory.md) — capped

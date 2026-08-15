@@ -415,7 +415,7 @@ them. Four idempotency rules keep a dead
 turn from leaving the repo half-done: durable progress is explicit, the
 artifact is created before the label that announces it, claims are atomic
 label flips, and non-git writes are append-only keyed by turnId.
-[`docs/loop/turns.md`](loop/turns.md) is the full contract.
+[`docs/loop/design.md`](loop/design.md) §14 is the full contract.
 
 ### Build-loop state machine (`src/loop`) — see `docs/loop/design.md`
 
@@ -599,8 +599,7 @@ evidence-bearing PR bodies, real reviews with an HMAC-verified
 single-account fallback, and squash-merges performed only by the
 orchestrator. One rule anchors all of it: a label flips only after the
 artifact it announces exists.
-[`docs/loop/github-conventions.md`](loop/github-conventions.md) is the full
-contract.
+[`docs/loop/design.md`](loop/design.md) §15 is the full contract.
 
 ## 11. Ratified decisions promoted to docs/PURPOSE.md
 

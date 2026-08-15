@@ -1196,8 +1196,8 @@ export function classifyWithEvidence(
 }
 
 // ---------------------------------------------------------------------------
-// Consequence classification (docs/approvals/consequence-classification-
-// proposal.md §3–§4; implementation plan Stage 1). Stage 1 is vocabulary and
+// Consequence classification (#296; proposal §3–§4 preserved at
+// 929c8247:docs/approvals/consequence-classification-proposal.md; Stage 1). Stage 1 is vocabulary and
 // routing only: every disposition below reproduces the decision the gate makes
 // today, and the consequence axes are carried as `unknown` — nothing in the
 // decision path measures reversibility, blast radius, or cost yet. Tier moves

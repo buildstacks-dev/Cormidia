@@ -1,7 +1,7 @@
 // Traceability: CF-INV-003 · HB-011 · invariants.md CORMIDIA-INV-003.
 
 // CF-INV-003 — Stage 2 tier tightenings enforced at the approval store
-// (#296; docs/approvals/consequence-classification-implementation-plan.md):
+// (#296; plan preserved at 929c8247:docs/approvals/consequence-classification-implementation-plan.md):
 //
 //   1. Every reclassified rule — protocol-self-edit, scorecard-tamper,
 //      approval-store-tamper, learning-surface-tamper (grantable→UG),

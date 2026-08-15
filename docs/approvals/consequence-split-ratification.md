@@ -4,10 +4,13 @@
 behavior; every split below is parked `BLOCKED:F-PT-023` and the gate today is
 exactly the Stage 2 tightened configuration.
 
-**Why this document exists.** Stages 1–3 of the
-[implementation plan](consequence-classification-implementation-plan.md)
-landed unattended because every change tightened the gate or added inert
-mechanism. The remaining work — the four splits of proposal §5.1–5.4 — makes
+**Why this document exists.** Stages 1–3 of the implementation plan landed
+unattended because every change tightened the gate or added inert mechanism.
+(The full proposal and staged implementation plan were removed in the
+pre-alpha doc cleanup; both are preserved at
+`929c8247:docs/approvals/consequence-classification-{proposal,implementation-plan}.md`.
+§3 below restates the four splits in full — this package is self-contained.)
+The remaining work — the four splits of proposal §5.1–5.4 — makes
 the gate *permit things it currently refuses*, and per proposal §13 it is
 structural: it replaces the invariant *"critical operations require human
 approval"* with *"operations require the disposition their consequence class

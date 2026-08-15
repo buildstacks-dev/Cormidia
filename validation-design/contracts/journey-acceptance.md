@@ -48,9 +48,6 @@ Phase 3 boundary owns them.
   executes, then nothing is mutated and the collision is named. [C-OP-LIFE §1, INV-010/013]
 - Given an interrupted upgrade, when rerun, then it converges with the archived bytes
   restorable and ratified surfaces unreplaced. [C-OP-LIFE §3, INV-013, B-10]
-- Given only the retired default state root, when Cormidia first resolves an org, then
-  it atomically relocates the root and repairs active path identities; given both roots,
-  it refuses before mutation rather than merging state authorities. [B-10, INV-004/013]
 
 ## J-02 Onboarding / evidence ladder
 - Given a successful bootstrap, when any surface reports state, then the claim is at

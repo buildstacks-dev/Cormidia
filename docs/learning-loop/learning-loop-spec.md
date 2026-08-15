@@ -187,7 +187,7 @@ loop:
   id: lrn_20260707_01JABC
   tier: T1
   status: active
-  scope: apps/operon-marketplace-demo/roles/support
+  scope: apps/marketplace-demo/roles/support
   topic_key: support.missing_payload
   version: 1
   supersedes: null
@@ -198,7 +198,7 @@ loop:
   provenance:
     source_channel: internal
     trust: trusted
-    episode_ids: [ep_operon-marketplace-demo_feedback_0142]
+    episode_ids: [ep_marketplace-demo_feedback_0142]
     turn_ids: [turn_20260707_marketplace_support]
     event_ids: [evt_01JABC]
   review:
@@ -238,7 +238,7 @@ whose `loop.status` disagrees with its directory, and any file whose top-level
 Invariants:
 
 - `loop.scope` must match the namespace path; the app segment is the verbatim
-  `apps.yaml` registry name (e.g. `operon-marketplace-demo`, not
+  `apps.yaml` registry name (e.g. `marketplace-demo`, not
   `marketplace`).
 - `loop.status` is `candidate | provisional | active | deprecated | archived`.
 - `provisional` concepts live only in `quarantine/`, require a human author,
@@ -345,11 +345,11 @@ measurement key on (design §8).
 ```json
 {
   "event_id": "evt_01JABC",
-  "episode_id": "ep_operon-marketplace-demo_feedback_0142",
+  "episode_id": "ep_marketplace-demo_feedback_0142",
   "turn_id": "turn_20260707_marketplace_support",
   "run_id": "20260707-054000-support-digest-summarize",
   "ts": "2026-07-07T05:40:00Z",
-  "app": "operon-marketplace-demo",
+  "app": "marketplace-demo",
   "agent_role": "support",
   "pipeline": "support-digest",
   "pass": "summarize",
@@ -451,7 +451,7 @@ Episode ids derive deterministically from the durable anchor:
 
 ```text
 ep_<app>_<kind-short>_<source-key>
-e.g. ep_buildstacks-dev_ticket_0002, ep_operon-sandbox-gamma_incident_disk-alert-0007
+e.g. ep_buildstacks-dev_ticket_0002, ep_sandbox-gamma_incident_disk-alert-0007
 ```
 
 ```json
@@ -610,8 +610,8 @@ Resolved context records:
 ```json
 {
   "turn_id": "turn_20260707_marketplace_support",
-  "episode_id": "ep_operon-marketplace-demo_feedback_0142",
-  "app": "operon-marketplace-demo",
+  "episode_id": "ep_marketplace-demo_feedback_0142",
+  "app": "marketplace-demo",
   "role": "support",
   "bundle_versions": {
     "org": "2026.07.07-1",
@@ -678,13 +678,13 @@ an `ExperimentRecord` is required (design §9.1).
   "candidate_id": "cand_20260707_01JDEF",
   "destination": "ticket",
   "title": "Fix event fan-out so one file-drop event can reach all subscribers",
-  "proposed_scope": "apps/operon-marketplace-demo",
+  "proposed_scope": "apps/marketplace-demo",
   "proposed_tier": "T1",
   "claims_efficacy": false,
   "experiment_ref": null,
   "error_class": "dispatch.event_fanout_consumed_early",
   "cause_hypothesis": "shared_event_key_consumed_after_first_spawn",
-  "episode_ids": ["ep_operon-marketplace-demo_feedback_0142"],
+  "episode_ids": ["ep_marketplace-demo_feedback_0142"],
   "event_ids": ["evt_01JABC", "evt_01JABD"],
   "evidence_refs": [
     "research/2026-07-07_marketplace-demo-e2e-assessment.md#issues-found"
@@ -1012,7 +1012,7 @@ kind in the existing approvals store, `src/org/approvals.ts`) carries:
   "verdict_hash": "sha256:...",
   "destination": "okf_concept",
   "tier": "T1",
-  "scope": "apps/operon-marketplace-demo/roles/support",
+  "scope": "apps/marketplace-demo/roles/support",
   "base_manifest_version": "2026.07.07-1",
   "final_diff_hash": "sha256:...",
   "waivers": [],
@@ -1044,7 +1044,7 @@ writer inside gate-protected learning paths.
   "verdict": "approve",
   "proposed_destination": "ticket",
   "proposed_tier": "T1",
-  "proposed_scope": "apps/operon-marketplace-demo",
+  "proposed_scope": "apps/marketplace-demo",
   "experiment_required": false,
   "rubric": {
     "correctness": 5,

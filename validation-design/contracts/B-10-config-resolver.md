@@ -20,13 +20,6 @@ Status: RATIFIED 2026-07-31 (ratification-package.md §9 covers contracts/; head
 - Resolution precedence: explicit per-process overrides (`CORMIDIA_ORG_HOME`,
   `CORMIDIA_STATE_HOME`) > active pointer (`~/.cormidia/config`). No command infers an org
   home from cwd `[doc]`.
-- Before default-root resolution, a first Cormidia invocation atomically renames the
-  retired `~/.operon` root to `~/.cormidia`, rewrites any active-pointer and lifecycle
-  managed-clone paths rooted there, repairs active turn journals and registered git
-  worktrees, and replaces any provably owned host-scheduler definition with the current
-  identity and state path. If both roots
-  exist, resolution is a typed pre-mutation stop; it never merges or chooses between two
-  state authorities. Explicit state-home overrides are not relocated. [INV-004/013]
 - The resolved (org home, state home, org id) triple is validated as a **coherent
   identity** before use; a pairing mismatch (state home from another org; pointer to
   moved/deleted org; symlinked org home) is a typed stop — "correct config from the

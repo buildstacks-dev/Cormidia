@@ -9,7 +9,6 @@ import { authorityPreview, resolveAuthority, type AuthorityProfile } from "../or
 import {
   CORMIDIA_HOME_DIRNAME,
   executeOrgInit,
-  migrateLegacyStateRoot,
   ORG_HOME_DEFINITION,
   planOrgInit,
   readActiveOrgPointer,
@@ -50,13 +49,6 @@ interface OrgCommandOptions extends Pick<CormidiaHomeOptions, "env" | "homeDir" 
 
 export async function cmdOrg(args: string[], options: OrgCommandOptions = {}): Promise<number> {
   const subcommand = args[0];
-  if (
-    options.pointerPath === undefined &&
-    subcommand !== undefined &&
-    !(subcommand === "init" && args.includes("--dry-run"))
-  ) {
-    await migrateLegacyStateRoot(options.homeDir ?? homedir());
-  }
   if (subcommand === "init") return init(args.slice(1), options);
   if (subcommand === "show") return show(args.slice(1), options);
   if (subcommand === "use") return use(args.slice(1), options);

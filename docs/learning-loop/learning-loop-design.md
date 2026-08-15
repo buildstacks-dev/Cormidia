@@ -191,7 +191,7 @@ Product-domain knowledge every role needs when touching that app.
 
 Examples:
 
-- `apps/operon-marketplace-demo/`: "This product is a local ecommerce demo with
+- `apps/marketplace-demo/`: "This product is a local ecommerce demo with
 customers, vendors, catalog filtering, and localStorage persistence."
 - `apps/buildstacks-dev/`: "The product voice is personal and practical, not
 enterprise SaaS."
@@ -203,9 +203,9 @@ Knowledge needed only by a specific role on a specific product.
 
 Examples:
 
-- `apps/operon-marketplace-demo/roles/support/`: "Until real support channels exist,
+- `apps/marketplace-demo/roles/support/`: "Until real support channels exist,
 support-feedback events should become intake-flow issues, not user replies."
-- `apps/operon-marketplace-demo/roles/marketing/`: "Marketing is draft-only; no
+- `apps/marketplace-demo/roles/marketing/`: "Marketing is draft-only; no
 outbound publishing."
 - `apps/buildstacks-dev/roles/sre/`: "Use this app's deploy verification flow
 before declaring launch readiness."

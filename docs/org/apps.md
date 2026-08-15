@@ -16,8 +16,8 @@ defaults:
   budget_usd_month: 1000        # decided 2026-07-04, configurable per app
 
 apps:
-  operon-sandbox-alpha:
-    repo: bikramgupta/operon-sandbox-alpha       # GitHub slug = identity
+  sandbox-alpha:
+    repo: bikramgupta/sandbox-alpha       # GitHub slug = identity
     status: live                # live | paused | onboarding
     budget_usd_month: 1000
     execution:

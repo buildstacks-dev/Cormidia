@@ -300,9 +300,8 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   "Correct config from the wrong org" is an identity-boundary failure, not a parser
   failure (F-PT-002 already warns here). Failure modes: stale active pointer; override
   disagreement; symlinked org home; pointer to a deleted/moved org; state home from a
-  different org than the org home; first-run default-root relocation interrupted after
-  the atomic move; both retired and current roots present (typed refusal, never merge);
-  migrated lifecycle or git-worktree paths still naming the retired root.
+  different org than the org home.
+  <!-- changelog 2026-08-14: first-run retired-state-root relocation failure modes retired with the migration (owner ruling, pre-alpha cleanup). -->
 - **Honest fake:** YES — fixture org homes covering every skew/corruption/identity
   class.
 - **Layer:** 1/2.
@@ -371,8 +370,8 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   content); bootstrap re-run idempotency; checkout owned by a different Cormidia checkout
   (link ownership refusal); packaged same-version reinstall and version upgrade;
   source/package generation replacement interrupted between artifacts; multiple foreign
-  install collisions reported incompletely or after mutation; retired and current
-  app-artifact roots coexisting or being split across reads and writes.
+  install collisions reported incompletely or after mutation.
+  <!-- changelog 2026-08-14: retired app-artifact-root coexistence mode retired with the retired-dirname migration (owner ruling). -->
 - **Honest fake:** YES — real temp git checkouts with scripted human interference.
 - **Layer:** 2.
 

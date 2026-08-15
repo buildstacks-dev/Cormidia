@@ -24,7 +24,6 @@ import { cmdOrg } from "../../../src/cli/org.js";
 import {
   executeOrgInit,
   initOrgHome,
-  migrateLegacyStateRoot,
   planOrgInit,
   type InitOrgHomeOptions,
   type InitOrgHomePlan,
@@ -142,22 +141,6 @@ describe("CF-J01-R — collision/refusal classes refuse pre-mutation (C-OP-LIFE 
     const w = await world();
     await writeFile(w.stateHome, "not a directory\n", "utf8");
     await expectBlockedRefusal(w, initOptions(w), "state_home_not_directory");
-  });
-
-  it("first-run migration refuses dual default roots without changing either tree", async () => {
-    const w = await world();
-    const legacyRoot = join(w.homeDir, ".operon");
-    const currentRoot = join(w.homeDir, ".cormidia");
-    await mkdir(legacyRoot, { recursive: true });
-    await mkdir(currentRoot, { recursive: true });
-    await writeFile(join(legacyRoot, "legacy.txt"), "legacy authority\n", "utf8");
-    await writeFile(join(currentRoot, "current.txt"), "current authority\n", "utf8");
-    const before = await snapshotTree(w.root);
-    await expect(migrateLegacyStateRoot(w.homeDir)).rejects.toMatchObject({
-      code: "state_root_migration_collision",
-    });
-    const diff = diffSnapshots(before, await snapshotTree(w.root));
-    expect(diffIsEmpty(diff), `migration collision mutated: ${diffPaths(diff).join(", ")}`).toBe(true);
   });
 
   it("org and state homes overlapping: blocked as effect_path_collision", async () => {

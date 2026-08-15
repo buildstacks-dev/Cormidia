@@ -5,8 +5,10 @@
 // This source constructs the retired identifier from fragments so the detector
 // can scan itself without granting itself a blanket exception. It enumerates
 // tracked and untracked repository files, filters the frozen archive before any
-// read, and permits only the explicitly ratified migration seams and external
-// repository slugs.
+// read, and tolerates ZERO occurrences: the rename completed and its last
+// exceptions (migration seams, retired external repository slugs, immutable
+// campaign evidence) were retired 2026-08-14 by owner ruling. An occurrence is
+// an agent resurrecting the retired name, never legitimate residue.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -16,36 +18,8 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const RETIRED = ["ope", "ron"].join("");
-const LEGACY_DIR = `.${RETIRED}`;
 const FROZEN_ARCHIVE = "archive-do-not-read/";
 const STANDALONE_AGENT_TOOLING = ".agents/";
-
-// The signed campaign / live-observability evidence trees were retired to git
-// history in the 2026-08-14 pre-alpha research cleanup; nothing in the working
-// tree is exempt from the scan today. New immutable evidence registers here.
-const IMMUTABLE_RESEARCH_EVIDENCE: string[] = [];
-
-const PROTECTED_EXTERNAL_SLUGS = new Map([
-  [`bikramgupta/${RETIRED}-sandbox-alpha`, 2],
-  [`bikramgupta/${RETIRED}-sandbox-gamma`, 1],
-  [`bikramgupta/${RETIRED}-marketplace-demo`, 1],
-]);
-
-const PROTECTED_EXTERNAL_NAMES = new Map([
-  [`${RETIRED}-sandbox-alpha`, 2],
-  [`${RETIRED}-sandbox-gamma`, 7],
-  [`${RETIRED}-marketplace-demo`, 15],
-]);
-
-const LEGACY_MIGRATION_COUNTS = new Map([
-  ["README.md", 2],
-  ["tests/hermetic/cf-b14-cf-c-b14-cf-reg-359/cf-b14-bootstrap-checkout.test.ts", 2],
-  ["tests/hermetic/cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/cf-j01-r.test.ts", 1],
-  ["tests/hermetic/cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/cf-j01-s.test.ts", 1],
-  ["src/org/bootstrap.ts", 1],
-  ["src/org/home.ts", 1],
-  ["validation-design/contracts/B-10-config-resolver.md", 1],
-]);
 
 function repositoryTextFiles(): Map<string, string> {
   const paths = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
@@ -65,42 +39,10 @@ function repositoryTextFiles(): Map<string, string> {
   return files;
 }
 
-function occurrences(text: string, value: string): number {
-  return text.split(value).length - 1;
-}
-
-function isImmutableResearchEvidence(path: string): boolean {
-  return IMMUTABLE_RESEARCH_EVIDENCE.some((entry) => (entry.endsWith("/") ? path.startsWith(entry) : path === entry));
-}
-
 describe("CF-B10-* (L1) Cormidia is the sole product identity", () => {
-  it("keeps the retired identifier only in migration seams and protected external repository identities", () => {
-    const files = repositoryTextFiles();
-    const scannableFiles = [...files].filter(([path]) => !isImmutableResearchEvidence(path));
-    const combined = scannableFiles.map(([, text]) => text).join("\n");
-
-    for (const [slug, expectedCount] of PROTECTED_EXTERNAL_SLUGS) {
-      expect(occurrences(combined, slug), slug).toBe(expectedCount);
-    }
-    let withoutSlugs = combined;
-    for (const slug of PROTECTED_EXTERNAL_SLUGS.keys()) withoutSlugs = withoutSlugs.replaceAll(slug, "");
-    for (const [name, expectedCount] of PROTECTED_EXTERNAL_NAMES) {
-      expect(occurrences(withoutSlugs, name), name).toBe(expectedCount);
-    }
-
-    const violations: string[] = [];
-    for (const [path, original] of scannableFiles) {
-      let text = original;
-      for (const slug of PROTECTED_EXTERNAL_SLUGS.keys()) text = text.replaceAll(slug, "");
-      for (const name of PROTECTED_EXTERNAL_NAMES.keys()) text = text.replaceAll(name, "");
-
-      const allowedLegacyCount = LEGACY_MIGRATION_COUNTS.get(path) ?? 0;
-      expect(occurrences(text, LEGACY_DIR), path).toBe(allowedLegacyCount);
-      text = text.replaceAll(LEGACY_DIR, "");
-
-      if (new RegExp(RETIRED, "i").test(text)) violations.push(path);
-    }
-
+  it("keeps the retired identifier out of the repository entirely", () => {
+    const pattern = new RegExp(RETIRED, "i");
+    const violations = [...repositoryTextFiles()].filter(([, text]) => pattern.test(text)).map(([path]) => path);
     expect(violations).toEqual([]);
   });
 

@@ -185,22 +185,6 @@ describe("CF-B14-* — bootstrap vs the human checkout (contract B-14 §§1–4)
     expect(diff.changed.sort()).toEqual([...result.updated].sort());
   });
 
-  it("§3 refuses a retired app-artifact root before creating a parallel Cormidia tree", async () => {
-    const walk = await makeWalk();
-    mkdirSync(join(walk.repo.dir, ".operon"));
-    writeFileSync(join(walk.repo.dir, ".operon", "config.yaml"), "legacy app authority\n");
-    const before = await snapshotTree(walk.repo.dir);
-
-    await expect(walk.run()).rejects.toThrow(/retired app artifact directory.*rename it to \.cormidia/);
-
-    expect(diffSnapshots(before, await snapshotTree(walk.repo.dir))).toEqual({
-      added: [],
-      removed: [],
-      changed: [],
-    });
-    expect(existsSync(join(walk.repo.dir, ".cormidia"))).toBe(false);
-  });
-
   it("negative control: a lifecycle command touching more than its authorized generated paths — the containment detector FIRES", async () => {
     const walk = await makeWalk();
     const before = await snapshotTree(walk.repo.dir);

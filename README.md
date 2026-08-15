@@ -229,21 +229,6 @@ source-backed development link: run `pnpm install:packaged
 --replace-source-links` from that checkout so binaries and skills change as one
 rollback-safe generation.
 
-The first invocation that uses the default home atomically moves
-`~/.operon` to `~/.cormidia`, rewrites the active pointer and lifecycle clone
-paths, repairs active turn journals and registered git worktrees, and replaces
-an owned host-scheduler definition with the Cormidia identity and state path.
-If both roots exist, Cormidia
-refuses before changing either one; identify the authoritative state and move
-the other aside before retrying. Explicit `CORMIDIA_STATE_HOME` paths are never
-relocated automatically.
-
-Environment variables are a hard break: only the `CORMIDIA_*` names are read.
-Existing app repositories also need one reviewed repository commit that runs
-`git mv .operon .cormidia` and updates any instruction links to the app-owned
-files. Bootstrap refuses to create `.cormidia/` beside the retired directory,
-so app policy can never split across two roots.
-
 Every command leaves one audit row. A dispatched CLI command whose state home
 is explicit or safely resolved writes one terminal row under `invocations/` —
 including read-only commands, previews, parser failures, and pre-provider

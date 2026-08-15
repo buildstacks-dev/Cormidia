@@ -398,7 +398,6 @@ interface EmitResult {
 /** This package's root (works from both src/ and dist/ — two levels up). */
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const POLICY_TEMPLATE_REL = join("docs", "policy.yaml.template");
-const RETIRED_APP_ARTIFACT_DIR = ".operon";
 
 /** apps.yaml keys are plain YAML scalars — keep names to safe characters. */
 function sanitizeAppName(name: string): string {
@@ -438,18 +437,6 @@ function assertNotExists(targetRoot: string, rels: readonly string[]): void {
       );
     }
   }
-}
-
-/** Refuse to create a second app-policy tree beside a checkout that still
- * carries the retired product path. That repository needs one reviewed
- * `git mv` so config authority never splits between two directories. */
-function assertNoRetiredAppArtifactRoot(targetRoot: string): void {
-  const retired = join(targetRoot, RETIRED_APP_ARTIFACT_DIR);
-  if (lstatSync(retired, { throwIfNoEntry: false }) === undefined) return;
-  throw new Error(
-    `bootstrap: retired app artifact directory ${retired} still exists — ` +
-      "rename it to .cormidia in one reviewed app-repository commit before bootstrapping with Cormidia",
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -805,7 +792,6 @@ export async function emitAppArtifacts(targetRootIn: string, options: EmitAppArt
       : parseRepositoryIdentity(options.repoSlug, "bootstrap").slug;
   const templateRoot = options.templateRoot ?? PACKAGE_ROOT;
 
-  assertNoRetiredAppArtifactRoot(targetRoot);
   const files = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, files);
   assertNotSymlinked(targetRoot, files);
@@ -1262,7 +1248,6 @@ export async function bootstrapRun(
   const repoSlug = supplied === undefined ? undefined : parseRepositoryIdentity(supplied, "bootstrap").slug;
   const registrationRepoSlug = repoSlug ?? placeholderRepositorySlug(appName);
 
-  assertNoRetiredAppArtifactRoot(targetRoot);
   const appFiles = appArtifactFiles(answers, allRoles);
   assertNotExists(targetRoot, appFiles);
   assertNotSymlinked(targetRoot, appFiles);

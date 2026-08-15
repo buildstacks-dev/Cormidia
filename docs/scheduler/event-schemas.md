@@ -41,7 +41,7 @@ to the same event kind.
 {
   "kind": "support-feedback",
   "id": "evt_20260706_001",
-  "app": "operon-sandbox-gamma",
+  "app": "sandbox-gamma",
   "occurred_at": "2026-07-06T12:00:00Z",
   "source": "fixture"
 }
@@ -65,7 +65,7 @@ The routed consumers below are the roles.yaml subscribers each kind wakes
 {
   "kind": "support-feedback",
   "id": "feedback-001",
-  "app": "operon-sandbox-gamma",
+  "app": "sandbox-gamma",
   "occurred_at": "2026-07-06T12:00:00Z",
   "source": "fixture",
   "severity": "medium",
@@ -84,7 +84,7 @@ The routed consumers below are the roles.yaml subscribers each kind wakes
 {
   "kind": "adoption-signal",
   "id": "adoption-001",
-  "app": "operon-sandbox-gamma",
+  "app": "sandbox-gamma",
   "occurred_at": "2026-07-06T12:00:00Z",
   "source": "fixture",
   "metric": "weekly_active_checks",
@@ -102,7 +102,7 @@ The routed consumers below are the roles.yaml subscribers each kind wakes
 {
   "kind": "health-alert",
   "id": "health-001",
-  "app": "operon-sandbox-gamma",
+  "app": "sandbox-gamma",
   "occurred_at": "2026-07-06T12:00:00Z",
   "source": "fixture",
   "severity": "critical",
@@ -121,7 +121,7 @@ The routed consumers below are the roles.yaml subscribers each kind wakes
 {
   "kind": "launch-calendar",
   "id": "launch-001",
-  "app": "operon-sandbox-gamma",
+  "app": "sandbox-gamma",
   "occurred_at": "2026-07-06T12:00:00Z",
   "source": "fixture",
   "date": "2026-07-20",

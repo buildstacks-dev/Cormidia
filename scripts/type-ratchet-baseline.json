@@ -410,8 +410,8 @@
       "nonNull": 0
     },
     "src/org/home.ts": {
-      "as": 8,
-      "nonNull": 3
+      "as": 4,
+      "nonNull": 2
     },
     "src/org/journal.ts": {
       "as": 1,
@@ -1510,7 +1510,7 @@
       "nonNull": 1
     },
     "tests/hermetic/cf-j01-a-cf-j01-i-cf-j01-r-cf-j01-rc-cf-j01-s/cf-j01-s.test.ts": {
-      "as": 1,
+      "as": 0,
       "nonNull": 2
     },
     "tests/hermetic/cf-j03-a-cf-j03-i-cf-j03-r-cf-j03-rc-cf-j03-s/cf-j03-planning.test.ts": {

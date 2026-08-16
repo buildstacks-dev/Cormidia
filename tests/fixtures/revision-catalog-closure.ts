@@ -2,7 +2,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256 } from "../../src/org/roadmap-delivery/validation-catalog-revision.js";
 import { ratifiedRoadmapValidationCatalog } from "../../src/org/ratified-validation-catalog.js";
-import { loadRevisionAuthorityFacts, missingCanonicalModelStructureIds } from "./revision-authority.js";
+import { missingRevisionRegistryModelStructures, REVISION_REGISTRY_IDS } from "./revision-catalog-crosswalk.js";
+import { loadRevisionAuthorityFacts } from "./revision-authority.js";
+
+export { REVISION_REGISTRY_IDS } from "./revision-catalog-crosswalk.js";
 
 export interface RevisionFamilyEvidence {
   case_ids: readonly string[];
@@ -15,21 +18,6 @@ export interface RevisionCatalogAudit {
   walked_case_ids: string[];
   violations: string[];
 }
-
-export const REVISION_REGISTRY_IDS = [
-  "M17",
-  "J-20",
-  "CORMIDIA-INV-016",
-  "B-20",
-  "B-21",
-  "B-22",
-  "CORMIDIA-C-B20-001",
-  "CORMIDIA-C-B21-001",
-  "CORMIDIA-C-B22-001",
-  "CORMIDIA-C-OPBATCH-001",
-  "CORMIDIA-C-OPVALIDATION-001",
-  "S-10",
-] as const;
 
 export const REVISION_FAMILY_EVIDENCE: readonly RevisionFamilyEvidence[] = [
   {
@@ -157,7 +145,7 @@ export async function auditRevisionCatalogClosure(
     violations.push("revision_catalog_pin_mismatch");
   }
   if (authority.modelStructureIds !== null) {
-    for (const id of missingCanonicalModelStructureIds(active.registered_structure_ids, authority.modelStructureIds))
+    for (const id of missingRevisionRegistryModelStructures(authority.modelStructureIds))
       violations.push(`revision_model_structure_missing:${id}`);
   }
   for (const family of families) {

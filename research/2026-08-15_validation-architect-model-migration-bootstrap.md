@@ -214,14 +214,28 @@ as #469 at `c6be27f8262fecbeaf87800b1feeca3f4cc63794`.
 Fresh-reader review after #469 exposed the source-registry, full-structure,
 ticket-dependency, and split-status gaps described above. The owner's standing
 session authorization covered the upstream-first correction, and the owner
-explicitly reviewed, marked ready, and squash-merged upstream #51. A fifth
-Cormidia preparation PR therefore pins exact 0.4.5 without adding any model
-sentinel. Its future human squash merge, not #468 or #469, fixes the final
-`product.revision`.
+explicitly reviewed, marked ready, and squash-merged upstream #51. Cormidia
+then pinned exact 0.4.5 without adding any model sentinel and squash-merged
+that preparation as #470 at
+`3624f47e282e4dc9e5d32d5992cf5cef5c142e43`.
 
-The authority-cutover PR starts from that exact fifth-preparation squash
-revision, uses it as `product.revision`, and changes only `validation-design/`
-authority, projections, migration evidence, and design-local maintained instructions.
+Full offline testing of the final cutover staging then exposed two transition-
+consumer defects. Three release-authority controls still loaded the root
+legacy policy as fixture input, and revision closure treated canonical
+host-registry IDs as if they were identical to their checked-model structure
+dispositions. Restoring the root file would violate the cutover; changing host
+policy or inventing duplicate model structures would conflate the two
+authority domains; repairing tests in the final PR would violate its
+`validation-design/`-only boundary. A narrow final-consumer preparation makes
+the legacy controls self-contained and records one total, source-backed
+host-to-model ID crosswalk without changing either authority. Its future human
+squash merge, not #468, #469, or #470, fixes the final `product.revision`.
+
+The authority-cutover PR starts from that exact final-consumer preparation
+squash revision, uses it as `product.revision`, and changes only
+`validation-design/` authority, projections, migration evidence, and
+design-local maintained instructions. It is the sixth reviewed squash PR in
+the complete bootstrap sequence.
 Its human squash merge is the cutover: complete model-file presence makes the
 deprecated alias execute checked-model closure without legacy fallback. The
 legacy policy, catalog, YAML manifest, and authored backlog then survive only
@@ -231,8 +245,8 @@ authority.
 Rollback of authority is one ordinary Git revert of the authority-cutover
 squash merge; model absence restores every incumbent legacy consumer through
 the transition bridge. Full bootstrap rollback, if separately desired,
-reverts the 0.4.5 preparation squash, #469, the transition-consumer squash, and
-then dependency preparation #466.
+reverts the final-consumer preparation, #470, #469, the transition-consumer
+squash, and then dependency preparation #466.
 No source artifact is rewritten in place by the upstream migration API.
 
 This decision authorizes no RepositoryPort, TurnPort, campaign, live test,

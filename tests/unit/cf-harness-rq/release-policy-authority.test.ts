@@ -25,6 +25,7 @@ import {
   VALIDATION_MODEL_PATHS,
 } from "../../../src/org/release-policy-authority.js";
 import { loadReleasePolicyAuthorityFromGit } from "../../../src/org/release-policy-git.js";
+import { LEGACY_RELEASE_POLICY_FIXTURE } from "../../fixtures/legacy-release-policy.js";
 
 const execFile = promisify(execFileCallback);
 const roots: string[] = [];
@@ -157,7 +158,7 @@ describe("release policy authority transition", () => {
 
   it("preserves the legacy authority only when no model file exists and binds candidate plus both sources", async () => {
     const host = Buffer.from(await repositoryFile(QUALIFICATION_HOST_POLICY_PATH));
-    const legacy = Buffer.from(await repositoryFile(LEGACY_VALIDATION_POLICY_PATH));
+    const legacy = Buffer.from(LEGACY_RELEASE_POLICY_FIXTURE);
     const reads: string[] = [];
     const files = new Map<string, Buffer>([
       [QUALIFICATION_HOST_POLICY_PATH, host],
@@ -237,7 +238,7 @@ describe("release policy authority transition", () => {
     await git(repo, ["config", "user.email", "fixture@example.test"]);
     await git(repo, ["config", "user.name", "Fixture"]);
     await trackedWrite(repo, QUALIFICATION_HOST_POLICY_PATH, await repositoryFile(QUALIFICATION_HOST_POLICY_PATH));
-    await trackedWrite(repo, LEGACY_VALIDATION_POLICY_PATH, await repositoryFile(LEGACY_VALIDATION_POLICY_PATH));
+    await trackedWrite(repo, LEGACY_VALIDATION_POLICY_PATH, LEGACY_RELEASE_POLICY_FIXTURE);
     await trackedWrite(repo, "validation-design/model/README.md", "non-authority guidance\n");
     await git(repo, ["add", "."]);
     await git(repo, ["commit", "-qm", "legacy with model guidance"]);
@@ -266,7 +267,7 @@ describe("release policy authority transition", () => {
     await git(repo, ["config", "user.email", "fixture@example.test"]);
     await git(repo, ["config", "user.name", "Fixture"]);
     await trackedWrite(repo, QUALIFICATION_HOST_POLICY_PATH, await repositoryFile(QUALIFICATION_HOST_POLICY_PATH));
-    await trackedWrite(repo, LEGACY_VALIDATION_POLICY_PATH, await repositoryFile(LEGACY_VALIDATION_POLICY_PATH));
+    await trackedWrite(repo, LEGACY_VALIDATION_POLICY_PATH, LEGACY_RELEASE_POLICY_FIXTURE);
     await trackedWrite(repo, "validation-design/model/target.yaml", "schema: followed-by-the-compiler\n");
     await symlink("target.yaml", join(repo, VALIDATION_MODEL_PATHS[0]));
     await git(repo, ["add", "."]);

@@ -1073,7 +1073,7 @@
       "as": 5,
       "nonNull": 10
     },
-    "tests/fixtures/adapters/cf-b24-cf-c-b24/cursor-double.test.ts": {
+    "tests/fixtures/adapters/cf-b24-cf-c-b24-cf-reg-403/cursor-double.test.ts": {
       "as": 2,
       "nonNull": 20
     },
@@ -1117,6 +1117,18 @@
       "as": 1,
       "nonNull": 0
     },
+    "tests/fixtures/cf-b07-cf-j08-a-cf-j08-s/state-home.test.ts": {
+      "as": 2,
+      "nonNull": 0
+    },
+    "tests/fixtures/cf-harness-ci/walk.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
+    "tests/fixtures/cf-inv-011/synthetic-secret.test.ts": {
+      "as": 1,
+      "nonNull": 0
+    },
     "tests/fixtures/github-double/cf-b01/cf-b01-double.test.ts": {
       "as": 5,
       "nonNull": 0
@@ -1133,19 +1145,7 @@
       "as": 10,
       "nonNull": 1
     },
-    "tests/fixtures/state-home.test.ts": {
-      "as": 2,
-      "nonNull": 0
-    },
-    "tests/fixtures/synthetic-secret.test.ts": {
-      "as": 1,
-      "nonNull": 0
-    },
     "tests/fixtures/synthetic-secret.ts": {
-      "as": 1,
-      "nonNull": 0
-    },
-    "tests/fixtures/walk.test.ts": {
       "as": 1,
       "nonNull": 0
     },
@@ -1249,7 +1249,7 @@
       "as": 2,
       "nonNull": 3
     },
-    "tests/hermetic/cf-b17/cf-b17.test.ts": {
+    "tests/hermetic/cf-b17-cf-c-b17/cf-b17.test.ts": {
       "as": 0,
       "nonNull": 7
     },
@@ -1265,7 +1265,7 @@
       "as": 1,
       "nonNull": 9
     },
-    "tests/hermetic/cf-b21-cf-c-b21-cf-c-opvalidation-cf-hb102-manual-review-cf-inv-016-cf-sm-validation-c-cf-sm-validation-i-cf-sm-validation-l-cf-sm-validation-r/validation-contract-authority.test.ts": {
+    "tests/hermetic/cf-b21-cf-c-b21-cf-c-opvalidation-cf-hb102-manual-review-cf-inv-016-cf-s10-env-cf-sm-validation-c-cf-sm-validation-i-cf-sm-validation-l-cf-sm-validation-r/validation-contract-authority.test.ts": {
       "as": 7,
       "nonNull": 11
     },
@@ -1773,10 +1773,6 @@
       "as": 2,
       "nonNull": 0
     },
-    "tests/unit/cf-auth-mode/subscription-accounting.test.ts": {
-      "as": 2,
-      "nonNull": 12
-    },
     "tests/unit/cf-b10/cf-c-b10/cf-b10-brand-rename.test.ts": {
       "as": 1,
       "nonNull": 0
@@ -1824,6 +1820,10 @@
     "tests/unit/cf-inv-002/disposition-parity.test.ts": {
       "as": 0,
       "nonNull": 1
+    },
+    "tests/unit/cf-inv-006-cf-j08-a-cf-j08-s/subscription-accounting.test.ts": {
+      "as": 2,
+      "nonNull": 12
     },
     "tests/unit/cf-inv-006/inv-006-settlement.test.ts": {
       "as": 0,

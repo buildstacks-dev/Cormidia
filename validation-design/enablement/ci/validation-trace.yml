@@ -5,15 +5,23 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   traceability:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.10.0
       - uses: actions/setup-node@v6
         with:
-          node-version: 26
-      - run: corepack enable
+          node-version: "26"
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Check design-to-implementation closure
-        run: pnpm exec validation-trace . --manifest validation-design/case-catalog.yaml
+        run: pnpm validation:trace

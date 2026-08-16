@@ -10,7 +10,7 @@
 // The prune is recorded on this family's own §10.3 row.
 //
 // What remains here is what survived the prune and is not already asserted by
-// the CF-J03 publication suite: decomposition-intent parsing, evidence-bounded
+// the J-03 publication suite: decomposition-intent parsing, evidence-bounded
 // publication admission, the immutable admission of a prepared batch versus a
 // later tightened cap, prepared-recovery obligation and its binding to the
 // REQUESTED stage, and the cap-bypass negative control.

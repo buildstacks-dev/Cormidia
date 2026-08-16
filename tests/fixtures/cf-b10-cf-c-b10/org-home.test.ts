@@ -1,4 +1,4 @@
-// HB-002 fixtures/org-home self-test — the temp org home is accepted by the
+// CF-B10 · CF-C-B10 · HB-014; fixtures/org-home self-test — the temp org home is accepted by the
 // REAL product resolver (built by the product's own init transaction, so it
 // cannot drift), and every corruption knob stages a state a product loader
 // detectably refuses (B-10 failure modes; B-10a identity inputs).
@@ -8,11 +8,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadApps } from "../../src/org/apps.js";
-import { resolveAuthority } from "../../src/org/authority.js";
-import { ORG_REQUIRED_FILES, readActiveOrgPointer, resolveCormidiaHomes, validateOrgHome } from "../../src/org/home.js";
-import { makeTempOrgHome, type TempOrgHome } from "./org-home.js";
-import { assertNonEmptyWalk } from "./walk.js";
+import { loadApps } from "../../../src/org/apps.js";
+import { resolveAuthority } from "../../../src/org/authority.js";
+import {
+  ORG_REQUIRED_FILES,
+  readActiveOrgPointer,
+  resolveCormidiaHomes,
+  validateOrgHome,
+} from "../../../src/org/home.js";
+import { makeTempOrgHome, type TempOrgHome } from "../org-home.js";
+import { assertNonEmptyWalk } from "../walk.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {

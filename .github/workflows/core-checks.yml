@@ -67,6 +67,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # pnpm check already includes the strict typecheck; do not execute it twice.
       - run: pnpm check
+      - name: Check design-to-implementation closure
+        run: pnpm validation:trace
       - run: pnpm build
       - run: pnpm test
       - name: Report wall clock (ratified 5-min target — reported, not enforced)

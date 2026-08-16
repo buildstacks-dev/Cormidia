@@ -1,4 +1,4 @@
-// Traceability: CF-SM-VALIDATION-L · HB-102; CF-SM-VALIDATION-I · HB-102; CF-SM-VALIDATION-R · HB-102; CF-SM-VALIDATION-C · HB-102; CF-INV-016 · HB-100; CF-B21 · HB-102; CF-C-B21 · HB-102; CF-C-OPVALIDATION · HB-102; CF-HB102-MANUAL-REVIEW · HB-139 · case-catalog.md §2 validation machine; invariants.md INV-016; contracts/B-21-validation.md; contracts/OP-validation.md; case-catalog.md §10.3.
+// Traceability: CF-SM-VALIDATION-L · HB-102; CF-SM-VALIDATION-I · HB-102; CF-SM-VALIDATION-R · HB-102; CF-SM-VALIDATION-C · HB-102; CF-INV-016 · HB-100; CF-B21 · HB-102; CF-C-B21 · HB-102; CF-C-OPVALIDATION · HB-102; CF-S10-env · HB-102; CF-HB102-MANUAL-REVIEW · HB-139 · case-catalog.md §2 validation machine; invariants.md INV-016; contracts/B-21-validation.md; contracts/OP-validation.md; case-catalog.md §10.3.
 
 // HB-102 — validation-contract authority and deterministic readiness guard.
 // Every refusal below is a seeded negative control: the detector must turn red

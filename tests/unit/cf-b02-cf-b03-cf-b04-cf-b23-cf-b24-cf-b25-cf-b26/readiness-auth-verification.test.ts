@@ -1,4 +1,4 @@
-// CF-AUTH-MODE — readiness verifies the declaration against the real
+// Traceability: CF-B02 · CF-B03 · CF-B04 · HB-051; CF-B23 · CF-B24 · CF-B25 · CF-B26 · HB-137; readiness verifies the declaration against the real
 // credential state, per harness (#333), L1.
 //
 // The refusal must fire in BOTH directions and for every harness:

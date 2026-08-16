@@ -1,3 +1,4 @@
+// Traceability: CF-C-OPPLAN · HB-101; CF-C-OPLOOP · HB-103; CF-C-OPBATCH · HB-104.
 // HB-107 — planning and delivery share the org episode façade while
 // RoadmapPlan and EpisodePlan remain separate authorities (C-OP-PLAN/LOOP/BATCH).
 

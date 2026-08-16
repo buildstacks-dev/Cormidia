@@ -1,4 +1,4 @@
-// CF-REG-359-C — a single unusable provider target must not cost the others.
+// CF-REG-359-C — HB-139 — a single unusable provider target must not cost the others.
 //
 // Observed: `link-skills.mjs` linked six targets in one loop and let the first
 // refusal propagate, so an operator with their OWN directory at

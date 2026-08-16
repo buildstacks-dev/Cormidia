@@ -1,3 +1,5 @@
+// CF-HARNESS-CI — HB-P7 — repository worktree tooling stays deterministic and fail-closed.
+
 import { execFileSync } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -10,8 +12,8 @@ import {
   parseWorktreePorcelain,
   sanitizeBranchForPath,
   type CleanCandidate,
-} from "../../scripts/worktree.js";
-import { makeTempGitRepo, makeTempWorktree, type TempGitRepo, type TempWorktree } from "../fixtures/git-repo.js";
+} from "../../../scripts/worktree.js";
+import { makeTempGitRepo, makeTempWorktree, type TempGitRepo, type TempWorktree } from "../../fixtures/git-repo.js";
 
 describe("worktree lifecycle helpers", () => {
   it("parses attached and detached porcelain worktrees without guessing a branch", () => {

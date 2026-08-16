@@ -230,7 +230,8 @@ separately gated L3/L4/L5 evidence. -->
   **HB-032** Evidence truthfulness sweep across readers (CF-INV-008, CF-J15-*, the
   J-07/J-08/J-02 agreement legs (owned at their home tickets HB-022/HB-020/HB-042),
   CF-B12-*, CF-C-B12 incl. capability/traversal). **HB-033** Cross-surface
-  agreement (CF-IF-XSURF + CF-IF-* conformance). Executor: build-agent (all).
+  agreement (CF-IF-XSURF, CF-IF-CLI, CF-IF-JSON, CF-IF-UI, CF-IF-HTML,
+  and CF-IF-SKILL conformance). Executor: build-agent (all).
 
 ## Wave 4 — standard + thin remainder (L1/L2)
 
@@ -463,7 +464,9 @@ are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
   `gh api repos/cormidia/Cormidia/branches/main/protection` both return HTTP 403
   "Upgrade to GitHub Pro or make this repository public to enable this feature".
   STILL PARKED — no required check was configured, no seeded red PR was run, and
-  F-PT-018 keeps its 2026-08-04 known-limitation disposition. -->
+  F-PT-018 keeps its 2026-08-04 known-limitation disposition. The #431 closure
+  repair restores the fail-closed PR/main/manual workflows and exact command;
+  it does not claim or configure unavailable branch protection. -->
   **Re-checked 2026-08-12: still unavailable (HTTP 403, plan unchanged).**
 
 ## Post-ratification additions (2026-07-31)

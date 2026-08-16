@@ -1,4 +1,4 @@
-// CF-AUTH-MODE — per-harness credential classification (#333), L1.
+// Traceability: CF-B02 · CF-B03 · CF-B04 · HB-051; CF-B23 · CF-B24 · CF-B25 · CF-B26 · HB-137; per-harness credential classification (#333), L1.
 //
 // Each harness proves its billing from a DIFFERENT token-free signal, and this
 // is where each mapping is pinned against realistic raw payloads:

@@ -1,4 +1,4 @@
-// HB-002 fixtures/state-home self-test — the temp state home carries the
+// CF-B07 · HB-023; CF-J08-A · CF-J08-S · HB-020; fixtures/state-home self-test — the temp state home carries the
 // standing ~/.cormidia/<org> shape (system-map §2.2) and REAL product write
 // paths accept it unmodified: the turn lock store and the telemetry ledger
 // write into it at their own paths.
@@ -6,16 +6,16 @@
 import { existsSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import { acquireLock, lockPath, readLock, releaseLock } from "../../src/org/locks.js";
-import { recordTurn, type TurnRecord } from "../../src/runtime/telemetry.js";
+import { acquireLock, lockPath, readLock, releaseLock } from "../../../src/org/locks.js";
+import { recordTurn, type TurnRecord } from "../../../src/runtime/telemetry.js";
 import {
   assertStateHomeShape,
   makeTempStateHome,
   STATE_HOME_DIRS,
   StateHomeShapeError,
   type TempStateHome,
-} from "./state-home.js";
-import { assertNonEmptyWalk } from "./walk.js";
+} from "../state-home.js";
+import { assertNonEmptyWalk } from "../walk.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {

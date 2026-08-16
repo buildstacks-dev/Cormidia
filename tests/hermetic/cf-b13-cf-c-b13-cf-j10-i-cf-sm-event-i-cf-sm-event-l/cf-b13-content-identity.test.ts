@@ -1,4 +1,4 @@
-// Traceability: CF-B13 · HB-P3 · contracts/B-13-event-inbox.md §2 + §6; CF-J10-I · HB-P3; CF-SM-EVENT-L/I · HB-P3; case-catalog.md §2 event machine; boundary-map.md B-13.
+// Traceability: CF-B13 · CF-C-B13 · CF-J10-I · CF-SM-EVENT-L/I · HB-040 · HB-P3 · contracts/B-13-event-inbox.md §2 + §6; case-catalog.md §2 event machine; boundary-map.md B-13.
 
 // HB-P3 — F-PT-006 (owner ruling 2026-08-12): EXACTLY ONE FIRING PER REAL-WORLD
 // EVENT. Duplicate deliveries collapse to one; the dedup identity is derived

@@ -1,11 +1,11 @@
-// HB-002 fixtures/walk self-test — the empty-walk detector itself lands
+// CF-HARNESS-CI — HB-P7; fixtures/walk self-test — the empty-walk detector itself lands
 // red-then-green (harness rule: a sweep may never pass on an empty walk).
 
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { assertNonEmptyWalk, EmptyWalkError, walkFiles } from "./walk.js";
+import { assertNonEmptyWalk, EmptyWalkError, walkFiles } from "../walk.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {

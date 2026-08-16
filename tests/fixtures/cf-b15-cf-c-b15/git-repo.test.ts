@@ -1,4 +1,4 @@
-// HB-002 fixtures/git-repo self-test — real repos/clones/remotes/worktrees
+// CF-B15 — HB-025; CF-C-B15 — HB-P2; fixtures/git-repo self-test — real repos/clones/remotes/worktrees
 // that REAL product git code accepts: gitSnapshotOf (src/runtime/git.ts)
 // reports them truthfully, and resolveRemoteDefaultBranch (src/loop/
 // default-branch.ts, the #101 never-guess-main rule) reads the configured
@@ -7,9 +7,9 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveRemoteDefaultBranch } from "../../src/loop/default-branch.js";
-import { gitSnapshotOf } from "../../src/runtime/git.js";
-import { makeTempClone, makeTempGitRepo, makeTempWorktree, type TempGitRepo } from "./git-repo.js";
+import { resolveRemoteDefaultBranch } from "../../../src/loop/default-branch.js";
+import { gitSnapshotOf } from "../../../src/runtime/git.js";
+import { makeTempClone, makeTempGitRepo, makeTempWorktree, type TempGitRepo } from "../git-repo.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {

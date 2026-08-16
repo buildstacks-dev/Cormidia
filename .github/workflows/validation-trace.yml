@@ -1,32 +1,47 @@
 name: validation-trace
 
-# Design-to-implementation closure gate from the validation-architect enablement
-# bundle (validation-design/enablement/ci/validation-trace.yml). Reviewed against
-# Cormidia CI conventions: Node from .nvmrc (26), pnpm via action-setup matching
-# packageManager, and --tests tests for this repo's offline harness root.
-# Proves deterministic catalog↔spec closure only — not fidelity, and never an
-# L-ACC campaign authorization.
-#
-# Gate enablement: INSTALL.md step 4 requires proving the command locally before
-# enabling the gate. First local run (2026-08-11) is RED on forward/backward/
-# status-honesty/spec-structure (incremental header/directory conventions still
-# owed per agents-md-contribution adoption notes). Keep triggers as
-# workflow_dispatch until `pnpm exec validation-trace . --manifest
-# validation-design/case-catalog.yaml --tests tests` exits 0; then restore the
-# template's pull_request + push-to-main triggers.
+# Deterministic design-to-implementation closure. This is offline L1/L2
+# evidence only: it authorizes no provider turn or acceptance campaign.
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
+    inputs:
+      compute:
+        description: Run this exact ref on the Mac runner or GitHub-hosted fallback
+        type: choice
+        required: true
+        default: self-hosted
+        options:
+          - self-hosted
+          - github-hosted
+      expected_sha:
+        description: Exact 40-character commit SHA the manual run must validate
+        type: string
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   traceability:
-    runs-on: ubuntu-latest
+    runs-on: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Refuse a drifted manual candidate
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: test "${GITHUB_SHA}" = "${EXPECTED_SHA}"
       - uses: pnpm/action-setup@v6
         with:
           version: 11.10.0
@@ -36,7 +51,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Check design-to-implementation closure
-        run: >
-          pnpm exec validation-trace .
-          --manifest validation-design/case-catalog.yaml
-          --tests tests
+        run: pnpm validation:trace

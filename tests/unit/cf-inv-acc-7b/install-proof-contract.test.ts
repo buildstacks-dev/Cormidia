@@ -1,4 +1,4 @@
-// CF-REG-360 — the real packaged installer emits the identity the campaign
+// CF-INV-ACC-7b — HB-126 — #360: the real packaged installer emits the identity the campaign
 // proof parser requires. The original double emitted it while the real script
 // printed prose and deleted the tarball, so every offline campaign test passed
 // and no live report could answer which tarball ran.
@@ -17,7 +17,7 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe("CF-REG-360 — real packaged-install proof", () => {
+describe("CF-INV-ACC-7b — #360 real packaged-install proof", () => {
   it("binds the exact tarball bytes and emits the parser's terminal schema", async () => {
     const root = await mkdtemp(join(tmpdir(), "cormidia-install-proof-"));
     cleanups.push(root);

@@ -71,7 +71,7 @@ export const REVISION_FAMILY_EVIDENCE: readonly RevisionFamilyEvidence[] = [
   {
     case_ids: ["CF-SM-VALIDATION-L/I/R/C", "CF-B21-*", "CF-C-B21", "CF-C-OPVALIDATION", "CF-S10-env"],
     test_path:
-      "tests/hermetic/cf-b21-cf-c-b21-cf-c-opvalidation-cf-hb102-manual-review-cf-inv-016-cf-sm-validation-c-cf-sm-validation-i-cf-sm-validation-l-cf-sm-validation-r/validation-contract-authority.test.ts",
+      "tests/hermetic/cf-b21-cf-c-b21-cf-c-opvalidation-cf-hb102-manual-review-cf-inv-016-cf-s10-env-cf-sm-validation-c-cf-sm-validation-i-cf-sm-validation-l-cf-sm-validation-r/validation-contract-authority.test.ts",
     seeded_detector_marker: "negative control",
   },
   {

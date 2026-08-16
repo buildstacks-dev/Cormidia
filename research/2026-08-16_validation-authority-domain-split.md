@@ -71,24 +71,29 @@ changes; or agent self-merge.
    Checked-model binding hashes the ordered exact eight-file path/digest set;
    legacy binding hashes the one temporary legacy policy. The migration archive
    is never a runtime input.
-7. The formerly planned two-PR bootstrap is four reviewed squash PRs:
+7. The formerly planned two-PR bootstrap is five reviewed squash PRs:
    dependency preparation (#466, merged), transition consumers (#468, merged),
    the exact 0.4.4 corrective preparation ratified through
    [#465 comment 5308571011](https://github.com/cormidia/Cormidia/issues/465#issuecomment-5308571011)
    and its upstream-first compiler-report correction in
-   [#465 comment 5308602145](https://github.com/cormidia/Cormidia/issues/465#issuecomment-5308602145),
-   then the `validation-design/`-only authority cutover. The corrective PR is
-   necessary because the final PR cannot both edit root instructions/package
+   [#465 comment 5308602145](https://github.com/cormidia/Cormidia/issues/465#issuecomment-5308602145)
+   (#469, merged), an exact 0.4.5 fresh-reader/migration-fidelity preparation
+   after upstream [#51](https://github.com/cormidia/validation-architect/pull/51)
+   (merged), then the `validation-design/`-only authority cutover. The fifth
+   preparation is necessary because the final PR cannot both edit package
    provenance and embed its unknowable future squash revision. The final model
-   names the corrective preparation squash SHA as `product.revision`.
+   names the 0.4.5 preparation squash SHA as `product.revision`.
 
 The 0.4.3 correction changed neither the authority domains nor any host-policy
 ownership above. It only permitted exact archived prose to migrate without a
 credential false positive and made the upstream-generated owner briefing show
-the already-reviewed lane authorization. The final 0.4.4 correction is likewise
-domain-neutral: it makes the established canonical compiler report available
+the already-reviewed lane authorization. The 0.4.4 correction was likewise
+domain-neutral: it made the established canonical compiler report available
 through public `compile()` and `compile --write`, removing the need for a
-Cormidia facsimile or private import. All compose-tightly, no-fallback,
+Cormidia facsimile or private import. The final 0.4.5 correction is also
+domain-neutral: it exposes already-reviewed source and structure facts to
+fresh readers, preserves explicit dependency and split-status facts, and
+rejects invalid dependency graphs. All compose-tightly, no-fallback,
 exact-byte binding, and external-action prohibitions remain unchanged.
 
 ## Legacy top-level field disposition

@@ -80,9 +80,9 @@ and upstream issue
 [#48](https://github.com/cormidia/validation-architect/issues/48) corrected the
 public contract before any Cormidia 0.4.3 artifact was committed.
 
-### Final corrective 0.4.4 cutover dependency
+### Intermediate corrective 0.4.4 preparation dependency
 
-The final migration and cutover dependency is:
+The fourth preparation PR used:
 
 - package: `validation-architect` `0.4.4`;
 - upstream revision: `28c6229bee1e1bfe63fffe8ca25dec3f81c0a6e9`;
@@ -111,6 +111,51 @@ that checkout entered either qualifying artifact. No registry request
 succeeded. No publication, tag, release, visibility change, provider turn, or
 live campaign was authorized or performed. Cormidia still consumes only the
 upstream core package as an exact development dependency.
+
+Cormidia squash-merged that fourth preparation as
+[#469](https://github.com/cormidia/Cormidia/pull/469) at
+`c6be27f8262fecbeaf87800b1feeca3f4cc63794`. Exact fresh-reader rehearsal then
+found two remaining upstream contract gaps which Cormidia could not repair in
+the design-only cutover without inventing data: `planned-trace.md` omitted the
+complete source registry and protected structure fields, while reviewed legacy
+ticket dependencies and per-output split status were not preserved in the
+canonical backlog.
+
+### Final corrective 0.4.5 cutover dependency
+
+The final migration and cutover dependency is:
+
+- package: `validation-architect` `0.4.5`;
+- upstream revision: `5949f6b1be3f3b22c47c3cf532e33d529a468291`;
+- upstream issue: [validation-architect#50](https://github.com/cormidia/validation-architect/issues/50);
+- upstream PR: [validation-architect#51](https://github.com/cormidia/validation-architect/pull/51);
+- artifact: `vendor/validation-architect-0.4.5.tgz`;
+- SHA-256:
+  `2a2e59324272aeb5d3ba1aed9da4a42fb0682f391fa82ee9dfa1c8cbff8294eb`;
+- npm integrity:
+  `sha512-3sHA9XQ80l+05yt5lQTv6RoXNahoY1LOv0edAwPza8oCQ02kpurkFlT7hzLXwQrQHC9F841R3ZJDnHENQp1E/Q==`;
+- license: `LicenseRef-FSL-1.1-MIT`.
+
+Two independent clean detached builds from the exact squash revision produced
+byte-identical 267,873-byte core tarballs with 124 entries. Version 0.4.5 adds
+the deterministic source registry and complete product-structure routing to
+the public planned trace, preserves explicit reviewed ticket dependencies and
+per-output split status during migration, and rejects malformed, duplicate,
+missing, self-referential, or cyclic dependencies. Method, model, policy,
+compiler, result, golden-set, campaign, provider, and Cormidia host-policy
+version identities remain unchanged; the public generated projection and
+legacy-migration review behavior change additively. It introduces no Cormidia
+runtime dependency.
+
+Both qualifying 0.4.5 builds used only existing local dependency bytes and made
+no registry lookup or request. Later Cormidia `pnpm install --offline
+--frozen-lockfile` attempts nevertheless attempted registry DNS while checking
+missing optional packages; the sandbox denied every lookup with `ENOTFOUND`,
+the retries were aborted, and no fetched byte entered either qualifying
+artifact. No registry request succeeded. No publication, tag, release,
+visibility change, provider turn, or live campaign was authorized or performed.
+Cormidia continues to consume only the upstream core package as an exact
+vendored development dependency.
 
 The 0.4.2 pin superseded the unpublished 0.3.0 migration bootstrap and the
 provisional 0.4.0 and 0.4.1 artifacts. Version 0.4.2 supplies the reviewed
@@ -162,11 +207,19 @@ owner ratified a fourth, corrective preparation PR in
 The 0.4.3 public-surface rehearsal then exposed the private-only compiler-report
 gap and the owner ratified the 0.4.4 upstream-first correction in
 [#465 comment 5308602145](https://github.com/cormidia/Cormidia/issues/465#issuecomment-5308602145).
-The same fourth Cormidia preparation PR now pins exact 0.4.4, preserves the
-transition consumers, and corrects the root instruction. Its future human
-squash merge, not #468, fixes the final `product.revision`.
+The same fourth Cormidia preparation PR pinned exact 0.4.4, preserved the
+transition consumers, and corrected the root instruction; it was squash-merged
+as #469 at `c6be27f8262fecbeaf87800b1feeca3f4cc63794`.
 
-The authority-cutover PR starts from that exact corrective-preparation squash
+Fresh-reader review after #469 exposed the source-registry, full-structure,
+ticket-dependency, and split-status gaps described above. The owner's standing
+session authorization covered the upstream-first correction, and the owner
+explicitly reviewed, marked ready, and squash-merged upstream #51. A fifth
+Cormidia preparation PR therefore pins exact 0.4.5 without adding any model
+sentinel. Its future human squash merge, not #468 or #469, fixes the final
+`product.revision`.
+
+The authority-cutover PR starts from that exact fifth-preparation squash
 revision, uses it as `product.revision`, and changes only `validation-design/`
 authority, projections, migration evidence, and design-local maintained instructions.
 Its human squash merge is the cutover: complete model-file presence makes the
@@ -178,7 +231,7 @@ authority.
 Rollback of authority is one ordinary Git revert of the authority-cutover
 squash merge; model absence restores every incumbent legacy consumer through
 the transition bridge. Full bootstrap rollback, if separately desired,
-reverts the corrective preparation squash, the transition-consumer squash, and
+reverts the 0.4.5 preparation squash, #469, the transition-consumer squash, and
 then dependency preparation #466.
 No source artifact is rewritten in place by the upstream migration API.
 

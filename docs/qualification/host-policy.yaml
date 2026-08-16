@@ -1,0 +1,73 @@
+schema: cormidia/qualification-host-policy/v1
+product: cormidia
+
+# Cormidia-owned operational facts that validation-architect 0.4.2 deliberately
+# does not model. This file composes with, and never overrides, the selected
+# Validation Architect authority. See research/2026-08-16_validation-authority-domain-split.md.
+release_qualification:
+  contract_id: RQ-1
+  required_l3_case_ids:
+    - CF-B02-L3
+    - CF-B03-L3
+    - CF-B04-L3
+    - CF-B01-L3
+    - CF-J18-A
+    - CF-J16-A
+  conditional_l3_case_ids: []
+  allowed_test_skip_findings:
+    - id: F-PT-012
+      status: open
+  campaign_spend:
+    pre_merge_adapter:
+      scope: changed adapter only
+      max_provider_turns: 2
+      max_equiv_usd: 5
+    github_smoke:
+      scope: sandbox GitHub repo only
+      max_provider_turns: 2
+      max_equiv_usd: 5
+    launchd_proof:
+      scope: unique launchd definition only
+      max_provider_turns: 2
+      max_equiv_usd: 5
+    release:
+      scope: all adapters + GitHub + launchd + unattended profile
+      max_provider_turns: 24
+      max_equiv_usd: 100
+    on_ceiling_exhaustion: completeness=incomplete; verdict never pass
+
+outcome_acceptance:
+  release_relationship: disclosed-assurance-outside-rq1
+  axis_score:
+    values: [0, 1, 2, 3, ungraded]
+    rules:
+      - 0/1/2/3 = absent / attempted / adequate / strong, per acceptance/rubric.md section 5
+      - every numeric score carries a mandatory one-sentence justification citing specific evidence; a score without its citation is discarded and the axis reports ungraded
+      - ungraded means the evidence for this axis is missing or unusable; it is not 0 and is never coerced to 0
+      - ungraded never enters an aggregate as a numeric value; every aggregate names its graded denominator explicitly
+      - an axis with no legal disjoint grader reports ungraded; it is never graded by a correlated provider
+      - any ungraded axis, killed scenario, ceiling exhaustion, or missing grader run makes that scenario incomplete
+      - while a threshold is unratified, every threshold-dependent axis verdict is inconclusive, never pass or fail
+    thresholds: none
+
+active_revision_catalog:
+  revision_id: roadmap-validation-delivery-batching-2026-08-03
+  registered_structure_ids:
+    - M17
+    - J-20
+    - CORMIDIA-INV-016
+    - B-20
+    - B-21
+    - B-22
+    - CORMIDIA-C-B20-001
+    - CORMIDIA-C-B21-001
+    - CORMIDIA-C-B22-001
+    - CORMIDIA-C-OPBATCH-001
+    - CORMIDIA-C-OPVALIDATION-001
+    - S-10
+  catalog_slice_content_sha256: 58b677769721a28840733bd9e7da8aa729194fa6d1b1ed533128f17e56aa4880
+
+campaign_binding:
+  legacy_policy_path: validation-design/validation-policy.yaml
+  model_root: validation-design/model
+  host_policy_path: docs/qualification/host-policy.yaml

@@ -39,7 +39,7 @@ describe("CF-INV-ACC-5 (L1) the truth table comes from policy", () => {
   });
 
   it("declares NO threshold in v0, and refuses to run if that ever changes silently", () => {
-    expect(policy.thresholds).toMatch(/^NONE\./);
+    expect(policy.thresholds).toBe("none");
     expect(() => assertNoThresholdRatified(policy)).not.toThrow();
     expect(() => assertNoThresholdRatified({ ...policy, thresholds: "mean >= 2.0 passes" })).toThrow(
       VerdictAlgebraError,

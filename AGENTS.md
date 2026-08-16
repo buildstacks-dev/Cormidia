@@ -25,7 +25,8 @@ inventory.
 | `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table |
 | `src/jobs/` · `docs/jobs/` | Ad-hoc job graphs (`cormidia-job`, a SECOND binary) — outside the governed loop: no review, verdicts, tickets, or GitHub authority |
-| `validation-design/` | Ratified harness corpus — `validation-policy.yaml` is the contract, `routing.md` the binding procedure, `harness-backlog.md` the build plan |
+| `validation-design/` | Ratified harness corpus — exact `model/*.yaml` is the checked authority, generated Markdown is read-only, and `routing.md` is the binding procedure |
+| `docs/qualification/host-policy.yaml` | Cormidia-only qualification/campaign facts that compose tighten-only with the validation model |
 | `tests/` | Offline L1/L2 harness + explicitly authorized L3/L4/L5 campaign runners; `tests/campaign/acceptance/` is the L-ACC lane (gates nothing, F-PT-029) |
 | `research/` | Dated decision records |
 | `scripts/` | Link/smoke/packaging scripts + the `pnpm check` gate scripts |
@@ -113,8 +114,13 @@ assurance outside RQ-1 and may not be claimed as completed evidence.
 
 ## Validation harness — routing stub
 The binding procedure moved verbatim (2026-08-11, #402) to
-`validation-design/routing.md`; `validation-design/validation-policy.yaml`
-remains the contract (tighten-only). Triggers:
+`validation-design/routing.md`. Exact sentinel presence selects authority:
+zero of the eight named model files uses the temporary pre-cutover legacy
+corpus; any one of those eight requires the complete
+`validation-design/model/` graph and forbids legacy/archive fallback.
+`docs/qualification/host-policy.yaml` separately owns
+Cormidia qualification and campaign facts; the two compose tighten-only.
+Triggers:
 - Feature change → derivation chain: routing.md "Feature changes".
 - Bug fix → detector deposit + case-catalog §10.3 row in the same change (two
   sanctioned exceptions listed in routing.md's standing-rules digest).

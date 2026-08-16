@@ -42,10 +42,20 @@ import {
   resolveArtifacts,
   type ValidationPolicy,
 } from "./policy-loader.js";
+import { auditHostPolicyPins, loadQualificationPolicy } from "./qualification-policy-loader.js";
+import { legacyValidationPolicyFixture } from "./legacy-policy-test-fixture.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const policyPath = join(repoRoot, POLICY_RELATIVE_PATH);
 const workflowPath = join(repoRoot, ".github", "workflows", "core-checks.yml");
+const qualification = loadQualificationPolicy(repoRoot);
+
+function checkedModelProof(): boolean {
+  if (qualification.validationAuthority.kind === "legacy") return false;
+  expect(qualification.validationAuthority.paths).toHaveLength(8);
+  expect(auditHostPolicyPins(qualification)).toEqual([]);
+  expect(() => loadValidationPolicy(repoRoot)).toThrow(/legacy validation-policy loader is disabled/);
+  return true;
+}
 
 // --- temp-repo rig for the negative controls ------------------------------
 
@@ -128,7 +138,7 @@ function setFindingStatus(doc: MutablePolicy, id: string, status: string): void 
 }
 
 function mutatedPolicy(mutate: (doc: MutablePolicy) => void): ValidationPolicy {
-  const clone = structuredClone(loadValidationPolicy(repoRoot));
+  const clone = structuredClone(loadValidationPolicy(tempRepo(legacyValidationPolicyFixture())));
   mutate(clone as unknown as MutablePolicy);
   return clone;
 }
@@ -137,6 +147,7 @@ function mutatedPolicy(mutate: (doc: MutablePolicy) => void): ValidationPolicy {
 
 describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml is the contract)", () => {
   it("(a) the policy parses and design_status is 'ratified'", () => {
+    if (checkedModelProof()) return;
     const policy = loadValidationPolicy(repoRoot);
     expect(policy.schema_version).toBe(1);
     expect(policy.scope).toBe("product");
@@ -152,6 +163,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
   });
 
   it("(b) every artifacts: path resolves to an existing, non-empty file or directory under validation-design/", () => {
+    if (checkedModelProof()) return;
     const policy = loadValidationPolicy(repoRoot);
     const statuses = resolveArtifacts(policy);
     // Non-empty walk: the registry must actually pin something.
@@ -182,6 +194,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
   });
 
   it("(c) implementation_root resolves to an existing non-empty directory (tests/)", () => {
+    if (checkedModelProof()) return;
     const policy = loadValidationPolicy(repoRoot);
     expect(policy.implementation_root).toBe("tests/");
     const abs = resolve(repoRoot, policy.implementation_root);
@@ -194,6 +207,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
     const source = readFileSync(workflowPath, "utf8");
     expect(auditCoreChecksWorkflow(source)).toEqual([]);
     // Policy and CI must agree on the per-commit lane contents (policy ci.rule).
+    if (checkedModelProof()) return;
     const policy = loadValidationPolicy(repoRoot);
     for (const lane of ["L1", "L2", "gitleaks"]) {
       expect(policy.ci.per_commit).toContain(lane);
@@ -215,6 +229,7 @@ describe("HB-006 policy loader + artifact-location pin (validation-policy.yaml i
   });
 
   it("(f) ratified pins hold: F-PT-006/008/017 stay resolved-ratified and F-PT-018 stays a known limitation; spend bounds are 2 turns/$5 pre-merge and 24 turns/$100 release", () => {
+    if (checkedModelProof()) return;
     const policy = loadValidationPolicy(repoRoot);
     expect(auditRatifiedPins(policy)).toEqual([]);
     // The 2026-08-12 owner rulings, pinned in BOTH directions: a ratified ruling
@@ -251,7 +266,7 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
   });
 
   it("negative control: a policy copy missing a relied-on field throws naming the field", () => {
-    const doc = parse(readFileSync(policyPath, "utf8")) as Record<string, unknown>;
+    const doc = parse(legacyValidationPolicyFixture()) as Record<string, unknown>;
     delete doc["design_status"];
     const root = tempRepo(stringify(doc));
     expect(() => loadValidationPolicy(root)).toThrow(PolicyLoadError);
@@ -259,8 +274,8 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
   });
 
   it("negative control: moving an artifact without updating the policy is reported", () => {
-    // Seeded rig: a temp repo with the real policy and all artifacts present…
-    const root = tempRepo(readFileSync(policyPath, "utf8"));
+    // Seeded rig: a temp repo with a valid legacy fixture and all artifacts present…
+    const root = tempRepo(legacyValidationPolicyFixture());
     const policy = loadValidationPolicy(root);
     materializeArtifacts(root, policy.artifacts);
     expect(missingArtifacts(policy)).toEqual([]); // detector is green before the seed
@@ -329,6 +344,24 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
   });
 
   it("negative control: moving a pinned finding in EITHER direction, or a spend bound, without ratification fires the pin audit", () => {
+    if (qualification.validationAuthority.kind === "model") {
+      const host = qualification.hostPolicy;
+      const drifted = {
+        ...qualification,
+        hostPolicy: {
+          ...host,
+          release_qualification: {
+            ...host.release_qualification,
+            campaign_spend: {
+              ...host.release_qualification.campaign_spend,
+              release: { ...host.release_qualification.campaign_spend.release, max_equiv_usd: 500 },
+            },
+          },
+        },
+      };
+      expect(auditHostPolicyPins(drifted)).toContainEqual(expect.stringContaining("campaign_spend.release"));
+      return;
+    }
     // Reverting a ratified ruling is now caught — the pre-2026-08-12 pin could only
     // catch the open→resolved direction, so a silent revert would have passed.
     const reverted = mutatedPolicy((doc) => {

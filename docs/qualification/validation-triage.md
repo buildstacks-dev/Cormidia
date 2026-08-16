@@ -4,6 +4,9 @@ This is the operator runbook for durable L3/L4/L5 campaign reports under
 `<state-home>/validation/campaigns/`. It is not evidence itself. Preserve the report,
 its referenced artifacts, the exact commit, and target identity before changing or
 retrying anything. `inconclusive` is **not a pass** and is never release evidence.
+New reports use schema v2 and bind both the Cormidia host-policy bytes and the
+ordered selected Validation Architect authority bytes. Historical schema-v1
+reports remain readable for triage but cannot satisfy current release evidence.
 
 Severity follows the concentrated control points in
 `validation-design/system-map.md` §5.2. SEV-0 means possible authority, secret,
@@ -15,8 +18,9 @@ incompleteness without a proven product violation; INFO is an expected safe refu
 
 1. Stop only the scoped campaign. Do not disable a product gate, delete evidence,
    widen a sandbox target, or increase spend without a new human authorization.
-2. Copy the campaign `report.json`, referenced evidence, exact policy bytes, commit,
-   target config, and provider/GitHub/launchd identities to an immutable incident folder.
+2. Copy the campaign `report.json`, referenced evidence, exact host-policy and
+   selected validation-authority bytes, commit, target config, and
+   provider/GitHub/launchd identities to an immutable incident folder.
 3. If any collected evidence already proves a violation, preserve `verdict=fail` even
    when later cases are missing. Otherwise missing work stays `incomplete/inconclusive`.
 4. For deterministic defects found by L3/L4/L5, deposit the cheapest L1/L2 detector in
@@ -54,7 +58,8 @@ incompleteness without a proven product violation; INFO is an expected safe refu
 
 ## Escalation record
 
-Record campaign ID, commit, policy SHA-256, exact target and tuple, first bad evidence
-reference, affected T-point(s), spend at stop, known side effects, missing cases, and the
-human who authorized any retry. Never copy raw secrets or provider transcripts into an
-issue; use hashes and scrubbed excerpts.
+Record campaign ID, commit, host-policy SHA-256, ordered validation-authority
+path/digest set, exact target and tuple, first bad evidence reference, affected
+T-point(s), spend at stop, known side effects, missing cases, and the human who
+authorized any retry. Never copy raw secrets or provider transcripts into an issue;
+use hashes and scrubbed excerpts.

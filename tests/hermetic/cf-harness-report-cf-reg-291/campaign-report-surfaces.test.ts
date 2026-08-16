@@ -5,10 +5,8 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppsFile } from "../../../src/org/apps.js";
-import {
-  writeValidationCampaignReport,
-  type ValidationCampaignReportV1,
-} from "../../../src/org/validation-campaign.js";
+import { writeValidationCampaignReport } from "../../../src/org/validation-campaign.js";
+import type { ValidationCampaignReportV2 } from "../../../src/org/validation-campaign-report.js";
 import { buildReport } from "../../../src/report/project.js";
 import { renderReportHtml } from "../../../src/report/render-html.js";
 import { renderReportTerminal } from "../../../src/report/render-terminal.js";
@@ -39,9 +37,9 @@ const apps: AppsFile = {
   ],
 };
 
-function inconclusive(): ValidationCampaignReportV1 {
+function inconclusive(): ValidationCampaignReportV2 {
   return {
-    schema_version: 1,
+    schema_version: 2,
     campaign_id: "eval-20260731-001",
     lane: "L4",
     campaign_kind: "reviewer-eval",
@@ -49,7 +47,14 @@ function inconclusive(): ValidationCampaignReportV1 {
     status: "completed",
     started_at: "2026-07-31T18:00:00.000Z",
     finished_at: "2026-07-31T18:02:00.000Z",
-    policy: { path: "validation-design/validation-policy.yaml", sha256: "a".repeat(64) },
+    policy: {
+      path: "docs/qualification/host-policy.yaml",
+      sha256: "a".repeat(64),
+      validation_authority: {
+        kind: "legacy",
+        sources: [{ path: "validation-design/validation-policy.yaml", sha256: "c".repeat(64) }],
+      },
+    },
     target: { commit: "b".repeat(40), apps: ["sandbox-alpha"], scopes: ["S-3"], tuples: ["reviewer/claude/model"] },
     spend: {
       max_provider_turns: 24,

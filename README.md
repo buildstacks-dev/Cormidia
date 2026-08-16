@@ -699,9 +699,13 @@ git root; there is no `.env.example` yet — the variables above are the full se
 
 ## Testing
 
-The ratified contract is `validation-design/validation-policy.yaml`; the
-executable L1/L2 harness plus opt-in L3/L4/L5 campaign runners live in
-`tests/`. RQ-1 is the release-evidence gate: it qualifies an exact candidate
+The complete graph under `validation-design/model/` is the ratified Validation
+Architect authority; before cutover, zero of its eight exact files selects the
+temporary legacy `validation-design/validation-policy.yaml`, while any one of
+those eight requires the complete set and forbids fallback. Cormidia-only qualification facts live
+in `docs/qualification/host-policy.yaml` and compose tighten-only with that
+authority. The executable L1/L2 harness plus opt-in L3/L4/L5 campaign runners
+live in `tests/`. RQ-1 is the release-evidence gate: it qualifies an exact candidate
 only from complete deterministic L1/L2 plus separately authorized L3/L4
 campaign evidence bound to that candidate; missing work is
 incomplete/inconclusive, never green. The human threat model, HB-073 abuse

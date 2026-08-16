@@ -1,9 +1,11 @@
 import type { AcceptanceCampaignReport } from "./campaign-report.js";
+import { parseValidationCampaignPolicyBinding } from "../../../src/org/validation-campaign-policy.js";
 
 export type ReportDefectCode =
   | "matrix-missing"
   | "installed-identity-missing"
   | "commit-pin-missing"
+  | "policy-binding-invalid"
   | "axis-citation-missing"
   | "axis-disjointness-missing"
   | "axis-grader-missing"
@@ -41,6 +43,14 @@ export function reportDefects(report: AcceptanceCampaignReport): ReportDefect[] 
   const defects: ReportDefect[] = [];
   if (report.commit.trim().length === 0)
     defects.push({ code: "commit-pin-missing", detail: `${report.campaign_id} records no commit pin` });
+  try {
+    parseValidationCampaignPolicyBinding(report.policy_binding);
+  } catch (error) {
+    defects.push({
+      code: "policy-binding-invalid",
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
   const provenance = report.provenance;
   if (
     provenance === undefined ||

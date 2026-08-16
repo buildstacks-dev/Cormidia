@@ -4,26 +4,52 @@
 // recovery and spend-refusal negative controls.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { assertCompletedCampaignPass, DurableCampaignRunner } from "../../campaign/campaign-runner.js";
 import { readValidationCampaignReports } from "../../../src/org/validation-campaign.js";
+import type { ValidationCampaignPolicyBinding } from "../../../src/org/validation-campaign-policy.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
+import { assertCampaignPolicyBindingBytes } from "../../campaign/policy-binding.js";
 
 let state: TempStateHome | undefined;
 afterEach(async () => state?.cleanup());
 
-async function runner(requiredCaseIds = ["CASE-1", "CASE-2"], decisionStatus: "ratified" | "proposed" = "ratified") {
-  state = await makeTempStateHome({ name: "campaign-runner" });
-  const policyPath = state.path("policy.yaml");
-  await writeFile(policyPath, "schema_version: 1\n", "utf8");
+async function runner(
+  requiredCaseIds = ["CASE-1", "CASE-2"],
+  decisionStatus: "ratified" | "proposed" = "ratified",
+  extraRevalidation?: () => Promise<void>,
+  sharedState?: TempStateHome,
+) {
+  const fixture = sharedState ?? (await makeTempStateHome({ name: "campaign-runner" }));
+  state = fixture;
+  const policyPath = fixture.path("docs/qualification/host-policy.yaml");
+  const authorityPath = fixture.path("validation-design/validation-policy.yaml");
+  await mkdir(dirname(policyPath), { recursive: true });
+  await mkdir(dirname(authorityPath), { recursive: true });
+  await writeFile(policyPath, "schema: cormidia/qualification-host-policy/v1\n", "utf8");
+  await writeFile(authorityPath, "schema_version: 1\n", "utf8");
   const times = [new Date("2026-07-31T18:00:00.000Z"), new Date("2026-07-31T18:05:00.000Z")];
+  const policyBinding: ValidationCampaignPolicyBinding = {
+    path: "docs/qualification/host-policy.yaml",
+    sha256: digest("schema: cormidia/qualification-host-policy/v1\n"),
+    validation_authority: {
+      kind: "legacy",
+      sources: [{ path: "validation-design/validation-policy.yaml", sha256: digest("schema_version: 1\n") }],
+    },
+  };
   return new DurableCampaignRunner({
-    stateHome: state.stateHome,
+    stateHome: fixture.stateHome,
     campaignId: "campaign-runner-test",
     lane: "L3",
     campaignKind: "release",
     trigger: "human_initiated_test",
-    policyPath,
+    policyBinding,
+    revalidateAdmission: async () => {
+      await assertCampaignPolicyBindingBytes(policyBinding, fixture.stateHome);
+      await extraRevalidation?.();
+    },
     commit: "b".repeat(40),
     apps: ["sandbox-alpha"],
     scopes: ["adapter"],
@@ -36,7 +62,52 @@ async function runner(requiredCaseIds = ["CASE-1", "CASE-2"], decisionStatus: "r
   });
 }
 
+function digest(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 describe("durable campaign runner", () => {
+  it("atomically admits only one runner for a shared campaign id", async () => {
+    const shared = await makeTempStateHome({ name: "campaign-runner-race" });
+    const left = await runner(["CASE-1"], "ratified", undefined, shared);
+    const right = await runner(["CASE-1"], "ratified", undefined, shared);
+    const starts = await Promise.allSettled([left.start(), right.start()]);
+    expect(starts.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(starts.filter((result) => result.status === "rejected")).toHaveLength(1);
+    const winner = starts[0]?.status === "fulfilled" ? left : right;
+    let callbacks = 0;
+    await winner.runCase("CASE-1", { providerTurns: 1, maxEquivUsd: 1 }, async () => {
+      callbacks += 1;
+      return { providerTurns: 1, equivUsd: 1, evidenceRefs: ["winner"] };
+    });
+    expect(callbacks).toBe(1);
+  });
+
+  it("refuses a completed campaign id before any repeated callback", async () => {
+    const shared = await makeTempStateHome({ name: "campaign-runner-completed" });
+    const first = await runner(["CASE-1"], "ratified", undefined, shared);
+    await first.start();
+    await first.runCase("CASE-1", { providerTurns: 1, maxEquivUsd: 1 }, async () => ({
+      providerTurns: 1,
+      equivUsd: 1,
+      evidenceRefs: ["first"],
+    }));
+    await first.finish();
+    const repeat = await runner(["CASE-1"], "ratified", undefined, shared);
+    let callbacks = 0;
+    await expect(repeat.start()).rejects.toThrow(/already has durable state/);
+    expect(callbacks).toBe(0);
+  });
+
+  it("negative control: refuses authority-byte drift before the first durable write", async () => {
+    const campaign = await runner(["CASE-1"]);
+    const activeState = state;
+    if (activeState === undefined) throw new Error("test fixture did not create state");
+    await writeFile(activeState.path("validation-design/validation-policy.yaml"), "changed: true\n", "utf8");
+    await expect(campaign.start()).rejects.toThrow(/policy binding changed after authorization/);
+    expect((await readValidationCampaignReports(activeState.stateHome)).reports).toEqual([]);
+  });
+
   it("persists partial evidence before and after an interrupted case", async () => {
     const campaign = await runner();
     await campaign.start();
@@ -50,7 +121,9 @@ describe("durable campaign runner", () => {
         throw new Error("transport interrupted");
       }),
     ).rejects.toThrow(/transport interrupted/);
-    const durable = await readValidationCampaignReports(state!.stateHome);
+    const activeState = state;
+    if (activeState === undefined) throw new Error("test fixture did not create state");
+    const durable = await readValidationCampaignReports(activeState.stateHome);
     expect(durable.reports[0]).toMatchObject({
       status: "running",
       spend: {
@@ -70,6 +143,25 @@ describe("durable campaign runner", () => {
       },
     });
     expect(durable.reports[0]?.evidence_refs.join(" ")).not.toContain("transport interrupted");
+  });
+
+  it("negative control: repository drift between cases refuses before the next callback", async () => {
+    let dirty = false;
+    const campaign = await runner(["CASE-1", "CASE-2"], "ratified", async () => {
+      if (dirty) throw new Error("campaign refused: product paths differ from the authorized commit: src/dirty.ts");
+    });
+    await campaign.start();
+    await campaign.runCase("CASE-1", { providerTurns: 1, maxEquivUsd: 1 }, async () => ({
+      providerTurns: 0,
+      equivUsd: 0,
+      evidenceRefs: [],
+    }));
+    dirty = true;
+    const execute = vi.fn(async () => ({ providerTurns: 0, equivUsd: 0, evidenceRefs: [] }));
+    await expect(campaign.runCase("CASE-2", { providerTurns: 1, maxEquivUsd: 1 }, execute)).rejects.toThrow(
+      /product paths differ.*src\/dirty.ts/,
+    );
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("negative control: refuses a case before callback invocation when its reservation cannot fit", async () => {

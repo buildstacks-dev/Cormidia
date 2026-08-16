@@ -8,8 +8,8 @@
 // (B-27 §1.1) rather than reimplemented here.
 
 import { execFileSync } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertCampaignRepositoryBinding } from "../../campaign/repository-binding.js";
 import {
@@ -210,12 +210,14 @@ describe("CF-INV-ACC-3 the reused commit-pin half", () => {
     const repo = await makeTempGitRepo({ seedFiles: [] });
     cleanups.push(repo.cleanup);
     const policyDir = join(repo.dir, "validation-design");
+    const policyPath = join(repo.dir, "docs", "qualification", "host-policy.yaml");
     await mkdir(policyDir, { recursive: true });
+    await mkdir(dirname(policyPath), { recursive: true });
     await writeFile(join(policyDir, "validation-policy.yaml"), "schema_version: 1\n", "utf8");
-    repo.git(["add", "validation-design"]);
+    await copyFile(join(process.cwd(), "docs", "qualification", "host-policy.yaml"), policyPath);
+    repo.git(["add", "validation-design", "docs"]);
     repo.git(["commit", "--no-gpg-sign", "-qm", "fixture: policy"]);
     const commit = repo.git(["rev-parse", "HEAD"]);
-    const policyPath = join(policyDir, "validation-policy.yaml");
 
     await expect(assertCampaignRepositoryBinding({ commit, policyPath, cwd: repo.dir })).resolves.toMatchObject({
       root: expect.any(String) as unknown as string,
@@ -231,17 +233,19 @@ describe("CF-INV-ACC-3 the reused commit-pin half", () => {
     const repo = await makeTempGitRepo({ seedFiles: [] });
     cleanups.push(repo.cleanup);
     const policyDir = join(repo.dir, "validation-design");
+    const policyPath = join(repo.dir, "docs", "qualification", "host-policy.yaml");
     await mkdir(policyDir, { recursive: true });
+    await mkdir(dirname(policyPath), { recursive: true });
     await writeFile(join(policyDir, "validation-policy.yaml"), "schema_version: 1\n", "utf8");
-    await writeFile(join(repo.dir, "README.md"), "# fixture\n", "utf8");
-    git(repo.dir, ["add", "README.md"]);
+    await copyFile(join(process.cwd(), "docs", "qualification", "host-policy.yaml"), policyPath);
+    git(repo.dir, ["add", "validation-design"]);
     git(repo.dir, ["commit", "--no-gpg-sign", "-qm", "fixture: without the policy"]);
     const commit = repo.git(["rev-parse", "HEAD"]);
 
     await expect(
       assertCampaignRepositoryBinding({
         commit,
-        policyPath: join(policyDir, "validation-policy.yaml"),
+        policyPath,
         cwd: repo.dir,
       }),
     ).rejects.toThrow(/is not tracked at the authorized commit/);

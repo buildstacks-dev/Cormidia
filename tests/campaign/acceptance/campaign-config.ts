@@ -14,10 +14,14 @@
 // end; what is never legal is silence, because silence is not consent.
 
 import { configuredProviderFamily, validateTurnAssignment } from "../../../src/runtime/assignment.js";
+import { QUALIFICATION_HOST_POLICY_PATH } from "../../../src/org/qualification-host-policy.js";
 import type { TurnAssignment } from "../../../src/runtime/types.js";
-import { basename } from "node:path";
+import { basename, isAbsolute, normalize, sep } from "node:path";
 
 export type CampaignConfigCode =
+  | "campaign-id-invalid"
+  | "commit-invalid"
+  | "policy-path-invalid"
   | "no-scenarios"
   | "campaign-org-undeclared"
   | "duplicate-scenario"
@@ -132,6 +136,8 @@ export interface ValidatedCampaignConfig {
 }
 
 const APP_ROLES = ["planner", "builder", "reviewer"] as const;
+const CAMPAIGN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const HOST_POLICY_SUFFIX = `${sep}${QUALIFICATION_HOST_POLICY_PATH.split("/").join(sep)}`;
 
 /** Match the packaged lifecycle command that creates the app identity. New-app
  * receives an explicit name; bootstrap derives it from the checkout basename. */
@@ -142,6 +148,22 @@ export function scenarioAppName(scenario: ScenarioConfig): string {
 
 /** Every §1 clause that is decidable without touching the world. */
 export function validateCampaignConfig(config: AcceptanceCampaignConfig): ValidatedCampaignConfig {
+  if (!CAMPAIGN_ID.test(config.campaignId)) {
+    throw new CampaignConfigError("campaign-id-invalid", `invalid campaign id ${JSON.stringify(config.campaignId)}`);
+  }
+  if (!/^[a-f0-9]{40}$/.test(config.commit)) {
+    throw new CampaignConfigError("commit-invalid", "commit must be an exact lowercase 40-hex git oid");
+  }
+  if (
+    !isAbsolute(config.policyPath) ||
+    normalize(config.policyPath) !== config.policyPath ||
+    !config.policyPath.endsWith(HOST_POLICY_SUFFIX)
+  ) {
+    throw new CampaignConfigError(
+      "policy-path-invalid",
+      `policyPath must be a canonical absolute path ending in ${QUALIFICATION_HOST_POLICY_PATH}`,
+    );
+  }
   if (config.campaignOrg.trim().length === 0) {
     throw new CampaignConfigError(
       "campaign-org-undeclared",

@@ -9,6 +9,7 @@ import { chmod, cp, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { QUALIFICATION_HOST_POLICY_PATH } from "../../../src/org/qualification-host-policy.js";
 import {
   RELEASE_DETERMINISTIC_CHECKS,
   RELEASE_L3_REQUIRED_CASES,
@@ -48,6 +49,12 @@ import {
   type ReleaseObligationV1,
   type ReleaseQualificationReportV1,
 } from "../../../src/org/release-evidence.js";
+import {
+  boundReleasePolicyBundleDigest,
+  LEGACY_VALIDATION_POLICY_PATH,
+} from "../../../src/org/release-policy-authority.js";
+import { loadReleasePolicyAuthorityFromGit } from "../../../src/org/release-policy-git.js";
+import type { ValidationCampaignReportV2 } from "../../../src/org/validation-campaign-report.js";
 
 const execFile = promisify(execFileCallback);
 const roots: string[] = [];
@@ -154,7 +161,11 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     await git(repo, ["add", "."]);
     await git(repo, ["commit", "-qm", "ratified inputs"]);
     const candidate = (await git(repo, ["rev-parse", "HEAD"])).trim();
+    const sourceTypescript = join(repo, "node_modules", "typescript", "package.json");
+    await writeFile(sourceTypescript, '{"version":"0.0.0-stale-source"}\n', "utf8");
     const manifestLike = await repositoryFixtureManifest(repo, candidate);
+    expect(manifestLike.toolchain.typescript).toBe("5.9.3");
+    await writeFile(sourceTypescript, '{"version":"5.9.3"}\n', "utf8");
     await expect(validateReleaseRepositoryState(repo, manifestLike)).resolves.toBeUndefined();
     const forged = structuredClone(manifestLike);
     forged.inputs.policy = "f".repeat(64);
@@ -270,6 +281,20 @@ describe("RQ-1 manifest and deterministic-first admission", () => {
     const missing = deterministicEvidence(manifest);
     missing.checks.find((item) => item.id === "pnpm-test")!.skipped_case_ids = [];
     expect(evaluateDeterministicAdmission(manifest, missing)).toMatchObject({ verdict: "fail" });
+
+    const fixtureTest = await readFile(join(repo, "tests", "fixture.test.ts"), "utf8");
+    await rm(join(repo, "tests", "fixture.test.ts"));
+    await writeFile(join(repo, "fixture-target.test.ts"), fixtureTest, "utf8");
+    await symlink("../fixture-target.test.ts", join(repo, "tests", "fixture.test.ts"));
+    await git(repo, ["add", "-A"]);
+    await git(repo, ["commit", "-qm", "seed symlinked offline test"]);
+    const symlinkedTestCommit = (await git(repo, ["rev-parse", "HEAD"])).trim();
+    await expect(releaseRepositorySnapshot(repo, symlinkedTestCommit)).rejects.toThrow(/regular tracked file/);
+    await rm(join(repo, "tests", "fixture.test.ts"));
+    await rm(join(repo, "fixture-target.test.ts"));
+    await writeFile(join(repo, "tests", "fixture.test.ts"), fixtureTest, "utf8");
+    await git(repo, ["add", "-A"]);
+    await git(repo, ["commit", "-qm", "restore regular offline test"]);
 
     const narrowedConfig = (await readFile(join(repo, "vitest.config.ts"), "utf8")).replace(
       'include: ["tests/**/*.test.ts"]',
@@ -475,6 +500,22 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
     const manifest = fixtureManifest();
     const results = evaluateTriggeredCampaignEvidence(manifest, campaignEvidence(manifest));
     expect(results).toMatchObject([{ obligation_id: "RQ-L3", completeness: "complete", verdict: "pass" }]);
+
+    const missingProfile = campaignEvidence(manifest);
+    delete missingProfile.campaigns[0]?.report.profile;
+    expect(evaluateTriggeredCampaignEvidence(manifest, missingProfile)[0]).toMatchObject({
+      completeness: "incomplete",
+      verdict: "inconclusive",
+      reason_codes: ["campaign_identity_mismatch:unattended_profile"],
+    });
+    const wrongTarget = campaignEvidence(manifest);
+    if (wrongTarget.campaigns[0]?.report.profile === undefined) throw new Error("fixture profile is missing");
+    wrongTarget.campaigns[0].report.profile.sandbox_target = "production/arbitrary@outside/repository";
+    expect(evaluateTriggeredCampaignEvidence(manifest, wrongTarget)[0]).toMatchObject({
+      completeness: "incomplete",
+      verdict: "inconclusive",
+      reason_codes: ["campaign_identity_mismatch:unattended_profile"],
+    });
   });
 
   it("negative control: a stale target cannot become an L3 pass and malformed campaign truth is refused", () => {
@@ -488,6 +529,36 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
     const malformed = campaignEvidence(manifest);
     malformed.campaigns[0]!.report.coverage.missing_case_ids = ["invented-missing"];
     expect(() => evaluateTriggeredCampaignEvidence(manifest, malformed)).toThrow(/required minus collected/);
+  });
+
+  it("requires bound campaign schema v2 and refuses changed policy-authority bytes", () => {
+    const manifest = fixtureManifest();
+    const historical = campaignEvidence(manifest);
+    const historicalRow = historical.campaigns[0];
+    const bound = historicalRow?.report;
+    if (historicalRow === undefined || bound === undefined || bound.schema_version !== 2)
+      throw new Error("fixture campaign must be bound v2");
+    historical.campaigns[0] = {
+      obligation_id: historicalRow.obligation_id,
+      producer_digest: historicalRow.producer_digest,
+      report: { ...bound, schema_version: 1, policy: { path: bound.policy.path, sha256: bound.policy.sha256 } },
+    };
+    expect(() => evaluateTriggeredCampaignEvidence(manifest, historical)).toThrow(
+      /policy-bound campaign schema_version 2/,
+    );
+
+    const stale = campaignEvidence(manifest);
+    const staleReport = stale.campaigns[0]?.report;
+    if (staleReport === undefined || staleReport.schema_version !== 2)
+      throw new Error("fixture campaign must be bound v2");
+    const source = staleReport.policy.validation_authority.sources[0];
+    if (source === undefined) throw new Error("fixture campaign requires one authority source");
+    source.sha256 = "f".repeat(64);
+    expect(evaluateTriggeredCampaignEvidence(manifest, stale)[0]).toMatchObject({
+      completeness: "incomplete",
+      verdict: "inconclusive",
+      reason_codes: ["campaign_identity_mismatch:policy"],
+    });
   });
 
   it("CF-REG-303 negative control: reordered L3 report identity remains non-current", () => {
@@ -941,7 +1012,8 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
     await git(repo, ["commit", "-qm", "candidate"]);
     const candidate = (await git(repo, ["rev-parse", "HEAD"])).trim();
     const manifest = await repositoryFixtureManifest(repo, candidate);
-    const report = qualifiedReportFor(manifest);
+    const policyBinding = await repositoryCampaignPolicyBinding(repo, candidate);
+    const report = qualifiedReportFor(manifest, policyBinding);
     const packet = join(repo, "release-evidence", manifest.package.version, manifest.qualification_id);
     await mkdir(packet, { recursive: true });
     await writeFile(join(packet, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
@@ -954,7 +1026,7 @@ describe("RQ-1 completeness, evaluator debt, and attestation", () => {
     await writeFile(join(packet, "l4-results.json"), `${JSON.stringify(l4Evidence(manifest), null, 2)}\n`, "utf8");
     await writeFile(
       join(packet, "campaign-index.json"),
-      `${JSON.stringify(campaignEvidence(manifest), null, 2)}\n`,
+      `${JSON.stringify(campaignEvidence(manifest, policyBinding), null, 2)}\n`,
       "utf8",
     );
     await git(repo, ["add", "."]);
@@ -1071,8 +1143,9 @@ function fixtureBody(): ReleaseManifestBodyV1 {
     platform: "darwin",
     architecture: "arm64",
   };
+  const candidateCommit = "a".repeat(40);
   const inputs = {
-    policy: "a".repeat(64),
+    policy: boundReleasePolicyBundleDigest(candidateCommit, fixtureCampaignPolicyBinding()),
     dependency_lock: "b".repeat(64),
     prompts: "c".repeat(64),
     roles: "d".repeat(64),
@@ -1093,6 +1166,12 @@ function fixtureBody(): ReleaseManifestBodyV1 {
       scopes: [...RELEASE_L3_REQUIRED_CASES],
       tuples: ["claude/fixture/high", "codex/fixture/high", "pi/fixture/high"],
       required_case_ids: [...RELEASE_L3_REQUIRED_CASES],
+      unattended_profile: {
+        identity: "cormidia/unattended-sandbox/v1",
+        sandbox_target: "fixture-org/fixture-app@fixture/repository",
+        permitted_auto_grant_categories: ["campaign_budget"],
+        human_decision_rows: 0,
+      },
       max_provider_turns: 24,
       max_equiv_usd: 100,
       decision_status: "ratified",
@@ -1103,7 +1182,7 @@ function fixtureBody(): ReleaseManifestBodyV1 {
     contract_id: "RQ-1",
     prepared_at: "2026-08-05T01:00:00.000Z",
     repository: "cormidia/Cormidia",
-    candidate_commit: "a".repeat(40),
+    candidate_commit: candidateCommit,
     clean_tracked_tree: true,
     package: packageManifest,
     inputs,
@@ -1261,7 +1340,10 @@ function l4Evidence(manifest: ReleaseManifestV1): L4ReleaseEvidenceV1 {
   };
 }
 
-function campaignEvidence(manifest: ReleaseManifestV1): ReleaseCampaignEvidenceV1 {
+function campaignEvidence(
+  manifest: ReleaseManifestV1,
+  policyBinding = fixtureCampaignPolicyBinding(),
+): ReleaseCampaignEvidenceV1 {
   return {
     schema_version: 1,
     qualification_id: manifest.qualification_id,
@@ -1271,7 +1353,7 @@ function campaignEvidence(manifest: ReleaseManifestV1): ReleaseCampaignEvidenceV
         obligation_id: declared.obligation_id,
         producer_digest: obligation.producer_digest,
         report: {
-          schema_version: 1,
+          schema_version: 2,
           campaign_id: declared.campaign_id,
           lane: declared.lane,
           campaign_kind: declared.campaign_kind,
@@ -1279,7 +1361,7 @@ function campaignEvidence(manifest: ReleaseManifestV1): ReleaseCampaignEvidenceV
           status: "completed" as const,
           started_at: "2026-08-05T01:00:00.000Z",
           finished_at: "2026-08-05T02:00:00.000Z",
-          policy: { path: "/fixture/validation-policy.yaml", sha256: manifest.inputs.policy },
+          policy: structuredClone(policyBinding),
           target: {
             commit: manifest.candidate_commit,
             apps: [...declared.apps],
@@ -1306,9 +1388,45 @@ function campaignEvidence(manifest: ReleaseManifestV1): ReleaseCampaignEvidenceV
             reason_codes: [],
           },
           evidence_refs: [`fixture:${declared.campaign_id}`],
+          ...(declared.required_case_ids.includes("CF-J18-A")
+            ? {
+                profile: structuredClone(declared.unattended_profile),
+              }
+            : {}),
         },
       };
     }),
+  };
+}
+
+function fixtureCampaignPolicyBinding(): ValidationCampaignReportV2["policy"] {
+  return {
+    path: QUALIFICATION_HOST_POLICY_PATH,
+    sha256: "0".repeat(64),
+    validation_authority: {
+      kind: "legacy",
+      sources: [{ path: LEGACY_VALIDATION_POLICY_PATH, sha256: "1".repeat(64) }],
+    },
+  };
+}
+
+async function repositoryCampaignPolicyBinding(
+  repo: string,
+  candidate: string,
+): Promise<ValidationCampaignReportV2["policy"]> {
+  const authority = await loadReleasePolicyAuthorityFromGit(repo, candidate, async () => {
+    throw new Error("legacy release fixture must not invoke the model compiler");
+  });
+  const [host, ...sources] = authority.source_digests;
+  if (host === undefined || host.path !== QUALIFICATION_HOST_POLICY_PATH)
+    throw new Error("repository authority fixture did not return the canonical host policy first");
+  return {
+    path: host.path,
+    sha256: host.sha256,
+    validation_authority: {
+      kind: authority.kind,
+      sources: sources.map((source) => ({ path: source.path, sha256: source.sha256 })),
+    },
   };
 }
 
@@ -1375,10 +1493,17 @@ async function repositoryFixtureManifest(repo: string, candidate: string): Promi
   return createReleaseManifest(body);
 }
 
-function qualifiedReportFor(manifest: ReleaseManifestV1): ReleaseQualificationReportV1 {
+function qualifiedReportFor(
+  manifest: ReleaseManifestV1,
+  policyBinding = fixtureCampaignPolicyBinding(),
+): ReleaseQualificationReportV1 {
   const deterministic = evaluateDeterministicAdmission(manifest, deterministicEvidence(manifest));
   const l4 = evaluateL4Evidence(manifest, l4Evidence(manifest));
-  const results = [deterministic, ...evaluateTriggeredCampaignEvidence(manifest, campaignEvidence(manifest)), l4];
+  const results = [
+    deterministic,
+    ...evaluateTriggeredCampaignEvidence(manifest, campaignEvidence(manifest, policyBinding)),
+    l4,
+  ];
   const debt: EvaluatorDebtDispositionV1 = {
     debt_id: "DEBT-L4-REPOSITORY",
     obligation_id: l4.obligation_id,
@@ -1446,6 +1571,7 @@ async function writeRepositoryFixture(
   const validation = join(repo, "validation-design");
   await mkdir(join(repo, "prompts"), { recursive: true });
   await mkdir(join(repo, "tests"), { recursive: true });
+  await mkdir(join(repo, "docs", "qualification"), { recursive: true });
   await mkdir(join(validation, "golden-sets", "reviewer"), { recursive: true });
   await mkdir(join(validation, "golden-sets", "planner"), { recursive: true });
   await mkdir(join(validation, "golden-sets", "validation-designer"), { recursive: true });
@@ -1456,12 +1582,12 @@ async function writeRepositoryFixture(
       "layers:",
       "  L3_live_sandbox:",
       "    obligations:",
-      "      - {id: CF-B01-L3, trigger: release}",
-      "      - {id: CF-B02-L3, trigger: release}",
-      "      - {id: CF-B03-L3, trigger: release}",
-      "      - {id: CF-B04-L3, trigger: release}",
-      "      - {id: CF-J16-A, trigger: 'release when scheduler changes'}",
-      "      - {id: CF-J18-A, trigger: 'release qualification'}",
+      "      - {id: CF-B01-L3, status: ACTIVE, trigger: release}",
+      "      - {id: CF-B02-L3, status: ACTIVE, trigger: release}",
+      "      - {id: CF-B03-L3, status: ACTIVE, trigger: release}",
+      "      - {id: CF-B04-L3, status: ACTIVE, trigger: release}",
+      "      - {id: CF-J16-A, status: ACTIVE, trigger: 'release when scheduler changes'}",
+      "      - {id: CF-J18-A, status: ACTIVE, trigger: 'release qualification'}",
       "open_findings:",
       "  - {id: F-PT-012, status: open, subject: fixture skip}",
       "",
@@ -1518,6 +1644,11 @@ async function writeRepositoryFixture(
   );
   await writeFile(join(repo, "pipelines.yaml"), "pipelines: {}\n", "utf8");
   await writeFile(join(repo, "TASTE.md"), "# Fixture taste\n", "utf8");
+  await writeFile(
+    join(repo, "docs", "qualification", "host-policy.yaml"),
+    await readFile(join(process.cwd(), "docs", "qualification", "host-policy.yaml"), "utf8"),
+    "utf8",
+  );
   await writeFile(join(repo, "package.json"), await readFile(join(process.cwd(), "package.json")), "utf8");
   // A frozen offline install reads local file dependencies from package.json
   // and the lockfile. Copy the repository's vendored inputs as part of the
@@ -1539,6 +1670,11 @@ async function writeRepositoryFixture(
   await rm(fixtureVitest, { recursive: true, force: true });
   await rm(fixtureVitestBin, { force: true });
   await mkdir(join(repo, "node_modules", ".bin"), { recursive: true });
+  await writeFile(
+    join(repo, "node_modules", ".modules.yaml"),
+    await readFile(join(process.cwd(), "node_modules", ".modules.yaml"), "utf8"),
+    "utf8",
+  );
   await symlink(join(process.cwd(), "node_modules", "vitest"), fixtureVitest, "dir");
   await symlink(join(process.cwd(), "node_modules", ".bin", "vitest"), fixtureVitestBin, "file");
   for (const site of ["reviewer", "planner", "validation-designer"] as const) {

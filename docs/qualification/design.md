@@ -1,8 +1,14 @@
 # Qualification and release gating
 
-> **Status 2026-08-04:** the replacement per-commit harness and the bounded
+> **Status 2026-08-16:** the replacement per-commit harness and the bounded
 > L3/L4/L5 runners are implemented under `tests/`, with the current
-> contract in `validation-design/validation-policy.yaml`. RQ-1 is active and
+> Validation Architect contract selected fail-closed between the temporary
+> legacy `validation-design/validation-policy.yaml` (zero model files) and the
+> complete `validation-design/model/` graph (any one of its eight exact files).
+> Cormidia-specific
+> qualification facts are separately authoritative in
+> `docs/qualification/host-policy.yaml`; neither authority overrides the other.
+> RQ-1 is active and
 > fail-closed for versions after `0.1.1`: every exact candidate requires complete
 > L1/L2 plus separately authorized, candidate-bound L3/L4 evidence. No paid campaign
 > or release ran in the implementation change. The human threat model, HB-073,
@@ -16,9 +22,12 @@ Every triggered runner requires a human-initiated, absolute reviewed config that
 the exact commit, state home, policy, target, and spend envelope. Missing authorization
 is a refusal/incomplete lane, never a skipped pass.
 At entry, the runner also binds checked-out HEAD to that commit, requires the canonical
-tracked `validation-design/validation-policy.yaml` blob to be byte-identical to HEAD,
-and (for L4) applies the same tracked-blob check to every golden-set input. An arbitrary
-absolute file cannot substitute for reviewed repository truth.
+tracked `docs/qualification/host-policy.yaml` blob and the selected Validation
+Architect authority (one temporary legacy policy or the ordered exact eight-file
+model) to be byte-identical to HEAD, and (for L4) applies the same tracked-blob
+check to every golden-set input. Partial model presence and migration-archive
+fallback are refusals. An arbitrary absolute file cannot substitute for reviewed
+repository truth.
 
 ```bash
 # L3: one exact campaign kind (changed adapter, GitHub, launchd, or release)
@@ -35,14 +44,14 @@ CORMIDIA_SOAK=1 CORMIDIA_SOAK_CONFIG=/absolute/soak.json pnpm test:soak -- finis
 
 The L3 config schema is `tests/live/config.ts` and admits only four exact
 campaign shapes: one changed adapter; one sandbox-GitHub smoke; one launchd proof; or
-a release campaign containing all three adapters, sandbox GitHub, and the unattended
-profile. RQ-1 currently requires the launchd proof in every release campaign: the
+a release campaign containing all three adapters, sandbox GitHub, launchd proof, and
+the unattended profile. RQ-1 currently requires the launchd proof in every release campaign: the
 policy trigger is conditional, but there is not yet a ratified, content-bound prior
 trigger baseline or material-host observation that can prove the condition absent.
 Restoring conditional omission requires that separately ratified baseline; a caller
 declaration is insufficient. A partial release cannot call itself complete. Bounds
-are 2 turns/$5 for a changed-adapter
-pre-merge campaign and 24 turns/$100 for release. GitHub operations use the ratified
+are 2 turns/$5 for each narrowly scoped changed-adapter, sandbox-GitHub, or launchd
+campaign and 24 turns/$100 for the complete release scope. GitHub operations use the ratified
 three-attempt jittered exponential retry budget. Launchd proof requires exact loaded
 identity, an attributable tick, and removal of exactly that definition inside the
 recorded case. Each spending case reserves its worst-case turns and equivalent cost

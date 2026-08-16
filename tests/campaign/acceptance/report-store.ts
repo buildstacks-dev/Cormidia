@@ -20,9 +20,16 @@
 
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { writeLoopFileAtomic } from "../../../src/loop/durable.js";
 import type { AcceptanceCampaignReport } from "./campaign-report.js";
+import { assertReportWellFormed } from "./campaign-report.js";
+import { assertSafeAcceptanceCampaignId, parseStoredCampaignReport } from "./report-store-validation.js";
+
+type HistoricalAcceptanceCampaignReportV1 = Omit<AcceptanceCampaignReport, "schema_version" | "policy_binding"> & {
+  schema_version: 1;
+};
+export type ReadableAcceptanceCampaignReport = HistoricalAcceptanceCampaignReportV1 | AcceptanceCampaignReport;
 
 export type ReportStoreCode =
   | "report-torn"
@@ -50,11 +57,18 @@ export interface StoredCampaignReport {
   /** `running` until the campaign terminates; then `final`. */
   status: "running" | "final";
   updated_at: string;
-  report: AcceptanceCampaignReport;
+  report: ReadableAcceptanceCampaignReport;
 }
 
 export function campaignReportPath(root: string, campaignId: string): string {
-  return join(root, "acceptance", campaignId, "report.json");
+  assertSafeAcceptanceCampaignId(campaignId);
+  const base = resolve(root, "acceptance");
+  const path = resolve(base, campaignId, "report.json");
+  const remainder = relative(base, path);
+  if (remainder === "" || remainder === ".." || remainder.startsWith(`..${sep}`) || isAbsolute(remainder)) {
+    throw new ReportStoreError("report-identity-conflict", `${campaignId}: report path escapes the acceptance root`);
+  }
+  return path;
 }
 
 /** Canonical hash of a config value — key order cannot change the identity. */
@@ -89,19 +103,12 @@ export async function readStoredReport(root: string, campaignId: string): Promis
   } catch {
     throw new ReportStoreError("report-torn", `${path}: report is not valid JSON`);
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new ReportStoreError("report-torn", `${path}: report is not a JSON object`);
+  try {
+    return parseStoredCampaignReport(parsed, campaignId);
+  } catch (error) {
+    if (error instanceof ReportStoreError) throw error;
+    throw new ReportStoreError("report-torn", `${path}: ${error instanceof Error ? error.message : String(error)}`);
   }
-  const record = parsed as Record<string, unknown>;
-  for (const field of ["campaign_id", "config_sha256", "status", "updated_at"]) {
-    if (typeof record[field] !== "string") {
-      throw new ReportStoreError("report-torn", `${path}: report.${field} must be a string`);
-    }
-  }
-  if (record["schema_version"] !== 1 || typeof record["report"] !== "object" || record["report"] === null) {
-    throw new ReportStoreError("report-torn", `${path}: unsupported or incomplete report envelope`);
-  }
-  return parsed as StoredCampaignReport;
 }
 
 export interface ClaimIdentityInput {
@@ -159,6 +166,7 @@ export interface PersistReportInput {
 /** Atomic. Called after every material step so an interruption preserves
  *  partial evidence rather than losing the run (CORMIDIA-INV-ACC-6). */
 export async function persistReport(input: PersistReportInput): Promise<StoredCampaignReport> {
+  assertReportWellFormed(input.report);
   const now = (input.clock ?? (() => new Date()))().toISOString();
   const stored: StoredCampaignReport = {
     schema_version: 1,
@@ -168,9 +176,10 @@ export async function persistReport(input: PersistReportInput): Promise<StoredCa
     updated_at: now,
     report: input.report,
   };
+  const validated = parseStoredCampaignReport(stored, stored.campaign_id);
   await writeLoopFileAtomic(
     campaignReportPath(input.root, input.report.campaign_id),
-    `${JSON.stringify(stored, null, 2)}\n`,
+    `${JSON.stringify(validated, null, 2)}\n`,
   );
-  return stored;
+  return validated;
 }

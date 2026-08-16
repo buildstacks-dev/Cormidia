@@ -1,7 +1,8 @@
 import { defineConfig } from "vitest/config";
 
-// L3 live-sandbox lane — OPT-IN ONLY (validation-policy.yaml →
-// layers.L3_live_sandbox). Spends real provider tokens and touches real
+// L3 live-sandbox lane — OPT-IN ONLY (validation-design/model/policy.yaml →
+// L3 + live-triggered lane; Cormidia bounds live in the qualification host
+// policy). Spends real provider tokens and touches real
 // sandbox targets; never wired into the per-commit lane.
 //
 // Gate: CORMIDIA_LIVE=1 must be set or every live spec refuses to run (the

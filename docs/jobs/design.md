@@ -496,9 +496,10 @@ output was any good.
 Outcome quality is deliberately outside these families, twice over. The
 statistical lane is excluded by design (§5 of the harness revision: the prompt is
 the operator's, so Cormidia cannot own a golden set for it), and real-token
-execution against real apps is a **separate authorized campaign** under
-`validation-policy.yaml` spend bounds — AGENTS.md is explicit that token-spending
-runs are never casual.
+execution against real apps is a **separate authorized campaign** under the
+Cormidia-owned `docs/qualification/host-policy.yaml` spend bounds, composed
+tighten-only with the selected Validation Architect authority — AGENTS.md is
+explicit that token-spending runs are never casual.
 
 Named here so its absence is visible rather than assumed:
 

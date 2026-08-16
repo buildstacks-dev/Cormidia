@@ -5,8 +5,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { writeFile } from "node:fs/promises";
-import { RELEASE_L3_REQUIRED_CASES } from "../../../src/org/release-evidence.js";
-import { liveCampaignRequiredCaseIds, loadLiveCampaignConfig } from "../../live/config.js";
+import { loadLiveCampaignConfig } from "../../live/config.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
 
 let state: TempStateHome | undefined;
@@ -52,7 +51,6 @@ describe("live campaign config", () => {
     await writeFile(path, JSON.stringify(config(state.stateHome, policyPath)), "utf8");
     const loaded = (await loadLiveCampaignConfig({ CORMIDIA_LIVE: "1", CORMIDIA_LIVE_CONFIG: path })).config;
     expect(loaded.campaign_id).toBe("live-release-20260731");
-    expect(liveCampaignRequiredCaseIds(loaded)).toEqual(RELEASE_L3_REQUIRED_CASES);
   });
 
   it("negative control: refuses a non-sandbox GitHub target and unknown widening fields", async () => {

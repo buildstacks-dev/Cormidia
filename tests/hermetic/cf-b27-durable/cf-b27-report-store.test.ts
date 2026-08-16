@@ -7,7 +7,8 @@
 // is not losing a file — it is a campaign that spent real tokens for hours,
 // crashed, and left something a reader accepts as terminal truth.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AcceptanceCampaignReport } from "../../campaign/acceptance/campaign-report.js";
 import {
@@ -19,6 +20,7 @@ import {
   ReportStoreError,
 } from "../../campaign/acceptance/report-store.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
+import { fixtureCampaignPolicyBinding } from "../../fixtures/campaign-policy-binding.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 const clock = (): Date => new Date("2026-08-08T12:00:00.000Z");
@@ -35,10 +37,11 @@ async function root(name: string): Promise<TempStateHome> {
 
 function report(overrides: Partial<AcceptanceCampaignReport> = {}): AcceptanceCampaignReport {
   return {
-    schema_version: 1,
+    schema_version: 2,
     campaign_id: "l-acc-run-1",
     lane: "L-ACC",
     commit: "a".repeat(40),
+    policy_binding: fixtureCampaignPolicyBinding(),
     provenance: {
       installedVersion: "1.4.0",
       tarballName: "cormidia-1.4.0.tgz",
@@ -90,6 +93,25 @@ describe("CF-B27-* the config hash is a content identity", () => {
 });
 
 describe("CF-B27-* persistence is atomic and re-readable", () => {
+  it("keeps historical unbound v1 campaign reports readable but never creates one", async () => {
+    const fixture = await root("report-v1-readable");
+    const current = report();
+    const { policy_binding: _policyBinding, schema_version: _schemaVersion, ...body } = current;
+    const historical = { ...body, schema_version: 1 };
+    const envelope = {
+      schema_version: 1,
+      campaign_id: historical.campaign_id,
+      config_sha256: configHash({ campaignId: historical.campaign_id }),
+      status: "final",
+      updated_at: clock().toISOString(),
+      report: historical,
+    };
+    const path = campaignReportPath(fixture.stateHome, historical.campaign_id);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify(envelope), "utf8");
+    expect((await readStoredReport(fixture.stateHome, historical.campaign_id))?.report.schema_version).toBe(1);
+  });
+
   it("writes a report and reads back exactly what it stored", async () => {
     const fixture = await root("report-roundtrip");
     const hash = configHash({ campaignId: "l-acc-run-1" });

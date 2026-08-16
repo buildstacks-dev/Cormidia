@@ -1,10 +1,11 @@
 // CF-HARNESS-CI — HB-P7 — #431 deterministic closure command and fail-closed CI wiring.
 
-import { spawn } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync, spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { compile, FakeRepositoryPort } from "validation-architect";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -12,11 +13,24 @@ const packagePath = join(repoRoot, "package.json");
 const coreWorkflowPath = join(repoRoot, ".github", "workflows", "core-checks.yml");
 const traceWorkflowPath = join(repoRoot, ".github", "workflows", "validation-trace.yml");
 const installGuidePath = join(repoRoot, "validation-design", "enablement", "INSTALL.md");
-const manifestPath = join(repoRoot, "validation-design", "case-catalog.yaml");
 const EXACT_SCRIPT =
   '"validation:trace": "validation-trace . --manifest validation-design/case-catalog.yaml --tests tests"';
 const RUNNER_ROUTE =
   "runs-on: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}";
+const MODEL_FILES = [
+  "project.yaml",
+  "owners.yaml",
+  "sources.yaml",
+  "structures.yaml",
+  "policy.yaml",
+  "controls.yaml",
+  "families.yaml",
+  "backlog.yaml",
+] as const;
+const CHECKED_MODEL_SELECTED =
+  "validation-trace checked-model authority selected: --manifest has no effect and --tests maps to --tests-root.";
+const LEGACY_BRIDGE_ACTIVE =
+  "validation-trace legacy manifest bridge active: no checked-model files were found; this bridge is removed at 1.0.";
 
 const roots: string[] = [];
 
@@ -109,19 +123,14 @@ async function fixtureRoot(): Promise<string> {
   return root;
 }
 
-async function invokeTrace(root: string): Promise<CommandResult> {
-  return await run("pnpm", [
-    "exec",
-    "validation-trace",
-    root,
-    "--manifest",
-    join(root, "validation-design", "case-catalog.yaml"),
-    "--tests",
-    "tests",
-  ]);
+async function invokeTrace(
+  root: string,
+  manifest = join(root, "validation-design", "case-catalog.yaml"),
+): Promise<CommandResult> {
+  return await run("pnpm", ["exec", "validation-trace", root, "--manifest", manifest, "--tests", "tests"]);
 }
 
-async function writeMinimalManifest(root: string): Promise<void> {
+async function writeMinimalManifest(root: string, includeTestsRoot = true): Promise<void> {
   await mkdir(join(root, "validation-design"), { recursive: true });
   await writeFile(
     join(root, "validation-design", "case-catalog.yaml"),
@@ -135,13 +144,188 @@ async function writeMinimalManifest(root: string): Promise<void> {
     ].join("\n"),
     "utf8",
   );
-  await mkdir(join(root, "tests"), { recursive: true });
+  if (includeTestsRoot) await mkdir(join(root, "tests"), { recursive: true });
 }
 
 async function writeSeedSpec(root: string, directory: string, header: string): Promise<void> {
   const specRoot = join(root, "tests", directory);
   await mkdir(specRoot, { recursive: true });
   await writeFile(join(specRoot, "seed.test.ts"), `${header}\n\nit("seed", () => {});\n`, "utf8");
+}
+
+function git(root: string, args: string[]): string {
+  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
+
+function initializeGit(root: string): string {
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "fixture@example.invalid"]);
+  git(root, ["config", "user.name", "Fixture"]);
+  git(root, ["add", "-A"]);
+  git(root, ["commit", "-qm", "fixture: product"]);
+  return git(root, ["rev-parse", "HEAD"]);
+}
+
+function checkedModelFiles(revision: string): Record<string, string> {
+  const emptyLayers = ["L2", "L3", "L4", "L5", "L6"].map((id) => ({
+    id,
+    title: id,
+    status: "declared-empty",
+    reason: "The alias fixture has no cases at this layer.",
+  }));
+  const emptyLanes = ["triggered", "release", "scheduled"].map((id) => ({
+    id,
+    title: id,
+    kind: "evidence",
+    status: "declared-empty",
+    requirement: "blocking",
+    triggers: ["fixture"],
+    reason: "The alias fixture has no cases in this lane.",
+  }));
+  const model: Record<string, unknown> = {
+    "project.yaml": {
+      schema: "validation-architect/model/project/v1",
+      product: {
+        id: "alias-fixture",
+        name: "Alias fixture",
+        revision,
+        intended_use: "Exercise checked-model selection through the deprecated alias.",
+        criticality: "C0",
+        criticality_reason: "Offline deterministic fixture.",
+      },
+      versions: {
+        package: "0.4.2",
+        method: "0.8.0",
+        model: "validation-architect/corpus/v1",
+        compiler: "validation-architect/compiler/v1",
+        policy: "validation-architect/policy/v1",
+        result: "validation-architect/result/v1",
+        golden_set: "validation-architect/golden-set/v1",
+      },
+    },
+    "owners.yaml": {
+      schema: "validation-architect/model/owners/v1",
+      owners: [{ id: "owner", name: "Owner", responsibility: "Own the alias fixture." }],
+    },
+    "sources.yaml": {
+      schema: "validation-architect/model/sources/v1",
+      sources: [{ id: "SOURCE", kind: "doc", path: "README.md" }],
+    },
+    "structures.yaml": {
+      schema: "validation-architect/model/structures/v1",
+      structures: [
+        {
+          id: "INV-ALIAS",
+          kind: "invariant",
+          title: "Alias authority selection",
+          meaning: "An exact model sentinel selects checked-model authority.",
+          owner: "owner",
+          source_ids: ["SOURCE"],
+        },
+      ],
+    },
+    "policy.yaml": {
+      schema: "validation-architect/model/policy/v1",
+      default: "blocking",
+      inheritance: "tighten-only",
+      layers: [{ id: "L1", title: "L1", status: "active" }, ...emptyLayers],
+      lanes: [
+        {
+          id: "inner-loop",
+          title: "Inner loop",
+          kind: "test",
+          status: "active",
+          requirement: "blocking",
+          triggers: ["before-push"],
+          command: "pnpm test",
+        },
+        {
+          id: "per-commit",
+          title: "Per commit",
+          kind: "test",
+          status: "active",
+          requirement: "blocking",
+          triggers: ["per-commit"],
+          command: "pnpm test",
+        },
+        ...emptyLanes,
+      ],
+      exceptions: [],
+    },
+    "controls.yaml": {
+      schema: "validation-architect/model/controls/v1",
+      controls: [
+        {
+          id: "NC-ALIAS",
+          title: "Alias negative control",
+          family_id: "CF-ALIAS",
+          owner: "owner",
+          expected_failure: "A partial model must fail without legacy fallback.",
+        },
+      ],
+    },
+    "families.yaml": {
+      schema: "validation-architect/model/families/v1",
+      families: [
+        {
+          id: "CF-ALIAS",
+          title: "Alias selection",
+          meaning: "The deprecated alias delegates to checked-model authority.",
+          structure_ids: ["INV-ALIAS"],
+          owner: "owner",
+          source_ids: ["SOURCE"],
+          lane: "per-commit",
+          status: "implementable",
+          layer: "L1",
+          oracle: "det",
+          risk: "FLOOR",
+          control_ids: ["NC-ALIAS"],
+          ticket: "HB-ALIAS",
+          planned_tests: ["tests/cf-alias/seed.test.ts"],
+        },
+      ],
+    },
+    "backlog.yaml": {
+      schema: "validation-architect/model/backlog/v1",
+      tickets: [
+        {
+          id: "HB-ALIAS",
+          title: "Alias contract",
+          wave: "transition",
+          status: "landed",
+          owner: "owner",
+          executor: "builder",
+          lane: "per-commit",
+          layer: "L1",
+          acceptance_criteria: ["Checked-model selection is fail closed."],
+          family_ids: ["CF-ALIAS"],
+        },
+      ],
+    },
+  };
+  return Object.fromEntries(
+    MODEL_FILES.map((name) => [`validation-design/model/${name}`, `${JSON.stringify(model[name], null, 2)}\n`]),
+  );
+}
+
+async function writeCompleteCheckedModel(root: string): Promise<string> {
+  await writeFile(join(root, "README.md"), "# Alias fixture\n", "utf8");
+  await writeSeedSpec(root, "cf-alias", "// CF-ALIAS — HB-ALIAS");
+  const revision = initializeGit(root);
+  const files = checkedModelFiles(revision);
+  const compiled = await compile(new FakeRepositoryPort({ revision, files }));
+  if (!compiled.accepted || compiled.identity === undefined)
+    throw new Error("alias checked-model fixture did not compile");
+  for (const [path, content] of Object.entries(files)) {
+    await mkdir(dirname(join(root, path)), { recursive: true });
+    await writeFile(join(root, path), content, "utf8");
+  }
+  for (const [name, content] of Object.entries(compiled.views)) {
+    await writeFile(join(root, "validation-design", name), content, "utf8");
+  }
+  git(root, ["add", "validation-design"]);
+  git(root, ["commit", "-qm", "fixture: checked model"]);
+  return revision;
 }
 
 describe("CF-HARNESS-CI — #431 closure workflow", () => {
@@ -206,6 +390,34 @@ describe("CF-HARNESS-CI — #431 closure workflow", () => {
     expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0);
   });
 
+  it("ignores a nonexistent legacy --manifest once a complete checked model is selected", async () => {
+    const root = await fixtureRoot();
+    const revision = await writeCompleteCheckedModel(root);
+    const result = await invokeTrace(root, join(root, "validation-design", "does-not-exist.yaml"));
+    expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(result.stderr).toContain(CHECKED_MODEL_SELECTED);
+    expect(result.stderr).not.toContain(LEGACY_BRIDGE_ACTIVE);
+    expect(result.stdout).toContain(`revision: ${revision}`);
+  });
+
+  it("fails closed for every partial model sentinel without falling back to a valid legacy manifest", async () => {
+    for (const sentinel of MODEL_FILES) {
+      const root = await fixtureRoot();
+      await writeMinimalManifest(root);
+      await writeSeedSpec(root, "cf-seed", "// CF-SEED — HB-999");
+      await writeFile(join(root, "README.md"), "# Partial model fixture\n", "utf8");
+      initializeGit(root);
+      const modelRoot = join(root, "validation-design", "model");
+      await mkdir(modelRoot, { recursive: true });
+      await writeFile(join(modelRoot, sentinel), "schema: seeded-partial-model\n", "utf8");
+
+      const result = await invokeTrace(root);
+      expect(result.exitCode, `${sentinel}\n${result.stdout}\n${result.stderr}`).toBe(1);
+      expect(result.stderr).toContain(CHECKED_MODEL_SELECTED);
+      expect(result.stderr).not.toContain(LEGACY_BRIDGE_ACTIVE);
+    }
+  });
+
   it("fails when the validation-architect package is unavailable", async () => {
     const root = await fixtureRoot();
     await writeFile(
@@ -241,8 +453,7 @@ describe("CF-HARNESS-CI — #431 closure workflow", () => {
 
   it("fails closed for a missing tests root", async () => {
     const root = await fixtureRoot();
-    await mkdir(join(root, "validation-design"), { recursive: true });
-    await copyFile(manifestPath, join(root, "validation-design", "case-catalog.yaml"));
+    await writeMinimalManifest(root, false);
     const result = await invokeTrace(root);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("tests root");
@@ -260,9 +471,7 @@ describe("CF-HARNESS-CI — #431 closure workflow", () => {
 
   it("fails closed when an implementable catalog has no citing specs", async () => {
     const root = await fixtureRoot();
-    await mkdir(join(root, "validation-design"), { recursive: true });
-    await mkdir(join(root, "tests"), { recursive: true });
-    await copyFile(manifestPath, join(root, "validation-design", "case-catalog.yaml"));
+    await writeMinimalManifest(root);
     const result = await invokeTrace(root);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("forward:");

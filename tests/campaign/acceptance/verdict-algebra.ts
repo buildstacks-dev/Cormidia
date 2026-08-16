@@ -1,6 +1,6 @@
 // campaign/acceptance/verdict-algebra.ts — the axis_score truth table, read
-// from policy rather than encoded here (CORMIDIA-INV-ACC-5/6;
-// `validation-policy.yaml` → `verdict_semantics.axis_score`).
+// from Cormidia's host policy rather than encoded here
+// (CORMIDIA-INV-ACC-5/6; `host-policy.yaml` → `outcome_acceptance.axis_score`).
 //
 // This is INV-008 pointed at the harness. The failure it prevents is not a
 // crash: a campaign that coerces `ungraded` to `0` still emits a tidy report,
@@ -8,13 +8,17 @@
 // measured. Conflating "we did not measure it" with "it was absent" is how a
 // suite starts lying.
 //
-// The rules live in the policy file so a change is a policy edit a human sees,
-// not a runner constant. This module LOADS them and refuses to run against a
-// policy whose threshold declaration is anything other than the ratified
-// "NONE" — introducing a threshold anywhere but a ratified rubric edit is
-// exactly what rubric §5 forbids.
+// The rules live in the policy file so a change is a policy edit a human sees.
+// The v1 host-policy parser also pins their exact supported semantics: a rule
+// change requires a reviewed schema/code revision rather than a silent runner
+// disagreement. This module LOADS that validated snapshot and still refuses a
+// threshold declaration other than the ratified `none` — introducing a
+// threshold anywhere but a ratified rubric edit is exactly what rubric §5
+// forbids.
 
-import { loadValidationPolicy, PolicyLoadError } from "../../policy/cf-reg-278/policy-loader.js";
+import { loadQualificationPolicy } from "../../policy/cf-reg-278/qualification-policy-loader.js";
+import { axisScorePolicyFromHost } from "./axis-score-policy.js";
+export { axisScorePolicyFromHost } from "./axis-score-policy.js";
 
 export type AxisScoreValue = 0 | 1 | 2 | 3 | "ungraded";
 
@@ -47,19 +51,7 @@ export class VerdictAlgebraError extends Error {
 
 /** Read the ratified truth table. Fails closed on a policy that dropped it. */
 export function loadAxisScorePolicy(repoRoot: string): AxisScorePolicy {
-  const policy = loadValidationPolicy(repoRoot);
-  const block = policy.verdict_semantics["axis_score"];
-  if (typeof block !== "object" || block === null || Array.isArray(block)) {
-    throw new PolicyLoadError("missing relied-on field: verdict_semantics.axis_score");
-  }
-  const record = block as Record<string, unknown>;
-  const values = record["values"];
-  const rules = record["rules"];
-  const thresholds = record["thresholds"];
-  if (!Array.isArray(values) || !Array.isArray(rules) || typeof thresholds !== "string") {
-    throw new PolicyLoadError("verdict_semantics.axis_score must carry values, rules and thresholds");
-  }
-  return { values: values as AxisScoreValue[], rules: rules as string[], thresholds };
+  return axisScorePolicyFromHost(loadQualificationPolicy(repoRoot).hostPolicy);
 }
 
 /**
@@ -68,9 +60,9 @@ export function loadAxisScorePolicy(repoRoot: string): AxisScorePolicy {
  * against it.
  */
 export function assertNoThresholdRatified(policy: AxisScorePolicy): void {
-  if (!/^NONE\./.test(policy.thresholds.trim())) {
+  if (policy.thresholds !== "none") {
     throw new VerdictAlgebraError(
-      `verdict_semantics.axis_score.thresholds no longer declares NONE; a threshold may only arrive through a ` +
+      `outcome_acceptance.axis_score.thresholds no longer declares none; a threshold may only arrive through a ` +
         `ratified rubric edit (acceptance/rubric.md §5), never through the runner`,
     );
   }

@@ -75,7 +75,9 @@ function planScoresOf(rows: readonly AxisReportRow[]): Record<string, AxisScoreV
 
 export async function runAcceptanceCampaign(input: RunAcceptanceCampaignInput): Promise<AcceptanceCampaignRun> {
   // ---- Preflight: every refusal here is pre-mutation and pre-spend (B-27 §1).
-  const { validated, provenance } = await preflightAcceptanceCampaign(input);
+  const { validated, provenance, policyBinding, revalidateAdmission, axisScorePolicy } =
+    await preflightAcceptanceCampaign(input);
+  await revalidateAdmission();
 
   // ---- Seal every key before the first grader turn can exist (B-28 §1).
   const keys = new SealedKeyRegistry();
@@ -110,11 +112,13 @@ export async function runAcceptanceCampaign(input: RunAcceptanceCampaignInput): 
   };
   const checkpoint = async (gateDecision?: "continue" | "stop"): Promise<void> => {
     if (input.onProgress === undefined) return;
+    await revalidateAdmission();
     const report = buildCampaignReport({
       config: input.config,
       validated,
       provenance,
-      repoRoot: input.repoRoot,
+      policyBinding,
+      axisScorePolicy,
       planRows,
       buildRows,
       lifecycles,
@@ -124,7 +128,7 @@ export async function runAcceptanceCampaign(input: RunAcceptanceCampaignInput): 
     assertReportWellFormed(report);
     await input.onProgress(report);
   };
-  let spendStopped = await executePlanArms(input.arms, lifecycles, planRows, () => checkpoint());
+  let spendStopped = await executePlanArms(input.arms, lifecycles, planRows, () => checkpoint(), revalidateAdmission);
 
   // ---- The gate. Rubric §6 decides eligibility; the declared policy (or the
   // human) authorizes continuation. The resolution is recorded BEFORE any
@@ -154,16 +158,24 @@ export async function runAcceptanceCampaign(input: RunAcceptanceCampaignInput): 
   // ---- Build arm, only past a `continue`.
   if (gate.decision === "continue") {
     spendStopped =
-      (await executeBuildArms(input.arms, lifecycles, buildRows, () => checkpoint(gate.decision))) || spendStopped;
+      (await executeBuildArms(
+        input.arms,
+        lifecycles,
+        buildRows,
+        () => checkpoint(gate.decision),
+        revalidateAdmission,
+      )) || spendStopped;
   } else {
     for (const arms of input.arms) lifecycles.get(arms.scenarioId)?.transition("stopped-at-gate");
   }
 
+  await revalidateAdmission();
   const report = buildCampaignReport({
     config: input.config,
     validated,
     provenance,
-    repoRoot: input.repoRoot,
+    policyBinding,
+    axisScorePolicy,
     planRows,
     buildRows,
     lifecycles,

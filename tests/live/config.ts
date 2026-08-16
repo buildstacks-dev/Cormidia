@@ -4,10 +4,8 @@
 
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-import { RELEASE_L3_REQUIRED_CASES } from "../../src/org/release-evidence.js";
 import { TURN_ASSIGNMENT_HARNESSES } from "../../src/runtime/assignment.js";
 import type { Effort, RuntimeKind } from "../../src/runtime/types.js";
-import { ADAPTER_CONFORMANCE_CASES } from "../fixtures/adapters/conformance.js";
 
 export interface LiveAdapterTarget {
   runtime: RuntimeKind;
@@ -50,19 +48,6 @@ export async function loadLiveCampaignConfig(
   const value: unknown = JSON.parse(await readFile(path, "utf8"));
   validate(value);
   return { config: value, path };
-}
-
-/** Keep the durable L3 report's ordered identity on the same canonical source
- * as the RQ-1 manifest. Case execution may occur in a different safe order;
- * report identity may not be reconstructed independently (#303). */
-export function liveCampaignRequiredCaseIds(config: LiveCampaignConfigV1): string[] {
-  if (config.campaign_kind === "release") return [...RELEASE_L3_REQUIRED_CASES];
-  return [
-    ...config.adapters.map((target) => ADAPTER_CONFORMANCE_CASES[target.runtime]),
-    ...(config.github.enabled ? ["CF-B01-L3"] : []),
-    ...(config.launchd.enabled ? ["CF-J16-A"] : []),
-    ...(config.unattended.enabled ? ["CF-J18-A"] : []),
-  ];
 }
 
 function validate(value: unknown): asserts value is LiveCampaignConfigV1 {

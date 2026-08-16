@@ -1,17 +1,16 @@
-// Shared durable runner for opt-in L3, L4 and L5 campaigns. It writes an
-// incomplete/inconclusive report before work begins and after every result so
-// interruption preserves partial evidence. No provider or target is invoked
-// by this module; callers must pass an explicitly authorized case callback.
+// Shared durable runner for opt-in L3/L4/L5 campaigns. It persists partial
+// evidence around every explicitly authorized injected case callback.
 
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { toErrorMessage as errorMessage } from "../../src/runtime/error-message.js";
-import {
-  writeValidationCampaignReport,
-  type ValidationCampaignReportV1,
-  type ValidationDecisionStatus,
-  type ValidationLane,
-} from "../../src/org/validation-campaign.js";
+import { writeValidationCampaignReport } from "../../src/org/validation-campaign.js";
+import { createValidationCampaignReport } from "../../src/org/validation-campaign-claim.js";
+import type {
+  ValidationCampaignReportV2,
+  ValidationDecisionStatus,
+  ValidationLane,
+} from "../../src/org/validation-campaign-report.js";
+import type { CampaignRepositoryRevalidator } from "./repository-revalidation.js";
 
 export interface CampaignRunnerOptions {
   stateHome: string;
@@ -19,7 +18,8 @@ export interface CampaignRunnerOptions {
   lane: ValidationLane;
   campaignKind: string;
   trigger: string;
-  policyPath: string;
+  policyBinding: ValidationCampaignReportV2["policy"];
+  revalidateAdmission: CampaignRepositoryRevalidator;
   commit: string;
   apps: string[];
   scopes: string[];
@@ -29,7 +29,7 @@ export interface CampaignRunnerOptions {
   maxEquivUsd: number;
   decisionStatus: ValidationDecisionStatus;
   clock?: () => Date;
-  profile?: ValidationCampaignReportV1["profile"];
+  profile?: ValidationCampaignReportV2["profile"];
 }
 
 export interface CampaignCaseResult {
@@ -47,7 +47,7 @@ export interface CampaignCaseResult {
 export class DurableCampaignRunner {
   private readonly clock: () => Date;
   private readonly options: CampaignRunnerOptions;
-  private reportValue: ValidationCampaignReportV1 | undefined;
+  private reportValue: ValidationCampaignReportV2 | undefined;
   private reservationRefused = false;
 
   constructor(options: CampaignRunnerOptions) {
@@ -61,17 +61,16 @@ export class DurableCampaignRunner {
     this.clock = options.clock ?? (() => new Date());
   }
 
-  report(): ValidationCampaignReportV1 {
+  report(): ValidationCampaignReportV2 {
     if (this.reportValue === undefined) throw new Error("campaign runner has not started");
     return structuredClone(this.reportValue);
   }
 
-  async start(): Promise<ValidationCampaignReportV1> {
+  async start(): Promise<ValidationCampaignReportV2> {
     if (this.reportValue !== undefined) throw new Error("campaign runner already started");
-    const policyBytes = await readFile(this.options.policyPath);
     const started = this.clock().toISOString();
     this.reportValue = {
-      schema_version: 1,
+      schema_version: 2,
       campaign_id: this.options.campaignId,
       lane: this.options.lane,
       campaign_kind: this.options.campaignKind,
@@ -79,7 +78,7 @@ export class DurableCampaignRunner {
       status: "running",
       started_at: started,
       finished_at: null,
-      policy: { path: this.options.policyPath, sha256: createHash("sha256").update(policyBytes).digest("hex") },
+      policy: structuredClone(this.options.policyBinding),
       target: {
         commit: this.options.commit,
         apps: [...this.options.apps],
@@ -108,7 +107,8 @@ export class DurableCampaignRunner {
       evidence_refs: [],
       ...(this.options.profile === undefined ? {} : { profile: structuredClone(this.options.profile) }),
     };
-    await this.persist();
+    await this.options.revalidateAdmission();
+    await createValidationCampaignReport(this.options.stateHome, this.reportValue);
     return this.report();
   }
 
@@ -135,6 +135,7 @@ export class DurableCampaignRunner {
       await this.persist();
       return undefined;
     }
+    await this.options.revalidateAdmission();
     let result: CampaignCaseResult;
     try {
       result = await execute();
@@ -180,7 +181,7 @@ export class DurableCampaignRunner {
     return result;
   }
 
-  async finish(): Promise<ValidationCampaignReportV1> {
+  async finish(): Promise<ValidationCampaignReportV2> {
     const report = this.mutableReport();
     report.outcome.reason_codes = report.outcome.reason_codes.filter((code) => code !== "campaign_running");
     if (this.reservationRefused)
@@ -225,7 +226,7 @@ export class DurableCampaignRunner {
       report.spend.observed_equiv_usd >= report.spend.max_equiv_usd;
   }
 
-  private mutableReport(): ValidationCampaignReportV1 {
+  private mutableReport(): ValidationCampaignReportV2 {
     if (this.reportValue === undefined) throw new Error("campaign runner has not started");
     if (this.reportValue.status === "completed") throw new Error("campaign runner already completed");
     return this.reportValue;
@@ -233,6 +234,7 @@ export class DurableCampaignRunner {
 
   private async persist(): Promise<void> {
     if (this.reportValue === undefined) throw new Error("campaign runner has not started");
+    await this.options.revalidateAdmission();
     await writeValidationCampaignReport(this.options.stateHome, this.reportValue);
   }
 }
@@ -241,7 +243,7 @@ export class DurableCampaignRunner {
  * report is persisted first by `finish()`; this assertion then prevents a
  * green test process from masking a complete-but-failing or incomplete run. */
 export function assertCompletedCampaignPass(
-  report: Pick<ValidationCampaignReportV1, "campaign_id" | "status" | "outcome">,
+  report: Pick<ValidationCampaignReportV2, "campaign_id" | "status" | "outcome">,
 ): void {
   if (report.status === "completed" && report.outcome.completeness === "complete" && report.outcome.verdict === "pass")
     return;

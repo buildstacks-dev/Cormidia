@@ -1,6 +1,6 @@
 # PURPOSE — Cormidia
 
-*v2.18 — 2026-08-12. Human-ratified decision log. Standing decisions below
+*v2.19 — 2026-08-16. Human-ratified decision log. Standing decisions below
 are current law. Execution details belong in the GitHub issue tracker and
 the subsystem design.md files. Product status and known limitations live in
 README → Status.*
@@ -85,8 +85,9 @@ counts. The full loop is drawn at the top of the README.
 
 Some bullets cite tracking IDs. `F-PT-*` are findings, registered in
 `validation-design/harness-design-state.md`; `HB-*` are harness-backlog
-tickets in `validation-design/harness-backlog.md`; L1–L5 are the validation
-evidence layers defined in `validation-design/validation-policy.yaml` and
+tickets in the generated `validation-design/harness-backlog.md`; L1–L6 are
+the validation layers defined by the checked graph under
+`validation-design/model/` and the qualification procedure in
 `docs/qualification/design.md`. Any ID resolves by grep from the repo root.
 
 ### How work executes
@@ -224,6 +225,23 @@ evidence layers defined in `validation-design/validation-policy.yaml` and
   is treated as critical.
 
 ### Release & qualification
+
+- **Validation design and Cormidia qualification policy are separate,
+  composable authorities.** The complete eight-file graph under
+  `validation-design/model/` is the sole Validation Architect machine
+  authority once any exact model file exists; a partial graph fails closed and
+  may never fall back to legacy or migration-archive input. Before that
+  cutover, zero model files selects the incumbent
+  `validation-design/validation-policy.yaml` as the temporary legacy
+  authority. `docs/qualification/host-policy.yaml` separately owns only
+  Cormidia-specific operational facts the upstream schema does not model: the
+  exact RQ-1 L3 denominator, admitted test-skip finding identities, campaign
+  bounds, L-ACC axis scores and release relationship, the active revision pin,
+  and campaign-binding paths. The two compose tighten-only; disagreement is a
+  refusal. Compiled exact-case and spend safety floors may reject drift but
+  never replace or override host policy. Every release or triggered campaign binds the candidate commit,
+  selected validation authority bytes, and host-policy bytes. Historical
+  migration input is never runtime authority.
 
 - **Qualification is proportionate to material release risk.** Evaluation
   exists to reduce material product risk, not to create an infinite proof loop.

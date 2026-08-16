@@ -4,13 +4,8 @@
 // contract, tighten-only) into a typed structure the harness can rely on, and
 // exposes the audit surfaces policy-pin.test.ts pins per commit:
 //
-//   - loadValidationPolicy(repoRoot)  — parse + shape-check; missing relied-on
-//     fields throw PolicyLoadError; unknown extra fields are tolerated (and
-//     preserved on `raw`).
-//   - resolveArtifacts / missingArtifacts — every `artifacts:` path must
-//     resolve relative to the policy file's directory; a directory artifact
-//     that exists but is empty is NOT green (no green by absence).
-//   - auditRatifiedPins — the human-ratified constants of 2026-07-31: design
+//   - load/resolve/audit helpers parse the legacy bridge, bind artifacts, and
+//     preserve the human-ratified constants of 2026-07-31: design
 //     status, blocked findings F-PT-006/F-PT-008, and the L3 spend bounds.
 //     Changing any of these is a human policy edit; drift goes red so a human
 //     looks.
@@ -28,6 +23,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
+import { selectValidationAuthority } from "../../fixtures/validation-authority.js";
 
 /** Policy file location, relative to the repo root. */
 export const POLICY_RELATIVE_PATH = "validation-design/validation-policy.yaml";
@@ -39,7 +35,6 @@ export class PolicyLoadError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Typed shape — only the fields the harness relies on are required; every
 // interface carries an index signature so unknown extra fields pass through.
 // ---------------------------------------------------------------------------
@@ -156,7 +151,6 @@ export interface ValidationPolicy {
   readonly raw: Readonly<Record<string, unknown>>;
 }
 
-// ---------------------------------------------------------------------------
 // Runtime narrowing helpers
 // ---------------------------------------------------------------------------
 
@@ -240,6 +234,12 @@ function obligationRows(obj: Record<string, unknown>, where: string): readonly O
 
 export function loadValidationPolicy(repoRoot: string): ValidationPolicy {
   const absRoot = resolve(repoRoot);
+  const authority = selectValidationAuthority(absRoot);
+  if (authority.kind === "model") {
+    throw new PolicyLoadError(
+      "legacy validation-policy loader is disabled after checked-model authority exists; use loadQualificationPolicy",
+    );
+  }
   const policyPath = join(absRoot, POLICY_RELATIVE_PATH);
 
   let text: string;

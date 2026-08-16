@@ -118,11 +118,13 @@ expensive lane should contain only what no cheaper layer can falsify.**
 
 ## 6. Two questions the docs do not answer — open as findings
 
-Per AGENTS.md → *Opening a new finding*, these go into
-[`validation-policy.yaml`](../validation-design/validation-policy.yaml) →
-`open_findings:` with status `open`, mirrored into `harness-design-state.md`, with
-dependent cases parked `BLOCKED:<finding>`. **Neither guess is encoded as
-behavior.** Next free id is **F-PT-029**.
+Per the procedure then in force, these entered the legacy
+`validation-policy.yaml` finding registry and were mirrored into
+`harness-design-state.md`, with dependent cases parked
+`BLOCKED:<finding>`. The checked-model migration now represents blockers on
+model families/backlog entries; the historical policy is not runtime
+authority. **Neither guess is encoded as behavior.** Next free id was
+**F-PT-029**.
 
 **F-PT-029 — L-ACC's relationship to RQ-1.** The policy is explicit that
 triggered lanes gate their own layer's claims and never gate merge. It says
@@ -197,11 +199,13 @@ constraints the revision should capture as B-27 report fields:
   `68a7595`. The rubric is now **tighten-only**: the revision pass may narrow an
   axis or a rule, never loosen one, and must not introduce a threshold — every
   threshold stays unratified until run 1's distribution exists (`rubric.md` §5).
-- Carry the ratified verdict semantics into the policy: L-ACC campaigns report
+- Carry the ratified verdict semantics into policy: L-ACC campaigns report
   `inconclusive` for every threshold-dependent axis and `ungraded` where evidence
   is missing, and `ungraded` is never coerced to `0` (`INV-ACC-5`). The revision
-  should make this expressible in `validation-policy.yaml`'s verdict vocabulary
-  rather than left to the runner's discretion.
+  should make this machine-readable rather than leave it to the runner's
+  discretion. That Cormidia-specific axis table now lives in
+  `docs/qualification/host-policy.yaml`; the general completeness/verdict
+  vocabulary remains upstream's public result contract.
 
 ---
 

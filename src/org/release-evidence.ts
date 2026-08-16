@@ -1,24 +1,24 @@
-// RQ-1 release qualification. This module is deliberately deterministic and
-// provider-free: it binds existing L1/L2/L3/L4 release evidence to exact package
-// bytes, preserves each lane's truth, and refuses stale or incomplete release
-// claims. L5 threat/soak work remains separately declared future assurance and
-// is not part of RQ-1. This module does not authorize a campaign, tag, or publication.
+// Deterministic, provider-free RQ-1 evidence binding; authorizes no campaign, publication, or L5 claim.
 
 import { execFile as execFileCallback } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstat, mkdtemp, readFile, readdir, realpath as realpathFs, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { lstat, readFile, readdir, realpath as realpathFs } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { arch, platform } from "node:process";
 import { promisify } from "node:util";
 import { gunzipSync } from "node:zlib";
 import { parse as parseYaml } from "yaml";
-import {
-  validateValidationCampaignReport,
-  type ValidationCampaignReportV1,
-  type ValidationDecisionStatus,
-} from "./validation-campaign.js";
-
+import { runReleaseCandidateValidation } from "./release-candidate-validation.js";
+import { execPinnedReleasePnpm, releaseNodeVersion } from "./release-package-manager.js";
+import { boundReleasePolicyBundleDigest } from "./release-policy-authority.js";
+import { parseReleaseTrackedVitestTree } from "./release-test-inventory.js";
+import { validateValidationCampaignReport } from "./validation-campaign.js";
+import { parseValidationCampaignProfile, type ValidationCampaignProfile } from "./validation-campaign-profile.js";
+import type {
+  ValidationCampaignReport,
+  ValidationCampaignReportV2,
+  ValidationDecisionStatus,
+} from "./validation-campaign-report.js";
 const execFile = promisify(execFileCallback);
 
 const RELEASE_EVIDENCE_SCHEMA_VERSION = 1 as const;
@@ -70,7 +70,7 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
-const RELEASE_VITEST_CONFIG_SHA256 = "92f349841deb5b188b9301230f18f5d65b325022d787d06ae42f0eb1b71d9733";
+const RELEASE_VITEST_CONFIG_SHA256 = "ecafcd55ae9f67f8583939c60a355ea95895a33bdfab03ee5b09c1fe878abf5a";
 
 type ReleaseInputKind = (typeof RELEASE_EVIDENCE_INPUT_KINDS)[number];
 type DeterministicCheckId = (typeof RELEASE_DETERMINISTIC_CHECKS)[number];
@@ -165,6 +165,7 @@ interface ReleaseTriggeredCampaignV1 {
   scopes: string[];
   tuples: string[];
   required_case_ids: string[];
+  unattended_profile: ValidationCampaignProfile;
   max_provider_turns: number;
   max_equiv_usd: number;
   decision_status: ValidationDecisionStatus;
@@ -260,7 +261,7 @@ export interface ReleaseCampaignEvidenceV1 {
   campaigns: Array<{
     obligation_id: string;
     producer_digest: string;
-    report: ValidationCampaignReportV1;
+    report: ValidationCampaignReport;
   }>;
 }
 
@@ -467,6 +468,8 @@ interface ReleaseRepositorySnapshotV1 {
   allowed_test_skips: string[];
   l3_required_case_ids: string[];
   l3_conditional_case_ids: string[];
+  l3_premerge_ceiling: { max_provider_turns: number; max_equiv_usd: number };
+  l3_release_ceiling: { max_provider_turns: number; max_equiv_usd: number };
 }
 
 /** Recompute every repository-owned RQ-1 input from an exact commit. The path
@@ -488,9 +491,8 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
   if (!candidateVitestConfig.equals(workingVitestConfig)) {
     throw new Error("release candidate Vitest config differs from the checked-out execution config");
   }
-  const [policyBytes, lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes, vitestReport] =
+  const [lock, prompts, rolesBytes, pipelines, taste, goldenSets, validationRecordBytes, candidateValidation] =
     await Promise.all([
-      gitFile(repo, revision, "validation-design/validation-policy.yaml"),
       gitFile(repo, revision, "pnpm-lock.yaml"),
       gitTreeDigest(repo, revision, "prompts"),
       gitFile(repo, revision, "roles.yaml"),
@@ -498,23 +500,34 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
       gitFile(repo, revision, "TASTE.md"),
       gitTreeDigest(repo, revision, "validation-design/golden-sets"),
       gitFile(repo, revision, "validation-design/golden-sets/human-validation.json"),
-      runReleaseVitest(repo, revision),
+      runReleaseCandidateValidation(repo, revision),
     ]);
+  const { policyAuthority, toolchain, vitestReport } = candidateValidation;
   const assignments = assignmentProjection(parseYaml(rolesBytes.toString("utf8")));
-  const toolchain = await currentReleaseToolchain(repo);
   const goldenReferences = await goldenReferenceProjection(repo, revision, validationRecordBytes);
-  const policy = releasePolicyProjection(policyBytes);
+  const policy = policyAuthority.host_policy.release_qualification;
+  if (canonicalJson(policy.required_l3_case_ids) !== canonicalJson(RELEASE_L3_REQUIRED_CASES)) {
+    throw new Error("qualification host policy differs from the exact RQ-1 required L3 case contract");
+  }
+  if (canonicalJson(policy.conditional_l3_case_ids) !== canonicalJson(RELEASE_L3_CONDITIONAL_CASES)) {
+    throw new Error("qualification host policy differs from the exact RQ-1 conditional L3 case contract");
+  }
+  const { pre_merge_adapter: preMergeSpend, release: releaseSpend } = policy.campaign_spend;
+  if (preMergeSpend.max_provider_turns !== 2 || preMergeSpend.max_equiv_usd !== 5)
+    throw new Error("qualification host policy differs from the 2-turn/$5 pre-merge safety floor");
+  if (releaseSpend.max_provider_turns !== 24 || releaseSpend.max_equiv_usd !== 100)
+    throw new Error("qualification host policy differs from the 24-turn/$100 release safety floor");
   const allowedTestSkips = releaseAllowedTestSkipsFromVitestReport(
     vitestReport,
-    policy.openFindingIds,
+    policyAuthority.open_finding_ids,
     trackedVitestFiles,
     canonicalRepo,
   );
-  const producerDigests = releaseProducerDigests(revision, sha256(policyBytes), toolchain);
+  const producerDigests = releaseProducerDigests(revision, policyAuthority.bundle_digest, toolchain);
   return {
     candidate_commit: revision,
     inputs: {
-      policy: sha256(policyBytes),
+      policy: policyAuthority.bundle_digest,
       dependency_lock: sha256(lock),
       prompts,
       roles: sha256(rolesBytes),
@@ -529,8 +542,16 @@ export async function releaseRepositorySnapshot(repo: string, revision: string):
     golden_references: goldenReferences,
     producer_digests: producerDigests,
     allowed_test_skips: allowedTestSkips,
-    l3_required_case_ids: [...policy.requiredL3CaseIds],
-    l3_conditional_case_ids: [...policy.conditionalL3CaseIds],
+    l3_required_case_ids: [...policy.required_l3_case_ids],
+    l3_conditional_case_ids: [...policy.conditional_l3_case_ids],
+    l3_premerge_ceiling: {
+      max_provider_turns: policy.campaign_spend.pre_merge_adapter.max_provider_turns,
+      max_equiv_usd: policy.campaign_spend.pre_merge_adapter.max_equiv_usd,
+    },
+    l3_release_ceiling: {
+      max_provider_turns: policy.campaign_spend.release.max_provider_turns,
+      max_equiv_usd: policy.campaign_spend.release.max_equiv_usd,
+    },
   };
 }
 
@@ -549,6 +570,12 @@ export async function validateReleaseRepositoryState(
     throw new Error("release manifest golden references are incomplete, stale, or not human validated");
   if (canonicalJson(snapshot.allowed_test_skips) !== canonicalJson(manifest.deterministic.allowed_test_skips)) {
     throw new Error("release manifest allowed test skips differ from the exact policy-bound skipped-test inventory");
+  }
+  if (canonicalJson(snapshot.l3_premerge_ceiling) !== canonicalJson(manifest.ceilings.l3_premerge)) {
+    throw new Error("release manifest L3 pre-merge ceiling differs from the qualification host policy");
+  }
+  if (canonicalJson(snapshot.l3_release_ceiling) !== canonicalJson(manifest.ceilings.l3_release)) {
+    throw new Error("release manifest L3 release ceiling differs from the qualification host policy");
   }
   // Re-verification can run on a different host than the authorized evidence
   // producer. Recompute from the manifest's content-bound producer toolchain,
@@ -595,9 +622,9 @@ async function currentReleaseToolchain(repo: string): Promise<ReleaseToolchainV1
     );
     return nonEmpty(object(value, `${path} package.json`)["version"], `${path} version`);
   };
-  const pnpmResult = await execFile("pnpm", ["--version"], { cwd: repo, encoding: "utf8", maxBuffer: 1024 * 1024 });
+  const pnpmResult = await execPinnedReleasePnpm(repo, ["--version"]);
   return {
-    node: process.versions.node,
+    node: await releaseNodeVersion(repo),
     pnpm: pnpmResult.stdout.trim(),
     typescript: await packageVersion("typescript"),
     vitest: await packageVersion("vitest"),
@@ -821,7 +848,7 @@ export function evaluateTriggeredCampaignEvidence(
   if (!Array.isArray(root["campaigns"])) throw new Error("release campaign evidence campaigns must be an array");
   const supplied = new Map<
     string,
-    { obligation_id: string; producer_digest: string; report: ValidationCampaignReportV1 }
+    { obligation_id: string; producer_digest: string; report: ValidationCampaignReportV2 }
   >();
   for (const raw of root["campaigns"]) {
     const entry = object(raw, "release campaign evidence entry");
@@ -830,6 +857,9 @@ export function evaluateTriggeredCampaignEvidence(
     if (supplied.has(obligationId)) throw new Error(`duplicate triggered campaign evidence for ${obligationId}`);
     const producerDigest = hash(entry["producer_digest"], "campaign evidence producer_digest");
     validateValidationCampaignReport(entry["report"]);
+    if (entry["report"].schema_version !== 2) {
+      throw new Error("RQ-1 release campaign evidence requires policy-bound campaign schema_version 2");
+    }
     supplied.set(obligationId, {
       obligation_id: obligationId,
       producer_digest: producerDigest,
@@ -882,7 +912,10 @@ export function evaluateTriggeredCampaignEvidence(
       )
         subjectMismatches.push("ceilings");
       if (report.outcome.decision_status !== declared.decision_status) subjectMismatches.push("decision_status");
-      if (report.policy.sha256 !== manifest.inputs.policy) subjectMismatches.push("policy");
+      if (canonicalJson(report.profile ?? null) !== canonicalJson(declared.unattended_profile))
+        subjectMismatches.push("unattended_profile");
+      if (boundReleasePolicyBundleDigest(manifest.candidate_commit, report.policy) !== manifest.inputs.policy)
+        subjectMismatches.push("policy");
       const subjectCurrent = subjectMismatches.length === 0;
       const producerCurrent = row.producer_digest === obligation.producer_digest;
       return {
@@ -1763,6 +1796,7 @@ function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTri
         "scopes",
         "tuples",
         "required_case_ids",
+        "unattended_profile",
         "max_provider_turns",
         "max_equiv_usd",
         "decision_status",
@@ -1779,6 +1813,7 @@ function validateTriggeredCampaigns(value: unknown): asserts value is ReleaseTri
     const scopes = uniqueStrings(item["scopes"], "triggered scopes");
     const tuples = uniqueStrings(item["tuples"], "triggered tuples");
     const cases = uniqueStrings(item["required_case_ids"], "triggered required_case_ids");
+    parseValidationCampaignProfile(item["unattended_profile"], "triggered unattended_profile");
     const maxTurns = positiveInteger(item["max_provider_turns"], "triggered max_provider_turns");
     const maxUsd = positive(item["max_equiv_usd"], "triggered max_equiv_usd");
     if (item["obligation_id"] !== "RQ-L3" || item["lane"] !== "L3" || kind !== "release") {
@@ -2496,48 +2531,6 @@ async function gitTreeDigest(repo: string, revision: string, prefix: string): Pr
   return digestJson(rows);
 }
 
-function releasePolicyProjection(policyBytes: Buffer): {
-  openFindingIds: Set<string>;
-  requiredL3CaseIds: readonly string[];
-  conditionalL3CaseIds: readonly string[];
-} {
-  const root = object(parseYaml(policyBytes.toString("utf8")), "validation policy");
-  const layers = object(root["layers"], "validation policy layers");
-  const l3 = object(layers["L3_live_sandbox"], "validation policy L3 lane");
-  if (!Array.isArray(l3["obligations"])) throw new Error("validation policy L3 obligations must be an array");
-  const obligations = new Map<string, Record<string, unknown>>();
-  for (const raw of l3["obligations"] as unknown[]) {
-    const item = object(raw, "validation policy L3 obligation");
-    const id = identifier(item["id"], "validation policy L3 obligation id");
-    if (obligations.has(id)) throw new Error(`duplicate validation policy L3 obligation ${id}`);
-    obligations.set(id, item);
-  }
-  for (const id of [...RELEASE_L3_REQUIRED_CASES, ...RELEASE_L3_CONDITIONAL_CASES]) {
-    const item = obligations.get(id);
-    if (
-      item === undefined ||
-      typeof item["trigger"] !== "string" ||
-      !item["trigger"].toLowerCase().includes("release")
-    ) {
-      throw new Error(`validation policy does not declare ${id} as an RQ-1 release obligation`);
-    }
-    if (item["status"] === "BLOCKED") throw new Error(`validation policy release obligation ${id} is blocked`);
-  }
-  if (!Array.isArray(root["open_findings"])) throw new Error("validation policy open_findings must be an array");
-  const openFindingIds = new Set<string>();
-  for (const raw of root["open_findings"] as unknown[]) {
-    const item = object(raw, "validation policy finding");
-    const id = identifier(item["id"], "validation policy finding id");
-    const status = nonEmpty(item["status"], `validation policy finding ${id} status`);
-    if (!status.startsWith("resolved")) openFindingIds.add(id);
-  }
-  return {
-    openFindingIds,
-    requiredL3CaseIds: RELEASE_L3_REQUIRED_CASES,
-    conditionalL3CaseIds: RELEASE_L3_CONDITIONAL_CASES,
-  };
-}
-
 export function releaseAllowedTestSkipsFromVitestReport(
   vitestReport: unknown,
   openFindingIds: ReadonlySet<string>,
@@ -2616,15 +2609,8 @@ export function releaseAllowedTestSkipsFromVitestReport(
 }
 
 async function releaseTrackedVitestFiles(repo: string, revision: string): Promise<string[]> {
-  const result = await git(repo, ["ls-tree", "-r", "-z", "--name-only", revision, "--", "tests"], false);
-  const paths = result
-    .split("\0")
-    .filter((path) => /^tests\/.+\.test\.ts$/.test(path) && !path.startsWith("tests/live/"))
-    .sort();
-  if (paths.length === 0) throw new Error("release candidate has no tracked offline Vitest files");
-  if (new Set(paths).size !== paths.length)
-    throw new Error("release candidate has duplicate tracked offline Vitest files");
-  return paths;
+  const result = await git(repo, ["ls-tree", "-r", "-z", revision, "--", "tests"], false);
+  return parseReleaseTrackedVitestTree(result);
 }
 
 /** Vitest executes from the checkout, so prove that checkout is the candidate
@@ -2646,109 +2632,6 @@ async function validateReleaseExecutionTree(repo: string, revision: string): Pro
       `release execution tree differs from the candidate outside evidence namespace: ${outsideEvidence.sort().join(", ")}`,
     );
   }
-}
-
-async function runReleaseVitest(repo: string, revision: string): Promise<unknown> {
-  const executionRoot = await mkdtemp(join(tmpdir(), "cormidia-rq1-execution-"));
-  const executionRepo = join(executionRoot, "candidate");
-  try {
-    const sourceRepo = await realpathFs(repo);
-    await execFile("git", ["clone", "--quiet", "--no-checkout", "--shared", sourceRepo, executionRepo], {
-      encoding: "utf8",
-      maxBuffer: 50 * 1024 * 1024,
-    });
-    await git(executionRepo, ["sparse-checkout", "set", "--no-cone", "/*", "!/archive-do-not-read/"]);
-    await git(executionRepo, ["checkout", "--quiet", "--detach", revision]);
-    const canonicalExecutionRepo = await realpathFs(executionRepo);
-    const environment = releaseExecutionEnvironment();
-    await execFile(
-      "pnpm",
-      ["install", "--offline", "--frozen-lockfile", "--ignore-scripts", "--verify-store-integrity"],
-      {
-        cwd: executionRepo,
-        env: environment,
-        encoding: "utf8",
-        maxBuffer: 50 * 1024 * 1024,
-      },
-    );
-    let stdout: string;
-    try {
-      const result = await execFile("pnpm", ["exec", "vitest", "run", "--reporter=json", "--no-cache"], {
-        cwd: executionRepo,
-        env: environment,
-        encoding: "utf8",
-        maxBuffer: 50 * 1024 * 1024,
-      });
-      stdout = result.stdout;
-    } catch (error) {
-      const failedStdout =
-        typeof error === "object" && error !== null && "stdout" in error
-          ? String((error as { stdout?: unknown }).stdout)
-          : "";
-      if (failedStdout.trim().length > 0) {
-        try {
-          return normalizeReleaseVitestReportPaths(JSON.parse(failedStdout) as unknown, canonicalExecutionRepo);
-        } catch {
-          // Fall through to the execution error when the failed process did not
-          // emit one trustworthy machine-readable report.
-        }
-      }
-      const stderr =
-        typeof error === "object" && error !== null && "stderr" in error
-          ? String((error as { stderr?: unknown }).stderr)
-          : "";
-      throw new Error(`release candidate Vitest execution failed${stderr.trim() ? `: ${stderr.trim()}` : ""}`);
-    }
-    try {
-      return normalizeReleaseVitestReportPaths(JSON.parse(stdout) as unknown, canonicalExecutionRepo);
-    } catch (error) {
-      throw new Error("release candidate Vitest JSON report is malformed", { cause: error });
-    }
-  } finally {
-    await rm(executionRoot, { recursive: true, force: true });
-  }
-}
-
-function normalizeReleaseVitestReportPaths(report: unknown, executionRepo: string): unknown {
-  const root = object(report, "Vitest JSON report");
-  if (!Array.isArray(root["testResults"])) return report;
-  for (const raw of root["testResults"] as unknown[]) {
-    const file = object(raw, "Vitest test result");
-    if (typeof file["name"] !== "string" || file["name"].trim().length === 0) continue;
-    const absoluteFile = isAbsolute(file["name"]) ? resolve(file["name"]) : resolve(executionRepo, file["name"]);
-    const relativeFile = relative(resolve(executionRepo), absoluteFile);
-    if (relativeFile.length === 0 || isAbsolute(relativeFile) || relativeFile.split(sep).includes("..")) {
-      throw new Error(`Vitest test result is outside the isolated candidate checkout: ${file["name"]}`);
-    }
-    file["name"] = safeRelativePath(relativeFile, "isolated Vitest test result path");
-  }
-  return report;
-}
-
-function releaseExecutionEnvironment(): NodeJS.ProcessEnv {
-  const environment: NodeJS.ProcessEnv = { CI: "true", NO_COLOR: "1" };
-  for (const name of [
-    "PATH",
-    "HOME",
-    "TMPDIR",
-    "TMP",
-    "TEMP",
-    "SHELL",
-    "USER",
-    "LOGNAME",
-    "LANG",
-    "LC_ALL",
-    "TZ",
-    "PNPM_HOME",
-    "PNPM_CONFIG_STORE_DIR",
-    "NPM_CONFIG_USERCONFIG",
-    "NPM_CONFIG_GLOBALCONFIG",
-    "COREPACK_HOME",
-    "COREPACK_ENABLE_NETWORK",
-  ] as const) {
-    if (process.env[name] !== undefined) environment[name] = process.env[name];
-  }
-  return environment;
 }
 
 async function gitFile(repo: string, revision: string, path: string): Promise<Buffer> {

@@ -1,29 +1,37 @@
 // Traceability: CF-OPS-SOAK · HB-071 · risk-allocation.md §6 soak obligation (evidence protocol only).
 
-import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadApps } from "../../../src/org/apps.js";
 import { makeTestClock } from "../../fixtures/clock.js";
 import { makeTempOrgHome } from "../../fixtures/org-home.js";
+import type { ValidationCampaignPolicyBinding } from "../../../src/org/validation-campaign-policy.js";
+import { assertCampaignPolicyBindingBytes } from "../../campaign/policy-binding.js";
 import {
   evaluateSoak,
   finishSoak,
+  readSoakState,
   recordSoakCheckpoint,
+  soakStatePath,
   startSoak,
+  type SoakAdmission,
   type SoakCheckpointV1,
   type SoakConfigV1,
 } from "../../ops/soak-protocol.js";
+
+const revalidateAdmission = (): Promise<void> => Promise.resolve();
 
 describe("CF-OPS-SOAK resumable evidence protocol", () => {
   it("stays incomplete until seven days, three real sleeps, and natural Codex rotation are all evidenced", async () => {
     const org = await makeTempOrgHome({ name: "soak-fixture" });
     try {
-      const policy = join(org.root, "validation-policy.yaml");
-      await writeFile(policy, "schema_version: 1\n", "utf8");
+      const { policy, binding } = await policyFixture(org.root);
       const clock = makeTestClock("2026-07-01T08:00:00.000Z");
       const config = await configFor(org, policy, clock.nowIso());
-      let state = await startSoak(config, clock.nowDate());
+      const admission = admissionFor(binding);
+      let state = await startSoak(config, admission, clock.nowDate());
       expect(evaluateSoak(state, clock.nowDate()).collected_case_ids).toEqual([]);
 
       const sleeps: Array<[string, string]> = [
@@ -36,6 +44,7 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
         state = await recordSoakCheckpoint(
           config,
           checkpoint(`cp-${index}`, clock.nowIso(), sleep, index === 2),
+          admission,
           clock.nowDate(),
         );
       }
@@ -45,6 +54,7 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
       state = await recordSoakCheckpoint(
         config,
         checkpoint("cp-final", clock.nowIso(), undefined, false, true),
+        admission,
         clock.nowDate(),
       );
       const blind = structuredClone(state);
@@ -55,9 +65,13 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
       }
       expect(evaluateSoak(blind, clock.nowDate()).missing_reason_codes).toContain("source_health_incomplete");
       expect(evaluateSoak(blind, clock.nowDate()).collected_case_ids).not.toContain("CF-OPS-SOAK");
-      const report = await finishSoak(config, clock.nowDate());
+      const report = await finishSoak(config, admission, clock.nowDate());
       expect(report.outcome).toMatchObject({ completeness: "complete", verdict: "pass", violation_ids: [] });
       expect(report.coverage.missing_case_ids).toEqual([]);
+      await expect(
+        recordSoakCheckpoint(config, checkpoint("after-finish", clock.nowIso()), admission, clock.nowDate()),
+      ).rejects.toThrow(/already completed/);
+      await expect(finishSoak(config, admission, clock.nowDate())).rejects.toThrow(/finished twice/);
     } finally {
       await org.cleanup();
     }
@@ -66,10 +80,11 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
   it("negative control: sleep cannot manufacture permission or a green result", async () => {
     const org = await makeTempOrgHome({ name: "soak-negative" });
     try {
-      const policy = join(org.root, "validation-policy.yaml");
-      await writeFile(policy, "schema_version: 1\n", "utf8");
+      const { policy, binding } = await policyFixture(org.root);
       const config = await configFor(org, policy, "2026-07-01T00:00:00.000Z");
-      await startSoak(config, new Date("2026-07-01T00:00:00.000Z"));
+      const revalidate = (): Promise<void> => assertCampaignPolicyBindingBytes(binding, org.root);
+      const admission = admissionFor(binding, revalidate);
+      await startSoak(config, admission, new Date("2026-07-01T00:00:00.000Z"));
       const seeded = checkpoint(
         "seeded",
         "2026-07-09T12:00:00.000Z",
@@ -77,8 +92,8 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
         false,
       );
       seeded.human_decision_rows = 1;
-      await recordSoakCheckpoint(config, seeded);
-      const report = await finishSoak(config, new Date("2026-07-09T12:00:00.000Z"));
+      await recordSoakCheckpoint(config, seeded, admission);
+      const report = await finishSoak(config, admission, new Date("2026-07-09T12:00:00.000Z"));
       expect(report.outcome.verdict).toBe("fail");
       expect(report.outcome.violation_ids).toContain("CF-OPS-SOAK:sleep_permission_delta");
       expect(report.outcome.completeness).toBe("incomplete");
@@ -90,15 +105,107 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
   it("negative control: config or policy drift cannot rewrite a resumed campaign", async () => {
     const org = await makeTempOrgHome({ name: "soak-binding" });
     try {
-      const policy = join(org.root, "validation-policy.yaml");
-      await writeFile(policy, "schema_version: 1\n", "utf8");
+      const { policy, binding } = await policyFixture(org.root);
       const config = await configFor(org, policy, "2026-07-01T00:00:00.000Z");
-      await startSoak(config, new Date("2026-07-01T00:00:00.000Z"));
+      const revalidate = (): Promise<void> => assertCampaignPolicyBindingBytes(binding, org.root);
+      const admission = admissionFor(binding, revalidate);
+      await startSoak(config, admission, new Date("2026-07-01T00:00:00.000Z"));
       const evidence = checkpoint("bound", "2026-07-02T00:00:00.000Z");
       const drifted = { ...config, human_authorization: { ...config.human_authorization, purpose: "widened later" } };
-      await expect(recordSoakCheckpoint(drifted, evidence)).rejects.toThrow(/config drifted/);
+      await expect(recordSoakCheckpoint(drifted, evidence, admission)).rejects.toThrow(/config drifted/);
       await writeFile(policy, "schema_version: 2\n", "utf8");
-      await expect(recordSoakCheckpoint(config, evidence)).rejects.toThrow(/policy drifted/);
+      await expect(recordSoakCheckpoint(config, evidence, admission)).rejects.toThrow(/policy binding changed/);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("negative control: repository revalidation refuses a resumed checkpoint before persistence", async () => {
+    const org = await makeTempOrgHome({ name: "soak-revalidation" });
+    try {
+      const { policy, binding } = await policyFixture(org.root);
+      const config = await configFor(org, policy, "2026-07-01T00:00:00.000Z");
+      let admitted = true;
+      const revalidate = (): Promise<void> =>
+        admitted ? Promise.resolve() : Promise.reject(new Error("campaign refused: checked-out HEAD changed"));
+      const admission = admissionFor(binding, revalidate);
+      await startSoak(config, admission, new Date("2026-07-01T00:00:00.000Z"));
+      admitted = false;
+      await expect(
+        recordSoakCheckpoint(config, checkpoint("blocked", "2026-07-02T00:00:00.000Z"), admission),
+      ).rejects.toThrow(/checked-out HEAD changed/);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("serializes concurrent checkpoints so no accepted violation is lost", async () => {
+    const org = await makeTempOrgHome({ name: "soak-concurrent-checkpoint" });
+    try {
+      const { policy, binding } = await policyFixture(org.root);
+      const config = await configFor(org, policy, "2026-07-01T00:00:00.000Z");
+      const admission = admissionFor(binding);
+      await startSoak(config, admission, new Date("2026-07-01T00:00:00.000Z"));
+      const clean = checkpoint("concurrent-clean", "2026-07-02T00:00:00.000Z");
+      const violating = checkpoint("concurrent-violation", "2026-07-02T00:00:01.000Z");
+      violating.human_decision_rows = 1;
+      const results = await Promise.allSettled([
+        recordSoakCheckpoint(config, clean, admission),
+        recordSoakCheckpoint(config, violating, admission),
+      ]);
+      const accepted = [clean.checkpoint_id, violating.checkpoint_id].filter(
+        (_id, index) => results[index]?.status === "fulfilled",
+      );
+      const durable = await readSoakState(config.state_home, config.campaign_id);
+      expect(durable.checkpoints.map((item) => item.checkpoint_id)).toEqual(expect.arrayContaining(accepted));
+      expect(results.some((result) => result.status === "fulfilled")).toBe(true);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("negative control: resumed state cannot replace the freshly admitted policy binding", async () => {
+    const org = await makeTempOrgHome({ name: "soak-state-binding" });
+    try {
+      const { policy, binding } = await policyFixture(org.root);
+      const config = await configFor(org, policy, "2026-07-01T00:00:00.000Z");
+      const admission = admissionFor(binding);
+      await startSoak(config, admission, new Date("2026-07-01T00:00:00.000Z"));
+      const path = soakStatePath(config.state_home, config.campaign_id);
+      const original = await readFile(path, "utf8");
+      const checkpointRow = checkpoint("tamper", "2026-07-02T00:00:00.000Z");
+
+      await writeFile(path, original.replace(binding.sha256, "c".repeat(64)), "utf8");
+      await expect(recordSoakCheckpoint(config, checkpointRow, admission)).rejects.toThrow(/binding differs/);
+
+      await writeFile(path, original.replace('"kind": "legacy"', '"kind": "model"'), "utf8");
+      await expect(recordSoakCheckpoint(config, checkpointRow, admission)).rejects.toThrow(/exactly 8 entries/);
+
+      const source = binding.validation_authority.sources[0];
+      if (source === undefined) throw new Error("fixture authority source missing");
+      await writeFile(path, original.replace(source.path, `../${source.path}`), "utf8");
+      await expect(recordSoakCheckpoint(config, checkpointRow, admission)).rejects.toThrow(/is not validation-design/);
+    } finally {
+      await org.cleanup();
+    }
+  });
+
+  it("negative control: string booleans and counters cannot enter resumed checkpoint evidence", async () => {
+    const org = await makeTempOrgHome({ name: "soak-checkpoint-types" });
+    try {
+      const { policy, binding } = await policyFixture(org.root);
+      const config = await configFor(org, policy, "2026-07-01T00:00:00.000Z");
+      const admission = admissionFor(binding);
+      await startSoak(config, admission, new Date("2026-07-01T00:00:00.000Z"));
+      await recordSoakCheckpoint(config, checkpoint("typed", "2026-07-02T00:00:00.000Z"), admission);
+      const path = soakStatePath(config.state_home, config.campaign_id);
+      const original = await readFile(path, "utf8");
+
+      await writeFile(path, original.replace('"measurement_valid": true', '"measurement_valid": "true"'), "utf8");
+      await expect(readSoakState(config.state_home, config.campaign_id)).rejects.toThrow(/must be boolean/);
+
+      await writeFile(path, original.replace('"completed_sweeps": 1', '"completed_sweeps": "1"'), "utf8");
+      await expect(readSoakState(config.state_home, config.campaign_id)).rejects.toThrow(/non-negative finite number/);
     } finally {
       await org.cleanup();
     }
@@ -106,12 +213,12 @@ describe("CF-OPS-SOAK resumable evidence protocol", () => {
 
   it("negative control: batch success and cache/recovery accounting cannot exceed their durable denominators", () => {
     const state = {
-      schema_version: 1 as const,
+      schema_version: 2 as const,
       campaign_id: "soak-accounting",
       started_at: "2026-07-01T00:00:00.000Z",
       commit: "a".repeat(40),
       config_sha256: "b".repeat(64),
-      policy_sha256: "c".repeat(64),
+      policy_binding: fixturePolicyBinding(),
       timezone: "America/Los_Angeles",
       sandbox: { org: "fixture", apps: ["sandbox-app"], repos: ["fixture/sandbox-app"] },
       baseline: { provider_turns: 0, equiv_usd: 0, human_decision_rows: 0 },
@@ -174,6 +281,46 @@ async function configFor(
     timezone: "America/Los_Angeles",
     sandbox: { org: org.orgName, apps: apps.apps.map((app) => app.name), repos: apps.apps.map((app) => app.repo) },
   };
+}
+
+async function policyFixture(root: string): Promise<{ policy: string; binding: ValidationCampaignPolicyBinding }> {
+  const policy = join(root, "docs", "qualification", "host-policy.yaml");
+  const legacy = join(root, "validation-design", "validation-policy.yaml");
+  const hostBytes = "schema: cormidia/qualification-host-policy/v1\n";
+  const legacyBytes = "schema_version: 1\n";
+  await mkdir(dirname(policy), { recursive: true });
+  await mkdir(dirname(legacy), { recursive: true });
+  await writeFile(policy, hostBytes, "utf8");
+  await writeFile(legacy, legacyBytes, "utf8");
+  return {
+    policy,
+    binding: fixturePolicyBinding(digest(hostBytes), digest(legacyBytes)),
+  };
+}
+
+function fixturePolicyBinding(
+  hostDigest = "a".repeat(64),
+  legacyDigest = "b".repeat(64),
+): ValidationCampaignPolicyBinding {
+  return {
+    path: "docs/qualification/host-policy.yaml",
+    sha256: hostDigest,
+    validation_authority: {
+      kind: "legacy",
+      sources: [{ path: "validation-design/validation-policy.yaml", sha256: legacyDigest }],
+    },
+  };
+}
+
+function digest(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function admissionFor(
+  policyBinding: ValidationCampaignPolicyBinding,
+  revalidate: SoakAdmission["revalidate"] = revalidateAdmission,
+): SoakAdmission {
+  return { policyBinding, revalidate };
 }
 
 function checkpoint(

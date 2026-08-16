@@ -27,7 +27,7 @@ campaign:
   campaignId: l-acc-run-1
   # Must equal checked-out HEAD when the campaign starts.
   commit: "0000000000000000000000000000000000000000"
-  policyPath: /absolute/path/to/Cormidia/validation-design/validation-policy.yaml
+  policyPath: /absolute/path/to/Cormidia/docs/qualification/host-policy.yaml
   # Every scenario repository must belong to this org and to nothing else.
   campaignOrg: cormidia-sandbox
 

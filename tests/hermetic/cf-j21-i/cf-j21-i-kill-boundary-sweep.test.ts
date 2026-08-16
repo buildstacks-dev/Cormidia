@@ -28,7 +28,7 @@
 // seam: no code of the killed campaign runs past the boundary, and the only
 // surviving truth is what `persistReport` already wrote atomically.
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -91,11 +91,14 @@ async function authorizedRepo(): Promise<{ repo: TempGitRepo; commit: string; po
   const repo = await makeTempGitRepo({ seedFiles: [] });
   cleanups.push(repo.cleanup);
   const dir = join(repo.dir, "validation-design");
+  const host = join(repo.dir, "docs", "qualification", "host-policy.yaml");
   await mkdir(dir, { recursive: true });
+  await mkdir(dirname(host), { recursive: true });
   await writeFile(join(dir, "validation-policy.yaml"), "schema_version: 1\n", "utf8");
-  repo.git(["add", "validation-design"]);
+  await copyFile(join(repoRoot, "docs", "qualification", "host-policy.yaml"), host);
+  repo.git(["add", "validation-design", "docs"]);
   repo.git(["commit", "--no-gpg-sign", "-qm", "fixture: policy"]);
-  return { repo, commit: repo.git(["rev-parse", "HEAD"]), policyPath: join(dir, "validation-policy.yaml") };
+  return { repo, commit: repo.git(["rev-parse", "HEAD"]), policyPath: host };
 }
 
 function planRow(axis: string, score: 0 | 1 | 2 | 3): AxisReportRow {

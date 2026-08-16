@@ -12,7 +12,8 @@
 // gate resolution, a campaign that stops at the gate is complete-for-the-plan-
 // arm rather than failed, and the report carries no release signal (F-PT-029).
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -46,11 +47,14 @@ async function authorizedRepo(): Promise<{ repo: TempGitRepo; commit: string; po
   const repo = await makeTempGitRepo({ seedFiles: [] });
   cleanups.push(repo.cleanup);
   const dir = join(repo.dir, "validation-design");
+  const host = join(repo.dir, "docs", "qualification", "host-policy.yaml");
   await mkdir(dir, { recursive: true });
+  await mkdir(dirname(host), { recursive: true });
   await writeFile(join(dir, "validation-policy.yaml"), "schema_version: 1\n", "utf8");
-  repo.git(["add", "validation-design"]);
+  await copyFile(join(repoRoot, "docs", "qualification", "host-policy.yaml"), host);
+  repo.git(["add", "validation-design", "docs"]);
   repo.git(["commit", "--no-gpg-sign", "-qm", "fixture: policy"]);
-  return { repo, commit: repo.git(["rev-parse", "HEAD"]), policyPath: join(dir, "validation-policy.yaml") };
+  return { repo, commit: repo.git(["rev-parse", "HEAD"]), policyPath: host };
 }
 
 function planRow(axis: string, score: 0 | 1 | 2 | 3): AxisReportRow {
@@ -170,6 +174,19 @@ async function installProof() {
 }
 
 describe("CF-J21-S (L2) the happy walk", () => {
+  it("uses the declared repoRoot when the test-only binding override is omitted", async () => {
+    const fixture = await rig();
+    const { bindingCwd, ...withoutOverride } = fixture;
+    const run = await runAcceptanceCampaign({
+      ...withoutOverride,
+      repoRoot: bindingCwd,
+      commitPinAt: COMMIT_PIN_AT,
+      installProof: await installProof(),
+    });
+    expect(run.report.commit).toBe(fixture.config.commit);
+    expect(fixture.calls).toEqual(["plan", "build"]);
+  });
+
   it("runs plan → gate → build → report and records the identity of what it exercised", async () => {
     const fixture = await rig();
     const run = await runAcceptanceCampaign({
@@ -220,7 +237,73 @@ describe("CF-J21-S (L2) the happy walk", () => {
     expect(run.report.rq1_relationship).toContain("outside RQ-1");
     expect(JSON.stringify(run.report)).not.toMatch(/"verdict":"(pass|fail)"/);
   });
+
+  it("negative control: host drift during an arm refuses its checkpoint", async () => {
+    const fixture = await rig();
+    const plan = fixture.arms[0];
+    if (plan === undefined) throw new Error("fixture has no plan arm");
+    plan.planArm = async () => {
+      fixture.calls.push("plan-drift");
+      await writeFile(fixture.config.policyPath, "malformed: [\n", "utf8");
+      return [planRow("P-1", 2), planRow("P-5", 2)];
+    };
+    await expect(
+      runAcceptanceCampaign({
+        ...fixture,
+        repoRoot: fixture.bindingCwd,
+        commitPinAt: COMMIT_PIN_AT,
+        installProof: await installProof(),
+        onProgress: async () => {},
+      }),
+    ).rejects.toThrow(/product paths differ.*docs\/qualification\/host-policy.yaml/);
+    expect(fixture.calls).toEqual(["plan-drift"]);
+  });
+
+  it("negative control: dirty product bytes between arms refuse the next action", async () => {
+    const fixture = await rig();
+    let checkpoints = 0;
+    await expect(
+      runAcceptanceCampaign({
+        ...fixture,
+        repoRoot,
+        commitPinAt: COMMIT_PIN_AT,
+        installProof: await installProof(),
+        onProgress: async () => {
+          checkpoints += 1;
+          if (checkpoints !== 1) return;
+          await mkdir(join(fixture.bindingCwd, "src"), { recursive: true });
+          await writeFile(join(fixture.bindingCwd, "src/dirty.ts"), "export {};\n", "utf8");
+        },
+      }),
+    ).rejects.toThrow(/product paths differ.*src\/dirty.ts/);
+    expect(fixture.calls).toEqual(["plan"]);
+  });
+
+  it("negative control: an authorized-repository HEAD change between arms refuses", async () => {
+    const fixture = await rig();
+    let checkpoints = 0;
+    await expect(
+      runAcceptanceCampaign({
+        ...fixture,
+        repoRoot,
+        commitPinAt: COMMIT_PIN_AT,
+        installProof: await installProof(),
+        onProgress: async () => {
+          checkpoints += 1;
+          if (checkpoints !== 1) return;
+          await writeFile(join(fixture.bindingCwd, "validation-design/head-drift.md"), "drift\n", "utf8");
+          git(fixture.bindingCwd, ["add", "validation-design/head-drift.md"]);
+          git(fixture.bindingCwd, ["commit", "--no-gpg-sign", "-qm", "fixture: move HEAD"]);
+        },
+      }),
+    ).rejects.toThrow(/authorized commit .* does not equal checked-out HEAD/);
+    expect(fixture.calls).toEqual(["plan"]);
+  });
 });
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
 
 describe("CF-J21-RC (L2) stopping at the gate is a successful campaign", () => {
   it("a spend admission refusal persists an incomplete report instead of escaping as truncation", async () => {

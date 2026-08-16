@@ -1,6 +1,7 @@
 import type { CampaignLifecycle } from "./campaign-lifecycle.js";
 import type { AxisReportRow } from "./campaign-report.js";
 import { CampaignSpendRefusal } from "./campaign-spend.js";
+import type { CampaignRepositoryRevalidator } from "../repository-revalidation.js";
 
 export interface ScenarioArms {
   scenarioId: string;
@@ -14,11 +15,13 @@ export async function executePlanArms(
   lifecycles: Map<string, CampaignLifecycle>,
   rows: Map<string, AxisReportRow[]>,
   checkpoint: () => Promise<void>,
+  revalidateAdmission: CampaignRepositoryRevalidator,
 ): Promise<boolean> {
   let spendStopped = false;
   for (const arm of arms.filter((candidate) => candidate.kind === "app")) {
     if (arm.planArm === undefined) throw new Error(`campaign refused: app scenario ${arm.scenarioId} has no plan arm`);
     try {
+      await revalidateAdmission();
       rows.set(arm.scenarioId, await arm.planArm());
     } catch (error) {
       if (!(error instanceof CampaignSpendRefusal)) throw error;
@@ -41,6 +44,7 @@ export async function executeBuildArms(
   lifecycles: Map<string, CampaignLifecycle>,
   rows: Map<string, AxisReportRow[]>,
   checkpoint: () => Promise<void>,
+  revalidateAdmission: CampaignRepositoryRevalidator,
 ): Promise<boolean> {
   let spendStopped = false;
   for (const arm of arms) {
@@ -48,6 +52,7 @@ export async function executeBuildArms(
     lifecycle?.transition("build-arm");
     lifecycle?.noteBuildArmSpend();
     try {
+      await revalidateAdmission();
       rows.set(arm.scenarioId, await arm.buildArm());
       lifecycle?.transition("graded");
     } catch (error) {

@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 
 describe("release policy authority transition", () => {
-  it("pins the offline Corepack install to the source installation store and refuses corrupt metadata", async () => {
+  it("pins the offline installed pnpm to the source installation store and refuses corrupt metadata", async () => {
     const repo = await mkdtemp(join(tmpdir(), "release-package-manager-"));
     roots.push(repo);
     const store = join(repo, "store");
@@ -58,24 +58,35 @@ describe("release policy authority transition", () => {
       "--verify-store-integrity",
     ]);
 
-    const corepack = join(bin, "corepack");
+    const pnpm = join(bin, "pnpm");
     await writeFile(
-      corepack,
-      "#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({ argv: process.argv.slice(2), network: process.env.COREPACK_ENABLE_NETWORK, store: process.env.PNPM_CONFIG_STORE_DIR }));\n",
+      pnpm,
+      '#!/bin/sh\nif [ "$1" = "--version" ]; then printf \'11.10.0\\n\'; exit 0; fi\nprintf \'%s|%s|%s\\n\' "$*" "$COREPACK_ENABLE_NETWORK" "$PNPM_CONFIG_STORE_DIR"\n',
       "utf8",
     );
-    await chmod(corepack, 0o755);
-    const result = await execPinnedReleasePnpm(repo, ["--version"], {
+    await chmod(pnpm, 0o755);
+    const result = await execPinnedReleasePnpm(repo, ["exec", "probe"], {
       ...releaseExecutionEnvironment(),
-      PATH: `${bin}:${process.env.PATH ?? ""}`,
+      PATH: bin,
       COREPACK_ENABLE_NETWORK: "1",
       PNPM_CONFIG_STORE_DIR: store,
     });
-    expect(JSON.parse(result.stdout)).toEqual({
-      argv: ["pnpm", "--version"],
-      network: "0",
-      store,
-    });
+    expect(result.stdout.trim()).toBe(`exec probe|0|${store}`);
+
+    const unsafeMarker = join(repo, "unsafe-command-ran");
+    await writeFile(
+      pnpm,
+      '#!/bin/sh\nif [ "$1" = "--version" ]; then printf \'11.9.0\\n\'; exit 0; fi\nprintf \'unsafe command executed\\n\' > "$PNPM_TEST_MARKER"\n',
+      "utf8",
+    );
+    await expect(
+      execPinnedReleasePnpm(repo, ["install"], {
+        ...releaseExecutionEnvironment(),
+        PATH: bin,
+        PNPM_TEST_MARKER: unsafeMarker,
+      }),
+    ).rejects.toThrow(/does not match exact packageManager pin/);
+    await expect(readFile(unsafeMarker, "utf8")).rejects.toThrow();
     const node = join(bin, "node");
     await writeFile(node, "#!/bin/sh\nprintf 'v99.8.7\\n'\n", "utf8");
     await chmod(node, 0o755);

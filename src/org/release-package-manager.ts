@@ -19,12 +19,20 @@ export async function execPinnedReleasePnpm(
   args: readonly string[],
   environment: NodeJS.ProcessEnv = releaseExecutionEnvironment(),
 ): Promise<{ stdout: string; stderr: string }> {
-  return execFile("corepack", ["pnpm", ...args], {
-    cwd: repo,
-    env: { ...environment, COREPACK_ENABLE_NETWORK: "0" },
-    encoding: "utf8",
-    maxBuffer: 50 * 1024 * 1024,
-  });
+  const expected = exactPnpmVersion(await readFile(join(repo, "package.json"), "utf8"));
+  const run = async (command: readonly string[]): Promise<{ stdout: string; stderr: string }> =>
+    execFile("pnpm", [...command], {
+      cwd: repo,
+      env: { ...environment, COREPACK_ENABLE_NETWORK: "0" },
+      encoding: "utf8",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+  const observed = await run(["--version"]);
+  if (observed.stderr.trim() !== "")
+    throw new Error(`installed pnpm version check wrote stderr: ${observed.stderr.trim()}`);
+  if (observed.stdout.trim() !== expected)
+    throw new Error(`installed pnpm ${observed.stdout.trim()} does not match exact packageManager pin ${expected}`);
+  return run(args);
 }
 
 export async function releaseNodeVersion(
@@ -54,11 +62,8 @@ export async function releasePackageStore(repo: string): Promise<string> {
   } catch (error) {
     throw new Error("release package store metadata is missing or unreadable", { cause: error });
   }
-  const packageRoot = record(parseJson(packageBytes, "package.json"), "package.json");
   const metadata = record(parseYaml(metadataBytes), "node_modules/.modules.yaml");
-  const packageManager = nonEmpty(packageRoot["packageManager"], "package.json packageManager");
-  if (!/^pnpm@[0-9]+\.[0-9]+\.[0-9]+$/.test(packageManager))
-    throw new Error("package.json packageManager must be an exact pnpm version");
+  const packageManager = `pnpm@${exactPnpmVersion(packageBytes)}`;
   if (metadata["packageManager"] !== packageManager)
     throw new Error("installed package metadata differs from the exact packageManager pin");
   const storeDir = nonEmpty(metadata["storeDir"], "installed package storeDir");
@@ -75,24 +80,10 @@ export async function releasePackageStore(repo: string): Promise<string> {
 
 export function releaseExecutionEnvironment(): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = { CI: "true", NO_COLOR: "1", COREPACK_ENABLE_NETWORK: "0" };
-  for (const name of [
-    "PATH",
-    "HOME",
-    "TMPDIR",
-    "TMP",
-    "TEMP",
-    "SHELL",
-    "USER",
-    "LOGNAME",
-    "LANG",
-    "LC_ALL",
-    "TZ",
-    "PNPM_HOME",
-    "PNPM_CONFIG_STORE_DIR",
-    "NPM_CONFIG_USERCONFIG",
-    "NPM_CONFIG_GLOBALCONFIG",
-    "COREPACK_HOME",
-  ] as const) {
+  const inherited =
+    "PATH HOME TMPDIR TMP TEMP SHELL USER LOGNAME LANG LC_ALL TZ PNPM_HOME " +
+    "PNPM_CONFIG_STORE_DIR NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG COREPACK_HOME";
+  for (const name of inherited.split(" ")) {
     const value = process.env[name];
     if (value !== undefined) environment[name] = value;
   }
@@ -107,13 +98,17 @@ function parseJson(value: string, name: string): unknown {
   }
 }
 
-function record(value: unknown, name: string): Record<string, unknown> {
-  if (!isRecord(value)) throw new Error(`${name} must be an object`);
-  return value;
+function exactPnpmVersion(packageBytes: string): string {
+  const root = record(parseJson(packageBytes, "package.json"), "package.json");
+  const packageManager = nonEmpty(root["packageManager"], "package.json packageManager");
+  const match = /^pnpm@([0-9]+\.[0-9]+\.[0-9]+)$/.exec(packageManager);
+  if (match?.[1] === undefined) throw new Error("package.json packageManager must be an exact pnpm version");
+  return match[1];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+function record(value: unknown, name: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`${name} must be an object`);
+  return Object.fromEntries(Object.entries(value));
 }
 
 function nonEmpty(value: unknown, name: string): string {

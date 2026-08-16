@@ -51,7 +51,7 @@ export async function runReleaseCandidateValidation(
     } catch (error) {
       const detail = errorOutput(error, "stderr").trim();
       throw new Error(
-        `release candidate offline install requires its exact packageManager version in Corepack's cache${detail === "" ? "" : `: ${detail}`}`,
+        `release candidate offline install requires its exact installed packageManager executable/version${detail === "" ? "" : `: ${detail}`}`,
         { cause: error },
       );
     }

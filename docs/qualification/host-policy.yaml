@@ -1,9 +1,10 @@
 schema: cormidia/qualification-host-policy/v1
 product: cormidia
 
-# Cormidia-owned operational facts that validation-architect 0.4.2 deliberately
-# does not model. This file composes with, and never overrides, the selected
-# Validation Architect authority. See research/2026-08-16_validation-authority-domain-split.md.
+# Cormidia-owned operational facts that validation-architect 0.4.4, unchanged
+# from 0.4.2, deliberately does not model. This file composes with, and never
+# overrides, the selected Validation Architect authority. See
+# research/2026-08-16_validation-authority-domain-split.md.
 release_qualification:
   contract_id: RQ-1
   required_l3_case_ids:

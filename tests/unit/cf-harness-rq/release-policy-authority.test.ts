@@ -493,7 +493,7 @@ function modelFiles(productRevision: string, host: Buffer, citeFinding: boolean)
         criticality_reason: "Disposable fixture with no external effect",
       },
       versions: {
-        package: "0.4.2",
+        package: "0.4.4",
         method: "0.8.0",
         model: "validation-architect/corpus/v1",
         compiler: "validation-architect/compiler/v1",

@@ -32,6 +32,8 @@ const GENERATED_VIEWS = [
   "owner-backlog.md",
   "planned-trace.md",
 ] as const;
+const COMPILER_REPORT = "compiler-report.json";
+const GENERATED_ARTIFACTS = [...GENERATED_VIEWS, COMPILER_REPORT];
 const FORBIDDEN_MODEL_MODE_FILES = [
   "validation-policy.yaml",
   "case-catalog.yaml",
@@ -232,7 +234,7 @@ function initializeRepository(root: string): string {
 
 function modelFiles(revision: string): Record<string, string> {
   const versions = {
-    package: "0.4.2",
+    package: "0.4.4",
     method: "0.8.0",
     model: "validation-architect/corpus/v1",
     compiler: "validation-architect/compiler/v1",
@@ -278,6 +280,7 @@ function modelFiles(revision: string): Record<string, string> {
         status: "declared-empty",
         requirement: "blocking",
         triggers: [],
+        authorization: "per-run-human",
         reason: "No triggered obligation",
       },
       {
@@ -516,17 +519,31 @@ describe("CF-HARNESS-CI — HB-140 — case-catalog.yaml regeneration drift gate
 });
 
 describe("CF-HARNESS-CI — #465 — checked-model compiler drift gate", () => {
-  it("passes a complete model with the exact eight inputs and five generated views", async () => {
+  it("passes a complete model with eight inputs, five views, and the canonical compiler report", async () => {
     const root = await checkedModelFixture();
     const modelRoot = join(root, "validation-design", "model");
     const designRoot = join(root, "validation-design");
 
     expect((await readdir(modelRoot)).sort()).toEqual([...MODEL_FILES].sort());
     for (const name of MODEL_FILES) expect((await readFile(join(modelRoot, name), "utf8")).length).toBeGreaterThan(0);
-    expect((await readdir(designRoot)).filter((name) => name !== "model").sort()).toEqual([...GENERATED_VIEWS].sort());
+    expect((await readdir(designRoot)).filter((name) => name !== "model").sort()).toEqual(
+      [...GENERATED_ARTIFACTS].sort(),
+    );
     for (const name of GENERATED_VIEWS) {
       expect((await readFile(join(designRoot, name), "utf8")).length).toBeGreaterThan(0);
     }
+    expect(await readFile(join(designRoot, "owner-briefing.md"), "utf8")).toContain(
+      "`triggered` Triggered (evidence): blocking, declared-empty; triggers: —; authorization: per-run-human",
+    );
+    const reportBytes = await readFile(join(designRoot, COMPILER_REPORT), "utf8");
+    const report: unknown = JSON.parse(reportBytes);
+    expect(report).toMatchObject({
+      schema: "validation-architect/compiler/v1",
+      accepted: true,
+      generated_views: [...GENERATED_VIEWS].sort(),
+      diagnostics: [],
+    });
+    expect(reportBytes.endsWith("\n")).toBe(true);
 
     const result = await run(process.execPath, [checker, root]);
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
@@ -644,7 +661,7 @@ describe("CF-HARNESS-CI — #465 — checked-model compiler drift gate", () => {
 
     const result = await run(process.execPath, [checker, root]);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("cannot inspect generated view");
+    expect(result.stderr).toContain("cannot inspect generated artifact");
     expect(result.stderr).toContain(view);
     await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
   });
@@ -678,7 +695,7 @@ describe("CF-HARNESS-CI — #465 — checked-model compiler drift gate", () => {
 
     const result = await run(process.execPath, [checker, root]);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("generated views must be regular non-symlink files");
+    expect(result.stderr).toContain("generated artifacts must be regular non-symlink files");
     expect(result.stderr).toContain(view);
     expect(result.stderr).not.toContain("public compiler");
   });
@@ -695,11 +712,59 @@ describe("CF-HARNESS-CI — #465 — checked-model compiler drift gate", () => {
     expect(result.stderr).toContain("case-catalog.md is missing or differs semantically");
   });
 
+  it("fails when compiler-report.json is missing and does not recreate it", async () => {
+    const root = await checkedModelFixture();
+    const path = join(root, "validation-design", COMPILER_REPORT);
+    await rm(path);
+
+    const result = await run(process.execPath, [checker, root]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("cannot inspect generated artifact");
+    expect(result.stderr).toContain(COMPILER_REPORT);
+    await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("fails when compiler-report.json is stale and preserves the seeded bytes", async () => {
+    const root = await checkedModelFixture();
+    const path = join(root, "validation-design", COMPILER_REPORT);
+    const seeded = `${await readFile(path, "utf8")}\nseeded stale report\n`;
+    await writeFile(path, seeded);
+
+    const result = await run(process.execPath, [checker, root]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("compiler-report.json differs from the canonical public compile report");
+    expect(await readFile(path, "utf8")).toBe(seeded);
+  });
+
+  it("rejects compiler-report.json when it is an in-repository symlink", async () => {
+    const root = await checkedModelFixture();
+    const path = join(root, "validation-design", COMPILER_REPORT);
+    const targetRoot = join(root, "validation-design", "migration", "symlink-targets");
+    const target = join(targetRoot, COMPILER_REPORT);
+    await mkdir(targetRoot, { recursive: true });
+    await writeFile(target, await readFile(path));
+    await rm(path);
+    await symlink(target, path);
+
+    const publicCompile = await run(architectCli, ["compile", root]);
+    expect(publicCompile).toMatchObject({ exitCode: 0, stderr: "" });
+
+    const result = await run(process.execPath, [checker, root]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("generated artifacts must be regular non-symlink files");
+    expect(result.stderr).toContain(COMPILER_REPORT);
+  });
+
   it("fails closed when the public installed compiler cannot be spawned", async () => {
     const root = await checkedModelFixture();
     const copiedChecker = join(root, "scripts", "check-catalog-drift.mjs");
+    const copiedHelper = join(root, "scripts", "lib", "checked-model-compiler-report.mjs");
     await mkdir(dirname(copiedChecker), { recursive: true });
-    await writeFile(copiedChecker, await readFile(checker));
+    await mkdir(dirname(copiedHelper), { recursive: true });
+    await Promise.all([
+      writeFile(copiedChecker, await readFile(checker)),
+      writeFile(copiedHelper, await readFile(join(repoRoot, "scripts", "lib", "checked-model-compiler-report.mjs"))),
+    ]);
 
     const result = await run(process.execPath, [await realpath(copiedChecker), await realpath(root)]);
     expect(result.exitCode).toBe(1);

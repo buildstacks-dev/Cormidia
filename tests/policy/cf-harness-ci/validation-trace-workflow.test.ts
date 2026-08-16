@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compile, FakeRepositoryPort } from "validation-architect";
+import { check, compile, FakeRepositoryPort } from "validation-architect";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -166,7 +166,10 @@ function initializeGit(root: string): string {
   return git(root, ["rev-parse", "HEAD"]);
 }
 
-function checkedModelFiles(revision: string): Record<string, string> {
+function checkedModelFiles(
+  revision: string,
+  structureMeaning = "An exact model sentinel selects checked-model authority at E1/E2 (risk-review-gated).",
+): Record<string, string> {
   const emptyLayers = ["L2", "L3", "L4", "L5", "L6"].map((id) => ({
     id,
     title: id,
@@ -194,7 +197,7 @@ function checkedModelFiles(revision: string): Record<string, string> {
         criticality_reason: "Offline deterministic fixture.",
       },
       versions: {
-        package: "0.4.2",
+        package: "0.4.4",
         method: "0.8.0",
         model: "validation-architect/corpus/v1",
         compiler: "validation-architect/compiler/v1",
@@ -218,7 +221,7 @@ function checkedModelFiles(revision: string): Record<string, string> {
           id: "INV-ALIAS",
           kind: "invariant",
           title: "Alias authority selection",
-          meaning: "An exact model sentinel selects checked-model authority.",
+          meaning: structureMeaning,
           owner: "owner",
           source_ids: ["SOURCE"],
         },
@@ -398,6 +401,38 @@ describe("CF-HARNESS-CI — #431 closure workflow", () => {
     expect(result.stderr).toContain(CHECKED_MODEL_SELECTED);
     expect(result.stderr).not.toContain(LEGACY_BRIDGE_ACTIVE);
     expect(result.stdout).toContain(`revision: ${revision}`);
+  });
+
+  it("keeps reviewed hyphenated prose safe and redacts a standalone credential-shaped token", async () => {
+    const revision = "b".repeat(40);
+    const supportFiles = {
+      "README.md": "# Alias fixture\n",
+      "tests/cf-alias/seed.test.ts": '// CF-ALIAS — HB-ALIAS\n\nit("seed", () => {});\n',
+    };
+    const safe = await check(
+      new FakeRepositoryPort({ revision, files: { ...checkedModelFiles(revision), ...supportFiles } }),
+      { testsRoot: "tests" },
+    );
+    const safeBytes = JSON.stringify(safe);
+    expect(safeBytes).toContain("risk-review-gated");
+    expect(safeBytes).not.toContain("MODEL_SECRET_UNSAFE");
+
+    const token = "sk-abcdefghijklmnop";
+    const unsafe = await check(
+      new FakeRepositoryPort({
+        revision,
+        files: {
+          ...checkedModelFiles(revision, `A standalone credential ${token} must be refused.`),
+          ...supportFiles,
+        },
+      }),
+      { testsRoot: "tests" },
+    );
+    const unsafeBytes = JSON.stringify(unsafe);
+    expect(unsafe.verdict).toBe("fail");
+    expect(unsafeBytes).toContain("MODEL_SECRET_UNSAFE");
+    expect(unsafeBytes).toContain("[REDACTED]");
+    expect(unsafeBytes).not.toContain(token);
   });
 
   it("fails closed for every partial model sentinel without falling back to a valid legacy manifest", async () => {

@@ -122,8 +122,10 @@ corpus; any one of those eight requires the complete
 Cormidia qualification and campaign facts; the two compose tighten-only.
 Triggers:
 - Feature change → derivation chain: routing.md "Feature changes".
-- Bug fix → detector deposit + case-catalog §10.3 row in the same change (two
-  sanctioned exceptions listed in routing.md's standing-rules digest).
+- Bug fix → detector deposit plus the matching family/ticket fact in the
+  active authority named by routing.md, in the same change. Once checked-model
+  authority is selected, edit `model/families.yaml` / `model/backlog.yaml` and
+  regenerate projections; never hand-edit generated `case-catalog.md`.
 - Structural additions/mismatches: first apply the clause-vs-shape test. A
   conflict confined to one contract/invariant clause is ordinary: open a
   finding and park its cases `BLOCKED:<finding>`; a new journey, boundary,

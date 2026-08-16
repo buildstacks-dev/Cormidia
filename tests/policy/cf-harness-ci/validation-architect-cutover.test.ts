@@ -6,15 +6,16 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { compile, FakeRepositoryPort } from "validation-architect";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const version = "0.4.2";
+const version = "0.4.4";
 const artifactName = `validation-architect-${version}.tgz`;
-const artifactSha = "7629b84fbd061dba78a420239eedd3a651718bf4d2b3f2a244fd2382f4b8c56d";
+const artifactSha = "21694df668b5ec5620d9941a971bb91c6c9def0db2ec710cd83bcf8761e8dffb";
 const artifactIntegrity =
-  "sha512-4KiIU2Ol3N7ERvQqbTqg3yGxxUATwf6sDKyeoiGZ92l+wF2ni5l41qSjxMwDHch4gYZwzImJjXfWMi8LYJ9UKw==";
-const upstreamRevision = "40a275038b81d624166ffcfa963453237173c8cd";
+  "sha512-gKAMgR64NIgUssybrr+Ut0ksot+2+2aeMOqlvkz1pD7ekKZsAU95RckJqKIFpWDoF5oFDdmM/D1o5JDk2oBsvQ==";
+const upstreamRevision = "28c6229bee1e1bfe63fffe8ca25dec3f81c0a6e9";
 const traceBin = join(repoRoot, "node_modules", ".bin", "validation-trace");
 const roots: string[] = [];
 
@@ -23,6 +24,8 @@ afterEach(async () => {
 });
 
 interface PinSurfaces {
+  agents: string;
+  hostPolicy: string;
   packageJson: string;
   lockfile: string;
   decision: string;
@@ -32,6 +35,18 @@ interface PinSurfaces {
 
 function pinProblems(surfaces: PinSurfaces): string[] {
   const problems: string[] = [];
+  for (const phrase of [
+    "active authority",
+    "`model/families.yaml` / `model/backlog.yaml`",
+    "regenerate projections",
+    "never hand-edit generated `case-catalog.md`",
+  ]) {
+    if (!surfaces.agents.includes(phrase)) problems.push(`root routing drift: ${phrase}`);
+  }
+  if (surfaces.agents.includes("case-catalog §10.3 row")) problems.push("stale root catalog routing");
+  if (!surfaces.hostPolicy.includes("validation-architect 0.4.4, unchanged")) {
+    problems.push("host-policy package explanation drift");
+  }
   if (!surfaces.packageJson.includes(`"validation-architect": "file:vendor/${artifactName}"`)) {
     problems.push("package pin drift");
   }
@@ -48,13 +63,17 @@ function pinProblems(surfaces: PinSurfaces): string[] {
 
 async function readPinSurfaces(): Promise<PinSurfaces> {
   const artifact = await readFile(join(repoRoot, "vendor", artifactName));
-  const [packageJson, lockfile, decision, installedPackage] = await Promise.all([
+  const [agents, hostPolicy, packageJson, lockfile, decision, installedPackage] = await Promise.all([
+    readFile(join(repoRoot, "AGENTS.md"), "utf8"),
+    readFile(join(repoRoot, "docs", "qualification", "host-policy.yaml"), "utf8"),
     readFile(join(repoRoot, "package.json"), "utf8"),
     readFile(join(repoRoot, "pnpm-lock.yaml"), "utf8"),
     readFile(join(repoRoot, "research", "2026-08-15_validation-architect-model-migration-bootstrap.md"), "utf8"),
     readFile(join(repoRoot, "node_modules", "validation-architect", "package.json"), "utf8"),
   ]);
   return {
+    agents,
+    hostPolicy,
     packageJson,
     lockfile,
     decision,
@@ -96,7 +115,7 @@ function invokeTrace(root: string): { exitCode: number; stdout: string; stderr: 
 }
 
 describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
-  it("binds the installed package and decision record to the reviewed 0.4.2 artifact", async () => {
+  it("binds the installed package and decision record to the reviewed 0.4.4 artifact", async () => {
     expect(pinProblems(await readPinSurfaces())).toEqual([]);
   });
 
@@ -112,6 +131,31 @@ describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
       "upstream revision drift",
     );
     expect(pinProblems({ ...surfaces, sha256: "wrong" })).toContain("artifact bytes drift");
+    expect(
+      pinProblems({ ...surfaces, agents: surfaces.agents.replace("active authority", "retired authority") }),
+    ).toContain("root routing drift: active authority");
+    expect(pinProblems({ ...surfaces, agents: `${surfaces.agents}\ncase-catalog §10.3 row\n` })).toContain(
+      "stale root catalog routing",
+    );
+    expect(pinProblems({ ...surfaces, hostPolicy: surfaces.hostPolicy.replace("0.4.4", "0.4.2") })).toContain(
+      "host-policy package explanation drift",
+    );
+  });
+
+  it("exposes the canonical compiler report through the installed public API", async () => {
+    const output = await compile(new FakeRepositoryPort({ revision: "a".repeat(40), files: {} }));
+    expect(output.accepted).toBe(false);
+    expect(output.report.record).toMatchObject({
+      schema: "validation-architect/compiler/v1",
+      accepted: false,
+      model_identity: null,
+      versions: null,
+      generated_views: [],
+    });
+    expect(output.report.record.source_fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(output.report.record.diagnostics.length).toBeGreaterThan(0);
+    expect(output.report.record.diagnostics.every((diagnostic) => diagnostic.severity === "error")).toBe(true);
+    expect(output.report.content).toBe(`${JSON.stringify(output.report.record, null, 2)}\n`);
   });
 
   it("keeps legacy closure green until any checked-model file appears, then fails closed", async () => {

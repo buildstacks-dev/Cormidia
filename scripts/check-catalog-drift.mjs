@@ -12,6 +12,7 @@ import { spawn } from "node:child_process";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertCanonicalCompilerReport, COMPILER_REPORT } from "./lib/checked-model-compiler-report.mjs";
 
 const REGENERATION_COMMAND =
   "awk -f validation-design/case-catalog-generator.awk " +
@@ -37,6 +38,7 @@ const GENERATED_VIEWS = [
   "owner-backlog.md",
   "planned-trace.md",
 ];
+const GENERATED_ARTIFACTS = [...GENERATED_VIEWS, COMPILER_REPORT];
 const FORBIDDEN_MODEL_MODE_FILES = ["validation-policy.yaml", "case-catalog.yaml", "case-catalog-generator.awk"];
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const architectCli = join(scriptRoot, "node_modules", ".bin", "validation-architect");
@@ -165,20 +167,20 @@ async function checkModelDrift(root, designRoot, present) {
         "generated Markdown views remain at the root.",
     );
   }
-  const unsafeViews = [];
-  for (const name of GENERATED_VIEWS) {
+  const unsafeArtifacts = [];
+  for (const name of GENERATED_ARTIFACTS) {
     const path = join(designRoot, name);
     let entry;
     try {
       entry = await lstat(path);
     } catch (error) {
-      throw new Error(`checked-model drift check cannot inspect generated view ${path}: ${String(error)}`);
+      throw new Error(`checked-model drift check cannot inspect generated artifact ${path}: ${String(error)}`);
     }
-    if (!entry.isFile() || entry.isSymbolicLink()) unsafeViews.push(name);
+    if (!entry.isFile() || entry.isSymbolicLink()) unsafeArtifacts.push(name);
   }
-  if (unsafeViews.length > 0) {
+  if (unsafeArtifacts.length > 0) {
     throw new Error(
-      `checked-model generated views must be regular non-symlink files: ${unsafeViews.sort().join(", ")}`,
+      `checked-model generated artifacts must be regular non-symlink files: ${unsafeArtifacts.sort().join(", ")}`,
     );
   }
   let compiled;
@@ -197,7 +199,16 @@ async function checkModelDrift(root, designRoot, present) {
   if (accepted === null) {
     throw new Error(`checked-model drift check received unexpected public compiler output:\n${compiled.stdout}`);
   }
-  return { mode: "checked-model", identity: accepted[1], revision: accepted[2] };
+  const revision = accepted[2];
+  await assertCanonicalCompilerReport({
+    designRoot,
+    modelRoot,
+    modelFiles: MODEL_FILES,
+    views: GENERATED_VIEWS,
+    revision,
+    identity: accepted[1],
+  });
+  return { mode: "checked-model", identity: accepted[1], revision };
 }
 
 async function checkLegacyDrift(designRoot) {
@@ -269,7 +280,7 @@ async function main() {
   if (result.mode === "checked-model") {
     process.stdout.write(
       `Checked-model drift check passed (model ${result.identity}, revision ${result.revision}; ` +
-        "all eight model files and generated views are compiler-clean).\n",
+        "all eight model files and six generated artifacts are compiler-clean).\n",
     );
   } else {
     process.stdout.write(

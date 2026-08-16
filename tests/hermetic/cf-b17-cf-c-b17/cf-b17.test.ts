@@ -1,4 +1,4 @@
-// Traceability: CF-B17 · HB-013 · boundary-map.md B-17; contracts/B-17-typed-executor.md §§1–5.
+// Traceability: CF-B17 · CF-C-B17 · HB-013 · boundary-map.md B-17; contracts/B-17-typed-executor.md §§1–5.
 
 // CF-B17-* — typed critical-effect executor against a scripted external
 // target (contracts/B-17-typed-executor.md §1–§5; CORMIDIA-INV-003/008/014;
@@ -36,8 +36,8 @@ import {
   TargetAuthError,
   TargetConnectionLostError,
   type SubmitBehavior,
-} from "./scripted-target.js";
-import { executeTypedExternalAction, TYPED_EXECUTOR_ACTOR } from "./typed-executor-driver.js";
+} from "../cf-b17/scripted-target.js";
+import { executeTypedExternalAction, TYPED_EXECUTOR_ACTOR } from "../cf-b17/typed-executor-driver.js";
 
 const APP = "publisher-app";
 const ROLE = "marketing";

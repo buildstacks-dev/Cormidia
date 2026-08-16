@@ -1,4 +1,4 @@
-// CF-REG-382 — HB-156 — the drift pin between the scaffold's PATH table and
+// CF-REG-382 — HB-139 · HB-156 — the drift pin between the scaffold's PATH table and
 // the scaffold itself.
 //
 // `src/org/new-app-paths.ts` declares what each greenfield template owns, so

@@ -1,4 +1,4 @@
-// CF-REG-382 — HB-156 (#382 governed repository provisioning) — boundary-map
+// CF-REG-382 — HB-139 · HB-156 (#382 governed repository provisioning) — boundary-map
 // B-01 (GitHub substrate) + B-15 (git substrate) · INV-008 (no observable state
 // claims more than its evidence) · INV-013 (readers never expose garbage).
 //

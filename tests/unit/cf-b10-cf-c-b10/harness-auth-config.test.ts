@@ -1,4 +1,4 @@
-// CF-AUTH-MODE — the `harnesses:` declaration (#333), L1.
+// Traceability: CF-B10 · CF-C-B10 · HB-014; the `harnesses:` declaration (#333), L1.
 //
 // Auth binds to the (harness × provider-family) CONNECTION, never to the
 // model: the same Opus can be reached on the operator's Claude subscription

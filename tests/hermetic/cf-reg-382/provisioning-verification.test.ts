@@ -1,4 +1,4 @@
-// CF-REG-382 — HB-156 (#382 governed repository provisioning) — INV-008 (no
+// CF-REG-382 — HB-139 · HB-156 (#382 governed repository provisioning) — INV-008 (no
 // observable state claims more than its evidence) · boundary-map B-01/B-15.
 //
 // "Verify before advancing any readiness claim" is the whole point, so this

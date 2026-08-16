@@ -1,4 +1,4 @@
-// CF-REG-359-B — the packaged installer must classify a checkout-owned SKILL
+// CF-REG-359-B — HB-139 — the packaged installer must classify a checkout-owned SKILL
 // link as replaceable, not foreign.
 //
 // Observed failure: `install-packaged.mjs --replace-source-links` cleared the

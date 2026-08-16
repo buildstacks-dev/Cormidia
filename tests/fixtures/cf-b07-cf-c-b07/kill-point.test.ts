@@ -1,4 +1,4 @@
-// HB-002 fixtures/kill-point self-test — the harness runs a real node
+// CF-B07 · CF-C-B07 · HB-023; fixtures/kill-point self-test — the harness runs a real node
 // subprocess, the handshake makes kill points deterministic, and SIGKILL at a
 // named point provably leaves torn mid-write state behind (B-07 "we cannot
 // prove how far it got"; B-15 torn durable state).
@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { runKillPointScenario, type KillPointResult } from "./kill-point.js";
+import { runKillPointScenario, type KillPointResult } from "../kill-point.js";
 
 // Writes journal.txt in two phases with a kill point between them, then a
 // completion marker file. Torn state = phase-1 without phase-2.

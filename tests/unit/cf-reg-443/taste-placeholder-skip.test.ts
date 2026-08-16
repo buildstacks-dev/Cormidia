@@ -1,12 +1,14 @@
+// CF-REG-443 — HB-139 — legacy product/taste input stays visible but never enters agent context.
+
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveAuthority } from "../../src/org/authority.js";
-import { emitAppArtifacts, parseAnswers } from "../../src/org/bootstrap.js";
-import { assembleContext } from "../../src/org/context.js";
-import { loadRoles } from "../../src/org/roles.js";
-import type { RoleConfig } from "../../src/runtime/types.js";
-import { makeTempOrgHome } from "../fixtures/org-home.js";
+import { resolveAuthority } from "../../../src/org/authority.js";
+import { emitAppArtifacts, parseAnswers } from "../../../src/org/bootstrap.js";
+import { assembleContext } from "../../../src/org/context.js";
+import { loadRoles } from "../../../src/org/roles.js";
+import type { RoleConfig } from "../../../src/runtime/types.js";
+import { makeTempOrgHome } from "../../fixtures/org-home.js";
 
 const builderRole: RoleConfig = {
   name: "builder",

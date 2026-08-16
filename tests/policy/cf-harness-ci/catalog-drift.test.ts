@@ -93,6 +93,21 @@ async function regenerateFixtureYaml(root: string): Promise<void> {
 }
 
 describe("CF-HARNESS-CI — HB-140 — case-catalog.yaml regeneration drift gate", () => {
+  it("keeps an inline-code pipe inside its Markdown cell during regeneration", async () => {
+    const root = await fixtureRoot();
+    const designRoot = join(root, "validation-design");
+    const result = await run("awk", [
+      "-f",
+      join(designRoot, "case-catalog-generator.awk"),
+      join(designRoot, "case-catalog.md"),
+      join(designRoot, "harness-backlog.md"),
+    ]);
+    expect(result.exitCode).toBe(0);
+    const row = result.stdout.split("\n").find((line) => line.includes("{id: CF-REG-382,"));
+    if (row === undefined) throw new Error("regeneration omitted CF-REG-382");
+    expect(row).toContain('layers: "1/2", oracle: "refusal+det", risk: "REG"');
+  });
+
   it("passes on the committed corpus (regeneration is byte-identical)", async () => {
     const root = await fixtureRoot();
     const result = await run(process.execPath, [checker, root]);

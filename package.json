@@ -67,6 +67,7 @@
     "test:live": "vitest run --config tests/live/vitest.config.ts",
     "test:soak": "tsx tests/ops/soak-cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "validation:trace": "validation-trace . --manifest validation-design/case-catalog.yaml --tests tests",
     "worktree": "tsx scripts/worktree.ts"
   },
   "engines": {

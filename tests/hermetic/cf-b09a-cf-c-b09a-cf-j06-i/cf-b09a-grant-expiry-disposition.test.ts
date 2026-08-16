@@ -1,4 +1,4 @@
-// Traceability: CF-B09a · HB-P5 · contracts/B-09a-approval-continuation.md §3; CF-J06-I · HB-P5; CF-C-B09A · HB-P5; case-catalog.md §5 contract matrix.
+// Traceability: CF-B09a · CF-C-B09A · CF-J06-I · HB-012 · HB-P5 · contracts/B-09a-approval-continuation.md §3; case-catalog.md §5 contract matrix.
 
 // HB-P5 — F-PT-008 (owner ruling 2026-08-12): an expired grant REOPENS THE
 // ORIGINAL ITEM. Never a silent fresh item, never a dropped operation.

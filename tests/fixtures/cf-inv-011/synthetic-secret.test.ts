@@ -1,4 +1,4 @@
-// HB-002 fixtures/synthetic-secret self-test — every generated kind trips
+// CF-INV-011 — HB-016; fixtures/synthetic-secret self-test — every generated kind trips
 // exactly the intended entry of the product's canonical pattern list
 // (src/runtime/secret-patterns.ts) and the real redactor, values are fresh
 // per mint, and the committed fixture/test sources themselves contain no
@@ -7,9 +7,9 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { SECRET_PATTERNS } from "../../src/runtime/secret-patterns.js";
-import { scrubSecrets } from "../../src/runtime/runlog/redact.js";
-import { makeSyntheticSecret, SYNTHETIC_SECRET_KINDS, type SyntheticSecretKind } from "./synthetic-secret.js";
+import { SECRET_PATTERNS } from "../../../src/runtime/secret-patterns.js";
+import { scrubSecrets } from "../../../src/runtime/runlog/redact.js";
+import { makeSyntheticSecret, SYNTHETIC_SECRET_KINDS, type SyntheticSecretKind } from "../synthetic-secret.js";
 
 function patternFor(name: string): RegExp {
   const entry = SECRET_PATTERNS.find((candidate) => candidate.name === name);
@@ -49,7 +49,7 @@ describe("HB-002 fixtures/synthetic-secret (runtime-generated, product-detectabl
   });
 
   it("committed sources of this fixture pair contain no secret-shaped literal (rule 5)", () => {
-    for (const relative of ["./synthetic-secret.ts", "./synthetic-secret.test.ts"]) {
+    for (const relative of ["../synthetic-secret.ts", "./synthetic-secret.test.ts"]) {
       const source = readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
       expect(scrubSecrets(source), relative).toBe(source);
     }

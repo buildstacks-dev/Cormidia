@@ -1,4 +1,4 @@
-// CF-AUTH-MODE — subscription billing in settlement and budget rollups
+// Traceability: CF-INV-006 · CF-J08-A · CF-J08-S · HB-020; subscription billing in settlement and budget rollups
 // (#333), L1.
 //
 // A subscription turn has no marginal dollar cost. That is an AUTHORITATIVE

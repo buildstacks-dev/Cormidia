@@ -1,6 +1,24 @@
 function trim(s) { gsub(/^[ \t]+/, "", s); gsub(/[ \t]+$/, "", s); return s }
 function esc(s) { gsub(/"/, "'", s); return s }
 function cleancell(s) { s = stripcomments(s); gsub(/\*\*/, "", s); return trim(s) }
+# Split a Markdown table row without treating pipes inside inline code as cell
+# delimiters. The catalog contains command spellings such as `cormidia org|app`;
+# a plain split(line, ..., "|") shifts every following contract field.
+function splitrow(s, out,   i, ch, n, incode) {
+  delete out
+  n = 1; out[n] = ""; incode = 0
+  for (i = 1; i <= length(s); i++) {
+    ch = substr(s, i, 1)
+    if (ch == "`") incode = !incode
+    if (ch == "|" && !incode) {
+      n++
+      out[n] = ""
+    } else {
+      out[n] = out[n] ch
+    }
+  }
+  return n
+}
 function stripcomments(s) {
   while (match(s, /<!--/)) {
     pre = substr(s, 1, RSTART - 1)
@@ -112,7 +130,7 @@ pass == 1 {
   }
   if (line !~ /^\| CF/) next
   if (cursec == "Closure statement") next
-  n = split(line, c, "|")
+  n = splitrow(line, c)
   if (n < 6) next
   id = trim(c[2])
   text = cleancell(c[3])

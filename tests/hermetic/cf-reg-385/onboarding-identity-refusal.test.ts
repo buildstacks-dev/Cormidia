@@ -1,5 +1,5 @@
 // Traceability: CF-REG-385 · HB-139 · case-catalog.md §10.3, defect #385
-// (owning structure CF-J02-S/R · CF-INV-008 · CF-INV-015 · CF-B01-*;
+// (owning structure J-02 success/refusal · INV-008 · INV-015 · B-01;
 // contracts/journey-acceptance.md J-02).
 
 // CF-REG-385 (L2) — the composed onboarding path over real temp org/state homes:

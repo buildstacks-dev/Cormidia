@@ -197,7 +197,7 @@ function checkedModelFiles(
         criticality_reason: "Offline deterministic fixture.",
       },
       versions: {
-        package: "0.4.4",
+        package: "0.4.5",
         method: "0.8.0",
         model: "validation-architect/corpus/v1",
         compiler: "validation-architect/compiler/v1",

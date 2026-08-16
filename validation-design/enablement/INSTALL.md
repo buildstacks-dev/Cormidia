@@ -1,8 +1,8 @@
 # Validation harness enablement
 
-This repository carries the reviewed `validation-architect` 0.4.4 tarball
+This repository carries the reviewed `validation-architect` 0.4.5 tarball
 built byte-identically from upstream squash revision
-`28c6229bee1e1bfe63fffe8ca25dec3f81c0a6e9` as an interim,
+`5949f6b1be3f3b22c47c3cf532e33d529a468291` as an interim,
 repository-relative development dependency. CI installs that committed
 artifact through the frozen lockfile; no registry lookup or machine-local path
 is required.
@@ -24,12 +24,12 @@ is required.
    manifest, tests root, invalid schema, or any closure finding.
 
    Before the checked-model cutover, zero files under
-   `validation-design/model/` selects 0.4.4's bounded legacy-manifest bridge.
+   `validation-design/model/` selects 0.4.5's bounded legacy-manifest bridge.
    The presence of any checked-model file selects checked-model authority;
    partial or corrupt model input fails and cannot fall back to the legacy
    manifest.
 
-4. When these exact reviewed 0.4.4 bytes are separately published, #431 Part C
+4. When these exact reviewed 0.4.5 bytes are separately published, #431 Part C
    replaces the interim tarball with the exact registry pin and removes the
    superseded vendor artifact in one reviewed change. Publication, tagging,
    registry actions, and the replacement itself are outside this enablement

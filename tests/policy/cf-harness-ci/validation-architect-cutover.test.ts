@@ -10,12 +10,13 @@ import { compile, FakeRepositoryPort } from "validation-architect";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const version = "0.4.4";
+const version = "0.4.5";
 const artifactName = `validation-architect-${version}.tgz`;
-const artifactSha = "21694df668b5ec5620d9941a971bb91c6c9def0db2ec710cd83bcf8761e8dffb";
+const artifactSha = "2a2e59324272aeb5d3ba1aed9da4a42fb0682f391fa82ee9dfa1c8cbff8294eb";
 const artifactIntegrity =
-  "sha512-gKAMgR64NIgUssybrr+Ut0ksot+2+2aeMOqlvkz1pD7ekKZsAU95RckJqKIFpWDoF5oFDdmM/D1o5JDk2oBsvQ==";
-const upstreamRevision = "28c6229bee1e1bfe63fffe8ca25dec3f81c0a6e9";
+  "sha512-3sHA9XQ80l+05yt5lQTv6RoXNahoY1LOv0edAwPza8oCQ02kpurkFlT7hzLXwQrQHC9F841R3ZJDnHENQp1E/Q==";
+const artifactReproduction = "267,873-byte core tarballs with 124 entries";
+const upstreamRevision = "5949f6b1be3f3b22c47c3cf532e33d529a468291";
 const traceBin = join(repoRoot, "node_modules", ".bin", "validation-trace");
 const roots: string[] = [];
 
@@ -25,12 +26,32 @@ afterEach(async () => {
 
 interface PinSurfaces {
   agents: string;
+  domainSplit: string;
   hostPolicy: string;
+  installGuide: string;
   packageJson: string;
   lockfile: string;
   decision: string;
   installedPackage: string;
   sha256: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+function isDevelopmentOnlyPin(source: string): boolean {
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    return false;
+  }
+  if (!isRecord(value) || !isRecord(value.devDependencies)) return false;
+  const runtime = value.dependencies;
+  return (
+    value.devDependencies["validation-architect"] === `file:vendor/${artifactName}` &&
+    (!isRecord(runtime) || !("validation-architect" in runtime))
+  );
 }
 
 function pinProblems(surfaces: PinSurfaces): string[] {
@@ -44,18 +65,45 @@ function pinProblems(surfaces: PinSurfaces): string[] {
     if (!surfaces.agents.includes(phrase)) problems.push(`root routing drift: ${phrase}`);
   }
   if (surfaces.agents.includes("case-catalog §10.3 row")) problems.push("stale root catalog routing");
-  if (!surfaces.hostPolicy.includes("validation-architect 0.4.4, unchanged")) {
+  if (!surfaces.hostPolicy.includes("validation-architect 0.4.5, unchanged")) {
     problems.push("host-policy package explanation drift");
+  }
+  for (const phrase of ["five reviewed squash PRs", "names the 0.4.5 preparation squash SHA as `product.revision`"]) {
+    if (!surfaces.domainSplit.includes(phrase)) problems.push(`domain-split sequencing drift: ${phrase}`);
+  }
+  for (const phrase of [
+    "reviewed `validation-architect` 0.4.5 tarball",
+    upstreamRevision,
+    "selects 0.4.5's bounded legacy-manifest bridge",
+  ]) {
+    if (!surfaces.installGuide.includes(phrase)) problems.push(`enablement pin drift: ${phrase}`);
   }
   if (!surfaces.packageJson.includes(`"validation-architect": "file:vendor/${artifactName}"`)) {
     problems.push("package pin drift");
   }
-  if (!surfaces.lockfile.includes(`tarball: file:vendor/${artifactName}`)) problems.push("lock source drift");
+  if (!isDevelopmentOnlyPin(surfaces.packageJson)) problems.push("package scope drift");
+  if (
+    !surfaces.lockfile.includes(`specifier: file:vendor/${artifactName}`) ||
+    !surfaces.lockfile.includes(`tarball: file:vendor/${artifactName}`)
+  ) {
+    problems.push("lock source drift");
+  }
   if (!surfaces.lockfile.includes(`integrity: ${artifactIntegrity}`)) problems.push("lock integrity drift");
+  if (!surfaces.lockfile.includes(`tarball: file:vendor/${artifactName}}\n    version: ${version}\n`)) {
+    problems.push("lock version drift");
+  }
   if (!surfaces.installedPackage.includes(`"version": "${version}"`)) problems.push("installed version drift");
   if (!surfaces.decision.includes(upstreamRevision)) problems.push("upstream revision drift");
-  if (!surfaces.decision.includes(artifactSha) || !surfaces.decision.includes(artifactIntegrity)) {
+  if (
+    !surfaces.decision.includes(`artifact: \`vendor/${artifactName}\``) ||
+    !surfaces.decision.includes(artifactSha) ||
+    !surfaces.decision.includes(artifactIntegrity)
+  ) {
     problems.push("decision identity drift");
+  }
+  if (!surfaces.decision.includes(artifactReproduction)) {
+    problems.push("decision byte-count drift");
+    problems.push("decision entry-count drift");
   }
   if (surfaces.sha256 !== artifactSha) problems.push("artifact bytes drift");
   return problems;
@@ -63,17 +111,22 @@ function pinProblems(surfaces: PinSurfaces): string[] {
 
 async function readPinSurfaces(): Promise<PinSurfaces> {
   const artifact = await readFile(join(repoRoot, "vendor", artifactName));
-  const [agents, hostPolicy, packageJson, lockfile, decision, installedPackage] = await Promise.all([
-    readFile(join(repoRoot, "AGENTS.md"), "utf8"),
-    readFile(join(repoRoot, "docs", "qualification", "host-policy.yaml"), "utf8"),
-    readFile(join(repoRoot, "package.json"), "utf8"),
-    readFile(join(repoRoot, "pnpm-lock.yaml"), "utf8"),
-    readFile(join(repoRoot, "research", "2026-08-15_validation-architect-model-migration-bootstrap.md"), "utf8"),
-    readFile(join(repoRoot, "node_modules", "validation-architect", "package.json"), "utf8"),
-  ]);
+  const [agents, domainSplit, hostPolicy, installGuide, packageJson, lockfile, decision, installedPackage] =
+    await Promise.all([
+      readFile(join(repoRoot, "AGENTS.md"), "utf8"),
+      readFile(join(repoRoot, "research", "2026-08-16_validation-authority-domain-split.md"), "utf8"),
+      readFile(join(repoRoot, "docs", "qualification", "host-policy.yaml"), "utf8"),
+      readFile(join(repoRoot, "validation-design", "enablement", "INSTALL.md"), "utf8"),
+      readFile(join(repoRoot, "package.json"), "utf8"),
+      readFile(join(repoRoot, "pnpm-lock.yaml"), "utf8"),
+      readFile(join(repoRoot, "research", "2026-08-15_validation-architect-model-migration-bootstrap.md"), "utf8"),
+      readFile(join(repoRoot, "node_modules", "validation-architect", "package.json"), "utf8"),
+    ]);
   return {
     agents,
+    domainSplit,
     hostPolicy,
+    installGuide,
     packageJson,
     lockfile,
     decision,
@@ -115,7 +168,7 @@ function invokeTrace(root: string): { exitCode: number; stdout: string; stderr: 
 }
 
 describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
-  it("binds the installed package and decision record to the reviewed 0.4.4 artifact", async () => {
+  it("binds the installed package and decision record to the reviewed 0.4.5 artifact", async () => {
     expect(pinProblems(await readPinSurfaces())).toEqual([]);
   });
 
@@ -125,11 +178,44 @@ describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
       pinProblems({ ...surfaces, packageJson: surfaces.packageJson.replace(artifactName, "wrong.tgz") }),
     ).toContain("package pin drift");
     expect(
+      pinProblems({
+        ...surfaces,
+        packageJson: surfaces.packageJson.replace('"devDependencies": {', '"developmentDependencies": {'),
+      }),
+    ).toContain("package scope drift");
+    expect(pinProblems({ ...surfaces, lockfile: surfaces.lockfile.replaceAll(artifactName, "wrong.tgz") })).toContain(
+      "lock source drift",
+    );
+    expect(
       pinProblems({ ...surfaces, lockfile: surfaces.lockfile.replace(artifactIntegrity, "sha512-wrong") }),
     ).toContain("lock integrity drift");
+    expect(
+      pinProblems({ ...surfaces, lockfile: surfaces.lockfile.replace("version: 0.4.5", "version: 0.0.0") }),
+    ).toContain("lock version drift");
+    expect(
+      pinProblems({ ...surfaces, installedPackage: surfaces.installedPackage.replace(version, "0.0.0") }),
+    ).toContain("installed version drift");
     expect(pinProblems({ ...surfaces, decision: surfaces.decision.replace(upstreamRevision, "wrong") })).toContain(
       "upstream revision drift",
     );
+    expect(pinProblems({ ...surfaces, decision: surfaces.decision.replace(artifactSha, "wrong") })).toContain(
+      "decision identity drift",
+    );
+    expect(pinProblems({ ...surfaces, decision: surfaces.decision.replace(artifactName, "wrong.tgz") })).toContain(
+      "decision identity drift",
+    );
+    expect(
+      pinProblems({
+        ...surfaces,
+        decision: surfaces.decision.replace(artifactReproduction, "1-byte core tarballs with 124 entries"),
+      }),
+    ).toContain("decision byte-count drift");
+    expect(
+      pinProblems({
+        ...surfaces,
+        decision: surfaces.decision.replace(artifactReproduction, "267,873-byte core tarballs with 1 entry"),
+      }),
+    ).toContain("decision entry-count drift");
     expect(pinProblems({ ...surfaces, sha256: "wrong" })).toContain("artifact bytes drift");
     expect(
       pinProblems({ ...surfaces, agents: surfaces.agents.replace("active authority", "retired authority") }),
@@ -137,9 +223,27 @@ describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
     expect(pinProblems({ ...surfaces, agents: `${surfaces.agents}\ncase-catalog §10.3 row\n` })).toContain(
       "stale root catalog routing",
     );
-    expect(pinProblems({ ...surfaces, hostPolicy: surfaces.hostPolicy.replace("0.4.4", "0.4.2") })).toContain(
+    expect(pinProblems({ ...surfaces, hostPolicy: surfaces.hostPolicy.replace("0.4.5", "0.4.4") })).toContain(
       "host-policy package explanation drift",
     );
+    expect(
+      pinProblems({ ...surfaces, domainSplit: surfaces.domainSplit.replace("five reviewed", "four reviewed") }),
+    ).toContain("domain-split sequencing drift: five reviewed squash PRs");
+    expect(
+      pinProblems({ ...surfaces, domainSplit: surfaces.domainSplit.replace("0.4.5 preparation", "0.4.4 preparation") }),
+    ).toContain("domain-split sequencing drift: names the 0.4.5 preparation squash SHA as `product.revision`");
+    expect(
+      pinProblems({ ...surfaces, installGuide: surfaces.installGuide.replace("0.4.5 tarball", "0.4.4 tarball") }),
+    ).toContain("enablement pin drift: reviewed `validation-architect` 0.4.5 tarball");
+    expect(
+      pinProblems({ ...surfaces, installGuide: surfaces.installGuide.replace(upstreamRevision, "wrong") }),
+    ).toContain(`enablement pin drift: ${upstreamRevision}`);
+    expect(
+      pinProblems({
+        ...surfaces,
+        installGuide: surfaces.installGuide.replace("selects 0.4.5's bounded", "selects 0.4.4's bounded"),
+      }),
+    ).toContain("enablement pin drift: selects 0.4.5's bounded legacy-manifest bridge");
   });
 
   it("exposes the canonical compiler report through the installed public API", async () => {

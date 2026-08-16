@@ -234,7 +234,7 @@ function initializeRepository(root: string): string {
 
 function modelFiles(revision: string): Record<string, string> {
   const versions = {
-    package: "0.4.4",
+    package: "0.4.5",
     method: "0.8.0",
     model: "validation-architect/corpus/v1",
     compiler: "validation-architect/compiler/v1",

@@ -47,7 +47,7 @@ async function rig(writeAudit: boolean) {
   const config: AcceptanceCampaignConfig = {
     campaignId: "l-acc-run-1",
     commit: "a".repeat(40),
-    policyPath: "/policy",
+    policyPath: "/repo/docs/qualification/host-policy.yaml",
     campaignOrg: "cormidia",
     scenarios: [
       { id: "S-ACC-3", kind: "job", appSlug: "cormidia/s3", worktree: repo.dir, matrix: { research: assignment } },

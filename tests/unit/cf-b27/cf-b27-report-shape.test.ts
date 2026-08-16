@@ -17,6 +17,7 @@ import {
   type AxisReportRow,
   type ReportDefectCode,
 } from "../../campaign/acceptance/campaign-report.js";
+import { fixtureCampaignPolicyBinding } from "../../fixtures/campaign-policy-binding.js";
 
 const codexSol: TurnAssignment = { harness: "codex", model: "gpt-5.6-sol", effort: "xhigh" };
 const claudeSonnet: TurnAssignment = { harness: "claude", model: "claude-sonnet-5", effort: "xhigh" };
@@ -40,10 +41,11 @@ function axis(overrides: Partial<AxisReportRow> = {}): AxisReportRow {
 
 function report(overrides: Partial<AcceptanceCampaignReport> = {}): AcceptanceCampaignReport {
   return {
-    schema_version: 1,
+    schema_version: 2,
     campaign_id: "l-acc-run-1",
     lane: "L-ACC",
     commit: "a".repeat(40),
+    policy_binding: fixtureCampaignPolicyBinding(),
     provenance: {
       installedVersion: "1.4.0",
       tarballName: "cormidia-1.4.0.tgz",
@@ -109,6 +111,12 @@ describe("CF-B27-* (L1) a well-formed report answers both questions", () => {
 });
 
 describe("CF-B27-* (L1) malformed, not thin", () => {
+  it("negative control: rejects a tampered host-policy byte binding", () => {
+    const binding = fixtureCampaignPolicyBinding();
+    binding.sha256 = "tampered";
+    expect(defectCodes({ policy_binding: binding })).toContain("policy-binding-invalid");
+  });
+
   it("negative control: a report with no installed identity cannot say which bytes ran", () => {
     expect(
       defectCodes({

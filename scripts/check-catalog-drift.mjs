@@ -1,23 +1,16 @@
 #!/usr/bin/env node
 
-// case-catalog.yaml regeneration drift gate (HB-140, CF-HARNESS-CI).
+// Validation-authority drift gate (HB-140, CF-HARNESS-CI, #465).
 //
-// The machine catalog is DERIVED: case-catalog-generator.awk extracts it from
-// case-catalog.md + harness-backlog.md, and the two surfaces MUST agree
-// (case-catalog.md front matter; traceability convention 5). Agreement held by
-// construction until now — this gate makes it enforced: regenerating the YAML
-// must be byte-identical to the committed file, so a hand-edit to either
-// markdown without rerunning the generator (or a hand-edit to the YAML itself)
-// turns the per-commit lane red. The HB-006 artifact-pin discipline applied to
-// the machine catalog.
-//
-// Fail-closed: a missing input, a missing committed YAML, a generator failure,
-// generator diagnostics on stderr (MISSING-OWNER/DUPFAM are corpus bugs), and
-// an empty extraction walk are all red — never green by absence.
+// Before #465 cutover, the legacy YAML must regenerate byte-identically from
+// its authored Markdown. As soon as any checked-model file exists, fallback is
+// forbidden: all eight model files must exist, legacy root authority/tooling
+// must be absent, and the public compiler must accept the model and generated
+// views with zero diagnostics. Partial, corrupt, stale, or empty state is red.
 
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { lstat, readFile, readdir } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REGENERATION_COMMAND =
@@ -27,6 +20,26 @@ const REGENERATION_COMMAND =
 
 const INPUTS = ["case-catalog-generator.awk", "case-catalog.md", "harness-backlog.md"];
 const COMMITTED = "case-catalog.yaml";
+const MODEL_FILES = [
+  "project.yaml",
+  "owners.yaml",
+  "sources.yaml",
+  "structures.yaml",
+  "policy.yaml",
+  "controls.yaml",
+  "families.yaml",
+  "backlog.yaml",
+];
+const GENERATED_VIEWS = [
+  "case-catalog.md",
+  "harness-backlog.md",
+  "owner-briefing.md",
+  "owner-backlog.md",
+  "planned-trace.md",
+];
+const FORBIDDEN_MODEL_MODE_FILES = ["validation-policy.yaml", "case-catalog.yaml", "case-catalog-generator.awk"];
+const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const architectCli = join(scriptRoot, "node_modules", ".bin", "validation-architect");
 
 async function readRequired(path) {
   try {
@@ -34,6 +47,34 @@ async function readRequired(path) {
   } catch (error) {
     throw new Error(`catalog drift check is fail-closed on a missing or unreadable file: ${path}: ${String(error)}`);
   }
+}
+
+async function exists(path) {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
+    throw new Error(`catalog drift check cannot inspect authority file ${path}: ${String(error)}`);
+  }
+}
+
+async function run(command, args) {
+  return await new Promise((resolveResult, reject) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const stdout = [];
+    const stderr = [];
+    child.stdout.on("data", (chunk) => stdout.push(chunk));
+    child.stderr.on("data", (chunk) => stderr.push(chunk));
+    child.on("error", reject);
+    child.on("close", (code) =>
+      resolveResult({
+        exitCode: code ?? -1,
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      }),
+    );
+  });
 }
 
 async function regenerate(generatorPath, catalogPath, backlogPath) {
@@ -74,8 +115,92 @@ function firstDifference(committed, regenerated) {
   return { line: 0, committed: "<byte-level difference>", regenerated: "<byte-level difference>" };
 }
 
-export async function checkCatalogDrift(root) {
-  const designRoot = join(root, "validation-design");
+async function checkModelDrift(root, designRoot, present) {
+  if (present.length !== MODEL_FILES.length) {
+    const missing = MODEL_FILES.filter((name) => !present.includes(name));
+    throw new Error(
+      `checked-model authority selected by ${present.join(", ")}; partial state cannot fall back to legacy authority. ` +
+        `Missing: ${missing.join(", ")}.`,
+    );
+  }
+  const modelRoot = join(designRoot, "model");
+  for (const [path, name] of [
+    [designRoot, "validation-design"],
+    [modelRoot, "validation-design/model"],
+  ]) {
+    let entry;
+    try {
+      entry = await lstat(path);
+    } catch (error) {
+      throw new Error(`checked-model drift check cannot inspect ${name}: ${String(error)}`);
+    }
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      throw new Error(`checked-model authority requires ${name} to be a regular directory, not a symlink`);
+    }
+  }
+  let entries;
+  try {
+    entries = await readdir(modelRoot, { withFileTypes: true });
+  } catch (error) {
+    throw new Error(`checked-model drift check cannot inventory ${modelRoot}: ${String(error)}`);
+  }
+  const expected = new Set(MODEL_FILES);
+  const unexpected = entries.filter((entry) => !expected.has(entry.name)).map((entry) => entry.name);
+  const unsafe = entries.filter((entry) => expected.has(entry.name) && !entry.isFile()).map((entry) => entry.name);
+  if (unexpected.length > 0 || unsafe.length > 0) {
+    throw new Error(
+      "checked-model authority must contain exactly the eight regular model files; " +
+        `unexpected entries: ${unexpected.sort().join(", ") || "none"}; ` +
+        `unsafe expected entries: ${unsafe.sort().join(", ") || "none"}.`,
+    );
+  }
+  const forbidden = [];
+  for (const name of FORBIDDEN_MODEL_MODE_FILES) {
+    if (await exists(join(designRoot, name))) forbidden.push(name);
+  }
+  if (forbidden.length > 0) {
+    throw new Error(
+      `checked-model authority refuses legacy root authority: ${forbidden.join(", ")}. ` +
+        "Move historical inputs and tooling under validation-design/migration/legacy; " +
+        "generated Markdown views remain at the root.",
+    );
+  }
+  const unsafeViews = [];
+  for (const name of GENERATED_VIEWS) {
+    const path = join(designRoot, name);
+    let entry;
+    try {
+      entry = await lstat(path);
+    } catch (error) {
+      throw new Error(`checked-model drift check cannot inspect generated view ${path}: ${String(error)}`);
+    }
+    if (!entry.isFile() || entry.isSymbolicLink()) unsafeViews.push(name);
+  }
+  if (unsafeViews.length > 0) {
+    throw new Error(
+      `checked-model generated views must be regular non-symlink files: ${unsafeViews.sort().join(", ")}`,
+    );
+  }
+  let compiled;
+  try {
+    compiled = await run(architectCli, ["compile", root]);
+  } catch (error) {
+    throw new Error(`checked-model drift check could not start the public validation-architect CLI: ${String(error)}`);
+  }
+  if (compiled.exitCode !== 0 || compiled.stderr !== "") {
+    throw new Error(
+      `checked-model drift check failed: public compiler exited ${compiled.exitCode} or emitted diagnostics.\n` +
+        `${compiled.stderr}${compiled.stdout}`,
+    );
+  }
+  const accepted = /^accepted: model ([a-f0-9]{64}) at revision ([a-f0-9]{40})$/.exec(compiled.stdout.trim());
+  if (accepted === null) {
+    throw new Error(`checked-model drift check received unexpected public compiler output:\n${compiled.stdout}`);
+  }
+  return { mode: "checked-model", identity: accepted[1], revision: accepted[2] };
+}
+
+async function checkLegacyDrift(designRoot) {
   const [generatorPath, catalogPath, backlogPath] = INPUTS.map((name) => join(designRoot, name));
   for (const path of [generatorPath, catalogPath, backlogPath]) await readRequired(path);
   const committed = await readRequired(join(designRoot, COMMITTED));
@@ -123,7 +248,17 @@ export async function checkCatalogDrift(root) {
     );
   }
 
-  return { families, tickets, bytes: committed.length };
+  return { mode: "legacy", families, tickets, bytes: committed.length };
+}
+
+export async function checkCatalogDrift(root) {
+  const designRoot = join(root, "validation-design");
+  const modelRoot = join(designRoot, "model");
+  const present = [];
+  for (const name of MODEL_FILES) {
+    if (await exists(join(modelRoot, name))) present.push(name);
+  }
+  return present.length > 0 ? await checkModelDrift(root, designRoot, present) : await checkLegacyDrift(designRoot);
 }
 
 async function main() {
@@ -131,9 +266,16 @@ async function main() {
   if (args.length > 1) throw new Error("usage: check-catalog-drift.mjs [root]");
   const root = resolve(args[0] ?? process.cwd());
   const result = await checkCatalogDrift(root);
-  process.stdout.write(
-    `Catalog drift check passed (case-catalog.yaml matches its regeneration: ${result.families} families, ${result.tickets} tickets, ${result.bytes} bytes).\n`,
-  );
+  if (result.mode === "checked-model") {
+    process.stdout.write(
+      `Checked-model drift check passed (model ${result.identity}, revision ${result.revision}; ` +
+        "all eight model files and generated views are compiler-clean).\n",
+    );
+  } else {
+    process.stdout.write(
+      `Catalog drift check passed (case-catalog.yaml matches its regeneration: ${result.families} families, ${result.tickets} tickets, ${result.bytes} bytes).\n`,
+    );
+  }
 }
 
 const entrypoint = process.argv[1] === undefined ? undefined : resolve(process.argv[1]);

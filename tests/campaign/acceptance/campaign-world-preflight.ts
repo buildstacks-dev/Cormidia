@@ -2,9 +2,11 @@ import { assertCampaignRepositoryBinding } from "../repository-binding.js";
 import { validateCampaignConfig, type AcceptanceCampaignConfig } from "./campaign-config.js";
 import { assertPackagedProvenance, type PackagedInstallProof } from "./packaged-provenance.js";
 import { assertScenarioNotThisRepository, type CormidiaIdentity } from "./scenario-binding.js";
+import { axisScorePolicyFromHost, type AxisScorePolicy } from "./verdict-algebra.js";
 
 export interface AcceptanceCampaignPreflightInput {
   config: AcceptanceCampaignConfig;
+  repoRoot: string;
   cormidia: CormidiaIdentity;
   commitPinAt: Date;
   installProof?: PackagedInstallProof;
@@ -15,6 +17,9 @@ export interface AcceptanceCampaignPreflightInput {
 export interface AcceptanceCampaignPreflight {
   validated: ReturnType<typeof validateCampaignConfig>;
   provenance: ReturnType<typeof assertPackagedProvenance>;
+  policyBinding: Awaited<ReturnType<typeof assertCampaignRepositoryBinding>>["policyBinding"];
+  revalidateAdmission: Awaited<ReturnType<typeof assertCampaignRepositoryBinding>>["revalidate"];
+  axisScorePolicy: AxisScorePolicy;
 }
 
 /** Every world-dependent refusal, reusable before scenario mutation. */
@@ -27,10 +32,10 @@ export async function preflightAcceptanceCampaign(
     commitPinAt: input.commitPinAt,
     ...(input.turnCommands === undefined ? {} : { turnCommands: input.turnCommands }),
   });
-  await assertCampaignRepositoryBinding({
+  const repositoryBinding = await assertCampaignRepositoryBinding({
     commit: input.config.commit,
     policyPath: input.config.policyPath,
-    ...(input.bindingCwd === undefined ? {} : { cwd: input.bindingCwd }),
+    cwd: input.bindingCwd ?? input.repoRoot,
   });
   for (const scenario of input.config.scenarios) {
     await assertScenarioNotThisRepository({
@@ -42,5 +47,11 @@ export async function preflightAcceptanceCampaign(
       cormidia: input.cormidia,
     });
   }
-  return { validated, provenance };
+  return {
+    validated,
+    provenance,
+    policyBinding: repositoryBinding.policyBinding,
+    revalidateAdmission: repositoryBinding.revalidate,
+    axisScorePolicy: axisScorePolicyFromHost(repositoryBinding.hostPolicy),
+  };
 }

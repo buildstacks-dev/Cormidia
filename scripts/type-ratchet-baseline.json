@@ -582,7 +582,7 @@
       "nonNull": 0
     },
     "src/org/release-evidence.ts": {
-      "as": 47,
+      "as": 42,
       "nonNull": 18
     },
     "src/org/release.ts": {
@@ -957,10 +957,6 @@
       "as": 0,
       "nonNull": 1
     },
-    "tests/campaign/acceptance/campaign-cli.ts": {
-      "as": 2,
-      "nonNull": 0
-    },
     "tests/campaign/acceptance/campaign-config.ts": {
       "as": 2,
       "nonNull": 0
@@ -971,10 +967,6 @@
     },
     "tests/campaign/acceptance/campaign-org-roles.ts": {
       "as": 7,
-      "nonNull": 0
-    },
-    "tests/campaign/acceptance/campaign-provisioning.ts": {
-      "as": 2,
       "nonNull": 0
     },
     "tests/campaign/acceptance/campaign-reconciliation.ts": {
@@ -993,20 +985,16 @@
       "as": 4,
       "nonNull": 0
     },
-    "tests/campaign/acceptance/packaged-provenance.ts": {
-      "as": 3,
-      "nonNull": 0
-    },
     "tests/campaign/acceptance/plan-gate.ts": {
       "as": 1,
       "nonNull": 0
     },
     "tests/campaign/acceptance/report-store.ts": {
-      "as": 4,
+      "as": 2,
       "nonNull": 0
     },
     "tests/campaign/acceptance/run-1-live.ts": {
-      "as": 1,
+      "as": 0,
       "nonNull": 8
     },
     "tests/campaign/acceptance/sealed-key.ts": {
@@ -1018,7 +1006,7 @@
       "nonNull": 0
     },
     "tests/campaign/acceptance/verdict-algebra.ts": {
-      "as": 4,
+      "as": 1,
       "nonNull": 0
     },
     "tests/eval-runner/cli.ts": {
@@ -1380,10 +1368,6 @@
     "tests/hermetic/cf-harness-attest-cf-harness-currency-cf-harness-judge-cf-harness-release-cf-harness-rq-cf-reg-283-cf-reg-299-cf-reg-306/release-surfaces.test.ts": {
       "as": 1,
       "nonNull": 0
-    },
-    "tests/hermetic/cf-harness-report-cf-reg-291/campaign-runner.test.ts": {
-      "as": 0,
-      "nonNull": 1
     },
     "tests/hermetic/cf-hb102-manual-review-cf-inv-016-cf-j04-i-cf-j04-rc-cf-j04-s-cf-j20-i-cf-j20-r-cf-j20-rc-cf-j20-s/roadmap-delivery-walking-skeleton.test.ts": {
       "as": 8,
@@ -1750,7 +1734,7 @@
       "nonNull": 0
     },
     "tests/ops/soak-protocol.ts": {
-      "as": 5,
+      "as": 4,
       "nonNull": 2
     },
     "tests/ops/threat-model-gate.ts": {

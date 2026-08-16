@@ -28,7 +28,7 @@ function config(maxOutputTokens = 4_000_000): AcceptanceCampaignConfig {
   return {
     campaignId: "l-acc-run-1",
     commit: "a".repeat(40),
-    policyPath: "/repo/validation-design/validation-policy.yaml",
+    policyPath: "/repo/docs/qualification/host-policy.yaml",
     campaignOrg: "cormidia",
     scenarios: [
       {

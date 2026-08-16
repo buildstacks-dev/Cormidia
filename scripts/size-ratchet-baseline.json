@@ -1136,6 +1136,11 @@
       "lines": 264,
       "newModule": true
     },
+    "src/org/qualification-host-policy.ts": {
+      "exports": 3,
+      "lines": 260,
+      "newModule": true
+    },
     "src/org/ratified-validation-catalog.ts": {
       "exports": 3,
       "lines": 216,
@@ -1146,10 +1151,35 @@
       "lines": 105,
       "newModule": false
     },
+    "src/org/release-candidate-validation.ts": {
+      "exports": 2,
+      "lines": 216,
+      "newModule": true
+    },
     "src/org/release-evidence.ts": {
       "exports": 46,
-      "lines": 2896,
+      "lines": 2779,
       "newModule": false
+    },
+    "src/org/release-package-manager.ts": {
+      "exports": 5,
+      "lines": 122,
+      "newModule": true
+    },
+    "src/org/release-policy-authority.ts": {
+      "exports": 6,
+      "lines": 299,
+      "newModule": true
+    },
+    "src/org/release-policy-git.ts": {
+      "exports": 1,
+      "lines": 151,
+      "newModule": true
+    },
+    "src/org/release-test-inventory.ts": {
+      "exports": 1,
+      "lines": 31,
+      "newModule": true
     },
     "src/org/release.ts": {
       "exports": 4,
@@ -1541,9 +1571,29 @@
       "lines": 2678,
       "newModule": false
     },
+    "src/org/validation-campaign-claim.ts": {
+      "exports": 1,
+      "lines": 33,
+      "newModule": true
+    },
+    "src/org/validation-campaign-policy.ts": {
+      "exports": 2,
+      "lines": 79,
+      "newModule": true
+    },
+    "src/org/validation-campaign-profile.ts": {
+      "exports": 2,
+      "lines": 40,
+      "newModule": true
+    },
+    "src/org/validation-campaign-report.ts": {
+      "exports": 5,
+      "lines": 53,
+      "newModule": true
+    },
     "src/org/validation-campaign.ts": {
-      "exports": 7,
-      "lines": 310,
+      "exports": 5,
+      "lines": 251,
       "newModule": false
     },
     "src/org/validation-test-mode.ts": {

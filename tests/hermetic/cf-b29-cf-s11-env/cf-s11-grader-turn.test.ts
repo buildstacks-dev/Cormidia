@@ -81,6 +81,7 @@ function graderTurnInput(bits: Awaited<ReturnType<typeof harness>>, axis = "O-1"
     keys: [bits.key],
     reachableRoots: [bits.fixture.evidenceDir],
     templateDir: join(bits.fixture.reportDir, "grader-templates"),
+    revalidateAdmission: async () => {},
   };
 }
 

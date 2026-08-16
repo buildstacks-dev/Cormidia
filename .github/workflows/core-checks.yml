@@ -1,13 +1,13 @@
 name: Core checks
 
 # Per-commit CI lane for the replacement validation harness
-# (validation-design/validation-policy.yaml → ci: per_commit [L1, L2, gitleaks];
-# blocking, fail-closed). The lane's shape is pinned by
+# (validation-design/model/policy.yaml selects the blocking per-commit lane;
+# Cormidia's workflow detector additionally pins L1, L2, and gitleaks). The lane's shape is pinned by
 # tests/policy/ — removing a gate here without a policy change is a
-# policy violation (policy `ci.rule`).
+# policy violation.
 #
-# Release gating remains SUSPENDED (docs/PURPOSE.md v2.9) — do not add a
-# release lane here without restoring a real qualification gate behind it.
+# RQ-1 is enforced by the separate exact-candidate release path; do not add a
+# release-shaped job here or move release/publication work to self-hosted compute.
 #
 # Wall-clock: the 5-minute per-commit target is human-ratified (HB-007 item 13)
 # as a report-only optimization target. The 15-minute job ceiling remains the

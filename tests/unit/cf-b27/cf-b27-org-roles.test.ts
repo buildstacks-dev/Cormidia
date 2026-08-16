@@ -54,7 +54,7 @@ function config(): AcceptanceCampaignConfig {
   return {
     campaignId: "l-acc-run-1",
     commit: "a".repeat(40),
-    policyPath: "/policy",
+    policyPath: "/repo/docs/qualification/host-policy.yaml",
     campaignOrg: "cormidia",
     scenarios: [s1, s2],
     adaptiveAssignments: [],

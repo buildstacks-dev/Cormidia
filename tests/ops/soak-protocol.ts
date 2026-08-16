@@ -11,10 +11,17 @@ import { ApprovalStore } from "../../src/org/approvals.js";
 import { writeFileAtomic } from "../../src/org/atomic.js";
 import { SchedulerEvidenceStore } from "../../src/org/scheduler/evidence.js";
 import { canonicalJson, schedulerIdentity } from "../../src/org/scheduler/model.js";
-import { writeValidationCampaignReport, type ValidationCampaignReportV1 } from "../../src/org/validation-campaign.js";
+import { writeValidationCampaignReport } from "../../src/org/validation-campaign.js";
+import { createValidationCampaignReport } from "../../src/org/validation-campaign-claim.js";
+import type { ValidationCampaignReportV2 } from "../../src/org/validation-campaign-report.js";
+import type { ValidationCampaignPolicyBinding } from "../../src/org/validation-campaign-policy.js";
+import { parseValidationCampaignPolicyBinding } from "../../src/org/validation-campaign-policy.js";
+import { QUALIFICATION_HOST_POLICY_PATH } from "../../src/org/qualification-host-policy.js";
+import type { CampaignRepositoryRevalidator } from "../campaign/repository-revalidation.js";
 import { indexLocalSources } from "../../src/observe/file-index.js";
 import { readTurnRecords } from "../../src/runtime/telemetry.js";
 import { readRoadmapExplanation, type UnitRecoveryState } from "../../src/org/roadmap-explanation.js";
+import { createSoakState, withSoakStateMutation } from "./soak-state-store.js";
 
 export const SOAK_REQUIRED_CASES = ["CF-OPS-SOAK", "CF-OPS-ROT"] as const;
 export const SOAK_MAX_PROVIDER_TURNS = 24;
@@ -93,22 +100,29 @@ export interface SoakCheckpointV1 {
 }
 
 export interface SoakStateV1 {
-  schema_version: 1;
+  schema_version: 2;
   campaign_id: string;
   started_at: string;
   commit: string;
   config_sha256: string;
-  policy_sha256: string;
+  policy_binding: ValidationCampaignPolicyBinding;
   timezone: string;
   sandbox: SoakConfigV1["sandbox"];
   baseline: { provider_turns: number; equiv_usd: number; human_decision_rows: number };
   checkpoints: SoakCheckpointV1[];
+  status?: "running" | "completed";
+  finished_at?: string | null;
 }
 
 export interface SoakEvaluation {
   collected_case_ids: string[];
   missing_reason_codes: string[];
   violation_ids: string[];
+}
+
+export interface SoakAdmission {
+  policyBinding: ValidationCampaignPolicyBinding;
+  revalidate: CampaignRepositoryRevalidator;
 }
 
 export async function loadSoakConfig(env: NodeJS.ProcessEnv = process.env): Promise<SoakConfigV1> {
@@ -126,10 +140,17 @@ export function soakStatePath(stateHome: string, campaignId: string): string {
   return join(resolve(stateHome), "validation", "soaks", campaignId, "state.json");
 }
 
-export async function startSoak(config: SoakConfigV1, now: Date = new Date()): Promise<SoakStateV1> {
+export async function startSoak(
+  config: SoakConfigV1,
+  admission: SoakAdmission,
+  now: Date = new Date(),
+): Promise<SoakStateV1> {
+  await admission.revalidate();
   validateConfig(config);
+  const policyBinding = parseValidationCampaignPolicyBinding(admission.policyBinding);
+  if (policyBinding.path !== QUALIFICATION_HOST_POLICY_PATH)
+    throw new Error("soak policy binding path differs from the canonical host policy");
   const path = soakStatePath(config.state_home, config.campaign_id);
-  if (existsSync(path)) throw new Error(`soak campaign already exists: ${config.campaign_id}`);
   const apps = await loadApps(join(config.org_home, "apps.yaml"));
   assertSandboxMatches(
     config,
@@ -138,16 +159,13 @@ export async function startSoak(config: SoakConfigV1, now: Date = new Date()): P
     apps.apps.map((app) => app.repo),
   );
   const ledger = await readTurnRecords(config.state_home);
-  const policySha256 = createHash("sha256")
-    .update(await readFile(config.policy_path))
-    .digest("hex");
   const state: SoakStateV1 = {
-    schema_version: 1,
+    schema_version: 2,
     campaign_id: config.campaign_id,
     started_at: now.toISOString(),
     commit: config.commit,
     config_sha256: configDigest(config),
-    policy_sha256: policySha256,
+    policy_binding: structuredClone(policyBinding),
     timezone: config.timezone,
     sandbox: structuredClone(config.sandbox),
     baseline: {
@@ -156,9 +174,12 @@ export async function startSoak(config: SoakConfigV1, now: Date = new Date()): P
       human_decision_rows: (await new ApprovalStore(config.state_home).listDecidedReadOnly()).length,
     },
     checkpoints: [],
+    status: "running",
+    finished_at: null,
   };
-  await persistState(config.state_home, state);
-  await persistReport(config, state, false, now);
+  await admission.revalidate();
+  await createSoakState(path, state);
+  await persistReport(config, state, false, now, admission, true);
   return structuredClone(state);
 }
 
@@ -172,35 +193,47 @@ export async function readSoakState(stateHome: string, campaignId: string): Prom
 export async function recordSoakCheckpoint(
   config: SoakConfigV1,
   checkpoint: SoakCheckpointV1,
+  admission: SoakAdmission,
   now: Date = new Date(checkpoint.captured_at),
 ): Promise<SoakStateV1> {
-  validateCheckpoint(checkpoint);
-  const state = await readSoakState(config.state_home, config.campaign_id);
-  await assertCampaignBinding(config, state);
-  if (checkpoint.captured_at < state.started_at) throw new Error("soak checkpoint predates campaign start");
-  if (state.checkpoints.some((item) => item.checkpoint_id === checkpoint.checkpoint_id))
-    throw new Error(`duplicate soak checkpoint: ${checkpoint.checkpoint_id}`);
-  if (checkpoint.sleep_cycle !== undefined) {
-    const derived = deriveSleepCycle(checkpoint.sleep_cycle.slept_at, checkpoint.sleep_cycle.woke_at, config.timezone);
-    if (derived.overnight !== checkpoint.sleep_cycle.overnight)
-      throw new Error("soak sleep overnight flag does not match the configured local timezone");
-  }
-  if (checkpoint.spend.provider_turns > SOAK_MAX_PROVIDER_TURNS || checkpoint.spend.equiv_usd > SOAK_MAX_EQUIV_USD) {
-    throw new Error("soak hard spend ceiling exceeded; checkpoint refused and campaign remains incomplete");
-  }
-  state.checkpoints.push(structuredClone(checkpoint));
-  state.checkpoints.sort((left, right) => left.captured_at.localeCompare(right.captured_at));
-  assertCumulativeCheckpoints(state.checkpoints);
-  await persistState(config.state_home, state);
-  await persistReport(config, state, false, now);
-  return structuredClone(state);
+  return withSoakStateMutation(soakStatePath(config.state_home, config.campaign_id), async () => {
+    await admission.revalidate();
+    validateCheckpoint(checkpoint);
+    const state = await readSoakState(config.state_home, config.campaign_id);
+    assertCampaignBinding(config, state, admission.policyBinding);
+    if (state.status === "completed") throw new Error("soak campaign is already completed and cannot be reopened");
+    if (checkpoint.captured_at < state.started_at) throw new Error("soak checkpoint predates campaign start");
+    if (state.checkpoints.some((item) => item.checkpoint_id === checkpoint.checkpoint_id))
+      throw new Error(`duplicate soak checkpoint: ${checkpoint.checkpoint_id}`);
+    if (checkpoint.sleep_cycle !== undefined) {
+      const derived = deriveSleepCycle(
+        checkpoint.sleep_cycle.slept_at,
+        checkpoint.sleep_cycle.woke_at,
+        config.timezone,
+      );
+      if (derived.overnight !== checkpoint.sleep_cycle.overnight)
+        throw new Error("soak sleep overnight flag does not match the configured local timezone");
+    }
+    if (checkpoint.spend.provider_turns > SOAK_MAX_PROVIDER_TURNS || checkpoint.spend.equiv_usd > SOAK_MAX_EQUIV_USD) {
+      throw new Error("soak hard spend ceiling exceeded; checkpoint refused and campaign remains incomplete");
+    }
+    state.checkpoints.push(structuredClone(checkpoint));
+    state.checkpoints.sort((left, right) => left.captured_at.localeCompare(right.captured_at));
+    assertCumulativeCheckpoints(state.checkpoints);
+    await admission.revalidate();
+    await persistState(config.state_home, state);
+    await persistReport(config, state, false, now, admission);
+    return structuredClone(state);
+  });
 }
 
 export async function captureSoakCheckpoint(
   config: SoakConfigV1,
   input: { checkpointId: string; sleptAt?: string; wokeAt?: string; rotation?: SoakRotationEvidenceV1 },
+  admission: SoakAdmission,
   now: Date = new Date(),
 ): Promise<SoakStateV1> {
+  await admission.revalidate();
   const state = await readSoakState(config.state_home, config.campaign_id);
   const apps = await loadApps(join(config.org_home, "apps.yaml"));
   const store = new SchedulerEvidenceStore({
@@ -256,13 +289,26 @@ export async function captureSoakCheckpoint(
     ),
     human_decision_rows: decided.length - state.baseline.human_decision_rows,
   };
-  return recordSoakCheckpoint(config, checkpoint, now);
+  return recordSoakCheckpoint(config, checkpoint, admission, now);
 }
 
-export async function finishSoak(config: SoakConfigV1, now: Date = new Date()): Promise<ValidationCampaignReportV1> {
-  const state = await readSoakState(config.state_home, config.campaign_id);
-  await assertCampaignBinding(config, state);
-  return persistReport(config, state, true, now);
+export async function finishSoak(
+  config: SoakConfigV1,
+  admission: SoakAdmission,
+  now: Date = new Date(),
+): Promise<ValidationCampaignReportV2> {
+  return withSoakStateMutation(soakStatePath(config.state_home, config.campaign_id), async () => {
+    await admission.revalidate();
+    const state = await readSoakState(config.state_home, config.campaign_id);
+    assertCampaignBinding(config, state, admission.policyBinding);
+    if (state.status === "completed")
+      throw new Error("soak campaign is already completed and cannot be finished twice");
+    state.status = "completed";
+    state.finished_at = now.toISOString();
+    await admission.revalidate();
+    await persistState(config.state_home, state);
+    return persistReport(config, state, true, now, admission);
+  });
 }
 
 export function evaluateSoak(state: SoakStateV1, now: Date): SoakEvaluation {
@@ -353,7 +399,9 @@ async function persistReport(
   state: SoakStateV1,
   terminal: boolean,
   now: Date,
-): Promise<ValidationCampaignReportV1> {
+  admission: SoakAdmission,
+  fresh = false,
+): Promise<ValidationCampaignReportV2> {
   const evaluation = evaluateSoak(state, now);
   const last = state.checkpoints.at(-1);
   const missingCases = SOAK_REQUIRED_CASES.filter((id) => !evaluation.collected_case_ids.includes(id));
@@ -361,8 +409,8 @@ async function persistReport(
     last !== undefined &&
     (last.spend.provider_turns >= SOAK_MAX_PROVIDER_TURNS || last.spend.equiv_usd >= SOAK_MAX_EQUIV_USD);
   const complete = terminal && missingCases.length === 0 && !exhausted;
-  const report: ValidationCampaignReportV1 = {
-    schema_version: 1,
+  const report: ValidationCampaignReportV2 = {
+    schema_version: 2,
     campaign_id: config.campaign_id,
     lane: "L5",
     campaign_kind: "seven-day-laptop-soak",
@@ -370,7 +418,7 @@ async function persistReport(
     status: terminal ? "completed" : "running",
     started_at: state.started_at,
     finished_at: terminal ? now.toISOString() : null,
-    policy: { path: config.policy_path, sha256: state.policy_sha256 },
+    policy: structuredClone(state.policy_binding),
     target: {
       commit: config.commit,
       apps: [...config.sandbox.apps],
@@ -404,7 +452,9 @@ async function persistReport(
       human_decision_rows: 0,
     },
   };
-  await writeValidationCampaignReport(config.state_home, report);
+  await admission.revalidate();
+  if (fresh) await createValidationCampaignReport(config.state_home, report);
+  else await writeValidationCampaignReport(config.state_home, report);
   return report;
 }
 
@@ -429,27 +479,41 @@ function validRotation(value: SoakRotationEvidenceV1): boolean {
   }
 }
 
-function validateRotation(value: SoakRotationEvidenceV1): void {
+function validateRotation(value: unknown): asserts value is SoakRotationEvidenceV1 {
+  const row = object(value, "rotation evidence");
+  exact(row, [
+    "schema_version",
+    "runtime",
+    "cause",
+    "observed_without_injection",
+    "interrupted_at",
+    "resumed_at",
+    "session_id_before",
+    "session_id_after",
+    "checkpoint_before_sha256",
+    "checkpoint_after_sha256",
+    "evidence_refs",
+  ]);
   if (
-    value.schema_version !== 1 ||
-    value.runtime !== "codex" ||
-    value.cause !== "provider_auth_rotation" ||
-    value.observed_without_injection !== true
+    row["schema_version"] !== 1 ||
+    row["runtime"] !== "codex" ||
+    row["cause"] !== "provider_auth_rotation" ||
+    row["observed_without_injection"] !== true
   )
     throw new Error("rotation evidence is not a natural Codex auth rotation");
-  instant(value.interrupted_at, "rotation.interrupted_at");
-  instant(value.resumed_at, "rotation.resumed_at");
-  if (Date.parse(value.resumed_at) <= Date.parse(value.interrupted_at))
-    throw new Error("rotation resume must follow interruption");
-  if (value.session_id_before === "" || value.session_id_before !== value.session_id_after)
+  const interruptedAt = instant(row["interrupted_at"], "rotation.interrupted_at");
+  const resumedAt = instant(row["resumed_at"], "rotation.resumed_at");
+  if (Date.parse(resumedAt) <= Date.parse(interruptedAt)) throw new Error("rotation resume must follow interruption");
+  const sessionBefore = required(row["session_id_before"], "rotation.session_id_before");
+  if (sessionBefore !== required(row["session_id_after"], "rotation.session_id_after"))
     throw new Error("rotation must preserve exact session identity");
+  const checkpointBefore = required(row["checkpoint_before_sha256"], "rotation.checkpoint_before_sha256");
   if (
-    !/^[a-f0-9]{64}$/.test(value.checkpoint_before_sha256) ||
-    value.checkpoint_before_sha256 !== value.checkpoint_after_sha256
+    !/^[a-f0-9]{64}$/.test(checkpointBefore) ||
+    checkpointBefore !== required(row["checkpoint_after_sha256"], "rotation.checkpoint_after_sha256")
   )
     throw new Error("rotation must preserve exact checkpoint identity");
-  if (!Array.isArray(value.evidence_refs) || value.evidence_refs.length === 0)
-    throw new Error("rotation requires evidence refs");
+  uniqueList(row["evidence_refs"], "rotation.evidence_refs");
 }
 
 function validateConfig(value: unknown): asserts value is SoakConfigV1 {
@@ -487,25 +551,36 @@ function validateConfig(value: unknown): asserts value is SoakConfigV1 {
 
 function validateState(value: unknown): asserts value is SoakStateV1 {
   const root = object(value, "soak state");
-  exact(root, [
-    "schema_version",
-    "campaign_id",
-    "started_at",
-    "commit",
-    "config_sha256",
-    "policy_sha256",
-    "timezone",
-    "sandbox",
-    "baseline",
-    "checkpoints",
-  ]);
-  if (root["schema_version"] !== 1) throw new Error("unsupported soak state");
+  closed(
+    root,
+    [
+      "schema_version",
+      "campaign_id",
+      "started_at",
+      "commit",
+      "config_sha256",
+      "policy_binding",
+      "timezone",
+      "sandbox",
+      "baseline",
+      "checkpoints",
+    ],
+    ["status", "finished_at"],
+    "soak state",
+  );
+  if (root["schema_version"] !== 2) throw new Error("unsupported soak state");
   safeCampaignId(required(root["campaign_id"], "campaign_id"));
   instant(root["started_at"], "started_at");
   if (!/^[a-f0-9]{40}$/.test(required(root["commit"], "commit")))
     throw new Error("soak state commit must be an exact oid");
-  for (const name of ["config_sha256", "policy_sha256"] as const)
-    if (!/^[a-f0-9]{64}$/.test(required(root[name], name))) throw new Error(`${name} must be a lowercase sha256`);
+  if (!/^[a-f0-9]{64}$/.test(required(root["config_sha256"], "config_sha256")))
+    throw new Error("config_sha256 must be a lowercase sha256");
+  parseValidationCampaignPolicyBinding(root["policy_binding"]);
+  if (root["status"] !== undefined && root["status"] !== "running" && root["status"] !== "completed")
+    throw new Error("soak state status is invalid");
+  if (root["status"] === "completed") instant(root["finished_at"], "finished_at");
+  else if (root["finished_at"] !== undefined && root["finished_at"] !== null)
+    throw new Error("running soak state cannot have finished_at");
   required(root["timezone"], "timezone");
   const sandbox = object(root["sandbox"], "sandbox");
   exact(sandbox, ["org", "apps", "repos"]);
@@ -518,39 +593,132 @@ function validateState(value: unknown): asserts value is SoakStateV1 {
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
       throw new Error("soak baseline counters must be non-negative");
   if (!Array.isArray(root["checkpoints"])) throw new Error("soak checkpoints must be an array");
-  const checkpoints = root["checkpoints"] as SoakCheckpointV1[];
-  for (const item of checkpoints) validateCheckpoint(item);
+  const checkpoints: SoakCheckpointV1[] = [];
+  for (const item of root["checkpoints"]) {
+    validateCheckpoint(item);
+    checkpoints.push(item);
+  }
   if (new Set(checkpoints.map((item) => item.checkpoint_id)).size !== checkpoints.length)
     throw new Error("soak checkpoint ids must be unique");
   assertCumulativeCheckpoints(checkpoints);
 }
 
-function validateCheckpoint(value: SoakCheckpointV1): void {
-  required(value.checkpoint_id, "checkpoint_id");
-  instant(value.captured_at, "captured_at");
-  if (value.sleep_cycle !== undefined) {
-    instant(value.sleep_cycle.slept_at, "slept_at");
-    instant(value.sleep_cycle.woke_at, "woke_at");
-    if (typeof value.sleep_cycle.overnight !== "boolean") throw new Error("overnight must be boolean");
+function validateCheckpoint(value: unknown): asserts value is SoakCheckpointV1 {
+  const row = object(value, "soak checkpoint");
+  closed(
+    row,
+    [
+      "checkpoint_id",
+      "captured_at",
+      "scheduler",
+      "spend",
+      "state_growth",
+      "retention",
+      "source_health",
+      "roadmap_delivery",
+      "human_decision_rows",
+    ],
+    ["sleep_cycle", "rotation"],
+    "soak checkpoint",
+  );
+  required(row["checkpoint_id"], "checkpoint_id");
+  instant(row["captured_at"], "captured_at");
+  if (row["sleep_cycle"] !== undefined) {
+    const sleep = object(row["sleep_cycle"], "sleep_cycle");
+    exact(sleep, ["slept_at", "woke_at", "overnight"]);
+    instant(sleep["slept_at"], "slept_at");
+    instant(sleep["woke_at"], "woke_at");
+    boolean(sleep["overnight"], "overnight");
   }
-  if (value.rotation !== undefined) validateRotation(value.rotation);
-  for (const amount of [
-    value.spend.provider_turns,
-    value.spend.equiv_usd,
-    value.spend.partial_usage_rows,
-    value.state_growth.files,
-    value.state_growth.bytes,
-    value.human_decision_rows,
-    value.roadmap_delivery.batches_observed,
-    value.roadmap_delivery.batches_complete,
-    value.roadmap_delivery.batches_every_unit_successful,
-    value.roadmap_delivery.units_observed,
-    value.roadmap_delivery.stale_frontier_refusals,
-    ...Object.values(value.roadmap_delivery.session_reuse),
-    ...Object.values(value.roadmap_delivery.cache_evidence),
-    ...Object.values(value.roadmap_delivery.recovery_states),
+  if (row["rotation"] !== undefined) validateRotation(row["rotation"]);
+
+  const scheduler = object(row["scheduler"], "checkpoint.scheduler");
+  exact(scheduler, [
+    "measurement_valid",
+    "reason_counts",
+    "duplicate_decisions",
+    "duplicate_episodes",
+    "orphaned_locks",
+    "orphaned_journals",
+    "orphaned_runs",
+    "orphaned_settlements",
+    "provider_settlement_agreement",
+    "active_locks",
+    "wip_limit",
+  ]);
+  boolean(scheduler["measurement_valid"], "scheduler.measurement_valid");
+  const settlement = scheduler["provider_settlement_agreement"];
+  if (settlement !== null) boolean(settlement, "scheduler.provider_settlement_agreement");
+  numberMap(scheduler["reason_counts"], "scheduler.reason_counts");
+  for (const key of [
+    "duplicate_decisions",
+    "duplicate_episodes",
+    "orphaned_locks",
+    "orphaned_journals",
+    "orphaned_runs",
+    "orphaned_settlements",
+    "active_locks",
+    "wip_limit",
   ])
-    if (!Number.isFinite(amount) || amount < 0) throw new Error("soak checkpoint counters must be non-negative");
+    nonnegative(scheduler[key], `scheduler.${key}`);
+
+  numberFields(row["spend"], ["provider_turns", "equiv_usd", "partial_usage_rows"], "checkpoint.spend");
+  numberFields(row["state_growth"], ["files", "bytes"], "checkpoint.state_growth");
+  numberFields(row["retention"], ["completed_sweeps", "sweeps_with_errors"], "checkpoint.retention");
+  nonnegative(row["human_decision_rows"], "checkpoint.human_decision_rows");
+
+  if (!Array.isArray(row["source_health"])) throw new Error("checkpoint.source_health must be an array");
+  const sourceIds = new Set<string>();
+  for (const [index, raw] of row["source_health"].entries()) {
+    const source = object(raw, `checkpoint.source_health[${index}]`);
+    exact(source, ["id", "status"]);
+    const id = required(source["id"], `checkpoint.source_health[${index}].id`);
+    if (sourceIds.has(id)) throw new Error(`checkpoint.source_health contains duplicate id ${id}`);
+    sourceIds.add(id);
+    if (source["status"] !== "healthy" && source["status"] !== "degraded" && source["status"] !== "unavailable")
+      throw new Error(`checkpoint.source_health[${index}].status is invalid`);
+  }
+
+  const roadmap = object(row["roadmap_delivery"], "checkpoint.roadmap_delivery");
+  exact(roadmap, [
+    "batches_observed",
+    "batches_complete",
+    "batches_every_unit_successful",
+    "units_observed",
+    "stale_frontier_refusals",
+    "session_reuse",
+    "cache_evidence",
+    "recovery_states",
+  ]);
+  for (const key of [
+    "batches_observed",
+    "batches_complete",
+    "batches_every_unit_successful",
+    "units_observed",
+    "stale_frontier_refusals",
+  ])
+    nonnegative(roadmap[key], `roadmap_delivery.${key}`);
+  numberFields(
+    roadmap["session_reuse"],
+    ["consider_exact_reuse", "rerun_without_session", "no_cross_unit_reuse"],
+    "roadmap_delivery.session_reuse",
+  );
+  numberFields(roadmap["cache_evidence"], ["hit", "miss", "unknown"], "roadmap_delivery.cache_evidence");
+  numberFields(
+    roadmap["recovery_states"],
+    [
+      "not_started",
+      "in_progress",
+      "rerun_without_session",
+      "consider_exact_session_reuse",
+      "no_cross_unit_reuse",
+      "terminal_completed",
+      "terminal_returned",
+      "terminal_failed",
+      "unavailable",
+    ],
+    "roadmap_delivery.recovery_states",
+  );
 }
 
 function summarizeRoadmapDelivery(
@@ -623,12 +791,16 @@ async function persistState(stateHome: string, state: SoakStateV1): Promise<void
   await writeFileAtomic(path, `${JSON.stringify(state, null, 2)}\n`);
 }
 
-async function assertCampaignBinding(config: SoakConfigV1, state: SoakStateV1): Promise<void> {
+function assertCampaignBinding(
+  config: SoakConfigV1,
+  state: SoakStateV1,
+  admittedPolicyBinding: ValidationCampaignPolicyBinding,
+): void {
   if (state.config_sha256 !== configDigest(config)) throw new Error("soak config drifted after campaign start");
-  const policySha256 = createHash("sha256")
-    .update(await readFile(config.policy_path))
-    .digest("hex");
-  if (state.policy_sha256 !== policySha256) throw new Error("soak policy drifted after campaign start");
+  if (state.commit !== config.commit) throw new Error("soak candidate commit drifted after campaign start");
+  const admitted = parseValidationCampaignPolicyBinding(admittedPolicyBinding);
+  if (canonicalJson(state.policy_binding) !== canonicalJson(admitted))
+    throw new Error("soak admitted policy binding differs from persisted campaign state");
 }
 
 function configDigest(config: SoakConfigV1): string {
@@ -689,9 +861,34 @@ function object(value: unknown, name: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 function exact(value: Record<string, unknown>, keys: string[]): void {
-  const allowed = new Set(keys);
+  closed(value, keys, [], "object");
+}
+function closed(value: Record<string, unknown>, required: string[], optional: string[], name: string): void {
+  const allowed = new Set([...required, ...optional]);
   const extra = Object.keys(value).filter((key) => !allowed.has(key));
-  if (extra.length > 0) throw new Error(`unknown ${extra.join(", ")}`);
+  const missing = required.filter((key) => !(key in value));
+  if (extra.length > 0 || missing.length > 0)
+    throw new Error(
+      `${name} fields differ (unknown: ${extra.join(", ") || "none"}; missing: ${missing.join(", ") || "none"})`,
+    );
+}
+function boolean(value: unknown, name: string): boolean {
+  if (typeof value !== "boolean") throw new Error(`${name} must be boolean`);
+  return value;
+}
+function nonnegative(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+    throw new Error(`${name} must be a non-negative finite number`);
+  return value;
+}
+function numberFields(value: unknown, keys: string[], name: string): void {
+  const row = object(value, name);
+  closed(row, keys, [], name);
+  for (const key of keys) nonnegative(row[key], `${name}.${key}`);
+}
+function numberMap(value: unknown, name: string): void {
+  const row = object(value, name);
+  for (const [key, count] of Object.entries(row)) nonnegative(count, `${name}.${key}`);
 }
 function required(value: unknown, name: string): string {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} must be non-empty`);

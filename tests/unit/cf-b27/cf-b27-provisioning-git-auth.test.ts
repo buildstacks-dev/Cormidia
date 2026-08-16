@@ -46,13 +46,31 @@ describe("CF-B27-PROVISION — authenticated, resumable pre-baseline push", () =
     expect(() => reusePreparedGreenfieldRepository(root, "S-ACC-1", "cormidia/example")).toThrow(/is dirty/);
   });
 
-  it("installs every exact canonical label idempotently in the bounded GitHub provisioning step", () => {
+  it("installs every exact canonical label idempotently in the bounded GitHub provisioning step", async () => {
     const calls: Array<{ command: string; args: string[] }> = [];
-    installCanonicalLabels("cormidia/example", (command, args) => calls.push({ command, args }));
+    await installCanonicalLabels("cormidia/example", (command, args) => calls.push({ command, args }));
     expect(calls).toHaveLength(CANONICAL_LABELS.length);
     expect(calls.map((call) => call.args[2])).toEqual(CANONICAL_LABELS.map((label) => label.name));
     expect(calls.every((call) => call.command === "gh" && call.args.includes("--force"))).toBe(true);
     expect(canonicalLabelCommands("cormidia/example").every((args) => args.at(-1) === "cormidia/example")).toBe(true);
+  });
+
+  it("refuses before a second provisioning effect when admission changes after the first", async () => {
+    const calls: string[][] = [];
+    let admitted = true;
+    await expect(
+      installCanonicalLabels(
+        "cormidia/example",
+        (_command, args) => {
+          calls.push(args);
+          admitted = false;
+        },
+        async () => {
+          if (!admitted) throw new Error("campaign refused: repository changed after admission");
+        },
+      ),
+    ).rejects.toThrow(/repository changed after admission/);
+    expect(calls).toHaveLength(1);
   });
 
   it("uses bootstrap's checkout identity and resumes only its exact registration", async () => {

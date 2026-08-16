@@ -22,6 +22,7 @@ import type { PackagedProvenanceRecord } from "./packaged-provenance.js";
 import type { CampaignSpendSnapshot } from "./campaign-spend.js";
 import type { PlanGateResolution } from "./campaign-lifecycle.js";
 import type { AxisScoreValue, UngradedReason } from "./verdict-algebra.js";
+import type { ValidationCampaignPolicyBinding } from "../../../src/org/validation-campaign-policy.js";
 
 export interface AxisReportRow {
   axis: string;
@@ -61,11 +62,13 @@ export interface AcceptanceGap {
 }
 
 export interface AcceptanceCampaignReport {
-  schema_version: 1;
+  schema_version: 2;
   campaign_id: string;
   lane: "L-ACC";
   /** The authorized commit pin. */
   commit: string;
+  /** Exact host-policy and selected Validation Architect authority bytes. */
+  policy_binding: ValidationCampaignPolicyBinding;
   provenance: PackagedProvenanceRecord;
   /** Every scenario that was ATTEMPTED, including the ones that failed. */
   scenarios: AcceptanceScenarioReport[];

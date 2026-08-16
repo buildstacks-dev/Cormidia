@@ -49,7 +49,7 @@ function file(overrides: Partial<AcceptanceCampaignFile> = {}): AcceptanceCampai
     campaign: {
       campaignId: "l-acc-run-1",
       commit: "a".repeat(40),
-      policyPath: "/repo/validation-design/validation-policy.yaml",
+      policyPath: "/repo/docs/qualification/host-policy.yaml",
       campaignOrg: "cormidia-sandbox",
       envelope: { maxOutputTokens: 400_000, maxEquivUsd: 120, authorization: "bikramgupta 2026-08-08" },
       planGate: { kind: "auto-continue", criteria: "rubric-6-attempted-on-P-1-and-P-5" },

@@ -17,6 +17,7 @@ import { scoreMechanicalAxes } from "./mechanical-axis-results.js";
 import type { ScenarioProvision } from "./provision.js";
 import type { ScenarioArms } from "./runner.js";
 import { scenarioRamble, type SealedKey } from "./sealed-key.js";
+import type { CampaignRepositoryRevalidator } from "../repository-revalidation.js";
 
 const PLAN_AXES = ["P-1", "P-2", "P-3", "P-4", "P-5", "P-6"];
 const OUTCOME_AXES = ["O-1", "O-2", "O-3", "O-4", "O-5", "O-6", "O-7", "J-1", "J-2", "J-3"];
@@ -44,6 +45,7 @@ async function gradeArm(
   output: ArmOutput,
   keys: readonly SealedKey[],
   axes: readonly string[],
+  revalidateAdmission: CampaignRepositoryRevalidator,
 ): Promise<AxisReportRow[]> {
   const turns: GradedTurnRef[] = Object.entries(scenario.matrix)
     .filter(([, assignment]) => assignment !== undefined)
@@ -102,6 +104,7 @@ async function gradeArm(
         appliedReadTurnIds: resolution.appliedReadTurnIds,
       });
     } else {
+      await revalidateAdmission();
       await activateAcceptanceGrader(deps.orgHome, resolution.grader.assignment);
       rows.push(
         await runGraderTurn({
@@ -118,6 +121,7 @@ async function gradeArm(
             join(deps.stateHome, "repos", scenario.appSlug.split("/").at(-1) ?? scenario.id),
           ],
           templateDir: join(deps.campaignRoot, "grader-templates"),
+          revalidateAdmission,
         }),
       );
     }
@@ -149,6 +153,7 @@ export function scenarioArmsFor(
   scenario: ScenarioConfig,
   provision: ScenarioProvision,
   keys: readonly SealedKey[],
+  revalidateAdmission: CampaignRepositoryRevalidator,
 ): ScenarioArms {
   const armDeps = {
     driver: deps.driver,
@@ -158,6 +163,7 @@ export function scenarioArmsFor(
     baselineCommit: provision.baselineCommit,
     stateHome: deps.stateHome,
     ramble: scenarioRamble(deps.scenarioMarkdown[scenario.id] ?? ""),
+    revalidateAdmission,
   };
   return {
     scenarioId: scenario.id,
@@ -166,18 +172,20 @@ export function scenarioArmsFor(
       ? {}
       : {
           async planArm() {
+            await revalidateAdmission();
             await activateScenarioRoleMatrix(deps.orgHome, scenario);
             const output = await runPlanArm({ ...armDeps, rambleSourcePath: join(scenario.worktree, "BRIEF.md") });
-            return gradeArm(deps, file, scenario, provision, output, keys, PLAN_AXES);
+            return gradeArm(deps, file, scenario, provision, output, keys, PLAN_AXES, revalidateAdmission);
           },
         }),
     async buildArm() {
+      await revalidateAdmission();
       await activateScenarioRoleMatrix(deps.orgHome, scenario);
       const output =
         scenario.kind === "job"
           ? await runJobArm({ ...armDeps, jobConfigPath: join(scenario.worktree, "job.yaml") })
           : await runBuildArm({ ...armDeps, maxPasses: deps.maxBuildPasses });
-      return gradeArm(deps, file, scenario, provision, output, keys, OUTCOME_AXES);
+      return gradeArm(deps, file, scenario, provision, output, keys, OUTCOME_AXES, revalidateAdmission);
     },
   };
 }

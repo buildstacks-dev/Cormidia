@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ClaudeRuntime } from "../../src/runtime/adapters/claude.js";
@@ -28,11 +28,9 @@ async function main(): Promise<number> {
     policyPath: config.policy_path,
     trackedInputPaths: config.golden_set_files,
   });
-  const cases = (
-    await Promise.all(
-      binding.trackedInputPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown[]),
-    )
-  ).flat() as EvalCaseV1[];
+  const cases = binding.trackedInputBytes.flatMap(
+    (bytes) => JSON.parse(bytes.toString("utf8")) as unknown[],
+  ) as EvalCaseV1[];
   const producerDigest = (await releaseRepositorySnapshot(process.cwd(), config.commit)).producer_digests.L4;
   validateCases(cases);
   const selected = config.shard === null ? cases : selectRotatingShard(cases, config.shard.date, config.shard.count);
@@ -46,7 +44,8 @@ async function main(): Promise<number> {
     lane: "L4",
     campaignKind: "quality-eval-data-collection",
     trigger: `human:${config.human_authorization.authorized_by}:${config.human_authorization.purpose}`,
-    policyPath: config.policy_path,
+    policyBinding: binding.policyBinding,
+    revalidateAdmission: binding.revalidate,
     commit: config.commit,
     apps: [config.app],
     scopes: [...new Set(selected.map((item) => item.site))],

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { CANONICAL_LABELS } from "../../../src/loop/plan-tickets.js";
 import { loadApps } from "../../../src/org/apps.js";
 import type { CliDriver } from "./cli-driver.js";
+import type { CampaignRepositoryRevalidator } from "../repository-revalidation.js";
 import { campaignGitEnvironment } from "./campaign-git.js";
 import {
   PROVISION_IDENTITY,
@@ -51,13 +52,16 @@ export function reusePreparedGreenfieldRepository(worktree: string, scenarioId: 
 export async function finalizeScenarioProvision(
   provision: ScenarioProvision,
   worktree: string,
+  revalidate: CampaignRepositoryRevalidator,
 ): Promise<ScenarioProvision> {
+  await revalidate();
   git(worktree, ["config", "user.name", PROVISION_IDENTITY.name]);
   git(worktree, ["config", "user.email", PROVISION_IDENTITY.email]);
   git(worktree, ["add", "-A"]);
   if (git(worktree, ["status", "--porcelain"]).length > 0)
     git(worktree, ["commit", "--no-gpg-sign", "-m", `provision: onboard ${provision.scenarioId}`]);
   const branch = git(worktree, ["symbolic-ref", "--short", "HEAD"]);
+  await revalidate();
   git(worktree, ["push", "--set-upstream", "origin", `HEAD:${branch}`]);
   const baselineCommit = git(worktree, ["rev-parse", "HEAD"]);
   return {
@@ -84,12 +88,16 @@ export function canonicalLabelCommands(appSlug: string): string[][] {
 
 /** GitHub label creation is part of the bounded provisioning exception and is
  * required before packaged app verification can admit the scenario. */
-export function installCanonicalLabels(
+export async function installCanonicalLabels(
   appSlug: string,
   run: (command: string, args: string[]) => unknown = (command, args) =>
     execFileSync(command, args, { env: campaignGitEnvironment(), stdio: ["ignore", "pipe", "pipe"] }),
-): void {
-  for (const args of canonicalLabelCommands(appSlug)) run("gh", args);
+  revalidate: CampaignRepositoryRevalidator = async () => {},
+): Promise<void> {
+  for (const args of canonicalLabelCommands(appSlug)) {
+    await revalidate();
+    run("gh", args);
+  }
 }
 
 export async function bootstrapScenarioApp(driver: CliDriver, spec: ScenarioProvisionSpec): Promise<void> {

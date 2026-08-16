@@ -4,8 +4,9 @@
 // output-token ceiling preservation, and inconclusive-only threshold semantics.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { readValidationCampaignReports } from "../../../src/org/validation-campaign.js";
 import { compositeGradeKey, digestJson } from "../../../src/org/release-evidence.js";
 import { DurableCampaignRunner } from "../../campaign/campaign-runner.js";
@@ -94,15 +95,32 @@ function reservationsFor(selected: EvalCaseV1[], overrides: Record<string, numbe
 
 async function campaign(required: string[], maxTurns = required.length + 1) {
   state = await makeTempStateHome({ name: "eval-runner" });
-  const policy = state.path("policy.yaml");
-  await writeFile(policy, "schema_version: 1\n", "utf8");
+  const policy = state.path("docs/qualification/host-policy.yaml");
+  const authority = state.path("validation-design/validation-policy.yaml");
+  await mkdir(dirname(policy), { recursive: true });
+  await mkdir(dirname(authority), { recursive: true });
+  await writeFile(policy, "schema: cormidia/qualification-host-policy/v1\n", "utf8");
+  await writeFile(authority, "schema_version: 1\n", "utf8");
   const runner = new DurableCampaignRunner({
     stateHome: state.stateHome,
     campaignId: "eval-test",
     lane: "L4",
     campaignKind: "reviewer-eval",
     trigger: "test",
-    policyPath: policy,
+    policyBinding: {
+      path: "docs/qualification/host-policy.yaml",
+      sha256: createHash("sha256").update("schema: cormidia/qualification-host-policy/v1\n").digest("hex"),
+      validation_authority: {
+        kind: "legacy",
+        sources: [
+          {
+            path: "validation-design/validation-policy.yaml",
+            sha256: createHash("sha256").update("schema_version: 1\n").digest("hex"),
+          },
+        ],
+      },
+    },
+    revalidateAdmission: async () => {},
     commit: "a".repeat(40),
     apps: ["sandbox-alpha"],
     scopes: ["S-3"],

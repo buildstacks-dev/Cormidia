@@ -19,12 +19,15 @@
 //     exits NON-ZERO from the plan phase, and even a clean dry run installed
 //     nothing at all.
 
+import { parseTerminalInstallProof } from "./packaged-proof-parser.js";
+
 export type PackagedProvenanceCode =
   | "preflight-missing"
   | "preflight-failed"
   | "preflight-stale"
   | "preflight-dry-run"
   | "preflight-flags"
+  | "proof-malformed"
   | "identity-missing"
   | "source-backed-invocation";
 
@@ -148,27 +151,38 @@ export function parseInstallProof(
   run: { exitCode: number; stdout: string; stderr: string },
   ranAt: Date,
 ): PackagedInstallProof {
+  if (!Number.isInteger(run.exitCode))
+    throw new PackagedProvenanceError("proof-malformed", "exit code is not an integer");
+  if (run.exitCode !== 0) {
+    throw new PackagedProvenanceError("preflight-failed", `exit ${run.exitCode}: ${run.stderr.trim()}`);
+  }
+  if (!Number.isFinite(ranAt.getTime())) throw new PackagedProvenanceError("proof-malformed", "ranAt is invalid");
   const line = run.stdout.trim().split("\n").filter(Boolean).at(-1);
-  if (line === undefined) {
-    return { exitCode: run.exitCode, argv: [], mode: "install", ranAt, stderr: run.stderr };
-  }
-  let parsed: Record<string, unknown>;
+  if (line === undefined) throw new PackagedProvenanceError("proof-malformed", "terminal proof JSON is absent");
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(line) as Record<string, unknown>;
-  } catch {
-    return { exitCode: run.exitCode, argv: [], mode: "install", ranAt, stderr: run.stderr };
+    parsed = JSON.parse(line) as unknown;
+  } catch (error) {
+    throw new PackagedProvenanceError(
+      "proof-malformed",
+      `terminal proof is not JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
-  const tarball = parsed["tarball"];
-  const version = parsed["installed_version"];
+  let proof;
+  try {
+    proof = parseTerminalInstallProof(parsed);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (/installed version|tarball/.test(detail)) throw new PackagedProvenanceError("identity-missing", detail);
+    throw new PackagedProvenanceError("proof-malformed", detail);
+  }
   return {
     exitCode: run.exitCode,
-    argv: Array.isArray(parsed["argv"]) ? (parsed["argv"] as string[]) : [],
-    mode: parsed["mode"] === "dry-run" ? "dry-run" : "install",
+    argv: proof.argv,
+    mode: proof.mode,
     ranAt,
     stderr: run.stderr,
-    ...(typeof version === "string" ? { installedVersion: version } : {}),
-    ...(typeof tarball === "object" && tarball !== null
-      ? { tarball: tarball as { name: string; sha256: string } }
-      : {}),
+    installedVersion: proof.installedVersion,
+    tarball: proof.tarball,
   };
 }

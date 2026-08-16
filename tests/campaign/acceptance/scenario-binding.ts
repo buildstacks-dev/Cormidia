@@ -2,8 +2,9 @@
 // worktree resolves to this repository (CORMIDIA-INV-ACC-3;
 // acceptance/README.md hard boundary 2).
 //
-// `assertCampaignRepositoryBinding` already pins checked-out HEAD and the
-// tracked canonical policy blob to the authorized commit, and it is REUSED
+// `assertCampaignRepositoryBinding` already pins checked-out HEAD, the
+// canonical host policy, and the selected Validation Architect authority bytes
+// to the authorized commit, and it is REUSED
 // rather than reimplemented (B-27 §1.1). What it does not cover is the three
 // ways a scenario can point back at Cormidia anyway:
 //

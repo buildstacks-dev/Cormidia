@@ -13,10 +13,11 @@ import { assertCampaignRepositoryBinding } from "../campaign/repository-binding.
 
 async function main(): Promise<void> {
   const config = await loadSoakConfig();
-  await assertCampaignRepositoryBinding({ commit: config.commit, policyPath: config.policy_path });
+  const binding = await assertCampaignRepositoryBinding({ commit: config.commit, policyPath: config.policy_path });
+  const admission = { policyBinding: binding.policyBinding, revalidate: binding.revalidate };
   const [verb, ...args] = process.argv.slice(2);
   if (verb === "start") {
-    const state = await startSoak(config);
+    const state = await startSoak(config, admission);
     console.log(
       JSON.stringify({ campaign_id: state.campaign_id, status: "running", started_at: state.started_at }, null, 2),
     );
@@ -26,12 +27,16 @@ async function main(): Promise<void> {
     const values = flags(args);
     const rotation =
       values["rotation-evidence"] === undefined ? undefined : await loadRotation(values["rotation-evidence"]);
-    const state = await captureSoakCheckpoint(config, {
-      checkpointId: required(values["id"], "--id"),
-      ...(values["slept-at"] === undefined ? {} : { sleptAt: values["slept-at"] }),
-      ...(values["woke-at"] === undefined ? {} : { wokeAt: values["woke-at"] }),
-      ...(rotation === undefined ? {} : { rotation }),
-    });
+    const state = await captureSoakCheckpoint(
+      config,
+      {
+        checkpointId: required(values["id"], "--id"),
+        ...(values["slept-at"] === undefined ? {} : { sleptAt: values["slept-at"] }),
+        ...(values["woke-at"] === undefined ? {} : { wokeAt: values["woke-at"] }),
+        ...(rotation === undefined ? {} : { rotation }),
+      },
+      admission,
+    );
     console.log(
       JSON.stringify(
         { campaign_id: state.campaign_id, checkpoints: state.checkpoints.length, last: state.checkpoints.at(-1) },
@@ -42,7 +47,7 @@ async function main(): Promise<void> {
     return;
   }
   if (verb === "finish") {
-    const report = await finishSoak(config);
+    const report = await finishSoak(config, admission);
     console.log(JSON.stringify(report, null, 2));
     process.exitCode = report.outcome.verdict === "pass" ? 0 : report.outcome.verdict === "fail" ? 1 : 2;
     return;

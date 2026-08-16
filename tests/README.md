@@ -1,8 +1,12 @@
 # tests/ — the replacement validation harness
 
 Implementation of the ratified design in `validation-design/` (campaign
-cormidia-2026-07-31). `validation-design/validation-policy.yaml` is the contract
-(tighten-only); `validation-design/harness-backlog.md` is the build plan;
+cormidia-2026-07-31). The exact eight-file `validation-design/model/` graph is
+the checked Validation Architect authority; before cutover, zero of its eight
+exact files selects the temporary legacy `validation-design/validation-policy.yaml`,
+while any partial exact set fails closed. `docs/qualification/host-policy.yaml`
+separately owns Cormidia qualification and campaign facts and composes
+tighten-only; `validation-design/harness-backlog.md` is a generated build plan;
 AGENTS.md → "Validation harness" holds the binding standing rules. This README
 covers only what an implementer needs to write or read a test here.
 
@@ -106,8 +110,9 @@ Rehearse with `pnpm test:acceptance -- --config <path> --dry-run`.
 
 Nothing under `unit/`, `hermetic/`, `fixtures/`, or `policy/` may spend a
 token or touch the network. `live/` and `eval-runner/` enforce the policy
-spend bounds internally and report completeness/verdict per
-`validation-policy.yaml → verdict_semantics`.
+spend bounds internally. General completeness/verdict follows the upstream
+public result contract; Cormidia campaign bounds and L-ACC axis-score semantics
+come from `docs/qualification/host-policy.yaml`.
 Spending cases reserve their worst-case allowance before execution. A callback that
 throws before reporting trustworthy usage is charged its full reservation, so unknown
 partial spend fails conservative rather than silently reopening the ceiling.
@@ -117,9 +122,10 @@ partial spend fails conservative rather than silently reopening the ceiling.
 These commands do nothing without an explicit opt-in and an absolute reviewed JSON
 authorization file. The file pins exact commit, state/policy paths, target identities,
 tuples, and ceilings; an environment flag alone cannot widen scope.
-Triggered entry additionally requires the canonical policy and every L4 golden input
-to be tracked and byte-identical at the authorized HEAD; absolute paths are locators,
-not authority to substitute uncommitted evidence.
+Triggered entry additionally requires the canonical host policy, the selected
+Validation Architect authority bytes, and every L4 golden input to be tracked
+and byte-identical at the authorized HEAD; absolute paths are locators, not
+authority to substitute uncommitted evidence.
 Every L4 config declares `case_token_reservations` with exactly one
 `{case_id,max_output_tokens}` row per selected golden case. The runner refuses missing,
 extra, duplicate, or sub-baseline rows and requires `max_tokens` to equal the exact

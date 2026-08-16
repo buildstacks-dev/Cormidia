@@ -24,6 +24,7 @@ import type { AssignedAxisGrader } from "./grader-independence.js";
 import { proveKeyConfinement, type ConfinementProbe } from "./key-confinement.js";
 import type { SealedKey } from "./sealed-key.js";
 import type { UngradedReason } from "./verdict-algebra.js";
+import type { CampaignRepositoryRevalidator } from "../repository-revalidation.js";
 
 /** Rendered into the run-role template. Kept here rather than in `prompts/`
  *  because it is campaign instrumentation, not an org role prompt — nothing in
@@ -68,6 +69,7 @@ export interface GraderTurnInput {
   reachableRoots: string[];
   /** Where the rendered template is written. Outside every reachable root. */
   templateDir: string;
+  revalidateAdmission: CampaignRepositoryRevalidator;
   /** Campaign-derived artifacts handed back into this turn, if any. */
   echoedArtifacts?: string[];
   keyPlaintextPaths?: string[];
@@ -109,6 +111,7 @@ export async function runGraderTurn(input: GraderTurnInput): Promise<AxisReportR
   await writeFile(templatePath, probe.assembledInput, "utf8");
 
   const assignment = input.resolution.grader.assignment;
+  await input.revalidateAdmission();
   const invocation = await input.driver.run(
     "cormidia",
     ["run-role", "acceptance-grader", "--app", input.appName, "--turn", input.turnId, "--template", templatePath],

@@ -34,15 +34,20 @@ import {
   uninstallScheduler,
 } from "../../../src/org/scheduler/lifecycle.js";
 import { PlatformSchedulerManager } from "../../../src/org/scheduler/manager.js";
-import { assertCompletedCampaignPass, DurableCampaignRunner } from "../../campaign/campaign-runner.js";
+import {
+  assertCompletedCampaignPass,
+  DurableCampaignRunner,
+  type CampaignRunnerOptions,
+} from "../../campaign/campaign-runner.js";
 import { assertCampaignRepositoryBinding } from "../../campaign/repository-binding.js";
 import { ADAPTER_CONFORMANCE_CASES, runAdapterConformance } from "../../fixtures/adapters/conformance.js";
 import {
   GITHUB_CONFORMANCE_CLAUSE_COUNT,
   runGithubConformance,
 } from "../../fixtures/github-double/conformance/suite.js";
-import { liveCampaignRequiredCaseIds, loadLiveCampaignConfig, type LiveCampaignConfigV1 } from "../config.js";
+import { loadLiveCampaignConfig, type LiveCampaignConfigV1 } from "../config.js";
 import { releaseGithubConformanceOptions } from "../github-conformance-policy.js";
+import { liveCampaignRequiredCaseIds, liveCampaignSpend } from "../host-policy.js";
 import { githubConformanceCaseResult } from "../github-conformance-result.js";
 import { RealGithubConformanceSurface } from "../real-github-surface.js";
 
@@ -53,20 +58,30 @@ let decidedBefore = new Set<string>();
 
 beforeAll(async () => {
   ({ config } = await loadLiveCampaignConfig());
-  await assertCampaignRepositoryBinding({ commit: config.commit, policyPath: config.policy_path });
+  const binding = await assertCampaignRepositoryBinding({ commit: config.commit, policyPath: config.policy_path });
   workdir = await mkdtemp(join(tmpdir(), "cormidia-live-adapter-"));
   await mkdir(join(workdir, ".git"), { recursive: true });
   decidedBefore = new Set((await new ApprovalStore(config.state_home).listDecidedReadOnly()).map((row) => row.id));
-  const required = liveCampaignRequiredCaseIds(config);
-  const ceiling = config.campaign_kind === "release" ? { turns: 24, usd: 100 } : { turns: 2, usd: 5 };
+  const required = liveCampaignRequiredCaseIds(config, binding.hostPolicy);
+  const ceiling = liveCampaignSpend(config, binding.hostPolicy);
   const profile = config.unattended.enabled ? createUnattendedValidationProfile(config.sandbox) : undefined;
+  const campaignProfile: CampaignRunnerOptions["profile"] =
+    profile === undefined
+      ? undefined
+      : {
+          identity: profile.identity,
+          sandbox_target: `${profile.sandbox.org}/${profile.sandbox.app}@${profile.sandbox.repo}`,
+          permitted_auto_grant_categories: ["campaign_budget"],
+          human_decision_rows: 0,
+        };
   campaign = new DurableCampaignRunner({
     stateHome: config.state_home,
     campaignId: config.campaign_id,
     lane: "L3",
     campaignKind: config.campaign_kind,
     trigger: `human:${config.human_authorization.authorized_by}:${config.human_authorization.purpose}`,
-    policyPath: config.policy_path,
+    policyBinding: binding.policyBinding,
+    revalidateAdmission: binding.revalidate,
     commit: config.commit,
     apps: [config.sandbox.app],
     scopes: required,
@@ -75,16 +90,7 @@ beforeAll(async () => {
     maxProviderTurns: ceiling.turns,
     maxEquivUsd: ceiling.usd,
     decisionStatus: "ratified",
-    ...(profile === undefined
-      ? {}
-      : {
-          profile: {
-            identity: profile.identity,
-            sandbox_target: `${profile.sandbox.org}/${profile.sandbox.app}@${profile.sandbox.repo}`,
-            permitted_auto_grant_categories: [...profile.permitted_auto_grant_categories],
-            human_decision_rows: 0,
-          },
-        }),
+    ...(campaignProfile === undefined ? {} : { profile: campaignProfile }),
   });
   await campaign.start();
 });

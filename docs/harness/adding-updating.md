@@ -251,7 +251,7 @@ Rules that keep the tiers meaningful:
 - **No role goes live** on an adapter before the L3 walk passes and its dated
   `research/` record lands.
 - **Live lanes obey policy spend bounds**
-  (`validation-design/validation-policy.yaml`: pre-merge changed-adapter ≤2
+  (`docs/qualification/host-policy.yaml`: pre-merge changed-adapter ≤2
   turns/$5). Ceiling exhaustion reports incomplete — never green.
 
 ## 5. Certification without the product — the fast lane

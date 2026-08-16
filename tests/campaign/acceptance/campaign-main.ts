@@ -97,14 +97,14 @@ export async function runCampaign(
   // B-27 §1 world preflight is deliberately repeated here before the first
   // new-app/bootstrap/seed mutation. The runner repeats it at arm entry so a
   // long provisioning phase cannot make the proof stale silently.
-  await preflightAcceptanceCampaign({
+  const admission = await preflightAcceptanceCampaign({
     config: file.campaign,
+    repoRoot: deps.repoRoot,
     cormidia: deps.cormidia,
     commitPinAt: deps.commitPinAt,
     ...(installProof === undefined ? {} : { installProof }),
     turnCommands: deps.driver.recorded().map((invocation) => `${invocation.binary} ${invocation.argv.join(" ")}`),
   });
-
   const registry = new SealedKeyRegistry();
   const keys = file.campaign.scenarios.map((scenario) =>
     registry.seal({
@@ -114,8 +114,10 @@ export async function runCampaign(
     }),
   );
 
-  const provisions = await provisionCampaignScenarios(file, deps);
+  await admission.revalidateAdmission();
+  const provisions = await provisionCampaignScenarios(file, deps, admission.revalidateAdmission);
   const checkpoint = async (report: AcceptanceCampaignReport, status: "running" | "final"): Promise<void> => {
+    await admission.revalidateAdmission();
     await settleSpend(report, deps);
     assertReportWellFormed(report);
     await persistReport({ root: deps.campaignRoot, configSha256: summary.configSha256, report, status });
@@ -129,12 +131,20 @@ export async function runCampaign(
     ...(installProof === undefined ? {} : { installProof }),
     scenarioMarkdown: deps.scenarioMarkdown,
     arms: file.campaign.scenarios.map((scenario) =>
-      scenarioArmsFor(deps, file, scenario, provisions.get(scenario.id) as ScenarioProvision, keys),
+      scenarioArmsFor(
+        deps,
+        file,
+        scenario,
+        provisions.get(scenario.id) as ScenarioProvision,
+        keys,
+        admission.revalidateAdmission,
+      ),
     ),
     turnCommands: deps.driver.recorded().map((invocation) => `${invocation.binary} ${invocation.argv.join(" ")}`),
     onProgress: async (report) => checkpoint(report, "running"),
   });
 
+  await admission.revalidateAdmission();
   applyReconciliation(
     run.report,
     await reconcileCampaignScenarios({

@@ -7,76 +7,28 @@ import { mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { toErrorMessage as errorMessage } from "../runtime/error-message.js";
 import { writeFileAtomic } from "./atomic.js";
-
-const VALIDATION_CAMPAIGN_SCHEMA_VERSION = 1 as const;
-export type ValidationLane = "L3" | "L4" | "L5";
-type ValidationCampaignStatus = "planned" | "running" | "completed";
-type ValidationCompleteness = "complete" | "incomplete";
-type ValidationVerdict = "pass" | "fail" | "inconclusive";
-export type ValidationDecisionStatus = "ratified" | "proposed" | "not_applicable";
-
-export interface ValidationCampaignReportV1 {
-  schema_version: typeof VALIDATION_CAMPAIGN_SCHEMA_VERSION;
-  campaign_id: string;
-  lane: ValidationLane;
-  campaign_kind: string;
-  trigger: string;
-  status: ValidationCampaignStatus;
-  started_at: string;
-  finished_at: string | null;
-  policy: { path: string; sha256: string };
-  target: {
-    commit: string;
-    apps: string[];
-    scopes: string[];
-    tuples: string[];
-  };
-  spend: {
-    max_provider_turns: number;
-    max_equiv_usd: number;
-    observed_provider_turns: number;
-    observed_equiv_usd: number;
-    ceiling_exhausted: boolean;
-  };
-  coverage: {
-    required_case_ids: string[];
-    collected_case_ids: string[];
-    missing_case_ids: string[];
-  };
-  outcome: {
-    completeness: ValidationCompleteness;
-    verdict: ValidationVerdict;
-    decision_status: ValidationDecisionStatus;
-    violation_ids: string[];
-    reason_codes: string[];
-  };
-  evidence_refs: string[];
-  profile?: {
-    identity: string;
-    sandbox_target: string;
-    permitted_auto_grant_categories: string[];
-    human_decision_rows: number;
-  };
-}
-
-export interface ValidationCampaignReadResult {
-  reports: ValidationCampaignReportV1[];
-  corrupt: Array<{ campaign_id: string; path: string; detail: string }>;
-}
+import { parseValidationCampaignPolicyBinding } from "./validation-campaign-policy.js";
+import type {
+  ValidationCampaignReadResult,
+  ValidationCampaignReport,
+  ValidationCampaignReportV2,
+} from "./validation-campaign-report.js";
+import { parseValidationCampaignProfile } from "./validation-campaign-profile.js";
+export type { ValidationCampaignReadResult } from "./validation-campaign-report.js";
 
 const CAMPAIGN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const SHA256 = /^[a-f0-9]{64}$/;
 
-function validationCampaignReportPath(stateHome: string, campaignId: string): string {
+export function validationCampaignReportPath(stateHome: string, campaignId: string): string {
   assertCampaignId(campaignId);
   return join(resolve(stateHome), "validation", "campaigns", campaignId, "report.json");
 }
 
 export async function writeValidationCampaignReport(
   stateHome: string,
-  report: ValidationCampaignReportV1,
+  report: ValidationCampaignReportV2,
 ): Promise<string> {
   validateValidationCampaignReport(report);
+  if (report.schema_version !== 2) throw new Error("new campaign reports require bound schema_version 2");
   const path = validationCampaignReportPath(stateHome, report.campaign_id);
   await mkdir(dirname(path), { recursive: true });
   await writeFileAtomic(path, `${JSON.stringify(report, null, 2)}\n`);
@@ -92,7 +44,7 @@ export async function readValidationCampaignReports(stateHome: string): Promise<
     if (isMissing(error)) return { reports: [], corrupt: [] };
     return { reports: [], corrupt: [{ campaign_id: "(directory)", path: root, detail: errorMessage(error) }] };
   }
-  const reports: ValidationCampaignReportV1[] = [];
+  const reports: ValidationCampaignReport[] = [];
   const corrupt: ValidationCampaignReadResult["corrupt"] = [];
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     if (!entry.isDirectory()) continue;
@@ -116,7 +68,7 @@ export async function readValidationCampaignReports(stateHome: string): Promise<
 }
 
 /** Enforce the ratified completeness/verdict truth table at both write and read. */
-export function validateValidationCampaignReport(value: unknown): asserts value is ValidationCampaignReportV1 {
+export function validateValidationCampaignReport(value: unknown): asserts value is ValidationCampaignReport {
   const root = object(value, "campaign report");
   exactKeys(root, [
     "schema_version",
@@ -135,7 +87,7 @@ export function validateValidationCampaignReport(value: unknown): asserts value 
     "evidence_refs",
     "profile",
   ]);
-  if (root["schema_version"] !== VALIDATION_CAMPAIGN_SCHEMA_VERSION)
+  if (root["schema_version"] !== 1 && root["schema_version"] !== 2)
     throw new Error("unsupported campaign schema_version");
   const campaignId = string(root["campaign_id"], "campaign_id");
   assertCampaignId(campaignId);
@@ -152,11 +104,8 @@ export function validateValidationCampaignReport(value: unknown): asserts value 
   if (finishedAt !== null && Date.parse(finishedAt) < Date.parse(startedAt))
     throw new Error("finished_at cannot precede started_at");
 
-  const policy = object(root["policy"], "policy");
-  exactKeys(policy, ["path", "sha256"]);
-  nonEmpty(policy["path"], "policy.path");
-  if (!SHA256.test(string(policy["sha256"], "policy.sha256")))
-    throw new Error("policy.sha256 must be lowercase sha256");
+  if (root["schema_version"] === 2) parseValidationCampaignPolicyBinding(root["policy"]);
+  else validateHistoricalPolicy(root["policy"]);
 
   const target = object(root["target"], "target");
   exactKeys(target, ["commit", "apps", "scopes", "tuples"]);
@@ -228,23 +177,15 @@ export function validateValidationCampaignReport(value: unknown): asserts value 
   }
 
   uniqueStringList(root["evidence_refs"], "evidence_refs");
-  if (root["profile"] !== undefined) validateProfile(root["profile"]);
+  if (root["profile"] !== undefined) parseValidationCampaignProfile(root["profile"]);
 }
 
-function validateProfile(value: unknown): void {
-  const profile = object(value, "profile");
-  exactKeys(profile, ["identity", "sandbox_target", "permitted_auto_grant_categories", "human_decision_rows"]);
-  if (nonEmpty(profile["identity"], "profile.identity") !== "cormidia/unattended-sandbox/v1")
-    throw new Error("profile.identity is not the ratified unattended profile");
-  nonEmpty(profile["sandbox_target"], "profile.sandbox_target");
-  const categories = uniqueStringList(
-    profile["permitted_auto_grant_categories"],
-    "profile.permitted_auto_grant_categories",
-  );
-  if (JSON.stringify(categories) !== JSON.stringify(["campaign_budget"]))
-    throw new Error("unattended profile permits only campaign_budget");
-  const rows = nonNegativeInteger(profile["human_decision_rows"], "profile.human_decision_rows");
-  if (rows !== 0) throw new Error("unattended profile evidence requires zero human decision rows");
+function validateHistoricalPolicy(value: unknown): void {
+  const policy = object(value, "policy");
+  exactKeys(policy, ["path", "sha256"]);
+  nonEmpty(policy["path"], "policy.path");
+  if (!/^[a-f0-9]{64}$/.test(string(policy["sha256"], "policy.sha256")))
+    throw new Error("policy.sha256 must be lowercase sha256");
 }
 
 function assertCampaignId(value: string): void {

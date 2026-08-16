@@ -10,6 +10,7 @@ import { readCampaignFile } from "./campaign-cli.js";
 import { CampaignSpendGuard } from "./campaign-spend.js";
 import { createCliDriver } from "./cli-driver.js";
 import type { PackagedInstallProof } from "./packaged-provenance.js";
+import { parseStoredInstallProof } from "./packaged-proof-parser.js";
 import { scenarioRamble } from "./sealed-key.js";
 
 interface LiveArguments {
@@ -63,8 +64,8 @@ function repositorySlug(repoRoot: string): string {
 }
 
 async function proofOf(path: string): Promise<PackagedInstallProof> {
-  const value = JSON.parse(await readFile(path, "utf8")) as Omit<PackagedInstallProof, "ranAt"> & { ranAt: string };
-  return { ...value, ranAt: new Date(value.ranAt) };
+  const value: unknown = JSON.parse(await readFile(path, "utf8"));
+  return parseStoredInstallProof(value);
 }
 
 async function main(argv: string[]): Promise<void> {

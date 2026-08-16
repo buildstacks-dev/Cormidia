@@ -59,6 +59,7 @@ async function harness(
       baselineCommit,
       stateHome: state.stateHome,
       ramble: "I want to log time against a client and get an invoice out of it.",
+      revalidateAdmission: async () => {},
     },
   };
 }
@@ -114,6 +115,22 @@ describe("CF-J21-S the build arm is bounded", () => {
     const output = await runBuildArm({ ...deps, maxPasses: 10 });
     expect(output.invocations).toHaveLength(1);
     expect(output.exitCode).toBe(2);
+  });
+
+  it("negative control: repository drift after one build pass prevents the next effect", async () => {
+    const { deps, double } = await harness([{ whenArgvIncludes: "loop", stdout: "claimed 1 ticket\n" }]);
+    let checks = 0;
+    await expect(
+      runBuildArm({
+        ...deps,
+        maxPasses: 3,
+        revalidateAdmission: async () => {
+          checks += 1;
+          if (checks > 1) throw new Error("campaign refused: repository changed after admission");
+        },
+      }),
+    ).rejects.toThrow(/repository changed after admission/);
+    expect(await double.invocations()).toHaveLength(1);
   });
 
   it("respects maxPasses as a hard bound — an unbounded loop escapes the campaign envelope", async () => {

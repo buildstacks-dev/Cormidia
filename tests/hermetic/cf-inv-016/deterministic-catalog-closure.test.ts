@@ -10,6 +10,8 @@ import {
   REVISION_FAMILY_EVIDENCE,
   REVISION_REGISTRY_IDS,
 } from "../../fixtures/revision-catalog-closure.js";
+import { HOST_POLICY_RELATIVE_PATH } from "../../fixtures/validation-authority.js";
+import { missingCanonicalModelStructureIds, parseGeneratedTableIds } from "../../fixtures/revision-authority.js";
 
 describe("HB-108 deterministic revision-catalog closure", () => {
   it("walks every accepted registry and deterministic case family to a seeded detector", async () => {
@@ -39,11 +41,44 @@ describe("HB-108 deterministic revision-catalog closure", () => {
     expect(audit.violations).toContain(`revision_detector_never_fired:${seeded.case_ids.join(",")}`);
   });
 
-  it("negative control: policy drift from the production catalog content pin is refused", async () => {
-    const path = join(process.cwd(), "validation-design", "validation-policy.yaml");
+  it("negative control: host-policy drift from the production catalog content pin is refused", async () => {
+    const path = join(process.cwd(), HOST_POLICY_RELATIVE_PATH);
     const policy = await readFile(path, "utf8");
-    const drifted = policy.replace(RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256, "0".repeat(64));
+    const drifted = policy.replace(RATIFIED_VALIDATION_CATALOG_CONTENT_SHA256, "f".repeat(64));
     const audit = await auditRevisionCatalogClosure(process.cwd(), REVISION_FAMILY_EVIDENCE, drifted);
     expect(audit.violations).toContain("revision_catalog_pin_mismatch");
+  });
+
+  it("negative control: a drifted host revision id is refused", async () => {
+    const path = join(process.cwd(), HOST_POLICY_RELATIVE_PATH);
+    const policy = await readFile(path, "utf8");
+    const drifted = policy.replace(
+      "roadmap-validation-delivery-batching-2026-08-03",
+      "roadmap-validation-delivery-batching-drift",
+    );
+    const audit = await auditRevisionCatalogClosure(process.cwd(), REVISION_FAMILY_EVIDENCE, drifted);
+    expect(audit.violations).toContain("revision_id_mismatch");
+  });
+
+  it("negative control: prose mentioning an alias cannot substitute for an exact generated family row", () => {
+    const markdown = [
+      "| Family | Title | Protected meaning |",
+      "| --- | --- | --- |",
+      "| CF-REAL | Real | Mentions CF-B20-* only in prose. |",
+      "",
+    ].join("\n");
+    expect([...parseGeneratedTableIds(markdown, "Family")]).toEqual(["CF-REAL"]);
+    expect(parseGeneratedTableIds(markdown, "Family").has("CF-B20-*")).toBe(false);
+  });
+
+  it("negative control: prose cannot satisfy a missing canonical model structure", () => {
+    const markdown = [
+      "| Structure | Kind | Protected meaning |",
+      "| --- | --- | --- |",
+      "| M18 | module | Mentions required M17 only in prose. |",
+      "",
+    ].join("\n");
+    const ids = parseGeneratedTableIds(markdown, "Structure");
+    expect(missingCanonicalModelStructureIds(["M17"], ids)).toEqual(["M17"]);
   });
 });

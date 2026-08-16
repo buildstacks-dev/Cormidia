@@ -25,7 +25,7 @@ function config(overrides: Partial<AcceptanceCampaignConfig> = {}): AcceptanceCa
   return {
     campaignId: "l-acc-run-1",
     commit: "0".repeat(40),
-    policyPath: "/repo/validation-design/validation-policy.yaml",
+    policyPath: "/repo/docs/qualification/host-policy.yaml",
     campaignOrg: "cormidia-sandbox",
     scenarios: [
       {
@@ -104,6 +104,15 @@ describe("CF-J21-R (L1) the valid envelope", () => {
       reviewer: codexSol,
     });
     expect(validated.uncertifiedCandidateIds).toEqual([]);
+  });
+
+  it("refuses unsafe campaign identities, revisions, and host-policy paths", () => {
+    expect(refusal({ campaignId: "../outside" })).toBe("campaign-id-invalid");
+    expect(refusal({ commit: "A".repeat(40) })).toBe("commit-invalid");
+    expect(refusal({ policyPath: "/repo/docs/qualification/../qualification/host-policy.yaml" })).toBe(
+      "policy-path-invalid",
+    );
+    expect(refusal({ policyPath: "docs/qualification/host-policy.yaml" })).toBe("policy-path-invalid");
   });
 
   it("accepts an uncertified candidate that DISCLOSES it, and names it", () => {

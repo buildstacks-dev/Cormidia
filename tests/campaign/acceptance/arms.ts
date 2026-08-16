@@ -15,6 +15,7 @@
 import type { CliDriver, RecordedInvocation } from "./cli-driver.js";
 import type { EvidenceItem } from "./grader-envelope.js";
 import { assembleEvidence, collectJobEvidence, planTicketEvidence } from "./arm-evidence.js";
+import type { CampaignRepositoryRevalidator } from "../repository-revalidation.js";
 
 export type ArmKind = "plan" | "build" | "job";
 
@@ -43,10 +44,12 @@ export interface ArmDeps {
   stateHome: string;
   /** The scenario's ramble brief, verbatim. */
   ramble: string;
+  revalidateAdmission: CampaignRepositoryRevalidator;
 }
 
 /** Plan arm — `cormidia plan --auto`, content-bound to the ramble. */
 export async function runPlanArm(deps: ArmDeps & { rambleSourcePath: string }): Promise<ArmOutput> {
+  await deps.revalidateAdmission();
   const invocation = await deps.driver.run(
     "cormidia",
     ["plan", deps.appName, "--auto", "--goal", deps.ramble, "--source", deps.rambleSourcePath, "--json"],
@@ -70,6 +73,7 @@ export async function runPlanArm(deps: ArmDeps & { rambleSourcePath: string }): 
 export async function runBuildArm(deps: ArmDeps & { maxPasses: number }): Promise<ArmOutput> {
   const invocations: RecordedInvocation[] = [];
   for (let pass = 0; pass < deps.maxPasses; pass += 1) {
+    await deps.revalidateAdmission();
     const invocation = await deps.driver.run("cormidia", ["loop", "--app", deps.appName, "--once"], {
       scenarioId: deps.scenarioId,
     });
@@ -89,6 +93,7 @@ export async function runBuildArm(deps: ArmDeps & { maxPasses: number }): Promis
 /** Job arm — the second binary. Jobs have no Planner and no Reviewer, so this
  *  is the whole run rather than one of two arms. */
 export async function runJobArm(deps: ArmDeps & { jobConfigPath: string }): Promise<ArmOutput> {
+  await deps.revalidateAdmission();
   const invocation = await deps.driver.run(
     "cormidia-job",
     ["run", deps.jobConfigPath, "--workdir", deps.worktree, "--json"],

@@ -112,7 +112,14 @@ export async function checkOfflinePackageStore(
     if (storeDir !== undefined && storeDir !== "") env.PNPM_CONFIG_STORE_DIR = storeDir;
     const invocation: InstallInvocation = {
       cwd: canary,
-      args: ["install", "--offline", "--frozen-lockfile", "--ignore-scripts", "--verify-store-integrity"],
+      args: [
+        "install",
+        "--offline",
+        "--frozen-lockfile",
+        "--trust-lockfile",
+        "--ignore-scripts",
+        "--verify-store-integrity",
+      ],
       env,
     };
     const result = await (dependencies.install ?? runPnpmInstall)(invocation);
@@ -120,7 +127,8 @@ export async function checkOfflinePackageStore(
       return {
         id: "offline-package-store",
         status: "available",
-        evidence: "disposable canary accepted the exact offline/frozen/ignore-scripts/integrity install contract",
+        evidence:
+          "disposable canary accepted the exact offline/frozen/trusted-lockfile/ignore-scripts/integrity install contract",
         remediation: "",
       };
     }

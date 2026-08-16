@@ -19,6 +19,7 @@ import { parse } from "yaml";
 import type { AcceptanceCampaignConfig } from "./campaign-config.js";
 import { validateCampaignConfig } from "./campaign-config.js";
 import { claimCampaignIdentity, configHash } from "./report-store.js";
+import { assertAcceptanceCampaignFile } from "./campaign-file-parser.js";
 
 export class CampaignAuthorizationError extends Error {
   constructor(message: string) {
@@ -102,14 +103,12 @@ export function assertSpendAuthorization(file: AcceptanceCampaignFile): SpendAut
 export async function readCampaignFile(path: string): Promise<AcceptanceCampaignFile> {
   const text = await readFile(path, "utf8");
   const parsed = parse(text) as unknown;
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new CampaignAuthorizationError(`${path}: campaign config is not a YAML mapping`);
+  try {
+    assertAcceptanceCampaignFile(parsed);
+  } catch (error) {
+    throw new CampaignAuthorizationError(`${path}: ${error instanceof Error ? error.message : String(error)}`);
   }
-  const record = parsed as Record<string, unknown>;
-  if (record["schema_version"] !== 1 || typeof record["campaign"] !== "object" || record["campaign"] === null) {
-    throw new CampaignAuthorizationError(`${path}: expected schema_version: 1 and a \`campaign:\` block`);
-  }
-  return parsed as AcceptanceCampaignFile;
+  return parsed;
 }
 
 export interface PreflightSummary {

@@ -56,6 +56,7 @@ describe("CF-REG-444 — bounded offline test preflight", () => {
       "install",
       "--offline",
       "--frozen-lockfile",
+      "--trust-lockfile",
       "--ignore-scripts",
       "--verify-store-integrity",
     ]);

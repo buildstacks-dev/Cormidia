@@ -64,10 +64,6 @@ export function parseGeneratedTableIds(markdown: string, heading: "Family" | "St
   return ids;
 }
 
-export function missingCanonicalModelStructureIds(required: readonly string[], actual: ReadonlySet<string>): string[] {
-  return required.filter((id) => !actual.has(id));
-}
-
 function parseAnyTableFirstCellIds(markdown: string): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const line of markdown.split("\n")) {

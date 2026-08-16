@@ -71,18 +71,32 @@ changes; or agent self-merge.
    Checked-model binding hashes the ordered exact eight-file path/digest set;
    legacy binding hashes the one temporary legacy policy. The migration archive
    is never a runtime input.
-7. The formerly planned two-PR bootstrap is five reviewed squash PRs:
+7. The formerly planned two-PR bootstrap is six reviewed squash PRs:
    dependency preparation (#466, merged), transition consumers (#468, merged),
    the exact 0.4.4 corrective preparation ratified through
    [#465 comment 5308571011](https://github.com/cormidia/Cormidia/issues/465#issuecomment-5308571011)
    and its upstream-first compiler-report correction in
    [#465 comment 5308602145](https://github.com/cormidia/Cormidia/issues/465#issuecomment-5308602145)
-   (#469, merged), an exact 0.4.5 fresh-reader/migration-fidelity preparation
+   (#469, merged), the exact 0.4.5 fresh-reader/migration-fidelity preparation
    after upstream [#51](https://github.com/cormidia/validation-architect/pull/51)
-   (merged), then the `validation-design/`-only authority cutover. The fifth
-   preparation is necessary because the final PR cannot both edit package
-   provenance and embed its unknowable future squash revision. The final model
-   names the 0.4.5 preparation squash SHA as `product.revision`.
+   (merged as Cormidia #470 at
+   `3624f47e282e4dc9e5d32d5992cf5cef5c142e43`), a narrow final-consumer
+   preparation, then the `validation-design/`-only authority cutover. Full
+   cutover staging proved three release-authority transition controls still
+   loaded the root legacy policy instead of self-contained fixture bytes, and
+   revision closure still treated canonical host-registry IDs as identical to
+   their checked-model structure dispositions. The final PR cannot repair
+   tests outside `validation-design/`, restore the retired root authority, or
+   conflate those two ID domains. The final model names the final-consumer preparation squash SHA as `product.revision`.
+
+The crosswalk is a representation disposition, never an override: `M17` maps
+to the exact `SM-ROADMAP` and `SM-VALIDATION` lifecycle pair;
+`CORMIDIA-C-B20-001`, `CORMIDIA-C-B21-001`, and `CORMIDIA-C-B22-001` map to
+`CONTRACT-B-20`, `CONTRACT-B-21`, and `CONTRACT-B-22` respectively;
+`CORMIDIA-C-OPBATCH-001` maps to `CONTRACT-OP-BATCHING`; and
+`CORMIDIA-C-OPVALIDATION-001` maps to
+`CONTRACT-OP-VALIDATION-LIFECYCLE`. The other six registry IDs map exactly to
+themselves. An absent or partial target refuses under the canonical host ID.
 
 The 0.4.3 correction changed neither the authority domains nor any host-policy
 ownership above. It only permitted exact archived prose to migrate without a

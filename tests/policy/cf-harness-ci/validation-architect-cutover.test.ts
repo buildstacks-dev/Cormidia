@@ -68,7 +68,10 @@ function pinProblems(surfaces: PinSurfaces): string[] {
   if (!surfaces.hostPolicy.includes("validation-architect 0.4.5, unchanged")) {
     problems.push("host-policy package explanation drift");
   }
-  for (const phrase of ["five reviewed squash PRs", "names the 0.4.5 preparation squash SHA as `product.revision`"]) {
+  for (const phrase of [
+    "six reviewed squash PRs",
+    "names the final-consumer preparation squash SHA as `product.revision`",
+  ]) {
     if (!surfaces.domainSplit.includes(phrase)) problems.push(`domain-split sequencing drift: ${phrase}`);
   }
   for (const phrase of [
@@ -227,11 +230,17 @@ describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
       "host-policy package explanation drift",
     );
     expect(
-      pinProblems({ ...surfaces, domainSplit: surfaces.domainSplit.replace("five reviewed", "four reviewed") }),
-    ).toContain("domain-split sequencing drift: five reviewed squash PRs");
+      pinProblems({ ...surfaces, domainSplit: surfaces.domainSplit.replace("six reviewed", "five reviewed") }),
+    ).toContain("domain-split sequencing drift: six reviewed squash PRs");
     expect(
-      pinProblems({ ...surfaces, domainSplit: surfaces.domainSplit.replace("0.4.5 preparation", "0.4.4 preparation") }),
-    ).toContain("domain-split sequencing drift: names the 0.4.5 preparation squash SHA as `product.revision`");
+      pinProblems({
+        ...surfaces,
+        domainSplit: surfaces.domainSplit.replace(
+          "names the final-consumer preparation squash SHA as `product.revision`",
+          "names the 0.4.5 preparation squash SHA as `product.revision`",
+        ),
+      }),
+    ).toContain("domain-split sequencing drift: names the final-consumer preparation squash SHA as `product.revision`");
     expect(
       pinProblems({ ...surfaces, installGuide: surfaces.installGuide.replace("0.4.5 tarball", "0.4.4 tarball") }),
     ).toContain("enablement pin drift: reviewed `validation-architect` 0.4.5 tarball");

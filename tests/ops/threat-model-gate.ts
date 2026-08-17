@@ -60,6 +60,7 @@ export async function requireHumanThreatModel(statusPath: string): Promise<Ratif
     throw new Error("threat-model gate BLOCKED: release-gating condition was not acknowledged");
   const author = required(root["author"], "author");
   const reviewer = required(root["reviewer"], "reviewer");
+  if (author === reviewer) throw new Error("threat-model gate BLOCKED: HB-072 requires an independent human reviewer");
   instant(root["authored_at"], "authored_at");
   instant(root["reviewed_at"], "reviewed_at");
   const surfaces = uniqueStrings(root["covered_surfaces"], "covered_surfaces").sort();

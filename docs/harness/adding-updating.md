@@ -281,7 +281,7 @@ The certification ladder, cheapest first:
    | `tool_gate` | denied tool action → `blocked_on_gate` + escalation, gate observed (the walk) |
    | `session_resume` | second turn resumes the exact prior session id (the walk) |
    | `structured_verdict` | schema round-trip (native/adapter) or lenient-parse fallback exercised |
-   | `cancellation` | abort mid-turn → `cancelled`/`timed_out`, partial usage preserved |
+   | `cancellation` | abort mid-turn → `cancelled` or `interrupted` with a required `time_limit`/`provider_crash` reason, partial usage preserved |
    | `cache_telemetry` | declared cache fields present and plausible on a warm second turn |
    | `intra_turn_fanout` | **the load-bearing probe**: a spawned subagent's critical op reaches the gate identically (event → gate → escalation ordering); `unsupported` proves the serial-degradation note instead — and, where the harness *has* a reachable spawn tool, proves the adapter DENIES it (grok, B-25) rather than leaving an ungated route open |
 

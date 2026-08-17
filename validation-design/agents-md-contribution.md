@@ -369,11 +369,12 @@ structural truth cannot land before the revision at all. Worked example of the
 fork <!-- changelog 2026-08-10 (reader test 39, coding-agent finding 5): every
 other hardened rule got a worked example; the trickiest bug-fix judgment call
 had none -->: a fix that corrects a provider-timeout calculation AND renames
-the emitted terminal status `timed_out`→`interrupted` splits exactly here —
+before the 2026-08-12 ruling, renaming the emitted terminal status
+`timed_out`→`interrupted` split exactly here —
 the timeout-calculation part stands alone under existing structure (land it,
-deposit its detector), while the rename **encodes one side of F-PT-017's
-contested enum** (it cannot land; park it and its detector
-pending-the-finding/revision).
+deposit its detector), while the rename encoded one side of F-PT-017's then-
+contested enum (it could not land until the owner ratified it; HB-P6 later landed
+that exact vocabulary and detector on 2026-08-12).
 **A defect inside a `BLOCKED:<finding>`/PARKED area** <!-- changelog 2026-08-10
 (reader test 29, coding-agent finding 7): the mandatory-deposit and
 do-not-implement-blocked-items rules were never reconciled for their
@@ -382,7 +383,7 @@ finding-parked, the fix and its detector may cover **only the un-contested
 deterministic part** and must not encode either side of the parked question;
 if the defect IS the contested behavior, do not fix it at machine speed — the
 observation is **ratification evidence**: record it on the finding (the
-F-PT-006 preserve-evidence pattern) and escalate. The deposit obligation
+pre-ratification F-PT-006 preserve-evidence pattern) and escalate. The deposit obligation
 applies to what you may lawfully fix; it never licenses resolving a parked
 question. <!-- changelog 2026-08-10
 (Phase 8 reader test, coding-agent finding 2): the catalog-row half of the
@@ -526,14 +527,15 @@ runs use only the ratified sandbox test-mode profile.
 
 **Blocked work — this list is NOT exhaustive** <!-- changelog 2026-08-10 (reader
 test 14, coding-agent finding 1): the paragraph previously read as the complete
-blocked set -->: HB-P3 and HB-P5 (blocked on F-PT-006 and F-PT-008) and B-17's
-live cell are the oldest examples, but blocked/parked work also includes HB-P6/
-HB-P7, HB-073 (hash-bound gate refuses until HB-072's human-authored threat model
+blocked set -->: B-17's live cell is the oldest example; finding-parked work is
+currently HB-P7; HB-P3/P5/P6 landed after the attributable 2026-08-12 owner rulings.
+Blocked/parked work also includes HB-073 (hash-bound gate refuses until HB-072's human-authored threat model
 exists), HB-055, and every F-PT-011-gated quality verdict. **Before picking up any
 ticket, scan the WHOLE of `harness-backlog.md` for `BLOCKED`/`PARKED`/`Gate:`
 markers and `case-catalog.md` for `BLOCKED:<finding>` cells** — no single section
 is the complete set: the backlog's "Parked" section is complete only for the
-**finding-parked P-tickets** (HB-P3/P5/P6/P7), while other blocked items (HB-055,
+**finding-parked P-tickets** (currently HB-P7; HB-P3/P5/P6 landed after the
+attributable 2026-08-12 owner rulings), while other blocked items (HB-055,
 HB-073) live inside their own wave sections, and the catalog's §9 blocked-cell
 roll-up covers cells, not tickets. The scan is the guarantee; no list here is.
 Mechanize it rather than reading the whole file <!-- changelog 2026-08-10

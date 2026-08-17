@@ -2,15 +2,15 @@
 //
 // docs/loop/design.md "Review identity": autonomous code delivery pairs a
 // Builder and a Reviewer on DIFFERENT PROVIDERS — the deliberate roles.yaml
-// codex/claude split encodes uncorrelated review blind spots. The
-// rev-2026-08-10 owner ruling reads "different provider" as provider FAMILY,
-// so distinct adapters over one upstream family (a pi-hosted Anthropic model
-// reviewing a native Claude build) are the SAME seat and are refused too.
+// codex/claude split encodes uncorrelated review blind spots.
+// The provider-FAMILY unit is a [simulated], provisional AI-seat interpretation
+// pending real-human ratification. It currently reads "different provider" as
+// provider FAMILY, so distinct adapters over one upstream family are refused.
 //
 // PROVENANCE CAVEAT (harness-backlog.md HB-133; validation-design/
 // ratification-package.md §12.3 item 1): the provider-FAMILY unit is a
-// [simulated] AI-seat ruling pending real-human ratification. The unit is
-// therefore an EXPLICIT, SWAPPABLE input: `resolveProviderFamily` is a named
+// [simulated], provisional interpretation pending real-human ratification.
+// The unit is an EXPLICIT, SWAPPABLE input: `resolveProviderFamily` is a named
 // parameter, never an inlined assumption. Production passes
 // `configuredProviderFamily` (src/runtime/assignment.ts — the same unit the
 // L-ACC campaign preflight reuses); if the human overturns the unit (vendor
@@ -73,8 +73,8 @@ export function assertReviewProviderFamiliesDisjoint(input: {
       "error_review_provider_family_collapse",
       `autonomous code delivery requires Builder and Reviewer on different provider families, but ` +
         `${JSON.stringify(input.builder.role)} and ${JSON.stringify(input.reviewer.role)} both resolve to ` +
-        `${JSON.stringify(builderFamily)} (docs/loop/design.md "Review identity"; rev-2026-08-10 owner ruling); ` +
-        "refusing before provider construction",
+        `${JSON.stringify(builderFamily)} (docs/loop/design.md "Review identity"; simulated, provisional ` +
+        "interpretation pending human ratification); refusing before provider construction",
     );
   }
   return { builderFamily, reviewerFamily };

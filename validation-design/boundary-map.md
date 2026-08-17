@@ -346,13 +346,21 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   change while pending (F-PT-005, resolved); partial fan-out across ticks under WIP
   (first-reader-wins is the representative *feared* failure — `[elicited]` judgment, not
   a documented incident); file vanishing before
-  all current subscribers hold marks; **producer crash during file creation**; **two
-  files with the same event identity but different payloads**; **file changing after
+  all current subscribers hold marks; **producer crash during file creation**; duplicate
+  delivery of the same content under a different filename or key order; **file changing after
   initial validation** `[elicited]`; retention interplay.
-- **Open product truth — F-PT-006:** the producer visibility protocol is unspecified in
-  the docs: must producers publish via temp-file + atomic rename, or does the dispatcher
-  deliberately tolerate a partially written file and retry it later? Unknown — recorded
-  as a finding; the fake must not accidentally make this policy.
+- **Resolved product truth — F-PT-006 (owner, 2026-08-12; identity-field
+  clarification 2026-08-16):** event identity is content-derived: `sha256` over
+  canonical sorted-key producer payload after removing transport `filename` and
+  producer `id`; every other payload field remains identity-bearing. Deliveries
+  differing only by those excluded fields collapse to exactly one firing; a
+  difference in any other field is a different event. Producers owe no atomic
+  rename: a partial file is retained loudly as `malformed_company_event`, then
+  re-read and fires exactly once when complete. Legacy filename marks and
+  pre-clarification id-inclusive bare/per-role content marks remain suppressive
+  across the whole clarified-identity group, and old alias-keyed scheduler
+  evidence reconciles without refiring, independent of file order.
+  `[doc: B-13 §§2,6]`
 - **Honest fake:** YES — files in temp inbox; entirely hermetic.
 - **Layer:** 2.
 
@@ -1019,10 +1027,16 @@ flowchart LR
 
 ## 4. Findings raised at Phase 3
 
-- **F-PT-006 (open):** company-event producer visibility protocol unspecified — atomic
-  temp-file+rename required of producers, or dispatcher-tolerated partial files with
-  retry? Docs silent (checked scheduler/design.md + event-schemas.md). The fake must not
-  make this policy by fixture convenience.
+- **F-PT-006 (opened at Phase 3; RESOLVED-ratified and implemented 2026-08-12;
+  identity-field clarification 2026-08-16):** content-derived identity is
+  `sha256` over canonical producer payload after removing transport `filename`
+  and producer `id`. Fresh retry ids collapse; every other payload field remains
+  identity-bearing. Producers owe no atomic rename; partial files remain loud
+  and retryable. Legacy filename marks and pre-clarification id-inclusive
+  bare/per-role marks plus alias-keyed scheduler evidence remain suppressive for
+  the clarified identity. HB-P3
+  landed the original detectors and the clarification extends them with the
+  fresh-id and migration matrix.
 
 ### Findings raised at the 2026-08-07 harness revision (#336)
 

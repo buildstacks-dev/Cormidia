@@ -2,7 +2,10 @@
 
 <!-- Provenance (#402 restructure, 2026-08-11): everything below the marker
 line is the ratified "Validation harness" section of the repo-root AGENTS.md
-(landed 2026-07-31, revised through rev-2026-08-10), relocated BYTE-IDENTICALLY.
+(landed 2026-07-31, revised through rev-2026-08-10), originally relocated
+byte-identically. The 2026-08-16 status reconciliation below updates only the
+then-open F-PT-006/008/017 examples and parked-ticket mirror after their
+attributable 2026-08-12 rulings and implementations.
 It is binding procedure; AGENTS.md retains only a routing stub. Reader notes
 that live outside the frozen text:
 - Self-descriptions such as "This file lands in the repo-root AGENTS.md" date
@@ -14,7 +17,8 @@ that live outside the frozen text:
   the landing merged 2026-08-11 (e265d66); the section is binding.
 - Ratified addenda were appended AFTER the closing horizontal rule on
   2026-08-12 (see that section's own record); the byte-identical frozen
-  region is exactly the text between the marker line and that rule.
+  region was the text between the marker line and that rule before the explicit
+  2026-08-16 status reconciliation described above.
 verbatim-below: AGENTS.md lines 177-642 at commit fa86238 -->
 
 ## Validation harness (replacement, designed 2026-07-31)
@@ -184,17 +188,18 @@ deposit is the one sanctioned exception to "never skip the deposit silently"
 besides the L2-irreproducible race. A fix whose code itself encodes the new
 structural truth cannot land before the revision at all. Worked example of the
 fork: a fix that corrects a provider-timeout calculation AND renames
-the emitted terminal status `timed_out`→`interrupted` splits exactly here —
+before the 2026-08-12 ruling, renaming the emitted terminal status
+`timed_out`→`interrupted` split exactly here —
 the timeout-calculation part stands alone under existing structure (land it,
-deposit its detector), while the rename **encodes one side of F-PT-017's
-contested enum** (it cannot land; park it and its detector
-pending-the-finding/revision).
+deposit its detector), while the rename encoded one side of F-PT-017's then-
+contested enum (it could not land until the owner ratified it; HB-P6 later landed
+that exact vocabulary and detector on 2026-08-12).
 **A defect inside a `BLOCKED:<finding>`/PARKED area**: if the defect lies in territory whose cases are
 finding-parked, the fix and its detector may cover **only the un-contested
 deterministic part** and must not encode either side of the parked question;
 if the defect IS the contested behavior, do not fix it at machine speed — the
 observation is **ratification evidence**: record it on the finding (the
-F-PT-006 preserve-evidence pattern) and escalate. The deposit obligation
+pre-ratification F-PT-006 preserve-evidence pattern) and escalate. The deposit obligation
 applies to what you may lawfully fix; it never licenses resolving a parked
 question. 
 **Tagging a §10.3 row is simpler than tagging a feature row**: Risk is always `REG`, Layer is where the
@@ -294,14 +299,15 @@ bound raisable only by a human policy edit). Ceiling exhaustion ⇒
 completeness=incomplete, never green. Never forge human approval decisions; unattended
 runs use only the ratified sandbox test-mode profile.
 
-**Blocked work — this list is NOT exhaustive**: HB-P3 and HB-P5 (blocked on F-PT-006 and F-PT-008) and B-17's
-live cell are the oldest examples, but blocked/parked work also includes HB-P6/
-HB-P7, HB-073 (hash-bound gate refuses until HB-072's human-authored threat model
+**Blocked work — this list is NOT exhaustive**: B-17's live cell is the oldest
+current example; blocked/parked work also includes HB-P7, HB-073 (hash-bound
+gate refuses until HB-072's human-authored threat model
 exists), HB-055, and every F-PT-011-gated quality verdict. **Before picking up any
 ticket, scan the WHOLE of `harness-backlog.md` for `BLOCKED`/`PARKED`/`Gate:`
 markers and `case-catalog.md` for `BLOCKED:<finding>` cells** — no single section
 is the complete set: the backlog's "Parked" section is complete only for the
-**finding-parked P-tickets** (HB-P3/P5/P6/P7), while other blocked items (HB-055,
+**finding-parked P-tickets** (currently HB-P7; HB-P3/P5/P6 landed after the
+attributable 2026-08-12 owner rulings), while other blocked items (HB-055,
 HB-073) live inside their own wave sections, and the catalog's §9 blocked-cell
 roll-up covers cells, not tickets. The scan is the guarantee; no list here is.
 Mechanize it rather than reading the whole file:

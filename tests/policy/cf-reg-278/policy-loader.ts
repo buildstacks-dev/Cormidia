@@ -5,8 +5,8 @@
 // exposes the audit surfaces policy-pin.test.ts pins per commit:
 //
 //   - load/resolve/audit helpers parse the legacy bridge, bind artifacts, and
-//     preserve the human-ratified constants of 2026-07-31: design
-//     status, blocked findings F-PT-006/F-PT-008, and the L3 spend bounds.
+//     preserve the human-ratified constants: design status,
+//     F-PT-006/008/017 resolved status, and the L3 spend bounds.
 //     Changing any of these is a human policy edit; drift goes red so a human
 //     looks.
 //   - auditCoreChecksWorkflow — pins the per-commit CI lane shape

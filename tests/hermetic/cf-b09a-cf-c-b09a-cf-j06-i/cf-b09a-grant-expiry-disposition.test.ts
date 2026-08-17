@@ -14,14 +14,13 @@
 // Also pinned: the TTLs are POLICY CONFIGURATION (F-PT-020 precedent), the
 // ratified defaults are grant 48h / pending 24h, and — the load-bearing one —
 // raising the grant default does NOT move the pending bound.
-
 import { afterEach, describe, expect, it } from "vitest";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ApprovalStore, resolveApprovalPolicy, type ApprovalItem } from "../../../src/org/approvals.js";
 import { loadApps } from "../../../src/org/apps.js";
 import { makeTempStateHome, type TempStateHome } from "../../fixtures/state-home.js";
-import { writeFile } from "node:fs/promises";
+import { registerApprovalTtlCrossSurfaceTests } from "./approval-ttl-cross-surface.js";
 
 const HOUR = 60 * 60 * 1000;
 const RAISED = new Date("2026-08-12T00:00:00.000Z");
@@ -237,3 +236,4 @@ describe("CF-B09a — grant-expiry disposition (HB-P5, F-PT-008 ratified 2026-08
     expect((await later.listPending())[0]?.reopenCount).toBe(1);
   });
 });
+registerApprovalTtlCrossSurfaceTests();

@@ -122,13 +122,17 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   by `bikramgupta` on 2026-08-04 without replacing agent authorship. Unrun required
   per-candidate L3/L4 evidence is reported incomplete/inconclusive, never green; future
   L5 absence is visible but outside the RQ-1 denominator.
-- **Thirty-three product-truth findings are tracked; eight park exact cells,
+- **Thirty-nine product-truth findings are tracked; five park exact cells,
   one bounds a known limitation, and
   one scopes a landed test** <!-- changelog 2026-08-10 (final-gate follow-up 10):
   F-PT-033 minted — S-3 verdict-marker refusal semantics/vocabulary, corpus
   clause vs the parser's deliberate duplicate-identical tolerance --> —
-  cell-parking: F-PT-006, F-PT-008, F-PT-012, F-PT-013, F-PT-014, F-PT-015,
-  F-PT-016, F-PT-017; known-limitation: F-PT-018 (its CF-HARNESS-CI /
+  cell-parking: F-PT-012, F-PT-013, F-PT-014, F-PT-015, F-PT-016;
+  F-PT-006, F-PT-008, and F-PT-017 are resolved and implemented. F-PT-006's
+  2026-08-16 owner clarification excludes transport filename and producer id
+  from canonical event identity while keeping every other payload field
+  identity-bearing;
+  known-limitation: F-PT-018 (its CF-HARNESS-CI /
   CF-HARNESS-RELEASE cells DO encode the bounded expected behavior — protected
   human merge plus release-blocking exact-tag rerun; the marker is
   `KNOWN-LIMITATION:F-PT-018`, carried in `case-catalog.yaml` as
@@ -139,7 +143,7 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   exact cells … the named cell deliberately encodes no expected behavior" —
   false for F-PT-018 specifically, whose cell encodes bounded behavior and
   whose KNOWN-LIMITATION marker the YAML generator did not extract. The nine
-  split into 8 parked + 1 known-limitation; generator and YAML now carry it. -->
+  split into parked findings + 1 known-limitation; generator and YAML now carry it. -->
   <!-- changelog 2026-08-10 (reader test 8, new-engineer finding 5): the compressed
   range notation "006/008/012…018" made the nine un-skimmable; now enumerated. -->
   <!-- changelog 2026-08-10 (consistency sweep): was "Twenty-eight … thirteen …
@@ -149,7 +153,7 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
   unparked. F-PT-019's rule-level leg is PENDING:HB-135 (resolved-ratified,
   implementation owed), not a parked cell. -->
   <!-- changelog 2026-08-07 (#336): was "Twenty … nine". -->
-  If an incident touches one of the eight parked seams, the named cell
+  If an incident touches one of the five parked seams, the named cell
   deliberately encodes **no expected behavior**. That is honesty, not coverage:
   escalate to the human, don't infer. (F-PT-018 differs: its bounded behavior IS
   encoded — apply it, and escalate only a suspected breach of the protected-merge
@@ -215,12 +219,15 @@ machine-vs-evidence status is recorded in `harness-design-state.md`. It is **not
 | `S-ACC-1…3` | acceptance scenarios | ../acceptance/scenarios/ |
 | `CF-*` | case families | case-catalog.md |
 | `L1…L5`, `L-ACC` | validation layers — L1 invariant/contract (deterministic, no IO), L2 hermetic composition (sealed nondeterminism), L3 live sandbox (real seams, spend-bounded), L4 eval/qualification (statistical, token-spending), L5 ops hardening (soak/contention/rotation/abuse), L-ACC outcome acceptance (scored vs human-ratified rubric, triggered-only) <!-- glossary row added 2026-08-10, reader test 2 (new-engineer finding 4, coding-agent finding 4): the taxonomy was used everywhere but defined nowhere in one place --> | validation-policy.yaml `layers:` (canonical); llm-eval-plan.md §0; case-catalog.md row keys |
-| `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31, HB-P3/P5 still parked; HB-120…132 DONE 2026-08-08 — run 1 terminal at the plan gate; HB-133…136 opened rev-2026-08-10) | harness-backlog.md |
-| `F-PT-001…033` <!-- range extended 2026-08-10, final-gate follow-up 10 --> | product-truth findings | validation-policy.yaml `open_findings` (canonical) + harness-design-state.md mirror |
+| `HB-*` | backlog tickets (HB-P* = finding-parked ids; HB-P1/P2/P4 unparked 2026-07-31; HB-P3/P5/P6 unparked and LANDED 2026-08-12; HB-P7 remains parked; HB-120…132 DONE 2026-08-08 — run 1 terminal at the plan gate; HB-133…136 opened rev-2026-08-10) | harness-backlog.md |
+| `F-PT-001…039` <!-- range extended 2026-08-16; derive it from the canonical policy rather than copying an older count --> | product-truth findings | validation-policy.yaml `open_findings` (canonical) + harness-design-state.md mirror |
 <!-- changelog 2026-08-10 (consistency sweep): HB row was "HB-130 parked on human
 authorization + F-PT-029/030" — stale: both findings resolved 2026-08-07 and
 HB-120…132 completed 2026-08-08; F-PT range extended at the sweep to …032, then
 to …033 later the same day when F-PT-033 was minted at final-gate follow-up 10 —
-the row above is the current truth. Corrected per AUD-104 (audit
+that row was the current truth at that snapshot. Corrected per AUD-104 (audit
 rev-2026-08-10): this comment's bare "…032" sat three lines under the …033 row,
 two same-dated contradictory range statements at the corpus entry point. -->
+<!-- changelog 2026-08-16: reconciled the active HB-P3/P5/P6 glossary mirror
+to the attributable 2026-08-12 rulings and implementations; dated campaign
+snapshots retain their original parked posture. -->

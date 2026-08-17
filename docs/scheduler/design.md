@@ -89,7 +89,7 @@ public ingress. Each tick polls GitHub (via `gh`/REST) per live app:
 | `pr-opened`       | open `op/*` PRs lacking a fresh verdict (no review after head SHA) | `pr-opened:<pr>@<head-sha>` |
 | `ci-failed`       | failed check runs on main / open op PRs                            | `ci-failed:<sha>:<check>`   |
 | `release-shipped` | new release/tag since last seen                                    | `release:<tag>`             |
-| `alert-webhook`   | file-drop inbox `state/events/inbox/*.json`                        | file name                   |
+| `alert-webhook`   | file-drop inbox `state/events/inbox/*.json`                        | `event:<sha256(canonical payload minus filename,id)>` |
 
 
 Consumed-event state is recorded in `state/events/` per (event, role): a
@@ -106,9 +106,19 @@ the gated role runs. The file-drop inbox gives webhook parity later: a
 droplet webhook receiver just writes JSON files into the same inbox — the
 dispatcher does not change.
 
+F-PT-006's 2026-08-16 identity-field clarification excludes both transport
+`filename` and producer `id`; every other producer field remains
+identity-bearing. A fresh-id retry therefore joins the same event group.
+Upgrade reconciliation groups the complete sorted inbox before admission,
+honors a bare mark under any legacy filename or pre-clarification id-inclusive
+content alias, and unions per-role marks from all aliases onto the clarified
+key. The result is independent of file order, and dry-run computes it without
+writing durable state.
+
 If the dispatcher dies after durable scheduler evidence records a successful
-spawn but before the consumed-event mark commits, the next tick treats that
-exact `(event, role)` as handled, backfills the mark, and continues retirement.
+spawn but before the consumed-event mark commits, the next tick treats the
+clarified key or any legacy filename/id-inclusive alias for that `(event, role)`
+as handled, backfills the clarified mark, and continues retirement.
 It never refires the already-spawned turn merely because the derived mark was
 the lagging artifact.
 

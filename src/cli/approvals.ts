@@ -3,7 +3,6 @@
 // NEVER_SCOPEABLE_RULES), same-rule items may be reviewed as one batch with
 // per-item audit intact, approvals may re-arm the parked ticket, and grants
 // can be revoked immediately.
-
 import { join, resolve } from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
@@ -13,10 +12,11 @@ import {
   actionHash,
   approvalDeciderFromIdentity,
   approvalLifecycleState,
-  ApprovalStore,
+  type ApprovalStore,
   type ApprovalItem,
   type DecideApprovalInput,
 } from "../org/approvals.js";
+import { approvalStoreForApps } from "../org/approval-store-factory.js";
 import { loadApps } from "../org/apps.js";
 import { isBudgetEscalationRule } from "../org/budget.js";
 import { appendDenialLesson } from "../org/denial-lessons.js";
@@ -30,7 +30,7 @@ export async function cmdApprovals(args: string[]): Promise<number> {
   const parsed = parseArgs(common.rest);
   const homes = await resolveCormidiaHomes(common);
   const stateHome = common.stateHome ? resolve(common.stateHome) : homes.stateHome;
-  const store = new ApprovalStore(stateHome);
+  const store = approvalStoreForApps(stateHome, homes.appsFile);
   if (parsed.subcommand === "review" && input.isTTY !== true) {
     throw new Error("approvals review requires a terminal; use 'cormidia approvals decide'");
   }

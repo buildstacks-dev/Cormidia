@@ -184,8 +184,9 @@ describe("CF-J12-S — capture→episode→candidate→review→publish happy pa
   it("consumes the single-use grant and marks the journal done", async () => {
     const { item, grant } = await world.approvals.show(approvalId);
     expect(item.decision).toBe("approved");
-    // BLOCKED:F-PT-008 — grant-EXPIRY item disposition is an open finding;
-    // this asserts only consumption of a live grant, never expiry behavior.
+    // F-PT-008 is resolved-ratified: expiry reopens the original item with append-only history.
+    // This asserts only consumption of a live grant; the dedicated
+    // expiry-disposition cases live with CF-B09a.
     expect(grant?.uses).toBe(0);
     const journalPath = join(
       world.state.stateHome,

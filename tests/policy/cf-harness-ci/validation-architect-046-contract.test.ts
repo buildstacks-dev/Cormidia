@@ -1,7 +1,8 @@
-// CF-HARNESS-CI — HB-P7 — #465 exact 0.4.5 migration and fresh-reader contract.
+// CF-HARNESS-CI — HB-P7 (legacy) / HB-140 (checked model) — #465 exact 0.4.6 migration and fresh-reader contract.
 
 import { compile, CORPUS_SCHEMA, FakeRepositoryPort, migrate, type LegacyModelImportInput } from "validation-architect";
 import { describe, expect, it } from "vitest";
+import { registerValidationArchitect046OutputContractTests } from "./validation-architect-046-output-contract.js";
 
 const revision = "a".repeat(40);
 const catalog = `## Migration contract
@@ -31,8 +32,8 @@ const control = (familyId: string) => ({
 function review(): LegacyModelImportInput {
   return {
     product: {
-      id: "cormidia-045-contract",
-      name: "Cormidia 0.4.5 contract fixture",
+      id: "cormidia-046-contract",
+      name: "Cormidia 0.4.6 contract fixture",
       revision,
       intended_use: "Exercise the exact migration and fresh-reader surfaces required by #465.",
       criticality: "C1",
@@ -229,13 +230,13 @@ function splitOutput(value: LegacyModelImportInput) {
   return output;
 }
 
-describe("CF-HARNESS-CI — #465 — Validation Architect 0.4.5 contract", () => {
+describe("CF-HARNESS-CI — HB-140 — #465 — Validation Architect 0.4.6 contract", () => {
   it("preserves reviewed ticket order and renders complete fresh-reader facts", async () => {
     const compiled = await compileReview(review());
     expect(compiled.accepted, compiled.findings.map((finding) => finding.message).join("\n")).toBe(true);
     const backlogView = compiled.views["harness-backlog.md"];
     const trace = compiled.views["planned-trace.md"];
-    if (!backlogView || !trace) throw new Error("0.4.5 generated views missing");
+    if (!backlogView || !trace) throw new Error("0.4.6 generated views missing");
     expect(backlogView).toContain("**HB-BASE — Compact dependency follow-up** (landed;");
     expect(backlogView).toContain("Depends on `HB-SPLIT-L2`.");
     expect(backlogView).toContain("**HB-SPLIT — L1 split detector** (landed;");
@@ -277,3 +278,5 @@ describe("CF-HARNESS-CI — #465 — Validation Architect 0.4.5 contract", () =>
     expect(compiled.findings.map((finding) => finding.message).join("\n")).toContain(message);
   });
 });
+
+registerValidationArchitect046OutputContractTests({ catalog, backlog, review });

@@ -13,10 +13,9 @@
 // assembleContext, ApprovalStore, composeGate) on temp org/state homes from
 // the fixture kit. Layer: 2. Zero network, zero tokens.
 //
-// Adjacent parked finding — F-PT-008 (grant-expiry ITEM disposition): the
-// expired-grant case below asserts only that an expired grant is never
-// authority; what happens to the approval ITEM after expiry stays
-// unasserted until the finding ratifies.
+// F-PT-008 is resolved-ratified: expiry reopens the original item with append-only history.
+// The adjacent expired-grant case below asserts only that an expired grant is
+// never authority; the dedicated B-09a disposition suite owns that behavior.
 
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -297,7 +296,7 @@ describe("CF-INV-001 seed c (L2): a label or prior approval is never standing au
     expect(await store.listPending()).toHaveLength(1);
   });
 
-  it("an expired grant is never authority (item disposition BLOCKED:F-PT-008 — deliberately unasserted)", async () => {
+  it("an expired grant is never authority (F-PT-008 disposition is covered by CF-B09a)", async () => {
     const state = await stateHomeFixture();
     const { gate } = composedGate(state);
     const expired: ApprovalGrant = {

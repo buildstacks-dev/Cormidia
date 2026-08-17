@@ -71,23 +71,33 @@ changes; or agent self-merge.
    Checked-model binding hashes the ordered exact eight-file path/digest set;
    legacy binding hashes the one temporary legacy policy. The migration archive
    is never a runtime input.
-7. The formerly planned two-PR bootstrap is six reviewed squash PRs:
-   dependency preparation (#466, merged), transition consumers (#468, merged),
-   the exact 0.4.4 corrective preparation ratified through
+7. The formerly planned two-PR bootstrap is seven reviewed squash PRs, in
+   order: dependency preparation (#466), transition consumers (#468), the
+   exact 0.4.4 corrective preparation ratified through
    [#465 comment 5308571011](https://github.com/cormidia/Cormidia/issues/465#issuecomment-5308571011)
    and its upstream-first compiler-report correction in
    [#465 comment 5308602145](https://github.com/cormidia/Cormidia/issues/465#issuecomment-5308602145)
-   (#469, merged), the exact 0.4.5 fresh-reader/migration-fidelity preparation
+   (#469), the exact 0.4.5 fresh-reader/migration-fidelity preparation
    after upstream [#51](https://github.com/cormidia/validation-architect/pull/51)
-   (merged as Cormidia #470 at
-   `3624f47e282e4dc9e5d32d5992cf5cef5c142e43`), a narrow final-consumer
-   preparation, then the `validation-design/`-only authority cutover. Full
+   (#470), the narrow final-consumer preparation (#471 at
+   `7d68ded4813c665ce10379539f741f062dba3572`), the exact 0.4.6
+   family-output-fidelity and current-policy reconciliation preparation after
+   upstream [#52](https://github.com/cormidia/validation-architect/pull/52) at
+   `52a7b26b5b4de934612640c3d47ba7c738596ece`, then the
+   `validation-design/`-only authority cutover. Full
    cutover staging proved three release-authority transition controls still
    loaded the root legacy policy instead of self-contained fixture bytes, and
    revision closure still treated canonical host-registry IDs as identical to
    their checked-model structure dispositions. The final PR cannot repair
    tests outside `validation-design/`, restore the retired root authority, or
-   conflate those two ID domains. The final model names the final-consumer preparation squash SHA as `product.revision`.
+   conflate those two ID domains. The final model names the exact 0.4.6
+   Cormidia preparation squash SHA—not #471—as `product.revision`.
+
+   Authority-only rollback reverts the cutover. Full rollback then proceeds
+   newest-first: authority cutover, 0.4.6 Cormidia preparation, #471, #470,
+   #469, #468, #466. A predecessor is never reverted while a dependent
+   descendant remains; the migration archive is never read and no artifact is
+   rewritten in place.
 
 The crosswalk is a representation disposition, never an override: `M17` maps
 to the exact `SM-ROADMAP` and `SM-VALIDATION` lifecycle pair;
@@ -104,10 +114,15 @@ credential false positive and made the upstream-generated owner briefing show
 the already-reviewed lane authorization. The 0.4.4 correction was likewise
 domain-neutral: it made the established canonical compiler report available
 through public `compile()` and `compile --write`, removing the need for a
-Cormidia facsimile or private import. The final 0.4.5 correction is also
+Cormidia facsimile or private import. The historical 0.4.5 correction is also
 domain-neutral: it exposes already-reviewed source and structure facts to
 fresh readers, preserves explicit dependency and split-status facts, and
-rejects invalid dependency graphs. All compose-tightly, no-fallback,
+rejects invalid dependency graphs. The 0.4.6 correction is likewise
+domain-neutral: it preserves already-reviewed per-output oracle and risk facts
+without changing authority ownership. The accompanying Cormidia preparation's
+F-PT-006 identity-field clarification and F-PT-008 production-policy wiring are
+product corrections governed by the existing Cormidia contracts; neither moves
+any fact between the checked-model and host-policy authority domains. All compose-tightly, no-fallback,
 exact-byte binding, and external-action prohibitions remain unchanged.
 
 ## Legacy top-level field disposition

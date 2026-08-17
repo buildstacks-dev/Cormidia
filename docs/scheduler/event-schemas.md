@@ -1,8 +1,17 @@
 # Event Schemas
 
 File-drop events live under `~/.cormidia/<org>/state/events/inbox/*.json`.
-The inbox file is the transport and dedup identity (deduplicated by filename),
-but the dispatcher **routes on the payload's `kind`**: `readInbox`
+The inbox file is transport only. Under F-PT-006's owner-ratified 2026-08-12
+rule and the owner's 2026-08-16 identity-field clarification, dedup identity is
+content-derived: `sha256` over canonical sorted-key producer payload after
+removing transport `filename` and producer `id`. All other fields remain
+identity-bearing: fresh-id retries collapse, while a non-`id` content change is
+a different event. The top-level `id` stays required and reaches the selected
+turn as provenance; the first filename in stable sort order supplies the
+payload for a duplicate group. Nested `id` and unknown validated JSON fields
+remain identity-bearing. Producers owe no atomic rename, so partial JSON remains
+loudly retained and retryable after repair. The dispatcher **routes on the
+payload's `kind`**: `readInbox`
 (`src/org/events.ts`) parses each file with `parseCompanyLifecycleEvent`
 (`src/org/event-schemas.ts`) and surfaces the typed company-lifecycle kind,
 which the dispatcher then matches against roles.yaml `event:` triggers exactly

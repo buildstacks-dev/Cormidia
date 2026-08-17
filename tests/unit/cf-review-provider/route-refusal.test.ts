@@ -1,13 +1,13 @@
 // Traceability: CF-REVIEW-PROVIDER · HB-133 · case-catalog.md §10.2; docs/loop/design.md "Review identity"; invariants.md CORMIDIA-INV-012/CORMIDIA-INV-016; boundary-map.md B-10 (config authority); system-map.md §5.2 T-3/T-7.
-
 // CF-REVIEW-PROVIDER (L1) — Builder/Reviewer provider-family disjointness pin,
 // route-refusal legs.
 //
-// rev-2026-08-10 owner ruling: autonomous code delivery pairs Builder and
-// Reviewer on different provider FAMILIES (docs/loop/design.md "Review
-// identity" — "uncorrelated blind spots"), including distinct adapters over
-// one upstream family. The refusal is deterministic and fires at
-// episode-planning-policy construction (`createEpisodePlanningPolicy`), the
+// The current [simulated], provisional AI-seat interpretation pending
+// real-human ratification pairs Builder and Reviewer on different provider
+// FAMILIES (docs/loop/design.md "Review identity" — "uncorrelated blind
+// spots"), including distinct adapters over one upstream family. The refusal
+// fires deterministically at episode-planning-policy construction
+// (`createEpisodePlanningPolicy`), the
 // seam every autonomous code-delivery planning boundary passes through
 // (prepareEpisodePlanWithRuntime, previewEpisode, orchestrateEpisode) BEFORE
 // any provider construction — the EpisodePlanner turn included. This spec
@@ -15,9 +15,9 @@
 // provider-free.
 //
 // PROVENANCE CAVEAT (harness-backlog.md HB-133; ratification-package.md §12.3
-// item 1): the provider-FAMILY unit is a [simulated] AI-seat ruling pending
-// real-human ratification. The disjointness unit is therefore an explicit,
-// swappable resolver parameter of the guard (see
+// item 1): the provider-FAMILY unit is a [simulated], provisional
+// interpretation pending real-human ratification. The disjointness unit is an
+// explicit, swappable resolver parameter of the guard (see
 // tests/unit/cf-review-provider/family-resolver-unit.test.ts), never an
 // inlined assumption.
 //

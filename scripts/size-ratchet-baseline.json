@@ -631,6 +631,11 @@
       "lines": 483,
       "newModule": false
     },
+    "src/org/approval-store-factory.ts": {
+      "exports": 1,
+      "lines": 13,
+      "newModule": true
+    },
     "src/org/approvals.ts": {
       "exports": 35,
       "lines": 2013,

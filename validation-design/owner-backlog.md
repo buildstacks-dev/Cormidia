@@ -43,9 +43,10 @@ what done bought you.
   escalating. Done bought one floor invariant across all four paths plus the
   deny+escalate product change on the Codex/Cursor/OpenCode bridges.
 - **HB-133 — Builder/Reviewer provider-family pin (LANDED 2026-08-12,
-  under a flagged caveat: the provider-FAMILY unit is a pending-ratification seat
-  ruling, so the pin is built with that unit swappable, not semantically
-  settled <!-- changelog 2026-08-10 (final-gate follow-up 2): regenerated from
+  under a flagged caveat: the provider-FAMILY unit is a `[simulated]`, provisional
+  interpretation pending human ratification; not an owner ruling, so the pin is
+  built with that unit swappable, not semantically settled <!-- changelog 2026-08-10
+  (final-gate follow-up 2): regenerated from
   harness-backlog.md's hoisted hedge; the ID-set diff cannot catch stale
   companion prose --> <!-- changelog 2026-08-12 (HB-133): status regenerated
   from harness-backlog.md's LANDED flip -->).**
@@ -93,9 +94,11 @@ what done bought you.
   correction — the label was a typo of `manual-review`, so the audit's disposition was
   RENAME, applied to eight issues, and the label is retired. No scheduling semantics
   changed and the no-wildcard rule still holds.
-- **HB-P3 / HB-P5 / HB-P6 — UNPARKED 2026-08-12 by your rulings.** F-PT-006: one firing
-  per real event, identity derived from payload CONTENT (so a duplicate delivery
-  collapses and producers owe no atomic-rename discipline). F-PT-008: an expired grant
+- **HB-P3 / HB-P5 / HB-P6 — UNPARKED 2026-08-12 by your rulings.** F-PT-006,
+  clarified by you 2026-08-16: one firing per canonical payload identity after
+  excluding transport filename and producer id (so a fresh-id retry collapses,
+  every other field remains identity-bearing, and producers owe no atomic-rename
+  discipline). F-PT-008: an expired grant
   REOPENS the original item, the TTL becomes policy configuration, and the grant default
   goes to 48h — with the undecided-item default deliberately pinned at 24h, because
   letting it inherit would have doubled a bound you already ratified. F-PT-017: the

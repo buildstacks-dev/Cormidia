@@ -61,8 +61,7 @@ export interface SchedulerDecisionRecord {
   updated_at: string;
   terminal_at: string | null;
   detail: string | null;
-  /** Stable schedule due-window settlement. Attempt is deliberately separate
-   * from identity so explicit retry cannot look like fresh scheduled work. */
+  /** Stable schedule settlement; attempt stays outside identity. */
   schedule_claim_id?: string;
   schedule_claim_attempt?: number;
 }
@@ -458,15 +457,16 @@ export class SchedulerEvidenceStore {
     return next;
   }
 
-  async hasSpawnedEvent(eventKey: string, role: string): Promise<boolean> {
+  async hasSpawnedEvent(eventKeys: string | readonly string[], role: string): Promise<boolean> {
+    const keys = new Set(typeof eventKeys === "string" ? [eventKeys] : eventKeys);
     return (await this.listDecisions()).some(
       (item) =>
-        item.event_key === eventKey &&
+        item.event_key !== null &&
+        keys.has(item.event_key) &&
         item.role === role &&
         (["spawn_committed", "spawned"].includes(item.stage) || item.outcome === "executed"),
     );
   }
-
   async lastSpawnedScheduleWindow(app: string, role: string, trigger: string): Promise<Date | undefined> {
     const windows = (await this.listDecisions())
       .filter(

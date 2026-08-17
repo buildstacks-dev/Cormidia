@@ -26,8 +26,8 @@ writer that validates and persists the durable decision.
   `approval-store-tamper`.
 - A grant names `grantable`-tier classes explicitly (no wildcard, no unknown rule), or
   exactly one `human-only` class through the §4.1 ceremony verb with a bounded scope,
-  optional precondition, and TTL/use caps **strictly below** the ordinary defaults
-  (24 h / 20 uses). `un-grantable` classes are rejected at creation and refused at
+  optional precondition, and TTL/use caps **strictly below** the ordinary
+  objective-grant defaults (24 h / 20 uses). `un-grantable` classes are rejected at creation and refused at
   use, whatever is on disk. `outwardEffects` is invariantly false.
 - Coverage at use requires: same app, live (unexpired, unrevoked), uses remaining,
   ledger total strictly under the ceiling, and the rule's PRESENT tier matching the
@@ -55,7 +55,7 @@ writer that validates and persists the durable decision.
   decision records are immutable once written.
 
 ## 5. Timing
-- Grant TTL 24 h default `[doc]`; expiry produces a typed state, not silence.
+- Approval grant TTL 48 h default `[doc]`; expiry produces a typed state, not silence.
 
 ## Unattended-L3 cross-reference (prohibition)
 The human seam is never a runtime dependency of an unattended campaign. Mechanism: the

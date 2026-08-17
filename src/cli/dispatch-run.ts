@@ -1,6 +1,6 @@
 import { executeApprovedCommands } from "../org/approval-command.js";
 import { executeApprovedDeliveries } from "../org/approval-delivery.js";
-import { ApprovalStore } from "../org/approvals.js";
+import { approvalStoreForApps } from "../org/approval-store-factory.js";
 import type { AppsFile } from "../org/apps.js";
 import { dispatchTick } from "../org/dispatch.js";
 import { executeApprovedReleases } from "../org/release.js";
@@ -18,7 +18,7 @@ export async function runDispatch(options: {
   reporter?: CliProgressReporter;
 }): Promise<number> {
   const { appsFile, dryRun, reporter } = options;
-  if (!dryRun) await new ApprovalStore(options.stateHome).reconcile();
+  if (!dryRun) await approvalStoreForApps(options.stateHome, appsFile).reconcile();
   const deliveries = dryRun ? [] : await executeApprovedDeliveries({ stateHome: options.stateHome, appsFile });
   const commands = dryRun ? [] : await executeApprovedCommands({ stateHome: options.stateHome, appsFile });
   const releases = dryRun

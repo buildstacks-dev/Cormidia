@@ -171,7 +171,8 @@ open_findings). -->
   CF-SM-GRANT-*, both grant shapes; orphan-grant intermediate; CF-INV-003,
   CF-B09b-*, CF-C-B09B decision-entry families). Executor: build-agent.
 - **HB-012** Continuation/resume fingerprint suite (CF-J06-*, CF-B09a-*, CF-C-B09A;
-  F-PT-008 clause parked). Executor: build-agent.
+  F-PT-008 clause was parked until it was unparked and implemented under HB-P5 on
+  2026-08-12). Executor: build-agent.
 - **HB-013** Typed executor + marker typing (CF-B17-*, CF-C-B17, CF-J05-*, CF-J17-*;
   B-17 live remainder stays BLOCKED). Executor: build-agent.
 - **HB-014** Authority resolution + org-identity suite (CF-B10-*, CF-C-B10,
@@ -241,15 +242,17 @@ event fan-out and post-spawn mark recovery; planner DAG/source/preview and
 lost-response publication convergence; real-git onboarding, verification,
 promotion interruption/resume; scheduler ownership/drift/orphan health;
 retention boundaries; deterministic presentation smokes; ratified trajectory
-detectors; and same-session one-repair envelope accounting. F-PT-006 producer
-identity/partial-file clauses remain parked, as designed. Product detectors
+detectors; and same-session one-repair envelope accounting. At this 2026-07-31
+snapshot, F-PT-006 producer identity/partial-file clauses remained parked rather
+than guessed; HB-P3 later landed them on 2026-08-12. Product detectors
 land with every discovered defect. Full per-commit L1/L2 gate: 116 files,
 726 passed + 1 intentionally parked skip in 61.93 s; typecheck and build green.
 This status is L1/L2 only and does not imply separately gated L3/L4/L5
 evidence. -->
 
 - **HB-040** Event inbox (CF-B13-*, CF-C-B13, CF-J10-*, CF-SM-EVENT-*; F-PT-006
-  clauses parked). **HB-041** Planner validator + planning ops (CF-J03-*,
+  clauses were parked at this snapshot, then unparked and implemented under
+  HB-P3 on 2026-08-12). **HB-041** Planner validator + planning ops (CF-J03-*,
   C-OP-PLAN). **HB-042** Onboarding ladder + lifecycle records
   (CF-J02-*, CF-SM-LADDER-L, CF-SM-LADDER-I). **HB-043** Scheduler lifecycle
   hermetic (CF-J16-S, CF-J16-R, CF-J16-I, CF-B05-*, CF-C-B05). **HB-044** Retention GROW suite
@@ -416,22 +419,29 @@ are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
 - **HB-P3 — LANDED 2026-08-12 (unblocked the same day)** F-PT-006 producer-protocol + duplicate-identity
   cases. *Layer:* 2. *Defends:* the B-13 inbox contract's producer-visibility and
   duplicate-identity clauses (formerly parked cells in the J-10/SM-EVENT/B-13
-  families). *Acceptance:* the ratified protocol encoded red-then-green, whichever
-  way the owner decides — never both readings. *Executor:* build-agent, after human
-  ratifies the finding. **Ruling (owner, 2026-08-12):** exactly ONE firing per
-  real-world event; duplicate deliveries collapse to one. Dedup identity is
-  **content-derived** — `sha256` over the canonical sorted-key serialization of the
-  producer's payload — never the delivery filename, never a producer-supplied id.
+  families). *Acceptance:* the ratified protocol is encoded red-then-green with
+  filename-identity, producer-id, partial-file, and legacy-mark controls.
+  *Executor:* build-agent; landed after the owner ratified the finding.
+  **Ruling (owner, 2026-08-12; identity-field clarification 2026-08-16):**
+  exactly one firing per content identity. Dedup identity is **content-derived** —
+  `sha256` over canonical sorted-key producer payload after removing transport
+  `filename` and producer `id`; all other fields remain identity-bearing. Fresh
+  retry ids therefore collapse, while a change in any other field is a distinct
+  event.
   Producers owe **no atomicity**: a partial file fails parse, is retained as
   `malformed_company_event`, and fires once under its content identity when complete.
-  Same-identity-two-payloads becomes vacuous (differing payloads are different
-  events). Migration: a legacy filename entry in `consumed.json` still suppresses its
-  own file. The negative control seeds a duplicate delivery and a legacy-key replay.
+  The same-id/different-content ambiguity stays vacuous because non-`id`
+  differences produce distinct identities. Migration preserves legacy filename
+  suppression and pre-clarification id-inclusive bare/per-role content marks
+  across each clarified-identity group, independent of file order, and reconciles
+  alias-keyed durable scheduler evidence without refiring. Negative controls seed
+  fresh-id replay, each legacy-key/per-role migration failure, and old-key crash
+  evidence.
 - **HB-P5 — LANDED 2026-08-12 (unblocked the same day)** F-PT-008 expiry-disposition cases. *Layer:* 2.
   *Defends:* the B-09a continuation contract's TTL-expiry item-disposition clause.
   *Acceptance:* the ratified disposition (fresh item / reopen / explicit operation)
-  encoded with a seeded wrong-disposition control. *Executor:* build-agent, after
-  human ratifies. **Ruling (owner, 2026-08-12):** expiry **REOPENS the original
+  encoded with a seeded wrong-disposition control. *Executor:* build-agent; landed
+  after the owner ratified. **Ruling (owner, 2026-08-12):** expiry **REOPENS the original
   item** — original id, decision history intact, appended log transition (B-09b
   immutability holds); never a silent fresh item, never a dropped operation. The TTL
   is **policy configuration wired to org config**, never a source constant (F-PT-020
@@ -442,9 +452,9 @@ are parked — the CF rows exist in case-catalog.md marked BLOCKED. -->
   grant default must NOT move the pending bound.
 - **HB-P6 — LANDED 2026-08-12 (unblocked the same day)** F-PT-017 provider terminal-status enum decision and
   migration cases (CF-C-CORE). *Layer:* 1/2. *Defends:* the core contract's
-  terminal-status enum clause. *Acceptance:* the chosen vocabulary asserted across
-  every adapter plus a migration-compatibility case; no test may derive truth from the
-  current code. *Executor:* human + build-agent after the owner chooses. **Ruling
+  terminal-status enum clause. *Acceptance:* the chosen vocabulary is asserted across
+  every adapter plus a migration-compatibility case; no test derives truth from the
+  current code. *Executor:* human + build-agent; landed after the owner chose. **Ruling
   (owner, 2026-08-12):** the terminal status is **`interrupted`**, carrying a
   **required** machine-readable reason ∈ {`time_limit`, `operator_kill`,
   `provider_crash`}. No structural change was needed — the reason is a clause
@@ -1100,26 +1110,28 @@ or golden set changed.
 
 - **HB-133 — CF-REVIEW-PROVIDER: Builder/Reviewer provider-family disjointness pin.
   LANDED 2026-08-12 (implemented under the flagged provenance caveat below: the
-  FAMILY unit is a pending-ratification seat ruling, so the pin is built
+  FAMILY unit is a pending-ratification simulated interpretation, so the pin is built
   as specified with the unit swappable, not semantically settled <!-- changelog
   2026-08-10 (reader test 15, new-engineer finding 5) -->).** Deterministic refusal before provider construction
   when an autonomous code-delivery route resolves Builder and Reviewer to one provider
   family — including distinct adapters over one upstream family (the pi/Anthropic-style
   correlation) — and fail-closed on a missing/unresolvable family; different families
   pass (the non-vacuous positive); no Reviewer imposed on jobs (M18) or manual-only
-  routes. Owner ruling rev-2026-08-10: the docs/loop/design.md "Review identity"
-  decision controls; "different provider" means provider **family**. **Provenance
+  routes. The rev-2026-08-10 `[simulated]`, provisional interpretation pending
+  human ratification reads "different provider" as provider **family**. **Provenance
   caveat a builder must see here, not only in the package** <!-- changelog
   2026-08-10 (reader test 12, new-engineer finding 1): the caveat lived in
   catalog §10.2's preamble and ratification-package.md §12.3, but not at this
-  ticket -->: the provider-FAMILY interpretation is a `[simulated]` AI-seat
-  ruling pending real-human ratification (ratification-package.md §12.3 item 1).
+  ticket -->: this is not an owner ruling; ratification-package.md §12.3 item 1
+  still awaits the real human.
   Implementing this ticket is authorized as specified; if the human later
   overturns the unit (e.g. to vendor product or account), the detector's
   disjointness unit changes with it — build the family resolution as an
   explicit, swappable input, not an inlined assumption. The L-ACC
   preflight already enforces this for campaign app arms — this ticket pins the
-  production loop. *Acceptance:* red-then-green against a seeded same-family collapse
+  production loop. The refusal text itself must name the simulated, provisional,
+  pending-human provenance and must not claim an owner ruling. *Acceptance:*
+  red-then-green against a seeded same-family collapse
   (config-level, not roles.yaml default); each of the five legs has its own case; lands
   in the per-commit blocking lane. *Family:* CF-REVIEW-PROVIDER (catalog §10.2).
   *Defends:* INV-012/INV-016 · B-10 (config authority) · C-OP-LOOP. *Layer:* 1/2.
@@ -1503,8 +1515,8 @@ prose ("COMPLETE"/"DONE") that machine parsing does not credit. This register ad
 no new facts — each marker restates the wave/bullet records above.
 **LANDED marks the ticket's implemented scope, not total closure of every clause
 it touches** <!-- changelog 2026-08-10 (reader test 14, new-engineer finding 3) -->:
-embedded parked clauses survive a LANDED marker (e.g. HB-040 is landed with its
-F-PT-006 producer-visibility legs still parked; HB-012 with the F-PT-008 clause).
+embedded parked clauses survive a LANDED marker (e.g. HB-015 is landed while its
+app-reset execute-order clause remains parked on F-PT-012).
 The wave-body text and the catalog's `BLOCKED:<finding>` cells carry that nuance —
 read the ticket body, not only this register, before claiming a family closed.
 

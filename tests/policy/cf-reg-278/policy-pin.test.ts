@@ -1,14 +1,12 @@
 // CF-REG-278 — HB-139 — case-catalog.md §10.3 defect #278; control point T-9.
-//
-// HB-006 implementation provenance — policy loader + artifact-location pin
-// (Layer 1).
+// HB-006 implementation provenance — policy loader + artifact-location pin (Layer 1).
 //
 // Pins validation-design/validation-policy.yaml (the ratified, tighten-only
 // harness contract) and the surfaces the policy claims exist: artifact paths,
 // implementation_root, the per-commit CI lane (policy `ci.rule`: removing a
 // gate in CI without a policy change is a policy violation), the vitest lane
-// split, and the human-ratified constants of 2026-07-31 (blocked findings
-// F-PT-006/F-PT-008, L3 spend bounds). Drift on any of these goes red so a
+// split, and the human-ratified constants (F-PT-006/008/017 resolutions and
+// L3 spend bounds). Drift on any of these goes red so a
 // human looks.
 //
 // Every detector family here carries a negative control that seeds the
@@ -44,6 +42,7 @@ import {
 } from "./policy-loader.js";
 import { auditHostPolicyPins, loadQualificationPolicy } from "./qualification-policy-loader.js";
 import { legacyValidationPolicyFixture } from "./legacy-policy-test-fixture.js";
+import { registerResolvedFindingSurfaceTests } from "./resolved-finding-surface-audit.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const workflowPath = join(repoRoot, ".github", "workflows", "core-checks.yml");
@@ -423,3 +422,4 @@ describe("HB-006 negative controls (each detector fires on a seeded violation)",
     expect(auditVitestConfigs(undefined, null).length).toBeGreaterThan(0);
   });
 });
+registerResolvedFindingSurfaceTests(repoRoot);

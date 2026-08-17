@@ -1,6 +1,6 @@
 # Harness design state — Cormidia validation campaign
 
-Updated: 2026-08-12 (F-PT-039 governed-planning-source revision below; prior state retained)
+Updated: 2026-08-16 (active F-PT-006/008/017 status reconciliation and F-PT-006 identity-field clarification; prior state retained)
 
 ## Harness revision — governed planning-source scope (2026-08-12, F-PT-039 / #386)
 
@@ -371,8 +371,9 @@ typecheck`, `pnpm build`, and `git diff --check` passed. No L3/L4/L5 campaign ra
   726 passed and one intentionally parked skip in 61.93 seconds; typecheck and
   build were green. The event, planning, onboarding, scheduler, retention,
   presentation, trajectory, and format-repair families are executable. The
-  F-PT-006 producer-crash/duplicate-identity clauses remain parked rather than
-  guessed.
+  F-PT-006 producer-crash/duplicate-identity clauses remained parked at this
+  July snapshot rather than guessed; HB-P3 later landed the owner-ratified
+  content-identity/no-producer-atomicity contract on 2026-08-12.
 - L3: the strict human-authorized campaign runner, real-adapter pair, sandbox-GitHub
   surface, attributable launchd proof, unattended profile, and durable product
   reporting are implemented. No live provider/repository/host campaign was run, so
@@ -396,7 +397,8 @@ typecheck`, `pnpm build`, and `git diff --check` passed. No L3/L4/L5 campaign ra
   qualification input.
 - HB-080 and HB-081 are complete: the alert→action runbook is linked from all campaign
   surfaces, and product surfaces render inconclusive as not-a-pass/not-release-evidence.
-  F-PT-017 and F-PT-018 remain parked exactly as recorded below.
+  F-PT-017 was later ratified and implemented on 2026-08-12 as recorded below;
+  F-PT-018 remains the explicitly bounded known limitation.
 
 ## Final implementation audit and verification — 2026-07-31
 
@@ -488,7 +490,17 @@ process-identity probe.
   `malformed_company_event`, and fires once under its content identity when the complete
   bytes land. Migration: legacy filename entries in `consumed.json` still suppress their own
   file, so nothing already consumed re-fires (suppression only widens — tighten-only).
-  Implementation owed under HB-P3. Original subject: producer visibility protocol (atomic
+  **Implemented 2026-08-12 — HB-P3 landed:** content-derived dedup, partial-file
+  retry, and legacy filename suppression are pinned by the B-13/event-inbox detectors.
+  **Owner clarification 2026-08-16:** the content projection removes both transport
+  `filename` and producer `id` before canonical serialization; every other payload
+  field remains identity-bearing. Thus a fresh-id retry collapses, whereas a change
+  in any other field is a different event. The clarification also binds upgrade
+  safety: legacy filename marks and pre-clarification id-inclusive bare/per-role
+  content marks suppress the whole clarified-identity group independent of file
+  order. The fresh-id and migration controls extend HB-P3 without rewriting the
+  attributable 2026-08-12 ruling above.
+  Original subject: producer visibility protocol (atomic
   rename vs tolerated-partial+retry) unspecified in docs; fake must not make policy by
   fixture convenience. See boundary-map.md §4.
 - F-PT-005 (RESOLVED by owner ratification 2026-07-31; human-ratified by adoption 2026-07-31): added subscribers inherit still-pending events; removed subscribers cease blocking retirement. Derivation retained as provenance. See invariants.md.
@@ -509,7 +521,7 @@ process-identity probe.
   durable records written as `timed_out` stay readable and project as `interrupted` +
   `time_limit`. Asserted across every adapter plus the migration case per HB-P6's
   acceptance; no test derives truth from current code. Scope fence: the landed
-  `tests/unit/s3-verdict-marker.test.ts` pins confer no ratification here and **F-PT-033 is
+  `tests/unit/cf-inv-012/s3-verdict-marker.test.ts` pins confer no ratification here and **F-PT-033 is
   untouched**. (**implemented 2026-08-12** — HB-P6 landed: `TurnResult`'s `interrupted` arm
   cannot be built without its reason; every stop site names one; run envelopes, execution
   records and turn journals gained the durable field plus legacy readers. Notable: the
@@ -626,7 +638,7 @@ process-identity probe.
   (grammar with precise per-form provenance), `llm-eval-plan.md` §2 S-3,
   HB-005(d), README count/range, runbook §1.5.
 - F-PT-032 (**RESOLVED-ratified 2026-08-08**; raised the same day during the HB-120…130 wave): **do B-28 §1's four plant categories apply to a JOB scenario?** They are plan-axis instrumentation and a job has no plan arm, so requiring them of S-ACC-3 demanded instrumentation for a measurement that never happens — and because **J-2 is scored against the sealed key**, an unextractable key left the highest-value job axis permanently `ungraded`. **Owner decision:** §2 is scoped to app scenarios; job scenarios carry their own four (preserved input conflict · undiscoverable answer · mechanically-checkable deliverable constraint · tangent), both lists complete-or-refused, unmapped lead-ins still refused and named. Not a loosening — an inapplicable requirement of cardinality four was replaced by an applicable one of the same cardinality and semantics. **S-ACC-3 was not edited**; it already satisfies the job list. Recorded as a second ratification block at `acceptance/rubric.md` §9, per that file's own never-edit-§8 rule.
-- F-PT-020 (RESOLVED-ratified 2026-08-03, PURPOSE v2.15 §2; **implemented** — mirror corrected 2026-08-10, was stale "open"): an undecided approval expires. CF-SM-APPR gained the terminal, non-blocking `expired` state (24h default TTL, policy-resolvable); on expiry the raising turn's artifacts/worktree are preserved, its claim released without consuming a failure claim, and `app verify` counts only approvals whose raising turn is still live. Encoded in the CF-SM-APPR family text and pinned by `tests/hermetic/cf-reg-205/cf-reg-205-expiry.test.ts`. F-PT-008 (grant expiry post-decision) remains open and distinct.
+- F-PT-020 (RESOLVED-ratified 2026-08-03, PURPOSE v2.15 §2; **implemented** — mirror corrected 2026-08-10, was stale "open"): an undecided approval expires. CF-SM-APPR gained the terminal, non-blocking `expired` state (24h default TTL, policy-resolvable); on expiry the raising turn's artifacts/worktree are preserved, its claim released without consuming a failure claim, and `app verify` counts only approvals whose raising turn is still live. Encoded in the CF-SM-APPR family text and pinned by `tests/hermetic/cf-reg-205/cf-reg-205-expiry.test.ts`. F-PT-008 (grant expiry post-decision) is distinct and was resolved-ratified and implemented on 2026-08-12: expiry reopens the original item with append-only history, with a 48h grant default independent of the 24h pending-item default.
 
 ## Decisions on record
 - Criticality/tiering was elicited teach-first at Phase 1 (no prior anchor); synthesis in system-map.md §5: base C2, function-scoped C3 control points T-1…T-12, C1 leaves, recovery as tier multiplier, compound worst case §5.5.
@@ -688,7 +700,9 @@ its §9). Summary of the event:
   added to package §2).
 - `design_status` → **ratified**; HB-P1/HB-P2/HB-P4 unparked; +HB-080/+HB-081
   (converted §6 IOUs); agents-md section being landed (binding once landed).
-- Still open: F-PT-006, F-PT-008 (owner did not decide; HB-P3/HB-P5 stay parked),
+- Still open at this 2026-07-31 snapshot: F-PT-006, F-PT-008 (owner did not
+  decide; HB-P3/HB-P5 stay parked here; both were owner-ratified, implemented,
+  and landed on 2026-08-12),
   F-PT-009/010/011 (inconclusive-only rule stands). HB-007 items 1–8 and 13 were
   ratified/adjusted-ratified on 2026-07-31; only register items 9–12 remain PROPOSED.
 
@@ -1117,8 +1131,10 @@ sections above retain their original wording as records. -->
   (`release_gating.status: active_fail_closed`) — deterministic-first, with the
   human-authored threat model, seven-day soak, and B-17 generic live target as
   disclosed future assurance outside RQ-1, never pass by absence.
-- Remaining human decision points: F-PT-006 and F-PT-008 (undecided findings);
-  F-PT-009/010/011 (eval thresholds, inconclusive-only until ratified);
+- Remaining human decision points: F-PT-009/010/011 (eval thresholds,
+  inconclusive-only until ratified) and F-PT-033 (verdict-marker duplicate-identical
+  tolerance versus strict refusal); F-PT-006 and F-PT-008 were ratified and
+  implemented on 2026-08-12;
   PROPOSED-register items 9–12 at first eval-campaign design review. HB-007 items
   1–8 and 13 are complete. The 2026-08-01 comparison revision additionally leaves
   S-8 calibration/thresholds under F-PT-011 and the exact implementation transport

@@ -119,7 +119,7 @@ sole write exception `[doc]`):
 - Dispatch tick (~5 min): due arithmetic, event polling, budget recompute, spawn decisions
 - Daily UTC retention sweep (from the tick)
 - Daily Distiller; weekly Learning Reviewer; weekly retro
-- Grant TTL expiry (24 h default); provisional/quarantine TTLs
+- Grant TTL expiry (48 h default); provisional/quarantine TTLs
 - Monthly budget window rollover
 - Missed-window reconciliation after sleep: one firing per role, not N `[doc]` `[walk]`
 

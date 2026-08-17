@@ -13,36 +13,23 @@ import {
 } from "./event-schemas.js";
 import { sha256, stableJson } from "./lifecycle.js";
 
-/** Transport kinds: GitHub-polled kinds plus the file-drop `alert-webhook`
- *  inbox transport. `alert-webhook` remains the dedup/transport identity for
- *  inbox files; the *routed* kind is the parsed company-lifecycle kind. */
+/** GitHub transports plus the company-lifecycle file-drop transport. */
 export type EventKind = "ticket-ready" | "pr-opened" | "ci-failed" | "release-shipped" | "alert-webhook";
 
-/** The kind a role's trigger matches on. GitHub events keep their transport
- *  kind; file-drop inbox events carry the parsed company-lifecycle kind
- *  (docs/scheduler/event-schemas.md) so roles.yaml stays the source of truth for who
- *  subscribes to `support-feedback` / `adoption-signal` / `health-alert` /
- *  `launch-calendar`. */
+/** Trigger-visible transport or parsed company-lifecycle kind. */
 type RoutedEventKind = EventKind | CompanyEventKind;
-
 export interface DueEvent {
   kind: RoutedEventKind;
-  /** Dedup identity. For GitHub-polled kinds this is the per-kind natural key;
-   *  for file-drop inbox events it is the CONTENT identity (B-13 §2, F-PT-006),
-   *  never the delivery filename. */
+  /** GitHub natural key or ID/filename-blind inbox content identity. */
   key: string;
   app: string;
   payload: Record<string, unknown>;
+  /** Pre-v2 keys checked only for durable consumption/spawn migration. */
+  migrationAliases?: string[];
 }
-
-/** One inbox delivery that collapsed into an earlier one under the same content
- *  identity. Reported, never silent: a producer double-delivering is an
- *  operator-visible fact even though it correctly fires only once (INV-008). */
 interface CollapsedDelivery {
   app: string;
-  /** The duplicate file that did NOT produce a turn. */
   file: string;
-  /** The delivery that did, under the shared identity. */
   firstFile: string;
   key: string;
 }
@@ -55,12 +42,17 @@ interface EventPollError {
 }
 
 type EventPollErrorCode = "error_event_source" | "invalid_event_transport" | CompanyEventValidationCode;
-
 interface PollEventsResult {
   events: DueEvent[];
   errors: EventPollError[];
-  /** Duplicate inbox deliveries collapsed under B-13 §2's one-firing rule. */
   collapsed: CollapsedDelivery[];
+  consumptionMigration: ConsumptionMigration;
+}
+type ConsumptionMigration = { add: string[]; remove: string[] };
+interface InboxDelivery {
+  file: string;
+  payload: Record<string, unknown>;
+  event: ReturnType<typeof parseCompanyLifecycleEvent>;
 }
 
 export interface GitHubEventSource {
@@ -68,13 +60,9 @@ export interface GitHubEventSource {
   prOpened(app: AppEntry): Promise<{ prNumber: number; headSha: string }[]>;
   ciFailed(app: AppEntry): Promise<{ sha: string; check: string }[]>;
   releaseShipped(app: AppEntry): Promise<{ tag: string }[]>;
-  /** Optional richer backlog snapshot used only by deterministic scheduled-role
-   * eligibility and Planner intake. Older embedded sources remain valid; an
-   * absent method is surfaced as unavailable input, never interpreted as an
-   * empty repository. */
+  /** Absent means unavailable input, never an empty repository. */
   openIssues?(app: AppEntry): Promise<GitHubIssueSummary[]>;
 }
-
 export interface GitHubIssueSummary {
   number: number;
   title: string;
@@ -83,12 +71,7 @@ export interface GitHubIssueSummary {
 
 export const EVENT_KINDS: EventKind[] = ["ticket-ready", "pr-opened", "ci-failed", "release-shipped", "alert-webhook"];
 
-/** Per-role consumption mark. Multi-subscriber events are consumed per
- *  (eventKey, role) so a co-subscriber pushed to a later tick by the WIP
- *  limit still sees the event. The bare eventKey — what poll() filters on —
- *  is written by the dispatcher's per-tick retirement sweep once every
- *  CURRENT subscriber holds a mark (issue #25); the store never decides
- *  retirement itself because only the dispatcher knows the subscriber set. */
+/** A role mark preserves later co-subscribers; only dispatch retires the bare key. */
 export function roleConsumedKey(eventKey: string, role: string): string {
   return `${eventKey}::role::${role}`;
 }
@@ -108,21 +91,15 @@ function dedupKey(kind: EventKind, payload: Record<string, unknown>): string {
   }
 }
 
-/** B-13 §2 / F-PT-006 (owner ruling 2026-08-12): an inbox event's dedup identity
- *  is CONTENT-DERIVED — sha256 over the canonical sorted-key serialization of
- *  the producer's payload — so **exactly one turn fires per real-world event**
- *  and duplicate deliveries collapse no matter what the producer named the file.
- *
- *  Why content and not a producer-supplied id (§6, and the reason the contract
- *  could take no position before): a retrying producer that mints a fresh id
- *  double-fires, and one that reuses an id with different bytes recreates the
- *  same-identity-two-payloads case nobody could resolve. Deriving from content
- *  makes that case VACUOUS — payloads that differ are different events. Same
- *  shape as the incident idempotency marker in standing-roles.ts.
- *
- *  `filename` is stripped first: it is transport, added by readInbox for the
- *  operator locator, and including it would key on delivery again. */
+/** F-PT-006 option 1: canonical producer content, excluding transport filename
+ *  and producer ID so a retry with a freshly minted ID still fires once. */
 export function inboxEventKey(payload: Record<string, unknown>): string {
+  const { filename: _filename, id: _id, ...content } = payload;
+  return `event:${sha256(stableJson(content))}`;
+}
+
+/** The shipped v1 content key, retained only to migrate its durable marks. */
+function v1InboxEventKey(payload: Record<string, unknown>): string {
   const { filename: _filename, ...content } = payload;
   return `event:${sha256(stableJson(content))}`;
 }
@@ -134,7 +111,8 @@ export class EventStore {
     this.root = root;
   }
 
-  async poll(app: AppEntry, source: GitHubEventSource): Promise<PollEventsResult> {
+  /** `false` keeps dispatch dry-run free of durable migration writes. */
+  async poll(app: AppEntry, source: GitHubEventSource, persistMigrations = true): Promise<PollEventsResult> {
     await this.ensure();
     const consumed = new Set(await this.readConsumed());
     const events: DueEvent[] = [];
@@ -160,8 +138,9 @@ export class EventStore {
     const inbox = await this.readInbox(app.name, consumed);
     events.push(...inbox.events);
     errors.push(...inbox.errors);
+    if (persistMigrations) await this.applyConsumptionMigration(inbox.consumptionMigration);
 
-    return { events, errors, collapsed: inbox.collapsed };
+    return { events, errors, collapsed: inbox.collapsed, consumptionMigration: inbox.consumptionMigration };
   }
 
   async readConsumed(): Promise<string[]> {
@@ -170,9 +149,7 @@ export class EventStore {
     try {
       return JSON.parse(await readFile(path, "utf8")) as string[];
     } catch (error) {
-      // A torn dedup file must never halt the whole tick. Atomic writes make
-      // this unreachable in practice; treat a corrupt file as empty so the
-      // dispatcher keeps running (the next markConsumed rewrites it cleanly).
+      // A torn dedup file must not halt the tick; the next write repairs it.
       console.warn(
         `events: consumed.json unreadable, treating as empty: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -188,13 +165,7 @@ export class EventStore {
     await this.writeConsumed(consumed);
   }
 
-  /** Retire an event: write the bare key (what poll() filters on) and prune
-   *  the event's now-redundant per-role marks in the same atomic write, so
-   *  consumed.json converges back to one entry per retired event. WHEN to
-   *  retire is the dispatcher's per-tick decision — every current subscriber
-   *  holds a mark — never the store's: a store-side completeness check would
-   *  depend on callers supplying a subscriber set it cannot validate, and an
-   *  incomplete one would silently starve co-subscribers (issue #25). */
+  /** Write the bare key and prune now-redundant per-role marks atomically. */
   async retireEvent(eventKey: string): Promise<void> {
     await this.ensure();
     const consumed = new Set(await this.readConsumed());
@@ -210,12 +181,8 @@ export class EventStore {
     await writeFileAtomic(this.consumedPath(), `${JSON.stringify([...consumed].sort(), null, 2)}\n`);
   }
 
-  /** Read the file-drop inbox, parsing each payload's company-lifecycle kind
-   *  (docs/scheduler/event-schemas.md) so the dispatcher can route by kind. Already
-   *  consumed files are skipped. A malformed payload (bad JSON or a payload
-   *  that fails the company-event contract) is surfaced LOUDLY as an
-   *  `error_event_source` — never silently dropped — while sibling files keep
-   *  flowing. */
+  /** Group validated siblings before order-independent alias migration;
+   * malformed unconsumed siblings remain visible as errors. */
   async readInbox(app: string, consumed: ReadonlySet<string> = new Set()): Promise<PollEventsResult> {
     await this.ensure();
     const dir = this.inboxDir();
@@ -223,35 +190,18 @@ export class EventStore {
     const events: DueEvent[] = [];
     const errors: EventPollError[] = [];
     const collapsed: CollapsedDelivery[] = [];
-    // Content identity → the delivery that already claimed it THIS sweep, so a
-    // second file carrying the same event collapses into the first rather than
-    // fanning out twice (B-13 §2). Sorted filenames make the winner stable.
-    const claimedThisSweep = new Map<string, string>();
+    const groups = new Map<string, InboxDelivery[]>();
     for (const file of files) {
-      // MIGRATION (B-13 §6): consumed.json entries written before F-PT-006
-      // are filenames. A legacy entry still suppresses its own file, so
-      // nothing already consumed re-fires under the new identity. Suppression
-      // only widens — tighten-only.
-      if (consumed.has(file)) continue;
-      // "::" is reserved for per-role consumption marks (roleConsumedKey);
-      // a filename containing it could impersonate or shadow another event's
-      // marks in the shared consumed set. Reject loudly at the transport
-      // boundary — filenames are our own contract.
       if (file.includes("::")) {
-        errors.push(
-          inboxError(
-            app,
-            file,
-            "invalid_event_transport",
-            new Error("filename must not contain '::' (reserved for consumption marks)"),
-          ),
-        );
+        if (consumed.has(file)) continue;
+        errors.push(inboxError(app, file, "invalid_event_transport", new Error("'::' is reserved for marks")));
         continue;
       }
       let payload: Record<string, unknown>;
       try {
         payload = JSON.parse(await readFile(join(dir, file), "utf8")) as Record<string, unknown>;
       } catch (error) {
+        if (consumed.has(file)) continue;
         errors.push(inboxError(app, file, "malformed_company_event", error));
         continue;
       }
@@ -259,28 +209,40 @@ export class EventStore {
       try {
         event = parseCompanyLifecycleEvent(payload);
       } catch (error) {
-        errors.push(
-          inboxError(
-            app,
-            file,
-            error instanceof CompanyEventValidationError ? error.code : "malformed_company_event",
-            error,
-          ),
-        );
+        if (consumed.has(file)) continue;
+        const code = error instanceof CompanyEventValidationError ? error.code : "malformed_company_event";
+        errors.push(inboxError(app, file, code, error));
         continue;
       }
       if (event.app !== app) continue;
       const key = inboxEventKey(payload);
-      if (consumed.has(key)) continue;
-      const firstFile = claimedThisSweep.get(key);
-      if (firstFile !== undefined) {
-        collapsed.push({ app: event.app, file, firstFile, key });
-        continue;
-      }
-      claimedThisSweep.set(key, file);
-      events.push({ kind: event.kind, key, app: event.app, payload: { ...payload, filename: file } });
+      const group = groups.get(key);
+      const delivery = { file, payload, event };
+      if (group === undefined) groups.set(key, [delivery]);
+      else group.push(delivery);
     }
-    return { events, errors, collapsed };
+
+    const add = new Set<string>();
+    const remove = new Set<string>();
+    for (const [key, group] of groups) {
+      // Each delivery contributes its filename and shipped ID-inclusive v1 key.
+      const aliases = new Set(group.flatMap((item) => [item.file, v1InboxEventKey(item.payload)]));
+      if (migrateGroupConsumption(key, aliases, consumed, add, remove)) continue;
+      const first = group[0];
+      if (first === undefined) continue;
+      events.push({
+        kind: first.event.kind,
+        key,
+        app: first.event.app,
+        payload: { ...first.payload, filename: first.file },
+        migrationAliases: [...aliases].sort(),
+      });
+      for (const duplicate of group.slice(1)) {
+        collapsed.push({ app: duplicate.event.app, file: duplicate.file, firstFile: first.file, key });
+      }
+    }
+    const consumptionMigration = { add: [...add].sort(), remove: [...remove].sort() };
+    return { events, errors, collapsed, consumptionMigration };
   }
 
   async removeInboxFile(filename: string): Promise<void> {
@@ -317,6 +279,44 @@ export class EventStore {
   private consumedPath(): string {
     return join(this.root, "state", "events", "consumed.json");
   }
+
+  private async applyConsumptionMigration(migration: ConsumptionMigration): Promise<void> {
+    if (migration.add.length === 0 && migration.remove.length === 0) return;
+    const consumed = new Set(await this.readConsumed());
+    for (const key of migration.remove) consumed.delete(key);
+    for (const key of migration.add) consumed.add(key);
+    await this.writeConsumed(consumed);
+  }
+}
+
+/** Any bare alias retires the v2 group; otherwise union its per-role aliases. */
+function migrateGroupConsumption(
+  key: string,
+  aliases: ReadonlySet<string>,
+  consumed: ReadonlySet<string>,
+  add: Set<string>,
+  remove: Set<string>,
+): boolean {
+  const roles = new Set<string>();
+  let legacyBare = false;
+  for (const alias of aliases) {
+    if (consumed.has(alias)) {
+      legacyBare = true;
+      remove.add(alias);
+    }
+    const prefix = `${alias}::role::`;
+    for (const mark of consumed) {
+      if (!mark.startsWith(prefix)) continue;
+      const role = mark.slice(prefix.length);
+      if (role.length > 0) roles.add(role);
+      remove.add(mark);
+    }
+  }
+  const canonicalBare = consumed.has(key);
+  const retired = canonicalBare || legacyBare;
+  if (legacyBare && !canonicalBare) add.add(key);
+  if (!retired) for (const role of roles) add.add(roleConsumedKey(key, role));
+  return retired;
 }
 
 function inboxError(
@@ -335,16 +335,12 @@ function inboxError(
 
 function mustString(payload: Record<string, unknown>, key: string): string {
   const value = payload[key];
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`event payload missing string ${key}`);
-  }
+  if (typeof value !== "string" || value.length === 0) throw new Error(`event payload missing string ${key}`);
   return value;
 }
 
 function mustNumber(payload: Record<string, unknown>, key: string): number {
   const value = payload[key];
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`event payload missing number ${key}`);
-  }
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`event payload missing number ${key}`);
   return value;
 }

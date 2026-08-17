@@ -14,8 +14,9 @@
 // refactor that moves clock reads cannot silently change which window this
 // tests.
 //
-// BLOCKED:F-PT-008 — grant-EXPIRY item disposition is an open finding; the
-// grant assertions below cover consumption of a live grant only.
+// F-PT-008 is resolved-ratified: expiry reopens the original item with append-only history.
+// The assertions below cover consumption of a live grant only; the dedicated
+// expiry-disposition cases live with CF-B09a.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

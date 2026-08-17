@@ -2,7 +2,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,13 +10,28 @@ import { compile, FakeRepositoryPort } from "validation-architect";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const version = "0.4.5";
+const version = "0.4.6";
 const artifactName = `validation-architect-${version}.tgz`;
-const artifactSha = "2a2e59324272aeb5d3ba1aed9da4a42fb0682f391fa82ee9dfa1c8cbff8294eb";
+const supersededArtifactName = "validation-architect-0.4.5.tgz";
+const artifactSha = "1e396fdb7fe2e6ea2e479628e344c6283a5ae7f4cb95a86dfba8601a7cfd66c5";
 const artifactIntegrity =
-  "sha512-3sHA9XQ80l+05yt5lQTv6RoXNahoY1LOv0edAwPza8oCQ02kpurkFlT7hzLXwQrQHC9F841R3ZJDnHENQp1E/Q==";
-const artifactReproduction = "267,873-byte core tarballs with 124 entries";
-const upstreamRevision = "5949f6b1be3f3b22c47c3cf532e33d529a468291";
+  "sha512-6wRhOH8+80Knr1H7FTYYjAZcpGpG4ZiveCXSv6ddk1eaab11Rd5tiFr0l3CSR1TcTw/lSVEjXtV2pRVOYpcFHA==";
+const artifactReproduction = "268,051-byte core tarballs with 124 entries";
+const upstreamRevision = "52a7b26b5b4de934612640c3d47ba7c738596ece";
+const currentDependencyHeading = "### Current corrective 0.4.6 cutover dependency";
+const sequenceIntro = "The formerly planned two-PR bootstrap is seven reviewed squash PRs, in order:";
+const preparationStages = [
+  "dependency preparation (#466)",
+  "transition consumers (#468)",
+  "(#469)",
+  "(#470)",
+  "narrow final-consumer preparation (#471 at `7d68ded4813c665ce10379539f741f062dba3572`)",
+  "exact 0.4.6 family-output-fidelity and current-policy reconciliation preparation after upstream [#52](https://github.com/cormidia/validation-architect/pull/52) at `52a7b26b5b4de934612640c3d47ba7c738596ece`",
+  "`validation-design/`-only authority cutover",
+];
+const productRevisionPin =
+  "The final model names the exact 0.4.6 Cormidia preparation squash SHA—not #471—as `product.revision`.";
+const rollbackOrder = "newest-first: authority cutover, 0.4.6 Cormidia preparation, #471, #470, #469, #468, #466.";
 const traceBin = join(repoRoot, "node_modules", ".bin", "validation-trace");
 const roots: string[] = [];
 
@@ -24,17 +39,8 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-interface PinSurfaces {
-  agents: string;
-  domainSplit: string;
-  hostPolicy: string;
-  installGuide: string;
-  packageJson: string;
-  lockfile: string;
-  decision: string;
-  installedPackage: string;
-  sha256: string;
-}
+type PinSurfaces = Awaited<ReturnType<typeof readPinSurfaces>>;
+type TextSurface = Exclude<keyof PinSurfaces, "supersededArtifactPresent">;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -54,6 +60,26 @@ function isDevelopmentOnlyPin(source: string): boolean {
   );
 }
 
+const compact = (source: string): string => source.replace(/\s+/g, " ").trim();
+
+function replaceSurface(surfaces: PinSurfaces, key: TextSurface, from: string, to: string): PinSurfaces {
+  return { ...surfaces, [key]: surfaces[key].replace(from, to) };
+}
+
+function hasOrderedStages(source: string): boolean {
+  const normalized = compact(source);
+  const start = normalized.indexOf(sequenceIntro);
+  const end = normalized.indexOf("Full cutover staging proved", start);
+  if (start < 0 || end < 0) return false;
+  let cursor = start + sequenceIntro.length;
+  return preparationStages.every((stage) => {
+    const index = normalized.indexOf(stage, cursor);
+    if (index < 0 || index >= end) return false;
+    cursor = index + stage.length;
+    return true;
+  });
+}
+
 function pinProblems(surfaces: PinSurfaces): string[] {
   const problems: string[] = [];
   for (const phrase of [
@@ -65,19 +91,18 @@ function pinProblems(surfaces: PinSurfaces): string[] {
     if (!surfaces.agents.includes(phrase)) problems.push(`root routing drift: ${phrase}`);
   }
   if (surfaces.agents.includes("case-catalog §10.3 row")) problems.push("stale root catalog routing");
-  if (!surfaces.hostPolicy.includes("validation-architect 0.4.5, unchanged")) {
+  if (!surfaces.hostPolicy.includes("validation-architect 0.4.6, unchanged")) {
     problems.push("host-policy package explanation drift");
   }
+  const domainSplit = compact(surfaces.domainSplit);
+  if (!domainSplit.includes(sequenceIntro)) problems.push("domain-split stage-count drift");
+  if (!hasOrderedStages(surfaces.domainSplit)) problems.push("domain-split stage-order drift");
+  if (!domainSplit.includes(productRevisionPin)) problems.push("domain-split product revision drift");
+  if (!domainSplit.includes(rollbackOrder)) problems.push("domain-split rollback order drift");
   for (const phrase of [
-    "six reviewed squash PRs",
-    "names the final-consumer preparation squash SHA as `product.revision`",
-  ]) {
-    if (!surfaces.domainSplit.includes(phrase)) problems.push(`domain-split sequencing drift: ${phrase}`);
-  }
-  for (const phrase of [
-    "reviewed `validation-architect` 0.4.5 tarball",
+    "reviewed `validation-architect` 0.4.6 tarball",
     upstreamRevision,
-    "selects 0.4.5's bounded legacy-manifest bridge",
+    "selects 0.4.6's bounded legacy-manifest bridge",
   ]) {
     if (!surfaces.installGuide.includes(phrase)) problems.push(`enablement pin drift: ${phrase}`);
   }
@@ -96,6 +121,8 @@ function pinProblems(surfaces: PinSurfaces): string[] {
     problems.push("lock version drift");
   }
   if (!surfaces.installedPackage.includes(`"version": "${version}"`)) problems.push("installed version drift");
+  if (surfaces.supersededArtifactPresent) problems.push("superseded artifact retained");
+  if (!surfaces.decision.includes(currentDependencyHeading)) problems.push("decision section drift");
   if (!surfaces.decision.includes(upstreamRevision)) problems.push("upstream revision drift");
   if (
     !surfaces.decision.includes(`artifact: \`vendor/${artifactName}\``) ||
@@ -112,8 +139,9 @@ function pinProblems(surfaces: PinSurfaces): string[] {
   return problems;
 }
 
-async function readPinSurfaces(): Promise<PinSurfaces> {
+async function readPinSurfaces() {
   const artifact = await readFile(join(repoRoot, "vendor", artifactName));
+  const vendorNames = await readdir(join(repoRoot, "vendor"));
   const [agents, domainSplit, hostPolicy, installGuide, packageJson, lockfile, decision, installedPackage] =
     await Promise.all([
       readFile(join(repoRoot, "AGENTS.md"), "utf8"),
@@ -135,6 +163,7 @@ async function readPinSurfaces(): Promise<PinSurfaces> {
     decision,
     installedPackage,
     sha256: createHash("sha256").update(artifact).digest("hex"),
+    supersededArtifactPresent: vendorNames.includes(supersededArtifactName),
   };
 }
 
@@ -171,88 +200,57 @@ function invokeTrace(root: string): { exitCode: number; stdout: string; stderr: 
 }
 
 describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
-  it("binds the installed package and decision record to the reviewed 0.4.5 artifact", async () => {
+  it("binds the installed package and decision record to the reviewed 0.4.6 artifact", async () => {
     expect(pinProblems(await readPinSurfaces())).toEqual([]);
   });
 
   it("detects seeded dependency, integrity, revision, and artifact drift", async () => {
     const surfaces = await readPinSurfaces();
-    expect(
-      pinProblems({ ...surfaces, packageJson: surfaces.packageJson.replace(artifactName, "wrong.tgz") }),
-    ).toContain("package pin drift");
-    expect(
-      pinProblems({
-        ...surfaces,
-        packageJson: surfaces.packageJson.replace('"devDependencies": {', '"developmentDependencies": {'),
-      }),
-    ).toContain("package scope drift");
-    expect(pinProblems({ ...surfaces, lockfile: surfaces.lockfile.replaceAll(artifactName, "wrong.tgz") })).toContain(
-      "lock source drift",
-    );
-    expect(
-      pinProblems({ ...surfaces, lockfile: surfaces.lockfile.replace(artifactIntegrity, "sha512-wrong") }),
-    ).toContain("lock integrity drift");
-    expect(
-      pinProblems({ ...surfaces, lockfile: surfaces.lockfile.replace("version: 0.4.5", "version: 0.0.0") }),
-    ).toContain("lock version drift");
-    expect(
-      pinProblems({ ...surfaces, installedPackage: surfaces.installedPackage.replace(version, "0.0.0") }),
-    ).toContain("installed version drift");
-    expect(pinProblems({ ...surfaces, decision: surfaces.decision.replace(upstreamRevision, "wrong") })).toContain(
-      "upstream revision drift",
-    );
-    expect(pinProblems({ ...surfaces, decision: surfaces.decision.replace(artifactSha, "wrong") })).toContain(
-      "decision identity drift",
-    );
-    expect(pinProblems({ ...surfaces, decision: surfaces.decision.replace(artifactName, "wrong.tgz") })).toContain(
-      "decision identity drift",
-    );
-    expect(
-      pinProblems({
-        ...surfaces,
-        decision: surfaces.decision.replace(artifactReproduction, "1-byte core tarballs with 124 entries"),
-      }),
-    ).toContain("decision byte-count drift");
-    expect(
-      pinProblems({
-        ...surfaces,
-        decision: surfaces.decision.replace(artifactReproduction, "267,873-byte core tarballs with 1 entry"),
-      }),
-    ).toContain("decision entry-count drift");
-    expect(pinProblems({ ...surfaces, sha256: "wrong" })).toContain("artifact bytes drift");
-    expect(
-      pinProblems({ ...surfaces, agents: surfaces.agents.replace("active authority", "retired authority") }),
-    ).toContain("root routing drift: active authority");
-    expect(pinProblems({ ...surfaces, agents: `${surfaces.agents}\ncase-catalog §10.3 row\n` })).toContain(
-      "stale root catalog routing",
-    );
-    expect(pinProblems({ ...surfaces, hostPolicy: surfaces.hostPolicy.replace("0.4.5", "0.4.4") })).toContain(
-      "host-policy package explanation drift",
-    );
-    expect(
-      pinProblems({ ...surfaces, domainSplit: surfaces.domainSplit.replace("six reviewed", "five reviewed") }),
-    ).toContain("domain-split sequencing drift: six reviewed squash PRs");
-    expect(
-      pinProblems({
-        ...surfaces,
-        domainSplit: surfaces.domainSplit.replace(
-          "names the final-consumer preparation squash SHA as `product.revision`",
-          "names the 0.4.5 preparation squash SHA as `product.revision`",
-        ),
-      }),
-    ).toContain("domain-split sequencing drift: names the final-consumer preparation squash SHA as `product.revision`");
-    expect(
-      pinProblems({ ...surfaces, installGuide: surfaces.installGuide.replace("0.4.5 tarball", "0.4.4 tarball") }),
-    ).toContain("enablement pin drift: reviewed `validation-architect` 0.4.5 tarball");
-    expect(
-      pinProblems({ ...surfaces, installGuide: surfaces.installGuide.replace(upstreamRevision, "wrong") }),
-    ).toContain(`enablement pin drift: ${upstreamRevision}`);
-    expect(
-      pinProblems({
-        ...surfaces,
-        installGuide: surfaces.installGuide.replace("selects 0.4.5's bounded", "selects 0.4.4's bounded"),
-      }),
-    ).toContain("enablement pin drift: selects 0.4.5's bounded legacy-manifest bridge");
+    const compactDomainSplit = compact(surfaces.domainSplit);
+    const mutationBase = { ...surfaces, domainSplit: compactDomainSplit };
+    // biome-ignore format: compact red-seed table keeps this existing detector within its size ratchet.
+    const replacements: [string, TextSurface, string, string][] = [
+      ["package pin drift", "packageJson", artifactName, "wrong.tgz"],
+      ["package scope drift", "packageJson", '"devDependencies": {', '"developmentDependencies": {'],
+      ["lock source drift", "lockfile", artifactName, "wrong.tgz"],
+      ["lock integrity drift", "lockfile", artifactIntegrity, "sha512-wrong"],
+      ["lock version drift", "lockfile", "version: 0.4.6", "version: 0.0.0"],
+      ["installed version drift", "installedPackage", version, "0.0.0"],
+      ["decision section drift", "decision", currentDependencyHeading, "wrong"],
+      ["upstream revision drift", "decision", upstreamRevision, "wrong"],
+      ["decision identity drift", "decision", artifactSha, "wrong"],
+      ["decision identity drift", "decision", artifactName, "wrong.tgz"],
+      ["decision byte-count drift", "decision", artifactReproduction, "1-byte core tarballs with 124 entries"],
+      ["decision entry-count drift", "decision", artifactReproduction, "268,051-byte core tarballs with 1 entry"],
+      ["artifact bytes drift", "sha256", artifactSha, "wrong"],
+      ["root routing drift: active authority", "agents", "active authority", "retired authority"],
+      ["stale root catalog routing", "agents", surfaces.agents, `${surfaces.agents}\ncase-catalog §10.3 row\n`],
+      ["host-policy package explanation drift", "hostPolicy", "0.4.6", "0.4.5"],
+      ["domain-split stage-count drift", "domainSplit", "seven reviewed", "six reviewed"],
+      ["domain-split product revision drift", "domainSplit", productRevisionPin, "The final model names #471 as `product.revision`."],
+      ["domain-split rollback order drift", "domainSplit", rollbackOrder, rollbackOrder.replace("#470, ", "")],
+      ["domain-split rollback order drift", "domainSplit", rollbackOrder, rollbackOrder.replace("#471, #470", "#470, #471")],
+      ["domain-split rollback order drift", "domainSplit", rollbackOrder, rollbackOrder.replace("authority cutover, 0.4.6 Cormidia preparation", "0.4.6 Cormidia preparation, authority cutover")],
+      ["enablement pin drift: reviewed `validation-architect` 0.4.6 tarball", "installGuide", "0.4.6 tarball", "0.4.5 tarball"],
+      [`enablement pin drift: ${upstreamRevision}`, "installGuide", upstreamRevision, "wrong"],
+      ["enablement pin drift: selects 0.4.6's bounded legacy-manifest bridge", "installGuide", "selects 0.4.6's bounded", "selects 0.4.5's bounded"],
+    ];
+    for (const [problem, key, from, to] of replacements) {
+      expect(pinProblems(replaceSurface(mutationBase, key, from, to)), problem).toContain(problem);
+    }
+    expect(pinProblems({ ...surfaces, supersededArtifactPresent: true })).toContain("superseded artifact retained");
+    for (const stage of preparationStages) {
+      expect(pinProblems({ ...surfaces, domainSplit: compactDomainSplit.replace(stage, "") })).toContain(
+        "domain-split stage-order drift",
+      );
+    }
+    const [firstStage, secondStage] = preparationStages;
+    if (firstStage === undefined || secondStage === undefined) throw new Error("sequence detector needs two stages");
+    const swapped = compactDomainSplit
+      .replace(firstStage, "__FIRST__")
+      .replace(secondStage, firstStage)
+      .replace("__FIRST__", secondStage);
+    expect(pinProblems({ ...surfaces, domainSplit: swapped })).toContain("domain-split stage-order drift");
   });
 
   it("exposes the canonical compiler report through the installed public API", async () => {

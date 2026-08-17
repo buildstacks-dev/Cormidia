@@ -372,7 +372,7 @@ thresholds, and aggregation rule are separately ratified. Complete but threshold
 may become disclosed evaluator debt only through a separate content-bound human
 disposition; the underlying verdict never changes.
 
-## 6. CI cost tiering (→ validation-policy.yaml)
+## 6. CI cost tiering (→ checked model; exact campaign spend → host policy)
 
 | Lane | What runs | Cadence | Spend |
 |---|---|---|---|
@@ -415,8 +415,10 @@ rest.
   clean-change FP), N, and the sample design (case counts per defect class and clean
   pool; aggregation by severity and by builder×reviewer pairing; the rule that flips a
   result to `inconclusive`) are unratified. Numbers on file are budgeting hypotheses —
-  concretely **≥95% serious-defect catch / ≤10% clean-change FP / N≥3** (canonical
-  home: `validation-policy.yaml → proposed_register`; also stated in
+  concretely **≥95% serious-defect catch / ≤10% clean-change FP / N≥3**
+  (proposal/decision history: `harness-design-state.md`; current model status
+  and provenance: `model/structures.yaml`, `model/families.yaml`, and
+  `model/backlog.yaml`; also stated in
   `golden-sets/reviewer/README.md`) <!-- changelog 2026-08-10 (reader test 31,
   new-engineer finding 3): the finding entry said "numbers on file" without
   co-locating them -->.

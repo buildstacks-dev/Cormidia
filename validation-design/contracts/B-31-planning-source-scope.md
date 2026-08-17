@@ -1,11 +1,13 @@
 # Boundary contract — B-31 (declared planning-source scope ↔ harness-native reading)
 Canonical ID: **CORMIDIA-C-B31-001…003 (alias: B-31)**
 
-Status: DESIGN-ONLY as a harness artifact; the product change is owed under issue #386
-and HB-155. Registered by the 2026-08-12 harness revision resolving **F-PT-039** (owner
-ruling: `docs/PURPOSE.md` non-negotiable 2 governs planning `--source`; the Cormidia-side
-pre-read is removed). Defends INV-001/008/011/013/015 by inheritance, and **INV-017**
-(consumption is proven, never assumed) directly. Journey J-03. LLM site S-1b. Module M5.
+Status: the L1/L2 product path and hermetic detector landed on 2026-08-12 in
+`97c97a84` / #441. The per-harness L3 modality proof remains pending under
+HB-155 / CF-B31-L3. Registered by the 2026-08-12 harness revision resolving
+**F-PT-039** (owner ruling: `docs/PURPOSE.md` non-negotiable 2 governs planning
+`--source`; the Cormidia-side pre-read is removed). Defends
+INV-001/008/011/013/015 by inheritance, and **INV-017** (consumption is proven,
+never assumed) directly. Journey J-03. LLM site S-1b. Module M5.
 
 **What this contract replaced.** Until 2026-08-12 there was no boundary here: Cormidia
 walked the operator's directory itself, decoded every file as fatal UTF-8 and embedded
@@ -13,7 +15,8 @@ the JSON-encoded text in the planner's `task` string, so "selected" and "consume
 one fact and nothing could fail independently. The ruling moved the read to the harness,
 which created the seam this contract owns. The retired pre-read's own mechanisms —
 content-derived source-section coverage and the ingestion secret pre-scan — are
-**pruned**, not migrated (see `case-catalog.md` §10.3's CF-REG-374 row and §11).
+**pruned**, not migrated (see CF-REG-374 in `../model/families.yaml`; the
+generated `../case-catalog.md` view is navigation only).
 
 ## §1 — CORMIDIA-C-B31-001 — scope declaration
 

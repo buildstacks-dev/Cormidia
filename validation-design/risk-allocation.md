@@ -5,9 +5,10 @@ Provenance: probability judgments and allocation calls `[elicited]` (Phase 6 ram
 cost axis inherited from ratified system-map §5 (T-1…T-12); spend/soak numbers are
 **owner-ratified this campaign** (`[simulated]` seat — human-ratified 2026-07-31,
 release bound amended, §5); `[PROPOSED]` marked where designer-originated.
-The ratified allocation and the pending 2026-08-03 revision are encoded in
-`validation-policy.yaml`; the latter remains design-only until the Phase 8 acceptance
-gate. The policy is the surface a future audit diffs deliberate-thinness against.
+The current machine allocation is encoded in `model/policy.yaml`,
+`model/structures.yaml`, and `model/families.yaml`; authored rationale remains
+in this file. Exact Cormidia campaign spend bounds are separately owned by
+`../docs/qualification/host-policy.yaml`.
 
 **Tag vocabulary this file is the source for** <!-- changelog 2026-08-10 (reader
 test 7, coding-agent finding 1): the routing doc points here for all seven tags,
@@ -16,14 +17,15 @@ but FLOOR/STD/THIN/L4Q were glossed only in passing elsewhere -->: **E-1/E-2/E-3
 ordinary derivation-grammar coverage, neither exhaustive nor deliberately thin.
 **THIN** — deliberately thin per §4 (smoke or none; a decision, not an omission).
 **FLOOR** — non-discretionary: coverage that may never be thinned or waived
-regardless of risk arithmetic (the INV-001/011/015 floors in
-`validation-policy.yaml` → `non_discretionary_floors`, plus the harness's own
-self-test register). **L4Q** — the statistical quality lane, funded per §4 and
+regardless of risk arithmetic (the INV-001/011/015 structures and their
+families/controls in the checked model, plus the harness's own self-test
+register). **L4Q** — the statistical quality lane, funded per §4 and
 governed by the eval plan's §9 decision-status rule. **REG** — the eighth value,
-**reserved for `case-catalog.md` §10.3 defect-register rows**: a family derived
-from an escaped defect (sourcing channel: the bug-fix detector-deposit
-obligation), where the risk is the specific regression the detector pins — not
-a derivation tier, never budgeted through §4, never valid on a §§1–8 matrix row
+**reserved for defect-register families in `model/families.yaml`** (readable in
+the generated `case-catalog.md` view): a family derived from an escaped defect
+(sourcing channel: the bug-fix detector-deposit obligation), where the risk is
+the specific regression the detector pins — not a derivation tier, never
+budgeted through §4, never valid on an ordinary derivation-matrix family
 <!-- changelog 2026-08-10 (reader test 20, coding-agent finding 1): REG was
 used on every CF-REG-* row but defined nowhere -->.
 
@@ -63,8 +65,9 @@ registry — this file was missed by the rev-2026-08-10 consistency sweep -->:
 **#337–#340 landed and all four adapters were certified 2026-08-07**
 (B-24 standalone; B-25 sandbox-scope, #339 real-repo gate unchanged; B-26's
 walk INCOMPLETE, never pass — boundary-map B-26), and **F-PT-025…028 are
-resolved 2026-08-07** in `validation-policy.yaml → open_findings`, which wins
-over this file on any disagreement; the mechanism-level cells are no longer
+resolved 2026-08-07** in `harness-design-state.md`, with current status and
+blocker facts in the checked model; those sources win over this file on any
+disagreement, and the mechanism-level cells are no longer
 finding-parked.
 
 Harness revision 2026-08-07 (outcome acceptance + jobs). Two independent additions,
@@ -340,8 +343,10 @@ Interaction rules: if collected evidence already proves a violation, the verdict
 verdict (INV-008/014).
 
 **Scored lanes add a third field, not a fourth verdict (added 2026-08-07).** L-ACC axes
-carry an `axis_score` of `0|1|2|3|ungraded` (`validation-policy.yaml` ->
-`verdict_semantics.axis_score`). `ungraded` means the evidence for that axis is missing,
+carry an `axis_score` of `0|1|2|3|ungraded`
+(`../docs/qualification/host-policy.yaml` →
+`outcome_acceptance.axis_score`).
+`ungraded` means the evidence for that axis is missing,
 or its score arrived without the mandatory evidence citation; it is **never coerced to
 `0`**, never enters an aggregate as a number, and forces `completeness: incomplete` for
 its scenario. Completeness and verdict keep exactly their meanings above.

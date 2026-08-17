@@ -39,8 +39,9 @@ the exact artifact digest. Do not fill gaps from current code behavior.
 
 - Enumerate abuse cases and map each to a boundary/control point and detector.
 - Mark every residual risk accepted, mitigated, transferred, or blocking, with owner.
-- Identify any new product-truth finding; add it to `validation-policy.yaml` before
-  encoding expected behavior.
+- Identify any new product-truth finding; record it in
+  `harness-design-state.md`, then park the affected checked-model
+  family/backlog facts before encoding expected behavior.
 - Confirm whether the result is sufficient for future HB-073 abuse-case authoring,
   droplet migration, and first non-sandbox onboarding. It is not an RQ-1 activation
   or qualification input.

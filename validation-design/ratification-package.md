@@ -580,6 +580,12 @@ block in `agents-md-contribution.md`.
 <!-- changelog 2026-08-10 (final-gate follow-up 10): heading said "unchanged by
 this revision" — true until F-PT-033 was minted at the final gate -->
 
+> **Current-status addendum (2026-08-16):** This section preserves the
+> rev-2026-08-10 record. F-PT-006, F-PT-008, and F-PT-017 were ratified and
+> implemented on 2026-08-12 and are no longer open. The five §12.3 AI-seat
+> decisions—including the provider-FAMILY interpretation—and F-PT-033 remain
+> pending unless a later attributable human decision says otherwise.
+
 **F-PT-033** (S-3 verdict-marker refusal semantics + vocabulary: ratify the
 parser's deliberate duplicate-identical tolerance, keyword precedence, bare-line
 form, and `approve|findings` vocabulary — or tighten the parser to the clause's
@@ -588,20 +594,23 @@ pinned regression facts conferring no ratification, no NEW test may encode
 either reading as contract truth, and the strict reading requires changing the
 parser AND those tests <!-- changelog 2026-08-10 (final-gate follow-up 12):
 this mirror still carried the disproven "assert only both-readings-valid
-refusals" posture -->); F-PT-006, F-PT-008 (undecided product truth; HB-P3/HB-P5 parked);
+refusals" posture -->); F-PT-006, F-PT-008 (undecided product truth; HB-P3/HB-P5 parked
+at this 2026-08-10 snapshot; both were owner-ratified, implemented, and landed on
+2026-08-12, as the current authored register records);
 F-PT-009, F-PT-010, F-PT-011 <!-- changelog 2026-08-10 (final-gate
 follow-up 14): the slash-compressed "F-PT-009/010/011" defeated literal ID
 extraction; spelled out so the 13-ID set equality holds mechanically -->
-(eval thresholds — inconclusive-only); **F-PT-012 through F-PT-018** <!--
+(eval thresholds — inconclusive-only); **F-PT-012 through F-PT-016** <!--
 changelog 2026-08-10 (final-gate follow-up 13): §12.8u routed B-17 and
 F-PT-014 here while this section omitted F-PT-012…018 and B-17-L3 entirely;
 made exhaustive against the policy registry rather than re-routing the
-citation --> (all open per the registry: F-PT-012 app-reset execute order;
+citation --> (all open at this snapshot and still parked: F-PT-012 app-reset execute order;
 F-PT-013 direct default-branch-push classification locus; **F-PT-014**
 INV-003's never-scopeable clause with no gate-rule mapping — the unenforced
 "must never break" promise; F-PT-015 B-14 bootstrap re-run semantics; F-PT-016
-publish-origin identity-comparison ownership; F-PT-017 provider
-terminal-status vocabulary, HB-P6 parked; F-PT-018 no mechanical branch
+publish-origin identity-comparison ownership); F-PT-017 (provider
+terminal-status vocabulary, HB-P6 parked at this snapshot; owner-ratified,
+implemented, and landed on 2026-08-12); F-PT-018 (no mechanical branch
 protection on the private-repo plan — open-known-limitation); **B-17-L3** (the
 one BLOCKED live obligation: no disposable non-GitHub deploy/publish target
 exists, so T-12's real round-trip has zero live evidence; unblock = a sandbox
@@ -1229,7 +1238,7 @@ design-state mirror, and harness-state.yaml's summary updated. No catalog cell
 was added or parked, so family/ticket counts are unchanged. Manifest
 byte-identical. **Second follow-up (final-gate follow-up 11):** the stakeholder
 caught that the follow-up-10 wording itself contradicted the landed test —
-`tests/unit/s3-verdict-marker.test.ts` explicitly asserts duplicate-identical
+`tests/unit/cf-inv-012/s3-verdict-marker.test.ts` explicitly asserts duplicate-identical
 markers parse and pins Verdict-before-Status precedence, so "tests assert only
 both-readings-valid refusals" was literally false. Repaired at all four sites
 (OP-loop §4, F-PT-033's subject, HB-005(d), this record) with the honest

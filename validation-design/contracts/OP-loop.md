@@ -64,7 +64,7 @@ Journey J-04. Interfaces with B-01/B-15/B-16/B-20/B-21/B-22 and the provider ada
   zero/two"; the running parser refuses zero markers and DISTINCT conflicting
   values but deliberately parses duplicate identical markers, with keyword
   precedence (Verdict consulted before Status). The landed tests
-  (tests/unit/s3-verdict-marker.test.ts) **record current implementation
+  (`tests/unit/cf-inv-012/s3-verdict-marker.test.ts`) **record current implementation
   behavior — duplicate-identical parses, Verdict-before-Status precedence — as
   pinned regression facts, but confer NO ratification** <!-- changelog
   2026-08-10 (final-gate follow-up 11): the first wording claimed tests assert

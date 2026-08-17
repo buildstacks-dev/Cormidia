@@ -549,8 +549,10 @@ every threshold-dependent axis reports `inconclusive`. An axis whose evidence is
 `ungraded`. **`ungraded` is never coerced to `0`**, never enters an aggregate as a
 numeric value, and any aggregate names its graded denominator explicitly. Conflating "we
 did not measure it" with "it was absent" is how a suite starts lying.
-**Enforcement.** Both — expressed in `validation-policy.yaml` →
-`verdict_semantics.axis_score` so it is policy, not runner discretion.
+**Enforcement.** Both — the invariant and its detector are represented in the
+checked model; the exact Cormidia `axis_score` vocabulary lives in
+`../docs/qualification/host-policy.yaml`, so it is host policy, not runner
+discretion.
 **Falsifying test shape.** Any surface rendering a threshold-dependent axis as pass/fail
 while its threshold is unratified; any mean, total or percentage into which an
 `ungraded` axis entered as `0`; a citation-less score retained as a number.

@@ -37,8 +37,9 @@ Status: DRAFT (Phase 4). Defends INV-005/013/014, T-6. Journeys J-09/J-13.
   the ratification fixed the ORDER (TERM → bounded wait → KILL), not the wait
   length. Tests assert the sequence and that the wait is bounded (terminates),
   treating the duration as configuration — never assert a specific length. A
-  concrete figure is owner-owned: it must enter
-  `validation-policy.yaml → proposed_register` (then ratification) before any
+  concrete figure is owner-owned: it must enter the authored decision register
+  in `../harness-design-state.md` and the affected checked-model facts (then
+  ratification) before any
   timing assertion is written against it. Signalling is authorized only when journal and current lock
   agree on the complete PID + process-start + nonce ownership token and the OS probe
   confirms the PID/start match. Missing/mismatched/unknown ownership defers without

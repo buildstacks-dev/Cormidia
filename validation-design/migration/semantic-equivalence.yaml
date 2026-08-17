@@ -1,0 +1,1275 @@
+schema: cormidia/validation-architect-semantic-equivalence/v1
+package_version: 0.4.6
+product_revision: c4d9eb341cccaff59af84eb2589bfa37cbbfd1d7
+model_identity: 2ea4d12b7f6b0fc7c29eb26562fa79b6044ed2fc53026211e52a35b45a219c81
+public_api: migrate(kind=legacy-catalog) + compile().views/report + check()
+upstream:
+  revision: 52a7b26b5b4de934612640c3d47ba7c738596ece
+  artifact:
+    path: vendor/validation-architect-0.4.6.tgz
+    sha256: 1e396fdb7fe2e6ea2e479628e344c6283a5ae7f4cb95a86dfba8601a7cfd66c5
+    integrity: sha512-6wRhOH8+80Knr1H7FTYYjAZcpGpG4ZiveCXSv6ddk1eaab11Rd5tiFr0l3CSR1TcTw/lSVEjXtV2pRVOYpcFHA==
+    bytes: 268051
+    entries: 124
+authority:
+  canonical: validation-design/model/*.yaml
+  generated_artifacts:
+    - validation-design/case-catalog.md
+    - validation-design/harness-backlog.md
+    - validation-design/owner-briefing.md
+    - validation-design/owner-backlog.md
+    - validation-design/planned-trace.md
+    - validation-design/compiler-report.json
+  host_policy: docs/qualification/host-policy.yaml
+  legacy_inputs: validation-design/migration/legacy/ (byte-preserved history only; absent from model sources)
+  retired_root_inputs:
+    - validation-policy.yaml
+    - case-catalog.yaml
+    - case-catalog-generator.awk
+identity:
+  exact_upstream_package: 0.4.6
+  exact_product_revision: c4d9eb341cccaff59af84eb2589bfa37cbbfd1d7
+  exact_review_sha256: 959bc5dab145523cb70faa9828a6d73561c0f4e1dcd85f7fb6bf076c697adf2a
+  exact_archived_input_hashes:
+    case-catalog-generator.awk: 07a8ca3fd5975d9b3ee65ec04cb2cef81eada5a3afbff64934fbebc7b5568f05
+    case-catalog.md: 69777f75c509997fb378b86c8b119827a0f81c0fa0d975a9f138965f10d71059
+    case-catalog.yaml: 0da6e3dd2751b619a5f7b47053d8cfb2298f83cddc659b8762cc8b3477d952a0
+    harness-backlog.md: 213bf2e521d842920577aba2e41fb040a78885e534ca1c8d8ea59f68953924ca
+    validation-policy.yaml: 9ecb34132c47d1e1488388e6a3e3785bff6a5bb93fab2ccc1ed04f5a8dfb5964
+  deterministic_migration: two identical public calls byte-identical
+  deterministic_compile: two identical public calls byte-identical
+  compiler_report_sha256: add8272e48cfe3e80168c0e24f5232cf2f339bd74760e2bfd30662fdf25634fe
+  compiler_diagnostics: 0
+  source_normalization: none
+mapping:
+  legacy_family_sources: 409
+  canonical_family_outputs: 534
+  legacy_ticket_sources: 117
+  actionable_ticket_sources: 87
+  historical_ticket_sources: 30
+  owners: 1
+  provenance_sources: 61
+  product_structures: 166
+  journeys: 23
+  source_backed_changed_path_routes: 0
+  implementation_path_gaps:
+    - B-01
+    - B-02
+    - B-03
+    - B-04
+    - B-05
+    - B-06
+    - B-07
+    - B-08
+    - B-09A
+    - B-09B
+    - B-10
+    - B-11
+    - B-12
+    - B-13
+    - B-14
+    - B-15
+    - B-16
+    - B-17
+    - B-18
+    - B-19
+    - B-20
+    - B-21
+    - B-22
+    - B-23
+    - B-24
+    - B-25
+    - B-26
+    - B-27
+    - B-28
+    - B-29
+    - B-30
+    - B-31
+    - J-01
+    - J-02
+    - J-03
+    - J-04
+    - J-05
+    - J-06
+    - J-07
+    - J-08
+    - J-09
+    - J-10
+    - J-11
+    - J-12
+    - J-13
+    - J-14
+    - J-15
+    - J-16
+    - J-17
+    - J-18
+    - J-19
+    - J-20
+    - J-21
+    - J-22
+    - J-23
+    - CORMIDIA-INV-001
+    - CORMIDIA-INV-002
+    - CORMIDIA-INV-003
+    - CORMIDIA-INV-004
+    - CORMIDIA-INV-005
+    - CORMIDIA-INV-006
+    - CORMIDIA-INV-007
+    - CORMIDIA-INV-008
+    - CORMIDIA-INV-009
+    - CORMIDIA-INV-010
+    - CORMIDIA-INV-011
+    - CORMIDIA-INV-012
+    - CORMIDIA-INV-013
+    - CORMIDIA-INV-014
+    - CORMIDIA-INV-015
+    - CORMIDIA-INV-016
+    - CORMIDIA-INV-017
+    - CORMIDIA-INV-ACC-1
+    - CORMIDIA-INV-ACC-2
+    - CORMIDIA-INV-ACC-3
+    - CORMIDIA-INV-ACC-4
+    - CORMIDIA-INV-ACC-5
+    - CORMIDIA-INV-ACC-6
+    - CORMIDIA-INV-ACC-7a
+    - CORMIDIA-INV-ACC-7b
+    - CONTRACT-B-01
+    - CONTRACT-B-02
+    - CONTRACT-B-03
+    - CONTRACT-B-04
+    - CONTRACT-B-05
+    - CONTRACT-B-06
+    - CONTRACT-B-07
+    - CONTRACT-B-08
+    - CONTRACT-B-09A
+    - CONTRACT-B-09B
+    - CONTRACT-B-10
+    - CONTRACT-B-11
+    - CONTRACT-B-12
+    - CONTRACT-B-13
+    - CONTRACT-B-14
+    - CONTRACT-B-15
+    - CONTRACT-B-16
+    - CONTRACT-B-17
+    - CONTRACT-B-18
+    - CONTRACT-B-19
+    - CONTRACT-B-20
+    - CONTRACT-B-21
+    - CONTRACT-B-22
+    - CONTRACT-B-23
+    - CONTRACT-B-24
+    - CONTRACT-B-25
+    - CONTRACT-B-26
+    - CONTRACT-B-27
+    - CONTRACT-B-28
+    - CONTRACT-B-29
+    - CONTRACT-B-30
+    - CONTRACT-B-31
+    - CONTRACT-OP-BATCHING
+    - CONTRACT-OP-LIFECYCLE
+    - CONTRACT-OP-LOOP
+    - CONTRACT-OP-PLANNING
+    - CONTRACT-OP-VALIDATION-LIFECYCLE
+    - CONTRACT-JOURNEY-ACCEPTANCE
+    - CONTRACT-PROVIDER-CORE
+    - S-3
+    - S-1
+    - S-2
+    - S-4
+    - S-5
+    - S-6
+    - S-7
+    - S-8
+    - S-9
+    - S-10
+    - S-11
+    - SM-APPR
+    - SM-GRANT
+    - SM-PLAN
+    - SM-LADDER
+    - SM-LEARN
+    - SM-EVENT
+    - SM-TURN
+    - SM-COMP
+    - SM-ROADMAP
+    - SM-VALIDATION
+    - SM-BATCH
+    - SM-ACC
+    - SM-JOB
+    - SM-LOOP
+    - INTERFACE-CLI
+    - INTERFACE-JSON
+    - INTERFACE-UI
+    - INTERFACE-HTML
+    - INTERFACE-SKILL
+    - INTERFACE-CROSS-SURFACE
+    - INTERFACE-COMPARISON
+    - INTERFACE-JOB
+    - OP-HARNESS
+    - OP-VALIDATION-LIFECYCLE
+    - OP-REGRESSION
+    - OP-CONTENTION
+    - OP-SOAK
+    - OP-ROTATION
+    - OP-ABUSE
+    - OP-OUTCOME-ACCEPTANCE
+    - OP-LLM-CONDITIONING
+    - OP-CONSEQUENCE-SPLIT
+    - OP-REVIEW-INDEPENDENCE
+    - INTERFACE-GITHUB
+    - INTERFACE-EVENT-INBOX
+    - INTERFACE-OS-TIMER
+  negative_controls: 495
+preserved:
+  - All 409 legacy family IDs and 117 legacy ticket IDs are uniquely ledgered; every reviewed canonical split and current model output forms one exact closed set.
+  - Reviewed product, owners, sources, structures, policy, controls, family placement and semantics, ticket fields, citations, statuses, dependencies, and dispositions are exact.
+  - Legacy family status, oracle, risk, blocker, reason, evidence declaration, exclusions, and known limitations are retained without source-byte normalization.
+  - Current implementation links arise only from model planned_tests/evidence; source-code trace headers remain non-authoritative annotations.
+  - All six layers and the complete reviewed lane object remain active; live-release equals the host RQ-1 denominator and L-ACC remains advisory outside release.
+representation_dispositions:
+  legacy_family_meaning_changes:
+    CF-HARNESS-CI: Replaces the retired AWK/legacy-manifest regeneration claim with exact public-compiler eight-model/five-view/report drift closure while retaining F-PT-018.
+    CF-INV-ACC-3: Replaces the untracked policy-blob check with binding to the complete checked Validation Architect authority and the tighten-only Cormidia host policy.
+    CF-C-B31: Records the landed L1/L2 planning-source implementation and keeps the per-harness L3 modality proof pending.
+  non_meaning_changes:
+    CF-INV-002: Only its exclusion maps the legacy broad live trigger to exact checked-model lanes and host-policy release selection; its family meaning remains archived-exact.
+    B-17: Its former draft-policy pointer resolves to the checked-model family blocker.
+    B-27: Its authority binding resolves to the ordered eight-file model identity plus the separate Cormidia host-policy bytes.
+  general:
+    - Composite legacy placements are explicit canonical layer/lane outputs, with each source ID retained exactly once.
+    - CF-HARNESS-CI replaces active AWK/legacy-manifest regeneration with public checked-model, five-view, and compiler-report drift detection; exact AWK bytes remain history only.
+    - B-17's former draft-policy pointer resolves to the model family blocker; B-27 and CF-INV-ACC-3 bind the ordered eight-file identity plus host policy.
+    - CF-INV-002's former archived-policy pointer resolves to checked-model lanes and tighten-only host-policy composition.
+    - CF-B02-L3 remains the explicit reviewed L3 split of CF-C-B02 and belongs to the exact live-release denominator.
+    - Every actionable backlog output embeds exact current scope and acceptance facts; migration history is never an operational dependency.
+  hb155_status_and_dependencies:
+    - legacy_ticket_id: HB-155
+      output_id: HB-155
+      status: landed
+      depends_on: []
+    - legacy_ticket_id: HB-155
+      output_id: HB-155-L2
+      status: landed
+      depends_on:
+        - HB-155
+    - legacy_ticket_id: HB-155
+      output_id: HB-155-L3
+      status: blocked
+      depends_on:
+        - HB-137-L3
+        - HB-155-L2
+  dependency_mapping:
+    - legacy_ticket_id: HB-094
+      source_fact: After HB-090…093
+      dependency_ticket_ids:
+        - HB-090
+        - HB-091
+        - HB-092
+        - HB-093
+      output_patches:
+        - output_id: HB-094
+          layer: L5
+          depends_on:
+            - HB-090-L2
+            - HB-091-L2
+            - HB-093-L4
+          unresolved:
+            - HB-092:historical-or-no-output
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-090-L2, HB-091-L2, HB-093-L4. Unresolved source relations: HB-092 has no actionable canonical output. Exact source prerequisite retained: After HB-090…093."
+      disposition: layer-safe-patch-plan
+      representation_dispositions:
+        - HB-094/HB-094:HB-092:historical-or-no-output
+    - legacy_ticket_id: HB-100
+      source_fact: "accepted Phase 8 package and #239"
+      dependency_ticket_ids: []
+      output_patches:
+        - output_id: HB-100
+          layer: L1
+          depends_on: []
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: no canonical ticket-output edge is representable. Exact source prerequisite retained: accepted Phase 8 package and #239."
+        - output_id: HB-100-L2
+          layer: L2
+          depends_on: []
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: no canonical ticket-output edge is representable. Exact source prerequisite retained: accepted Phase 8 package and #239."
+      disposition: layer-safe-patch-plan
+      representation_dispositions: []
+    - legacy_ticket_id: HB-101
+      source_fact: HB-100
+      dependency_ticket_ids:
+        - HB-100
+      output_patches:
+        - output_id: HB-101
+          layer: L1
+          depends_on:
+            - HB-100
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-100. Exact source prerequisite retained: HB-100."
+        - output_id: HB-101-L2
+          layer: L2
+          depends_on:
+            - HB-100-L2
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-100-L2. Exact source prerequisite retained: HB-100."
+      disposition: layer-safe-patch-plan
+      representation_dispositions: []
+    - legacy_ticket_id: HB-102
+      source_fact: HB-100/101
+      dependency_ticket_ids:
+        - HB-100
+        - HB-101
+      output_patches:
+        - output_id: HB-102
+          layer: L1
+          depends_on:
+            - HB-100
+            - HB-101
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-100, HB-101. Exact source prerequisite retained: HB-100/101."
+        - output_id: HB-102-L2
+          layer: L2
+          depends_on:
+            - HB-100-L2
+            - HB-101-L2
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-100-L2, HB-101-L2. Exact source prerequisite retained: HB-100/101."
+      disposition: layer-safe-patch-plan
+      representation_dispositions: []
+    - legacy_ticket_id: HB-103
+      source_fact: HB-100/101/102
+      dependency_ticket_ids:
+        - HB-100
+        - HB-101
+        - HB-102
+      output_patches:
+        - output_id: HB-103
+          layer: L2
+          depends_on:
+            - HB-100-L2
+            - HB-101-L2
+            - HB-102-L2
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-100-L2, HB-101-L2, HB-102-L2. Exact source prerequisite retained: HB-100/101/102."
+      disposition: layer-safe-patch-plan
+      representation_dispositions: []
+    - legacy_ticket_id: HB-104
+      source_fact: HB-100/101/102/103
+      dependency_ticket_ids:
+        - HB-100
+        - HB-101
+        - HB-102
+        - HB-103
+      output_patches:
+        - output_id: HB-104
+          layer: L1
+          depends_on:
+            - HB-100
+            - HB-101
+            - HB-102
+          unresolved:
+            - HB-103:no-layer-local-output
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-100, HB-101, HB-102. Unresolved source relations: HB-103 has no same-layer output and is not pulled across layers. Exact source prerequisite retained: HB-100/101/102/103."
+        - output_id: HB-104-L2
+          layer: L2
+          depends_on:
+            - HB-100-L2
+            - HB-101-L2
+            - HB-102-L2
+            - HB-103
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-100-L2, HB-101-L2, HB-102-L2, HB-103. Exact source prerequisite retained: HB-100/101/102/103."
+      disposition: layer-safe-patch-plan
+      representation_dispositions:
+        - HB-104/HB-104:HB-103:no-layer-local-output
+    - legacy_ticket_id: HB-105
+      source_fact: HB-101/102
+      dependency_ticket_ids:
+        - HB-101
+        - HB-102
+      output_patches: []
+      disposition: source-fact-only
+      representation_dispositions:
+        - HB-105:source-fact-only:no-actionable-output
+      reason_disposition: "Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-101/102."
+    - legacy_ticket_id: HB-106
+      source_fact: HB-104 and existing approval/effect contracts
+      dependency_ticket_ids:
+        - HB-104
+      output_patches: []
+      disposition: source-fact-only
+      representation_dispositions:
+        - HB-106:source-fact-only:no-actionable-output
+      reason_disposition: "Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-104 and existing approval/effect contracts."
+    - legacy_ticket_id: HB-107
+      source_fact: HB-101/104
+      dependency_ticket_ids:
+        - HB-101
+        - HB-104
+      output_patches: []
+      disposition: source-fact-only
+      representation_dispositions:
+        - HB-107:source-fact-only:no-actionable-output
+      reason_disposition: "Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-101/104."
+    - legacy_ticket_id: HB-108
+      source_fact: HB-101…107
+      dependency_ticket_ids:
+        - HB-101
+        - HB-102
+        - HB-103
+        - HB-104
+        - HB-105
+        - HB-106
+        - HB-107
+      output_patches:
+        - output_id: HB-108
+          layer: L4
+          depends_on:
+            - HB-101-L2
+            - HB-102-L2
+            - HB-103
+            - HB-104-L2
+          unresolved:
+            - HB-105:historical-or-no-output
+            - HB-106:historical-or-no-output
+            - HB-107:historical-or-no-output
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-101-L2, HB-102-L2, HB-103, HB-104-L2. Unresolved source relations: HB-105 has no actionable canonical output; HB-106 has no actionable canonical output; HB-107 has no actionable canonical output. Exact source prerequisite retained: HB-101…107."
+      disposition: layer-safe-patch-plan
+      representation_dispositions:
+        - HB-108/HB-108:HB-105:historical-or-no-output
+        - HB-108/HB-108:HB-106:historical-or-no-output
+        - HB-108/HB-108:HB-107:historical-or-no-output
+    - legacy_ticket_id: HB-109
+      source_fact: HB-103/104/107
+      dependency_ticket_ids:
+        - HB-103
+        - HB-104
+        - HB-107
+      output_patches: []
+      disposition: source-fact-only
+      representation_dispositions:
+        - HB-109:source-fact-only:no-actionable-output
+      reason_disposition: "Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-103/104/107."
+    - legacy_ticket_id: HB-110
+      source_fact: HB-101…107
+      dependency_ticket_ids:
+        - HB-101
+        - HB-102
+        - HB-103
+        - HB-104
+        - HB-105
+        - HB-106
+        - HB-107
+      output_patches: []
+      disposition: source-fact-only
+      representation_dispositions:
+        - HB-110:source-fact-only:no-actionable-output
+      reason_disposition: "Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-101…107."
+    - legacy_ticket_id: HB-111
+      source_fact: HB-100…108 behavior/schema stabilization
+      dependency_ticket_ids:
+        - HB-100
+        - HB-101
+        - HB-102
+        - HB-103
+        - HB-104
+        - HB-105
+        - HB-106
+        - HB-107
+        - HB-108
+      output_patches: []
+      disposition: source-fact-only
+      representation_dispositions:
+        - HB-111:source-fact-only:no-actionable-output
+      reason_disposition: "Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-100…108 behavior/schema stabilization."
+    - legacy_ticket_id: HB-113
+      source_fact: RQ-1 ratification
+      dependency_ticket_ids: []
+      output_patches:
+        - output_id: HB-113
+          layer: L1
+          depends_on: []
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: no canonical ticket-output edge is representable. Exact source prerequisite retained: RQ-1 ratification."
+        - output_id: HB-113-L2
+          layer: L2
+          depends_on: []
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: no canonical ticket-output edge is representable. Exact source prerequisite retained: RQ-1 ratification."
+      disposition: layer-safe-patch-plan
+      representation_dispositions: []
+    - legacy_ticket_id: HB-114
+      source_fact: HB-113
+      dependency_ticket_ids:
+        - HB-113
+      output_patches: []
+      disposition: source-fact-only
+      representation_dispositions:
+        - HB-114:source-fact-only:no-actionable-output
+      reason_disposition: "Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-113."
+    - legacy_ticket_id: HB-115
+      source_fact: human reference validation and HB-113
+      dependency_ticket_ids:
+        - HB-113
+      output_patches:
+        - output_id: HB-115
+          layer: L1
+          depends_on:
+            - HB-113
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-113. Exact source prerequisite retained: human reference validation and HB-113."
+        - output_id: HB-115-L2
+          layer: L2
+          depends_on:
+            - HB-113-L2
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-113-L2. Exact source prerequisite retained: human reference validation and HB-113."
+      disposition: layer-safe-patch-plan
+      representation_dispositions: []
+    - legacy_ticket_id: HB-116
+      source_fact: HB-113…115
+      dependency_ticket_ids:
+        - HB-113
+        - HB-114
+        - HB-115
+      output_patches:
+        - output_id: HB-116
+          layer: L1
+          depends_on:
+            - HB-113
+            - HB-115
+          unresolved:
+            - HB-114:historical-or-no-output
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-113, HB-115. Unresolved source relations: HB-114 has no actionable canonical output. Exact source prerequisite retained: HB-113…115."
+        - output_id: HB-116-L2
+          layer: L2
+          depends_on:
+            - HB-113-L2
+            - HB-115-L2
+          unresolved:
+            - HB-114:historical-or-no-output
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-113-L2, HB-115-L2. Unresolved source relations: HB-114 has no actionable canonical output. Exact source prerequisite retained: HB-113…115."
+      disposition: layer-safe-patch-plan
+      representation_dispositions:
+        - HB-116/HB-116:HB-114:historical-or-no-output
+        - HB-116/HB-116-L2:HB-114:historical-or-no-output
+    - legacy_ticket_id: HB-117
+      source_fact: HB-116
+      dependency_ticket_ids:
+        - HB-116
+      output_patches:
+        - output_id: HB-117
+          layer: L1
+          depends_on:
+            - HB-116
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-116. Exact source prerequisite retained: HB-116."
+        - output_id: HB-117-L2
+          layer: L2
+          depends_on:
+            - HB-116-L2
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-116-L2. Exact source prerequisite retained: HB-116."
+      disposition: layer-safe-patch-plan
+      representation_dispositions: []
+    - legacy_ticket_id: HB-118
+      source_fact: HB-113…117
+      dependency_ticket_ids:
+        - HB-113
+        - HB-114
+        - HB-115
+        - HB-116
+        - HB-117
+      output_patches: []
+      disposition: source-fact-only
+      representation_dispositions:
+        - HB-118:source-fact-only:no-actionable-output
+      reason_disposition: "Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-113…117."
+    - legacy_ticket_id: HB-130
+      source_fact: HB-120…129
+      dependency_ticket_ids:
+        - HB-120
+        - HB-121
+        - HB-122
+        - HB-123
+        - HB-124
+        - HB-125
+        - HB-126
+        - HB-127
+        - HB-128
+        - HB-129
+      output_patches:
+        - output_id: HB-130
+          layer: L1
+          depends_on:
+            - HB-120
+            - HB-121
+            - HB-122
+            - HB-123
+            - HB-124
+            - HB-125
+            - HB-126
+            - HB-127
+            - HB-128
+            - HB-129
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-120, HB-121, HB-122, HB-123, HB-124, HB-125, HB-126, HB-127, HB-128, HB-129. Exact source prerequisite retained: HB-120…129."
+        - output_id: HB-130-L2
+          layer: L2
+          depends_on:
+            - HB-120-L2
+            - HB-121-L2
+            - HB-122-L2
+            - HB-123-L2
+            - HB-124-L2
+            - HB-125-L2
+            - HB-126-L2
+            - HB-127-L2
+            - HB-128-L2
+            - HB-129-L2
+          unresolved: []
+          acceptance_disposition: "Dependency representation disposition: canonical dependency outputs are HB-120-L2, HB-121-L2, HB-122-L2, HB-123-L2, HB-124-L2, HB-125-L2, HB-126-L2, HB-127-L2, HB-128-L2, HB-129-L2. Exact source prerequisite retained: HB-120…129."
+      disposition: layer-safe-patch-plan
+      representation_dispositions: []
+  retired_pointer_repairs:
+    HB-002/harness_self_tests:
+      canonical_binding: validation-design/model/controls.yaml plus each validation-design/model/families.yaml control_ids relationship
+      decision_ledger: research/2026-08-16_validation-authority-domain-split.md
+    HB-124/axis_score:
+      canonical_binding: docs/qualification/host-policy.yaml → outcome_acceptance.axis_score
+    HB-135/F-PT-019:
+      rule_location: inlined exact source-ticket acceptance fact
+      status_and_provenance:
+        - docs/PURPOSE.md
+        - validation-design/harness-design-state.md
+      machine_bindings:
+        - CF-SPLIT-SECRETS
+        - CF-REG-204
+  structure_extraction:
+    impact_mapping:
+      structure_count: 166
+      exact_reviewed_path_mappings: 0
+      full_suite_disclosures: 0
+      disposition: Every structure has an empty reviewed changed_paths set; until a separately reviewed complete map exists, any changed product path widens planning to the named full offline suite, with triggered L3-L6 work remaining separately human-authorized.
+    ownership:
+      exact_structure_owners:
+        - bikramgupta
+      structure_specific_criticality_overrides: 0
+    recovered_source_exact_interfaces:
+      - id: INTERFACE-GITHUB
+        kind: interface
+        title: GitHub
+        meaning: "GitHub is a entry + observation + substrate surface. conventions (labels/branches/trailers); polling boundedness; artifact-before-label Implementation path mapping is unresolved, so no bounded subset is claimable and changed_paths stays empty rather than inventing paths. Deterministic discovery procedure: (1) describe the changed behavior and read the changed source; (2) match every relevant structure by its meaning and source_ids, resolving those source IDs in planned-trace.md; (3) traverse each matched structure → family → control → ticket through case-catalog.md and harness-backlog.md; (4) inspect the family's planned_tests or evidence path plus its cited source paths to locate the implementation and detector seams. Those inspection paths are discovery evidence, not invented changed_paths. If zero, multiple, or unresolved mappings remain, retain every semantic match and claim no bounded subset. If the traversal cannot resolve at least one owning family/control/ticket chain, do not select a ticket or guess a model edit: record the mapping gap as an F-PT finding in the authored harness-design-state register, keep the affected work blocked, and proceed only with structure-independent work. The exact safe operator action is therefore semantic traversal followed by either the resolved chain or refusal plus that finding—not intuition. Until implementation-path mappings are ratified, every changed product path widens planning to the authoritative full offline suite: run `pnpm test`, `pnpm validation:trace`, `pnpm check`, and `pnpm build`; L3-L6 live, eval, soak, and L-ACC lanes additionally run only when their declared trigger applies and an exact reviewed configuration plus per-run human authorization exist."
+        acceptance_criteria:
+          - "Surface role: entry + observation + substrate."
+          - "Adapter obligations: conventions (labels/branches/trailers); polling boundedness; artifact-before-label"
+        failure_modes: []
+        changed_paths: []
+        owner: bikramgupta
+        source_ids:
+          - SOURCE-SYSTEM-MAP
+      - id: INTERFACE-EVENT-INBOX
+        kind: interface
+        title: File-drop event inbox
+        meaning: "File-drop event inbox is a entry surface. closed kind registry; schema validation; retention semantics Implementation path mapping is unresolved, so no bounded subset is claimable and changed_paths stays empty rather than inventing paths. Deterministic discovery procedure: (1) describe the changed behavior and read the changed source; (2) match every relevant structure by its meaning and source_ids, resolving those source IDs in planned-trace.md; (3) traverse each matched structure → family → control → ticket through case-catalog.md and harness-backlog.md; (4) inspect the family's planned_tests or evidence path plus its cited source paths to locate the implementation and detector seams. Those inspection paths are discovery evidence, not invented changed_paths. If zero, multiple, or unresolved mappings remain, retain every semantic match and claim no bounded subset. If the traversal cannot resolve at least one owning family/control/ticket chain, do not select a ticket or guess a model edit: record the mapping gap as an F-PT finding in the authored harness-design-state register, keep the affected work blocked, and proceed only with structure-independent work. The exact safe operator action is therefore semantic traversal followed by either the resolved chain or refusal plus that finding—not intuition. Until implementation-path mappings are ratified, every changed product path widens planning to the authoritative full offline suite: run `pnpm test`, `pnpm validation:trace`, `pnpm check`, and `pnpm build`; L3-L6 live, eval, soak, and L-ACC lanes additionally run only when their declared trigger applies and an exact reviewed configuration plus per-run human authorization exist."
+        acceptance_criteria:
+          - "Surface role: entry."
+          - "Adapter obligations: closed kind registry; schema validation; retention semantics"
+        failure_modes: []
+        changed_paths: []
+        owner: bikramgupta
+        source_ids:
+          - SOURCE-SYSTEM-MAP
+      - id: INTERFACE-OS-TIMER
+        kind: interface
+        title: OS timer
+        meaning: "OS timer is a stimulus source surface. fires the same `cormidia dispatch` the human can run — one behavior, two initiators Implementation path mapping is unresolved, so no bounded subset is claimable and changed_paths stays empty rather than inventing paths. Deterministic discovery procedure: (1) describe the changed behavior and read the changed source; (2) match every relevant structure by its meaning and source_ids, resolving those source IDs in planned-trace.md; (3) traverse each matched structure → family → control → ticket through case-catalog.md and harness-backlog.md; (4) inspect the family's planned_tests or evidence path plus its cited source paths to locate the implementation and detector seams. Those inspection paths are discovery evidence, not invented changed_paths. If zero, multiple, or unresolved mappings remain, retain every semantic match and claim no bounded subset. If the traversal cannot resolve at least one owning family/control/ticket chain, do not select a ticket or guess a model edit: record the mapping gap as an F-PT finding in the authored harness-design-state register, keep the affected work blocked, and proceed only with structure-independent work. The exact safe operator action is therefore semantic traversal followed by either the resolved chain or refusal plus that finding—not intuition. Until implementation-path mappings are ratified, every changed product path widens planning to the authoritative full offline suite: run `pnpm test`, `pnpm validation:trace`, `pnpm check`, and `pnpm build`; L3-L6 live, eval, soak, and L-ACC lanes additionally run only when their declared trigger applies and an exact reviewed configuration plus per-run human authorization exist."
+        acceptance_criteria:
+          - "Surface role: stimulus source."
+          - "Adapter obligations: fires the same `cormidia dispatch` the human can run — one behavior, two initiators"
+        failure_modes: []
+        changed_paths: []
+        owner: bikramgupta
+        source_ids:
+          - SOURCE-SYSTEM-MAP
+    source_exact_llm_sites:
+      source_id: SOURCE-LLM-EVAL
+      ids:
+        - S-1
+        - S-10
+        - S-11
+        - S-2
+        - S-3
+        - S-4
+        - S-5
+        - S-6
+        - S-7
+        - S-8
+        - S-9
+      exact_records_sha256: 1e6c5d9f2488efe686f441336737f22c735da4f619bbc3a680f3291ef53e3901
+      verified_fields:
+        - kind
+        - title
+        - meaning
+        - acceptance_criteria
+        - failure_modes
+        - changed_paths
+        - owner
+        - source_ids
+    source_exact_invariants:
+      source_id: SOURCE-INVARIANTS
+      ids:
+        - CORMIDIA-INV-001
+        - CORMIDIA-INV-002
+        - CORMIDIA-INV-003
+        - CORMIDIA-INV-004
+        - CORMIDIA-INV-005
+        - CORMIDIA-INV-006
+        - CORMIDIA-INV-007
+        - CORMIDIA-INV-008
+        - CORMIDIA-INV-009
+        - CORMIDIA-INV-010
+        - CORMIDIA-INV-011
+        - CORMIDIA-INV-012
+        - CORMIDIA-INV-013
+        - CORMIDIA-INV-014
+        - CORMIDIA-INV-015
+        - CORMIDIA-INV-016
+        - CORMIDIA-INV-017
+        - CORMIDIA-INV-ACC-1
+        - CORMIDIA-INV-ACC-2
+        - CORMIDIA-INV-ACC-3
+        - CORMIDIA-INV-ACC-4
+        - CORMIDIA-INV-ACC-5
+        - CORMIDIA-INV-ACC-6
+        - CORMIDIA-INV-ACC-7a
+        - CORMIDIA-INV-ACC-7b
+      exact_records_sha256: 536a0bf284915057600e6f11c82e9e492f156d1c9d7d8733802a187e7d562257
+      verified_fields:
+        - kind
+        - title
+        - meaning
+        - acceptance_criteria
+        - failure_modes
+        - changed_paths
+        - owner
+        - source_ids
+    source_corrections:
+      J-21/F-PT-030:
+        disposition: A declared plan_gate policy may resolve the scored gate unattended only under the ratified rubric criteria and with durable resolution before build-arm spend; silence still refuses, and L-ACC remains non-gating.
+        exact_structure_record:
+          id: J-21
+          kind: journey
+          title: Outcome acceptance campaign (L-ACC)
+          meaning: "Outcome-acceptance work emits a durable report for the work actually reached. A plan-gate stop is complete for the plan arm and incomplete for the unrun build arm; it is never a whole-campaign pass or complete build campaign. Every absent axis remains ungraded, every threshold-dependent verdict remains inconclusive, and L-ACC stays outside RQ-1. Implementation path mapping is unresolved, so no bounded subset is claimable and changed_paths stays empty rather than inventing paths. Deterministic discovery procedure: (1) describe the changed behavior and read the changed source; (2) match every relevant structure by its meaning and source_ids, resolving those source IDs in planned-trace.md; (3) traverse each matched structure → family → control → ticket through case-catalog.md and harness-backlog.md; (4) inspect the family's planned_tests or evidence path plus its cited source paths to locate the implementation and detector seams. Those inspection paths are discovery evidence, not invented changed_paths. If zero, multiple, or unresolved mappings remain, retain every semantic match and claim no bounded subset. If the traversal cannot resolve at least one owning family/control/ticket chain, do not select a ticket or guess a model edit: record the mapping gap as an F-PT finding in the authored harness-design-state register, keep the affected work blocked, and proceed only with structure-independent work. The exact safe operator action is therefore semantic traversal followed by either the resolved chain or refusal plus that finding—not intuition. Until implementation-path mappings are ratified, every changed product path widens planning to the authoritative full offline suite: run `pnpm test`, `pnpm validation:trace`, `pnpm check`, and `pnpm build`; L3-L6 live, eval, soak, and L-ACC lanes additionally run only when their declared trigger applies and an exact reviewed configuration plus per-run human authorization exist."
+          acceptance_criteria:
+            - "Given a campaign config with any preflight defect — an unrun or failed `pnpm install:packaged --replace-source-links`, `effort: max` on a harness other than `claude`/`opencode`, an app arm whose planner, builder and reviewer are one provider family, an `adaptive_assignments` candidate with neither a real `qualification_ref` nor an uncertified disclosure, a commit pin ≠ HEAD, or a scenario repository resolving to this repository — then the campaign refuses at **preflight**, before any runtime is constructed, repository mutated, or token spent, naming the exact defect. [B-27 §1/§2, INV-ACC-3/7b, INV-001/015]"
+            - Given any grader turn, then no byte of the sealed answer key is present in its assembled input **or** reachable from any surface it can read with its own tools — including the scenario repository's git history — and the key is applied mechanically only after every grader turn for that scenario has terminated. [B-28 §2/§4, INV-ACC-1]
+            - Given a model-graded axis, then the grading turn's provider family is disjoint from every turn that axis reads, the check ran before provider construction, and the disjointness set actually applied is recorded in the report; given no legal grader exists for that axis, it reports `ungraded` rather than being graded by a correlated provider. [B-29 §2, INV-ACC-2]
+            - Given the plan arm has completed, then no build-arm token is spent until that scenario's plan gate resolves on a score and that resolution is recorded with the scores it acted on; given an unattended campaign with a declared `plan_gate` policy, the policy may author that resolution (F-PT-030, 2026-08-07) provided the ratified rubric §6 criteria are met, and given no declared policy the campaign refuses. A campaign that stops at the gate is reported complete-for-the-plan-arm, never failed. [B-27 §1.8/§4, INV-ACC-4]
+            - "Given any campaign result, then no release path consumes it: L-ACC never enters RQ-1 completeness, verdict, or qualification, and no surface presents a score as a block. [B-27 §4, F-PT-029]"
+            - Given any axis whose evidence is missing, or whose score arrived without its mandatory evidence citation, then it reports `ungraded`; `ungraded` never becomes `0`, never enters an aggregate as a number, and every aggregate names its graded denominator. Given any unratified threshold, the verdict is `inconclusive` — never pass/fail. [B-27 §4, B-29 §3, INV-ACC-5, `docs/qualification/host-policy.yaml` `outcome_acceptance.axis_score`]
+            - "Given a ceiling exhaustion, a killed scenario, or a missing grader run, then that scenario reports `completeness: incomplete` with partial evidence preserved and remains present in the report. [B-27 §3, INV-ACC-6]"
+            - "Given the whole campaign, then every product-affecting action traces to the **packaged** `cormidia`/`cormidia-job` binaries: no scenario-repo commit, branch, PR, issue or file write carries the supervising agent's identity, no provider SDK is called outside a Cormidia turn, and the report answers \"which bytes did this exercise\" from the installed version and tarball identity alone. A scenario whose invocation audit, commit authorship and run journal do not reconcile reports `ungraded` / `incomplete` rather than a score. [B-27 §2, INV-ACC-7a/7b]"
+            - Given a completed campaign, then no app was deployed and no deploy grant was held; the deliverable is a buildable app plus a preview command in the report. [B-27 §5, T-12]
+          failure_modes: []
+          changed_paths: []
+          owner: bikramgupta
+          source_ids:
+            - SOURCE-SYSTEM-MAP
+            - SOURCE-CONTRACT-JOURNEY-ACCEPTANCE
+closure:
+  result: inconclusive/incomplete
+  red_or_unresolved_findings: 0
+  partial_findings: 369
+  rule: Pending/blocked/parked absence and incomplete evidence remain partial; landed absence is red.
+reader_bundle:
+  manifest_sha256: 220534265445d6aac2e590aad5bbfae64a982927c4728371aa2dc602cad124ab
+  artifact_count: 6
+  review_record_sha256: c2a33d18b5257e2d714efac5f095617c310c0a80a227d09e415bf42ab4df5fe1
+  reviews:
+    - role: production operator
+      reviewer: /root/reader10_production_operator_465
+      verdict: pass
+    - role: new engineer
+      reviewer: /root/reader10_new_engineer_465
+      verdict: pass
+    - role: coding agent
+      reviewer: /root/reader10_coding_agent_465
+      verdict: pass
+seeded_negative_controls:
+  - id: archived-source-hash
+    result: detected
+    detail: |-
+      migration input pin failure:
+      - legacy/case-catalog.md expected 69777f75c509997fb378b86c8b119827a0f81c0fa0d975a9f138965f10d71059, found ff68c9f44ca62c9446f4a928377946f00e4d3579db4db6e73e06ef62cd439b8f
+  - id: artifact-bytes
+    result: detected
+    detail: |-
+      migration input pin failure:
+      - artifact SHA-256 expected 1e396fdb7fe2e6ea2e479628e344c6283a5ae7f4cb95a86dfba8601a7cfd66c5, found aa5c34e355e75b57389c62887107b2bf267cb5cd02669b3ac20e8124c842c2ec
+      - artifact integrity expected sha512-6wRhOH8+80Knr1H7FTYYjAZcpGpG4ZiveCXSv6ddk1eaab11Rd5tiFr0l3CSR1TcTw/lSVEjXtV2pRVOYpcFHA==, found sha512-JHpwo6fdcdQJWDbRmG/w4Y1Bymsj/TvdjwvJNKd6thtfpEmuK4i0G+LfXDJPlKA3g29oIrEMB07lY1/8zq2b9g==
+  - id: host-policy-hash
+    result: detected
+    detail: |-
+      migration input pin failure:
+      - host_policy_sha256 expected c0ea9e20b3b0b3ffb11c2c69a4592fc07b5d952ed2020d4b8eb11e705458efa5, found f5cbca5ee0b5fa333cbb19850e018261b3d83ad9fb5935f3fec7b5c031adae20
+  - id: product-revision
+    result: detected
+    detail: |-
+      migration input pin failure:
+      - review product revision expected c4d9eb341cccaff59af84eb2589bfa37cbbfd1d7, found 0000000000000000000000000000000000000000
+  - id: review-mapping-hash
+    result: detected
+    detail: |-
+      migration input pin failure:
+      - review SHA-256 expected 959bc5dab145523cb70faa9828a6d73561c0f4e1dcd85f7fb6bf076c697adf2a, found e4e681f85b0f0881d553ba36ceb33ac37a2fc87deca3fda3ee8224bdcdbdf8a5
+  - id: model-identity-pin
+    result: detected
+    detail: |-
+      migration input pin failure:
+      - model identity expected 2ea4d12b7f6b0fc7c29eb26562fa79b6044ed2fc53026211e52a35b45a219c81, found 0000000000000000000000000000000000000000000000000000000000000000
+  - id: dropped-legacy-family
+    result: detected
+    detail: "legacy corpus cannot be migrated: legacy family CF-J01-S has no explicit reviewed mapping"
+  - id: missing-negative-control
+    result: detected
+    detail: "legacy corpus cannot be migrated: legacy implementable family CF-J01-S output CF-J01-S needs a reviewed negative control"
+  - id: missing-provenance
+    result: detected
+    detail: "legacy corpus cannot be migrated: legacy family CF-J01-S output CF-J01-S needs exact reviewed ownership, structures, and provenance"
+  - id: duplicate-family-output
+    result: detected
+    detail: "legacy corpus cannot be migrated: legacy family CF-J01-S outputs must retain the legacy id exactly once"
+  - id: empty-family-output-oracle
+    result: detected
+    detail: "legacy corpus cannot be migrated: legacy family CF-ACC-S3 output CF-ACC-S3 needs a non-empty reviewed oracle"
+  - id: empty-family-output-risk
+    result: detected
+    detail: "legacy corpus cannot be migrated: legacy family CF-ACC-S3 output CF-ACC-S3 needs a non-empty reviewed risk"
+  - id: no-owner-ticket-actionability
+    result: detected
+    detail: "legacy corpus cannot be migrated: legacy ticket HB-001 owns no families and needs an explicit historical disposition and reason"
+  - id: policy-requirement
+    result: detected
+    detail: complete reviewed policy object drift
+  - id: policy-authorization
+    result: detected
+    detail: complete reviewed policy object drift
+  - id: policy-trigger
+    result: detected
+    detail: complete reviewed policy object drift
+  - id: policy-lacc
+    result: detected
+    detail: complete reviewed policy object drift
+  - id: policy-exception
+    result: detected
+    detail: complete reviewed policy object drift
+  - id: release-lane-membership
+    result: detected
+    detail: live-release membership differs from the host RQ-1 denominator
+  - id: product-drift
+    result: detected
+    detail: reviewed product object drift
+  - id: owner-record-drift
+    result: detected
+    detail: reviewed owners object drift
+  - id: source-record-drift
+    result: detected
+    detail: reviewed sources object drift
+  - id: structure-record-drift
+    result: detected
+    detail: reviewed structures object drift
+  - id: control-record-drift
+    result: detected
+    detail: NC-CF-HARNESS-CI exact negative-control record drift
+  - id: family-layer-drift
+    result: detected
+    detail: CF-J01-S exact layer drift
+  - id: family-lane-drift
+    result: detected
+    detail: CF-J01-S exact lane drift
+  - id: family-exclusion-drift
+    result: detected
+    detail: CF-J01-S exact exclusions drift
+  - id: family-output-invented
+    result: detected
+    detail: model family IDs differ from reviewed output closure
+  - id: family-output-dropped
+    result: detected
+    detail: model family IDs differ from reviewed output closure
+  - id: family-title-drift
+    result: detected
+    detail: CF-HARNESS-CI exact title drift
+  - id: family-meaning-drift
+    result: detected
+    detail: CF-HARNESS-CI exact meaning drift
+  - id: family-structure-ids-drift
+    result: detected
+    detail: CF-HARNESS-CI exact structure_ids drift
+  - id: family-owner-drift
+    result: detected
+    detail: CF-HARNESS-CI exact owner drift
+  - id: family-source-ids-drift
+    result: detected
+    detail: CF-HARNESS-CI exact source_ids drift
+  - id: family-status-drift
+    result: detected
+    detail: CF-HARNESS-CI exact status drift
+  - id: family-oracle-drift
+    result: detected
+    detail: CF-HARNESS-CI exact oracle drift
+  - id: family-risk-drift
+    result: detected
+    detail: CF-HARNESS-CI exact risk drift
+  - id: family-control-ids-drift
+    result: detected
+    detail: CF-HARNESS-CI exact control_ids drift
+  - id: family-ticket-drift
+    result: detected
+    detail: CF-HARNESS-CI exact ticket drift
+  - id: family-planned-tests-drift
+    result: detected
+    detail: CF-HARNESS-CI exact planned_tests drift
+  - id: family-evidence-drift
+    result: detected
+    detail: CF-B23-L3 exact evidence drift
+  - id: family-blocked-by-drift
+    result: detected
+    detail: CF-J17-A exact blocked_by drift
+  - id: family-reason-drift
+    result: detected
+    detail: CF-J06-A exact reason drift
+  - id: canonical-archive-path
+    result: detected
+    detail: SOURCE-SYSTEM-MAP keeps the migration archive active
+  - id: retired-root-validation-policy.yaml
+    result: detected
+    detail: validation-design/validation-policy.yaml is retired root authority
+  - id: retired-root-case-catalog.yaml
+    result: detected
+    detail: validation-design/case-catalog.yaml is retired root authority
+  - id: retired-root-case-catalog-generator.awk
+    result: detected
+    detail: validation-design/case-catalog-generator.awk is retired root authority
+  - id: reviewed-family-meaning-normalization
+    result: detected
+    detail: CF-J01-S family meaning does not equal its unique complete archived catalog row
+  - id: ticket-title-drift
+    result: detected
+    detail: HB-002 exact title drift
+  - id: ticket-wave-drift
+    result: detected
+    detail: HB-002 exact wave drift
+  - id: ticket-status-drift
+    result: detected
+    detail: HB-002 exact status drift
+  - id: ticket-owner-drift
+    result: detected
+    detail: HB-002 exact owner drift
+  - id: ticket-executor-drift
+    result: detected
+    detail: HB-002 exact executor drift
+  - id: ticket-lane-drift
+    result: detected
+    detail: HB-002 exact lane drift
+  - id: ticket-layer-drift
+    result: detected
+    detail: HB-002 exact layer drift
+  - id: ticket-acceptance-criteria-drift
+    result: detected
+    detail: HB-002 exact acceptance_criteria drift
+  - id: ticket-family-ids-drift
+    result: detected
+    detail: HB-002 exact family_ids drift
+  - id: ticket-dependency-drift
+    result: detected
+    detail: HB-002 exact depends_on drift
+  - id: ticket-status-override-drift
+    result: detected
+    detail: HB-155-L2 exact status drift
+  - id: ticket-output-invented
+    result: detected
+    detail: canonical ticket outputs are not one complete unique ledger/model set
+  - id: family-ledger-output
+    result: detected
+    detail: CF-ACC-GATE family ledger output closure drift
+  - id: ticket-ledger-citation
+    result: detected
+    detail: HB-001 exact legacy_family_ids drift
+  - id: ticket-ledger-owned
+    result: detected
+    detail: HB-002 exact owned_legacy_family_ids drift
+  - id: ticket-ledger-disposition
+    result: detected
+    detail: HB-001 exact disposition drift
+  - id: ticket-ledger-reason
+    result: detected
+    detail: HB-001 exact reason drift
+  - id: ticket-id-retention
+    result: detected
+    detail: HB-002 actionable ticket id is not retained exactly once
+  - id: ledger-product-revision-binding
+    result: detected
+    detail: complete migration ledger object drift
+  - id: ledger-upstream-artifact-binding
+    result: detected
+    detail: complete migration ledger object drift
+  - id: ledger-reviewed-source-binding
+    result: detected
+    detail: complete migration ledger object drift
+  - id: ledger-compiler-report-binding
+    result: detected
+    detail: complete migration ledger object drift
+  - id: review-source-path-drift
+    result: detected
+    detail: reviewed source inventory/path/kind records drift from the exact ratified set
+  - id: review-source-kind-drift
+    result: detected
+    detail: reviewed source inventory/path/kind records drift from the exact ratified set
+  - id: review-source-duplicate
+    result: detected
+    detail: reviewed source inventory/path/kind records drift from the exact ratified set
+  - id: review-source-provenance-dropped
+    result: detected
+    detail: reviewed source inventory/path/kind records drift from the exact ratified set
+  - id: family-output-source-dropped
+    result: detected
+    detail: CF-J01-S/CF-J01-S source references differ from its reviewed family source closure
+  - id: structure-source-reference-dropped
+    result: detected
+    detail: B-31 has no reviewed source reference
+  - id: review-product-criticality-drift
+    result: detected
+    detail: reviewed product facts drift
+  - id: review-owner-drift
+    result: detected
+    detail: reviewed owner facts drift
+  - id: structure-owner-drift
+    result: detected
+    detail: B-01 reviewed owner drift
+  - id: structure-criticality-drift
+    result: detected
+    detail: B-01 reviewed criticality override drift
+  - id: structure-impact-map-invented
+    result: detected
+    detail: B-01 claims an unreviewed implementation impact map/full-suite disposition
+  - id: review-ticket-title-drift
+    result: detected
+    detail: reviewed ticket output titles drift from the exact ratified set
+  - id: review-ticket-owner-drift
+    result: detected
+    detail: HB-002/HB-002 owner differs from its exact family placement
+  - id: review-ticket-lane-drift
+    result: detected
+    detail: HB-002/HB-002 lane differs from its exact family placement
+  - id: review-ticket-layer-drift
+    result: detected
+    detail: HB-002/HB-002 layer differs from its exact family placement
+  - id: review-ticket-family-ids-drift
+    result: detected
+    detail: HB-002/HB-002 family_ids differ from exact reviewed family ownership
+  - id: review-ticket-depends-on-drift
+    result: detected
+    detail: HB-094/HB-094 exact dependency patch drift
+  - id: review-ticket-status-drift
+    result: detected
+    detail: HB-155/HB-155 explicit status patch drift
+  - id: archive-delegating-ticket
+    result: detected
+    detail: HB-002/HB-002 lacks exact self-contained acceptance
+  - id: missing-journey-structure
+    result: detected
+    detail: "journey ids differ: expected ; found J-02, J-03, J-04, J-05, J-06, J-07, J-08, J-09, J-10, J-11, J-12, J-13, J-14, J-15, J-16, J-17, J-18, J-19, J-20, J-21, J-22, J-23"
+  - id: missing-b31-boundary
+    result: detected
+    detail: "boundary ids differ: expected ; found B-01, B-02, B-03, B-04, B-05, B-06, B-07, B-08, B-09A, B-09B, B-10, B-11, B-12, B-13, B-14, B-15, B-16, B-17, B-18, B-19, B-20, B-21, B-22, B-23, B-24, B-25, B-26, B-27, B-28, B-29, B-30"
+  - id: source-exact-interface
+    result: detected
+    detail: INTERFACE-GITHUB differs from exact interface facts
+  - id: source-exact-llm-site
+    result: detected
+    detail: S-1 differs from exact LLM-site facts
+  - id: source-exact-invariant
+    result: detected
+    detail: CORMIDIA-INV-ACC-2 differs from exact invariant clauses
+  - id: unreviewed-structure-impact-map
+    result: detected
+    detail: B-01 claims an unreviewed implementation impact map
+  - id: contract-preamble-drift
+    result: detected
+    detail: CONTRACT-B-31 differs from exact contract clauses
+  - id: resolved-fpt006-boundary-regression
+    result: detected
+    detail: B-13 does not preserve the resolved F-PT-006 content-identity/no-atomicity contract
+  - id: resolved-fpt006-contract-regression
+    result: detected
+    detail: CONTRACT-B-13 does not preserve exact clarified identity and suppressive migration semantics
+  - id: resolved-fpt006-ticket-regression
+    result: detected
+    detail: HB-040 does not preserve the resolved F-PT-006 ticket disposition
+  - id: resolved-fpt008-ticket-regression
+    result: detected
+    detail: HB-012 does not preserve the resolved F-PT-008 ticket disposition
+  - id: fpt033-actionable-source
+    result: detected
+    detail: F-PT-033 owner decision source is not actionable
+  - id: provider-family-actionable-source
+    result: detected
+    detail: provider-family owner decision source or provisional posture is not actionable
+  - id: provider-family-ticket-ratification-drift
+    result: detected
+    detail: HB-133 does not preserve the provisional provider-family disposition
+  - id: family-output-statistical-oracle-drift
+    result: detected
+    detail: CF-ACC-S3 outputs differ from the reviewed statistical/mechanical oracle and risk split
+  - id: family-output-mechanical-risk-drift
+    result: detected
+    detail: CF-ACC-S3 outputs differ from the reviewed statistical/mechanical oracle and risk split
+  - id: checked-model-hb140-representation
+    result: detected
+    detail: HB-140 does not preserve the checked-model compiler drift representation
+  - id: abuse-admission-ticket-fact
+    result: detected
+    detail: HB-073 ticket outputs differ from the reviewed canonical owner/status representation
+  - id: abuse-admission-status
+    result: detected
+    detail: HB-073 ticket outputs differ from the reviewed canonical owner/status representation
+  - id: abuse-admission-dependency
+    result: detected
+    detail: HB-073 ticket outputs differ from the reviewed canonical owner/status representation
+  - id: abuse-output-oracle
+    result: detected
+    detail: CF-OPS-ABUSE family outputs differ from the reviewed canonical owner/status representation
+  - id: actionable-dependency-disposition
+    result: detected
+    detail: HB-094 omits its explicit dependency representation disposition
+  - id: historical-dependency-disposition
+    result: detected
+    detail: HB-105 omits its source-fact-only dependency disposition
+  - id: write-target-directory
+    result: detected
+    detail: "migration output target must be absent or a regular file: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/repo/validation-design"
+  - id: write-nonregular-ancestor
+    result: detected
+    detail: "migration output ancestor must be a real directory: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/repo/validation-design/migration/review.yaml"
+  - id: write-symlink-ancestor
+    result: detected
+    detail: "migration output ancestor must be a real directory: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/repo/node_modules/validation-architect"
+  - id: write-target-escape
+    result: detected
+    detail: "migration output target escapes the repository: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/escaped"
+  - id: write-target-duplicate
+    result: detected
+    detail: "duplicate migration output target: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/repo/validation-design/migration/semantic-equivalence.yaml"
+  - id: reviewed-source-escape
+    result: detected
+    detail: "reviewed source path escapes the repository: ../escaped.md"
+  - id: reviewed-source-nonregular
+    result: detected
+    detail: "reviewed source path must resolve to one regular file: validation-design"
+  - id: reviewed-source-symlink
+    result: detected
+    detail: "reviewed source path crosses a symlink: node_modules/validation-architect/package.json"
+  - id: preexisting-extra-model-entry
+    result: detected
+    detail: "model directory differs from the exact eight-file inventory: project.yaml, owners.yaml, sources.yaml, structures.yaml, policy.yaml, controls.yaml, families.yaml, backlog.yaml, unexpected.yaml"
+  - id: unexpected-model-output
+    result: detected
+    detail: "public migrate() paths differ from the exact eight-file set: validation-design/model/project.yaml, validation-design/model/owners.yaml, validation-design/model/sources.yaml, validation-design/model/structures.yaml, validation-design/model/policy.yaml, validation-design/model/controls.yaml, validation-design/model/families.yaml, validation-design/model/backlog.yaml, package.json"
+  - id: duplicate-model-output
+    result: detected
+    detail: public migrate() returned duplicate model paths
+  - id: missing-model-output
+    result: detected
+    detail: "public migrate() paths differ from the exact eight-file set: validation-design/model/project.yaml, validation-design/model/owners.yaml, validation-design/model/sources.yaml, validation-design/model/structures.yaml, validation-design/model/policy.yaml, validation-design/model/controls.yaml, validation-design/model/families.yaml"
+  - id: non-string-model-output
+    result: detected
+    detail: public migrate() returned a non-string model path or content
+  - id: unexpected-generated-view
+    result: detected
+    detail: "public compile() views differ from the exact five-view set: case-catalog.md, harness-backlog.md, owner-briefing.md, owner-backlog.md, planned-trace.md, unexpected.md"
+  - id: missing-generated-view
+    result: detected
+    detail: "public compile() views differ from the exact five-view set: harness-backlog.md, owner-briefing.md, owner-backlog.md, planned-trace.md"
+  - id: stale-generated-view
+    result: detected
+    detail: GENERATED_VIEW_STALE
+  - id: stale-compiler-report
+    result: detected
+    detail: compiler-report.json is missing or stale
+  - id: missing-compiler-report
+    result: detected
+    detail: compiler-report.json is missing or stale
+  - id: provenance-registry-row
+    result: detected
+    detail: provenance registry source IDs differ from the complete model source set
+  - id: provenance-registry-backticked-id
+    result: detected
+    detail: provenance registry source IDs differ from the complete model source set
+  - id: provenance-registry-order
+    result: detected
+    detail: provenance registry is not byte-stably sorted by source ID
+  - id: provenance-registry-field
+    result: detected
+    detail: SOURCE-SYSTEM-MAP provenance registry fields drift
+  - id: provenance-registry-divider
+    result: detected
+    detail: provenance registry lacks the complete five-column header
+  - id: product-structure-routing-field
+    result: detected
+    detail: B-01 product structure routing fields drift
+  - id: unresolved-route-disclosure
+    result: detected
+    detail: B-01 omits its unresolved implementation-path/full-suite disposition
+  - id: reader-review-bundle-binding
+    result: detected
+    detail: reader reviews do not bind the exact bundle bytes
+  - id: reader-review-unknown-field
+    result: detected
+    detail: reader review record has missing or unknown root fields
+  - id: reader-review-model-binding
+    result: detected
+    detail: reader reviews do not bind the exact model identity
+  - id: reader-review-hash-case
+    result: detected
+    detail: reader review bundle identity must be lowercase SHA-256
+  - id: reader-review-row-field
+    result: detected
+    detail: production operator reader review has missing or unknown fields
+  - id: reader-review-role-closure
+    result: detected
+    detail: reader review record does not contain each required role exactly once
+  - id: reader-review-reviewer
+    result: detected
+    detail: production operator reader review lacks reviewer identity
+  - id: reader-review-verdict
+    result: detected
+    detail: production operator reader verdict is not pass
+  - id: reader-review-findings
+    result: detected
+    detail: production operator reader review retains unresolved findings
+  - id: reader-review-findings-shape
+    result: detected
+    detail: production operator reader findings must be a string array
+  - id: landed-implementation-absence
+    result: detected
+    detail: CF-HARNESS-CI:tests/fixtures/cf-harness-ci/walk.test.ts
+  - id: legacy-header-non-authority
+    result: detected
+    detail: tests/fixtures/cf-harness-ci/walk.test.ts remains linked only through planned_tests
+  - id: unplanned-header-only-spec
+    result: detected
+    detail: ORPHAN_TEST
+  - id: structural-evidence-finding-dropped
+    result: detected
+    detail: STRUCTURAL_EVIDENCE_ONLY subjects differ from the exact model-derived set
+  - id: structural-evidence-level
+    result: detected
+    detail: STRUCTURAL_EVIDENCE_ONLY contains a non-partial finding
+  - id: structural-evidence-node-dropped
+    result: detected
+    detail: structural evidence nodes differ from the exact repository spec-file set
+  - id: structural-evidence-spec-invented
+    result: detected
+    detail: structural evidence nodes differ from the exact repository spec-file set

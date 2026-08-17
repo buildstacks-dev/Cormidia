@@ -31,8 +31,9 @@ gate follow-up 33): this sentence still stated the pre-landing status as
 current — the same stale class the risk-allocation mirror carried -->:
 **#337–#340 landed and all four adapters were certified 2026-08-07** (B-25
 sandbox-scope only, the #339 human risk review still gating real-repo use;
-B-26's L3 outcome INCOMPLETE, never pass — canonical statuses:
-`validation-policy.yaml → layers → L3_live_sandbox → obligations`).
+B-26's L3 outcome INCOMPLETE, never pass — current family status/evidence is in
+`model/families.yaml`; the exact RQ-1 L3 denominator is in
+`../docs/qualification/host-policy.yaml`).
 
 Harness revision 2026-08-07 (outcome acceptance + jobs): adds **J-21** (outcome
 acceptance campaign — the L-ACC lane's own journey, whose actor is the campaign
@@ -148,7 +149,7 @@ sole write exception `[doc]`):
 | J-16 | Scheduler lifecycle | Install/uninstall preview-then-execute with identity confirm; status = joined evidence (ownership/hash/cadence/ticks/duplicates/settlement agreement) — a definition file alone is never "healthy" |
 | J-17 | Release handoff (A4) | Declared `release:` mechanism; deploy is a fresh content-bound critical op post-merge; handoff executed exactly once by later dispatch; RQ-1 qualifies only exact candidates with complete L1/L2 and candidate-bound L3/L4 evidence, then the tag workflow authenticates actor/approver/repository equality and reruns exact-tag checks |
 | J-18 | **Unattended scheduled delivery (composite; highest-hurt)** | OS due window → one durable dispatch decision → valid EpisodePlan → bounded provider turns → gate-classified actions → correct GitHub artifacts (right repo, right base branch) → exact review/merge boundary → exactly-once settlement → **truthful morning status**. Failure mode that matters: seven mornings of plausible green over wrong reality `[walk]` |
-| J-21 | **Outcome acceptance campaign (L-ACC)** `[stated: acceptance/, human-ratified rubric 2026-08-07]` | provision (scenario repos, seed corpora, campaign org, sealed answer key) → **packaged-install preflight** → plan arm → **plan gate** → build arm → grade → durable report → optional issue filing. Composite over J-01/J-02/J-03/J-04/J-07/J-15 and, for the job scenario, J-23. "Done" = a report that states, per scenario, the matrix actually used, the per-axis scores **with their evidence citations**, every `ungraded` axis and why, the completeness field, and the installed-artifact identity. The **plan gate is a new state, not an alias of J-06's approval-wait**: it resolves on a *score*, not on an approval row, and who may resolve it unattended is undecided (F-PT-030). A campaign that stops at the plan gate is a complete campaign |
+| J-21 | **Outcome acceptance campaign (L-ACC)** `[stated: acceptance/, human-ratified rubric 2026-08-07]` | provision (scenario repos, seed corpora, campaign org, sealed answer key) → **packaged-install preflight** → plan arm → **plan gate** → build arm → grade → durable report → optional issue filing. Composite over J-01/J-02/J-03/J-04/J-07/J-15 and, for the job scenario, J-23. "Done" = a report that states, per scenario, the matrix actually used, the per-axis scores **with their evidence citations**, every `ungraded` axis and why, the completeness field, and the installed-artifact identity. The **plan gate is a new state, not an alias of J-06's approval-wait**: it resolves on a *score*, not on an approval row, and a declared `plan_gate` policy may resolve it unattended only under the ratified rubric criteria (F-PT-030 resolved 2026-08-07). A campaign that stops at the plan gate is a complete campaign |
 | J-22 | **Recurring app-scoped job** (alias **J-JOB-1**, `docs/jobs/design.md` §14) | Run records land under `runs/<app>/` and nowhere else and `observe` surfaces them unchanged; each provider turn settles exactly one ledger row against the **job** envelope, not the app's; a re-run with an unchanged config resumes at zero additional turns; a changed config fails closed naming the drift **before any step executes**; a step whose declared output check fails is `failed` and nothing downstream runs; a gated op raises its own item and does not proceed |
 | J-23 | **One-off unscoped job in the default org** (alias **J-JOB-2**, `docs/jobs/design.md` §14) | Runs with no app registered; records under `runs/adhoc/`; refusal messages use no ticket/episode/pipeline/app vocabulary; a dependency's declared outputs appear **verbatim** in the downstream persisted `brief.md`; a checkpoint parks the job into the approvals queue and resumes without re-executing completed steps; deleting the config afterwards leaves artifacts and records intact |
 | J-19 | **Per-turn comparative execution** `[stated+PROPOSED]` | One frozen provider-step intent → bounded exact candidate assignments/samples in isolated workspaces → operation-specific evidence → deterministic eligibility → admissible selection or explicit inconclusive outcome → exactly one content-bound winner materialized for ordinary continuation. Every candidate and judge turn settles separately; losing candidates perform no outward effect. Standalone `cormidia compare` enters the same behavior without an org and never mutates the active branch or contacts GitHub through an orchestrator-owned path. |
@@ -312,7 +313,7 @@ every branch/diff/ancestry/reset/release-bytes operation; settlement (M3) at eve
 provider turn; the gate (M1) at every tool action. M16 comparisons inherit every overlay
 per candidate and add no permission to the wrapped turn.
 
-## 4. Open findings (product truth / architecture) — as raised through Phase 1 only; the authoritative full list (18 findings, including resolved records) is `validation-policy.yaml` → `open_findings` <!-- AUD-108 -->
+## 4. Open findings (product truth / architecture) — as raised through Phase 1 only; the authored full register and decisions are in `harness-design-state.md`, with current blockers/status in the checked model <!-- AUD-108 -->
 
 | ID | Kind | Statement | Status |
 |---|---|---|---|
@@ -321,8 +322,9 @@ per candidate and add no permission to the wrapped turn.
 | F-PT-003 | product truth | No ratified crash transaction joining budget-overlay write and `budget-exceeded` approval-item creation; expected outcome (app cannot claim spend; human converges to exactly one item, not zero, not five) is owner expectation, not documented contract | **Resolved-ratified 2026-07-31**: pause holds; exactly one budget-exceeded item eventually — contract truth; cases unparked (HB-P1) |
 | F-PT-004 | product truth | Boundary between restart-clean disposable scratch and protected uncommitted builder work in managed worktrees is unratified; owner's proposed judgment: preserve-and-inspect ambiguous bytes `[simulated]` | **Resolved-ratified 2026-07-31**: preserve-and-inspect, never reset — contract truth; cases unparked (HB-P2) |
 
-<!-- ratification 2026-07-31: F-PT-002/003/004 statuses updated; the authoritative
-full list remains validation-policy.yaml → open_findings. -->
+<!-- ratification 2026-07-31: F-PT-002/003/004 statuses updated; current
+authored decisions live in harness-design-state.md and machine blockers in the
+checked model. -->
 
 ## 5. Criticality tier
 

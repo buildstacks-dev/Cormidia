@@ -228,7 +228,8 @@ Phase 3 boundary owns them.
   [composite: INV-005/006/008/009/014, J-04/05/07/08]
 - Given the unattended sandbox profile, then zero human decision rows exist, profile
   identity + sandbox target are in evidence, and publication/non-sandbox effects
-  remained blocked. [B-09b; `validation-policy.yaml` `unattended_test_mode_profile` —
+  remained blocked. [B-09b; checked structures/contracts/families plus runtime
+  unattended-profile configuration/tests —
   human-ratified as shaped and implemented in Cormidia 2026-07-31; no green claim can
   rest on the implementation before an authorized CF-J18-A campaign produces complete
   evidence]
@@ -320,7 +321,9 @@ threshold. -->
   evidence citation, then it reports `ungraded`; `ungraded` never becomes `0`, never
   enters an aggregate as a number, and every aggregate names its graded denominator.
   Given any unratified threshold, the verdict is `inconclusive` — never pass/fail.
-  [B-27 §4, B-29 §3, INV-ACC-5, `validation-policy.yaml` verdict_semantics.axis_score]
+  [B-27 §4, B-29 §3, INV-ACC-5,
+  `docs/qualification/host-policy.yaml`
+  `outcome_acceptance.axis_score`]
 - Given a ceiling exhaustion, a killed scenario, or a missing grader run, then that
   scenario reports `completeness: incomplete` with partial evidence preserved and
   remains present in the report. [B-27 §3, INV-ACC-6]

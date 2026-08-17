@@ -228,6 +228,9 @@ async function main() {
     controls,
   });
   const reportText = stringify(report, { lineWidth: 0 });
+  if (reportText.includes(MIGRATION.repoRoot)) {
+    throw new Error("semantic-equivalence.yaml embeds the absolute checkout path");
+  }
   const reportPath = join(MIGRATION.designRoot, "migration", "semantic-equivalence.yaml");
   if (write) await writeArtifactsSafely([{ path: reportPath, content: reportText }]);
   else if ((await readRegularText(reportPath, "semantic equivalence report")) !== reportText) {

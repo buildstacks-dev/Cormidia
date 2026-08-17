@@ -1149,19 +1149,19 @@ seeded_negative_controls:
     detail: HB-105 omits its source-fact-only dependency disposition
   - id: write-target-directory
     result: detected
-    detail: "migration output target must be absent or a regular file: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/repo/validation-design"
+    detail: "migration output target must be absent or a regular file: validation-design"
   - id: write-nonregular-ancestor
     result: detected
-    detail: "migration output ancestor must be a real directory: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/repo/validation-design/migration/review.yaml"
+    detail: "migration output ancestor must be a real directory: validation-design/migration/review.yaml"
   - id: write-symlink-ancestor
     result: detected
-    detail: "migration output ancestor must be a real directory: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/repo/node_modules/validation-architect"
+    detail: "migration output ancestor must be a real directory: node_modules/validation-architect"
   - id: write-target-escape
     result: detected
-    detail: "migration output target escapes the repository: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/escaped"
+    detail: "migration output target escapes the repository: ../escaped"
   - id: write-target-duplicate
     result: detected
-    detail: "duplicate migration output target: /private/tmp/Cormidia-validation-cutover-v3.87uxU2/repo/validation-design/migration/semantic-equivalence.yaml"
+    detail: "duplicate migration output target: validation-design/migration/semantic-equivalence.yaml"
   - id: reviewed-source-escape
     result: detected
     detail: "reviewed source path escapes the repository: ../escaped.md"

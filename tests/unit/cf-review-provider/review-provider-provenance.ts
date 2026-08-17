@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { selectValidationAuthority } from "../../fixtures/validation-authority.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
@@ -75,6 +76,7 @@ function normalized(value: string): string {
 
 function readSurfaces(): ProvenanceSurfaces {
   const read = (...path: string[]): string => readFileSync(join(repoRoot, ...path), "utf8");
+  const authority = selectValidationAuthority(repoRoot);
   return {
     text: {
       source: read("src", "loop", "review-provider.ts"),
@@ -82,7 +84,10 @@ function readSurfaces(): ProvenanceSurfaces {
       backlog: read("validation-design", "harness-backlog.md"),
       ownerBacklog: read("validation-design", "owner-backlog.md"),
       operatorRunbook: read("validation-design", "operator-triage-runbook.md"),
-      policy: read("validation-design", "validation-policy.yaml"),
+      policy:
+        authority.kind === "model"
+          ? read("validation-design", "migration", "legacy", "validation-policy.yaml")
+          : read("validation-design", "validation-policy.yaml"),
     },
   };
 }

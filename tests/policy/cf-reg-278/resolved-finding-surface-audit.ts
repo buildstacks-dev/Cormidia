@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { selectValidationAuthority } from "../../fixtures/validation-authority.js";
 
 interface SurfaceRow {
   readonly path: string;
@@ -255,9 +256,18 @@ const staleSeeds = rows.flatMap((row) => row.stale.map((phrase) => [row.path, ph
 
 export function registerResolvedFindingSurfaceTests(repoRoot: string): void {
   describe("CF-REG-278 — resolved finding surfaces stay reconciled", () => {
-    const actual = new Map(rows.map((row) => [row.path, normalize(readFileSync(join(repoRoot, row.path), "utf8"))]));
+    const authority = selectValidationAuthority(repoRoot);
+    const actual = new Map(
+      rows.map((row) => {
+        const readPath =
+          authority.kind === "model" && row.path === "validation-design/validation-policy.yaml"
+            ? "validation-design/migration/legacy/validation-policy.yaml"
+            : row.path;
+        return [row.path, normalize(readFileSync(join(repoRoot, readPath), "utf8"))];
+      }),
+    );
 
-    it("pins active F-PT-006/008/017 mirrors while leaving dated history out of scope", () => {
+    it("pins active F-PT-006/008/017 mirrors and the exact checked-model migration source", () => {
       expect(surfaceProblems(actual)).toEqual([]);
     });
 

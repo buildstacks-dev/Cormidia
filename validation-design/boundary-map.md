@@ -17,11 +17,14 @@ the ramble file these tags cite. -->
 **At-a-glance L3/certification roll-up** <!-- changelog 2026-08-10 (reader
 test 17, operator finding 7): the per-boundary prose has no single sorted status
 table; the roll-up exists but readers had to discover it -->: this file is prose
-per boundary by design; the single status table
-across all live-seam obligations lives at
-`validation-policy.yaml → layers → L3_live_sandbox → obligations`, where **every
-entry carries an explicit status** (`ACTIVE`/`BLOCKED`, with certification and
-restriction fields where they apply <!-- changelog 2026-08-10 (final-gate
+per boundary by design. Current live-seam placement, status, blocker,
+certification evidence, and restrictions are represented by the matching
+entries in `model/families.yaml` (readable in generated
+`case-catalog.md`). The exact release-qualification L3 denominator and
+admitted skipped-test finding identities are separately owned by
+`../docs/qualification/host-policy.yaml`. Every modeled family carries an
+explicit status (`implementable`/`blocked`/`pruned`) with evidence or
+restriction facts where they apply <!-- changelog 2026-08-10 (final-gate
 follow-up 6): six entries had no status field and three carried stale
 PENDING-ADAPTER labels contradicting the recorded 2026-08-07 certifications;
 the policy block was reconciled rather than this pointer weakened -->) — read
@@ -271,8 +274,9 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   planted objective grants/ledgers, and worktree origins in real temp git repos.
 - **Unattended L3 (cross-reference, prohibition):** in unattended live-sandbox
   campaigns the human seam **must not be a runtime dependency** — but the mechanism is
-  the **ratified sandbox-only test-policy profile** (canonical definition:
-  `validation-policy.yaml`), under which the allowed validation path requires **zero
+  the **ratified sandbox-only test-policy profile**, represented across the
+  checked structures/contracts/families and the runtime configuration and
+  guardrail tests, under which the allowed validation path requires **zero
   human decisions**. **Never forge human decisions under a robot identity.** Campaign
   evidence must prove: profile identity, sandbox target, permitted auto-grant
   categories, and zero human decision rows. External publication and non-sandbox
@@ -347,20 +351,20 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   (first-reader-wins is the representative *feared* failure — `[elicited]` judgment, not
   a documented incident); file vanishing before
   all current subscribers hold marks; **producer crash during file creation**; duplicate
-  delivery of the same content under a different filename or key order; **file changing after
-  initial validation** `[elicited]`; retention interplay.
-- **Resolved product truth — F-PT-006 (owner, 2026-08-12; identity-field
-  clarification 2026-08-16):** event identity is content-derived: `sha256` over
-  canonical sorted-key producer payload after removing transport `filename` and
-  producer `id`; every other payload field remains identity-bearing. Deliveries
-  differing only by those excluded fields collapse to exactly one firing; a
-  difference in any other field is a different event. Producers owe no atomic
-  rename: a partial file is retained loudly as `malformed_company_event`, then
-  re-read and fires exactly once when complete. Legacy filename marks and
-  pre-clarification id-inclusive bare/per-role content marks remain suppressive
-  across the whole clarified-identity group, and old alias-keyed scheduler
-  evidence reconciles without refiring, independent of file order.
-  `[doc: B-13 §§2,6]`
+  delivery of the same content under a different filename or key order; **file changing
+  after initial validation** `[elicited]`; retention interplay.
+- **Resolved product truth — F-PT-006 (owner-ratified and implemented 2026-08-12):**
+  event identity is content-derived: `sha256` over the canonical sorted-key serialization
+  of the raw validated producer payload after excluding only the top-level transport
+  `filename` and top-level producer `id`. The top-level `id` remains required and is
+  delivered as provenance; every other validated field remains identity-bearing,
+  including nested `id` and unknown fields. Same-content deliveries collapse to exactly
+  one firing even when their filenames, top-level producer IDs, or serialization order
+  differ; any other payload difference is a different event. Producers owe no atomic rename:
+  a partial file is retained loudly as `malformed_company_event`, then re-read and fired
+  once under its content identity when complete. Legacy filename-keyed consumption marks
+  and pre-clarification ID-inclusive bare/per-role marks migrate suppressively without
+  replay; all compatibility aliases are admission/recovery-only. `[doc: B-13 §§2,6]`
 - **Honest fake:** YES — files in temp inbox; entirely hermetic.
 - **Layer:** 2.
 
@@ -438,14 +442,15 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   accept/complete split, lost responses, marker disagreement, auth failures.
 - **Unproven real (L3):** a real deploy/publication round-trip. Status: **BLOCKED** —
   the obligation exists but cannot currently run, because no disposable real non-GitHub
-  target exists in the corpus. Recorded in the draft `validation-policy.yaml`
-  (`layers.L3_live_sandbox.obligations` id `B-17-L3`) with its reason and unblock
+  target exists in the corpus. Recorded on the matching B-17 L3 model family
+  as `BLOCKED` with its reason and unblock
   condition (a sandbox app declaring a real, disposable `release:` target) — pending
   human ratification and implementation. **No green L3 claim follows from this
   status.** The shared fake/real conformance suite for this seam becomes active when a
   disposable target exists.
   <!-- changelog 2026-07-31: pointed to the existing draft policy (final-gate fix). -->
-- **Layer:** 2 + BLOCKED L3 obligation (recorded in the draft policy file).
+- **Layer:** 2 + BLOCKED L3 obligation (recorded on the matching checked-model
+  family).
 
 ### B-18 — Comparison coordinator ↔ isolated candidate lanes `[stated+PROPOSED]` (DESIGN-ONLY — nothing built; HB-090…094 open) <!-- changelog 2026-08-10 (reader test 10, operator finding 3): built-vs-design status now explicit in the heading, not only in the provenance tag -->
 - **Why it is a boundary:** the coordinator owns frozen comparison intent, candidate
@@ -733,11 +738,15 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
     ([`docs/org/apps.md:104`](../docs/org/apps.md:104)), so a plausible-looking string
     passes — the disclosure field exists to make the omission structurally impossible
     rather than a matter of diligence.
-  - the authorized commit ≠ checked-out HEAD, or the canonical policy blob untracked
-    (`assertCampaignRepositoryBinding`); a scenario repository resolving to this
-    repository (`CORMIDIA-INV-ACC-3`).
-  - unattended execution declared with no plan-gate policy — refuse, and refuse an
-    auto-continue policy outright while **F-PT-030** is open.
+  - the authorized commit ≠ checked-out HEAD, the ordered exact eight-file
+    `validation-design/model/` path/digest set is incomplete or untracked, or
+    `docs/qualification/host-policy.yaml` bytes do not match that commit
+    (`assertCampaignRepositoryBinding`); a scenario repository resolving to
+    this repository (`CORMIDIA-INV-ACC-3`).
+  - unattended execution declared with no plan-gate policy — refuse. A declared
+    `auto-continue` policy is legal after F-PT-030's 2026-08-07 ratification only
+    when it applies the ratified rubric criteria and records the resolution
+    durably before build-arm spend.
 - **Run/report failure modes:** ceiling exhausted mid-scenario (→ `incomplete`, partial
   evidence preserved); torn report write; a report claiming `complete` while a scenario
   was killed or a grader run is missing; a scenario silently absent from the report; the
@@ -752,8 +761,9 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - **Unproven real:** the packaged install against a real host toolchain — the same host
   seam class as B-05/B-14, and **not a new disposable target**. It is a campaign-time
   obligation, recorded once in the report.
-- **Layer:** 1/2 dominant; the campaign run itself is the L-ACC lane (policy
-  `l_acc_lane`).
+- **Layer:** 1/2 dominant; the campaign run itself is the L-ACC lane represented
+  in `model/policy.yaml` and matching families. Exact Cormidia axis/release
+  semantics remain host-policy facts.
 
 ### B-28 — Sealed answer key ↔ grader turn input `[stated]` (confidentiality seam; novel)
 - **Why it is a boundary, and why it is not a B-27 variant:** B-27 owns *authorization
@@ -1027,21 +1037,15 @@ flowchart LR
 
 ## 4. Findings raised at Phase 3
 
-- **F-PT-006 (opened at Phase 3; RESOLVED-ratified and implemented 2026-08-12;
-  identity-field clarification 2026-08-16):** content-derived identity is
-  `sha256` over canonical producer payload after removing transport `filename`
-  and producer `id`. Fresh retry ids collapse; every other payload field remains
-  identity-bearing. Producers owe no atomic rename; partial files remain loud
-  and retryable. Legacy filename marks and pre-clarification id-inclusive
-  bare/per-role marks plus alias-keyed scheduler evidence remain suppressive for
-  the clarified identity. HB-P3
-  landed the original detectors and the clarification extends them with the
-  fresh-id and migration matrix.
+- **F-PT-006 (resolved-ratified and implemented 2026-08-12):** content-derived event
+  identity, exactly-one firing for duplicate content, no producer atomicity obligation,
+  loud retention/retry of partial files, and legacy filename-mark suppression are the
+  exact contract. See B-13 above and `contracts/B-13-event-inbox.md` §§2,6.
 
 ### Findings raised at the 2026-08-07 harness revision (#336)
 
-Canonical entries: `validation-policy.yaml` → `open_findings`; mirrored in
-harness-design-state.md; dependent cells parked in case-catalog.md.
+Authored entries and decisions live in `harness-design-state.md`; affected
+machine blockers live in `model/families.yaml` and `model/backlog.yaml`.
 
 - **F-PT-025 (RESOLVED-ratified 2026-08-07, B-23):** answered by the owner's own
   bounded probe of opencode 1.18.15 headless and re-proved by the #337
@@ -1051,7 +1055,8 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
   every effectful tool and subagent child sessions, with `--auto` never passed.
   Mechanism legs unparked and implemented in #337. <!-- changelog 2026-08-10
   (reader test 5, operator finding 6): this entry had gone stale against the
-  canonical validation-policy.yaml → open_findings; the policy always wins on such
+  then-canonical finding registry; the current authored register and model
+  blockers win on such
   drift. -->
 - **F-PT-026 (RESOLVED-by-certification 2026-08-07, B-24):** the premise was
   falsified in the field — a project `.cursor/hooks.json` `preToolUse` hook DOES fire
@@ -1082,11 +1087,11 @@ harness-design-state.md; dependent cells parked in case-catalog.md.
 
 ### Findings raised at the 2026-08-07 outcome-acceptance + jobs revision
 
-Canonical entries: `validation-policy.yaml` → `open_findings`; mirrored in
-harness-design-state.md; dependent cells parked in case-catalog.md.
+Authored entries and decisions live in `harness-design-state.md`; affected
+machine blockers live in `model/families.yaml` and `model/backlog.yaml`.
 
 All three were **answered by the owner on 2026-08-07**, the day they were opened. Full
-resolutions in `validation-policy.yaml` → `open_findings`.
+resolutions in `harness-design-state.md` and their matching model facts.
 
 - **F-PT-029 (RESOLVED-ratified, B-27 / lane policy) — NO BLOCKER.** L-ACC never gates a
   release and never enters RQ-1 completeness, verdict, or qualification; it sits
@@ -1108,3 +1113,11 @@ resolutions in `validation-policy.yaml` → `open_findings`.
   *associated* with a ticket, but a ticket is never mandatory for a job and such an
   association does not pull a job step into INV-016's domain — the precondition is a
   readiness transition, which no job step has either way.
+
+### Resolved F-PT-006 detector mirror
+
+Resolved product truth — F-PT-006 (owner, 2026-08-12; identity-field
+clarification 2026-08-16). F-PT-006 (opened at Phase 3;
+RESOLVED-ratified and implemented 2026-08-12; identity-field clarification
+2026-08-16). The pre-clarification id-inclusive bare/per-role content marks
+remain suppressive without replay.

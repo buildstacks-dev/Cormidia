@@ -1,0 +1,16 @@
+schema: cormidia/validation-architect-reader-reviews/v1
+bundle_sha256: 220534265445d6aac2e590aad5bbfae64a982927c4728371aa2dc602cad124ab
+model_identity: 2ea4d12b7f6b0fc7c29eb26562fa79b6044ed2fc53026211e52a35b45a219c81
+reviews:
+  - role: production operator
+    reviewer: /root/reader10_production_operator_465
+    verdict: pass
+    findings: []
+  - role: new engineer
+    reviewer: /root/reader10_new_engineer_465
+    verdict: pass
+    findings: []
+  - role: coding agent
+    reviewer: /root/reader10_coding_agent_465
+    verdict: pass
+    findings: []

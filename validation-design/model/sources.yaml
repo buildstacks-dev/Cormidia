@@ -1,0 +1,304 @@
+schema: validation-architect/model/sources/v1
+sources:
+  - id: SOURCE-SYSTEM-MAP
+    kind: doc
+    path: validation-design/system-map.md
+    locator: "Exact checked source: validation-design/system-map.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# System map — Cormidia (product scope)"
+  - id: SOURCE-INVARIANTS
+    kind: doc
+    path: validation-design/invariants.md
+    locator: "Exact checked source: validation-design/invariants.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Invariants — Cormidia (product scope)"
+  - id: SOURCE-BOUNDARY-MAP
+    kind: doc
+    path: validation-design/boundary-map.md
+    locator: "Exact checked source: validation-design/boundary-map.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary map — Cormidia (product scope)"
+  - id: SOURCE-LLM-EVAL
+    kind: doc
+    path: validation-design/llm-eval-plan.md
+    locator: "Exact checked source: validation-design/llm-eval-plan.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# LLM eval plan — Cormidia (product scope)"
+  - id: SOURCE-RISK
+    kind: doc
+    path: validation-design/risk-allocation.md
+    locator: "Exact checked source: validation-design/risk-allocation.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Risk tiers, coverage allocation, and layer-5 obligations — Cormidia"
+  - id: SOURCE-ROUTING
+    kind: doc
+    path: validation-design/routing.md
+    locator: "Exact checked source: validation-design/routing.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Validation harness — binding routing"
+  - id: SOURCE-PROVENANCE
+    kind: doc
+    path: validation-design/source-provenance.json
+    locator: "Exact checked source: validation-design/source-provenance.json. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "{"
+  - id: SOURCE-ACCEPTANCE-RUBRIC
+    kind: doc
+    path: acceptance/rubric.md
+    locator: "Exact checked source: acceptance/rubric.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# L-ACC measurement rubric — v0, RATIFIED 2026-08-07"
+  - id: SOURCE-JOBS
+    kind: doc
+    path: docs/jobs/design.md
+    locator: "Exact checked source: docs/jobs/design.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Jobs — ad-hoc dependency-ordered work"
+  - id: SOURCE-PURPOSE
+    kind: doc
+    path: docs/PURPOSE.md
+    locator: "Exact checked source: docs/PURPOSE.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# PURPOSE — Cormidia"
+  - id: SOURCE-ELICITATION-RAMBLING
+    kind: rambling
+    path: validation-design/elicitation-log.md
+    quote: I don't experience Cormidia as fifteen modules. I experience it as a pile of promises about what happens after I stop watching.
+    locator: "Exact checked source: validation-design/elicitation-log.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+  - id: SOURCE-PROPOSED-COMPARISON
+    kind: proposed
+    locator: "Human activation required before engineering: the product owner must explicitly ratify SOURCE-PROPOSED-COMPARISON and authorize the HB-090..094 comparison wave. Every output remains blocked until a checked-model revision changes the intended work to pending; prose activation alone is not executable authority. Operative order after that revision: HB-090 → HB-090-L2; HB-091 depends on HB-090 and HB-091-L2 depends on HB-090-L2 plus HB-091; HB-093 → HB-093-L2 → HB-093-L4 remains blocked until F-PT-011 is ratified or the threshold-independent corpus is split into disjoint outputs; HB-094 depends on HB-090-L2, HB-091-L2, and HB-093-L4 and separately requires its harness revision. HB-092 has no canonical output, so HB-094 cannot unblock until a checked-model revision either creates it or records that it is unnecessary and removes the source prerequisite. Design facts live at validation-design/system-map.md J-19 and boundary-map.md B-18/B-19."
+    quote: "Human activation required before engineering: the product owner must explicitly ratify SOURCE-PROPOSED-COMPARISON and authorize the HB-090..094 comparison wave. Every output remains blocked until a checked-model revision changes the intended work to pending; prose activation alone is not executable authority. Operative order after that revision: HB-090 → HB-090-L2; HB-091 depends on HB-090 and HB-091-L2 depends on HB-090-L2 plus HB-091; HB-093 → HB-093-L2 → HB-093-L4 remains blocked until F-PT-011 is ratified or the threshold-independent corpus is split into disjoint outputs; HB-094 depends on HB-090-L2, HB-091-L2, and HB-093-L4 and separately requires its harness revision. HB-092 has no canonical output, so HB-094 cannot unblock until a checked-model revision either creates it or records that it is unnecessary and removes the source prerequisite. Design facts live at validation-design/system-map.md J-19 and boundary-map.md B-18/B-19."
+  - id: SOURCE-SIMULATED-REVIEW-INDEPENDENCE
+    kind: simulated
+    locator: "Human YES/NO required — should different provider mean provider FAMILY for Builder and Reviewer in autonomous code delivery? YES ratifies the current conservative, swappable implementation: same or unresolvable family refuses before provider construction; distinct adapters sharing one upstream family count as the same family; different families pass; jobs and manual-only routes are exempt. NO must state the exact replacement unit, such as vendor product or account, and whether the current family guard remains as an additional tighten-only check. F-PT-038's separately ratified no-policy fail-close rule is not reopened."
+    quote: "Human YES/NO required — should different provider mean provider FAMILY for Builder and Reviewer in autonomous code delivery? YES ratifies the current conservative, swappable implementation: same or unresolvable family refuses before provider construction; distinct adapters sharing one upstream family count as the same family; different families pass; jobs and manual-only routes are exempt. NO must state the exact replacement unit, such as vendor product or account, and whether the current family guard remains as an additional tighten-only check. F-PT-038's separately ratified no-policy fail-close rule is not reopened."
+  - id: SOURCE-CONTRACT-B-01-GITHUB
+    kind: doc
+    path: validation-design/contracts/B-01-github.md
+    locator: "Exact checked source: validation-design/contracts/B-01-github.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-01 GitHub API"
+  - id: SOURCE-CONTRACT-B-02-ANTHROPIC
+    kind: doc
+    path: validation-design/contracts/B-02-anthropic.md
+    locator: "Exact checked source: validation-design/contracts/B-02-anthropic.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-02 Anthropic adapter (Claude Agent SDK)"
+  - id: SOURCE-CONTRACT-B-03-CODEX
+    kind: doc
+    path: validation-design/contracts/B-03-codex.md
+    locator: "Exact checked source: validation-design/contracts/B-03-codex.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-03 Codex App Server adapter"
+  - id: SOURCE-CONTRACT-B-04-PI
+    kind: doc
+    path: validation-design/contracts/B-04-pi.md
+    locator: "Exact checked source: validation-design/contracts/B-04-pi.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-04 pi SDK adapter"
+  - id: SOURCE-CONTRACT-B-05-SCHEDULER-HOST
+    kind: doc
+    path: validation-design/contracts/B-05-scheduler-host.md
+    locator: "Exact checked source: validation-design/contracts/B-05-scheduler-host.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-05 OS scheduler host (launchd today)"
+  - id: SOURCE-CONTRACT-B-06-CLOCK
+    kind: doc
+    path: validation-design/contracts/B-06-clock.md
+    locator: "Exact checked source: validation-design/contracts/B-06-clock.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-06 Clock & calendar time (sealed seam)"
+  - id: SOURCE-CONTRACT-B-07-PROCESS-LIFECYCLE
+    kind: doc
+    path: validation-design/contracts/B-07-process-lifecycle.md
+    locator: "Exact checked source: validation-design/contracts/B-07-process-lifecycle.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-07 OS process lifecycle (sealed seam)"
+  - id: SOURCE-CONTRACT-B-08-TICK-TURN
+    kind: doc
+    path: validation-design/contracts/B-08-tick-turn.md
+    locator: "Exact checked source: validation-design/contracts/B-08-tick-turn.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-08 Dispatcher tick ↔ detached turn"
+  - id: SOURCE-CONTRACT-B-09A-APPROVAL-CONTINUATION
+    kind: doc
+    path: validation-design/contracts/B-09a-approval-continuation.md
+    locator: "Exact checked source: validation-design/contracts/B-09a-approval-continuation.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-09a Turn ↔ approval store (continuation seam)"
+  - id: SOURCE-CONTRACT-B-09B-APPROVAL-DECISION-ENTRY
+    kind: doc
+    path: validation-design/contracts/B-09b-approval-decision-entry.md
+    locator: "Exact checked source: validation-design/contracts/B-09b-approval-decision-entry.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-09b Human/CLI ↔ approval store (decision-entry seam)"
+  - id: SOURCE-CONTRACT-B-10-CONFIG-RESOLVER
+    kind: doc
+    path: validation-design/contracts/B-10-config-resolver.md
+    locator: "Exact checked source: validation-design/contracts/B-10-config-resolver.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-10 Org-home ratified surfaces ↔ runtime resolver (incl. B-10a identity)"
+  - id: SOURCE-CONTRACT-B-11-LEARNING-PUBLISHER
+    kind: doc
+    path: validation-design/contracts/B-11-learning-publisher.md
+    locator: "Exact checked source: validation-design/contracts/B-11-learning-publisher.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-11 Learning capture ↔ governed substrate (publisher seam)"
+  - id: SOURCE-CONTRACT-B-12-OBSERVER-READERS
+    kind: doc
+    path: validation-design/contracts/B-12-observer-readers.md
+    locator: "Exact checked source: validation-design/contracts/B-12-observer-readers.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-12 Observer/report readers ↔ local durable state"
+  - id: SOURCE-CONTRACT-B-13-EVENT-INBOX
+    kind: doc
+    path: validation-design/contracts/B-13-event-inbox.md
+    locator: "Exact checked source: validation-design/contracts/B-13-event-inbox.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-13 Company-event inbox producers ↔ dispatcher"
+  - id: SOURCE-CONTRACT-B-14-HUMAN-CHECKOUT
+    kind: doc
+    path: validation-design/contracts/B-14-human-checkout.md
+    locator: "Exact checked source: validation-design/contracts/B-14-human-checkout.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-14 Human checkout ↔ managed workspace"
+  - id: SOURCE-CONTRACT-B-15-FS-GIT-SUBSTRATE
+    kind: doc
+    path: validation-design/contracts/B-15-fs-git-substrate.md
+    locator: "Exact checked source: validation-design/contracts/B-15-fs-git-substrate.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-15 Local persistence & git substrate"
+  - id: SOURCE-CONTRACT-B-16-GATE-RUNNER-TOOLCHAIN
+    kind: doc
+    path: validation-design/contracts/B-16-gate-runner-toolchain.md
+    locator: "Exact checked source: validation-design/contracts/B-16-gate-runner-toolchain.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-16 Gate/command-runner ↔ app toolchain"
+  - id: SOURCE-CONTRACT-B-17-TYPED-EXECUTOR
+    kind: doc
+    path: validation-design/contracts/B-17-typed-executor.md
+    locator: "Exact checked source: validation-design/contracts/B-17-typed-executor.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-17 Typed critical-effect executor ↔ non-GitHub external target"
+  - id: SOURCE-CONTRACT-B-18-COMPARISON-CANDIDATES
+    kind: doc
+    path: validation-design/contracts/B-18-comparison-candidates.md
+    locator: "Exact checked source: validation-design/contracts/B-18-comparison-candidates.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-18 Comparison coordinator ↔ isolated candidate lanes"
+  - id: SOURCE-CONTRACT-B-19-SELECTION-MATERIALIZATION
+    kind: doc
+    path: validation-design/contracts/B-19-selection-materialization.md
+    locator: "Exact checked source: validation-design/contracts/B-19-selection-materialization.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-19 Durable selection ↔ winner materialization/episode continuation"
+  - id: SOURCE-CONTRACT-B-20-ROADMAP-ADMISSION
+    kind: doc
+    path: validation-design/contracts/B-20-roadmap-admission.md
+    locator: "Exact checked source: validation-design/contracts/B-20-roadmap-admission.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — CORMIDIA-C-B20-001"
+  - id: SOURCE-CONTRACT-B-21-VALIDATION-HANDOFF
+    kind: doc
+    path: validation-design/contracts/B-21-validation-handoff.md
+    locator: "Exact checked source: validation-design/contracts/B-21-validation-handoff.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — CORMIDIA-C-B21-001"
+  - id: SOURCE-CONTRACT-B-22-BATCH-EPISODES
+    kind: doc
+    path: validation-design/contracts/B-22-batch-episodes.md
+    locator: "Exact checked source: validation-design/contracts/B-22-batch-episodes.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — CORMIDIA-C-B22-001"
+  - id: SOURCE-CONTRACT-B-23-OPENCODE
+    kind: doc
+    path: validation-design/contracts/B-23-opencode.md
+    locator: "Exact checked source: validation-design/contracts/B-23-opencode.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-23 OpenCode adapter (opencode serve + SDK)"
+  - id: SOURCE-CONTRACT-B-24-CURSOR
+    kind: doc
+    path: validation-design/contracts/B-24-cursor.md
+    locator: "Exact checked source: validation-design/contracts/B-24-cursor.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-24 Cursor adapter (cursor-agent CLI headless)"
+  - id: SOURCE-CONTRACT-B-25-GROK-BUILD
+    kind: doc
+    path: validation-design/contracts/B-25-grok-build.md
+    locator: "Exact checked source: validation-design/contracts/B-25-grok-build.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-25 Grok Build adapter (ACP over stdio)"
+  - id: SOURCE-CONTRACT-B-26-MUSE-CODE
+    kind: doc
+    path: validation-design/contracts/B-26-muse-code.md
+    locator: "Exact checked source: validation-design/contracts/B-26-muse-code.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — B-26 Muse Code adapter (muse exec headless, swarm harness)"
+  - id: SOURCE-CONTRACT-B-27-ACCEPTANCE-CAMPAIGN
+    kind: doc
+    path: validation-design/contracts/B-27-acceptance-campaign.md
+    locator: "Exact checked source: validation-design/contracts/B-27-acceptance-campaign.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — B-27 (L-ACC campaign authorization ↔ durable report)"
+  - id: SOURCE-CONTRACT-B-28-SEALED-ANSWER-KEY
+    kind: doc
+    path: validation-design/contracts/B-28-sealed-answer-key.md
+    locator: "Exact checked source: validation-design/contracts/B-28-sealed-answer-key.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — B-28 (sealed answer key ↔ grader turn input)"
+  - id: SOURCE-CONTRACT-B-29-GRADER-INDEPENDENCE
+    kind: doc
+    path: validation-design/contracts/B-29-grader-independence.md
+    locator: "Exact checked source: validation-design/contracts/B-29-grader-independence.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — B-29 (graded evidence set ↔ grader turn)"
+  - id: SOURCE-CONTRACT-B-30-JOB-CONFIG-JOURNAL
+    kind: doc
+    path: validation-design/contracts/B-30-job-config-journal.md
+    locator: "Exact checked source: validation-design/contracts/B-30-job-config-journal.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — B-30 (job config authority ↔ journal-bound execution)"
+  - id: SOURCE-CONTRACT-B-31-PLANNING-SOURCE-SCOPE
+    kind: doc
+    path: validation-design/contracts/B-31-planning-source-scope.md
+    locator: "Exact checked source: validation-design/contracts/B-31-planning-source-scope.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — B-31 (declared planning-source scope ↔ harness-native reading)"
+  - id: SOURCE-CONTRACT-OP-BATCHING
+    kind: doc
+    path: validation-design/contracts/OP-batching.md
+    locator: "Exact checked source: validation-design/contracts/OP-batching.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Operation contract — C-OP-BATCH (execution-unit batching and session affinity)"
+  - id: SOURCE-CONTRACT-OP-LIFECYCLE
+    kind: doc
+    path: validation-design/contracts/OP-lifecycle.md
+    locator: "Exact checked source: validation-design/contracts/OP-lifecycle.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Operation contract — C-OP-LIFE (org/app lifecycle operations)"
+  - id: SOURCE-CONTRACT-OP-LOOP
+    kind: doc
+    path: validation-design/contracts/OP-loop.md
+    locator: "Exact checked source: validation-design/contracts/OP-loop.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Operation contract — C-OP-LOOP (delivery-unit state machine)"
+  - id: SOURCE-CONTRACT-OP-PLANNING
+    kind: doc
+    path: validation-design/contracts/OP-planning.md
+    locator: "Exact checked source: validation-design/contracts/OP-planning.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Operation contract — C-OP-PLAN (episode planning operations)"
+  - id: SOURCE-CONTRACT-OP-VALIDATION-LIFECYCLE
+    kind: doc
+    path: validation-design/contracts/OP-validation-lifecycle.md
+    locator: "Exact checked source: validation-design/contracts/OP-validation-lifecycle.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Operation contract — C-OP-VALIDATION (validation obligations through delivery)"
+  - id: SOURCE-CONTRACT-JOURNEY-ACCEPTANCE
+    kind: doc
+    path: validation-design/contracts/journey-acceptance.md
+    locator: "Exact checked source: validation-design/contracts/journey-acceptance.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Journey acceptance criteria — Cormidia (product scope)"
+  - id: SOURCE-CONTRACT-PROVIDER-ADAPTER-CORE
+    kind: doc
+    path: validation-design/contracts/provider-adapter-core.md
+    locator: "Exact checked source: validation-design/contracts/provider-adapter-core.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Contract — Provider adapter core (shared by B-02, B-03, B-04)"
+  - id: SOURCE-HOST-POLICY
+    kind: doc
+    path: docs/qualification/host-policy.yaml
+    locator: "Exact checked source: docs/qualification/host-policy.yaml. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "schema: cormidia/qualification-host-policy/v1"
+  - id: SOURCE-AUTHORITY-DOMAIN-SPLIT
+    kind: doc
+    path: research/2026-08-16_validation-authority-domain-split.md
+    locator: "Exact checked source: research/2026-08-16_validation-authority-domain-split.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Validation authority domain split"
+  - id: SOURCE-EPISODES-CONTRACT
+    kind: doc
+    path: docs/episodes/contract.md
+    locator: "Exact checked source: docs/episodes/contract.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Episode operating contract"
+  - id: SOURCE-APPROVALS-DESIGN
+    kind: doc
+    path: docs/approvals/design.md
+    locator: "Exact checked source: docs/approvals/design.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Approvals and release execution"
+  - id: SOURCE-QUALIFICATION-DESIGN
+    kind: doc
+    path: docs/qualification/design.md
+    locator: "Exact checked source: docs/qualification/design.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Qualification and release gating"
+  - id: SOURCE-CORE-CHECKS
+    kind: doc
+    path: .github/workflows/core-checks.yml
+    locator: "Exact checked source: .github/workflows/core-checks.yml. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "name: Core checks"
+  - id: SOURCE-ROLES
+    kind: doc
+    path: roles.yaml
+    locator: "Exact checked source: roles.yaml. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# roles.yaml — v0 DRAFT (2026-07-03), for discussion"
+  - id: SOURCE-PROPOSED-FPT-033
+    kind: proposed
+    locator: "Human decision required — F-PT-033. Existing [doc] facts—review values approve|findings and the three documented predecessor status formats—are not reopened. Decide each remaining compatibility rule independently: (1) ratify duplicate-identical operative markers, or require exactly one operative marker; (2) retain Verdict-before-Status precedence, or state the replacement cross-keyword rule; (3) ratify the bare-line marker form, or reject it and name the accepted replacement form. Rejected current behavior requires parser and pinned-regression changes red-then-green. Until decided, current tests record behavior only; no new test may turn either reading into contract truth. Ratification handoff: the same checked-model revision must update HB-005, change it from landed history to pending only if implementation is required, and bind the selected parser clause to its exact control and tests/unit/cf-inv-012/s3-verdict-marker.test.ts red-then-green change. Until that revision lands, no parser or regression-test edit is engineering-ready."
+    quote: "Human decision required — F-PT-033. Existing [doc] facts—review values approve|findings and the three documented predecessor status formats—are not reopened. Decide each remaining compatibility rule independently: (1) ratify duplicate-identical operative markers, or require exactly one operative marker; (2) retain Verdict-before-Status precedence, or state the replacement cross-keyword rule; (3) ratify the bare-line marker form, or reject it and name the accepted replacement form. Rejected current behavior requires parser and pinned-regression changes red-then-green. Until decided, current tests record behavior only; no new test may turn either reading into contract truth. Ratification handoff: the same checked-model revision must update HB-005, change it from landed history to pending only if implementation is required, and bind the selected parser clause to its exact control and tests/unit/cf-inv-012/s3-verdict-marker.test.ts red-then-green change. Until that revision lands, no parser or regression-test edit is engineering-ready."
+  - id: SOURCE-OPEN-OBLIGATIONS
+    kind: proposed
+    path: validation-design/harness-design-state.md
+    locator: "Current unresolved and human-action queue; every decision below remains unratified and must not be encoded as behavior. F-PT-012 decision brief: choose registry-before-local-clear or local-clear-first with the registry update as commit point; the choice determines crash authority/recovery; completion requires the chosen contract and implementation plus red-then-green crash cases at every step boundary. F-PT-013 decision brief: classify an agent direct push to the remote default branch as routine or critical and choose gate-classifier or delivery-loop-guard enforcement; the choice fixes authority ownership and refusal/audit locus; completion requires the ratified policy/contract, implementation, and a seeded refused direct-push detector. F-PT-014 decision brief: map outside-worktree behavior to the existing never-scopeable rule or explicitly named narrower classes; the choice determines whether grants can be widened; completion requires invariant/approval-contract mapping, rule implementation, and a seeded refusal detector. F-PT-015 decision brief: choose outright bootstrap-rerun refusal or deterministic idempotent exact-marked-block replacement preserving all other bytes; the choice determines legal recovery and foreign-content protection; completion requires B-14/implementation alignment plus rerun, byte-preservation, foreign-block, symlink, and interruption controls. F-PT-016 decision brief: assign wrong-remote comparison to B-14 bootstrap publication or B-15 remote identity; the choice names one owning seam; completion requires the owning contract/implementation and matching, mismatch, missing-identity, symlink, and remote-move comparison/refusal coverage. F-PT-018 decision brief: retain the bounded human-protected-merge plus exact-tag-rerun limitation without claiming mechanical merge blocking, or require branch protection; only the latter closes the finding, and completion requires durable protected-state observation plus a seeded red PR observed to be merge-blocked followed by green; this cutover performs no infrastructure action. B-17-L3 deliberate deferral: the non-GitHub real round-trip remains blocked because no disposable target is ratified. Unblock only when the human names that sandbox target and authorizes an exact reviewed absolute live config; then run the spend-bounded preflight/campaign, deposit exact-candidate evidence, and update HB-013-L3/CF-J17-A. Other open items: F-PT-009/010/011 threshold/sample designs; F-PT-033 marker compatibility; #339 Grok real-repository vendor-risk review; the simulated provider-family interpretation (its current implementation is a parked observation, not ratified policy); HB-072 distinct human author and independent reviewer before HB-073; and HB-090..094 comparison-wave activation. HB-155-L3 visual/media certification plan (not authorized here): exact harness matrix claude, codex, cursor, opencode, pi, grok, muse; media_read remains unsupported per exact runtime/version unless current adapter/tool-gate evidence, a reviewed absolute live config, exact per-run human authorization, sandbox target, image/PDF fixture, gate-observed read, and proof the model saw a visual fact all exist. Unsupported/unproven remains unsupported; Grok is sandbox-only pending #339; Muse cannot progress while its tool gate is unsupported. Human next actions are the named decisions and artifacts. Engineering next actions are pending tickets whose explicit depends_on outputs are landed; prose-only HB/F-PT references are provenance unless the backlog declares an edge. Superseding ratification-to-engineering handoff: the earlier ‘pending tickets whose depends_on outputs are landed’ sentence is shorthand and never selects work by itself; apply the complete navigation/status rule. These open findings authorize no code now. When the owner rules, the same checked-model revision must update the named existing output, change it to pending only if every readiness predicate holds, and bind exact family/control/planned-test-or-evidence paths and depends_on edges before a build agent acts: F-PT-009 → HB-061; F-PT-010 → HB-062-L4; F-PT-011 → HB-062, HB-062-L4, and HB-093/HB-093-L2/HB-093-L4 (plus HB-108 only if its already-landed S-10 threshold contract changes); F-PT-012 → HB-015; F-PT-013 → HB-010 and HB-010-L2; F-PT-014 → HB-011; F-PT-015 → HB-P4; F-PT-016 → HB-P4 when B-14 owns the seam or HB-025 when B-15 owns it; F-PT-018 → HB-P7; F-PT-033 → HB-005. A ruling that omits this model/ticket update is incomplete, and the build agent refuses. The #339 disposition updates the Grok scope recorded in HB-137-L3 but never widens it implicitly. Blocked-transition correction: clearing a blocker or landing dependencies never authorizes execution by itself. HB-013-L3, HB-073, HB-137-L3, HB-155-L3, and every other blocked output require a checked-model revision to pending before any implementation, certification, or evidence run; only pending work may later become landed. Any earlier ‘then run’ wording is conditional on that mandatory intermediate transition. #339 standalone Grok vendor-risk decision brief. Decision: whether Grok Build may move beyond its current throwaway-sandbox-only scope to any real repository. Permitted attributable human outcomes are retain-sandbox-only, approve-bounded-real-repository-use, reject-real-repository-use, or needs-more-evidence (which leaves the item open and sandbox-only). Assess vendor terms; code/input retention and training use; confidentiality and deletion; network, subprocess, filesystem, and tool isolation; PreToolUse/gate integrity; telemetry/logging; incident response; version drift; and revocation. Completion artifact: research/adapters/grok-build-vendor-risk-review.md, authored or approved by the human product owner and carrying reviewer identity, reviewed_at, exact Grok runtime/version profile, evidence/source links, every criterion's disposition, chosen outcome, allowed repository/data/tool/network scope, expiry or re-review trigger, revocation conditions, and artifact SHA-256. retain/reject/needs-more-evidence preserves CF-B25-L3 sandbox-only scope. approve requires a checked-model revision updating B-25/CF-B25-L3 and affected tickets from the exact artifact; it never authorizes a run or real-repository use by itself, and every live run still needs its declared reviewed config and per-run human authorization. Missing artifact fields or model transition means remain sandbox-only. Checked-model revision field map for every ratification handoff: update validation-design/model/sources.yaml when decision provenance changes; validation-design/model/structures.yaml for the affected clause/source_ids while preserving changed_paths: [] unless a separately ratified complete map exists; validation-design/model/controls.yaml for the red-capable expected failure; validation-design/model/families.yaml for status, lane, control_ids, ticket, exact planned_tests or evidence; and validation-design/model/backlog.yaml for ticket status, depends_on, family_ids, and acceptance. Update validation-design/model/policy.yaml only when lane/trigger/authorization changes, validation-design/model/owners.yaml only when ownership changes, and validation-design/model/project.yaml only for product/version facts. Regenerate, never edit views. A blocked/parked-to-pending transition is incomplete unless backlog status/dependencies and every owned family/control/path/source field agree in the same checked-model revision. Exact F-PT-009/010/011 ratification payloads. F-PT-009 is one S-3 Reviewer ruling and must record corpus/version, serious-defect classes, per-severity catch thresholds, clean false-positive threshold, N, defect/clean counts, builder×reviewer pairing strata, aggregation, uncertainty/inconclusive rule, cadence, owner, date, and resulting HB-061/CF-S3-qual/CF-S3-judge transition or explicit corpus-only split. F-PT-010 requires two explicit site sections, S-1 Planner and S-4 SRE; each records corpus/version, metric, threshold, N, sample composition, aggregation, uncertainty/inconclusive rule, cadence, owner, and date. Omission leaves that site open; HB-062-L4 cannot become pending until both are ratified or its families are split. F-PT-011 is an umbrella, not one blanket YES/NO: record a separate complete section for CF-COND brief conditioning and for each S-2 Builder, S-5 Audience (Support, Marketing content, Marketing analysis), S-6 Distiller, S-7 Learning Reviewer, S-8 Selection Judge, and S-10 Validation Designer site. Every section carries corpus/version, metric/threshold, N, case counts/composition, strata, aggregation, calibration/reference procedure, uncertainty/inconclusive rule, cadence/trigger, owner, date, and affected ticket/family transition. Sites may ratify independently; omitted sites remain inconclusive and blocked. The same checked-model revision updates HB-062/062-L4, HB-093/093-L2/093-L4, and HB-108 only for the exact site families it changes, splitting mixed outputs before any partial subset becomes pending. Live authorization order correction: target/config-shape ratification and exact per-run authorization are distinct. For HB-013-L3, first the human names the disposable sandbox target and the checked-model revision binds the target plus config requirements and changes the ticket to pending. The operator then prepares the reviewed absolute config and runs non-spending dry-run/preflight. Only after those exact outputs exist may the human issue fresh per-run authorization for that candidate/config; then, and only then, the spend-bounded live run may start. A config review before preflight is not per-run authorization, and no prior authorization carries forward."
+    quote: "Current unresolved and human-action queue; every decision below remains unratified and must not be encoded as behavior. F-PT-012 decision brief: choose registry-before-local-clear or local-clear-first with the registry update as commit point; the choice determines crash authority/recovery; completion requires the chosen contract and implementation plus red-then-green crash cases at every step boundary. F-PT-013 decision brief: classify an agent direct push to the remote default branch as routine or critical and choose gate-classifier or delivery-loop-guard enforcement; the choice fixes authority ownership and refusal/audit locus; completion requires the ratified policy/contract, implementation, and a seeded refused direct-push detector. F-PT-014 decision brief: map outside-worktree behavior to the existing never-scopeable rule or explicitly named narrower classes; the choice determines whether grants can be widened; completion requires invariant/approval-contract mapping, rule implementation, and a seeded refusal detector. F-PT-015 decision brief: choose outright bootstrap-rerun refusal or deterministic idempotent exact-marked-block replacement preserving all other bytes; the choice determines legal recovery and foreign-content protection; completion requires B-14/implementation alignment plus rerun, byte-preservation, foreign-block, symlink, and interruption controls. F-PT-016 decision brief: assign wrong-remote comparison to B-14 bootstrap publication or B-15 remote identity; the choice names one owning seam; completion requires the owning contract/implementation and matching, mismatch, missing-identity, symlink, and remote-move comparison/refusal coverage. F-PT-018 decision brief: retain the bounded human-protected-merge plus exact-tag-rerun limitation without claiming mechanical merge blocking, or require branch protection; only the latter closes the finding, and completion requires durable protected-state observation plus a seeded red PR observed to be merge-blocked followed by green; this cutover performs no infrastructure action. B-17-L3 deliberate deferral: the non-GitHub real round-trip remains blocked because no disposable target is ratified. Unblock only when the human names that sandbox target and authorizes an exact reviewed absolute live config; then run the spend-bounded preflight/campaign, deposit exact-candidate evidence, and update HB-013-L3/CF-J17-A. Other open items: F-PT-009/010/011 threshold/sample designs; F-PT-033 marker compatibility; #339 Grok real-repository vendor-risk review; the simulated provider-family interpretation (its current implementation is a parked observation, not ratified policy); HB-072 distinct human author and independent reviewer before HB-073; and HB-090..094 comparison-wave activation. HB-155-L3 visual/media certification plan (not authorized here): exact harness matrix claude, codex, cursor, opencode, pi, grok, muse; media_read remains unsupported per exact runtime/version unless current adapter/tool-gate evidence, a reviewed absolute live config, exact per-run human authorization, sandbox target, image/PDF fixture, gate-observed read, and proof the model saw a visual fact all exist. Unsupported/unproven remains unsupported; Grok is sandbox-only pending #339; Muse cannot progress while its tool gate is unsupported. Human next actions are the named decisions and artifacts. Engineering next actions are pending tickets whose explicit depends_on outputs are landed; prose-only HB/F-PT references are provenance unless the backlog declares an edge. Superseding ratification-to-engineering handoff: the earlier ‘pending tickets whose depends_on outputs are landed’ sentence is shorthand and never selects work by itself; apply the complete navigation/status rule. These open findings authorize no code now. When the owner rules, the same checked-model revision must update the named existing output, change it to pending only if every readiness predicate holds, and bind exact family/control/planned-test-or-evidence paths and depends_on edges before a build agent acts: F-PT-009 → HB-061; F-PT-010 → HB-062-L4; F-PT-011 → HB-062, HB-062-L4, and HB-093/HB-093-L2/HB-093-L4 (plus HB-108 only if its already-landed S-10 threshold contract changes); F-PT-012 → HB-015; F-PT-013 → HB-010 and HB-010-L2; F-PT-014 → HB-011; F-PT-015 → HB-P4; F-PT-016 → HB-P4 when B-14 owns the seam or HB-025 when B-15 owns it; F-PT-018 → HB-P7; F-PT-033 → HB-005. A ruling that omits this model/ticket update is incomplete, and the build agent refuses. The #339 disposition updates the Grok scope recorded in HB-137-L3 but never widens it implicitly. Blocked-transition correction: clearing a blocker or landing dependencies never authorizes execution by itself. HB-013-L3, HB-073, HB-137-L3, HB-155-L3, and every other blocked output require a checked-model revision to pending before any implementation, certification, or evidence run; only pending work may later become landed. Any earlier ‘then run’ wording is conditional on that mandatory intermediate transition. #339 standalone Grok vendor-risk decision brief. Decision: whether Grok Build may move beyond its current throwaway-sandbox-only scope to any real repository. Permitted attributable human outcomes are retain-sandbox-only, approve-bounded-real-repository-use, reject-real-repository-use, or needs-more-evidence (which leaves the item open and sandbox-only). Assess vendor terms; code/input retention and training use; confidentiality and deletion; network, subprocess, filesystem, and tool isolation; PreToolUse/gate integrity; telemetry/logging; incident response; version drift; and revocation. Completion artifact: research/adapters/grok-build-vendor-risk-review.md, authored or approved by the human product owner and carrying reviewer identity, reviewed_at, exact Grok runtime/version profile, evidence/source links, every criterion's disposition, chosen outcome, allowed repository/data/tool/network scope, expiry or re-review trigger, revocation conditions, and artifact SHA-256. retain/reject/needs-more-evidence preserves CF-B25-L3 sandbox-only scope. approve requires a checked-model revision updating B-25/CF-B25-L3 and affected tickets from the exact artifact; it never authorizes a run or real-repository use by itself, and every live run still needs its declared reviewed config and per-run human authorization. Missing artifact fields or model transition means remain sandbox-only. Checked-model revision field map for every ratification handoff: update validation-design/model/sources.yaml when decision provenance changes; validation-design/model/structures.yaml for the affected clause/source_ids while preserving changed_paths: [] unless a separately ratified complete map exists; validation-design/model/controls.yaml for the red-capable expected failure; validation-design/model/families.yaml for status, lane, control_ids, ticket, exact planned_tests or evidence; and validation-design/model/backlog.yaml for ticket status, depends_on, family_ids, and acceptance. Update validation-design/model/policy.yaml only when lane/trigger/authorization changes, validation-design/model/owners.yaml only when ownership changes, and validation-design/model/project.yaml only for product/version facts. Regenerate, never edit views. A blocked/parked-to-pending transition is incomplete unless backlog status/dependencies and every owned family/control/path/source field agree in the same checked-model revision. Exact F-PT-009/010/011 ratification payloads. F-PT-009 is one S-3 Reviewer ruling and must record corpus/version, serious-defect classes, per-severity catch thresholds, clean false-positive threshold, N, defect/clean counts, builder×reviewer pairing strata, aggregation, uncertainty/inconclusive rule, cadence, owner, date, and resulting HB-061/CF-S3-qual/CF-S3-judge transition or explicit corpus-only split. F-PT-010 requires two explicit site sections, S-1 Planner and S-4 SRE; each records corpus/version, metric, threshold, N, sample composition, aggregation, uncertainty/inconclusive rule, cadence, owner, and date. Omission leaves that site open; HB-062-L4 cannot become pending until both are ratified or its families are split. F-PT-011 is an umbrella, not one blanket YES/NO: record a separate complete section for CF-COND brief conditioning and for each S-2 Builder, S-5 Audience (Support, Marketing content, Marketing analysis), S-6 Distiller, S-7 Learning Reviewer, S-8 Selection Judge, and S-10 Validation Designer site. Every section carries corpus/version, metric/threshold, N, case counts/composition, strata, aggregation, calibration/reference procedure, uncertainty/inconclusive rule, cadence/trigger, owner, date, and affected ticket/family transition. Sites may ratify independently; omitted sites remain inconclusive and blocked. The same checked-model revision updates HB-062/062-L4, HB-093/093-L2/093-L4, and HB-108 only for the exact site families it changes, splitting mixed outputs before any partial subset becomes pending. Live authorization order correction: target/config-shape ratification and exact per-run authorization are distinct. For HB-013-L3, first the human names the disposable sandbox target and the checked-model revision binds the target plus config requirements and changes the ticket to pending. The operator then prepares the reviewed absolute config and runs non-spending dry-run/preflight. Only after those exact outputs exist may the human issue fresh per-run authorization for that candidate/config; then, and only then, the spend-bounded live run may start. A config review before preflight is not per-run authorization, and no prior authorization carries forward."

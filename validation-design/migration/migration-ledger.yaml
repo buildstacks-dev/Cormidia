@@ -1,0 +1,3079 @@
+schema: cormidia/validation-architect-migration-ledger/v1
+public_api: validation-architect@0.4.6 migrate(kind=legacy-catalog,to=validation-architect/corpus/v1) + compile()
+product_revision: c4d9eb341cccaff59af84eb2589bfa37cbbfd1d7
+model_identity: 2ea4d12b7f6b0fc7c29eb26562fa79b6044ed2fc53026211e52a35b45a219c81
+upstream:
+  revision: 52a7b26b5b4de934612640c3d47ba7c738596ece
+  package: validation-architect@0.4.6
+  artifact_path: vendor/validation-architect-0.4.6.tgz
+  artifact_sha256: 1e396fdb7fe2e6ea2e479628e344c6283a5ae7f4cb95a86dfba8601a7cfd66c5
+  artifact_integrity: sha512-6wRhOH8+80Knr1H7FTYYjAZcpGpG4ZiveCXSv6ddk1eaab11Rd5tiFr0l3CSR1TcTw/lSVEjXtV2pRVOYpcFHA==
+  artifact_bytes: 268051
+  artifact_entries: 124
+source:
+  archived_inputs_sha256:
+    case-catalog-generator.awk: 07a8ca3fd5975d9b3ee65ec04cb2cef81eada5a3afbff64934fbebc7b5568f05
+    case-catalog.md: 69777f75c509997fb378b86c8b119827a0f81c0fa0d975a9f138965f10d71059
+    case-catalog.yaml: 0da6e3dd2751b619a5f7b47053d8cfb2298f83cddc659b8762cc8b3477d952a0
+    harness-backlog.md: 213bf2e521d842920577aba2e41fb040a78885e534ca1c8d8ea59f68953924ca
+    validation-policy.yaml: 9ecb34132c47d1e1488388e6a3e3785bff6a5bb93fab2ccc1ed04f5a8dfb5964
+  reviewed_mapping_sha256: 959bc5dab145523cb70faa9828a6d73561c0f4e1dcd85f7fb6bf076c697adf2a
+  reviewed_sources_sha256:
+    - path: .github/workflows/core-checks.yml
+      sha256: 60dadc6a13bc5b3765cbe59b820d000b94c2411209ab8131c31492c43df12fe4
+    - path: acceptance/rubric.md
+      sha256: a3e035298ec75b44ce8eeb937213518f9a1d77586e5fd1c5f93a09c9232db6ca
+    - path: docs/PURPOSE.md
+      sha256: ca782d9b85ebb5ef88f49dac816b882e9dfbef8342142f64f28814b557cb392a
+    - path: docs/approvals/design.md
+      sha256: aaf015560b47c2bbba7f7b35281039025cba7b9ab17a28b6396718b4b51b3d29
+    - path: docs/episodes/contract.md
+      sha256: 23780d2bd3ab27cd253fe99882fcefb58f723d7465f9d4ce4a80e4b57d917e8d
+    - path: docs/jobs/design.md
+      sha256: f90091405cda68f2d0ade2865ad47cad928a8f2bfa3ad5433fa126fc74d65ec3
+    - path: docs/qualification/design.md
+      sha256: 1f20a7f2dd3be7e06bc802a200740ba42fae06bfce64b51511b2eb926ada4a22
+    - path: docs/qualification/host-policy.yaml
+      sha256: c0ea9e20b3b0b3ffb11c2c69a4592fc07b5d952ed2020d4b8eb11e705458efa5
+    - path: research/2026-08-16_validation-authority-domain-split.md
+      sha256: 4fbe1377b38f58f887551712e1cc31b735d90251037979e64037012564829545
+    - path: roles.yaml
+      sha256: f0dc56569131412433fc472fea7c19e86fba86e72a2a9b223d07064b908be24d
+    - path: validation-design/boundary-map.md
+      sha256: ebf3b331bad2c864dc5a1c28982fe343d4fe00dafd5e4260c2701148ef9f94e5
+    - path: validation-design/contracts/B-01-github.md
+      sha256: cdd02f0fced8f14129aa16de11457f77e7e9621ccd1ba265f1a012172589e3ca
+    - path: validation-design/contracts/B-02-anthropic.md
+      sha256: 79253c18bc8a14b3a67e6ccedf6b663983e7543485939c448a7d77f201a5c30f
+    - path: validation-design/contracts/B-03-codex.md
+      sha256: 433cc6e6254a9ea8e53888fbd6e7f1e7378065d9c4ef05111286db449c3a0325
+    - path: validation-design/contracts/B-04-pi.md
+      sha256: 051391d7b0effe85b2037136ba02140e2b51522db27c83c056b67b83088b1293
+    - path: validation-design/contracts/B-05-scheduler-host.md
+      sha256: 28c38888d84e80da4bdd8de849ee693fb2ff1fd65e7c56da9af773a822352052
+    - path: validation-design/contracts/B-06-clock.md
+      sha256: 674a0aec1349e9ef9f43b17a77233b8a6c8301ecfa9af62b22e7633503439ed0
+    - path: validation-design/contracts/B-07-process-lifecycle.md
+      sha256: 2bf4f71e126ebe038a221cfa47d45718db928134448c7fcf1597178ea55bd33f
+    - path: validation-design/contracts/B-08-tick-turn.md
+      sha256: 413c7d424342515cf9b7ba2be44ea834f6e6840c03fa93758b9837fd04de32b5
+    - path: validation-design/contracts/B-09a-approval-continuation.md
+      sha256: 7c20ada64c9fe93c34f73234faf5e9a4991c31668738572d10060ebe1b99453d
+    - path: validation-design/contracts/B-09b-approval-decision-entry.md
+      sha256: 83aa31f03feb379c558af6db3bd41def36053f3321dc5d31e01467c4967c438c
+    - path: validation-design/contracts/B-10-config-resolver.md
+      sha256: 11534f056b69aa75543c1661d6a8cd64b887617a5e23e87ebfeeda42affcf75d
+    - path: validation-design/contracts/B-11-learning-publisher.md
+      sha256: fb54159215761daf20e4a734aaf665e1006c96f566508208a4753e8d5a24ef7a
+    - path: validation-design/contracts/B-12-observer-readers.md
+      sha256: b7cab666e3c25735030aaaacbcae6e4f308c875e2e9595e4ea6f579351bfe211
+    - path: validation-design/contracts/B-13-event-inbox.md
+      sha256: 71bc2c933c3d02b35c61be2e1752403e27f86a1ce50d1a4a68f962e31ed78b2c
+    - path: validation-design/contracts/B-14-human-checkout.md
+      sha256: c0e450b400c043b73a9a4b6ba25bc958cd3112736a748cc8a55259472f8b740a
+    - path: validation-design/contracts/B-15-fs-git-substrate.md
+      sha256: 9df2150f5a06abce67bc4fb6f818b9c9842d459aadc1f21888a362dd4ed058c5
+    - path: validation-design/contracts/B-16-gate-runner-toolchain.md
+      sha256: cc668795c074220e505188f3350beca9491114beda851f1fec415ff4ffdc157c
+    - path: validation-design/contracts/B-17-typed-executor.md
+      sha256: d6fda7238d2419b0247c4556e5401cbb8fa5a14b4a5ae7c0181f59854f953ecd
+    - path: validation-design/contracts/B-18-comparison-candidates.md
+      sha256: 99eb3ade00ccf9142de7f2cbcb431d0e5c6b8da9eaae94c4694705420828e5e7
+    - path: validation-design/contracts/B-19-selection-materialization.md
+      sha256: 922c699c897d8d84af7842b8573fdd5e23f041cd039658c975c9dfc989be356f
+    - path: validation-design/contracts/B-20-roadmap-admission.md
+      sha256: f6760ed56c11b1d22f4cb3128724ecac45b9d415a4f86d036e88d98d08c3bbd5
+    - path: validation-design/contracts/B-21-validation-handoff.md
+      sha256: c59cf5ce0ab37542525cc9b86d396fcc012dff72434dc7a37d2fc6ef834b470c
+    - path: validation-design/contracts/B-22-batch-episodes.md
+      sha256: 246d1d7430d95f5667c8e7d12a04b0376f6d9128cea8e4d2d009058635b71304
+    - path: validation-design/contracts/B-23-opencode.md
+      sha256: 5ca93d07a27a73eff32c77e91582807e75c90c8507155fcde9d4c22efefb8c92
+    - path: validation-design/contracts/B-24-cursor.md
+      sha256: 57ddc8fc82aea119553e2228f73f8968e020c7560da6cdae6211ffa0fa56e794
+    - path: validation-design/contracts/B-25-grok-build.md
+      sha256: 1c718dc4948d682fc96908ef75c78e5c0ad409bd7da3a19c13cdf9b2aa2424b1
+    - path: validation-design/contracts/B-26-muse-code.md
+      sha256: 0d097a5dd2833b1cd75fcd66349f9f9fe881134741365999e218f6cf4a5a8d55
+    - path: validation-design/contracts/B-27-acceptance-campaign.md
+      sha256: 4d69814c76e68b566fe5cfc7aa855d7e93f543d2b1b12cae997d1ef7ee9d2478
+    - path: validation-design/contracts/B-28-sealed-answer-key.md
+      sha256: 60f83726302fc8db44bac67902fca1a280993013e87fa3d9fbcfc00ae9807ccc
+    - path: validation-design/contracts/B-29-grader-independence.md
+      sha256: d20a4ac6ff0a5d3c1606b4b79630229c8847fffb5a3acb844aff6f4c97a855aa
+    - path: validation-design/contracts/B-30-job-config-journal.md
+      sha256: fcb8f4dd3e2238f672085e8f0987b46354a9d59fb483e9a92081fe994136cdda
+    - path: validation-design/contracts/B-31-planning-source-scope.md
+      sha256: 15405fd4ec444cdfc19ee0714d10d547236012f1551689d0b23a74f3b18e8585
+    - path: validation-design/contracts/OP-batching.md
+      sha256: 3dab504fa433c04e82300bdfd9f050688ee83266fa1acb382a14c70af8ad11e4
+    - path: validation-design/contracts/OP-lifecycle.md
+      sha256: 6e28880603c5d5e5db8fc9a76278c351b7bc5467c60080315ad6370b5ca6ac3b
+    - path: validation-design/contracts/OP-loop.md
+      sha256: e13608178bbe198f88317f2998fb39ebab72ba03b0586fb4c87bfea897484bcc
+    - path: validation-design/contracts/OP-planning.md
+      sha256: 3afd8984e556e297e165f0b8d8137f61f5210d0ad45313e5e27d63a9cf8c73b8
+    - path: validation-design/contracts/OP-validation-lifecycle.md
+      sha256: 80d6926006c3756937a1a53e52f38b59072c41fb35995289fdb5a20b0c7fa4b1
+    - path: validation-design/contracts/journey-acceptance.md
+      sha256: 08df925b2ef40244b09f189db5138860cd37d23cd662d99962637ae17e4959c3
+    - path: validation-design/contracts/provider-adapter-core.md
+      sha256: 828d5783bcd40da1dcb70923c25ef0d66316c0b8911ff282b898b52b359c57eb
+    - path: validation-design/elicitation-log.md
+      sha256: 81d94d6bd06ccb8c692aeac8f64f19136f56f1f2062a67b958c847a9f2f53134
+    - path: validation-design/harness-design-state.md
+      sha256: 97714c71b6d7feab1c1ee2788b38e941353a782ca09fe1f784c7b13e412bbdf0
+    - path: validation-design/invariants.md
+      sha256: 1f47f1bfcbcd29642f9d071f67ebf77700dd117c80caa33b4b2bc456fb781804
+    - path: validation-design/llm-eval-plan.md
+      sha256: 69ab5bdbb64cfcf9301ae12030b8e6af7e8565f699cdc105dca2b7f1a529cbc6
+    - path: validation-design/risk-allocation.md
+      sha256: 078ddc5f2d79e6f315865ff0026b3bed6e1688671a7c008c2c9d1ab0098f33d9
+    - path: validation-design/routing.md
+      sha256: 4930e4b6abb996cf151df87ac6c9785e940852d86a0ff2c5f04032faf977c2f3
+    - path: validation-design/source-provenance.json
+      sha256: b38b2ec461810b88a3b0f07761df26f25f692b1ef69162f508f88e071e60a0fd
+    - path: validation-design/system-map.md
+      sha256: 6e24cb16a49cca9c1240698bcdc91118f59cee15f5a5f89eb2046d4f31d9278f
+  host_policy_sha256: c0ea9e20b3b0b3ffb11c2c69a4592fc07b5d952ed2020d4b8eb11e705458efa5
+  authority_domain_split_sha256: 4fbe1377b38f58f887551712e1cc31b735d90251037979e64037012564829545
+  migration_bootstrap_decision_sha256: c80624b77822e3fa6900693f3fb766167af70bc1a10974c42a6731de911a73dc
+  catalog_migration_input_sha256: 69777f75c509997fb378b86c8b119827a0f81c0fa0d975a9f138965f10d71059
+  normalization: none; public migrate() received the exact archived UTF-8 catalog and backlog bytes
+compiler:
+  source_fingerprint: 9e29197250cbbfbaca6c99e0a778fd3dfe232b11dfef36aaac4b6156152557bd
+  model_identity: 2ea4d12b7f6b0fc7c29eb26562fa79b6044ed2fc53026211e52a35b45a219c81
+  versions:
+    package: 0.4.6
+    method: 0.8.0
+    model: validation-architect/corpus/v1
+    compiler: validation-architect/compiler/v1
+    policy: validation-architect/policy/v1
+    result: validation-architect/result/v1
+    golden_set: validation-architect/golden-set/v1
+  generated_views:
+    - case-catalog.md
+    - harness-backlog.md
+    - owner-backlog.md
+    - owner-briefing.md
+    - planned-trace.md
+  report_sha256: add8272e48cfe3e80168c0e24f5232cf2f339bd74760e2bfd30662fdf25634fe
+counts:
+  legacy_family_sources: 409
+  canonical_family_outputs: 534
+  legacy_ticket_sources: 117
+  actionable_ticket_sources: 87
+  historical_ticket_sources: 30
+review_evidence:
+  - Legacy Markdown was read only as an explicit import input; it is not retained as machine authority.
+  - Every imported family received caller-reviewed meaning, ownership, provenance, structure, canonical placement, implementation, and negative-control data.
+  - Every legacy family and ticket is accounted for in the deterministic migration ledger; non-owning citations remain evidence and no-owner tickets are not emitted as actionable work.
+families:
+  - legacy_id: CF-ACC-GATE
+    output_ids:
+      - CF-ACC-GATE
+      - CF-ACC-GATE-L1
+      - CF-ACC-GATE-L2
+  - legacy_id: CF-ACC-REPORT
+    output_ids:
+      - CF-ACC-REPORT
+  - legacy_id: CF-ACC-S1
+    output_ids:
+      - CF-ACC-S1
+  - legacy_id: CF-ACC-S2
+    output_ids:
+      - CF-ACC-S2
+  - legacy_id: CF-ACC-S3
+    output_ids:
+      - CF-ACC-S3
+      - CF-ACC-S3-L1
+      - CF-ACC-S3-L2
+  - legacy_id: CF-B01
+    output_ids:
+      - CF-B01
+  - legacy_id: CF-B01-L3
+    output_ids:
+      - CF-B01-L3
+  - legacy_id: CF-B02
+    output_ids:
+      - CF-B02
+  - legacy_id: CF-B03
+    output_ids:
+      - CF-B03
+  - legacy_id: CF-B03-L3
+    output_ids:
+      - CF-B03-L3
+  - legacy_id: CF-B04
+    output_ids:
+      - CF-B04
+  - legacy_id: CF-B04-L3
+    output_ids:
+      - CF-B04-L3
+  - legacy_id: CF-B05
+    output_ids:
+      - CF-B05
+  - legacy_id: CF-B06
+    output_ids:
+      - CF-B06
+  - legacy_id: CF-B07
+    output_ids:
+      - CF-B07
+  - legacy_id: CF-B08
+    output_ids:
+      - CF-B08
+  - legacy_id: CF-B09a
+    output_ids:
+      - CF-B09a
+  - legacy_id: CF-B09b
+    output_ids:
+      - CF-B09b
+  - legacy_id: CF-B10
+    output_ids:
+      - CF-B10
+      - CF-B10-L2
+  - legacy_id: CF-B11
+    output_ids:
+      - CF-B11
+  - legacy_id: CF-B12
+    output_ids:
+      - CF-B12
+  - legacy_id: CF-B13
+    output_ids:
+      - CF-B13
+  - legacy_id: CF-B14
+    output_ids:
+      - CF-B14
+  - legacy_id: CF-B15
+    output_ids:
+      - CF-B15
+  - legacy_id: CF-B16
+    output_ids:
+      - CF-B16
+  - legacy_id: CF-B17
+    output_ids:
+      - CF-B17
+  - legacy_id: CF-B18
+    output_ids:
+      - CF-B18
+      - CF-B18-L2
+  - legacy_id: CF-B19
+    output_ids:
+      - CF-B19
+      - CF-B19-L2
+  - legacy_id: CF-B20
+    output_ids:
+      - CF-B20
+      - CF-B20-L2
+  - legacy_id: CF-B21
+    output_ids:
+      - CF-B21
+      - CF-B21-L2
+  - legacy_id: CF-B22
+    output_ids:
+      - CF-B22
+      - CF-B22-L2
+  - legacy_id: CF-B23
+    output_ids:
+      - CF-B23
+  - legacy_id: CF-B23-L3
+    output_ids:
+      - CF-B23-L3
+  - legacy_id: CF-B24
+    output_ids:
+      - CF-B24
+  - legacy_id: CF-B24-L3
+    output_ids:
+      - CF-B24-L3
+  - legacy_id: CF-B24-PAYLOAD
+    output_ids:
+      - CF-B24-PAYLOAD
+  - legacy_id: CF-B24-SUBGATE
+    output_ids:
+      - CF-B24-SUBGATE
+  - legacy_id: CF-B25
+    output_ids:
+      - CF-B25
+  - legacy_id: CF-B25-L3
+    output_ids:
+      - CF-B25-L3
+  - legacy_id: CF-B26
+    output_ids:
+      - CF-B26
+  - legacy_id: CF-B26-L3
+    output_ids:
+      - CF-B26-L3
+  - legacy_id: CF-B27
+    output_ids:
+      - CF-B27
+      - CF-B27-L2
+  - legacy_id: CF-B28
+    output_ids:
+      - CF-B28
+      - CF-B28-L2
+  - legacy_id: CF-B29
+    output_ids:
+      - CF-B29
+      - CF-B29-L2
+  - legacy_id: CF-B30
+    output_ids:
+      - CF-B30
+      - CF-B30-L2
+  - legacy_id: CF-B31
+    output_ids:
+      - CF-B31
+      - CF-B31-L2
+  - legacy_id: CF-B31-L3
+    output_ids:
+      - CF-B31-L3
+  - legacy_id: CF-C-ACCEPT
+    output_ids:
+      - CF-C-ACCEPT
+  - legacy_id: CF-C-B01
+    output_ids:
+      - CF-C-B01
+      - CF-C-B01-L2
+  - legacy_id: CF-C-B02
+    output_ids:
+      - CF-B02-L3
+      - CF-C-B02
+      - CF-C-B02-L2
+  - legacy_id: CF-C-B03
+    output_ids:
+      - CF-C-B03
+      - CF-C-B03-L2
+  - legacy_id: CF-C-B04
+    output_ids:
+      - CF-C-B04
+      - CF-C-B04-L2
+  - legacy_id: CF-C-B05
+    output_ids:
+      - CF-C-B05
+      - CF-C-B05-L2
+  - legacy_id: CF-C-B06
+    output_ids:
+      - CF-C-B06
+  - legacy_id: CF-C-B07
+    output_ids:
+      - CF-C-B07
+  - legacy_id: CF-C-B08
+    output_ids:
+      - CF-C-B08
+  - legacy_id: CF-C-B09A
+    output_ids:
+      - CF-C-B09A
+  - legacy_id: CF-C-B09B
+    output_ids:
+      - CF-C-B09B
+  - legacy_id: CF-C-B10
+    output_ids:
+      - CF-C-B10
+      - CF-C-B10-L2
+  - legacy_id: CF-C-B11
+    output_ids:
+      - CF-C-B11
+      - CF-C-B11-L2
+  - legacy_id: CF-C-B12
+    output_ids:
+      - CF-C-B12
+  - legacy_id: CF-C-B13
+    output_ids:
+      - CF-C-B13
+  - legacy_id: CF-C-B14
+    output_ids:
+      - CF-C-B14
+  - legacy_id: CF-C-B15
+    output_ids:
+      - CF-C-B15
+  - legacy_id: CF-C-B16
+    output_ids:
+      - CF-C-B16
+  - legacy_id: CF-C-B17
+    output_ids:
+      - CF-C-B17
+  - legacy_id: CF-C-B18
+    output_ids:
+      - CF-C-B18
+      - CF-C-B18-L2
+  - legacy_id: CF-C-B19
+    output_ids:
+      - CF-C-B19
+      - CF-C-B19-L2
+  - legacy_id: CF-C-B20
+    output_ids:
+      - CF-C-B20
+      - CF-C-B20-L2
+  - legacy_id: CF-C-B21
+    output_ids:
+      - CF-C-B21
+      - CF-C-B21-L2
+  - legacy_id: CF-C-B22
+    output_ids:
+      - CF-C-B22
+      - CF-C-B22-L2
+  - legacy_id: CF-C-B23
+    output_ids:
+      - CF-C-B23
+      - CF-C-B23-L2
+  - legacy_id: CF-C-B24
+    output_ids:
+      - CF-C-B24
+      - CF-C-B24-L2
+  - legacy_id: CF-C-B25
+    output_ids:
+      - CF-C-B25
+      - CF-C-B25-L2
+  - legacy_id: CF-C-B26
+    output_ids:
+      - CF-C-B26
+      - CF-C-B26-L2
+  - legacy_id: CF-C-B27
+    output_ids:
+      - CF-C-B27
+      - CF-C-B27-L2
+  - legacy_id: CF-C-B28
+    output_ids:
+      - CF-C-B28
+      - CF-C-B28-L2
+  - legacy_id: CF-C-B29
+    output_ids:
+      - CF-C-B29
+      - CF-C-B29-L2
+  - legacy_id: CF-C-B30
+    output_ids:
+      - CF-C-B30
+      - CF-C-B30-L2
+  - legacy_id: CF-C-B31
+    output_ids:
+      - CF-C-B31
+      - CF-C-B31-L2
+  - legacy_id: CF-C-CORE
+    output_ids:
+      - CF-C-CORE
+      - CF-C-CORE-L2
+  - legacy_id: CF-C-OPBATCH
+    output_ids:
+      - CF-C-OPBATCH
+      - CF-C-OPBATCH-L2
+  - legacy_id: CF-C-OPJOB
+    output_ids:
+      - CF-C-OPJOB
+      - CF-C-OPJOB-L2
+  - legacy_id: CF-C-OPLIFE
+    output_ids:
+      - CF-C-OPLIFE
+  - legacy_id: CF-C-OPLOOP
+    output_ids:
+      - CF-C-OPLOOP
+  - legacy_id: CF-C-OPPLAN
+    output_ids:
+      - CF-C-OPPLAN
+      - CF-C-OPPLAN-L2
+  - legacy_id: CF-C-OPVALIDATION
+    output_ids:
+      - CF-C-OPVALIDATION
+      - CF-C-OPVALIDATION-L2
+  - legacy_id: CF-COND
+    output_ids:
+      - CF-COND
+  - legacy_id: CF-HARNESS-ACCFIX
+    output_ids:
+      - CF-HARNESS-ACCFIX
+      - CF-HARNESS-ACCFIX-L2
+  - legacy_id: CF-HARNESS-ATTEST
+    output_ids:
+      - CF-HARNESS-ATTEST
+      - CF-HARNESS-ATTEST-L2
+  - legacy_id: CF-HARNESS-CI
+    output_ids:
+      - CF-HARNESS-CI
+      - CF-HARNESS-CI-MERGE-BLOCKING
+  - legacy_id: CF-HARNESS-CURRENCY
+    output_ids:
+      - CF-HARNESS-CURRENCY
+      - CF-HARNESS-CURRENCY-L2
+  - legacy_id: CF-HARNESS-JUDGE
+    output_ids:
+      - CF-HARNESS-JUDGE
+      - CF-HARNESS-JUDGE-L2
+  - legacy_id: CF-HARNESS-RELEASE
+    output_ids:
+      - CF-HARNESS-RELEASE
+      - CF-HARNESS-RELEASE-L2
+  - legacy_id: CF-HARNESS-REPORT
+    output_ids:
+      - CF-HARNESS-REPORT
+      - CF-HARNESS-REPORT-L2
+  - legacy_id: CF-HARNESS-RQ
+    output_ids:
+      - CF-HARNESS-RQ
+      - CF-HARNESS-RQ-L2
+  - legacy_id: CF-HB102-MANUAL-REVIEW
+    output_ids:
+      - CF-HB102-MANUAL-REVIEW
+  - legacy_id: CF-IF-CLI
+    output_ids:
+      - CF-IF-CLI
+  - legacy_id: CF-IF-COMPARE
+    output_ids:
+      - CF-IF-COMPARE
+      - CF-IF-COMPARE-L2
+  - legacy_id: CF-IF-HTML
+    output_ids:
+      - CF-IF-HTML
+  - legacy_id: CF-IF-JOB
+    output_ids:
+      - CF-IF-JOB
+      - CF-IF-JOB-L2
+  - legacy_id: CF-IF-JSON
+    output_ids:
+      - CF-IF-JSON
+  - legacy_id: CF-IF-SKILL
+    output_ids:
+      - CF-IF-SKILL
+  - legacy_id: CF-IF-UI
+    output_ids:
+      - CF-IF-UI
+  - legacy_id: CF-IF-XSURF
+    output_ids:
+      - CF-IF-XSURF
+  - legacy_id: CF-INV-001
+    output_ids:
+      - CF-INV-001
+      - CF-INV-001-L2
+  - legacy_id: CF-INV-002
+    output_ids:
+      - CF-INV-002
+      - CF-INV-002-L2
+  - legacy_id: CF-INV-003
+    output_ids:
+      - CF-INV-003
+  - legacy_id: CF-INV-004
+    output_ids:
+      - CF-INV-004
+      - CF-INV-004-L2
+  - legacy_id: CF-INV-005
+    output_ids:
+      - CF-INV-005
+  - legacy_id: CF-INV-006
+    output_ids:
+      - CF-INV-006
+  - legacy_id: CF-INV-007
+    output_ids:
+      - CF-INV-007
+      - CF-INV-007-L2
+  - legacy_id: CF-INV-008
+    output_ids:
+      - CF-INV-008
+  - legacy_id: CF-INV-009
+    output_ids:
+      - CF-INV-009
+  - legacy_id: CF-INV-010
+    output_ids:
+      - CF-INV-010
+  - legacy_id: CF-INV-011
+    output_ids:
+      - CF-INV-011
+      - CF-INV-011-L2
+  - legacy_id: CF-INV-012
+    output_ids:
+      - CF-INV-012
+      - CF-INV-012-L2
+  - legacy_id: CF-INV-013
+    output_ids:
+      - CF-INV-013
+  - legacy_id: CF-INV-014
+    output_ids:
+      - CF-INV-014
+  - legacy_id: CF-INV-015
+    output_ids:
+      - CF-INV-015
+      - CF-INV-015-L2
+  - legacy_id: CF-INV-016
+    output_ids:
+      - CF-INV-016
+      - CF-INV-016-L2
+  - legacy_id: CF-INV-017
+    output_ids:
+      - CF-INV-017
+      - CF-INV-017-L2
+  - legacy_id: CF-INV-ACC-1
+    output_ids:
+      - CF-INV-ACC-1
+      - CF-INV-ACC-1-L2
+  - legacy_id: CF-INV-ACC-2
+    output_ids:
+      - CF-INV-ACC-2
+      - CF-INV-ACC-2-L2
+  - legacy_id: CF-INV-ACC-3
+    output_ids:
+      - CF-INV-ACC-3
+      - CF-INV-ACC-3-L2
+  - legacy_id: CF-INV-ACC-4
+    output_ids:
+      - CF-INV-ACC-4
+      - CF-INV-ACC-4-L2
+  - legacy_id: CF-INV-ACC-5
+    output_ids:
+      - CF-INV-ACC-5
+  - legacy_id: CF-INV-ACC-6
+    output_ids:
+      - CF-INV-ACC-6
+      - CF-INV-ACC-6-L2
+  - legacy_id: CF-INV-ACC-7a
+    output_ids:
+      - CF-INV-ACC-7a
+      - CF-INV-ACC-7a-L2
+  - legacy_id: CF-INV-ACC-7b
+    output_ids:
+      - CF-INV-ACC-7b
+      - CF-INV-ACC-7b-L2
+  - legacy_id: CF-J01-A
+    output_ids:
+      - CF-J01-A
+  - legacy_id: CF-J01-I
+    output_ids:
+      - CF-J01-I
+  - legacy_id: CF-J01-R
+    output_ids:
+      - CF-J01-R
+  - legacy_id: CF-J01-RC
+    output_ids:
+      - CF-J01-RC
+  - legacy_id: CF-J01-S
+    output_ids:
+      - CF-J01-S
+  - legacy_id: CF-J02-A
+    output_ids:
+      - CF-J02-A
+  - legacy_id: CF-J02-I
+    output_ids:
+      - CF-J02-I
+  - legacy_id: CF-J02-R
+    output_ids:
+      - CF-J02-R
+  - legacy_id: CF-J02-RC
+    output_ids:
+      - CF-J02-RC
+  - legacy_id: CF-J02-S
+    output_ids:
+      - CF-J02-S
+      - CF-J02-S-L2
+  - legacy_id: CF-J03-A
+    output_ids:
+      - CF-J03-A
+      - CF-J03-A-L2
+  - legacy_id: CF-J03-I
+    output_ids:
+      - CF-J03-I
+  - legacy_id: CF-J03-R
+    output_ids:
+      - CF-J03-R
+      - CF-J03-R-L2
+  - legacy_id: CF-J03-RC
+    output_ids:
+      - CF-J03-RC
+  - legacy_id: CF-J03-S
+    output_ids:
+      - CF-J03-S
+  - legacy_id: CF-J04-A
+    output_ids:
+      - CF-J04-A
+  - legacy_id: CF-J04-I
+    output_ids:
+      - CF-J04-I
+  - legacy_id: CF-J04-R
+    output_ids:
+      - CF-J04-R
+  - legacy_id: CF-J04-RC
+    output_ids:
+      - CF-J04-RC
+  - legacy_id: CF-J04-S
+    output_ids:
+      - CF-J04-S
+  - legacy_id: CF-J05-A
+    output_ids:
+      - CF-J05-A
+  - legacy_id: CF-J05-I
+    output_ids:
+      - CF-J05-I
+  - legacy_id: CF-J05-R
+    output_ids:
+      - CF-J05-R
+  - legacy_id: CF-J05-RC
+    output_ids:
+      - CF-J05-RC
+  - legacy_id: CF-J05-S
+    output_ids:
+      - CF-J05-S
+  - legacy_id: CF-J06-A
+    output_ids:
+      - CF-J06-A
+  - legacy_id: CF-J06-I
+    output_ids:
+      - CF-J06-I
+  - legacy_id: CF-J06-R
+    output_ids:
+      - CF-J06-R
+  - legacy_id: CF-J06-RC
+    output_ids:
+      - CF-J06-RC
+  - legacy_id: CF-J06-S
+    output_ids:
+      - CF-J06-S
+  - legacy_id: CF-J07-A
+    output_ids:
+      - CF-J07-A
+  - legacy_id: CF-J07-I
+    output_ids:
+      - CF-J07-I
+  - legacy_id: CF-J07-R
+    output_ids:
+      - CF-J07-R
+      - CF-J07-R-L2
+  - legacy_id: CF-J07-RC
+    output_ids:
+      - CF-J07-RC
+  - legacy_id: CF-J07-S
+    output_ids:
+      - CF-J07-S
+  - legacy_id: CF-J08-A
+    output_ids:
+      - CF-J08-A
+  - legacy_id: CF-J08-I
+    output_ids:
+      - CF-J08-I
+  - legacy_id: CF-J08-R
+    output_ids:
+      - CF-J08-R
+      - CF-J08-R-L2
+  - legacy_id: CF-J08-RC
+    output_ids:
+      - CF-J08-RC
+  - legacy_id: CF-J08-S
+    output_ids:
+      - CF-J08-S
+  - legacy_id: CF-J09-A
+    output_ids:
+      - CF-J09-A
+  - legacy_id: CF-J09-I
+    output_ids:
+      - CF-J09-I
+  - legacy_id: CF-J09-R
+    output_ids:
+      - CF-J09-R
+  - legacy_id: CF-J09-RC
+    output_ids:
+      - CF-J09-RC
+  - legacy_id: CF-J09-S
+    output_ids:
+      - CF-J09-S
+  - legacy_id: CF-J10-A
+    output_ids:
+      - CF-J10-A
+  - legacy_id: CF-J10-I
+    output_ids:
+      - CF-J10-I
+  - legacy_id: CF-J10-R
+    output_ids:
+      - CF-J10-R
+  - legacy_id: CF-J10-RC
+    output_ids:
+      - CF-J10-RC
+  - legacy_id: CF-J10-S
+    output_ids:
+      - CF-J10-S
+  - legacy_id: CF-J11-A
+    output_ids:
+      - CF-J11-A
+  - legacy_id: CF-J11-I
+    output_ids:
+      - CF-J11-I
+  - legacy_id: CF-J11-R
+    output_ids:
+      - CF-J11-R
+  - legacy_id: CF-J11-RC
+    output_ids:
+      - CF-J11-RC
+  - legacy_id: CF-J11-S
+    output_ids:
+      - CF-J11-S
+  - legacy_id: CF-J12-A
+    output_ids:
+      - CF-J12-A
+  - legacy_id: CF-J12-I
+    output_ids:
+      - CF-J12-I
+  - legacy_id: CF-J12-R
+    output_ids:
+      - CF-J12-R
+      - CF-J12-R-L2
+  - legacy_id: CF-J12-RC
+    output_ids:
+      - CF-J12-RC
+  - legacy_id: CF-J12-S
+    output_ids:
+      - CF-J12-S
+  - legacy_id: CF-J13
+    output_ids:
+      - CF-J13
+  - legacy_id: CF-J14-A
+    output_ids:
+      - CF-J14-A
+  - legacy_id: CF-J14-I
+    output_ids:
+      - CF-J14-I
+  - legacy_id: CF-J14-R
+    output_ids:
+      - CF-J14-R
+  - legacy_id: CF-J14-RC
+    output_ids:
+      - CF-J14-RC
+  - legacy_id: CF-J14-S
+    output_ids:
+      - CF-J14-S
+  - legacy_id: CF-J15-A
+    output_ids:
+      - CF-J15-A
+  - legacy_id: CF-J15-I
+    output_ids:
+      - CF-J15-I
+  - legacy_id: CF-J15-R
+    output_ids:
+      - CF-J15-R
+  - legacy_id: CF-J15-RC
+    output_ids:
+      - CF-J15-RC
+  - legacy_id: CF-J15-S
+    output_ids:
+      - CF-J15-S
+  - legacy_id: CF-J16-A
+    output_ids:
+      - CF-J16-A
+  - legacy_id: CF-J16-I
+    output_ids:
+      - CF-J16-I
+  - legacy_id: CF-J16-R
+    output_ids:
+      - CF-J16-R
+  - legacy_id: CF-J16-RC
+    output_ids:
+      - CF-J16-RC
+  - legacy_id: CF-J16-S
+    output_ids:
+      - CF-J16-S
+  - legacy_id: CF-J17-A
+    output_ids:
+      - CF-J17-A
+  - legacy_id: CF-J17-I
+    output_ids:
+      - CF-J17-I
+  - legacy_id: CF-J17-R
+    output_ids:
+      - CF-J17-R
+  - legacy_id: CF-J17-RC
+    output_ids:
+      - CF-J17-RC
+  - legacy_id: CF-J17-S
+    output_ids:
+      - CF-J17-S
+  - legacy_id: CF-J18-A
+    output_ids:
+      - CF-J18-A
+  - legacy_id: CF-J18-I
+    output_ids:
+      - CF-J18-I
+  - legacy_id: CF-J18-R
+    output_ids:
+      - CF-J18-R
+  - legacy_id: CF-J18-RC
+    output_ids:
+      - CF-J18-RC
+  - legacy_id: CF-J18-S
+    output_ids:
+      - CF-J18-S
+  - legacy_id: CF-J19-A
+    output_ids:
+      - CF-J19-A
+  - legacy_id: CF-J19-I
+    output_ids:
+      - CF-J19-I
+  - legacy_id: CF-J19-R
+    output_ids:
+      - CF-J19-R
+      - CF-J19-R-L2
+  - legacy_id: CF-J19-RC
+    output_ids:
+      - CF-J19-RC
+  - legacy_id: CF-J19-S
+    output_ids:
+      - CF-J19-S
+  - legacy_id: CF-J20-A
+    output_ids:
+      - CF-J20-A
+  - legacy_id: CF-J20-I
+    output_ids:
+      - CF-J20-I
+  - legacy_id: CF-J20-R
+    output_ids:
+      - CF-J20-R
+      - CF-J20-R-L2
+  - legacy_id: CF-J20-RC
+    output_ids:
+      - CF-J20-RC
+  - legacy_id: CF-J20-S
+    output_ids:
+      - CF-J20-S
+      - CF-J20-S-L2
+  - legacy_id: CF-J21-A
+    output_ids:
+      - CF-J21-A
+  - legacy_id: CF-J21-I
+    output_ids:
+      - CF-J21-I
+  - legacy_id: CF-J21-R
+    output_ids:
+      - CF-J21-R
+      - CF-J21-R-L2
+  - legacy_id: CF-J21-RC
+    output_ids:
+      - CF-J21-RC
+      - CF-J21-RC-L2
+  - legacy_id: CF-J21-S
+    output_ids:
+      - CF-J21-S
+  - legacy_id: CF-J22-A
+    output_ids:
+      - CF-J22-A
+  - legacy_id: CF-J22-I
+    output_ids:
+      - CF-J22-I
+  - legacy_id: CF-J22-R
+    output_ids:
+      - CF-J22-R
+      - CF-J22-R-L2
+  - legacy_id: CF-J22-RC
+    output_ids:
+      - CF-J22-RC
+      - CF-J22-RC-L2
+  - legacy_id: CF-J22-S
+    output_ids:
+      - CF-J22-S
+  - legacy_id: CF-J23-A
+    output_ids:
+      - CF-J23-A
+  - legacy_id: CF-J23-I
+    output_ids:
+      - CF-J23-I
+  - legacy_id: CF-J23-R
+    output_ids:
+      - CF-J23-R
+  - legacy_id: CF-J23-RC
+    output_ids:
+      - CF-J23-RC
+  - legacy_id: CF-J23-S
+    output_ids:
+      - CF-J23-S
+  - legacy_id: CF-OPS-ABUSE
+    output_ids:
+      - CF-OPS-ABUSE
+      - CF-OPS-ABUSE-ADMISSION
+      - CF-OPS-ABUSE-THREAT-MODEL
+  - legacy_id: CF-OPS-COMP
+    output_ids:
+      - CF-OPS-COMP
+  - legacy_id: CF-OPS-CONT
+    output_ids:
+      - CF-OPS-CONT
+  - legacy_id: CF-OPS-GROW
+    output_ids:
+      - CF-OPS-GROW
+  - legacy_id: CF-OPS-REC
+    output_ids:
+      - CF-OPS-REC
+  - legacy_id: CF-OPS-ROT
+    output_ids:
+      - CF-OPS-ROT
+  - legacy_id: CF-OPS-SKEW
+    output_ids:
+      - CF-OPS-SKEW
+  - legacy_id: CF-OPS-SOAK
+    output_ids:
+      - CF-OPS-SOAK
+      - CF-OPS-SOAK-PROTOCOL
+  - legacy_id: CF-REG-154
+    output_ids:
+      - CF-REG-154
+      - CF-REG-154-L2
+  - legacy_id: CF-REG-181
+    output_ids:
+      - CF-REG-181
+      - CF-REG-181-L2
+  - legacy_id: CF-REG-202
+    output_ids:
+      - CF-REG-202
+      - CF-REG-202-L2
+  - legacy_id: CF-REG-203
+    output_ids:
+      - CF-REG-203
+  - legacy_id: CF-REG-203-G
+    output_ids:
+      - CF-REG-203-G
+  - legacy_id: CF-REG-204
+    output_ids:
+      - CF-REG-204
+  - legacy_id: CF-REG-205
+    output_ids:
+      - CF-REG-205
+  - legacy_id: CF-REG-206
+    output_ids:
+      - CF-REG-206
+  - legacy_id: CF-REG-209
+    output_ids:
+      - CF-REG-209
+  - legacy_id: CF-REG-211
+    output_ids:
+      - CF-REG-211
+  - legacy_id: CF-REG-228
+    output_ids:
+      - CF-REG-228
+  - legacy_id: CF-REG-229
+    output_ids:
+      - CF-REG-229
+  - legacy_id: CF-REG-230
+    output_ids:
+      - CF-REG-230
+  - legacy_id: CF-REG-231
+    output_ids:
+      - CF-REG-231
+      - CF-REG-231-L2
+  - legacy_id: CF-REG-232
+    output_ids:
+      - CF-REG-232
+  - legacy_id: CF-REG-236-BUDGET
+    output_ids:
+      - CF-REG-236-BUDGET
+  - legacy_id: CF-REG-239
+    output_ids:
+      - CF-REG-239
+  - legacy_id: CF-REG-244
+    output_ids:
+      - CF-REG-244
+  - legacy_id: CF-REG-251
+    output_ids:
+      - CF-REG-251
+  - legacy_id: CF-REG-268
+    output_ids:
+      - CF-REG-268
+  - legacy_id: CF-REG-269
+    output_ids:
+      - CF-REG-269
+  - legacy_id: CF-REG-271
+    output_ids:
+      - CF-REG-271
+      - CF-REG-271-L2
+  - legacy_id: CF-REG-272
+    output_ids:
+      - CF-REG-272
+  - legacy_id: CF-REG-273
+    output_ids:
+      - CF-REG-273
+  - legacy_id: CF-REG-274
+    output_ids:
+      - CF-REG-274
+  - legacy_id: CF-REG-278
+    output_ids:
+      - CF-REG-278
+      - CF-REG-278-L2
+  - legacy_id: CF-REG-279
+    output_ids:
+      - CF-REG-279
+  - legacy_id: CF-REG-281
+    output_ids:
+      - CF-REG-281
+  - legacy_id: CF-REG-283
+    output_ids:
+      - CF-REG-283
+  - legacy_id: CF-REG-285
+    output_ids:
+      - CF-REG-285
+  - legacy_id: CF-REG-287
+    output_ids:
+      - CF-REG-287
+  - legacy_id: CF-REG-291
+    output_ids:
+      - CF-REG-291
+  - legacy_id: CF-REG-293
+    output_ids:
+      - CF-REG-293
+  - legacy_id: CF-REG-297
+    output_ids:
+      - CF-REG-297
+  - legacy_id: CF-REG-299
+    output_ids:
+      - CF-REG-299
+  - legacy_id: CF-REG-300
+    output_ids:
+      - CF-REG-300
+  - legacy_id: CF-REG-306
+    output_ids:
+      - CF-REG-306
+      - CF-REG-306-L2
+  - legacy_id: CF-REG-332
+    output_ids:
+      - CF-REG-332
+  - legacy_id: CF-REG-335
+    output_ids:
+      - CF-REG-335
+  - legacy_id: CF-REG-356
+    output_ids:
+      - CF-REG-356
+      - CF-REG-356-L2
+  - legacy_id: CF-REG-359
+    output_ids:
+      - CF-REG-359
+      - CF-REG-359-L2
+  - legacy_id: CF-REG-369
+    output_ids:
+      - CF-REG-369
+      - CF-REG-369-L2
+  - legacy_id: CF-REG-370
+    output_ids:
+      - CF-REG-370
+      - CF-REG-370-L2
+  - legacy_id: CF-REG-373
+    output_ids:
+      - CF-REG-373
+  - legacy_id: CF-REG-374
+    output_ids:
+      - CF-REG-374
+      - CF-REG-374-L2
+  - legacy_id: CF-REG-375
+    output_ids:
+      - CF-REG-375
+  - legacy_id: CF-REG-382
+    output_ids:
+      - CF-REG-382
+      - CF-REG-382-L2
+  - legacy_id: CF-REG-384
+    output_ids:
+      - CF-REG-384
+  - legacy_id: CF-REG-385
+    output_ids:
+      - CF-REG-385
+      - CF-REG-385-L2
+  - legacy_id: CF-REG-388
+    output_ids:
+      - CF-REG-388
+      - CF-REG-388-L2
+  - legacy_id: CF-REG-389
+    output_ids:
+      - CF-REG-389
+      - CF-REG-389-L2
+  - legacy_id: CF-REG-390
+    output_ids:
+      - CF-REG-390
+  - legacy_id: CF-REG-403
+    output_ids:
+      - CF-REG-403
+      - CF-REG-403-L2
+  - legacy_id: CF-REG-443
+    output_ids:
+      - CF-REG-443
+  - legacy_id: CF-REG-444
+    output_ids:
+      - CF-REG-444
+  - legacy_id: CF-REVIEW-PROVIDER
+    output_ids:
+      - CF-REVIEW-PROVIDER
+      - CF-REVIEW-PROVIDER-L2
+  - legacy_id: CF-S1-env
+    output_ids:
+      - CF-S1-env
+      - CF-S1-env-L2
+  - legacy_id: CF-S1-judge
+    output_ids:
+      - CF-S1-judge
+  - legacy_id: CF-S1-qual
+    output_ids:
+      - CF-S1-qual
+  - legacy_id: CF-S1-traj
+    output_ids:
+      - CF-S1-traj
+  - legacy_id: CF-S10-env
+    output_ids:
+      - CF-S10-env
+      - CF-S10-env-L2
+  - legacy_id: CF-S10-judge
+    output_ids:
+      - CF-S10-judge
+  - legacy_id: CF-S10-qual
+    output_ids:
+      - CF-S10-qual
+  - legacy_id: CF-S10-traj
+    output_ids:
+      - CF-S10-traj
+  - legacy_id: CF-S11-env
+    output_ids:
+      - CF-S11-env
+      - CF-S11-env-L2
+  - legacy_id: CF-S11-judge
+    output_ids:
+      - CF-S11-judge
+  - legacy_id: CF-S11-qual
+    output_ids:
+      - CF-S11-qual
+  - legacy_id: CF-S11-traj
+    output_ids:
+      - CF-S11-traj
+  - legacy_id: CF-S2-env
+    output_ids:
+      - CF-S2-env
+  - legacy_id: CF-S2-judge
+    output_ids:
+      - CF-S2-judge
+  - legacy_id: CF-S2-qual
+    output_ids:
+      - CF-S2-qual
+  - legacy_id: CF-S2-traj
+    output_ids:
+      - CF-S2-traj
+  - legacy_id: CF-S3-env
+    output_ids:
+      - CF-S3-env
+  - legacy_id: CF-S3-judge
+    output_ids:
+      - CF-S3-judge
+  - legacy_id: CF-S3-qual
+    output_ids:
+      - CF-S3-qual
+  - legacy_id: CF-S3-traj
+    output_ids:
+      - CF-S3-traj
+  - legacy_id: CF-S4-env
+    output_ids:
+      - CF-S4-env
+  - legacy_id: CF-S4-judge
+    output_ids:
+      - CF-S4-judge
+  - legacy_id: CF-S4-qual
+    output_ids:
+      - CF-S4-qual
+  - legacy_id: CF-S4-traj
+    output_ids:
+      - CF-S4-traj
+  - legacy_id: CF-S5-env
+    output_ids:
+      - CF-S5-env
+  - legacy_id: CF-S5-judge
+    output_ids:
+      - CF-S5-judge
+  - legacy_id: CF-S5-qual
+    output_ids:
+      - CF-S5-qual
+  - legacy_id: CF-S5-traj
+    output_ids:
+      - CF-S5-traj
+  - legacy_id: CF-S6-env
+    output_ids:
+      - CF-S6-env
+  - legacy_id: CF-S6-judge
+    output_ids:
+      - CF-S6-judge
+  - legacy_id: CF-S6-qual
+    output_ids:
+      - CF-S6-qual
+  - legacy_id: CF-S6-traj
+    output_ids:
+      - CF-S6-traj
+  - legacy_id: CF-S7-env
+    output_ids:
+      - CF-S7-env
+  - legacy_id: CF-S7-judge
+    output_ids:
+      - CF-S7-judge
+  - legacy_id: CF-S7-qual
+    output_ids:
+      - CF-S7-qual
+  - legacy_id: CF-S7-traj
+    output_ids:
+      - CF-S7-traj
+  - legacy_id: CF-S8-env
+    output_ids:
+      - CF-S8-env
+      - CF-S8-env-L2
+  - legacy_id: CF-S8-judge
+    output_ids:
+      - CF-S8-judge
+  - legacy_id: CF-S8-qual
+    output_ids:
+      - CF-S8-qual
+  - legacy_id: CF-S8-traj
+    output_ids:
+      - CF-S8-traj
+  - legacy_id: CF-S9-env
+    output_ids:
+      - CF-S9-env
+  - legacy_id: CF-S9-judge
+    output_ids:
+      - CF-S9-judge
+  - legacy_id: CF-S9-qual
+    output_ids:
+      - CF-S9-qual
+  - legacy_id: CF-S9-traj
+    output_ids:
+      - CF-S9-traj
+  - legacy_id: CF-SM-ACC-C
+    output_ids:
+      - CF-SM-ACC-C
+      - CF-SM-ACC-C-L2
+  - legacy_id: CF-SM-ACC-I
+    output_ids:
+      - CF-SM-ACC-I
+      - CF-SM-ACC-I-L2
+  - legacy_id: CF-SM-ACC-L
+    output_ids:
+      - CF-SM-ACC-L
+      - CF-SM-ACC-L-L2
+  - legacy_id: CF-SM-ACC-R
+    output_ids:
+      - CF-SM-ACC-R
+      - CF-SM-ACC-R-L2
+  - legacy_id: CF-SM-APPR-C
+    output_ids:
+      - CF-SM-APPR-C
+  - legacy_id: CF-SM-APPR-I
+    output_ids:
+      - CF-SM-APPR-I
+  - legacy_id: CF-SM-APPR-L
+    output_ids:
+      - CF-SM-APPR-L
+  - legacy_id: CF-SM-APPR-R
+    output_ids:
+      - CF-SM-APPR-R
+  - legacy_id: CF-SM-BATCH-C
+    output_ids:
+      - CF-SM-BATCH-C
+  - legacy_id: CF-SM-BATCH-I
+    output_ids:
+      - CF-SM-BATCH-I
+  - legacy_id: CF-SM-BATCH-L
+    output_ids:
+      - CF-SM-BATCH-L
+  - legacy_id: CF-SM-BATCH-R
+    output_ids:
+      - CF-SM-BATCH-R
+  - legacy_id: CF-SM-COMP-C
+    output_ids:
+      - CF-SM-COMP-C
+  - legacy_id: CF-SM-COMP-I
+    output_ids:
+      - CF-SM-COMP-I
+  - legacy_id: CF-SM-COMP-L
+    output_ids:
+      - CF-SM-COMP-L
+  - legacy_id: CF-SM-COMP-R
+    output_ids:
+      - CF-SM-COMP-R
+  - legacy_id: CF-SM-EVENT-C
+    output_ids:
+      - CF-SM-EVENT-C
+  - legacy_id: CF-SM-EVENT-I
+    output_ids:
+      - CF-SM-EVENT-I
+  - legacy_id: CF-SM-EVENT-L
+    output_ids:
+      - CF-SM-EVENT-L
+  - legacy_id: CF-SM-EVENT-R
+    output_ids:
+      - CF-SM-EVENT-R
+  - legacy_id: CF-SM-GRANT-C
+    output_ids:
+      - CF-SM-GRANT-C
+  - legacy_id: CF-SM-GRANT-I
+    output_ids:
+      - CF-SM-GRANT-I
+  - legacy_id: CF-SM-GRANT-L
+    output_ids:
+      - CF-SM-GRANT-L
+  - legacy_id: CF-SM-GRANT-R
+    output_ids:
+      - CF-SM-GRANT-R
+  - legacy_id: CF-SM-JOB-C
+    output_ids:
+      - CF-SM-JOB-C
+      - CF-SM-JOB-C-L2
+  - legacy_id: CF-SM-JOB-I
+    output_ids:
+      - CF-SM-JOB-I
+      - CF-SM-JOB-I-L2
+  - legacy_id: CF-SM-JOB-L
+    output_ids:
+      - CF-SM-JOB-L
+      - CF-SM-JOB-L-L2
+  - legacy_id: CF-SM-JOB-R
+    output_ids:
+      - CF-SM-JOB-R
+      - CF-SM-JOB-R-L2
+  - legacy_id: CF-SM-LADDER-C
+    output_ids:
+      - CF-SM-LADDER-C
+  - legacy_id: CF-SM-LADDER-I
+    output_ids:
+      - CF-SM-LADDER-I
+  - legacy_id: CF-SM-LADDER-L
+    output_ids:
+      - CF-SM-LADDER-L
+  - legacy_id: CF-SM-LADDER-R
+    output_ids:
+      - CF-SM-LADDER-R
+  - legacy_id: CF-SM-LEARN-C
+    output_ids:
+      - CF-SM-LEARN-C
+  - legacy_id: CF-SM-LEARN-I
+    output_ids:
+      - CF-SM-LEARN-I
+  - legacy_id: CF-SM-LEARN-L
+    output_ids:
+      - CF-SM-LEARN-L
+  - legacy_id: CF-SM-LEARN-R
+    output_ids:
+      - CF-SM-LEARN-R
+  - legacy_id: CF-SM-LOOP-C
+    output_ids:
+      - CF-SM-LOOP-C
+  - legacy_id: CF-SM-LOOP-I
+    output_ids:
+      - CF-SM-LOOP-I
+  - legacy_id: CF-SM-LOOP-L
+    output_ids:
+      - CF-SM-LOOP-L
+  - legacy_id: CF-SM-LOOP-R
+    output_ids:
+      - CF-SM-LOOP-R
+  - legacy_id: CF-SM-PLAN-C
+    output_ids:
+      - CF-SM-PLAN-C
+  - legacy_id: CF-SM-PLAN-I
+    output_ids:
+      - CF-SM-PLAN-I
+  - legacy_id: CF-SM-PLAN-L
+    output_ids:
+      - CF-SM-PLAN-L
+  - legacy_id: CF-SM-PLAN-R
+    output_ids:
+      - CF-SM-PLAN-R
+  - legacy_id: CF-SM-ROADMAP-C
+    output_ids:
+      - CF-SM-ROADMAP-C
+      - CF-SM-ROADMAP-C-L2
+  - legacy_id: CF-SM-ROADMAP-I
+    output_ids:
+      - CF-SM-ROADMAP-I
+      - CF-SM-ROADMAP-I-L2
+  - legacy_id: CF-SM-ROADMAP-L
+    output_ids:
+      - CF-SM-ROADMAP-L
+      - CF-SM-ROADMAP-L-L2
+  - legacy_id: CF-SM-ROADMAP-R
+    output_ids:
+      - CF-SM-ROADMAP-R
+      - CF-SM-ROADMAP-R-L2
+  - legacy_id: CF-SM-TURN-C
+    output_ids:
+      - CF-SM-TURN-C
+  - legacy_id: CF-SM-TURN-I
+    output_ids:
+      - CF-SM-TURN-I
+  - legacy_id: CF-SM-TURN-L
+    output_ids:
+      - CF-SM-TURN-L
+  - legacy_id: CF-SM-TURN-R
+    output_ids:
+      - CF-SM-TURN-R
+  - legacy_id: CF-SM-VALIDATION-C
+    output_ids:
+      - CF-SM-VALIDATION-C
+      - CF-SM-VALIDATION-C-L2
+  - legacy_id: CF-SM-VALIDATION-I
+    output_ids:
+      - CF-SM-VALIDATION-I
+      - CF-SM-VALIDATION-I-L2
+  - legacy_id: CF-SM-VALIDATION-L
+    output_ids:
+      - CF-SM-VALIDATION-L
+      - CF-SM-VALIDATION-L-L2
+  - legacy_id: CF-SM-VALIDATION-R
+    output_ids:
+      - CF-SM-VALIDATION-R
+      - CF-SM-VALIDATION-R-L2
+  - legacy_id: CF-SPLIT-DESTRUCTIVE
+    output_ids:
+      - CF-SPLIT-DESTRUCTIVE
+      - CF-SPLIT-DESTRUCTIVE-L2
+  - legacy_id: CF-SPLIT-NETWORK
+    output_ids:
+      - CF-SPLIT-NETWORK
+      - CF-SPLIT-NETWORK-L2
+  - legacy_id: CF-SPLIT-PUBLISHING
+    output_ids:
+      - CF-SPLIT-PUBLISHING
+      - CF-SPLIT-PUBLISHING-L2
+  - legacy_id: CF-SPLIT-SECRETS
+    output_ids:
+      - CF-SPLIT-SECRETS
+tickets:
+  - legacy_id: HB-001
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-001 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-002
+    legacy_family_ids:
+      - CF-B06
+      - CF-C-B06
+    owned_legacy_family_ids:
+      - CF-B06
+      - CF-C-B06
+    disposition: actionable
+    output_ids:
+      - HB-002
+  - legacy_id: HB-003
+    legacy_family_ids:
+      - CF-B01
+      - CF-B01-L3
+      - CF-C-B01
+    owned_legacy_family_ids:
+      - CF-B01
+      - CF-B01-L3
+      - CF-C-B01
+    disposition: actionable
+    output_ids:
+      - HB-003
+      - HB-003-L2
+      - HB-003-L3
+  - legacy_id: HB-004
+    legacy_family_ids:
+      - CF-C-B02
+    owned_legacy_family_ids:
+      - CF-C-B02
+    disposition: actionable
+    output_ids:
+      - HB-004
+      - HB-004-L2
+      - HB-004-L3
+  - legacy_id: HB-005
+    legacy_family_ids:
+      - CF-J04-S
+    owned_legacy_family_ids:
+      - CF-J04-S
+    disposition: actionable
+    output_ids:
+      - HB-005
+  - legacy_id: HB-006
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-006 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-007
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-007 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-010
+    legacy_family_ids:
+      - CF-INV-002
+    owned_legacy_family_ids:
+      - CF-INV-002
+    disposition: actionable
+    output_ids:
+      - HB-010
+      - HB-010-L2
+  - legacy_id: HB-011
+    legacy_family_ids:
+      - CF-B09b
+      - CF-C-B09B
+      - CF-INV-003
+      - CF-SM-APPR-C
+      - CF-SM-APPR-I
+      - CF-SM-APPR-L
+      - CF-SM-APPR-R
+      - CF-SM-GRANT-C
+      - CF-SM-GRANT-I
+      - CF-SM-GRANT-L
+      - CF-SM-GRANT-R
+    owned_legacy_family_ids:
+      - CF-B09b
+      - CF-C-B09B
+      - CF-INV-003
+      - CF-SM-APPR-C
+      - CF-SM-APPR-I
+      - CF-SM-APPR-L
+      - CF-SM-APPR-R
+      - CF-SM-GRANT-C
+      - CF-SM-GRANT-I
+      - CF-SM-GRANT-L
+      - CF-SM-GRANT-R
+    disposition: actionable
+    output_ids:
+      - HB-011
+  - legacy_id: HB-012
+    legacy_family_ids:
+      - CF-B09a
+      - CF-C-B09A
+      - CF-J06-A
+      - CF-J06-I
+      - CF-J06-R
+      - CF-J06-RC
+      - CF-J06-S
+    owned_legacy_family_ids:
+      - CF-B09a
+      - CF-C-B09A
+      - CF-J06-A
+      - CF-J06-I
+      - CF-J06-R
+      - CF-J06-RC
+      - CF-J06-S
+    disposition: actionable
+    output_ids:
+      - HB-012
+  - legacy_id: HB-013
+    legacy_family_ids:
+      - CF-B17
+      - CF-C-B17
+      - CF-J05-A
+      - CF-J05-I
+      - CF-J05-R
+      - CF-J05-RC
+      - CF-J05-S
+      - CF-J17-A
+      - CF-J17-I
+      - CF-J17-R
+      - CF-J17-RC
+      - CF-J17-S
+    owned_legacy_family_ids:
+      - CF-B17
+      - CF-C-B17
+      - CF-J05-A
+      - CF-J05-I
+      - CF-J05-R
+      - CF-J05-RC
+      - CF-J05-S
+      - CF-J17-A
+      - CF-J17-I
+      - CF-J17-R
+      - CF-J17-RC
+      - CF-J17-S
+    disposition: actionable
+    output_ids:
+      - HB-013
+      - HB-013-L3
+  - legacy_id: HB-014
+    legacy_family_ids:
+      - CF-B10
+      - CF-C-B10
+      - CF-INV-001
+      - CF-INV-004
+    owned_legacy_family_ids:
+      - CF-B10
+      - CF-C-B10
+      - CF-INV-001
+      - CF-INV-004
+    disposition: actionable
+    output_ids:
+      - HB-014
+      - HB-014-L2
+  - legacy_id: HB-015
+    legacy_family_ids:
+      - CF-C-OPLIFE
+      - CF-INV-010
+      - CF-J01-A
+      - CF-J01-I
+      - CF-J01-R
+      - CF-J01-RC
+      - CF-J01-S
+      - CF-J14-A
+      - CF-J14-I
+      - CF-J14-R
+      - CF-J14-RC
+      - CF-J14-S
+    owned_legacy_family_ids:
+      - CF-C-OPLIFE
+      - CF-INV-010
+      - CF-J01-A
+      - CF-J01-I
+      - CF-J01-R
+      - CF-J01-RC
+      - CF-J01-S
+      - CF-J14-A
+      - CF-J14-I
+      - CF-J14-R
+      - CF-J14-RC
+      - CF-J14-S
+    disposition: actionable
+    output_ids:
+      - HB-015
+  - legacy_id: HB-016
+    legacy_family_ids:
+      - CF-INV-011
+    owned_legacy_family_ids:
+      - CF-INV-011
+    disposition: actionable
+    output_ids:
+      - HB-016
+      - HB-016-L2
+  - legacy_id: HB-017
+    legacy_family_ids:
+      - CF-C-B11
+      - CF-J12-A
+      - CF-J12-I
+      - CF-J12-R
+      - CF-J12-RC
+      - CF-J12-S
+      - CF-SM-LEARN-C
+      - CF-SM-LEARN-I
+      - CF-SM-LEARN-L
+      - CF-SM-LEARN-R
+    owned_legacy_family_ids:
+      - CF-C-B11
+      - CF-J12-A
+      - CF-J12-I
+      - CF-J12-R
+      - CF-J12-RC
+      - CF-J12-S
+      - CF-SM-LEARN-C
+      - CF-SM-LEARN-I
+      - CF-SM-LEARN-L
+      - CF-SM-LEARN-R
+    disposition: actionable
+    output_ids:
+      - HB-017
+      - HB-017-L2
+  - legacy_id: HB-020
+    legacy_family_ids:
+      - CF-INV-006
+      - CF-J08-A
+      - CF-J08-I
+      - CF-J08-R
+      - CF-J08-RC
+      - CF-J08-S
+    owned_legacy_family_ids:
+      - CF-INV-006
+      - CF-J08-A
+      - CF-J08-I
+      - CF-J08-R
+      - CF-J08-RC
+      - CF-J08-S
+    disposition: actionable
+    output_ids:
+      - HB-020
+      - HB-020-L2
+  - legacy_id: HB-021
+    legacy_family_ids:
+      - CF-INV-005
+      - CF-J09-RC
+    owned_legacy_family_ids:
+      - CF-INV-005
+      - CF-J09-RC
+    disposition: actionable
+    output_ids:
+      - HB-021
+  - legacy_id: HB-022
+    legacy_family_ids:
+      - CF-INV-007
+      - CF-J07-A
+      - CF-J07-I
+      - CF-J07-R
+      - CF-J07-RC
+      - CF-J07-S
+    owned_legacy_family_ids:
+      - CF-INV-007
+      - CF-J07-A
+      - CF-J07-I
+      - CF-J07-R
+      - CF-J07-RC
+      - CF-J07-S
+    disposition: actionable
+    output_ids:
+      - HB-022
+      - HB-022-L2
+  - legacy_id: HB-023
+    legacy_family_ids:
+      - CF-B07
+      - CF-C-B07
+      - CF-J04-I
+      - CF-SM-TURN-C
+      - CF-SM-TURN-I
+      - CF-SM-TURN-L
+      - CF-SM-TURN-R
+    owned_legacy_family_ids:
+      - CF-B07
+      - CF-C-B07
+      - CF-J04-I
+      - CF-SM-TURN-C
+      - CF-SM-TURN-I
+      - CF-SM-TURN-L
+      - CF-SM-TURN-R
+    disposition: actionable
+    output_ids:
+      - HB-023
+  - legacy_id: HB-024
+    legacy_family_ids:
+      - CF-C-B03
+      - CF-C-B04
+    owned_legacy_family_ids:
+      - CF-C-B03
+      - CF-C-B04
+    disposition: actionable
+    output_ids:
+      - HB-024
+      - HB-024-L2
+  - legacy_id: HB-025
+    legacy_family_ids:
+      - CF-B15
+    owned_legacy_family_ids:
+      - CF-B15
+    disposition: actionable
+    output_ids:
+      - HB-025
+  - legacy_id: HB-030
+    legacy_family_ids:
+      - CF-INV-009
+      - CF-INV-012
+    owned_legacy_family_ids:
+      - CF-INV-009
+      - CF-INV-012
+    disposition: actionable
+    output_ids:
+      - HB-030
+      - HB-030-L2
+  - legacy_id: HB-031
+    legacy_family_ids:
+      - CF-J04-R
+      - CF-J04-S
+      - CF-SM-LOOP-I
+      - CF-SM-LOOP-L
+      - CF-SM-LOOP-R
+    owned_legacy_family_ids:
+      - CF-J04-R
+      - CF-SM-LOOP-I
+      - CF-SM-LOOP-L
+      - CF-SM-LOOP-R
+    disposition: actionable
+    output_ids:
+      - HB-031
+  - legacy_id: HB-032
+    legacy_family_ids:
+      - CF-B12
+      - CF-C-B12
+      - CF-INV-008
+      - CF-J15-A
+      - CF-J15-I
+      - CF-J15-R
+      - CF-J15-RC
+      - CF-J15-S
+    owned_legacy_family_ids:
+      - CF-B12
+      - CF-C-B12
+      - CF-INV-008
+      - CF-J15-A
+      - CF-J15-I
+      - CF-J15-R
+      - CF-J15-RC
+      - CF-J15-S
+    disposition: actionable
+    output_ids:
+      - HB-032
+  - legacy_id: HB-033
+    legacy_family_ids:
+      - CF-IF-CLI
+      - CF-IF-HTML
+      - CF-IF-JSON
+      - CF-IF-SKILL
+      - CF-IF-UI
+      - CF-IF-XSURF
+    owned_legacy_family_ids:
+      - CF-IF-CLI
+      - CF-IF-HTML
+      - CF-IF-JSON
+      - CF-IF-SKILL
+      - CF-IF-UI
+      - CF-IF-XSURF
+    disposition: actionable
+    output_ids:
+      - HB-033
+  - legacy_id: HB-040
+    legacy_family_ids:
+      - CF-B13
+      - CF-C-B13
+      - CF-J10-A
+      - CF-J10-I
+      - CF-J10-R
+      - CF-J10-RC
+      - CF-J10-S
+      - CF-SM-EVENT-C
+      - CF-SM-EVENT-I
+      - CF-SM-EVENT-L
+      - CF-SM-EVENT-R
+    owned_legacy_family_ids:
+      - CF-B13
+      - CF-C-B13
+      - CF-J10-A
+      - CF-J10-I
+      - CF-J10-R
+      - CF-J10-RC
+      - CF-J10-S
+      - CF-SM-EVENT-C
+      - CF-SM-EVENT-I
+      - CF-SM-EVENT-L
+      - CF-SM-EVENT-R
+    disposition: actionable
+    output_ids:
+      - HB-040
+  - legacy_id: HB-041
+    legacy_family_ids:
+      - CF-J03-A
+      - CF-J03-I
+      - CF-J03-R
+      - CF-J03-RC
+      - CF-J03-S
+    owned_legacy_family_ids:
+      - CF-J03-A
+      - CF-J03-I
+      - CF-J03-R
+      - CF-J03-RC
+      - CF-J03-S
+    disposition: actionable
+    output_ids:
+      - HB-041
+      - HB-041-L2
+  - legacy_id: HB-042
+    legacy_family_ids:
+      - CF-J02-A
+      - CF-J02-I
+      - CF-J02-R
+      - CF-J02-RC
+      - CF-J02-S
+      - CF-SM-LADDER-I
+      - CF-SM-LADDER-L
+    owned_legacy_family_ids:
+      - CF-J02-A
+      - CF-J02-I
+      - CF-J02-R
+      - CF-J02-RC
+      - CF-J02-S
+      - CF-SM-LADDER-I
+      - CF-SM-LADDER-L
+    disposition: actionable
+    output_ids:
+      - HB-042
+      - HB-042-L2
+  - legacy_id: HB-043
+    legacy_family_ids:
+      - CF-B05
+      - CF-C-B05
+      - CF-J16-I
+      - CF-J16-R
+      - CF-J16-S
+    owned_legacy_family_ids:
+      - CF-B05
+      - CF-C-B05
+      - CF-J16-I
+      - CF-J16-R
+      - CF-J16-S
+    disposition: actionable
+    output_ids:
+      - HB-043
+      - HB-043-L2
+  - legacy_id: HB-044
+    legacy_family_ids:
+      - CF-OPS-GROW
+    owned_legacy_family_ids:
+      - CF-OPS-GROW
+    disposition: actionable
+    output_ids:
+      - HB-044
+  - legacy_id: HB-045
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-045 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-046
+    legacy_family_ids:
+      - CF-S2-traj
+    owned_legacy_family_ids:
+      - CF-S2-traj
+    disposition: actionable
+    output_ids:
+      - HB-046
+  - legacy_id: HB-047
+    legacy_family_ids:
+      - CF-S9-env
+    owned_legacy_family_ids:
+      - CF-S9-env
+    disposition: actionable
+    output_ids:
+      - HB-047
+  - legacy_id: HB-050
+    legacy_family_ids:
+      - CF-HARNESS-REPORT
+    owned_legacy_family_ids:
+      - CF-HARNESS-REPORT
+    disposition: actionable
+    output_ids:
+      - HB-050
+      - HB-050-L2
+  - legacy_id: HB-051
+    legacy_family_ids:
+      - CF-B02
+      - CF-B03
+      - CF-B03-L3
+      - CF-B04
+      - CF-B04-L3
+    owned_legacy_family_ids:
+      - CF-B02
+      - CF-B03
+      - CF-B03-L3
+      - CF-B04
+      - CF-B04-L3
+    disposition: actionable
+    output_ids:
+      - HB-051
+      - HB-051-L2
+  - legacy_id: HB-052
+    legacy_family_ids:
+      - CF-B01
+      - CF-B01-L3
+      - CF-REG-273
+      - CF-REG-291
+    owned_legacy_family_ids:
+      - CF-REG-273
+      - CF-REG-291
+    disposition: actionable
+    output_ids:
+      - HB-052
+  - legacy_id: HB-053
+    legacy_family_ids:
+      - CF-J16-A
+    owned_legacy_family_ids:
+      - CF-J16-A
+    disposition: actionable
+    output_ids:
+      - HB-053
+  - legacy_id: HB-054
+    legacy_family_ids:
+      - CF-J18-A
+    owned_legacy_family_ids:
+      - CF-J18-A
+    disposition: actionable
+    output_ids:
+      - HB-054
+  - legacy_id: HB-055
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-055 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-060
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-060 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-061
+    legacy_family_ids:
+      - CF-S3-judge
+      - CF-S3-qual
+    owned_legacy_family_ids:
+      - CF-S3-judge
+      - CF-S3-qual
+    disposition: actionable
+    output_ids:
+      - HB-061
+  - legacy_id: HB-062
+    legacy_family_ids:
+      - CF-COND
+      - CF-S1-qual
+      - CF-S11-judge
+      - CF-S11-qual
+      - CF-S2-qual
+      - CF-S4-qual
+      - CF-S5-qual
+      - CF-S6-qual
+      - CF-S7-judge
+      - CF-S7-qual
+    owned_legacy_family_ids:
+      - CF-COND
+      - CF-S1-qual
+      - CF-S11-judge
+      - CF-S11-qual
+      - CF-S2-qual
+      - CF-S4-qual
+      - CF-S5-qual
+      - CF-S6-qual
+      - CF-S7-judge
+      - CF-S7-qual
+    disposition: actionable
+    output_ids:
+      - HB-062
+      - HB-062-L4
+  - legacy_id: HB-063
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-063 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-070
+    legacy_family_ids:
+      - CF-OPS-CONT
+    owned_legacy_family_ids:
+      - CF-OPS-CONT
+    disposition: actionable
+    output_ids:
+      - HB-070
+  - legacy_id: HB-071
+    legacy_family_ids:
+      - CF-OPS-ROT
+      - CF-OPS-SOAK
+    owned_legacy_family_ids:
+      - CF-OPS-ROT
+      - CF-OPS-SOAK
+    disposition: actionable
+    output_ids:
+      - HB-071
+      - HB-071-L5
+  - legacy_id: HB-072
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-072 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-073
+    legacy_family_ids:
+      - CF-OPS-ABUSE
+    owned_legacy_family_ids:
+      - CF-OPS-ABUSE
+    disposition: actionable
+    output_ids:
+      - HB-072
+      - HB-073
+      - HB-073-L5
+  - legacy_id: HB-080
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-080 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-081
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-081 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-090
+    legacy_family_ids:
+      - CF-B18
+      - CF-B19
+      - CF-C-B18
+      - CF-C-B19
+      - CF-J19-I
+      - CF-J19-R
+      - CF-J19-RC
+      - CF-J19-S
+      - CF-SM-COMP-C
+      - CF-SM-COMP-I
+      - CF-SM-COMP-L
+      - CF-SM-COMP-R
+    owned_legacy_family_ids:
+      - CF-B18
+      - CF-B19
+      - CF-C-B18
+      - CF-C-B19
+      - CF-J19-I
+      - CF-J19-R
+      - CF-J19-RC
+      - CF-J19-S
+      - CF-SM-COMP-C
+      - CF-SM-COMP-I
+      - CF-SM-COMP-L
+      - CF-SM-COMP-R
+    disposition: actionable
+    output_ids:
+      - HB-090
+      - HB-090-L2
+  - legacy_id: HB-091
+    legacy_family_ids:
+      - CF-IF-COMPARE
+      - CF-J19-A
+    owned_legacy_family_ids:
+      - CF-IF-COMPARE
+      - CF-J19-A
+    disposition: actionable
+    output_ids:
+      - HB-091
+      - HB-091-L2
+  - legacy_id: HB-092
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-092 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-093
+    legacy_family_ids:
+      - CF-S8-env
+      - CF-S8-judge
+      - CF-S8-qual
+    owned_legacy_family_ids:
+      - CF-S8-env
+      - CF-S8-judge
+      - CF-S8-qual
+    disposition: actionable
+    output_ids:
+      - HB-093
+      - HB-093-L2
+      - HB-093-L4
+  - legacy_id: HB-094
+    legacy_family_ids:
+      - CF-OPS-COMP
+    owned_legacy_family_ids:
+      - CF-OPS-COMP
+    disposition: actionable
+    output_ids:
+      - HB-094
+  - legacy_id: HB-100
+    legacy_family_ids:
+      - CF-INV-016
+      - CF-J20-S
+    owned_legacy_family_ids:
+      - CF-INV-016
+      - CF-J20-S
+    disposition: actionable
+    output_ids:
+      - HB-100
+      - HB-100-L2
+  - legacy_id: HB-101
+    legacy_family_ids:
+      - CF-B20
+      - CF-C-B20
+      - CF-C-OPPLAN
+      - CF-J03-A
+      - CF-J03-I
+      - CF-J03-R
+      - CF-J03-RC
+      - CF-J03-S
+      - CF-SM-ROADMAP-C
+      - CF-SM-ROADMAP-I
+      - CF-SM-ROADMAP-L
+      - CF-SM-ROADMAP-R
+    owned_legacy_family_ids:
+      - CF-B20
+      - CF-C-B20
+      - CF-C-OPPLAN
+      - CF-SM-ROADMAP-C
+      - CF-SM-ROADMAP-I
+      - CF-SM-ROADMAP-L
+      - CF-SM-ROADMAP-R
+    disposition: actionable
+    output_ids:
+      - HB-101
+      - HB-101-L2
+  - legacy_id: HB-102
+    legacy_family_ids:
+      - CF-B21
+      - CF-C-B21
+      - CF-C-OPVALIDATION
+      - CF-INV-016
+      - CF-S10-env
+      - CF-SM-VALIDATION-C
+      - CF-SM-VALIDATION-I
+      - CF-SM-VALIDATION-L
+      - CF-SM-VALIDATION-R
+    owned_legacy_family_ids:
+      - CF-B21
+      - CF-C-B21
+      - CF-C-OPVALIDATION
+      - CF-S10-env
+      - CF-SM-VALIDATION-C
+      - CF-SM-VALIDATION-I
+      - CF-SM-VALIDATION-L
+      - CF-SM-VALIDATION-R
+    disposition: actionable
+    output_ids:
+      - HB-102
+      - HB-102-L2
+  - legacy_id: HB-103
+    legacy_family_ids:
+      - CF-C-OPLOOP
+      - CF-INV-005
+      - CF-INV-009
+      - CF-INV-016
+      - CF-J04-A
+      - CF-J04-I
+      - CF-J04-R
+      - CF-J04-RC
+      - CF-J04-S
+    owned_legacy_family_ids:
+      - CF-C-OPLOOP
+      - CF-J04-A
+      - CF-J04-RC
+    disposition: actionable
+    output_ids:
+      - HB-103
+  - legacy_id: HB-104
+    legacy_family_ids:
+      - CF-B22
+      - CF-C-B22
+      - CF-C-OPBATCH
+      - CF-J20-A
+      - CF-J20-I
+      - CF-J20-R
+      - CF-J20-RC
+      - CF-J20-S
+      - CF-SM-BATCH-C
+      - CF-SM-BATCH-I
+      - CF-SM-BATCH-L
+      - CF-SM-BATCH-R
+    owned_legacy_family_ids:
+      - CF-B22
+      - CF-C-B22
+      - CF-C-OPBATCH
+      - CF-J20-A
+      - CF-J20-I
+      - CF-J20-R
+      - CF-J20-RC
+      - CF-SM-BATCH-C
+      - CF-SM-BATCH-I
+      - CF-SM-BATCH-L
+      - CF-SM-BATCH-R
+    disposition: actionable
+    output_ids:
+      - HB-104
+      - HB-104-L2
+  - legacy_id: HB-105
+    legacy_family_ids:
+      - CF-C-OPPLAN
+      - CF-C-OPVALIDATION
+      - CF-J03-A
+      - CF-J03-R
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: "HB-105 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work. Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-101/102."
+  - legacy_id: HB-106
+    legacy_family_ids:
+      - CF-C-OPBATCH
+      - CF-J20-A
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: "HB-106 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work. Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-104 and existing approval/effect contracts."
+  - legacy_id: HB-107
+    legacy_family_ids:
+      - CF-B22
+      - CF-J20-I
+      - CF-J20-RC
+      - CF-J20-S
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: "HB-107 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work. Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-101/104."
+  - legacy_id: HB-108
+    legacy_family_ids:
+      - CF-S10-qual
+    owned_legacy_family_ids:
+      - CF-S10-qual
+    disposition: actionable
+    output_ids:
+      - HB-108
+  - legacy_id: HB-109
+    legacy_family_ids:
+      - CF-OPS-CONT
+      - CF-OPS-SOAK
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: "HB-109 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work. Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-103/104/107."
+  - legacy_id: HB-110
+    legacy_family_ids:
+      - CF-IF-XSURF
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: "HB-110 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work. Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-101…107."
+  - legacy_id: HB-111
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: "HB-111 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work. Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-100…108 behavior/schema stabilization."
+  - legacy_id: HB-112
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-112 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-113
+    legacy_family_ids:
+      - CF-HARNESS-CURRENCY
+      - CF-HARNESS-RQ
+    owned_legacy_family_ids:
+      - CF-HARNESS-CURRENCY
+      - CF-HARNESS-RQ
+    disposition: actionable
+    output_ids:
+      - HB-113
+      - HB-113-L2
+  - legacy_id: HB-114
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: "HB-114 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work. Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-113."
+  - legacy_id: HB-115
+    legacy_family_ids:
+      - CF-HARNESS-JUDGE
+    owned_legacy_family_ids:
+      - CF-HARNESS-JUDGE
+    disposition: actionable
+    output_ids:
+      - HB-115
+      - HB-115-L2
+  - legacy_id: HB-116
+    legacy_family_ids:
+      - CF-HARNESS-ATTEST
+    owned_legacy_family_ids:
+      - CF-HARNESS-ATTEST
+    disposition: actionable
+    output_ids:
+      - HB-116
+      - HB-116-L2
+  - legacy_id: HB-117
+    legacy_family_ids:
+      - CF-HARNESS-RELEASE
+    owned_legacy_family_ids:
+      - CF-HARNESS-RELEASE
+    disposition: actionable
+    output_ids:
+      - HB-117
+      - HB-117-L2
+  - legacy_id: HB-118
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: "HB-118 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work. Dependency representation disposition: this historical source ticket has no actionable canonical output; its exact source prerequisite remains source-fact-only: HB-113…117."
+  - legacy_id: HB-120
+    legacy_family_ids:
+      - CF-HARNESS-ACCFIX
+    owned_legacy_family_ids:
+      - CF-HARNESS-ACCFIX
+    disposition: actionable
+    output_ids:
+      - HB-120
+      - HB-120-L2
+  - legacy_id: HB-121
+    legacy_family_ids:
+      - CF-B28
+      - CF-C-B28
+      - CF-INV-ACC-1
+    owned_legacy_family_ids:
+      - CF-B28
+      - CF-C-B28
+      - CF-INV-ACC-1
+    disposition: actionable
+    output_ids:
+      - HB-121
+      - HB-121-L2
+  - legacy_id: HB-122
+    legacy_family_ids:
+      - CF-B29
+      - CF-C-B29
+      - CF-INV-ACC-2
+    owned_legacy_family_ids:
+      - CF-B29
+      - CF-C-B29
+      - CF-INV-ACC-2
+    disposition: actionable
+    output_ids:
+      - HB-122
+      - HB-122-L2
+  - legacy_id: HB-123
+    legacy_family_ids:
+      - CF-INV-ACC-3
+    owned_legacy_family_ids:
+      - CF-INV-ACC-3
+    disposition: actionable
+    output_ids:
+      - HB-123
+      - HB-123-L2
+  - legacy_id: HB-124
+    legacy_family_ids:
+      - CF-INV-ACC-5
+      - CF-INV-ACC-6
+    owned_legacy_family_ids:
+      - CF-INV-ACC-5
+      - CF-INV-ACC-6
+    disposition: actionable
+    output_ids:
+      - HB-124
+      - HB-124-L2
+  - legacy_id: HB-125
+    legacy_family_ids:
+      - CF-INV-ACC-7a
+    owned_legacy_family_ids:
+      - CF-INV-ACC-7a
+    disposition: actionable
+    output_ids:
+      - HB-125
+      - HB-125-L2
+  - legacy_id: HB-126
+    legacy_family_ids:
+      - CF-INV-ACC-7b
+    owned_legacy_family_ids:
+      - CF-INV-ACC-7b
+    disposition: actionable
+    output_ids:
+      - HB-126
+      - HB-126-L2
+  - legacy_id: HB-127
+    legacy_family_ids:
+      - CF-B27
+      - CF-C-B27
+      - CF-J21-R
+      - CF-SM-ACC-C
+      - CF-SM-ACC-I
+      - CF-SM-ACC-L
+      - CF-SM-ACC-R
+    owned_legacy_family_ids:
+      - CF-B27
+      - CF-C-B27
+      - CF-J21-R
+      - CF-SM-ACC-C
+      - CF-SM-ACC-I
+      - CF-SM-ACC-L
+      - CF-SM-ACC-R
+    disposition: actionable
+    output_ids:
+      - HB-127
+      - HB-127-L2
+  - legacy_id: HB-128
+    legacy_family_ids:
+      - CF-B30
+      - CF-C-B30
+      - CF-IF-JOB
+      - CF-J22-I
+      - CF-J22-RC
+      - CF-J22-S
+      - CF-J23-A
+      - CF-J23-I
+      - CF-J23-R
+      - CF-J23-RC
+      - CF-J23-S
+      - CF-SM-JOB-C
+      - CF-SM-JOB-I
+      - CF-SM-JOB-L
+      - CF-SM-JOB-R
+    owned_legacy_family_ids:
+      - CF-B30
+      - CF-C-B30
+      - CF-IF-JOB
+      - CF-J22-I
+      - CF-J22-RC
+      - CF-J22-S
+      - CF-J23-A
+      - CF-J23-I
+      - CF-J23-R
+      - CF-J23-RC
+      - CF-J23-S
+      - CF-SM-JOB-C
+      - CF-SM-JOB-I
+      - CF-SM-JOB-L
+      - CF-SM-JOB-R
+    disposition: actionable
+    output_ids:
+      - HB-128
+      - HB-128-L2
+  - legacy_id: HB-129
+    legacy_family_ids:
+      - CF-S11-env
+    owned_legacy_family_ids:
+      - CF-S11-env
+    disposition: actionable
+    output_ids:
+      - HB-129
+      - HB-129-L2
+  - legacy_id: HB-130
+    legacy_family_ids:
+      - CF-INV-ACC-4
+      - CF-J21-RC
+      - CF-J21-S
+    owned_legacy_family_ids:
+      - CF-INV-ACC-4
+      - CF-J21-RC
+      - CF-J21-S
+    disposition: actionable
+    output_ids:
+      - HB-130
+      - HB-130-L2
+  - legacy_id: HB-131
+    legacy_family_ids:
+      - CF-ACC-GATE
+      - CF-ACC-S1
+      - CF-ACC-S2
+      - CF-ACC-S3
+    owned_legacy_family_ids:
+      - CF-ACC-GATE
+      - CF-ACC-S1
+      - CF-ACC-S2
+      - CF-ACC-S3
+    disposition: actionable
+    output_ids:
+      - HB-131
+      - HB-131-L1
+      - HB-131-L2
+  - legacy_id: HB-132
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-132 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-133
+    legacy_family_ids:
+      - CF-REVIEW-PROVIDER
+    owned_legacy_family_ids:
+      - CF-REVIEW-PROVIDER
+    disposition: actionable
+    output_ids:
+      - HB-133
+      - HB-133-L2
+  - legacy_id: HB-134
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-134 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-135
+    legacy_family_ids:
+      - CF-REG-204
+      - CF-SPLIT-SECRETS
+    owned_legacy_family_ids:
+      - CF-REG-204
+      - CF-SPLIT-SECRETS
+    disposition: actionable
+    output_ids:
+      - HB-135
+  - legacy_id: HB-136
+    legacy_family_ids:
+      - CF-B27
+      - CF-INV-ACC-4
+      - CF-J21-I
+    owned_legacy_family_ids:
+      - CF-J21-I
+    disposition: actionable
+    output_ids:
+      - HB-136
+  - legacy_id: HB-137
+    legacy_family_ids:
+      - CF-B23
+      - CF-B23-L3
+      - CF-B24
+      - CF-B24-L3
+      - CF-B24-PAYLOAD
+      - CF-B24-SUBGATE
+      - CF-B25
+      - CF-B25-L3
+      - CF-B26
+      - CF-B26-L3
+      - CF-C-B23
+      - CF-C-B24
+      - CF-C-B25
+      - CF-C-B26
+    owned_legacy_family_ids:
+      - CF-B23
+      - CF-B23-L3
+      - CF-B24
+      - CF-B24-L3
+      - CF-B24-PAYLOAD
+      - CF-B24-SUBGATE
+      - CF-B25
+      - CF-B25-L3
+      - CF-B26
+      - CF-B26-L3
+      - CF-C-B23
+      - CF-C-B24
+      - CF-C-B25
+      - CF-C-B26
+    disposition: actionable
+    output_ids:
+      - HB-137
+      - HB-137-L2
+      - HB-137-L3
+  - legacy_id: HB-138
+    legacy_family_ids:
+      - CF-SPLIT-DESTRUCTIVE
+      - CF-SPLIT-NETWORK
+      - CF-SPLIT-PUBLISHING
+      - CF-SPLIT-SECRETS
+    owned_legacy_family_ids:
+      - CF-SPLIT-DESTRUCTIVE
+      - CF-SPLIT-NETWORK
+      - CF-SPLIT-PUBLISHING
+    disposition: actionable
+    output_ids:
+      - HB-138
+      - HB-138-L2
+  - legacy_id: HB-139
+    legacy_family_ids:
+      - CF-HB102-MANUAL-REVIEW
+      - CF-REG-154
+      - CF-REG-181
+      - CF-REG-202
+      - CF-REG-203
+      - CF-REG-203-G
+      - CF-REG-204
+      - CF-REG-205
+      - CF-REG-206
+      - CF-REG-209
+      - CF-REG-211
+      - CF-REG-228
+      - CF-REG-229
+      - CF-REG-230
+      - CF-REG-231
+      - CF-REG-232
+      - CF-REG-236-BUDGET
+      - CF-REG-239
+      - CF-REG-244
+      - CF-REG-251
+      - CF-REG-268
+      - CF-REG-269
+      - CF-REG-271
+      - CF-REG-272
+      - CF-REG-273
+      - CF-REG-274
+      - CF-REG-278
+      - CF-REG-279
+      - CF-REG-281
+      - CF-REG-283
+      - CF-REG-285
+      - CF-REG-287
+      - CF-REG-291
+      - CF-REG-293
+      - CF-REG-297
+      - CF-REG-299
+      - CF-REG-300
+      - CF-REG-306
+      - CF-REG-332
+      - CF-REG-335
+      - CF-REG-356
+      - CF-REG-359
+      - CF-REG-369
+      - CF-REG-370
+      - CF-REG-373
+      - CF-REG-374
+      - CF-REG-375
+      - CF-REG-382
+      - CF-REG-384
+      - CF-REG-385
+      - CF-REG-388
+      - CF-REG-389
+      - CF-REG-390
+      - CF-REG-403
+      - CF-REG-443
+      - CF-REG-444
+    owned_legacy_family_ids:
+      - CF-HB102-MANUAL-REVIEW
+      - CF-REG-154
+      - CF-REG-181
+      - CF-REG-202
+      - CF-REG-203
+      - CF-REG-203-G
+      - CF-REG-205
+      - CF-REG-206
+      - CF-REG-209
+      - CF-REG-211
+      - CF-REG-228
+      - CF-REG-229
+      - CF-REG-230
+      - CF-REG-231
+      - CF-REG-232
+      - CF-REG-236-BUDGET
+      - CF-REG-239
+      - CF-REG-244
+      - CF-REG-251
+      - CF-REG-268
+      - CF-REG-269
+      - CF-REG-271
+      - CF-REG-272
+      - CF-REG-274
+      - CF-REG-278
+      - CF-REG-279
+      - CF-REG-281
+      - CF-REG-283
+      - CF-REG-285
+      - CF-REG-287
+      - CF-REG-293
+      - CF-REG-297
+      - CF-REG-299
+      - CF-REG-300
+      - CF-REG-306
+      - CF-REG-332
+      - CF-REG-335
+      - CF-REG-356
+      - CF-REG-359
+      - CF-REG-369
+      - CF-REG-370
+      - CF-REG-373
+      - CF-REG-374
+      - CF-REG-375
+      - CF-REG-382
+      - CF-REG-384
+      - CF-REG-385
+      - CF-REG-388
+      - CF-REG-389
+      - CF-REG-390
+      - CF-REG-403
+      - CF-REG-443
+      - CF-REG-444
+    disposition: actionable
+    output_ids:
+      - HB-139
+      - HB-139-L2
+  - legacy_id: HB-140
+    legacy_family_ids:
+      - CF-HARNESS-CI
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-140 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-141
+    legacy_family_ids:
+      - CF-B16
+      - CF-C-B16
+      - CF-J11-R
+    owned_legacy_family_ids:
+      - CF-B16
+      - CF-C-B16
+      - CF-J11-R
+    disposition: actionable
+    output_ids:
+      - HB-141
+  - legacy_id: HB-142
+    legacy_family_ids:
+      - CF-C-B08
+      - CF-J09-A
+      - CF-J09-I
+      - CF-J09-R
+      - CF-J09-S
+    owned_legacy_family_ids:
+      - CF-C-B08
+      - CF-J09-A
+      - CF-J09-I
+      - CF-J09-R
+      - CF-J09-S
+    disposition: actionable
+    output_ids:
+      - HB-142
+  - legacy_id: HB-143
+    legacy_family_ids:
+      - CF-J11-A
+      - CF-J11-I
+      - CF-J11-RC
+      - CF-J11-S
+    owned_legacy_family_ids:
+      - CF-J11-A
+      - CF-J11-I
+      - CF-J11-RC
+      - CF-J11-S
+    disposition: actionable
+    output_ids:
+      - HB-143
+  - legacy_id: HB-144
+    legacy_family_ids:
+      - CF-J18-I
+      - CF-J18-R
+      - CF-J18-RC
+      - CF-J18-S
+    owned_legacy_family_ids:
+      - CF-J18-I
+      - CF-J18-R
+      - CF-J18-RC
+      - CF-J18-S
+    disposition: actionable
+    output_ids:
+      - HB-144
+  - legacy_id: HB-145
+    legacy_family_ids:
+      - CF-C-OPJOB
+      - CF-J22-A
+      - CF-J22-R
+    owned_legacy_family_ids:
+      - CF-C-OPJOB
+      - CF-J22-A
+      - CF-J22-R
+    disposition: actionable
+    output_ids:
+      - HB-145
+      - HB-145-L2
+  - legacy_id: HB-146
+    legacy_family_ids:
+      - CF-SM-LOOP-C
+    owned_legacy_family_ids:
+      - CF-SM-LOOP-C
+    disposition: actionable
+    output_ids:
+      - HB-146
+  - legacy_id: HB-147
+    legacy_family_ids:
+      - CF-SM-PLAN-C
+      - CF-SM-PLAN-I
+      - CF-SM-PLAN-L
+      - CF-SM-PLAN-R
+    owned_legacy_family_ids:
+      - CF-SM-PLAN-C
+      - CF-SM-PLAN-I
+      - CF-SM-PLAN-L
+      - CF-SM-PLAN-R
+    disposition: actionable
+    output_ids:
+      - HB-147
+  - legacy_id: HB-148
+    legacy_family_ids:
+      - CF-INV-013
+    owned_legacy_family_ids:
+      - CF-INV-013
+    disposition: actionable
+    output_ids:
+      - HB-148
+  - legacy_id: HB-149
+    legacy_family_ids:
+      - CF-INV-014
+    owned_legacy_family_ids:
+      - CF-INV-014
+    disposition: actionable
+    output_ids:
+      - HB-149
+  - legacy_id: HB-150
+    legacy_family_ids:
+      - CF-INV-015
+    owned_legacy_family_ids:
+      - CF-INV-015
+    disposition: actionable
+    output_ids:
+      - HB-150
+      - HB-150-L2
+  - legacy_id: HB-151
+    legacy_family_ids:
+      - CF-S1-env
+    owned_legacy_family_ids:
+      - CF-S1-env
+    disposition: actionable
+    output_ids:
+      - HB-151
+      - HB-151-L2
+  - legacy_id: HB-152
+    legacy_family_ids:
+      - CF-HARNESS-CI
+      - CF-HARNESS-RELEASE
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-152 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-153
+    legacy_family_ids:
+      - CF-INV-015
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-153 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-154
+    legacy_family_ids:
+      - CF-REVIEW-PROVIDER
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-154 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-155
+    legacy_family_ids:
+      - CF-B31
+      - CF-B31-L3
+      - CF-C-B31
+      - CF-INV-017
+      - CF-J03-R
+      - CF-REG-374
+    owned_legacy_family_ids:
+      - CF-B31
+      - CF-B31-L3
+      - CF-C-B31
+      - CF-INV-017
+    disposition: actionable
+    output_ids:
+      - HB-155
+      - HB-155-L2
+      - HB-155-L3
+  - legacy_id: HB-156
+    legacy_family_ids:
+      - CF-REG-382
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-156 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-P1
+    legacy_family_ids:
+      - CF-J07-I
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-P1 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-P2
+    legacy_family_ids:
+      - CF-B15
+      - CF-C-B15
+      - CF-J04-I
+    owned_legacy_family_ids:
+      - CF-C-B15
+    disposition: actionable
+    output_ids:
+      - HB-P2
+  - legacy_id: HB-P3
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-P3 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-P4
+    legacy_family_ids:
+      - CF-B14
+      - CF-C-B14
+    owned_legacy_family_ids:
+      - CF-B14
+      - CF-C-B14
+    disposition: actionable
+    output_ids:
+      - HB-P4
+  - legacy_id: HB-P5
+    legacy_family_ids: []
+    owned_legacy_family_ids: []
+    disposition: historical
+    output_ids: []
+    reason: HB-P5 owns no legacy family first; all of its citations remain in the deterministic migration ledger and it must not be emitted as actionable work.
+  - legacy_id: HB-P6
+    legacy_family_ids:
+      - CF-C-CORE
+    owned_legacy_family_ids:
+      - CF-C-CORE
+    disposition: actionable
+    output_ids:
+      - HB-P6
+      - HB-P6-L2
+  - legacy_id: HB-P7
+    legacy_family_ids:
+      - CF-HARNESS-CI
+    owned_legacy_family_ids:
+      - CF-HARNESS-CI
+    disposition: actionable
+    output_ids:
+      - HB-140
+      - HB-P7

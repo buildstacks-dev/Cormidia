@@ -1,5 +1,13 @@
 # Proposed AGENTS.md section — validation harness routing
 
+> **Historical pre-cutover snapshot (2026-08-16).** This proposal records how
+> the legacy Markdown/policy/catalog corpus was routed into AGENTS.md. It has
+> already been superseded by the repo-root `AGENTS.md` stub and the current
+> checked-model procedure in `routing.md`. Nothing below is a current
+> instruction. In particular, do not follow its root-policy, YAML-catalog, AWK
+> generator, manual projection, test-header-authority, or legacy CLI commands.
+> The exact text remains here solely as ratification and landing history.
+
 > **Audience signpost** <!-- changelog 2026-08-10 (reader test 33, coding-agent
 > finding 1): two unrelated audiences shared this file with no signpost — an
 > ordinary feature/bugfix agent had to read ~90 lines of landing meta-procedure

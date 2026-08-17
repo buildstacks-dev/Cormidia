@@ -59,7 +59,8 @@ writer that validates and persists the durable decision.
 
 ## Unattended-L3 cross-reference (prohibition)
 The human seam is never a runtime dependency of an unattended campaign. Mechanism: the
-ratified sandbox-only test-policy profile (canonical: validation-policy.yaml) — zero
+ratified sandbox-only test-policy profile represented by the checked
+structures/contracts/families plus runtime configuration and guardrail tests — zero
 human decisions on the allowed path; **never forge human decisions under a robot
 identity**; evidence proves profile identity, sandbox target, permitted auto-grant
 categories, zero human decision rows; external publication and non-sandbox effects stay

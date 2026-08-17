@@ -1,0 +1,37 @@
+{
+  "schema": "cormidia/validation-architect-reader-bundle/v1",
+  "product_revision": "c4d9eb341cccaff59af84eb2589bfa37cbbfd1d7",
+  "model_identity": "2ea4d12b7f6b0fc7c29eb26562fa79b6044ed2fc53026211e52a35b45a219c81",
+  "artifacts": [
+    {
+      "path": "validation-design/case-catalog.md",
+      "sha256": "9c2f06597decc62fbfda98969448dc00f084bb493ca097c76c11d460cce27547"
+    },
+    {
+      "path": "validation-design/harness-backlog.md",
+      "sha256": "40148d683b28e5c7adbfc4b8d6442a24136621437d6f0fb054dadcde55a76ef9"
+    },
+    {
+      "path": "validation-design/owner-briefing.md",
+      "sha256": "2545751e831b271c1b3bdb5100e746d27f8a4164711ac4edf527dc027f0eaa2b"
+    },
+    {
+      "path": "validation-design/owner-backlog.md",
+      "sha256": "78e5a274e5504b35f8bb135c6d73f68e0f2066ade987ca6a224cab2b54690ca4"
+    },
+    {
+      "path": "validation-design/planned-trace.md",
+      "sha256": "5576de030c490c1bad37e6de6bde52cf65c6364a27f1f98bc76ca0823ad45dcc"
+    },
+    {
+      "path": "validation-design/compiler-report.json",
+      "sha256": "add8272e48cfe3e80168c0e24f5232cf2f339bd74760e2bfd30662fdf25634fe"
+    }
+  ],
+  "exclusions": [
+    "validation-design/model/*.yaml",
+    "validation-design/migration/**",
+    "authored rationale and product documentation",
+    "campaign transcript and repository history"
+  ]
+}

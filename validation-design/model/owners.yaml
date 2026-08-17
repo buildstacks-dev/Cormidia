@@ -1,0 +1,5 @@
+schema: validation-architect/model/owners/v1
+owners:
+  - id: bikramgupta
+    name: Bikram Gupta
+    responsibility: Product owner and accountable ratifier for validation policy, structures, evidence status, open product-truth decisions, and release-shaped decisions. build-agent means the repository coding agent operating through reviewed PRs; human + build-agent splits the named human decision or artifact authorship from reversible implementation; campaign means an explicitly authorized campaign runner. Escalate unresolved product truth, human-only artifacts, per-run authorization, and release decisions to this owner. Ordinary offline implementation begins only from a pending ticket after every depends_on output is landed, every owned family is unblocked, all product-truth/sampling/activation/split conditions are resolved, and the lane needs no missing per-run authorization; the build-order list alone never selects work.

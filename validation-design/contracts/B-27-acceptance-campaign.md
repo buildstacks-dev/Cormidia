@@ -18,8 +18,9 @@ An L-ACC campaign config is valid only if **all** of the following hold. Each is
 checked at preflight, before any provider runtime is constructed and before any
 scenario repository is mutated.
 
-1. **Commit pin.** An authorized commit equal to checked-out HEAD, with the canonical
-   `validation-design/validation-policy.yaml` blob tracked at that commit
+1. **Commit pin.** An authorized commit equal to checked-out HEAD, with the
+   ordered exact eight-file `validation-design/model/` path/digest set and
+   `docs/qualification/host-policy.yaml` bytes tracked at that commit
    (`assertCampaignRepositoryBinding`, `tests/campaign/repository-binding.ts`).
 2. **Packaged-install proof.** A recorded `pnpm install:packaged --replace-source-links`
    run for this campaign, exited zero, no older than the commit pin. The campaign
@@ -84,8 +85,10 @@ scenario repository is mutated.
 
 ## §4 Verdict and ordering
 
-- Verdict vocabulary is `validation-policy.yaml` → `verdict_semantics`, including the
-  `axis_score` block added by this revision. `ungraded` is never coerced to `0` and
+- Completeness and verdict use the Validation Architect public result contract.
+  The Cormidia axis vocabulary is
+  `docs/qualification/host-policy.yaml` →
+  `outcome_acceptance.axis_score`. `ungraded` is never coerced to `0` and
   never enters an aggregate as a number (`CORMIDIA-INV-ACC-5`).
 - While every threshold is unratified, the campaign is a **data-collection run**: each
   threshold-dependent axis is `inconclusive` and the campaign verdict is `inconclusive`.
@@ -101,8 +104,9 @@ scenario repository is mutated.
 
 ## §5 Freshness and bounds
 
-- The packaged-install proof, the commit pin and the tracked policy blob are re-checked
-  at campaign start, not merely at config authoring.
+- The packaged-install proof, commit pin, selected Validation Architect
+  authority bytes, and host-policy bytes are re-checked at campaign start, not
+  merely at config authoring.
 - **Deployment is unreachable.** A campaign ends with each app *buildable* plus a
   preview command in the report. Hosting remains a separate critical operation with its
   own human approval, requested after the report is read; the campaign holds no deploy

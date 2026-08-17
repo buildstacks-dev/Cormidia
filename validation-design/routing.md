@@ -1,25 +1,171 @@
-# Validation harness — binding routing (moved verbatim from AGENTS.md)
+# Validation harness — binding routing
 
-<!-- Provenance (#402 restructure, 2026-08-11): everything below the marker
-line is the ratified "Validation harness" section of the repo-root AGENTS.md
-(landed 2026-07-31, revised through rev-2026-08-10), originally relocated
-byte-identically. The 2026-08-16 status reconciliation below updates only the
-then-open F-PT-006/008/017 examples and parked-ticket mirror after their
-attributable 2026-08-12 rulings and implementations.
-It is binding procedure; AGENTS.md retains only a routing stub. Reader notes
-that live outside the frozen text:
-- Self-descriptions such as "This file lands in the repo-root AGENTS.md" date
-  from the section's original residence and are preserved unedited.
-- The section's self-referential greps assume CWD `validation-design/` (this
-  directory). Anchors naming `agents-md-contribution.md` resolve against the
-  annotated source document beside this file.
-- The "Activation" paragraph's "until the landing merges" clause is satisfied:
-  the landing merged 2026-08-11 (e265d66); the section is binding.
-- Ratified addenda were appended AFTER the closing horizontal rule on
-  2026-08-12 (see that section's own record); the byte-identical frozen
-  region was the text between the marker line and that rule before the explicit
-  2026-08-16 status reconciliation described above.
-verbatim-below: AGENTS.md lines 177-642 at commit fa86238 -->
+## Current checked-model procedure (2026-08-16)
+
+This section is the current binding procedure. The preserved pre-cutover text
+after the **Historical pre-cutover snapshot** heading is provenance only. It
+must not be followed, copied into a change description, or used to resolve
+current authority.
+
+### Authority
+
+- The complete eight-file `model/` graph is the sole Validation Architect
+  machine authority. The exact files are `project.yaml`, `owners.yaml`,
+  `sources.yaml`, `structures.yaml`, `policy.yaml`, `controls.yaml`,
+  `families.yaml`, and `backlog.yaml`.
+- Any one model file selects checked-model mode. A partial or corrupt graph is
+  red and cannot fall back to a root legacy file or `migration/`.
+- `case-catalog.md`, `harness-backlog.md`, `owner-briefing.md`,
+  `owner-backlog.md`, and `planned-trace.md` are compiler-generated Markdown
+  views. `compiler-report.json` is the compiler-generated canonical report.
+  Never edit any of those six artifacts by hand.
+- `../docs/qualification/host-policy.yaml` is the separate Cormidia
+  qualification/campaign authority. It owns only the exact RQ-1 L3 required and
+  conditional family sets and admitted skipped-test finding identities;
+  campaign spend bounds; L-ACC axis-score semantics and outside-RQ-1 release
+  relationship; the active revision-catalog registry/content pin; and canonical
+  campaign-binding paths.
+  Checked model and host policy compose tighten-only; disagreement refuses.
+- `migration/` is history and deterministic cutover replay evidence. It is
+  never an ordinary edit target, current ticket contract, CI input, campaign
+  input, runtime fallback, or rollback source.
+
+### Status and oracle glossary
+
+- Family `implementable` means the validation obligation is structurally valid
+  and can execute when its lane conditions are met. It does **not** mean the
+  implementation landed, a planned detector exists or passed, evidence is
+  complete, or release qualification is green. `blocked` names an unresolved
+  product-contract dependency; `pruned` names an explicitly inapplicable or
+  single-writer-dispositioned obligation.
+- Ticket `landed`, `pending`, `blocked`, and `parked` describe implementation
+  progress. Evidence `complete`, `incomplete`, `inconclusive`, and `unobserved`
+  is a separate domain. None may be inferred from another; absence and
+  uncertainty remain non-green.
+- Oracle atoms are `state` (durable state), `evid` (record/evidence), `refusal`
+  (typed refusal/exit), `diff` (byte/scope difference), `det` (detector fired),
+  `stat` (statistical), and `live` (live-run binary). `+` is conjunction: every
+  named atom must hold. `contract` expands to every atom required by the cited
+  contract; `stat-envelope` is a deterministic guard around non-green
+  statistical scores; `mixed` is reserved for the threat-model-gated abuse
+  lane whose oracle is deliberately not invented before human authorship.
+- Risk values `E1`, `E2`, and `E3` are the exhaustive-family tiers; `STD`,
+  `THIN`, and `FLOOR` are the ordinary, intentionally thin, and
+  non-discretionary classes. `L4Q` is statistical quality governed by the
+  inconclusive-until-ratified rule. `REG` is reserved for escaped-defect
+  regression families. Compiler acceptance proves graph and declared-link
+  closure only, never implementation, oracle fidelity, test results, evidence
+  completeness, or production readiness.
+- `changed_paths: []` means implementation-impact mapping is unresolved, not
+  "no impact"; changed product paths therefore widen to the full applicable suite.
+
+### Before any ticket
+
+Run from `validation-design/`:
+
+```bash
+test -f model/project.yaml &&
+  test -f model/owners.yaml &&
+  test -f model/sources.yaml &&
+  test -f model/structures.yaml &&
+  test -f model/policy.yaml &&
+  test -f model/controls.yaml &&
+  test -f model/families.yaml &&
+  test -f model/backlog.yaml
+rg -n 'BLOCKED:|PARKED:|Gate:|status: (blocked|parked)' model harness-design-state.md
+```
+
+Read the matching ticket in `model/backlog.yaml`, every owned family in
+`model/families.yaml`, its negative controls in `model/controls.yaml`, and
+its linked structures and sources. Generated views are useful navigation, but
+they never win over the YAML graph.
+
+### Feature changes
+
+1. Start from changed product paths and identify the affected journeys,
+   boundaries, invariants, contracts, or LLM sites in `model/structures.yaml`
+   and the cited authored rationale.
+2. Follow the complete chain:
+   changed path → structure → family → control → ticket → exact
+   `planned_tests`/evidence.
+3. Extend every affected family enumeration at the cheapest honest layer. Keep
+   the negative control red-capable and keep all gates tighten-only.
+4. Edit the checked YAML files that own the facts. Do not edit a generated
+   view, infer facts from test headers, or use archive prose as current scope.
+5. If the change adds a journey, boundary, invariant, LLM site, ownership
+   domain, or failure domain, stop that structural slice and re-enter
+   `validation-harness-design` in `harness-revision` mode. Structure-independent
+   work may proceed.
+
+### Bug fixes
+
+Every escaped defect deposits its offline detector in the same change.
+
+1. Reproduce the failure against the nearest deterministic seam.
+2. Route it to the existing structure/family when the defect changes only a
+   clause. If the shape itself is missing, use the structural-revision rule.
+3. Add or update the family, red-capable control, owning ticket, and exact
+   `planned_tests` path in the model. A test header is historical annotation
+   only; it cannot create, reject, or reassign model facts.
+4. A landed ticket with an absent planned test is red. Missing work owned by a
+   pending, blocked, or parked ticket remains explicit partial/inconclusive,
+   never green.
+
+### Findings and blocked work
+
+`harness-design-state.md` is the authored finding/decision register.
+`model/families.yaml` and `model/backlog.yaml` carry the corresponding
+machine blocker/status. Mint a new `F-PT-*` only after scanning both places;
+record the observation and evidence in the authored register, then park the
+affected model facts as `BLOCKED:<finding>`. Do not invent an answer.
+
+Host policy receives a finding only when it changes one of its narrow
+Cormidia-owned operational domains. It never absorbs model structures,
+families, controls, or ordinary finding rationale.
+
+### Expensive lanes
+
+Model lane placement, triggers, authorization posture, family membership, and
+controls live in `model/policy.yaml` and `model/families.yaml`. Exact
+Cormidia spend, RQ-1 required/conditional selection and admitted skipped-test
+findings, and L-ACC score/release facts come from the host policy. Implementing offline guards does not authorize a
+live, eval, soak, or L-ACC run. Each such run still requires its own reviewed
+absolute config and fresh human authorization.
+
+### Regenerate and verify
+
+After every model edit, from the repository root:
+
+```bash
+pnpm exec validation-architect compile . --write
+pnpm validation:trace
+```
+
+The first command must produce exactly five Markdown views plus
+`compiler-report.json` through the public 0.4.6 compiler. The second proves
+mechanical closure, not fidelity. Run the repository-required tests for the
+change as well; never weaken a test or gate to obtain green.
+
+Tickets normally use the `implement-harness-ticket` skill. If it is
+unavailable and enumeration is unambiguous, hand implementation may follow
+this procedure and must say so in the change description. Hand approximation
+is never permitted for `validation-harness-design` or
+`harness-revision`.
+
+## Historical pre-cutover snapshot — do not follow
+
+The remainder preserves the routing procedure that governed the legacy
+Markdown/policy/catalog authority before the 2026-08-16 cutover. Status claims
+inside it describe that dated snapshot only and are not current instructions.
+References
+below to a root policy, YAML catalog, AWK generator, manual owner-view
+regeneration, test-header authority, or legacy command are historical facts,
+not current instructions. The current section above supersedes every such
+statement while retaining the record for audit and rollback-by-revert.
+
+<!-- Provenance (#402 restructure, 2026-08-11): the snapshot below was the
+ratified Validation harness section of the repo-root AGENTS.md, relocated
+byte-identically and later extended with ratified addenda. -->
 
 ## Validation harness (replacement, designed 2026-07-31)
 
@@ -188,18 +334,17 @@ deposit is the one sanctioned exception to "never skip the deposit silently"
 besides the L2-irreproducible race. A fix whose code itself encodes the new
 structural truth cannot land before the revision at all. Worked example of the
 fork: a fix that corrects a provider-timeout calculation AND renames
-before the 2026-08-12 ruling, renaming the emitted terminal status
-`timed_out`→`interrupted` split exactly here —
+the emitted terminal status `timed_out`→`interrupted` splits exactly here —
 the timeout-calculation part stands alone under existing structure (land it,
-deposit its detector), while the rename encoded one side of F-PT-017's then-
-contested enum (it could not land until the owner ratified it; HB-P6 later landed
-that exact vocabulary and detector on 2026-08-12).
+deposit its detector), while — before the 2026-08-12 ruling — the rename was
+the contested F-PT-017 enum clause (it could not land until ratification;
+HB-P6 later landed that exact vocabulary and detector on 2026-08-12).
 **A defect inside a `BLOCKED:<finding>`/PARKED area**: if the defect lies in territory whose cases are
 finding-parked, the fix and its detector may cover **only the un-contested
 deterministic part** and must not encode either side of the parked question;
 if the defect IS the contested behavior, do not fix it at machine speed — the
 observation is **ratification evidence**: record it on the finding (the
-pre-ratification F-PT-006 preserve-evidence pattern) and escalate. The deposit obligation
+F-PT-006 preserve-evidence pattern) and escalate. The deposit obligation
 applies to what you may lawfully fix; it never licenses resolving a parked
 question. 
 **Tagging a §10.3 row is simpler than tagging a feature row**: Risk is always `REG`, Layer is where the
@@ -299,15 +444,16 @@ bound raisable only by a human policy edit). Ceiling exhaustion ⇒
 completeness=incomplete, never green. Never forge human approval decisions; unattended
 runs use only the ratified sandbox test-mode profile.
 
-**Blocked work — this list is NOT exhaustive**: B-17's live cell is the oldest
-current example; blocked/parked work also includes HB-P7, HB-073 (hash-bound
-gate refuses until HB-072's human-authored threat model
+**Blocked work — this list is NOT exhaustive**: at this snapshot HB-P3 and HB-P5
+were blocked on F-PT-006 and F-PT-008, and B-17's live cell was the oldest live
+example. Snapshot-era blocked/parked work also included HB-P6/HB-P7 and HB-073
+(whose hash-bound gate
+refuses until HB-072's human-authored threat model
 exists), HB-055, and every F-PT-011-gated quality verdict. **Before picking up any
 ticket, scan the WHOLE of `harness-backlog.md` for `BLOCKED`/`PARKED`/`Gate:`
 markers and `case-catalog.md` for `BLOCKED:<finding>` cells** — no single section
 is the complete set: the backlog's "Parked" section is complete only for the
-**finding-parked P-tickets** (currently HB-P7; HB-P3/P5/P6 landed after the
-attributable 2026-08-12 owner rulings), while other blocked items (HB-055,
+**finding-parked P-tickets** (HB-P3/P5/P6/P7 in this dated snapshot), while other blocked items (HB-055,
 HB-073) live inside their own wave sections, and the catalog's §9 blocked-cell
 roll-up covers cells, not tickets. The scan is the guarantee; no list here is.
 Mechanize it rather than reading the whole file:
@@ -645,3 +791,11 @@ comparative-execution families→HB-090…094). A structural mismatch still re-e
 `validation-harness-design` in `harness-revision` mode, exactly as the ratified
 section above requires.
 <!-- changelog 2026-08-12 (ratification landing): two statements above aged between parking and landing — HB-140 no longer "owes" the drift check (it landed 2026-08-12 via #415 as scripts/check-catalog-drift.mjs in pnpm check), and the "notably" pending-set examples are stale (HB-133/135/136 landed 2026-08-12); case-catalog.yaml remains the authoritative pending list, notably the comparative-execution families→HB-090…094. Text kept verbatim above; corrected here. -->
+
+### Status-reconciliation detector mirror
+
+The binding section was originally relocated byte-identically. The 2026-08-16
+status reconciliation preserves that provenance while updating its active
+examples. The finding-parked P-ticket set is currently HB-P7; HB-P3/P5/P6
+landed after the attributable 2026-08-12 owner rulings. HB-P6 later landed that
+exact vocabulary and detector on 2026-08-12.

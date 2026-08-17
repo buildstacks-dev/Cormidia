@@ -1,0 +1,23 @@
+{
+  "schema": "validation-architect/compiler/v1",
+  "accepted": true,
+  "source_fingerprint": "9e29197250cbbfbaca6c99e0a778fd3dfe232b11dfef36aaac4b6156152557bd",
+  "model_identity": "2ea4d12b7f6b0fc7c29eb26562fa79b6044ed2fc53026211e52a35b45a219c81",
+  "versions": {
+    "package": "0.4.6",
+    "method": "0.8.0",
+    "model": "validation-architect/corpus/v1",
+    "compiler": "validation-architect/compiler/v1",
+    "policy": "validation-architect/policy/v1",
+    "result": "validation-architect/result/v1",
+    "golden_set": "validation-architect/golden-set/v1"
+  },
+  "generated_views": [
+    "case-catalog.md",
+    "harness-backlog.md",
+    "owner-backlog.md",
+    "owner-briefing.md",
+    "planned-trace.md"
+  ],
+  "diagnostics": []
+}

@@ -1,7 +1,17 @@
-# harness-state.yaml — MACHINE-WRITTEN run state for the validation-harness-design
-# skill's re-entry loop. Never human-ratified, never tighten-only, freely rewritten
-# by campaigns. The design contract lives in validation-policy.yaml; keeping them in
-# separate files is what stops a machine write from landing on a ratified artifact.
+# FROZEN PRE-CUTOVER SNAPSHOT (2026-08-10) — HISTORY ONLY.
+# This entire document records the validation-harness-design campaign state as it
+# existed before #465. It is no longer a current machine authority or writable run
+# state. In checked-model mode, the complete validation-design/model/*.yaml graph
+# is the sole Validation Architect machine authority; authored finding rationale
+# remains in harness-design-state.md, and Cormidia-only qualification/campaign
+# facts live in ../docs/qualification/host-policy.yaml. Every legacy policy,
+# catalog, backlog, and generator path below is retained verbatim as dated
+# provenance, not as an instruction, CI/runtime input, fallback, or rollback
+# source. Rollback is by reverting the cutover commit.
+#
+# harness-state.yaml — MACHINE-WRITTEN run state for the pre-cutover
+# validation-harness-design skill's re-entry loop. It was never human-ratified
+# or tighten-only and was freely rewritten by those historical campaigns.
 schema: validation-architect/harness-state/v1
 product: cormidia
 written_by: harness-revision campaign rev-2026-08-10

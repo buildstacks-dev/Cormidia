@@ -29,18 +29,23 @@ used only on the owner-confirmed 2026-08-01 comparative-execution direction.
 - **Posture:** clean-slate greenfield. The incumbent suite is archived under
   `archive-do-not-read/**` (PURPOSE v2.9) — frozen, never read, cited, run, or used as a
   design cue. There is no coexistence posture; instead `archive-do-not-read/**` is a
-  **protected no-read path**, ratified in `validation-policy.yaml`. `[doc]`
+  **protected no-read path**, represented by the checked structures/families
+  and their cited product contract. `[doc]`
 - **Artifact roots:** design artifacts in `./validation-design/` (this campaign);
   eventual implementation root `tests/` (PURPOSE v2.9) — specified in
-  `harness-backlog.md`, not built here. `[doc]`
+  checked `model/families.yaml` planned paths and `model/backlog.yaml` ticket
+  acceptance, not built here. `[doc]`
 - **ID namespace:** `CORMIDIA-` (`CORMIDIA-INV-NNN`, `CORMIDIA-B-NNN`, `CORMIDIA-C-<boundary>-NNN`).
   A later module-scope deep pass mints its own prefix and inherits by reference. `[PROPOSED, accepted by stakeholder]`
 - **Release-gating replacement** is a **campaign/policy obligation, not a product module**:
   RQ-1 is active under PURPOSE v2.16 (2026-08-04)
   <!-- changelog 2026-08-10 (consistency sweep): was "v2.17" — no such version; the
   current PURPOSE header is v2.16 -->; the archived qualification machinery is not an
-  active module; the replacement harness policy carries the qualification obligation,
-  proportionately (`[rambling: "I do not want the 83-contract apparatus back"; "something I
+  active module. Checked `model/policy.yaml` owns Validation Architect lane and
+  authorization posture, while `../docs/qualification/host-policy.yaml` owns the exact
+  Cormidia RQ-1 required/conditional family sets, admitted skipped-test finding
+  identities, and campaign facts; they compose
+  tighten-only (`[rambling: "I do not want the 83-contract apparatus back"; "something I
   trust AND afford"]`). Active release-*handoff* behavior remains under the build-loop and
   approvals boundaries. `[doc]` + stakeholder correction.
 - **Unattended runnability** of the live-sandbox layer — zero human approval decisions,
@@ -87,14 +92,16 @@ Mapping judgments (ratified with this map):
 
 1. **The harness itself is a system-under-design, not a Cormidia module.** Its self-tests,
    negative controls, and unattended-runnability requirement come from the skill's rules and
-   land in the backlog and policy file. **The 2026-08-07 outcome-acceptance lane (L-ACC)
+   land in the checked model, with exact Cormidia operational facts in host
+   policy. **The 2026-08-07 outcome-acceptance lane (L-ACC)
    is therefore not a module row either** — it is harness machinery that drives the
    product through its shipped binaries. Its journey (J-21), boundaries (B-27/B-28/B-29)
    and campaign invariants (`CORMIDIA-INV-ACC-*`) exist so the lane is designed rather
    than improvised, not because Cormidia grew a subsystem.
 2. **GitHub is substrate, not a module** — an external boundary in Phase 3, alongside the
    three model providers and the OS timer.
-3. **Release-gating replacement** — campaign/policy obligation (see §1), not a module row.
+3. **Release-gating replacement** — a composed model/host-policy campaign
+   obligation (see §1), not a module row.
 4. **Standalone comparison is an adapter, not a second module.** `cormidia compare` enters
    M16 directly with an operator-declared one-step intent; EpisodePlan-backed comparison
    enters the same coordinator from M5/M4. Their parsing and authority sources differ,

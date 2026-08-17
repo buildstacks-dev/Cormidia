@@ -1,0 +1,145 @@
+schema: validation-architect/model/policy/v1
+default: blocking
+inheritance: tighten-only
+layers:
+  - id: L1
+    title: Invariant and contract
+    status: active
+  - id: L2
+    title: Hermetic system
+    status: active
+  - id: L3
+    title: Live sandbox
+    status: active
+  - id: L4
+    title: Eval qualification
+    status: active
+  - id: L5
+    title: Ops hardening
+    status: active
+  - id: L6
+    title: Outcome acceptance
+    status: active
+lanes:
+  - id: inner-loop
+    title: Local fail-closed suite
+    kind: test
+    status: active
+    requirement: blocking
+    triggers:
+      - before-push
+    command: pnpm test
+    authorization: none
+    reason: Run from the repository root with no human authorization; this is an offline test lane, not release evidence.
+  - id: per-commit
+    title: Core Checks L1/L2 and deterministic higher-layer protocols
+    kind: test
+    status: active
+    requirement: blocking
+    triggers:
+      - per-commit
+      - pull-request
+      - main-push
+      - release-exact-tag-rerun
+    command: pnpm test
+    authorization: none
+    reason: Run from the repository root with no human authorization; CI repeats it. A green lane is necessary but not an aggregate release verdict.
+  - id: live-triggered
+    title: Human-authorized non-RQ-1 live sandbox conformance
+    kind: test
+    status: active
+    requirement: blocking
+    triggers:
+      - changed-adapter-or-gate-seam
+      - material-host-or-auth-change
+    command: pnpm test:live
+    authorization: per-run-human
+    reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. This is a non-RQ-1 live sandbox lane; the owning ticket and reviewed config select the intended subset.
+  - id: live-release
+    title: Human-authorized exact RQ-1 L3 denominator
+    kind: test
+    status: active
+    requirement: blocking
+    triggers:
+      - changed-adapter-or-gate-seam
+      - release-qualification
+      - material-host-or-auth-change
+    command: pnpm test:live
+    authorization: per-run-human
+    reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. This lane supplies the exact RQ-1 L3 denominator only after those prerequisites are satisfied.
+  - id: eval-triggered
+    title: Human-authorized evaluation runner
+    kind: test
+    status: active
+    requirement: blocking
+    triggers:
+      - site-prompt-model-or-instruction-change
+      - release-qualification
+      - authorized-rotating-shard
+    command: pnpm test:eval
+    authorization: per-run-human
+    reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. Eval spend bounds apply, and missing or inconclusive evidence is never green.
+  - id: soak-triggered
+    title: Human-authorized soak collector
+    kind: test
+    status: active
+    requirement: blocking
+    triggers:
+      - initial-autonomous-qualification
+      - material-scheduler-locking-settlement-or-session-change
+    command: pnpm test:soak
+    authorization: per-run-human
+    reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. The config must also name sandbox targets and ceilings; never infer natural rotation or elapsed-time evidence.
+  - id: triggered
+    title: Authorized non-test certification evidence
+    kind: evidence
+    status: active
+    requirement: blocking
+    triggers:
+      - adapter-certification
+      - adapter-version-bump
+      - gate-seam-change
+    authorization: per-run-human
+    reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. This is a record-only certification lane with no universal command; follow the owning adapter or seam runbook and bind its exact artifact and runtime version.
+  - id: release
+    title: RQ-1 release qualification evidence
+    kind: evidence
+    status: active
+    requirement: blocking
+    triggers:
+      - release-qualification
+      - exact-tag-rerun
+    authorization: per-run-human
+    reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. This record-only RQ-1 aggregate lane has no direct runner command and never substitutes for the separate exact human release approval.
+  - id: scheduled
+    title: Future L5 soak, rotation, threat and abuse evidence
+    kind: evidence
+    status: active
+    requirement: blocking
+    triggers:
+      - human-scheduled-soak
+      - threat-model-review
+      - material-boundary-change
+    authorization: per-run-human
+    reason: "This is a record-only L5 evidence lane with no universal command. HB-072 threat-model authorship and independent human review are governance-artifact preparation, not execution of a provider, campaign, soak, or scheduled command: they require the checked template, distinct attributable human identities, timestamps, review flag, artifact digest, and threat-model-status.yaml, but no runtime config, dry-run, campaign authorization, or spend. Its deterministic admission detector runs on the offline per-commit lane. Soak collection uses soak-triggered, and any later threat-model-driven abuse execution remains blocked until HB-073 is pending and must follow the full authorized-lane procedure: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket."
+  - id: outcome-acceptance
+    title: L-ACC disclosed outcome evidence outside RQ-1
+    kind: evidence
+    status: active
+    requirement: advisory
+    triggers:
+      - explicit-campaign-authorization
+    authorization: per-run-human
+    reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. First append `--dry-run` to the displayed command for the non-spending preflight. The command without `--dry-run` is the real invocation; L-ACC remains advisory outside RQ-1.
+    command: pnpm test:acceptance -- --config <reviewed-absolute-config>
+  - id: evaluation-advisory
+    title: Non-gating conditioning sensitivity evidence
+    kind: evidence
+    status: active
+    requirement: advisory
+    triggers:
+      - explicit-evaluation-authorization
+    authorization: per-run-human
+    reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. Conditioning-sensitivity results are advisory and cannot become release green.
+    command: pnpm test:eval
+exceptions: []

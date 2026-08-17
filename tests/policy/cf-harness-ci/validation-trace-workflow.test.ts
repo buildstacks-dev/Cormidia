@@ -17,6 +17,12 @@ const EXACT_SCRIPT =
   '"validation:trace": "validation-trace . --manifest validation-design/case-catalog.yaml --tests tests"';
 const RUNNER_ROUTE =
   "runs-on: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}";
+const FULL_HISTORY_CHECKOUT = [
+  "- uses: actions/checkout@v6",
+  "        with:",
+  "          fetch-depth: 0",
+  "          persist-credentials: false",
+].join("\n");
 const MODEL_FILES = [
   "project.yaml",
   "owners.yaml",
@@ -88,6 +94,7 @@ function occurrences(source: string, needle: string): number {
 function closureSurfaceProblems(surfaces: ClosureSurfaces): string[] {
   const problems: string[] = [];
   const { packageJson, coreWorkflow, traceWorkflow, installGuide } = surfaces;
+  const coreJobWorkflow = coreWorkflow.split("\n  gitleaks:\n", 1)[0] ?? "";
   if (!packageJson.includes(EXACT_SCRIPT)) problems.push("package script drift");
   if (occurrences(coreWorkflow, "run: pnpm validation:trace") !== 1) problems.push("Core Checks command drift");
   if (occurrences(traceWorkflow, "run: pnpm validation:trace") !== 1) problems.push("dedicated command drift");
@@ -105,6 +112,8 @@ function closureSurfaceProblems(surfaces: ClosureSurfaces): string[] {
     if (workflow.includes("continue-on-error") || workflow.includes("|| true")) problems.push(`${name} fail-open`);
     if (workflow.includes("secrets.")) problems.push(`${name} secret dependency`);
   }
+  if (!coreJobWorkflow.includes(FULL_HISTORY_CHECKOUT)) problems.push("Core Checks shallow checkout");
+  if (!traceWorkflow.includes(FULL_HISTORY_CHECKOUT)) problems.push("dedicated shallow checkout");
   if (!traceWorkflow.includes("expected_sha:") || !traceWorkflow.includes('test "${GITHUB_SHA}" = "${EXPECTED_SHA}"')) {
     problems.push("dedicated exact-SHA guard drift");
   }
@@ -336,7 +345,7 @@ describe("CF-HARNESS-CI — #431 closure workflow", () => {
     expect(closureSurfaceProblems(await readSurfaces())).toEqual([]);
   });
 
-  it("detects seeded command, trigger, route, fail-open, secret, and SHA-guard drift", async () => {
+  it("detects seeded command, trigger, route, shallow checkout, fail-open, secret, and SHA-guard drift", async () => {
     const surfaces = await readSurfaces();
     expect(
       closureSurfaceProblems({
@@ -365,6 +374,18 @@ describe("CF-HARNESS-CI — #431 closure workflow", () => {
         traceWorkflow: surfaces.traceWorkflow.replace(RUNNER_ROUTE, "runs-on: ubuntu-latest"),
       }),
     ).toContain("dedicated runner drift");
+    expect(
+      closureSurfaceProblems({
+        ...surfaces,
+        coreWorkflow: surfaces.coreWorkflow.replace("          fetch-depth: 0\n", "          fetch-depth: 1\n"),
+      }),
+    ).toContain("Core Checks shallow checkout");
+    expect(
+      closureSurfaceProblems({
+        ...surfaces,
+        traceWorkflow: surfaces.traceWorkflow.replace("          fetch-depth: 0\n", "          fetch-depth: 1\n"),
+      }),
+    ).toContain("dedicated shallow checkout");
     expect(
       closureSurfaceProblems({ ...surfaces, traceWorkflow: `${surfaces.traceWorkflow}\ncontinue-on-error: true\n` }),
     ).toContain("dedicated fail-open");

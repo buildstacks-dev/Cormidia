@@ -12,11 +12,16 @@ export async function lstatIfExists(path) {
   }
 }
 
+function diagnosticPath(path) {
+  const relation = relative(MIGRATION.repoRoot, resolve(path)).replaceAll("\\", "/");
+  return relation || ".";
+}
+
 function assertInsideRepo(path) {
   const resolved = resolve(path);
   const relation = relative(MIGRATION.repoRoot, resolved);
   if (relation === "" || relation === ".." || relation.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) {
-    throw new Error(`migration output target escapes the repository: ${path}`);
+    throw new Error(`migration output target escapes the repository: ${diagnosticPath(path)}`);
   }
   return resolved;
 }
@@ -28,13 +33,13 @@ async function assertDirectoryChain(target) {
     directories.push(current);
     if (current === MIGRATION.repoRoot) break;
     const parent = dirname(current);
-    if (parent === current) throw new Error(`migration target has no repository ancestor: ${target}`);
+    if (parent === current) throw new Error(`migration target has no repository ancestor: ${diagnosticPath(target)}`);
     current = parent;
   }
   for (const directory of directories.reverse()) {
     const entry = await lstatIfExists(directory);
     if (entry !== null && (!entry.isDirectory() || entry.isSymbolicLink())) {
-      throw new Error(`migration output ancestor must be a real directory: ${directory}`);
+      throw new Error(`migration output ancestor must be a real directory: ${diagnosticPath(directory)}`);
     }
   }
 }
@@ -51,12 +56,13 @@ export async function preflightWriteTargets(targets) {
   const resolvedTargets = [];
   for (const target of targets) {
     const resolved = assertInsideRepo(target);
-    if (resolvedTargets.includes(resolved)) throw new Error(`duplicate migration output target: ${resolved}`);
+    if (resolvedTargets.includes(resolved))
+      throw new Error(`duplicate migration output target: ${diagnosticPath(resolved)}`);
     resolvedTargets.push(resolved);
     await assertDirectoryChain(resolved);
     const entry = await lstatIfExists(resolved);
     if (entry !== null && (!entry.isFile() || entry.isSymbolicLink())) {
-      throw new Error(`migration output target must be absent or a regular file: ${resolved}`);
+      throw new Error(`migration output target must be absent or a regular file: ${diagnosticPath(resolved)}`);
     }
   }
   const retired = await retiredRootPresence();
@@ -91,7 +97,8 @@ export async function writeArtifactsSafely(artifacts) {
   try {
     for (const [index, artifact] of artifacts.entries()) {
       const temporary = `${artifact.path}.migration-${process.pid}-${index}.tmp`;
-      if ((await lstatIfExists(temporary)) !== null) throw new Error(`migration staging target exists: ${temporary}`);
+      if ((await lstatIfExists(temporary)) !== null)
+        throw new Error(`migration staging target exists: ${diagnosticPath(temporary)}`);
       await writeFile(temporary, artifact.content, { encoding: "utf8", flag: "wx" });
       staged.push({ temporary, target: artifact.path });
     }

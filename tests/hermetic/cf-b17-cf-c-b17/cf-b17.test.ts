@@ -13,13 +13,13 @@
 // (scripted-target.ts, typed-executor-driver.ts); ALL durable state is the
 // real product ApprovalStore on a temp state home.
 //
-// BLOCKED:F-PT-008 — the disposition of the approval ITEM when its grant TTL
-// expires before execution is an open product-truth finding (its cells live
-// with CF-J06-I/CF-B09a-*, HB-012/HB-P-side): no case in this ticket asserts
-// any expiry disposition. Expired grants merely failing to match
-// (findMatchingGrantSync) is ratified and incidental here.
-// BLOCKED:F-PT-006 (event producer visibility / duplicate identity) has no
-// cell in this ticket's families; it stays parked with its own backlog item.
+// F-PT-008 is resolved-ratified: expiry reopens the original item with append-only history.
+// Its disposition cases live with CF-J06-I/CF-B09a-* (HB-012/HB-P5); this
+// ticket asserts only that an expired grant fails to match
+// (findMatchingGrantSync), which is incidental here.
+// F-PT-006 is resolved-ratified: event identity is content-derived and producers
+// owe no atomic rename. Those cases live with CF-B13/HB-P3; this ticket isolates
+// B-17's typed-effect seam and makes no event-inbox claim.
 
 import { afterEach, describe, expect, it } from "vitest";
 import {

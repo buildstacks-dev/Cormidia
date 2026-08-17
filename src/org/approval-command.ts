@@ -28,7 +28,6 @@
 //   * an approval is not a licence to run arbitrary shell. Execution is bound
 //     to the recorded action AND to a recorded, still-present execution
 //     context; anything that does not match terminalizes with a typed cause.
-
 import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
@@ -37,13 +36,14 @@ import { withNonInteractiveEnv } from "../runtime/non-interactive-env.js";
 import { scrubSecrets, truncatePreview } from "../runtime/runlog/redact.js";
 import {
   actionHash,
-  ApprovalStore,
+  type ApprovalStore,
   approvedCommand,
   commandIdentityHash,
   isOrchestratorExecutableRule,
   type ApprovalGrant,
   type ApprovalItem,
 } from "./approvals.js";
+import { approvalStoreForApps } from "./approval-store-factory.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { grantScopeText } from "./gate-compose.js";
 import { releaseExpiredTicketApprovalClaim } from "./ticket-episode-approval.js";
@@ -124,7 +124,7 @@ export async function executeApprovedCommands(
   options: ExecuteApprovedCommandsOptions,
 ): Promise<ApprovalCommandOutcome[]> {
   const clock = options.now ?? (() => new Date());
-  const store = new ApprovalStore(options.stateHome);
+  const store = approvalStoreForApps(options.stateHome, options.appsFile, { now: clock });
   const outcomes: ApprovalCommandOutcome[] = [];
   const reconciliationTime = clock();
   await store.reconcile(reconciliationTime);

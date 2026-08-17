@@ -430,9 +430,8 @@ describe("CF-J17-S — declared release: fresh content-bound approval → at-mos
 
   // Revocation below is the RATIFIED disposition (revokeGrantSync
   // terminalizes an unused single-use grant's execution record). The sibling
-  // question — what becomes of the ITEM when the grant merely EXPIRES before
-  // execution — is BLOCKED:F-PT-008 and deliberately not asserted anywhere in
-  // this ticket.
+  // F-PT-008 is resolved-ratified: expiry reopens the original item with append-only history.
+  // Its dedicated disposition cases remain outside this revocation ticket.
   it("a revoked grant terminalizes the approved release before any execution", async () => {
     const walk = await makeWalk();
     const clock = makeTestClock("2026-07-31T09:00:00.000Z");

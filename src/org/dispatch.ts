@@ -286,11 +286,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     options.processIdentityStatus ?? processIdentityStatus,
   );
   const freshLocks = await freshLockCount(runtimeHome, tickAt);
-  // Recovery re-spawns (from kill + stale-lock recovery) reuse a stale lock
-  // whose heartbeat freshLockCount cannot yet see, so they must be counted
-  // against org.maxConcurrentTurns explicitly — otherwise a tick that recovers
-  // N turns would still spawn a full capacity of new turns on top of them,
-  // exceeding the WIP limit that bounds concurrency and spend.
+  // Recovery spawns consume capacity even before their heartbeat is visible.
   const recoverySpawns = killed.spawns + staleSpawns;
   const capacity = Math.max(0, appsFile.org.maxConcurrentTurns - freshLocks - recoverySpawns);
   const { due, blocked, retirable, recoveredEventMarks, matchedExplicitRetries } = await computeDueTurns({
@@ -308,6 +304,7 @@ export async function dispatchTick(options: DispatchTickOptions = {}): Promise<D
     explicitScheduleRetries: new Set(options.explicitScheduleRetries ?? []),
     cadenceWindow: invocation?.cadence_window ?? cadenceWindow(tickAt),
     orgId: schedulerOrgId(appsFile.org.name, orgRoot),
+    persistEventMigrations: options.dryRun !== true,
     plannerPublicationBlockedApps: new Set(
       (await listPlannerPublications(runtimeHome))
         .filter((entry) => entry.state !== "published")
@@ -630,6 +627,7 @@ async function computeDueTurns(input: {
   explicitScheduleRetries: Set<string>;
   cadenceWindow: string;
   orgId: string;
+  persistEventMigrations: boolean;
   plannerPublicationBlockedApps: Set<string>;
 }): Promise<{
   due: DueTurn[];
@@ -644,8 +642,7 @@ async function computeDueTurns(input: {
   const recoveredEventMarks = new Set<string>();
   const matchedExplicitRetries = new Set<string>();
   const existingScheduleClaims = await input.dueClaims.list();
-  // One read per tick: per-role consumption marks filter out roles that have
-  // already run for a still-live multi-subscriber event (issue #25).
+  // Per-role marks filter roles that already ran for a live shared event.
   const consumed = new Set(await input.eventStore.readConsumed());
   for (const journal of await listJournals(input.runtimeHome)) {
     if (journal.phase === "blocked_on_gate") {
@@ -663,9 +660,7 @@ async function computeDueTurns(input: {
 
   for (const app of input.appsFile.apps) {
     if (app.status !== "live") {
-      // Named skip, not a silent continue: a non-live app's pending events
-      // stay in the inbox unpolled, and the operator must be able to see why
-      // from `cormidia dispatch` output alone (review finding L-002).
+      // Non-live apps retain pending events and surface a named skip (L-002).
       input.result.skipped.push(`${app.name}: skipped, app not live (status: ${app.status})`);
       continue;
     }
@@ -704,13 +699,12 @@ async function computeDueTurns(input: {
       continue;
     }
 
-    const polled = await input.eventStore.poll(app, input.source);
+    const polled = await input.eventStore.poll(app, input.source, input.persistEventMigrations);
+    for (const key of polled.consumptionMigration.add) consumed.add(key);
     for (const error of polled.errors) {
       input.result.errors.push(`${error.app}/${error.kind}: ${error.code}: ${error.message}`);
     }
-    // B-13 §2 (F-PT-006): exactly one turn per real-world event. A duplicate
-    // delivery correctly fires once — and says so, rather than vanishing: a
-    // producer double-delivering is an operator-visible fact (INV-008).
+    // Duplicate deliveries fire once and remain operator-visible (B-13, INV-008).
     for (const duplicate of polled.collapsed) {
       input.result.skipped.push(
         `duplicate_delivery: ${duplicate.app} inbox file ${duplicate.file} carries the same event content as ` +
@@ -765,7 +759,10 @@ async function computeDueTurns(input: {
             if (consumed.has(consumedKey)) continue;
             let spawnEvidenced: boolean;
             try {
-              spawnEvidenced = await input.evidence.hasSpawnedEvent(event.key, role.name);
+              spawnEvidenced = await input.evidence.hasSpawnedEvent(
+                [event.key, ...(event.migrationAliases ?? [])],
+                role.name,
+              );
             } catch (error) {
               // F-PT-034: unreadable spawn evidence refuses THIS (event, role)
               // admission with the named reason instead of crashing the tick —
@@ -1014,18 +1011,20 @@ function eventTurn(
   });
 }
 
-/** Journals are read by listJournals on every tick and rendered into every
- *  pass brief, and the company-event schema puts no upper bound on payload
- *  size — so an oversized payload is summarized instead of copied. The full
- *  content stays at the event source (the inbox file is never deleted;
- *  GitHub payloads are always small). */
+/** Bound journal payloads; the full source remains in the inbox. */
 const MAX_EVENT_PAYLOAD_BYTES = 16 * 1024;
 
 function journalEventPayload(event: DueEvent): Record<string, unknown> {
   const raw = JSON.stringify(event.payload);
   const bytes = Buffer.byteLength(raw, "utf8");
   if (bytes <= MAX_EVENT_PAYLOAD_BYTES) return event.payload;
+  const id = event.payload["id"];
+  const filename = event.payload["filename"];
   return {
+    ...definedProps({
+      id: typeof id === "string" ? id : undefined,
+      filename: typeof filename === "string" ? filename : undefined,
+    }),
     truncated: true,
     original_bytes: bytes,
     note: `payload exceeded ${MAX_EVENT_PAYLOAD_BYTES} bytes; full content remains at the event source (${event.key})`,

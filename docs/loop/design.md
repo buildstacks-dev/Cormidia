@@ -735,7 +735,8 @@ over Layer 2.
   initialization/auth/transport stall as
   `failed(error_adapter_start_timeout)`; a per-pass wall-clock watchdog
   cancels the owned provider tree and finalizes
-  `timed_out(error_wall_clock_exceeded)` with an unavailable-usage ledger
+  `interrupted` with `interrupted_reason: time_limit` and error code
+  `error_wall_clock_exceeded`, with an unavailable-usage ledger
   row; SIGINT/SIGTERM finalizes `cancelled(error_cancelled)`. The effective
   watchdog is always the smaller of the configured ceiling (default 60 min)
   and the episode's remaining active-time allowance. Adapters checkpoint

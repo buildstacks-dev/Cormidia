@@ -121,9 +121,9 @@ complete source registry and protected structure fields, while reviewed legacy
 ticket dependencies and per-output split status were not preserved in the
 canonical backlog.
 
-### Final corrective 0.4.5 cutover dependency
+### Superseded corrective 0.4.5 cutover dependency
 
-The final migration and cutover dependency is:
+The previous migration and cutover dependency was:
 
 - package: `validation-architect` `0.4.5`;
 - upstream revision: `5949f6b1be3f3b22c47c3cf532e33d529a468291`;
@@ -156,6 +156,57 @@ artifact. No registry request succeeded. No publication, tag, release,
 visibility change, provider turn, or live campaign was authorized or performed.
 Cormidia continues to consume only the upstream core package as an exact
 vendored development dependency.
+
+### Current corrective 0.4.6 cutover dependency
+
+Fresh reader review of the staged cutover found one last loss in the public
+legacy-migration review surface: split family outputs could not carry distinct
+reviewed oracle and risk semantics. The exact current dependency is:
+
+- package: `validation-architect` `0.4.6`;
+- upstream revision: `52a7b26b5b4de934612640c3d47ba7c738596ece`;
+- upstream PR: [validation-architect#52](https://github.com/cormidia/validation-architect/pull/52);
+- artifact: `vendor/validation-architect-0.4.6.tgz`;
+- SHA-256:
+  `1e396fdb7fe2e6ea2e479628e344c6283a5ae7f4cb95a86dfba8601a7cfd66c5`;
+- npm integrity:
+  `sha512-6wRhOH8+80Knr1H7FTYYjAZcpGpG4ZiveCXSv6ddk1eaab11Rd5tiFr0l3CSR1TcTw/lSVEjXtV2pRVOYpcFHA==`;
+- license: `LicenseRef-FSL-1.1-MIT`.
+
+Two independent clean detached builds from the exact human squash produced
+byte-identical 268,051-byte core tarballs with 124 entries. Version 0.4.6 adds
+optional non-empty per-output `oracle` and `risk` review fields, preserves
+those distinct semantics in migrated family outputs, and retains the exact
+legacy value whenever an override is omitted. Empty, whitespace, or malformed
+values refuse. Package method `0.8.0` and the model, policy, compiler, result,
+golden-set, campaign, provider, and Cormidia host-policy version identities are
+unchanged; no Cormidia runtime dependency is introduced.
+
+The accompanying Cormidia preparation also closes the already-ratified
+F-PT-008 production seam: every TTL-sensitive org-aware store construction
+receives the parsed `org.approval_policy` from its validated `AppsFile`.
+An actual `cormidia approvals` detector proves non-default 2-hour grant and
+1-hour pending lifetimes, while a seeded default-only construction proves the
+old decorative-configuration failure is observable. The ratified defaults
+remain approval grants 48 hours, pending approval items 24 hours, and ordinary
+objective grants independently 24 hours.
+
+The same preparation records the owner's 2026-08-16 clarification of the
+already-ratified F-PT-006 content-identity rule. Canonical inbox identity now
+removes both transport `filename` and producer `id` before hashing; every
+other payload field remains identity-bearing. A retry that mints a fresh id
+therefore collapses, while a non-`id` content change remains a distinct event.
+Upgrade handling binds legacy filename marks and pre-clarification
+id-inclusive bare/per-role content marks to the clarified group independent of
+file order, so the correction cannot replay work already consumed. This is a
+Cormidia product correction with its own red-capable B-13 controls; it does not
+change the Validation Architect package contract or the authority-domain split.
+
+Both qualifying builds used only the exact installed dependency closure with
+network access disabled. They made no registry lookup or request. No
+publication, tag, release, visibility change, provider turn, or live campaign
+was authorized or performed. Cormidia continues to consume only the upstream
+core package as an exact vendored development dependency.
 
 The 0.4.2 pin superseded the unpublished 0.3.0 migration bootstrap and the
 provisional 0.4.0 and 0.4.1 artifacts. Version 0.4.2 supplies the reviewed
@@ -226,15 +277,25 @@ host-registry IDs as if they were identical to their checked-model structure
 dispositions. Restoring the root file would violate the cutover; changing host
 policy or inventing duplicate model structures would conflate the two
 authority domains; repairing tests in the final PR would violate its
-`validation-design/`-only boundary. A narrow final-consumer preparation makes
-the legacy controls self-contained and records one total, source-backed
-host-to-model ID crosswalk without changing either authority. Its future human
-squash merge, not #468, #469, or #470, fixes the final `product.revision`.
+`validation-design/`-only boundary. A narrow final-consumer preparation made
+the legacy controls self-contained and recorded one total, source-backed
+host-to-model ID crosswalk without changing either authority. It squash-merged
+as #471 at `7d68ded4813c665ce10379539f741f062dba3572`.
 
-The authority-cutover PR starts from that exact final-consumer preparation
+The reader protocol on that staging exposed the remaining per-output family
+semantic loss. Upstream #52 added the narrow 0.4.6 review surface; this
+preparation pins its exact squash and artifact, reconciles the already-ratified
+F-PT-008 48-hour approval-grant default (pending approvals and objective grants
+remain independently 24 hours), and corrects the simulated provider-family
+interpretation's false owner attribution. It also implements the owner's
+2026-08-16 F-PT-006 identity-field clarification with upgrade-safe legacy
+consumption migration. Its future human squash merge, not
+#471 or any predecessor, fixes the final `product.revision`.
+
+The authority-cutover PR starts from that exact 0.4.6 preparation
 squash revision, uses it as `product.revision`, and changes only
 `validation-design/` authority, projections, migration evidence, and
-design-local maintained instructions. It is the sixth reviewed squash PR in
+design-local maintained instructions. It is the seventh reviewed squash PR in
 the complete bootstrap sequence.
 Its human squash merge is the cutover: complete model-file presence makes the
 deprecated alias execute checked-model closure without legacy fallback. The
@@ -244,9 +305,10 @@ authority.
 
 Rollback of authority is one ordinary Git revert of the authority-cutover
 squash merge; model absence restores every incumbent legacy consumer through
-the transition bridge. Full bootstrap rollback, if separately desired,
-reverts the final-consumer preparation, #470, #469, the transition-consumer
-squash, and then dependency preparation #466.
+the transition bridge. Full bootstrap rollback, if separately desired, first
+reverts the authority cutover and then, newest-first, the 0.4.6 preparation,
+#471, #470, #469, #468, and #466. A predecessor is never reverted while a
+dependent descendant remains.
 No source artifact is rewritten in place by the upstream migration API.
 
 This decision authorizes no RepositoryPort, TurnPort, campaign, live test,

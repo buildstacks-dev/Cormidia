@@ -341,6 +341,11 @@ use** of a multi-use grant appends its own audit row (grant id, action
 hash, timestamp) to `approvals/log.jsonl` — the audit trail stays
 per-action even when the decision was per-scope.
 
+At the approval CLI, dispatch/approved-command reconciliation, and
+turn/standing-role seams, production constructs the store from the already-
+validated `AppsFile.approvalPolicy`; the state home remains storage, never a
+configuration-discovery source, and those paths do not use a default-only store.
+
 **Never scopeable** (always one-by-one, always fresh): self-merge/approve,
 production deploy, writes to human-ratified protocol surfaces, any action
 outside the app's own worktree/repo boundary — and, since the #296 Stage 2
@@ -535,7 +540,8 @@ pre-objective gate.
   rule). A `human-only` class is coverable only through the **§4.1 ceremony**:
   the distinct `grant-critical` verb, exactly one class per invocation, a
   required bounded scope, an optional precondition, and TTL/use caps strictly
-  shorter than the ordinary defaults (24h/20, mirroring A1). An
+  shorter than the ordinary objective-grant defaults (24h/20), independently
+  of A1's 48h approval-grant TTL. An
   `un-grantable` class is **rejected at creation, always**, and a forged
   grant file naming one is additionally refused at use.
 - **The spend ceiling is the backstop** (proposal §7): every debit lands

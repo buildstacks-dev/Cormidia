@@ -3,15 +3,13 @@
 // CF-J06-I — crash mid-resume; TTL expiry before resume is a TYPED outcome
 // (L2; HB-012; case-catalog §1 J-06; contracts/B-09a §3: "Crash between
 // decision and continuation: decision durable, continuation retried by a
-// later tick; the decision is never re-asked" and "Grant TTL (24 h [doc])
+// later tick; the decision is never re-asked" and "Grant TTL (48 h [doc])
 // expiry before resume: typed outcome; never silent execution under an
 // expired grant (INV-003)").
 //
-// ITEM DISPOSITION IS BLOCKED:F-PT-008 (validation-policy.yaml →
-// open_findings): what grant expiry does to the approval ITEM — fresh item,
-// reopen the old one, or an explicit operation — is unratified, so this suite
-// asserts NOTHING about item disposition. Only the typed-outcome and
-// never-usable-authorization clauses are exercised.
+// F-PT-008 is resolved-ratified: expiry reopens the original item with its
+// immutable decision history. The dedicated B-09a suite pins that transition;
+// this suite exercises the typed-outcome and never-usable-authorization clauses.
 //
 // Crash legs: (a) the gh process seam fails between the durable decision
 // write and the label projection (scripted github-double failure); (b) a REAL
@@ -350,12 +348,8 @@ await kp("provider_resumed");
     ).toBeUndefined();
     expect(() => store.consumeGrantSync(grant!.grantId, clock.nowDate())).toThrow(/approval grant .+ is expired/);
 
-    // BLOCKED:F-PT-008 (grant-expiry item disposition, validation-policy.yaml
-    // → open_findings): whether expiry creates a fresh item, reopens the old
-    // one, or requires another explicit operation is UNRATIFIED — the owner
-    // must decide. This suite deliberately encodes no expectation about the
-    // approval item after expiry; the assertions above stop at the ratified
-    // clauses (typed outcome, never-usable authorization). Candidate-finding
-    // material: which component owns re-raising after an expired-grant resume.
+    // F-PT-008's original-item reopen and append-only history are exercised in
+    // the dedicated B-09a disposition suite. These assertions isolate the
+    // typed outcome and never-usable authorization at the expiry boundary.
   });
 });

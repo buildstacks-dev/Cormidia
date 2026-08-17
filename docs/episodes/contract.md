@@ -277,10 +277,12 @@ at all. A non-empty `evidence_gaps` degrades `capture.status`.
 The bar is deliberately narrow so the check cannot cry wolf. Only statuses the
 projector is *guaranteed* to classify count, so a gap always means the
 projector failed rather than that the status has no class yet. `blocked` and
-`timed_out` are excluded: `blocked` is a merit outcome (an approval-gated
-pass — healthy operation), and counting either would pin an approval-gating
-org to `degraded` permanently with gaps no fix could clear. A healthy run
-simply has nothing to classify, and that is not a gap.
+`interrupted` are excluded; legacy `timed_out` records normalize to
+`interrupted` with `interrupted_reason: time_limit`. `blocked` is a merit
+outcome (an approval-gated pass — healthy operation), and counting either
+excluded status would pin an approval-gating org to `degraded` permanently
+with gaps no fix could clear. A healthy run simply has nothing to classify,
+and that is not a gap.
 
 Back-fill is likewise not a fault: re-projecting a run whose receipt predates a
 projector fix legitimately re-derives events already on disk alongside new

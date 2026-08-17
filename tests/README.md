@@ -62,10 +62,16 @@ with the family ID so traceability is greppable in both directions.
    human-ratified/adjusted-ratified and tests assert their exact recorded
    bounds or mechanisms. Items 9–12 remain PROPOSED: tests may collect data,
    but threshold-dependent verdicts stay inconclusive until ratification.
-7. **Blocked findings stay blocked.** F-PT-006 / F-PT-008 cells, the
-   F-PT-017 provider-terminal enum clause, F-PT-018 merge-blocking enforcement,
-   and the B-17-L3 live cell are parked. Do not encode a guess; a spec touching
-   an adjacent seam carries a comment naming the block.
+7. **Blocked findings stay blocked; resolved findings stay current.** F-PT-012…016
+   and the B-17-L3 live cell are parked; F-PT-018 is a bounded known limitation.
+   F-PT-006, F-PT-008, and F-PT-017 are resolved-ratified and implemented.
+   F-PT-006 uses content-derived event identity excluding transport filename and
+   producer id, with no producer atomicity obligation. F-PT-008 is
+   resolved-ratified: grant expiry reopens the original approval item with its
+   append-only decision history intact, using independent 48 h grant / 24 h pending
+   defaults. F-PT-017 uses `interrupted` with a required reason plus legacy
+   `timed_out` projection. Do not encode a guess for the still-parked cells; an
+   adjacent spec names the exact remaining block.
 8. **Tighten-only.** Never weaken an assertion, widen a tolerance, or delete
    a case to make something pass.
 

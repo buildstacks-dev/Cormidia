@@ -9,7 +9,6 @@ import { writeFileAtomic } from "./atomic.js";
 import type { TurnEvent } from "./journal.js";
 import { canonicalJson, sha256 } from "./scheduler/model.js";
 import { definedProps } from "../runtime/optional-properties.js";
-
 type StandingRole = "sre" | "support" | "marketing";
 
 interface StandingRoleArtifact {
@@ -147,6 +146,7 @@ export async function persistStandingRoleOutcome(input: {
   event: TurnEvent;
   providerSummary: string;
   now: Date;
+  approvalStore?: ApprovalStore;
   repo?: string;
   gate?: GateFn;
 }): Promise<StandingRolePersistResult | undefined> {
@@ -166,7 +166,7 @@ export async function persistStandingRoleOutcome(input: {
   const delivery =
     input.role === "sre" && incidentFilingRequired(payload) && input.repo !== undefined && input.gate !== undefined
       ? await queueIncidentFiling({
-          stateHome: input.stateHome,
+          store: input.approvalStore ?? new ApprovalStore(input.stateHome),
           app: input.app,
           repo: input.repo,
           event: input.event,
@@ -669,7 +669,7 @@ const INCIDENT_FILING_DECIDER: ApprovalDecider = {
 };
 
 async function queueIncidentFiling(input: {
-  stateHome: string;
+  store: ApprovalStore;
   app: string;
   repo: string;
   event: TurnEvent;
@@ -695,7 +695,7 @@ async function queueIncidentFiling(input: {
     labels: ["op:incident"],
     idempotency_key: idempotencyKey,
   });
-  const store = new ApprovalStore(input.stateHome);
+  const { store } = input;
   const findFiling = async (): Promise<ApprovalItem | undefined> =>
     (await store.findEquivalent({ app: input.app, role: "sre", rule: INCIDENT_FILING_RULE, action, ticketRef })) ??
     (await store.findEquivalent({

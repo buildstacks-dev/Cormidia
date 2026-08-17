@@ -54,6 +54,7 @@ import { parseInterruptedReason, terminalStopFields, type InterruptedReason } fr
 import { effectiveEpisodeHardCeiling, resolveAppRoles } from "./app-execution-policy.js";
 import { assertActionableAppRepository } from "./app-repository.js";
 import { executeApprovedCommands, type ApprovedCommandResult } from "./approval-command.js";
+import { approvalStoreForApps } from "./approval-store-factory.js";
 import { ApprovalStore, approvedCommand, type ApprovalItem } from "./approvals.js";
 import { runtimePolicyForApp, type AppEntry, type AppsFile } from "./apps.js";
 import { isBudgetBlocking, raiseTurnBudgetEscalation, rollupBudgets } from "./budget.js";
@@ -196,7 +197,7 @@ export async function runDispatchedTurn(options: RunDispatchedTurnOptions): Prom
   const runtimeHome = resolve(
     options.runtimeHome ?? process.env.CORMIDIA_STATE_HOME ?? join(homedir(), ".cormidia", options.appsFile.org.name),
   );
-  const store = new ApprovalStore(runtimeHome);
+  const store = approvalStoreForApps(runtimeHome, options.appsFile, { now: clock });
   const actorEvents: TurnEvent[] = [];
   const turnLock = await ensureTurnLock(runtimeHome, options.app.name, options.role.name, options.turnId, clock());
   const heartbeat = setInterval(() => {
@@ -1058,12 +1059,9 @@ async function runProtocolPipelineTurn(
     return runM6PipelineTurn({ ...options, pipelineName: "learning-review", roles, pipeline });
   }
 
-  // Record the wall-clock kill cap for this running pipeline turn so the
-  // dispatcher's killHungTurns honors per-pass `wall_clock_minutes` instead of
-  // the 60-min default. The org journal carries one whole-turn timer
-  // (passStartedAt), so we cap against the LONGEST configured pass — a hung
-  // turn is still killed, but no legitimately long pass is killed early. No
-  // pass declares one → field stays absent → default applies.
+  // Record the longest configured wall-clock cap so killHungTurns does not
+  // kill a legitimate pass early. The whole-turn journal has one timer;
+  // omission preserves the default.
   const capMinutes = pipeline.passes.reduce(
     (max, pass) => (pass.wallClockMinutes !== undefined ? Math.max(max, pass.wallClockMinutes) : max),
     0,
@@ -1077,11 +1075,13 @@ async function runProtocolPipelineTurn(
   }
 
   const selectedPasses = selectPasses(pipeline, { tier: "standard" });
-  const now = options.now?.() ?? new Date();
+  const clock = options.now ?? (() => new Date());
+  const now = clock();
   const episodeId = genericEfficiencyEpisodeId(options.app.name, options.journal, options.turnId);
   const trigger = genericTriggerFacts(options.journal, options.turnId);
   const persistedIntent = await readPersistedEpisodeIntent(options.runtimeHome, episodeId);
-  const approvalRows = await new ApprovalStore(options.runtimeHome).listPending();
+  const store = approvalStoreForApps(options.runtimeHome, options.appsFile, { now: clock });
+  const approvalRows = await store.listPending();
   const allBudgetRows = await rollupBudgets(options.runtimeHome, options.appsFile, now);
   const appBudget = allBudgetRows.find((row) => row.app === options.app.name);
   if (appBudget === undefined) {
@@ -1161,8 +1161,6 @@ async function runProtocolPipelineTurn(
           },
         }
       : governedFactsFromPersistedIntent(persistedIntent);
-  const store = new ApprovalStore(options.runtimeHome);
-  const clock = options.now ?? (() => new Date());
   const gateForRole = (role: RoleConfig, workdir?: string): TurnHooks["gate"] =>
     composeGate(defaultGate, store, {
       app: options.app.name,
@@ -1294,6 +1292,7 @@ async function runProtocolPipelineTurn(
       event: options.journal.event,
       providerSummary: result.passes.map((record) => record.result.summary).join("\n"),
       now,
+      approvalStore: store,
       repo: options.app.repo,
       gate: options.hooks.gate,
     });

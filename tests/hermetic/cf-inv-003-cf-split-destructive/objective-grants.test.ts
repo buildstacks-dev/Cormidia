@@ -57,7 +57,7 @@ describe("CF-INV-003 — ObjectiveGrant creation boundaries (L2)", () => {
     };
   }
 
-  it("creates an ordinary grant over grantable classes, with the A1-mirror defaults", async () => {
+  it("creates an ordinary grant with independent objective-grant defaults (24h/20 uses)", async () => {
     const { store, clock } = await makeStore();
     const grant = store.createSync({ ...baseInput(clock), classes: ["secret-read", "outbound-network"] });
     expect(grant.grantId).toMatch(/^og-/);

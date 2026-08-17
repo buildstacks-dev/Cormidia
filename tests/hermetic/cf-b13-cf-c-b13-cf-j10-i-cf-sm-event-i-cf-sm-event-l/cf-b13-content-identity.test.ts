@@ -8,7 +8,7 @@
 // The three clauses this suite pins, and the seeded control for each:
 //   (1) two deliveries of the same content fire ONCE      — control: a
 //       filename-keyed identity (the pre-ruling behavior) fires TWICE.
-//   (2) two payloads that differ are two events           — control: keying on
+//   (2) identity-bearing content differences are events   — control: keying on
 //       the producer's own `id` field collapses them into one, losing an event.
 //   (3) a legacy filename mark still suppresses its file  — control: dropping
 //       the legacy check re-fires an already-consumed event after upgrade.
@@ -20,13 +20,13 @@
 // none of them derives its expected value from the shipped implementation.
 
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { dispatchTick } from "../../../src/org/dispatch.js";
-import { EventStore, inboxEventKey, type GitHubEventSource } from "../../../src/org/events.js";
-import { sha256, stableJson } from "../../../src/org/lifecycle.js";
+import { EventStore, inboxEventKey, roleConsumedKey, type GitHubEventSource } from "../../../src/org/events.js";
 import { readLock, releaseLock } from "../../../src/org/locks.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
+import "./cf-b13-v2-identity-migration.js";
 
 const APP = "event-app";
 const NO_GITHUB: GitHubEventSource = {
@@ -177,9 +177,9 @@ describe("CF-B13 — content-derived event identity (HB-P3, F-PT-006 ratified 20
     expect(distinctEvents(payloads, inboxEventKey)).toBe(1);
   });
 
-  it("clause 2: two payloads that differ are two events, so same-identity-two-payloads cannot arise", async () => {
+  it("clause 2: identity-bearing content differences are separate events", async () => {
     const home = await makeWorld();
-    // Same producer-supplied `id`, genuinely different content: under the
+    // Same producer-supplied `id`, different identity-bearing content: under the
     // ratified rule these are two events and BOTH must be delivered.
     await drop(home, "alert-a.json", `${JSON.stringify(validEvent())}\n`);
     await drop(home, "alert-b.json", `${JSON.stringify(validEvent({ summary: "Checkout now returns HTTP 500" }))}\n`);
@@ -226,6 +226,51 @@ describe("CF-B13 — content-derived event identity (HB-P3, F-PT-006 ratified 20
     expect(ignoringBothMarks.events).toHaveLength(1); // detector fires: the event comes back
   });
 
+  it("canonical-only consumed state is a true no-op across repeated polls", async () => {
+    const home = await makeWorld();
+    const payload = validEvent();
+    const key = inboxEventKey(payload);
+    await drop(home, "alert-a.json", `${JSON.stringify(payload)}\n`);
+    const store = new EventStore(home.stateHome);
+    await store.markConsumed([key]);
+    const consumedPath = join(home.stateHome, "state", "events", "consumed.json");
+    const before = await readFile(consumedPath, "utf8");
+
+    const first = await store.poll(appEntry, NO_GITHUB);
+    const second = await store.poll(appEntry, NO_GITHUB);
+    expect([first.consumptionMigration, second.consumptionMigration]).toEqual([
+      { add: [], remove: [] },
+      { add: [], remove: [] },
+    ]);
+    expect(await readFile(consumedPath, "utf8")).toBe(before);
+  });
+
+  it("dry-run computes legacy per-role closure without rewriting consumed bytes, then real dispatch migrates", async () => {
+    const home = await makeWorld();
+    const payload = validEvent();
+    await drop(home, "alert-a.json", `${JSON.stringify(payload)}\n`);
+    const store = new EventStore(home.stateHome);
+    const oldMark = roleConsumedKey("alert-a.json", "support");
+    await store.markConsumed([oldMark]);
+    const consumedPath = join(home.stateHome, "state", "events", "consumed.json");
+    const before = await readFile(consumedPath, "utf8");
+
+    const preview = await dispatchTick({
+      orgRoot: home.orgHome,
+      runtimeHome: home.stateHome,
+      eventSource: NO_GITHUB,
+      now: () => new Date("2026-08-12T09:00:00.000Z"),
+      spawn: async () => undefined,
+      dryRun: true,
+    });
+    expect(preview.spawned).toEqual([]);
+    expect(await readFile(consumedPath, "utf8")).toBe(before);
+
+    const reconciled = await tick(home, "2026-08-12T09:05:00.000Z");
+    expect(reconciled.spawned).toEqual([]);
+    expect(await store.readConsumed()).toEqual([inboxEventKey(payload)]);
+  });
+
   it("clause 4: a partial file is retained, never dropped, and fires exactly once when the complete bytes land", async () => {
     const home = await makeWorld();
     const complete = `${JSON.stringify(validEvent())}\n`;
@@ -247,16 +292,37 @@ describe("CF-B13 — content-derived event identity (HB-P3, F-PT-006 ratified 20
     expect(again.spawned).toEqual([]);
   });
 
+  it("an oversized event keeps validated producer id and selected transport filename in its bounded envelope", async () => {
+    const home = await makeWorld();
+    const payload = validEvent({ id: "feedback-oversized", excerpt: "x".repeat(20_000) });
+    await drop(home, "oversized.json", `${JSON.stringify(payload)}\n`);
+
+    const result = await dispatchTick({
+      orgRoot: home.orgHome,
+      runtimeHome: home.stateHome,
+      eventSource: NO_GITHUB,
+      now: () => new Date("2026-08-12T10:30:00.000Z"),
+      spawn: async () => undefined,
+      dryRun: true,
+    });
+    expect(result.spawned).toHaveLength(1);
+    expect(result.spawned[0]?.event?.payload).toMatchObject({
+      truncated: true,
+      id: "feedback-oversized",
+      filename: "oversized.json",
+    });
+    expect(result.spawned[0]?.event?.payload).not.toHaveProperty("excerpt");
+  });
+
   it("the identity function itself: canonical over key order and whitespace, and blind to the transport filename", () => {
     const a = validEvent();
     const b = { summary: "Customer cannot complete checkout", ...validEvent() };
     expect(inboxEventKey(a)).toBe(inboxEventKey(b));
     // `filename` is transport, added by readInbox — it must not enter identity.
     expect(inboxEventKey({ ...a, filename: "alert-a.json" })).toBe(inboxEventKey(a));
-    // Content genuinely differing must differ.
+    // Identity-bearing content genuinely differing must differ.
     expect(inboxEventKey(validEvent({ severity: "low" }))).not.toBe(inboxEventKey(a));
-    // The shape is the documented one, computed independently of the module.
-    expect(inboxEventKey(a)).toBe(`event:${sha256(stableJson(a))}`);
+    expect(inboxEventKey({ ...a, id: "fresh-retry-id" })).toBe(inboxEventKey(a));
     // A per-role mark can never be impersonated by the key (the "::" reservation).
     expect(inboxEventKey(a)).not.toContain("::");
   });

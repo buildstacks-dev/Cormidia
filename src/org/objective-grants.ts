@@ -88,8 +88,8 @@ export interface ObjectiveGrant {
   revokedAt?: string;
 }
 
-/** Ordinary defaults mirror the A1 grant defaults (24h TTL, 20 uses). The
- *  §4.1 ceremony requires BOTH strictly shorter than these. */
+/** Objective-grant defaults are independently 24h / 20 uses, not A1's 48h approval-grant TTL.
+ *  The §4.1 ceremony requires BOTH strictly shorter than these. */
 export const OBJECTIVE_GRANT_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 export const OBJECTIVE_GRANT_DEFAULT_USE_CAP = 20;
 const OBJECTIVE_CRITICAL_DEFAULT_TTL_MS = 12 * 60 * 60 * 1000;
@@ -288,11 +288,11 @@ export class ObjectiveGrantStore {
     if (!Number.isInteger(useCap) || useCap <= 0) throw new Error("objective grant useCap must be a positive integer");
     if (ceremony && ttlMs >= OBJECTIVE_GRANT_DEFAULT_TTL_MS) {
       throw new Error(
-        "§4.1 requires a TTL strictly shorter than the ordinary grant default — stakes scale the blast radius of a mistake",
+        "§4.1 requires a TTL strictly shorter than the ordinary objective-grant default (24h) — stakes scale the blast radius of a mistake",
       );
     }
     if (ceremony && useCap >= OBJECTIVE_GRANT_DEFAULT_USE_CAP) {
-      throw new Error("§4.1 requires a use cap strictly shorter than the ordinary grant default");
+      throw new Error("§4.1 requires a use cap strictly shorter than the ordinary objective-grant default (20 uses)");
     }
 
     const grant: ObjectiveGrant = {

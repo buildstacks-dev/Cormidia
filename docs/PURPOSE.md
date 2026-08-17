@@ -1,6 +1,6 @@
 # PURPOSE — Cormidia
 
-*v2.19 — 2026-08-16. Human-ratified decision log. Standing decisions below
+*v2.20 — 2026-08-16. Human-ratified decision log. Standing decisions below
 are current law. Execution details belong in the GitHub issue tracker and
 the subsystem design.md files. Product status and known limitations live in
 README → Status.*
@@ -166,8 +166,10 @@ the validation layers defined by the checked graph under
   merges are loop-owned squash merges after approval/review/gates.
 
 - **Resolved operating defaults.** Org WIP defaults to `max_concurrent_turns:
-  2`; approval grants expire after 24 h; dispatch ticks every 5 minutes; loop
-  review/fix cycles cap at 3. Support and Marketing are disabled per app until
+  2`; approval grants expire after 48 h; undecided approval items expire
+  independently after 24 h; ordinary objective grants separately default to
+  24 h; dispatch ticks every 5 minutes; loop review/fix cycles cap at 3.
+  Support and Marketing are disabled per app until
   that app has real feedback or adoption channels. Route depth and time budgets
   come from `docs/episodes/contract.md`. High-tier tickets stay autonomous after
   the Builder's contract pass in v1.

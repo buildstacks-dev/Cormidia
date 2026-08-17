@@ -1,21 +1,17 @@
 // Traceability: CF-REVIEW-PROVIDER · HB-133 · case-catalog.md §10.2; docs/loop/design.md "Review identity"; ratification-package.md §12.3 item 1 (provider-FAMILY unit pending real-human ratification).
-
 // CF-REVIEW-PROVIDER (L1) — the disjointness guard's swappable family unit.
 //
-// HB-133's provenance caveat: the provider-FAMILY interpretation of "different
-// provider" is a [simulated] AI-seat ruling pending real-human ratification,
-// so the family resolution MUST be an explicit, swappable input — a named
-// function parameter — not an inlined assumption. This spec pins exactly that:
+// HB-133's provider-FAMILY reading is a [simulated], provisional AI-seat interpretation
+// pending human ratification, so family resolution remains an explicit, swappable input:
 // the guard takes `resolveProviderFamily` by name, production passes
 // `configuredProviderFamily` (the same unit the L-ACC campaign preflight
 // reuses), and swapping the resolver swaps the disjointness unit without
 // touching the guard's refusal semantics. If the human later overturns the
 // unit (vendor product, account, …), the swap point is proven here.
 //
-// Fail-closed legs (catalog §10.2 leg c at the unit seam): a missing
-// assignment, a throwing resolver, and a resolver returning a non-family value
+// Fail-closed legs (catalog §10.2 leg c): a missing assignment, a throwing
+// resolver, and a resolver returning a non-family value
 // each produce the typed unresolvable refusal — never a silent pass.
-
 import { describe, expect, it } from "vitest";
 import {
   assertReviewProviderFamiliesDisjoint,
@@ -24,6 +20,7 @@ import {
 } from "../../../src/loop/review-provider.js";
 import { configuredProviderFamily, validateTurnAssignment } from "../../../src/runtime/assignment.js";
 import type { TurnAssignment } from "../../../src/runtime/types.js";
+import { registerReviewProviderProvenanceTests } from "./review-provider-provenance.js";
 
 function assignment(harness: TurnAssignment["harness"], model: string): TurnAssignment {
   return validateTurnAssignment({ harness, model, effort: "high" });
@@ -50,6 +47,8 @@ describe("CF-REVIEW-PROVIDER — swappable family-resolver unit (L1, HB-133)", (
     );
     expect(refusal.code).toBe("error_review_provider_family_collapse");
     expect(refusal.message).toContain("anthropic");
+    expect(refusal.message).toContain("simulated, provisional interpretation pending human ratification");
+    expect(refusal.message).not.toContain("owner ruling");
   });
 
   it("refuses the pi/Anthropic-style correlation: distinct adapters, one upstream family", () => {
@@ -124,3 +123,4 @@ describe("CF-REVIEW-PROVIDER — swappable family-resolver unit (L1, HB-133)", (
     expect(families).toEqual({ builderFamily: "claude-opus-4-8", reviewerFamily: "claude-sonnet-5" });
   });
 });
+registerReviewProviderProvenanceTests();

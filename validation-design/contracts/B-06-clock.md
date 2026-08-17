@@ -31,7 +31,7 @@ Status: DRAFT (Phase 4). Defends INV-013/014/015 branches, T-5/T-9. All time-dri
   so a repeated firing within one window is a no-op with a durable reason (INV-014).
 
 ## 5. Timing numbers (ratified where cited)
-- **Configured** tick cadence ~5 min (a setting, not guaranteed firing — B-05) `[doc]`; grant TTL 24 h `[doc]`; `--force` stale-heartbeat
+- **Configured** tick cadence ~5 min (a setting, not guaranteed firing — B-05) `[doc]`; grant TTL 48 h `[doc]`; `--force` stale-heartbeat
   threshold 10 min `[doc]`; runs/ retention 30 days `[doc]`; episodes retention 180 days
   `[doc]`; report default window 90 UTC days `[doc]`.
 - Active-turn heartbeat cadence: **30 s** `[doc]` (ratified, not proposed).

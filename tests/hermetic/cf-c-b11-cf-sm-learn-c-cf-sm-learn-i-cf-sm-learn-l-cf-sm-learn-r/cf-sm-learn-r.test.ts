@@ -10,9 +10,9 @@
 // publish_committed event — and creates no manifest (proposals never cut
 // versions).
 //
-// BLOCKED:F-PT-006 — the company-event INBOX producer visibility/duplicate-
-// identity protocol is an open finding (B-13); nothing here asserts inbox
-// semantics. The dedup asserted below is the learning-events JSONL seam,
+// F-PT-006 is resolved-ratified: company-event identity is content-derived and
+// producers owe no atomic rename. Nothing here asserts that B-13 seam. The dedup
+// asserted below is the distinct learning-events JSONL seam,
 // whose deterministic-id contract is in-repo product truth
 // (src/org/learning/events.ts).
 

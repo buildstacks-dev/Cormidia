@@ -14,11 +14,9 @@
 // claimActorRetryGrantSync all accept the instant, so TTL expiry is scripted,
 // never slept for.
 //
-// BLOCKED:F-PT-008 (grant-expiry ITEM disposition) — expiry tests below
-// assert ONLY the grant-level typed refusal. Whether expiry creates a fresh
-// item, reopens the old one, or requires another explicit operation is an
-// open product-truth finding (validation-policy.yaml open_findings); no
-// assertion here encodes any of those outcomes.
+// F-PT-008 is resolved-ratified: grant expiry reopens the original item.
+// Expiry tests below exercise the grant-level typed refusal; the dedicated
+// B-09a suite pins the append-only original-item disposition.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { readFile, writeFile } from "node:fs/promises";
@@ -160,7 +158,7 @@ describe("CF-SM-GRANT-L — once-grant: minted → consumed, bound to actor/app/
       createdAt: minted,
     });
     expect(grant.scope).toBeUndefined();
-    // Ratified default TTL: exactly 24 hours from decision time.
+    // Ratified default TTL: exactly 48 hours from decision time.
     expect(new Date(grant.expiresAt).getTime() - new Date(grant.createdAt).getTime()).toBe(GRANT_TTL_MS);
   });
 
@@ -279,8 +277,8 @@ describe("CF-SM-GRANT-I — refusals: cap+1, expiry, revocation, scope-widening,
     rig.clock.advance(1);
     expect(matchOnce(rig)).toBeUndefined(); // at expiresAt exactly: expired (fail closed)
     expect(() => rig.store.consumeGrantSync(grant.grantId, rig.clock.nowDate())).toThrow(/is expired/);
-    // BLOCKED:F-PT-008 — deliberately NO assertion about what expiry does to
-    // the approval item (fresh item / reopen / explicit op): unratified.
+    // F-PT-008's original-item reopen is exercised in the dedicated B-09a
+    // disposition suite; this case isolates the grant-level expiry boundary.
   });
 
   it("refuses post-revocation: revocation takes effect before any later use, with the revocation and prior uses intact in audit (B-09b §3)", async () => {

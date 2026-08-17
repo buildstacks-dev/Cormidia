@@ -168,10 +168,10 @@ export async function makeResetWorld(options: MakeResetWorldOptions = {}): Promi
   // a decided one for the sibling (must survive bit-identical). No PENDING
   // approvals here — those are blocker material (cf-j14-r seeds them).
   //
-  // BLOCKED: F-PT-008 (grant-expiry item disposition) is a parked open
-  // finding — this world treats the grant file ONLY as app-attributable
-  // state for the INV-010 scope oracle and deliberately encodes nothing
-  // about how expiring/expired grants are disposed of.
+  // F-PT-008 is resolved-ratified: expiry reopens the original item with append-only history.
+  // This world treats the grant file ONLY as app-attributable state for the
+  // INV-010 scope oracle; its dedicated expiry disposition cases remain
+  // outside this fixture.
   await mkdir(join(stateHome, "approvals", "decided"), { recursive: true });
   await mkdir(join(stateHome, "approvals", "grants"), { recursive: true });
   await writeFile(

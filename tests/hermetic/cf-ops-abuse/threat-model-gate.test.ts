@@ -28,9 +28,18 @@ describe("HB-072/HB-073 human threat-model gate", () => {
     await writeFile(fixture.artifact, "changed after review\n", "utf8");
     await expect(requireHumanThreatModel(fixture.status)).rejects.toThrow(/digest does not match/);
   });
+
+  it("negative control: the author cannot approve their own threat model", async () => {
+    const fixture = await reviewedFixture({ reviewer: "fixture-author" });
+    await expect(requireHumanThreatModel(fixture.status)).rejects.toThrow(/independent human reviewer/);
+  });
 });
 
-async function reviewedFixture(): Promise<{ status: string; artifact: string }> {
+async function reviewedFixture({
+  reviewer = "fixture-reviewer",
+}: {
+  reviewer?: string;
+} = {}): Promise<{ status: string; artifact: string }> {
   const root = await mkdtemp(join(tmpdir(), "threat-gate-"));
   roots.push(root);
   const artifact = join(root, "threat-model.md");
@@ -50,7 +59,7 @@ async function reviewedFixture(): Promise<{ status: string; artifact: string }> 
       artifact_sha256: digest,
       author: "fixture-author",
       authored_at: "2026-07-01T00:00:00.000Z",
-      reviewer: "fixture-reviewer",
+      reviewer,
       reviewed_at: "2026-07-02T00:00:00.000Z",
       covered_surfaces: [...THREAT_SURFACES],
       abuse_case_ids: ["CF-OPS-ABUSE-FIXTURE"],

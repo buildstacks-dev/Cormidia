@@ -1254,3 +1254,124 @@ Required V1 metrics:
   `InterventionRecord` chain).
 
 Agent self-reports are excluded from recurrence, efficacy, and canary decisions.
+
+## 19. Informative Extraction Schema: Insight Derivation and Detector Registration
+
+**Status:** informative extraction clarification, added 2026-08-19. These
+shapes guide the standalone-library contract revision; they do not add a v0.8
+Cormidia durable record until that contract is ratified and implemented.
+
+The generic library needs a record between minimized observations and an inert
+candidate so deterministic and qualitative analysis cannot collapse fact,
+interpretation, and recommendation into one sentence.
+
+```typescript
+interface DetectorRegistration {
+  id: string;
+  version: string;
+  maturity: "experimental" | "calibrated" | "stable" | "deprecated";
+  configuration_digest: string;
+  required_capabilities: string[];
+  accepted_observation_kinds: string[];
+  minimum_trust: "untrusted" | "advisory" | "observed" | "verified";
+  completeness_rule: string;
+  episode_class_filter: string;
+  normalization_policy_digest: string;
+  scope_policy_digest: string;
+  lens_ref: string | null;
+  output: "evidence_health" | "insight_derivation";
+  positive_fixture_digests: string[];
+  negative_fixture_digests: string[];
+  false_positive_policy_digest: string;
+  supersedes: string | null;
+}
+
+interface DetectorPackManifest {
+  schema_version: 1;
+  pack_id: string;
+  version: string;
+  kind: "core_structural" | "reference_operational" | "host";
+  detectors: Array<{
+    id: string;
+    version: string;
+    registration_digest: string;
+  }>;
+  manifest_digest: string;
+}
+
+interface InsightDerivation {
+  schema_version: 1;
+  derivation_id: string;
+  scope: unknown;                    // parsed by the registered ScopePolicy
+  learning_class: string;            // standard or host-namespaced class
+  lens_ref: string | null;           // purpose profile; distinct from scope
+  detector: {
+    id: string;
+    version: string;
+    configuration_digest: string;
+    pack_id: string | null;
+    pack_version: string | null;
+    pack_manifest_digest: string | null;
+  };
+  observation: {
+    summary: string;
+    evidence_ids: string[];
+    completeness: "complete" | "partial" | "unknown";
+  };
+  interpretation: {
+    summary: string;
+    confidence: "high" | "medium" | "low" | "unknown";
+  } | null;
+  impact_hypothesis: string | null;
+  contradictory_evidence_ids: string[];
+  missing_evidence: string[];
+  candidate_intervention: {
+    summary: string;
+    proposed_destination_kind: string;
+    applicability: string;
+    exclusions: string[];
+  } | null;
+  validation: {
+    method: string;
+    comparable_population: string;
+    success_criterion: string;
+    guardrails: string[];
+  } | null;
+  derivation_digest: string;
+}
+```
+
+The eventual public contract may rename or split these shapes, but it preserves
+the following invariants:
+
+1. Direct observation, interpretation, impact hypothesis, intervention, and
+   validation are separately represented.
+2. Detector version, exact configuration, lens, scope policy, evidence, and
+   missingness are bound into derivation identity.
+3. A derivation is advisory evidence for `propose`; it is not active context,
+   a review, an authorization, or an efficacy result.
+4. Evidence-health output is reported separately and cannot silently become a
+   behavioral candidate.
+5. Deterministic detection does not make a causal interpretation deterministic.
+6. Raw period deltas are descriptive. Only a declared comparable experiment
+   with exposure lineage can produce an efficacy verdict.
+7. Human/collaboration learning excludes automated, delegated, reviewer,
+   guardian, benchmark, and replay traffic unless the registered question is
+   explicitly about those actors.
+8. Low-entropy private recurrence keys use tenant-scoped keyed digests and are
+   never exposed as portable public hashes.
+9. A detector pack is an immutable manifest of exact detector registrations;
+   installing a pack grants no trust, publication, or active-context authority.
+10. Missing required observation capabilities produce `not_applicable` or
+    incomplete evidence, never a pass or a zero-valued measurement.
+11. Rule maturity and calibration population are explicit. An experimental
+    rule cannot be presented as a calibrated default merely because its output
+    parsed successfully.
+12. Threshold, normalization, fixture, or false-positive-policy changes create
+    a new detector version. Historical results remain bound to the old version.
+
+Reference detector families and ownership boundaries are described in design
+§16. The core structural, reference operational, and host pack split is a
+distribution convention rather than an authority hierarchy. Hosts can register
+different detectors and purpose lenses without changing the kernel or adopting
+Cormidia's role model.

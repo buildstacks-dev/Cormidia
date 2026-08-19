@@ -929,3 +929,172 @@ EventSink, EpisodeProjector, Distiller, Reviewer, Publisher, Store, Resolver,
 ExperimentRunner, Metrics. Until then, the implementation stays inside Cormidia
 so it can reuse runlogs, approvals, scorecards, app registries, GitHub
 operations, and quality gates directly.
+
+## 16. Standalone-Library Detector and Insight-Derivation Appendix
+
+**Status:** informative extraction clarification, added 2026-08-19. This
+appendix does not add a Cormidia runtime event, authorize a provider-specific
+dependency, or change the v0.8 activation path. It records the reusable
+semantic boundary that a standalone governed-learning library must preserve.
+
+### 16.1 A detector is not yet a learning
+
+Many useful operational patterns are well known and can be detected without a
+model: repeated polling, repeated identical tool calls, context compaction,
+tool-call concentration, retry clusters, abandoned work, coordination fan-out,
+and incomplete evidence coverage. A detector may establish that one of those
+patterns occurred. It does not, by itself, establish why it occurred, whether
+it was harmful, or which durable change would help.
+
+The portable derivation chain keeps these fields distinct:
+
+```text
+measured observation
+-> interpretation + explicit uncertainty
+-> impact hypothesis
+-> candidate intervention
+-> validation method
+```
+
+Every step retains evidence references and contradictory or missing evidence.
+The observation may be deterministic while the interpretation remains
+uncertain. A candidate intervention is inert and still follows ordinary
+generation, independent review, scope, destination, authorization, exposure,
+and validation rules.
+
+Evidence-health findings are a separate output. A missing rollout, corrupt
+record, unsupported format, or incomplete sample changes what the report may
+claim; it is not automatically a lesson about agent behavior. Policy may later
+route recurring evidence-health failures into a ticket or gate candidate, but
+the analyzer must not silently put them in the same denominator as behavioral
+learning candidates.
+
+### 16.2 Registered detector semantics
+
+A portable detector is registered by the host with immutable, content-digested
+semantics rather than becoming a universal hard-coded threshold. Registration
+binds at least:
+
+- detector id and version;
+- exact configuration and threshold digest;
+- accepted observation kinds and minimum trust/completeness;
+- applicable episode classes and scope/lens constraints;
+- normalization and comparability policy;
+- whether the output is an evidence-health diagnostic or an insight
+  derivation;
+- privacy treatment for signatures and any transient content;
+- the validation criterion proposed for a resulting intervention.
+
+Absolute thresholds such as one million cumulative tokens or twenty-five tool
+calls per turn are detector configuration, not protocol truth. Where possible,
+reports normalize by completed outcome, episode class, duration, model/context
+window, and comparable baseline. Detector revisions produce new evidence; they
+never relabel old derivations silently.
+
+Low-entropy or private tool inputs never enter an ordinary unsalted digest.
+Private recurrence uses a tenant-scoped keyed locator, while shareable reports
+use a non-reversible structural label such as `wait` or `status_poll`.
+
+### 16.3 Curated rule catalog and detector packs
+
+The standalone library may ship a growing curated catalog of generic agent
+detectors. This is a productized convenience layer over registered detector
+semantics, not a closed list embedded in the kernel and not an authority path.
+The useful analogy is a security product that combines known signatures,
+behavioral rules, anomaly detection, and later semantic investigation.
+
+The catalog has four layers:
+
+1. **Structural invariants and signatures.** High-precision conditions such as
+   missing terminal state, conflicting lifecycle facts, invalid evidence
+   coverage, or structurally identical productive work being repeated.
+2. **Behavioral heuristics.** Configured rules for patterns such as repeated
+   polling, retry loops, context-compaction churn, tool concentration, patch
+   oscillation, or orphaned delegation.
+3. **Baseline anomaly detectors.** Comparable-population deviations in cost,
+   duration, tool use, corrections, context pressure, or human intervention.
+4. **Qualitative analysis.** Human- or model-mediated interpretation of why a
+   detected pattern matters under a registered purpose lens and what change is
+   worth testing.
+
+Rules operate on a normalized observation vocabulary. Provider adapters map
+their native records into that vocabulary; a core rule never reads Codex,
+Claude, Cursor, Cormidia, customer-service, or documentation native payloads.
+A rule declares required observation capabilities, and absence is
+`not_applicable` or incomplete evidence rather than a pass.
+
+Catalog distribution is layered:
+
+- a small **core structural pack** contains nearly universal, high-confidence
+  invariants;
+- an opt-in **reference operational pack** contains reusable, configurable
+  agent heuristics and anomaly detectors;
+- **host packs** contain application-, role-, or domain-specific rules and
+  purpose lenses.
+
+Every rule and pack has a stable id, semantic version, canonical manifest
+digest, changelog, positive fixtures, negative controls, applicability, and
+supersession/deprecation lineage. Rule maturity is explicit:
+`experimental | calibrated | stable | deprecated`. Promotion requires retained
+calibration evidence and an acceptable false-positive bound for the declared
+population. Updating a threshold creates a new rule version and new
+derivations; it never changes historical detector results in place.
+
+Rule-pack installation only makes detectors available. It does not activate a
+learning, widen evidence trust, authorize a destination, or claim improvement.
+Hosts select packs and configurations through their immutable registry; each
+derivation records the exact rule and pack identities that produced it.
+
+### 16.4 Reference pattern families
+
+These are useful reference detectors, not an exhaustive protocol enum and not
+Codex-specific behavior:
+
+| Pattern | Directly observable evidence | Permitted initial claim | Typical learning altitude |
+| --- | --- | --- | --- |
+| Repeated wait or status polling | Repeated structurally equivalent wait/status operations | Polling recurred under the registered detector | Mechanical observation; system/meta candidate |
+| Context pressure | Context-window load, compaction events, repeated-context counters | The episode crossed the registered context-pressure condition | System/meta |
+| Tool-call concentration | Tool calls per turn/outcome, repeated signatures, duration | Tool activity was concentrated; inefficiency still requires corroboration | Mechanical observation; tooling/workflow candidate |
+| Coordination fan-out | Parent/child lineage, handoffs, duplicate work, child outcomes | Descendant work contributed to the parent episode | Coordination and role/craft |
+| Human redirection | Attributed corrections reviewed in their episode context | A redirection occurred; durable preference remains a hypothesis | Human-agent interaction |
+| Evidence coverage | Missing, unreadable, partial, unsupported, or corrupt sources | Coverage is incomplete and comparison claims are limited | Evidence health |
+
+Counts alone do not justify a human-preference claim. Automated, delegated,
+reviewer, replay, and benchmark traffic is classified separately before making
+claims about the human. Qualitative prompting or collaboration learning
+requires review of the cited turns or an explicitly consented semantic
+workflow; aggregate token, tool, polling, and correction counts cannot stand in
+for that review.
+
+### 16.5 Heterogeneous hosts, scopes, and purpose lenses
+
+Detector implementation is adapter- or workflow-owned. The kernel remains
+host-neutral:
+
+- a personal coding host may scope by user/project and explicitly widen a
+  cross-project craft lens;
+- a customer-service application may interpret evidence through a Support
+  purpose profile;
+- a documentation application may interpret the same evidence through a
+  Documentation purpose profile and propose a different destination;
+- Cormidia maps its org/app/role/app-role model through its adapter.
+
+Scope answers **where the learning applies**. A purpose lens answers **what
+good means for this agent or application**. A learning class answers **what
+kind of behavior is being considered**. A destination answers **what may
+change**. None of those dimensions substitutes for another, and unknown scope
+segments never inherit across an isolation boundary.
+
+### 16.6 Ownership after extraction
+
+The standalone kernel owns provenance, registrations, canonical derivation and
+candidate records, lifecycle invariants, digests, independent review,
+authorization, exposure, and experiment lineage. Optional workflow helpers may
+ship reference deterministic detectors and provider-neutral semantic judgment
+flows. Provider adapters own native state/rollout parsing. Applications own
+HTML reports, trace viewers, role objectives, schedules, prompts, and concrete
+destinations.
+
+A provider-specific analytics tool may be a reference consumer or detector
+laboratory. It never becomes the generic learning architecture, and its local
+state discovery, raw trace links, or UI do not become kernel defaults.

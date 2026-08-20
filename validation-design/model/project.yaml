@@ -7,8 +7,8 @@ product:
   criticality: C2
   criticality_reason: Incorrect authority, settlement, review, release, or evidence claims can spend money, mutate repositories, or mislead a human operator; C3 control points inherit stricter obligations without changing the product base tier.
 versions:
-  package: 0.4.6
-  method: 0.8.0
+  package: 0.4.16
+  method: 0.8.9
   model: validation-architect/corpus/v1
   compiler: validation-architect/compiler/v1
   policy: validation-architect/policy/v1

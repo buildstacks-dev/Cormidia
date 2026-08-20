@@ -1,6 +1,25 @@
 schema: validation-architect/model/policy/v1
 default: blocking
 inheritance: tighten-only
+smoke_journey_ids:
+  - J-01
+sourcing:
+  - id: acceptance-criteria
+    status: active
+    owner: bikramgupta
+    trigger: "Feature change touching a product path: routing.md's feature procedure derives cases from the affected journey/contract acceptance criteria at the cheapest honest layer in the same change."
+  - id: adversarial-derivation
+    status: active
+    owner: bikramgupta
+    trigger: "New or extended detector family: every family lands red-then-green against its seeded negative control, and invariant-row derivation starts from the invariant's ratified adversarial seeds."
+  - id: production-incident
+    status: active
+    owner: bikramgupta
+    trigger: "Escaped defect or bad LLM output: routing.md's bug-fix procedure deposits the offline detector plus its family/ticket fact in the same change; bad outputs become golden cases at the emitting call site."
+  - id: substrate-drift
+    status: active
+    owner: bikramgupta
+    trigger: "Adapter, provider, or host substrate version change: the triggered certification lane (adapter-certification, adapter-version-bump, gate-seam-change) re-verifies vendor-owned behavior before reliance."
 layers:
   - id: L1
     title: Invariant and contract
@@ -29,6 +48,7 @@ lanes:
     triggers:
       - before-push
     command: pnpm test
+    max_duration_seconds: 1800
     authorization: none
     reason: Run from the repository root with no human authorization; this is an offline test lane, not release evidence.
   - id: per-commit
@@ -42,6 +62,7 @@ lanes:
       - main-push
       - release-exact-tag-rerun
     command: pnpm test
+    max_duration_seconds: 1200
     authorization: none
     reason: Run from the repository root with no human authorization; CI repeats it. A green lane is necessary but not an aggregate release verdict.
   - id: live-triggered
@@ -53,6 +74,7 @@ lanes:
       - changed-adapter-or-gate-seam
       - material-host-or-auth-change
     command: pnpm test:live
+    max_duration_seconds: 3600
     authorization: per-run-human
     reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. This is a non-RQ-1 live sandbox lane; the owning ticket and reviewed config select the intended subset.
   - id: live-release
@@ -65,6 +87,7 @@ lanes:
       - release-qualification
       - material-host-or-auth-change
     command: pnpm test:live
+    max_duration_seconds: 14400
     authorization: per-run-human
     reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. This lane supplies the exact RQ-1 L3 denominator only after those prerequisites are satisfied.
   - id: eval-triggered
@@ -77,6 +100,7 @@ lanes:
       - release-qualification
       - authorized-rotating-shard
     command: pnpm test:eval
+    max_duration_seconds: 7200
     authorization: per-run-human
     reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. Eval spend bounds apply, and missing or inconclusive evidence is never green.
   - id: soak-triggered
@@ -88,6 +112,7 @@ lanes:
       - initial-autonomous-qualification
       - material-scheduler-locking-settlement-or-session-change
     command: pnpm test:soak
+    max_duration_seconds: 691200
     authorization: per-run-human
     reason: The seven-file reader bundle is insufficient by itself to authorize or run this lane. Leave the reader sandbox; consult canonical docs/qualification/design.md and docs/qualification/host-policy.yaml; prepare a reviewed absolute configuration; run the required dry-run and preflight; obtain exact per-run human authorization; bind every evidence artifact to the exact candidate; and obtain the required aggregate attestation before any release use. Missing any prerequisite means refuse—never infer authority from this bundle, a prior run, or a landed ticket. The config must also name sandbox targets and ceilings; never infer natural rotation or elapsed-time evidence.
   - id: triggered

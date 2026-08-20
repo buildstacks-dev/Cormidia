@@ -27,7 +27,7 @@ families:
       - tests/policy/cf-harness-ci/validation-architect-cutover.test.ts
       - tests/policy/cf-harness-ci/validation-trace-workflow.test.ts
       - tests/unit/cf-harness-ci/worktree-lifecycle.test.ts
-      - tests/policy/cf-harness-ci/validation-architect-046-contract.test.ts
+      - tests/policy/cf-harness-ci/validation-architect-0416-contract.test.ts
       - tests/policy/cf-harness-ci/pre-commit-gate.test.ts
     exclusions:
       - The legacy F-PT-018 remainder/limitation is preserved and no canonical output claims it complete.
@@ -5229,6 +5229,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-01#**Failure modes:** timeout; rate limit; 5xx; partial success (issue created, label call failed; merge succeeded, branch-delete failed); **remote effect occurred but the client lost the response** — not mere partial success: it creates execution ambiguity and dangerous retry pressure, and the fake must script it `[elicited]`; duplicate delivery (retried create → two issues); stale read after write; pagination truncation; permission change mid-flight; **remote default branch moved / wrong base** — the representative failure: every call succeeds while the operation is about the wrong tree `[rambling: guessed-default-branch defect]`; **green evidence attached to the wrong candidate** `[rambling: PR #182]`; force-push/history rewrite by a human; **the repository identity itself is an unresolved placeholder** — the sibling of the wrong-base mode one level up: every call is well-formed and every response succeeds, but the target is a repository the operator never chose, so the effect lands on a literal sentinel-named repo (or another account''s existing one) while both configuration sources record it as the app''s identity .'
     layer: L2
     oracle: state+evid
     risk: E3
@@ -5265,6 +5267,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-02#**Failure modes:** timeout; rate limit; auth expiry mid-turn; malformed/truncated output; **partial stream then drop**; **usage absent** (unknown ≠ zero, INV-006); **tool intent emitted without a terminal tool event** (Claude/pi surface calls pre-execution — no outcome fields); **resume that authenticates but does not restore the exact session** `[elicited]`; model id retired. (No lived Anthropic incident exists in the record — these shapes are elicited judgment + docs, not history. Provenance honest by stakeholder instruction.)
     layer: L2
     oracle: state+refusal
     risk: E1/E2 (T-11 exhaustive)
@@ -5291,6 +5295,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-03#**Failure modes:** all of B-02, plus subprocess death mid-RPC; protocol-version skew with the pinned CLI; `untrusted` read bypass (issue #20); **refresh-token rotation races killing multi-hour runs** `[rambling]` — with the ratified consequence: **auth loss is never permission to restart and discard evidence; the checkpoint and session identity must be preserved, and recovery either resumes exactly or terminates honestly** `[elicited]`; **refresh succeeds for one subprocess while the retained session becomes unusable**; **protocol-valid but semantically stale capabilities** `[elicited]`.'
     layer: L2
     oracle: state+refusal
     risk: E1/E2
@@ -5335,6 +5341,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-04#**Failure modes:** as B-02, plus: no native approval flow — Cormidia installs the gating extension at runtime; **extension not loaded = gate hole**, and conformance must prove an actual forbidden tool attempt **reaches and is denied by Cormidia''s gate** — observing "extension loaded" proves very little `[elicited]`; no intra-turn fan-out (documented degradation). **Correlation note:** pi''s Anthropic-native path shares an upstream outage domain with B-02 even though the adapter integration fails independently `[elicited]`. (No lived pi incident — provenance honest.)'
     layer: L2
     oracle: refusal
     risk: E1
@@ -5380,6 +5388,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-05#**Failure modes:** never fires; fires late; double-fires; **fires with different identity, environment, PATH, or working directory than the manual invocation that "works"** `[elicited]` — the definition file on disk is the comforting fake of health; stale definition; duplicate/orphan definitions; machine asleep through windows (compound with B-06/B-07).
     layer: L2
     oracle: evid
     risk: STD
@@ -5398,6 +5408,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-06#**Failure modes to script:** TTL expiry; heartbeat staleness; UTC day/month rollover **while local scheduling uses host time**; retention sweeps; missed-window reconciliation (one reconciled firing with the missed count, never a catch-up storm `[elicited]` ); **wall-clock rollback; NTP jump forward; DST transition; timezone change** `[elicited]`. **Sleep is compound adversity across B-05/B-06/B-07, not owned by one seam** `[elicited]`.
     layer: L2
     oracle: state
     risk: E2
@@ -5416,6 +5428,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-07#**Failure modes:** kill at any journaled phase — the defining question is not "the child exited" but **"the child may have done expensive or external work and we cannot prove how far it got"** `[elicited]`; double-spawn; **PID reuse**; **signal delivery racing a terminal write**; **orphaned descendants**; **dead child whose heartbeat still looks fresh** `[elicited]`; spawn failure after durable decision; partial detach.
     layer: L2
     oracle: state
     risk: E2
@@ -5436,6 +5450,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: pruned
+    covers_failure_modes:
+      - 'B-08#**Failure modes — two asymmetric nightmares, each with its own named durable outcome, never a generic "spawn failed"** `[elicited]`: (1) durable spawn decision with no child; (2) **a real child with missing post-spawn bookkeeping — worse, because the next tick is tempted to create a duplicate**. Plus: lock heartbeat stale-vs-live race; WIP race between two ticks; malformed schedule/trigger definition (was a tick crash or a mislabeled route skip); corrupt or unreadable scheduler state — schedule last-fired bytes, spawn-evidence reads at admission, the budget overlay (was a tick crash, or silent not_due arithmetic over an unparseable timestamp); a later tick''s backpressure observation rewriting a live execution''s pending decision.'
     layer: L2
     reason: PRUNE-dup:CF-J09-* (tick↔turn cells are exactly the J-09 families)
   - id: CF-B09a
@@ -5448,6 +5464,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-09A#**Failure modes:** resume with changed role/runtime/context/work (must fail closed before spend); crash between decision and continuation; grant TTL expiry before resume; claim identity across pauses (INV-005); denial-guidance path; **decision-store reconciliation: grant written but item move / log append interrupted** `[elicited]`.'
     layer: L2
     oracle: state
     risk: E1
@@ -5466,6 +5484,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-09B#**Failure modes:** decision after expiry; batch review with per-item audit; widening at decision time (human-only; refused for `human-only`/`un-grantable` tiers); revocation mid-wait; malformed decision entry; concurrent decisions on one item; **objective grants:** creation naming an un-grantable class or by an agent identity (refused); forged grant file on disk (refused at use); concurrent ledger debits racing the ceiling (serialized under the per-grant lock; at most one escalation); ceiling/use-cap/TTL exhaustion and revocation each killing coverage immediately; **split-classification context (ratified, lands with PR D):** target-repo verification for `repo-collaboration` — explicit `--repo` mismatch, missing target with unreadable/mismatched worktree origin, and `cd`/`-C`-obscured cwd each fail closed to `human-only`.
     layer: L2
     oracle: state+evid
     risk: E1
@@ -5508,6 +5528,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-10#**Failure modes:** invalid YAML; package/org schema skew during upgrade; missing AUTHORITY.md (fail closed to legacy-conservative — never a newer default because it was convenient `[elicited]`, INV-015); mid-edit torn read; app narrowing wider than org (refuse, INV-001); **config changing between preview and execution** `[elicited]`; **committed org configuration present in the working tree but absent from the configured remote** — one dirty checkout read as universally authoritative, so a second host, a fresh clone, or a recovery from the remote silently loses it (#388); **an org home deliberately without a remote**, whose local-only contract must be explicit rather than an implied durability claim (#388).
     layer: L2
     oracle: refusal
     risk: E1/E2/FLOOR
@@ -5532,6 +5554,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: pruned
+    covers_failure_modes:
+      - B-11#**Failure modes:** publisher crash mid-transaction (journaled); candidate placed to masquerade as active; tamper on protected surfaces; capture cursor drift; **authorized / published / active / validated remaining separate facts even when evaluation is unavailable or statistically inconclusive** `[elicited]` — the paired- gate scar (maxed control, ties, coin-flip qualification `[rambling]`) is **Phase 5 eval-design material, deliberately NOT stuffed into this boundary's fake**.
     layer: L2
     reason: PRUNE-dup:CF-J12-* + CF-SM-LEARN-* (publisher boundary fully covered there)
   - id: CF-B12
@@ -5544,6 +5568,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-12#**Failure modes:** torn reads (INV-013 reader side); stale local evidence rendered as current `[elicited]`; capability token absent/wrong; traversal/symlink escape; SSE cursor gaps; corrupt/missing validation-campaign report rendered absent or green; incomplete/inconclusive campaign rendered as pass or release evidence; **source-by-source health**: the projection must report each source''s freshness and disagreement independently — "degraded" without naming which source and which claims are affected is just another plausible green `[elicited]` `[rambling: PR #182]` (the anchoring incident; its framing as the emotional center and the GitHub-unavailable→empty-queue / missing-usage→zero renderings are the stakeholder''s elaboration `[elicited]`).'
     layer: L2
     oracle: evid
     risk: E3
@@ -5565,6 +5591,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-13#**Failure modes:** malformed JSON; unknown kind; valid-no-subscriber; subscriber-set change while pending (F-PT-005, resolved); partial fan-out across ticks under WIP (first-reader-wins is the representative *feared* failure — `[elicited]` judgment, not a documented incident); file vanishing before all current subscribers hold marks; **producer crash during file creation**; duplicate delivery of the same content under a different filename or key order; **file changing after initial validation** `[elicited]`; retention interplay.
     layer: L2
     oracle: state
     risk: STD
@@ -5585,6 +5613,8 @@ families:
       - SOURCE-OPEN-OBLIGATIONS
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-14#**Failure modes:** dirty files at bootstrap; symlinks inside the checkout; wrong remote; path overlap between generated artifacts and existing content; **concurrent human edits during a lifecycle command**; **a lifecycle command touching more than its authorized generated paths** (marked-block containment; byte-preservation of existing content); bootstrap re-run idempotency; checkout owned by a different Cormidia checkout (link ownership refusal); packaged same-version reinstall and version upgrade; source/package generation replacement interrupted between artifacts; multiple foreign install collisions reported incompletely or after mutation.
     layer: L2
     oracle: diff+refusal
     risk: E1
@@ -5610,6 +5640,9 @@ families:
       - SOURCE-OPEN-OBLIGATIONS
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-15#**Filesystem failure modes:** disk full; read-only remount; permission change; symlinked paths; torn/short reads; ENOSPC mid-append; **a target directory whose CONTENT decides which operation is legal** — the same path can be greenfield inputs, an application checkout, an already-onboarded app, or a generated-path collision, and reading it as a single "empty / not empty" bit loses the distinction a command needs to route correctly; **the same directory inspected twice** (preview, then execution) can differ, so a preview that does not re-read is a prediction about a world that has already moved .
+      - B-15#**Git failure modes:** `index.lock` held; corrupt refs; missing worktree metadata; remote URL changed; hooks present in a cloned repo; git version skew; **a git command that partially succeeds**.
     layer: L2
     oracle: state+refusal
     risk: E2
@@ -5630,6 +5663,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-16#**Failure modes:** hang; fork bombs / runaway children; output flood; **worktree mutation by the gate command**; required tool unavailable; nonzero-exit semantics vs misleading success — **exit 0 while producing misleading evidence**; timeout kill leaving droppings; `PNPM_CONFIG_IGNORE_SCRIPTS` / dependency-build opt-in semantics.
     layer: L2
     oracle: evid+refusal
     risk: E3
@@ -5648,6 +5683,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-17#**Failure modes:** lost response (effect applied, reply lost — execution ambiguity); **asynchronous acceptance vs completion** (202-accepted ≠ deployed); idempotency-marker disagreement between our record and the target's state; auth/credential change at the target; acknowledgement write failure after remote effect; partial multi-step effect (deploy applied, cache invalidation not).
     layer: L2
     oracle: evid
     risk: E1
@@ -5688,6 +5725,8 @@ families:
       - SOURCE-PROPOSED-COMPARISON
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-18#**Failure modes:** candidate never starts after durable admission; process dies after useful work but before terminal evidence; candidate observes sibling bytes; base or input fingerprint differs; tuple silently substituted; candidate performs an outward effect; candidate worktree mutation escapes its namespace; missing/partial usage; candidate completion recorded twice; aggregate budget exhausted between candidates; cleanup removes a retained or materialized artifact.
     layer: L2
     oracle: state+diff+refusal
     risk: E1/E2/E3 (design-only)
@@ -5726,6 +5765,8 @@ families:
       - SOURCE-PROPOSED-COMPARISON
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-19#**Failure modes:** selected artifact hash no longer exists or differs; judge-advisory output treated as admissible; crash after branch/artifact creation but before acknowledgement; materialization repeated; active branch or human checkout mutated; destination base moved/dirty; loser materialized; two winners; selected artifact receives broader authority; selected code bypasses ordinary review/gates; cleanup deletes a winner branch; report says materialized or downstream-verified when only selected.
     layer: L2
     oracle: state+evid+diff
     risk: E1/E3 (design-only)
@@ -5762,6 +5803,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-20#**Failure modes:** one of 100 considered issues is dropped or assigned twice; unstable workstream/delivery-unit IDs rewrite history; dependency cycle; ready unit has an unmet dependency or absent validation contract; issue membership/routing changes after snapshot; stale frontier consumed after replan; label-only readiness or `planning:preplanned` forgery; partial GitHub projection; every tick rereads and replans the whole backlog; a planner eagerly creates one EpisodePlan per issue before admission; an unavailable/truncated backlog is represented as empty or complete.
     layer: L2
     oracle: state+evid+refusal
     risk: E1/E2/E3 (HB-101/HB-105; HB-108 deterministic closure complete)
@@ -5798,6 +5841,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-21#**Failure modes:** missing/malformed/unknown journey, boundary, contract or invariant IDs; structural change smuggled through a case-only update; cheapest layer ignored; no seeded negative control; waiver outside explicit policy or without provenance; Builder evidence absent/copied from another unit or HEAD; Reviewer passes on declared missing evidence; contract mutates after build/review; Builder and Reviewer share a private reasoning session and lose independence; cross-ticket boundary touched with no shared detector.
     layer: L2
     oracle: state+evid+refusal+det
     risk: E1/E3 (HB-102/HB-108 complete; human S-10 references validated; F-PT-011 remains open)
@@ -5835,6 +5880,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-22#**Failure modes:** same unit admitted twice or to overlapping batches; cross-app unit grouped; unit membership changes after batch hash; aggregate cap hides per-turn/unit exposure; batch crash causes completed work to rerun; failed unit partially closes tickets; cached context from a sibling changes authority or acceptance criteria; Builder session resumed as Reviewer; cache miss claimed as hit; priority/cache score overrides dependency, routing or validation; one giant batch defeats WIP/reviewability; EpisodePlans created for non-admitted frontier members. A direct task bypasses RoadmapPlan without complete creator provenance/effect policy; a batch turns multiple external payloads into one widened approval; unknown follow-up content is pre-authorized; code work bypasses durable roadmap accounting rather than only bypassing its provider turn.
     layer: L2
     oracle: state+evid+refusal
     risk: E1/E2/E3 (HB-103/HB-104/HB-107 plus HB-109 contention machinery complete; seven-day evidence pending)
@@ -5854,6 +5901,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-23#**Failure modes:** the B-02 core shapes (timeout; rate limit; auth expiry mid-turn; malformed/truncated output; usage absent — unknown ≠ zero, INV-006; resume that authenticates but does not restore the exact session), plus: server process death mid-turn; **SSE event-stream gap/disconnect while the server-side turn continues** (lost-response class — execution ambiguity, dangerous retry pressure); OpenAPI/SDK version skew with the running server (post-1.0 near-daily releases); **stale or foreign server instance answering on the expected port** (wrong session universe — an identity failure, not a transport failure); gating plugin hook not loaded = gate hole (B-04''s extension lesson: "hook registered" proves very little); **permission `ask` in pure headless mode — auto-REJECTS (F-PT-025 resolved-ratified 2026-08-07: `ask` is never used; the `tool.execute.before` hook is the sole enforcing gate)**; per-provider credential expiry inside one multi-provider install (provider X usable while provider Y expired — must surface per connection, INV-008); models.dev catalog drift / retired `provider/model` id (typed refusal, never substitution); published-roster vs actually-reachable divergence.'
     layer: L2
     oracle: state+refusal
     risk: "E1/E2 (T-11; implemented #337 — `tests/fixtures/adapters/opencode-double*`, `tests/unit/cf-b23-opencode/`; F-PT-025 resolved-ratified 2026-08-07, mechanism legs unparked)"
@@ -5897,6 +5946,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-24#**Failure modes:** the B-02 core shapes, plus: **directory-trust refusal** from an untrusted workdir (typed, pre-spend — field-verified `[stated]`); **edits silently not applied when `--force` is absent** (a success-looking turn with zero effect — the evidence-lie class, INV-008); trust + `--force` mis-scoped (the pair is what lets the agent act — a deliberate, gated adapter decision, never a default `[stated]`); binary-name collision (`agent` resolves to another product on the verified host — resolve `cursor-agent`, never `agent` `[stated]`); stream-json protocol drift on the fast-moving CLI; native permissions config missing/malformed/ wider-than-role (refuse — Cormidia narrows onto Cursor''s deny-wins surface, never widens through it); **a dynamic per-action hook seam that stops firing** (the `.cursor/hooks.json` `preToolUse` channel was certified live 2026-08-07, F-PT-026 resolved; the residual risk is a future build silently dropping it, which the post-turn executed-versus-allowed cross-check surfaces as `error_gate_not_observed`); **a hook process that closes stdin while the pre-spend handshake is being delivered** (typed bridge refusal, never an unhandled process error); native `AGENTS.md`/`CLAUDE.md` and `~/.cursor/skills-cursor/**` ingestion pulling operator-personal config into org turns (hermeticity — partial, gate-visible, documented); thread resume that authenticates but does not restore the thread.'
     layer: L2
     oracle: state+refusal
     risk: "E1/E2 (T-11; implemented #338 — `tests/fixtures/adapters/cursor-double.ts` + self-test, `tests/unit/cf-b24/`)"
@@ -5974,6 +6025,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-25#**Failure modes:** B-03''s subprocess shapes (death mid-RPC preserving journal/ checkpoint; protocol-version skew as typed terminal config error; hang), plus: ACP version-negotiation failure; **permission-request coverage gaps — a tool action executed without the ACP permission round-trip is an INV-002 gate hole, not a degradation (F-PT-027 resolved-by-evidence 2026-08-07: coverage IS incomplete by design, so the `PreToolUse` hook is the ratified gate with a per-turn proof handshake — `error_gate_unproven` on failure)**; headless auto-approve analog bypassing the request path (confirmed real — same finding, closed by the hook-first mechanism); auto-update mutating the binary mid-campaign when `--no-auto-update` is omitted (config drift); auth expiry — readiness probes usable request authentication (`XAI_API_KEY` or stored login), never account presence; operator `~/.grok/config.toml` substituting for the exact assigned model (refuse — core §1); **vendor-transport exfiltration risk** — the recorded unverified 2026-07 secrets-upload report plus closed-contribution upstream make live use human-risk-review-gated and sandbox-repo-only until cleared `[stated]` (INV-011 treats the transport as untrusted).'
     layer: L2
     oracle: state+refusal+det
     risk: E1/E2 (T-11)
@@ -6018,6 +6071,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-26#**Failure modes:** the B-02 core shapes, plus: **a swarm-spawned agent''s tool action escaping the gate** — an INV-002 gate hole, never a degradation `[stated]`; swarm-member attribution loss (events without paired subagent lifecycle/spanId); **no gate/hook seam AT ALL on 0.1.0-R708.1 — F-PT-028 resolved by field evidence 2026-08-07**, so the owner-decided fallback applies at its widest: `tool_gate` and `intra_turn_fanout` `unsupported`, `subagent_spawn` refused, and any turn with an unproven seam refused pre-spend — never an ungated swarm, never an ungated turn `[stated]`; **ambient-config ingestion** — default runs pull the operator''s personal Claude/Codex rules + skills into org turns (disable path found, pinned, and certified by the skills-count delta 23 → 17); `--workspace` containment escape (tool effect outside the declared root — T-6); JSONL event-schema drift on the 0.1.x beta (typed failure, never silent re-parse); effort-ladder mismatch (`ultra` above `xhigh`; Cormidia `max` unmapped and throws until a human ratifies the mapping `[stated]`); usage fields absent (unknown ≠ zero).'
     layer: L2
     oracle: state+refusal+det
     risk: "E1/E2 (T-11; implemented #340)"
@@ -6085,6 +6140,9 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - 'B-27#**Preflight failure modes — these refuse BEFORE the campaign starts, never mid-run.** Discovering any of them at the first turn wastes the envelope, and three of them invalidate every score the campaign would have produced: - `pnpm install:packaged --replace-source-links` unrun, skipped, stale relative to the campaign''s commit pin, or exited non-zero (`CORMIDIA-INV-ACC-7b`). The campaign **asserts that script''s exit status**; it does not reimplement the check. - `effort: max` on any harness but `claude` or `opencode` ([`src/runtime/assignment.ts:82`](../src/runtime/assignment.ts:82) admits it nowhere else), which otherwise throws at the first turn. - an app arm whose planner, builder **and** reviewer are one provider family — the builder ≠ reviewer cross-provider collapse AGENTS.md → Working rules forbids outright ([`roles.yaml:52`](../roles.yaml:52) calls it "the single most important pairing in this file"). - an `adaptive_assignments` candidate with no real ratified `qualification_ref` and no **uncertified disclosure** field. Configuration loading validates the reference''s *type* without dereferencing it ([`docs/org/apps.md:104`](../docs/org/apps.md:104)), so a plausible-looking string passes — the disclosure field exists to make the omission structurally impossible rather than a matter of diligence. - the authorized commit ≠ checked-out HEAD, the ordered exact eight-file `validation-design/model/` path/digest set is incomplete or untracked, or `docs/qualification/host-policy.yaml` bytes do not match that commit (`assertCampaignRepositoryBinding`); a scenario repository resolving to this repository (`CORMIDIA-INV-ACC-3`). - unattended execution declared with no plan-gate policy — refuse. A declared `auto-continue` policy is legal after F-PT-030''s 2026-08-07 ratification only when it applies the ratified rubric criteria and records the resolution durably before build-arm spend.'
+      - B-27#**Run/report failure modes:** ceiling exhausted mid-scenario (→ `incomplete`, partial evidence preserved); torn report write; a report claiming `complete` while a scenario was killed or a grader run is missing; a scenario silently absent from the report; the matrix actually used missing from a score (a poor outcome then cannot be attributed between "Cormidia is broken" and "that builder was wrong for this"); installed version or tarball identity absent, so "which bytes did this exercise" is unanswerable; resumption under a changed config; two campaigns writing one report identity.
     layer: L2
     oracle: refusal+evid+state
     risk: E1/E3
@@ -6128,6 +6186,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-28#**Failure modes:** key extracted after a grader turn already exists; **key drift** — the scenario file edited after extraction, so the key and the file disagree (bind them by content hash); key applied to the wrong scenario; **partial extraction** — one plant category missing, which does not read as an error but as generosity, because the axis then scores against an incomplete key; the key surviving into the report before scoring completes; the grader's tool sandbox widened mid-campaign; git-history exposure; the key's plaintext written under the campaign root while a grader's workdir *is* the campaign root.
     layer: L2
     oracle: det+refusal
     risk: E3
@@ -6168,6 +6228,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-29#**Failure modes:** per-axis provider disjointness computed against the wrong read set, or after provider construction (`CORMIDIA-INV-ACC-2`); an axis silently graded when the disjointness check found no legal grader, instead of reporting `ungraded`; the evidence set including the org's **own self-report** where the axis forbids it — PR bodies and verdicts are the *subject* of O-5, never evidence for O-1…O-3 (rubric §7 rule 2); missing evidence rendered as a low score instead of `ungraded` (`CORMIDIA-INV-ACC-5`); a score without its mandatory evidence citation retained as a number; a grader turn retried after partial output and the two halves merged; grader output citing an artifact it never read; per-axis results attributed to the wrong axis; the grader turn settling into the wrong envelope; **the O-5 fabrication detector never firing** — a detector that has never seen the defect it exists to catch is an assumption (standing rule 4).
     layer: L2
     oracle: refusal+det+state
     risk: E3
@@ -6211,6 +6273,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-30#**Failure modes:** dependency cycle; unknown `dependsOn` id; duplicate step id; config edited between runs while the journal claims completed steps; journal present but config absent; torn journal write; a completed step's declared output deleted or emptied afterwards; a step marked completed whose check never ran; resume re-executing a completed step (**double spend**); resume skipping an *interrupted* step whose provider turn was already paid; unapproved assignment tuple accepted, or an assignment that widens the `operator` role; completion inferred from an output file's existence rather than the journal; app-scoped and unscoped records both written for one job; **a nested `cormidia-job` invoked inside a Cormidia provider turn** — without the refusal, a Builder turn spawns provider turns that escape its episode budget entirely; a checkpoint resumed with no decision.
     layer: L2
     oracle: refusal+state+evid
     risk: E1/E2
@@ -6251,6 +6315,8 @@ families:
       - SOURCE-BOUNDARY-MAP
     lane: per-commit
     status: implementable
+    covers_failure_modes:
+      - B-31#**Failure modes:** declared root missing, unreadable, or not a directory at declare time; symlink escaping a declared root; a read attempted outside every declared root; **the harness reads nothing at all** (silent under-read — the plan is published on evidence nobody looked at); the harness reads only text and never opens the image while the plan is reported as covering visual evidence; the exact assignment tuple has no reader for a modality present in scope; read evidence unobservable or unattributable (must report as such, never as coverage); the scope mutating between declare and read, so a recorded hash describes bytes nobody saw; unbounded traversal or corpus volume exhausting the turn's execution limits; source content attempting to act as instruction rather than data.
     layer: L2
     oracle: refusal+state+evid+det
     risk: E1/E3 (HB-155; registered by the 2026-08-12 F-PT-039 revision)

@@ -551,6 +551,34 @@ process-identity probe.
   reason, which is exactly what the requirement is for. Readiness-probe outcomes keep
   `timed_out`, deliberately outside the ruling's scope.) Original subject: ratified
   CORMIDIA-C-CORE-001 said `interrupted` while `Runtime`/all adapters exposed `timed_out`.
+- F-PT-040 (**OPEN, minted 2026-08-19**; raised from #480): **product.revision advance
+  protocol under squash-merge.** The checked model binds `model/project.yaml → revision`
+  to an exact product revision, and `validation-architect check` (the validation-trace CI
+  lane) reports red `MODEL_REVISION_STALE`/`INVENTORY_REVISION_MISMATCH` whenever the
+  live product revision differs from the recorded one. The first product commit after the
+  cutover (#480's pre-commit fix) surfaced the gap: no ratified artifact records how the
+  recorded revision advances, and under the squash-merge landing rule the merged SHA
+  cannot be pre-recorded inside the PR — so even a product PR that honestly re-binds to
+  its own last product commit leaves main red between the squash-merge and a follow-up
+  design-only re-bind. Interim posture used by #480 (a recommendation, not ratified
+  protocol): a product PR that performs its routing-mandated derivation review re-binds
+  `product.revision` to its branch's last product commit (its own trace lane runs green),
+  and a follow-up design-only re-bind PR lands immediately after the squash-merge to
+  restore main. Owner question: ratify that two-step protocol (optionally automating the
+  follow-up), or ask upstream validation-architect whether recorded-revision staleness
+  should report evidence-incomplete/inconclusive instead of red `traceability_broken`, or
+  change the landing rule for product changes. Third surface (PR #481's first CI run):
+  `pull_request` events checked out GitHub's synthetic merge ref, whose sha exists only
+  at CI time, so the trace lane could never pass for ANY product PR; both traceability
+  lanes now check out `github.event.pull_request.head.sha` (the authored commits), which
+  makes PR lanes green while leaving the post-squash-merge main red window as the one
+  remaining gap the ruling must close. Same-gap surface: root
+  `reader-bundle-identity.json` binds the previous model identity/product revision and
+  view hashes; no gate reads it, no recorded procedure re-issues it (a fresh binding may
+  require an actual reader review), so #480 leaves it untouched rather than rewriting it
+  by guess — it is stale until this finding's ruling names its re-issue step. Until
+  ratified, post-merge red means "corpus review owed at the new revision" — never
+  green-by-ignoring, and never a reason to weaken the check.
 - F-PT-018 (open-known-limitation; raised harness audit/revision 2026-07-31; disposition ratified 2026-08-04): the per-commit workflow runs and is fail-closed internally, but the current private-repository GitHub plan does not offer branch protection/rulesets. RQ-1 is bounded by protected human merge plus the release-blocking exact-tag rerun and does not claim mechanical merge blocking; future mechanical enforcement remains parked in CF-HARNESS-CI/HB-P7 pending a plan change.
   **Re-checked 2026-08-12** at the owner's request (had the plan been upgraded?): still
   unavailable — `gh api .../rulesets` and `gh api .../branches/main/protection` both answer

@@ -69,21 +69,31 @@ describe("CF-REG-278 — repository enforcement gate", () => {
       scripts: Record<string, string>;
     };
     expect(packageJson.scripts["check"]?.split(" && ")).toEqual([
+      "pnpm check:tree",
+      // HB-140 (CF-HARNESS-CI): checked-model regeneration drift gate —
+      // spec: tests/policy/cf-harness-ci/catalog-drift.test.ts.
+      "node scripts/check-catalog-drift.mjs",
+    ]);
+    expect(packageJson.scripts["check:tree"]?.split(" && ")).toEqual([
       "biome check --error-on-warnings .",
       "pnpm typecheck",
       "node scripts/check-pinned-deps.mjs",
       "node scripts/check-import-direction.mjs",
       "node scripts/check-size-ratchet.mjs",
       "node scripts/check-type-ratchet.mjs",
-      // HB-140 (CF-HARNESS-CI): case-catalog.yaml regeneration drift gate —
-      // spec: tests/policy/cf-harness-ci/catalog-drift.test.ts.
-      "node scripts/check-catalog-drift.mjs",
+    ]);
+    // #480 (CF-HARNESS-CI): the pre-commit variant keeps every working-tree
+    // gate and swaps only the drift step for the dirty-tree-aware wrapper —
+    // spec: tests/policy/cf-harness-ci/pre-commit-gate.test.ts.
+    expect(packageJson.scripts["check:commit"]?.split(" && ")).toEqual([
+      "pnpm check:tree",
+      "node scripts/precommit-drift-gate.mjs",
     ]);
     expect(packageJson.scripts["prepare"]).toBe("node scripts/install-git-hooks.mjs");
 
     const hookPath = join(repoRoot, ".githooks", "pre-commit");
     expect((await stat(hookPath)).mode & 0o111).not.toBe(0);
-    expect(await readFile(hookPath, "utf8")).toBe("#!/bin/sh\nset -eu\n\npnpm check\n");
+    expect(await readFile(hookPath, "utf8")).toBe("#!/bin/sh\nset -eu\n\npnpm check:commit\n");
   });
 
   it("rejects a seeded floating dependency and accepts exact dependency forms", async () => {

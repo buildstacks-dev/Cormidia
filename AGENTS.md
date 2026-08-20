@@ -38,7 +38,10 @@ inventory.
 - Install: `pnpm install` — pnpm pinned via `packageManager`. Deliberately NOT
   a workspace; `pnpm-workspace.yaml` is per-repo pnpm config only.
 - Check: `pnpm check` (Biome warnings-as-errors, typecheck, and the
-  deterministic gate scripts in `scripts/check-*.mjs`).
+  deterministic gate scripts in `scripts/check-*.mjs`). The pre-commit hook
+  runs `pnpm check:commit`: identical except the revision-bound drift gate
+  defers to CI while product paths are uncommitted — the compiler refuses a
+  dirty product tree (#480).
 - Test: `pnpm test` (runs the deterministic process-identity and offline-store
   preflight before offline L1/L2 vitest over `tests/`; an incomplete preflight
   starts zero Vitest files) · typecheck: `pnpm typecheck` · build: `pnpm build`

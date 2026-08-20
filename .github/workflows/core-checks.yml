@@ -47,8 +47,12 @@ jobs:
     runs-on: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_dispatch' && inputs.compute == 'github-hosted')) && 'ubuntu-latest' || 'cormidia-core-linux-arm64' }}
     timeout-minutes: 15
     steps:
+      # pull_request lanes validate the authored head, not GitHub's synthetic
+      # merge ref: the revision-bound closure lane can never match a merge
+      # sha that exists only at CI time (#480 / F-PT-040).
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Refuse a drifted manual candidate

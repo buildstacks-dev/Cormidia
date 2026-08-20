@@ -579,6 +579,14 @@ process-identity probe.
   by guess — it is stale until this finding's ruling names its re-issue step. Until
   ratified, post-merge red means "corpus review owed at the new revision" — never
   green-by-ignoring, and never a reason to weaken the check.
+  **Checked 2026-08-19 during the #483 0.4.16 upgrade:** no upstream change in
+  0.4.7–0.4.16 touches `MODEL_REVISION_STALE` or `INVENTORY_REVISION_MISMATCH`
+  (pickaxe over upstream `52a7b26b..e9c4b61b` finds no commit altering either
+  diagnostic); recorded-revision staleness remains red `traceability_broken`, so no
+  part of this finding closes with the upgrade and the two-step re-bind posture
+  continues unchanged. The upstream-semantics question (should recorded-revision
+  staleness report evidence-incomplete/inconclusive instead of red?) remains open
+  for the owner to file upstream or ratify locally.
 - F-PT-018 (open-known-limitation; raised harness audit/revision 2026-07-31; disposition ratified 2026-08-04): the per-commit workflow runs and is fail-closed internally, but the current private-repository GitHub plan does not offer branch protection/rulesets. RQ-1 is bounded by protected human merge plus the release-blocking exact-tag rerun and does not claim mechanical merge blocking; future mechanical enforcement remains parked in CF-HARNESS-CI/HB-P7 pending a plan change.
   **Re-checked 2026-08-12** at the owner's request (had the plan been upgraded?): still
   unavailable — `gh api .../rulesets` and `gh api .../branches/main/protection` both answer

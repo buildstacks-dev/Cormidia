@@ -1,8 +1,8 @@
-// CF-HARNESS-CI — HB-P7 (legacy) / HB-140 (checked model) — #465 exact 0.4.6 migration and fresh-reader contract.
+// CF-HARNESS-CI — HB-P7 (legacy) / HB-140 (checked model) — #465/#483 exact 0.4.16 migration and fresh-reader contract.
 
 import { compile, CORPUS_SCHEMA, FakeRepositoryPort, migrate, type LegacyModelImportInput } from "validation-architect";
 import { describe, expect, it } from "vitest";
-import { registerValidationArchitect046OutputContractTests } from "./validation-architect-046-output-contract.js";
+import { registerValidationArchitect0416OutputContractTests } from "./validation-architect-0416-output-contract.js";
 
 const revision = "a".repeat(40);
 const catalog = `## Migration contract
@@ -32,10 +32,10 @@ const control = (familyId: string) => ({
 function review(): LegacyModelImportInput {
   return {
     product: {
-      id: "cormidia-046-contract",
-      name: "Cormidia 0.4.6 contract fixture",
+      id: "cormidia-0416-contract",
+      name: "Cormidia 0.4.16 contract fixture",
       revision,
-      intended_use: "Exercise the exact migration and fresh-reader surfaces required by #465.",
+      intended_use: "Exercise the exact migration and fresh-reader surfaces required by #465 and #483.",
       criticality: "C1",
       criticality_reason: "Offline deterministic fixture with no external effect.",
     },
@@ -64,6 +64,7 @@ function review(): LegacyModelImportInput {
         owner: "OWNER",
         source_ids: ["SOURCE-CONTRACT"],
         acceptance_criteria: ["Preserve dependency order", "Render complete source records"],
+        error_criteria: ["A malformed reviewed field refuses migration with a typed error"],
         failure_modes: ["A split status silently inherits stale legacy state"],
         changed_paths: ["validation-design/**"],
       },
@@ -75,10 +76,27 @@ function review(): LegacyModelImportInput {
         owner: "OWNER",
         source_ids: ["SOURCE-CONTRACT"],
       },
+      {
+        id: "J-CUTOVER",
+        kind: "journey",
+        title: "Cutover smoke journey",
+        meaning: "The fixture's first-value path stays green on merge.",
+        owner: "OWNER",
+        source_ids: ["SOURCE-CONTRACT"],
+      },
     ],
     policy: {
       default: "blocking",
       inheritance: "tighten-only",
+      smoke_journey_ids: ["J-CUTOVER"],
+      sourcing: (
+        ["acceptance-criteria", "adversarial-derivation", "production-incident", "substrate-drift"] as const
+      ).map((id) => ({
+        id,
+        status: "declared-empty" as const,
+        owner: "OWNER",
+        reason: "Focused contract fixture with no standing sourcing decision.",
+      })),
       layers: [
         { id: "L1", title: "Contract", status: "active" },
         { id: "L2", title: "Hermetic", status: "active" },
@@ -96,6 +114,7 @@ function review(): LegacyModelImportInput {
           requirement: "blocking",
           triggers: ["before-push"],
           command: "pnpm test",
+          max_duration_seconds: 120,
         },
         {
           id: "per-commit",
@@ -105,6 +124,7 @@ function review(): LegacyModelImportInput {
           requirement: "blocking",
           triggers: ["per-commit"],
           command: "pnpm test",
+          max_duration_seconds: 600,
         },
         {
           id: "triggered",
@@ -140,7 +160,7 @@ function review(): LegacyModelImportInput {
       "CF-BASE": {
         title: "Compact dependency follow-up",
         meaning: "The compact legacy ticket retains its reviewed prerequisite.",
-        structure_ids: ["CON-CUTOVER"],
+        structure_ids: ["CON-CUTOVER", "J-CUTOVER"],
         owner: "OWNER",
         source_ids: ["SOURCE-CONTRACT"],
         control: control("CF-BASE"),
@@ -230,13 +250,13 @@ function splitOutput(value: LegacyModelImportInput) {
   return output;
 }
 
-describe("CF-HARNESS-CI — HB-140 — #465 — Validation Architect 0.4.6 contract", () => {
+describe("CF-HARNESS-CI — HB-140 — #465/#483 — Validation Architect 0.4.16 contract", () => {
   it("preserves reviewed ticket order and renders complete fresh-reader facts", async () => {
     const compiled = await compileReview(review());
     expect(compiled.accepted, compiled.findings.map((finding) => finding.message).join("\n")).toBe(true);
     const backlogView = compiled.views["harness-backlog.md"];
     const trace = compiled.views["planned-trace.md"];
-    if (!backlogView || !trace) throw new Error("0.4.6 generated views missing");
+    if (!backlogView || !trace) throw new Error("0.4.16 generated views missing");
     expect(backlogView).toContain("**HB-BASE — Compact dependency follow-up** (landed;");
     expect(backlogView).toContain("Depends on `HB-SPLIT-L2`.");
     expect(backlogView).toContain("**HB-SPLIT — L1 split detector** (landed;");
@@ -249,10 +269,14 @@ describe("CF-HARNESS-CI — HB-140 — #465 — Validation Architect 0.4.6 contr
     expect(trace).toContain("| SOURCE-A-UNUSED | proposed | — | Owner review queue | — |");
     expect(trace.indexOf("| SOURCE-A-UNUSED |")).toBeLessThan(trace.indexOf("| SOURCE-CONTRACT |"));
     expect(trace).toContain(
-      "| CON-CUTOVER | contract | Every reviewed migration fact remains visible to a fresh reader. | Preserve dependency order, Render complete source records | A split status silently inherits stale legacy state | validation-design/** | SOURCE-CONTRACT | OWNER |",
+      "| CON-CUTOVER | contract | Every reviewed migration fact remains visible to a fresh reader. | Preserve dependency order, Render complete source records | A malformed reviewed field refuses migration with a typed error | A split status silently inherits stale legacy state | validation-design/** | SOURCE-CONTRACT | OWNER |",
     );
     expect(trace).toContain(
-      "| IF-OPTIONAL-EMPTY | interface | Absent optional lists remain visibly absent. | — | — | — | SOURCE-CONTRACT | OWNER |",
+      "| IF-OPTIONAL-EMPTY | interface | Absent optional lists remain visibly absent. | — | — | — | — | SOURCE-CONTRACT | OWNER |",
+    );
+    expect(trace).toContain("## Failure-mode coverage");
+    expect(trace).toContain(
+      "| CON-CUTOVER | contract | A split status silently inherits stale legacy state | **OPEN** |",
     );
   });
 
@@ -279,4 +303,4 @@ describe("CF-HARNESS-CI — HB-140 — #465 — Validation Architect 0.4.6 contr
   });
 });
 
-registerValidationArchitect046OutputContractTests({ catalog, backlog, review });
+registerValidationArchitect0416OutputContractTests({ catalog, backlog, review });

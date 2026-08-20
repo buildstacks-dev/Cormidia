@@ -1,4 +1,4 @@
-// CF-HARNESS-CI — HB-P7 — #465 exact vendor pin and fail-closed authority cutover.
+// CF-HARNESS-CI — HB-P7 — #465/#483 exact vendor pin and fail-closed authority cutover.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -10,15 +10,15 @@ import { compile, FakeRepositoryPort } from "validation-architect";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const version = "0.4.6";
+const version = "0.4.16";
 const artifactName = `validation-architect-${version}.tgz`;
-const supersededArtifactName = "validation-architect-0.4.5.tgz";
-const artifactSha = "1e396fdb7fe2e6ea2e479628e344c6283a5ae7f4cb95a86dfba8601a7cfd66c5";
+const supersededArtifactName = "validation-architect-0.4.6.tgz";
+const artifactSha = "924cf308712b89bd8df61a77f088be773a6a6399c77ee605285f3261d1baea3e";
 const artifactIntegrity =
-  "sha512-6wRhOH8+80Knr1H7FTYYjAZcpGpG4ZiveCXSv6ddk1eaab11Rd5tiFr0l3CSR1TcTw/lSVEjXtV2pRVOYpcFHA==";
-const artifactReproduction = "268,051-byte core tarballs with 124 entries";
-const upstreamRevision = "52a7b26b5b4de934612640c3d47ba7c738596ece";
-const currentDependencyHeading = "### Current corrective 0.4.6 cutover dependency";
+  "sha512-AojU+hAgHjwgJnoPQmgjjNE6mG/+iB9pWRFUrzln5yXWrtzljkOP90/NthKMbRxCJugmmIEBCvWYjGaN8dWdqA==";
+const artifactReproduction = "284,673-byte core tarballs with 127 entries";
+const upstreamRevision = "e9c4b61b1e5326e9a6830e2741a81c294b24c2f1";
+const currentDependencyHeading = "### Current 0.4.16 upgrade dependency";
 const sequenceIntro = "The formerly planned two-PR bootstrap is seven reviewed squash PRs, in order:";
 const preparationStages = [
   "dependency preparation (#466)",
@@ -91,7 +91,7 @@ function pinProblems(surfaces: PinSurfaces): string[] {
     if (!surfaces.agents.includes(phrase)) problems.push(`root routing drift: ${phrase}`);
   }
   if (surfaces.agents.includes("case-catalog §10.3 row")) problems.push("stale root catalog routing");
-  if (!surfaces.hostPolicy.includes("validation-architect 0.4.6, unchanged")) {
+  if (!surfaces.hostPolicy.includes("validation-architect 0.4.16, unchanged")) {
     problems.push("host-policy package explanation drift");
   }
   const domainSplit = compact(surfaces.domainSplit);
@@ -100,9 +100,9 @@ function pinProblems(surfaces: PinSurfaces): string[] {
   if (!domainSplit.includes(productRevisionPin)) problems.push("domain-split product revision drift");
   if (!domainSplit.includes(rollbackOrder)) problems.push("domain-split rollback order drift");
   for (const phrase of [
-    "reviewed `validation-architect` 0.4.6 tarball",
+    "reviewed `validation-architect` 0.4.16 tarball",
     upstreamRevision,
-    "selects 0.4.6's bounded legacy-manifest bridge",
+    "selects 0.4.16's bounded legacy-manifest bridge",
   ]) {
     if (!surfaces.installGuide.includes(phrase)) problems.push(`enablement pin drift: ${phrase}`);
   }
@@ -200,7 +200,7 @@ function invokeTrace(root: string): { exitCode: number; stdout: string; stderr: 
 }
 
 describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
-  it("binds the installed package and decision record to the reviewed 0.4.6 artifact", async () => {
+  it("binds the installed package and decision record to the reviewed 0.4.16 artifact", async () => {
     expect(pinProblems(await readPinSurfaces())).toEqual([]);
   });
 
@@ -214,26 +214,26 @@ describe("CF-HARNESS-CI — #465 checked-model preparation", () => {
       ["package scope drift", "packageJson", '"devDependencies": {', '"developmentDependencies": {'],
       ["lock source drift", "lockfile", artifactName, "wrong.tgz"],
       ["lock integrity drift", "lockfile", artifactIntegrity, "sha512-wrong"],
-      ["lock version drift", "lockfile", "version: 0.4.6", "version: 0.0.0"],
+      ["lock version drift", "lockfile", "version: 0.4.16", "version: 0.0.0"],
       ["installed version drift", "installedPackage", version, "0.0.0"],
       ["decision section drift", "decision", currentDependencyHeading, "wrong"],
       ["upstream revision drift", "decision", upstreamRevision, "wrong"],
       ["decision identity drift", "decision", artifactSha, "wrong"],
       ["decision identity drift", "decision", artifactName, "wrong.tgz"],
-      ["decision byte-count drift", "decision", artifactReproduction, "1-byte core tarballs with 124 entries"],
-      ["decision entry-count drift", "decision", artifactReproduction, "268,051-byte core tarballs with 1 entry"],
+      ["decision byte-count drift", "decision", artifactReproduction, "1-byte core tarballs with 127 entries"],
+      ["decision entry-count drift", "decision", artifactReproduction, "284,673-byte core tarballs with 1 entry"],
       ["artifact bytes drift", "sha256", artifactSha, "wrong"],
       ["root routing drift: active authority", "agents", "active authority", "retired authority"],
       ["stale root catalog routing", "agents", surfaces.agents, `${surfaces.agents}\ncase-catalog §10.3 row\n`],
-      ["host-policy package explanation drift", "hostPolicy", "0.4.6", "0.4.5"],
+      ["host-policy package explanation drift", "hostPolicy", "0.4.16", "0.4.6"],
       ["domain-split stage-count drift", "domainSplit", "seven reviewed", "six reviewed"],
       ["domain-split product revision drift", "domainSplit", productRevisionPin, "The final model names #471 as `product.revision`."],
       ["domain-split rollback order drift", "domainSplit", rollbackOrder, rollbackOrder.replace("#470, ", "")],
       ["domain-split rollback order drift", "domainSplit", rollbackOrder, rollbackOrder.replace("#471, #470", "#470, #471")],
       ["domain-split rollback order drift", "domainSplit", rollbackOrder, rollbackOrder.replace("authority cutover, 0.4.6 Cormidia preparation", "0.4.6 Cormidia preparation, authority cutover")],
-      ["enablement pin drift: reviewed `validation-architect` 0.4.6 tarball", "installGuide", "0.4.6 tarball", "0.4.5 tarball"],
+      ["enablement pin drift: reviewed `validation-architect` 0.4.16 tarball", "installGuide", "0.4.16 tarball", "0.4.6 tarball"],
       [`enablement pin drift: ${upstreamRevision}`, "installGuide", upstreamRevision, "wrong"],
-      ["enablement pin drift: selects 0.4.6's bounded legacy-manifest bridge", "installGuide", "selects 0.4.6's bounded", "selects 0.4.5's bounded"],
+      ["enablement pin drift: selects 0.4.16's bounded legacy-manifest bridge", "installGuide", "selects 0.4.16's bounded", "selects 0.4.6's bounded"],
     ];
     for (const [problem, key, from, to] of replacements) {
       expect(pinProblems(replaceSurface(mutationBase, key, from, to)), problem).toContain(problem);

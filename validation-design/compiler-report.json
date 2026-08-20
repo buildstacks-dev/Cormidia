@@ -1,11 +1,11 @@
 {
   "schema": "validation-architect/compiler/v1",
   "accepted": true,
-  "source_fingerprint": "5181d270780a8e5907e23396c403b58f7c63e4000e5bbe30d31c5dca2d0844f3",
-  "model_identity": "bfa9a2fe9e2f751cb26dba6389c341a6f1056ac24d2cd7e622b97dcb803e72b0",
+  "source_fingerprint": "42cdd91c4049cb7736e8ca087933454f13c62f961fc8d7c51e86aab36e84eb5d",
+  "model_identity": "be53f757115087222c373e2110eb6877ecc551084717399e7ee99d2739a295db",
   "versions": {
-    "package": "0.4.6",
-    "method": "0.8.0",
+    "package": "0.4.16",
+    "method": "0.8.9",
     "model": "validation-architect/corpus/v1",
     "compiler": "validation-architect/compiler/v1",
     "policy": "validation-architect/policy/v1",

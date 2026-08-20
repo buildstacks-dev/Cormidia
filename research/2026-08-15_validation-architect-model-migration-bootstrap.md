@@ -157,11 +157,11 @@ visibility change, provider turn, or live campaign was authorized or performed.
 Cormidia continues to consume only the upstream core package as an exact
 vendored development dependency.
 
-### Current corrective 0.4.6 cutover dependency
+### Superseded corrective 0.4.6 cutover dependency
 
 Fresh reader review of the staged cutover found one last loss in the public
 legacy-migration review surface: split family outputs could not carry distinct
-reviewed oracle and risk semantics. The exact current dependency is:
+reviewed oracle and risk semantics. The cutover-era dependency was:
 
 - package: `validation-architect` `0.4.6`;
 - upstream revision: `52a7b26b5b4de934612640c3d47ba7c738596ece`;
@@ -207,6 +207,51 @@ network access disabled. They made no registry lookup or request. No
 publication, tag, release, visibility change, provider turn, or live campaign
 was authorized or performed. Cormidia continues to consume only the upstream
 core package as an exact vendored development dependency.
+
+### Current 0.4.16 upgrade dependency
+
+The [#483](https://github.com/cormidia/Cormidia/issues/483) upgrade replaced
+the 0.4.6 cutover artifact with upstream 0.4.16, adopting the ten
+pre-publication corrections 0.4.7–0.4.16 that tighten the compiler and extend
+the corpus schema. The exact current dependency is:
+
+- package: `validation-architect` `0.4.16`;
+- upstream revision: `e9c4b61b1e5326e9a6830e2741a81c294b24c2f1`;
+- upstream issues/PRs: validation-architect#53–#62 and #75–#92
+  (VA-ENF-001…008, VA-MTH-001/002, campaign consolidation);
+- artifact: `vendor/validation-architect-0.4.16.tgz`;
+- SHA-256:
+  `924cf308712b89bd8df61a77f088be773a6a6399c77ee605285f3261d1baea3e`;
+- npm integrity:
+  `sha512-AojU+hAgHjwgJnoPQmgjjNE6mG/+iB9pWRFUrzln5yXWrtzljkOP90/NthKMbRxCJugmmIEBCvWYjGaN8dWdqA==`;
+- license: `LicenseRef-FSL-1.1-MIT`.
+
+Two independent clean detached builds from the exact human squash produced
+byte-identical 284,673-byte core tarballs with 127 entries. Version 0.4.16
+raises the method contract to `0.8.9` and makes the following checked-model
+obligations fail-closed: declared negative controls of landed test-lane
+families must be implemented by an inventory test (`CONTROL_UNIMPLEMENTED`);
+every declared boundary failure mode must be covered by a named family or
+pruned by name (`MODEL_FAILURE_MODE_UNCOVERED`); contract structures must
+declare typed `error_criteria`; the policy must designate at least one
+per-commit-covered smoke journey, declare all four case-sourcing channels,
+and give every active test lane a wall-clock budget. It additively models
+finding-to-claim linkage (`kind: finding` sources plus ticket `finding_ref`),
+family `purpose` marks, per-repo spec-detection conventions (absent block =
+exact jest-vitest behavior, byte-identical identity), the opt-in recurring
+negative-control falsifiability sweep template, and consolidates the campaign
+host into the design package — Cormidia imports none of the removed campaign
+surfaces. No 0.4.7–0.4.16 change alters `MODEL_REVISION_STALE` or
+`INVENTORY_REVISION_MISMATCH` semantics: recorded-revision staleness remains a
+red `traceability_broken` finding, so F-PT-040's post-squash-merge re-bind
+posture is unchanged (recorded on the finding). No Cormidia runtime dependency
+is introduced.
+
+Both qualifying builds used only existing local dependency bytes and made no
+registry lookup or request; `validation-architect` remained unpublished at
+npm on 2026-08-19 (registry 404), so the exact vendored development
+dependency continues. No publication, tag, release, visibility change,
+provider turn, or live campaign was authorized or performed.
 
 The 0.4.2 pin superseded the unpublished 0.3.0 migration bootstrap and the
 provisional 0.4.0 and 0.4.1 artifacts. Version 0.4.2 supplies the reviewed

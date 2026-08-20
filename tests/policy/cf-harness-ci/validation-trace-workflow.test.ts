@@ -209,8 +209,8 @@ function checkedModelFiles(
         criticality_reason: "Offline deterministic fixture.",
       },
       versions: {
-        package: "0.4.6",
-        method: "0.8.0",
+        package: "0.4.16",
+        method: "0.8.9",
         model: "validation-architect/corpus/v1",
         compiler: "validation-architect/compiler/v1",
         policy: "validation-architect/policy/v1",
@@ -237,12 +237,21 @@ function checkedModelFiles(
           owner: "owner",
           source_ids: ["SOURCE"],
         },
+        {
+          id: "J-ALIAS",
+          kind: "journey",
+          title: "Alias smoke journey",
+          meaning: "The fixture's single first-value path stays green on merge.",
+          owner: "owner",
+          source_ids: ["SOURCE"],
+        },
       ],
     },
     "policy.yaml": {
       schema: "validation-architect/model/policy/v1",
       default: "blocking",
       inheritance: "tighten-only",
+      smoke_journey_ids: ["J-ALIAS"],
       layers: [{ id: "L1", title: "L1", status: "active" }, ...emptyLayers],
       lanes: [
         {
@@ -253,6 +262,7 @@ function checkedModelFiles(
           requirement: "blocking",
           triggers: ["before-push"],
           command: "pnpm test",
+          max_duration_seconds: 120,
         },
         {
           id: "per-commit",
@@ -262,9 +272,18 @@ function checkedModelFiles(
           requirement: "blocking",
           triggers: ["per-commit"],
           command: "pnpm test",
+          max_duration_seconds: 600,
         },
         ...emptyLanes,
       ],
+      sourcing: ["acceptance-criteria", "adversarial-derivation", "production-incident", "substrate-drift"].map(
+        (id) => ({
+          id,
+          status: "declared-empty",
+          owner: "owner",
+          reason: "Focused alias fixture with no standing sourcing decision.",
+        }),
+      ),
       exceptions: [],
     },
     "controls.yaml": {
@@ -286,7 +305,7 @@ function checkedModelFiles(
           id: "CF-ALIAS",
           title: "Alias selection",
           meaning: "The deprecated alias delegates to checked-model authority.",
-          structure_ids: ["INV-ALIAS"],
+          structure_ids: ["INV-ALIAS", "J-ALIAS"],
           owner: "owner",
           source_ids: ["SOURCE"],
           lane: "per-commit",

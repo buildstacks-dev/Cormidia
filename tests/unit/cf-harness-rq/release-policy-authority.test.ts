@@ -468,7 +468,7 @@ function modelFiles(productRevision: string, host: Buffer, citeFinding: boolean)
     id: "CF-J14-S",
     title: "Reset-order blocker",
     meaning: citeFinding ? "Preserves the exact execute-order clause BLOCKED:F-PT-012." : "Reset-order family.",
-    structure_ids: ["CON-RQ1"],
+    structure_ids: ["CON-RQ1", "J-RQ"],
     owner: "OWNER-RQ",
     source_ids: ["SOURCE-HOST"],
     lane: "per-commit",
@@ -494,8 +494,8 @@ function modelFiles(productRevision: string, host: Buffer, citeFinding: boolean)
         criticality_reason: "Disposable fixture with no external effect",
       },
       versions: {
-        package: "0.4.6",
-        method: "0.8.0",
+        package: "0.4.16",
+        method: "0.8.9",
         model: "validation-architect/corpus/v1",
         compiler: "validation-architect/compiler/v1",
         policy: "validation-architect/policy/v1",
@@ -526,7 +526,19 @@ function modelFiles(productRevision: string, host: Buffer, citeFinding: boolean)
             "Bind every selected validation-authority byte",
             "Refuse incomplete or stale release evidence",
           ],
+          error_criteria: [
+            "A missing, corrupt, or partial authority byte refuses with a typed error",
+            "A stale product revision refuses; retrying the same candidate is idempotent",
+          ],
           changed_paths: ["src/**"],
+        },
+        {
+          id: "J-RQ",
+          kind: "journey",
+          title: "Release-fixture smoke journey",
+          meaning: "The fixture's first-value path stays green on merge.",
+          owner: "OWNER-RQ",
+          source_ids: ["SOURCE-HOST"],
         },
       ],
     },
@@ -534,6 +546,15 @@ function modelFiles(productRevision: string, host: Buffer, citeFinding: boolean)
       schema: "validation-architect/model/policy/v1",
       default: "blocking",
       inheritance: "tighten-only",
+      smoke_journey_ids: ["J-RQ"],
+      sourcing: ["acceptance-criteria", "adversarial-derivation", "production-incident", "substrate-drift"].map(
+        (id) => ({
+          id,
+          status: "declared-empty",
+          owner: "OWNER-RQ",
+          reason: "Focused release fixture with no standing sourcing decision.",
+        }),
+      ),
       layers: [
         { id: "L1", title: "Invariant", status: "declared-empty", reason: "Focused L3 fixture" },
         { id: "L2", title: "Hermetic", status: "active" },
@@ -551,6 +572,7 @@ function modelFiles(productRevision: string, host: Buffer, citeFinding: boolean)
           requirement: "blocking",
           triggers: ["before-push"],
           command: "pnpm test",
+          max_duration_seconds: 120,
         },
         {
           id: "per-commit",
@@ -560,6 +582,7 @@ function modelFiles(productRevision: string, host: Buffer, citeFinding: boolean)
           requirement: "blocking",
           triggers: ["per-commit"],
           command: "pnpm test",
+          max_duration_seconds: 600,
         },
         {
           id: "live-triggered",
@@ -570,6 +593,7 @@ function modelFiles(productRevision: string, host: Buffer, citeFinding: boolean)
           triggers: ["release-qualification"],
           command: "pnpm test:live",
           authorization: "per-run-human",
+          max_duration_seconds: 3600,
         },
         {
           id: "triggered",

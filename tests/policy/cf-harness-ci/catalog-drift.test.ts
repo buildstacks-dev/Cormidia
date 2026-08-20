@@ -234,8 +234,8 @@ function initializeRepository(root: string): string {
 
 function modelFiles(revision: string): Record<string, string> {
   const versions = {
-    package: "0.4.6",
-    method: "0.8.0",
+    package: "0.4.16",
+    method: "0.8.9",
     model: "validation-architect/corpus/v1",
     compiler: "validation-architect/compiler/v1",
     policy: "validation-architect/policy/v1",
@@ -246,6 +246,13 @@ function modelFiles(revision: string): Record<string, string> {
     schema: "validation-architect/model/policy/v1",
     default: "blocking",
     inheritance: "tighten-only",
+    smoke_journey_ids: ["J-1"],
+    sourcing: ["acceptance-criteria", "adversarial-derivation", "production-incident", "substrate-drift"].map((id) => ({
+      id,
+      status: "declared-empty",
+      owner: "OWN-1",
+      reason: "Focused drift fixture with no standing sourcing decision.",
+    })),
     layers: [
       { id: "L1", title: "Contract", status: "declared-empty", reason: "Focused L2 fixture" },
       { id: "L2", title: "Hermetic", status: "active" },
@@ -263,6 +270,7 @@ function modelFiles(revision: string): Record<string, string> {
         requirement: "blocking",
         triggers: ["before-push"],
         command: "pnpm test -- tenant",
+        max_duration_seconds: 120,
       },
       {
         id: "per-commit",
@@ -272,6 +280,7 @@ function modelFiles(revision: string): Record<string, string> {
         requirement: "blocking",
         triggers: ["per-commit"],
         command: "pnpm test",
+        max_duration_seconds: 600,
       },
       {
         id: "triggered",
@@ -337,7 +346,16 @@ function modelFiles(revision: string): Record<string, string> {
           source_ids: ["SRC-1"],
           changed_paths: ["src/tenant/**"],
           acceptance_criteria: ["Foreign tenant records are rejected"],
+          error_criteria: ["A malformed tenant id refuses with a typed error; retries stay idempotent"],
           failure_modes: ["A foreign tenant record is returned"],
+        },
+        {
+          id: "J-1",
+          kind: "journey",
+          title: "Tenant smoke journey",
+          meaning: "The fixture's first-value path stays green on merge.",
+          owner: "OWN-1",
+          source_ids: ["SRC-1"],
         },
       ],
     },
@@ -361,7 +379,7 @@ function modelFiles(revision: string): Record<string, string> {
           id: "CF-1",
           title: "Tenant detector",
           meaning: "Reject a foreign tenant row",
-          structure_ids: ["CON-1"],
+          structure_ids: ["CON-1", "J-1"],
           owner: "OWN-1",
           source_ids: ["SRC-1"],
           lane: "per-commit",

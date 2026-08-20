@@ -273,8 +273,8 @@ function modelFiles(revision: string): Record<string, string> {
         criticality_reason: "Offline fixture.",
       },
       versions: {
-        package: "0.4.6",
-        method: "0.8.0",
+        package: "0.4.16",
+        method: "0.8.9",
         model: "validation-architect/corpus/v1",
         compiler: "validation-architect/compiler/v1",
         policy: "validation-architect/policy/v1",
@@ -301,12 +301,21 @@ function modelFiles(revision: string): Record<string, string> {
           owner: "owner",
           source_ids: ["SOURCE"],
         },
+        {
+          id: "J-SEED",
+          kind: "journey",
+          title: "Seed smoke journey",
+          meaning: "The fixture's first-value path stays green on merge.",
+          owner: "owner",
+          source_ids: ["SOURCE"],
+        },
       ],
     }),
     [MODEL_RELATIVE_PATHS[4]]: stringify({
       schema: "validation-architect/model/policy/v1",
       default: "blocking",
       inheritance: "tighten-only",
+      smoke_journey_ids: ["J-SEED"],
       layers: [{ id: "L1", title: "L1", status: "active" }, ...emptyLayers],
       lanes: [
         {
@@ -317,6 +326,7 @@ function modelFiles(revision: string): Record<string, string> {
           requirement: "blocking",
           triggers: ["before-push"],
           command: "pnpm test",
+          max_duration_seconds: 120,
         },
         {
           id: "per-commit",
@@ -326,9 +336,18 @@ function modelFiles(revision: string): Record<string, string> {
           requirement: "blocking",
           triggers: ["per-commit"],
           command: "pnpm test",
+          max_duration_seconds: 600,
         },
         ...emptyLanes,
       ],
+      sourcing: ["acceptance-criteria", "adversarial-derivation", "production-incident", "substrate-drift"].map(
+        (id) => ({
+          id,
+          status: "declared-empty",
+          owner: "owner",
+          reason: "Focused seed fixture with no standing sourcing decision.",
+        }),
+      ),
       exceptions: [],
     }),
     [MODEL_RELATIVE_PATHS[5]]: stringify({
@@ -350,7 +369,7 @@ function modelFiles(revision: string): Record<string, string> {
           id: "CF-SEED",
           title: "Seed",
           meaning: "Seed family.",
-          structure_ids: ["INV-SEED"],
+          structure_ids: ["INV-SEED", "J-SEED"],
           owner: "owner",
           source_ids: ["SOURCE"],
           lane: "per-commit",

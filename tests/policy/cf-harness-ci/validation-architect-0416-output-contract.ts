@@ -1,4 +1,4 @@
-// Imported by validation-architect-046-contract.test.ts: exact 0.4.6
+// Imported by validation-architect-0416-contract.test.ts: exact 0.4.16
 // per-output oracle/risk review semantics without creating a second spec path.
 
 import { compile, CORPUS_SCHEMA, FakeRepositoryPort, migrate, type LegacyModelImportInput } from "validation-architect";
@@ -35,13 +35,13 @@ async function migratedFamily(
   expect(compiled.accepted, compiled.findings.map((finding) => finding.message).join("\n")).toBe(true);
 
   const familyFile = migrated.files.find((file) => file.path === "validation-design/model/families.yaml");
-  if (!familyFile) throw new Error("0.4.6 migration omitted families.yaml");
+  if (!familyFile) throw new Error("0.4.16 migration omitted families.yaml");
   const document: unknown = parse(familyFile.content);
   if (!isRecord(document) || !Array.isArray(document["families"])) {
-    throw new Error("0.4.6 migration produced malformed families.yaml");
+    throw new Error("0.4.16 migration produced malformed families.yaml");
   }
   const family = document["families"].find((candidate) => isRecord(candidate) && candidate["id"] === id);
-  if (!isRecord(family)) throw new Error(`0.4.6 migration omitted family ${id}`);
+  if (!isRecord(family)) throw new Error(`0.4.16 migration omitted family ${id}`);
   return family;
 }
 
@@ -51,8 +51,8 @@ function splitOutput(value: LegacyModelImportInput, id: string) {
   return output;
 }
 
-export function registerValidationArchitect046OutputContractTests(fixture: ContractFixture): void {
-  describe("Validation Architect 0.4.6 per-output oracle/risk review", () => {
+export function registerValidationArchitect0416OutputContractTests(fixture: ContractFixture): void {
+  describe("Validation Architect 0.4.16 per-output oracle/risk review", () => {
     it("preserves distinct reviewed oracle and risk values on split outputs", async () => {
       const value = fixture.review();
       const l1 = splitOutput(value, "CF-SPLIT");

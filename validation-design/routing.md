@@ -142,7 +142,7 @@ pnpm validation:trace
 ```
 
 The first command must produce exactly five Markdown views plus
-`compiler-report.json` through the public 0.4.6 compiler. The second proves
+`compiler-report.json` through the public 0.4.16 compiler. The second proves
 mechanical closure, not fidelity. Run the repository-required tests for the
 change as well; never weaken a test or gate to obtain green.
 

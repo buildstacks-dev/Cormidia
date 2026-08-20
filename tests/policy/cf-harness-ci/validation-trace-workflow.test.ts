@@ -20,6 +20,9 @@ const RUNNER_ROUTE =
 const FULL_HISTORY_CHECKOUT = [
   "- uses: actions/checkout@v6",
   "        with:",
+  // #480 / F-PT-040: pull_request lanes validate the authored head — the
+  // revision-bound closure lane can never match GitHub's synthetic merge sha.
+  "          ref: ${{ github.event.pull_request.head.sha || github.sha }}",
   "          fetch-depth: 0",
   "          persist-credentials: false",
 ].join("\n");

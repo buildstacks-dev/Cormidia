@@ -2,7 +2,7 @@ schema: validation-architect/model/families/v1
 families:
   - id: CF-HARNESS-CI
     title: "Harness self-test register: CF-HARNESS-CI"
-    meaning: "Per-commit workflow shape, fail-closed jobs, detector canaries, GitHub-orchestrated runner routing, and merge-boundary enforcement. HB-140 now proves complete eight-file checked-model presence, public-compiler regeneration of all five projections, compiler-report/model identity, and fail-closed partial-graph or drift behavior through scripts/check-catalog-drift.mjs and tests/policy/cf-harness-ci/catalog-drift.test.ts; no AWK or legacy manifest is operational authority. The #431 transition command and workflow refusal checks remain implemented. Mechanical merge blocking remains KNOWN-LIMITATION:F-PT-018, bounded for RQ-1 by protected human merge plus exact-tag rerun."
+    meaning: "Per-commit workflow shape, fail-closed jobs, detector canaries, GitHub-orchestrated runner routing, and merge-boundary enforcement. HB-140 now proves complete eight-file checked-model presence, public-compiler regeneration of all five projections, compiler-report/model identity, and fail-closed partial-graph or drift behavior through scripts/check-catalog-drift.mjs and tests/policy/cf-harness-ci/catalog-drift.test.ts; no AWK or legacy manifest is operational authority. The #431 transition command and workflow refusal checks remain implemented. Mechanical merge blocking remains KNOWN-LIMITATION:F-PT-018, bounded for RQ-1 by protected human merge plus exact-tag rerun. Pre-commit slice (#480): the hook runs pnpm check:commit — the working-tree gates plus scripts/precommit-drift-gate.mjs, which runs the unchanged strict drift gate against a clean product tree and defers loudly to CI when product paths are uncommitted, because the public compiler refuses to bind a source revision to a dirty product tree; tests/policy/cf-harness-ci/pre-commit-gate.test.ts pins the hook/scripts/CI wiring and the skip-versus-propagate behavior."
     structure_ids:
       - OP-HARNESS
     owner: bikramgupta
@@ -28,6 +28,7 @@ families:
       - tests/policy/cf-harness-ci/validation-trace-workflow.test.ts
       - tests/unit/cf-harness-ci/worktree-lifecycle.test.ts
       - tests/policy/cf-harness-ci/validation-architect-046-contract.test.ts
+      - tests/policy/cf-harness-ci/pre-commit-gate.test.ts
     exclusions:
       - The legacy F-PT-018 remainder/limitation is preserved and no canonical output claims it complete.
   - id: CF-HARNESS-CI-MERGE-BLOCKING

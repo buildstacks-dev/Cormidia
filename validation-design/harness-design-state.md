@@ -567,7 +567,12 @@ process-identity probe.
   restore main. Owner question: ratify that two-step protocol (optionally automating the
   follow-up), or ask upstream validation-architect whether recorded-revision staleness
   should report evidence-incomplete/inconclusive instead of red `traceability_broken`, or
-  change the landing rule for product changes. Same-gap surface: root
+  change the landing rule for product changes. Third surface (PR #481's first CI run):
+  `pull_request` events checked out GitHub's synthetic merge ref, whose sha exists only
+  at CI time, so the trace lane could never pass for ANY product PR; both traceability
+  lanes now check out `github.event.pull_request.head.sha` (the authored commits), which
+  makes PR lanes green while leaving the post-squash-merge main red window as the one
+  remaining gap the ruling must close. Same-gap surface: root
   `reader-bundle-identity.json` binds the previous model identity/product revision and
   view hashes; no gate reads it, no recorded procedure re-issues it (a fresh binding may
   require an actual reader review), so #480 leaves it untouched rather than rewriting it

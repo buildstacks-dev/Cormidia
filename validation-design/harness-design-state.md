@@ -67,7 +67,7 @@ and cutover re-enter this skill if they move B-11's shape.
 
 **Machine state.** Eight-file model recompiled through the public 0.4.16 compiler;
 `product.revision` re-bound per the F-PT-040 interim protocol (post-merge design-only re-bind
-owed).
+owed). Packaging finding F-PT-042 recorded beside F-PT-041.
 
 ## Harness revision — governed planning-source scope (2026-08-12, F-PT-039 / #386)
 
@@ -751,6 +751,22 @@ process-identity probe.
   time, switched at cutover" (recommended), or require the kernel to honor the fork's canary
   and journal state as a second reader. Until ruled, no test encodes either answer; the
   coexistence failure mode is declared on B-32 and cited as uncovered by CF-B32.
+
+- F-PT-042 (**OPEN, minted 2026-08-21**; raised from Cormidia #467 phase A packaging):
+  **an unpublished runtime kernel cannot be globally installed from Cormidia's tarball.**
+  Cormidia consumes `@cormidia/learning-loop` as `file:vendor/cormidia-learning-loop-0.1.0.tgz`
+  (governed-learning-loop Decision 0029 R7, whose precedent `validation-architect` is a
+  dev-only dependency). `pnpm install --frozen-lockfile`, Core Checks, and the offline suite
+  resolve it; `npm install -g <cormidia tarball>` — the documented install path that
+  `scripts/smoke-package-install.mjs` and the release lane exercise — does not: npm resolves
+  the `file:` spec before extracting the parent (ENOENT), and `bundleDependencies`, which makes
+  a local `npm install` of the tarball complete and working, reifies a damaged partial tree
+  under `-g` (npm 11.19, "invalid or damaged lockfile"; 7,942 files vs 25,521 baseline).
+  Phase A keeps the ruled `file:` spec and ships no bundle. Consequence: the release lane's
+  `smoke:package` step is red until the kernel is on a registry (governed-learning-loop #62
+  publication gate) or the owner rules another mechanism (private registry, a local-install
+  story, or deferring the next Cormidia release). Not a B-32 failure mode — a release-lane
+  fact; Core Checks are unaffected. Owner decision owed before the next RQ-1 candidate.
 
 ## Decisions on record
 - Criticality/tiering was elicited teach-first at Phase 1 (no prior anchor); synthesis in system-map.md §5: base C2, function-scoped C3 control points T-1…T-12, C1 leaves, recovery as tier multiplier, compound worst case §5.5.

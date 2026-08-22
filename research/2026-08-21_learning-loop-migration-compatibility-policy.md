@@ -124,9 +124,106 @@ cutover window (one writer per destination root at any time) — no test encodes
 
 - parity evidence per §3a against a captured org home: kernel-published concept bytes and
   manifest cuts byte-equal to the fork's for the same draft and approval; active bundle
-  resolution and episode pinning unchanged;
-- the remaining destinations and the replay runner binding; grant consumption; policy mapping;
+  resolution and episode pinning unchanged — **done, §8 (CF-B32-PARITY)**;
+- the remaining destinations and the replay runner binding; grant consumption; policy mapping
+  — **done, §7 rulings 3–6**;
 - operator path cutover (CLI `learn *`, distiller/reviewer turns, `context.ts`), then the
   forked engine removal with the owner's explicit sign-off; "removing the package breaks
-  compilation";
-- close #467, #14, and #461.
+  compilation" — **cutover done (phase-B commit 2); removal is the sign-off-gated deletion
+  commit**;
+- close #467, #14, and #461 — with the phase-B PR.
+
+## 7. Phase B rulings (2026-08-21, Cormidia #467 phase B)
+
+Resolution of every §4 delta, plus the rulings the cutover itself forced. Each is a host-side
+decision recorded here so the package can be asked for the right follow-up instead of a guess.
+
+1. **Exact-scope evidence → scoped episode projections.** The evidence source projects an
+   episode once per scope it is asked for (`EpisodeEvidenceInput.scope`; observation ids
+   `episode:<id>@<scope>` with `/` → `.`), so an org-, role-, or skill-scoped candidate cites
+   projections at its exact scope while the app-scoped projection stays the canonical one.
+   Package follow-up: a policy-governed ancestor evidence rule would make the projections
+   unnecessary.
+2. **Policy.** Budgets, schedules, canary windows, and the review-independence rules stay in
+   the host's `learning/policy.yaml`; the kernel runs `conservativePolicy()`. The design §9.1
+   activation gate is a host gate before `preparePublication` (`assertCandidateMayActivate`):
+   an efficacy claim needs an `improved` kernel verdict and is never waivable; T2/T3 needs a
+   verdict or an explicit non-empty human waiver; every proceed path carries the claim
+   `authorized` with a distinct display (`authorized (unproven)` · `experiment pending` ·
+   `waived (human)` · `experiment improved`).
+3. **Routine publishes → authority lanes** (authority port 1.1.0, configuration digest schema
+   2): `{ approvalId }` is the human gate for every activation into context (OKF) — unchanged;
+   `{ kind: "routine", actor }` authorizes only `publish` of a proposal-class destination at
+   T0/T1 (skill, protocol, gate proposals; tickets), refused otherwise
+   (`authority.routine_not_applicable`, `authority.routine_requires_human_gate`);
+   `{ kind: "operator", identity }` authorizes only reversals (`disable`), never a publish
+   (`authority.operator_requires_approval`).
+4. **Grant consumption.** The kernel journal is the consumption record (its decision 0026);
+   the approvals item stays `approved` and verification stays read-only. A consumed plan is
+   never re-consulted: a publish that failed after consumption resumes from the journal
+   (`loop.publish({ planId })`) without a second approval, and a completed plan re-run answers
+   from the journal as a no-op with reference — the B-11 §4 semantics, now kernel-owned.
+5. **Destinations.** OKF (phase A); proposal drafts (`proposals/<skills|protocol|gates>/`,
+   effect `proposal.draft.write`, after-effect `compensate` removes the draft); GitHub tickets
+   (issue body carries `<!-- cormidia:candidate-fingerprint sha256:… -->`, dedupe by open
+   `op:learning` issues, caps as `publication.limit_exceeded`, compensate closes the issue);
+   `reject` stays the host's rejection ledger (not a destination). The fork's ticket `--repo`
+   override is dropped — the app's GitHub repository is the destination's identity.
+6. **Replay and experiments.** `createLoopReplayRunner` binds the worktree-isolated loop replay
+   to the kernel executor seam. Experiments are post-publication (kernel decision 0028 R5): the
+   subject is a journaled publish intervention; the control arm is the bundle minus the concept
+   (`excludeConceptIds` through `resolveGovernedContext`); replay metrics are the fork's
+   (`held_in_pass`, `merged`, `review_cycles`, `gate_failures`, `cost_usd`); guardrails are
+   `metric=rule[:threshold]`; the host keeps an audit copy under
+   `<state>/learning-loop/host/experiments/` because the kernel has no public read of
+   experiment definitions or evaluations yet (package follow-up).
+7. **Decider identity**, 8. **projected-episode reads**, 9. **org identity** — as phase A.
+
+Rulings without a §4 delta:
+
+- **Host index.** `<state>/learning-loop/host/candidates/<artifact>.json` maps a Cormidia
+  candidate artifact to its kernel candidate, plan, intervention, and refs. It is a lookup;
+  the kernel records are the facts. The kernel's `report()` lists no interventions yet
+  (`report.tier_not_implemented`), so intervention listing reads the index (package follow-up).
+- **Context bytes.** The OKF manifest remains the authority for what enters context
+  (INV-013 manifest membership). The kernel's `resolveContext` receipt and the turn's exposure
+  are sidecars (`<state>/learning-loop/resolutions/<turn>.json`) acknowledged by
+  `syncKernelEvidence`, never a second resolver.
+- **Canary.** `canary.ts` takes activation facts as inputs (root kind, version, tier,
+  intervention ref, replay verdict) — no `learning-loop` import, so `learning/` ← `learning-loop/`
+  stays acyclic.
+- **Artifact binding.** The candidate artifact's SHA-256 (`artifact_sha256`) is part of the
+  kernel candidate content, so a post-approval byte change yields a new kernel candidate and
+  plan and a fresh content-bound raise; the old approval binds only the old plan.
+- **Kernel candidate identity.** The kernel candidate id is the artifact id; a changed artifact
+  mints `<id>~<digest8>` with `supersedes` when the scope is unchanged.
+
+## 8. Parity evidence (§3a) — CF-B32-PARITY
+
+Oracle: `tests/fixtures/learning-parity/` — the forked engine's artifacts captured under a
+fixed clock (2026-08-21T12:00:00Z) with approval ids `parity-approval-NN`; exact inputs in
+`inputs.ts`, provenance and the capture script in `CAPTURE.md`, 37 file digests in
+`digests.json`. Spec: `tests/hermetic/cf-b32/learning-kernel-parity.test.ts` (9 cases) replays
+the same inputs through the kernel path and asserts: kernel-published concept bytes identical
+on the org and app roots; manifests equal except `approval_ref` (kernel idempotency key vs
+approval id) and the version note; proposal drafts and the rejection ledger byte-identical;
+resolved record, canary assignment, and learning events byte-identical; the captured active
+artifacts resolve unchanged through the cutover resolver; the legacy readers parse the captured
+journals, interventions, and bindings; a seeded byte change trips `ParityViolation`. The
+`approval_ref` delta is §3a's ruled exception and every forked reader accepts it.
+
+§3c decision: kernel records stay state-home only. The org-home git projection of a kernel
+publication is the manifest cut (`approval_ref` = idempotency key) plus the concept bytes — the
+same "learning artifacts live in git" surface the fork used; no committed projection of plans,
+journal, or intervention records is added.
+
+## 9. Coexistence rule after cutover (F-PT-041)
+
+Exactly one writer per destination root at any time, switched at cutover. From the phase-B
+cutover commit the kernel's OKF destination is the only writer of `learning/bundle/**` and
+`learning/manifest.yaml`: the forked publisher is reachable from no operator surface, scheduled
+turn, or context assembly, and the sign-off-gated deletion commit removes it. Forked journals,
+interventions, and bindings are read through compatibility readers only
+(`src/org/learning-loop/legacy.ts`). In-flight forked approvals are reauthorized through the
+kernel (§3a), never migrated. Dual-writing is therefore unrepresentable after the deletion —
+the harness records the ruling on F-PT-041 rather than a test of a state that cannot exist.

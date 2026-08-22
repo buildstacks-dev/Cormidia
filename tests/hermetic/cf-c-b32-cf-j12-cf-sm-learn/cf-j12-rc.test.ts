@@ -16,10 +16,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { publishCandidate } from "../../../src/org/learning-loop/publish.js";
-import { openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
-import { readManifest } from "../../../src/org/learning/concepts.js";
-import { readRejections } from "../../../src/org/learning/rejections.js";
-import { writeReviewerVerdict } from "../../../src/org/learning/review.js";
+import { openCandidateArtifact } from "../../../src/org/learning-loop/host/candidate-store.js";
+import { readManifest } from "../../../src/org/learning-loop/host/concepts.js";
+import { readRejections } from "../../../src/org/learning-loop/host/rejections.js";
+import { writeReviewerVerdict } from "../../../src/org/learning-loop/host/review.js";
 import { walkFiles } from "../../fixtures/walk.js";
 import {
   assertExactlyOncePublish,

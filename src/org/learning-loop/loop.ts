@@ -30,8 +30,8 @@ import type {
 import { createFileStore } from "@cormidia/learning-loop/node";
 import type { GhOps } from "../../loop/github.js";
 import type { ApprovalStore } from "../approvals.js";
-import { appLearningRoot, orgLearningRoot } from "../learning/concepts.js";
-import type { LearningPolicy } from "../learning/policy.js";
+import { appLearningRoot, orgLearningRoot } from "./host/concepts.js";
+import type { LearningPolicy } from "./host/policy.js";
 import { createCormidiaAuthorityPort, LEARNING_LOOP_PUBLISH_RULE } from "./authority.js";
 import { createOkfContentPolicy, OKF_CONTENT_POLICY_ID } from "./content-policy.js";
 import { createOkfConceptDestination } from "./destination-okf.js";

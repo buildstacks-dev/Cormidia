@@ -6,7 +6,7 @@
 // authority are structurally unwritable by agents (proposal-only). The
 // guardrails under test are the REAL product modules: the gate classifier
 // (src/runtime/gate.ts) and the learning candidate/concept path vocabulary
-// (src/org/learning/candidate.ts, src/org/learning/concepts.ts).
+// (src/org/learning-loop/host/candidate.ts, src/org/learning-loop/host/concepts.ts).
 //
 // Seeds covered at L1: (b) injected permission-claiming text changes no gate
 // outcome; (c) a label is never an input to classification; (d) the learning
@@ -17,13 +17,13 @@
 
 import { sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CANDIDATE_DESTINATIONS, validateCandidateArtifact } from "../../../src/org/learning/candidate.js";
+import { CANDIDATE_DESTINATIONS, validateCandidateArtifact } from "../../../src/org/learning-loop/host/candidate.js";
 import {
   assertSafeConceptName,
   bundleScopeDir,
   orgLearningRoot,
   proposalsDir,
-} from "../../../src/org/learning/concepts.js";
+} from "../../../src/org/learning-loop/host/concepts.js";
 import { isValidLoopScope } from "../../../src/org/memory.js";
 import { classify, defaultGate } from "../../../src/runtime/gate.js";
 import type { ToolAction } from "../../../src/runtime/types.js";

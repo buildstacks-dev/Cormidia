@@ -12,7 +12,7 @@ import { resolveAppWorkdir } from "../app-workdir.js";
 import type { AppEntry } from "../apps.js";
 import { ApprovalStore } from "../approvals.js";
 import type { CormidiaHomes } from "../home.js";
-import { loadLearningPolicy, type LearningPolicy } from "../learning/policy.js";
+import { loadLearningPolicy, type LearningPolicy } from "./host/policy.js";
 import { createCormidiaLearningLoop, type CormidiaLearningApp, type CormidiaLearningLoop } from "./loop.js";
 import type { CormidiaReplayRunner } from "./replay-executor.js";
 

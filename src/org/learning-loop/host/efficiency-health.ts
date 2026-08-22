@@ -5,7 +5,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { writeFileAtomic } from "../atomic.js";
+import { writeFileAtomic } from "../../atomic.js";
 import { listCanaryAssignments, type CanaryAssignmentRecord } from "./canary.js";
 import { listCandidateArtifacts } from "./candidate-store.js";
 import type { CandidateArtifact } from "./candidate.js";
@@ -19,8 +19,8 @@ import {
   type CandidateDisposition,
   type CandidateDispositionKind,
 } from "./efficiency-evidence.js";
-import type { HostExperimentRecord } from "../learning-loop/experiments-audit.js";
-import type { KernelInterventionView } from "../learning-loop/interventions.js";
+import type { HostExperimentRecord } from "../experiments-audit.js";
+import type { KernelInterventionView } from "../interventions.js";
 import { readEpisodeRecords } from "./episode.js";
 import { listEvalResults, type EvalResult } from "./eval-result.js";
 import { readLearningEvents } from "./events.js";

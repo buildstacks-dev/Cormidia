@@ -9,8 +9,8 @@ import { resolveAuthority } from "./authority.js";
 import { resolveGovernedContext, type GovernedResolveResult } from "./learning-loop/context.js";
 import type { CormidiaLearningLoop } from "./learning-loop/loop.js";
 import { learningLoopFor } from "./learning-loop/registry.js";
-import { ticketEpisodeAnchor } from "./learning/episodes.js";
-import { loadLearningPolicy } from "./learning/policy.js";
+import { ticketEpisodeAnchor } from "./learning-loop/host/episodes.js";
+import { loadLearningPolicy } from "./learning-loop/host/policy.js";
 import { selectAttributedExcerpts } from "./memory.js";
 import { definedProps } from "../runtime/optional-properties.js";
 

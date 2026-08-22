@@ -25,7 +25,7 @@ import type {
   PublicationReceipt,
 } from "@cormidia/learning-loop";
 import { writeFileAtomic } from "../atomic.js";
-import { rootKindForScope, type LearningRoot } from "../learning/concepts.js";
+import { rootKindForScope, type LearningRoot } from "./host/concepts.js";
 import { destinationRefusal, resolveRepeatedKey, writeDestinationReceipt } from "./destination-receipts.js";
 import { loopScopeFromScope } from "./scope.js";
 

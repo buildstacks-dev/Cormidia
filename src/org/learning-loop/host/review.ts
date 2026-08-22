@@ -17,8 +17,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeFileAtomic } from "../atomic.js";
-import { isReservedLoopScope, isValidLoopScope, type LoopTier } from "../memory.js";
+import { writeFileAtomic } from "../../atomic.js";
+import { isReservedLoopScope, isValidLoopScope, type LoopTier } from "../../memory.js";
 import { CANDIDATE_DESTINATIONS, type CandidateDestination } from "./candidate.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";
 import {

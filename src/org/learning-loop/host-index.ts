@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
-import type { CandidateDestination } from "../learning/candidate.js";
+import type { CandidateDestination } from "./host/candidate.js";
 import type { LoopTier } from "../memory.js";
 
 /** The reviewed routing of an artifact — destination, tier, scope — as the

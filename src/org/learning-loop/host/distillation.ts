@@ -15,10 +15,10 @@ import {
   type DistillationVerdict,
   type LearningReviewVerdict,
   type ParseResult,
-} from "../../loop/verdicts.js";
-import { writeFileAtomic } from "../atomic.js";
-import { rollupLearningSpend } from "../budget.js";
-import { isValidLoopScope } from "../memory.js";
+} from "../../../loop/verdicts.js";
+import { writeFileAtomic } from "../../atomic.js";
+import { rollupLearningSpend } from "../../budget.js";
+import { isValidLoopScope } from "../../memory.js";
 import { listCandidateArtifacts, openCandidateArtifact } from "./candidate-store.js";
 import type { CandidateArtifact } from "./candidate.js";
 import { projectCaptureEvents } from "./capture.js";

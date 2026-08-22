@@ -7,7 +7,7 @@
 // file pins the oracle's bytes).
 
 import { createHash } from "node:crypto";
-import type { LearningEvent } from "../../../src/org/learning/events.js";
+import type { LearningEvent } from "../../../src/org/learning-loop/host/events.js";
 import { serializeOkfDocument } from "../../../src/org/memory.js";
 
 export const PARITY_ORG = "acme";

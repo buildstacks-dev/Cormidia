@@ -21,8 +21,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { PublicationDestination } from "@cormidia/learning-loop";
 import { writeFileAtomic } from "../../../src/org/atomic.js";
 import { publishCandidate } from "../../../src/org/learning-loop/publish.js";
-import { readManifest } from "../../../src/org/learning/concepts.js";
-import { resolveLearningContext } from "../../../src/org/learning/resolver.js";
+import { readManifest } from "../../../src/org/learning-loop/host/concepts.js";
+import { resolveLearningContext } from "../../../src/org/learning-loop/host/resolver.js";
 import {
   assertExactlyOncePublish,
   KERNEL_APP,

@@ -8,17 +8,22 @@
 // routine transaction replayed end-to-end reports the SAME publication —
 // same kernel intervention, same receipts, same proposal bytes, exactly one
 // publish_committed event — and creates no manifest (proposals never cut
-// versions). The dedup asserted below is the learning-events JSONL seam
-// (src/org/learning/events.ts deterministic ids).
+// versions).
+//
+// F-PT-006 is resolved-ratified: company-event identity is content-derived and
+// producers owe no atomic rename. Nothing here asserts that B-13 seam. The dedup
+// asserted below is the distinct learning-events JSONL seam, whose
+// deterministic-id contract is in-repo product truth
+// (src/org/learning-loop/host/events.ts).
 
 import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { publishCandidate, type PublishOutcome } from "../../../src/org/learning-loop/publish.js";
-import { openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
-import { readManifest } from "../../../src/org/learning/concepts.js";
-import { readLearningEvents } from "../../../src/org/learning/events.js";
-import { writeReviewerVerdict } from "../../../src/org/learning/review.js";
+import { openCandidateArtifact } from "../../../src/org/learning-loop/host/candidate-store.js";
+import { readManifest } from "../../../src/org/learning-loop/host/concepts.js";
+import { readLearningEvents } from "../../../src/org/learning-loop/host/events.js";
+import { writeReviewerVerdict } from "../../../src/org/learning-loop/host/review.js";
 import {
   assertExactlyOncePublish,
   candidateSpec,

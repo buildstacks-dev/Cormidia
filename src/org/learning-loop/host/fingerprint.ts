@@ -19,9 +19,9 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { gitHeadOf } from "../../runtime/git.js";
-import type { RoleConfig } from "../../runtime/types.js";
-import { writeFileAtomic } from "../atomic.js";
+import { gitHeadOf } from "../../../runtime/git.js";
+import type { RoleConfig } from "../../../runtime/types.js";
+import { writeFileAtomic } from "../../atomic.js";
 
 interface FingerprintModelEntry {
   runtime: string;

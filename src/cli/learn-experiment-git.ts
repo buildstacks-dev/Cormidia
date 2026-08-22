@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { gitIn } from "../org/learning/replay.js";
+import { gitIn } from "../org/learning-loop/host/replay.js";
 
 export function ensureSeedClone(repoSlug: string, repoDir: string): void {
   if (existsSync(join(repoDir, ".git"))) {

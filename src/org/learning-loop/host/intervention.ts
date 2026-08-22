@@ -22,11 +22,8 @@
 // `schema_version` added; `rollback`'s shape pinned to
 // `{ rolled_back_at, reason }` (the sketch only ever showed null).
 
-import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeFileAtomic } from "../atomic.js";
-import type { LoopClaim } from "../memory.js";
+import type { LoopClaim } from "../../memory.js";
 import { CANDIDATE_DESTINATIONS, type CandidateDestination } from "./candidate.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";
 import {
@@ -237,27 +234,6 @@ function interventionsDir(orgHome: string): string {
 
 export function interventionPath(orgHome: string, interventionId: string): string {
   return join(interventionsDir(orgHome), `${interventionId}.json`);
-}
-
-/** Validate and persist. Lineage is history: an existing record may only be
- *  rewritten by a strictly forward status transition (proposed -> published
- *  -> active -> rolled_back/retired) — never sideways or back. */
-export async function writeInterventionRecord(orgHome: string, value: unknown): Promise<InterventionRecord> {
-  const record = validateInterventionRecord(value);
-  const path = interventionPath(orgHome, record.intervention_id);
-  if (existsSync(path)) {
-    const existing = validateInterventionRecord(JSON.parse(await readFile(path, "utf8")));
-    const order: InterventionStatus[] = ["proposed", "published", "active", "rolled_back", "retired"];
-    if (order.indexOf(record.status) < order.indexOf(existing.status)) {
-      throw new Error(
-        `learning: ${record.intervention_id} is "${existing.status}" — ` +
-          `it cannot move back to "${record.status}"; lineage only advances`,
-      );
-    }
-  }
-  await mkdir(interventionsDir(orgHome), { recursive: true });
-  await writeFileAtomic(path, JSON.stringify(record, null, 2) + "\n");
-  return record;
 }
 
 export async function readInterventionRecord(orgHome: string, interventionId: string): Promise<InterventionRecord> {

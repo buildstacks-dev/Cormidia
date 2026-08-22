@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { writeFileAtomic } from "../atomic.js";
+import { writeFileAtomic } from "../../atomic.js";
 import {
   appLearningRoot,
   orgLearningRoot,
@@ -34,9 +34,9 @@ import {
 import { readEpisodeRecords } from "./episode.js";
 import { sanitizeIdSegment } from "./events.js";
 import type { LearningPolicy, TierCanaryPolicy } from "./policy.js";
-import { listInFlightLegacyJournals } from "../learning-loop/legacy.js";
-import type { LoopTier } from "../memory.js";
-import { definedProps } from "../../runtime/optional-properties.js";
+import { listInFlightLegacyJournals } from "../legacy.js";
+import type { LoopTier } from "../../memory.js";
+import { definedProps } from "../../../runtime/optional-properties.js";
 
 export type BundleLineage = "stable" | "canary";
 export type CanaryRootKind = "org" | "app";

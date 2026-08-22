@@ -8,7 +8,7 @@ import {
   rollupLearningSpend,
 } from "../org/budget.js";
 import { resolveCormidiaHomes } from "../org/home.js";
-import { defaultLearningPolicy, loadLearningPolicy } from "../org/learning/policy.js";
+import { defaultLearningPolicy, loadLearningPolicy } from "../org/learning-loop/host/policy.js";
 import { loadRoles } from "../org/roles.js";
 import { extractHomeFlags } from "./home-flags.js";
 

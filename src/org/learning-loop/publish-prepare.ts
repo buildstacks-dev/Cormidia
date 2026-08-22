@@ -5,22 +5,11 @@
 // candidate plus its decisive review. Every step is idempotent, so recording
 // a review and publishing later re-derive the same kernel facts.
 
-import { candidateArtifactHash, findCandidateArtifact } from "../learning/candidate-store.js";
-import type { CandidateArtifact } from "../learning/candidate.js";
-import {
-  appLearningRoot,
-  orgLearningRoot,
-  rootKindForScope,
-  scopeApp,
-  type LearningRoot,
-} from "../learning/concepts.js";
-import type { LearningPolicy } from "../learning/policy.js";
-import {
-  readReviewerVerdict,
-  reviewDisposition,
-  reviewerVerdictHash,
-  type ReviewerVerdict,
-} from "../learning/review.js";
+import { candidateArtifactHash, findCandidateArtifact } from "./host/candidate-store.js";
+import type { CandidateArtifact } from "./host/candidate.js";
+import { appLearningRoot, orgLearningRoot, rootKindForScope, scopeApp, type LearningRoot } from "./host/concepts.js";
+import type { LearningPolicy } from "./host/policy.js";
+import { readReviewerVerdict, reviewDisposition, reviewerVerdictHash, type ReviewerVerdict } from "./host/review.js";
 import { ensureKernelCandidate } from "./candidates.js";
 import type { CandidateRouting } from "./host-index.js";
 import type { CormidiaLearningLoop } from "./loop.js";

@@ -23,9 +23,9 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { readEnvelope, type RunEnvelope } from "../../runtime/runlog/envelope.js";
-import { runPaths } from "../../runtime/runlog/paths.js";
-import { writeFileAtomic } from "../atomic.js";
+import { readEnvelope, type RunEnvelope } from "../../../runtime/runlog/envelope.js";
+import { runPaths } from "../../../runtime/runlog/paths.js";
+import { writeFileAtomic } from "../../atomic.js";
 import { readEpisodeRecord, type EpisodeRecord } from "./episode.js";
 
 type Replayability = "replayable" | "partially_replayable" | "non_replayable";

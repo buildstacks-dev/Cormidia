@@ -34,7 +34,7 @@ deltas phase B's parity audit must close. The adapter contract itself is
 ```
 
 The adapter layer is `src/org/learning-loop/` (composition root `loop.ts`); the forked engine
-`src/org/learning/` remains the only operator path (CLI, scheduler, context assembly) until
+`src/org/learning/` remained the only operator path (phase A; superseded at the phase-B cutover, §7–§9, and removed with the fork) (CLI, scheduler, context assembly) until
 phase B. The kernel path is reachable in phase A only through `createCormidiaLearningLoop`.
 
 ## 3. Compatibility policy (the ruling this record makes)

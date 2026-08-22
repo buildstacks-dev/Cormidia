@@ -36,8 +36,8 @@
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { writeFileAtomic } from "../atomic.js";
-import { keywordsMatchTask, type OkfDocument } from "../memory.js";
+import { writeFileAtomic } from "../../atomic.js";
+import { keywordsMatchTask, type OkfDocument } from "../../memory.js";
 import {
   canaryBucket,
   decideRootLineage,
@@ -62,7 +62,7 @@ import {
 } from "./concepts.js";
 import { appendLearningEventsDeduped, sanitizeIdSegment, type LearningEvent } from "./events.js";
 import type { LearningPolicy, ScopeShareKey } from "./policy.js";
-import { definedProps } from "../../runtime/optional-properties.js";
+import { definedProps } from "../../../runtime/optional-properties.js";
 
 interface ResolveInput {
   orgHome: string;

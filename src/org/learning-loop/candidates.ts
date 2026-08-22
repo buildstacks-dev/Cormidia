@@ -11,8 +11,8 @@
 
 import { sha256HexOfCanonicalJson } from "@cormidia/learning-loop";
 import type { CandidateView, IngestReceipt, JsonValue, ProposeOutcome } from "@cormidia/learning-loop";
-import type { CandidateArtifact } from "../learning/candidate.js";
-import { scopeApp } from "../learning/concepts.js";
+import type { CandidateArtifact } from "./host/candidate.js";
+import { scopeApp } from "./host/concepts.js";
 import { EPISODE_SOURCE_ID, projectionSuffix } from "./evidence-source.js";
 import {
   appendHostCandidateEntry,

@@ -9,10 +9,10 @@
 import { existsSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import type { InterventionState } from "@cormidia/learning-loop";
-import type { CandidateArtifact, CandidateDestination } from "../learning/candidate.js";
-import { bundleScopeDir, loadConceptDir, scopeApp, scopeShareKey, type LearningRoot } from "../learning/concepts.js";
-import type { LearningPolicy } from "../learning/policy.js";
-import type { ReviewerVerdict } from "../learning/review.js";
+import type { CandidateArtifact, CandidateDestination } from "./host/candidate.js";
+import { bundleScopeDir, loadConceptDir, scopeApp, scopeShareKey, type LearningRoot } from "./host/concepts.js";
+import type { LearningPolicy } from "./host/policy.js";
+import type { ReviewerVerdict } from "./host/review.js";
 import type { LoopTier } from "../memory.js";
 import { destinationIdFor } from "./compose.js";
 import { proposalDraftPath, type ProposalKind } from "./destination-proposal.js";

@@ -1,4 +1,4 @@
-// Cormidia's worktree-isolated loop replay (src/org/learning/replay.ts —
+// Cormidia's worktree-isolated loop replay (src/org/learning-loop/host/replay.ts —
 // host-kept: replay workspace and agent-provider execution, kernel contract
 // §Cormidia) bound to the kernel's ReplayExecutor seam (replay-executor.ts).
 // The kernel asks for one (episode, arm, repetition); the runner finds the
@@ -9,8 +9,8 @@
 
 import { sha256HexOfCanonicalJson } from "@cormidia/learning-loop";
 import type { ReplayAttemptRequest, ReplayAttemptResult } from "@cormidia/learning-loop";
-import type { EvalFixture } from "../learning/eval-fixture.js";
-import type { ReplayExecutor as LoopReplayExecutor, ReplayExperimentContext } from "../learning/replay.js";
+import type { EvalFixture } from "./host/eval-fixture.js";
+import type { ReplayExecutor as LoopReplayExecutor, ReplayExperimentContext } from "./host/replay.js";
 import { REPLAY_METRICS, replayMetricDefinition } from "./experiments.js";
 import type { CormidiaReplayOutcome, CormidiaReplayRunner } from "./replay-executor.js";
 

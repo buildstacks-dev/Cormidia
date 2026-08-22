@@ -20,7 +20,7 @@ import { createCormidiaAuthorityPort, LEARNING_LOOP_PUBLISH_TOOL } from "../../.
 import { createOkfConceptDestination, UNVERSIONED_BASE } from "../../../src/org/learning-loop/destination-okf.js";
 import { createEpisodeEvidenceSource } from "../../../src/org/learning-loop/evidence-source.js";
 import { learningLoopStateDir } from "../../../src/org/learning-loop/loop.js";
-import { orgLearningRoot, readManifest } from "../../../src/org/learning/concepts.js";
+import { orgLearningRoot, readManifest } from "../../../src/org/learning-loop/host/concepts.js";
 import { makeTestClock } from "../../fixtures/clock.js";
 
 const roots: string[] = [];

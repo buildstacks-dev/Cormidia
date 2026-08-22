@@ -27,7 +27,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { writeFileAtomic } from "../atomic.js";
+import { writeFileAtomic } from "../../atomic.js";
 import {
   isValidLoopScope,
   loadBundle,
@@ -35,9 +35,9 @@ import {
   serializeOkfDocument,
   type LoopStatus,
   type OkfDocument,
-} from "../memory.js";
+} from "../../memory.js";
 import type { LearningPolicy } from "./policy.js";
-import { definedProps } from "../../runtime/optional-properties.js";
+import { definedProps } from "../../../runtime/optional-properties.js";
 
 // ---------------------------------------------------------------------------
 // roots and scope mapping

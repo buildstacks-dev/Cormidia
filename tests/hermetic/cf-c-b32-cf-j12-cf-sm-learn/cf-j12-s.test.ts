@@ -1,4 +1,4 @@
-// Traceability: CF-J12-S · HB-157; CF-C-B32 · HB-156 · contracts/journey-acceptance.md J-12 success criterion; contracts/B-32-learning-kernel-ports.md.
+// Traceability: CF-J12-S · HB-157; CF-C-B32 · HB-156; CF-C-B11 · HB-017 · contracts/journey-acceptance.md J-12 success criterion; contracts/B-32-learning-kernel-ports.md.
 
 // CF-J12-S — capture→episode→candidate→review→publish happy path on the
 // KERNEL path over a temp org-home git (L2 state; Cormidia #467 phase B;
@@ -13,6 +13,11 @@
 // journaled publish through the OKF destination writing the governed
 // substrate of a real git repo.
 
+//
+// F-PT-008 is resolved-ratified: expiry reopens the original item with append-only history.
+// The approval assertions below cover consumption of a live authorization
+// only; the dedicated expiry-disposition cases live with CF-B09a.
+
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -21,11 +26,11 @@ import { authorizationBindingDigest } from "@cormidia/learning-loop";
 import { publishBindingDigestOf } from "../../../src/org/learning-loop/authority.js";
 import { listKernelInterventions } from "../../../src/org/learning-loop/interventions.js";
 import { publishCandidate, type PublishOutcome } from "../../../src/org/learning-loop/publish.js";
-import { openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
-import { assertConceptPlacement, readManifest } from "../../../src/org/learning/concepts.js";
-import { readLearningEvents } from "../../../src/org/learning/events.js";
-import { resolveLearningContext } from "../../../src/org/learning/resolver.js";
-import { writeReviewerVerdict } from "../../../src/org/learning/review.js";
+import { openCandidateArtifact } from "../../../src/org/learning-loop/host/candidate-store.js";
+import { assertConceptPlacement, readManifest } from "../../../src/org/learning-loop/host/concepts.js";
+import { readLearningEvents } from "../../../src/org/learning-loop/host/events.js";
+import { resolveLearningContext } from "../../../src/org/learning-loop/host/resolver.js";
+import { writeReviewerVerdict } from "../../../src/org/learning-loop/host/review.js";
 import { parseOkfDocument } from "../../../src/org/memory.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 import {

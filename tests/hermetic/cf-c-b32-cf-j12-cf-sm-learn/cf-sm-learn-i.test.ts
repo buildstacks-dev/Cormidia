@@ -1,4 +1,4 @@
-// Traceability: CF-SM-LEARN-I · HB-157; CF-C-B32 · HB-156 · case-catalog.md §2 learning machine; system-map.md §2.2; contracts/B-32-learning-kernel-ports.md.
+// Traceability: CF-SM-LEARN-I · HB-157; CF-C-B32 · HB-156; CF-C-B11 · HB-017 · case-catalog.md §2 learning machine; system-map.md §2.2; contracts/B-32-learning-kernel-ports.md.
 
 // CF-SM-LEARN-I — every SILENT-PROMOTION path is unrepresentable on the
 // KERNEL path (L2 state, risk E1, T-10; INV-012 "agents propose only;
@@ -18,10 +18,10 @@ import { interventionViewOf } from "../../../src/org/learning-loop/interventions
 import { disableOkfActivation, findOkfActivationForConcept } from "../../../src/org/learning-loop/okf-lineage.js";
 import { publishCandidate } from "../../../src/org/learning-loop/publish.js";
 import { assertCandidateMayActivate } from "../../../src/org/learning-loop/publish-route.js";
-import { candidateArtifactPath, openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
-import { validateCandidateArtifact } from "../../../src/org/learning/candidate.js";
-import { readManifest } from "../../../src/org/learning/concepts.js";
-import { openReviewerVerdict, writeReviewerVerdict } from "../../../src/org/learning/review.js";
+import { candidateArtifactPath, openCandidateArtifact } from "../../../src/org/learning-loop/host/candidate-store.js";
+import { validateCandidateArtifact } from "../../../src/org/learning-loop/host/candidate.js";
+import { readManifest } from "../../../src/org/learning-loop/host/concepts.js";
+import { openReviewerVerdict, writeReviewerVerdict } from "../../../src/org/learning-loop/host/review.js";
 import {
   candidateSpec,
   conceptDraftMarkdown,

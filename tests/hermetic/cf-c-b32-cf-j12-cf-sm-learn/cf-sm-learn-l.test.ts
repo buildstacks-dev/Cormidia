@@ -1,4 +1,4 @@
-// Traceability: CF-SM-LEARN-L · HB-157; CF-C-B32 · HB-156 · case-catalog.md §2 learning machine; system-map.md §2.2; contracts/B-32-learning-kernel-ports.md.
+// Traceability: CF-SM-LEARN-L · HB-157; CF-C-B32 · HB-156; CF-C-B11 · HB-017 · case-catalog.md §2 learning machine; system-map.md §2.2; contracts/B-32-learning-kernel-ports.md.
 
 // CF-SM-LEARN-L — the learning state machine's LEGAL chain on the KERNEL
 // path, each state a separate recorded fact: candidate → published →
@@ -12,9 +12,9 @@ import type { InterventionState } from "@cormidia/learning-loop";
 import { claimLabelOf, claimOf, interventionViewOf } from "../../../src/org/learning-loop/interventions.js";
 import { publishCandidate } from "../../../src/org/learning-loop/publish.js";
 import { assertCandidateMayActivate } from "../../../src/org/learning-loop/publish-route.js";
-import { openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
-import { validateCandidateArtifact } from "../../../src/org/learning/candidate.js";
-import { writeReviewerVerdict } from "../../../src/org/learning/review.js";
+import { openCandidateArtifact } from "../../../src/org/learning-loop/host/candidate-store.js";
+import { validateCandidateArtifact } from "../../../src/org/learning-loop/host/candidate.js";
+import { writeReviewerVerdict } from "../../../src/org/learning-loop/host/review.js";
 import {
   candidateSpec,
   makeKernelWorld,

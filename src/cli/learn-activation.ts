@@ -28,7 +28,7 @@ import {
   candidateArtifactPath,
   findCandidateArtifact,
   listCandidateArtifacts,
-} from "../org/learning/candidate-store.js";
+} from "../org/learning-loop/host/candidate-store.js";
 import {
   appLearningRoot,
   disableConcept,
@@ -39,16 +39,16 @@ import {
   scopeApp,
   writeProvisionalConcept,
   type LearningRoot,
-} from "../org/learning/concepts.js";
-import { loadLearningPolicy, type LearningPolicy } from "../org/learning/policy.js";
-import { appendRejection, readRejections } from "../org/learning/rejections.js";
-import { resolveLearningContext } from "../org/learning/resolver.js";
+} from "../org/learning-loop/host/concepts.js";
+import { loadLearningPolicy, type LearningPolicy } from "../org/learning-loop/host/policy.js";
+import { appendRejection, readRejections } from "../org/learning-loop/host/rejections.js";
+import { resolveLearningContext } from "../org/learning-loop/host/resolver.js";
 import {
   listReviewerVerdicts,
   reviewDisposition,
   writeReviewerVerdict,
   type ReviewerVerdict,
-} from "../org/learning/review.js";
+} from "../org/learning-loop/host/review.js";
 import type { OkfDocument } from "../org/memory.js";
 import { definedProps } from "../runtime/optional-properties.js";
 

@@ -37,7 +37,7 @@ import {
   readManifest,
   rootKindForScope,
   type LearningRoot,
-} from "../learning/concepts.js";
+} from "./host/concepts.js";
 import { parseOkfDocument, serializeOkfDocument, type OkfDocument } from "../memory.js";
 import { destinationRefusal, resolveRepeatedKey, writeDestinationReceipt } from "./destination-receipts.js";
 import { loopScopeFromScope } from "./scope.js";

@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ApprovalItem, ApprovalStore } from "../approvals.js";
-import { sanitizeIdSegment } from "../learning/events.js";
+import { sanitizeIdSegment } from "./host/events.js";
 
 export const LEGACY_PUBLISH_TOOL = "learning_publish";
 

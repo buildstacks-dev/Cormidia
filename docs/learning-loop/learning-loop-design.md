@@ -931,9 +931,9 @@ regressions. Agreement alone is insufficient.
 > replay, and the `learn *` CLI, the scheduled distiller/reviewer turns, and context
 > assembly run through it. The host-owned parts of this design (capture, episodes,
 > events, OKF concepts and manifest, policy, canary, replay execution, candidate and
-> verdict stores) remain under `src/org/learning/`; the forked deterministic engine
-> (publisher, experiment runner, efficacy) is retired by the sign-off-gated deletion
-> commit. Policy, rulings, and parity evidence:
+> verdict stores) live under `src/org/learning-loop/host/`; the forked deterministic
+> engine (publisher, experiment runner, efficacy decisions) is removed — the kernel
+> journal, plans, and evaluations replace it. Policy, rulings, and parity evidence:
 > `research/2026-08-21_learning-loop-migration-compatibility-policy.md` §7–§9;
 > boundary contract: `validation-design/contracts/B-32-learning-kernel-ports.md`.
 

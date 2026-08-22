@@ -7,10 +7,10 @@
 
 import { rm } from "node:fs/promises";
 import type { PublicationReceipt } from "@cormidia/learning-loop";
-import { conceptDraftPath } from "../learning/candidate-store.js";
-import type { CandidateArtifact } from "../learning/candidate.js";
-import { orgLearningRoot, scopeApp, type LearningRoot } from "../learning/concepts.js";
-import { appendLearningEventsDeduped, sanitizeIdSegment } from "../learning/events.js";
+import { conceptDraftPath } from "./host/candidate-store.js";
+import type { CandidateArtifact } from "./host/candidate.js";
+import { orgLearningRoot, scopeApp, type LearningRoot } from "./host/concepts.js";
+import { appendLearningEventsDeduped, sanitizeIdSegment } from "./host/events.js";
 import { updateHostCandidateEntry, type CandidateRouting } from "./host-index.js";
 import type { CormidiaLearningLoop } from "./loop.js";
 import { refsOf } from "./publish-render.js";

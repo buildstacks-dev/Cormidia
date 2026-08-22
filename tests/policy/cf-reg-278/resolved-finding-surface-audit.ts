@@ -229,7 +229,7 @@ const rows: readonly SurfaceRow[] = [
     stale: ["BLOCKED:F-PT-006 (event producer visibility / duplicate identity)"],
   },
   {
-    path: "tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-r.test.ts",
+    path: "tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-r.test.ts",
     required: ["F-PT-006 is resolved-ratified: company-event identity is content-derived"],
     stale: ["BLOCKED:F-PT-006 — the company-event INBOX"],
   },

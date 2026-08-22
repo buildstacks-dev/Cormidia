@@ -2,7 +2,7 @@
 // compatibility-policy record §3a). The OKF manifest remains the authority
 // for WHICH concept bytes a turn loads — it is the compatibility island that
 // keeps every forked-engine activation serving unchanged — so the host
-// resolver (src/org/learning/resolver.ts: four-scope gather, INV-013 manifest
+// resolver (src/org/learning-loop/host/resolver.ts: four-scope gather, INV-013 manifest
 // membership, topic conflicts, per-scope budget shares, protected tiers,
 // provisionals, episode-sticky canary lineage) renders the bytes exactly as
 // before. The kernel supplies what the manifest cannot: a receipt-frozen
@@ -17,8 +17,8 @@ import { join } from "node:path";
 import { LearningLoopError } from "@cormidia/learning-loop";
 import type { JsonValue, ResolvedContext } from "@cormidia/learning-loop";
 import { writeFileAtomic } from "../atomic.js";
-import { sanitizeIdSegment } from "../learning/events.js";
-import { resolveLearningContext, type ResolvedLearningContext } from "../learning/resolver.js";
+import { sanitizeIdSegment } from "./host/events.js";
+import { resolveLearningContext, type ResolvedLearningContext } from "./host/resolver.js";
 import { parseOkfDocument } from "../memory.js";
 import { definedProps } from "../../runtime/optional-properties.js";
 import { EPISODE_SOURCE_ID } from "./evidence-source.js";

@@ -40,39 +40,50 @@ import {
 } from "../org/learning-loop/interventions.js";
 import { learningLoopStateDir } from "../org/learning-loop/loop.js";
 import { syncKernelEvidence } from "../org/learning-loop/sync.js";
-import { findCandidateArtifact } from "../org/learning/candidate-store.js";
-import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
-import { previewCaptureEvents, projectCaptureEvents, type CaptureProjectionResult } from "../org/learning/capture.js";
-import { compactionReport, listM6RunRecords, prepareDistillation } from "../org/learning/distillation.js";
-import { projectLearningEfficiencyHealth, type LearningEfficiencyHealth } from "../org/learning/efficiency-health.js";
+import { findCandidateArtifact } from "../org/learning-loop/host/candidate-store.js";
+import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning-loop/host/capsule.js";
+import {
+  previewCaptureEvents,
+  projectCaptureEvents,
+  type CaptureProjectionResult,
+} from "../org/learning-loop/host/capture.js";
+import { compactionReport, listM6RunRecords, prepareDistillation } from "../org/learning-loop/host/distillation.js";
+import {
+  projectLearningEfficiencyHealth,
+  type LearningEfficiencyHealth,
+} from "../org/learning-loop/host/efficiency-health.js";
 import {
   createEpisodeProjector,
   readEpisodeRecord,
   readEpisodeRecords,
   type EpisodeProjector,
   type EpisodeRecord,
-} from "../org/learning/episode.js";
-import { convertCapsuleToEvalFixture, trustEvalFixture } from "../org/learning/eval-fixture.js";
-import { listEvalResults, readEvalResult, type EvalResult } from "../org/learning/eval-result.js";
+} from "../org/learning-loop/host/episode.js";
+import { convertCapsuleToEvalFixture, trustEvalFixture } from "../org/learning-loop/host/eval-fixture.js";
+import { listEvalResults, readEvalResult, type EvalResult } from "../org/learning-loop/host/eval-result.js";
 import {
   createLearningEventSink,
   learningEventPath,
   readLearningEvents,
   readLearningEventsWithDiagnostics,
   type LearningEvent,
-} from "../org/learning/events.js";
-import { listExperimentRecords, readExperimentRecord, type ExperimentRecord } from "../org/learning/experiment.js";
-import { computeSystemFingerprint, storeFingerprint } from "../org/learning/fingerprint.js";
+} from "../org/learning-loop/host/events.js";
+import {
+  listExperimentRecords,
+  readExperimentRecord,
+  type ExperimentRecord,
+} from "../org/learning-loop/host/experiment.js";
+import { computeSystemFingerprint, storeFingerprint } from "../org/learning-loop/host/fingerprint.js";
 import {
   interventionChainGaps,
   interventionIdForCandidate,
   interventionPath,
   listInterventionRecords,
   readInterventionRecord,
-} from "../org/learning/intervention.js";
-import { loadLearningPolicy } from "../org/learning/policy.js";
-import { readRejections } from "../org/learning/rejections.js";
-import { listReviewerVerdicts, readReviewerVerdict } from "../org/learning/review.js";
+} from "../org/learning-loop/host/intervention.js";
+import { loadLearningPolicy } from "../org/learning-loop/host/policy.js";
+import { readRejections } from "../org/learning-loop/host/rejections.js";
+import { listReviewerVerdicts, readReviewerVerdict } from "../org/learning-loop/host/review.js";
 import { loadRoles } from "../org/roles.js";
 import { extractProgressArgs } from "../runtime/cli-progress.js";
 import { definedProps } from "../runtime/optional-properties.js";

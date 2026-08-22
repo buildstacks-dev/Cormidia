@@ -6,7 +6,7 @@
 // of the kernel record against the root's manifest history, and a concept no
 // kernel intervention cut is a forked-engine (legacy) activation.
 
-import { readManifest, type LearningRoot } from "../learning/concepts.js";
+import { readManifest, type LearningRoot } from "./host/concepts.js";
 import { operatorEvidence } from "./authority-evidence.js";
 import { listKernelInterventions, type KernelInterventionView } from "./interventions.js";
 import type { CormidiaLearningLoop } from "./loop.js";

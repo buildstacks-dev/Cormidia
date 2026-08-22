@@ -118,7 +118,7 @@
     },
     "src/cli/learn.ts": {
       "exports": 1,
-      "lines": 1402,
+      "lines": 1413,
       "newModule": false
     },
     "src/cli/loop-gate.ts": {
@@ -886,6 +886,131 @@
       "lines": 187,
       "newModule": true
     },
+    "src/org/learning-loop/host/canary.ts": {
+      "exports": 14,
+      "lines": 471,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/candidate-store.ts": {
+      "exports": 7,
+      "lines": 125,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/candidate.ts": {
+      "exports": 6,
+      "lines": 240,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/capsule.ts": {
+      "exports": 4,
+      "lines": 244,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/capture.ts": {
+      "exports": 6,
+      "lines": 639,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/concepts.ts": {
+      "exports": 28,
+      "lines": 804,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/distillation.ts": {
+      "exports": 13,
+      "lines": 856,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/efficacy.ts": {
+      "exports": 2,
+      "lines": 13,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/efficiency-evidence.ts": {
+      "exports": 6,
+      "lines": 703,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/efficiency-health.ts": {
+      "exports": 2,
+      "lines": 642,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/episode.ts": {
+      "exports": 6,
+      "lines": 988,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/episodes.ts": {
+      "exports": 7,
+      "lines": 133,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/eval-fixture.ts": {
+      "exports": 5,
+      "lines": 414,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/eval-result.ts": {
+      "exports": 9,
+      "lines": 480,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/events.ts": {
+      "exports": 10,
+      "lines": 222,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/experiment.ts": {
+      "exports": 11,
+      "lines": 482,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/fingerprint.ts": {
+      "exports": 6,
+      "lines": 258,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/intervention.ts": {
+      "exports": 9,
+      "lines": 273,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/policy.ts": {
+      "exports": 6,
+      "lines": 535,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/records.ts": {
+      "exports": 3,
+      "lines": 69,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/rejections.ts": {
+      "exports": 4,
+      "lines": 113,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/replay.ts": {
+      "exports": 8,
+      "lines": 1642,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/resolver.ts": {
+      "exports": 4,
+      "lines": 590,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/review.ts": {
+      "exports": 7,
+      "lines": 198,
+      "newModule": false
+    },
+    "src/org/learning-loop/host/validate.ts": {
+      "exports": 12,
+      "lines": 111,
+      "newModule": false
+    },
     "src/org/learning-loop/identity.ts": {
       "exports": 6,
       "lines": 71,
@@ -965,146 +1090,6 @@
       "exports": 2,
       "lines": 54,
       "newModule": true
-    },
-    "src/org/learning/binding.ts": {
-      "exports": 5,
-      "lines": 143,
-      "newModule": false
-    },
-    "src/org/learning/canary.ts": {
-      "exports": 14,
-      "lines": 471,
-      "newModule": false
-    },
-    "src/org/learning/candidate-store.ts": {
-      "exports": 7,
-      "lines": 125,
-      "newModule": false
-    },
-    "src/org/learning/candidate.ts": {
-      "exports": 6,
-      "lines": 240,
-      "newModule": false
-    },
-    "src/org/learning/capsule.ts": {
-      "exports": 4,
-      "lines": 244,
-      "newModule": false
-    },
-    "src/org/learning/capture.ts": {
-      "exports": 6,
-      "lines": 639,
-      "newModule": false
-    },
-    "src/org/learning/concepts.ts": {
-      "exports": 28,
-      "lines": 804,
-      "newModule": false
-    },
-    "src/org/learning/distillation.ts": {
-      "exports": 13,
-      "lines": 856,
-      "newModule": false
-    },
-    "src/org/learning/efficacy.ts": {
-      "exports": 2,
-      "lines": 13,
-      "newModule": false
-    },
-    "src/org/learning/efficiency-evidence.ts": {
-      "exports": 6,
-      "lines": 703,
-      "newModule": false
-    },
-    "src/org/learning/efficiency-health.ts": {
-      "exports": 2,
-      "lines": 642,
-      "newModule": false
-    },
-    "src/org/learning/episode.ts": {
-      "exports": 6,
-      "lines": 988,
-      "newModule": false
-    },
-    "src/org/learning/episodes.ts": {
-      "exports": 7,
-      "lines": 133,
-      "newModule": false
-    },
-    "src/org/learning/eval-fixture.ts": {
-      "exports": 5,
-      "lines": 414,
-      "newModule": false
-    },
-    "src/org/learning/eval-result.ts": {
-      "exports": 9,
-      "lines": 480,
-      "newModule": false
-    },
-    "src/org/learning/events.ts": {
-      "exports": 10,
-      "lines": 222,
-      "newModule": false
-    },
-    "src/org/learning/experiment.ts": {
-      "exports": 11,
-      "lines": 482,
-      "newModule": false
-    },
-    "src/org/learning/fingerprint.ts": {
-      "exports": 6,
-      "lines": 258,
-      "newModule": false
-    },
-    "src/org/learning/intervention.ts": {
-      "exports": 9,
-      "lines": 273,
-      "newModule": false
-    },
-    "src/org/learning/policy.ts": {
-      "exports": 6,
-      "lines": 535,
-      "newModule": false
-    },
-    "src/org/learning/publisher.ts": {
-      "exports": 4,
-      "lines": 849,
-      "newModule": false
-    },
-    "src/org/learning/records.ts": {
-      "exports": 3,
-      "lines": 69,
-      "newModule": false
-    },
-    "src/org/learning/rejections.ts": {
-      "exports": 4,
-      "lines": 113,
-      "newModule": false
-    },
-    "src/org/learning/replay.ts": {
-      "exports": 8,
-      "lines": 1642,
-      "newModule": false
-    },
-    "src/org/learning/resolver.ts": {
-      "exports": 4,
-      "lines": 590,
-      "newModule": false
-    },
-    "src/org/learning/review.ts": {
-      "exports": 7,
-      "lines": 198,
-      "newModule": false
-    },
-    "src/org/learning/runner.ts": {
-      "exports": 2,
-      "lines": 398,
-      "newModule": false
-    },
-    "src/org/learning/validate.ts": {
-      "exports": 12,
-      "lines": 111,
-      "newModule": false
     },
     "src/org/lifecycle.ts": {
       "exports": 17,

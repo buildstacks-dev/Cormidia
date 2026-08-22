@@ -23,12 +23,12 @@ import { createCormidiaLearningLoop, type CormidiaLearningLoop } from "../../../
 import { legacyPublishBindingOf, readLegacyPublishJournal } from "../../../src/org/learning-loop/legacy.js";
 import { listKernelInterventions } from "../../../src/org/learning-loop/interventions.js";
 import { publishCandidate, type PublishDeps } from "../../../src/org/learning-loop/publish.js";
-import { openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
-import { appLearningRoot, orgLearningRoot, readManifest } from "../../../src/org/learning/concepts.js";
-import { appendLearningEventsDeduped, readLearningEvents } from "../../../src/org/learning/events.js";
-import { defaultLearningPolicy } from "../../../src/org/learning/policy.js";
-import { resolveLearningContext } from "../../../src/org/learning/resolver.js";
-import { writeReviewerVerdict } from "../../../src/org/learning/review.js";
+import { openCandidateArtifact } from "../../../src/org/learning-loop/host/candidate-store.js";
+import { appLearningRoot, orgLearningRoot, readManifest } from "../../../src/org/learning-loop/host/concepts.js";
+import { appendLearningEventsDeduped, readLearningEvents } from "../../../src/org/learning-loop/host/events.js";
+import { defaultLearningPolicy } from "../../../src/org/learning-loop/host/policy.js";
+import { resolveLearningContext } from "../../../src/org/learning-loop/host/resolver.js";
+import { writeReviewerVerdict } from "../../../src/org/learning-loop/host/review.js";
 import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 import {
   PARITY_APP,

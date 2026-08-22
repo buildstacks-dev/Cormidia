@@ -20,8 +20,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import type { LoopTier } from "../memory.js";
-import { parseSchedule } from "../schedule.js";
+import type { LoopTier } from "../../memory.js";
+import { parseSchedule } from "../../schedule.js";
 
 export type ScopeShareKey = "org" | "role" | "app" | "app_role";
 

@@ -7,14 +7,14 @@
 // introducing a second evidence model.
 
 import { createHash } from "node:crypto";
-import type { ExecutionStepRecord, RouteRecord } from "../../loop/efficiency.js";
-import type { ExecutionJournal } from "../../loop/execution-journal.js";
-import type { RunEnvelope } from "../../runtime/runlog/envelope.js";
-import type { RunlogEvent } from "../../runtime/runlog/events.js";
-import { ERROR_TURN_BUDGET_SUSPENDED } from "../../runtime/turn-budget.js";
-import type { TurnAssignmentSource } from "../../runtime/types.js";
+import type { ExecutionStepRecord, RouteRecord } from "../../../loop/efficiency.js";
+import type { ExecutionJournal } from "../../../loop/execution-journal.js";
+import type { RunEnvelope } from "../../../runtime/runlog/envelope.js";
+import type { RunlogEvent } from "../../../runtime/runlog/events.js";
+import { ERROR_TURN_BUDGET_SUSPENDED } from "../../../runtime/turn-budget.js";
+import type { TurnAssignmentSource } from "../../../runtime/types.js";
 import { METRIC_EMITTERS, type LearningEvent } from "./events.js";
-import { definedProps } from "../../runtime/optional-properties.js";
+import { definedProps } from "../../../runtime/optional-properties.js";
 
 const EFFICIENCY_EVIDENCE_VERSION = "efficiency-evidence/v1" as const;
 const EFFICIENCY_CLUSTER_VERSION = "efficiency-cluster/v1" as const;

@@ -23,10 +23,10 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { scrubSecrets } from "../../runtime/runlog/redact.js";
-import { asGlobal, SECRET_PATTERNS } from "../../runtime/secret-patterns.js";
-import { writeFileAtomic } from "../atomic.js";
-import { isValidLoopScope } from "../memory.js";
+import { scrubSecrets } from "../../../runtime/runlog/redact.js";
+import { asGlobal, SECRET_PATTERNS } from "../../../runtime/secret-patterns.js";
+import { writeFileAtomic } from "../../atomic.js";
+import { isValidLoopScope } from "../../memory.js";
 import { readCapsule, type ReplayCapsule } from "./capsule.js";
 import type { GraderKind } from "./eval-result.js";
 import { optionalString, requireEnum, requireRecord, requireString, requireStringArray } from "./validate.js";

@@ -22,9 +22,9 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { classify, defaultGate } from "../../../src/runtime/gate.js";
 import type { ToolAction } from "../../../src/runtime/types.js";
-import { openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
-import { bundleDir, loadConceptDir, quarantineDir } from "../../../src/org/learning/concepts.js";
-import { resolveLearningContext } from "../../../src/org/learning/resolver.js";
+import { openCandidateArtifact } from "../../../src/org/learning-loop/host/candidate-store.js";
+import { bundleDir, loadConceptDir, quarantineDir } from "../../../src/org/learning-loop/host/concepts.js";
+import { resolveLearningContext } from "../../../src/org/learning-loop/host/resolver.js";
 import { assertNonEmptyWalk } from "../../fixtures/walk.js";
 import { candidateSpec, conceptDraftMarkdown, makeLearningWorld, type LearningWorld } from "./learning-seams.js";
 

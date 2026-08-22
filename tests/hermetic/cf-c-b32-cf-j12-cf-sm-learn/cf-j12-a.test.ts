@@ -27,10 +27,10 @@ import { writeHostExperiment } from "../../../src/org/learning-loop/experiments-
 import { publishCandidate } from "../../../src/org/learning-loop/publish.js";
 import { prepareKernelCandidate } from "../../../src/org/learning-loop/publish-prepare.js";
 import type { CormidiaReplayRunner } from "../../../src/org/learning-loop/replay-executor.js";
-import { openCandidateArtifact } from "../../../src/org/learning/candidate-store.js";
-import type { EvalFixture } from "../../../src/org/learning/eval-fixture.js";
-import type { SystemFingerprint } from "../../../src/org/learning/fingerprint.js";
-import { writeReviewerVerdict } from "../../../src/org/learning/review.js";
+import { openCandidateArtifact } from "../../../src/org/learning-loop/host/candidate-store.js";
+import type { EvalFixture } from "../../../src/org/learning-loop/host/eval-fixture.js";
+import type { SystemFingerprint } from "../../../src/org/learning-loop/host/fingerprint.js";
+import { writeReviewerVerdict } from "../../../src/org/learning-loop/host/review.js";
 import {
   candidateSpec,
   KERNEL_APP,

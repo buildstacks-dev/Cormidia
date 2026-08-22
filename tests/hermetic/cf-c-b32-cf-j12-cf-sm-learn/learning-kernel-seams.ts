@@ -23,17 +23,17 @@ import { createCormidiaLearningLoop, type CormidiaLearningLoop } from "../../../
 import { listKernelInterventions } from "../../../src/org/learning-loop/interventions.js";
 import { publishCandidate, type PublishDeps, type PublishOutcome } from "../../../src/org/learning-loop/publish.js";
 import type { CormidiaReplayRunner } from "../../../src/org/learning-loop/replay-executor.js";
-import { openCandidateArtifact, sha256Ref } from "../../../src/org/learning/candidate-store.js";
-import type { CandidateDestination } from "../../../src/org/learning/candidate.js";
+import { openCandidateArtifact, sha256Ref } from "../../../src/org/learning-loop/host/candidate-store.js";
+import type { CandidateDestination } from "../../../src/org/learning-loop/host/candidate.js";
 import {
   appLearningRoot,
   orgLearningRoot,
   readManifest,
   type LearningRoot,
-} from "../../../src/org/learning/concepts.js";
-import { readLearningEvents } from "../../../src/org/learning/events.js";
-import { defaultLearningPolicy, type LearningPolicy } from "../../../src/org/learning/policy.js";
-import { writeReviewerVerdict } from "../../../src/org/learning/review.js";
+} from "../../../src/org/learning-loop/host/concepts.js";
+import { readLearningEvents } from "../../../src/org/learning-loop/host/events.js";
+import { defaultLearningPolicy, type LearningPolicy } from "../../../src/org/learning-loop/host/policy.js";
+import { writeReviewerVerdict } from "../../../src/org/learning-loop/host/review.js";
 import type { LoopTier } from "../../../src/org/memory.js";
 import { serializeOkfDocument, type OkfDocument } from "../../../src/org/memory.js";
 import { makeTestClock, type TestClock } from "../../fixtures/clock.js";

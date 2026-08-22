@@ -16,8 +16,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeFileAtomic } from "../atomic.js";
-import { parseOkfDocument } from "../memory.js";
+import { writeFileAtomic } from "../../atomic.js";
+import { parseOkfDocument } from "../../memory.js";
 import { validateCandidateArtifact, type CandidateArtifact } from "./candidate.js";
 import { assertConceptPlacement, candidatesDir, type LearningRoot } from "./concepts.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";

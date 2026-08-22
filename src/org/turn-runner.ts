@@ -69,7 +69,7 @@ import {
   type GovernedPipelineProviderEvidence,
 } from "./governed-pipeline-episode.js";
 import { readJournal, writeJournalPatch, type TurnJournal, type TurnRecoveryEvidence } from "./journal.js";
-import { appLearningRoot, orgLearningRoot } from "./learning/concepts.js";
+import { appLearningRoot, orgLearningRoot } from "./learning-loop/host/concepts.js";
 import { prepareKernelCandidate } from "./learning-loop/publish-prepare.js";
 import { learningLoopFor } from "./learning-loop/registry.js";
 import { syncKernelEvidence } from "./learning-loop/sync.js";
@@ -87,10 +87,10 @@ import {
   writeCompactionSnapshot,
   writeM6RunRecord,
   type M6RunRecord,
-} from "./learning/distillation.js";
-import { journalEpisodeAnchor } from "./learning/episodes.js";
-import { readLearningEvents } from "./learning/events.js";
-import { loadLearningPolicy } from "./learning/policy.js";
+} from "./learning-loop/host/distillation.js";
+import { journalEpisodeAnchor } from "./learning-loop/host/episodes.js";
+import { readLearningEvents } from "./learning-loop/host/events.js";
+import { loadLearningPolicy } from "./learning-loop/host/policy.js";
 import { acquireLock, adoptLock, heartbeatLock, readLockOrUndefined, releaseLock, type TurnLock } from "./locks.js";
 import { ensureManagedClone, withAppGitLock } from "./managed-checkout.js";
 import {

@@ -48,17 +48,17 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { readTicketClaimState } from "../../loop/rehydrate.js";
-import { readEnvelope, type GateResultEntry, type RunEnvelope } from "../../runtime/runlog/envelope.js";
-import { readEvents, type RunlogEvent } from "../../runtime/runlog/events.js";
-import { readTurnRecords, type TurnRecord } from "../../runtime/telemetry.js";
-import { ApprovalStore, type ApprovalItem } from "../approvals.js";
-import { writeFileAtomic } from "../atomic.js";
+import { readTicketClaimState } from "../../../loop/rehydrate.js";
+import { readEnvelope, type GateResultEntry, type RunEnvelope } from "../../../runtime/runlog/envelope.js";
+import { readEvents, type RunlogEvent } from "../../../runtime/runlog/events.js";
+import { readTurnRecords, type TurnRecord } from "../../../runtime/telemetry.js";
+import { ApprovalStore, type ApprovalItem } from "../../approvals.js";
+import { writeFileAtomic } from "../../atomic.js";
 import { deriveEpisodeAnchor, listRuns } from "./capture.js";
 import { ticketNumber, type EpisodeAnchor, type EpisodeKind, type EpisodeSource } from "./episodes.js";
 import { appendLearningEventsDeduped, readLearningEvents, type LearningEvent } from "./events.js";
 import { resolvedContextDir } from "./resolver.js";
-import { definedProps } from "../../runtime/optional-properties.js";
+import { definedProps } from "../../../runtime/optional-properties.js";
 
 // ---------------------------------------------------------------------------
 // record shape (spec §5; deltas noted per field)

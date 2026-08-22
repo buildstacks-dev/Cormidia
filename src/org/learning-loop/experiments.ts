@@ -8,8 +8,8 @@
 
 import { eligibilitySetDigest, referenceExperimentRules, sha256HexOfCanonicalJson } from "@cormidia/learning-loop";
 import type { EvaluationResult, ExperimentDefinition, MetricDefinition } from "@cormidia/learning-loop";
-import { listEvalFixtures, type EvalFixture } from "../learning/eval-fixture.js";
-import type { SystemFingerprint } from "../learning/fingerprint.js";
+import { listEvalFixtures, type EvalFixture } from "./host/eval-fixture.js";
+import type { SystemFingerprint } from "./host/fingerprint.js";
 import { EPISODE_SOURCE_ID } from "./evidence-source.js";
 import {
   hostExperimentOf,

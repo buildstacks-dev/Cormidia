@@ -11,14 +11,19 @@
 // Crash method: the B-32 §4 destination-port seam armed to throw BEFORE the
 // OKF destination does anything; the journal state after the crash is
 // asserted as a precondition.
+//
+// F-PT-008 is resolved-ratified: expiry reopens the original item with append-only history.
+// The assertions below cover consumption of a live authorization in the
+// kernel journal only; the dedicated expiry-disposition cases live with
+// CF-B09a.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PublicationDestination } from "@cormidia/learning-loop";
 import { interventionIdForPlan } from "../../../src/org/learning-loop/interventions.js";
 import { readHostCandidateIndex } from "../../../src/org/learning-loop/host-index.js";
 import { publishCandidate } from "../../../src/org/learning-loop/publish.js";
-import { cutManifestVersion, readManifest } from "../../../src/org/learning/concepts.js";
-import { readLearningEvents } from "../../../src/org/learning/events.js";
+import { cutManifestVersion, readManifest } from "../../../src/org/learning-loop/host/concepts.js";
+import { readLearningEvents } from "../../../src/org/learning-loop/host/events.js";
 import {
   assertExactlyOncePublish,
   makeKernelWorld,

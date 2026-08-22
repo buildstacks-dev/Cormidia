@@ -11,10 +11,10 @@
 import { existsSync } from "node:fs";
 import type { PreparedPublication, PublicationOutcome } from "@cormidia/learning-loop";
 import type { ApprovalItem, ApprovalStore } from "../approvals.js";
-import { conceptDraftPath, findCandidateArtifact } from "../learning/candidate-store.js";
-import { appLearningRoot, orgLearningRoot, scopeApp, type LearningRoot } from "../learning/concepts.js";
-import type { LearningPolicy } from "../learning/policy.js";
-import { appendRejection, checkSuppression, readRejections, type RejectionEntry } from "../learning/rejections.js";
+import { conceptDraftPath, findCandidateArtifact } from "./host/candidate-store.js";
+import { appLearningRoot, orgLearningRoot, scopeApp, type LearningRoot } from "./host/concepts.js";
+import type { LearningPolicy } from "./host/policy.js";
+import { appendRejection, checkSuppression, readRejections, type RejectionEntry } from "./host/rejections.js";
 import { publishPlanIdOf, raiseLearningLoopPublish } from "./authority.js";
 import { approvalEvidence, routineEvidence } from "./authority-evidence.js";
 import { experimentValidationFor } from "./experiments-audit.js";

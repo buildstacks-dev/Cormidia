@@ -53,12 +53,12 @@ import {
   startCanary,
   stopCanary,
   type CanaryRootKind,
-} from "../org/learning/canary.js";
-import { findCandidateArtifact } from "../org/learning/candidate-store.js";
-import type { CandidateArtifact } from "../org/learning/candidate.js";
-import { appLearningRoot, orgLearningRoot, readManifest, scopeApp } from "../org/learning/concepts.js";
-import { readEpisodeRecords, type EpisodeRecord } from "../org/learning/episode.js";
-import type { EvalFixture } from "../org/learning/eval-fixture.js";
+} from "../org/learning-loop/host/canary.js";
+import { findCandidateArtifact } from "../org/learning-loop/host/candidate-store.js";
+import type { CandidateArtifact } from "../org/learning-loop/host/candidate.js";
+import { appLearningRoot, orgLearningRoot, readManifest, scopeApp } from "../org/learning-loop/host/concepts.js";
+import { readEpisodeRecords, type EpisodeRecord } from "../org/learning-loop/host/episode.js";
+import type { EvalFixture } from "../org/learning-loop/host/eval-fixture.js";
 import {
   computeSystemFingerprint,
   deriveFingerprintWithBundle,
@@ -66,9 +66,9 @@ import {
   readFingerprint,
   storeFingerprint,
   type SystemFingerprint,
-} from "../org/learning/fingerprint.js";
-import { loadLearningPolicy, type LearningPolicy, type TierPromoteRule } from "../org/learning/policy.js";
-import { createLoopReplayExecutor, type ReplayExperimentContext } from "../org/learning/replay.js";
+} from "../org/learning-loop/host/fingerprint.js";
+import { loadLearningPolicy, type LearningPolicy, type TierPromoteRule } from "../org/learning-loop/host/policy.js";
+import { createLoopReplayExecutor, type ReplayExperimentContext } from "../org/learning-loop/host/replay.js";
 import { loadRoles } from "../org/roles.js";
 import { createCliProgressReporter, extractProgressArgs } from "../runtime/cli-progress.js";
 import { defaultGate } from "../runtime/gate.js";

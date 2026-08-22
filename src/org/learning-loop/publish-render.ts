@@ -10,10 +10,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { LearningLoopError } from "@cormidia/learning-loop";
 import type { PublicationReceipt } from "@cormidia/learning-loop";
-import { conceptDraftPath } from "../learning/candidate-store.js";
-import type { CandidateArtifact } from "../learning/candidate.js";
-import { orgLearningRoot, renderActivatedConcept, type LearningRoot } from "../learning/concepts.js";
-import type { LearningPolicy } from "../learning/policy.js";
+import { conceptDraftPath } from "./host/candidate-store.js";
+import type { CandidateArtifact } from "./host/candidate.js";
+import { orgLearningRoot, renderActivatedConcept, type LearningRoot } from "./host/concepts.js";
+import type { LearningPolicy } from "./host/policy.js";
 import type { KernelCandidateSpec } from "./candidates.js";
 import type { CandidateRouting } from "./host-index.js";
 import {

@@ -7,7 +7,7 @@
 // additionally refuses a self-review (the proposer principal) on its own.
 
 import type { CandidateReview, ReviewDisposition } from "@cormidia/learning-loop";
-import type { ReviewerVerdict } from "../learning/review.js";
+import type { ReviewerVerdict } from "./host/review.js";
 import { humanPrincipalEvidence, rolePrincipalEvidence, type CormidiaPrincipalEvidence } from "./identity.js";
 import type { CormidiaLearningLoop } from "./loop.js";
 

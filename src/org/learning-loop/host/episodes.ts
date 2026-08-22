@@ -7,7 +7,7 @@
 // projector (episode.ts) additionally needs the anchor's kind and source ref,
 // so both derive from one place here.
 
-import type { TurnEvent } from "../journal.js";
+import type { TurnEvent } from "../../journal.js";
 
 /** Spec §5 kind enum plus `turn`: schedule-triggered turns (retro, hourly
  *  planner, …) have no durable anchor beyond the turn itself, so the turn is

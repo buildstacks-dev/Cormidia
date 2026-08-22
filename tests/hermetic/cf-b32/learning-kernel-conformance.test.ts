@@ -19,7 +19,7 @@ import {
 import { createOkfConceptDestination } from "../../../src/org/learning-loop/destination-okf.js";
 import { learningLoopStateDir } from "../../../src/org/learning-loop/loop.js";
 import { createCormidiaReplayExecutor } from "../../../src/org/learning-loop/replay-executor.js";
-import { orgLearningRoot } from "../../../src/org/learning/concepts.js";
+import { orgLearningRoot } from "../../../src/org/learning-loop/host/concepts.js";
 import { makeTestClock } from "../../fixtures/clock.js";
 
 const roots: string[] = [];

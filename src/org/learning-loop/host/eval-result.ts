@@ -27,20 +27,8 @@
 // EvalResults share `learning/experiments/` with the ExperimentRecords they
 // decide (spec §1); files route by id prefix (`exp_` / `eval_`).
 
-import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { hashArgs } from "../../runtime/runlog/redact.js";
-import { writeFileAtomic } from "../atomic.js";
-import {
-  EXPERIMENT_LAYERS,
-  experimentPath,
-  experimentsDir,
-  readExperimentRecord,
-  type ExperimentGuardrail,
-  type ExperimentLayer,
-  type ExperimentRecord,
-} from "./experiment.js";
+import { EXPERIMENT_LAYERS, experimentsDir, type ExperimentLayer } from "./experiment.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";
 import {
   optionalString,
@@ -53,7 +41,7 @@ import {
   requireString,
   requireStringArray,
 } from "./validate.js";
-import { definedProps } from "../../runtime/optional-properties.js";
+import { definedProps } from "../../../runtime/optional-properties.js";
 
 export type EvalVerdict = "improved" | "regressed" | "inconclusive" | "not_evaluatable";
 /** Model graders are deferred until a qualitative guardrail needs one
@@ -110,165 +98,6 @@ export interface EvalResult {
 // ---------------------------------------------------------------------------
 // deterministic verdict computation
 // ---------------------------------------------------------------------------
-
-interface ComputeEvalResultOptions {
-  experiment: ExperimentRecord;
-  trials: EvalTrial[];
-  capsuleRefs?: string[];
-  /** Defaults to the experiment's declared trial layer. */
-  layer?: ExperimentLayer;
-  /** What produced the trial numbers, e.g. an eval-set grader ref. The kind
-   *  is stamped `deterministic` — this function IS the deterministic grader;
-   *  human/model-graded results are authored as records, not computed here. */
-  graderRef: string;
-  costUsd: number;
-  decidedBy: string;
-  /** Caller-supplied ISO timestamp — no wall clock in the computation. */
-  decidedAt: string;
-  /** Defaults to a deterministic id derived from (experiment, trials). */
-  evalId?: string;
-  execution?: EvalResult["execution"];
-}
-
-export function computeEvalResult(options: ComputeEvalResultOptions): EvalResult {
-  const { experiment, trials } = options;
-  const metric = experiment.primary_metric;
-
-  const scored = pairsMeasuring(trials, metric.name);
-  const control = scored.length > 0 ? mean(scored.map((t) => t.control[metric.name]!)) : null;
-  const treatment = scored.length > 0 ? mean(scored.map((t) => t.treatment[metric.name]!)) : null;
-
-  // Improvement is signed toward the declared direction: positive means the
-  // treatment moved the metric the way the hypothesis wanted.
-  const improvement =
-    control !== null && treatment !== null
-      ? metric.expected_direction === "decrease"
-        ? control - treatment
-        : treatment - control
-      : null;
-  const directionOk = improvement !== null && improvement > 0;
-  // Relative effect needs a nonzero baseline; a zero-baseline improvement
-  // only clears a declared threshold of zero.
-  const minUsefulMet =
-    directionOk &&
-    (control !== 0
-      ? (improvement! / Math.abs(control!)) * 100 >= metric.min_useful_improvement_pct
-      : metric.min_useful_improvement_pct === 0);
-
-  const guardrails = experiment.guardrails.map((guardrail) => evaluateGuardrail(guardrail, trials));
-
-  // Each branch tests exactly one new fact: measured at all; harmed
-  // (wrong-direction movement or any guardrail failure); cleared the useful
-  // threshold (minUsefulMet already implies the right direction); else the
-  // in-between — no movement or a sub-threshold win.
-  let verdict: EvalVerdict;
-  if (improvement === null) verdict = "not_evaluatable";
-  else if (improvement < 0 || guardrails.some((g) => !g.pass)) verdict = "regressed";
-  else if (minUsefulMet) verdict = "improved";
-  else verdict = "inconclusive";
-
-  return {
-    schema_version: 1,
-    eval_id: options.evalId ?? deterministicEvalId(experiment.experiment_id, trials),
-    experiment_ref: experiment.experiment_id,
-    layer: options.layer ?? experiment.trials.layer,
-    capsule_refs: options.capsuleRefs ?? [],
-    trials,
-    primary_metric: {
-      name: metric.name,
-      control,
-      treatment,
-      direction_ok: directionOk,
-      min_useful_met: minUsefulMet,
-    },
-    guardrails,
-    verdict,
-    ...definedProps({ execution: options.execution }),
-    grader: { kind: "deterministic", ref: options.graderRef },
-    cost_usd: options.costUsd,
-    decided_by: options.decidedBy,
-    decided_at: options.decidedAt,
-  };
-}
-
-/** Exported for the M5 runner's between-pair early-stop check (design §9.5)
- *  — one guardrail evaluator, never a throwaway EvalResult. */
-export function evaluateGuardrail(guardrail: ExperimentGuardrail, trials: EvalTrial[]): EvalGuardrailOutcome {
-  const scored = pairsMeasuring(trials, guardrail.metric);
-  if (scored.length === 0) {
-    // Fail closed: an unmeasured guardrail is a failed guardrail, never a
-    // silently passed one.
-    return { metric: guardrail.metric, pass: false, detail: "not measured in any trial pair" };
-  }
-  const control = mean(scored.map((t) => t.control[guardrail.metric]!));
-  const treatment = mean(scored.map((t) => t.treatment[guardrail.metric]!));
-
-  switch (guardrail.rule) {
-    case "must_not_decrease":
-      return treatment >= control
-        ? { metric: guardrail.metric, pass: true }
-        : failed(guardrail.metric, control, treatment);
-    case "must_not_increase":
-      return treatment <= control
-        ? { metric: guardrail.metric, pass: true }
-        : failed(guardrail.metric, control, treatment);
-    case "max_increase_pct": {
-      // A zero/negative-crossing baseline has no meaningful relative bound —
-      // hold the absolute line instead (fail closed).
-      if (control <= 0) {
-        return treatment <= control
-          ? { metric: guardrail.metric, pass: true }
-          : failed(guardrail.metric, control, treatment, "baseline <= 0: absolute bound applied");
-      }
-      const pct = ((treatment - control) / control) * 100;
-      return pct <= guardrail.pct!
-        ? { metric: guardrail.metric, pass: true }
-        : failed(guardrail.metric, control, treatment, `+${pct.toFixed(1)}% > ${guardrail.pct}%`);
-    }
-    case "max_decrease_pct": {
-      if (control <= 0) {
-        return treatment >= control
-          ? { metric: guardrail.metric, pass: true }
-          : failed(guardrail.metric, control, treatment, "baseline <= 0: absolute bound applied");
-      }
-      const pct = ((control - treatment) / control) * 100;
-      return pct <= guardrail.pct!
-        ? { metric: guardrail.metric, pass: true }
-        : failed(guardrail.metric, control, treatment, `-${pct.toFixed(1)}% > ${guardrail.pct}%`);
-    }
-  }
-}
-
-function failed(metric: string, control: number, treatment: number, extra?: string): EvalGuardrailOutcome {
-  return {
-    metric,
-    pass: false,
-    detail: `control ${control} -> treatment ${treatment}${extra !== undefined ? ` (${extra})` : ""}`,
-  };
-}
-
-function pairsMeasuring(trials: EvalTrial[], metric: string): EvalTrial[] {
-  return trials.filter(
-    (trial) =>
-      typeof trial.control[metric] === "number" &&
-      Number.isFinite(trial.control[metric]) &&
-      typeof trial.treatment[metric] === "number" &&
-      Number.isFinite(trial.treatment[metric]),
-  );
-}
-
-function mean(values: number[]): number {
-  return values.reduce((sum, v) => sum + v, 0) / values.length;
-}
-
-/** Same result bytes for the same (experiment, trials) — a re-run of the
- *  computation is a dedup, not a second decision. hashArgs canonicalizes key
- *  order, so structurally equal trials hash identically no matter how a
- *  caller built its metric maps (redact.ts — the existing deterministic
- *  digest; a plain JSON.stringify would split one decision into two ids). */
-function deterministicEvalId(experimentId: string, trials: EvalTrial[]): string {
-  return `eval_${hashArgs({ experimentId, trials }).slice(0, 12)}`;
-}
 
 // ---------------------------------------------------------------------------
 // record validation
@@ -418,53 +247,6 @@ function nullableNumber(spec: Record<string, unknown>, key: string, source: stri
 
 function evalResultPath(orgHome: string, evalId: string): string {
   return join(experimentsDir(orgHome), `${evalId}.json`);
-}
-
-/** Persist an EvalResult and flip its experiment to `decided` in one place —
- *  the only path that ever writes a result ref, which is what keeps
- *  "declared before results" structural. Idempotent: re-deciding with the
- *  identical result is a no-op; a DIFFERENT result for an already-decided
- *  experiment refuses. */
-export async function decideExperiment(
-  orgHome: string,
-  value: unknown,
-): Promise<{ result: EvalResult; experiment: ExperimentRecord }> {
-  const result = validateEvalResult(value);
-  const experiment = await readExperimentRecord(orgHome, result.experiment_ref);
-  if (experiment.status === "decided" && experiment.result !== result.eval_id) {
-    throw new Error(
-      `learning: ${experiment.experiment_id} is already decided by ${experiment.result} — ` +
-        `a second verdict (${result.eval_id}) needs a new experiment declaration`,
-    );
-  }
-  // One experiment, one verdict — also across the crash window between the
-  // two writes below: an orphaned result file (result written, experiment
-  // flip lost) must resume with the SAME result, never quietly gain a rival.
-  const siblings = (await listEvalResults(orgHome)).filter(
-    (existing) => existing.experiment_ref === result.experiment_ref && existing.eval_id !== result.eval_id,
-  );
-  if (siblings.length > 0) {
-    throw new Error(
-      `learning: ${experiment.experiment_id} already has recorded result ` +
-        `${siblings.map((s) => s.eval_id).join(", ")} — one experiment, one verdict; ` +
-        `re-decide with that result or declare a new experiment`,
-    );
-  }
-
-  const resultPath = evalResultPath(orgHome, result.eval_id);
-  const resultBytes = JSON.stringify(result, null, 2) + "\n";
-  if (existsSync(resultPath) && (await readFile(resultPath, "utf8")) !== resultBytes) {
-    throw new Error(
-      `learning: ${result.eval_id} already exists with different content — ` +
-        `eval results are immutable once decided`,
-    );
-  }
-  await mkdir(experimentsDir(orgHome), { recursive: true });
-  await writeFileAtomic(resultPath, resultBytes);
-
-  const decided: ExperimentRecord = { ...experiment, status: "decided", result: result.eval_id };
-  await writeFileAtomic(experimentPath(orgHome, experiment.experiment_id), JSON.stringify(decided, null, 2) + "\n");
-  return { result, experiment: decided };
 }
 
 export async function readEvalResult(orgHome: string, evalId: string): Promise<EvalResult> {

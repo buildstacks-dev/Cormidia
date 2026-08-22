@@ -25,8 +25,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { DEFAULT_LOOP_POLICY, loadGateCommands } from "../../loop/driver.js";
-import { writeLoopFileOnce } from "../../loop/durable.js";
+import { DEFAULT_LOOP_POLICY, loadGateCommands } from "../../../loop/driver.js";
+import { writeLoopFileOnce } from "../../../loop/durable.js";
 import {
   efficiencyEpisodeDir,
   fingerprint,
@@ -34,7 +34,7 @@ import {
   readRouteRecord,
   type AuthorizedPass,
   type ExecutionStepRecord,
-} from "../../loop/efficiency.js";
+} from "../../../loop/efficiency.js";
 import {
   readEpisodePlanExecutionJournal,
   type EpisodePlanExecutionJournal,
@@ -42,7 +42,7 @@ import {
   type EpisodeStepCompletedOutcome,
   type EpisodeStepExecutionContext,
   type EpisodeStepFailedOutcome,
-} from "../../loop/episode-plan-executor.js";
+} from "../../../loop/episode-plan-executor.js";
 import {
   deriveEpisodeSafetyRoute,
   estimateEpisodePlanBudget,
@@ -57,28 +57,28 @@ import {
   type ProposedEpisodeStep,
   type ProposedProviderTurnStep,
   type ProviderTurnStep,
-} from "../../loop/episode-plan.js";
-import { publishEpisodePlanRevision, requestEpisodeReplan } from "../../loop/episode-replan.js";
-import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../../loop/episode-route.js";
-import { criterionTestMapFromContractText, parseAcceptanceCriteria } from "../../loop/loop.js";
-import { executePipeline } from "../../loop/pipeline.js";
-import { loadPolicy, resolveTier } from "../../loop/policy.js";
-import { runGates, type GateRunResult } from "../../loop/qgates.js";
-import { parseVerdictEither, validateVerdict, VERDICT_SCHEMAS, type ReviewVerdict } from "../../loop/verdicts.js";
-import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../../runtime/assignment.js";
-import { isRuntimeCapability, type RuntimeCapability } from "../../runtime/capabilities.js";
-import { defaultGate } from "../../runtime/gate.js";
-import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../../runtime/readiness.js";
-import { readEnvelope } from "../../runtime/runlog/envelope.js";
-import { mintRunId, runPaths } from "../../runtime/runlog/paths.js";
-import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../../runtime/types.js";
-import type { AppEntry } from "../apps.js";
-import { assembleContext } from "../context.js";
-import { prepareEpisodePlan, readPersistedEpisodeIntent } from "../episode-planner/coordinator.js";
-import { executeAcceptedEpisodePlan } from "../episode-planner/execution.js";
-import { buildEpisodeIntent, createEpisodePlanningPolicy } from "../episode-planner/policy.js";
-import { resolveAppAssignments } from "../execution-assignments.js";
-import { parseOkfDocument } from "../memory.js";
+} from "../../../loop/episode-plan.js";
+import { publishEpisodePlanRevision, requestEpisodeReplan } from "../../../loop/episode-replan.js";
+import { EPISODE_PLAN_EXECUTION_PIPELINE, planRouteLabel } from "../../../loop/episode-route.js";
+import { criterionTestMapFromContractText, parseAcceptanceCriteria } from "../../../loop/loop.js";
+import { executePipeline } from "../../../loop/pipeline.js";
+import { loadPolicy, resolveTier } from "../../../loop/policy.js";
+import { runGates, type GateRunResult } from "../../../loop/qgates.js";
+import { parseVerdictEither, validateVerdict, VERDICT_SCHEMAS, type ReviewVerdict } from "../../../loop/verdicts.js";
+import { fixedAssignmentFromRole, turnAssignmentsEqual } from "../../../runtime/assignment.js";
+import { isRuntimeCapability, type RuntimeCapability } from "../../../runtime/capabilities.js";
+import { defaultGate } from "../../../runtime/gate.js";
+import { probeRuntimeReadiness, type RuntimeReadinessProbe } from "../../../runtime/readiness.js";
+import { readEnvelope } from "../../../runtime/runlog/envelope.js";
+import { mintRunId, runPaths } from "../../../runtime/runlog/paths.js";
+import type { ContextBundle, RoleConfig, Runtime, TurnAssignment, TurnHooks } from "../../../runtime/types.js";
+import type { AppEntry } from "../../apps.js";
+import { assembleContext } from "../../context.js";
+import { prepareEpisodePlan, readPersistedEpisodeIntent } from "../../episode-planner/coordinator.js";
+import { executeAcceptedEpisodePlan } from "../../episode-planner/execution.js";
+import { buildEpisodeIntent, createEpisodePlanningPolicy } from "../../episode-planner/policy.js";
+import { resolveAppAssignments } from "../../execution-assignments.js";
+import { parseOkfDocument } from "../../memory.js";
 import { conceptDraftPath, findCandidateArtifact } from "./candidate-store.js";
 import type { CandidateArtifact } from "./candidate.js";
 import { appLearningRoot, orgLearningRoot, renderActivatedConcept } from "./concepts.js";

@@ -27,12 +27,8 @@
 //   - `unit` accepts the M1 spec-delta kind `turn` alongside the four spec
 //     kinds — experiments over schedule-triggered work must be declarable.
 
-import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeFileAtomic } from "../atomic.js";
 import type { EpisodeKind } from "./episodes.js";
-import { fingerprintDelta, readFingerprint } from "./fingerprint.js";
 import { listJsonRecords, readJsonRecord } from "./records.js";
 import {
   optionalString,
@@ -340,16 +336,6 @@ function validateEfficacyProtocol(value: unknown, source: string): ExperimentEff
   };
 }
 
-export function requireEfficacyProtocol(experiment: ExperimentRecord): ExperimentEfficacyProtocol {
-  if (experiment.efficacy_protocol === null) {
-    throw new Error(
-      `learning: ${experiment.experiment_id} predates the closed-loop efficacy protocol — ` +
-        `declare a fresh experiment before observing results`,
-    );
-  }
-  return experiment.efficacy_protocol;
-}
-
 function validateGuardrail(value: unknown, source: string): ExperimentGuardrail {
   const spec = requireRecord(value, source);
   const metric = requireString(spec, "metric", source);
@@ -383,86 +369,6 @@ export function experimentsDir(orgHome: string): string {
 
 export function experimentPath(orgHome: string, experimentId: string): string {
   return join(experimentsDir(orgHome), `${experimentId}.json`);
-}
-
-interface DeclareExperimentOptions {
-  orgHome: string;
-  /** When given, both arm fingerprints must exist in the state-home store —
-   *  an experiment declared against unstored arms could never replay. */
-  stateHome?: string;
-}
-
-interface DeclaredExperiment {
-  record: ExperimentRecord;
-  path: string;
-  /** Field-level control→treatment delta when both fingerprints were
-   *  resolvable — the reviewer's evidence that the arms differ only in the
-   *  intervention under test (spec §6). Null when not checked. */
-  arm_delta: string[] | null;
-}
-
-/** Validate and persist a new experiment declaration. Refuses to overwrite an
- *  existing record with different content — declarations are immutable once
- *  made (re-declaring the identical record is an idempotent no-op). */
-export async function declareExperiment(
-  value: unknown,
-  options: DeclareExperimentOptions,
-): Promise<DeclaredExperiment> {
-  const record = validateExperimentRecord(value);
-  if (record.status !== "declared") {
-    throw new Error(
-      `learning: ${record.experiment_id}: a new experiment must be declared with status ` +
-        `"declared", got "${record.status}"`,
-    );
-  }
-
-  let armDelta: string[] | null = null;
-  if (options.stateHome !== undefined) {
-    const [control, treatment] = await Promise.all([
-      readFingerprint(options.stateHome, record.control.fingerprint_ref),
-      readFingerprint(options.stateHome, record.treatment.fingerprint_ref),
-    ]);
-    const missing = [
-      ...(control === undefined ? [record.control.fingerprint_ref] : []),
-      ...(treatment === undefined ? [record.treatment.fingerprint_ref] : []),
-    ];
-    if (missing.length > 0) {
-      throw new Error(
-        `learning: ${record.experiment_id}: fingerprint(s) not in the store: ` +
-          `${missing.join(", ")} — store both arms (storeFingerprint) before declaring`,
-      );
-    }
-    armDelta = fingerprintDelta(control!, treatment!);
-  }
-
-  const path = experimentPath(options.orgHome, record.experiment_id);
-  const next = JSON.stringify(record, null, 2) + "\n";
-  if (existsSync(path)) {
-    const existing = await readFile(path, "utf8");
-    if (existing !== next) {
-      throw new Error(
-        `learning: ${record.experiment_id} already declared with different content — ` +
-          `declarations are immutable; declare a new experiment id instead`,
-      );
-    }
-    return { record, path, arm_delta: armDelta };
-  }
-  await mkdir(experimentsDir(options.orgHome), { recursive: true });
-  await writeFileAtomic(path, next);
-  return { record, path, arm_delta: armDelta };
-}
-
-/** declared → running: the M5 runner's entry point; recorded now so the
- *  status enum is exercised end-to-end before model tokens exist. */
-export async function markExperimentRunning(orgHome: string, experimentId: string): Promise<ExperimentRecord> {
-  const record = await readExperimentRecord(orgHome, experimentId);
-  if (record.status === "decided") {
-    throw new Error(`learning: ${experimentId} is already decided — it cannot re-run`);
-  }
-  if (record.status === "running") return record;
-  const next: ExperimentRecord = { ...record, status: "running" };
-  await writeFileAtomic(experimentPath(orgHome, experimentId), JSON.stringify(next, null, 2) + "\n");
-  return next;
 }
 
 export async function readExperimentRecord(orgHome: string, experimentId: string): Promise<ExperimentRecord> {

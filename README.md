@@ -765,7 +765,7 @@ src/org/       EpisodePlanner intent/policy/runtime/orchestration, app registry,
                bootstrap, co-planning, dispatch, approvals,
                budget overlays, trigger routing, context, memory, scorecards,
                retro, org-scoped scheduler lifecycle/evidence, standing-role
-               artifacts, and the governed learning loop (src/org/learning/)
+               artifacts, and the governed learning loop (src/org/learning-loop/)
 src/observe/   versioned read projection, bounded GitHub source, loopback
                HTTP/SSE server, and framework-free Live UI shell
 src/report/    ledger/range/detail readers, deterministic report projection,

@@ -933,10 +933,11 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   side reads the other's records except through the adapter. Since phase B (2026-08-21) the
   kernel is Cormidia's only learning engine: `composeLearningLoop` / `learningLoopFor`
   (`src/org/learning-loop/compose.ts`, `registry.ts`) serve the `learn *` CLI, the scheduled
-  distiller/reviewer turns, and context assembly; the forked publisher, runner, and efficacy
-  engine under `src/org/learning/` are unreachable and removed by the sign-off-gated deletion
-  commit. Cormidia keeps capture, episodes, events, OKF rendering and manifest cuts, policy,
-  canary scheduling, replay execution, the stores, and the CLI.
+  distiller/reviewer turns, and context assembly; the forked publisher, experiment runner,
+  bindings, and efficacy decisions were removed on 2026-08-22 after the owner's sign-off — no
+  forked engine remains. Cormidia keeps capture, episodes, events, OKF rendering and manifest
+  cuts, policy, canary scheduling, replay execution, the stores, and the CLI under
+  `src/org/learning-loop/host/`.
 - **Boundary test:** the kernel can be absent or refusing while capture, approvals, and
   runlogs stay intact (the learn surfaces refuse typed, never fall back to a fork); Cormidia's state home can be missing or corrupt while a composed
   kernel keeps its own store consistent. PASS, both directions.

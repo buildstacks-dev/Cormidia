@@ -90,8 +90,10 @@ proposal-class T0/T1 authorizes a plan), and the new state under `<state>/learni
 lookup/audit only — the kernel records are the facts.
 
 **Human stop recorded.** This session was non-interactive; the revision is `PROPOSED`-until-merge
-on the phase-A precedent: the owner's merge of the phase-B PR ratifies it, and the deletion of
-the forked engine is a separate commit that lands only on the owner's explicit sign-off.
+on the phase-A precedent: the owner's merge of the phase-B PR ratifies it. The deletion of the
+forked engine was a separate commit gated on the owner's explicit sign-off, given and landed on
+2026-08-22 (`src/org/learning/` removed; host-owned modules relocated to
+`src/org/learning-loop/host/`; the forked J-12/SM-LEARN specs removed).
 
 **Registered.** Family CF-B32-PARITY (L2, state+evid; structures B-32 + B-11; byte/state parity
 against the captured fork oracle under the research record's §3a/§3b policy) with control
@@ -103,10 +105,11 @@ names every spec that exists). HB-017-L2 keeps CF-C-B11-L2 and CF-J12-R-L2; HB-0
 and CF-J12-R (the refusal leg is engine-independent). B-32's coexistence failure mode is
 re-worded to the post-cutover rule; CF-B32 and CF-B32-PARITY cite it. Source
 SOURCE-RESEARCH-LEARNING-LOOP-MIGRATION registered. No invariant, LLM site, tier, or lane
-changes; nothing loosened. Owed at the deletion commit: CF-C-B11 / CF-C-B11-L2 planned tests
-move to the retained-clause specs (`cf-j12-r` for §1/§2 refusal; kernel-path `cf-sm-learn-l`,
-`cf-sm-learn-i`, `cf-j12-s` for §2/§5), the forked planned tests leave the model, and the
-B-11/B-32 wording drops "removed by the sign-off-gated deletion commit".
+changes; nothing loosened. Done at the deletion re-bind (2026-08-22): CF-C-B11 / CF-C-B11-L2
+planned tests moved to the retained-clause specs (`cf-j12-r` for §1/§2 refusal; kernel-path
+`cf-sm-learn-l`, `cf-sm-learn-i`, `cf-j12-s` for §2/§5), CF-REG-251 re-pinned on the legacy
+journal reader (`cf-reg-251.test.ts`), the forked planned tests left the model, and the B-11/B-32
+wording records the removal.
 
 **F-PT-041 resolved (PROPOSED-until-merge).** The recommended answer is applied: exactly one
 writer per destination root at any time, switched at cutover; the kernel path is the only writer

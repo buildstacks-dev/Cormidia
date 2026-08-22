@@ -9,9 +9,9 @@ vendored tarball (its Decision 0029 R7). Phase A added the adapter layer beside 
 deterministic engine under `src/org/learning/`; phase B cut Cormidia's learning source of truth
 over to the kernel (CLI `learn *`, scheduled distiller/reviewer turns, context assembly,
 proposal and ticket destinations, authority lanes, post-publication experiments) with byte/state
-parity proven against the captured fork oracle (CF-B32-PARITY); the forked publisher, runner, and
-efficacy engine are unreachable from every operator surface and are removed by the sign-off-gated
-deletion commit. Defends INV-001/012/013 by inheritance. Journey J-12 on the kernel path
+parity proven against the captured fork oracle (CF-B32-PARITY); the forked publisher, experiment
+runner, bindings, and efficacy decisions were removed on 2026-08-22 after the owner's sign-off — no
+forked engine remains, and the host-owned learning modules live under `src/org/learning-loop/host/`. Defends INV-001/012/013 by inheritance. Journey J-12 on the kernel path
 (CF-J12-K; CF-J12-S/I/RC/A and CF-SM-LEARN-L/I/R/C re-homed here by HB-157). Module M13. Policy
 record and phase-B rulings: `research/2026-08-21_learning-loop-migration-compatibility-policy.md`
 §3, §7–§9.
@@ -120,5 +120,5 @@ the `learn *` CLI, context assembly (kernel resolution receipts and exposures as
 the authoritative OKF manifest), and post-publication experiments. Evaluation-gate proposals
 route through the proposal destination (`proposals/gates/`). F-PT-041 is resolved by the cutover
 rule — exactly one writer per destination root at any time, switched at cutover (policy record
-§9) — and dual-writing is unrepresentable once the forked publisher is removed; the harness
+§9) — and dual-writing is unrepresentable now that the forked publisher is removed; the harness
 records the ruling, not a test of a state that cannot exist.

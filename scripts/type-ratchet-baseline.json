@@ -58,12 +58,12 @@
       "nonNull": 0
     },
     "src/cli/learn-activation.ts": {
-      "as": 2,
-      "nonNull": 2
+      "as": 1,
+      "nonNull": 1
     },
     "src/cli/learn-experiment.ts": {
       "as": 1,
-      "nonNull": 3
+      "nonNull": 0
     },
     "src/cli/learn.ts": {
       "as": 5,
@@ -418,8 +418,8 @@
       "nonNull": 0
     },
     "src/org/learning/canary.ts": {
-      "as": 5,
-      "nonNull": 6
+      "as": 4,
+      "nonNull": 3
     },
     "src/org/learning/capsule.ts": {
       "as": 1,

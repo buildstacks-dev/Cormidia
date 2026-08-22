@@ -2,16 +2,28 @@
 // (docs/learning-loop/learning-loop-design.md § Bootstrap M4): review, publish,
 // resolve, disable, rollback, provisional. Split from learn.ts so the M1-M3
 // capture/episode window and the M4 write path stay separately readable;
-// learn.ts dispatches here.
+// learn.ts dispatches here. Since Cormidia #467 phase B every governed
+// transition runs on the vendored learning kernel through the adapter layer
+// (src/org/learning-loop/): a review mints the kernel candidate and its
+// decisive review, publish drives the content-bound plan and journaled
+// publish, and disable/rollback of a kernel activation are kernel reversal
+// plans authorized by the operator lane. Forked-engine (legacy) activations
+// keep their direct manifest operations (compatibility policy §3a).
 
 import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
-import { GhCliOps } from "../loop/github.js";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { ApprovalStore } from "../org/approvals.js";
 import type { CormidiaHomes } from "../org/home.js";
-import { bindingOf } from "../org/learning/binding.js";
+import { publishPlanIdOf } from "../org/learning-loop/authority.js";
+import { composeLearningLoop } from "../org/learning-loop/compose.js";
+import { listHostCandidateIndexes } from "../org/learning-loop/host-index.js";
+import { legacyPublishBindingOf } from "../org/learning-loop/legacy.js";
+import { learningLoopStateDir, type CormidiaLearningLoop } from "../org/learning-loop/loop.js";
+import { disableOkfActivation, findOkfActivationForConcept } from "../org/learning-loop/okf-lineage.js";
+import { publishCandidate, type PublishDeps } from "../org/learning-loop/publish.js";
+import { prepareKernelCandidate } from "../org/learning-loop/publish-prepare.js";
 import {
   candidateArtifactPath,
   findCandidateArtifact,
@@ -22,18 +34,17 @@ import {
   disableConcept,
   orgLearningRoot,
   provisionalExpiry,
+  readManifest,
   rollbackRoot,
   scopeApp,
   writeProvisionalConcept,
   type LearningRoot,
 } from "../org/learning/concepts.js";
 import { loadLearningPolicy, type LearningPolicy } from "../org/learning/policy.js";
-import { publishCandidate, type PublisherDeps } from "../org/learning/publisher.js";
 import { appendRejection, readRejections } from "../org/learning/rejections.js";
 import { resolveLearningContext } from "../org/learning/resolver.js";
 import {
   listReviewerVerdicts,
-  readReviewerVerdict,
   reviewDisposition,
   writeReviewerVerdict,
   type ReviewerVerdict,
@@ -91,6 +102,24 @@ export function learningRoots(homes: CormidiaHomes): {
     }
   }
   return { orgRoot: orgLearningRoot(homes.orgHome), appRoots };
+}
+
+/** The composed kernel loop plus the deps every kernel-path verb shares. */
+async function kernelDeps(
+  homes: CormidiaHomes,
+  options: { readonly ticketApp?: string; readonly actor?: string } = {},
+): Promise<PublishDeps & { readonly learning: CormidiaLearningLoop }> {
+  const policy = await loadLearningPolicy(homes.orgHome);
+  const approvals = new ApprovalStore(homes.stateHome);
+  const learning = await composeLearningLoop(homes, { approvals, policy });
+  return {
+    learning,
+    policy,
+    approvals,
+    appRoots: learningRoots(homes).appRoots,
+    ...definedProps({ ticketApp: options.ticketApp }),
+    ...definedProps({ actor: options.actor }),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -163,9 +192,21 @@ export async function learnReview(homes: CormidiaHomes, args: string[]): Promise
       by: verdict.reviewed_by,
     });
     console.log(`  rejection recorded (suppress key "${entry.suppress_key}"; window per policy §13)`);
-  } else if (disposition === "proceed") {
-    console.log(`  next: cormidia learn publish ${candidateId}`);
+    return 0;
   }
+  // The verdict file is the evidence; the kernel review is the governed fact.
+  const deps = await kernelDeps(homes, definedProps({ ticketApp: flag(flags, "app") }));
+  const prepared = await prepareKernelCandidate(deps, candidateId, { requireProceed: false });
+  if (prepared.status === "refused") {
+    console.error(`learn review: kernel review not recorded — ${prepared.reason}`);
+    return 1;
+  }
+  if (prepared.status === "prepared") {
+    console.log(
+      `  kernel candidate ${prepared.prepared.kernelCandidateId} reviewed: ${prepared.prepared.reviewDisposition}`,
+    );
+  }
+  if (disposition === "proceed") console.log(`  next: cormidia learn publish ${candidateId}`);
   return 0;
 }
 
@@ -177,48 +218,25 @@ export async function learnPublish(homes: CormidiaHomes, args: string[]): Promis
   const flags = parseFlags(args, "learn publish");
   const candidateId = flags.positionals[0];
   if (candidateId === undefined) throw new Error("learn publish: <candidate-id> is required");
-  const { appRoots } = learningRoots(homes);
-  const policy = await loadLearningPolicy(homes.orgHome);
-
-  // Tickets land in the repo of the scope's app (or --repo). The gh client
-  // is optional — only the ticket destination needs it.
-  let repo = flag(flags, "repo");
-  if (repo === undefined) {
-    const verdict = await readReviewerVerdict(homes.orgHome, candidateId);
-    const app = verdict !== undefined ? scopeApp(verdict.proposed_scope) : undefined;
-    if (app !== undefined) {
-      repo = homes.appsFile.apps.find((a) => a.name === app)?.repo;
-    }
-  }
-
-  const deps: PublisherDeps = {
-    orgHome: homes.orgHome,
-    stateHome: homes.stateHome,
-    policy,
-    approvals: new ApprovalStore(homes.stateHome),
-    appRoots,
-    ...(repo !== undefined && repo.includes("/") && !repo.startsWith("/") && !repo.startsWith(".")
-      ? { gh: new GhCliOps(repo), repo }
-      : {}),
-  };
-  const waiver = flag(flags, "waiver");
-  const outcome = await publishCandidate(deps, candidateId, {
-    ...definedProps({ waiver }),
+  const deps = await kernelDeps(homes, {
+    ...definedProps({ ticketApp: flag(flags, "app") }),
+    ...definedProps({ actor: flag(flags, "by") }),
   });
+  const waiver = flag(flags, "waiver");
+  const outcome = await publishCandidate(deps, candidateId, { ...definedProps({ waiver }) });
 
   switch (outcome.status) {
-    case "published":
+    case "published": {
+      const destination = outcome.intervention.routing?.destination ?? "unknown";
       console.log(
-        `published ${candidateId} → ${outcome.intervention.destination} ` +
-          `(${outcome.refs.join(", ")}); intervention ${outcome.intervention.intervention_id}`,
+        `published ${candidateId} → ${destination} (${outcome.refs.join(", ")}); intervention ${outcome.intervention.id}`,
       );
-      if (outcome.intervention.activation !== null) {
-        console.log(
-          `  activation claim: ${outcome.intervention.activation.claim === "validated" ? "validated" : "authorized (unproven)"}`,
-        );
+      if (outcome.intervention.claimLabel !== undefined) {
+        console.log(`  activation claim: ${outcome.intervention.claimLabel}`);
       }
-      console.log(`  trace it with: cormidia learn show ${outcome.intervention.intervention_id}`);
+      console.log(`  trace it with: cormidia learn show ${outcome.intervention.id}`);
       return 0;
+    }
     case "rejected":
       console.log(
         `candidate ${candidateId} routed to the rejection ledger (suppress key "${outcome.entry.suppress_key}")`,
@@ -273,7 +291,8 @@ export async function learnResolve(homes: CormidiaHomes, args: string[]): Promis
     episodeId: `ep_${app}_turn_dry-resolve`,
     taskText: flag(flags, "task") ?? `${role} turn for ${app}`,
     policy: await loadLearningPolicy(homes.orgHome),
-    // No stateHome: a dry resolve emits no events and pins nothing.
+    // No stateHome: a dry resolve emits no events, pins nothing, and asks
+    // the kernel for no receipt.
   });
   console.log(
     `resolve(${app}, ${role}) — versions ${JSON.stringify(resolved.bundle_versions)}, ` +
@@ -299,10 +318,28 @@ export async function learnDisable(homes: CormidiaHomes, args: string[]): Promis
   const conceptId = flags.positionals[0];
   if (conceptId === undefined) throw new Error("learn disable: <concept-id> is required");
   const { orgRoot, appRoots } = learningRoots(homes);
-  for (const [name, root] of [["org", orgRoot] as const, ...Object.entries(appRoots)]) {
+  const roots: Array<readonly [string, LearningRoot]> = [["org", orgRoot] as const, ...Object.entries(appRoots)];
+  const deps = await kernelDeps(homes);
+  const activation = await findOkfActivationForConcept(
+    deps.learning,
+    roots.map(([, root]) => root),
+    conceptId,
+  );
+  if (activation !== undefined) {
+    const result = await disableOkfActivation(deps.learning, activation, flag(flags, "by") ?? "operator");
+    if ("refused" in result) {
+      console.error(`learn disable: ${result.refused}`);
+      return 1;
+    }
+    console.log(`disabled ${conceptId} (${activation.root.kind} root, version ${result.version})`);
+    console.log(`  kernel intervention ${activation.intervention.id} disabled through an operator-authorized plan`);
+    console.log("  takes effect for every subsequently resolved turn; in-flight turns keep their pin");
+    return 0;
+  }
+  for (const [name, root] of roots) {
     const result = await disableConcept(root, conceptId);
     if (result === undefined) continue;
-    console.log(`disabled ${conceptId} (${name} root, version ${result.version})`);
+    console.log(`disabled ${conceptId} (${name} root, version ${result.version}; forked-engine activation)`);
     console.log(`  ${result.path}`);
     console.log("  takes effect for every subsequently resolved turn; in-flight turns keep their pin");
     return 0;
@@ -330,11 +367,48 @@ export async function learnRollback(homes: CormidiaHomes, args: string[]): Promi
     }
     root = appRoot;
   }
-  const result = await rollbackRoot(root);
-  console.log(
-    `rolled back ${result.revertedVersion} → new version ${result.newVersion}; ` +
-      `deactivated: ${result.deactivated.join(", ") || "(none still active)"}`,
+  const manifest = await readManifest(root);
+  const last = manifest?.history.at(-1);
+  if (last === undefined) {
+    console.error(`learn rollback: the ${rootKind} root has no version cuts to roll back`);
+    return 1;
+  }
+  const deps = await kernelDeps(homes);
+  const identity = flag(flags, "by") ?? "operator";
+  const kernelCuts = await Promise.all(
+    last.concepts.map(async (conceptId) => ({
+      conceptId,
+      activation: await findOkfActivationForConcept(deps.learning, [root], conceptId),
+    })),
   );
+  if (kernelCuts.every((cut) => cut.activation === undefined)) {
+    const result = await rollbackRoot(root);
+    console.log(
+      `rolled back ${result.revertedVersion} → new version ${result.newVersion}; ` +
+        `deactivated: ${result.deactivated.join(", ") || "(none still active)"}`,
+    );
+    return 0;
+  }
+  // The latest cut activated kernel interventions: each reverses through
+  // its own operator-authorized disable plan (one cut each, journaled by the
+  // kernel); a forked-engine concept sharing the cut is deprecated directly.
+  for (const cut of kernelCuts) {
+    if (cut.activation !== undefined) {
+      const result = await disableOkfActivation(deps.learning, cut.activation, identity);
+      if ("refused" in result) {
+        console.error(`learn rollback: ${cut.conceptId}: ${result.refused}`);
+        return 1;
+      }
+      console.log(`rolled back ${last.version}: disabled ${cut.conceptId} → version ${result.version} (kernel)`);
+    } else {
+      const result = await disableConcept(root, cut.conceptId);
+      console.log(
+        result === undefined
+          ? `rolled back ${last.version}: ${cut.conceptId} was already inactive`
+          : `rolled back ${last.version}: disabled ${cut.conceptId} → version ${result.version}`,
+      );
+    }
+  }
   return 0;
 }
 
@@ -354,6 +428,10 @@ export async function learnProvisional(homes: CormidiaHomes, args: string[]): Pr
     throw new Error("learn provisional: --body <text> or --file <md> is required");
   }
   const today = new Date().toISOString().slice(0, 10);
+  const tier = flag(flags, "tier") ?? "T1";
+  if (tier !== "T0" && tier !== "T1" && tier !== "T2" && tier !== "T3") {
+    throw new Error("learn provisional: --tier must be T0, T1, T2, or T3");
+  }
   const doc: OkfDocument = {
     frontmatter: {
       name,
@@ -369,7 +447,7 @@ export async function learnProvisional(homes: CormidiaHomes, args: string[]): Pr
       updated: today,
       loop: {
         id: `lrn_${today.replaceAll("-", "")}_${Math.random().toString(36).slice(2, 8)}`,
-        tier: (flag(flags, "tier") ?? "T1") as "T0" | "T1" | "T2" | "T3",
+        tier,
         status: "provisional",
         scope,
         version: 1,
@@ -389,7 +467,7 @@ export async function learnProvisional(homes: CormidiaHomes, args: string[]): Pr
   }
   const policy = await loadLearningPolicy(homes.orgHome);
   const path = await writeProvisionalConcept(root, { doc, policy });
-  console.log(`quarantined provisional ${doc.frontmatter.loop!.id} (${basename(path)})`);
+  console.log(`quarantined provisional ${doc.frontmatter.loop?.id ?? name} (${basename(path)})`);
   console.log(`  ${path}`);
   console.log(
     // provisionalExpiry is the same computation the resolver enforces — the
@@ -441,13 +519,25 @@ export async function activationReport(
   }
 
   // Reviewer-human agreement (spec §18): compare each verdict with the human
-  // decision on the same candidate's learning_publish approval.
+  // decision on the same candidate's publish approval — the kernel-path
+  // `learning_loop_publish` item (via the host index's plan ids) or the
+  // forked engine's `learning_publish` item (compatibility reader).
   const store = new ApprovalStore(homes.stateHome);
   const decided = await store.listDecidedReadOnly();
+  const planOwners = new Map<string, string>();
+  for (const index of await listHostCandidateIndexes(learningLoopStateDir(homes.stateHome))) {
+    for (const entry of index.entries)
+      if (entry.plan_id !== undefined) planOwners.set(entry.plan_id, index.artifact_id);
+  }
+  const ownerOf = (item: (typeof decided)[number]): string | undefined => {
+    const planId = publishPlanIdOf(item);
+    if (planId !== undefined) return planOwners.get(planId);
+    return legacyPublishBindingOf(item)?.candidate_id;
+  };
   let compared = 0;
   let agreed = 0;
   for (const verdict of allVerdicts) {
-    const item = decided.filter((entry) => bindingOf(entry)?.candidate_id === verdict.candidate_id).at(-1);
+    const item = decided.filter((entry) => ownerOf(entry) === verdict.candidate_id).at(-1);
     if (item === undefined || item.decision === undefined) continue;
     compared++;
     const reviewerSaysYes = reviewDisposition(verdict) === "proceed";

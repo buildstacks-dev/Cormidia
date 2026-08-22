@@ -206,18 +206,27 @@ export function createOkfConceptDestination(options: OkfConceptDestinationOption
         const conceptId = stringField(effect.payload, "conceptId");
         if (conceptId === undefined)
           throw destinationRefusal("publication.effect_invalid", "disable payload names no conceptId");
+        // A disable is satisfied when the concept is no longer active: a
+        // human operation (canary stop, manual rollback) that already
+        // deprecated it in place leaves the kernel's disable forward-
+        // completing at the current version, never refusing a done fact.
         const disabled = await disableConcept(root, conceptId, { now }).catch((error: unknown) => {
-          throw destinationRefusal(
-            "publication.destination_busy",
-            error instanceof Error ? error.message : String(error),
-          );
+          const message = error instanceof Error ? error.message : String(error);
+          if (message.includes("nothing to disable")) return undefined;
+          throw destinationRefusal("publication.destination_busy", message);
         });
-        if (disabled === undefined)
-          throw destinationRefusal(
-            "publication.effect_invalid",
-            `no active concept "${conceptId}" in the ${root.kind} bundle`,
-          );
-        finalVersion = disabled.version;
+        if (disabled === undefined) {
+          const already = manifest?.bundle_version;
+          if (already === undefined) {
+            throw destinationRefusal(
+              "publication.effect_invalid",
+              `no active concept "${conceptId}" in the ${root.kind} bundle`,
+            );
+          }
+          finalVersion = already;
+        } else {
+          finalVersion = disabled.version;
+        }
       } else {
         const payload = parsePayload(effect.payload, effect.target);
         const applied = manifest?.history.find((entry) => entry.approval_ref === idempotencyKey);

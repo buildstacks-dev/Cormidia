@@ -21,6 +21,7 @@ import { createCormidiaLearningLoop, type CormidiaLearningLoop } from "../../../
 import { rolePrincipalEvidence } from "../../../src/org/learning-loop/identity.js";
 import { scopeFromLoopScope } from "../../../src/org/learning-loop/scope.js";
 import { appLearningRoot, readManifest } from "../../../src/org/learning/concepts.js";
+import { defaultLearningPolicy } from "../../../src/org/learning/policy.js";
 import { parseOkfDocument, serializeOkfDocument } from "../../../src/org/memory.js";
 import { makeTestClock, type TestClock } from "../../fixtures/clock.js";
 import { makeTempOrgHome, type TempOrgHome } from "../../fixtures/org-home.js";
@@ -122,6 +123,7 @@ async function makeWorld(): Promise<World> {
     stateHome: state.stateHome,
     org: ORG,
     approvals,
+    policy: defaultLearningPolicy(),
     apps: [{ name: "web", workdir: appWorkdir }],
     clock: { now: () => clock.nowIso() },
     ids: createSequentialIds("j12k"),

@@ -19,7 +19,6 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
-import { findCandidateArtifact } from "./candidate-store.js";
 import {
   appLearningRoot,
   orgLearningRoot,
@@ -33,12 +32,10 @@ import {
   type ManifestCanaryMeta,
 } from "./concepts.js";
 import { readEpisodeRecords } from "./episode.js";
-import { readEvalResult } from "./eval-result.js";
 import { sanitizeIdSegment } from "./events.js";
-import { readExperimentRecord } from "./experiment.js";
-import { readInterventionRecord, writeInterventionRecord, type InterventionRecord } from "./intervention.js";
 import type { LearningPolicy, TierCanaryPolicy } from "./policy.js";
-import { listInFlightOkfJournals } from "./publisher.js";
+import { listInFlightLegacyJournals } from "../learning-loop/legacy.js";
+import type { LoopTier } from "../memory.js";
 import { definedProps } from "../../runtime/optional-properties.js";
 
 export type BundleLineage = "stable" | "canary";
@@ -240,7 +237,17 @@ interface StartCanaryOptions {
   orgHome: string;
   /** Required when the intervention published into an app root. */
   appWorkdir?: string;
-  interventionId: string;
+  /** The activation to trial, resolved by the caller from the kernel
+   *  intervention (or a forked-engine record through its compatibility
+   *  reader): its root, manifest version, reviewed tier, and whether a replay
+   *  experiment improved it (the kernel intervention's `validation`). */
+  activation: {
+    rootKind: CanaryRootKind;
+    version: string;
+    tier: LoopTier;
+    interventionRef: string;
+    replayPassed: boolean;
+  };
   policy: LearningPolicy;
   /** When given, an in-flight okf publish journal targeting the same root
    *  refuses the start: its resume would land ungoverned content
@@ -258,35 +265,13 @@ interface StartedCanary {
 
 export async function startCanary(options: StartCanaryOptions): Promise<StartedCanary> {
   const now = options.now ?? new Date();
-  const intervention = await readInterventionRecord(options.orgHome, options.interventionId);
-  if (intervention.destination !== "okf_concept" || intervention.publish?.kind !== "bundle_version") {
-    throw new Error(
-      `learning: ${options.interventionId} is a ${intervention.destination} publish — ` +
-        `only bundle-version activations (okf_concept) take a live canary`,
-    );
-  }
-  if (intervention.status !== "active") {
-    throw new Error(
-      `learning: ${options.interventionId} is "${intervention.status}" — only an active ` +
-        `intervention can start a canary`,
-    );
-  }
-  const { rootKind, version } = parseBundleRef(intervention.publish.ref, options.interventionId);
+  const { activation } = options;
+  const rootKind = activation.rootKind;
+  const version = activation.version;
   const root = resolveRoot(rootKind, options);
 
-  // Tier gating, fail closed. The candidate carries the reviewed tier; a
-  // pruned candidate leaves the tier unknowable — refuse rather than guess.
-  const found = await findCandidateArtifact(
-    rootKind === "app" ? [orgLearningRoot(options.orgHome), root] : [root],
-    intervention.candidate_ref,
-  );
-  if (found === undefined) {
-    throw new Error(
-      `learning: candidate ${intervention.candidate_ref} for ${options.interventionId} is not ` +
-        `readable — its tier decides canary policy and cannot be assumed`,
-    );
-  }
-  const tier = found.candidate.proposed_tier;
+  // Tier gating, fail closed: the reviewed tier decides the canary policy.
+  const tier = activation.tier;
   const tierPolicy = options.policy.tiers[tier];
   if (tierPolicy.live_canary === "forbidden") {
     throw new Error(
@@ -299,11 +284,14 @@ export async function startCanary(options: StartCanaryOptions): Promise<StartedC
       `learning: tier ${tier} declares no canary policy — a tier without one has no ` + `canary path (fail closed)`,
     );
   }
-  if (tierPolicy.canary.requires_replay_pass) {
-    await requireReplayPass(options.orgHome, intervention, tier);
+  if (tierPolicy.canary.requires_replay_pass && !activation.replayPassed) {
+    throw new Error(
+      `learning: tier ${tier} requires a passed replay before live canary ` +
+        `(policy §13 requires_replay_pass): ${activation.interventionRef} has no improved replay verdict`,
+    );
   }
   if (options.stateHome !== undefined) {
-    const inFlight = await listInFlightOkfJournals(options.stateHome, rootKind);
+    const inFlight = await listInFlightLegacyJournals(options.stateHome, rootKind);
     if (inFlight.length > 0) {
       throw new Error(
         `learning: publish journal(s) ${inFlight.join(", ")} are mid-transaction on the ` +
@@ -318,7 +306,7 @@ export async function startCanary(options: StartCanaryOptions): Promise<StartedC
     windowHours: tierPolicy.canary.window_hours,
     fraction: tierPolicy.canary.fraction,
     tier,
-    interventionRef: intervention.intervention_id,
+    interventionRef: activation.interventionRef,
     now,
   });
   return {
@@ -337,6 +325,9 @@ interface CloseCanaryOptions {
    * episode/assignment projection plus the ratified tier rule. */
   stateHome?: string;
   policy?: LearningPolicy;
+  /** Whether the trial's intervention carries an improved replay verdict
+   *  (the caller reads the kernel intervention's `validation`). */
+  replayPassed?: boolean;
   now?: Date;
 }
 
@@ -348,13 +339,11 @@ export async function promoteCanary(options: CloseCanaryOptions): Promise<Canary
   if (options.stateHome === undefined || options.policy === undefined) {
     throw new Error("learning: canary promotion requires trusted efficacy state and policy");
   }
-  const intervention = await readInterventionRecord(options.orgHome, meta.intervention_ref);
-  if (intervention.experiment_ref === null || intervention.outcome_ref === null) {
-    throw new Error("learning: canary promotion requires complete experiment/outcome lineage");
-  }
-  const replay = await readEvalResult(options.orgHome, intervention.outcome_ref);
-  if (replay.verdict !== "improved" || replay.guardrails.some((guardrail) => !guardrail.pass)) {
-    throw new Error(`learning: ${replay.eval_id} is not a guardrail-clean improved result`);
+  if (options.replayPassed !== true) {
+    throw new Error(
+      `learning: canary promotion requires an improved replay verdict on ${meta.intervention_ref} ` +
+        `(the kernel intervention's validation, decision 0028)`,
+    );
   }
   const rule = options.policy.tiers[meta.tier as keyof LearningPolicy["tiers"]]?.promote_rule;
   if (rule === null || rule === undefined) {
@@ -399,23 +388,8 @@ export async function promoteCanary(options: CloseCanaryOptions): Promise<Canary
 export async function stopCanary(options: CloseCanaryOptions & { reason: string }): Promise<CanaryCloseResult> {
   const root = resolveRoot(options.root, options);
   const result = await stopCanaryOnManifest(root, options.now !== undefined ? { now: options.now } : {});
-  const now = options.now ?? new Date();
-  try {
-    const intervention = await readInterventionRecord(options.orgHome, result.meta.intervention_ref);
-    const next: InterventionRecord = {
-      ...intervention,
-      status: "rolled_back",
-      rollback: { rolled_back_at: now.toISOString(), reason: options.reason },
-    };
-    await writeInterventionRecord(options.orgHome, next);
-  } catch (error) {
-    // The manifest is already safe (concepts deprecated, trial cleared);
-    // a missing/corrupt intervention record must not resurrect it.
-    process.stderr.write(
-      `learning: canary stopped but intervention ${result.meta.intervention_ref} was not ` +
-        `updated: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-  }
+  // The manifest is safe (concepts deprecated, trial cleared); the caller
+  // records the kernel intervention's disable through an operator plan.
   return result;
 }
 
@@ -429,36 +403,6 @@ function resolveRoot(kind: CanaryRootKind, options: { orgHome: string; appWorkdi
     throw new Error("learning: an app-root canary needs the app checkout (--app)");
   }
   return appLearningRoot(options.appWorkdir);
-}
-
-function parseBundleRef(ref: string, interventionId: string): { rootKind: CanaryRootKind; version: string } {
-  const match = /^(org|app)@(.+)$/.exec(ref);
-  if (match === null || match[2] === "unversioned") {
-    throw new Error(`learning: ${interventionId} publish ref "${ref}" is not a versioned bundle ref`);
-  }
-  return { rootKind: match[1] as CanaryRootKind, version: match[2]! };
-}
-
-async function requireReplayPass(orgHome: string, intervention: InterventionRecord, tier: string): Promise<void> {
-  const refuse = (detail: string): never => {
-    throw new Error(
-      `learning: tier ${tier} requires a passed replay before live canary ` +
-        `(policy §13 requires_replay_pass): ${detail}`,
-    );
-  };
-  if (intervention.experiment_ref === null) {
-    refuse(`${intervention.intervention_id} has no experiment`);
-  }
-  const experiment = await readExperimentRecord(orgHome, intervention.experiment_ref!);
-  if (experiment.status !== "decided" || experiment.result === null) {
-    refuse(`${experiment.experiment_id} is ${experiment.status}, not decided`);
-  }
-  const result = await readEvalResult(orgHome, experiment.result!);
-  if (result.layer !== "replay" || result.verdict !== "improved") {
-    refuse(
-      `${result.eval_id} is a ${result.layer}-layer "${result.verdict}" — ` + `an improved replay verdict is the gate`,
-    );
-  }
 }
 
 /** Read a root's manifest without requiring the root to exist. */

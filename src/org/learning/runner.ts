@@ -205,7 +205,19 @@ export async function runExperiment(
     const order = pair % 2 === 0 ? (["control", "treatment"] as const) : (["treatment", "control"] as const);
     const rows = new Map<"control" | "treatment", ReplayAttempt>();
     for (const arm of order) {
-      const attempt = await options.executor.attempt({ fixture, arm, pair, mode, experiment });
+      const attempt = await options.executor.attempt({
+        fixture,
+        arm,
+        pair,
+        mode,
+        experiment: {
+          experimentId: experiment.experiment_id,
+          app: experiment.eligibility.app,
+          stage: experiment.eligibility.stage,
+          budgetMaxUsd: experiment.efficacy_protocol?.budget.max_usd ?? null,
+          declaredAt: experiment.efficacy_protocol?.declared_at ?? null,
+        },
+      });
       attempts.push(attempt);
       localCost += attempt.costUsd;
       rows.set(arm, attempt);

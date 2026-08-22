@@ -70,6 +70,9 @@ import {
 } from "./governed-pipeline-episode.js";
 import { readJournal, writeJournalPatch, type TurnJournal, type TurnRecoveryEvidence } from "./journal.js";
 import { appLearningRoot, orgLearningRoot } from "./learning/concepts.js";
+import { prepareKernelCandidate } from "./learning-loop/publish-prepare.js";
+import { learningLoopFor } from "./learning-loop/registry.js";
+import { syncKernelEvidence } from "./learning-loop/sync.js";
 import {
   compactionReport,
   distillationBrief,
@@ -1547,6 +1550,14 @@ async function runM6PipelineTurn(
     recommendations,
   });
 
+  // Kernel evidence follows the episodes before the reviewer looks: ingest
+  // the projections and acknowledge closed episodes' exposure sets.
+  const learning = await learningLoopFor({ orgHome: options.orgRoot, stateHome: options.runtimeHome });
+  await syncKernelEvidence(learning).catch((error: unknown) => {
+    process.stderr.write(
+      `learning-loop: evidence sync before review failed (${error instanceof Error ? error.message : String(error)})\n`,
+    );
+  });
   const preparation = await prepareLearningReview({
     orgHome: options.orgRoot,
     stateHome: options.runtimeHome,
@@ -1580,6 +1591,22 @@ async function runM6PipelineTurn(
         preparation,
         verdict,
       });
+      // The verdict file is the evidence; the kernel candidate and its
+      // decisive review are the governed facts (Cormidia #467 phase B).
+      for (const candidateId of reviewed) {
+        const prepared = await prepareKernelCandidate(
+          {
+            learning,
+            policy,
+            appRoots: { [options.app.name]: appLearningRoot(options.localRepo) },
+          },
+          candidateId,
+          { requireProceed: false },
+        );
+        if (prepared.status === "refused") {
+          process.stderr.write(`learning-loop: kernel review of ${candidateId} not recorded — ${prepared.reason}\n`);
+        }
+      }
       await writeM6RunRecord(options.runtimeHome, {
         ...baseRecord("learning_review"),
         finished_at: clock().toISOString(),

@@ -19,6 +19,8 @@ import {
   type CandidateDisposition,
   type CandidateDispositionKind,
 } from "./efficiency-evidence.js";
+import type { HostExperimentRecord } from "../learning-loop/experiments-audit.js";
+import type { KernelInterventionView } from "../learning-loop/interventions.js";
 import { readEpisodeRecords } from "./episode.js";
 import { listEvalResults, type EvalResult } from "./eval-result.js";
 import { readLearningEvents } from "./events.js";
@@ -85,8 +87,38 @@ interface LearningEfficiencyHealthOptions {
   capture: CaptureProjectionResult;
   policy: LearningPolicy;
   roots: LearningRoot[];
+  /** The kernel path's facts (Cormidia #467 phase B), supplied by the caller
+   *  that composed the loop: interventions re-read from the kernel and the
+   *  host audit copies of kernel experiments. Forked-engine records remain
+   *  counted as history beside them. */
+  kernel?: {
+    interventions: readonly KernelInterventionView[];
+    experiments: readonly HostExperimentRecord[];
+  };
   /** Writes only the rebuildable projection; never governance/protected state. */
   persist?: boolean;
+}
+
+function kernelStatusOf(view: KernelInterventionView): string {
+  if (view.state.publication === "rolled_back") return "rolled_back";
+  if (view.state.activation === "disabled") return "disabled";
+  if (view.state.activation === "active") return "active";
+  if (view.state.publication === "published") return "published";
+  return view.state.publication;
+}
+
+/** Kernel verdicts into the same retain/revise/disable/roll_back vocabulary
+ *  the forked recommendations used: improved retains; regressed rolls back
+ *  an active intervention and disables an inactive one; everything else
+ *  (inconclusive, invalid, not yet evaluated) asks for revision. */
+function kernelRecommendation(
+  experiment: HostExperimentRecord,
+  intervention: KernelInterventionView | undefined,
+): EfficacyRecommendation {
+  const verdict = experiment.evaluation?.verdict;
+  if (verdict === "improved") return "retain";
+  if (verdict === "regressed") return intervention?.state.activation === "active" ? "roll_back" : "disable";
+  return "revise";
 }
 
 function learningEfficiencyHealthPath(stateHome: string): string {
@@ -173,7 +205,12 @@ export async function projectLearningEfficiencyHealth(
     .sort();
   const lineageGaps = lineageGapsFor({ candidates, reviews, experiments, results, interventions, clustered });
   const dispositionsCount = dispositionCounts(dispositions);
-  const activationState = count(interventions.map((item) => item.status));
+  const kernelInterventions = options.kernel?.interventions ?? [];
+  const kernelExperiments = options.kernel?.experiments ?? [];
+  const activationState = count([
+    ...kernelInterventions.map((view) => kernelStatusOf(view)),
+    ...interventions.map((item) => item.status),
+  ]);
   const capReasons = count([
     ...rejections.map(() => "suppressed_or_rejected"),
     ...m6.map((run) => run.reason).filter((reason): reason is string => reason !== null),
@@ -190,6 +227,35 @@ export async function projectLearningEfficiencyHealth(
   const invalidReasons: string[] = [];
   let postActivationConcern = false;
   const recommendations: LearningEfficiencyHealth["efficacy"]["recommendations"] = [];
+  const kernelInterventionById = new Map(kernelInterventions.map((view) => [view.id, view]));
+  for (const experiment of kernelExperiments) {
+    const evaluation = experiment.evaluation;
+    if (evaluation === undefined) {
+      outcomeCounts.missing += 1;
+      recommendations.push({
+        experiment_ref: experiment.experiment_id,
+        eval_ref: null,
+        recommendation: "revise",
+        evidence_refs: [],
+      });
+      continue;
+    }
+    outcomeCounts[evaluation.verdict] += 1;
+    if (evaluation.verdict === "invalid") invalidReasons.push(`${evaluation.id}:invalid_measurement`);
+    validComparisons += evaluation.analysis?.pairs.length ?? 0;
+    for (const guardrail of evaluation.analysis?.guardrails ?? []) {
+      if (guardrail.status === "regressed") guardrailFailures.push(`${evaluation.id}:${guardrail.metric}`);
+    }
+    recommendations.push({
+      experiment_ref: experiment.experiment_id,
+      eval_ref: evaluation.id,
+      recommendation: kernelRecommendation(experiment, kernelInterventionById.get(experiment.intervention_id)),
+      evidence_refs: [
+        `learning:kernel-evaluation:${evaluation.id}`,
+        `learning:kernel-intervention:${experiment.intervention_id}`,
+      ],
+    });
+  }
   for (const experiment of experiments) {
     const result = experiment.result === null ? undefined : resultById.get(experiment.result);
     const intervention = interventionByExperiment.get(experiment.experiment_id);
@@ -268,7 +334,7 @@ export async function projectLearningEfficiencyHealth(
         ? "invalid_measurement"
         : "healthy";
   const efficacyStatus: HealthStatus =
-    experiments.length === 0 || validComparisons === 0
+    experiments.length + kernelExperiments.length === 0 || validComparisons === 0
       ? "invalid_measurement"
       : invalidReasons.length > 0 ||
           guardrailFailures.length > 0 ||
@@ -312,7 +378,7 @@ export async function projectLearningEfficiencyHealth(
     },
     efficacy: {
       status: efficacyStatus,
-      declared_experiments: experiments.length,
+      declared_experiments: experiments.length + kernelExperiments.length,
       valid_control_treatment_comparisons: validComparisons,
       outcomes: outcomeCounts,
       recommendations: recommendations.sort((a, b) => a.experiment_ref.localeCompare(b.experiment_ref)),

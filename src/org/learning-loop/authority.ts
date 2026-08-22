@@ -8,16 +8,29 @@
 // Verification is read-only: it projects the item's status onto the kernel's
 // closed decision set and never consumes a grant — the kernel journals
 // consumption of the verified authorization itself (decision 0026).
+//
+// Phase B adds the two lanes design §6.1 leaves below the human gate — the
+// routine lane (proposal-class T0/T1 publishes) and the operator lane
+// (CLI reversals) — judged against the binding in `authority-evidence.ts`'s
+// closed shapes, so every lane is a verified, journaled authorization.
 
 import { authorizationBindingDigest, createAuthorityPort, sha256HexOfCanonicalJson } from "@cormidia/learning-loop";
-import type { AuthorityPort, AuthorizationBinding, Diagnostic, PublicationPlan } from "@cormidia/learning-loop";
+import type {
+  AuthorityPort,
+  AuthorizationBinding,
+  Clock,
+  Diagnostic,
+  PrincipalRef,
+  PublicationPlan,
+} from "@cormidia/learning-loop";
 import type { ApprovalDecider, ApprovalItem, ApprovalStore } from "../approvals.js";
 import { definedProps } from "../../runtime/optional-properties.js";
+import { parseAuthorityEvidence, type OperatorEvidence, type RoutineEvidence } from "./authority-evidence.js";
 
 export const LEARNING_LOOP_PUBLISH_TOOL = "learning_loop_publish";
 export const LEARNING_LOOP_PUBLISH_RULE = "learning-loop-publish";
 export const CORMIDIA_AUTHORITY_PORT_ID = "cormidia/approvals";
-const PORT_VERSION = "1.0.0";
+const PORT_VERSION = "1.1.0";
 const DIGEST_RE = /^[0-9a-f]{64}$/;
 
 /** The approval action input: the exact binding, its digest, and the plan id. */
@@ -29,20 +42,14 @@ export interface LearningLoopPublishBinding {
   readonly binding: AuthorizationBinding;
 }
 
-/** The opaque host evidence a caller hands to `publish`. */
-export interface ApprovalEvidence {
-  readonly approvalId: string;
+export interface CormidiaAuthorityOptions {
+  /** Time source for routine and operator authorizations (`authorizedAt`). */
+  readonly clock?: Clock;
 }
 
 function closed(status: "pending" | "denied" | "invalid" | "expired", code: string, message: string): unknown {
   const diagnostics: Diagnostic[] = [{ code, severity: "error", message }];
   return { status, diagnostics };
-}
-
-function parseEvidence(evidence: unknown): ApprovalEvidence | undefined {
-  if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence)) return undefined;
-  const approvalId: unknown = Reflect.get(evidence, "approvalId");
-  return typeof approvalId === "string" && approvalId.length > 0 ? { approvalId } : undefined;
 }
 
 /** The binding digest an approval item carries, when it is a learning-loop publish. */
@@ -55,17 +62,27 @@ export function publishBindingDigestOf(item: ApprovalItem): string | undefined {
   return typeof digest === "string" && DIGEST_RE.test(digest) ? digest : undefined;
 }
 
-function principalOf(decider: ApprovalDecider | undefined): {
-  id: string;
-  kind: "human" | "agent";
-  independenceDomain: string;
-} {
+/** The plan id an approval item was raised for, when it is a learning-loop publish. */
+export function publishPlanIdOf(item: ApprovalItem): string | undefined {
+  if (publishBindingDigestOf(item) === undefined) return undefined;
+  const input = item.action.input;
+  if (input === null || typeof input !== "object") return undefined;
+  const planId: unknown = Reflect.get(input, "planId");
+  return typeof planId === "string" && planId.length > 0 ? planId : undefined;
+}
+
+function principalOf(decider: ApprovalDecider | undefined): PrincipalRef {
   // The approvals store records no decider for a decision taken by the human
   // at the CLI; that is the operator, never an agent (approvals.ts
   // ApprovalDecider: an agent decision is always an explicit distinct fact).
   if (decider === undefined) return { id: "human:operator", kind: "human", independenceDomain: "human:operator" };
   const id = `${decider.kind}:${decider.identity}`;
   return { id, kind: decider.kind, independenceDomain: id };
+}
+
+function actorPrincipal(actor: string): PrincipalRef {
+  const kind = actor.startsWith("human:") ? "human" : "agent";
+  return { id: actor, kind, independenceDomain: actor };
 }
 
 /** Raise (idempotently) the approval item that authorizes one exact plan. */
@@ -103,16 +120,80 @@ export async function raiseLearningLoopPublish(
   });
 }
 
-export function createCormidiaAuthorityPort(store: ApprovalStore): AuthorityPort {
-  const configurationDigest = sha256HexOfCanonicalJson({ kind: "cormidia-approvals-authority", schemaVersion: 1 });
+function authorized(
+  id: string,
+  principal: PrincipalRef,
+  bindingDigest: string,
+  authorizedAt: string,
+  lane: string,
+  expiresAt?: string,
+): unknown {
+  return {
+    status: "authorized",
+    authorization: {
+      id,
+      principal,
+      principalAttestationDigest: sha256HexOfCanonicalJson({ lane, principal: principal.id, bindingDigest, id }),
+      bindingDigest,
+      authorizedAt,
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
+    },
+  };
+}
+
+function routineDecision(evidence: RoutineEvidence, binding: AuthorizationBinding, now: string): unknown {
+  const digest = authorizationBindingDigest(binding);
+  if (binding.action !== "publish") {
+    return closed("invalid", "authority.routine_not_applicable", "the routine lane authorizes publishes only");
+  }
+  if (binding.effectClass !== "proposal" || (binding.effectiveRisk !== "T0" && binding.effectiveRisk !== "T1")) {
+    return closed(
+      "invalid",
+      "authority.routine_requires_human_gate",
+      `a ${binding.effectClass} publish at ${binding.effectiveRisk} needs the human gate (design §6.1)`,
+    );
+  }
+  return authorized(`routine-${digest}`, actorPrincipal(evidence.actor), digest, now, "routine");
+}
+
+function operatorDecision(evidence: OperatorEvidence, binding: AuthorizationBinding, now: string): unknown {
+  const digest = authorizationBindingDigest(binding);
+  if (binding.action === "publish") {
+    return closed("invalid", "authority.operator_requires_approval", "a publish needs an approval item");
+  }
+  const principal: PrincipalRef = {
+    id: `human:${evidence.identity}`,
+    kind: "human",
+    independenceDomain: `human:${evidence.identity}`,
+  };
+  return authorized(`operator-${digest}`, principal, digest, now, "operator");
+}
+
+export function createCormidiaAuthorityPort(
+  store: ApprovalStore,
+  options: CormidiaAuthorityOptions = {},
+): AuthorityPort {
+  const clock = options.clock ?? { now: () => new Date().toISOString() };
+  const configurationDigest = sha256HexOfCanonicalJson({
+    kind: "cormidia-approvals-authority",
+    schemaVersion: 2,
+    lanes: ["approval", "routine", "operator"],
+  });
   return createAuthorityPort({
     id: CORMIDIA_AUTHORITY_PORT_ID,
     version: PORT_VERSION,
     configurationDigest,
     verify: async ({ evidence, binding }) => {
-      const parsed = parseEvidence(evidence);
-      if (parsed === undefined)
-        return closed("invalid", "authority.evidence_invalid", "authorization evidence must be { approvalId }");
+      const parsed = parseAuthorityEvidence(evidence);
+      if (parsed === undefined) {
+        return closed(
+          "invalid",
+          "authority.evidence_invalid",
+          "authorization evidence must be { approvalId }, { kind: routine, actor }, or { kind: operator, identity }",
+        );
+      }
+      if (parsed.kind === "routine") return routineDecision(parsed, binding, clock.now());
+      if (parsed.kind === "operator") return operatorDecision(parsed, binding, clock.now());
       let item: ApprovalItem;
       let grantExpiresAt: string | undefined;
       try {
@@ -153,22 +234,9 @@ export function createCormidiaAuthorityPort(store: ApprovalStore): AuthorityPort
         case "approved": {
           if (item.decidedAt === undefined)
             return closed("invalid", "authority.undated", `approval ${item.id} carries no decision time`);
-          const principal = principalOf(item.decidedBy);
-          return {
-            status: "authorized",
-            authorization: {
-              id: item.id,
-              principal,
-              principalAttestationDigest: sha256HexOfCanonicalJson({
-                approvalId: item.id,
-                decidedBy: principal.id,
-                decidedAt: item.decidedAt,
-              }),
-              bindingDigest: carried,
-              authorizedAt: item.decidedAt,
-              ...(grantExpiresAt !== undefined && grantExpiresAt > item.decidedAt ? { expiresAt: grantExpiresAt } : {}),
-            },
-          };
+          const expiresAt =
+            grantExpiresAt !== undefined && grantExpiresAt > item.decidedAt ? grantExpiresAt : undefined;
+          return authorized(item.id, principalOf(item.decidedBy), carried, item.decidedAt, "approval", expiresAt);
         }
       }
     },

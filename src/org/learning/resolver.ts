@@ -88,6 +88,12 @@ interface ResolveInput {
    *  arms: control resolves stable regardless of any running trial). No
    *  assignment record is read or written under an override. */
   lineageOverride?: BundleLineage;
+  /** Concept ids this resolve must not load — the CONTROL arm of a kernel
+   *  experiment over an already-active intervention (decision 0028 R5:
+   *  validation is post-publication) resolves the bundle minus the concept
+   *  under test. Only honored together with `lineageOverride` (record-free
+   *  replay arms); a governed turn never excludes an active concept. */
+  excludeConceptIds?: readonly string[];
   clock?: () => Date;
 }
 
@@ -262,6 +268,8 @@ export async function resolveLearningContext(input: ResolveInput): Promise<Resol
         }
         // Stable lineage never sees the running trial's concepts.
         if (excludedByRoot[rootKind].has(loop.id)) continue;
+        // A replay control arm resolves the bundle minus the concept under test.
+        if (input.lineageOverride !== undefined && input.excludeConceptIds?.includes(loop.id) === true) continue;
         gathered.push(toResolved(concept.doc, scopeName, key, false, input));
       }
     }

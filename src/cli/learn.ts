@@ -30,6 +30,16 @@ import { createInterface } from "node:readline/promises";
 import { resolveAppWorkdir } from "../org/app-workdir.js";
 import { rollupLearningSpend } from "../org/budget.js";
 import { resolveCormidiaHomes, type CormidiaHomes } from "../org/home.js";
+import { composeLearningLoop } from "../org/learning-loop/compose.js";
+import { listHostExperiments, readHostExperiment } from "../org/learning-loop/experiments-audit.js";
+import { readHostCandidateIndex } from "../org/learning-loop/host-index.js";
+import {
+  interventionViewOf,
+  listKernelInterventions,
+  type KernelInterventionView,
+} from "../org/learning-loop/interventions.js";
+import { learningLoopStateDir } from "../org/learning-loop/loop.js";
+import { syncKernelEvidence } from "../org/learning-loop/sync.js";
 import { findCandidateArtifact } from "../org/learning/candidate-store.js";
 import { capsuleIdFor, createCapsuleBuilder, type ReplayCapsule } from "../org/learning/capsule.js";
 import { previewCaptureEvents, projectCaptureEvents, type CaptureProjectionResult } from "../org/learning/capture.js";
@@ -125,7 +135,18 @@ export async function cmdLearn(args: string[]): Promise<number> {
       const projection = refresh
         ? await projectCaptureEvents({ stateHome, appStages })
         : await previewCaptureEvents({ stateHome, appStages });
-      if (refresh) await projector.project();
+      if (refresh) {
+        await projector.project();
+        // Kernel evidence follows the projection: ingest the episodes and
+        // acknowledge the exposure sets of every closed episode.
+        const sync = await composeLearningLoop(homes).then((learning) => syncKernelEvidence(learning));
+        if (sync.acknowledged.length > 0 || sync.pending.length > 0) {
+          console.error(
+            `learning-loop: ${sync.acknowledged.length} exposure set(s) acknowledged; ` +
+              `${sync.pending.length} episode(s) still open`,
+          );
+        }
+      }
       return report(homes, projection, json, efficiencyHealth, refresh);
     }
     // M4 — the manual governed-activation surface (learn-activation.ts).
@@ -620,8 +641,53 @@ function mintEventId(now: Date): string {
 // show
 // ---------------------------------------------------------------------------
 
+/** A kernel journal is whole by construction: no chain gap can exist. */
+function noGaps(): string[] {
+  return [];
+}
+
+function kernelStatusLabel(view: KernelInterventionView): string {
+  if (view.state.publication === "rolled_back") return "rolled_back";
+  if (view.state.activation === "disabled") return "disabled";
+  if (view.state.activation === "active") return "active";
+  if (view.state.publication === "published") return "published";
+  if (view.state.publication === "failed") return "failed";
+  return "proposed";
+}
+
 async function show(homes: CormidiaHomes, id: string): Promise<number> {
   const stateHome = homes.stateHome;
+
+  // Kernel interventions and kernel experiments (Cormidia #467 phase B).
+  if (id.startsWith("intervention-")) {
+    const learning = await composeLearningLoop(homes);
+    const view = await interventionViewOf(learning, id);
+    if (view === undefined) {
+      console.error(`learn: no kernel intervention ${id}`);
+      return 1;
+    }
+    console.log(JSON.stringify(view, null, 2));
+    console.log("");
+    console.log(
+      `disposition: ${kernelStatusLabel(view)} ${view.routing?.destination ?? "unknown"}` +
+        (view.claimLabel !== undefined ? `; claim ${view.claimLabel}` : "") +
+        `; validation ${view.state.validation}; chain complete (kernel journal)`,
+    );
+    return 0;
+  }
+  if (id.startsWith("exp_")) {
+    const experiment = await readHostExperiment(learningLoopStateDir(stateHome), id);
+    if (experiment !== undefined) {
+      console.log(JSON.stringify(experiment, null, 2));
+      console.log("");
+      console.log(
+        experiment.evaluation === undefined
+          ? `disposition: declared — no results yet (declared-before-results, kernel decision 0028)`
+          : `disposition: evaluated ${experiment.evaluation.verdict} (${experiment.evaluation.id}) on ${experiment.intervention_id}`,
+      );
+      return 0;
+    }
+  }
 
   // M3 record ids route to the committed org home's learning stores. A
   // missing record is the same class of user mistake as an unknown event id:
@@ -679,6 +745,22 @@ async function show(homes: CormidiaHomes, id: string): Promise<number> {
       return 0;
     }
     console.log(`review: ${verdict.verdict} by ${verdict.reviewed_by} — ${verdict.rationale}`);
+    // Kernel lineage first (the host index maps the artifact to its kernel
+    // candidates, plans, and interventions); the forked engine's record is
+    // history.
+    const index = await readHostCandidateIndex(learningLoopStateDir(stateHome), id);
+    const published = [...(index?.entries ?? [])].reverse().find((entry) => entry.intervention_id !== undefined);
+    if (published?.intervention_id !== undefined) {
+      const learning = await composeLearningLoop(homes);
+      const view = await interventionViewOf(learning, published.intervention_id);
+      console.log(
+        view === undefined
+          ? `disposition: kernel intervention ${published.intervention_id} is not readable`
+          : `disposition: ${kernelStatusLabel(view)} ${view.routing?.destination ?? "unknown"} — ` +
+              `trace it with: cormidia learn show ${view.id}`,
+      );
+      return 0;
+    }
     // Distinguish "no record" from "corrupt record": a lineage record that
     // exists but fails validation must surface loudly, never read as
     // "not yet published" (that advice would re-run a committed publish).
@@ -846,6 +928,38 @@ async function report(
     guarded(listInterventionRecords(homes.orgHome)),
     guarded(listReviewerVerdicts(homes.orgHome)),
   ]);
+  // The kernel path (Cormidia #467 phase B): interventions re-read from the
+  // kernel through the host index, experiments from the host audit copies.
+  // Forked-engine records above stay listed as history (compatibility policy
+  // §3a/§3b), marked `engine: "forked"`.
+  const kernelInterventions = await composeLearningLoop(homes)
+    .then((learning) => listKernelInterventions(learning))
+    .catch((error: Error): KernelInterventionView[] => {
+      storeErrors.push(`kernel interventions unavailable: ${error.message}`);
+      return [];
+    });
+  const kernelExperiments = await guarded(listHostExperiments(learningLoopStateDir(stateHome)));
+  const kernelInterventionRows = kernelInterventions.map((view) => ({
+    intervention_id: view.id,
+    engine: "kernel" as const,
+    destination: view.routing?.destination ?? "unknown",
+    status: kernelStatusLabel(view),
+    claim: view.claim,
+    ...(view.claimLabel !== undefined ? { claim_display: view.claimLabel } : {}),
+    state: view.state,
+    chain_gaps: noGaps(),
+  }));
+  const kernelExperimentRows = kernelExperiments.map((experiment) => ({
+    experiment_id: experiment.experiment_id,
+    engine: "kernel" as const,
+    status: experiment.evaluation === undefined ? "declared" : "evaluated",
+    candidate_ref: experiment.artifact_id,
+    intervention_ref: experiment.intervention_id,
+    control: experiment.control_fingerprint,
+    treatment: experiment.treatment_fingerprint,
+    result: experiment.evaluation?.id ?? null,
+    ...(experiment.evaluation !== undefined ? { verdict: experiment.evaluation.verdict } : {}),
+  }));
   const events = eventRead.events;
   for (const path of eventRead.missingFiles) {
     storeErrors.push(`learning event file disappeared before read: ${path}`);
@@ -916,6 +1030,7 @@ async function report(
       capture: projection,
       policy,
       roots: [orgRoot, ...Object.values(appRoots)],
+      kernel: { interventions: kernelInterventions, experiments: kernelExperiments },
       ...(refresh ? { persist: true } : {}),
     }).catch((error: Error) => {
       storeErrors.push(error.message);
@@ -983,24 +1098,32 @@ async function report(
             report_only: true,
             recommendations: compaction,
           },
-          experiments: experiments.map((experiment) => ({
-            experiment_id: experiment.experiment_id,
-            status: experiment.status,
-            unit: experiment.unit,
-            candidate_ref: experiment.candidate_ref,
-            control: experiment.control.fingerprint_ref,
-            treatment: experiment.treatment.fingerprint_ref,
-            result: experiment.result,
-            ...(experiment.result !== null ? { verdict: verdictFor(experiment, evalById) } : {}),
-          })),
-          interventions: interventions.map((intervention) => ({
-            intervention_id: intervention.intervention_id,
-            destination: intervention.destination,
-            status: intervention.status,
-            claim: intervention.activation?.claim ?? null,
-            ...(intervention.activation !== null ? { claim_display: claimLabel(intervention.activation.claim) } : {}),
-            chain_gaps: interventionChainGaps(intervention),
-          })),
+          experiments: [
+            ...kernelExperimentRows,
+            ...experiments.map((experiment) => ({
+              experiment_id: experiment.experiment_id,
+              engine: "forked" as const,
+              status: experiment.status,
+              unit: experiment.unit,
+              candidate_ref: experiment.candidate_ref,
+              control: experiment.control.fingerprint_ref,
+              treatment: experiment.treatment.fingerprint_ref,
+              result: experiment.result,
+              ...(experiment.result !== null ? { verdict: verdictFor(experiment, evalById) } : {}),
+            })),
+          ],
+          interventions: [
+            ...kernelInterventionRows,
+            ...interventions.map((intervention) => ({
+              intervention_id: intervention.intervention_id,
+              engine: "forked" as const,
+              destination: intervention.destination,
+              status: intervention.status,
+              claim: intervention.activation?.claim ?? null,
+              ...(intervention.activation !== null ? { claim_display: claimLabel(intervention.activation.claim) } : {}),
+              chain_gaps: interventionChainGaps(intervention),
+            })),
+          ],
           reviews: verdicts.map((verdict) => ({
             candidate_id: verdict.candidate_id,
             verdict: verdict.verdict,
@@ -1108,13 +1231,22 @@ async function report(
         (recommendation.proposed_scope !== undefined ? `; proposed scope ${recommendation.proposed_scope}` : ""),
     );
   }
-  if (experiments.length > 0) {
-    lines.push("", `Experiments: ${experiments.length}`);
+  if (kernelExperimentRows.length > 0 || experiments.length > 0) {
+    lines.push("", `Experiments: ${kernelExperimentRows.length + experiments.length}`);
+    for (const experiment of kernelExperimentRows) {
+      const cost = learningSpend.byExperiment.get(experiment.experiment_id);
+      lines.push(
+        `  ${experiment.experiment_id} — kernel, ${experiment.status}` +
+          (experiment.verdict !== undefined ? ` → ${experiment.result} (${experiment.verdict})` : "") +
+          (cost !== undefined ? `; $${cost.toFixed(2)} this month` : ""),
+      );
+      lines.push(`    control ${experiment.control.slice(0, 12)} vs treatment ${experiment.treatment.slice(0, 12)}`);
+    }
     for (const experiment of experiments) {
       const suffix = experiment.result !== null ? ` → ${experiment.result} (${verdictFor(experiment, evalById)})` : "";
       const cost = learningSpend.byExperiment.get(experiment.experiment_id);
       lines.push(
-        `  ${experiment.experiment_id} — ${experiment.unit}, ${experiment.status}${suffix}` +
+        `  ${experiment.experiment_id} — forked engine (history), ${experiment.unit}, ${experiment.status}${suffix}` +
           (cost !== undefined ? `; $${cost.toFixed(2)} this month` : ""),
       );
       lines.push(
@@ -1140,12 +1272,19 @@ async function report(
     lines.push("", "Canary:");
     for (const line of canaryLines) lines.push(`  ${line}`);
   }
-  if (interventions.length > 0) {
-    lines.push("", `Interventions: ${interventions.length}`);
+  if (kernelInterventionRows.length > 0 || interventions.length > 0) {
+    lines.push("", `Interventions: ${kernelInterventionRows.length + interventions.length}`);
+    for (const intervention of kernelInterventionRows) {
+      lines.push(
+        `  ${intervention.intervention_id} — ${intervention.destination}, ${intervention.status}` +
+          (intervention.claim_display !== undefined ? `; claim ${intervention.claim_display}` : "") +
+          `; validation ${intervention.state.validation}`,
+      );
+    }
     for (const intervention of interventions) {
       const gaps = interventionChainGaps(intervention);
       lines.push(
-        `  ${intervention.intervention_id} — ${intervention.destination}, ${intervention.status}` +
+        `  ${intervention.intervention_id} — forked engine (history), ${intervention.destination}, ${intervention.status}` +
           (intervention.activation !== null ? `; claim ${claimLabel(intervention.activation.claim)}` : "") +
           (gaps.length > 0 ? `; chain INCOMPLETE (missing ${gaps.join(", ")})` : ""),
       );

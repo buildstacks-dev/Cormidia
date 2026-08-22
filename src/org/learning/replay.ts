@@ -84,7 +84,6 @@ import type { CandidateArtifact } from "./candidate.js";
 import { appLearningRoot, orgLearningRoot, renderActivatedConcept } from "./concepts.js";
 import { gradeBuildOutcome, type EvalFixture } from "./eval-fixture.js";
 import { sanitizeIdSegment } from "./events.js";
-import type { ExperimentRecord } from "./experiment.js";
 import type { LearningPolicy } from "./policy.js";
 import { renderConcept } from "./resolver.js";
 
@@ -98,13 +97,28 @@ export { REPLAY_RUNLOG_APP };
 type ReplayArm = "control" | "treatment";
 type ReplayMode = "targeted" | "full";
 
-interface ReplayAttemptRequest {
+/** What the replay needs to know about the experiment it serves — the
+ *  kernel owns the experiment definition (Cormidia #467 phase B); the runner
+ *  receives only the host facts the worktree replay binds into its plan. */
+export interface ReplayExperimentContext {
+  experimentId: string;
+  /** The app whose episodes are replayed (eligibility app). */
+  app: string;
+  /** Lifecycle stages the eligibility declared; the first stamps the replay. */
+  stage: string[];
+  /** Declared per-experiment spend cap (USD); null falls back to policy. */
+  budgetMaxUsd: number | null;
+  /** Declaration time; null falls back to the fixture's draft time. */
+  declaredAt: string | null;
+}
+
+export interface ReplayAttemptRequest {
   fixture: EvalFixture;
   arm: ReplayArm;
   /** 0 for the targeted pre-check, 1..N for full paired trials. */
   pair: number;
   mode: ReplayMode;
-  experiment: ExperimentRecord;
+  experiment: ReplayExperimentContext;
 }
 
 export interface ReplayAttempt {
@@ -142,8 +156,12 @@ interface LoopReplayExecutorOptions {
   policy: LearningPolicy;
   /** Rendered treatment overlay — the candidate's concept exactly as the
    *  resolver would render it active (renderCandidateOverlay). Required
-   *  when any treatment attempt runs. */
+   *  when any treatment attempt runs against an UNPUBLISHED intervention. */
   treatmentOverlay?: string;
+  /** Concept ids the CONTROL arm excludes — a kernel experiment over an
+   *  already-active concept (post-publication validation, decision 0028):
+   *  treatment resolves the bundle as is, control resolves it minus these. */
+  controlExcludes?: readonly string[];
   /** Candidate the experiment tests; stamps per-candidate ledger rows. */
   candidateRef?: string;
   hooks?: TurnHooks;
@@ -368,19 +386,19 @@ function validateReplayRequest(options: LoopReplayExecutorOptions, request: Repl
   if (fixture.seed.commit === null) {
     throw new Error(`learning: fixture ${fixture.fixture_id} has no seed commit`);
   }
-  if (arm === "treatment" && options.treatmentOverlay === undefined) {
-    throw new Error("learning: treatment attempts need the candidate overlay");
-  }
-  if (options.app.name !== request.experiment.eligibility.app) {
+  if (arm === "treatment" && options.treatmentOverlay === undefined && options.controlExcludes === undefined) {
     throw new Error(
-      `learning: replay app ${options.app.name} does not match experiment app ` + request.experiment.eligibility.app,
+      "learning: treatment attempts need the candidate overlay or an active concept to exclude from control",
     );
+  }
+  if (options.app.name !== request.experiment.app) {
+    throw new Error(`learning: replay app ${options.app.name} does not match experiment app ` + request.experiment.app);
   }
 }
 
 function replayEpisodeIdForAttempt(request: ReplayAttemptRequest): string {
   return `learning-replay:${stableHash({
-    experiment: request.experiment.experiment_id,
+    experiment: request.experiment.experimentId,
     fixture: request.fixture.fixture_id,
     seed: request.fixture.seed.commit,
     arm: request.arm,
@@ -391,7 +409,7 @@ function replayEpisodeIdForAttempt(request: ReplayAttemptRequest): string {
 
 function replayAttemptSlug(request: ReplayAttemptRequest): string {
   return [
-    sanitizeIdSegment(request.experiment.experiment_id),
+    sanitizeIdSegment(request.experiment.experimentId),
     `p${request.pair}`,
     request.arm,
     request.mode,
@@ -423,8 +441,7 @@ function buildReplayDefinition(input: {
       ? selectReplayAssignment(resolved, input.reviewer.name, builderChoice.providerFamily)
       : undefined;
   const experimentCap =
-    input.request.experiment.efficacy_protocol?.budget.max_usd ??
-    input.learningPolicy.learning_budget.per_candidate_replay_usd;
+    input.request.experiment.budgetMaxUsd ?? input.learningPolicy.learning_budget.per_candidate_replay_usd;
   const maxEquivalentCostUsd = Math.min(input.learningPolicy.learning_budget.per_candidate_replay_usd, experimentCap);
   if (!Number.isFinite(maxEquivalentCostUsd) || maxEquivalentCostUsd <= 0) {
     throw new Error("learning: replay has no positive bounded learning budget");
@@ -559,7 +576,7 @@ function buildReplayDefinition(input: {
     kind: input.request.mode === "targeted" ? "targeted-replay-outcome" : "full-replay-outcome",
     required: true,
   };
-  const declaredAt = input.request.experiment.efficacy_protocol?.declared_at ?? input.request.fixture.drafted_at;
+  const declaredAt = input.request.experiment.declaredAt ?? input.request.fixture.drafted_at;
   const scope: CreatorEpisodeScope = {
     planningDisposition: "execution_ready",
     provenance: {
@@ -567,7 +584,7 @@ function buildReplayDefinition(input: {
       creatorId: "learning-experiment-runner",
       createdAt: declaredAt,
       evidenceRefs: [
-        `experiment:${input.request.experiment.experiment_id}`,
+        `experiment:${input.request.experiment.experimentId}`,
         `fixture:${input.request.fixture.fixture_id}`,
         `seed:${input.request.fixture.seed.commit}`,
       ],
@@ -655,7 +672,7 @@ function replayIntent(
     roles,
     trigger: {
       kind: "learning_replay",
-      sourceRef: `experiment:${request.experiment.experiment_id}`,
+      sourceRef: `experiment:${request.experiment.experimentId}`,
       payloadHash: stableHash({
         fixture: request.fixture.fixture_id,
         seed: request.fixture.seed.commit,
@@ -666,7 +683,7 @@ function replayIntent(
     },
     goal: definition.scope.objective,
     lifecycle: "learning-replay",
-    appStage: request.experiment.eligibility.stage[0] ?? "unknown",
+    appStage: request.experiment.stage[0] ?? "unknown",
     repositoryFacts: {
       repo: request.fixture.seed.repo ?? app.repo,
       revision: request.fixture.seed.commit!,
@@ -930,7 +947,7 @@ async function executeReplayProviderStep(
       telemetry: {
         orgDir: input.options.stateHome,
         trigger: "manual",
-        experimentRef: input.request.experiment.experiment_id,
+        experimentRef: input.request.experiment.experimentId,
         ...(input.options.candidateRef === undefined ? {} : { candidateRef: input.options.candidateRef }),
       },
     });
@@ -1393,15 +1410,18 @@ async function armContext(
   const assembled = await assembleContext({
     orgHome: options.orgHome,
     appWorkdir: worktree,
-    app: request.experiment.eligibility.app,
+    app: request.experiment.app,
     role,
     taskText: request.fixture.input.brief ?? "",
     learning: {
       turnId:
-        `replay-${sanitizeIdSegment(request.experiment.experiment_id)}-p${request.pair}-` +
+        `replay-${sanitizeIdSegment(request.experiment.experimentId)}-p${request.pair}-` +
         `${request.arm}-${role.name}-${stepId}`,
       episodeId: request.fixture.episode_ref,
       lineageOverride: "stable",
+      ...(request.arm === "control" && options.controlExcludes !== undefined
+        ? { excludeConceptIds: options.controlExcludes }
+        : {}),
     },
   });
   if (request.arm === "treatment" && options.treatmentOverlay !== undefined) {
@@ -1411,7 +1431,7 @@ async function armContext(
       components: [
         {
           category: "memory",
-          source: `learning:treatment:${request.experiment.experiment_id}`,
+          source: `learning:treatment:${request.experiment.experimentId}`,
           rendered: options.treatmentOverlay,
           inclusionReason: "declared candidate treatment overlay",
           requirement: "optional",

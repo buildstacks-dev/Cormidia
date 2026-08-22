@@ -806,6 +806,61 @@
       "lines": 240,
       "newModule": false
     },
+    "src/org/learning-loop/authority.ts": {
+      "exports": 8,
+      "lines": 176,
+      "newModule": true
+    },
+    "src/org/learning-loop/content-policy.ts": {
+      "exports": 3,
+      "lines": 68,
+      "newModule": true
+    },
+    "src/org/learning-loop/destination-okf.ts": {
+      "exports": 4,
+      "lines": 261,
+      "newModule": true
+    },
+    "src/org/learning-loop/destination-receipts.ts": {
+      "exports": 5,
+      "lines": 86,
+      "newModule": true
+    },
+    "src/org/learning-loop/episode-evidence-record.ts": {
+      "exports": 5,
+      "lines": 142,
+      "newModule": true
+    },
+    "src/org/learning-loop/evidence-source.ts": {
+      "exports": 3,
+      "lines": 241,
+      "newModule": true
+    },
+    "src/org/learning-loop/fingerprint.ts": {
+      "exports": 2,
+      "lines": 45,
+      "newModule": true
+    },
+    "src/org/learning-loop/identity.ts": {
+      "exports": 6,
+      "lines": 71,
+      "newModule": true
+    },
+    "src/org/learning-loop/loop.ts": {
+      "exports": 4,
+      "lines": 146,
+      "newModule": true
+    },
+    "src/org/learning-loop/replay-executor.ts": {
+      "exports": 4,
+      "lines": 94,
+      "newModule": true
+    },
+    "src/org/learning-loop/scope.ts": {
+      "exports": 6,
+      "lines": 158,
+      "newModule": true
+    },
     "src/org/learning/binding.ts": {
       "exports": 5,
       "lines": 143,

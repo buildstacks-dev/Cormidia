@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "eval_id": "eval_7e96359bd438",
+  "experiment_ref": "exp_parity_1",
+  "layer": "replay",
+  "capsule_refs": [],
+  "trials": [
+    {
+      "pair": 0,
+      "control": {
+        "held_in_pass": 0
+      },
+      "treatment": {
+        "held_in_pass": 1
+      }
+    },
+    {
+      "pair": 1,
+      "control": {
+        "held_in_pass": 0,
+        "merged": 1
+      },
+      "treatment": {
+        "held_in_pass": 1,
+        "merged": 1
+      }
+    }
+  ],
+  "primary_metric": {
+    "name": "held_in_pass",
+    "control": 0,
+    "treatment": 1,
+    "direction_ok": true,
+    "min_useful_met": true
+  },
+  "guardrails": [
+    {
+      "metric": "merged",
+      "pass": true
+    }
+  ],
+  "verdict": "improved",
+  "grader": {
+    "kind": "deterministic",
+    "ref": "grader:build-outcome-v1"
+  },
+  "cost_usd": 0.5,
+  "decided_by": "human:parity-operator",
+  "decided_at": "2026-08-21T12:05:00.000Z"
+}

@@ -1,0 +1,1 @@
+{"rejected_at":"2026-08-21T12:04:00.000Z","candidate_id":"cand_parity_reject","content_hash":"sha256:133fa52ff3f15e4f5f7950784427baa67c5a12a15989b0e2f47cc4e942561292","suppress_key":"tooling.parity-flaky","destination":"skill_draft","proposed_scope":"org","evidence_count":1,"reason":"recurring noise, not a lesson","by":"human:parity-reviewer"}

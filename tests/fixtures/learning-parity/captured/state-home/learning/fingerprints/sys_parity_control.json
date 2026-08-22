@@ -1,0 +1,41 @@
+{
+  "fingerprint_id": "sys_parity_control",
+  "cormidia": {
+    "version": "0.1.1",
+    "commit": "abc"
+  },
+  "org": {
+    "commit": "def",
+    "taste_hash": "t",
+    "roles_hash": "r",
+    "pipelines_hash": "p",
+    "prompts_hash": "q"
+  },
+  "app": {
+    "name": "web",
+    "commit": null,
+    "config_hash": null
+  },
+  "bundle_versions": {
+    "org": "2026.08.21-1",
+    "app": "2026.08.21-1"
+  },
+  "bundle_lineage": "stable",
+  "models": {
+    "builder": {
+      "runtime": "codex",
+      "model": "gpt",
+      "effort": "high"
+    }
+  },
+  "gates_hash": null,
+  "permissions_hash": null,
+  "budget_caps": {
+    "app_usd_month": null,
+    "per_turn_usd_by_role": {}
+  },
+  "env": {
+    "node": "v26.7.0",
+    "platform": "darwin"
+  }
+}

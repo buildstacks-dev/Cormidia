@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "episode_id": "ep_web_ticket_0044",
+  "kind": "build_ticket",
+  "app": "web",
+  "source": {
+    "kind": "github_issue",
+    "ref": "web#44"
+  },
+  "stage": null,
+  "risk_tier": null,
+  "opened": "2026-08-20T09:00:00.000Z",
+  "status": "open",
+  "fingerprint_ref": null,
+  "bundle_lineage": null,
+  "turns": [],
+  "gates": [
+    {
+      "gate": "typecheck",
+      "status": "fail",
+      "run_id": "run-1"
+    },
+    {
+      "gate": "typecheck",
+      "status": "pass",
+      "run_id": "run-2"
+    }
+  ],
+  "approvals": [],
+  "artifacts": [],
+  "side_effects": [],
+  "late_outcomes": [],
+  "human_observations": []
+}

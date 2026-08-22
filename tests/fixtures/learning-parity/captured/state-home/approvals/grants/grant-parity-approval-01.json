@@ -1,0 +1,12 @@
+{
+  "grantId": "grant-parity-approval-01",
+  "approvalId": "parity-approval-01",
+  "app": "org",
+  "role": "learning",
+  "actionHash": "a227f6d7a8dbd616d2c751e91884d14a434eae08f1fa18cb06ef7cfcfc699e35",
+  "identityVersion": 8,
+  "expiresAt": "2026-08-23T12:00:00.000Z",
+  "uses": 0,
+  "createdAt": "2026-08-21T12:00:00.000Z",
+  "consumedAt": "2026-08-21T12:01:00.000Z"
+}

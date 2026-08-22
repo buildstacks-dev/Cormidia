@@ -1,0 +1,17 @@
+{
+  "turn_id": "turn_parity_1",
+  "episode_id": "ep_web_ticket_0044",
+  "app": "web",
+  "role": "builder",
+  "bundle_versions": {
+    "org": "2026.08.21-1",
+    "app": "2026.08.21-1"
+  },
+  "bundle_lineage": "stable",
+  "concept_ids": [
+    "lrn_parity_org",
+    "lrn_parity_app"
+  ],
+  "context_bytes": 418,
+  "bytes_remaining": 15966
+}

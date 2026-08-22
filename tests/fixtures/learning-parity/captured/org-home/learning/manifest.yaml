@@ -1,0 +1,13 @@
+schema_version: 1
+bundle_version: 2026.08.21-1
+stable: 2026.08.21-1
+canary: null
+canary_meta: null
+history:
+  - version: 2026.08.21-1
+    commit: null
+    promoted: 2026-08-21T12:01:00.000Z
+    approval_ref: parity-approval-01
+    concepts:
+      - lrn_parity_org
+    note: publish cand_parity_org

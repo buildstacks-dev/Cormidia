@@ -7,7 +7,14 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!!.validation", "!!archive-do-not-read", "!!research", "!!validation-design/golden-sets"]
+    "includes": [
+      "**",
+      "!!.validation",
+      "!!archive-do-not-read",
+      "!!research",
+      "!!validation-design/golden-sets",
+      "!!tests/fixtures/learning-parity/captured"
+    ]
   },
   "formatter": {
     "enabled": true,

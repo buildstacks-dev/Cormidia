@@ -1,0 +1,19 @@
+{
+  "candidate_id": "cand_parity_skill",
+  "destination": "skill_draft",
+  "title": "builder: verify the default branch before diffing",
+  "proposed_scope": "roles/builder",
+  "proposed_tier": "T0",
+  "claims_efficacy": false,
+  "experiment_ref": null,
+  "episode_ids": [
+    "ep_web_ticket_0043"
+  ],
+  "event_ids": [],
+  "evidence_refs": [],
+  "content_hash": "sha256:69075ea082c437c1f2750588080d9cca542c56d01d094154cfe4e5753b8a76ae",
+  "draft": {
+    "generated_by": "distiller",
+    "markdown": "# Verify the default branch\n\nResolve it; never guess.\n"
+  }
+}

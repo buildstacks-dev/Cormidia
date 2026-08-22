@@ -1,0 +1,53 @@
+{
+  "turn_id": "turn_parity_1",
+  "episode_id": "ep_web_ticket_0044",
+  "concept_ids": ["lrn_parity_org", "lrn_parity_app"],
+  "bundle_versions": {
+    "org": "2026.08.21-1",
+    "app": "2026.08.21-1"
+  },
+  "bundle_lineage": "stable",
+  "context_bytes": 418,
+  "sections": [
+    "## Learning concept parity-org-lesson (org)\nDescription: learning concept parity-org-lesson\nKeywords: typecheck, review\nEvidence: ep_web_ticket_0042\n\nRun the repository type-check before reporting completion.",
+    "## Learning concept parity-app-lesson (apps/web)\nDescription: learning concept parity-app-lesson\nKeywords: typecheck, review\nEvidence: ep_web_ticket_0042\n\nRun the contract tests before requesting review on web."
+  ],
+  "org_manifest": {
+    "schema_version": 1,
+    "bundle_version": "2026.08.21-1",
+    "stable": "2026.08.21-1",
+    "canary": null,
+    "canary_meta": null,
+    "history": [
+      {
+        "version": "2026.08.21-1",
+        "commit": null,
+        "promoted": "2026-08-21T12:01:00.000Z",
+        "approval_ref": "parity-approval-01",
+        "concepts": ["lrn_parity_org"],
+        "note": "publish cand_parity_org"
+      }
+    ]
+  },
+  "app_manifest": {
+    "schema_version": 1,
+    "bundle_version": "2026.08.21-1",
+    "stable": "2026.08.21-1",
+    "canary": null,
+    "canary_meta": null,
+    "history": [
+      {
+        "version": "2026.08.21-1",
+        "commit": null,
+        "promoted": "2026-08-21T12:02:00.000Z",
+        "approval_ref": "parity-approval-02",
+        "concepts": ["lrn_parity_app"],
+        "note": "publish cand_parity_app"
+      }
+    ]
+  },
+  "approvals": {
+    "org": "parity-approval-01",
+    "app": "parity-approval-02"
+  }
+}

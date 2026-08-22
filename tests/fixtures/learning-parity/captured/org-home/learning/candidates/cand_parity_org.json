@@ -1,0 +1,21 @@
+{
+  "candidate_id": "cand_parity_org",
+  "destination": "okf_concept",
+  "title": "type-check before reporting done",
+  "proposed_scope": "org",
+  "proposed_tier": "T1",
+  "claims_efficacy": false,
+  "experiment_ref": null,
+  "error_class": "build.typecheck-before-done",
+  "episode_ids": [
+    "ep_web_ticket_0042"
+  ],
+  "event_ids": [],
+  "evidence_refs": [],
+  "content_hash": "sha256:432d7932d1d39f4a8ba31db8c0e4689afa5b751adf86227ce24f9133ab580f96",
+  "draft": {
+    "generated_by": "distiller",
+    "source_app": "web",
+    "topic_key": "topic.parity-org-lesson"
+  }
+}

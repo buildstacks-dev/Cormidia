@@ -1,0 +1,1 @@
+{"event_id":"evt_parity_error_1","episode_id":"ep_web_ticket_0042","turn_id":"turn_parity_capture","ts":"2026-08-21T12:00:00.000Z","app":"web","type":"error","error_class":"build.typecheck-before-done","emitter":"orchestrator","source_channel":"internal","trust":"trusted"}

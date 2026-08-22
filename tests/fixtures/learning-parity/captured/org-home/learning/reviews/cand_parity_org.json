@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "candidate_id": "cand_parity_org",
+  "verdict": "approve",
+  "proposed_destination": "okf_concept",
+  "proposed_tier": "T1",
+  "proposed_scope": "org",
+  "experiment_required": false,
+  "rubric": {
+    "correctness": 4,
+    "generality": 4,
+    "scope_fit": 4,
+    "destination_fit": 4,
+    "provenance_trust": 4,
+    "injection_screen": "clean"
+  },
+  "conflicts_with": [],
+  "duplicates": [],
+  "eval_required": false,
+  "eval_present": false,
+  "rationale": "rationale for cand_parity_org",
+  "reviewed_by": "human:parity-reviewer",
+  "reviewed_at": "2026-08-21T11:00:00.000Z"
+}

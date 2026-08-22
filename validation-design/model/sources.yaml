@@ -228,6 +228,11 @@ sources:
     path: validation-design/contracts/B-32-learning-kernel-ports.md
     locator: "Exact checked source: validation-design/contracts/B-32-learning-kernel-ports.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
     quote: "# Boundary contract — B-32 (Cormidia learning adapters ↔ `@cormidia/learning-loop` kernel)"
+  - id: SOURCE-RESEARCH-LEARNING-LOOP-MIGRATION
+    kind: doc
+    path: research/2026-08-21_learning-loop-migration-compatibility-policy.md
+    locator: "Exact checked source: research/2026-08-21_learning-loop-migration-compatibility-policy.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Learning-loop migration — phase A: compatibility policy and dependency identity"
   - id: SOURCE-CONTRACT-OP-BATCHING
     kind: doc
     path: validation-design/contracts/OP-batching.md

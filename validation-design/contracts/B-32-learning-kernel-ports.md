@@ -1,14 +1,20 @@
 # Boundary contract — B-32 (Cormidia learning adapters ↔ `@cormidia/learning-loop` kernel)
 Canonical ID: **CORMIDIA-C-B32-001…005 (alias: B-32, B-KERNEL)**
 
-Status: phase A landed 2026-08-21 (Cormidia #467 / governed-learning-loop#14; extraction plan
-`research/2026-08-12_learning-loop-library/extraction-and-dogfood-plan.md` §Phase 4). The kernel
-is the standalone governed-adaptation package (`github.com/cormidia/governed-learning-loop`,
-`@cormidia/learning-loop`), consumed as an exact vendored tarball (its Decision 0029 R7). Phase A
-adds the adapter layer beside the forked deterministic engine under `src/org/learning/`; the fork
-stays the operator path until phase B cuts over and retires it. Defends INV-001/012/013 by
-inheritance. Journey J-12 on the kernel path (CF-J12-K). Module M13. Policy record:
-`research/2026-08-21_learning-loop-migration-compatibility-policy.md`.
+Status: phase A and phase B landed 2026-08-21 (Cormidia #467 / governed-learning-loop#14;
+extraction plan `research/2026-08-12_learning-loop-library/extraction-and-dogfood-plan.md`
+§Phase 4). The kernel is the standalone governed-adaptation package
+(`github.com/cormidia/governed-learning-loop`, `@cormidia/learning-loop`), consumed as an exact
+vendored tarball (its Decision 0029 R7). Phase A added the adapter layer beside the forked
+deterministic engine under `src/org/learning/`; phase B cut Cormidia's learning source of truth
+over to the kernel (CLI `learn *`, scheduled distiller/reviewer turns, context assembly,
+proposal and ticket destinations, authority lanes, post-publication experiments) with byte/state
+parity proven against the captured fork oracle (CF-B32-PARITY); the forked publisher, runner, and
+efficacy engine are unreachable from every operator surface and are removed by the sign-off-gated
+deletion commit. Defends INV-001/012/013 by inheritance. Journey J-12 on the kernel path
+(CF-J12-K; CF-J12-S/I/RC/A and CF-SM-LEARN-L/I/R/C re-homed here by HB-157). Module M13. Policy
+record and phase-B rulings: `research/2026-08-21_learning-loop-migration-compatibility-policy.md`
+§3, §7–§9.
 
 **Why it is a boundary.** State ownership and failure domain both change at this line: the
 kernel owns candidate/review/plan/journal/intervention/resolution records in its own store and
@@ -67,8 +73,8 @@ ports; the kernel never imports Cormidia.
   `invalid` decision with a typed diagnostic — never a handle; the kernel additionally refuses any
   `bindingDigest` mismatch itself (kernel invariant 4).
 - **Idempotency:** verification consumes nothing; the kernel journals consumption of the verified
-  authorization (its decision 0026). Grant consumption in the approvals store is NOT performed in
-  phase A (recorded open item, policy record §4).
+  authorization (its decision 0026). Grant consumption in the approvals store is not performed: the
+  kernel journal is the consumption record (phase-B ruling, policy record §7.4).
 
 ## §4 — CORMIDIA-C-B32-004 — OKF concept destination (bundle + manifest)
 
@@ -103,11 +109,16 @@ ports; the kernel never imports Cormidia.
   are the runner's typed scalars; the request is never mutated.
 - **Error behavior:** a runner failure is a `failed` result with diagnostics and an attestation;
   use before registration throws.
-- **Production runner:** the fork's worktree-isolated loop replay binds to the seam in phase B;
-  phase A ships the seam and its conformance.
+- **Production runner:** the fork's worktree-isolated loop replay binds to the seam through
+  `createLoopReplayRunner` (phase B, landed 2026-08-21); experiments are post-publication over a
+  journaled publish intervention, control arm = bundle minus the concept (policy record §7.6).
 
 ## Boundary note
-Destinations beyond the OKF bundle (proposals, GitHub tickets, evaluation gates), the scheduled
-distiller/reviewer turns, CLI wiring, and the cutover itself are phase B (`#467`). Coexistence of
-the fork and the kernel path over one destination root is the open product-truth question
-F-PT-041 — no test encodes either answer.
+Phase B (2026-08-21) bound the proposal and GitHub-ticket destinations, the authority lanes
+(human gate / routine / operator — authority port 1.1.0), the scheduled distiller/reviewer turns,
+the `learn *` CLI, context assembly (kernel resolution receipts and exposures as sidecars beside
+the authoritative OKF manifest), and post-publication experiments. Evaluation-gate proposals
+route through the proposal destination (`proposals/gates/`). F-PT-041 is resolved by the cutover
+rule — exactly one writer per destination root at any time, switched at cutover (policy record
+§9) — and dual-writing is unrepresentable once the forked publisher is removed; the harness
+records the ruling, not a test of a state that cannot exist.

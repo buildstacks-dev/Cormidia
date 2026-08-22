@@ -26,7 +26,7 @@ This is a non-normative projection, not a second source of truth. Backlog revisi
 | 1 | HB-016 | Secret confinement egress suite | landed | Bikram Gupta (`bikramgupta`) | CF-INV-011 |
 | 1 | HB-016-L2 | Secret confinement egress suite (L2/per-commit split) | landed | Bikram Gupta (`bikramgupta`) | CF-INV-011-L2 |
 | 1 | HB-017 | Learning activation boundary | landed | Bikram Gupta (`bikramgupta`) | CF-C-B11, CF-J12-R |
-| 1 | HB-017-L2 | Learning activation boundary (L2/per-commit split) | landed | Bikram Gupta (`bikramgupta`) | CF-C-B11-L2, CF-J12-A, CF-J12-I, CF-J12-R-L2, CF-J12-RC, CF-J12-S, CF-SM-LEARN-C, CF-SM-LEARN-I, CF-SM-LEARN-L, CF-SM-LEARN-R |
+| 1 | HB-017-L2 | Learning activation boundary (L2/per-commit split) | landed | Bikram Gupta (`bikramgupta`) | CF-C-B11-L2, CF-J12-R-L2 |
 | 2 | HB-020 | Settlement conservation + reconcile | landed | Bikram Gupta (`bikramgupta`) | CF-J08-R |
 | 2 | HB-020-L2 | Settlement conservation + reconcile (L2/per-commit split) | landed | Bikram Gupta (`bikramgupta`) | CF-INV-006, CF-J08-A, CF-J08-I, CF-J08-R-L2, CF-J08-RC, CF-J08-S |
 | 2 | HB-021 | Legacy HB-021 validation work | landed | Bikram Gupta (`bikramgupta`) | CF-INV-005, CF-J09-RC |
@@ -149,6 +149,7 @@ This is a non-normative projection, not a second source of truth. Backlog revisi
 | structural | HB-155-L3 | Per-harness planning-source modality proof (blocked: adapter certification matrix) | blocked | Bikram Gupta (`bikramgupta`) | CF-B31-L3 |
 | structural | HB-156 | Learning kernel boundary — adapters and conformance (Cormidia #467 phase A, B-32) | landed | Bikram Gupta (`bikramgupta`) | CF-C-B32 |
 | structural | HB-156-L2 | Learning kernel boundary — adapters and conformance (L2/per-commit split) | landed | Bikram Gupta (`bikramgupta`) | CF-B32, CF-C-B32-L2, CF-J12-K |
+| structural | HB-157 | Learning kernel cutover — kernel-path journeys, state machine, and parity (Cormidia #467 phase B, B-32) | landed | Bikram Gupta (`bikramgupta`) | CF-B32-PARITY, CF-J12-A, CF-J12-I, CF-J12-RC, CF-J12-S, CF-SM-LEARN-C, CF-SM-LEARN-I, CF-SM-LEARN-L, CF-SM-LEARN-R |
 | unparked | HB-P2 | F-PT-004 ambiguous-byte disposition cases | landed | Bikram Gupta (`bikramgupta`) | CF-C-B15 |
 | unparked | HB-P4 | F-PT-007 concurrent-edit cases | landed | Bikram Gupta (`bikramgupta`) | CF-B14, CF-C-B14 |
 | parked | HB-P6 | HB-P3 / HB-P5 / HB-P6 — UNPARKED 2026-08-12 by your rulings; F-PT-006 clarified by you 2026-08-16, excluding transport filename and producer id; HB-P6 LANDED 2026-08-12 | landed | Bikram Gupta (`bikramgupta`) | CF-C-CORE |

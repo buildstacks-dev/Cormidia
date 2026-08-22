@@ -357,20 +357,13 @@ tickets:
     layer: L2
     acceptance_criteria:
       - "Archived source-ticket text (provenance only; dependency words here are non-operative): Learning activation boundary (CF-J12-*, CF-SM-LEARN-*, CF-C-B11, B-11 publisher forward-completion). Executor: build-agent."
-      - "This L2/per-commit output owns exactly these canonical families and no other layer gates it: CF-C-B11-L2, CF-J12-A, CF-J12-I, CF-J12-R-L2, CF-J12-RC, CF-J12-S, CF-SM-LEARN-C, CF-SM-LEARN-I, CF-SM-LEARN-L, CF-SM-LEARN-R."
+      - "This L2/per-commit output owns exactly these canonical families and no other layer gates it: CF-C-B11-L2, CF-J12-R-L2."
+      - "Changelog 2026-08-21 (#467 phase B revision): CF-J12-A, CF-J12-I, CF-J12-RC, CF-J12-S, CF-SM-LEARN-C, CF-SM-LEARN-I, CF-SM-LEARN-L, CF-SM-LEARN-R re-homed to HB-157 on the kernel path (B-32)."
       - A missing implementation on pending, blocked, or parked work remains incomplete/inconclusive; landed work with an absent exact planned test or evidence artifact is red.
       - "Navigation and status rule: depends_on is the only operative ticket dependency; other HB/F-PT references are provenance, historical links, or textual prerequisites unless this output names an edge. A ticket is engineering-ready only when it is pending, every depends_on output is landed, none of its families is blocked, its acceptance names no unresolved product-truth, sampling, activation, or required ticket split, and its lane needs no missing per-run authorization. Blocked and parked tickets are never executable even when their dependencies are landed. The owner briefing's build-order list is inventory, not a ready queue: apply every predicate here before selecting work. Proposed-wave work remains design-only until its named activation is resolved and a checked-model revision changes its blocked outputs to pending. Ticket landed records implementation work, while family status and evidence state separately govern what is implemented, observed, current, or claimable."
     family_ids:
       - CF-C-B11-L2
-      - CF-J12-A
-      - CF-J12-I
       - CF-J12-R-L2
-      - CF-J12-RC
-      - CF-J12-S
-      - CF-SM-LEARN-C
-      - CF-SM-LEARN-I
-      - CF-SM-LEARN-L
-      - CF-SM-LEARN-R
   - id: HB-020
     title: Settlement conservation + reconcile
     wave: "2"
@@ -2735,3 +2728,29 @@ tickets:
       - CF-B32
       - CF-C-B32-L2
       - CF-J12-K
+
+  - id: HB-157
+    title: "Learning kernel cutover — kernel-path journeys, state machine, and parity (Cormidia #467 phase B, B-32)"
+    wave: structural
+    status: landed
+    owner: bikramgupta
+    executor: build-agent
+    lane: per-commit
+    layer: L2
+    acceptance_criteria:
+      - "Archived source-ticket text (provenance only; dependency words here are non-operative): Cormidia #467 phase B — prove byte/state parity of the kernel path against the forked engine's captured artifacts per the recorded compatibility policy (§3a exact preservation; §3b compatibility readers), cut Cormidia's learning source of truth over to the kernel (CLI `learn *`, scheduled distiller/reviewer turns, context assembly; proposal and ticket destinations; authority lanes; post-publication experiments over the bound replay runner), keep the offline harness and the kernel conformance suites green, and re-home the J-12 journey and SM-LEARN state-machine families onto the kernel path. *Acceptance:* (1) kernel-published concept bytes, manifests (modulo `approval_ref`), proposals, ledger, resolved records, assignments, and events are byte-identical to the captured fork oracle, with a seeded byte change tripping the detector; (2) the J-12 success, interruption, recovery, and alternative-surface criteria hold on the kernel path with the kernel journal as the crash oracle; (3) every silent-promotion path is refused by the host rules or the kernel (unreviewed, self-reviewed under either spelling, non-clean injection screen, undecided approval, post-approval byte change, create-only stores, efficacy claims, T2 without verdict or waiver, backward lineage); (4) a completed publish replays as a no-op with reference and a crash after authorization consumption resumes once without a second approval; (5) the forked engine is unreachable from every operator surface — its removal is a separate sign-off-gated commit. Executor: build-agent."
+      - "This L2/per-commit output owns exactly these canonical families and no other layer gates it: CF-B32-PARITY, CF-J12-A, CF-J12-I, CF-J12-RC, CF-J12-S, CF-SM-LEARN-C, CF-SM-LEARN-I, CF-SM-LEARN-L, CF-SM-LEARN-R."
+      - A missing implementation on pending, blocked, or parked work remains incomplete/inconclusive; landed work with an absent exact planned test or evidence artifact is red.
+      - "Navigation and status rule: depends_on is the only operative ticket dependency; other HB/F-PT references are provenance, historical links, or textual prerequisites unless this output names an edge. A ticket is engineering-ready only when it is pending, every depends_on output is landed, none of its families is blocked, its acceptance names no unresolved product-truth, sampling, activation, or required ticket split, and its lane needs no missing per-run authorization. Blocked and parked tickets are never executable even when their dependencies are landed. The owner briefing's build-order list is inventory, not a ready queue: apply every predicate here before selecting work. Proposed-wave work remains design-only until its named activation is resolved and a checked-model revision changes its blocked outputs to pending. Ticket landed records implementation work, while family status and evidence state separately govern what is implemented, observed, current, or claimable."
+    family_ids:
+      - CF-B32-PARITY
+      - CF-J12-A
+      - CF-J12-I
+      - CF-J12-RC
+      - CF-J12-S
+      - CF-SM-LEARN-C
+      - CF-SM-LEARN-I
+      - CF-SM-LEARN-L
+      - CF-SM-LEARN-R
+    depends_on:
+      - HB-156-L2
